@@ -155,6 +155,20 @@ def _name_tokens(text: str) -> frozenset:
     return frozenset(word for word in words if len(word) > 1 and word not in _NAME_SUFFIXES)
 
 
+OWNER_CONTEXT_COLUMNS = ("mailing_address_column", "mailing_city_column", "mailing_state_column", "mailing_zip_column", "owner_type_column")
+OWNER_COLUMNS = ("first_name_column", "last_name_column", "name_column", *OWNER_CONTEXT_COLUMNS)
+
+
+def owner_config(config: dict, phone_column: str) -> dict:
+    """Resolve the owner of a phone field. Multiple owners require an explicit association."""
+    owners = config.get("additional_owners") or []
+    index = (config.get("phone_owner_map") or {}).get(phone_column, -1 if owners else 0)
+    if index == 0:
+        return config
+    owner = owners[index - 1] if 1 <= index <= len(owners) else {}
+    return {**config, **{key: owner.get(key) for key in OWNER_COLUMNS}}
+
+
 def person_keys(row: dict, config: dict) -> tuple[str | None, frozenset | None]:
     """(a key for "the same person", the name words that identify the family). Two people are one family when their names
     share a word, so a couple who share a phone are not counted as strangers, whether the data has a last-name column,
@@ -162,7 +176,8 @@ def person_keys(row: dict, config: dict) -> tuple[str | None, frozenset | None]:
     first = _clean(row.get(config.get("first_name_column") or "")).casefold()
     last = _clean(row.get(config.get("last_name_column") or "")).casefold()
     full = _clean(row.get(config.get("name_column") or "")).casefold()
-    zip_code = re.sub(r"[^0-9a-z]", "", str(row.get(config.get("zip_column") or "") or "").casefold())[:6]
+    postal_column = config.get("mailing_zip_column") or config.get("zip_column")
+    zip_code = re.sub(r"[^0-9a-z]", "", str(row.get(postal_column or "") or "").casefold())[:6]
     if last:
         who, words = f"{first.split(' ')[0] if first else ''} {last}".strip(), _name_tokens(last)
     elif full:
@@ -274,9 +289,9 @@ def collect(knowledge: Knowledge, rows: list[dict], config: dict, source_id: str
         if checkpoint and index % 250 == 0:
             checkpoint()
         country, source = _row_country(row, config)
-        who, _ = person_keys(row, config)
         outcomes, until = _outcomes_of(row, config, day_first) if has_outcome else ([], None)
         for column in config.get("phone_columns") or []:
+            who, _ = person_keys(row, owner_config(config, column))
             for info in read_cell(row.get(column), region, country, source):
                 if not info.valid or not info.e164:
                     continue
@@ -428,10 +443,10 @@ def evaluate(rows: list[dict], row_numbers: list[int], config: dict, knowledge: 
         if checkpoint and index % 250 == 0:
             checkpoint()
         country, source = _row_country(row, config)
-        _, family = person_keys(row, config)
-        if not family:
-            continue
         for column in columns:
+            _, family = person_keys(row, owner_config(config, column))
+            if not family:
+                continue
             for info in read_cell(row.get(column), region, country, source):
                 if info.valid and info.e164:
                     families[info.e164].add(family)
@@ -477,6 +492,7 @@ def evaluate(rows: list[dict], row_numbers: list[int], config: dict, knowledge: 
         seen_before: set[str] = set()
         any_phone = False
         for column in columns:
+            context["who"], _ = person_keys(row, owner_config(config, column))
             infos = read_cell(row.get(column), region, country, source)
             if not infos:
                 per_column[column] = {"verdict": "", "reasons": [], "e164": [], "type": []}
@@ -674,4 +690,43 @@ def suggest(rows: list[dict], roles: dict[str, str], region: str = "US", sample:
         "zip_column": role_column("postal_code"), "state_column": role_column("region"),
         "outcome": None, "signals": dict(DEFAULT_SIGNALS),
     }
+    # Numbered owners and mailing fields are distinct from the property's location.
+    owners = {}
+    bindings = {}
+    aliases = {"firstname": "first_name_column", "lastname": "last_name_column", "fullname": "name_column", "name": "name_column",
+               "mailingaddress": "mailing_address_column", "mailingstreetaddress": "mailing_address_column", "mailingcity": "mailing_city_column", "mailingstate": "mailing_state_column",
+               "mailingzip": "mailing_zip_column", "mailingzipcode": "mailing_zip_column", "mailingpostalcode": "mailing_zip_column", "type": "owner_type_column", "ownertype": "owner_type_column"}
+    for column in columns:
+        header = re.sub(r"[^a-z0-9]", "", column.casefold())
+        numbered = re.search(r"owner(\d+)", header) or (re.search(r"(\d+)$", header) if "owner" in header else None)
+        index = int(numbered.group(1)) - 1 if numbered else 0
+        if not 0 <= index < 20:
+            continue
+        stripped = re.sub(r"owner\d*", "", header).rstrip("0123456789")
+        key = aliases.get(stripped) or ("name_column" if not stripped and "owner" in header else None)
+        if key and ("owner" in header or header.startswith("mailing")):
+            owners.setdefault(index, {})[key] = column
+        if column in phone_columns and "owner" in header:
+            bindings[column] = index
+        if header in ("vacant", "vacancy", "isvacant", "vacantproperty"):
+            config["vacancy_column"] = column
+        if header in ("address", "propertyaddress", "streetaddress"):
+            config["address_column"] = column
+        if header in ("city", "propertycity"):
+            config["city_column"] = column
+        if header in ("state", "propertystate"):
+            config["state_column"] = column
+        if header in ("zip", "zipcode", "propertyzip", "propertyzipcode", "postalcode", "propertypostalcode"):
+            config["zip_column"] = column
+    maximum = max([*owners.keys(), *bindings.values()], default=0)
+    config.update(owners.get(0, {}))
+    config["additional_owners"] = [owners.get(index, {}) for index in range(1, maximum + 1)]
+    config["phone_owner_map"] = bindings
+    secondary_columns = {column for owner in config["additional_owners"] for column in owner.values()}
+    for key in OWNER_COLUMNS:
+        if config.get(key) in secondary_columns:
+            config[key] = None
+    for key in ("zip_column", "state_column"):
+        if config.get(key) and "mailing" in re.sub(r"[^a-z]", "", config[key].casefold()):
+            config[key] = None
     return {"config": config, "outcome_candidates": outcome_candidates, "columns": columns}

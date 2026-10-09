@@ -25,7 +25,12 @@ export const VERDICTS: Verdict[] = ["corroborated", "unverified", "suspicious", 
 
 export type Outcome = "wrong_number" | "do_not_call" | "reached" | "wrong_person" | "disconnected" | "voicemail" | "no_answer";
 
-export type SkiptraceConfig = {
+export type OwnerColumns = {
+  first_name_column?: string | null; last_name_column?: string | null; name_column?: string | null;
+  mailing_address_column?: string | null; mailing_city_column?: string | null; mailing_state_column?: string | null; mailing_zip_column?: string | null;
+  owner_type_column?: string | null;
+};
+export type SkiptraceConfig = OwnerColumns & {
   phone_columns: string[];
   region: string;
   country_column: string | null;
@@ -36,6 +41,10 @@ export type SkiptraceConfig = {
   state_column: string | null;
   address_column?: string | null;
   business_column?: string | null;
+  city_column?: string | null;
+  vacancy_column?: string | null;
+  additional_owners?: OwnerColumns[];
+  phone_owner_map?: Record<string, number>;
   call_date_column?: string | null;
   evidence_age_days?: number;
   lookup_age_days?: number;

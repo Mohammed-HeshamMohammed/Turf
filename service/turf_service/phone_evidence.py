@@ -56,7 +56,12 @@ def record(store, payload):
         numbers = {info.e164 for column in config['phone_columns'] for info in engine.read_cell(raw.get(column), config['region'], country, source) if info.valid}
         if number not in numbers:
             raise ValueError('Choose a phone number that belongs to this source row')
-        person, _ = engine.person_keys(raw, config)
+        people = set()
+        for column in config['phone_columns']:
+            if any(info.valid and info.e164 == number for info in engine.read_cell(raw.get(column), config['region'], country, source)):
+                person_key, _ = engine.person_keys(raw, engine.owner_config(config, column))
+                people.add(person_key)
+        person = next(iter(people)) if len(people) == 1 else None
     if outcome == 'wrong_person' and not person:
         raise ValueError('Wrong person needs a source row with mapped name columns; use wrong number for unscoped evidence')
     if outcome not in ('wrong_person', 'reached'):

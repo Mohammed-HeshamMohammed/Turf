@@ -8,6 +8,7 @@ describe("complete and reusable setup", () => {
   it("reports every missing mapping instead of silently dropping it", () => {
     expect(missingColumns(config, ["Phone"])).toEqual(["Name", "Status"]);
     expect(missingColumns(config, ["Phone", "Name", "Status"])).toEqual([]);
+    expect(missingColumns({ ...config, mailing_city_column: "Mailing City", vacancy_column: "Vacant?", additional_owners: [{ name_column: "Owner 2", mailing_zip_column: "Owner 2 Zip" }] }, ["Phone", "Name", "Status"])).toEqual(["Vacant?", "Mailing City", "Owner 2", "Owner 2 Zip"]);
   });
   it("keeps every status reachable across pages and search", () => {
     const statuses = Array.from({ length: 101 }, (_, i) => ({ key: `status ${i}`, example: `Status ${i}`, count: 1, outcomes: [] }));

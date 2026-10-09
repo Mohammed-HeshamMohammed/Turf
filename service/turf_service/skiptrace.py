@@ -65,9 +65,32 @@ def clean_config(config: object, columns: list[str]) -> dict:
         "first_name_column": column("first_name_column"), "last_name_column": column("last_name_column"), "name_column": column("name_column"),
         "zip_column": column("zip_column"), "state_column": column("state_column"), "outcome": None,
         "address_column": column("address_column"), "business_column": column("business_column"), "call_date_column": column("call_date_column"),
+        "city_column": column("city_column"), "vacancy_column": column("vacancy_column"),
+        **{key: column(key) for key in engine.OWNER_CONTEXT_COLUMNS},
         "evidence_age_days": int(config.get("evidence_age_days", 180)), "lookup_age_days": int(config.get("lookup_age_days", 30)),
         "signals": {code: bool((config.get("signals") or {}).get(code, engine.DEFAULT_SIGNALS[code])) for code in engine.COUNTABLE_SIGNALS},
     }
+    owners = config.get("additional_owners") or []
+    if not isinstance(owners, list) or len(owners) > 19:
+        raise ValueError("Use at most 20 owner groups")
+    cleaned["additional_owners"] = []
+    for owner in owners:
+        if not isinstance(owner, dict):
+            raise ValueError("Each owner group must contain column mappings")
+        mapped = {}
+        for key in engine.OWNER_COLUMNS:
+            value = owner.get(key)
+            if value not in (None, "") and value not in columns:
+                raise ValueError(f"Unknown owner column: {value}")
+            mapped[key] = value or None
+        cleaned["additional_owners"].append(mapped)
+    bindings = config.get("phone_owner_map") or {}
+    if not isinstance(bindings, dict):
+        raise ValueError("Phone owner assignments must be a mapping")
+    for phone, index in bindings.items():
+        if phone not in phones or type(index) is not int or not -1 <= index <= len(owners):
+            raise ValueError("Choose a valid owner group for each phone column")
+    cleaned["phone_owner_map"] = dict(bindings)
     if not 1 <= cleaned["evidence_age_days"] <= 3650 or not 1 <= cleaned["lookup_age_days"] <= 365:
         raise ValueError("Evidence age must be 1–3650 days and lookup age 1–365 days")
     outcome = config.get("outcome")
@@ -83,7 +106,8 @@ def clean_config(config: object, columns: list[str]) -> dict:
             if str(key):
                 if any(kind in chosen for kind in ("wrong_number", "wrong_person", "disconnected")) and "reached" in chosen:
                     raise ValueError("A status cannot be both wrong number/wrong person/disconnected and reached a person")
-                if "wrong_person" in chosen and not any(cleaned[key] for key in ("first_name_column", "last_name_column", "name_column")):
+                person_config = engine.owner_config(cleaned, called)
+                if "wrong_person" in chosen and not any(person_config.get(key) for key in ("first_name_column", "last_name_column", "name_column")):
                     raise ValueError("Map name columns before using a wrong-person outcome")
                 mapping[str(key)] = chosen
         cleaned["outcome"] = {"column": outcome["column"], "called_column": called, "map": mapping}

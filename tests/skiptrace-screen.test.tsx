@@ -73,15 +73,15 @@ describe("the complete five-step process", () => {
     mocks.suggest.mockResolvedValue({ ...setup, columns: ["First Name", "Last Name", "Address", "City", "State", "Zip", "Contact", "Other State"], config: { ...config, phone_columns: [], name_column: null, first_name_column: "First Name", last_name_column: "Last Name", state_column: "State", zip_column: "Zip" } });
     const user = await start();
     expect(document.querySelectorAll(".skiptrace-column-row")).toHaveLength(8);
-    expect(screen.getByRole("button", { name: "Role for First Name: First name" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Role for First Name: Owner first name" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Role for Contact: Not used in this step" }));
     await user.click(screen.getByRole("option", { name: "Phone number", exact: true }));
     expect((within(document.querySelector(".wizard-nav") as HTMLElement).getByRole("button", { name: "Next" }) as HTMLButtonElement).disabled).toBe(false);
     await user.click(screen.getByRole("button", { name: "Role for Other State: Not used in this step" }));
-    await user.click(screen.getByRole("option", { name: "State", exact: true }));
+    await user.click(screen.getByRole("option", { name: "Property state", exact: true }));
     expect(screen.getByRole("button", { name: "Role for State: Not used in this step" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Role for Address: Not used in this step" }));
-    await user.click(screen.getByRole("option", { name: "Street address", exact: true }));
+    await user.click(screen.getByRole("option", { name: "Property street address", exact: true }));
     await user.click(screen.getByRole("button", { name: "Role for City: Not used in this step" }));
     await user.click(screen.getByRole("option", { name: "Phone number", exact: true }));
     await waitFor(() => {
@@ -94,6 +94,38 @@ describe("the complete five-step process", () => {
     await user.click(screen.getByRole("button", { name: "Role for Contact: Phone number" }));
     await user.click(screen.getByRole("option", { name: "Not used in this step", exact: true }));
     await waitFor(() => expect(JSON.parse(localStorage.getItem("turf.skiptrace.draft.project.list")!).state.called).toBe("City"));
+  });
+
+  it("keeps secondary owner names and mailing roles separate and saves phone associations", async () => {
+    mocks.suggest.mockResolvedValue({ ...setup, columns: ["Name", "Second Owner", "Phone", "Other Phone", "Mailing City", "Vacant?", "Status"] });
+    const user = await start();
+    await user.click(screen.getByRole("button", { name: "Add another owner" }));
+    await user.click(screen.getByRole("button", { name: "Role for Second Owner: Not used in this step" }));
+    await user.click(screen.getByRole("option", { name: "Owner full name", exact: true }));
+    expect(screen.getByRole("button", { name: "Role for Name: Owner full name" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Owner for Second Owner: Owner 2" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Role for Other Phone: Not used in this step" }));
+    await user.click(screen.getByRole("option", { name: "Phone number", exact: true }));
+    expect(screen.getByRole("button", { name: "Owner for Other Phone: Owner not assigned" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Owner for Other Phone: Owner not assigned" }));
+    await user.click(screen.getByRole("option", { name: "Owner 2", exact: true }));
+    await user.click(screen.getByRole("button", { name: "Role for Mailing City: Not used in this step" }));
+    await user.click(screen.getByRole("option", { name: "Mailing city", exact: true }));
+    await user.click(screen.getByRole("button", { name: "Owner for Mailing City: Owner 1" }));
+    await user.click(screen.getByRole("option", { name: "Owner 2", exact: true }));
+    await user.click(screen.getByRole("button", { name: "Role for Vacant?: Not used in this step" }));
+    await user.click(screen.getByRole("option", { name: "Vacancy / vacant", exact: true }));
+    await waitFor(() => {
+      const saved = JSON.parse(localStorage.getItem("turf.skiptrace.draft.project.list")!).state.base;
+      expect(saved.name_column).toBe("Name");
+      expect(saved.additional_owners[0]).toMatchObject({ name_column: "Second Owner", mailing_city_column: "Mailing City" });
+      expect(saved.phone_owner_map).toEqual({ Phone: 0, "Other Phone": 1 });
+      expect(saved.vacancy_column).toBe("Vacant?");
+    });
+    await user.click(screen.getByRole("button", { name: "Remove Owner 2" }));
+    await user.click(screen.getByRole("button", { name: "Owner for Other Phone: Owner not assigned" }));
+    await user.click(screen.getByRole("option", { name: "Owner 1", exact: true }));
+    await waitFor(() => expect(JSON.parse(localStorage.getItem("turf.skiptrace.draft.project.list")!).state.base.phone_owner_map["Other Phone"]).toBe(0));
   });
 
   it("keeps identifier-looking columns from being accepted without review", async () => {

@@ -17,15 +17,20 @@ def same_person(recorded, current):
 def shared_context(rows, config, engine):
     found = defaultdict(list)
     for row in rows:
-        who, family = engine.person_keys(row, config)
         country, source = engine._row_country(row, config)
-        address = engine._clean(row.get(config.get('address_column') or '')).casefold()
-        postal = engine._clean(row.get(config.get('zip_column') or '')).casefold()
         company = engine._clean(row.get(config.get('business_column') or '')).casefold()
         for column in config['phone_columns']:
+            owner = engine.owner_config(config, column)
+            who, family = engine.person_keys(row, owner)
+            mailing = owner.get('mailing_address_column')
+            vacant = engine._clean(row.get(config.get('vacancy_column') or '')).casefold() in ('yes', 'y', 'true', '1', 'vacant', 'vacancy')
+            address = engine._clean(row.get(mailing or (config.get('address_column') if not vacant else '') or '')).casefold()
+            postal = engine._clean(row.get((owner.get('mailing_zip_column') if mailing else config.get('zip_column')) or '')).casefold()
+            city = engine._clean(row.get((owner.get('mailing_city_column') if mailing else config.get('city_column')) or '')).casefold()
+            state = engine._clean(row.get((owner.get('mailing_state_column') if mailing else config.get('state_column')) or '')).casefold()
             for info in engine.read_cell(row.get(column), config.get('region') or 'US', country, source):
                 if info.valid and info.e164:
-                    found[info.e164].append((who, family, (address, postal) if address else None, company, info.business_line))
+                    found[info.e164].append((who, family, (address, city, state, postal) if address else None, company, info.business_line))
     result = {}
     for number, entries in found.items():
         people = {entry[0] for entry in entries if entry[0]}
@@ -67,6 +72,9 @@ def assess(info, column, row, config, context, shared, engine):
     dated_positive = [event for event in positive if event.get('occurred_at')]
     dated_negative = [event for event in negative if event.get('occurred_at')]
     warnings = []
+    owner_index = (config.get('phone_owner_map') or {}).get(column, -1 if config.get('additional_owners') else 0)
+    if owner_index < 0:
+        warnings.append('This phone field has no assigned owner; ownership is unknown')
     if any(event.get('scope_unknown') for event in events):
         warnings.append('Imported wrong-person result has no named person to match; review the source row before using it as negative evidence')
     age_days = config.get('evidence_age_days', 180)

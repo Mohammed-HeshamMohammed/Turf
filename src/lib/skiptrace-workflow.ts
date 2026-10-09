@@ -16,7 +16,10 @@ export type SetupTemplate = { id: string; name: string; config: SkiptraceConfig;
 
 export function missingColumns(config: SkiptraceConfig, columns: string[]): string[] {
   return [...new Set([...config.phone_columns, config.country_column, config.first_name_column, config.last_name_column,
-    config.name_column, config.zip_column, config.state_column, config.address_column, config.business_column, config.call_date_column, config.outcome?.column, config.outcome?.called_column]
+    config.name_column, config.zip_column, config.state_column, config.address_column, config.city_column, config.business_column, config.vacancy_column,
+    config.mailing_address_column, config.mailing_city_column, config.mailing_state_column, config.mailing_zip_column, config.owner_type_column,
+    ...(config.additional_owners ?? []).flatMap(owner => Object.values(owner)), ...Object.keys(config.phone_owner_map ?? {}),
+    config.call_date_column, config.outcome?.column, config.outcome?.called_column]
     .filter((column): column is string => Boolean(column) && !columns.includes(column!)))];
 }
 

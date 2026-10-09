@@ -451,7 +451,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
         <div className="checks column">
           {setup.signals.filter(sign => !sign.measured_only).map(sign => (
             <Check key={sign.code} checked={Boolean(base.signals[sign.code])} onChange={on => patch({ signals: { ...base.signals, [sign.code]: on } })}><span>{sign.label}</span><small>{SIGN_HELP[sign.code]?.example}<br />{SIGN_HELP[sign.code]?.needs}
-              {sign.code === "shared_number" && !base.name_column && !base.first_name_column && !base.last_name_column && <><br />No name column mapped yet.</>}
+              {sign.code === "shared_number" && ![base, ...(base.additional_owners ?? [])].some(owner => owner.name_column || owner.first_name_column || owner.last_name_column) && <><br />No owner name column mapped yet.</>}
               {sign.code === "area_code_other_state" && !base.state_column && <><br />No property state column mapped yet.</>}
               {sign.code === "country_mismatch" && !base.country_column && !base.zip_column && !base.state_column && <><br />No address country evidence mapped yet.</>}
             </small></Check>
@@ -462,7 +462,9 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
         <p className="muted">Checking saves this setup for future checks and reads every selected phone value. Your original list stays unchanged; the checked copy is saved separately in the last step.</p>
         <h3>Review before checking</h3>
         <dl className="skiptrace-review-summary"><div><dt>Phone columns</dt><dd>{base.phone_columns.join(", ")}</dd></div><div><dt>Country</dt><dd>{regionName(base.region)} · row override: {base.country_column ?? "None"}</dd></div>
-          <div><dt>Names and areas</dt><dd>{[base.first_name_column, base.last_name_column, base.name_column, base.zip_column, base.state_column].filter(Boolean).join(", ") || "Not mapped"}</dd></div>
+          <div><dt>Owners and mailing fields</dt><dd>{[base, ...(base.additional_owners ?? [])].map((owner, index) => `Owner ${index + 1}: ${[owner.first_name_column, owner.last_name_column, owner.name_column, owner.mailing_address_column, owner.mailing_city_column, owner.mailing_state_column, owner.mailing_zip_column, owner.owner_type_column].filter(Boolean).join(", ") || "Not mapped"}`).join(" · ")}</dd></div>
+          <div><dt>Phone owner assignments</dt><dd>{base.phone_columns.map(column => `${column}: ${base.phone_owner_map?.[column] === -1 || (base.additional_owners?.length && base.phone_owner_map?.[column] === undefined) ? "Owner unknown" : `Owner ${(base.phone_owner_map?.[column] ?? 0) + 1}`}`).join(" · ")}</dd></div>
+          <div><dt>Property and vacancy fields</dt><dd>{[base.address_column, base.city_column, base.zip_column, base.state_column, base.vacancy_column].filter(Boolean).join(", ") || "Not mapped"}</dd></div>
           <div><dt>Outcomes</dt><dd>{outcomeColumn ? `${outcomeColumn} describes ${called}; ${unreviewed.length} unreviewed statuses; ${ignored.length} intentionally ignored` : "No outcome column"}</dd></div>
           <div><dt>Warning signs</dt><dd>{setup.signals.filter(sign => !sign.measured_only && base.signals[sign.code]).map(sign => sign.label).join(" · ") || "All configurable signs off"}</dd></div>
         </dl>

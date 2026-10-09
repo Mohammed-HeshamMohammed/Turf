@@ -34,12 +34,12 @@ export function SkiptraceTemplates({ projectId, columns, config, onApply, onErro
   }
   return <details className="step skiptrace-optional template-box">
     <summary>Reuse or save a setup template</summary>
-    <p className="muted">Templates keep phone, country, name, area, outcome, and warning-sign settings. They are scoped to this project on this computer. Missing columns never get silently substituted.</p>
-    {templates.length > 0 && <div className="row">
+    <p className="muted">Templates keep column roles, owner groups, mailing fields, call outcomes, and warning settings for this project.</p>
+    {templates.length > 0 && <div className="template-controls">
       <Field label="Saved setup" optional="Choose a template" value={selected} onChange={setSelected} options={templates.map(item => ({ value: item.id, label: item.name }))} />
       <button type="button" className="button ghost" disabled={!chosen || applying} onClick={() => void apply()}>{applying ? "Loading…" : "Apply and review"}</button>
     </div>}
-    <div className="row"><label className="field"><span>New template name</span><input className="input" maxLength={200} value={name} onChange={event => setName(event.target.value)} placeholder="For example: monthly dialer export" /></label>
+    <div className="template-controls"><label className="field"><span>New template name</span><input className="input" maxLength={200} value={name} onChange={event => setName(event.target.value)} placeholder="e.g. Monthly owner list" /></label>
       <button type="button" className="button ghost" disabled={!name.trim() || applying} onClick={save}>Save current setup as a template</button>
     </div>
     {message && <p role="status" className="notice good">{message}</p>}
