@@ -479,16 +479,25 @@ tbody tr:first-child th[scope="row"] { border-top: 0; }
 .skiptrace-columns { display: grid; gap: 14px; width: 100%; min-width: 0; }
 .skiptrace-column-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; }
 .skiptrace-column-tools .search-box { width: min(340px, 100%); }
-.skiptrace-column-list { min-width: 0; }
 .skiptrace-owner-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
-.skiptrace-column-assignment { display: grid; gap: 8px; min-width: 0; }
 .template-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 14px; width: 100%; }
 .template-controls .field, .template-controls .input { width: 100%; min-width: 0; }
 .template-controls .button { max-width: 100%; white-space: normal; }
-.skiptrace-column-row { display: grid; grid-template-columns: minmax(0, 1fr) 230px; align-items: center; gap: 12px 24px; padding: 12px 0; border-bottom: 1px solid var(--line); }
-.skiptrace-column-source { display: grid; gap: 4px; min-width: 0; }
-.skiptrace-column-source strong { font-weight: 550; overflow-wrap: anywhere; }
-.skiptrace-column-source small { color: var(--muted); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.skiptrace-column-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.skiptrace-column-filters button { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 12px; background: var(--well); font-size: 13px; }
+.skiptrace-column-filters button[aria-pressed="true"] { background: var(--ink); color: white; }
+.skiptrace-column-filters span { opacity: .65; }
+.skiptrace-column-list { min-width: 0; max-height: min(54vh, 520px); overflow: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 14px; scrollbar-gutter: stable; }
+.skiptrace-column-row, .skiptrace-column-head { display: grid; grid-template-columns: minmax(100px, 1.1fr) minmax(100px, 1.5fr) minmax(160px, 1.2fr) minmax(110px, .9fr); align-items: center; gap: 10px; padding: 10px 12px; }
+.skiptrace-column-head { position: sticky; top: 0; z-index: 1; color: var(--muted); font-size: 12px; background: var(--well); }
+.skiptrace-column-row { border-top: 1px solid var(--line); }
+.skiptrace-column-row .select { min-width: 0; }
+.skiptrace-column-row .select-button { padding: 0 10px; border-radius: 10px; font-size: 13px; }
+.skiptrace-column-name { min-width: 0; font-size: 13.5px; font-weight: 550; overflow-wrap: anywhere; }
+.skiptrace-column-samples { min-width: 0; color: var(--muted); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.skiptrace-column-empty { padding: 18px; }
+.select-menu-portal { top: auto; display: flex; flex-direction: column; max-width: calc(100vw - 24px); }
+.select-menu-portal ul { min-height: 0; flex: 1; overscroll-behavior: contain; }
 .skiptrace .checks.column .check { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-content: start; gap: 4px 9px; }
 .skiptrace .checks.column .check > i { grid-column: 1; grid-row: 1; }
 .skiptrace .checks.column .check > span { grid-column: 2; grid-row: 1; overflow-wrap: anywhere; }
@@ -545,7 +554,7 @@ tbody tr:first-child th[scope="row"] { border-top: 0; }
   .skiptrace .wizard-step > .card { padding: 18px; }
   .skiptrace .wizard-nav { gap: 8px; padding: 10px; }
   .skiptrace .wizard-nav .button { padding: 10px 12px; font-size: 13px; white-space: nowrap; }
-  .skiptrace-review-summary, .skiptrace-column-row { grid-template-columns: minmax(0, 1fr); }
+  .skiptrace-review-summary { grid-template-columns: minmax(0, 1fr); }
   .template-controls { grid-template-columns: minmax(0, 1fr); }
 }
 
@@ -561,3 +570,11 @@ tbody tr:first-child th[scope="row"] { border-top: 0; }
 .phone-choice-list { list-style: decimal; }
 .phone-choice-list ul { list-style: disc; }
 .dialer-evidence { display: grid; gap: 12px; margin-bottom: 20px; padding: 16px; border: 1px solid var(--line); border-radius: 10px; }
+
+@media (max-width: 850px) {
+  .skiptrace-column-head { display: none; }
+  .skiptrace-column-row { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
+  .skiptrace-column-name, .skiptrace-column-samples { grid-column: 1 / -1; }
+  .skiptrace-column-no-owner { display: none; }
+  .skiptrace-column-list { max-height: 58vh; }
+}

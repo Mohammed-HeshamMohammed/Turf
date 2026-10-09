@@ -48,7 +48,10 @@ afterEach(cleanup);
 async function start() {
   render(<SkipTracing turf={turf} />);
   await screen.findByRole("heading", { name: "Monthly list" });
-  return userEvent.setup();
+  const user = userEvent.setup();
+  const allFields = screen.queryByRole("button", { name: /^All fields/ });
+  if (allFields) await user.click(allFields);
+  return user;
 }
 async function scan(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: /3\s*Warning signs/ }));
@@ -58,15 +61,18 @@ async function scan(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("the complete five-step process", () => {
-  it("keeps one searchable role row per source column and expands long lists", async () => {
+  it("filters wide source-column lists and searches every field", async () => {
     const extra = Array.from({ length: 16 }, (_, index) => `Column ${index + 1}`);
     mocks.suggest.mockResolvedValue({ ...setup, columns: [...setup.columns, ...extra] });
     const user = await start();
-    expect(document.querySelectorAll(".skiptrace-column-row")).toHaveLength(8);
-    await user.click(screen.getByRole("button", { name: "Show all 19 columns" }));
     expect(document.querySelectorAll(".skiptrace-column-row")).toHaveLength(19);
+    await user.click(screen.getByRole("button", { name: /^Mapped/ }));
+    expect(document.querySelectorAll(".skiptrace-column-row")).toHaveLength(2);
+    await user.click(screen.getByRole("button", { name: /^Other fields/ }));
+    expect(document.querySelectorAll(".skiptrace-column-row")).toHaveLength(17);
     await user.type(screen.getByRole("searchbox", { name: "Find a column" }), "Column 14");
     expect(document.querySelectorAll(".skiptrace-column-row")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /^All fields/ }).getAttribute("aria-pressed")).toBe("true");
   });
 
   it("assigns phone and context roles in the same list without duplicate mappings", async () => {
