@@ -32,7 +32,7 @@ export function SkiptraceTemplates({ projectId, columns, config, onApply, onErro
     catch (reason) { onError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setApplying(false); }
   }
-  return <details className="card step template-box">
+  return <details className="step skiptrace-optional template-box">
     <summary>Reuse or save a setup template</summary>
     <p className="muted">Templates keep phone, country, name, area, outcome, and warning-sign settings. They are scoped to this project on this computer. Missing columns never get silently substituted.</p>
     {templates.length > 0 && <div className="row">

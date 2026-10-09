@@ -58,6 +58,18 @@ async function scan(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("the complete five-step process", () => {
+  it("keeps long source-column lists searchable and limited until requested", async () => {
+    const extra = Array.from({ length: 16 }, (_, index) => `Column ${index + 1}`);
+    mocks.suggest.mockResolvedValue({ ...setup, columns: [...setup.columns, ...extra] });
+    const user = await start();
+    await user.click(screen.getByText("Browse other columns (18)"));
+    expect(document.querySelectorAll(".other-column-list .check")).toHaveLength(8);
+    await user.click(screen.getByRole("button", { name: "Show all 18 columns" }));
+    expect(document.querySelectorAll(".other-column-list .check")).toHaveLength(18);
+    await user.type(screen.getByRole("searchbox", { name: "Find a column" }), "Column 14");
+    expect(document.querySelectorAll(".other-column-list .check")).toHaveLength(1);
+  });
+
   it("keeps identifier-looking columns from being accepted without review", async () => {
     mocks.suggest.mockResolvedValue({ ...setup, columns: ["APN", "Name", "Phone", "Status"], config: { ...config, phone_columns: ["APN"] }, column_samples: { ...setup.column_samples, APN: ["6117-016-011"] } });
     const user = await start();

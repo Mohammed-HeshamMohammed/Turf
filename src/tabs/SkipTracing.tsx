@@ -104,8 +104,10 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   const [reviewed, setReviewed] = useState<string[]>(draft?.reviewed ?? known?.statuses.filter(item => item.confirmed).map(item => item.key) ?? []);
   const [more, setMore] = useState(false);
   const [columnQuery, setColumnQuery] = useState("");
+  const [showAllOtherColumns, setShowAllOtherColumns] = useState(false);
   const [confirmedIdentifierColumns, setConfirmedIdentifierColumns] = useState<string[]>([]);
   const [step, setStep] = useState(Math.min(4, Math.max(0, draft?.step ?? 0)));
+  const previousStep = useRef(step);
   const [busy, setBusy] = useState<"scan" | "apply" | null>(draft?.activeJob?.kind ?? null);
   const [activeJob, setActiveJob] = useState<WorkflowDraft["activeJob"]>(draft?.activeJob ?? null);
   const [statusBusy, setStatusBusy] = useState(false);
@@ -165,6 +167,10 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
 
   useEffect(() => {
     if (!view.current || view.current.closest("[hidden]")) return;
+    if (previousStep.current !== step) {
+      view.current.querySelector(".stepper")?.scrollIntoView?.({ block: "start", behavior: "instant" });
+      previousStep.current = step;
+    }
     const heading = view.current.querySelector<HTMLElement>(".wizard-step:not([hidden]) h2");
     if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
   }, [step, Boolean(setup)]);
@@ -321,6 +327,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   const outcomes = report?.outcomes;
   const primaryColumns = setup.columns.filter(column => base.phone_columns.includes(column) || PHONE_COLUMN_NAME.test(column));
   const otherColumns = setup.columns.filter(column => !primaryColumns.includes(column) && column.toLowerCase().includes(columnQuery.trim().toLowerCase()));
+  const visibleOtherColumns = columnQuery.trim() || showAllOtherColumns ? otherColumns : otherColumns.slice(0, 8);
   const questionableColumns = base.phone_columns.filter(column => IDENTIFIER_COLUMN_NAME.test(column) && !PHONE_COLUMN_NAME.test(column));
   const hasPhones = base.phone_columns.length > 0 && missing.length === 0 && questionableColumns.every(column => confirmedIdentifierColumns.includes(column));
   const reachable = (index: number) => index === 0 || (index <= 2 ? hasPhones : Boolean(report));
@@ -362,17 +369,19 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
       <fieldset className="workflow-inputs" disabled={busy !== null || statusBusy || importingLegacy}>
       <legend className="sr-only">Phone-check setup</legend>
       <div className="wizard-step" hidden={step !== 0}>
-      <SkiptraceTemplates projectId={turf.projectId} columns={setup.columns} config={config} onApply={applyTemplate} onError={setError} />
       <article className="card step">
         <header><h2>Which columns hold phone numbers</h2></header>
         <p className="muted">Select only fields that contain phone numbers. The samples help you verify each choice.</p>
+        <SkiptraceTemplates projectId={turf.projectId} columns={setup.columns} config={config} onApply={applyTemplate} onError={setError} />
         {questionableColumns.length > 0 && <div className="notice" role="alert"><span>Double-check {questionableColumns.join(", ")}: its name looks like an identifier, not a phone field. Uncheck it if these are parcel or account numbers.</span><Check checked={questionableColumns.every(column => confirmedIdentifierColumns.includes(column))} onChange={on => setConfirmedIdentifierColumns(on ? questionableColumns : [])}>I verified these are phone numbers</Check></div>}
         {primaryColumns.length > 0 ? <div className="checks phone-column-grid">
           {primaryColumns.map(column => <Check key={column} checked={base.phone_columns.includes(column)} onChange={on => togglePhone(column, on)}><span>{column}</span><small className="column-samples">{(setup.column_samples[column] ?? []).join(" · ") || "No nonempty sample"}</small></Check>)}
         </div> : <p className="notice">No likely phone field was found. Open the other columns below if this file does contain phone numbers.</p>}
         {setup.columns.length > primaryColumns.length && <details className="step skiptrace-optional"><summary>Browse other columns ({setup.columns.length - primaryColumns.length})</summary>
-          <SearchBox value={columnQuery} onChange={setColumnQuery} placeholder="Find a column" />
-          <div className="checks phone-column-grid">{otherColumns.map(column => <Check key={column} checked={false} onChange={on => togglePhone(column, on)}><span>{column}</span><small className="column-samples">{(setup.column_samples[column] ?? []).join(" · ") || "No nonempty sample"}</small></Check>)}</div>
+          <p className="muted">Search the remaining fields if a phone column was missed. Check the sample before selecting one.</p>
+          <SearchBox value={columnQuery} onChange={value => { setColumnQuery(value); setShowAllOtherColumns(false); }} placeholder="Find a column" />
+          <div className="checks other-column-list">{visibleOtherColumns.map(column => <Check key={column} checked={false} onChange={on => togglePhone(column, on)}><span>{column}</span><small className="column-samples">{(setup.column_samples[column] ?? []).join(" · ") || "No nonempty sample"}</small></Check>)}</div>
+          {!columnQuery.trim() && !showAllOtherColumns && otherColumns.length > visibleOtherColumns.length && <button type="button" className="link" onClick={() => setShowAllOtherColumns(true)}>Show all {otherColumns.length} columns</button>}
           {otherColumns.length === 0 && <p className="muted">No other column matches that search.</p>}
         </details>}
         <div className="fields">
@@ -481,7 +490,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
         {config && <details className="step skiptrace-optional" onToggle={event => setAdvancedLookup(event.currentTarget.open)}><summary>Optional external lookup</summary><p className="muted">Dialer exports and normal phone checks work without an external provider.</p>{advancedLookup && <PhoneLookup datasetId={dataset.id} config={config} projectId={turf.projectId} onUpdated={turf.refresh} />}</details>}
         <p className="muted">Checking saves this setup for future checks and reads every selected phone value. Your original list stays unchanged; the checked copy is saved separately in the last step.</p>
         <h3>Review before checking</h3>
-        <dl className="metrics text"><div><dt>Phone columns</dt><dd>{base.phone_columns.join(", ")}</dd></div><div><dt>Country</dt><dd>{regionName(base.region)} · row override: {base.country_column ?? "None"}</dd></div>
+        <dl className="skiptrace-review-summary"><div><dt>Phone columns</dt><dd>{base.phone_columns.join(", ")}</dd></div><div><dt>Country</dt><dd>{regionName(base.region)} · row override: {base.country_column ?? "None"}</dd></div>
           <div><dt>Names and areas</dt><dd>{[base.first_name_column, base.last_name_column, base.name_column, base.zip_column, base.state_column].filter(Boolean).join(", ") || "Not mapped"}</dd></div>
           <div><dt>Outcomes</dt><dd>{outcomeColumn ? `${outcomeColumn} describes ${called}; ${unreviewed.length} unreviewed statuses; ${ignored.length} intentionally ignored` : "No outcome column"}</dd></div>
           <div><dt>Warning signs</dt><dd>{setup.signals.filter(sign => !sign.measured_only && base.signals[sign.code]).map(sign => sign.label).join(" · ") || "All configurable signs off"}</dd></div>
@@ -686,7 +695,8 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
         <button type="button" className="button ghost" disabled={step === 0 || busy !== null || statusBusy} onClick={() => setStep(step - 1)}>Back</button>
         <span className="muted">Step {step + 1} of {STEPS.length}: {STEPS[step]}</span>
         {step < 2 && <button type="button" className="button" disabled={!hasPhones || busy !== null || statusBusy || importingLegacy} onClick={() => setStep(step + 1)}>Next</button>}
-        {step === 2 && (
+        {step === 2 && !hasPhones && <button type="button" className="button" onClick={() => setStep(0)}>Review phone columns</button>}
+        {step === 2 && hasPhones && (
           <div className="row">
             {report && !stale && <button type="button" className="button ghost" onClick={() => setStep(3)}>See the last results</button>}
             <button type="button" className="button" disabled={!hasPhones || busy !== null || statusBusy || importingLegacy} onClick={() => void check()}>
@@ -694,7 +704,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
             </button>
           </div>
         )}
-        {step === 3 && <button type="button" className="button" disabled={stale || busy !== null || freshnessPending || !hasPhones} onClick={() => setStep(4)}>Next</button>}
+        {step === 3 && (!hasPhones ? <button type="button" className="button" onClick={() => setStep(0)}>Review phone columns</button> : <button type="button" className="button" disabled={stale || busy !== null || freshnessPending} onClick={() => setStep(4)}>Next</button>)}
         {step === 4 && <span />}
       </footer>
     </section>
