@@ -58,29 +58,42 @@ async function scan(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("the complete five-step process", () => {
-  it("keeps long source-column lists searchable and limited until requested", async () => {
+  it("keeps one searchable role row per source column and expands long lists", async () => {
     const extra = Array.from({ length: 16 }, (_, index) => `Column ${index + 1}`);
     mocks.suggest.mockResolvedValue({ ...setup, columns: [...setup.columns, ...extra] });
     const user = await start();
-    await user.click(screen.getByText("Find a phone column with another name"));
-    expect(document.querySelectorAll(".other-column-list .check")).toHaveLength(0);
-    await user.click(screen.getByRole("button", { name: "Browse all 18 column names" }));
-    expect(document.querySelectorAll(".other-column-list .check")).toHaveLength(8);
-    await user.click(screen.getByRole("button", { name: "Show all 18 columns" }));
-    expect(document.querySelectorAll(".other-column-list .check")).toHaveLength(18);
-    await user.type(screen.getByRole("searchbox", { name: "Search column names" }), "Column 14");
-    expect(document.querySelectorAll(".other-column-list .check")).toHaveLength(1);
+    expect(document.querySelectorAll(".skiptrace-column-row")).toHaveLength(8);
+    await user.click(screen.getByRole("button", { name: "Show all 19 columns" }));
+    expect(document.querySelectorAll(".skiptrace-column-row")).toHaveLength(19);
+    await user.type(screen.getByRole("searchbox", { name: "Find a column" }), "Column 14");
+    expect(document.querySelectorAll(".skiptrace-column-row")).toHaveLength(1);
   });
 
-  it("does not repeat name and address mappings when no phone field was found", async () => {
-    mocks.suggest.mockResolvedValue({ ...setup, columns: ["First Name", "Last Name", "Address", "City", "State", "Zip"], config: { ...config, phone_columns: [], name_column: null, first_name_column: "First Name", last_name_column: "Last Name", state_column: "State", zip_column: "Zip" } });
+  it("assigns phone and context roles in the same list without duplicate mappings", async () => {
+    mocks.suggest.mockResolvedValue({ ...setup, columns: ["First Name", "Last Name", "Address", "City", "State", "Zip", "Contact", "Other State"], config: { ...config, phone_columns: [], name_column: null, first_name_column: "First Name", last_name_column: "Last Name", state_column: "State", zip_column: "Zip" } });
     const user = await start();
-    expect(screen.getByText(/No phone-number column was identified/)).toBeTruthy();
-    expect(document.querySelectorAll(".other-column-list .check")).toHaveLength(0);
-    expect(screen.queryByText("Columns that help find shared numbers and areas (optional)")).toBeNull();
-    await user.click(screen.getByText("Find a phone column with another name"));
-    await user.type(screen.getByRole("searchbox", { name: "Search column names" }), "Address");
-    expect(document.querySelectorAll(".other-column-list .check")).toHaveLength(1);
+    expect(document.querySelectorAll(".skiptrace-column-row")).toHaveLength(8);
+    expect(screen.getByRole("button", { name: "Role for First Name: First name" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Role for Contact: Not used in this step" }));
+    await user.click(screen.getByRole("option", { name: "Phone number", exact: true }));
+    expect((within(document.querySelector(".wizard-nav") as HTMLElement).getByRole("button", { name: "Next" }) as HTMLButtonElement).disabled).toBe(false);
+    await user.click(screen.getByRole("button", { name: "Role for Other State: Not used in this step" }));
+    await user.click(screen.getByRole("option", { name: "State", exact: true }));
+    expect(screen.getByRole("button", { name: "Role for State: Not used in this step" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Role for Address: Not used in this step" }));
+    await user.click(screen.getByRole("option", { name: "Street address", exact: true }));
+    await user.click(screen.getByRole("button", { name: "Role for City: Not used in this step" }));
+    await user.click(screen.getByRole("option", { name: "Phone number", exact: true }));
+    await waitFor(() => {
+      const saved = JSON.parse(localStorage.getItem("turf.skiptrace.draft.project.list")!).state;
+      expect(saved.base.phone_columns).toEqual(["Contact", "City"]);
+      expect(saved.base.state_column).toBe("Other State");
+      expect(saved.base.address_column).toBe("Address");
+      expect(saved.called).toBe("Contact");
+    });
+    await user.click(screen.getByRole("button", { name: "Role for Contact: Phone number" }));
+    await user.click(screen.getByRole("option", { name: "Not used in this step", exact: true }));
+    await waitFor(() => expect(JSON.parse(localStorage.getItem("turf.skiptrace.draft.project.list")!).state.called).toBe("City"));
   });
 
   it("keeps identifier-looking columns from being accepted without review", async () => {
@@ -159,7 +172,7 @@ describe("the complete five-step process", () => {
     await user.click(screen.getByRole("option", { name: "Another export" }));
     await user.click(screen.getByRole("button", { name: "Apply and review" }));
     expect(await screen.findByRole("alert")).toHaveProperty("textContent", expect.stringContaining("Missing phone"));
-    expect((screen.getByRole("checkbox", { name: /Phone.*7135553142/ }) as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByRole("button", { name: "Role for Phone: Phone number" })).toBeTruthy();
   });
 
   it("blocks saving when project evidence has changed since the check", async () => {
