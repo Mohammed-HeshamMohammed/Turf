@@ -104,6 +104,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   const [reviewed, setReviewed] = useState<string[]>(draft?.reviewed ?? known?.statuses.filter(item => item.confirmed).map(item => item.key) ?? []);
   const [more, setMore] = useState(false);
   const [columnQuery, setColumnQuery] = useState("");
+  const [browseOtherColumns, setBrowseOtherColumns] = useState(false);
   const [showAllOtherColumns, setShowAllOtherColumns] = useState(false);
   const [confirmedIdentifierColumns, setConfirmedIdentifierColumns] = useState<string[]>([]);
   const [step, setStep] = useState(Math.min(4, Math.max(0, draft?.step ?? 0)));
@@ -327,7 +328,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   const outcomes = report?.outcomes;
   const primaryColumns = setup.columns.filter(column => base.phone_columns.includes(column) || PHONE_COLUMN_NAME.test(column));
   const otherColumns = setup.columns.filter(column => !primaryColumns.includes(column) && column.toLowerCase().includes(columnQuery.trim().toLowerCase()));
-  const visibleOtherColumns = columnQuery.trim() || showAllOtherColumns ? otherColumns : otherColumns.slice(0, 8);
+  const visibleOtherColumns = columnQuery.trim() ? otherColumns : browseOtherColumns ? (showAllOtherColumns ? otherColumns : otherColumns.slice(0, 8)) : [];
   const questionableColumns = base.phone_columns.filter(column => IDENTIFIER_COLUMN_NAME.test(column) && !PHONE_COLUMN_NAME.test(column));
   const hasPhones = base.phone_columns.length > 0 && missing.length === 0 && questionableColumns.every(column => confirmedIdentifierColumns.includes(column));
   const reachable = (index: number) => index === 0 || (index <= 2 ? hasPhones : Boolean(report));
@@ -376,14 +377,16 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
         {questionableColumns.length > 0 && <div className="notice" role="alert"><span>Double-check {questionableColumns.join(", ")}: its name looks like an identifier, not a phone field. Uncheck it if these are parcel or account numbers.</span><Check checked={questionableColumns.every(column => confirmedIdentifierColumns.includes(column))} onChange={on => setConfirmedIdentifierColumns(on ? questionableColumns : [])}>I verified these are phone numbers</Check></div>}
         {primaryColumns.length > 0 ? <div className="checks phone-column-grid">
           {primaryColumns.map(column => <Check key={column} checked={base.phone_columns.includes(column)} onChange={on => togglePhone(column, on)}><span>{column}</span><small className="column-samples">{(setup.column_samples[column] ?? []).join(" · ") || "No nonempty sample"}</small></Check>)}
-        </div> : <p className="notice">No likely phone field was found. Open the other columns below if this file does contain phone numbers.</p>}
-        {setup.columns.length > primaryColumns.length && <details className="step skiptrace-optional"><summary>Browse other columns ({setup.columns.length - primaryColumns.length})</summary>
-          <p className="muted">Search the remaining fields if a phone column was missed. Check the sample before selecting one.</p>
-          <SearchBox value={columnQuery} onChange={value => { setColumnQuery(value); setShowAllOtherColumns(false); }} placeholder="Find a column" />
+        </div> : <p className="notice">No phone-number column was identified in this list. Skip tracing needs a field with phone values. If one has an unusual name, find it below.</p>}
+        {setup.columns.length > primaryColumns.length && <details className="step skiptrace-optional"><summary>Find a phone column with another name</summary>
+          <p className="muted">Only select a field if its sample contains phone numbers. Name and address fields are mapped separately below.</p>
+          <SearchBox value={columnQuery} onChange={value => { setColumnQuery(value); setBrowseOtherColumns(false); setShowAllOtherColumns(false); }} placeholder="Search column names" />
+          {!columnQuery.trim() && !browseOtherColumns && <button type="button" className="link" onClick={() => setBrowseOtherColumns(true)}>Browse all {otherColumns.length} column names</button>}
           <div className="checks other-column-list">{visibleOtherColumns.map(column => <Check key={column} checked={false} onChange={on => togglePhone(column, on)}><span>{column}</span><small className="column-samples">{(setup.column_samples[column] ?? []).join(" · ") || "No nonempty sample"}</small></Check>)}</div>
-          {!columnQuery.trim() && !showAllOtherColumns && otherColumns.length > visibleOtherColumns.length && <button type="button" className="link" onClick={() => setShowAllOtherColumns(true)}>Show all {otherColumns.length} columns</button>}
-          {otherColumns.length === 0 && <p className="muted">No other column matches that search.</p>}
+          {!columnQuery.trim() && browseOtherColumns && !showAllOtherColumns && otherColumns.length > visibleOtherColumns.length && <button type="button" className="link" onClick={() => setShowAllOtherColumns(true)}>Show all {otherColumns.length} columns</button>}
+          {columnQuery.trim() && otherColumns.length === 0 && <p className="muted">No other column matches that search.</p>}
         </details>}
+        {base.phone_columns.length > 0 && <>
         <div className="fields">
           <Field label="Country to assume when a number does not say" value={base.region} searchable onChange={region => void changeRegion(region ?? "US")}
             options={REGIONS.map(code => ({ value: code, label: `${regionName(code)} (${code})` }))} />
@@ -403,7 +406,8 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
             <Field label="Company (shared business evidence)" value={base.business_column ?? null} searchable optional="None" options={columnOptions} onChange={business_column => patch({ business_column })} />
           </div>
         )}
-        {!hasPhones && <p className="muted">Choose at least one phone column and confirm any identifier-like choices to go on.</p>}
+        </>}
+        {!hasPhones && base.phone_columns.length > 0 && <p className="muted">Confirm any identifier-like phone choices to go on.</p>}
       </article>
       </div>
 

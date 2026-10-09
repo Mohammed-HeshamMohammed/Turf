@@ -62,11 +62,24 @@ describe("the complete five-step process", () => {
     const extra = Array.from({ length: 16 }, (_, index) => `Column ${index + 1}`);
     mocks.suggest.mockResolvedValue({ ...setup, columns: [...setup.columns, ...extra] });
     const user = await start();
-    await user.click(screen.getByText("Browse other columns (18)"));
+    await user.click(screen.getByText("Find a phone column with another name"));
+    expect(document.querySelectorAll(".other-column-list .check")).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Browse all 18 column names" }));
     expect(document.querySelectorAll(".other-column-list .check")).toHaveLength(8);
     await user.click(screen.getByRole("button", { name: "Show all 18 columns" }));
     expect(document.querySelectorAll(".other-column-list .check")).toHaveLength(18);
-    await user.type(screen.getByRole("searchbox", { name: "Find a column" }), "Column 14");
+    await user.type(screen.getByRole("searchbox", { name: "Search column names" }), "Column 14");
+    expect(document.querySelectorAll(".other-column-list .check")).toHaveLength(1);
+  });
+
+  it("does not repeat name and address mappings when no phone field was found", async () => {
+    mocks.suggest.mockResolvedValue({ ...setup, columns: ["First Name", "Last Name", "Address", "City", "State", "Zip"], config: { ...config, phone_columns: [], name_column: null, first_name_column: "First Name", last_name_column: "Last Name", state_column: "State", zip_column: "Zip" } });
+    const user = await start();
+    expect(screen.getByText(/No phone-number column was identified/)).toBeTruthy();
+    expect(document.querySelectorAll(".other-column-list .check")).toHaveLength(0);
+    expect(screen.queryByText("Columns that help find shared numbers and areas (optional)")).toBeNull();
+    await user.click(screen.getByText("Find a phone column with another name"));
+    await user.type(screen.getByRole("searchbox", { name: "Search column names" }), "Address");
     expect(document.querySelectorAll(".other-column-list .check")).toHaveLength(1);
   });
 
