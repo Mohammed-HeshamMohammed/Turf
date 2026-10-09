@@ -25,6 +25,8 @@ const MEANINGS: { id: Verdict; meaning: string }[] = [
 ];
 
 const REGIONS = ["US", "CA", "GB", "IE", "AU", "NZ", "EG", "AE", "SA", "DE", "FR", "ES", "IT", "NL", "IN", "PH", "BR", "MX", "ZA", "NG"];
+const PHONE_COLUMN_NAME = /phone|mobile|cell|tel(?!l)|fax|whatsapp|contact number|landline|gsm|celular|m[oó]vil|portable|handy|هاتف|موبايل|جوال|تليفون|محمول/i;
+const IDENTIFIER_COLUMN_NAME = /\b(?:id|identifier|apn|parcel|account|property|mls|tax|zip|postal|ssn)\b/i;
 
 function regionName(code: string) {
   try {
@@ -54,19 +56,25 @@ function buildConfig(base: SkiptraceConfig, outcomeColumn: string | null, called
 }
 
 export function SkipTracing({ turf }: { turf: Turf }) {
+  const [listPickerOpen, setListPickerOpen] = useState(false);
   const selected = turf.datasets.find(item => item.id === turf.selectedId) ?? null;
   // The setup belongs to the list itself; a checked copy points back to it.
   const target = selected?.kind === "checked" ? turf.datasets.find(item => item.id === selected.parent_dataset_id) ?? selected : selected;
   // The setup and results of lists checked lately stay alive, so coming back does not ask the service again.
   const kept = useVisited(target?.id ?? null, turf.datasets.map(item => item.id));
   return (
-    <div className="split">
-      <ListPicker datasets={turf.datasets.filter(item => item.kind !== "checked")} selectedId={target?.id ?? null} onSelect={turf.select} onImported={async id => { await turf.refresh(); turf.select(id); }}
+    <div className="split skiptrace-workspace">
+      <button type="button" className="button ghost skiptrace-list-toggle" aria-expanded={listPickerOpen} aria-controls="skiptrace-list-picker" onClick={() => setListPickerOpen(open => !open)}>
+        {listPickerOpen ? "Close lists" : `Switch list${target ? ` · ${target.name}` : ""}`}
+      </button>
+      <div id="skiptrace-list-picker" className="skiptrace-list-rail" data-open={listPickerOpen}>
+      <ListPicker datasets={turf.datasets.filter(item => item.kind !== "checked")} selectedId={target?.id ?? null} onSelect={id => { turf.select(id); setListPickerOpen(false); }} onImported={async id => { await turf.refresh(); turf.select(id); setListPickerOpen(false); }}
         menuFor={item => [
           { label: "Check this list", disabled: item.id === target?.id, onSelect: () => turf.select(item.id) },
           { label: "Open in Lists", onSelect: () => turf.open("lists", item.id) },
           { label: "Copy its name", onSelect: () => copyText(item.name) },
         ]} />
+      </div>
       {kept.map(id => (
         <div key={id} className="kept" hidden={id !== target?.id}>
           <Setup turf={turf} dataset={turf.datasets.find(item => item.id === id)!} />
@@ -95,6 +103,8 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   const [meaning, setMeaning] = useState<Record<string, Outcome[]>>(draft?.meaning ?? (known ? meaningOf(known) : {}));
   const [reviewed, setReviewed] = useState<string[]>(draft?.reviewed ?? known?.statuses.filter(item => item.confirmed).map(item => item.key) ?? []);
   const [more, setMore] = useState(false);
+  const [columnQuery, setColumnQuery] = useState("");
+  const [confirmedIdentifierColumns, setConfirmedIdentifierColumns] = useState<string[]>([]);
   const [step, setStep] = useState(Math.min(4, Math.max(0, draft?.step ?? 0)));
   const [busy, setBusy] = useState<"scan" | "apply" | null>(draft?.activeJob?.kind ?? null);
   const [activeJob, setActiveJob] = useState<WorkflowDraft["activeJob"]>(draft?.activeJob ?? null);
@@ -123,6 +133,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   const [previousSignals, setPreviousSignals] = useState<Record<string, boolean> | null>(null);
   const [mappingMessage, setMappingMessage] = useState<string | null>(null);
   const [advancedLookup, setAdvancedLookup] = useState(false);
+  const [dialerOpen, setDialerOpen] = useState(false);
   const copies = checkedCopies(turf.datasets, dataset.id);
   const copy = copies[0] ?? null;
 
@@ -222,6 +233,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   const columnOptions = setup.columns.map(column => ({ value: column, label: column, description: (setup.column_samples[column] ?? []).join(" · ") }));
   const patch = (changes: Partial<SkiptraceConfig>) => setBase({ ...base, ...changes });
   const togglePhone = (column: string, on: boolean) => {
+    setConfirmedIdentifierColumns(current => current.filter(item => item !== column));
     const columns = on ? [...base.phone_columns, column] : base.phone_columns.filter(item => item !== column);
     patch({ phone_columns: columns });
     if (!columns.includes(called)) setCalled(columns[0] ?? "");
@@ -276,7 +288,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
     onEvent: (event: Record<string, unknown>) => { if (typeof event.stage === "string") setStage({ stage: event.stage, completed: typeof event.completed === "number" ? event.completed : undefined, total: typeof event.total === "number" ? event.total : undefined }); },
   });
   async function check() {
-    if (busy || statusBusy || importingLegacy) return;
+    if (busy || statusBusy || importingLegacy || !hasPhones) return;
     setBusy("scan"); setError(null); setSaved(null); setJobId(null); setStopping(false); setStage({ stage: "saving_setup" });
     try {
       await skiptraceSave(dataset.id, config!);
@@ -288,7 +300,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
     finally { setBusy(null); setActiveJob(null); setJobId(null); setStopping(false); }
   }
   async function saveCopy() {
-    if (busy || !report || stale || freshnessPending) return;
+    if (busy || !report || stale || freshnessPending || !hasPhones) return;
     setBusy("apply"); setError(null); setSaved(null); setJobId(null); setStopping(false); setStage({ stage: "saving_checked_copy" });
     try {
       const result = await skiptraceApply(dataset.id, config!, copyName.trim() || undefined, report.scan_job_id, watch("apply"));
@@ -307,7 +319,10 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
     window.setTimeout(() => document.getElementById(`review-${report?.scan_job_id}`)?.scrollIntoView({ block: "start", behavior: "instant" }), 0);
   }
   const outcomes = report?.outcomes;
-  const hasPhones = base.phone_columns.length > 0 && missing.length === 0;
+  const primaryColumns = setup.columns.filter(column => base.phone_columns.includes(column) || PHONE_COLUMN_NAME.test(column));
+  const otherColumns = setup.columns.filter(column => !primaryColumns.includes(column) && column.toLowerCase().includes(columnQuery.trim().toLowerCase()));
+  const questionableColumns = base.phone_columns.filter(column => IDENTIFIER_COLUMN_NAME.test(column) && !PHONE_COLUMN_NAME.test(column));
+  const hasPhones = base.phone_columns.length > 0 && missing.length === 0 && questionableColumns.every(column => confirmedIdentifierColumns.includes(column));
   const reachable = (index: number) => index === 0 || (index <= 2 ? hasPhones : Boolean(report));
 
   return (
@@ -321,13 +336,10 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           </p>
         </div>
       </header>
-      <p className="lede">
-        Checks whether the phone numbers in a list can be trusted, and which phone columns are worth using. A number that follows its country&apos;s numbering plan is only
-        unverified: that is not proof it is connected or belongs to this person. The original rows are never changed.
-      </p>
+      <p className="lede">Choose your phone columns, review any call evidence, then check the numbers. Your original list stays unchanged.</p>
       {error && <p className="notice" role="alert">{error}</p>}
       {draftError && <p className="notice" role="alert">{draftError}</p>}
-      {!draftError && <p className="muted">Your draft is kept on this computer for this project and list, including when you switch lists or reload.</p>}
+      {!draftError && <p className="sr-only">Your draft is kept on this computer for this project and list, including when you switch lists or reload.</p>}
       {missing.length > 0 && <p className="notice" role="alert">This saved draft references missing columns: {missing.join(", ")}. <button type="button" className="button ghost" onClick={() => { setBase(setup.config); setOutcomeColumn(setup.outcome_column); setCalled(calledOf(setup)); setStatuses(setup.statuses); setMeaning(meaningOf(setup)); setReviewed(setup.statuses.filter(item => item.confirmed).map(item => item.key)); }}>Restore this list's suggested or saved setup</button></p>}
       {busy && <div className="notice" role="status" aria-live="polite"><span>{STAGE_LABELS[stage.stage] ?? stage.stage}{stage.total !== undefined && <> · {formatNumber(stage.completed ?? 0)} of {formatNumber(stage.total)} rows</>}{stopping && " · Stopping at the next safe checkpoint…"}</span>
         {stage.total !== undefined && <progress max={Math.max(1, stage.total)} value={stage.completed ?? 0} aria-label="Phone check progress" />}
@@ -345,17 +357,24 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           </li>
         ))}
       </ol>
+      {step !== 0 && questionableColumns.length > 0 && !hasPhones && <p className="notice" role="alert">Confirm the identifier-like phone field before continuing. <button type="button" className="link" onClick={() => setStep(0)}>Review phone columns</button></p>}
 
       <fieldset className="workflow-inputs" disabled={busy !== null || statusBusy || importingLegacy}>
       <legend className="sr-only">Phone-check setup</legend>
-      <SkiptraceTemplates projectId={turf.projectId} columns={setup.columns} config={config} onApply={applyTemplate} onError={setError} />
       <div className="wizard-step" hidden={step !== 0}>
+      <SkiptraceTemplates projectId={turf.projectId} columns={setup.columns} config={config} onApply={applyTemplate} onError={setError} />
       <article className="card step">
         <header><h2>Which columns hold phone numbers</h2></header>
-        {!setup.config.phone_columns.length && <p className="notice">No column in this list looks like it holds phone numbers. Tick the ones that do, if any.</p>}
-        <div className="checks">
-          {setup.columns.map(column => <Check key={column} checked={base.phone_columns.includes(column)} onChange={on => togglePhone(column, on)}>{column}<small className="column-samples">{(setup.column_samples[column] ?? []).join(" · ") || "No nonempty sample"}</small></Check>)}
-        </div>
+        <p className="muted">Select only fields that contain phone numbers. The samples help you verify each choice.</p>
+        {questionableColumns.length > 0 && <div className="notice" role="alert"><span>Double-check {questionableColumns.join(", ")}: its name looks like an identifier, not a phone field. Uncheck it if these are parcel or account numbers.</span><Check checked={questionableColumns.every(column => confirmedIdentifierColumns.includes(column))} onChange={on => setConfirmedIdentifierColumns(on ? questionableColumns : [])}>I verified these are phone numbers</Check></div>}
+        {primaryColumns.length > 0 ? <div className="checks phone-column-grid">
+          {primaryColumns.map(column => <Check key={column} checked={base.phone_columns.includes(column)} onChange={on => togglePhone(column, on)}><span>{column}</span><small className="column-samples">{(setup.column_samples[column] ?? []).join(" · ") || "No nonempty sample"}</small></Check>)}
+        </div> : <p className="notice">No likely phone field was found. Open the other columns below if this file does contain phone numbers.</p>}
+        {setup.columns.length > primaryColumns.length && <details className="step skiptrace-optional"><summary>Browse other columns ({setup.columns.length - primaryColumns.length})</summary>
+          <SearchBox value={columnQuery} onChange={setColumnQuery} placeholder="Find a column" />
+          <div className="checks phone-column-grid">{otherColumns.map(column => <Check key={column} checked={false} onChange={on => togglePhone(column, on)}><span>{column}</span><small className="column-samples">{(setup.column_samples[column] ?? []).join(" · ") || "No nonempty sample"}</small></Check>)}</div>
+          {otherColumns.length === 0 && <p className="muted">No other column matches that search.</p>}
+        </details>}
         <div className="fields">
           <Field label="Country to assume when a number does not say" value={base.region} searchable onChange={region => void changeRegion(region ?? "US")}
             options={REGIONS.map(code => ({ value: code, label: `${regionName(code)} (${code})` }))} />
@@ -375,18 +394,15 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
             <Field label="Company (shared business evidence)" value={base.business_column ?? null} searchable optional="None" options={columnOptions} onChange={business_column => patch({ business_column })} />
           </div>
         )}
-        {!hasPhones && <p className="muted">Choose at least one phone column to go on.</p>}
+        {!hasPhones && <p className="muted">Choose at least one phone column and confirm any identifier-like choices to go on.</p>}
       </article>
       </div>
 
       <div className="wizard-step" hidden={step !== 1}>
       <article className="card step">
-        <header><h2>Call outcomes (recommended)</h2></header>
-        <DialerEvidence turf={turf} datasetId={dataset.id} />
-        <p className="muted">
-          If this list records what happened on each call, a wrong number or a do-not-call in one row warns about the same number in every other row and in your other checked lists.
-          Review what each status means. Suggestions stay editable; mark a status reviewed or deliberately ignore it. A do-not-call mark with an end date stops counting after that date.
-        </p>
+        <header><h2>Use call results, if you have them</h2></header>
+        <p className="muted">Call results can identify wrong numbers and do-not-call requests across this project. You can skip this step when no call history is available.</p>
+        <details className="step skiptrace-optional" onToggle={event => setDialerOpen(event.currentTarget.open)}><summary>Import or map a dialer export</summary>{dialerOpen && <DialerEvidence turf={turf} datasetId={dataset.id} />}</details>
         <div className="fields">
           <Field label="Status column" value={outcomeColumn} searchable optional="No outcome column" options={outcomeColumns.map(column => ({ value: column, label: column }))} onChange={column => void chooseOutcomeColumn(column)} />
           {outcomeColumn && base.phone_columns.length > 0 && (
@@ -394,7 +410,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           )}
           <Field label="Call date column (optional)" value={base.call_date_column ?? null} searchable optional="Date unknown" options={columnOptions} onChange={call_date_column => patch({ call_date_column })} />
         </div>
-        <p className="muted">Dates describe when the call happened, not when a file was imported. ISO timestamps with a time-zone offset preserve the dialer's call time; date-only values remain usable. Undated successful calls are shown as age unknown. Map voicemail, no answer, wrong person, and disconnected statuses below, or record individual calls from row details.</p>
+        {outcomeColumn && <p className="muted">Review each suggested meaning below. Dates describe when the call happened; undated successful calls are shown as age unknown.</p>}
         {statusBusy && <p role="status">Loading status meanings…</p>}
         {outcomeColumn && <p className="muted">Dates inside statuses use {base.region === "US" ? "month/day/year" : "day/month/year"}; year-first dates stay unambiguous. DNC end dates are inclusive. Check the country assumption before reviewing meanings.</p>}
         {outcomeColumn && statuses.length > 0 && <>
@@ -451,18 +467,18 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
       <div className="wizard-step" hidden={step !== 2}>
       <article className="card step">
         <header><h2>Warning signs</h2></header>
-        <div className="fields"><label className="field"><span>Review successful-call evidence after this many days</span><input className="input" type="number" min="1" max="3650" value={base.evidence_age_days ?? 180} onChange={event => patch({ evidence_age_days: Number(event.target.value) })} /></label><label className="field"><span>Flag live lookup results after this many days</span><input className="input" type="number" min="1" max="365" value={base.lookup_age_days ?? 30} onChange={event => patch({ lookup_age_days: Number(event.target.value) })} /></label></div>
-        <p className="muted">Aging and conflicting evidence prompt review; they do not prove reassignment. Shared-number explanations distinguish possible households, businesses, unrelated people, and unknown relationships. All existing warning-sign reports remain below.</p>
-        <p className="muted">These make a number suspicious. With call outcomes, the results show how well each one predicts a wrong number in your own data, so you can switch off the ones that do not.</p>
+        <p className="muted">Choose what should flag a number for review. A warning sign does not prove the number is wrong.</p>
         <div className="checks column">
           {setup.signals.filter(sign => !sign.measured_only).map(sign => (
-            <Check key={sign.code} checked={Boolean(base.signals[sign.code])} onChange={on => patch({ signals: { ...base.signals, [sign.code]: on } })}>{sign.label}<small>{SIGN_HELP[sign.code]?.example}<br />{SIGN_HELP[sign.code]?.needs}
+            <Check key={sign.code} checked={Boolean(base.signals[sign.code])} onChange={on => patch({ signals: { ...base.signals, [sign.code]: on } })}><span>{sign.label}</span><small>{SIGN_HELP[sign.code]?.example}<br />{SIGN_HELP[sign.code]?.needs}
               {sign.code === "shared_number" && !base.name_column && !base.first_name_column && !base.last_name_column && <><br />No name column mapped yet.</>}
               {sign.code === "area_code_other_state" && !base.state_column && <><br />No property state column mapped yet.</>}
               {sign.code === "country_mismatch" && !base.country_column && !base.zip_column && !base.state_column && <><br />No address country evidence mapped yet.</>}
             </small></Check>
           ))}
         </div>
+        <details className="step skiptrace-optional"><summary>Evidence age settings</summary><div className="fields"><label className="field"><span>Review successful-call evidence after this many days</span><input className="input" type="number" min="1" max="3650" value={base.evidence_age_days ?? 180} onChange={event => patch({ evidence_age_days: Number(event.target.value) })} /></label><label className="field"><span>Flag live lookup results after this many days</span><input className="input" type="number" min="1" max="365" value={base.lookup_age_days ?? 30} onChange={event => patch({ lookup_age_days: Number(event.target.value) })} /></label></div><p className="muted">Aging evidence prompts review; it does not prove reassignment.</p></details>
+        {config && <details className="step skiptrace-optional" onToggle={event => setAdvancedLookup(event.currentTarget.open)}><summary>Optional external lookup</summary><p className="muted">Dialer exports and normal phone checks work without an external provider.</p>{advancedLookup && <PhoneLookup datasetId={dataset.id} config={config} projectId={turf.projectId} onUpdated={turf.refresh} />}</details>}
         <p className="muted">Checking saves this setup for future checks and reads every selected phone value. Your original list stays unchanged; the checked copy is saved separately in the last step.</p>
         <h3>Review before checking</h3>
         <dl className="metrics text"><div><dt>Phone columns</dt><dd>{base.phone_columns.join(", ")}</dd></div><div><dt>Country</dt><dd>{regionName(base.region)} · row override: {base.country_column ?? "None"}</dd></div>
@@ -483,7 +499,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           {stale && (
             <p className="notice" role="status">
               <span>{staleSetup ? "You changed the setup after this check." : "The date or project evidence changed after this check."} These results are out of date; check again before saving.</span>
-              <button type="button" className="button" disabled={busy !== null} onClick={() => void check()}>{busy === "scan" ? "Checking…" : "Check again"}</button>
+              <button type="button" className="button" disabled={busy !== null || !hasPhones} onClick={() => void check()}>{busy === "scan" ? "Checking…" : "Check again"}</button>
             </p>
           )}
 
@@ -633,14 +649,14 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
             <p className="muted">{formatNumber(report.rows)} source rows kept · {report.added_columns.length} added columns · checked {new Date(report.checked_at).toLocaleString()}. This saves the exact reviewed results.</p>
             <p className="muted">Outcome sources: {report.other_datasets_used.join(", ") || "This list and project marks"}.</p>
             <CheckedPreview report={report} />
-            {stale && <p className="notice" role="status">The setup, date, or evidence changed. <button type="button" className="button" disabled={busy !== null} onClick={() => void check()}>Check again</button></p>}
+            {stale && <p className="notice" role="status">The setup, date, or evidence changed. <button type="button" className="button" disabled={busy !== null || !hasPhones} onClick={() => void check()}>Check again</button></p>}
             {freshnessError && <p role="alert" className="notice">{freshnessError}</p>}
             <label className="field">
               <span>Name of the checked copy</span>
               <input className="input" value={copyName} disabled={busy !== null} placeholder={`${dataset.name} (phones checked)`} onChange={event => setCopyName(event.target.value)} />
             </label>
             <div className="row">
-              <button type="button" className="button" disabled={busy !== null || stale || freshnessPending} onClick={() => void saveCopy()}>{busy === "apply" ? "Saving…" : "Save checked copy"}</button>
+              <button type="button" className="button" disabled={busy !== null || stale || freshnessPending || !hasPhones} onClick={() => void saveCopy()}>{busy === "apply" ? "Saving…" : "Save checked copy"}</button>
               {stale && <span className="muted">Check again first: the setup or evidence changed.</span>}
               {freshnessPending && <span className="muted">Verifying freshness before saving…</span>}
             </div>
@@ -659,11 +675,12 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
       <ManualEvidence turf={turf} />
       </div>
 
-      <div className="card step"><p className="muted">Your original file stays in this project. Each saved checked copy keeps all rows and result columns for download later.</p><ListDownloads datasetId={dataset.id} fail={turf.fail} /></div>
-      {config && <details className="card step" onToggle={event => setAdvancedLookup(event.currentTarget.open)}><summary>Advanced: optional external lookup</summary><p className="muted">Dialer exports and normal phone checks work without this. Open external provider setup only if you want an additional lookup service.</p>{advancedLookup && <PhoneLookup datasetId={dataset.id} config={config} projectId={turf.projectId} onUpdated={turf.refresh} />}</details>}
+      <div className="wizard-step" hidden={step !== 4}>
+      <details className="card step"><summary>Downloads and original file</summary><p className="muted">Your original file stays in this project. Each saved checked copy keeps all rows and result columns for download later.</p><ListDownloads datasetId={dataset.id} fail={turf.fail} /></details>
       {copies.length > 0 && <details className="card step"><summary>Checked-copy history ({copies.length})</summary><p className="muted">The newest copy is used when you open the original in Lists. Every previous copy remains available.</p>
         <ul className="copy-history">{copies.map((item, index) => <li key={item.id}><button type="button" className="link" onClick={() => turf.open("lists", item.id)}>{item.name}</button><span>{index === 0 ? "Latest · " : ""}{new Date(item.created_at).toLocaleString()} · {formatNumber(item.row_count)} rows</span><ListDownloads datasetId={item.id} checkedId={item.id} fail={turf.fail} /></li>)}</ul>
       </details>}
+      </div>
 
       <footer className="wizard-nav">
         <button type="button" className="button ghost" disabled={step === 0 || busy !== null || statusBusy} onClick={() => setStep(step - 1)}>Back</button>
@@ -677,7 +694,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
             </button>
           </div>
         )}
-        {step === 3 && <button type="button" className="button" disabled={stale || busy !== null || freshnessPending} onClick={() => setStep(4)}>Next</button>}
+        {step === 3 && <button type="button" className="button" disabled={stale || busy !== null || freshnessPending || !hasPhones} onClick={() => setStep(4)}>Next</button>}
         {step === 4 && <span />}
       </footer>
     </section>

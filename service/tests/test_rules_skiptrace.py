@@ -199,6 +199,11 @@ def test_the_setup_is_suggested_from_the_columns_and_values():
     assert config["phone_columns"] == ["Phone"] and config["last_name_column"] == "Last" and config["state_column"] == "State"
 
 
+def test_numeric_identifiers_are_not_suggested_as_phone_columns():
+    rows = [{"APN": "7135553142", "Account ID": "7135554455", "Phone": "7135556677"}]
+    assert st.suggest(rows, {})["config"]["phone_columns"] == ["Phone"]
+
+
 def test_a_phone_from_another_country_than_the_address_is_suspicious_but_the_plus_one_countries_agree():
     rows = [
         {"First": "Ana", "Last": "Lopez", "Phone": "+44 7400 123456", "Alt": "", "Zip": "76707", "State": "TX"},      # a UK number at a Texas address

@@ -58,11 +58,23 @@ async function scan(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("the complete five-step process", () => {
+  it("keeps identifier-looking columns from being accepted without review", async () => {
+    mocks.suggest.mockResolvedValue({ ...setup, columns: ["APN", "Name", "Phone", "Status"], config: { ...config, phone_columns: ["APN"] }, column_samples: { ...setup.column_samples, APN: ["6117-016-011"] } });
+    const user = await start();
+    const next = within(document.querySelector(".wizard-nav") as HTMLElement).getByRole("button", { name: "Next" }) as HTMLButtonElement;
+    expect(next.disabled).toBe(true);
+    expect(screen.getByText(/name looks like an identifier/)).toBeTruthy();
+    await user.click(screen.getByRole("checkbox", { name: "I verified these are phone numbers" }));
+    expect(next.disabled).toBe(false);
+  });
+
   it("uses dialer results without showing credential setup and saves mappings without a scan", async () => {
     const user = await start();
     expect(screen.queryByLabelText("Twilio Account SID")).toBeNull();
     expect(screen.queryByText("Optional live phone lookup")).toBeNull();
     await user.click(within(document.querySelector(".wizard-nav") as HTMLElement).getByRole("button", { name: "Next" }));
+    expect(screen.queryByRole("heading", { name: "Use your existing dialer's results" })).toBeNull();
+    await user.click(screen.getByText("Import or map a dialer export"));
     expect(screen.getByRole("heading", { name: "Use your existing dialer's results" })).toBeTruthy();
     await user.click(screen.getByRole("checkbox", { name: "Status 0: Wrong number" }));
     await user.click(screen.getByRole("button", { name: "Save outcome mappings" }));
@@ -107,7 +119,7 @@ describe("the complete five-step process", () => {
     await user.click(screen.getByRole("button", { name: "Ignore" }));
     cleanup();
     render(<SkipTracing turf={turf} />);
-    await screen.findByRole("heading", { name: "Call outcomes (recommended)" });
+    await screen.findByRole("heading", { name: "Use call results, if you have them" });
     await waitFor(() => expect(mocks.statuses).toHaveBeenCalled());
     const input = screen.getByRole("searchbox", { name: "Search call statuses" });
     await user.type(input, "Status 100");

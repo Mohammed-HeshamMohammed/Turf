@@ -635,6 +635,7 @@ def evaluate(rows: list[dict], row_numbers: list[int], config: dict, knowledge: 
 # ---------------------------------------------------------------------------------------------- suggesting a setup
 
 _PHONE_HEADER = re.compile(r"phone|mobile|cell|tel(?!l)|fax|whatsapp|contact number|landline|gsm|celular|m[oó]vil|portable|handy|هاتف|موبايل|جوال|تليفون|محمول", re.IGNORECASE)
+_IDENTIFIER_HEADER = re.compile(r"\b(?:id|identifier|apn|parcel|account|property|mls|tax|zip|postal|ssn)\b", re.IGNORECASE)
 _OUTCOME_HEADER = re.compile(r"status|outcome|disposition|dispo\b|result|call (result|outcome)|dnc|stage|response", re.IGNORECASE)
 
 
@@ -645,6 +646,10 @@ def suggest(rows: list[dict], roles: dict[str, str], region: str = "US", sample:
     phone_columns = [column for column, role in roles.items() if role == "phone" and column in columns]
     if not phone_columns:
         for column in columns:
+            # A parcel/account ID can accidentally parse as a valid telephone number.
+            # Only an explicit phone-like heading or a confirmed phone role should override that warning.
+            if _IDENTIFIER_HEADER.search(column) and not _PHONE_HEADER.search(column):
+                continue
             values = [_clean(row.get(column)) for row in sampled if _clean(row.get(column))]
             if not values:
                 continue
