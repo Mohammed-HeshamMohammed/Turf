@@ -9,12 +9,14 @@ import { cancelJob, locateAddresses, locatedAddresses, placeRows, streetColumn, 
 import { deleteDataset, renameDataset } from "../lib/service";
 import { Icon } from "../components/Icon";
 import { ListPicker } from "../components/ListPicker";
+import { ListDownloads } from "../components/ListDownloads";
+import { PhoneChoices } from "../components/PhoneChoices";
 import { marksSource, useRows, useVisited } from "../lib/hooks";
 import {
   AREA_LABELS, AREA_LEVELS, KIND_LABELS, MANUAL_LABELS, VERDICT_LABELS, areaColumns, checkedPhoneColumns, countAreas, formatDate,
   formatNumber, formatPhone, ownColumns, positionColumns, readMarks, type Marks,
 } from "../lib/marks";
-import { VERDICTS, type AreaLevel, type Dataset, type DatasetRow, type ManualMark } from "../lib/types";
+import { VERDICTS, type AreaLevel, type Dataset, type DatasetRow, type ManualMark, type Verdict } from "../lib/types";
 
 // The street map and its library are fetched the first time a map is shown, not when the app starts.
 const StreetMap = lazy(() => import("../components/StreetMap").then(module => ({ default: module.StreetMap })));
@@ -66,6 +68,10 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   const [working, setWorking] = useState(false);
   const menu = useContextMenu();
   const copies = turf.datasets.filter(item => item.parent_dataset_id === dataset.id).length;
+  const checkedAt = useMemo(() => {
+    try { return source.derivation_json ? JSON.parse(source.derivation_json).checked_at as string | undefined : undefined; }
+    catch { return undefined; }
+  }, [source.derivation_json]);
   async function act(action: () => Promise<unknown>) {
     setWorking(true);
     try {
@@ -248,6 +254,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
             <div className="row list-actions">
               <button type="button" className="button ghost small" onClick={() => { setNewName(dataset.name); setEditing("rename"); }}>Rename</button>
               <button type="button" className="button ghost small" onClick={() => setEditing("delete")}>Delete</button>
+              <ListDownloads datasetId={dataset.id} checkedId={source.kind === "checked" ? source.id : undefined} fail={turf.fail} />
             </div>
           )}
         </div>
@@ -273,6 +280,8 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           </div>
         )}
       </header>
+
+      {source.kind === "checked" && <p className="notice" role="status"><span>Showing {source.name}{checkedAt ? `, checked ${new Date(checkedAt).toLocaleString()}` : ""}. Saved verdicts reflect evidence at check time; new marks and DNC expiry may change them.</span><button type="button" className="button ghost" onClick={() => turf.open("skiptracing", parent?.id ?? source.parent_dataset_id ?? dataset.id)}>Review or check again</button></p>}
 
       <article className="card areas">
         <header>
@@ -363,7 +372,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
               <tr>
                 <th className="num">#</th>
                 {shownColumns.map(name => <th key={name}>{name}</th>)}
-                {checked && <><th>Best phone</th><th>Verdict</th><th>Flags</th></>}
+                {checked && <><th>Best phone</th><th>Phone quality</th><th>Combined verdict</th><th>Flags / calling restriction</th></>}
                 <th><span className="sr-only">Details</span></th>
               </tr>
             </thead>
@@ -376,9 +385,10 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                     {checked && (
                       <>
                         <td>
-                          {marks.best ? <div className="phone-cell"><strong>{formatPhone(marks.best)}</strong><small>{marks.why || "Nothing else is known about it"}</small></div>
+                          {marks.best ? <div className="phone-cell"><strong>{formatPhone(marks.best)}{row.raw["Best phone extension"] ? ` ext. ${row.raw["Best phone extension"]}` : ""}</strong><small>{marks.why || "Nothing else is known about it"}</small></div>
                             : <div className="phone-cell"><span className="muted">No number to call</span><small>{marks.why}</small></div>}
                         </td>
+                        <td>{row.raw["Best phone quality"] ? <VerdictPill verdict={row.raw["Best phone quality"] as Verdict} /> : <span className="muted">Check again for separate quality</span>}</td>
                         <td><VerdictPill verdict={marks.verdict} /></td>
                         <td>
                           <div className="flags">
@@ -386,6 +396,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                             {marks.doNotCall && <span className="pill pill-wrong">Do not call{marks.doNotCallUntil ? ` until ${marks.doNotCallUntil}` : ""}</span>}
                             {marks.manual === "called" && <span className="pill pill-none">Called</span>}
                             {marks.manual === "interested" && <span className="pill pill-corroborated">Interested</span>}
+                            {row.raw["Phone evidence warnings"] && <span className="pill pill-suspicious">Review dated evidence</span>}
                           </div>
                         </td>
                       </>
@@ -396,8 +407,8 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                   </tr>
                   {openRow === row.id && (
                     <tr className="detail">
-                      <td colSpan={shownColumns.length + (checked ? 5 : 2)}>
-                        <RowDetail row={row} own={own} phoneColumns={phoneColumns} number={marks.number} mark={marks.manual} onMark={turf.setMark} />
+                      <td colSpan={shownColumns.length + (checked ? 6 : 2)}>
+                        <RowDetail row={row} datasetId={source.id} onUpdated={turf.refresh} own={own} phoneColumns={phoneColumns} number={marks.number} manual={turf.manual} onMark={turf.setMark} />
                       </td>
                     </tr>
                   )}
@@ -496,9 +507,14 @@ function formatCell(name: string, value: string | number | null) {
   return typeof value === "number" && !/zip|year/i.test(name) ? formatNumber(value) : value;
 }
 
-function RowDetail({ row, own, phoneColumns, number, mark, onMark }: {
-  row: DatasetRow; own: string[]; phoneColumns: string[]; number: string | null; mark: ManualMark | null; onMark: Turf["setMark"];
+function RowDetail({ row, own, phoneColumns, number, manual, onMark, datasetId, onUpdated }: {
+  row: DatasetRow; own: string[]; phoneColumns: string[]; number: string | null; manual: Turf["manual"]; onMark: Turf["setMark"];
+  datasetId: string; onUpdated: () => Promise<void>;
 }) {
+  const numbers = [...new Set(phoneColumns.flatMap(column => String(row.raw[`${column} (E.164)`] ?? "").split(";").map(value => value.trim()).filter(value => /^\+\d{6,15}$/.test(value))))];
+  const [chosen, setChosen] = useState(number ?? numbers[0] ?? "");
+  const activeNumber = numbers.includes(chosen) ? chosen : number ?? numbers[0] ?? "";
+  const mark = manual[activeNumber]?.mark ?? null;
   return (
     <div className="row-detail">
       <dl>
@@ -511,6 +527,7 @@ function RowDetail({ row, own, phoneColumns, number, mark, onMark }: {
       </dl>
       {phoneColumns.length > 0 && (
         <div className="detail-side">
+          <PhoneChoices raw={row.raw} datasetId={datasetId} rowNumber={row.row_number} onSaved={onUpdated} />
           <h3>Phone checks</h3>
           <ul className="phone-checks">
             {phoneColumns.filter(name => row.raw[`${name} (verdict)`]).map(name => (
@@ -522,16 +539,18 @@ function RowDetail({ row, own, phoneColumns, number, mark, onMark }: {
             ))}
           </ul>
           <h3>Mark this number</h3>
-          {number ? (
+          {activeNumber ? (
             <>
+              {numbers.length > 1 && <Field label="Number to mark" value={activeNumber} onChange={value => setChosen(value ?? "")} options={numbers.map(value => ({ value, label: formatPhone(value) }))} />}
               <div className="mark-buttons">
                 {MANUAL.map(item => (
-                  <button key={item} type="button" className="button ghost" aria-pressed={mark === item} onClick={() => onMark(number, mark === item ? null : item)}>
+                  <button key={item} type="button" className="button ghost" aria-pressed={mark === item} onClick={() => onMark(activeNumber, mark === item ? null : item)}>
                     {mark === item && <Icon name="check" size={14} />}{MANUAL_LABELS[item]}
                   </button>
                 ))}
               </div>
-              <p className="muted">The mark is kept for {formatPhone(number)}, so it shows on every row and list with that number.</p>
+              {mark === "do_not_call" && <label className="field"><span>Do-not-call end date (optional)</span><input className="input" type="date" value={manual[activeNumber]?.until ?? ""} onChange={event => onMark(activeNumber, "do_not_call", event.target.value || null)} /></label>}
+              <p className="muted">The mark is kept for {formatPhone(activeNumber)} across this project's lists and used by the next phone check. Called alone does not prove a person answered. Previous marks are kept in history.</p>
             </>
           ) : <p className="muted">This row has no readable number to mark.</p>}
         </div>

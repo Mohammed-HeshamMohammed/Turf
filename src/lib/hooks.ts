@@ -25,7 +25,7 @@ export function useStored<T>(key: string, initial: T) {
 /** A list shows the marks of its checked copy when it has one. */
 export function marksSource(dataset: Dataset, datasets: Dataset[]) {
   if (dataset.kind === "checked") return dataset;
-  return datasets.find(other => other.kind === "checked" && other.parent_dataset_id === dataset.id) ?? dataset;
+  return datasets.filter(other => other.kind === "checked" && other.parent_dataset_id === dataset.id).sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))[0] ?? dataset;
 }
 
 // A list's rows never change once it exists (an import is immutable, and each phone check saves a new list),

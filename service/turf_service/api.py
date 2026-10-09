@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import SCHEMA_VERSION
-from . import datasets, geo, projects, skiptrace, tidy
+from . import datasets, downloads, geo, manual, phone_evidence, phone_lookup, projects, skiptrace, tidy
 from .contracts import health_check
 from .jobs import JobContext, JobKind, JobRunner, JobValidationError
 from .logs import log
@@ -61,6 +61,9 @@ class Service:
             "dataset.list": lambda p: datasets.list_datasets(self._store(), self._project_id()),
             "dataset.rows": lambda p: datasets.dataset_rows(self._store(), p["dataset_id"], int(p.get("offset", 0)), min(int(p.get("limit", 50)), MAX_ROWS_PER_CALL)),
             "dataset.rename": self._dataset_rename,
+            "dataset.download": lambda p: downloads.prepare(self._store(), p["dataset_id"], p["version"]),
+            "dataset.download_chunk": lambda p: downloads.chunk(self._store(), p["dataset_id"], p["version"], int(p["offset"]), p["hash"]),
+            "dataset.download_save": lambda p: downloads.save(self._store(), p["dataset_id"], p["version"], p["path"], p["hash"]),
             "dataset.delete": lambda p: datasets.delete_dataset(self._store(), p["dataset_id"]) or {"deleted": p["dataset_id"]},
             "job.list": lambda p: [_job_dict(r) for r in self._store().list_jobs(self._project_id(), int(p.get("limit", 50)))],
             "job.get": self._job_get,
@@ -74,6 +77,20 @@ class Service:
             "skiptrace.save_settings": lambda p: skiptrace.save_settings(self._store(), p["dataset_id"], p.get("config")),
             "skiptrace.scan": lambda p: {"job_id": self._submit("skiptrace_scan", p)},
             "skiptrace.apply": lambda p: {"job_id": self._submit("skiptrace_apply", p)},
+            "skiptrace.freshness": lambda p: skiptrace.freshness(self._store(), p["dataset_id"]),
+            "skiptrace.review": lambda p: skiptrace.review(self._store(), p["job_id"], str(p.get("filter") or "all"), int(p.get("offset", 0)), int(p.get("limit", 25)), p.get("row_number")),
+            "marks.list": lambda p: manual.list_marks(self._store()),
+            "marks.set": lambda p: manual.set_mark(self._store(), p["number"], p.get("mark"), p.get("until")),
+            "marks.history": lambda p: manual.history(self._store(), p.get("number")),
+            "marks.import_legacy": lambda p: manual.import_legacy(self._store(), dict(p.get("marks") or {})),
+            "phone.outcomes": lambda p: phone_evidence.list_events(self._store(), p.get("number"), p.get("limit", 100), p.get("offset", 0)),
+            "phone.record_outcome": lambda p: phone_evidence.record(self._store(), p),
+            "phone.retract_outcome": lambda p: phone_evidence.retract(self._store(), p["id"]),
+            "phone.lookup_settings": lambda p: phone_lookup.settings(),
+            "phone.configure_lookup": lambda p: phone_lookup.configure(p),
+            "phone.lookup_preview": lambda p: phone_lookup.preview(self._store(), p),
+            "phone.lookup": lambda p: {"job_id": self._submit("phone_lookup", p)},
+            "phone.lookup_history": lambda p: phone_lookup.history(self._store(), p.get("number"), p.get("offset", 0)),
         }
 
     # --- plumbing -------------------------------------------------------------------------------
@@ -128,6 +145,7 @@ class Service:
             "skiptrace_scan": skiptrace.SCAN_JOB,
             "skiptrace_apply": skiptrace.APPLY_JOB,
             "geo_locate": geo.LOCATE_JOB,
+            "phone_lookup": phone_lookup.LOOKUP_JOB,
         })
         # Lists that were in the project before imports left out empty rows and columns get the same treatment now.
         # Opening must not fail over it: a list that cannot be tidied stays as it was.

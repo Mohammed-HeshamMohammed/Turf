@@ -76,6 +76,7 @@ def _register_rows(
     source_row_start: int = 2,
     kind: str = "import",
     row_numbers: list[int] | None = None,
+    commit: bool = True,
 ) -> DatasetImport:
     numbers = row_numbers if row_numbers is not None else range(source_row_start, source_row_start + len(rows))
     dropped_rows = dropped_columns = 0
@@ -99,7 +100,8 @@ def _register_rows(
             for row_number, row in zip(numbers, rows)
         ],
     )
-    store._connection.commit()
+    if commit:
+        store._connection.commit()
     return DatasetImport(dataset_id, hashlib.sha256(source_bytes).hexdigest(), len(rows), len(headers), dropped_rows, dropped_columns)
 
 
@@ -530,7 +532,7 @@ def propose_field_mappings(headers: list[str]) -> tuple[FieldMappingProposal, ..
     return tuple(proposals)
 
 
-def confirm_mapping(store: ProjectStore, dataset_id: str, mapping: dict[str, str], entity_type: str | None = None, export_exclude: list[str] | None = None) -> MappingVersion:
+def confirm_mapping(store: ProjectStore, dataset_id: str, mapping: dict[str, str], entity_type: str | None = None, export_exclude: list[str] | None = None, commit: bool = True) -> MappingVersion:
     rows = store._connection.execute(
         "SELECT raw_values_json FROM source_rows WHERE dataset_id = ? LIMIT 1", (dataset_id,)
     ).fetchone()
@@ -558,7 +560,8 @@ def confirm_mapping(store: ProjectStore, dataset_id: str, mapping: dict[str, str
     )
     # A new mapping version answers any open "bad mapping" reports for this dataset.
     store._connection.execute("UPDATE mapping_flags SET resolved_at = ? WHERE dataset_id = ? AND resolved_at IS NULL", (timestamp, dataset_id))
-    store._connection.commit()
+    if commit:
+        store._connection.commit()
     return MappingVersion(mapping_id, dataset_id, version, dict(mapping))
 
 

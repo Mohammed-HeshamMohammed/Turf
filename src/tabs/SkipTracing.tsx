@@ -1,12 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Turf } from "../App";
-import { Check, Empty, Field, VerdictPill } from "../components/Bits";
-import { copyText, useContextMenu } from "../components/ContextMenu";
+import { Check, Empty, Field, SearchBox, VerdictPill } from "../components/Bits";
+import { copyText } from "../components/ContextMenu";
 import { Icon } from "../components/Icon";
 import { ListPicker } from "../components/ListPicker";
-import { knownSuggestion, skiptraceApply, skiptraceSave, skiptraceScan, skiptraceStatuses, skiptraceSuggest } from "../lib/service";
+import { ListDownloads } from "../components/ListDownloads";
+import { PhoneLookup } from "../components/PhoneLookup";
+import { cancelSkiptraceJob, knownSuggestion, skiptraceFreshness, skiptraceApply, skiptraceSave, skiptraceScan, skiptraceStatuses, skiptraceSuggest, watchJob } from "../lib/service";
 import { useVisited } from "../lib/hooks";
-import { MANUAL_LABELS, formatDate, formatNumber, formatPhone } from "../lib/marks";
+import { formatNumber } from "../lib/marks";
+import { ManualEvidence } from "../components/ManualEvidence";
+import { CheckedPreview, SkiptraceReview } from "../components/SkiptraceReview";
+import { SkiptraceTemplates } from "../components/SkiptraceTemplates";
+import { checkedCopies, missingColumns, readDraft, SIGN_HELP, STAGE_LABELS, statusPage, stableKey, type WorkflowDraft } from "../lib/skiptrace-workflow";
 import type { Dataset, Outcome, SignReport, SkiptraceConfig, SkiptraceReport, SkiptraceSuggestion, StatusRow, Verdict } from "../lib/types";
 
 // Wording follows DataForge's Skip Tracing tab, so the two say the same thing about the same data.
@@ -40,9 +46,9 @@ function signVerdict(sign: SignReport) {
   return sign.predictive ? `${sign.lift}× as often: predicts` : `No clear difference (${sign.lift ?? "–"}×)`;
 }
 
-function buildConfig(base: SkiptraceConfig, outcomeColumn: string | null, calledColumn: string, statuses: Record<string, Outcome[]>): SkiptraceConfig {
+function buildConfig(base: SkiptraceConfig, outcomeColumn: string | null, calledColumn: string, statuses: Record<string, Outcome[]>, reviewed: string[] = []): SkiptraceConfig {
   const called = base.phone_columns.includes(calledColumn) ? calledColumn : base.phone_columns[0];
-  const map = Object.fromEntries(Object.entries(statuses).filter(([key, value]) => key && value.length));
+  const map = Object.fromEntries(Object.entries(statuses).filter(([key, value]) => key && (value.length || reviewed.includes(key))));
   return { ...base, outcome: outcomeColumn && called && Object.keys(map).length ? { column: outcomeColumn, called_column: called, map } : null };
 }
 
@@ -76,56 +82,141 @@ const calledOf = (suggestion: SkiptraceSuggestion) => suggestion.config.outcome?
 const meaningOf = (suggestion: SkiptraceSuggestion) => Object.fromEntries(suggestion.statuses.map(status => [status.key, status.outcomes]));
 
 function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
-  // When the setup was fetched ahead of time, the screen starts filled in and never shows a loading line.
+  const draftKey = `turf.skiptrace.draft.${turf.projectId}.${dataset.id}`;
+  const view = useRef<HTMLElement>(null);
+  const [draft] = useState(() => readDraft(draftKey));
   const [known] = useState(() => knownSuggestion(dataset.id));
   const [setup, setSetup] = useState<SkiptraceSuggestion | null>(known);
-  const [base, setBase] = useState<SkiptraceConfig | null>(known?.config ?? null);
-  const [outcomeColumn, setOutcomeColumn] = useState<string | null>(known?.outcome_column ?? null);
-  const [called, setCalled] = useState(known ? calledOf(known) : "");
+  const [base, setBase] = useState<SkiptraceConfig | null>(draft?.base ?? known?.config ?? null);
+  const [outcomeColumn, setOutcomeColumn] = useState<string | null>(draft ? draft.outcomeColumn : known?.outcome_column ?? null);
+  const [called, setCalled] = useState(draft?.called ?? (known ? calledOf(known) : ""));
   const [statuses, setStatuses] = useState<StatusRow[]>(known?.statuses ?? []);
-  const [meaning, setMeaning] = useState<Record<string, Outcome[]>>(known ? meaningOf(known) : {});
+  const [meaning, setMeaning] = useState<Record<string, Outcome[]>>(draft?.meaning ?? (known ? meaningOf(known) : {}));
+  const [reviewed, setReviewed] = useState<string[]>(draft?.reviewed ?? known?.statuses.filter(item => item.confirmed).map(item => item.key) ?? []);
   const [more, setMore] = useState(false);
-  const menu = useContextMenu();
-  // One step is on screen at a time; the others keep what was entered in them.
-  const [step, setStep] = useState(0);
-  const [busy, setBusy] = useState<"scan" | "apply" | null>(null);
-  const [report, setReport] = useState<SkiptraceReport | null>(null);
-  const [scannedWith, setScannedWith] = useState<string | null>(null);
-  const [copyName, setCopyName] = useState("");
+  const [step, setStep] = useState(Math.min(4, Math.max(0, draft?.step ?? 0)));
+  const [busy, setBusy] = useState<"scan" | "apply" | null>(draft?.activeJob?.kind ?? null);
+  const [activeJob, setActiveJob] = useState<WorkflowDraft["activeJob"]>(draft?.activeJob ?? null);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const statusRequest = useRef(0);
+  const [report, setReport] = useState<SkiptraceReport | null>(draft?.report ?? null);
+  const [scannedWith, setScannedWith] = useState<string | null>(draft?.scannedWith ?? null);
+  const [savedConfigKey, setSavedConfigKey] = useState<string | null>(known?.saved ? stableKey(known.config) : null);
+  const [copyName, setCopyName] = useState(draft?.copyName ?? "");
   const [saved, setSaved] = useState<{ dataset_id: string; rows: number; added_columns: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const copy = turf.datasets.find(item => item.kind === "checked" && item.parent_dataset_id === dataset.id) ?? null;
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [freshnessError, setFreshnessError] = useState<string | null>(null);
+  const [fingerprint, setFingerprint] = useState<string | null>(null);
+  const [jobId, setJobId] = useState<string | null>(draft?.activeJob?.id ?? null);
+  const [stage, setStage] = useState<{ stage: string; completed?: number; total?: number }>({ stage: draft?.activeJob ? "recovering" : "saving_setup" });
+  const [stopping, setStopping] = useState(false);
+  const [statusQuery, setStatusQuery] = useState("");
+  const [unreviewedOnly, setUnreviewedOnly] = useState(false);
+  const [statusPageIndex, setStatusPageIndex] = useState(0);
+  const [reviewFilter, setReviewFilter] = useState("all");
+  const [reviewRow, setReviewRow] = useState<number | undefined>();
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [importingLegacy, setImportingLegacy] = useState(false);
+  const [legacyImported, setLegacyImported] = useState(false);
+  const [previousSignals, setPreviousSignals] = useState<Record<string, boolean> | null>(null);
+  const copies = checkedCopies(turf.datasets, dataset.id);
+  const copy = copies[0] ?? null;
 
   useEffect(() => {
-    // Already filled in from a setup that arrived earlier (see the initial state above).
-    if (known) return;
     let current = true;
-    skiptraceSuggest(dataset.id).then(result => {
-      if (!current) return;
-      setSetup(result);
-      setBase(result.config);
-      setOutcomeColumn(result.outcome_column);
-      setCalled(calledOf(result));
-      setStatuses(result.statuses);
-      setMeaning(meaningOf(result));
-    }).catch(reason => current && setError(reason instanceof Error ? reason.message : String(reason)));
-    return () => { current = false; };
-  }, [dataset.id, known]);
+    async function load() {
+      try {
+        const result = known ?? await skiptraceSuggest(dataset.id);
+        if (!current) return;
+        setSetup(result);
+        if (result.saved) setSavedConfigKey(stableKey(result.config));
+        if (!draft) {
+          setBase(result.config); setOutcomeColumn(result.outcome_column); setCalled(calledOf(result));
+          setStatuses(result.statuses); setMeaning(meaningOf(result));
+          setReviewed(result.statuses.filter(item => item.confirmed).map(item => item.key));
+        } else if (draft.outcomeColumn && result.columns.includes(draft.outcomeColumn)) {
+          setStatusBusy(true);
+          const table = await skiptraceStatuses(dataset.id, draft.outcomeColumn, draft.base.region);
+          if (!current) return;
+          setStatuses(table);
+          setMeaning(Object.fromEntries(table.map(item => [item.key, draft.meaning[item.key] ?? item.outcomes])));
+        } else setStatuses([]);
+      } catch (reason) { if (current) setError(reason instanceof Error ? reason.message : String(reason)); }
+      finally { if (current) setStatusBusy(false); }
+    }
+    void load();
+    return () => { current = false; statusRequest.current += 1; };
+  }, [dataset.id, known, draft]);
 
-  const config = useMemo(() => (base ? buildConfig(base, outcomeColumn, called, meaning) : null), [base, outcomeColumn, called, meaning]);
-  const configKey = JSON.stringify(config);
-  const stale = Boolean(report) && scannedWith !== configKey;
+  useEffect(() => {
+    if (!view.current || view.current.closest("[hidden]")) return;
+    const heading = view.current.querySelector<HTMLElement>(".wizard-step:not([hidden]) h2");
+    if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+  }, [step, Boolean(setup)]);
+
+  const config = useMemo(() => (base ? buildConfig(base, outcomeColumn, called, meaning, reviewed) : null), [base, outcomeColumn, called, meaning, reviewed]);
+  const configKey = stableKey(config);
+  const staleSetup = Boolean(report) && scannedWith !== configKey;
+  const staleEvidence = Boolean(report && fingerprint && report.fingerprint !== fingerprint);
+  const stale = staleSetup || staleEvidence;
+  const freshnessPending = Boolean(report) && !fingerprint;
+  useEffect(() => {
+    if (!report) return;
+    let current = true;
+    setFingerprint(null);
+    const check = () => skiptraceFreshness(dataset.id).then(value => {
+      if (current) { setFingerprint(value.fingerprint); setFreshnessError(null); }
+    }, reason => { if (current) { setFingerprint(null); setFreshnessError(String(reason)); } });
+    void check();
+    const interval = window.setInterval(() => void check(), 30_000);
+    const focus = () => void check();
+    window.addEventListener("focus", focus);
+    return () => { current = false; window.clearInterval(interval); window.removeEventListener("focus", focus); };
+  }, [report?.fingerprint, dataset.id, turf.version, turf.manual]);
+
+  useEffect(() => {
+    if (!draft?.activeJob) return;
+    const active = draft.activeJob;
+    let current = true;
+    const watch = { onEvent: (event: Record<string, unknown>) => {
+      if (current && typeof event.stage === "string") setStage({ stage: event.stage, completed: typeof event.completed === "number" ? event.completed : undefined, total: typeof event.total === "number" ? event.total : undefined });
+    } };
+    async function resume() {
+      try {
+        if (active.kind === "scan") {
+          const result = await watchJob<{ report: SkiptraceReport }>(active.id, watch);
+          if (current) { setReport(result.report); setScannedWith(active.configKey); setFingerprint(result.report.fingerprint); setStep(3); }
+        } else {
+          const result = await watchJob<{ dataset_id: string; rows: number; added_columns: string[] }>(active.id, watch);
+          if (current) { await turf.refresh(); setSaved(result); setStep(4); }
+        }
+      } catch (reason) { if (current) setError(String(reason)); }
+      finally { if (current) { setBusy(null); setActiveJob(null); setJobId(null); } }
+    }
+    void resume();
+    return () => { current = false; };
+  }, [draft]);
+
+  useEffect(() => {
+    if (!setup || !base || statusBusy) return;
+    const state: WorkflowDraft = { base, outcomeColumn, called, meaning, reviewed, step, copyName, report, scannedWith, activeJob };
+    try { localStorage.setItem(draftKey, JSON.stringify({ version: 1, state })); setDraftError(null); }
+    catch { setDraftError("Your draft could not be saved on this computer. Keep this tab open; storage may be full or unavailable."); }
+  }, [setup, base, outcomeColumn, called, meaning, reviewed, step, copyName, report, scannedWith, draftKey, statusBusy, activeJob]);
 
   const outcomeColumns = useMemo(() => {
     if (!setup) return [];
     const preferred = setup.outcome_candidates.map(item => item.column);
     return [...preferred, ...setup.columns.filter(column => !preferred.includes(column))];
   }, [setup]);
+  const statusView = statusPage(statuses, statusQuery, unreviewedOnly, reviewed, statusPageIndex);
+  const unreviewed = statuses.filter(item => !reviewed.includes(item.key));
+  const ignored = statuses.filter(item => reviewed.includes(item.key) && !(meaning[item.key]?.length));
 
   if (!setup || !base || !config) return error ? <p className="notice" role="alert">{error}</p> : <p className="loading">Reading the setup…</p>;
-
-  const columnOptions = setup.columns.map(column => ({ value: column, label: column }));
+  const missing = missingColumns(config, setup.columns);
+  const columnOptions = setup.columns.map(column => ({ value: column, label: column, description: (setup.column_samples[column] ?? []).join(" · ") }));
   const patch = (changes: Partial<SkiptraceConfig>) => setBase({ ...base, ...changes });
   const togglePhone = (column: string, on: boolean) => {
     const columns = on ? [...base.phone_columns, column] : base.phone_columns.filter(item => item !== column);
@@ -133,56 +224,96 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
     if (!columns.includes(called)) setCalled(columns[0] ?? "");
   };
 
-  async function chooseOutcomeColumn(column: string | null) {
-    setOutcomeColumn(column);
-    if (!column) { setStatuses([]); setMeaning({}); return; }
-    const table = await skiptraceStatuses(dataset.id, column, base!.region);
-    setStatuses(table);
-    setMeaning(Object.fromEntries(table.map(status => [status.key, status.outcomes])));
+  async function chooseOutcomeColumn(column: string | null, region = base!.region) {
+    const request = ++statusRequest.current;
+    setStatusBusy(true); setError(null);
+    try {
+      const table = column ? await skiptraceStatuses(dataset.id, column, region) : [];
+      if (request !== statusRequest.current) return;
+      setOutcomeColumn(column); setStatuses(table);
+      setMeaning(Object.fromEntries(table.map(status => [status.key, status.outcomes])));
+      setReviewed([]); setStatusPageIndex(0);
+    } catch (reason) { if (request === statusRequest.current) setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { if (request === statusRequest.current) setStatusBusy(false); }
   }
-
+  async function changeRegion(region: string) {
+    if (region === base!.region) return;
+    // Changing date interpretation must not retain status keys from another country's format.
+    if (outcomeColumn) {
+      setStatusBusy(true);
+      try {
+        const table = await skiptraceStatuses(dataset.id, outcomeColumn, region);
+        setBase({ ...base!, region }); setStatuses(table);
+        setMeaning(Object.fromEntries(table.map(status => [status.key, meaning[status.key] ?? status.outcomes])));
+        setReviewed(reviewed.filter(key => table.some(item => item.key === key)));
+      } catch (reason) { setError(String(reason)); }
+      finally { setStatusBusy(false); }
+    } else patch({ region });
+  }
+  async function applyTemplate(next: SkiptraceConfig) {
+    setStatusBusy(true);
+    try {
+      const column = next.outcome?.column ?? null;
+      const table = column ? await skiptraceStatuses(dataset.id, column, next.region) : [];
+      setBase(next); setOutcomeColumn(column); setCalled(next.outcome?.called_column ?? next.phone_columns[0] ?? "");
+      setStatuses(table); setMeaning(Object.fromEntries(table.map(item => [item.key, next.outcome?.map[item.key] ?? item.outcomes])));
+      setReviewed([]); setStep(0); setStatusPageIndex(0);
+    } finally { setStatusBusy(false); }
+  }
+  const watch = (kind: "scan" | "apply") => ({
+    onStart: (id: string) => {
+      setJobId(id);
+      const active = { id, kind, configKey };
+      setActiveJob(active);
+      try {
+        const current = readDraft(draftKey);
+        if (current) localStorage.setItem(draftKey, JSON.stringify({ version: 1, state: { ...current, activeJob: active } }));
+      } catch { setDraftError("The running job could not be saved for recovery. Keep this tab open."); }
+    },
+    onEvent: (event: Record<string, unknown>) => { if (typeof event.stage === "string") setStage({ stage: event.stage, completed: typeof event.completed === "number" ? event.completed : undefined, total: typeof event.total === "number" ? event.total : undefined }); },
+  });
   async function check() {
-    setBusy("scan");
-    setError(null);
-    setSaved(null);
+    if (busy || statusBusy || importingLegacy) return;
+    setBusy("scan"); setError(null); setSaved(null); setJobId(null); setStopping(false); setStage({ stage: "saving_setup" });
     try {
-      // The setup is kept with the list, so its call outcomes can warn about numbers in other lists.
       await skiptraceSave(dataset.id, config!);
-      setReport((await skiptraceScan(dataset.id, config!)).report);
-      setScannedWith(configKey);
-      setStep(3);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-    }
-    setBusy(null);
+      setSavedConfigKey(configKey);
+      const result = await skiptraceScan(dataset.id, config!, watch("scan"));
+      setReport(result.report); setFingerprint(result.report.fingerprint); setScannedWith(configKey); setStep(3);
+      setReviewOpen(false); setReviewFilter("all"); setReviewRow(undefined);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setBusy(null); setActiveJob(null); setJobId(null); setStopping(false); }
   }
-
   async function saveCopy() {
-    setBusy("apply");
-    setError(null);
+    if (busy || !report || stale || freshnessPending) return;
+    setBusy("apply"); setError(null); setSaved(null); setJobId(null); setStopping(false); setStage({ stage: "saving_checked_copy" });
     try {
-      const result = await skiptraceApply(dataset.id, config!, copyName.trim() || undefined);
-      await turf.refresh();
-      setSaved(result);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-    }
-    setBusy(null);
+      const result = await skiptraceApply(dataset.id, config!, copyName.trim() || undefined, report.scan_job_id, watch("apply"));
+      await turf.refresh(); setSaved(result);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setBusy(null); setActiveJob(null); setJobId(null); setStopping(false); }
   }
-
-  const marks = Object.entries(turf.manual).sort((a, b) => b[1].at.localeCompare(a[1].at));
+  async function stop() {
+    if (!jobId) return;
+    setStopping(true);
+    try { await cancelSkiptraceJob(jobId); }
+    catch (reason) { setError(String(reason)); setStopping(false); }
+  }
+  function showRows(filter: string, rowNumber?: number) {
+    setReviewFilter(filter); setReviewRow(rowNumber); setReviewOpen(true);
+    window.setTimeout(() => document.getElementById(`review-${report?.scan_job_id}`)?.scrollIntoView({ block: "start", behavior: "instant" }), 0);
+  }
   const outcomes = report?.outcomes;
-  const hasPhones = base.phone_columns.length > 0;
-  // The setup steps open once a phone column is chosen; the results and the saving once there is a check to show.
+  const hasPhones = base.phone_columns.length > 0 && missing.length === 0;
   const reachable = (index: number) => index === 0 || (index <= 2 ? hasPhones : Boolean(report));
 
   return (
-    <section className="list-view skiptrace">
+    <section className="list-view skiptrace" ref={view}>
       <header className="list-head">
         <div>
           <h1>{dataset.name}</h1>
           <p>
-            {formatNumber(setup.rows)} rows · {setup.saved ? "Setup saved with this list" : "Setup proposed from the columns"}
+            {formatNumber(setup.rows)} rows · {savedConfigKey === configKey ? "Setup saved with this list" : savedConfigKey ? "Setup edited since saving" : "Setup proposed from the columns"}
             {copy && <> · <button type="button" className="link" onClick={() => turf.open("lists", copy.id)}>Open the checked copy</button></>}
           </p>
         </div>
@@ -192,39 +323,53 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
         unverified: that is not proof it is connected or belongs to this person. The original rows are never changed.
       </p>
       {error && <p className="notice" role="alert">{error}</p>}
+      {draftError && <p className="notice" role="alert">{draftError}</p>}
+      {!draftError && <p className="muted">Your draft is kept on this computer for this project and list, including when you switch lists or reload.</p>}
+      {missing.length > 0 && <p className="notice" role="alert">This saved draft references missing columns: {missing.join(", ")}. <button type="button" className="button ghost" onClick={() => { setBase(setup.config); setOutcomeColumn(setup.outcome_column); setCalled(calledOf(setup)); setStatuses(setup.statuses); setMeaning(meaningOf(setup)); setReviewed(setup.statuses.filter(item => item.confirmed).map(item => item.key)); }}>Restore this list's suggested or saved setup</button></p>}
+      {busy && <div className="notice" role="status" aria-live="polite"><span>{STAGE_LABELS[stage.stage] ?? stage.stage}{stage.total !== undefined && <> · {formatNumber(stage.completed ?? 0)} of {formatNumber(stage.total)} rows</>}{stopping && " · Stopping at the next safe checkpoint…"}</span>
+        {stage.total !== undefined && <progress max={Math.max(1, stage.total)} value={stage.completed ?? 0} aria-label="Phone check progress" />}
+        <button type="button" className="button ghost" disabled={!jobId || stopping} onClick={() => void stop()}>{stopping ? "Stopping…" : "Stop"}</button>
+      </div>}
+
+      {Object.keys(turf.legacyManual).length > 0 && !legacyImported && <div className="notice"><span>Earlier computer-wide marks are still stored separately. Import them into this project before checking if they belong here; existing project evidence and removals take precedence.</span><button type="button" className="button ghost" disabled={busy !== null || importingLegacy} onClick={async () => { setImportingLegacy(true); try { await turf.importLegacy(); setLegacyImported(true); } catch (reason) { setError(String(reason)); } finally { setImportingLegacy(false); } }}>Import earlier marks</button></div>}
 
       <ol className="stepper" aria-label="Steps">
         {STEPS.map((label, index) => (
           <li key={label}>
-            <button type="button" disabled={!reachable(index)} aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}>
+            <button type="button" disabled={!reachable(index) || busy !== null || statusBusy} aria-current={step === index ? "step" : undefined} onClick={() => setStep(index)}>
               <b>{index + 1}</b>{label}
             </button>
           </li>
         ))}
       </ol>
 
+      <fieldset className="workflow-inputs" disabled={busy !== null || statusBusy || importingLegacy}>
+      <legend className="sr-only">Phone-check setup</legend>
+      <SkiptraceTemplates projectId={turf.projectId} columns={setup.columns} config={config} onApply={applyTemplate} onError={setError} />
       <div className="wizard-step" hidden={step !== 0}>
       <article className="card step">
         <header><h2>Which columns hold phone numbers</h2></header>
         {!setup.config.phone_columns.length && <p className="notice">No column in this list looks like it holds phone numbers. Tick the ones that do, if any.</p>}
         <div className="checks">
-          {setup.columns.map(column => <Check key={column} checked={base.phone_columns.includes(column)} onChange={on => togglePhone(column, on)}>{column}</Check>)}
+          {setup.columns.map(column => <Check key={column} checked={base.phone_columns.includes(column)} onChange={on => togglePhone(column, on)}>{column}<small className="column-samples">{(setup.column_samples[column] ?? []).join(" · ") || "No nonempty sample"}</small></Check>)}
         </div>
         <div className="fields">
-          <Field label="Country to assume when a number does not say" value={base.region} searchable onChange={region => patch({ region: region ?? "US" })}
+          <Field label="Country to assume when a number does not say" value={base.region} searchable onChange={region => void changeRegion(region ?? "US")}
             options={REGIONS.map(code => ({ value: code, label: `${regionName(code)} (${code})` }))} />
-          <Field label="Country column (optional: its country wins for that row)" value={base.country_column} optional="None" options={columnOptions} onChange={country_column => patch({ country_column })} />
+          <Field label="Country column (optional: its country wins for that row)" value={base.country_column} searchable optional="None" options={columnOptions} onChange={country_column => patch({ country_column })} />
         </div>
         <button type="button" className="disclosure" aria-expanded={more} onClick={() => setMore(!more)}>
           <Icon name="chevron" size={16} />Columns that help find shared numbers and areas (optional)
         </button>
         {more && (
           <div className="fields">
-            <Field label="First name" value={base.first_name_column} optional="None" options={columnOptions} onChange={first_name_column => patch({ first_name_column })} />
-            <Field label="Last name" value={base.last_name_column} optional="None" options={columnOptions} onChange={last_name_column => patch({ last_name_column })} />
-            <Field label="Full name (if there is no first and last)" value={base.name_column} optional="None" options={columnOptions} onChange={name_column => patch({ name_column })} />
-            <Field label="ZIP or postal code" value={base.zip_column} optional="None" options={columnOptions} onChange={zip_column => patch({ zip_column })} />
-            <Field label="State" value={base.state_column} optional="None" options={columnOptions} onChange={state_column => patch({ state_column })} />
+            <Field label="First name" value={base.first_name_column} searchable optional="None" options={columnOptions} onChange={first_name_column => patch({ first_name_column })} />
+            <Field label="Last name" value={base.last_name_column} searchable optional="None" options={columnOptions} onChange={last_name_column => patch({ last_name_column })} />
+            <Field label="Full name (if there is no first and last)" value={base.name_column} searchable optional="None" options={columnOptions} onChange={name_column => patch({ name_column })} />
+            <Field label="ZIP or postal code" value={base.zip_column} searchable optional="None" options={columnOptions} onChange={zip_column => patch({ zip_column })} />
+            <Field label="State" value={base.state_column} searchable optional="None" options={columnOptions} onChange={state_column => patch({ state_column })} />
+            <Field label="Street address (household evidence)" value={base.address_column ?? null} searchable optional="None" options={columnOptions} onChange={address_column => patch({ address_column })} />
+            <Field label="Company (shared business evidence)" value={base.business_column ?? null} searchable optional="None" options={columnOptions} onChange={business_column => patch({ business_column })} />
           </div>
         )}
         {!hasPhones && <p className="muted">Choose at least one phone column to go on.</p>}
@@ -236,65 +381,115 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
         <header><h2>Call outcomes (recommended)</h2></header>
         <p className="muted">
           If this list records what happened on each call, a wrong number or a do-not-call in one row warns about the same number in every other row and in your other checked lists.
-          Say once what each status means. A do-not-call mark with an end date stops counting after that date.
+          Review what each status means. Suggestions stay editable; mark a status reviewed or deliberately ignore it. A do-not-call mark with an end date stops counting after that date.
         </p>
         <div className="fields">
-          <Field label="Status column" value={outcomeColumn} optional="No outcome column" options={outcomeColumns.map(column => ({ value: column, label: column }))} onChange={column => void chooseOutcomeColumn(column)} />
+          <Field label="Status column" value={outcomeColumn} searchable optional="No outcome column" options={outcomeColumns.map(column => ({ value: column, label: column }))} onChange={column => void chooseOutcomeColumn(column)} />
           {outcomeColumn && base.phone_columns.length > 0 && (
             <Field label="The status describes the call to" value={called} options={base.phone_columns.map(column => ({ value: column, label: column }))} onChange={column => setCalled(column ?? "")} />
           )}
+          <Field label="Call date column (optional)" value={base.call_date_column ?? null} searchable optional="Date unknown" options={columnOptions} onChange={call_date_column => patch({ call_date_column })} />
         </div>
+        <p className="muted">Dates describe when the call happened, not when a file was imported. Undated successful calls are shown as age unknown. Record voicemail, no answer, wrong person, and disconnected outcomes from a checked row's phone choices or the project call log.</p>
+        {statusBusy && <p role="status">Loading status meanings…</p>}
+        {outcomeColumn && <p className="muted">Dates inside statuses use {base.region === "US" ? "month/day/year" : "day/month/year"}; year-first dates stay unambiguous. DNC end dates are inclusive. Check the country assumption before reviewing meanings.</p>}
+        {outcomeColumn && statuses.length > 0 && <>
+          <p className="muted">{statuses.length - unreviewed.length} of {statuses.length} statuses reviewed · {ignored.length} intentionally ignored · {unreviewed.length} unreviewed. Suggested meanings for unreviewed statuses are shown and will be used if you check now.</p>
+          <div className="row"><SearchBox value={statusQuery} onChange={value => { setStatusQuery(value); setStatusPageIndex(0); }} placeholder="Search call statuses" />
+            <Check checked={unreviewedOnly} onChange={on => { setUnreviewedOnly(on); setStatusPageIndex(0); }}>Only unreviewed</Check>
+            <button type="button" className="button ghost small" onClick={() => setReviewed([...new Set([...reviewed, ...statusView.rows.map(item => item.key)])])}>Confirm meanings on this page</button>
+          </div>
+          <p className="muted">Wrong number means this phone did not reach the intended person. Reached means a person answered; it cannot also be wrong number. DNC can accompany either. Leave voicemail/no-answer statuses without a reached meaning unless you have evidence.</p>
+        </>}
         {outcomeColumn && statuses.length > 0 && (
           <div className="table-wrap">
             <table className="compact">
               <caption className="sr-only">What each status means</caption>
               <thead>
-                <tr><th scope="col">Status</th><th scope="col" className="num">Rows</th>{setup.outcomes.map(outcome => <th scope="col" key={outcome.id} className="center">{outcome.label}</th>)}</tr>
+                <tr><th scope="col">Status</th><th scope="col" className="num">Rows</th>{setup.outcomes.map(outcome => <th scope="col" key={outcome.id} className="center">{outcome.label}</th>)}<th scope="col">Review</th></tr>
               </thead>
               <tbody>
-                {statuses.map(status => (
+                {statusView.rows.map(status => (
                   <tr key={status.key}>
                     <th scope="row">{status.example}</th>
                     <td className="num">{formatNumber(status.count)}</td>
                     {setup.outcomes.map(outcome => (
                       <td key={outcome.id} className="center">
                         <Check label={`${status.example}: ${outcome.label}`} checked={(meaning[status.key] ?? []).includes(outcome.id)}
-                          onChange={on => setMeaning({ ...meaning, [status.key]: toggled(meaning[status.key] ?? [], outcome.id, on) })} />
+                          onChange={on => { setMeaning({ ...meaning, [status.key]: toggled(meaning[status.key] ?? [], outcome.id, on) }); setReviewed([...new Set([...reviewed, status.key])]); }} />
                       </td>
                     ))}
+                    <td><span className="muted">{reviewed.includes(status.key) ? meaning[status.key]?.length ? "Reviewed" : "Intentionally ignored" : "Suggested · unreviewed"}</span>
+                      <div className="row"><button type="button" className="link" onClick={() => setReviewed([...new Set([...reviewed, status.key])])}>Confirm</button>
+                      <button type="button" className="link" onClick={() => { setMeaning({ ...meaning, [status.key]: [] }); setReviewed([...new Set([...reviewed, status.key])]); }}>Ignore</button>
+                      {reviewed.includes(status.key) && <button type="button" className="link" onClick={() => setReviewed(reviewed.filter(key => key !== status.key))}>Mark unreviewed</button>}</div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
+        {outcomeColumn && statuses.length > 0 && <footer className="pager"><span>{statusView.total} matching statuses</span><div className="row">
+          <button type="button" className="button ghost small" disabled={statusView.current === 0} onClick={() => setStatusPageIndex(statusView.current - 1)}>Previous</button><span>Page {statusView.current + 1} of {statusView.pages}</span>
+          <button type="button" className="button ghost small" disabled={statusView.current + 1 >= statusView.pages} onClick={() => setStatusPageIndex(statusView.current + 1)}>Next</button>
+        </div></footer>}
+        {outcomeColumn && !statusBusy && statuses.length === 0 && <p className="muted">This status column has no nonempty values. You can continue without call outcomes.</p>}
       </article>
       </div>
 
       <div className="wizard-step" hidden={step !== 2}>
       <article className="card step">
         <header><h2>Warning signs</h2></header>
+        <div className="fields"><label className="field"><span>Review successful-call evidence after this many days</span><input className="input" type="number" min="1" max="3650" value={base.evidence_age_days ?? 180} onChange={event => patch({ evidence_age_days: Number(event.target.value) })} /></label><label className="field"><span>Flag live lookup results after this many days</span><input className="input" type="number" min="1" max="365" value={base.lookup_age_days ?? 30} onChange={event => patch({ lookup_age_days: Number(event.target.value) })} /></label></div>
+        <p className="muted">Aging and conflicting evidence prompt review; they do not prove reassignment. Shared-number explanations distinguish possible households, businesses, unrelated people, and unknown relationships. All existing warning-sign reports remain below.</p>
         <p className="muted">These make a number suspicious. With call outcomes, the results show how well each one predicts a wrong number in your own data, so you can switch off the ones that do not.</p>
         <div className="checks column">
           {setup.signals.filter(sign => !sign.measured_only).map(sign => (
-            <Check key={sign.code} checked={Boolean(base.signals[sign.code])} onChange={on => patch({ signals: { ...base.signals, [sign.code]: on } })}>{sign.label}</Check>
+            <Check key={sign.code} checked={Boolean(base.signals[sign.code])} onChange={on => patch({ signals: { ...base.signals, [sign.code]: on } })}>{sign.label}<small>{SIGN_HELP[sign.code]?.example}<br />{SIGN_HELP[sign.code]?.needs}
+              {sign.code === "shared_number" && !base.name_column && !base.first_name_column && !base.last_name_column && <><br />No name column mapped yet.</>}
+              {sign.code === "area_code_other_state" && !base.state_column && <><br />No property state column mapped yet.</>}
+              {sign.code === "country_mismatch" && !base.country_column && !base.zip_column && !base.state_column && <><br />No address country evidence mapped yet.</>}
+            </small></Check>
           ))}
         </div>
-        <p className="muted">The next step reads every phone number in the list. Nothing is saved until the last step.</p>
+        <p className="muted">Checking saves this setup for future checks and reads every selected phone value. Your original list stays unchanged; the checked copy is saved separately in the last step.</p>
+        <h3>Review before checking</h3>
+        <dl className="metrics text"><div><dt>Phone columns</dt><dd>{base.phone_columns.join(", ")}</dd></div><div><dt>Country</dt><dd>{regionName(base.region)} · row override: {base.country_column ?? "None"}</dd></div>
+          <div><dt>Names and areas</dt><dd>{[base.first_name_column, base.last_name_column, base.name_column, base.zip_column, base.state_column].filter(Boolean).join(", ") || "Not mapped"}</dd></div>
+          <div><dt>Outcomes</dt><dd>{outcomeColumn ? `${outcomeColumn} describes ${called}; ${unreviewed.length} unreviewed statuses; ${ignored.length} intentionally ignored` : "No outcome column"}</dd></div>
+          <div><dt>Warning signs</dt><dd>{setup.signals.filter(sign => !sign.measured_only && base.signals[sign.code]).map(sign => sign.label).join(" · ") || "All configurable signs off"}</dd></div>
+        </dl>
+        <div className="row"><button type="button" className="link" onClick={() => setStep(0)}>Edit columns</button><button type="button" className="link" onClick={() => setStep(1)}>Review call outcomes</button></div>
       </article>
       </div>
+
+      </fieldset>
 
       {report && outcomes && (
         <>
           <div className="wizard-step" hidden={step !== 3}>
+          {freshnessError && <p className="notice" role="alert">Cannot verify this check: {freshnessError}. Saving stays unavailable until freshness is verified.</p>}
           {stale && (
             <p className="notice" role="status">
-              <span>You changed the setup after this check, so these results are out of date.</span>
+              <span>{staleSetup ? "You changed the setup after this check." : "The date or project evidence changed after this check."} These results are out of date; check again before saving.</span>
               <button type="button" className="button" disabled={busy !== null} onClick={() => void check()}>{busy === "scan" ? "Checking…" : "Check again"}</button>
             </p>
           )}
 
           <article className="card step">
+            <header><h2>What needs attention?</h2><span className="count">Checked {new Date(report.checked_at).toLocaleString()}</span></header>
+            {report.phone_assessments && <><h3>Phone quality and calling restrictions</h3><dl className="metrics">{(["corroborated", "unverified", "suspicious", "wrong"] as const).map(quality => <div key={quality}><dt>Quality: {quality}</dt><dd>{formatNumber(report.phone_assessments?.[quality] ?? 0)}</dd></div>)}<div><dt>Active DNC blocks</dt><dd>{formatNumber(report.phone_assessments.blocked_dnc ?? 0)}</dd></div><div><dt>Aging or review warnings</dt><dd>{formatNumber(report.phone_assessments.needs_review ?? 0)}</dd></div></dl><p className="muted">These count distinct number/extension choices per row; the same number can appear in several rows. A valid or corroborated number can still be blocked by DNC. Open a reviewed row's All fields to see ordered alternatives, household/business context, call dates, and lookup evidence. Existing combined verdict reports remain below.</p></>}
+            <div className="action-summary">{[
+              ["callable", "Rows with a usable number"], ["known_wrong", "Rows containing known wrong numbers"], ["dnc", "Rows containing do-not-call numbers"], ["needs_review", "Rows needing review"], ["no_phone", "Rows with no phone values"],
+            ].map(([filter, label]) => <button type="button" className="summary-item" key={filter} onClick={() => showRows(filter)}><strong>{formatNumber(report.row_counts[filter] ?? 0)}</strong><span>{label}</span><small>Review rows →</small></button>)}</div>
+            <p className="muted">These are row counts; categories can overlap. A row with a blocked phone can still have another usable number. Usable includes suspicious and unverified numbers: it does not prove ownership or connection. Review blocked numbers without deleting the row.</p>
+            <p className="muted">Cross-file evidence: {report.other_datasets_used.join(", ") || "No other saved lists"}. Manual marks: {Object.keys(report.manual_evidence).length} in this project at check time. Sign-performance measurements use mapped call outcomes.</p>
+            <nav className="row" aria-label="Result sections"><a className="link" href={`#verdicts-${dataset.id}`}>Verdicts</a><a className="link" href={`#columns-${dataset.id}`}>Column usefulness</a><a className="link" href={`#reasons-${dataset.id}`}>Reasons</a><a className="link" href={`#signals-${dataset.id}`}>Warning-sign measurements</a><a className="link" href={`#phone-details-${dataset.id}`}>Phone details</a></nav>
+            <button type="button" className="button ghost" onClick={() => showRows("all")}>Review all checked rows</button>
+          </article>
+          {reviewOpen && <SkiptraceReview report={report} filter={reviewFilter} rowNumber={reviewRow} datasetId={dataset.id} onUpdated={turf.refresh} onFilter={filter => { setReviewFilter(filter); setReviewRow(undefined); }} />}
+          <article className="card step" id={`verdicts-${dataset.id}`}>
             <header><h2>Results</h2><span className="count">{formatNumber(report.values)} phone values</span></header>
             <div className="verdict-bar" role="img" aria-label={MEANINGS.map(item => `${report.verdicts[item.id]} ${item.id}`).join(", ")}>
               {MEANINGS.map(item => (report.verdicts[item.id] ? <i key={item.id} className={`seg-${item.id}`} style={{ flexGrow: report.verdicts[item.id] }} /> : null))}
@@ -311,22 +506,22 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
             <dl className="metrics">
               <div><dt>Rows with a usable number</dt><dd>{formatNumber(report.rows_with_callable_number)} <small>of {formatNumber(report.rows)}</small></dd></div>
               <div><dt>Rows with any phone</dt><dd>{formatNumber(report.rows_with_phone)}</dd></div>
-              {outcomes.available && <div><dt>Numbers known wrong</dt><dd>{formatNumber(outcomes.known_wrong_numbers)}</dd></div>}
-              {outcomes.available && <div><dt>Do-not-call numbers</dt><dd>{formatNumber(outcomes.do_not_call_numbers)} <small>{formatNumber(outcomes.expired_do_not_call_numbers)} more expired</small></dd></div>}
+              {(outcomes.available || Object.keys(report.manual_evidence).length > 0) && <div><dt>Numbers known wrong</dt><dd>{formatNumber(outcomes.known_wrong_numbers)}</dd></div>}
+              {(outcomes.available || Object.keys(report.manual_evidence).length > 0) && <div><dt>Do-not-call numbers</dt><dd>{formatNumber(outcomes.do_not_call_numbers)} <small>{formatNumber(outcomes.expired_do_not_call_numbers)} more expired</small></dd></div>}
             </dl>
             {outcomes.available && outcomes.carried_rows > 0 && (
               <p className="notice" role="status">
                 <span>
                   <strong>{formatNumber(outcomes.carried_rows)} rows not yet called have a number that is already known to be bad:</strong>{" "}
                   {formatNumber(outcomes.carried_wrong_number)} marked wrong number and {formatNumber(outcomes.carried_do_not_call)} on a do-not-call list, in this list or {report.other_datasets_used.length ? report.other_datasets_used.join(", ") : "your other checked lists"}.
-                  Take these off the call list before anyone dials them.
+                  Do not dial these blocked numbers. Review other phone columns in each row for an alternative; the row itself is kept.
                 </span>
               </p>
             )}
             {report.other_datasets_used.length > 0 && <p className="muted">Outcomes from {report.other_datasets_used.join(", ")} were used.</p>}
           </article>
 
-          <article className="card step">
+          <article className="card step" id={`columns-${dataset.id}`}>
             <header><h2>Which phone columns are worth using</h2></header>
             <div className="table-wrap">
               <table className="compact">
@@ -348,7 +543,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           </article>
 
           {report.reasons.length > 0 && (
-            <article className="card step">
+            <article className="card step" id={`reasons-${dataset.id}`}>
               <header><h2>Why numbers got their verdict</h2></header>
               <div className="table-wrap">
                 <table className="compact">
@@ -360,7 +555,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                         <td className="num">{formatNumber(reason.count)}</td>
                         <td>
                           {reason.examples.map(example => (
-                            <div key={`${example.row}-${example.column}`} className="example"><code>{example.value}</code> row {example.row}, {example.column}: {example.text}</div>
+                            <div key={`${example.row}-${example.column}`} className="example"><code>{example.value}</code> <button type="button" className="link" onClick={() => showRows("all", example.row)}>row {example.row}</button>, {example.column}: {example.text}</div>
                           ))}
                         </td>
                       </tr>
@@ -372,7 +567,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           )}
 
           {outcomes.available && (
-            <article className="card step">
+            <article className="card step" id={`signals-${dataset.id}`}>
               <header><h2>Do the warning signs predict wrong numbers here?</h2></header>
               <p className="muted">
                 Measured on the {formatNumber(outcomes.contacted)} rows where a call either reached a person or found a wrong number. In this data, {percent(outcomes.baseline_wrong_rate, 1)} of those calls were a wrong number.
@@ -380,7 +575,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
               </p>
               {report.signals.some(sign => !sign.measured_only && sign.enough_data) && (
                 <div className="row">
-                  <button type="button" className="button ghost" onClick={() => patch({ signals: { ...base.signals, ...Object.fromEntries(report.signals.filter(sign => !sign.measured_only && sign.enough_data).map(sign => [sign.code, sign.predictive])) } })}>
+                  <button type="button" className="button ghost" disabled={busy !== null || stale || freshnessPending} onClick={() => { setPreviousSignals(base.signals); patch({ signals: { ...base.signals, ...Object.fromEntries(report.signals.filter(sign => !sign.measured_only && sign.enough_data).map(sign => [sign.code, sign.predictive])) } }); }}>
                     Use the signs that predict
                   </button>
                   <span className="muted">Switches on the signs that clearly predict wrong numbers here and off the ones that do not. Check again afterwards.</span>
@@ -405,7 +600,8 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
             </article>
           )}
 
-          <article className="card step">
+          {previousSignals && <p className="notice" role="status"><span>Predictive signs were applied. Review them in Warning signs and check again.</span><button type="button" className="button ghost" disabled={busy !== null} onClick={() => { patch({ signals: previousSignals }); setPreviousSignals(null); }}>Undo sign changes</button></p>}
+          <article className="card step" id={`phone-details-${dataset.id}`}>
             <header><h2>What was found in the numbers</h2></header>
             <dl className="metrics text">
               <div><dt>Kinds of line</dt><dd>{Object.entries(report.types).map(([name, count]) => `${name}: ${formatNumber(count)}`).join(" · ") || "No valid numbers"}</dd></div>
@@ -422,15 +618,21 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
             <header><h2>Save the checked copy</h2></header>
             <p className="muted">
               Adds, for each phone column, its verdict, the reasons, the number in international format and the kind of line, plus the best number to call in each row.
-              It is saved as a new list next to the original{copy ? `, replacing ${copy.name}` : ""}.
+              It is saved as a new list next to the original. Earlier checked copies are kept. Lists uses the newest checked copy; you can open any earlier copy below.
             </p>
+            <p className="muted">{formatNumber(report.rows)} source rows kept · {report.added_columns.length} added columns · checked {new Date(report.checked_at).toLocaleString()}. This saves the exact reviewed results.</p>
+            <p className="muted">Outcome sources: {report.other_datasets_used.join(", ") || "This list and project marks"}.</p>
+            <CheckedPreview report={report} />
+            {stale && <p className="notice" role="status">The setup, date, or evidence changed. <button type="button" className="button" disabled={busy !== null} onClick={() => void check()}>Check again</button></p>}
+            {freshnessError && <p role="alert" className="notice">{freshnessError}</p>}
             <label className="field">
               <span>Name of the checked copy</span>
-              <input className="input" value={copyName} placeholder={copy?.name ?? `${dataset.name} (phones checked)`} onChange={event => setCopyName(event.target.value)} />
+              <input className="input" value={copyName} disabled={busy !== null} placeholder={`${dataset.name} (phones checked)`} onChange={event => setCopyName(event.target.value)} />
             </label>
             <div className="row">
-              <button type="button" className="button" disabled={busy !== null || stale} onClick={() => void saveCopy()}>{busy === "apply" ? "Saving…" : "Save checked copy"}</button>
-              {stale && <span className="muted">Check again first: the setup changed.</span>}
+              <button type="button" className="button" disabled={busy !== null || stale || freshnessPending} onClick={() => void saveCopy()}>{busy === "apply" ? "Saving…" : "Save checked copy"}</button>
+              {stale && <span className="muted">Check again first: the setup or evidence changed.</span>}
+              {freshnessPending && <span className="muted">Verifying freshness before saving…</span>}
             </div>
             {saved && (
               <p className="notice good" role="status">
@@ -444,41 +646,28 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
       )}
 
       <div className="wizard-step" hidden={step !== 3}>
-      <article className="card step">
-        <header><h2>Marks made in Turf</h2><span className="count">{marks.length}</span></header>
-        {marks.length ? (
-          <ul className="mark-list">
-            {marks.slice(0, 12).map(([number, entry]) => (
-              <li key={number} onContextMenu={event => menu(event, [
-                { label: "Copy the number", hint: formatPhone(number), onSelect: () => copyText(formatPhone(number)) },
-                { label: "Remove the mark", danger: true, onSelect: () => turf.setMark(number, null) },
-              ])}>
-                <strong>{formatPhone(number)}</strong>
-                <span className={`pill ${entry.mark === "interested" ? "pill-corroborated" : entry.mark === "called" ? "pill-none" : "pill-wrong"}`}>{MANUAL_LABELS[entry.mark]}</span>
-                <small>{formatDate(entry.at)}</small>
-                <button type="button" className="round small" aria-label={`Remove the mark on ${formatPhone(number)}`} onClick={() => turf.setMark(number, null)}><Icon name="close" size={14} /></button>
-              </li>
-            ))}
-          </ul>
-        ) : <Empty title="No marks yet">Open a row in Lists and mark its number: called, interested, wrong number or do not call.</Empty>}
-        {marks.length > 12 && <p className="muted">{marks.length - 12} more not shown.</p>}
-        <p className="muted">Turf keeps these on this computer. They show on rows in Lists, but the phone check above does not read them yet.</p>
-      </article>
+      <ManualEvidence turf={turf} />
       </div>
 
+      <div className="card step"><p className="muted">Your original file stays in this project. Each saved checked copy keeps all rows and result columns for download later.</p><ListDownloads datasetId={dataset.id} fail={turf.fail} /></div>
+      {config && <PhoneLookup datasetId={dataset.id} config={config} projectId={turf.projectId} onUpdated={turf.refresh} />}
+      {copies.length > 0 && <details className="card step"><summary>Checked-copy history ({copies.length})</summary><p className="muted">The newest copy is used when you open the original in Lists. Every previous copy remains available.</p>
+        <ul className="copy-history">{copies.map((item, index) => <li key={item.id}><button type="button" className="link" onClick={() => turf.open("lists", item.id)}>{item.name}</button><span>{index === 0 ? "Latest · " : ""}{new Date(item.created_at).toLocaleString()} · {formatNumber(item.row_count)} rows</span><ListDownloads datasetId={item.id} checkedId={item.id} fail={turf.fail} /></li>)}</ul>
+      </details>}
+
       <footer className="wizard-nav">
-        <button type="button" className="button ghost" disabled={step === 0 || busy !== null} onClick={() => setStep(step - 1)}>Back</button>
+        <button type="button" className="button ghost" disabled={step === 0 || busy !== null || statusBusy} onClick={() => setStep(step - 1)}>Back</button>
         <span className="muted">Step {step + 1} of {STEPS.length}: {STEPS[step]}</span>
-        {step < 2 && <button type="button" className="button" disabled={!hasPhones} onClick={() => setStep(step + 1)}>Next</button>}
+        {step < 2 && <button type="button" className="button" disabled={!hasPhones || busy !== null || statusBusy || importingLegacy} onClick={() => setStep(step + 1)}>Next</button>}
         {step === 2 && (
           <div className="row">
             {report && !stale && <button type="button" className="button ghost" onClick={() => setStep(3)}>See the last results</button>}
-            <button type="button" className="button" disabled={!hasPhones || busy !== null} onClick={() => void check()}>
+            <button type="button" className="button" disabled={!hasPhones || busy !== null || statusBusy || importingLegacy} onClick={() => void check()}>
               {busy === "scan" ? "Checking…" : report ? "Check again" : "Check phone numbers"}
             </button>
           </div>
         )}
-        {step === 3 && <button type="button" className="button" disabled={stale || busy !== null} onClick={() => setStep(4)}>Next</button>}
+        {step === 3 && <button type="button" className="button" disabled={stale || busy !== null || freshnessPending} onClick={() => setStep(4)}>Next</button>}
         {step === 4 && <span />}
       </footer>
     </section>

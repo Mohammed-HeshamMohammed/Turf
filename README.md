@@ -45,7 +45,30 @@ Then open http://localhost:5183. The dev server talks to the service the same wa
 npm run check
 ```
 
-Runs the type check and build of the window, the service's tests (pytest) and the host's tests (cargo).
+Runs the type check and build of the window, UI interaction tests (Vitest), the service's tests (pytest), and the host's tests (cargo). For checks that do not need desktop libraries, run `npm run build`, `npm test`, and `python -m pytest service/tests -q`.
+
+## Skip Tracing workflow
+
+All five steps remain: phone columns, call outcomes, warning signs, results, and saving a checked copy.
+
+- Column samples help confirm the proposed mappings. Call statuses are searchable and paginated; every distinct status is available, including those beyond the former 80-status limit. Explicitly ignored meanings stay ignored.
+- Drafts, completed reports, running job references, and editable setup templates are kept on this computer, keyed by project and list. Templates validate the columns before applying. Storage failures are shown; drafts and templates are not project-file backups.
+- Checks save the setup, but never change original rows. Results include all existing reports, an action summary, and paginated row review. Progress and safe cancellation are available; a running job can be reconnected after a screen reload while the service remains alive.
+- New manual marks belong to the project, retain source/date/history, and feed the next phone check. DNC has an optional inclusive end date. Called alone does not count as reaching a person. Wrong/reached conflicts remain suspicious; active DNC still blocks a number.
+- Saving uses the exact reviewed scan and adds the same verdict/reason/international-format/line-type/best-phone columns. Changes to the setup, project evidence, or calendar date require a new check. Earlier copies remain available; Lists uses the newest copy of an original.
+- Project files retain the exact uploaded original and an immutable CSV for every saved checked version. Use **Download original** or **Download checked CSV** in Lists or checked-copy history, including after reopening the project or losing the local upload. Originals keep their uploaded format (including ZIP/GZIP); checked CSVs include every row and original/result column. Older checked copies export from their saved snapshot without running a new check. Keep the project's SQLite file and `artifacts/` folder together when moving or backing it up.
+- Phone choices now show **quality** separately from **calling restrictions**, alongside all previous combined verdicts. Active DNC always blocks a recommendation. Numbers are ranked individually (including several in one cell), retain their extensions and source columns, and show why the first choice or alternatives were selected. “No recorded block” describes project evidence; it does not establish consent or permission to call.
+- In a reviewed row's **All fields**, or a saved row's details in Lists, open **Phone choices** to record dated, number-specific call outcomes. Reached, wrong person, disconnected, voicemail, no answer, and known wrong number are supported. Wrong person stays scoped to the mapped person; disconnected/known wrong number apply across the project. Voicemail/no answer do not prove connection, ownership, or a bad number. Records can be retracted while retaining their audit history. The project call log is also available beside manual marks.
+- Optional street-address/company mappings distinguish possible household and business sharing from unrelated people or unknown relationships. Optional imported call-date columns and configurable age thresholds surface old, undated, and conflicting evidence, including possible reassignment warnings without claiming reassignment is confirmed. New logs and lookup results invalidate old scans; saving still uses the exact reviewed snapshot and records its evidence in lineage metadata.
+
+### Optional live phone lookup
+
+Open **Optional live phone lookup** in Skip Tracing to configure [Twilio Lookup v2](https://www.twilio.com/docs/lookup/v2-api). Account SID/Auth Token credentials are stored only in this computer's application-data directory (`phone-lookup-settings.json`, mode 0600 on Unix), outside project folders and exports. Blank credential fields keep the existing credentials; **Remove credentials** disables lookup. Existing results remain in their projects.
+
+Line type intelligence supplies carrier/type when supported; optional [Line Status](https://www.twilio.com/docs/lookup/v2-api/line-status) requires provider product access and coverage. Enter the combined USD price per number for your selected products to preview estimated cost; blank means cost unknown, never free. Estimates exclude taxes and account-specific fees. Set a maximum batch size and preview requests/cost before explicitly sending numbers. Only phone numbers are sent, without names or addresses. No provider requests run automatically during a normal check.
+
+Successful results for the same products are reused within the configured cache age, numbers are deduplicated, and concurrent paid batches in one project are rejected. Each request retains a timestamp, provider, result/error, and estimated cost. Stop retains completed responses. The panel reconnects to its saved job after a screen reload; a service restart marks interrupted jobs as failed and retains completed responses for reuse. Failed lookups never become evidence. Fresh inactive results block recommendations; old or temporarily unreachable results prompt review. Carrier/type/availability never prove ownership. Check phones again to incorporate new results; original and previously saved versions remain unchanged.
+- Reviewed scan rows and evidence history are retained in the project database; checks therefore use additional disk space. Closing the service interrupts running jobs; reopening the project recovers them as interrupted rather than resuming partial work.
 
 ## What is here
 
@@ -59,7 +82,7 @@ Runs the type check and build of the window, the service's tests (pytest) and th
 | `src/lib/service.ts` | The window's side of the service: one function per command. |
 | `src/lib/marks.ts` | Reads marks and areas from a list's columns. |
 | `src-tauri/src/sidecar.rs` | The bridge to the service: a child process speaking JSON lines, as in DataForge's host. |
-| `src-tauri/src/store.rs` | What Turf itself keeps (marks made by hand, the area columns picked for a list), in `turf.json` in the app's data folder. |
+| `src-tauri/src/store.rs` | Area mappings and earlier computer-wide marks in `turf.json`. New manual marks and their history are saved in the project database. Earlier marks can be explicitly imported into a project without deleting the old store. |
 | `service/turf_service/` | The service: the command router, projects, lists, jobs and the Skip Tracing commands. An import leaves out empty rows and columns; lists already in a project get the same when it is opened (`tidy.py`). |
 | `service/turf_matching/` | Phone reading and the Skip Tracing rules. |
 | `service/turf_service/geo.py` | Where rows go on the map: the centre of their ZIP (a file shipped with Turf, checked against the row's state), or their exact address when the person asks for the lookup. The lookup sends street, city, state and ZIP to the US Census Bureau's geocoder; nothing else leaves the computer. |
@@ -68,7 +91,6 @@ Runs the type check and build of the window, the service's tests (pytest) and th
 
 ## Not done yet
 
-- **Marks made by hand are not read by the phone check.** They show on rows only. Feeding them in as call outcomes is the next step for the service.
 - **No installer.** A packaged Turf would ship the service built into one executable (`service/turf-service.exe`); the host already looks for it there. Until then Turf runs from source and needs Python.
 - **Listings come from DataForge.** Turf has no collector; a collected run shows in Turf when its project is opened here.
 - **Turf and DataForge open at once on one project** has not been tested. Opening a project recovers interrupted jobs, so do not open a project in Turf while DataForge is running a job on it.

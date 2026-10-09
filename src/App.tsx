@@ -5,7 +5,7 @@ import { ProjectGate } from "./components/ProjectGate";
 import { TitleBar } from "./components/TitleBar";
 import {
   clearSuggestions, currentProject, describeLeftOut, importFile, inDesktop, listDatasets, openProject, pickImportFile, setAreaColumns, setMark, skiptraceSuggest,
-  turfState, type Project,
+  turfState, projectMarks, importLegacyMarks, type Project,
 } from "./lib/service";
 import { clearRowsCache, marksSource, preloadRows, useStored } from "./lib/hooks";
 import type { ManualMarks } from "./lib/marks";
@@ -23,6 +23,9 @@ const TABS = [
 export type TabId = (typeof TABS)[number]["id"];
 
 export type Turf = {
+  projectId: string;
+  legacyManual: ManualMarks;
+  importLegacy: () => Promise<void>;
   datasets: Dataset[];
   /** Bumped when the lists change, so views reload their rows. */
   version: number;
@@ -31,7 +34,7 @@ export type Turf = {
   select: (id: string) => void;
   open: (tab: TabId, id?: string) => void;
   manual: ManualMarks;
-  setMark: (number: string, mark: ManualMark | null) => void;
+  setMark: (number: string, mark: ManualMark | null, until?: string | null) => void;
   areaMaps: Record<string, AreaMapping>;
   setAreaMap: (datasetId: string, mapping: AreaMapping) => void;
   fail: (reason: unknown) => void;
@@ -60,6 +63,7 @@ export function App() {
   const [version, setVersion] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [manual, setManual] = useState<ManualMarks>({});
+  const [legacyManual, setLegacyManual] = useState<ManualMarks>({});
   const [areaMaps, setAreaMaps] = useState<Record<string, AreaMapping>>({});
   const [error, setError] = useState<string | null>(null);
   // Something the app did by itself that the person should know about, such as leaving out empty columns.
@@ -80,12 +84,12 @@ export function App() {
     setError(null);
     try {
       const saved = await turfState();
-      setManual(saved.marks);
+      setLegacyManual(saved.marks);
       setAreaMaps(saved.areas);
       const open = await currentProject();
       setProject(open);
       noteTidied(open);
-      if (open) await refresh();
+      if (open) { setManual(await projectMarks()); await refresh(); }
     } catch (reason) {
       fail(reason);
     }
@@ -102,11 +106,16 @@ export function App() {
     noteTidied(next);
     setChoosing(false);
     setDatasets(null);
+    setManual({});
     setSelectedId(null);
+    projectMarks().then(setManual, fail);
     refresh().catch(fail);
   }, [refresh, fail, noteTidied]);
 
   const turf = useMemo<Turf | null>(() => datasets && {
+    projectId: project?.id ?? "",
+    legacyManual,
+    importLegacy: async () => { setManual(await importLegacyMarks(legacyManual)); },
     datasets,
     version,
     refresh,
@@ -115,12 +124,12 @@ export function App() {
     select: setSelectedId,
     open: (next, id) => { if (id) setSelectedId(id); setTab(next); },
     manual,
-    // Saved by the host; the screen shows what it answers, so a failed save never looks saved.
-    setMark: (number, mark) => void setMark(number, mark).then(setManual, fail),
+    // Saved in the project; a failed write never looks saved.
+    setMark: (number, mark, until) => void setMark(number, mark, until).then(setManual, fail),
     areaMaps,
     setAreaMap: (datasetId, mapping) => void setAreaColumns(datasetId, mapping).then(setAreaMaps, fail),
     fail,
-  }, [datasets, version, refresh, selectedId, manual, areaMaps, setTab, fail]);
+  }, [datasets, version, refresh, selectedId, manual, legacyManual, project, areaMaps, setTab, fail]);
 
   // Read ahead in the background: every list's rows (the dashboard needs them all anyway), and the Skip Tracing
   // setup of the list in view. Switching tabs or lists then has nothing to wait for.

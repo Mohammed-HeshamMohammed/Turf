@@ -32,9 +32,9 @@ export function Select({ value, onChange, options, label, icon, variant = "field
     if (open) list.current?.children[active]?.scrollIntoView({ block: "nearest" });
   }, [open, active]);
 
-  const show = () => { setQuery(""); setActive(Math.max(0, options.findIndex(option => option.value === value))); setOpen(true); };
+  const show = () => { if (root.current?.closest("fieldset[disabled]")) return; setQuery(""); setActive(Math.max(0, options.findIndex(option => option.value === value))); setOpen(true); };
   const choose = (option: Option | undefined) => {
-    if (!option) return;
+    if (!option || root.current?.closest("fieldset[disabled]")) return;
     onChange(option.value);
     setOpen(false);
     root.current?.querySelector("button")?.focus();

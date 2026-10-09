@@ -4,7 +4,7 @@ const RANK: Record<Verdict, number> = { corroborated: 0, unverified: 1, suspicio
 const isVerdict = (value: unknown): value is Verdict => typeof value === "string" && value in RANK;
 
 /** Columns Skip Tracing adds to a checked copy; everything else is the list's own data. */
-export const isAddedColumn = (name: string) => /\((verdict|why|E\.164|type)\)$/.test(name) || name.startsWith("Best phone");
+export const isAddedColumn = (name: string) => /\((verdict|why|E\.164|type|quality|permission)\)$/.test(name) || name.startsWith("Best phone") || ["Phone choices", "Phone evidence warnings"].includes(name);
 
 export const ownColumns = (columns: string[]) => columns.filter(name => !isAddedColumn(name));
 
@@ -24,7 +24,7 @@ export type Marks = {
   manual: ManualMark | null;
 };
 
-export type ManualMarks = Record<string, { mark: ManualMark; at: string }>;
+export type ManualMarks = Record<string, { mark: ManualMark; at: string; until?: string | null; source?: string }>;
 
 /** Reads a row's marks from the checked copy's columns, then lays any manual mark for its number on top. */
 export function readMarks(raw: Raw, phoneColumns: string[], manual: ManualMarks): Marks {
@@ -50,13 +50,17 @@ export function readMarks(raw: Raw, phoneColumns: string[], manual: ManualMarks)
       doNotCallUntil = why.match(/until (\d{4}-\d{2}-\d{2})/)?.[1] ?? doNotCallUntil;
     }
   }
-  let why = bestFrom && raw[`${bestFrom} (why)`] ? String(raw[`${bestFrom} (why)`]) : null;
-  const number = best ?? firstNumber;
-  const mark = number ? manual[number]?.mark ?? null : null;
-  if (mark === "wrong_number") { verdict = "wrong"; knownWrong = true; why = "Marked a wrong number in Turf"; }
-  if (mark === "do_not_call") { verdict = "wrong"; doNotCall = true; why = "Marked do-not-call in Turf"; }
+  let why = raw["Best phone why"] ? String(raw["Best phone why"]) : bestFrom && raw[`${bestFrom} (why)`] ? String(raw[`${bestFrom} (why)`]) : null;
+  const number = (best ?? firstNumber)?.split(";")[0].trim() ?? null;
+  const entry = number ? manual[number] : undefined;
+  const today = [new Date().getFullYear(), String(new Date().getMonth() + 1).padStart(2, "0"), String(new Date().getDate()).padStart(2, "0")].join("-");
+  const mark = entry?.mark === "do_not_call" && entry.until && entry.until < today ? null : entry?.mark ?? null;
+  if (mark === "wrong_number") { verdict = verdict === "corroborated" || /but reached/i.test(why ?? "") ? "suspicious" : "wrong"; knownWrong = verdict === "wrong"; why = verdict === "suspicious" ? "Conflicting outcomes: marked wrong in Turf, but a person was reached" : "Marked a wrong number in Turf"; }
+  if (mark === "do_not_call") { verdict = "wrong"; doNotCall = true; doNotCallUntil = entry?.until ?? null; why = "Marked do-not-call in Turf"; }
   if (mark === "interested" && verdict !== "wrong") { verdict = "corroborated"; why = "Marked interested in Turf: a call reached a person"; }
-  return { verdict, best: mark === "wrong_number" || mark === "do_not_call" ? null : best, bestFrom, why, knownWrong, doNotCall, doNotCallUntil, number, manual: mark };
+  const separatelyUsable = raw["Best phone quality"] && raw["Best phone quality"] !== "wrong" && raw["Best phone permission"] === "no_recorded_block";
+  const blockedByNewMark = mark === "do_not_call" || (mark === "wrong_number" && verdict === "wrong");
+  return { verdict, best: blockedByNewMark ? null : separatelyUsable ? best : verdict === "wrong" ? null : best, bestFrom, why, knownWrong, doNotCall, doNotCallUntil, number, manual: mark };
 }
 
 // ---------------------------------------------------------------- areas

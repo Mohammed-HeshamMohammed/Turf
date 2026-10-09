@@ -3,7 +3,7 @@
 // dev server, which talks to the service the same way the host does. The UI never touches SQLite, files or workers directly.
 
 import type { ManualMarks } from "./marks";
-import type { AreaMapping, Dataset, DatasetRow, ManualMark, SkiptraceConfig, SkiptraceReport, SkiptraceSuggestion, StatusRow, Verdict } from "./types";
+import type { AreaMapping, Dataset, DatasetRow, ManualMark, SkiptraceConfig, SkiptraceReport, SkiptraceSuggestion, StatusRow, Verdict, ReviewRow } from "./types";
 
 type Envelope<T> = { schema_version: 1; ok: true; result: T } | { schema_version: 1; ok: false; error: { code: string; message: string } };
 
@@ -65,6 +65,10 @@ const FINISHED = ["completed", "failed", "cancelled"];
  */
 export async function runJob<R>(command: string, payload: Record<string, unknown>, watch: { onStart?: (jobId: string) => void; onEvent?: (payload: Record<string, unknown>) => void } = {}): Promise<R> {
   const { job_id } = await call<{ job_id: string }>(command, payload);
+  return watchJob<R>(job_id, watch);
+}
+
+export async function watchJob<R>(job_id: string, watch: { onStart?: (jobId: string) => void; onEvent?: (payload: Record<string, unknown>) => void } = {}): Promise<R> {
   watch.onStart?.(job_id);
   let seen = 0;
   for (;;) {
@@ -170,9 +174,16 @@ export const skiptraceSave = (dataset_id: string, config: SkiptraceConfig) => {
   suggestions.delete(dataset_id);
   return call<SkiptraceConfig>("skiptrace.save_settings", { dataset_id, config });
 };
-export const skiptraceScan = (dataset_id: string, config: SkiptraceConfig) => runJob<{ report: SkiptraceReport }>("skiptrace.scan", { dataset_id, config });
-export const skiptraceApply = (dataset_id: string, config: SkiptraceConfig, name?: string) =>
-  runJob<{ dataset_id: string; rows: number; added_columns: string[]; verdicts: Record<Verdict, number>; rows_with_callable_number: number }>("skiptrace.apply", { dataset_id, config, name });
+export type JobWatch = { onStart?: (jobId: string) => void; onEvent?: (payload: Record<string, unknown>) => void };
+export const skiptraceScan = (dataset_id: string, config: SkiptraceConfig, watch?: JobWatch) => runJob<{ report: SkiptraceReport }>("skiptrace.scan", { dataset_id, config }, watch);
+export const skiptraceApply = (dataset_id: string, config: SkiptraceConfig, name?: string, scan_job_id?: string, watch?: JobWatch) =>
+  runJob<{ dataset_id: string; rows: number; added_columns: string[]; verdicts: Record<Verdict, number>; rows_with_callable_number: number }>("skiptrace.apply", { dataset_id, config, name, scan_job_id }, watch);
+export const skiptraceFreshness = (dataset_id: string) => call<{ fingerprint: string; date: string }>("skiptrace.freshness", { dataset_id });
+export const skiptraceReview = (job_id: string, filter: string, offset: number, row_number?: number) => call<{ total: number; rows: ReviewRow[] }>("skiptrace.review", { job_id, filter, offset, limit: 25, row_number });
+export const cancelSkiptraceJob = (job_id: string) => call("job.cancel", { job_id });
+export const projectMarks = () => call<ManualMarks>("marks.list");
+export const importLegacyMarks = (marks: ManualMarks) => call<ManualMarks>("marks.import_legacy", { marks });
+export const markHistory = () => call<{ number: string; mark: ManualMark | null; at: string; until?: string | null; source: string }[]>("marks.history");
 
 // ---------------------------------------------------------------- what Turf itself keeps
 
@@ -201,13 +212,8 @@ export async function turfState(): Promise<TurfState> {
   return inDesktop ? invoke<TurfState>("turf_state") : browserState();
 }
 
-export async function setMark(number: string, mark: ManualMark | null): Promise<ManualMarks> {
-  const at = new Date().toISOString();
-  if (inDesktop) return invoke<ManualMarks>("turf_set_mark", { number, mark, at });
-  const state = browserState();
-  if (mark) state.marks[number] = { mark, at };
-  else delete state.marks[number];
-  return saveBrowserState(state).marks;
+export async function setMark(number: string, mark: ManualMark | null, until?: string | null): Promise<ManualMarks> {
+  return call<ManualMarks>("marks.set", { number, mark, until });
 }
 
 export async function setAreaColumns(datasetId: string, mapping: AreaMapping): Promise<Record<string, AreaMapping>> {
@@ -215,4 +221,35 @@ export async function setAreaColumns(datasetId: string, mapping: AreaMapping): P
   const state = browserState();
   state.areas[datasetId] = mapping;
   return saveBrowserState(state).areas;
+}
+
+/** Downloads a project archive; originals retain their exact bytes, checked copies include every column. */
+export async function downloadDataset(datasetId: string, version: "original" | "checked", onProgress?: (percent: number) => void): Promise<boolean> {
+  const payload = { dataset_id: datasetId, version };
+  const info = await call<{ filename: string; size: number; mime: string; hash: string }>("dataset.download", payload);
+  if (inDesktop) {
+    const path = await (await import("@tauri-apps/plugin-dialog")).save({ defaultPath: info.filename });
+    if (!path) return false;
+    await call("dataset.download_save", { ...payload, path, hash: info.hash });
+  } else {
+    const parts: ArrayBuffer[] = [];
+    let offset = 0;
+    while (offset < info.size) {
+      const chunk = await call<{ data: string }>("dataset.download_chunk", { ...payload, hash: info.hash, offset });
+      const bytes = Uint8Array.from(atob(chunk.data), character => character.charCodeAt(0));
+      if (!bytes.length || offset + bytes.length > info.size) throw new Error("The download was interrupted. Please try again.");
+      parts.push(bytes.buffer);
+      offset += bytes.length;
+      onProgress?.(Math.round(offset / info.size * 100));
+    }
+    const url = URL.createObjectURL(new Blob(parts, { type: info.mime }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = info.filename;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+  return true;
 }

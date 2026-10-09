@@ -13,6 +13,7 @@ export type Dataset = {
   column_count: number;
   created_at: string;
   mapping_version: number | null;
+  derivation_json?: string | null;
 };
 
 export type Raw = Record<string, string | number | null>;
@@ -33,11 +34,16 @@ export type SkiptraceConfig = {
   name_column: string | null;
   zip_column: string | null;
   state_column: string | null;
+  address_column?: string | null;
+  business_column?: string | null;
+  call_date_column?: string | null;
+  evidence_age_days?: number;
+  lookup_age_days?: number;
   outcome: { column: string; called_column: string; map: Record<string, Outcome[]> } | null;
   signals: Record<string, boolean>;
 };
 
-export type StatusRow = { key: string; example: string; count: number; outcomes: Outcome[] };
+export type StatusRow = { key: string; example: string; count: number; outcomes: Outcome[]; confirmed?: boolean };
 
 export type SkiptraceSuggestion = {
   dataset_id: string;
@@ -50,6 +56,7 @@ export type SkiptraceSuggestion = {
   statuses: StatusRow[];
   outcomes: { id: Outcome; label: string }[];
   signals: { code: string; label: string; measured_only: boolean }[];
+  column_samples: Record<string, string[]>;
 };
 
 export type ColumnReport = {
@@ -62,7 +69,25 @@ export type SignReport = {
   counted: boolean; measured_only: boolean; predictive: boolean; enough_data: boolean;
 };
 
+export type ReviewRow = { row_number: number; raw: Raw };
+export type PhoneChoice = {
+  number: string | null; raw: string; column: string; columns: string[]; rank: number; extension?: string | null;
+  valid_format: boolean; quality: Verdict; permission: "blocked_dnc" | "no_recorded_block"; blocked: boolean; type: string | null;
+  recommendation: string; explanations: string[]; warnings: string[]; last_success: string | null;
+  shared: { kind: string; people: number; explanation: string };
+  last_outcome: { outcome: string; occurred_at: string | null; source: string } | null;
+  lookup: { provider: string; checked_at: string; stale: boolean; carrier: string | null; type: string | null; line_status: string; ownership_verified: false } | null;
+};
 export type SkiptraceReport = {
+  phone_assessments?: Record<string, number>;
+  scan_job_id: string;
+  fingerprint: string;
+  checked_at: string;
+  checked_date: string;
+  manual_evidence: Record<string, { mark: ManualMark; at: string; until?: string | null; source?: string }>;
+  row_counts: Record<string, number>;
+  preview: ReviewRow[];
+  added_columns: string[];
   rows: number; rows_with_phone: number; rows_with_callable_number: number; values: number;
   verdicts: Record<Verdict, number>;
   reasons: { code: string; label: string; count: number; effect: string; examples: { row: number; column: string; value: string; text: string }[] }[];

@@ -40,6 +40,7 @@ class JobContext:
         self.params = params
         self.secrets = secrets or {}  # in memory only; never persisted or logged
         self._control = control
+        self.published = False
 
     def stage(self, name: str, detail: dict | None = None) -> None:
         self.store.append_event(self.job_id, "job.stage_changed", {"stage": name, **(detail or {})})
@@ -104,7 +105,7 @@ class JobRunner:
                 raise JobCancelled()
             store.transition_job(job_id, "running")
             result = self.kinds[kind].run(context)
-            if control.cancel.is_set():
+            if control.cancel.is_set() and not context.published:
                 raise JobCancelled()
             store.set_job_outcome(job_id, result={**result, "duration_seconds": round(time.monotonic() - started, 3)})
             store.transition_job(job_id, "completed")

@@ -27,7 +27,7 @@ import phonenumbers
 from . import phone as phone_rules
 from .cleanup import _US_CODES as _US_STATE_CODES, state_or_region
 
-SKIPTRACE_VERSION = 1
+SKIPTRACE_VERSION = 3
 VERDICTS = ("wrong", "suspicious", "unverified", "corroborated")
 OUTCOMES = ("wrong_number", "do_not_call", "reached")
 OUTCOME_LABELS = {"wrong_number": "Wrong number", "do_not_call": "Do not call", "reached": "Reached a person"}
@@ -112,7 +112,7 @@ def normalize_status(value: object, day_first: bool = False) -> tuple[str, date 
     return text.casefold(), until
 
 
-def status_table(values, day_first: bool = False, limit: int = MAX_STATUSES) -> list[dict]:
+def status_table(values, day_first: bool = False, limit: int | None = None) -> list[dict]:
     """Every distinct status (dates folded together) with how often it occurs and a suggested meaning."""
     counts: Counter = Counter()
     examples: dict[str, str] = {}
@@ -256,19 +256,23 @@ class Knowledge:
     reached: dict[str, list[str]] = field(default_factory=lambda: defaultdict(list))
     dnc: dict[str, list[tuple[str, date | None]]] = field(default_factory=lambda: defaultdict(list))
     people: dict[str, dict[str, set]] = field(default_factory=lambda: defaultdict(lambda: defaultdict(set)))
+    events: dict[str, list[dict]] = field(default_factory=lambda: defaultdict(list))
+    lookups: dict[str, dict] = field(default_factory=dict)
 
     def merge_outcomes(self) -> int:
         return len(self.wrong) + len(self.dnc)
 
 
-def collect(knowledge: Knowledge, rows: list[dict], config: dict, source_id: str, source_name: str) -> None:
+def collect(knowledge: Knowledge, rows: list[dict], config: dict, source_id: str, source_name: str, checkpoint=None) -> None:
     """Adds one dataset's call outcomes and who-has-which-number to the shared knowledge. `source_id` identifies the
     file's content, so two copies of the same file count once."""
     region = config.get("region") or "US"
     day_first = region != "US"
     called = _called_column(config)
     has_outcome = bool((config.get("outcome") or {}).get("column"))
-    for row in rows:
+    for index, row in enumerate(rows):
+        if checkpoint and index % 250 == 0:
+            checkpoint()
         country, source = _row_country(row, config)
         who, _ = person_keys(row, config)
         outcomes, until = _outcomes_of(row, config, day_first) if has_outcome else ([], None)
@@ -280,6 +284,17 @@ def collect(knowledge: Knowledge, rows: list[dict], config: dict, source_id: str
                     knowledge.people[info.e164][source_id].add(who)
                 if column != called or not outcomes:
                     continue
+                call_date = _clean(row.get(config.get("call_date_column") or ""))
+                parsed_date = None
+                if call_date:
+                    try:
+                        parsed_date = datetime.fromisoformat(call_date.replace("Z", "+00:00")).date()
+                    except ValueError:
+                        parsed_date = _parse_date(call_date, day_first)
+                    if parsed_date and parsed_date > date.today():
+                        parsed_date = None
+                for outcome in outcomes:
+                    knowledge.events[info.e164].append({"outcome": outcome, "occurred_at": parsed_date.isoformat() + "T00:00:00+00:00" if parsed_date else None, "source": source_name, "person_key": None})
                 if "wrong_number" in outcomes:
                     knowledge.wrong[info.e164].append(source_name)
                 if "do_not_call" in outcomes:
@@ -351,7 +366,7 @@ def judge(info, row: dict, config: dict, context: dict) -> tuple[str, list[dict]
     if wrong and not reached:
         reasons.append({"code": "known_wrong", "text": f"Marked wrong number {_sources_text(wrong, own)}", "effect": "wrong"})
     elif wrong and reached:
-        reasons.append({"code": "conflicting_outcomes", "text": f"Marked wrong number {len(wrong)}× but reached a person {len(reached)}×", "effect": "suspicious"})
+        reasons.append({"code": "conflicting_outcomes", "text": f"Marked wrong number {len(wrong)}× but reached a person {len(reached)}×. Wrong: {_sources_text(wrong, own)}; reached: {_sources_text(reached, own)}", "effect": "suspicious"})
     if active:
         name, until = active[0]
         when = f"until {until.isoformat()}" if until else "with no end date"
@@ -393,7 +408,7 @@ _RANK = {"corroborated": 0, "unverified": 1, "suspicious": 2, "wrong": 3}
 _EFFECT_ORDER = {"wrong": 0, "suspicious": 1, "note": 2, "corroborated": 3}
 
 
-def evaluate(rows: list[dict], row_numbers: list[int], config: dict, knowledge: Knowledge, own_name: str, today: date | None = None, keep_rows: bool = False) -> dict:
+def evaluate(rows: list[dict], row_numbers: list[int], config: dict, knowledge: Knowledge, own_name: str, today: date | None = None, keep_rows: bool = False, checkpoint=None, progress=None) -> dict:
     """Judges every phone value in the rows. Returns the report, and with `keep_rows` the per-row results for saving."""
     today = today or date.today()
     region = config.get("region") or "US"
@@ -404,7 +419,9 @@ def evaluate(rows: list[dict], row_numbers: list[int], config: dict, knowledge: 
 
     # Who is listed at each number, by family, for the shared-number sign.
     families: dict[str, set] = defaultdict(set)   # number -> the name-word sets listed for it
-    for row in rows:
+    for index, row in enumerate(rows):
+        if checkpoint and index % 250 == 0:
+            checkpoint()
         country, source = _row_country(row, config)
         _, family = person_keys(row, config)
         if not family:
@@ -414,6 +431,10 @@ def evaluate(rows: list[dict], row_numbers: list[int], config: dict, knowledge: 
                 if info.valid and info.e164:
                     families[info.e164].add(family)
     family_count = {number: count_families(list(found)) for number, found in families.items()}
+    from . import assessment
+    import sys
+    engine_module = sys.modules[__name__]
+    sharing = assessment.shared_context(rows, config, engine_module)
 
     verdicts: Counter = Counter()
     column_stats = {column: {"filled": 0, "valid": 0, "wrong": 0, "adds_info": 0, "distinct": set(), "verdicts": Counter()} for column in columns}
@@ -430,8 +451,14 @@ def evaluate(rows: list[dict], row_numbers: list[int], config: dict, knowledge: 
     sign_stats = {code: Counter() for code in SIGNALS}
     contacted_total = Counter()
     rows_with_phone = 0
+    assessment_counts = Counter()
 
     for index, row in enumerate(rows):
+        if index % 250 == 0:
+            if checkpoint:
+                checkpoint()
+            if progress:
+                progress(index, len(rows))
         country, source = _row_country(row, config)
         who, family = person_keys(row, config)
         context = {"knowledge": knowledge, "today": today, "own_name": own_name, "family_count": family_count, "who": who}
@@ -441,6 +468,7 @@ def evaluate(rows: list[dict], row_numbers: list[int], config: dict, knowledge: 
             for kind in outcomes:
                 outcome_rows[kind] += 1
         per_column: dict[str, dict] = {}
+        candidates = []
         seen_before: set[str] = set()
         any_phone = False
         for column in columns:
@@ -454,6 +482,7 @@ def evaluate(rows: list[dict], row_numbers: list[int], config: dict, knowledge: 
             for info in infos:
                 verdict, reasons = judge(info, row, config, context)
                 judged.append((info, verdict, reasons))
+                candidates.append(assessment.assess(info, column, row, config, context, sharing, engine_module))
                 stats["filled"] += 1
                 stats["verdicts"][verdict] += 1
                 verdicts[verdict] += 1
@@ -485,7 +514,13 @@ def evaluate(rows: list[dict], row_numbers: list[int], config: dict, knowledge: 
             rows_with_phone += 1
         usable = [(column, data) for column, data in per_column.items() if data["verdict"] and data["verdict"] != "wrong"]
         best_column = min(usable, key=lambda item: (_RANK[item[1]["verdict"]], columns.index(item[0])), default=None)
-        if best_column:
+        choices = assessment.rank(candidates)
+        for choice in choices:
+            assessment_counts[choice["quality"]] += 1
+            assessment_counts["blocked_dnc"] += choice["permission"] == "blocked_dnc"
+            assessment_counts["needs_review"] += bool(choice["warnings"]) or choice["quality"] == "suspicious"
+            assessment_counts["shared_" + choice["shared"]["kind"]] += 1
+        if any(not choice["blocked"] for choice in choices):
             callable_rows += 1
         known_bad = any(
             reason["code"] in ("known_wrong", "do_not_call")
@@ -521,9 +556,13 @@ def evaluate(rows: list[dict], row_numbers: list[int], config: dict, knowledge: 
                         sign_stats[code]["wrong"] += bad
 
         if keep_rows:
-            row_results.append({"columns": per_column, "best": best_column, "outcomes": outcomes})
+            row_results.append({"columns": per_column, "best": best_column, "outcomes": outcomes, "choices": choices})
 
     total_rows = len(rows)
+    if checkpoint:
+        checkpoint()
+    if progress:
+        progress(total_rows, total_rows)
     column_report = []
     share = lambda part, whole: round(part / whole, 4) if whole else 0  # noqa: E731
     for position, column in enumerate(columns):
@@ -581,6 +620,7 @@ def evaluate(rows: list[dict], row_numbers: list[int], config: dict, knowledge: 
             "carried_rows": carried["rows"], "carried_wrong_number": carried["known_wrong"], "carried_do_not_call": carried["do_not_call"],
         },
         "signals": signs,
+        "phone_assessments": dict(assessment_counts),
     }
     if keep_rows:
         report["_row_results"] = row_results
