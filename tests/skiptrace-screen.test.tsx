@@ -58,6 +58,19 @@ async function scan(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("the complete five-step process", () => {
+  it("uses dialer results without showing credential setup and saves mappings without a scan", async () => {
+    const user = await start();
+    expect(screen.queryByLabelText("Twilio Account SID")).toBeNull();
+    expect(screen.queryByText("Optional live phone lookup")).toBeNull();
+    await user.click(within(document.querySelector(".wizard-nav") as HTMLElement).getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("heading", { name: "Use your existing dialer's results" })).toBeTruthy();
+    await user.click(screen.getByRole("checkbox", { name: "Status 0: Wrong number" }));
+    await user.click(screen.getByRole("button", { name: "Save outcome mappings" }));
+    expect(await screen.findByText(/Dialer mappings saved/)).toBeTruthy();
+    expect(mocks.save.mock.calls[0][1].outcome.map["status 0"]).toEqual(["wrong_number"]);
+    expect(mocks.scan).not.toHaveBeenCalled();
+    expect(turf.refresh).toHaveBeenCalled();
+  });
   it("shows column samples and makes status 101 searchable and intentionally ignorable", async () => {
     const user = await start();
     expect(screen.getByText("7135553142")).toBeTruthy();

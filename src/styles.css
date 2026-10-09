@@ -491,3 +491,4 @@ tbody tr:first-child th[scope="row"] { border-top: 0; }
 .review-fields dd { overflow-wrap: anywhere; }
 .phone-choice-list { list-style: decimal; }
 .phone-choice-list ul { list-style: disc; }
+.dialer-evidence { display: grid; gap: 12px; margin-bottom: 20px; padding: 16px; border: 1px solid var(--line); border-radius: 10px; }

@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from functools import lru_cache
 
 import phonenumbers
@@ -27,10 +27,10 @@ import phonenumbers
 from . import phone as phone_rules
 from .cleanup import _US_CODES as _US_STATE_CODES, state_or_region
 
-SKIPTRACE_VERSION = 3
+SKIPTRACE_VERSION = 4
 VERDICTS = ("wrong", "suspicious", "unverified", "corroborated")
-OUTCOMES = ("wrong_number", "do_not_call", "reached")
-OUTCOME_LABELS = {"wrong_number": "Wrong number", "do_not_call": "Do not call", "reached": "Reached a person"}
+OUTCOMES = ("wrong_number", "do_not_call", "reached", "wrong_person", "disconnected", "voicemail", "no_answer")
+OUTCOME_LABELS = {"wrong_number": "Wrong number", "do_not_call": "Do not call", "reached": "Reached a person", "wrong_person": "Wrong person (this person only)", "disconnected": "Disconnected", "voicemail": "Voicemail", "no_answer": "No answer"}
 MAX_EXAMPLES = 3
 MAX_STATUSES = 80
 
@@ -285,17 +285,22 @@ def collect(knowledge: Knowledge, rows: list[dict], config: dict, source_id: str
                 if column != called or not outcomes:
                     continue
                 call_date = _clean(row.get(config.get("call_date_column") or ""))
-                parsed_date = None
+                occurred_at = None
                 if call_date:
                     try:
-                        parsed_date = datetime.fromisoformat(call_date.replace("Z", "+00:00")).date()
+                        parsed = datetime.fromisoformat(call_date.replace("Z", "+00:00"))
+                        if parsed.tzinfo is None:
+                            parsed = parsed.replace(tzinfo=timezone.utc)
+                        parsed = parsed.astimezone(timezone.utc)
+                        if parsed <= datetime.now(timezone.utc):
+                            occurred_at = parsed.isoformat()
                     except ValueError:
                         parsed_date = _parse_date(call_date, day_first)
-                    if parsed_date and parsed_date > date.today():
-                        parsed_date = None
+                        if parsed_date and parsed_date <= date.today():
+                            occurred_at = parsed_date.isoformat() + "T00:00:00+00:00"
                 for outcome in outcomes:
-                    knowledge.events[info.e164].append({"outcome": outcome, "occurred_at": parsed_date.isoformat() + "T00:00:00+00:00" if parsed_date else None, "source": source_name, "person_key": None})
-                if "wrong_number" in outcomes:
+                    knowledge.events[info.e164].append({"outcome": outcome, "occurred_at": occurred_at, "source": source_name, "person_key": who if outcome == "wrong_person" else None, "scope_unknown": outcome == "wrong_person" and not who})
+                if "wrong_number" in outcomes or "disconnected" in outcomes:
                     knowledge.wrong[info.e164].append(source_name)
                 if "do_not_call" in outcomes:
                     knowledge.dnc[info.e164].append((source_name, until))

@@ -6,6 +6,7 @@ import { Icon } from "../components/Icon";
 import { ListPicker } from "../components/ListPicker";
 import { ListDownloads } from "../components/ListDownloads";
 import { PhoneLookup } from "../components/PhoneLookup";
+import { DialerEvidence } from "../components/DialerEvidence";
 import { cancelSkiptraceJob, knownSuggestion, skiptraceFreshness, skiptraceApply, skiptraceSave, skiptraceScan, skiptraceStatuses, skiptraceSuggest, watchJob } from "../lib/service";
 import { useVisited } from "../lib/hooks";
 import { formatNumber } from "../lib/marks";
@@ -37,8 +38,8 @@ const percent = (share: number | null | undefined, digits = 0) => (share == null
 
 function toggled(outcomes: Outcome[], id: Outcome, on: boolean): Outcome[] {
   const next = on ? [...new Set([...outcomes, id])] : outcomes.filter(item => item !== id);
-  // A wrong number is not also a person who was reached.
-  return id === "wrong_number" && on ? next.filter(item => item !== "reached") : id === "reached" && on ? next.filter(item => item !== "wrong_number") : next;
+  const negative = ["wrong_number", "wrong_person", "disconnected"];
+  return negative.includes(id) && on ? next.filter(item => item !== "reached") : id === "reached" && on ? next.filter(item => !negative.includes(item)) : next;
 }
 
 function signVerdict(sign: SignReport) {
@@ -120,6 +121,8 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   const [importingLegacy, setImportingLegacy] = useState(false);
   const [legacyImported, setLegacyImported] = useState(false);
   const [previousSignals, setPreviousSignals] = useState<Record<string, boolean> | null>(null);
+  const [mappingMessage, setMappingMessage] = useState<string | null>(null);
+  const [advancedLookup, setAdvancedLookup] = useState(false);
   const copies = checkedCopies(turf.datasets, dataset.id);
   const copy = copies[0] ?? null;
 
@@ -379,6 +382,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
       <div className="wizard-step" hidden={step !== 1}>
       <article className="card step">
         <header><h2>Call outcomes (recommended)</h2></header>
+        <DialerEvidence turf={turf} datasetId={dataset.id} />
         <p className="muted">
           If this list records what happened on each call, a wrong number or a do-not-call in one row warns about the same number in every other row and in your other checked lists.
           Review what each status means. Suggestions stay editable; mark a status reviewed or deliberately ignore it. A do-not-call mark with an end date stops counting after that date.
@@ -390,7 +394,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           )}
           <Field label="Call date column (optional)" value={base.call_date_column ?? null} searchable optional="Date unknown" options={columnOptions} onChange={call_date_column => patch({ call_date_column })} />
         </div>
-        <p className="muted">Dates describe when the call happened, not when a file was imported. Undated successful calls are shown as age unknown. Record voicemail, no answer, wrong person, and disconnected outcomes from a checked row's phone choices or the project call log.</p>
+        <p className="muted">Dates describe when the call happened, not when a file was imported. ISO timestamps with a time-zone offset preserve the dialer's call time; date-only values remain usable. Undated successful calls are shown as age unknown. Map voicemail, no answer, wrong person, and disconnected statuses below, or record individual calls from row details.</p>
         {statusBusy && <p role="status">Loading status meanings…</p>}
         {outcomeColumn && <p className="muted">Dates inside statuses use {base.region === "US" ? "month/day/year" : "day/month/year"}; year-first dates stay unambiguous. DNC end dates are inclusive. Check the country assumption before reviewing meanings.</p>}
         {outcomeColumn && statuses.length > 0 && <>
@@ -399,7 +403,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
             <Check checked={unreviewedOnly} onChange={on => { setUnreviewedOnly(on); setStatusPageIndex(0); }}>Only unreviewed</Check>
             <button type="button" className="button ghost small" onClick={() => setReviewed([...new Set([...reviewed, ...statusView.rows.map(item => item.key)])])}>Confirm meanings on this page</button>
           </div>
-          <p className="muted">Wrong number means this phone did not reach the intended person. Reached means a person answered; it cannot also be wrong number. DNC can accompany either. Leave voicemail/no-answer statuses without a reached meaning unless you have evidence.</p>
+          <p className="muted">Known wrong number and disconnected apply across the project. Wrong person applies only to this row's mapped person and needs name columns. Reached means a person answered; it cannot also be a negative outcome. DNC can accompany either. Voicemail and no answer record activity without proving a good or bad number.</p>
         </>}
         {outcomeColumn && statuses.length > 0 && (
           <div className="table-wrap">
@@ -435,6 +439,12 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           <button type="button" className="button ghost small" disabled={statusView.current + 1 >= statusView.pages} onClick={() => setStatusPageIndex(statusView.current + 1)}>Next</button>
         </div></footer>}
         {outcomeColumn && !statusBusy && statuses.length === 0 && <p className="muted">This status column has no nonempty values. You can continue without call outcomes.</p>}
+        {outcomeColumn && <div className="row"><button type="button" className="button ghost" disabled={busy !== null || statusBusy || missing.length > 0 || !hasPhones} onClick={async () => {
+          setStatusBusy(true); setError(null); setMappingMessage(null);
+          try { await skiptraceSave(dataset.id, config); await turf.refresh(); setSavedConfigKey(configKey); setMappingMessage("Dialer mappings saved. Return to your lead list and check phones to use these results."); }
+          catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+          finally { setStatusBusy(false); }
+        }}>Save outcome mappings</button>{mappingMessage && <span role="status">{mappingMessage}</span>}</div>}
       </article>
       </div>
 
@@ -650,7 +660,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
       </div>
 
       <div className="card step"><p className="muted">Your original file stays in this project. Each saved checked copy keeps all rows and result columns for download later.</p><ListDownloads datasetId={dataset.id} fail={turf.fail} /></div>
-      {config && <PhoneLookup datasetId={dataset.id} config={config} projectId={turf.projectId} onUpdated={turf.refresh} />}
+      {config && <details className="card step" onToggle={event => setAdvancedLookup(event.currentTarget.open)}><summary>Advanced: optional external lookup</summary><p className="muted">Dialer exports and normal phone checks work without this. Open external provider setup only if you want an additional lookup service.</p>{advancedLookup && <PhoneLookup datasetId={dataset.id} config={config} projectId={turf.projectId} onUpdated={turf.refresh} />}</details>}
       {copies.length > 0 && <details className="card step"><summary>Checked-copy history ({copies.length})</summary><p className="muted">The newest copy is used when you open the original in Lists. Every previous copy remains available.</p>
         <ul className="copy-history">{copies.map((item, index) => <li key={item.id}><button type="button" className="link" onClick={() => turf.open("lists", item.id)}>{item.name}</button><span>{index === 0 ? "Latest · " : ""}{new Date(item.created_at).toLocaleString()} · {formatNumber(item.row_count)} rows</span><ListDownloads datasetId={item.id} checkedId={item.id} fail={turf.fail} /></li>)}</ul>
       </details>}

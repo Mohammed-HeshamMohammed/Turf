@@ -61,7 +61,7 @@ def test_the_setup_is_suggested_with_the_status_meanings(service: Service, tmp_p
     assert suggestion["outcome_column"] == "Status" and not suggestion["saved"]
     meanings = {item["key"]: item["outcomes"] for item in suggestion["statuses"]}
     assert meanings["dnc: wrong number"] == ["wrong_number"] and meanings["not yet reached"] == [] and meanings["interested"] == ["reached"]
-    assert [item["id"] for item in suggestion["outcomes"]] == ["wrong_number", "do_not_call", "reached"]
+    assert [item["id"] for item in suggestion["outcomes"]] == ["wrong_number", "do_not_call", "reached", "wrong_person", "disconnected", "voicemail", "no_answer"]
     assert ok(service, "skiptrace.statuses", dataset_id=dataset, column="Status")[0]["count"] >= 1
 
 

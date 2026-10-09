@@ -6,6 +6,14 @@ from dataclasses import replace
 from datetime import date, datetime
 
 
+def same_person(recorded, current):
+    if not recorded or not current:
+        return False
+    recorded_name, _, recorded_zip = recorded.partition('|')
+    current_name, _, current_zip = current.partition('|')
+    return recorded_name == current_name and (not recorded_zip or not current_zip or recorded_zip == current_zip)
+
+
 def shared_context(rows, config, engine):
     found = defaultdict(list)
     for row in rows:
@@ -52,13 +60,15 @@ def assess(info, column, row, config, context, shared, engine):
         effects = {reason['effect'] for reason in reasons}
         quality = 'wrong' if 'wrong' in effects else 'corroborated' if 'corroborated' in effects else 'suspicious' if 'suspicious' in effects else 'unverified'
     active_dnc = any(until is None or until >= context['today'] for _, until in knowledge.dnc.get(number, []))
-    events = [event for event in knowledge.events.get(number, []) if not event.get('person_key') or event['person_key'] == context['who']]
+    events = [event for event in knowledge.events.get(number, []) if not event.get('person_key') or same_person(event['person_key'], context['who'])]
     events = sorted(events, key=lambda event: event.get('occurred_at') or '')
     positive = [event for event in events if event['outcome'] == 'reached']
-    negative = [event for event in events if event['outcome'] in ('wrong_number', 'wrong_person', 'disconnected')]
+    negative = [event for event in events if event['outcome'] in ('wrong_number', 'wrong_person', 'disconnected') and not event.get('scope_unknown')]
     dated_positive = [event for event in positive if event.get('occurred_at')]
     dated_negative = [event for event in negative if event.get('occurred_at')]
     warnings = []
+    if any(event.get('scope_unknown') for event in events):
+        warnings.append('Imported wrong-person result has no named person to match; review the source row before using it as negative evidence')
     age_days = config.get('evidence_age_days', 180)
     last_success = dated_positive[-1]['occurred_at'] if dated_positive else None
     if last_success and (context['today'] - date.fromisoformat(last_success[:10])).days >= age_days:
@@ -99,7 +109,7 @@ def assess(info, column, row, config, context, shared, engine):
     if active_dnc:
         explanations.insert(0, 'Do not call: active project DNC evidence')
     return {'number': number, 'raw': info.raw, 'column': column, 'extension': info.extension, 'valid_format': info.valid,
-            'quality': quality, 'permission': permission, 'blocked': bool(blocked), 'type': info.type,
+            'quality': quality, 'permission': permission, 'blocked': bool(blocked), 'type': info.type, 'known_wrong': quality == 'wrong' and bool(negative),
             'shared': sharing, 'last_success': last_success, 'last_outcome': last_event, 'warnings': warnings,
             'lookup': lookup, 'explanations': explanations or ['Valid format; connection and ownership are unverified']}
 

@@ -23,7 +23,7 @@ export type DatasetRow = { id: string; row_number: number; raw: Raw };
 export type Verdict = "wrong" | "suspicious" | "unverified" | "corroborated";
 export const VERDICTS: Verdict[] = ["corroborated", "unverified", "suspicious", "wrong"];
 
-export type Outcome = "wrong_number" | "do_not_call" | "reached";
+export type Outcome = "wrong_number" | "do_not_call" | "reached" | "wrong_person" | "disconnected" | "voicemail" | "no_answer";
 
 export type SkiptraceConfig = {
   phone_columns: string[];

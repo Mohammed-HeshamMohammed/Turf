@@ -81,8 +81,10 @@ def clean_config(config: object, columns: list[str]) -> dict:
         for key, kinds in (outcome.get("map") or {}).items():
             chosen = [kind for kind in kinds if kind in engine.OUTCOMES] if isinstance(kinds, list) else []
             if str(key):
-                if "wrong_number" in chosen and "reached" in chosen:
-                    raise ValueError("A status cannot be both wrong number and reached a person")
+                if any(kind in chosen for kind in ("wrong_number", "wrong_person", "disconnected")) and "reached" in chosen:
+                    raise ValueError("A status cannot be both wrong number/wrong person/disconnected and reached a person")
+                if "wrong_person" in chosen and not any(cleaned[key] for key in ("first_name_column", "last_name_column", "name_column")):
+                    raise ValueError("Map name columns before using a wrong-person outcome")
                 mapping[str(key)] = chosen
         cleaned["outcome"] = {"column": outcome["column"], "called_column": called, "map": mapping}
     return cleaned
@@ -292,7 +294,7 @@ def _run_scan(context: JobContext) -> dict:
         verdicts = [data["verdict"] for data in result["columns"].values() if data["verdict"]]
         verdict = out["Best phone verdict"] or ("wrong" if verdicts else "none")
         wrong, dnc, callable_ = "known_wrong" in reasons, "do_not_call" in reasons, bool(out["Best phone"])
-        wrong = wrong or any(choice["quality"] == "wrong" and choice["last_outcome"] and choice["last_outcome"]["outcome"] in ("wrong_person", "wrong_number", "disconnected") for choice in result.get("choices", []))
+        wrong = wrong or any(choice.get("known_wrong", False) for choice in result.get("choices", []))
         counts["callable"] += callable_
         counts["known_wrong"] += wrong
         counts["dnc"] += dnc
