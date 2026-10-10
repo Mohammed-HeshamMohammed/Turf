@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Turf } from "../App";
 import { Check, Empty, Field, SearchBox, VerdictPill } from "../components/Bits";
 import { copyText } from "../components/ContextMenu";
@@ -87,6 +87,15 @@ export function SkipTracing({ turf }: { turf: Turf }) {
 
 const STEPS = ["Column roles", "Call outcomes", "Warning signs", "Results", "Save the copy"];
 
+function ReportSection({ id, title, count, children }: { id: string; title: string; count?: ReactNode; children: ReactNode }) {
+  return <details className="card step skiptrace-report" id={id}><summary><h2>{title}</h2>{count && <span className="count">{count}</span>}</summary><div className="skiptrace-report-body">{children}</div></details>;
+}
+
+function scrollInPane(target: HTMLElement | null | undefined) {
+  const pane = target?.closest<HTMLElement>(".scroller");
+  if (pane && target) pane.scrollTop += target.getBoundingClientRect().top - pane.getBoundingClientRect().top - 12;
+}
+
 const calledOf = (suggestion: SkiptraceSuggestion) => suggestion.config.outcome?.called_column ?? suggestion.config.phone_columns[0] ?? "";
 const meaningOf = (suggestion: SkiptraceSuggestion) => Object.fromEntries(suggestion.statuses.map(status => [status.key, status.outcomes]));
 
@@ -165,11 +174,25 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   useEffect(() => {
     if (!view.current || view.current.closest("[hidden]")) return;
     if (previousStep.current !== step) {
-      view.current.querySelector(".stepper")?.scrollIntoView?.({ block: "start", behavior: "instant" });
+      scrollInPane(view.current.querySelector<HTMLElement>(".stepper"));
       previousStep.current = step;
     }
     const heading = view.current.querySelector<HTMLElement>(".wizard-step:not([hidden]) h2");
     if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+  }, [step, Boolean(setup)]);
+
+  useEffect(() => {
+    const reveal = () => {
+      const strip = view.current?.querySelector<HTMLElement>(".stepper");
+      const selected = strip?.querySelector<HTMLElement>('[aria-current="step"]');
+      if (!strip || !selected) return;
+      const bounds = strip.getBoundingClientRect(), button = selected.getBoundingClientRect();
+      if (button.right > bounds.right) strip.scrollLeft += button.right - bounds.right + 8;
+      else if (button.left < bounds.left) strip.scrollLeft -= bounds.left - button.left + 8;
+    };
+    reveal();
+    window.addEventListener("resize", reveal);
+    return () => window.removeEventListener("resize", reveal);
   }, [step, Boolean(setup)]);
 
   const config = useMemo(() => (base ? buildConfig(base, outcomeColumn, called, meaning, reviewed) : null), [base, outcomeColumn, called, meaning, reviewed]);
@@ -318,7 +341,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   }
   function showRows(filter: string, rowNumber?: number) {
     setReviewFilter(filter); setReviewRow(rowNumber); setReviewOpen(true);
-    window.setTimeout(() => document.getElementById(`review-${report?.scan_job_id}`)?.scrollIntoView({ block: "start", behavior: "instant" }), 0);
+    window.setTimeout(() => scrollInPane(document.getElementById(`review-${report?.scan_job_id}`)), 0);
   }
   const outcomes = report?.outcomes;
   const questionableColumns = base.phone_columns.filter(column => IDENTIFIER_COLUMN_NAME.test(column) && !PHONE_COLUMN_NAME.test(column));
@@ -359,7 +382,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
       </ol>
       {step !== 0 && questionableColumns.length > 0 && !hasPhones && <p className="notice" role="alert">Confirm the identifier-like phone field before continuing. <button type="button" className="link" onClick={() => setStep(0)}>Review column roles</button></p>}
 
-      <fieldset className="workflow-inputs" disabled={busy !== null || statusBusy || importingLegacy}>
+      <fieldset className="workflow-inputs" hidden={step > 2} disabled={busy !== null || statusBusy || importingLegacy}>
       <legend className="sr-only">Phone-check setup</legend>
       <div className="wizard-step" hidden={step !== 0}>
       <article className="card step">
@@ -377,7 +400,8 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
       <div className="wizard-step" hidden={step !== 1}>
       <article className="card step">
         <header><h2>Use call results, if you have them</h2></header>
-        <p className="muted">Call results can identify wrong numbers and do-not-call requests across this project. You can skip this step when no call history is available.</p>
+        <p className="muted">Map existing call results, or continue without call history.</p>
+        <button type="button" className="link skiptrace-skip" disabled={!hasPhones || statusBusy || busy !== null || importingLegacy} onClick={async () => { await chooseOutcomeColumn(null); setStep(2); }}>Continue without call outcomes</button>
         <details className="step skiptrace-optional" onToggle={event => setDialerOpen(event.currentTarget.open)}><summary>Import or map a dialer export</summary>{dialerOpen && <DialerEvidence turf={turf} datasetId={dataset.id} />}</details>
         <div className="fields">
           <Field label="Status column" value={outcomeColumn} searchable optional="No outcome column" options={outcomeColumns.map(column => ({ value: column, label: column }))} onChange={column => void chooseOutcomeColumn(column)} />
@@ -386,35 +410,30 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           )}
           <Field label="Call date column (optional)" value={base.call_date_column ?? null} searchable optional="Date unknown" options={columnOptions} onChange={call_date_column => patch({ call_date_column })} />
         </div>
-        {outcomeColumn && <p className="muted">Review each suggested meaning below. Dates describe when the call happened; undated successful calls are shown as age unknown.</p>}
         {statusBusy && <p role="status">Loading status meanings…</p>}
-        {outcomeColumn && <p className="muted">Dates inside statuses use {base.region === "US" ? "month/day/year" : "day/month/year"}; year-first dates stay unambiguous. DNC end dates are inclusive. Check the country assumption before reviewing meanings.</p>}
+        {outcomeColumn && <details className="step skiptrace-optional"><summary>How call meanings and dates are used</summary><p className="muted">Known wrong numbers and disconnected lines apply across the project. Wrong person applies to the assigned owner of the called phone field and needs a mapped name. Reached means someone answered; it cannot also be a negative outcome. DNC can accompany either. Voicemail and no answer record activity only.</p><p className="muted">Dates inside statuses use {base.region === "US" ? "month/day/year" : "day/month/year"}; year-first dates stay unambiguous. DNC end dates are inclusive. Undated successful calls have an unknown age.</p></details>}
         {outcomeColumn && statuses.length > 0 && <>
-          <p className="muted">{statuses.length - unreviewed.length} of {statuses.length} statuses reviewed · {ignored.length} intentionally ignored · {unreviewed.length} unreviewed. Suggested meanings for unreviewed statuses are shown and will be used if you check now.</p>
+          <p className="muted">{statuses.length - unreviewed.length} of {statuses.length} statuses reviewed · {ignored.length} ignored · {unreviewed.length} unreviewed. Unreviewed suggestions are included when checking.</p>
           <div className="row"><SearchBox value={statusQuery} onChange={value => { setStatusQuery(value); setStatusPageIndex(0); }} placeholder="Search call statuses" />
             <Check checked={unreviewedOnly} onChange={on => { setUnreviewedOnly(on); setStatusPageIndex(0); }}>Only unreviewed</Check>
             <button type="button" className="button ghost small" onClick={() => setReviewed([...new Set([...reviewed, ...statusView.rows.map(item => item.key)])])}>Confirm meanings on this page</button>
           </div>
-          <p className="muted">Known wrong number and disconnected apply across the project. Wrong person applies only to this row's mapped person and needs name columns. Reached means a person answered; it cannot also be a negative outcome. DNC can accompany either. Voicemail and no answer record activity without proving a good or bad number.</p>
         </>}
         {outcomeColumn && statuses.length > 0 && (
-          <div className="table-wrap">
+          <div className="table-wrap status-mapping-table">
             <table className="compact">
               <caption className="sr-only">What each status means</caption>
               <thead>
-                <tr><th scope="col">Status</th><th scope="col" className="num">Rows</th>{setup.outcomes.map(outcome => <th scope="col" key={outcome.id} className="center">{outcome.label}</th>)}<th scope="col">Review</th></tr>
+                <tr><th scope="col">Status / rows</th><th scope="col">Meaning</th><th scope="col">Review</th></tr>
               </thead>
               <tbody>
                 {statusView.rows.map(status => (
                   <tr key={status.key}>
-                    <th scope="row">{status.example}</th>
-                    <td className="num">{formatNumber(status.count)}</td>
-                    {setup.outcomes.map(outcome => (
-                      <td key={outcome.id} className="center">
+                    <th scope="row">{status.example}<small className="status-row-count muted">{formatNumber(status.count)} rows</small></th>
+                    <td><details className="status-meanings"><summary aria-label={`Edit meanings for ${status.example}`}>{setup.outcomes.filter(outcome => (meaning[status.key] ?? []).includes(outcome.id)).map(outcome => outcome.label).join(" · ") || "No outcome"}<span className="muted">Edit</span></summary><div className="status-meaning-options">{setup.outcomes.map(outcome => (
                         <Check label={`${status.example}: ${outcome.label}`} checked={(meaning[status.key] ?? []).includes(outcome.id)}
-                          onChange={on => { setMeaning({ ...meaning, [status.key]: toggled(meaning[status.key] ?? [], outcome.id, on) }); setReviewed([...new Set([...reviewed, status.key])]); }} />
-                      </td>
-                    ))}
+                          key={outcome.id} onChange={on => { setMeaning({ ...meaning, [status.key]: toggled(meaning[status.key] ?? [], outcome.id, on) }); setReviewed([...new Set([...reviewed, status.key])]); }}>{outcome.label}</Check>
+                    ))}</div></details></td>
                     <td><span className="muted">{reviewed.includes(status.key) ? meaning[status.key]?.length ? "Reviewed" : "Intentionally ignored" : "Suggested · unreviewed"}</span>
                       <div className="row"><button type="button" className="link" onClick={() => setReviewed([...new Set([...reviewed, status.key])])}>Confirm</button>
                       <button type="button" className="link" onClick={() => { setMeaning({ ...meaning, [status.key]: [] }); setReviewed([...new Set([...reviewed, status.key])]); }}>Ignore</button>
@@ -446,17 +465,18 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
         <p className="muted">Choose what should flag a number for review. A warning sign does not prove the number is wrong.</p>
         <div className="checks column">
           {setup.signals.filter(sign => !sign.measured_only).map(sign => (
-            <Check key={sign.code} checked={Boolean(base.signals[sign.code])} onChange={on => patch({ signals: { ...base.signals, [sign.code]: on } })}><span>{sign.label}</span><small>{SIGN_HELP[sign.code]?.example}<br />{SIGN_HELP[sign.code]?.needs}
+            <Check key={sign.code} checked={Boolean(base.signals[sign.code])} onChange={on => patch({ signals: { ...base.signals, [sign.code]: on } })}><span>{sign.label}</span><small>{SIGN_HELP[sign.code]?.needs}
               {sign.code === "shared_number" && ![base, ...(base.additional_owners ?? [])].some(owner => owner.name_column || owner.first_name_column || owner.last_name_column) && <><br />No owner name column mapped yet.</>}
               {sign.code === "area_code_other_state" && !base.state_column && <><br />No property state column mapped yet.</>}
               {sign.code === "country_mismatch" && !base.country_column && !base.zip_column && !base.state_column && <><br />No address country evidence mapped yet.</>}
             </small></Check>
           ))}
         </div>
+        <details className="step skiptrace-optional"><summary>Warning-sign examples</summary><dl className="signal-examples">{setup.signals.filter(sign => !sign.measured_only).map(sign => <div key={sign.code}><dt>{sign.label}</dt><dd>{SIGN_HELP[sign.code]?.example}</dd></div>)}</dl></details>
         <details className="step skiptrace-optional"><summary>Evidence age settings</summary><div className="fields"><label className="field"><span>Review successful-call evidence after this many days</span><input className="input" type="number" min="1" max="3650" value={base.evidence_age_days ?? 180} onChange={event => patch({ evidence_age_days: Number(event.target.value) })} /></label><label className="field"><span>Flag live lookup results after this many days</span><input className="input" type="number" min="1" max="365" value={base.lookup_age_days ?? 30} onChange={event => patch({ lookup_age_days: Number(event.target.value) })} /></label></div><p className="muted">Aging evidence prompts review; it does not prove reassignment.</p></details>
         {config && <details className="step skiptrace-optional" onToggle={event => setAdvancedLookup(event.currentTarget.open)}><summary>Optional external lookup</summary><p className="muted">Dialer exports and normal phone checks work without an external provider.</p>{advancedLookup && <PhoneLookup datasetId={dataset.id} config={config} projectId={turf.projectId} onUpdated={turf.refresh} />}</details>}
-        <p className="muted">Checking saves this setup for future checks and reads every selected phone value. Your original list stays unchanged; the checked copy is saved separately in the last step.</p>
-        <h3>Review before checking</h3>
+        <div className="skiptrace-check-summary"><span>{base.phone_columns.length} phone {base.phone_columns.length === 1 ? "column" : "columns"}</span><span>{1 + (base.additional_owners?.length ?? 0)} owner {(base.additional_owners?.length ?? 0) === 0 ? "group" : "groups"}</span><span>{outcomeColumn ? `${statuses.length - unreviewed.length}/${statuses.length} call statuses reviewed` : "No call outcomes"}</span></div>
+        <details className="step skiptrace-optional"><summary>Review before checking</summary>
         <dl className="skiptrace-review-summary"><div><dt>Phone columns</dt><dd>{base.phone_columns.join(", ")}</dd></div><div><dt>Country</dt><dd>{regionName(base.region)} · row override: {base.country_column ?? "None"}</dd></div>
           <div><dt>Owners and mailing fields</dt><dd>{[base, ...(base.additional_owners ?? [])].map((owner, index) => `Owner ${index + 1}: ${[owner.first_name_column, owner.last_name_column, owner.name_column, owner.mailing_address_column, owner.mailing_city_column, owner.mailing_state_column, owner.mailing_zip_column, owner.owner_type_column].filter(Boolean).join(", ") || "Not mapped"}`).join(" · ")}</dd></div>
           <div><dt>Phone owner assignments</dt><dd>{base.phone_columns.map(column => `${column}: ${base.phone_owner_map?.[column] === -1 || (base.additional_owners?.length && base.phone_owner_map?.[column] === undefined) ? "Owner unknown" : `Owner ${(base.phone_owner_map?.[column] ?? 0) + 1}`}`).join(" · ")}</dd></div>
@@ -464,6 +484,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           <div><dt>Outcomes</dt><dd>{outcomeColumn ? `${outcomeColumn} describes ${called}; ${unreviewed.length} unreviewed statuses; ${ignored.length} intentionally ignored` : "No outcome column"}</dd></div>
           <div><dt>Warning signs</dt><dd>{setup.signals.filter(sign => !sign.measured_only && base.signals[sign.code]).map(sign => sign.label).join(" · ") || "All configurable signs off"}</dd></div>
         </dl>
+        </details>
         <div className="row"><button type="button" className="link" onClick={() => setStep(0)}>Edit columns</button><button type="button" className="link" onClick={() => setStep(1)}>Review call outcomes</button></div>
       </article>
       </div>
@@ -483,18 +504,21 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
 
           <article className="card step">
             <header><h2>What needs attention?</h2><span className="count">Checked {new Date(report.checked_at).toLocaleString()}</span></header>
-            {report.phone_assessments && <><h3>Phone quality and calling restrictions</h3><dl className="metrics">{(["corroborated", "unverified", "suspicious", "wrong"] as const).map(quality => <div key={quality}><dt>Quality: {quality}</dt><dd>{formatNumber(report.phone_assessments?.[quality] ?? 0)}</dd></div>)}<div><dt>Active DNC blocks</dt><dd>{formatNumber(report.phone_assessments.blocked_dnc ?? 0)}</dd></div><div><dt>Aging or review warnings</dt><dd>{formatNumber(report.phone_assessments.needs_review ?? 0)}</dd></div></dl><p className="muted">These count distinct number/extension choices per row; the same number can appear in several rows. A valid or corroborated number can still be blocked by DNC. Open a reviewed row's All fields to see ordered alternatives, household/business context, call dates, and lookup evidence. Existing combined verdict reports remain below.</p></>}
+
             <div className="action-summary">{[
               ["callable", "Rows with a usable number"], ["known_wrong", "Rows containing known wrong numbers"], ["dnc", "Rows containing do-not-call numbers"], ["needs_review", "Rows needing review"], ["no_phone", "Rows with no phone values"],
             ].map(([filter, label]) => <button type="button" className="summary-item" key={filter} onClick={() => showRows(filter)}><strong>{formatNumber(report.row_counts[filter] ?? 0)}</strong><span>{label}</span><small>Review rows →</small></button>)}</div>
+            <details className="step skiptrace-optional"><summary>How to read this check</summary>
             <p className="muted">These are row counts; categories can overlap. A row with a blocked phone can still have another usable number. Usable includes suspicious and unverified numbers: it does not prove ownership or connection. Review blocked numbers without deleting the row.</p>
             <p className="muted">Cross-file evidence: {report.other_datasets_used.join(", ") || "No other saved lists"}. Manual marks: {Object.keys(report.manual_evidence).length} in this project at check time. Sign-performance measurements use mapped call outcomes.</p>
-            <nav className="row" aria-label="Result sections"><a className="link" href={`#verdicts-${dataset.id}`}>Verdicts</a><a className="link" href={`#columns-${dataset.id}`}>Column usefulness</a><a className="link" href={`#reasons-${dataset.id}`}>Reasons</a><a className="link" href={`#signals-${dataset.id}`}>Warning-sign measurements</a><a className="link" href={`#phone-details-${dataset.id}`}>Phone details</a></nav>
+            </details>
+
             <button type="button" className="button ghost" onClick={() => showRows("all")}>Review all checked rows</button>
           </article>
           {reviewOpen && <SkiptraceReview report={report} filter={reviewFilter} rowNumber={reviewRow} datasetId={dataset.id} onUpdated={turf.refresh} onFilter={filter => { setReviewFilter(filter); setReviewRow(undefined); }} />}
-          <article className="card step" id={`verdicts-${dataset.id}`}>
-            <header><h2>Results</h2><span className="count">{formatNumber(report.values)} phone values</span></header>
+          {report.phone_assessments && <ReportSection id={`quality-${dataset.id}`} title="Phone quality and calling restrictions"><dl className="metrics">{(["corroborated", "unverified", "suspicious", "wrong"] as const).map(quality => <div key={quality}><dt>Quality: {quality}</dt><dd>{formatNumber(report.phone_assessments?.[quality] ?? 0)}</dd></div>)}<div><dt>Active DNC blocks</dt><dd>{formatNumber(report.phone_assessments.blocked_dnc ?? 0)}</dd></div><div><dt>Aging or review warnings</dt><dd>{formatNumber(report.phone_assessments.needs_review ?? 0)}</dd></div></dl><p className="muted">Counts are per-row phone choices. Quality and calling restrictions are separate; a valid number can still be blocked by DNC.</p></ReportSection>}
+          <ReportSection id={`verdicts-${dataset.id}`} title="Results" count={`${formatNumber(report.values)} phone values`}>
+
             <div className="verdict-bar" role="img" aria-label={MEANINGS.map(item => `${report.verdicts[item.id]} ${item.id}`).join(", ")}>
               {MEANINGS.map(item => (report.verdicts[item.id] ? <i key={item.id} className={`seg-${item.id}`} style={{ flexGrow: report.verdicts[item.id] }} /> : null))}
             </div>
@@ -523,10 +547,10 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
               </p>
             )}
             {report.other_datasets_used.length > 0 && <p className="muted">Outcomes from {report.other_datasets_used.join(", ")} were used.</p>}
-          </article>
+          </ReportSection>
 
-          <article className="card step" id={`columns-${dataset.id}`}>
-            <header><h2>Which phone columns are worth using</h2></header>
+          <ReportSection id={`columns-${dataset.id}`} title="Which phone columns are worth using">
+
             <div className="table-wrap">
               <table className="compact">
                 <thead><tr><th scope="col">Column</th><th scope="col" className="num">Filled</th><th scope="col" className="num">Valid</th><th scope="col" className="num">Adds a new number</th><th scope="col" className="num">Wrong</th><th scope="col">Verdict</th></tr></thead>
@@ -544,11 +568,11 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                 </tbody>
               </table>
             </div>
-          </article>
+          </ReportSection>
 
           {report.reasons.length > 0 && (
-            <article className="card step" id={`reasons-${dataset.id}`}>
-              <header><h2>Why numbers got their verdict</h2></header>
+            <ReportSection id={`reasons-${dataset.id}`} title="Why numbers got their verdict">
+
               <div className="table-wrap">
                 <table className="compact">
                   <thead><tr><th scope="col">Reason</th><th scope="col" className="num">Values</th><th scope="col">Examples</th></tr></thead>
@@ -567,12 +591,12 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                   </tbody>
                 </table>
               </div>
-            </article>
+            </ReportSection>
           )}
 
           {outcomes.available && (
-            <article className="card step" id={`signals-${dataset.id}`}>
-              <header><h2>Do the warning signs predict wrong numbers here?</h2></header>
+            <ReportSection id={`signals-${dataset.id}`} title="Do the warning signs predict wrong numbers here?">
+
               <p className="muted">
                 Measured on the {formatNumber(outcomes.contacted)} rows where a call either reached a person or found a wrong number. In this data, {percent(outcomes.baseline_wrong_rate, 1)} of those calls were a wrong number.
                 A sign is only useful if it is clearly above that.
@@ -601,43 +625,35 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                   </tbody>
                 </table>
               </div>
-            </article>
+            </ReportSection>
           )}
 
           {previousSignals && <p className="notice" role="status"><span>Predictive signs were applied. Review them in Warning signs and check again.</span><button type="button" className="button ghost" disabled={busy !== null} onClick={() => { patch({ signals: previousSignals }); setPreviousSignals(null); }}>Undo sign changes</button></p>}
-          <article className="card step" id={`phone-details-${dataset.id}`}>
-            <header><h2>What was found in the numbers</h2></header>
+          <ReportSection id={`phone-details-${dataset.id}`} title="What was found in the numbers">
+
             <dl className="metrics text">
               <div><dt>Kinds of line</dt><dd>{Object.entries(report.types).map(([name, count]) => `${name}: ${formatNumber(count)}`).join(" · ") || "No valid numbers"}</dd></div>
               <div><dt>Countries</dt><dd>{Object.entries(report.countries).map(([code, count]) => `${regionName(code)}: ${formatNumber(count)}`).join(" · ") || "None"}</dd></div>
               {report.repairs.length > 0 && <div><dt>Repaired while reading</dt><dd>{report.repairs.map(repair => `${repair.note}: ${formatNumber(repair.count)}`).join(" · ")}</dd></div>}
             </dl>
             <p className="muted">In the US a landline cannot be told from a mobile, so most come back as “landline or mobile”. The rules check that a number follows its country&apos;s plan, not that it is in service.</p>
-          </article>
+          </ReportSection>
 
           </div>
 
           <div className="wizard-step" hidden={step !== 4}>
           <article className="card step">
             <header><h2>Save the checked copy</h2></header>
-            <p className="muted">
-              Adds, for each phone column, its verdict, the reasons, the number in international format and the kind of line, plus the best number to call in each row.
-              It is saved as a new list next to the original. Earlier checked copies are kept. Lists uses the newest checked copy; you can open any earlier copy below.
-            </p>
-            <p className="muted">{formatNumber(report.rows)} source rows kept · {report.added_columns.length} added columns · checked {new Date(report.checked_at).toLocaleString()}. This saves the exact reviewed results.</p>
-            <p className="muted">Outcome sources: {report.other_datasets_used.join(", ") || "This list and project marks"}.</p>
-            <CheckedPreview report={report} />
+            <p className="muted">This saves the exact reviewed results as a new list.</p>
+            <dl className="metrics"><div><dt>Source rows</dt><dd>{formatNumber(report.rows)}</dd></div><div><dt>Added result columns</dt><dd>{report.added_columns.length}</dd></div><div><dt>Checked</dt><dd className="save-check-date">{new Date(report.checked_at).toLocaleString()}</dd></div></dl>
             {stale && <p className="notice" role="status">The setup, date, or evidence changed. <button type="button" className="button" disabled={busy !== null || !hasPhones} onClick={() => void check()}>Check again</button></p>}
             {freshnessError && <p role="alert" className="notice">{freshnessError}</p>}
-            <label className="field">
+            <label className="field save-copy-name">
               <span>Name of the checked copy</span>
               <input className="input" value={copyName} disabled={busy !== null} placeholder={`${dataset.name} (phones checked)`} onChange={event => setCopyName(event.target.value)} />
             </label>
-            <div className="row">
-              <button type="button" className="button" disabled={busy !== null || stale || freshnessPending || !hasPhones} onClick={() => void saveCopy()}>{busy === "apply" ? "Saving…" : "Save checked copy"}</button>
-              {stale && <span className="muted">Check again first: the setup or evidence changed.</span>}
-              {freshnessPending && <span className="muted">Verifying freshness before saving…</span>}
-            </div>
+            {freshnessPending && <p className="muted" role="status">Verifying the check before saving…</p>}
+            <details className="step skiptrace-optional"><summary>Preview the checked copy</summary><CheckedPreview report={report} /></details>
             {saved && (
               <p className="notice good" role="status">
                 <span>Saved {formatNumber(saved.rows)} rows with {saved.added_columns.length} new columns.</span>
@@ -674,7 +690,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           </div>
         )}
         {step === 3 && (!hasPhones ? <button type="button" className="button" onClick={() => setStep(0)}>Review column roles</button> : <button type="button" className="button" disabled={stale || busy !== null || freshnessPending} onClick={() => setStep(4)}>Next</button>)}
-        {step === 4 && <span />}
+        {step === 4 && report && <button type="button" className="button" disabled={busy !== null || stale || freshnessPending || !hasPhones} onClick={() => void saveCopy()}>{busy === "apply" ? "Saving…" : "Save checked copy"}</button>}
       </footer>
     </section>
   );

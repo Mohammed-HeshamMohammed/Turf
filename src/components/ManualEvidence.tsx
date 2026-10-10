@@ -28,8 +28,8 @@ export function ManualEvidence({ turf }: { turf: Turf }) {
   const pages = Math.max(1, Math.ceil(matches.length / 12));
   const current = Math.min(page, pages - 1);
   const legacyCount = Object.keys(turf.legacyManual).length;
-  return <article className="card step">
-    <header><h2>Marks made in Turf</h2><span className="count">{entries.length} in this project</span></header>
+  return <details className="card step skiptrace-report">
+    <summary><h2>Marks made in Turf</h2><span className="count">{entries.length} in this project</span></summary><div className="skiptrace-report-body">
     <p className="muted">Wrong-number, do-not-call, and interested marks are evidence for the next check across this project's lists. Called records activity only. Imported and manual evidence keep their sources; conflicting wrong/reached outcomes remain suspicious. Active DNC evidence still blocks the number.</p>
     {legacyCount > 0 && !imported && <div className="notice"><span>{legacyCount} earlier computer-wide marks are still kept in the old store. Import them here if they belong to this project; current project marks take precedence.</span>
       <button type="button" className="button ghost" disabled={importing} onClick={async () => { setImporting(true); try { await turf.importLegacy(); setImported(true); } catch (reason) { turf.fail(reason); } finally { setImporting(false); } }}>Import earlier marks into this project</button>
@@ -46,5 +46,5 @@ export function ManualEvidence({ turf }: { turf: Turf }) {
       {showHistory && <div className="table-wrap history-table"><table className="compact"><thead><tr><th scope="col">Number</th><th scope="col">Change</th><th scope="col">When</th><th scope="col">Until</th><th scope="col">Source</th></tr></thead><tbody>{history.map((entry, index) => <tr key={index}><td>{formatPhone(entry.number)}</td><td>{entry.mark ? MANUAL_LABELS[entry.mark] : "Removed"}</td><td>{new Date(entry.at).toLocaleString()}</td><td>{entry.until ?? "No end date"}</td><td>{entry.source}</td></tr>)}</tbody></table></div>}
     </details>
     <details onToggle={event => setCallsOpen(event.currentTarget.open)}><summary>Project call log: dated outcomes and corrections</summary>{callsOpen && <CallOutcomeLog onSaved={turf.refresh} />}</details>
-  </article>;
+  </div></details>;
 }

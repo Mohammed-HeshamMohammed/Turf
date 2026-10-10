@@ -177,11 +177,20 @@ describe("the complete five-step process", () => {
   it("keeps every report section, reviews exact rows, and saves the reviewed scan", async () => {
     const user = await start(); await scan(user);
     for (const heading of ["Results", "Which phone columns are worth using", "Why numbers got their verdict", "Do the warning signs predict wrong numbers here?", "What was found in the numbers", "Marks made in Turf"]) expect(screen.getByRole("heading", { name: heading })).toBeTruthy();
+    const columnReport = document.querySelector('[id="columns-list"]') as HTMLDetailsElement;
+    expect(columnReport.open).toBe(false);
+    await user.click(within(columnReport).getByText("Which phone columns are worth using"));
+    expect(columnReport.open).toBe(true);
     await user.click(screen.getByRole("button", { name: /Rows needing review/ }));
     await waitFor(() => expect(mocks.review).toHaveBeenCalledWith("scan-1", "needs_review", 0, undefined));
     await user.click(within(document.querySelector(".wizard-nav") as HTMLElement).getByRole("button", { name: "Next" }));
     expect(screen.getByText(/This saves the exact reviewed results/)).toBeTruthy();
+    const preview = screen.getByText("Preview the checked copy").closest("details") as HTMLDetailsElement;
+    expect(preview.open).toBe(false);
+    await user.click(screen.getByText("Preview the checked copy"));
+    expect(preview.open).toBe(true);
     expect(screen.getByRole("table", { name: /First 1 rows of this exact check/ })).toBeTruthy();
+    expect(within(document.querySelector(".wizard-nav") as HTMLElement).getByRole("button", { name: "Save checked copy" })).toBeTruthy();
     await user.type(screen.getByRole("textbox", { name: "Name of the checked copy" }), "Reviewed October");
     await user.click(screen.getByRole("button", { name: "Save checked copy" }));
     await waitFor(() => expect(mocks.apply.mock.calls[0].slice(0, 4)).toEqual(["list", config, "Reviewed October", "scan-1"]));
@@ -267,11 +276,20 @@ describe("the complete five-step process", () => {
   it("keeps compatible DNC combinations and prevents a status being both wrong and reached", async () => {
     const user = await start();
     await user.click(within(document.querySelector(".wizard-nav") as HTMLElement).getByRole("button", { name: "Next" }));
+    await user.click(screen.getByLabelText("Edit meanings for Status 0"));
     await user.click(screen.getByRole("checkbox", { name: "Status 0: Wrong number" }));
     await user.click(screen.getByRole("checkbox", { name: "Status 0: Do not call" }));
     await user.click(screen.getByRole("checkbox", { name: "Status 0: Reached a person" }));
     expect((screen.getByRole("checkbox", { name: "Status 0: Wrong number" }) as HTMLInputElement).checked).toBe(false);
     expect((screen.getByRole("checkbox", { name: "Status 0: Do not call" }) as HTMLInputElement).checked).toBe(true);
     expect((screen.getByRole("checkbox", { name: "Status 0: Reached a person" }) as HTMLInputElement).checked).toBe(true);
+  });
+  it("can skip call outcomes explicitly before checking", async () => {
+    const user = await start();
+    await user.click(within(document.querySelector(".wizard-nav") as HTMLElement).getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Continue without call outcomes" }));
+    expect(screen.getByRole("heading", { name: "Warning signs" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Check phone numbers" }));
+    await waitFor(() => expect(mocks.scan.mock.calls[0][1].outcome).toBeNull());
   });
 });
