@@ -1,12 +1,11 @@
 import { Suspense, lazy, useMemo, useState } from "react";
 import type { Turf } from "../App";
 import { AreaMap, type Dot } from "../components/AreaMap";
-import type { Spot } from "../components/StreetMap";
 import { Empty, MiniBars, SearchBox, Segmented } from "../components/Bits";
 import { Select } from "../components/Select";
 import { copyText, useContextMenu } from "../components/ContextMenu";
 import { Icon } from "../components/Icon";
-import { placeRows, useZipCentres, useZipOutlines } from "../lib/geo";
+import { gatherForMap, placeRows, useZipCentres, useZipOutlines } from "../lib/geo";
 import { marksSource, useAllRows } from "../lib/hooks";
 import {
   AREA_LABELS, AREA_LEVELS, KIND_LABELS, VERDICT_LABELS, areaColumns, checkedPhoneColumns, countAreas, formatDate, formatNumber,
@@ -102,26 +101,16 @@ export function Dashboard({ turf }: { turf: Turf }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allRows, primary, datasets, manual, turf.areaMaps, centres, known]);
 
-  // For the street map: every list's rows gathered into one spot for each ZIP, named by the area they belong to at
-  // the level the Areas card is on. Rows with a place of their own (collected listings) stay single points.
-  const mapData = useMemo(() => {
-    const spots = new Map<string, Spot>();
-    const points: Dot[] = [];
-    for (const item of data?.summaries ?? []) {
-      const found = areaColumns(item.columns, turf.areaMaps[item.dataset.id]);
-      const named = found[level];
-      const rowsById = new Map(item.rows.map(row => [row.id, row]));
-      for (const dot of placeRows(item.rows, { position: positionColumns(item.columns), zipColumn: found.zip, stateColumn: found.state, centres }).dots) {
-        if (!dot.zip) { points.push({ lon: dot.lon, lat: dot.lat }); continue; }
-        let spot = spots.get(dot.zip);
-        if (!spot) spots.set(dot.zip, spot = { zip: dot.zip, lat: dot.lat, lon: dot.lon, shown: 0, hidden: 0, area: (named && String(rowsById.get(dot.rowId)?.raw[named] ?? "").trim()) || dot.zip });
-        spot.shown += 1;
-      }
-    }
-    return { spots: [...spots.values()], points, zips: [...spots.keys()] };
-    // `known` changes as ZIP centres arrive.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, level, turf.areaMaps, centres, known]);
+  // For the street map: every list's rows, each at its own place where it has one, and gathered by ZIP, city and state.
+  // Areas are named at the level the Areas card is on.
+  const mapData = useMemo(() => gatherForMap((data?.summaries ?? []).map(item => {
+    const found = areaColumns(item.columns, turf.areaMaps[item.dataset.id]);
+    const dots = placeRows(item.rows, { position: positionColumns(item.columns), zipColumn: found.zip, stateColumn: found.state, centres }).dots;
+    return { rows: item.rows, dots, columns: found, named: found[level] };
+  }), centres),
+  // `known` changes as ZIP centres arrive.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [data, level, turf.areaMaps, centres, known]);
   const zipOutlines = useZipOutlines(mapData.zips, turf.fail);
 
   const areas = useMemo(() => {
@@ -178,7 +167,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
           {data.dots.length && !plain ? (
             <Suspense fallback={<AreaMap dots={data.dots} width={760} height={300} radius={3.4} />}>
               <StreetMap spots={shownSpots} points={mapData.points} outlines={zipOutlines.outlines} outlineCount={zipOutlines.count}
-                selected={null} hovered={hoverArea} onHover={setHoverArea} onSelect={() => undefined} fitKey={`all:${datasets.length}`} onUnavailable={() => setPlain(true)} />
+                selected={null} hovered={hoverArea} onHover={setHoverArea} onSelect={() => undefined} fitKey={`all:${datasets.length}`} onUnavailable={() => setPlain(true)} cities={mapData.cities} states={mapData.states} />
             </Suspense>
           ) : data.dots.length ? <AreaMap dots={data.dots} width={760} height={300} radius={3.4} interactive />
             : <Empty title="Nothing on the map yet">Rows are placed by their ZIP code. A list with a ZIP column shows here.</Empty>}

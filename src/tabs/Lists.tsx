@@ -1,11 +1,10 @@
 import { Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import type { Turf } from "../App";
-import { AreaMap, type Dot } from "../components/AreaMap";
-import type { Spot } from "../components/StreetMap";
+import { AreaMap } from "../components/AreaMap";
 import { Empty, Field, SearchBox, Segmented, VerdictPill } from "../components/Bits";
 import { copyText, useContextMenu, type MenuItem } from "../components/ContextMenu";
 import { Select } from "../components/Select";
-import { cancelJob, locateAddresses, locatedAddresses, placeRows, streetColumn, useZipCentres, useZipOutlines, type AddressColumns, type LocateProgress, type Located } from "../lib/geo";
+import { cancelJob, gatherForMap, locateAddresses, locatedAddresses, placeRows, streetColumn, useZipCentres, useZipOutlines, type AddressColumns, type LocateProgress, type Located } from "../lib/geo";
 import { deleteDataset, renameDataset } from "../lib/service";
 import { Icon } from "../components/Icon";
 import { ListPicker } from "../components/ListPicker";
@@ -145,26 +144,15 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
     const kept = new Set(filtered.map(item => item.row.id));
     return placement.dots.map(dot => ({ lon: dot.lon, lat: dot.lat, dim: !kept.has(dot.rowId) }));
   }, [placement, filtered]);
-  // For the street map: rows placed by ZIP are gathered into one spot for each ZIP, counted by whether the filters
-  // show them and named by the area they belong to at the level the list is on. Rows with a place of their own stay
-  // single points. The area filter itself is left out of the count, so choosing an area does not grey the others.
-  const mapData = useMemo(() => {
-    const rowsById = new Map((rows ?? []).map(row => [row.id, row]));
-    const kept = new Set(filteredIgnoringArea.map(item => item.row.id));
-    const spots = new Map<string, Spot>();
-    const points: Dot[] = [];
-    for (const dot of placement.dots) {
-      const shown = kept.has(dot.rowId);
-      if (!dot.zip) { points.push({ lon: dot.lon, lat: dot.lat, dim: !shown, label: dot.label }); continue; }
-      let spot = spots.get(dot.zip);
-      if (!spot) {
-        const named = areaColumn ? String(rowsById.get(dot.rowId)?.raw[areaColumn] ?? "").trim() : "";
-        spots.set(dot.zip, spot = { zip: dot.zip, lat: dot.lat, lon: dot.lon, shown: 0, hidden: 0, area: named || dot.zip });
-      }
-      if (shown) spot.shown += 1; else spot.hidden += 1;
-    }
-    return { spots: [...spots.values()], points, zips: [...spots.keys()] };
-  }, [rows, placement, filteredIgnoringArea, areaColumn]);
+  // For the street map: each property at its own address, and the same rows gathered by ZIP, city and state. Areas are
+  // named at the level the list is on. The area filter itself is left out of the count, so choosing an area does not
+  // grey the others.
+  const mapData = useMemo(
+    () => gatherForMap([{ rows: rows ?? [], dots: placement.dots, columns: areaMap, named: areaColumn, kept: new Set(filteredIgnoringArea.map(item => item.row.id)) }], centres),
+    // `known` changes as ZIP centres arrive.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, placement, filteredIgnoringArea, areaColumn, areaMap, centres, known],
+  );
   const zipOutlines = useZipOutlines(mapData.zips, turf.fail);
   // The area pointed at, in the list or on the map; each outlines it in the other.
   const [hoverArea, setHoverArea] = useState<string | null>(null);
@@ -334,7 +322,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                   <StreetMap spots={mapData.spots} points={mapData.points} outlines={zipOutlines.outlines} outlineCount={zipOutlines.count}
                     selected={area} hovered={hoverArea} onHover={pointFromMap} onSelect={name => change(setArea)(area === name ? null : name)}
                     fitKey={`${source.id}:${activeLevel}`} onUnavailable={() => setPlain(true)}
-                    lookup={lookup} />
+                    lookup={lookup} cities={mapData.cities} states={mapData.states} />
                 </Suspense>
               ) : dots.length ? <AreaMap dots={dots} interactive /> : <Empty title="Nothing to put on the map">Rows are placed by their ZIP code or their address. This list has no ZIP column that is filled in.</Empty>}
             </div>

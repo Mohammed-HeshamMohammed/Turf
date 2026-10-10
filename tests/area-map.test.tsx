@@ -79,6 +79,25 @@ describe("naming placed properties", () => {
     const { placeRows } = await import("../src/lib/geo");
     const rows = [{ id: "a", row_number: 1, raw: { Street: " 12 Olive St ", Zip: "91706" } }] as never;
     const placement = placeRows(rows, { position: null, zipColumn: "Zip", centres: new Map(), exact: { "1": [34.08, -117.97] }, streetColumn: "Street" });
-    expect(placement.dots).toEqual([{ lat: 34.08, lon: -117.97, rowId: "a", label: "12 Olive St" }]);
+    expect(placement.dots).toEqual([{ lat: 34.08, lon: -117.97, rowId: "a", zip: "91706", label: "12 Olive St", exact: true }]);
+  });
+});
+
+describe("the levels of the map", () => {
+  it("counts every property in its ZIP, city and state however it was placed", async () => {
+    const { gatherForMap } = await import("../src/lib/geo");
+    const row = (id: string, city: string, zip: string) => ({ id, row_number: Number(id), raw: { City: city, State: "ca", Zip: zip } });
+    const rows = [row("1", "Baldwin Park", "91706"), row("2", "Baldwin Park", "91706"), row("3", "Irwindale", "91706")] as never;
+    const columns = { zip: "Zip", city: "City", state: "State" };
+    const dots = [
+      { lat: 34.08, lon: -117.97, rowId: "1", zip: "91706", exact: true, label: "12 Olive St" },
+      { lat: 34.09, lon: -117.96, rowId: "2", zip: "91706" },
+      { lat: 34.1, lon: -117.95, rowId: "3", zip: "91706" },
+    ];
+    const map = gatherForMap([{ rows, dots, columns, kept: new Set(["1", "2"]) }], new Map([["91706", { lat: 34.09, lon: -117.96, states: ["CA"] }]]));
+    expect(map.points).toEqual([{ lon: -117.97, lat: 34.08, dim: false, label: "12 Olive St" }]);
+    expect(map.spots).toEqual([expect.objectContaining({ zip: "91706", shown: 2, hidden: 1, loose: 1, lat: 34.09 })]);
+    expect(map.cities.map(city => [city.name, city.shown, city.hidden])).toEqual([["Baldwin Park, CA", 2, 0], ["Irwindale, CA", 0, 1]]);
+    expect(map.states).toEqual([expect.objectContaining({ name: "CA", shown: 2, hidden: 1 })]);
   });
 });

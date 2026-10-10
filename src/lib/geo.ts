@@ -3,6 +3,8 @@
 
 import { useEffect, useState } from "react";
 import { call, runJob } from "./service";
+import type { Dot } from "../components/AreaMap";
+import type { Group, Spot } from "../components/StreetMap";
 import type { DatasetRow } from "./types";
 
 export type ZipCentre = { lat: number; lon: number; states: string[] };
@@ -81,7 +83,12 @@ export function useZipOutlines(values: string[], onError: (reason: unknown) => v
   return { outlines, count: values.filter(value => outlines.get(value)).length };
 }
 
-export type Placed = { lon: number; lat: number; rowId: string; zip?: string; label?: string };
+/**
+ * A placed row. `exact` is set when the place is the row's own (its coordinates, or its address once looked up) rather
+ * than the centre of its ZIP. `zip` is the row's ZIP whenever it has one, so the rows of a ZIP are counted together
+ * however they were placed.
+ */
+export type Placed = { lon: number; lat: number; rowId: string; zip?: string; label?: string; exact?: boolean };
 export type Placement = {
   dots: Placed[];
   /** Placed by the row's own coordinates, its exact address, or its ZIP centre. */
@@ -104,22 +111,22 @@ export function placeRows(rows: DatasetRow[], options: {
   const { position, zipColumn, stateColumn, exact } = options;
   const labelOf = (row: DatasetRow) => (options.streetColumn ? String(row.raw[options.streetColumn] ?? "").trim() || undefined : undefined);
   for (const row of rows) {
+    const zip = zipColumn ? String(row.raw[zipColumn] ?? "").trim() : "";
     if (position) {
       const lon = Number(row.raw[position.longitude]);
       const lat = Number(row.raw[position.latitude]);
       if (row.raw[position.longitude] !== null && row.raw[position.latitude] !== null && Number.isFinite(lon) && Number.isFinite(lat) && (lon || lat)) {
-        placement.dots.push({ lon, lat, rowId: row.id, label: labelOf(row) });
+        placement.dots.push({ lon, lat, rowId: row.id, zip: zip || undefined, label: labelOf(row), exact: true });
         placement.own += 1;
         continue;
       }
     }
     const found = exact?.[String(row.row_number)];
     if (found) {
-      placement.dots.push({ lat: found[0], lon: found[1], rowId: row.id, label: labelOf(row) });
+      placement.dots.push({ lat: found[0], lon: found[1], rowId: row.id, zip: zip || undefined, label: labelOf(row), exact: true });
       placement.exact += 1;
       continue;
     }
-    const zip = zipColumn ? String(row.raw[zipColumn] ?? "").trim() : "";
     if (!zip) { placement.noZip += 1; continue; }
     const centre = options.centres.get(zip);
     if (!centre) { placement.unknownZip += 1; continue; }
@@ -129,4 +136,55 @@ export function placeRows(rows: DatasetRow[], options: {
     placement.byZip += 1;
   }
   return placement;
+}
+
+export type MapSource = {
+  rows: DatasetRow[]; dots: Placed[];
+  /** The columns of this list that name each level, and the one the Areas card is on. */
+  columns: { zip?: string; city?: string; state?: string }; named?: string;
+  /** The rows the filters show; every row when absent. */
+  kept?: Set<string>;
+};
+
+/**
+ * Gathers placed rows for the map at every level it draws: each property that has a place of its own (`points`), the
+ * rows of each ZIP (`spots`, counting every row in it however it was placed, and how many are not on their own address
+ * yet), and the same rows again by city and by state. The counts at each level add up to the level below.
+ */
+export function gatherForMap(sources: MapSource[], centres: Map<string, ZipCentre | null>) {
+  const spots = new Map<string, Spot>();
+  const points: Dot[] = [];
+  type Sum = Group & { n: number };
+  const cities = new Map<string, Sum>();
+  const states = new Map<string, Sum>();
+  const add = (groups: Map<string, Sum>, key: string, name: string, dot: Placed, shown: boolean) => {
+    let group = groups.get(key);
+    if (!group) groups.set(key, group = { name, lat: 0, lon: 0, shown: 0, hidden: 0, n: 0 });
+    group.lat += dot.lat; group.lon += dot.lon; group.n += 1;
+    if (shown) group.shown += 1; else group.hidden += 1;
+  };
+  for (const source of sources) {
+    const rowsById = new Map(source.rows.map(row => [row.id, row]));
+    for (const dot of source.dots) {
+      const row = rowsById.get(dot.rowId);
+      const shown = source.kept ? source.kept.has(dot.rowId) : true;
+      if (dot.exact) points.push({ lon: dot.lon, lat: dot.lat, dim: !shown, label: dot.label });
+      if (dot.zip) {
+        let spot = spots.get(dot.zip);
+        if (!spot) {
+          const centre = centres.get(dot.zip);
+          const named = source.named ? String(row?.raw[source.named] ?? "").trim() : "";
+          spots.set(dot.zip, spot = { zip: dot.zip, lat: centre?.lat ?? dot.lat, lon: centre?.lon ?? dot.lon, shown: 0, hidden: 0, loose: 0, area: named || dot.zip });
+        }
+        if (shown) spot.shown += 1; else spot.hidden += 1;
+        if (shown && !dot.exact) spot.loose += 1;
+      }
+      const city = source.columns.city ? String(row?.raw[source.columns.city] ?? "").trim() : "";
+      const state = source.columns.state ? String(row?.raw[source.columns.state] ?? "").trim().toUpperCase() : "";
+      if (city) add(cities, `${state}|${city.toLowerCase()}`, state ? `${city}, ${state}` : city, dot, shown);
+      if (state) add(states, state, state, dot, shown);
+    }
+  }
+  const mean = (groups: Map<string, Sum>): Group[] => [...groups.values()].map(({ n, lat, lon, ...rest }) => ({ ...rest, lat: lat / n, lon: lon / n }));
+  return { spots: [...spots.values()], points, zips: [...spots.keys()], cities: mean(cities), states: mean(states) };
 }
