@@ -27,6 +27,12 @@ export type Outline = { type: string; coordinates: unknown };
 const RAMP: ExpressionSpecification = ["interpolate", ["linear"], ["get", "share"], 0, "#f6e6d4", 0.2, "#efc99d", 0.5, "#e2a15c", 0.8, "#c9772d", 1, "#8f4a14"];
 const COLOUR: ExpressionSpecification = ["case", ["==", ["get", "shown"], 0], "#cfcfcf", RAMP];
 const INK = "#121212";
+// ZIP borders are dashed lines, blue or red, the colour alternating from one ZIP to the next so a shared edge shows both.
+const BORDER_BLUE = "#1f5fd6";
+const BORDER_RED = "#d6322b";
+const BORDER: ExpressionSpecification = ["case", ["==", ["get", "tone"], 0], BORDER_BLUE, BORDER_RED];
+/** Which of the two colours a ZIP's border has: the same ZIP always gets the same one. */
+const toneOf = (zip: string) => [...zip].reduce((sum, letter) => sum + letter.charCodeAt(0), 0) % 2;
 /** Shapes take over from circles as the map is zoomed in far enough for a ZIP's area to be seen. */
 const fadeIn = (to: number): ExpressionSpecification => ["interpolate", ["linear"], ["zoom"], 7, 0, 8.4, to];
 /** For the circles: one whose area has an outline fades away as its shape appears; one without stays. Zoom has to be the
@@ -165,7 +171,12 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
 
       // ZIP areas, shaded.
       created.addLayer({ id: "area-fill", type: "fill", source: "areas", paint: { "fill-color": COLOUR, "fill-opacity": fadeIn(0.42) } });
-      created.addLayer({ id: "area-edge", type: "line", source: "areas", paint: { "line-color": "#ffffff", "line-width": 1, "line-opacity": fadeIn(0.9) } });
+      // A white edge under the dashes keeps them readable over the colours of the land.
+      created.addLayer({ id: "area-casing", type: "line", source: "areas", layout: { "line-join": "round" }, paint: { "line-color": "#ffffff", "line-width": 4, "line-opacity": fadeIn(0.8) } });
+      created.addLayer({
+        id: "area-edge", type: "line", source: "areas", layout: { "line-join": "round" },
+        paint: { "line-color": BORDER, "line-width": 2, "line-dasharray": [2.2, 1.4], "line-opacity": fadeIn(1) },
+      });
       // The same areas as circles: every one when zoomed far out, and always for a ZIP whose outline is not here.
       created.addLayer({
         id: "spot", type: "circle", source: "spots",
@@ -366,7 +377,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
         area: spot.area, title: spot.area === spot.zip ? spot.zip : `${spot.zip} · ${spot.area}`, shown: spot.shown, hidden: spot.hidden,
         // Spread by square root, so a few very full areas do not leave every other one the palest shade.
         share: Math.sqrt(spot.shown / most), label: spot.shown.toLocaleString("en-US"), outlined: Boolean(outline),
-        loose: spot.loose, looseLabel: spot.loose.toLocaleString("en-US"),
+        loose: spot.loose, looseLabel: spot.loose.toLocaleString("en-US"), tone: toneOf(spot.zip),
       };
       if (outline) shapes.push({ type: "Feature", properties, geometry: outline });
       circles.push(point(spot.lon, spot.lat, properties));
@@ -396,6 +407,8 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
     const unlessOutlined = (value: ExpressionSpecification | number): ExpressionSpecification => ["case", ["get", "outlined"], 0, value];
     // Close in, each property is on the map at its own address, so the ZIP shading steps back to a faint backdrop.
     const backdrop = (value: ExpressionSpecification | number): ExpressionSpecification => ["*", value, 0.3];
+    // The borders stay clear when close in: they say where a ZIP ends however far the pins are zoomed.
+    const softer = (value: ExpressionSpecification | number): ExpressionSpecification => ["*", value, 0.7];
     // Where the ZIP level begins: at once when there is no city or state level above it to hand over from.
     const zipFrom = cities.length ? CITY_END - 1 : states.length ? CITY_START : 0;
     const zipCircle = (value: number, faded: number) => byZoom([
@@ -403,7 +416,8 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       [7, lit(value, faded)], [8.4, unlessOutlined(lit(value, faded))], [ZIP_END - 1, unlessOutlined(lit(value, faded))], [ZIP_END, 0],
     ]);
     map.current.setPaintProperty("area-fill", "fill-opacity", byZoom([[7, 0], [8.4, lit(0.42, 0.12)], [ZIP_END - 1.2, lit(0.42, 0.12)], [ZIP_END, backdrop(lit(0.42, 0.12))]]));
-    map.current.setPaintProperty("area-edge", "line-opacity", byZoom([[7, 0], [8.4, lit(0.9, 0.35)], [ZIP_END - 1.2, lit(0.9, 0.35)], [ZIP_END, backdrop(lit(0.9, 0.35))]]));
+    map.current.setPaintProperty("area-edge", "line-opacity", byZoom([[7, 0], [8.4, lit(1, 0.4)], [ZIP_END - 1.2, lit(1, 0.4)], [ZIP_END, softer(lit(1, 0.4))]]));
+    map.current.setPaintProperty("area-casing", "line-opacity", byZoom([[7, 0], [8.4, lit(0.8, 0.25)], [ZIP_END - 1.2, lit(0.8, 0.25)], [ZIP_END, softer(lit(0.8, 0.25))]]));
     map.current.setPaintProperty("spot", "circle-opacity", zipCircle(0.92, 0.2));
     map.current.setPaintProperty("spot", "circle-stroke-opacity", zipCircle(1, 0.25));
     for (const id of ["spot", "spot-ring"]) map.current.setLayerZoomRange(id, zipFrom, ZIP_END);
