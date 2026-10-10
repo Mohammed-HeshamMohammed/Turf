@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { OwnerColumns, SkiptraceConfig } from "../lib/types";
 import { SearchBox } from "./Bits";
 import { Select } from "./Select";
@@ -39,8 +39,8 @@ function assignment(config: SkiptraceConfig, column: string): { role: Role; owne
   return { role: propertyRoles.find(key => config[key] === column) ?? "unused", owner: 0 };
 }
 
-export function SkiptraceColumns({ columns, samples, config, onChange }: {
-  columns: string[]; samples: Record<string, string[]>; config: SkiptraceConfig; onChange: (next: SkiptraceConfig) => void;
+export function SkiptraceColumns({ columns, samples, config, onChange, countryControl }: {
+  columns: string[]; samples: Record<string, string[]>; config: SkiptraceConfig; onChange: (next: SkiptraceConfig) => void; countryControl?: ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const list = useRef<HTMLDivElement>(null);
@@ -95,6 +95,7 @@ export function SkiptraceColumns({ columns, samples, config, onChange }: {
     <div className="skiptrace-column-tools">
       <SearchBox value={query} onChange={value => { setQuery(value); if (value.trim()) setFilter("all"); }} placeholder="Find a column" />
       <span className="muted">{config.phone_columns.length} phone {config.phone_columns.length === 1 ? "column" : "columns"} · {columns.length} source fields</span>
+      {countryControl && <div className="skiptrace-country">{countryControl}</div>}
     </div>
     <div className="skiptrace-column-filters" role="group" aria-label="Filter column roles">
       {filters.map(scope => <button type="button" key={scope.value} aria-pressed={filter === scope.value} onClick={() => setFilter(scope.value)}>{scope.label} <span>{columns.filter(column => includes(column, scope.value)).length}</span></button>)}
@@ -112,6 +113,5 @@ export function SkiptraceColumns({ columns, samples, config, onChange }: {
       })}
       {!visible.length && <p className="skiptrace-column-empty muted">No fields match this view. Choose All fields or change your search.</p>}
     </div>
-    <p className="muted">{visible.length} fields in this view. Other fields stay in your list and checked copy.</p>
   </section>;
 }

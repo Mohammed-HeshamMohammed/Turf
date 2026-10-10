@@ -367,14 +367,10 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
         <p className="muted">Assign a role beside each field. You can choose several phone columns; names and locations help check who the numbers belong to.</p>
         <SkiptraceTemplates projectId={turf.projectId} columns={setup.columns} config={config} onApply={applyTemplate} onError={setError} />
         {questionableColumns.length > 0 && <div className="notice" role="alert"><span>Double-check {questionableColumns.join(", ")}: its name looks like an identifier, not a phone field. Choose another role if these are parcel or account numbers.</span><Check checked={questionableColumns.every(column => confirmedIdentifierColumns.includes(column))} onChange={on => setConfirmedIdentifierColumns(on ? questionableColumns : [])}>I verified these are phone numbers</Check></div>}
-        <SkiptraceColumns columns={setup.columns} samples={setup.column_samples} config={base} onChange={mapColumns} />
         {base.phone_columns.length === 0 && <p className="notice">Assign at least one field to Phone number to continue. The other roles provide context for the checks.</p>}
-        <div className="fields">
-          <Field label="Default phone country" value={base.region} searchable onChange={region => void changeRegion(region ?? "US")}
-            options={REGIONS.map(code => ({ value: code, label: `${regionName(code)} (${code})` }))} />
-        </div>
-        <p className="muted">The default country is used when a number has no country code. A mapped Country field overrides it for each row.</p>
-        {!hasPhones && base.phone_columns.length > 0 && <p className="muted">Confirm any identifier-like phone choices to go on.</p>}
+        <SkiptraceColumns columns={setup.columns} samples={setup.column_samples} config={base} onChange={mapColumns}
+          countryControl={<Field label="Default phone country" value={base.region} searchable onChange={region => void changeRegion(region ?? "US")}
+            options={REGIONS.map(code => ({ value: code, label: `${regionName(code)} (${code})` }))} />} />
       </article>
       </div>
 
