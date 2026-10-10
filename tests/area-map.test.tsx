@@ -36,12 +36,10 @@ describe("plot map on a touchpad", () => {
     return svg;
   };
 
-  it("moves with two fingers and leaves a mouse wheel to the page", () => {
+  it("moves with two fingers", () => {
     const { container } = render(<AreaMap dots={dots} interactive />);
     const svg = sized(container);
     const before = positions(container);
-    expect(wheelOn(svg, { deltaY: 100 })).toBe(true);
-    expect(positions(container)).toEqual(before);
     // false: the page was stopped from scrolling.
     expect(wheelOn(svg, { deltaX: 30, deltaY: 11 })).toBe(false);
     const after = positions(container);
@@ -58,5 +56,20 @@ describe("plot map on a touchpad", () => {
     const small = spread();
     expect(small).toBeGreaterThan(before);
     expect(small / before).toBeLessThan(1.05);
+  });
+});
+
+describe("plot map with a mouse wheel", () => {
+  it("zooms in and out without Ctrl", () => {
+    const { container } = render(<AreaMap dots={[{ lon: -95.4, lat: 29.7 }, { lon: -95.2, lat: 29.9 }, { lon: -95.6, lat: 29.5 }]} interactive />);
+    const svg = container.querySelector("svg")!;
+    svg.getBoundingClientRect = () => ({ left: 0, top: 0, width: 520, height: 320, right: 520, bottom: 320, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    const spread = () => { const xs = [...container.querySelectorAll("circle")].map(circle => Number(circle.getAttribute("cx"))); return Math.max(...xs) - Math.min(...xs); };
+    const start = spread();
+    expect(wheelOn(svg, { deltaY: -100, clientX: 260, clientY: 160 })).toBe(false);
+    const closer = spread();
+    expect(closer).toBeGreaterThan(start * 1.2);
+    wheelOn(svg, { deltaY: 100, clientX: 260, clientY: 160 });
+    expect(spread()).toBeLessThan(closer);
   });
 });

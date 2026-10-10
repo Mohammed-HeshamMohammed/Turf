@@ -69,11 +69,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       created = new MapLibre({
         container: holder.current, style: STYLE, bounds: [[-125, 24], [-66, 50]],
         maxZoom: 18, dragRotate: false, pitchWithRotate: false, attributionControl: { compact: true },
-        // A mouse wheel scrolls the page, also over the map; it zooms the map only with Ctrl held (the map says so when
-        // the wheel is turned on it without). Otherwise scrolling down the page would stop and zoom wherever the
-        // pointer happened to cross the map. Two fingers on a touchpad move the map instead (below), and pinching
-        // arrives as Ctrl and the wheel, so it zooms.
-        cooperativeGestures: true,
+        // The wheel zooms and pinching a touchpad zooms; two fingers on a touchpad move the map (below).
       });
     } catch {
       // No WebGL, for instance.
@@ -81,7 +77,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       return;
     }
     created.touchZoomRotate.disableRotation();
-    // Heard before the map's own handling (capture), which would only answer a touchpad's scrolling with "use Ctrl".
+    // Heard before the map's own handling (capture), which would zoom on a touchpad's scrolling.
     const scrollWithTouchpad = (event: WheelEvent) => {
       if (!isTouchpadScroll(event)) return;
       event.preventDefault();

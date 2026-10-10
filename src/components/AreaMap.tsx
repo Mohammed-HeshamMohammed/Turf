@@ -59,7 +59,7 @@ function projection(view: View, width: number, height: number) {
 /**
  * Rows on a plain plot. No map tiles are loaded. Rows that fall on the same spot (every row placed at one ZIP's
  * centre, or a long list on a small plot) are drawn as one dot that grows with how many it stands for, so a list of
- * any length draws quickly. With `interactive`, Ctrl and the wheel (or pinching a touchpad) zoom, dragging or two
+ * any length draws quickly. With `interactive`, the wheel (or pinching a touchpad) zooms, dragging or two
  * fingers on a touchpad move, and a double click goes back.
  */
 export function AreaMap({ dots, width = 520, height = 320, radius = 3.2, interactive = false }: {
@@ -132,11 +132,11 @@ export function AreaMap({ dots, width = 520, height = 320, radius = 3.2, interac
         panRef.current((event.deltaX / box.width) * width, (event.deltaY / box.height) * height);
         return;
       }
-      // Without Ctrl a mouse wheel belongs to the page, as on the street map. Pinching a touchpad arrives with Ctrl held.
-      if (!event.ctrlKey) return;
       event.preventDefault();
-      // Zooms by how far the wheel or the pinch went, so a pinch's many small steps are smooth and one notch is a step.
-      const factor = Math.exp(Math.max(-100, Math.min(100, event.deltaY)) * 0.006);
+      // Zooms by how far the wheel or the pinch went: a pinch arrives as many small steps, and is followed closely; a
+      // notch of a mouse wheel is one gentler step.
+      const rate = Math.abs(event.deltaY) >= 100 ? 0.0025 : 0.01;
+      const factor = Math.exp(Math.max(-100, Math.min(100, event.deltaY)) * rate);
       zoomRef.current(factor, ((event.clientX - box.left) / box.width) * width, ((event.clientY - box.top) / box.height) * height);
     };
     element.addEventListener("wheel", onWheel, { passive: false });
