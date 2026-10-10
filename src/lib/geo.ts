@@ -81,7 +81,7 @@ export function useZipOutlines(values: string[], onError: (reason: unknown) => v
   return { outlines, count: values.filter(value => outlines.get(value)).length };
 }
 
-export type Placed = { lon: number; lat: number; rowId: string; zip?: string };
+export type Placed = { lon: number; lat: number; rowId: string; zip?: string; label?: string };
 export type Placement = {
   dots: Placed[];
   /** Placed by the row's own coordinates, its exact address, or its ZIP centre. */
@@ -97,22 +97,25 @@ export type Placement = {
 export function placeRows(rows: DatasetRow[], options: {
   position: { latitude: string; longitude: string } | null; zipColumn?: string; stateColumn?: string;
   centres: Map<string, ZipCentre | null>; exact?: Record<string, [number, number]>;
+  /** The column holding the street address, which names the rows that have a place of their own. */
+  streetColumn?: string;
 }): Placement {
   const placement: Placement = { dots: [], own: 0, exact: 0, byZip: 0, stateDisagrees: 0, unknownZip: 0, noZip: 0 };
   const { position, zipColumn, stateColumn, exact } = options;
+  const labelOf = (row: DatasetRow) => (options.streetColumn ? String(row.raw[options.streetColumn] ?? "").trim() || undefined : undefined);
   for (const row of rows) {
     if (position) {
       const lon = Number(row.raw[position.longitude]);
       const lat = Number(row.raw[position.latitude]);
       if (row.raw[position.longitude] !== null && row.raw[position.latitude] !== null && Number.isFinite(lon) && Number.isFinite(lat) && (lon || lat)) {
-        placement.dots.push({ lon, lat, rowId: row.id });
+        placement.dots.push({ lon, lat, rowId: row.id, label: labelOf(row) });
         placement.own += 1;
         continue;
       }
     }
     const found = exact?.[String(row.row_number)];
     if (found) {
-      placement.dots.push({ lat: found[0], lon: found[1], rowId: row.id });
+      placement.dots.push({ lat: found[0], lon: found[1], rowId: row.id, label: labelOf(row) });
       placement.exact += 1;
       continue;
     }

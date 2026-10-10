@@ -17,7 +17,7 @@ const STYLE = `${TILES}/styles/positron`;
 // How long to wait for the background, with the window showing, before deciding it cannot be had.
 const PATIENCE_MS = 9000;
 
-/** A place rows are gathered at: a ZIP code's area. `area` is what it is called in the Areas list at its current level. */
+/** A place properties are gathered at: a ZIP code's area. `area` is what it is called in the Areas list at its current level. */
 export type Spot = { zip: string; lat: number; lon: number; shown: number; hidden: number; area: string };
 export type Outline = { type: string; coordinates: unknown };
 
@@ -49,16 +49,19 @@ const boundsOf = (dots: Dot[]): LngLatBoundsLike | null => {
  * into small counted circles. Pointing at an area names it; clicking one chooses it, as in the Areas list, and the
  * area chosen or pointed at in the list is outlined here.
  */
-export function StreetMap({ spots, points, outlines, outlineCount, selected, hovered, onHover, onSelect, fitKey, onUnavailable }: {
+export function StreetMap({ spots, points, outlines, outlineCount, selected, hovered, onHover, onSelect, fitKey, onUnavailable, findExact }: {
   spots: Spot[]; points: Dot[];
   /** Outlines by ZIP, filled in as they arrive; `outlineCount` says how many are in, so the map redraws when more land. */
   outlines: Map<string, Outline | null>; outlineCount: number;
   selected: string | null; hovered: string | null; onHover: (area: string | null) => void; onSelect: (area: string) => void;
   fitKey: string; onUnavailable: () => void;
+  /** Offered once zoomed in close enough to want each address: the list's addresses are not on the map one by one yet. */
+  findExact?: { count: number; onClick: () => void } | null;
 }) {
   const holder = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibre | null>(null);
   const [ready, setReady] = useState(false);
+  const [close, setClose] = useState(false);
   const latest = useRef({ spots, points, selected, onHover, onSelect, onUnavailable });
   latest.current = { spots, points, selected, onHover, onSelect, onUnavailable };
 
@@ -156,6 +159,22 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
         paint: { "circle-radius": 3.6, "circle-color": ["case", ["get", "dim"], "#a9a9a9", INK], "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.2 },
       });
 
+      // A property's own address, written beside it once zoomed in to street level.
+      created.addLayer({
+        id: "row-label", type: "symbol", source: "points", minzoom: 15.5, filter: ["all", ["!", ["has", "point_count"]], ["!=", ["get", "label"], ""]],
+        layout: { "text-field": ["get", "label"], "text-font": ["Noto Sans Bold"], "text-size": 11, "text-anchor": "top", "text-offset": [0, 0.7] },
+        paint: { "text-color": INK, "text-halo-color": "rgba(255,255,255,0.92)", "text-halo-width": 1.5 },
+      });
+
+      const nameRow = (event: MapLayerMouseEvent) => {
+        const properties = event.features?.[0]?.properties;
+        if (!properties) return;
+        created.getCanvas().style.cursor = "default";
+        tip.setLngLat(event.lngLat).setHTML("<strong></strong><span></span>").addTo(created);
+        const element = tip.getElement();
+        element.querySelector("strong")!.textContent = String(properties.label || "Property");
+        element.querySelector("span")!.textContent = "1 property";
+      };
       const name = (event: MapLayerMouseEvent) => {
         const properties = event.features?.[0]?.properties;
         if (!properties) return;
@@ -166,7 +185,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
         // Set as text, never as markup: an area's name comes from the list's own data.
         const element = tip.getElement();
         element.querySelector("strong")!.textContent = String(properties.title);
-        element.querySelector("span")!.textContent = `${Number(properties.shown).toLocaleString("en-US")} ${Number(properties.shown) === 1 ? "row" : "rows"}${hidden}`;
+        element.querySelector("span")!.textContent = `${Number(properties.shown).toLocaleString("en-US")} ${Number(properties.shown) === 1 ? "property" : "properties"}${hidden}`;
       };
       const leave = () => {
         created.getCanvas().style.cursor = "";
@@ -188,8 +207,13 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
           created.easeTo({ center: (feature.geometry as unknown as { coordinates: [number, number] }).coordinates, zoom: Math.min(zoom, 18) });
         });
       });
+      created.on("mousemove", "row", nameRow);
+      created.on("mouseleave", "row", leave);
       created.on("mouseenter", "clusters", () => { created.getCanvas().style.cursor = "pointer"; });
       created.on("mouseleave", "clusters", () => { created.getCanvas().style.cursor = ""; });
+      const near = () => setClose(created.getZoom() >= 12);
+      created.on("zoom", near);
+      near();
       setReady(true);
     });
     // The background failing before anything is drawn means there is none to be had; a single missing tile does not.
@@ -231,7 +255,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
     }
     (map.current.getSource("areas") as GeoJSONSource).setData(collection(shapes));
     (map.current.getSource("spots") as GeoJSONSource).setData(collection(circles));
-    (map.current.getSource("points") as GeoJSONSource).setData(collection(points.map(dot => point(dot.lon, dot.lat, { dim: Boolean(dot.dim) }))));
+    (map.current.getSource("points") as GeoJSONSource).setData(collection(points.map(dot => point(dot.lon, dot.lat, { dim: Boolean(dot.dim), label: dot.label ?? "" }))));
   }, [ready, spots, points, outlines, outlineCount]);
 
   // What is pointed at and what is chosen stand out by everything else stepping back: the areas that belong stay in
@@ -286,9 +310,15 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
         <button type="button" aria-label="Zoom out" onClick={() => map.current?.zoomOut()}>−</button>
         <button type="button" aria-label="Back to where the rows are" onClick={fit}>⟲</button>
       </div>
+      {close && findExact && findExact.count > 0 && (
+        <div className="map-hint">
+          <span>Each property is shown at the middle of its ZIP code until its exact address is looked up.</span>
+          <button type="button" className="button small" onClick={findExact.onClick}>Show each address</button>
+        </div>
+      )}
       {spots.length > 0 && (
         <div className="map-legend" aria-hidden="true">
-          <span>Fewer rows</span><i /><span>More</span>
+          <span>Fewer properties</span><i /><span>More</span>
         </div>
       )}
     </div>

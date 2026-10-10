@@ -73,3 +73,12 @@ describe("plot map with a mouse wheel", () => {
     expect(spread()).toBeLessThan(closer);
   });
 });
+
+describe("naming placed properties", () => {
+  it("carries a row's street address to its spot on the map", async () => {
+    const { placeRows } = await import("../src/lib/geo");
+    const rows = [{ id: "a", row_number: 1, raw: { Street: " 12 Olive St ", Zip: "91706" } }] as never;
+    const placement = placeRows(rows, { position: null, zipColumn: "Zip", centres: new Map(), exact: { "1": [34.08, -117.97] }, streetColumn: "Street" });
+    expect(placement.dots).toEqual([{ lat: 34.08, lon: -117.97, rowId: "a", label: "12 Olive St" }]);
+  });
+});

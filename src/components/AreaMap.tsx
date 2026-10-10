@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
-export type Dot = { lon: number; lat: number; dim?: boolean };
+export type Dot = { lon: number; lat: number; dim?: boolean; label?: string };
 
 /** The part of the world in view, in degrees. */
 type View = { minLon: number; maxLon: number; minLat: number; maxLat: number };
@@ -165,7 +165,7 @@ export function AreaMap({ dots, width = 520, height = 320, radius = 3.2, interac
 
   return (
     <div className={interactive ? "map-frame interactive" : "map-frame"}>
-      <svg ref={svg} className="area-map" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${dots.length.toLocaleString("en-US")} rows plotted`}
+      <svg ref={svg} className="area-map" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${dots.length.toLocaleString("en-US")} properties plotted`}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag} onDoubleClick={() => interactive && setChosen(null)}>
         <defs>
           <pattern id={grid} width="34" height="34" patternUnits="userSpaceOnUse">
@@ -184,7 +184,7 @@ export function AreaMap({ dots, width = 520, height = 320, radius = 3.2, interac
           <button type="button" aria-label="Back to where the rows are" disabled={!chosen} onClick={() => setChosen(null)}>⟲</button>
         </div>
       )}
-      {drawn.outside > 0 && <p className="map-outside">{drawn.outside.toLocaleString("en-US")} {drawn.outside === 1 ? "row is" : "rows are"} outside this view</p>}
+      {drawn.outside > 0 && <p className="map-outside">{drawn.outside.toLocaleString("en-US")} {drawn.outside === 1 ? "property is" : "properties are"} outside this view</p>}
     </div>
   );
 }

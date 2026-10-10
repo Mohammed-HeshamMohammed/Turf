@@ -126,6 +126,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   }, [own, areaMap]);
   const [located, setLocated] = useState<Located | null>(null);
   const [lookups, setLookups] = useState(0);
+  const [asking, setAsking] = useState(false);
   // The street background needs the internet. Without it the rows are drawn on a plain plot instead.
   const [plain, setPlain] = useState(false);
   useEffect(() => {
@@ -135,10 +136,10 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
     return () => { current = false; };
   }, [source.id, addressColumns, position, lookups, turf.fail]);
   const placement = useMemo(
-    () => placeRows(rows ?? [], { position, zipColumn: areaMap.zip, stateColumn: areaMap.state, centres, exact: located?.exact }),
+    () => placeRows(rows ?? [], { position, zipColumn: areaMap.zip, stateColumn: areaMap.state, centres, exact: located?.exact, streetColumn: addressColumns?.street }),
     // `known` changes as ZIP centres arrive.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, position, areaMap.zip, areaMap.state, centres, known, located],
+    [rows, position, areaMap.zip, areaMap.state, centres, known, located, addressColumns],
   );
   const dots = useMemo(() => {
     const kept = new Set(filtered.map(item => item.row.id));
@@ -154,7 +155,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
     const points: Dot[] = [];
     for (const dot of placement.dots) {
       const shown = kept.has(dot.rowId);
-      if (!dot.zip) { points.push({ lon: dot.lon, lat: dot.lat, dim: !shown }); continue; }
+      if (!dot.zip) { points.push({ lon: dot.lon, lat: dot.lat, dim: !shown, label: dot.label }); continue; }
       let spot = spots.get(dot.zip);
       if (!spot) {
         const named = areaColumn ? String(rowsById.get(dot.rowId)?.raw[areaColumn] ?? "").trim() : "";
@@ -332,7 +333,8 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                 <Suspense fallback={<AreaMap dots={dots} />}>
                   <StreetMap spots={mapData.spots} points={mapData.points} outlines={zipOutlines.outlines} outlineCount={zipOutlines.count}
                     selected={area} hovered={hoverArea} onHover={pointFromMap} onSelect={name => change(setArea)(area === name ? null : name)}
-                    fitKey={`${source.id}:${activeLevel}`} onUnavailable={() => setPlain(true)} />
+                    fitKey={`${source.id}:${activeLevel}`} onUnavailable={() => setPlain(true)}
+                    findExact={!position && addressColumns && located && located.addresses_to_look_up > 0 ? { count: located.addresses_to_look_up, onClick: () => setAsking(true) } : null} />
                 </Suspense>
               ) : dots.length ? <AreaMap dots={dots} interactive /> : <Empty title="Nothing to put on the map">Rows are placed by their ZIP code or their address. This list has no ZIP column that is filled in.</Empty>}
             </div>
@@ -342,7 +344,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                 <button type="button" className="link" onClick={() => setPlain(false)}>Try the street map again</button>
               </p>
             )}
-            <MapNote placement={placement} located={position ? null : located} columns={position ? null : addressColumns} datasetId={source.id}
+            <MapNote placement={placement} located={position ? null : located} columns={position ? null : addressColumns} datasetId={source.id} asking={asking} setAsking={setAsking}
               onLocated={() => setLookups(count => count + 1)} onError={turf.fail} />
           </div>
         )}
@@ -433,11 +435,11 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
 }
 
 /** Under the map: how the rows were placed, which were left off and why, and the lookup of exact addresses. */
-function MapNote({ placement, located, columns, datasetId, onLocated, onError }: {
+function MapNote({ placement, located, columns, datasetId, asking, setAsking, onLocated, onError }: {
   placement: ReturnType<typeof placeRows>; located: Located | null; columns: AddressColumns | null; datasetId: string;
+  asking: boolean; setAsking: (asking: boolean) => void;
   onLocated: () => void; onError: (reason: unknown) => void;
 }) {
-  const [asking, setAsking] = useState(false);
   const [progress, setProgress] = useState<LocateProgress | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
@@ -482,7 +484,7 @@ function MapNote({ placement, located, columns, datasetId, onLocated, onError }:
           <button type="button" className="button ghost small" disabled={!jobId} onClick={() => jobId && void cancelJob(jobId).catch(onError)}>Stop</button>
         </p>
       ) : asking ? (
-        <p className="notice" role="alertdialog" aria-label="Look up exact addresses">
+        <p className="notice" role="alertdialog" aria-label="Look up exact addresses" ref={element => element?.scrollIntoView?.({ block: "nearest", behavior: "smooth" })}>
           <span>
             This sends the street, city, state and ZIP of {n(waiting)} addresses to the US Census Bureau&apos;s geocoder over the internet. Names and phone
             numbers are not sent. A long list takes several minutes; you can stop at any time and keep what was found.
