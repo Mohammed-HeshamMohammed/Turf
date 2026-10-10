@@ -27,6 +27,15 @@ export type Outline = { type: string; coordinates: unknown };
 const RAMP: ExpressionSpecification = ["interpolate", ["linear"], ["get", "share"], 0, "#f6e6d4", 0.2, "#efc99d", 0.5, "#e2a15c", 0.8, "#c9772d", 1, "#8f4a14"];
 const COLOUR: ExpressionSpecification = ["case", ["==", ["get", "shown"], 0], "#cfcfcf", RAMP];
 const INK = "#121212";
+/**
+ * How full a state or city circle is, from 0 to 1, out of every property on the map. Circles close together are merged
+ * into one that adds their counts up, so this is worked out from the count the circle itself carries.
+ */
+const groupShare = (total: number): ExpressionSpecification => ["min", 1, ["sqrt", ["/", ["get", "shown"], Math.max(1, total)]]];
+const groupColour = (share: ExpressionSpecification): ExpressionSpecification =>
+  ["case", ["==", ["get", "shown"], 0], "#cfcfcf",
+    ["interpolate", ["linear"], share, 0, "#f6e6d4", 0.2, "#efc99d", 0.5, "#e2a15c", 0.8, "#c9772d", 1, "#8f4a14"]];
+const GROUPS = [["state", "states", 14, 32], ["city", "cities", 10, 26]] as const;
 // ZIP borders are dashed lines, blue or red, the colour alternating from one ZIP to the next so a shared edge shows both.
 const BORDER_BLUE = "#1f5fd6";
 const BORDER_RED = "#d6322b";
@@ -149,22 +158,30 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       const none: ExpressionSpecification = ["==", ["get", "area"], "\u0000"];
       created.addSource("areas", { type: "geojson", data: collection([]) });
       created.addSource("spots", { type: "geojson", data: collection([]) });
-      created.addSource("cities", { type: "geojson", data: collection([]) });
-      created.addSource("states", { type: "geojson", data: collection([]) });
+      // States and cities close together on the map merge into one circle that adds their counts up, and come apart as
+      // the map is zoomed in, so the numbers never pile on top of each other.
+      for (const source of ["cities", "states"]) {
+        created.addSource(source, {
+          type: "geojson", data: collection([]), cluster: true, clusterRadius: 60, clusterMaxZoom: 12,
+          clusterProperties: { shown: ["+", ["get", "shown"]], hidden: ["+", ["get", "hidden"]] },
+        });
+      }
       created.addSource("points", { type: "geojson", data: collection([]), cluster: true, clusterRadius: 36, clusterMaxZoom: 14 });
 
       // Whole states and cities, as counted circles, when zoomed out too far for ZIP areas.
-      for (const [id, source, from, to, small, large] of [["state", "states", 0, STATE_END, 14, 32], ["city", "cities", CITY_START, CITY_END, 10, 26]] as const) {
+      for (const [id, source, small, large] of GROUPS) {
+        const from = id === "state" ? 0 : CITY_START;
+        const to = id === "state" ? STATE_END : CITY_END;
         created.addLayer({
           id, type: "circle", source, minzoom: from, maxzoom: to,
           paint: {
-            "circle-color": COLOUR, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.6,
-            "circle-radius": ["interpolate", ["linear"], ["get", "share"], 0, small, 1, large],
+            "circle-color": groupColour(groupShare(1)), "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.6,
+            "circle-radius": ["interpolate", ["linear"], groupShare(1), 0, small, 1, large],
           },
         });
         created.addLayer({
           id: `${id}-count`, type: "symbol", source, minzoom: from, maxzoom: to, filter: [">", ["get", "shown"], 0],
-          layout: { "text-field": ["get", "label"], "text-font": ["Noto Sans Bold"], "text-size": 12, "text-allow-overlap": true },
+          layout: { "text-field": ["number-format", ["get", "shown"], { locale: "en-US" }], "text-font": ["Noto Sans Bold"], "text-size": 12, "text-allow-overlap": true },
           paint: { "text-color": INK, "text-halo-color": "rgba(255,255,255,0.9)", "text-halo-width": 1.2 },
         });
       }
@@ -273,14 +290,15 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
         element.querySelector("strong")!.textContent = String(properties.title);
         element.querySelector("span")!.textContent = `${Number(properties.loose).toLocaleString("en-US")} ${Number(properties.loose) === 1 ? "property" : "properties"} · exact address not found yet`;
       };
-      const nameGroup = (event: MapLayerMouseEvent) => {
+      const nameGroup = (noun: string) => (event: MapLayerMouseEvent) => {
         const properties = event.features?.[0]?.properties;
         if (!properties) return;
         created.getCanvas().style.cursor = "pointer";
         const hidden = Number(properties.hidden) ? ` · ${Number(properties.hidden).toLocaleString("en-US")} filtered out` : "";
         tip.setLngLat(event.lngLat).setHTML("<strong></strong><span></span>").addTo(created);
         const element = tip.getElement();
-        element.querySelector("strong")!.textContent = String(properties.title);
+        // A merged circle stands for several places; one that is not merged is a place with a name.
+        element.querySelector("strong")!.textContent = properties.cluster ? `${Number(properties.point_count).toLocaleString("en-US")} ${noun}` : String(properties.title);
         element.querySelector("span")!.textContent = `${Number(properties.shown).toLocaleString("en-US")} ${Number(properties.shown) === 1 ? "property" : "properties"}${hidden}`;
       };
       const nameRow = (event: MapLayerMouseEvent) => {
@@ -327,13 +345,18 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       created.on("mousemove", "loose", nameLoose);
       created.on("mouseleave", "loose", () => { created.getCanvas().style.cursor = ""; tip.remove(); });
       // Clicking a state or a city goes in to the next level down.
-      for (const [id, floor] of [["state", 6.4], ["city", 8.8]] as const) {
-        created.on("mousemove", id, nameGroup);
+      for (const [id, source, noun, floor] of [["state", "states", "states", 6.4], ["city", "cities", "cities", 8.8]] as const) {
+        created.on("mousemove", id, nameGroup(noun));
         created.on("mouseleave", id, () => { created.getCanvas().style.cursor = ""; tip.remove(); });
         created.on("click", id, (event: MapLayerMouseEvent) => {
           const feature = event.features?.[0];
           if (!feature) return;
-          created.easeTo({ center: (feature.geometry as unknown as { coordinates: [number, number] }).coordinates, zoom: Math.max(created.getZoom() + 2, floor) });
+          const center = (feature.geometry as unknown as { coordinates: [number, number] }).coordinates;
+          if (!feature.properties.cluster) { created.easeTo({ center, zoom: Math.max(created.getZoom() + 2, floor) }); return; }
+          // A merged circle opens into the places it stands for.
+          void (created.getSource(source) as GeoJSONSource).getClusterExpansionZoom(feature.properties.cluster_id as number).then(zoom => {
+            created.easeTo({ center, zoom: Math.min(Math.max(zoom, created.getZoom() + 1), 18) });
+          });
         });
       }
       for (const layer of ["row", "row-tag"]) {
@@ -386,10 +409,15 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
     (map.current.getSource("spots") as GeoJSONSource).setData(collection(circles));
     (map.current.getSource("points") as GeoJSONSource).setData(collection(points.map(dot => point(dot.lon, dot.lat, { dim: Boolean(dot.dim), label: dot.label ?? "", tag: dot.tag ?? "", rank: dot.dim ? 1 : 0 }))));
     for (const [id, groups] of [["cities", cities], ["states", states]] as const) {
-      const biggest = Math.max(1, ...groups.map(group => group.shown));
       (map.current.getSource(id) as GeoJSONSource).setData(collection(groups.map(group => point(group.lon, group.lat, {
-        title: group.name, shown: group.shown, hidden: group.hidden, share: Math.sqrt(group.shown / biggest), label: group.shown.toLocaleString("en-US"),
+        title: group.name, shown: group.shown, hidden: group.hidden,
       }))));
+    }
+    // Every circle is sized and shaded by its count out of all the properties placed in the places of its kind.
+    for (const [id, source, small, large] of GROUPS) {
+      const total = (source === "cities" ? cities : states).reduce((sum, group) => sum + group.shown, 0);
+      map.current.setPaintProperty(id, "circle-color", groupColour(groupShare(total)));
+      map.current.setPaintProperty(id, "circle-radius", ["interpolate", ["linear"], groupShare(total), 0, small, 1, large]);
     }
   }, [ready, spots, points, cities, states, outlines, outlineCount]);
 
