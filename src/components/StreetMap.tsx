@@ -444,6 +444,9 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
     // Zoom has to be the outermost thing in a rule, so "does this one belong" sits inside each step.
     const lit = (value: number, faded: number): ExpressionSpecification | number =>
       focus === null ? value : ["case", ["any", only(hovered), only(selected)], value, faded];
+    // The shading is the same for every area except the one chosen, which is left clear so the map shows through it; its
+    // red border says which one it is.
+    const unlessChosen = (value: ExpressionSpecification | number): ExpressionSpecification => ["case", only(selected), 0, value];
     const unlessOutlined = (value: ExpressionSpecification | number): ExpressionSpecification => ["case", ["get", "outlined"], 0, value];
     // Close in, each property is on the map at its own address, so the ZIP shading steps back to a faint backdrop.
     const backdrop = (value: ExpressionSpecification | number): ExpressionSpecification => ["*", value, 0.3];
@@ -455,7 +458,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       ...(zipFrom > 0 ? [[zipFrom, 0], [zipFrom + 1, lit(value, faded)]] as Array<[number, ExpressionSpecification | number]> : [[0, lit(value, faded)]] as Array<[number, ExpressionSpecification | number]>),
       [7, lit(value, faded)], [8.4, unlessOutlined(lit(value, faded))], [ZIP_END - 1, unlessOutlined(lit(value, faded))], [ZIP_END, 0],
     ]);
-    map.current.setPaintProperty("area-fill", "fill-opacity", byZoom([[7, 0], [8.4, 0.42], [ZIP_END - 1.2, 0.42], [ZIP_END, backdrop(0.42)]]));
+    map.current.setPaintProperty("area-fill", "fill-opacity", byZoom([[7, 0], [8.4, unlessChosen(0.42)], [ZIP_END - 1.2, unlessChosen(0.42)], [ZIP_END, unlessChosen(backdrop(0.42))]]));
     map.current.setPaintProperty("area-edge", "line-opacity", byZoom([[7, 0], [8.4, lit(1, 0.4)], [ZIP_END - 1.2, lit(1, 0.4)], [ZIP_END, softer(lit(1, 0.4))]]));
     map.current.setPaintProperty("area-casing", "line-opacity", byZoom([[7, 0], [8.4, lit(0.8, 0.25)], [ZIP_END - 1.2, lit(0.8, 0.25)], [ZIP_END, softer(lit(0.8, 0.25))]]));
     map.current.setPaintProperty("spot", "circle-opacity", zipCircle(0.92, 0.2));
@@ -473,7 +476,6 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       ["city", "circle-opacity", cityFade], ["city", "circle-stroke-opacity", cityFade],
       ["city-count", "text-opacity", cityFade], ["city-count", "icon-opacity", cityFade],
     ] as const) map.current.setPaintProperty(id, property, value);
-    // The shading is the same for every area, chosen or not: only the borders say which one it is.
     // Borders: blue, red for the area chosen, green for the area pointed at (here or in the list). Every ZIP of an area
     // takes its colour, so a whole city is seen at once.
     map.current.setPaintProperty("area-edge", "line-color", ["case", only(hovered), BORDER_GREEN, only(selected), BORDER_RED, BORDER_BLUE]);
