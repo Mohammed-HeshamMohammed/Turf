@@ -221,7 +221,6 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
         },
       });
       // The area pointed at, here or in the list, and the area chosen.
-      created.addLayer({ id: "area-chosen-fill", type: "fill", source: "areas", filter: none, paint: { "fill-color": INK, "fill-opacity": fadeIn(0.14) } });
       created.addLayer({
         id: "spot-ring", type: "circle", source: "spots", filter: none,
         paint: {
@@ -456,7 +455,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       ...(zipFrom > 0 ? [[zipFrom, 0], [zipFrom + 1, lit(value, faded)]] as Array<[number, ExpressionSpecification | number]> : [[0, lit(value, faded)]] as Array<[number, ExpressionSpecification | number]>),
       [7, lit(value, faded)], [8.4, unlessOutlined(lit(value, faded))], [ZIP_END - 1, unlessOutlined(lit(value, faded))], [ZIP_END, 0],
     ]);
-    map.current.setPaintProperty("area-fill", "fill-opacity", byZoom([[7, 0], [8.4, lit(0.42, 0.12)], [ZIP_END - 1.2, lit(0.42, 0.12)], [ZIP_END, backdrop(lit(0.42, 0.12))]]));
+    map.current.setPaintProperty("area-fill", "fill-opacity", byZoom([[7, 0], [8.4, 0.42], [ZIP_END - 1.2, 0.42], [ZIP_END, backdrop(0.42)]]));
     map.current.setPaintProperty("area-edge", "line-opacity", byZoom([[7, 0], [8.4, lit(1, 0.4)], [ZIP_END - 1.2, lit(1, 0.4)], [ZIP_END, softer(lit(1, 0.4))]]));
     map.current.setPaintProperty("area-casing", "line-opacity", byZoom([[7, 0], [8.4, lit(0.8, 0.25)], [ZIP_END - 1.2, lit(0.8, 0.25)], [ZIP_END, softer(lit(0.8, 0.25))]]));
     map.current.setPaintProperty("spot", "circle-opacity", zipCircle(0.92, 0.2));
@@ -474,12 +473,12 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       ["city", "circle-opacity", cityFade], ["city", "circle-stroke-opacity", cityFade],
       ["city-count", "text-opacity", cityFade], ["city-count", "icon-opacity", cityFade],
     ] as const) map.current.setPaintProperty(id, property, value);
+    // The shading is the same for every area, chosen or not: only the borders say which one it is.
     // Borders: blue, red for the area chosen, green for the area pointed at (here or in the list). Every ZIP of an area
     // takes its colour, so a whole city is seen at once.
     map.current.setPaintProperty("area-edge", "line-color", ["case", only(hovered), BORDER_GREEN, only(selected), BORDER_RED, BORDER_BLUE]);
     map.current.setPaintProperty("area-edge", "line-width", ["case", ["any", only(hovered), only(selected)], 3, 2]);
     map.current.setPaintProperty("area-casing", "line-width", ["case", ["any", only(hovered), only(selected)], 5, 4]);
-    map.current.setFilter("area-chosen-fill", only(selected));
     map.current.setFilter("spot-ring", ["any", only(few(hovered) ? hovered : null), only(few(selected) ? selected : null)]);
   }, [ready, hovered, selected, spots, cities, states]);
 
