@@ -8,6 +8,18 @@ type View = { minLon: number; maxLon: number; minLat: number; maxLat: number };
 const CELL = 5;
 const PAD = 22;
 
+/**
+ * Whether a wheel event comes from two fingers on a touchpad rather than a mouse wheel. A wheel turns in whole notches
+ * (a pixel delta that is a multiple of 100 or 120, or in lines), a touchpad in small uneven steps, often sideways too.
+ * Pinching a touchpad arrives as a wheel with Ctrl held, which is not this.
+ */
+export function isTouchpadScroll(event: Pick<WheelEvent, "deltaX" | "deltaY" | "deltaMode" | "ctrlKey" | "metaKey">): boolean {
+  if (event.ctrlKey || event.metaKey || event.deltaMode !== 0) return false;
+  if (event.deltaX !== 0) return true;
+  const notch = Math.abs(event.deltaY);
+  return notch !== 0 && !(Number.isInteger(notch) && (notch % 100 === 0 || notch % 120 === 0));
+}
+
 /** The value a given share of the way through a sorted list. */
 const at = (sorted: number[], share: number) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(share * (sorted.length - 1))))];
 
@@ -47,7 +59,8 @@ function projection(view: View, width: number, height: number) {
 /**
  * Rows on a plain plot. No map tiles are loaded. Rows that fall on the same spot (every row placed at one ZIP's
  * centre, or a long list on a small plot) are drawn as one dot that grows with how many it stands for, so a list of
- * any length draws quickly. With `interactive`, Ctrl and the wheel zoom, dragging moves, and a double click goes back.
+ * any length draws quickly. With `interactive`, Ctrl and the wheel (or pinching a touchpad) zoom, dragging or two
+ * fingers on a touchpad move, and a double click goes back.
  */
 export function AreaMap({ dots, width = 520, height = 320, radius = 3.2, interactive = false }: {
   dots: Dot[]; width?: number; height?: number; radius?: number; interactive?: boolean;
@@ -96,16 +109,35 @@ export function AreaMap({ dots, width = 520, height = 320, radius = 3.2, interac
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
 
+  /** Moves the view by a distance in plot units. */
+  const pan = (dx: number, dy: number) => {
+    if (!view) return;
+    const { scale, squeeze } = projection(view, width, height);
+    const lon = dx / (squeeze * scale);
+    const lat = dy / scale;
+    setChosen({ minLon: view.minLon + lon, maxLon: view.maxLon + lon, minLat: view.minLat - lat, maxLat: view.maxLat - lat });
+  };
+  const panRef = useRef(pan);
+  panRef.current = pan;
+
   // The wheel is listened to directly: React's own wheel listener cannot stop the page from scrolling.
   useEffect(() => {
     const element = svg.current;
     if (!interactive || !element) return;
     const onWheel = (event: WheelEvent) => {
-      // Without Ctrl the wheel belongs to the page, as on the street map.
+      const box = element.getBoundingClientRect();
+      if (isTouchpadScroll(event)) {
+        // Two fingers on a touchpad move the map, as they do on a street map.
+        event.preventDefault();
+        panRef.current((event.deltaX / box.width) * width, (event.deltaY / box.height) * height);
+        return;
+      }
+      // Without Ctrl a mouse wheel belongs to the page, as on the street map. Pinching a touchpad arrives with Ctrl held.
       if (!event.ctrlKey) return;
       event.preventDefault();
-      const box = element.getBoundingClientRect();
-      zoomRef.current(event.deltaY < 0 ? 0.8 : 1.25, ((event.clientX - box.left) / box.width) * width, ((event.clientY - box.top) / box.height) * height);
+      // Zooms by how far the wheel or the pinch went, so a pinch's many small steps are smooth and one notch is a step.
+      const factor = Math.exp(Math.max(-100, Math.min(100, event.deltaY)) * 0.006);
+      zoomRef.current(factor, ((event.clientX - box.left) / box.width) * width, ((event.clientY - box.top) / box.height) * height);
     };
     element.addEventListener("wheel", onWheel, { passive: false });
     return () => element.removeEventListener("wheel", onWheel);

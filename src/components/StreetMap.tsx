@@ -4,7 +4,7 @@ import { Map as MapLibre, Popup, setWorkerUrl, type ExpressionSpecification, typ
 // what it imports into the app, so nothing is fetched from a CDN.
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { homeView, type Dot } from "./AreaMap";
+import { homeView, isTouchpadScroll, type Dot } from "./AreaMap";
 
 setWorkerUrl(workerUrl);
 
@@ -69,9 +69,10 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       created = new MapLibre({
         container: holder.current, style: STYLE, bounds: [[-125, 24], [-66, 50]],
         maxZoom: 18, dragRotate: false, pitchWithRotate: false, attributionControl: { compact: true },
-        // The wheel scrolls the page, also over the map; it zooms the map only with Ctrl held (the map says so when
+        // A mouse wheel scrolls the page, also over the map; it zooms the map only with Ctrl held (the map says so when
         // the wheel is turned on it without). Otherwise scrolling down the page would stop and zoom wherever the
-        // pointer happened to cross the map.
+        // pointer happened to cross the map. Two fingers on a touchpad move the map instead (below), and pinching
+        // arrives as Ctrl and the wheel, so it zooms.
         cooperativeGestures: true,
       });
     } catch {
@@ -80,6 +81,15 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       return;
     }
     created.touchZoomRotate.disableRotation();
+    // Heard before the map's own handling (capture), which would only answer a touchpad's scrolling with "use Ctrl".
+    const scrollWithTouchpad = (event: WheelEvent) => {
+      if (!isTouchpadScroll(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      created.panBy([event.deltaX, event.deltaY], { animate: false });
+    };
+    const frame = holder.current;
+    frame.addEventListener("wheel", scrollWithTouchpad, { capture: true, passive: false });
     // Only time spent with the window showing counts: a hidden window draws nothing, so the map cannot finish
     // loading there, and that is not a missing connection.
     let waited = 0;
@@ -199,6 +209,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
     resize.observe(holder.current);
     return () => {
       window.clearInterval(giveUp);
+      frame.removeEventListener("wheel", scrollWithTouchpad, { capture: true });
       resize.disconnect();
       tip.remove();
       created.remove();
