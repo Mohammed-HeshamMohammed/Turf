@@ -8,12 +8,12 @@ import { homeView, isTouchpadScroll, type Dot } from "./AreaMap";
 
 setWorkerUrl(workerUrl);
 
-// The street background is OpenFreeMap's light style (OpenStreetMap data, free, no key). In the desktop app every
+// The street background is OpenFreeMap's full-colour style (OpenStreetMap data, free, no key): water, parks, farmland and built-up land each have their own colour. In the desktop app every
 // piece of it goes through the host (src-tauri/src/mapcache.rs), which keeps a copy on disk, so parts of the map seen
 // before still draw without a connection. Only the part of the map being looked at is ever asked for; no list data.
 const inDesktop = "__TAURI_INTERNALS__" in window;
 const TILES = !inDesktop ? "https://tiles.openfreemap.org" : navigator.userAgent.includes("Windows") ? "http://mapcache.localhost" : "mapcache://localhost";
-const STYLE = `${TILES}/styles/positron`;
+const STYLE = `${TILES}/styles/liberty`;
 // How long to wait for the background, with the window showing, before deciding it cannot be had.
 const PATIENCE_MS = 9000;
 
@@ -32,6 +32,25 @@ const fadeIn = (to: number): ExpressionSpecification => ["interpolate", ["linear
 /** For the circles: one whose area has an outline fades away as its shape appears; one without stays. Zoom has to be the
  * outermost thing in such a rule, so the choice between the two sits inside it. */
 const fadeOutIfOutlined = (from: number): ExpressionSpecification => ["interpolate", ["linear"], ["zoom"], 7, from, 8.4, ["case", ["get", "outlined"], 0, from]];
+
+/**
+ * A rounded tag, as an image the map can stretch to fit the words written on it (the two ends keep their shape).
+ * Drawn at twice the size for sharp edges.
+ */
+function tagImage(fill: string) {
+  const size = 48;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const draw = canvas.getContext("2d")!;
+  draw.beginPath();
+  draw.roundRect(2, 2, size - 4, size - 4, 22);
+  draw.fillStyle = fill;
+  draw.fill();
+  draw.lineWidth = 3;
+  draw.strokeStyle = "#ffffff";
+  draw.stroke();
+  return { image: draw.getImageData(0, 0, size, size), options: { pixelRatio: 2, stretchX: [[22, 26]] as [number, number][], stretchY: [[22, 26]] as [number, number][], content: [14, 10, 34, 38] as [number, number, number, number] } };
+}
 
 /** A value that changes with zoom: [zoom, value] pairs, keeping only those that rise. */
 const byZoom = (pairs: Array<[number, number | ExpressionSpecification]>): ExpressionSpecification => {
@@ -116,12 +135,17 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
 
     created.on("load", () => {
       window.clearInterval(giveUp);
+      // Shops, stops and house numbers crowd the properties; the land, water, roads and names stay.
+      for (const layer of created.getStyle().layers) {
+        const sourceLayer = (layer as { "source-layer"?: string })["source-layer"];
+        if (sourceLayer === "poi" || sourceLayer === "housenumber") created.setLayoutProperty(layer.id, "visibility", "none");
+      }
       const none: ExpressionSpecification = ["==", ["get", "area"], "\u0000"];
       created.addSource("areas", { type: "geojson", data: collection([]) });
       created.addSource("spots", { type: "geojson", data: collection([]) });
       created.addSource("cities", { type: "geojson", data: collection([]) });
       created.addSource("states", { type: "geojson", data: collection([]) });
-      created.addSource("points", { type: "geojson", data: collection([]), cluster: true, clusterRadius: 36, clusterMaxZoom: 15 });
+      created.addSource("points", { type: "geojson", data: collection([]), cluster: true, clusterRadius: 36, clusterMaxZoom: 14 });
 
       // Whole states and cities, as counted circles, when zoomed out too far for ZIP areas.
       for (const [id, source, from, to, small, large] of [["state", "states", 0, STATE_END, 14, 32], ["city", "cities", CITY_START, CITY_END, 10, 26]] as const) {
@@ -140,7 +164,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       }
 
       // ZIP areas, shaded.
-      created.addLayer({ id: "area-fill", type: "fill", source: "areas", paint: { "fill-color": COLOUR, "fill-opacity": fadeIn(0.62) } });
+      created.addLayer({ id: "area-fill", type: "fill", source: "areas", paint: { "fill-color": COLOUR, "fill-opacity": fadeIn(0.42) } });
       created.addLayer({ id: "area-edge", type: "line", source: "areas", paint: { "line-color": "#ffffff", "line-width": 1, "line-opacity": fadeIn(0.9) } });
       // The same areas as circles: every one when zoomed far out, and always for a ZIP whose outline is not here.
       created.addLayer({
@@ -192,9 +216,25 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
         },
       });
 
-      // A property's own address, written beside it once zoomed in to street level.
+      // A property's tag, as on a listings map: its price in a rounded tag over its pin. Tags that would cover each
+      // other are left out (the pin underneath stays), so the ones shown can be read.
+      for (const [name, fill] of [["tag", INK], ["tag-dim", "#a9a9a9"]] as const) {
+        const { image, options } = tagImage(fill);
+        created.addImage(name, image, options);
+      }
       created.addLayer({
-        id: "row-label", type: "symbol", source: "points", minzoom: 14.5, filter: ["all", ["!", ["has", "point_count"]], ["!=", ["get", "label"], ""]],
+        id: "row-tag", type: "symbol", source: "points", minzoom: 14, filter: ["all", ["!", ["has", "point_count"]], ["!=", ["get", "tag"], ""]],
+        layout: {
+          "icon-image": ["case", ["get", "dim"], "tag-dim", "tag"], "icon-text-fit": "both", "icon-text-fit-padding": [2, 6, 3, 6],
+          "text-field": ["get", "tag"], "text-font": ["Noto Sans Bold"], "text-size": 12.5, "icon-allow-overlap": false, "text-optional": false,
+          "symbol-sort-key": ["get", "rank"],
+        },
+        paint: { "text-color": "#ffffff" },
+      });
+
+      // A property's own address, written beside it once zoomed in to street level (when it has no tag of its own).
+      created.addLayer({
+        id: "row-label", type: "symbol", source: "points", minzoom: 14.5, filter: ["all", ["!", ["has", "point_count"]], ["==", ["get", "tag"], ""], ["!=", ["get", "label"], ""]],
         layout: { "text-field": ["get", "label"], "text-font": ["Noto Sans Bold"], "text-size": 11, "text-anchor": "top", "text-offset": [0, 0.7] },
         paint: { "text-color": INK, "text-halo-color": "rgba(255,255,255,0.92)", "text-halo-width": 1.5 },
       });
@@ -239,7 +279,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
         tip.setLngLat(event.lngLat).setHTML("<strong></strong><span></span>").addTo(created);
         const element = tip.getElement();
         element.querySelector("strong")!.textContent = String(properties.label || "Property");
-        element.querySelector("span")!.textContent = "1 property";
+        element.querySelector("span")!.textContent = properties.tag ? `${properties.tag} · 1 property` : "1 property";
       };
       const name = (event: MapLayerMouseEvent) => {
         const properties = event.features?.[0]?.properties;
@@ -285,8 +325,10 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
           created.easeTo({ center: (feature.geometry as unknown as { coordinates: [number, number] }).coordinates, zoom: Math.max(created.getZoom() + 2, floor) });
         });
       }
-      created.on("mousemove", "row", nameRow);
-      created.on("mouseleave", "row", leave);
+      for (const layer of ["row", "row-tag"]) {
+        created.on("mousemove", layer, nameRow);
+        created.on("mouseleave", layer, leave);
+      }
       created.on("mouseenter", "clusters", () => { created.getCanvas().style.cursor = "pointer"; });
       created.on("mouseleave", "clusters", () => { created.getCanvas().style.cursor = ""; });
       setReady(true);
@@ -331,7 +373,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
     }
     (map.current.getSource("areas") as GeoJSONSource).setData(collection(shapes));
     (map.current.getSource("spots") as GeoJSONSource).setData(collection(circles));
-    (map.current.getSource("points") as GeoJSONSource).setData(collection(points.map(dot => point(dot.lon, dot.lat, { dim: Boolean(dot.dim), label: dot.label ?? "" }))));
+    (map.current.getSource("points") as GeoJSONSource).setData(collection(points.map(dot => point(dot.lon, dot.lat, { dim: Boolean(dot.dim), label: dot.label ?? "", tag: dot.tag ?? "", rank: dot.dim ? 1 : 0 }))));
     for (const [id, groups] of [["cities", cities], ["states", states]] as const) {
       const biggest = Math.max(1, ...groups.map(group => group.shown));
       (map.current.getSource(id) as GeoJSONSource).setData(collection(groups.map(group => point(group.lon, group.lat, {
@@ -360,7 +402,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       ...(zipFrom > 0 ? [[zipFrom, 0], [zipFrom + 1, lit(value, faded)]] as Array<[number, ExpressionSpecification | number]> : [[0, lit(value, faded)]] as Array<[number, ExpressionSpecification | number]>),
       [7, lit(value, faded)], [8.4, unlessOutlined(lit(value, faded))], [ZIP_END - 1, unlessOutlined(lit(value, faded))], [ZIP_END, 0],
     ]);
-    map.current.setPaintProperty("area-fill", "fill-opacity", byZoom([[7, 0], [8.4, lit(0.62, 0.16)], [ZIP_END - 1.2, lit(0.62, 0.16)], [ZIP_END, backdrop(lit(0.62, 0.16))]]));
+    map.current.setPaintProperty("area-fill", "fill-opacity", byZoom([[7, 0], [8.4, lit(0.42, 0.12)], [ZIP_END - 1.2, lit(0.42, 0.12)], [ZIP_END, backdrop(lit(0.42, 0.12))]]));
     map.current.setPaintProperty("area-edge", "line-opacity", byZoom([[7, 0], [8.4, lit(0.9, 0.35)], [ZIP_END - 1.2, lit(0.9, 0.35)], [ZIP_END, backdrop(lit(0.9, 0.35))]]));
     map.current.setPaintProperty("spot", "circle-opacity", zipCircle(0.92, 0.2));
     map.current.setPaintProperty("spot", "circle-stroke-opacity", zipCircle(1, 0.25));

@@ -4,7 +4,7 @@ import { AreaMap } from "../components/AreaMap";
 import { Empty, Field, SearchBox, Segmented, VerdictPill } from "../components/Bits";
 import { copyText, useContextMenu, type MenuItem } from "../components/ContextMenu";
 import { Select } from "../components/Select";
-import { cancelJob, gatherForMap, locateAddresses, locatedAddresses, placeRows, streetColumn, useZipCentres, useZipOutlines, type AddressColumns, type LocateProgress, type Located } from "../lib/geo";
+import { cancelJob, gatherForMap, locateAddresses, locatedAddresses, placeRows, priceColumn, streetColumn, useZipCentres, useZipOutlines, type AddressColumns, type LocateProgress, type Located } from "../lib/geo";
 import { deleteDataset, renameDataset } from "../lib/service";
 import { Icon } from "../components/Icon";
 import { ListPicker } from "../components/ListPicker";
@@ -135,10 +135,10 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
     return () => { current = false; };
   }, [source.id, addressColumns, position, lookups, turf.fail]);
   const placement = useMemo(
-    () => placeRows(rows ?? [], { position, zipColumn: areaMap.zip, stateColumn: areaMap.state, centres, exact: located?.exact, streetColumn: addressColumns?.street }),
+    () => placeRows(rows ?? [], { position, zipColumn: areaMap.zip, stateColumn: areaMap.state, centres, exact: located?.exact, streetColumn: addressColumns?.street, tagColumn: priceColumn(own) }),
     // `known` changes as ZIP centres arrive.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, position, areaMap.zip, areaMap.state, centres, known, located, addressColumns],
+    [rows, position, areaMap.zip, areaMap.state, centres, known, located, addressColumns, own],
   );
   const dots = useMemo(() => {
     const kept = new Set(filtered.map(item => item.row.id));

@@ -5,7 +5,7 @@ import { Empty, MiniBars, SearchBox, Segmented } from "../components/Bits";
 import { Select } from "../components/Select";
 import { copyText, useContextMenu } from "../components/ContextMenu";
 import { Icon } from "../components/Icon";
-import { gatherForMap, placeRows, useZipCentres, useZipOutlines } from "../lib/geo";
+import { gatherForMap, placeRows, priceColumn, useZipCentres, useZipOutlines } from "../lib/geo";
 import { marksSource, useAllRows } from "../lib/hooks";
 import {
   AREA_LABELS, AREA_LEVELS, KIND_LABELS, VERDICT_LABELS, areaColumns, checkedPhoneColumns, countAreas, formatDate, formatNumber,
@@ -105,7 +105,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
   // Areas are named at the level the Areas card is on.
   const mapData = useMemo(() => gatherForMap((data?.summaries ?? []).map(item => {
     const found = areaColumns(item.columns, turf.areaMaps[item.dataset.id]);
-    const dots = placeRows(item.rows, { position: positionColumns(item.columns), zipColumn: found.zip, stateColumn: found.state, centres }).dots;
+    const dots = placeRows(item.rows, { position: positionColumns(item.columns), zipColumn: found.zip, stateColumn: found.state, centres, tagColumn: priceColumn(item.columns) }).dots;
     return { rows: item.rows, dots, columns: found, named: found[level] };
   }), centres),
   // `known` changes as ZIP centres arrive.

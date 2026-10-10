@@ -101,3 +101,26 @@ describe("the levels of the map", () => {
     expect(map.states).toEqual([expect.objectContaining({ name: "CA", shown: 2, hidden: 1 })]);
   });
 });
+
+describe("price tags", () => {
+  it("writes prices the way a listings map does and finds the price column", async () => {
+    const { priceTag, priceColumn } = await import("../src/lib/geo");
+    expect(priceTag(425000)).toBe("$425K");
+    expect(priceTag("$1,080,000")).toBe("$1.08M");
+    expect(priceTag("2000000")).toBe("$2.00M");
+    expect(priceTag(950)).toBe("$950");
+    expect(priceTag("")).toBeUndefined();
+    expect(priceTag("n/a")).toBeUndefined();
+    expect(priceTag(null)).toBeUndefined();
+    expect(priceColumn(["Name", "Street", "List Price"])).toBe("List Price");
+    expect(priceColumn(["Name", "Zestimate"])).toBe("Zestimate");
+    expect(priceColumn(["Name", "Phone"])).toBeUndefined();
+  });
+
+  it("puts a row's price on its place", async () => {
+    const { placeRows } = await import("../src/lib/geo");
+    const rows = [{ id: "a", row_number: 1, raw: { Street: "12 Olive St", Zip: "91706", Price: "$425,000" } }] as never;
+    const { dots } = placeRows(rows, { position: null, zipColumn: "Zip", centres: new Map(), exact: { "1": [34.08, -117.97] }, streetColumn: "Street", tagColumn: "Price" });
+    expect(dots[0].tag).toBe("$425K");
+  });
+});

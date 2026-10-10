@@ -23,6 +23,19 @@ export const locateAddresses = (dataset_id: string, columns: AddressColumns, onP
 
 export const cancelJob = (job_id: string) => call("job.cancel", { job_id });
 
+/** The column holding a price or value, found by its name only. */
+export const priceColumn = (columns: string[]) =>
+  columns.find(name => /^(list(ing)? ?price|price|asking( price)?|sale price|zestimate|estimated value|est\.? value|market value|value)$/i.test(name.trim()));
+
+/** A price as it is written on a map tag: $425K, $1.08M. Nothing when the value is not a price. */
+export function priceTag(value: unknown): string | undefined {
+  const amount = typeof value === "number" ? value : Number(String(value ?? "").replace(/[$,\s]/g, ""));
+  if (!Number.isFinite(amount) || amount <= 0) return undefined;
+  if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(2)}M`;
+  if (amount >= 1000) return `$${Math.round(amount / 1000)}K`;
+  return `$${Math.round(amount)}`;
+}
+
 /** The column holding the street address, found by its name only. */
 export const streetColumn = (columns: string[]) =>
   columns.find(name => /^(street|address|street address|property address|site address|situs address|mailing address|address ?1|address line ?1)$/i.test(name.trim()));
@@ -88,7 +101,7 @@ export function useZipOutlines(values: string[], onError: (reason: unknown) => v
  * than the centre of its ZIP. `zip` is the row's ZIP whenever it has one, so the rows of a ZIP are counted together
  * however they were placed.
  */
-export type Placed = { lon: number; lat: number; rowId: string; zip?: string; label?: string; exact?: boolean };
+export type Placed = { lon: number; lat: number; rowId: string; zip?: string; label?: string; tag?: string; exact?: boolean };
 export type Placement = {
   dots: Placed[];
   /** Placed by the row's own coordinates, its exact address, or its ZIP centre. */
@@ -106,9 +119,12 @@ export function placeRows(rows: DatasetRow[], options: {
   centres: Map<string, ZipCentre | null>; exact?: Record<string, [number, number]>;
   /** The column holding the street address, which names the rows that have a place of their own. */
   streetColumn?: string;
+  /** The column holding each row's price, which its tag on the street map says. */
+  tagColumn?: string;
 }): Placement {
   const placement: Placement = { dots: [], own: 0, exact: 0, byZip: 0, stateDisagrees: 0, unknownZip: 0, noZip: 0 };
   const { position, zipColumn, stateColumn, exact } = options;
+  const tagOf = (row: DatasetRow) => (options.tagColumn ? priceTag(row.raw[options.tagColumn]) : undefined);
   const labelOf = (row: DatasetRow) => (options.streetColumn ? String(row.raw[options.streetColumn] ?? "").trim() || undefined : undefined);
   for (const row of rows) {
     const zip = zipColumn ? String(row.raw[zipColumn] ?? "").trim() : "";
@@ -116,14 +132,14 @@ export function placeRows(rows: DatasetRow[], options: {
       const lon = Number(row.raw[position.longitude]);
       const lat = Number(row.raw[position.latitude]);
       if (row.raw[position.longitude] !== null && row.raw[position.latitude] !== null && Number.isFinite(lon) && Number.isFinite(lat) && (lon || lat)) {
-        placement.dots.push({ lon, lat, rowId: row.id, zip: zip || undefined, label: labelOf(row), exact: true });
+        placement.dots.push({ lon, lat, rowId: row.id, zip: zip || undefined, label: labelOf(row), tag: tagOf(row), exact: true });
         placement.own += 1;
         continue;
       }
     }
     const found = exact?.[String(row.row_number)];
     if (found) {
-      placement.dots.push({ lat: found[0], lon: found[1], rowId: row.id, zip: zip || undefined, label: labelOf(row), exact: true });
+      placement.dots.push({ lat: found[0], lon: found[1], rowId: row.id, zip: zip || undefined, label: labelOf(row), tag: tagOf(row), exact: true });
       placement.exact += 1;
       continue;
     }
@@ -168,7 +184,7 @@ export function gatherForMap(sources: MapSource[], centres: Map<string, ZipCentr
     for (const dot of source.dots) {
       const row = rowsById.get(dot.rowId);
       const shown = source.kept ? source.kept.has(dot.rowId) : true;
-      if (dot.exact) points.push({ lon: dot.lon, lat: dot.lat, dim: !shown, label: dot.label });
+      if (dot.exact) points.push({ lon: dot.lon, lat: dot.lat, dim: !shown, label: dot.label, tag: dot.tag });
       if (dot.zip) {
         let spot = spots.get(dot.zip);
         if (!spot) {

@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
-export type Dot = { lon: number; lat: number; dim?: boolean; label?: string };
+export type Dot = { lon: number; lat: number; dim?: boolean; label?: string; /** What its tag on the street map says: its price, when the list has one. */ tag?: string };
 
 /** The part of the world in view, in degrees. */
 type View = { minLon: number; maxLon: number; minLat: number; maxLat: number };
