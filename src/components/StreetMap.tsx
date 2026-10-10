@@ -176,6 +176,8 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
           clusterProperties: { shown: ["+", ["get", "shown"]], hidden: ["+", ["get", "hidden"]] },
         });
       }
+      // The properties of the area chosen, each as its own mark (never merged into counted circles).
+      created.addSource("chosen", { type: "geojson", data: collection([]) });
       created.addSource("points", { type: "geojson", data: collection([]), cluster: true, clusterRadius: 36, clusterMaxZoom: 14 });
 
       // Whole states and cities, when zoomed out too far for ZIP areas: a dot shaded by how many properties, with a card
@@ -280,6 +282,29 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
         paint: { "text-color": INK, "text-halo-color": "rgba(255,255,255,0.92)", "text-halo-width": 1.5 },
       });
 
+      // Once an area is chosen, every property in it is marked on its own: a price tag where there is a price (tags that
+      // would cover each other are left out), a dot everywhere, and the address beside it when close in.
+      created.addLayer({
+        id: "chosen-row", type: "circle", source: "chosen", minzoom: 8.5,
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 3.4, 14, 5.2, 17, 8], "circle-color": ["case", ["get", "dim"], "#a9a9a9", INK],
+          "circle-stroke-color": "#ffffff", "circle-stroke-width": 2,
+        },
+      });
+      created.addLayer({
+        id: "chosen-tag", type: "symbol", source: "chosen", minzoom: 12, filter: ["!=", ["get", "tag"], ""],
+        layout: {
+          "icon-image": ["case", ["get", "dim"], "tag-dim", "tag"], "icon-text-fit": "both", "icon-text-fit-padding": [2, 6, 3, 6],
+          "text-field": ["get", "tag"], "text-font": ["Noto Sans Bold"], "text-size": 12.5, "symbol-sort-key": ["get", "rank"],
+        },
+        paint: { "text-color": "#ffffff" },
+      });
+      created.addLayer({
+        id: "chosen-label", type: "symbol", source: "chosen", minzoom: 15, filter: ["all", ["==", ["get", "tag"], ""], ["!=", ["get", "label"], ""]],
+        layout: { "text-field": ["get", "label"], "text-font": ["Noto Sans Bold"], "text-size": 11, "text-anchor": "top", "text-offset": [0, 0.7] },
+        paint: { "text-color": INK, "text-halo-color": "rgba(255,255,255,0.92)", "text-halo-width": 1.5 },
+      });
+
       // Properties whose address has not been found yet stay at the middle of their ZIP, counted, as hollow circles.
       created.addLayer({
         id: "loose", type: "circle", source: "spots", minzoom: 12, filter: [">", ["get", "loose"], 0],
@@ -372,7 +397,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
           });
         });
       }
-      for (const layer of ["row", "row-tag"]) {
+      for (const layer of ["row", "row-tag", "chosen-row", "chosen-tag"]) {
         created.on("mousemove", layer, nameRow);
         created.on("mouseleave", layer, leave);
       }
@@ -420,7 +445,11 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
     }
     (map.current.getSource("areas") as GeoJSONSource).setData(collection(shapes));
     (map.current.getSource("spots") as GeoJSONSource).setData(collection(circles));
-    (map.current.getSource("points") as GeoJSONSource).setData(collection(points.map(dot => point(dot.lon, dot.lat, { dim: Boolean(dot.dim), label: dot.label ?? "", tag: dot.tag ?? "", rank: dot.dim ? 1 : 0 }))));
+    // The properties of the area chosen are marked one by one; the rest stay gathered as before.
+    const mark = (dot: Dot) => point(dot.lon, dot.lat, { dim: Boolean(dot.dim), label: dot.label ?? "", tag: dot.tag ?? "", rank: dot.dim ? 1 : 0 });
+    const inChosen = (dot: Dot) => selected !== null && dot.area === selected;
+    (map.current.getSource("points") as GeoJSONSource).setData(collection(points.filter(dot => !inChosen(dot)).map(mark)));
+    (map.current.getSource("chosen") as GeoJSONSource).setData(collection(points.filter(inChosen).map(mark)));
     for (const [id, groups] of [["cities", cities], ["states", states]] as const) {
       (map.current.getSource(id) as GeoJSONSource).setData(collection(groups.map(group => point(group.lon, group.lat, {
         title: group.name, shown: group.shown, hidden: group.hidden,
@@ -432,7 +461,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       map.current.setPaintProperty(id, "circle-color", groupColour(groupShare(total)));
       map.current.setPaintProperty(id, "circle-radius", ["interpolate", ["linear"], groupShare(total), 0, small, 1, large]);
     }
-  }, [ready, spots, points, cities, states, outlines, outlineCount]);
+  }, [ready, spots, points, cities, states, outlines, outlineCount, selected]);
 
   // What is pointed at and what is chosen stand out by everything else stepping back: the areas that belong stay in
   // full colour and the rest fade.
@@ -488,12 +517,16 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
   const fit = () => {
     const { spots: all, points: rows, selected: chosenArea } = latest.current;
     const chosen = chosenArea === null ? [] : all.filter(spot => spot.area === chosenArea);
-    const here: Dot[] = chosen.length
+    // An area chosen is looked at through its own addresses when it has them: close enough to see each property.
+    const pins = chosenArea === null ? [] : rows.filter(dot => dot.area === chosenArea);
+    const here: Dot[] = pins.length
+      ? pins
+      : chosen.length
       ? chosen.map(spot => ({ lon: spot.lon, lat: spot.lat }))
       // Each area counts as many times as it has rows (up to a point), so a handful of far-off rows does not set the view.
       : [...all.flatMap(spot => Array<Dot>(Math.min(spot.shown, 400)).fill({ lon: spot.lon, lat: spot.lat })), ...rows.filter(dot => !dot.dim)];
     const bounds = boundsOf(here.length ? here : all.map(spot => ({ lon: spot.lon, lat: spot.lat })));
-    if (bounds && map.current) map.current.fitBounds(bounds, { padding: 48, duration: 600, maxZoom: chosen.length ? 10.8 : 14 });
+    if (bounds && map.current) map.current.fitBounds(bounds, { padding: 48, duration: 600, maxZoom: pins.length ? 16 : chosen.length ? 10.8 : 14 });
   };
 
   // Moves when another list is shown, when its rows first arrive, and when an area is chosen or let go.

@@ -95,7 +95,7 @@ describe("the levels of the map", () => {
       { lat: 34.1, lon: -117.95, rowId: "3", zip: "91706" },
     ];
     const map = gatherForMap([{ rows, dots, columns, kept: new Set(["1", "2"]) }], new Map([["91706", { lat: 34.09, lon: -117.96, states: ["CA"] }]]));
-    expect(map.points).toEqual([{ lon: -117.97, lat: 34.08, dim: false, label: "12 Olive St" }]);
+    expect(map.points).toEqual([{ lon: -117.97, lat: 34.08, dim: false, label: "12 Olive St", area: "91706" }]);
     expect(map.spots).toEqual([expect.objectContaining({ zip: "91706", shown: 2, hidden: 1, loose: 1, lat: 34.09 })]);
     expect(map.cities.map(city => [city.name, city.shown, city.hidden])).toEqual([["Baldwin Park, CA", 2, 0], ["Irwindale, CA", 0, 1]]);
     expect(map.states).toEqual([expect.objectContaining({ name: "CA", shown: 2, hidden: 1 })]);

@@ -184,7 +184,7 @@ export function gatherForMap(sources: MapSource[], centres: Map<string, ZipCentr
     for (const dot of source.dots) {
       const row = rowsById.get(dot.rowId);
       const shown = source.kept ? source.kept.has(dot.rowId) : true;
-      if (dot.exact) points.push({ lon: dot.lon, lat: dot.lat, dim: !shown, label: dot.label, tag: dot.tag });
+      if (dot.exact) points.push({ lon: dot.lon, lat: dot.lat, dim: !shown, label: dot.label, tag: dot.tag, area: (source.named ? String(row?.raw[source.named] ?? "").trim() : "") || dot.zip });
       if (dot.zip) {
         let spot = spots.get(dot.zip);
         if (!spot) {
