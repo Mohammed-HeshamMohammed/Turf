@@ -35,13 +35,11 @@ const groupShare = (total: number): ExpressionSpecification => ["min", 1, ["sqrt
 const groupColour = (share: ExpressionSpecification): ExpressionSpecification =>
   ["case", ["==", ["get", "shown"], 0], "#cfcfcf",
     ["interpolate", ["linear"], share, 0, "#f6e6d4", 0.2, "#efc99d", 0.5, "#e2a15c", 0.8, "#c9772d", 1, "#8f4a14"]];
-const GROUPS = [["state", "states", 14, 32], ["city", "cities", 10, 26]] as const;
-// ZIP borders are dashed lines, blue or red, the colour alternating from one ZIP to the next so a shared edge shows both.
+const GROUPS = [["state", "states", "states", 6, 14], ["city", "cities", "cities", 5, 12]] as const;
+// ZIP borders are dashed lines: blue, red once the area is chosen, and green while it is pointed at.
 const BORDER_BLUE = "#1f5fd6";
 const BORDER_RED = "#d6322b";
-const BORDER: ExpressionSpecification = ["case", ["==", ["get", "tone"], 0], BORDER_BLUE, BORDER_RED];
-/** Which of the two colours a ZIP's border has: the same ZIP always gets the same one. */
-const toneOf = (zip: string) => [...zip].reduce((sum, letter) => sum + letter.charCodeAt(0), 0) % 2;
+const BORDER_GREEN = "#1a9d4b";
 /** Shapes take over from circles as the map is zoomed in far enough for a ZIP's area to be seen. */
 const fadeIn = (to: number): ExpressionSpecification => ["interpolate", ["linear"], ["zoom"], 7, 0, 8.4, to];
 /** For the circles: one whose area has an outline fades away as its shape appears; one without stays. Zoom has to be the
@@ -52,7 +50,7 @@ const fadeOutIfOutlined = (from: number): ExpressionSpecification => ["interpola
  * A rounded tag, as an image the map can stretch to fit the words written on it (the two ends keep their shape).
  * Drawn at twice the size for sharp edges.
  */
-function tagImage(fill: string) {
+function tagImage(fill: string, edge = "#ffffff") {
   const size = 48;
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = size;
@@ -62,10 +60,22 @@ function tagImage(fill: string) {
   draw.fillStyle = fill;
   draw.fill();
   draw.lineWidth = 3;
-  draw.strokeStyle = "#ffffff";
+  draw.strokeStyle = edge;
   draw.stroke();
   return { image: draw.getImageData(0, 0, size, size), options: { pixelRatio: 2, stretchX: [[22, 26]] as [number, number][], stretchY: [[22, 26]] as [number, number][], content: [14, 10, 34, 38] as [number, number, number, number] } };
 }
+
+/** What a card says: a name in bold, and under it how many properties, in plain words. */
+const cardText = (name: ExpressionSpecification | string, count: ExpressionSpecification, note?: string): ExpressionSpecification => {
+  const small = { "font-scale": 0.85, "text-color": "#6b645c", "text-font": ["literal", ["Noto Sans Regular"]] };
+  return ["format", name, { "font-scale": 1, "text-font": ["literal", ["Noto Sans Bold"]] }, "\n", {},
+    note ?? ["concat", ["number-format", count, { locale: "en-US" }], ["case", ["==", count, 1], " property", " properties"]], small] as unknown as ExpressionSpecification;
+};
+const cardLayout = (text: ExpressionSpecification, offset: number, size = 12.5) => ({
+  "icon-image": "card", "icon-text-fit": "both" as const, "icon-text-fit-padding": [3, 8, 4, 8] as [number, number, number, number],
+  "text-field": text, "text-font": ["Noto Sans Bold"], "text-size": size, "text-anchor": "bottom" as const, "text-offset": [0, offset] as [number, number], "text-justify": "center" as const,
+  "symbol-sort-key": ["-", 0, ["get", "shown"]] as unknown as ExpressionSpecification,
+});
 
 /** A value that changes with zoom: [zoom, value] pairs, keeping only those that rise. */
 const byZoom = (pairs: Array<[number, number | ExpressionSpecification]>): ExpressionSpecification => {
@@ -168,21 +178,27 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       }
       created.addSource("points", { type: "geojson", data: collection([]), cluster: true, clusterRadius: 36, clusterMaxZoom: 14 });
 
-      // Whole states and cities, as counted circles, when zoomed out too far for ZIP areas.
-      for (const [id, source, small, large] of GROUPS) {
+      // Whole states and cities, when zoomed out too far for ZIP areas: a dot shaded by how many properties, with a card
+      // naming the place and counting them. Places close together merge into one card ("12 cities").
+      {
+        const { image, options } = tagImage("#ffffff", "#d9d2c8");
+        created.addImage("card", image, options);
+      }
+      for (const [id, source, noun, small, large] of GROUPS) {
         const from = id === "state" ? 0 : CITY_START;
         const to = id === "state" ? STATE_END : CITY_END;
         created.addLayer({
           id, type: "circle", source, minzoom: from, maxzoom: to,
           paint: {
-            "circle-color": groupColour(groupShare(1)), "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.6,
+            "circle-color": groupColour(groupShare(1)), "circle-stroke-color": "#ffffff", "circle-stroke-width": 2,
             "circle-radius": ["interpolate", ["linear"], groupShare(1), 0, small, 1, large],
           },
         });
+        const name: ExpressionSpecification = ["case", ["has", "point_count"], ["concat", ["to-string", ["get", "point_count"]], ` ${noun}`], ["get", "title"]];
         created.addLayer({
           id: `${id}-count`, type: "symbol", source, minzoom: from, maxzoom: to, filter: [">", ["get", "shown"], 0],
-          layout: { "text-field": ["number-format", ["get", "shown"], { locale: "en-US" }], "text-font": ["Noto Sans Bold"], "text-size": 12, "text-allow-overlap": true },
-          paint: { "text-color": INK, "text-halo-color": "rgba(255,255,255,0.9)", "text-halo-width": 1.2 },
+          layout: cardLayout(cardText(name, ["get", "shown"]), -1.1 - large / 24),
+          paint: { "text-color": INK },
         });
       }
 
@@ -192,7 +208,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       created.addLayer({ id: "area-casing", type: "line", source: "areas", layout: { "line-join": "round" }, paint: { "line-color": "#ffffff", "line-width": 4, "line-opacity": fadeIn(0.8) } });
       created.addLayer({
         id: "area-edge", type: "line", source: "areas", layout: { "line-join": "round" },
-        paint: { "line-color": BORDER, "line-width": 2, "line-dasharray": [2.2, 1.4], "line-opacity": fadeIn(1) },
+        paint: { "line-color": BORDER_BLUE, "line-width": 2, "line-dasharray": [2.2, 1.4], "line-opacity": fadeIn(1) },
       });
       // The same areas as circles: every one when zoomed far out, and always for a ZIP whose outline is not here.
       created.addLayer({
@@ -205,9 +221,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
         },
       });
       // The area pointed at, here or in the list, and the area chosen.
-      created.addLayer({ id: "area-hover", type: "line", source: "areas", filter: none, paint: { "line-color": INK, "line-width": 1.6, "line-opacity": fadeIn(1) } });
       created.addLayer({ id: "area-chosen-fill", type: "fill", source: "areas", filter: none, paint: { "fill-color": INK, "fill-opacity": fadeIn(0.14) } });
-      created.addLayer({ id: "area-chosen", type: "line", source: "areas", filter: none, paint: { "line-color": INK, "line-width": 2.6 } });
       created.addLayer({
         id: "spot-ring", type: "circle", source: "spots", filter: none,
         paint: {
@@ -216,11 +230,11 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
           "circle-stroke-opacity": fadeOutIfOutlined(1),
         },
       });
-      // How many rows, written on each area once there is room for it.
+      // What each area is and how many properties it holds, once there is room for it.
       created.addLayer({
         id: "area-count", type: "symbol", source: "spots", minzoom: 9.5, maxzoom: ZIP_END, filter: [">", ["get", "shown"], 0],
-        layout: { "text-field": ["get", "label"], "text-font": ["Noto Sans Bold"], "text-size": 11.5 },
-        paint: { "text-color": INK, "text-halo-color": "rgba(255,255,255,0.9)", "text-halo-width": 1.4 },
+        layout: { ...cardLayout(cardText(["get", "title"], ["get", "shown"]), 0.6, 12), "text-anchor": "center", "text-offset": [0, 0] },
+        paint: { "text-color": INK },
       });
 
       // Rows with a place of their own.
@@ -277,7 +291,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       });
       created.addLayer({
         id: "loose-count", type: "symbol", source: "spots", minzoom: 12, filter: [">", ["get", "loose"], 0],
-        layout: { "text-field": ["get", "looseLabel"], "text-font": ["Noto Sans Bold"], "text-size": 11, "text-allow-overlap": true },
+        layout: cardLayout(cardText(["concat", ["number-format", ["get", "loose"], { locale: "en-US" }], ["case", ["==", ["get", "loose"], 1], " property", " properties"]], ["get", "loose"], "address not found yet"), -1.3, 11.5),
         paint: { "text-color": INK },
       });
 
@@ -400,7 +414,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
         area: spot.area, title: spot.area === spot.zip ? spot.zip : `${spot.zip} · ${spot.area}`, shown: spot.shown, hidden: spot.hidden,
         // Spread by square root, so a few very full areas do not leave every other one the palest shade.
         share: Math.sqrt(spot.shown / most), label: spot.shown.toLocaleString("en-US"), outlined: Boolean(outline),
-        loose: spot.loose, looseLabel: spot.loose.toLocaleString("en-US"), tone: toneOf(spot.zip),
+        loose: spot.loose, looseLabel: spot.loose.toLocaleString("en-US"),
       };
       if (outline) shapes.push({ type: "Feature", properties, geometry: outline });
       circles.push(point(spot.lon, spot.lat, properties));
@@ -422,8 +436,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
   }, [ready, spots, points, cities, states, outlines, outlineCount]);
 
   // What is pointed at and what is chosen stand out by everything else stepping back: the areas that belong stay in
-  // full colour and the rest fade. An outline is added only when the area is one or two ZIPs; around every ZIP of a
-  // whole city or state, outlines pile into a black mass.
+  // full colour and the rest fade.
   useEffect(() => {
     if (!ready || !map.current) return;
     const only = (area: string | null): ExpressionSpecification => ["==", ["get", "area"], area ?? " "];
@@ -456,12 +469,17 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
     const fadeBetween = (from: number, to: number) => byZoom([[from, 0], [from + 1, 1], [to - 1, 1], [to, 0]]);
     const cityFade = states.length ? fadeBetween(CITY_START, CITY_END) : fadeOut(CITY_END);
     for (const [id, property, value] of [
-      ["state", "circle-opacity", fadeOut(STATE_END)], ["state", "circle-stroke-opacity", fadeOut(STATE_END)], ["state-count", "text-opacity", fadeOut(STATE_END)],
-      ["city", "circle-opacity", cityFade], ["city", "circle-stroke-opacity", cityFade], ["city-count", "text-opacity", cityFade],
+      ["state", "circle-opacity", fadeOut(STATE_END)], ["state", "circle-stroke-opacity", fadeOut(STATE_END)],
+      ["state-count", "text-opacity", fadeOut(STATE_END)], ["state-count", "icon-opacity", fadeOut(STATE_END)],
+      ["city", "circle-opacity", cityFade], ["city", "circle-stroke-opacity", cityFade],
+      ["city-count", "text-opacity", cityFade], ["city-count", "icon-opacity", cityFade],
     ] as const) map.current.setPaintProperty(id, property, value);
-    map.current.setFilter("area-hover", only(hovered !== selected && few(hovered) ? hovered : null));
-    map.current.setFilter("area-chosen", only(few(selected) ? selected : null));
-    map.current.setFilter("area-chosen-fill", only(few(selected) ? selected : null));
+    // Borders: blue, red for the area chosen, green for the area pointed at (here or in the list). Every ZIP of an area
+    // takes its colour, so a whole city is seen at once.
+    map.current.setPaintProperty("area-edge", "line-color", ["case", only(hovered), BORDER_GREEN, only(selected), BORDER_RED, BORDER_BLUE]);
+    map.current.setPaintProperty("area-edge", "line-width", ["case", ["any", only(hovered), only(selected)], 3, 2]);
+    map.current.setPaintProperty("area-casing", "line-width", ["case", ["any", only(hovered), only(selected)], 5, 4]);
+    map.current.setFilter("area-chosen-fill", only(selected));
     map.current.setFilter("spot-ring", ["any", only(few(hovered) ? hovered : null), only(few(selected) ? selected : null)]);
   }, [ready, hovered, selected, spots, cities, states]);
 
@@ -494,6 +512,11 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
         <button type="button" aria-label="Back to where the rows are" onClick={fit}>⟲</button>
       </div>
       {lookup && <p className="map-hint" role="status">{lookup}</p>}
+      {outlineCount > 0 && (
+        <div className="map-key" aria-hidden="true">
+          <span><i className="blue" />ZIP border</span><span><i className="red" />Chosen</span><span><i className="green" />Pointed at</span>
+        </div>
+      )}
       {spots.length > 0 && (
         <div className="map-legend" aria-hidden="true">
           <span>Fewer properties</span><i /><span>More</span>
