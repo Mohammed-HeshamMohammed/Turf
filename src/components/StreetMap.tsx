@@ -49,19 +49,18 @@ const boundsOf = (dots: Dot[]): LngLatBoundsLike | null => {
  * into small counted circles. Pointing at an area names it; clicking one chooses it, as in the Areas list, and the
  * area chosen or pointed at in the list is outlined here.
  */
-export function StreetMap({ spots, points, outlines, outlineCount, selected, hovered, onHover, onSelect, fitKey, onUnavailable, findExact }: {
+export function StreetMap({ spots, points, outlines, outlineCount, selected, hovered, onHover, onSelect, fitKey, onUnavailable, lookup }: {
   spots: Spot[]; points: Dot[];
   /** Outlines by ZIP, filled in as they arrive; `outlineCount` says how many are in, so the map redraws when more land. */
   outlines: Map<string, Outline | null>; outlineCount: number;
   selected: string | null; hovered: string | null; onHover: (area: string | null) => void; onSelect: (area: string) => void;
   fitKey: string; onUnavailable: () => void;
-  /** Offered once zoomed in close enough to want each address: the list's addresses are not on the map one by one yet. */
-  findExact?: { count: number; onClick: () => void } | null;
+  /** While the properties' exact addresses are being looked up: how far along it is. They appear as pins as they are found. */
+  lookup?: string | null;
 }) {
   const holder = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibre | null>(null);
   const [ready, setReady] = useState(false);
-  const [close, setClose] = useState(false);
   const latest = useRef({ spots, points, selected, onHover, onSelect, onUnavailable });
   latest.current = { spots, points, selected, onHover, onSelect, onUnavailable };
 
@@ -156,12 +155,12 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       });
       created.addLayer({
         id: "row", type: "circle", source: "points", filter: ["!", ["has", "point_count"]],
-        paint: { "circle-radius": 3.6, "circle-color": ["case", ["get", "dim"], "#a9a9a9", INK], "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.2 },
+        paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, 3.6, 16, 7], "circle-color": ["case", ["get", "dim"], "#a9a9a9", INK], "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 },
       });
 
       // A property's own address, written beside it once zoomed in to street level.
       created.addLayer({
-        id: "row-label", type: "symbol", source: "points", minzoom: 15.5, filter: ["all", ["!", ["has", "point_count"]], ["!=", ["get", "label"], ""]],
+        id: "row-label", type: "symbol", source: "points", minzoom: 14.5, filter: ["all", ["!", ["has", "point_count"]], ["!=", ["get", "label"], ""]],
         layout: { "text-field": ["get", "label"], "text-font": ["Noto Sans Bold"], "text-size": 11, "text-anchor": "top", "text-offset": [0, 0.7] },
         paint: { "text-color": INK, "text-halo-color": "rgba(255,255,255,0.92)", "text-halo-width": 1.5 },
       });
@@ -211,9 +210,6 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       created.on("mouseleave", "row", leave);
       created.on("mouseenter", "clusters", () => { created.getCanvas().style.cursor = "pointer"; });
       created.on("mouseleave", "clusters", () => { created.getCanvas().style.cursor = ""; });
-      const near = () => setClose(created.getZoom() >= 12);
-      created.on("zoom", near);
-      near();
       setReady(true);
     });
     // The background failing before anything is drawn means there is none to be had; a single missing tile does not.
@@ -310,12 +306,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
         <button type="button" aria-label="Zoom out" onClick={() => map.current?.zoomOut()}>−</button>
         <button type="button" aria-label="Back to where the rows are" onClick={fit}>⟲</button>
       </div>
-      {close && findExact && findExact.count > 0 && (
-        <div className="map-hint">
-          <span>Each property is shown at the middle of its ZIP code until its exact address is looked up.</span>
-          <button type="button" className="button small" onClick={findExact.onClick}>Show each address</button>
-        </div>
-      )}
+      {lookup && <p className="map-hint" role="status">{lookup}</p>}
       {spots.length > 0 && (
         <div className="map-legend" aria-hidden="true">
           <span>Fewer properties</span><i /><span>More</span>

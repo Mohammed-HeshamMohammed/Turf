@@ -126,7 +126,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   }, [own, areaMap]);
   const [located, setLocated] = useState<Located | null>(null);
   const [lookups, setLookups] = useState(0);
-  const [asking, setAsking] = useState(false);
+  const [lookup, setLookup] = useState<string | null>(null);
   // The street background needs the internet. Without it the rows are drawn on a plain plot instead.
   const [plain, setPlain] = useState(false);
   useEffect(() => {
@@ -334,7 +334,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                   <StreetMap spots={mapData.spots} points={mapData.points} outlines={zipOutlines.outlines} outlineCount={zipOutlines.count}
                     selected={area} hovered={hoverArea} onHover={pointFromMap} onSelect={name => change(setArea)(area === name ? null : name)}
                     fitKey={`${source.id}:${activeLevel}`} onUnavailable={() => setPlain(true)}
-                    findExact={!position && addressColumns && located && located.addresses_to_look_up > 0 ? { count: located.addresses_to_look_up, onClick: () => setAsking(true) } : null} />
+                    lookup={lookup} />
                 </Suspense>
               ) : dots.length ? <AreaMap dots={dots} interactive /> : <Empty title="Nothing to put on the map">Rows are placed by their ZIP code or their address. This list has no ZIP column that is filled in.</Empty>}
             </div>
@@ -344,7 +344,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                 <button type="button" className="link" onClick={() => setPlain(false)}>Try the street map again</button>
               </p>
             )}
-            <MapNote placement={placement} located={position ? null : located} columns={position ? null : addressColumns} datasetId={source.id} asking={asking} setAsking={setAsking}
+            <MapNote placement={placement} located={position ? null : located} columns={position ? null : addressColumns} datasetId={source.id} onStatus={setLookup}
               onLocated={() => setLookups(count => count + 1)} onError={turf.fail} />
           </div>
         )}
@@ -434,11 +434,17 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   );
 }
 
-/** Under the map: how the rows were placed, which were left off and why, and the lookup of exact addresses. */
-function MapNote({ placement, located, columns, datasetId, asking, setAsking, onLocated, onError }: {
+/** Addresses already tried this session, so a list is looked up on its own once and a failure does not repeat. */
+const tried = new Set<string>();
+
+/**
+ * Under the map: how the rows were placed, which were left off and why, and the lookup of exact addresses. The lookup
+ * starts by itself when a list is shown, so each property ends up on its own address; it can be stopped, and what was
+ * found before then is kept.
+ */
+function MapNote({ placement, located, columns, datasetId, onStatus, onLocated, onError }: {
   placement: ReturnType<typeof placeRows>; located: Located | null; columns: AddressColumns | null; datasetId: string;
-  asking: boolean; setAsking: (asking: boolean) => void;
-  onLocated: () => void; onError: (reason: unknown) => void;
+  onStatus: (text: string | null) => void; onLocated: () => void; onError: (reason: unknown) => void;
 }) {
   const [progress, setProgress] = useState<LocateProgress | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -458,11 +464,15 @@ function MapNote({ placement, located, columns, datasetId, asking, setAsking, on
 
   async function locate() {
     if (!columns) return;
-    setAsking(false);
     setResult(null);
     setProgress({ done: 0, total: waiting, found: 0 });
+    let shownAt = 0;
     try {
-      const done = await locateAddresses(datasetId, columns, setProgress, setJobId);
+      const done = await locateAddresses(datasetId, columns, update => {
+        setProgress(update);
+        // Pins appear as they are found, not only at the end.
+        if (update.done - shownAt >= 250) { shownAt = update.done; onLocated(); }
+      }, setJobId);
       setResult(`Looked up ${n(done.looked_up)} addresses: ${n(done.found)} found, ${n(done.not_found)} not matched in their own state and ZIP.`);
     } catch (reason) {
       // Cancelling is not an error. What was found before it stopped is kept either way.
@@ -474,27 +484,34 @@ function MapNote({ placement, located, columns, datasetId, asking, setAsking, on
     onLocated();
   }
 
+  // Starts on its own, once for each list.
+  const start = useRef(locate);
+  start.current = locate;
+  const key = columns ? `${datasetId}:${columns.street}:${columns.zip ?? ""}:${columns.city ?? ""}:${columns.state ?? ""}` : "";
+  useEffect(() => {
+    if (!key || waiting === 0 || tried.has(key)) return;
+    tried.add(key);
+    void start.current();
+  }, [key, waiting]);
+
+  useEffect(() => {
+    onStatus(progress ? `Finding each property's address · ${n(progress.found)} of ${n(progress.total)}` : null);
+    return () => onStatus(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progress?.found, progress?.total, Boolean(progress)]);
+
   return (
     <div className="map-note">
       {placed.length > 0 && <p><strong>On the map:</strong> {placed.join(", ")}.</p>}
       {left.length > 0 && <p className="muted"><strong>Left off:</strong> {left.join(", ")}.</p>}
       {progress ? (
         <p className="notice" role="status">
-          <span>Looking up addresses: {n(progress.done)} of {n(progress.total)} · {n(progress.found)} found</span>
+          <span>Looking up addresses: {n(progress.done)} of {n(progress.total)} · {n(progress.found)} found. Only the street, city, state and ZIP are sent, to the US Census Bureau&apos;s geocoder.</span>
           <button type="button" className="button ghost small" disabled={!jobId} onClick={() => jobId && void cancelJob(jobId).catch(onError)}>Stop</button>
-        </p>
-      ) : asking ? (
-        <p className="notice" role="alertdialog" aria-label="Look up exact addresses" ref={element => element?.scrollIntoView?.({ block: "nearest", behavior: "smooth" })}>
-          <span>
-            This sends the street, city, state and ZIP of {n(waiting)} addresses to the US Census Bureau&apos;s geocoder over the internet. Names and phone
-            numbers are not sent. A long list takes several minutes; you can stop at any time and keep what was found.
-          </span>
-          <button type="button" className="button small" onClick={() => void locate()}>Send and look up</button>
-          <button type="button" className="button ghost small" onClick={() => setAsking(false)}>Not now</button>
         </p>
       ) : columns && waiting > 0 ? (
         <p className="row">
-          <button type="button" className="button ghost small" onClick={() => setAsking(true)}>Find exact addresses</button>
+          <button type="button" className="button ghost small" onClick={() => void locate()}>Find exact addresses</button>
           <span className="muted">{n(waiting)} addresses not looked up yet.</span>
         </p>
       ) : null}
