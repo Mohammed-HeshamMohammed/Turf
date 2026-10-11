@@ -1,5 +1,6 @@
 """Number quality, safe recommendations, dated evidence, and optional provider lookup."""
 import json
+import os
 from datetime import date, datetime, timedelta, timezone
 from threading import Event
 
@@ -236,7 +237,8 @@ def test_lookup_deduplicates_prices_caps_caches_and_keeps_secrets_out_of_project
     dump = '\n'.join(service.store._connection.iterdump())
     assert 'b' * 32 not in dump and 'AC' + 'a' * 32 not in dump
     assert phone_lookup._file().parent != service.store.project_root
-    assert phone_lookup._file().stat().st_mode & 0o777 == 0o600
+    if os.name != 'nt':  # Windows has no Unix permission bits; the file still lives outside the project
+        assert phone_lookup._file().stat().st_mode & 0o777 == 0o600
     ok(service, 'phone.configure_lookup', clear_credentials=True, enabled=False)
     assert not ok(service, 'phone.lookup_settings')['configured']
     assert len(ok(service, 'phone.lookup_history')) == 2

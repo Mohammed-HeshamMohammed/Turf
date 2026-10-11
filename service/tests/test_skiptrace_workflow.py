@@ -1,7 +1,7 @@
 """Regression coverage for complete mapping, evidence, exact previews, and safe saves."""
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from threading import Event
 
 import pytest
@@ -44,7 +44,7 @@ def test_manual_wrong_and_dnc_propagate_but_called_is_not_reached(service, tmp_p
     assert report["verdicts"] == {"wrong": 2, "suspicious": 0, "unverified": 1, "corroborated": 0}
     assert report["row_counts"]["known_wrong"] == 1 and report["row_counts"]["dnc"] == 1
     text = " ".join(example["text"] for reason in report["reasons"] for example in reason["examples"])
-    assert "Turf manual mark" in text and date.today().isoformat() in text
+    assert "Turf manual mark" in text and datetime.now(timezone.utc).date().isoformat() in text, "marks are stamped in UTC"
 
 
 def test_manual_interest_and_wrong_conflict_keeps_sources_and_dnc_still_blocks(service, tmp_path):
