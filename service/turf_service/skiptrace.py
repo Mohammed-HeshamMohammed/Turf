@@ -13,12 +13,14 @@ from datetime import date
 from pathlib import Path
 
 from turf_matching import skiptrace as engine
+from turf_matching import status_meaning
 
 from .cleaning import MAX_ROWS, _roles, _rows
 from .datasets import _register_rows, confirm_mapping, latest_mapping
 from .jobs import JobContext, JobKind, JobValidationError
 from .storage import ProjectStore, utc_now
 from .manual import list_marks
+from .status_model import embedder
 
 OUTPUT_SUFFIXES = ("verdict", "why", "E.164", "type", "quality", "permission")
 BEST_COLUMNS = ("Best phone quality", "Best phone permission", "Best phone extension", "Best phone why", "Phone choices", "Phone evidence warnings", "Best phone", "Best phone verdict", "Best phone from")
@@ -126,6 +128,71 @@ def _samples(rows: list[dict], columns: list[str]) -> dict:
     return samples
 
 
+# ------------------------------------------------------------------------------------------------- status meanings
+# What the person chose for each call status, kept for the whole project, so wording they settled on one list is
+# settled on the next. Only their own decisions are kept: a meaning Turf confirmed by itself is not, so a mistake
+# cannot teach itself.
+STATUS_MEMORY = "skiptrace.status_meanings"
+
+
+def status_memory(store: ProjectStore) -> dict[str, dict]:
+    row = store._connection.execute("SELECT value_json FROM project_settings WHERE key = ?", (STATUS_MEMORY,)).fetchone()
+    return json.loads(row["value_json"]) if row else {}
+
+
+def remember_statuses(store: ProjectStore, dataset_id: str, decisions: object) -> dict:
+    """Keeps the person's decisions: {status key: [outcomes]}, or None to forget one."""
+    name = _dataset(store, dataset_id)["name"]
+    if not isinstance(decisions, dict):
+        raise ValueError("Decisions must map each status to its meanings")
+    memory = status_memory(store)
+    for key, outcomes in decisions.items():
+        wording = status_meaning.canonical(key)
+        if not wording:
+            continue
+        if outcomes is None:
+            memory.pop(wording, None)
+            continue
+        if not isinstance(outcomes, list) or any(kind not in engine.OUTCOMES for kind in outcomes):
+            raise ValueError(f"Unknown meaning for {key}")
+        if set(outcomes) & set(status_meaning.NEGATIVE) and "reached" in outcomes:
+            raise ValueError("A status cannot be both wrong number/wrong person/disconnected and reached a person")
+        memory[wording] = {"key": str(key), "outcomes": status_meaning.sort_outcomes(outcomes), "list": name, "at": utc_now()}
+    with store._connection:
+        store._connection.execute(
+            "INSERT INTO project_settings(key, value_json, updated_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at",
+            (STATUS_MEMORY, json.dumps(memory, sort_keys=True), utc_now()),
+        )
+    return {"remembered": len(memory)}
+
+
+def _names_mapped(config: dict) -> bool:
+    called = (config.get("outcome") or {}).get("called_column") or next(iter(config.get("phone_columns") or []), None)
+    person = engine.owner_config(config, called) if called else config
+    return any(person.get(key) for key in ("first_name_column", "last_name_column", "name_column"))
+
+
+def _status_rows(store: ProjectStore, rows: list[dict], column: str, day_first: bool, names_mapped: bool, saved_map: dict | None = None) -> list[dict]:
+    """The status table, read with the project's memory and the model, and marked confirmed where Turf is sure."""
+    table = engine.status_table((row.get(column) for row in rows), day_first, memory=status_memory(store), embed=embedder())
+    statuses = []
+    for item in table:
+        if not names_mapped and "wrong_person" in item["outcomes"]:
+            # Wrong person needs to know whose name it is about; without a name column it cannot be saved.
+            item = {**item, "outcomes": [kind for kind in item["outcomes"] if kind != "wrong_person"], "sure": False, "doubt": "names",
+                    "why": "Means wrong person: map a name column in Column roles to use it"}
+        if saved_map and item["key"] in saved_map and not saved_map[item["key"]]:
+            # A setup keeps a status without a meaning only when the person chose to ignore it.
+            item = {**item, "outcomes": [], "sure": True, "source": "saved", "doubt": "", "why": "Ignored on this list"}
+        elif saved_map and item["key"] in saved_map and saved_map[item["key"]] != item["outcomes"]:
+            # A saved meaning may be the person's, or a suggestion saved without a look: they say which.
+            item = {**item, "outcomes": saved_map[item["key"]], "sure": False, "source": "saved", "doubt": "saved",
+                    "why": "Saved with this list's earlier setup; confirm it to keep it"}
+        statuses.append({**item, "confirmed": bool(item["key"]) and item["sure"]})
+    return statuses
+
+
 def suggest(store: ProjectStore, dataset_id: str, region: str = "US") -> dict:
     _dataset(store, dataset_id)
     _, rows = _rows(store, dataset_id)
@@ -137,25 +204,25 @@ def suggest(store: ProjectStore, dataset_id: str, region: str = "US") -> dict:
     statuses = []
     outcome = (config.get("outcome") or {}).get("column") if saved is not None else ((config.get("outcome") or {}).get("column") or (found["outcome_candidates"][0]["column"] if found["outcome_candidates"] else None))
     if outcome:
-        table = engine.status_table((row.get(outcome) for row in rows), config.get("region", region) != "US")
         saved_map = ((saved or {}).get("outcome") or {}).get("map") or {}
-        statuses = [{**item, "outcomes": saved_map.get(item["key"], item["outcomes"]), "confirmed": item["key"] in saved_map} for item in table]
+        statuses = _status_rows(store, rows, outcome, config.get("region", region) != "US", _names_mapped(config), saved_map)
     return {
         "dataset_id": dataset_id, "rows": len(rows), "columns": columns, "config": config, "saved": saved is not None,
         "roles_confirmed": confirmed, "outcome_candidates": found["outcome_candidates"], "outcome_column": outcome, "statuses": statuses,
+        "status_model": embedder() is not None,
         "outcomes": [{"id": kind, "label": engine.OUTCOME_LABELS[kind]} for kind in engine.OUTCOMES],
         "column_samples": _samples(rows, columns),
         "signals": [{"code": code, "label": engine.SIGNALS[code], "measured_only": code not in engine.COUNTABLE_SIGNALS} for code in engine.SIGNALS],
     }
 
 
-def statuses_for(store: ProjectStore, dataset_id: str, column: str, region: str = "US") -> list[dict]:
+def statuses_for(store: ProjectStore, dataset_id: str, column: str, region: str = "US", names_mapped: bool = True) -> list[dict]:
     """The status table for another status column, when the person picks one."""
     _dataset(store, dataset_id)
     _, rows = _rows(store, dataset_id)
     if not any(column in row for row in rows[:50]):
         raise ValueError(f"Unknown column: {column}")
-    return engine.status_table((row.get(column) for row in rows), region.upper() != "US")
+    return _status_rows(store, rows, column, region.upper() != "US", names_mapped)
 
 
 def save_settings(store: ProjectStore, dataset_id: str, config: object) -> dict:

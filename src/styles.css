@@ -622,3 +622,9 @@ tbody tr:first-child th[scope="row"] { border-top: 0; }
 /* Table headers stay at the top of a table that scrolls inside its own box. */
 .skiptrace-report-body .table-wrap thead th, .preview-table thead th, .history-table thead th { position: sticky; top: 0; z-index: 1; background: var(--raised); box-shadow: 0 1px 0 var(--line); }
 .status-mapping-table table.compact, .skiptrace-report-body .table-wrap table.compact, .preview-table table.compact, .history-table table.compact { margin-top: 0; }
+/* What still needs the person stands out from what Turf settled itself. */
+.status-summary { margin: 4px 0 0; }
+.status-note { font-size: 13.5px; }
+.status-note.needs { display: inline-block; padding: 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-weight: 550; }
+.status-why { display: block; margin-top: 3px; font-size: 12.5px; overflow-wrap: anywhere; }
+.status-mapping-table tr.needs-you > th { box-shadow: inset 3px 0 0 var(--accent); }

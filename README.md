@@ -52,6 +52,7 @@ Runs the type check and build of the window, UI interaction tests (Vitest), the 
 All five steps remain: phone columns, call outcomes, warning signs, results, and saving a checked copy.
 
 - Column samples help confirm the proposed mappings. Call statuses are searchable and paginated; every distinct status is available, including those beyond the former 80-status limit. Explicitly ignored meanings stay ignored.
+- Call statuses are settled for you where Turf can be sure, and the rest are listed first with the reason ([how](#how-call-statuses-are-read)). What you confirm or ignore is remembered for every list in the project.
 - Drafts, completed reports, running job references, and editable setup templates are kept on this computer, keyed by project and list. Templates validate the columns before applying. Storage failures are shown; drafts and templates are not project-file backups.
 - Checks save the setup, but never change original rows. Results include all existing reports, an action summary, and paginated row review. Progress and safe cancellation are available; a running job can be reconnected after a screen reload while the service remains alive.
 - New manual marks belong to the project, retain source/date/history, and feed the next phone check. DNC has an optional inclusive end date. Called alone does not count as reaching a person. Wrong/reached conflicts remain suspicious; active DNC still blocks a number.
@@ -60,6 +61,25 @@ All five steps remain: phone columns, call outcomes, warning signs, results, and
 - Phone choices now show **quality** separately from **calling restrictions**, alongside all previous combined verdicts. Active DNC always blocks a recommendation. Numbers are ranked individually (including several in one cell), retain their extensions and source columns, and show why the first choice or alternatives were selected. “No recorded block” describes project evidence; it does not establish consent or permission to call.
 - In a reviewed row's **All fields**, or a saved row's details in Lists, open **Phone choices** to record dated, number-specific call outcomes. Reached, wrong person, disconnected, voicemail, no answer, and known wrong number are supported. Wrong person stays scoped to the mapped person; disconnected/known wrong number apply across the project. Voicemail/no answer do not prove connection, ownership, or a bad number. Records can be retracted while retaining their audit history. The project call log is also available beside manual marks.
 - Optional street-address/company mappings distinguish possible household and business sharing from unrelated people or unknown relationships. Optional imported call-date columns and configurable age thresholds surface old, undated, and conflicting evidence, including possible reassignment warnings without claiming reassignment is confirmed. New logs and lookup results invalidate old scans; saving still uses the exact reviewed snapshot and records its evidence in lineage metadata.
+
+### How call statuses are read
+
+Three readers look at each status, most trusted first (`service/turf_matching/status_meaning.py`):
+
+1. **Your earlier decisions** for the same wording on any list of the project (punctuation, spacing and dates inside the status don't matter). They always win.
+2. **Phrase rules** for common dialer wording, with abbreviations spelled out (LVM, NI, RCB, Disco, WN…). A status is settled only when every word in it is understood and nothing contradicts; one unknown word leaves it for you.
+3. **A small local model**, if fetched: it confirms the rules, flags a disagreement, and recognises wording close to something you decided before. It never fills in a meaning on its own from generic examples; measured on unfamiliar wording, those guesses were too often wrong.
+
+Do not call is never dropped on a guess. A status like "DNC: interested" or "DNC until 10/07/2025: Not interested" keeps Do not call but always needs you: "DNC" there may be the dialer's bucket for "stop dialing" with the real reason after it, and only you know whether the person asked not to be called. A wrong-person meaning needs a mapped name column.
+
+The model is optional (Model2Vec `potion-base-8M`, MIT, about 30 MB, CPU and numpy only, loaded from this computer, never from the internet). To use it:
+
+```bash
+pip install model2vec==0.9.0
+python service/tools/fetch_status_model.py
+```
+
+`service/tests/status_wording.py` holds about 225 labelled statuses; the tests check that nothing there is confirmed wrongly and no do-not-call is dropped, with and without the model.
 
 ### Use an existing dialer
 
@@ -90,7 +110,7 @@ Successful results for the same products are reused within the configured cache 
 | `src-tauri/src/sidecar.rs` | The bridge to the service: a child process speaking JSON lines, as in DataForge's host. |
 | `src-tauri/src/store.rs` | Area mappings and earlier computer-wide marks in `turf.json`. New manual marks and their history are saved in the project database. Earlier marks can be explicitly imported into a project without deleting the old store. |
 | `service/turf_service/` | The service: the command router, projects, lists, jobs and the Skip Tracing commands. An import leaves out empty rows and columns; lists already in a project get the same when it is opened (`tidy.py`). |
-| `service/turf_matching/` | Phone reading and the Skip Tracing rules. |
+| `service/turf_matching/` | Phone reading and the Skip Tracing rules, including how call statuses are read (`status_meaning.py`). |
 | `service/turf_service/geo.py` | Where rows go on the map: the centre of their ZIP (a file shipped with Turf, checked against the row's state), or their exact address when the person asks for the lookup. The lookup sends street, city, state and ZIP to the US Census Bureau's geocoder; nothing else leaves the computer. |
 | `service/migrations/` | The project database's schema. |
 | `vite.config.ts` | For a browser tab only: serves `/rpc` over the same bridge. |

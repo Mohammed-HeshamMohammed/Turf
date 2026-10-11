@@ -184,7 +184,8 @@ def test_statuses_are_grouped_without_their_dates_and_given_a_suggested_meaning(
     by_key = {item["key"]: item for item in table}
     assert by_key["dnc until [date]:not interested"]["count"] == 2 and by_key["dnc until [date]:not interested"]["outcomes"] == ["do_not_call", "reached"]
     assert by_key["dnc: wrong number"]["outcomes"] == ["wrong_number"] and by_key["not yet reached"]["outcomes"] == [] and by_key["interested"]["outcomes"] == ["reached"]
-    assert by_key["left voicemail"]["outcomes"] == [], "a voicemail does not show the number is right"
+    assert by_key["left voicemail"]["outcomes"] == ["voicemail"], "recorded as activity; it does not show the number is right"
+    assert by_key["interested"]["sure"] and by_key["left voicemail"]["sure"] and not by_key["dnc until [date]:not interested"]["sure"]
     key, until = st.normalize_status("DNC until 10/15/2025:Not interested")
     assert until == date(2025, 10, 15) and st.normalize_status("DNC until 15/10/2025", day_first=True)[1] == date(2025, 10, 15)
     assert st.normalize_status("DNC until 2025-10-15")[1] == date(2025, 10, 15) and st.normalize_status("DNC")[1] is None
@@ -257,8 +258,8 @@ def test_a_do_not_call_alone_does_not_claim_that_a_person_was_reached():
     )}
     assert suggested["dnc: do not call"] == ["do_not_call"] and suggested["opt out"] == ["do_not_call"] and suggested["unsubscribe"] == ["do_not_call"]
     assert suggested["dnc: sold"] == ["do_not_call", "reached"] and suggested["dnc until [date]:not interested"] == ["do_not_call", "reached"]
-    assert suggested["wrong number"] == ["wrong_number"] and suggested["number disconnected"] == ["wrong_number"]
-    assert suggested["not yet reached"] == [] and suggested["left voicemail"] == [] and suggested["no answer"] == [] and suggested["interested"] == ["reached"]
+    assert suggested["wrong number"] == ["wrong_number"] and suggested["number disconnected"] == ["disconnected"]
+    assert suggested["not yet reached"] == [] and suggested["left voicemail"] == ["voicemail"] and suggested["no answer"] == ["no_answer"] and suggested["interested"] == ["reached"]
     assert suggested["something no dialer has ever written"] == [], "unknown wording is left for the person to choose"
 
 

@@ -25,9 +25,10 @@ from functools import lru_cache
 import phonenumbers
 
 from . import phone as phone_rules
+from . import status_meaning
 from .cleanup import _US_CODES as _US_STATE_CODES, state_or_region
 
-SKIPTRACE_VERSION = 4
+SKIPTRACE_VERSION = 5  # 5: a disconnected line counts as a bad number when measuring the warning signs
 VERDICTS = ("wrong", "suspicious", "unverified", "corroborated")
 OUTCOMES = ("wrong_number", "do_not_call", "reached", "wrong_person", "disconnected", "voicemail", "no_answer")
 OUTCOME_LABELS = {"wrong_number": "Wrong number", "do_not_call": "Do not call", "reached": "Reached a person", "wrong_person": "Wrong person (this person only)", "disconnected": "Disconnected", "voicemail": "Voicemail", "no_answer": "No answer"}
@@ -60,28 +61,12 @@ REASON_LABELS = {
 }
 
 _DATE_AFTER_UNTIL = re.compile(r"\b(until|till|through|thru|expires?|exp)\s*:?\s*(\d{1,4}[/\-.]\d{1,2}[/\-.]\d{1,4})", re.IGNORECASE)
-# Words that dialers and CRMs commonly use for a call's result. These only suggest a meaning; the person confirms it once
-# per dataset, and any wording not listed here is simply left unmapped for them to choose. English only.
-_WRONG_NUMBER = re.compile(r"wrong\s*(number|#|no\b|person)|bad number|invalid number|disconnected|not in service|out of service|no longer in service|number (is )?not (valid|working)|\bfax\b|unreachable number")
-_NOT_TRIED = re.compile(r"not yet|not called|untouched|no attempt|never called|new lead|queued|not started|pending|^new$|^open$|^unworked$|ready to call")
-_DO_NOT_CALL = re.compile(r"\bdnc\b|do not call|don't call|dont call|do-not-call|stop calling|remove (me|from)|\bcease\b|opt[- ]?out|unsubscribe|litigator|\btcpa\b|never call|no more calls")
-# A status that says a person answered. "Not interested" counts: someone was there to say it.
-_REACHED = re.compile(r"interested|appointment|call ?back|follow ?up|\boffer|contract|\bsold\b|spoke|talked|answered|contacted|connected|conversation|qualified|booked|nurture|negotiat")
 
 
 def suggest_outcomes(key: str) -> list[str]:
-    """What a status most likely means. A do-not-call alone does not say a person was reached: a scrubbing list is
-    not a conversation. It counts as reached only when the status also says someone answered."""
-    if _WRONG_NUMBER.search(key):
-        return ["wrong_number"]
-    if _NOT_TRIED.search(key) and not _DO_NOT_CALL.search(key):
-        return []
-    meanings = []
-    if _DO_NOT_CALL.search(key):
-        meanings.append("do_not_call")
-    if _REACHED.search(key):
-        meanings.append("reached")
-    return meanings
+    """What a status most likely means, by the phrase rules alone (turf_matching.status_meaning). A do-not-call alone does
+    not say a person was reached: a scrubbing list is not a conversation."""
+    return status_meaning.read_rules(key).outcomes
 
 
 # ---------------------------------------------------------------------------------------------- outcome columns
@@ -112,8 +97,9 @@ def normalize_status(value: object, day_first: bool = False) -> tuple[str, date 
     return text.casefold(), until
 
 
-def status_table(values, day_first: bool = False, limit: int | None = None) -> list[dict]:
-    """Every distinct status (dates folded together) with how often it occurs and a suggested meaning."""
+def status_table(values, day_first: bool = False, limit: int | None = None, memory: dict | None = None, embed=None) -> list[dict]:
+    """Every distinct status (dates folded together) with how often it occurs, its suggested meaning, and whether that
+    meaning is sure enough to confirm without the person (see turf_matching.status_meaning)."""
     counts: Counter = Counter()
     examples: dict[str, str] = {}
     for value in values:
@@ -123,10 +109,13 @@ def status_table(values, day_first: bool = False, limit: int | None = None) -> l
         key, _ = normalize_status(text, day_first)
         counts[key] += 1
         examples.setdefault(key, text)
-    table = [{"key": key, "example": examples[key], "count": count, "outcomes": suggest_outcomes(key)} for key, count in counts.most_common(limit)]
+    common = counts.most_common(limit)
+    readings = status_meaning.read_statuses([key for key, _ in common], memory, embed)
+    table = [{"key": key, "example": examples[key], "count": count, "outcomes": readings[key].outcomes, "sure": readings[key].sure,
+              "source": readings[key].source, "why": readings[key].why, "doubt": readings[key].doubt} for key, count in common]
     rest = sum(counts.values()) - sum(item["count"] for item in table)
     if rest:
-        table.append({"key": "", "example": f"{len(counts) - len(table)} other statuses", "count": rest, "outcomes": []})
+        table.append({"key": "", "example": f"{len(counts) - len(table)} other statuses", "count": rest, "outcomes": [], "sure": False, "source": "none", "why": "", "doubt": "unknown"})
     return table
 
 
@@ -557,12 +546,12 @@ def evaluate(rows: list[dict], row_numbers: list[int], config: dict, knowledge: 
                             break
 
         # Measure each warning sign against the call outcome of this row's called number.
-        if has_outcome and called and ("wrong_number" in outcomes or "reached" in outcomes):
+        if has_outcome and called and ("wrong_number" in outcomes or "disconnected" in outcomes or "reached" in outcomes):
             infos = read_cell(row.get(called), region, country, source)
             first = infos[0] if infos else None
             if first is not None and first.valid and first.e164:
                 contacted_total["n"] += 1
-                bad = "wrong_number" in outcomes
+                bad = "wrong_number" in outcomes or "disconnected" in outcomes
                 contacted_total["wrong"] += bad
                 present = {
                     "shared_number": family_count.get(first.e164, 0) >= 2,

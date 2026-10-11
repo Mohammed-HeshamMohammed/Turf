@@ -1,4 +1,4 @@
-import type { Dataset, SkiptraceConfig, SkiptraceReport, StatusRow } from "./types";
+import type { Dataset, Outcome, SkiptraceConfig, SkiptraceReport, StatusRow } from "./types";
 
 export type WorkflowDraft = {
   base: SkiptraceConfig;
@@ -23,11 +23,39 @@ export function missingColumns(config: SkiptraceConfig, columns: string[]): stri
     .filter((column): column is string => Boolean(column) && !columns.includes(column!)))];
 }
 
+/** Whether the owner of the called phone column has a name column, which a wrong-person meaning needs. */
+export function namesMapped(config: SkiptraceConfig, called: string): boolean {
+  const owners = config.additional_owners ?? [];
+  const index = config.phone_owner_map?.[called] ?? (owners.length ? -1 : 0);
+  const person = index === 0 ? config : owners[index - 1] ?? {};
+  return Boolean(person.first_name_column || person.last_name_column || person.name_column);
+}
+
+export const sameOutcomes = (a: Outcome[] = [], b: Outcome[] = []) => a.length === b.length && a.every(item => b.includes(item));
+
+/** Statuses the service settled by itself, unless the person has given them another meaning. */
+export function settledKeys(table: StatusRow[], meaning: Record<string, Outcome[]> = {}): string[] {
+  return table.filter(item => item.confirmed && (meaning[item.key] === undefined || sameOutcomes(meaning[item.key], item.outcomes))).map(item => item.key);
+}
+
+/** What the review column says about a status. */
+export function reviewNote(status: StatusRow, reviewed: boolean, chosen: Outcome[] = []): { label: string; detail?: string; needs: boolean } {
+  if (!reviewed) return { label: "Needs you", detail: status.why || "Suggested", needs: true };
+  if (sameOutcomes(chosen, status.outcomes) && status.sure) {
+    if (status.source === "memory" || status.source === "saved") return { label: status.why || "Decided before", needs: false };
+    return { label: "Automatic", detail: status.why || "Every word is known dialer wording", needs: false };
+  }
+  return { label: chosen.length ? "Reviewed" : "Intentionally ignored", needs: false };
+}
+
 export function statusPage(statuses: StatusRow[], query: string, unreviewedOnly: boolean, reviewed: string[], page: number, size = 20) {
   const needle = query.trim().toLowerCase();
   const matching = statuses.filter(status => (!needle || status.example.toLowerCase().includes(needle)) && (!unreviewedOnly || !reviewed.includes(status.key)));
-  // Statuses still waiting for a decision come first; each one decided drops to the bottom, so the next one takes its place.
-  const filtered = [...matching.filter(status => !reviewed.includes(status.key)), ...matching.filter(status => reviewed.includes(status.key))];
+  // Statuses still waiting for a decision come first; each one decided drops to the very bottom, so the next one takes
+  // its place, and the settled ones stay in the order they were settled.
+  const order = new Map(reviewed.map((key, index) => [key, index]));
+  const settled = matching.filter(status => order.has(status.key)).sort((a, b) => order.get(a.key)! - order.get(b.key)!);
+  const filtered = [...matching.filter(status => !order.has(status.key)), ...settled];
   const pages = Math.max(1, Math.ceil(filtered.length / size));
   const current = Math.min(Math.max(0, page), pages - 1);
   return { rows: filtered.slice(current * size, (current + 1) * size), total: filtered.length, pages, current };

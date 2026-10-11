@@ -3,7 +3,7 @@
 // dev server, which talks to the service the same way the host does. The UI never touches SQLite, files or workers directly.
 
 import type { ManualMarks } from "./marks";
-import type { AreaMapping, Dataset, DatasetRow, ManualMark, SkiptraceConfig, SkiptraceReport, SkiptraceSuggestion, StatusRow, Verdict, ReviewRow } from "./types";
+import type { AreaMapping, Dataset, DatasetRow, ManualMark, Outcome, SkiptraceConfig, SkiptraceReport, SkiptraceSuggestion, StatusRow, Verdict, ReviewRow } from "./types";
 
 type Envelope<T> = { schema_version: 1; ok: true; result: T } | { schema_version: 1; ok: false; error: { code: string; message: string } };
 
@@ -169,7 +169,13 @@ export function skiptraceSuggest(dataset_id: string) {
 export const knownSuggestion = (dataset_id: string) => suggestions.get(dataset_id)?.value ?? null;
 
 export const clearSuggestions = () => suggestions.clear();
-export const skiptraceStatuses = (dataset_id: string, column: string, region: string) => call<StatusRow[]>("skiptrace.statuses", { dataset_id, column, region });
+export const skiptraceStatuses = (dataset_id: string, column: string, region: string, names_mapped = true) =>
+  call<StatusRow[]>("skiptrace.statuses", { dataset_id, column, region, names_mapped });
+/** Keeps the person's status decisions for the whole project (null forgets one). Every list's suggestion may change. */
+export const skiptraceRemember = (dataset_id: string, decisions: Record<string, Outcome[] | null>) => {
+  suggestions.clear();
+  return call<{ remembered: number }>("skiptrace.remember", { dataset_id, decisions });
+};
 export const skiptraceSave = (dataset_id: string, config: SkiptraceConfig) => {
   suggestions.delete(dataset_id);
   return call<SkiptraceConfig>("skiptrace.save_settings", { dataset_id, config });

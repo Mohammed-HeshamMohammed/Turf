@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkedCopies, missingColumns, readDraft, stableKey, statusPage } from "../src/lib/skiptrace-workflow";
+import { checkedCopies, missingColumns, namesMapped, readDraft, reviewNote, settledKeys, stableKey, statusPage } from "../src/lib/skiptrace-workflow";
 import type { Dataset, SkiptraceConfig } from "../src/lib/types";
 
 const config: SkiptraceConfig = { phone_columns: ["Phone"], region: "US", country_column: null, first_name_column: null, last_name_column: null, name_column: "Name", zip_column: null, state_column: null, signals: {}, outcome: { column: "Status", called_column: "Phone", map: { ignored: [] } } };
@@ -22,6 +22,24 @@ describe("complete and reusable setup", () => {
     expect(statusPage(statuses, "", false, [], 0).rows.map(row => row.key)).toEqual(["a", "b", "c"]);
     expect(statusPage(statuses, "", false, ["a"], 0).rows.map(row => row.key)).toEqual(["b", "c", "a"]);
     expect(statusPage(statuses, "", false, ["a", "b", "c"], 0).rows.map(row => row.key)).toEqual(["a", "b", "c"]);
+    expect(statusPage(statuses, "", false, ["c", "a"], 0).rows.map(row => row.key)).toEqual(["b", "c", "a"], "the last one settled is last");
+  });
+  it("adds what the service settled unless the person chose otherwise", () => {
+    const table = [
+      { key: "interested", example: "Interested", count: 3, outcomes: ["reached"], confirmed: true, sure: true, source: "rules" },
+      { key: "dnc: sold", example: "DNC: sold", count: 1, outcomes: ["do_not_call", "reached"], confirmed: false, sure: false, source: "rules", why: "Starts with DNC" },
+    ] as Parameters<typeof settledKeys>[0];
+    expect(settledKeys(table)).toEqual(["interested"]);
+    expect(settledKeys(table, { interested: ["do_not_call"] })).toEqual([]);
+    expect(reviewNote(table[0], true, ["reached"])).toEqual({ label: "Automatic", detail: "Every word is known dialer wording", needs: false });
+    expect(reviewNote(table[1], false, ["do_not_call", "reached"])).toEqual({ label: "Needs you", detail: "Starts with DNC", needs: true });
+    expect(reviewNote(table[1], true, ["reached"]).label).toBe("Reviewed");
+    expect(reviewNote({ ...table[0], source: "memory", why: "You chose this on “A”" }, true, ["reached"]).label).toBe("You chose this on “A”");
+  });
+  it("knows whether the called phone's owner has a name column", () => {
+    const base = { phone_columns: ["P1", "P2"], first_name_column: "First", additional_owners: [{ name_column: null }], phone_owner_map: { P1: 0, P2: 1 } } as unknown as Parameters<typeof namesMapped>[0];
+    expect(namesMapped(base, "P1")).toBe(true);
+    expect(namesMapped(base, "P2")).toBe(false);
   });
   it("chooses the latest copy regardless of dataset ordering", () => {
     const older = { id: "old", parent_dataset_id: "parent", kind: "checked", created_at: "2026-01-01" } as Dataset;

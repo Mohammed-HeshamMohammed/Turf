@@ -6,14 +6,14 @@ import { ListPicker } from "../components/ListPicker";
 import { ListDownloads } from "../components/ListDownloads";
 import { PhoneLookup } from "../components/PhoneLookup";
 import { DialerEvidence } from "../components/DialerEvidence";
-import { cancelSkiptraceJob, knownSuggestion, skiptraceFreshness, skiptraceApply, skiptraceSave, skiptraceScan, skiptraceStatuses, skiptraceSuggest, watchJob } from "../lib/service";
+import { cancelSkiptraceJob, knownSuggestion, skiptraceFreshness, skiptraceApply, skiptraceRemember, skiptraceSave, skiptraceScan, skiptraceStatuses, skiptraceSuggest, watchJob } from "../lib/service";
 import { useVisited } from "../lib/hooks";
 import { formatNumber } from "../lib/marks";
 import { ManualEvidence } from "../components/ManualEvidence";
 import { CheckedPreview, SkiptraceReview } from "../components/SkiptraceReview";
 import { SkiptraceTemplates } from "../components/SkiptraceTemplates";
 import { SkiptraceColumns } from "../components/SkiptraceColumns";
-import { checkedCopies, missingColumns, readDraft, SIGN_HELP, STAGE_LABELS, statusPage, stableKey, type WorkflowDraft } from "../lib/skiptrace-workflow";
+import { checkedCopies, missingColumns, namesMapped, readDraft, reviewNote, settledKeys, SIGN_HELP, STAGE_LABELS, statusPage, stableKey, type WorkflowDraft } from "../lib/skiptrace-workflow";
 import type { Dataset, Outcome, SignReport, SkiptraceConfig, SkiptraceReport, SkiptraceSuggestion, StatusRow, Verdict } from "../lib/types";
 
 // Wording follows DataForge's Skip Tracing tab, so the two say the same thing about the same data.
@@ -159,10 +159,11 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           setReviewed(result.statuses.filter(item => item.confirmed).map(item => item.key));
         } else if (draft.outcomeColumn && result.columns.includes(draft.outcomeColumn)) {
           setStatusBusy(true);
-          const table = await skiptraceStatuses(dataset.id, draft.outcomeColumn, draft.base.region);
+          const table = await skiptraceStatuses(dataset.id, draft.outcomeColumn, draft.base.region, namesMapped(draft.base, draft.called));
           if (!current) return;
           setStatuses(table);
           setMeaning(Object.fromEntries(table.map(item => [item.key, draft.meaning[item.key] ?? item.outcomes])));
+          setReviewed([...new Set([...draft.reviewed, ...settledKeys(table, draft.meaning)])]);
         } else setStatuses([]);
       } catch (reason) { if (current) setError(reason instanceof Error ? reason.message : String(reason)); }
       finally { if (current) setStatusBusy(false); }
@@ -252,7 +253,16 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   }, [setup]);
   const statusView = statusPage(statuses, statusQuery, unreviewedOnly, reviewed, statusPageIndex);
   const unreviewed = statuses.filter(item => !reviewed.includes(item.key));
-  const ignored = statuses.filter(item => reviewed.includes(item.key) && !(meaning[item.key]?.length));
+  // Ignored by the person: a status Turf settled as "not called yet" is not counted.
+  const ignored = statuses.filter(item => reviewed.includes(item.key) && !(meaning[item.key]?.length) && !(item.sure && !item.outcomes.length));
+  const settledBefore = statuses.filter(item => reviewed.includes(item.key) && (item.source === "memory" || item.source === "saved") && item.sure).length;
+  const automatic = statuses.filter(item => reviewed.includes(item.key) && item.sure && item.source !== "memory" && item.source !== "saved").length;
+  // What the person decides is kept for every list in the project, so the same wording is settled next time.
+  const decide = (decisions: Record<string, Outcome[] | null>) => {
+    const kept = Object.fromEntries(Object.entries(decisions).filter(([key]) => key));
+    if (Object.keys(kept).length) skiptraceRemember(dataset.id, kept).catch(reason => setError(`Your choice is used here but could not be remembered for other lists: ${reason instanceof Error ? reason.message : String(reason)}`));
+  };
+  const confirmStatus = (key: string, outcomes: Outcome[]) => { setReviewed([...new Set([...reviewed, key])]); decide({ [key]: outcomes }); };
 
   if (!setup || !base || !config) return error ? <p className="notice" role="alert">{error}</p> : <p className="loading">Reading the setup…</p>;
   const missing = missingColumns(config, setup.columns);
@@ -268,11 +278,11 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
     const request = ++statusRequest.current;
     setStatusBusy(true); setError(null);
     try {
-      const table = column ? await skiptraceStatuses(dataset.id, column, region) : [];
+      const table = column ? await skiptraceStatuses(dataset.id, column, region, namesMapped(base!, called)) : [];
       if (request !== statusRequest.current) return;
       setOutcomeColumn(column); setStatuses(table);
       setMeaning(Object.fromEntries(table.map(status => [status.key, status.outcomes])));
-      setReviewed([]); setStatusPageIndex(0);
+      setReviewed(settledKeys(table)); setStatusPageIndex(0);
     } catch (reason) { if (request === statusRequest.current) setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { if (request === statusRequest.current) setStatusBusy(false); }
   }
@@ -282,10 +292,10 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
     if (outcomeColumn) {
       setStatusBusy(true);
       try {
-        const table = await skiptraceStatuses(dataset.id, outcomeColumn, region);
+        const table = await skiptraceStatuses(dataset.id, outcomeColumn, region, namesMapped(base!, called));
         setBase({ ...base!, region }); setStatuses(table);
         setMeaning(Object.fromEntries(table.map(status => [status.key, meaning[status.key] ?? status.outcomes])));
-        setReviewed(reviewed.filter(key => table.some(item => item.key === key)));
+        setReviewed([...new Set([...reviewed.filter(key => table.some(item => item.key === key)), ...settledKeys(table, meaning)])]);
       } catch (reason) { setError(String(reason)); }
       finally { setStatusBusy(false); }
     } else patch({ region });
@@ -294,10 +304,11 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
     setStatusBusy(true);
     try {
       const column = next.outcome?.column ?? null;
-      const table = column ? await skiptraceStatuses(dataset.id, column, next.region) : [];
-      setBase(next); setOutcomeColumn(column); setCalled(next.outcome?.called_column ?? next.phone_columns[0] ?? "");
+      const nextCalled = next.outcome?.called_column ?? next.phone_columns[0] ?? "";
+      const table = column ? await skiptraceStatuses(dataset.id, column, next.region, namesMapped(next, nextCalled)) : [];
+      setBase(next); setOutcomeColumn(column); setCalled(nextCalled);
       setStatuses(table); setMeaning(Object.fromEntries(table.map(item => [item.key, next.outcome?.map[item.key] ?? item.outcomes])));
-      setReviewed([]); setStep(0); setStatusPageIndex(0);
+      setReviewed(settledKeys(table, next.outcome?.map)); setStep(0); setStatusPageIndex(0);
     } finally { setStatusBusy(false); }
   }
   const watch = (kind: "scan" | "apply") => ({
@@ -413,10 +424,14 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
         {statusBusy && <p role="status">Loading status meanings…</p>}
         {outcomeColumn && <details className="step skiptrace-optional"><summary>How call meanings and dates are used</summary><p className="muted">Known wrong numbers and disconnected lines apply across the project. Wrong person applies to the assigned owner of the called phone field and needs a mapped name. Reached means someone answered; it cannot also be a negative outcome. DNC can accompany either. Voicemail and no answer record activity only.</p><p className="muted">Dates inside statuses use {base.region === "US" ? "month/day/year" : "day/month/year"}; year-first dates stay unambiguous. DNC end dates are inclusive. Undated successful calls have an unknown age.</p></details>}
         {outcomeColumn && statuses.length > 0 && <>
-          <p className="muted">{statuses.length - unreviewed.length} of {statuses.length} statuses reviewed · {ignored.length} ignored · {unreviewed.length} unreviewed. Unreviewed suggestions are included when checking. Statuses waiting for you are at the top; confirm or ignore one and it moves to the bottom. If you change a meaning, press Confirm to finish that status.</p>
+          <p className="status-summary"><strong>{unreviewed.length ? `${unreviewed.length} ${unreviewed.length === 1 ? "status needs" : "statuses need"} you` : "Every status is settled"}</strong>
+            <span className="muted"> · {automatic} settled automatically · {settledBefore} decided before · {ignored.length} ignored</span></p>
+          <p className="muted">{unreviewed.length ? "The ones that need you are at the top, each with the reason. Confirm or ignore one and it moves to the bottom; " : "Look over the automatic ones below if you like; "}
+            what you choose is remembered for every list in this project. If you change a meaning, press Confirm to finish that status.
+            {setup.status_model ? " Unfamiliar wording is also compared with a small model on this computer." : ""}</p>
           <div className="row"><SearchBox value={statusQuery} onChange={value => { setStatusQuery(value); setStatusPageIndex(0); }} placeholder="Search call statuses" />
-            <Check checked={unreviewedOnly} onChange={on => { setUnreviewedOnly(on); setStatusPageIndex(0); }}>Only unreviewed</Check>
-            {unreviewed.length > 0 && <button type="button" className="button small" onClick={() => setReviewed(statuses.map(item => item.key))}>Looks right: confirm all {unreviewed.length}</button>}
+            <Check checked={unreviewedOnly} onChange={on => { setUnreviewedOnly(on); setStatusPageIndex(0); }}>Only what needs me</Check>
+            {unreviewed.length > 0 && <button type="button" className="button small" onClick={() => { setReviewed(statuses.map(item => item.key)); decide(Object.fromEntries(unreviewed.map(item => [item.key, meaning[item.key] ?? []]))); }}>Looks right: confirm all {unreviewed.length}</button>}
           </div>
         </>}
         {outcomeColumn && statuses.length > 0 && (
@@ -427,20 +442,20 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                 <tr><th scope="col">Status / rows</th><th scope="col">Meaning</th><th scope="col">Review</th></tr>
               </thead>
               <tbody>
-                {statusView.rows.map(status => (
-                  <tr key={status.key}>
+                {statusView.rows.map(status => { const note = reviewNote(status, reviewed.includes(status.key), meaning[status.key]); return (
+                  <tr key={status.key} className={note.needs ? "needs-you" : undefined}>
                     <th scope="row">{status.example}<small className="status-row-count muted">{formatNumber(status.count)} rows</small></th>
                     <td><details className="status-meanings"><summary aria-label={`Edit meanings for ${status.example}`}>{setup.outcomes.filter(outcome => (meaning[status.key] ?? []).includes(outcome.id)).map(outcome => outcome.label).join(" · ") || "No outcome"}<span className="muted">Edit</span></summary><div className="status-meaning-options">{setup.outcomes.map(outcome => (
                         <Check label={`${status.example}: ${outcome.label}`} checked={(meaning[status.key] ?? []).includes(outcome.id)}
                           key={outcome.id} onChange={on => { setMeaning({ ...meaning, [status.key]: toggled(meaning[status.key] ?? [], outcome.id, on) }); }}>{outcome.label}</Check>
                     ))}</div></details></td>
-                    <td><span className="muted">{reviewed.includes(status.key) ? meaning[status.key]?.length ? "Reviewed" : "Intentionally ignored" : "Suggested · unreviewed"}</span>
-                      <div className="row"><button type="button" className="link" onClick={() => setReviewed([...new Set([...reviewed, status.key])])}>Confirm</button>
-                      <button type="button" className="link" onClick={() => { setMeaning({ ...meaning, [status.key]: [] }); setReviewed([...new Set([...reviewed, status.key])]); }}>Ignore</button>
-                      {reviewed.includes(status.key) && <button type="button" className="link" onClick={() => setReviewed(reviewed.filter(key => key !== status.key))}>Mark unreviewed</button>}</div>
+                    <td><span className={note.needs ? "status-note needs" : "status-note muted"}>{note.label}</span>{note.detail && <small className="status-why muted">{note.detail}</small>}
+                      <div className="row"><button type="button" className="link" onClick={() => confirmStatus(status.key, meaning[status.key] ?? [])}>Confirm</button>
+                      <button type="button" className="link" onClick={() => { setMeaning({ ...meaning, [status.key]: [] }); confirmStatus(status.key, []); }}>Ignore</button>
+                      {reviewed.includes(status.key) && <button type="button" className="link" onClick={() => { setReviewed(reviewed.filter(key => key !== status.key)); decide({ [status.key]: null }); }}>Mark unreviewed</button>}</div>
                     </td>
                   </tr>
-                ))}
+                ); })}
               </tbody>
             </table>
           </div>

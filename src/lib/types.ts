@@ -52,7 +52,13 @@ export type SkiptraceConfig = OwnerColumns & {
   signals: Record<string, boolean>;
 };
 
-export type StatusRow = { key: string; example: string; count: number; outcomes: Outcome[]; confirmed?: boolean };
+/** How a status's meaning was found: the person's earlier choice, the phrase rules, the rules checked by the model,
+ * the model alone (only for wording the person decided before), this list's saved setup, or nothing. */
+export type StatusSource = "memory" | "rules" | "rules+model" | "model" | "saved" | "none";
+export type StatusRow = {
+  key: string; example: string; count: number; outcomes: Outcome[]; confirmed?: boolean;
+  sure?: boolean; source?: StatusSource; why?: string; doubt?: string;
+};
 
 export type SkiptraceSuggestion = {
   dataset_id: string;
@@ -66,6 +72,7 @@ export type SkiptraceSuggestion = {
   outcomes: { id: Outcome; label: string }[];
   signals: { code: string; label: string; measured_only: boolean }[];
   column_samples: Record<string, string[]>;
+  status_model?: boolean;
 };
 
 export type ColumnReport = {
