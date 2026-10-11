@@ -618,3 +618,6 @@ tbody tr:first-child th[scope="row"] { border-top: 0; }
   .skiptrace-report > summary { flex-wrap: wrap; }
   .skiptrace-report > summary .count { margin-left: 20px; }
 }
+
+/* Table headers stay at the top of a table that scrolls inside its own box. */
+.skiptrace-report-body .table-wrap thead th, .preview-table thead th, .history-table thead th { position: sticky; top: 0; z-index: 1; background: var(--raised); box-shadow: 0 1px 0 var(--line); }
