@@ -85,6 +85,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
 
   const columns = useMemo(() => (rows?.[0] ? Object.keys(rows[0].raw) : []), [rows]);
   const own = useMemo(() => ownColumns(columns), [columns]);
+  const dull = useMemo(() => dullColumns(own, rows?.map(row => row.raw) ?? []), [own, rows]);
   const phoneColumns = useMemo(() => checkedPhoneColumns(columns), [columns]);
   const areaMap = useMemo(() => areaColumns(columns, turf.areaMaps[dataset.id]), [columns, turf.areaMaps, dataset.id]);
   const position = useMemo(() => positionColumns(columns), [columns]);
@@ -174,7 +175,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
 
   const checked = phoneColumns.length > 0;
   const rawPhones = own.filter(name => /phone|mobile|cell/i.test(name));
-  const shownColumns = own.filter(name => !PLUMBING.test(name) && !phoneColumns.includes(name)).slice(0, checked ? 4 : 6);
+  const shownColumns = own.filter(name => !PLUMBING.test(name) && !phoneColumns.includes(name) && !dull.has(name)).slice(0, checked ? 4 : 6);
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
   const current = Math.min(page, pages - 1);
   const visible = filtered.slice(current * PAGE, current * PAGE + PAGE);
@@ -506,6 +507,20 @@ function MapNote({ placement, located, columns, datasetId, onStatus, onLocated, 
       {result && <p className="muted" role="status">{result}</p>}
     </div>
   );
+}
+
+const PLACEHOLDER = /^(n\/?a|null|none|nan|unknown|undefined|-+|\.+|0+)$/i;
+
+// Columns that tell the rows apart from nothing: the same value on every row, mostly blank, or only placeholders.
+// The table leaves them out so its few slots go to useful columns; the row's detail still lists every column.
+function dullColumns(names: string[], rows: Record<string, string | number | null>[]) {
+  const dull = new Set<string>();
+  if (rows.length < 2) return dull;
+  for (const name of names) {
+    const values = rows.map(row => String(row[name] ?? "").trim()).filter(value => value !== "" && !PLACEHOLDER.test(value));
+    if (values.length < rows.length * 0.1 || new Set(values).size <= 1 && values.length === rows.length) dull.add(name);
+  }
+  return dull.size === names.length ? new Set<string>() : dull;
 }
 
 function formatCell(name: string, value: string | number | null) {
