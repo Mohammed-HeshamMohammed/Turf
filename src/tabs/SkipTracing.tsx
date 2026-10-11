@@ -413,10 +413,10 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
         {statusBusy && <p role="status">Loading status meanings…</p>}
         {outcomeColumn && <details className="step skiptrace-optional"><summary>How call meanings and dates are used</summary><p className="muted">Known wrong numbers and disconnected lines apply across the project. Wrong person applies to the assigned owner of the called phone field and needs a mapped name. Reached means someone answered; it cannot also be a negative outcome. DNC can accompany either. Voicemail and no answer record activity only.</p><p className="muted">Dates inside statuses use {base.region === "US" ? "month/day/year" : "day/month/year"}; year-first dates stay unambiguous. DNC end dates are inclusive. Undated successful calls have an unknown age.</p></details>}
         {outcomeColumn && statuses.length > 0 && <>
-          <p className="muted">{statuses.length - unreviewed.length} of {statuses.length} statuses reviewed · {ignored.length} ignored · {unreviewed.length} unreviewed. Unreviewed suggestions are included when checking.</p>
+          <p className="muted">{statuses.length - unreviewed.length} of {statuses.length} statuses reviewed · {ignored.length} ignored · {unreviewed.length} unreviewed. Unreviewed suggestions are included when checking. Statuses waiting for you are at the top; confirm or ignore one and it moves to the bottom. If you change a meaning, press Confirm to finish that status.</p>
           <div className="row"><SearchBox value={statusQuery} onChange={value => { setStatusQuery(value); setStatusPageIndex(0); }} placeholder="Search call statuses" />
             <Check checked={unreviewedOnly} onChange={on => { setUnreviewedOnly(on); setStatusPageIndex(0); }}>Only unreviewed</Check>
-            <button type="button" className="button ghost small" onClick={() => setReviewed([...new Set([...reviewed, ...statusView.rows.map(item => item.key)])])}>Confirm meanings on this page</button>
+            {unreviewed.length > 0 && <button type="button" className="button small" onClick={() => setReviewed(statuses.map(item => item.key))}>Looks right: confirm all {unreviewed.length}</button>}
           </div>
         </>}
         {outcomeColumn && statuses.length > 0 && (
@@ -432,7 +432,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                     <th scope="row">{status.example}<small className="status-row-count muted">{formatNumber(status.count)} rows</small></th>
                     <td><details className="status-meanings"><summary aria-label={`Edit meanings for ${status.example}`}>{setup.outcomes.filter(outcome => (meaning[status.key] ?? []).includes(outcome.id)).map(outcome => outcome.label).join(" · ") || "No outcome"}<span className="muted">Edit</span></summary><div className="status-meaning-options">{setup.outcomes.map(outcome => (
                         <Check label={`${status.example}: ${outcome.label}`} checked={(meaning[status.key] ?? []).includes(outcome.id)}
-                          key={outcome.id} onChange={on => { setMeaning({ ...meaning, [status.key]: toggled(meaning[status.key] ?? [], outcome.id, on) }); setReviewed([...new Set([...reviewed, status.key])]); }}>{outcome.label}</Check>
+                          key={outcome.id} onChange={on => { setMeaning({ ...meaning, [status.key]: toggled(meaning[status.key] ?? [], outcome.id, on) }); }}>{outcome.label}</Check>
                     ))}</div></details></td>
                     <td><span className="muted">{reviewed.includes(status.key) ? meaning[status.key]?.length ? "Reviewed" : "Intentionally ignored" : "Suggested · unreviewed"}</span>
                       <div className="row"><button type="button" className="link" onClick={() => setReviewed([...new Set([...reviewed, status.key])])}>Confirm</button>

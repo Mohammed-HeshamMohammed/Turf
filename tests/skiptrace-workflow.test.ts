@@ -17,6 +17,12 @@ describe("complete and reusable setup", () => {
     expect(statusPage(statuses, "Status 100", false, [], 9).rows).toEqual([statuses[100]]);
     expect(statusPage(statuses, "", true, ["status 100"], 5).total).toBe(100);
   });
+  it("moves a decided status to the bottom so the next one rises", () => {
+    const statuses = ["a", "b", "c"].map(key => ({ key, example: key, count: 1 })) as Parameters<typeof statusPage>[0];
+    expect(statusPage(statuses, "", false, [], 0).rows.map(row => row.key)).toEqual(["a", "b", "c"]);
+    expect(statusPage(statuses, "", false, ["a"], 0).rows.map(row => row.key)).toEqual(["b", "c", "a"]);
+    expect(statusPage(statuses, "", false, ["a", "b", "c"], 0).rows.map(row => row.key)).toEqual(["a", "b", "c"]);
+  });
   it("chooses the latest copy regardless of dataset ordering", () => {
     const older = { id: "old", parent_dataset_id: "parent", kind: "checked", created_at: "2026-01-01" } as Dataset;
     const newer = { ...older, id: "new", created_at: "2026-02-01" };

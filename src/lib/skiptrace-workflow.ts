@@ -25,7 +25,9 @@ export function missingColumns(config: SkiptraceConfig, columns: string[]): stri
 
 export function statusPage(statuses: StatusRow[], query: string, unreviewedOnly: boolean, reviewed: string[], page: number, size = 20) {
   const needle = query.trim().toLowerCase();
-  const filtered = statuses.filter(status => (!needle || status.example.toLowerCase().includes(needle)) && (!unreviewedOnly || !reviewed.includes(status.key)));
+  const matching = statuses.filter(status => (!needle || status.example.toLowerCase().includes(needle)) && (!unreviewedOnly || !reviewed.includes(status.key)));
+  // Statuses still waiting for a decision come first; each one decided drops to the bottom, so the next one takes its place.
+  const filtered = [...matching.filter(status => !reviewed.includes(status.key)), ...matching.filter(status => reviewed.includes(status.key))];
   const pages = Math.max(1, Math.ceil(filtered.length / size));
   const current = Math.min(Math.max(0, page), pages - 1);
   return { rows: filtered.slice(current * size, (current + 1) * size), total: filtered.length, pages, current };
