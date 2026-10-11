@@ -75,6 +75,7 @@ class Service:
             "skiptrace.suggest": lambda p: skiptrace.suggest(self._store(), p["dataset_id"], str(p.get("region") or "US")),
             "skiptrace.statuses": lambda p: skiptrace.statuses_for(self._store(), p["dataset_id"], p["column"], str(p.get("region") or "US"), p.get("names_mapped") is not False),
             "skiptrace.remember": lambda p: skiptrace.remember_statuses(self._store(), p["dataset_id"], p.get("decisions")),
+            "skiptrace.model_status": lambda p: skiptrace.status_model.state(),
             "skiptrace.save_settings": lambda p: skiptrace.save_settings(self._store(), p["dataset_id"], p.get("config")),
             "skiptrace.scan": lambda p: {"job_id": self._submit("skiptrace_scan", p)},
             "skiptrace.apply": lambda p: {"job_id": self._submit("skiptrace_apply", p)},

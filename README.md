@@ -72,12 +72,9 @@ Three readers look at each status, most trusted first (`service/turf_matching/st
 
 Do not call is never dropped on a guess. A status like "DNC: interested" or "DNC until 10/07/2025: Not interested" keeps Do not call but always needs you: "DNC" there may be the dialer's bucket for "stop dialing" with the real reason after it, and only you know whether the person asked not to be called. A wrong-person meaning needs a mapped name column.
 
-The model is optional (Model2Vec `potion-base-8M`, MIT, about 30 MB, CPU and numpy only, loaded from this computer, never from the internet). To use it:
+The model (Model2Vec `potion-base-8M`, MIT, about 31 MB, CPU and numpy only) sets itself up: the first time Skip Tracing opens a list, it is downloaded once in the background from Hugging Face at a fixed revision, checked against known SHA-256 checksums, and kept in Turf's app data. Until then, or offline, statuses are read without it, and the table updates by itself when it is ready. It needs the `model2vec` package from `service/requirements.txt`.
 
-```bash
-pip install model2vec==0.9.0
-python service/tools/fetch_status_model.py
-```
+Lists set up with the earlier version take the new readings by themselves: a saved meaning (or draft) equal to the old version's suggestion is replaced, and one you changed is kept and remembered for the project.
 
 `service/tests/status_wording.py` holds about 225 labelled statuses; the tests check that nothing there is confirmed wrongly and no do-not-call is dropped, with and without the model.
 

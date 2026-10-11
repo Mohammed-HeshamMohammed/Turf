@@ -6,15 +6,15 @@ import { ListPicker } from "../components/ListPicker";
 import { ListDownloads } from "../components/ListDownloads";
 import { PhoneLookup } from "../components/PhoneLookup";
 import { DialerEvidence } from "../components/DialerEvidence";
-import { cancelSkiptraceJob, knownSuggestion, skiptraceFreshness, skiptraceApply, skiptraceRemember, skiptraceSave, skiptraceScan, skiptraceStatuses, skiptraceSuggest, watchJob } from "../lib/service";
+import { cancelSkiptraceJob, knownSuggestion, skiptraceFreshness, skiptraceApply, skiptraceModelStatus, skiptraceRemember, skiptraceSave, skiptraceScan, skiptraceStatuses, skiptraceSuggest, watchJob } from "../lib/service";
 import { useVisited } from "../lib/hooks";
 import { formatNumber } from "../lib/marks";
 import { ManualEvidence } from "../components/ManualEvidence";
 import { CheckedPreview, SkiptraceReview } from "../components/SkiptraceReview";
 import { SkiptraceTemplates } from "../components/SkiptraceTemplates";
 import { SkiptraceColumns } from "../components/SkiptraceColumns";
-import { checkedCopies, missingColumns, namesMapped, readDraft, reviewNote, settledKeys, SIGN_HELP, STAGE_LABELS, statusPage, stableKey, type WorkflowDraft } from "../lib/skiptrace-workflow";
-import type { Dataset, Outcome, SignReport, SkiptraceConfig, SkiptraceReport, SkiptraceSuggestion, StatusRow, Verdict } from "../lib/types";
+import { checkedCopies, missingColumns, namesMapped, readDraft, refreshReadings, reviewNote, sameOutcomes, settledKeys, SIGN_HELP, STAGE_LABELS, statusPage, stableKey, type WorkflowDraft } from "../lib/skiptrace-workflow";
+import type { Dataset, Outcome, SignReport, SkiptraceConfig, SkiptraceReport, SkiptraceSuggestion, StatusModelState, StatusRow, Verdict } from "../lib/types";
 
 // Wording follows DataForge's Skip Tracing tab, so the two say the same thing about the same data.
 const MEANINGS: { id: Verdict; meaning: string }[] = [
@@ -133,6 +133,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   const [statusQuery, setStatusQuery] = useState("");
   const [unreviewedOnly, setUnreviewedOnly] = useState(false);
   const [statusPageIndex, setStatusPageIndex] = useState(0);
+  const [modelState, setModelState] = useState<StatusModelState | undefined>(known?.status_model);
   const [reviewFilter, setReviewFilter] = useState("all");
   const [reviewRow, setReviewRow] = useState<number | undefined>();
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -152,6 +153,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
         const result = known ?? await skiptraceSuggest(dataset.id);
         if (!current) return;
         setSetup(result);
+        setModelState(result.status_model);
         if (result.saved) setSavedConfigKey(stableKey(result.config));
         if (!draft) {
           setBase(result.config); setOutcomeColumn(result.outcome_column); setCalled(calledOf(result));
@@ -162,8 +164,19 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           const table = await skiptraceStatuses(dataset.id, draft.outcomeColumn, draft.base.region, namesMapped(draft.base, draft.called));
           if (!current) return;
           setStatuses(table);
-          setMeaning(Object.fromEntries(table.map(item => [item.key, draft.meaning[item.key] ?? item.outcomes])));
-          setReviewed([...new Set([...draft.reviewed, ...settledKeys(table, draft.meaning)])]);
+          if (draft.readings === 2) {
+            setMeaning(Object.fromEntries(table.map(item => [item.key, draft.meaning[item.key] ?? item.outcomes])));
+            setReviewed([...new Set([...draft.reviewed, ...settledKeys(table, draft.meaning)])]);
+          } else {
+            // A draft from the earlier version: its plain suggestions give way to today's readings; the person's own
+            // changes stay, and the ones they confirmed are remembered for the project.
+            const earlier = table.map(item => ({ ...item, outcomes: item.earlier ?? [], confirmed: true }));
+            const next = refreshReadings(earlier, table, draft.meaning, draft.reviewed);
+            setMeaning(Object.fromEntries(table.map(item => [item.key, next.meaning[item.key] ?? item.outcomes])));
+            setReviewed(next.reviewed);
+            const chosen = table.filter(item => item.key && draft.reviewed.includes(item.key) && draft.meaning[item.key] && !sameOutcomes(draft.meaning[item.key], item.earlier ?? []));
+            if (chosen.length) void skiptraceRemember(dataset.id, Object.fromEntries(chosen.map(item => [item.key, draft.meaning[item.key]]))).catch(() => undefined);
+          }
         } else setStatuses([]);
       } catch (reason) { if (current) setError(reason instanceof Error ? reason.message : String(reason)); }
       finally { if (current) setStatusBusy(false); }
@@ -241,10 +254,29 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
 
   useEffect(() => {
     if (!setup || !base || statusBusy) return;
-    const state: WorkflowDraft = { base, outcomeColumn, called, meaning, reviewed, step, copyName, report, scannedWith, activeJob };
+    const state: WorkflowDraft = { base, outcomeColumn, called, meaning, reviewed, step, copyName, report, scannedWith, activeJob, readings: 2 };
     try { localStorage.setItem(draftKey, JSON.stringify({ version: 1, state })); setDraftError(null); }
     catch { setDraftError("Your draft could not be saved on this computer. Keep this tab open; storage may be full or unavailable."); }
   }, [setup, base, outcomeColumn, called, meaning, reviewed, step, copyName, report, scannedWith, draftKey, statusBusy, activeJob]);
+
+  useEffect(() => {
+    if (modelState !== "downloading") return;
+    let current = true;
+    const timer = window.setInterval(async () => {
+      try {
+        const next = (await skiptraceModelStatus()).state;
+        if (!current || next === "downloading") return;
+        if (next === "ready" && outcomeColumn && base) {
+          const table = await skiptraceStatuses(dataset.id, outcomeColumn, base.region, namesMapped(base, called));
+          if (!current) return;
+          const refreshed = refreshReadings(statuses, table, meaning, reviewed);
+          setStatuses(table); setMeaning(refreshed.meaning); setReviewed(refreshed.reviewed);
+        }
+        setModelState(next);  // last: it ends this polling
+      } catch { /* the next tick tries again */ }
+    }, 2000);
+    return () => { current = false; window.clearInterval(timer); };
+  }, [modelState, outcomeColumn, base, called, statuses, meaning, reviewed, dataset.id]);
 
   const outcomeColumns = useMemo(() => {
     if (!setup) return [];
@@ -428,7 +460,8 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
             <span className="muted"> · {automatic} settled automatically · {settledBefore} decided before · {ignored.length} ignored</span></p>
           <p className="muted">{unreviewed.length ? "The ones that need you are at the top, each with the reason. Confirm or ignore one and it moves to the bottom; " : "Look over the automatic ones below if you like; "}
             what you choose is remembered for every list in this project. If you change a meaning, press Confirm to finish that status.
-            {setup.status_model ? " Unfamiliar wording is also compared with a small model on this computer." : ""}</p>
+            {modelState === "ready" ? " Unfamiliar wording is also compared with a small model on this computer." : ""}</p>
+          {modelState === "downloading" && <p className="muted" role="status">Getting the small status model ready (first time only, about 31 MB). Statuses are read without it until then and update by themselves.</p>}
           <div className="row"><SearchBox value={statusQuery} onChange={value => { setStatusQuery(value); setStatusPageIndex(0); }} placeholder="Search call statuses" />
             <Check checked={unreviewedOnly} onChange={on => { setUnreviewedOnly(on); setStatusPageIndex(0); }}>Only what needs me</Check>
             {unreviewed.length > 0 && <button type="button" className="button small" onClick={() => { setReviewed(statuses.map(item => item.key)); decide(Object.fromEntries(unreviewed.map(item => [item.key, meaning[item.key] ?? []]))); }}>Looks right: confirm all {unreviewed.length}</button>}

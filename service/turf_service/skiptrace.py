@@ -20,6 +20,7 @@ from .datasets import _register_rows, confirm_mapping, latest_mapping
 from .jobs import JobContext, JobKind, JobValidationError
 from .storage import ProjectStore, utc_now
 from .manual import list_marks
+from . import status_model
 from .status_model import embedder
 
 OUTPUT_SUFFIXES = ("verdict", "why", "E.164", "type", "quality", "permission")
@@ -133,11 +134,58 @@ def _samples(rows: list[dict], columns: list[str]) -> dict:
 # settled on the next. Only their own decisions are kept: a meaning Turf confirmed by itself is not, so a mistake
 # cannot teach itself.
 STATUS_MEMORY = "skiptrace.status_meanings"
+# When this project's setups saved by the earlier version of Turf were taken over (see _upgrade_earlier_setups).
+STATUS_UPGRADE = "skiptrace.status_meanings.upgraded"
+
+
+def _project_setting(store: ProjectStore, key: str):
+    row = store._connection.execute("SELECT value_json FROM project_settings WHERE key = ?", (key,)).fetchone()
+    return json.loads(row["value_json"]) if row else None
+
+
+def _write_project_setting(store: ProjectStore, key: str, value) -> None:
+    store._connection.execute(
+        "INSERT INTO project_settings(key, value_json, updated_at) VALUES (?, ?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at",
+        (key, json.dumps(value, sort_keys=True), utc_now()),
+    )
 
 
 def status_memory(store: ProjectStore) -> dict[str, dict]:
-    row = store._connection.execute("SELECT value_json FROM project_settings WHERE key = ?", (STATUS_MEMORY,)).fetchone()
-    return json.loads(row["value_json"]) if row else {}
+    _upgrade_earlier_setups(store)
+    return _project_setting(store, STATUS_MEMORY) or {}
+
+
+def _upgrade_earlier_setups(store: ProjectStore) -> str:
+    """Once per project: the meanings the person chose in setups saved by the earlier version of Turf join the
+    project's memory, so they apply to every list. A saved meaning equal to what that version suggested was its
+    suggestion, not a choice, and is left out; today's reading replaces it. Wording that two lists answered
+    differently is left for the person. Returns when this happened: setups saved before then are earlier ones."""
+    done = _project_setting(store, STATUS_UPGRADE)
+    if done:
+        return done["at"]
+    at = utc_now()
+    choices: dict[str, dict] = {}
+    clashing: set[str] = set()
+    for row in store._connection.execute(
+        "SELECT d.name, s.config_json FROM skiptrace_settings s JOIN datasets d ON d.id = s.dataset_id ORDER BY s.updated_at"
+    ):
+        for key, outcomes in (((json.loads(row["config_json"]).get("outcome") or {}).get("map")) or {}).items():
+            outcomes = status_meaning.sort_outcomes(outcomes)
+            wording = status_meaning.canonical(key)
+            if not wording or outcomes == status_meaning.earlier_outcomes(key):
+                continue
+            if wording in choices and choices[wording]["outcomes"] != outcomes:
+                clashing.add(wording)
+            choices[wording] = {"key": key, "outcomes": outcomes, "list": row["name"], "at": at}
+    memory = _project_setting(store, STATUS_MEMORY) or {}
+    for wording, choice in choices.items():
+        if wording not in clashing:
+            memory.setdefault(wording, choice)
+    with store._connection:
+        _write_project_setting(store, STATUS_MEMORY, memory)
+        _write_project_setting(store, STATUS_UPGRADE, {"at": at})
+    return at
 
 
 def remember_statuses(store: ProjectStore, dataset_id: str, decisions: object) -> dict:
@@ -159,11 +207,7 @@ def remember_statuses(store: ProjectStore, dataset_id: str, decisions: object) -
             raise ValueError("A status cannot be both wrong number/wrong person/disconnected and reached a person")
         memory[wording] = {"key": str(key), "outcomes": status_meaning.sort_outcomes(outcomes), "list": name, "at": utc_now()}
     with store._connection:
-        store._connection.execute(
-            "INSERT INTO project_settings(key, value_json, updated_at) VALUES (?, ?, ?) "
-            "ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at",
-            (STATUS_MEMORY, json.dumps(memory, sort_keys=True), utc_now()),
-        )
+        _write_project_setting(store, STATUS_MEMORY, memory)
     return {"remembered": len(memory)}
 
 
@@ -173,28 +217,37 @@ def _names_mapped(config: dict) -> bool:
     return any(person.get(key) for key in ("first_name_column", "last_name_column", "name_column"))
 
 
-def _status_rows(store: ProjectStore, rows: list[dict], column: str, day_first: bool, names_mapped: bool, saved_map: dict | None = None) -> list[dict]:
-    """The status table, read with the project's memory and the model, and marked confirmed where Turf is sure."""
+def _status_rows(store: ProjectStore, rows: list[dict], column: str, day_first: bool, names_mapped: bool, saved_map: dict | None = None,
+                 earlier_setup: bool = False) -> list[dict]:
+    """The status table, read with the project's memory and the model, and marked confirmed where Turf is sure.
+    `earlier_setup`: `saved_map` was saved by the earlier version of Turf, whose plain suggestions give way."""
     table = engine.status_table((row.get(column) for row in rows), day_first, memory=status_memory(store), embed=embedder())
     statuses = []
     for item in table:
+        earlier = status_meaning.earlier_outcomes(item["key"])
         if not names_mapped and "wrong_person" in item["outcomes"]:
             # Wrong person needs to know whose name it is about; without a name column it cannot be saved.
             item = {**item, "outcomes": [kind for kind in item["outcomes"] if kind != "wrong_person"], "sure": False, "doubt": "names",
                     "why": "Means wrong person: map a name column in Column roles to use it"}
-        if saved_map and item["key"] in saved_map and not saved_map[item["key"]]:
+        if earlier_setup and saved_map and item["key"] in saved_map:
+            if status_meaning.sort_outcomes(saved_map[item["key"]]) != earlier:
+                item = {**item, "outcomes": status_meaning.sort_outcomes(saved_map[item["key"]]), "sure": True, "source": "saved", "doubt": "",
+                        "why": "You chose this on this list" if saved_map[item["key"]] else "Ignored on this list"}
+            # otherwise it was the earlier version's suggestion: today's reading stands
+        elif saved_map and item["key"] in saved_map and not saved_map[item["key"]]:
             # A setup keeps a status without a meaning only when the person chose to ignore it.
             item = {**item, "outcomes": [], "sure": True, "source": "saved", "doubt": "", "why": "Ignored on this list"}
         elif saved_map and item["key"] in saved_map and saved_map[item["key"]] != item["outcomes"]:
             # A saved meaning may be the person's, or a suggestion saved without a look: they say which.
             item = {**item, "outcomes": saved_map[item["key"]], "sure": False, "source": "saved", "doubt": "saved",
                     "why": "Saved with this list's earlier setup; confirm it to keep it"}
-        statuses.append({**item, "confirmed": bool(item["key"]) and item["sure"]})
+        statuses.append({**item, "confirmed": bool(item["key"]) and item["sure"], "earlier": earlier})
     return statuses
 
 
 def suggest(store: ProjectStore, dataset_id: str, region: str = "US") -> dict:
     _dataset(store, dataset_id)
+    status_model.ensure()  # Skip Tracing is open: fetch the status model now if it is missing, in the background
     _, rows = _rows(store, dataset_id)
     columns = list(dict.fromkeys(column for row in rows for column in row))
     roles, _, confirmed = _roles(store, dataset_id, columns)
@@ -205,11 +258,14 @@ def suggest(store: ProjectStore, dataset_id: str, region: str = "US") -> dict:
     outcome = (config.get("outcome") or {}).get("column") if saved is not None else ((config.get("outcome") or {}).get("column") or (found["outcome_candidates"][0]["column"] if found["outcome_candidates"] else None))
     if outcome:
         saved_map = ((saved or {}).get("outcome") or {}).get("map") or {}
-        statuses = _status_rows(store, rows, outcome, config.get("region", region) != "US", _names_mapped(config), saved_map)
+        upgraded = _upgrade_earlier_setups(store)
+        saved_at = store._connection.execute("SELECT updated_at FROM skiptrace_settings WHERE dataset_id = ?", (dataset_id,)).fetchone()
+        statuses = _status_rows(store, rows, outcome, config.get("region", region) != "US", _names_mapped(config), saved_map,
+                                earlier_setup=bool(saved_at) and saved_at["updated_at"] <= upgraded)
     return {
         "dataset_id": dataset_id, "rows": len(rows), "columns": columns, "config": config, "saved": saved is not None,
         "roles_confirmed": confirmed, "outcome_candidates": found["outcome_candidates"], "outcome_column": outcome, "statuses": statuses,
-        "status_model": embedder() is not None,
+        "status_model": status_model.state()["state"],
         "outcomes": [{"id": kind, "label": engine.OUTCOME_LABELS[kind]} for kind in engine.OUTCOMES],
         "column_samples": _samples(rows, columns),
         "signals": [{"code": code, "label": engine.SIGNALS[code], "measured_only": code not in engine.COUNTABLE_SIGNALS} for code in engine.SIGNALS],
@@ -230,6 +286,7 @@ def save_settings(store: ProjectStore, dataset_id: str, config: object) -> dict:
     _, rows = _rows(store, dataset_id)
     columns = list(dict.fromkeys(column for row in rows for column in row))
     cleaned = clean_config(config, columns)
+    _upgrade_earlier_setups(store)  # first, so this setup is not taken for one saved by the earlier version
     with store._connection:
         store._connection.execute(
             "INSERT INTO skiptrace_settings(dataset_id, config_json, updated_at) VALUES (?, ?, ?) "

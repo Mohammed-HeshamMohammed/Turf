@@ -3,7 +3,7 @@
 // dev server, which talks to the service the same way the host does. The UI never touches SQLite, files or workers directly.
 
 import type { ManualMarks } from "./marks";
-import type { AreaMapping, Dataset, DatasetRow, ManualMark, Outcome, SkiptraceConfig, SkiptraceReport, SkiptraceSuggestion, StatusRow, Verdict, ReviewRow } from "./types";
+import type { AreaMapping, Dataset, DatasetRow, ManualMark, Outcome, SkiptraceConfig, SkiptraceReport, SkiptraceSuggestion, StatusModelState, StatusRow, Verdict, ReviewRow } from "./types";
 
 type Envelope<T> = { schema_version: 1; ok: true; result: T } | { schema_version: 1; ok: false; error: { code: string; message: string } };
 
@@ -171,6 +171,7 @@ export const knownSuggestion = (dataset_id: string) => suggestions.get(dataset_i
 export const clearSuggestions = () => suggestions.clear();
 export const skiptraceStatuses = (dataset_id: string, column: string, region: string, names_mapped = true) =>
   call<StatusRow[]>("skiptrace.statuses", { dataset_id, column, region, names_mapped });
+export const skiptraceModelStatus = () => call<{ state: StatusModelState; done?: number; total?: number; detail?: string }>("skiptrace.model_status");
 /** Keeps the person's status decisions for the whole project (null forgets one). Every list's suggestion may change. */
 export const skiptraceRemember = (dataset_id: string, decisions: Record<string, Outcome[] | null>) => {
   suggestions.clear();

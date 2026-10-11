@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import zlib
 from pathlib import Path
@@ -158,3 +159,64 @@ def test_a_saved_meaning_that_differs_is_asked_again_and_an_ignored_one_stays_ig
     statuses = {item["key"]: item for item in ok(service, "skiptrace.suggest", dataset_id=dataset)["statuses"]}
     assert statuses["interested"]["outcomes"] == ["do_not_call"] and not statuses["interested"]["confirmed"] and statuses["interested"]["doubt"] == "saved"
     assert statuses["not yet reached"]["confirmed"] and statuses["not yet reached"]["why"] == "Ignored on this list"
+
+
+def test_the_earlier_versions_suggestions_are_known_exactly():
+    assert sm.earlier_outcomes("left voicemail") == [] and sm.earlier_outcomes("number disconnected") == ["wrong_number"]
+    assert sm.earlier_outcomes("dnc: sold") == ["do_not_call", "reached"] and sm.earlier_outcomes("not yet reached") == []
+
+
+def old_setup(service, dataset, mapping):
+    """A setup as the earlier version of Turf saved it, before this project was opened with this one."""
+    config = ok(service, "skiptrace.suggest", dataset_id=dataset)["config"]
+    config["outcome"] = {"column": "Status", "called_column": "Phone", "map": mapping}
+    with service.store._connection:
+        service.store._connection.execute("DELETE FROM project_settings WHERE key LIKE 'skiptrace.status_meanings%'")
+        service.store._connection.execute("INSERT OR REPLACE INTO skiptrace_settings(dataset_id, config_json, updated_at) VALUES (?, ?, ?)",
+                                          (dataset, json.dumps(config), "2026-01-01T00:00:00+00:00"))
+
+
+def test_lists_set_up_before_take_todays_readings_and_keep_what_the_person_chose(service, tmp_path, monkeypatch):
+    monkeypatch.setattr(skiptrace, "embedder", lambda: None)
+    rows = [["Ana", "Lopez", f"(713) 555-{3100 + i}", "", "77009", "TX", status] for i, status in enumerate(("LVM", "Interested", "Not yet reached", "Callback"))]
+    old = make_dataset(service, tmp_path, "Old", rows)
+    other = make_dataset(service, tmp_path, "Other old", rows)
+    # LVM: the earlier suggestion (nothing); Interested: changed by the person; Callback: two lists disagree
+    old_setup(service, old, {"interested": ["do_not_call"], "callback": ["reached"]})
+    config = ok(service, "skiptrace.suggest", dataset_id=other)["config"]
+    config["outcome"] = {"column": "Status", "called_column": "Phone", "map": {"callback": ["voicemail"]}}
+    with service.store._connection:
+        service.store._connection.execute("INSERT OR REPLACE INTO skiptrace_settings(dataset_id, config_json, updated_at) VALUES (?, ?, ?)",
+                                          (other, json.dumps(config), "2026-01-02T00:00:00+00:00"))
+    statuses = {item["key"]: item for item in ok(service, "skiptrace.suggest", dataset_id=old)["statuses"]}
+    assert statuses["lvm"]["outcomes"] == ["voicemail"] and statuses["lvm"]["confirmed"], "the old blank suggestion gives way"
+    assert statuses["interested"]["outcomes"] == ["do_not_call"] and statuses["interested"]["confirmed"]
+    memory = skiptrace.status_memory(service.store)
+    assert memory["interested"]["outcomes"] == ["do_not_call"] and memory["interested"]["list"] == "Old"
+    assert "callback" not in memory, "two lists answered differently: the person decides"
+    fresh = make_dataset(service, tmp_path, "New", rows)
+    later = {item["key"]: item for item in ok(service, "skiptrace.suggest", dataset_id=fresh)["statuses"]}
+    assert later["interested"]["outcomes"] == ["do_not_call"] and later["interested"]["why"] == "You chose this on “Old”"
+    # a setup saved from now on is not taken for an earlier one
+    saved = ok(service, "skiptrace.suggest", dataset_id=fresh)["config"]
+    saved["outcome"] = {"column": "Status", "called_column": "Phone", "map": {"lvm": ["no_answer"]}}
+    ok(service, "skiptrace.save_settings", dataset_id=fresh, config=saved)
+    assert {item["key"]: item for item in ok(service, "skiptrace.suggest", dataset_id=fresh)["statuses"]}["lvm"]["doubt"] == "saved"
+
+
+def test_the_model_is_fetched_once_checked_and_never_used_damaged(tmp_path, monkeypatch):
+    import hashlib
+    import io
+    monkeypatch.setattr(status_model, "MODEL_FILES", {"a.bin": hashlib.sha256(b"model bytes").hexdigest()})
+    status_model.download(tmp_path / "good", opener=lambda url, timeout: io.BytesIO(b"model bytes"))
+    assert (tmp_path / "good" / "a.bin").read_bytes() == b"model bytes"
+    with pytest.raises(ValueError, match="checksum"):
+        status_model.download(tmp_path / "bad", opener=lambda url, timeout: io.BytesIO(b"something else"))
+    assert not any((tmp_path / "bad").iterdir()), "a file that does not match is not kept"
+    monkeypatch.setenv("TURF_STATUS_MODEL", str(tmp_path / "missing"))
+    started = []
+    monkeypatch.setattr(status_model.threading, "Thread", lambda **kwargs: started.append(kwargs) or type("T", (), {"start": lambda self: None})())
+    assert status_model.embedder() is None and started == [], "tests and offline setups can turn fetching off"
+    monkeypatch.setenv("TURF_STATUS_MODEL_DOWNLOAD", "1")
+    assert status_model.embedder() is None and len(started) == 1 and status_model.state()["state"] == "downloading"
+    status_model._fetch.update(state="idle")

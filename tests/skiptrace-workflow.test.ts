@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkedCopies, missingColumns, namesMapped, readDraft, reviewNote, settledKeys, stableKey, statusPage } from "../src/lib/skiptrace-workflow";
+import { checkedCopies, missingColumns, namesMapped, readDraft, refreshReadings, reviewNote, settledKeys, stableKey, statusPage } from "../src/lib/skiptrace-workflow";
 import type { Dataset, SkiptraceConfig } from "../src/lib/types";
 
 const config: SkiptraceConfig = { phone_columns: ["Phone"], region: "US", country_column: null, first_name_column: null, last_name_column: null, name_column: "Name", zip_column: null, state_column: null, signals: {}, outcome: { column: "Status", called_column: "Phone", map: { ignored: [] } } };
@@ -35,6 +35,21 @@ describe("complete and reusable setup", () => {
     expect(reviewNote(table[1], false, ["do_not_call", "reached"])).toEqual({ label: "Needs you", detail: "Starts with DNC", needs: true });
     expect(reviewNote(table[1], true, ["reached"]).label).toBe("Reviewed");
     expect(reviewNote({ ...table[0], source: "memory", why: "You chose this on “A”" }, true, ["reached"]).label).toBe("You chose this on “A”");
+  });
+  it("takes newer readings without undoing what the person settled or changed", () => {
+    type Row = Parameters<typeof refreshReadings>[0][number];
+    const row = (key: string, outcomes: string[], confirmed: boolean) => ({ key, example: key, count: 1, outcomes, confirmed }) as unknown as Row;
+    const before = [row("lvm", ["voicemail"], true), row("odd words", [], false), row("hung up on", [], false), row("mine", ["reached"], false)];
+    const after = [row("lvm", ["voicemail"], true), row("odd words", ["reached"], true), row("hung up on", ["reached"], false), row("mine", ["no_answer"], false)];
+    const next = refreshReadings(before, after, { lvm: ["voicemail"], "odd words": [], "hung up on": ["do_not_call"], mine: ["reached"] } as never, ["lvm", "mine"]);
+    expect(next.meaning).toEqual({ lvm: ["voicemail"], "odd words": ["reached"], "hung up on": ["do_not_call"], mine: ["reached"] });
+    expect(next.reviewed).toEqual(["lvm", "mine", "odd words"]);
+    // a draft from the earlier version: what equals the earlier suggestion gives way, changes stay
+    const earlier = [row("lvm", [], true), row("interested", ["reached"], true)];
+    const today = [row("lvm", ["voicemail"], true), row("interested", ["reached"], true)];
+    const upgraded = refreshReadings(earlier, today, { lvm: [], interested: ["do_not_call"] } as never, ["lvm", "interested"]);
+    expect(upgraded.meaning).toEqual({ lvm: ["voicemail"], interested: ["do_not_call"] });
+    expect(upgraded.reviewed).toEqual(["lvm", "interested"]);
   });
   it("knows whether the called phone's owner has a name column", () => {
     const base = { phone_columns: ["P1", "P2"], first_name_column: "First", additional_owners: [{ name_column: null }], phone_owner_map: { P1: 0, P2: 1 } } as unknown as Parameters<typeof namesMapped>[0];

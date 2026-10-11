@@ -11,6 +11,8 @@ export type WorkflowDraft = {
   report: SkiptraceReport | null;
   scannedWith: string | null;
   activeJob?: { id: string; kind: "scan" | "apply"; configKey: string } | null;
+  /** 2 once the status meanings come from today's readers; drafts saved before then hold the earlier suggestions. */
+  readings?: number;
 };
 export type SetupTemplate = { id: string; name: string; config: SkiptraceConfig; at: string };
 
@@ -36,6 +38,31 @@ export const sameOutcomes = (a: Outcome[] = [], b: Outcome[] = []) => a.length =
 /** Statuses the service settled by itself, unless the person has given them another meaning. */
 export function settledKeys(table: StatusRow[], meaning: Record<string, Outcome[]> = {}): string[] {
   return table.filter(item => item.confirmed && (meaning[item.key] === undefined || sameOutcomes(meaning[item.key], item.outcomes))).map(item => item.key);
+}
+
+/**
+ * Takes newer readings of the same statuses (the model became ready, or a draft from the earlier version is opened)
+ * without undoing the person: a status they settled or gave another meaning keeps it, everything else takes the new
+ * reading, and is settled when the new reading is sure.
+ */
+export function refreshReadings(previous: StatusRow[], next: StatusRow[], meaning: Record<string, Outcome[]>, reviewed: string[]) {
+  const before = new Map(previous.map(item => [item.key, item]));
+  const nextMeaning = { ...meaning };
+  const stays = new Set<string>();
+  for (const item of next) {
+    const old = before.get(item.key);
+    const chosen = meaning[item.key];
+    const personal = old !== undefined && reviewed.includes(item.key) && !old.confirmed;
+    const edited = old !== undefined && chosen !== undefined && !sameOutcomes(chosen, old.outcomes);
+    if (personal || edited) {
+      if (reviewed.includes(item.key)) stays.add(item.key);
+      continue;
+    }
+    nextMeaning[item.key] = item.outcomes;
+    if (item.confirmed) stays.add(item.key);
+  }
+  const kept = reviewed.filter(key => stays.has(key));
+  return { meaning: nextMeaning, reviewed: [...kept, ...next.filter(item => stays.has(item.key) && !kept.includes(item.key)).map(item => item.key)] };
 }
 
 /** What the review column says about a status. */

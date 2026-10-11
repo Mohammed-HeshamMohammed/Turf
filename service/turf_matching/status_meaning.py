@@ -282,6 +282,26 @@ TIE = 0.08          # neighbours this close to the best must agree with it
 # filled in for the person costs more than a blank one.
 
 
+# ------------------------------------------------------------------------------------------------- earlier version
+
+# What Turf suggested before these readers (skiptrace version 4), kept only to tell its old suggestions apart from
+# what the person chose in setups and drafts saved then: a saved meaning equal to the old suggestion is replaced by
+# today's reading; one that differs was the person's and is kept.
+_EARLIER_WRONG = re.compile(r"wrong\s*(number|#|no\b|person)|bad number|invalid number|disconnected|not in service|out of service|no longer in service|number (is )?not (valid|working)|\bfax\b|unreachable number")
+_EARLIER_UNTRIED = re.compile(r"not yet|not called|untouched|no attempt|never called|new lead|queued|not started|pending|^new$|^open$|^unworked$|ready to call")
+_EARLIER_DNC = re.compile(r"\bdnc\b|do not call|don't call|dont call|do-not-call|stop calling|remove (me|from)|\bcease\b|opt[- ]?out|unsubscribe|litigator|\btcpa\b|never call|no more calls")
+_EARLIER_REACHED = re.compile(r"interested|appointment|call ?back|follow ?up|\boffer|contract|\bsold\b|spoke|talked|answered|contacted|connected|conversation|qualified|booked|nurture|negotiat")
+
+
+def earlier_outcomes(key: str) -> list[str]:
+    """The meaning the earlier version of Turf suggested for a status key."""
+    if _EARLIER_WRONG.search(key):
+        return ["wrong_number"]
+    if _EARLIER_UNTRIED.search(key) and not _EARLIER_DNC.search(key):
+        return []
+    return [kind for kind, pattern in (("do_not_call", _EARLIER_DNC), ("reached", _EARLIER_REACHED)) if pattern.search(key)]
+
+
 def _model_text(key: str) -> str:
     reason = dnc_reason(key)
     return spell_out(reason if reason is not None else key)

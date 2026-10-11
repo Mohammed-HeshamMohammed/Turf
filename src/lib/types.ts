@@ -58,7 +58,11 @@ export type StatusSource = "memory" | "rules" | "rules+model" | "model" | "saved
 export type StatusRow = {
   key: string; example: string; count: number; outcomes: Outcome[]; confirmed?: boolean;
   sure?: boolean; source?: StatusSource; why?: string; doubt?: string;
+  /** What the earlier version of Turf suggested, to tell its old suggestions apart from the person's choices. */
+  earlier?: Outcome[];
 };
+/** The small status model: on this computer, being fetched (first time only), or not available. */
+export type StatusModelState = "ready" | "downloading" | "waiting" | "failed" | "unavailable";
 
 export type SkiptraceSuggestion = {
   dataset_id: string;
@@ -72,7 +76,7 @@ export type SkiptraceSuggestion = {
   outcomes: { id: Outcome; label: string }[];
   signals: { code: string; label: string; measured_only: boolean }[];
   column_samples: Record<string, string[]>;
-  status_model?: boolean;
+  status_model?: StatusModelState;
 };
 
 export type ColumnReport = {
