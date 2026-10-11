@@ -287,8 +287,9 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       created.addLayer({
         id: "chosen-row", type: "circle", source: "chosen", minzoom: 8.5,
         paint: {
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 3.4, 14, 5.2, 17, 8], "circle-color": ["case", ["get", "dim"], "#a9a9a9", INK],
-          "circle-stroke-color": "#ffffff", "circle-stroke-width": 2,
+          // Small and thinly outlined when far out, where a whole area's properties are close together, so they can be told apart.
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 1.8, 12, 2.6, 14, 4.8, 17, 8], "circle-color": ["case", ["get", "dim"], "#a9a9a9", INK],
+          "circle-stroke-color": "#ffffff", "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 9, 0.5, 13, 1.2, 15, 2],
         },
       });
       created.addLayer({
@@ -342,7 +343,7 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       const nameRow = (event: MapLayerMouseEvent) => {
         const properties = event.features?.[0]?.properties;
         if (!properties) return;
-        created.getCanvas().style.cursor = "default";
+        created.getCanvas().style.cursor = created.getZoom() < 17.5 ? "pointer" : "default";
         tip.setLngLat(event.lngLat).setHTML("<strong></strong><span></span>").addTo(created);
         const element = tip.getElement();
         element.querySelector("strong")!.textContent = String(properties.label || "Property");
@@ -400,6 +401,12 @@ export function StreetMap({ spots, points, outlines, outlineCount, selected, hov
       for (const layer of ["row", "row-tag", "chosen-row", "chosen-tag"]) {
         created.on("mousemove", layer, nameRow);
         created.on("mouseleave", layer, leave);
+        // Pressing a property zooms in on it, to tell it from the ones around it.
+        created.on("click", layer, (event: MapLayerMouseEvent) => {
+          const feature = event.features?.[0];
+          if (!feature || created.getZoom() >= 17.5) return;
+          created.easeTo({ center: (feature.geometry as unknown as { coordinates: [number, number] }).coordinates, zoom: Math.min(created.getZoom() + 2.5, 18), duration: 500 });
+        });
       }
       created.on("mouseenter", "clusters", () => { created.getCanvas().style.cursor = "pointer"; });
       created.on("mouseleave", "clusters", () => { created.getCanvas().style.cursor = ""; });
