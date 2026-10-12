@@ -343,6 +343,8 @@ def import_archive(store: ProjectStore, project_id: str, source_path: Path, name
     else:
         with zipfile.ZipFile(io.BytesIO(source_bytes)) as archive:
             entries = [entry for entry in archive.infolist() if not entry.is_dir() and Path(entry.filename).suffix.lower() in TABULAR_SUFFIXES]
+            # Turf: a .txt beside another data file is a note, not the table.
+            entries = [entry for entry in entries if Path(entry.filename).suffix.lower() != ".txt"] or entries
             if len(entries) != 1:
                 raise ValueError("ZIP import must contain exactly one supported data file")
             entry = entries[0]
