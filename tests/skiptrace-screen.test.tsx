@@ -184,7 +184,8 @@ describe("the complete five-step process", () => {
     await user.click(screen.getByRole("button", { name: /Rows needing review/ }));
     await waitFor(() => expect(mocks.review).toHaveBeenCalledWith("scan-1", "needs_review", 0, undefined));
     await user.click(within(document.querySelector(".wizard-nav") as HTMLElement).getByRole("button", { name: "Next" }));
-    expect(screen.getByText(/This saves the exact reviewed results/)).toBeTruthy();
+    expect(screen.getByText(/A new list with all 101 rows and the results added/)).toBeTruthy();
+    expect(screen.getByText(/101 of 101 rows have one/)).toBeTruthy();
     const preview = screen.getByText("Preview the checked copy").closest("details") as HTMLDetailsElement;
     expect(preview.open).toBe(false);
     await user.click(screen.getByText("Preview the checked copy"));
@@ -194,7 +195,9 @@ describe("the complete five-step process", () => {
     await user.type(screen.getByRole("textbox", { name: "Name of the checked copy" }), "Reviewed October");
     await user.click(screen.getByRole("button", { name: "Save checked copy" }));
     await waitFor(() => expect(mocks.apply.mock.calls[0].slice(0, 4)).toEqual(["list", config, "Reviewed October", "scan-1"]));
-    await screen.findByText("Saved 101 rows with 7 new columns.");
+    await screen.findByText("Saved 101 rows with 7 new columns as a new list.");
+    expect(within(document.querySelector(".wizard-nav") as HTMLElement).queryByRole("button", { name: "Save checked copy" })).toBeNull();
+    expect(within(document.querySelector(".wizard-nav") as HTMLElement).getByRole("button", { name: "Open in Lists" })).toBeTruthy();
   });
 
   it("restores the draft after the screen is unmounted, including deliberate ignores", async () => {
