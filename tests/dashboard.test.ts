@@ -57,6 +57,9 @@ describe("what the Dashboard tells from a list on its own", () => {
     expect(reachOf(raw({ Email: "a@b.co" }), context, null)).toBe("email");
     expect(reachOf(raw({ "Mailing Address": "12 Main St" }), context, null)).toBe("mail");
     expect(reachOf(raw({}), context, null)).toBe("none");
+    const checked = reachContext(columns, setup, email => email !== "a@b.co");
+    expect(reachOf(raw({ Email: "a@b.co", "Mailing Address": "12 Main St" }), checked, null)).toBe("mail");
+    expect(reachOf(raw({ Email: "a@b.co; c@d.co" }), checked, null)).toBe("email");
   });
 
   it("never shows a small share as 0%", () => {

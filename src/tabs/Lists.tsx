@@ -10,8 +10,9 @@ import { Icon } from "../components/Icon";
 import { ListPicker } from "../components/ListPicker";
 import { ListDownloads } from "../components/ListDownloads";
 import { PhoneChoices } from "../components/PhoneChoices";
-import { marksSource, useListSetups, useOwnerIndex, usePhotoIndex, useRows, useVisited } from "../lib/hooks";
-import { foundElsewhere, otherOwners, ownerFacts, OWNER_KINDS, type OwnerColumns, type OwnerIndex } from "../lib/owners";
+import { marksSource, useEmailVerdicts, useListSetups, useOwnerIndex, usePhotoIndex, useRows, useVisited } from "../lib/hooks";
+import { contactsOf, foundElsewhere, otherOwners, ownerFacts, OWNER_KINDS, type OwnerColumns, type OwnerIndex } from "../lib/owners";
+import type { EmailVerdict } from "../lib/service";
 import { photoColumns, photosFor, photosIn, placeColumns, positionOf, type PhotoIndex, type PlaceColumns } from "../lib/photos";
 import { PhotoGallery, PropertyPhoto } from "../components/PropertyPhoto";
 import {
@@ -545,7 +546,9 @@ function OwnerPanel({ row, owner }: { row: DatasetRow; owner: { columns: OwnerCo
   const found = foundElsewhere(row, owner.datasetId, owner.columns, owner.index);
   const others = otherOwners(row, owner.datasetId, owner.columns, owner.index);
   const kind = OWNER_KINDS.find(item => item.id === facts.kind);
-  if (!facts.name && !facts.mailing && !found.length) return null;
+  const ownEmails = [...contactsOf(row, owner.columns).emails];
+  const verdicts = useEmailVerdicts([...ownEmails, ...found.filter(item => item.kind === "email").map(item => item.value)]);
+  if (!facts.name && !facts.mailing && !found.length && !ownEmails.length) return null;
   const flags = [facts.absentee && "Absentee owner", facts.outOfState && "Out of state", facts.poBox && "PO box"].filter(Boolean) as string[];
   return (
     <section className="owner-panel" aria-label="Owner">
@@ -554,13 +557,14 @@ function OwnerPanel({ row, owner }: { row: DatasetRow; owner: { columns: OwnerCo
         {kind && <span className={`pill owner-${kind.id}`}>{kind.label}</span>}
       </div>
       {facts.mailing && <p className="owner-mail"><span className="muted">Mail goes to</span> {facts.mailing}{flags.map(flag => <span key={flag} className="pill pill-suspicious">{flag}</span>)}</p>}
+      {ownEmails.length > 0 && <p className="owner-mail"><span className="muted">Email</span> {ownEmails.map(email => <EmailWithVerdict key={email} email={email} verdict={verdicts.get(email)} />)}</p>}
       {others.map(item => <p key={item.list + item.owner} className="notice">{item.list} names {item.owner} as the owner of this property: it may have been sold, or one list has the wrong owner.</p>)}
       {found.length > 0 && (
         <div className="found-contacts">
           <h4>Found in your other lists</h4>
           <ul>{found.map(item => (
             <li key={item.value}>
-              <strong>{item.kind === "phone" && item.value.length === 10 ? formatPhone(`+1${item.value}`) : item.value}</strong>
+              {item.kind === "email" ? <EmailWithVerdict email={item.value} verdict={verdicts.get(item.value)} /> : <strong>{item.value.length === 10 ? formatPhone(`+1${item.value}`) : item.value}</strong>}
               {item.warning && <span className="pill pill-wrong">{item.warning}</span>}
               <small>{item.list} · {item.basis}</small>
             </li>
@@ -568,6 +572,24 @@ function OwnerPanel({ row, owner }: { row: DatasetRow; owner: { columns: OwnerCo
         </div>
       )}
     </section>
+  );
+}
+
+const EMAIL_PILLS: Record<EmailVerdict["verdict"], { label: string; tone: string }> = {
+  ok: { label: "Takes mail", tone: "pill-corroborated" }, role: { label: "Shared box", tone: "pill-suspicious" }, invalid: { label: "Not an email", tone: "pill-wrong" },
+  typo: { label: "Likely typo", tone: "pill-suspicious" }, disposable: { label: "Throwaway", tone: "pill-wrong" }, no_mail: { label: "Takes no mail", tone: "pill-wrong" },
+  pending: { label: "Checking…", tone: "pill-none" }, unknown: { label: "Not checked", tone: "pill-none" },
+};
+
+/** An email with what its check found; a likely typo shows the address it probably is. */
+function EmailWithVerdict({ email, verdict }: { email: string; verdict?: EmailVerdict }) {
+  const pill = verdict ? EMAIL_PILLS[verdict.verdict] : null;
+  return (
+    <span className="email-verdict" title={verdict?.why}>
+      <strong>{email}</strong>
+      {pill && <span className={`pill ${pill.tone}`}>{pill.label}</span>}
+      {verdict?.suggestion && <small>Probably {verdict.suggestion}</small>}
+    </span>
   );
 }
 

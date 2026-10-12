@@ -280,3 +280,7 @@ export async function pickRegistryFile() {
   });
   return typeof selected === "string" ? selected : null;
 }
+
+// Email addresses: a verdict for each, with the domain's mail check finishing in the background.
+export type EmailVerdict = { verdict: "ok" | "role" | "invalid" | "typo" | "disposable" | "no_mail" | "pending" | "unknown"; why: string; suggestion?: string };
+export const checkEmails = (addresses: string[]) => call<Record<string, EmailVerdict>>("emails.check", { addresses });

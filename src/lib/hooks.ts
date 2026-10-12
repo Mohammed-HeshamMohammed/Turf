@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ownerColumns, ownerIndex } from "./owners";
 import { photoIndex, type PhotoIndex } from "./photos";
-import { allRows, skiptraceSuggest } from "./service";
+import { allRows, checkEmails, skiptraceSuggest, type EmailVerdict } from "./service";
 import type { AreaMapping, Dataset, DatasetRow, SkiptraceSuggestion } from "./types";
 
 /** State kept in this browser only. Reads and writes are guarded: storage can be blocked. */
@@ -147,3 +147,32 @@ export function useOwnerIndex(datasets: Dataset[], setups: Record<string, Skiptr
     return { index: ownerIndex(read), lists: read };
   }, [all, lists, setups, areaMaps]);
 }
+
+/** A verdict for each email address, asked again while domains are still being looked up. */
+export function useEmailVerdicts(addresses: string[]): Map<string, EmailVerdict> {
+  const [verdicts, setVerdicts] = useState<Map<string, EmailVerdict>>(new Map());
+  const key = [...new Set(addresses)].sort().join("\n");
+  useEffect(() => {
+    if (!key) { setVerdicts(new Map()); return; }
+    let current = true;
+    let timer = 0;
+    let tries = 0;
+    const list = key.split("\n");
+    const ask = async () => {
+      const found = new Map<string, EmailVerdict>();
+      for (let start = 0; start < list.length; start += 20_000) {
+        Object.entries(await checkEmails(list.slice(start, start + 20_000))).forEach(([address, verdict]) => found.set(address, verdict));
+      }
+      if (!current) return;
+      setVerdicts(found);
+      if ([...found.values()].some(item => item.verdict === "pending") && tries++ < 40) timer = window.setTimeout(() => void ask().catch(() => undefined), 2500);
+    };
+    void ask().catch(() => undefined);
+    return () => { current = false; window.clearTimeout(timer); };
+  }, [key]);
+  return verdicts;
+}
+
+/** Whether an email can be used to reach someone: not invalid, a typo, a throwaway, or a domain without mail. */
+export const usableEmail = (verdicts: Map<string, EmailVerdict>, address: string) =>
+  !["invalid", "typo", "disposable", "no_mail"].includes(verdicts.get(address)?.verdict ?? "ok");

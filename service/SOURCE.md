@@ -13,6 +13,7 @@ Only what Turf has was copied: projects, lists (import, list, rows) and Skip Tra
 | `turf_service/api.py`, `server.py` | same folder | Rewritten shorter: only the project, dataset, job and skiptrace commands, over stdin/stdout only |
 | `turf_service/geo.py`, `turf_service/data/zip_centres.csv`, `tools/build_zip_centres.py` | Turf's own, not a copy | Places rows on the map: ZIP centres from two public US Census Bureau files, exact addresses through the Bureau's geocoder |
 | `turf_service/dnc_registry.py` | Turf's own, not a copy | The National Do Not Call Registry from the person's download, kept in app data and asked by every phone check |
+| `turf_service/emails.py`, `turf_service/data/disposable_domains.txt` | Turf's own; the domain list is from disposable-email-domains (CC0) | Email verdicts: syntax, likely typos, throwaway domains, shared boxes, and whether the domain takes mail (DNS, cached in app data) |
 | `turf_service/images.py` | Turf's own, not a copy | Pictures written into cells are saved in the project's `artifacts/images`; the free USGS aerial view of a place, kept in app data |
 | `turf_service/tidy.py` | Turf's own, not a copy | Takes empty rows and columns out of imported lists already in a project, when the project is opened |
 | `turf_matching/phone.py`, `cleanup.py` | `workers/matching/src/dataforge_matching/` | No |

@@ -9,7 +9,7 @@ import { gatherForMap, placeRows, priceColumn, useZipCentres, useZipOutlines } f
 import { callProgress, contactCoverage, listingFields, nextSteps, phoneColumnsOf, PROGRESS, REACH, reachContext, reachOf, shareText, statusKey, type Coverage, type Progress, type ProgressKind, type ReachContext, type ReachKind } from "../lib/dashboard";
 import { photoColumns, photosFor, placeColumns, positionOf, streetPart } from "../lib/photos";
 import { PropertyPhoto } from "../components/PropertyPhoto";
-import { marksSource, useAllRows, useListSetups, useOwnerIndex, usePhotoIndex } from "../lib/hooks";
+import { marksSource, usableEmail, useAllRows, useEmailVerdicts, useListSetups, useOwnerIndex, usePhotoIndex } from "../lib/hooks";
 import { contactsOf, foundElsewhere, otherOwners, ownerFacts, OWNER_KINDS, type OwnerKind } from "../lib/owners";
 import {
   AREA_LABELS, AREA_LEVELS, KIND_LABELS, VERDICT_LABELS, areaColumns, checkedPhoneColumns, countAreas, formatDate, formatNumber,
@@ -70,10 +70,13 @@ export function Dashboard({ turf }: { turf: Turf }) {
   // `version` changes when a list is checked or a status is settled.
   const setups = useListSetups(datasets, turf.version);
   const owners = useOwnerIndex(datasets, setups, turf.areaMaps, turf.fail);
+  // Every email in the lists, checked: an address that cannot reach anyone does not count as a way to reach them.
+  const allEmails = useMemo(() => (owners ? [...new Set(owners.lists.flatMap(({ rows, columns }) => rows.flatMap(row => [...contactsOf(row, columns).emails])))] : []), [owners]);
+  const emailVerdicts = useEmailVerdicts(allEmails);
   // What the owners and their mail show, and the contacts other lists have for them, counted once per row.
   const ownerStats = useMemo(() => {
     if (!owners) return null;
-    const counts = { phoneElsewhere: 0, emailElsewhere: 0, ownerDiffers: 0, absentee: 0, outOfState: 0, poBox: 0, named: 0,
+    const counts = { phoneElsewhere: 0, emailElsewhere: 0, ownerDiffers: 0, absentee: 0, outOfState: 0, poBox: 0, named: 0, badEmails: 0,
       kinds: Object.fromEntries(OWNER_KINDS.map(kind => [kind.id, 0])) as Record<OwnerKind, number> };
     const perList: Record<string, number> = {};
     for (const { dataset, rows, columns } of owners.lists) {
@@ -82,6 +85,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
         if (facts.kind) { counts.kinds[facts.kind] += 1; counts.named += 1; }
         counts.absentee += Number(facts.absentee); counts.outOfState += Number(facts.outOfState); counts.poBox += Number(facts.poBox);
         const own = contactsOf(row, columns);
+        if (own.emails.size && ![...own.emails].some(email => usableEmail(emailVerdicts, email))) counts.badEmails += 1;
         const found = foundElsewhere(row, dataset.id, columns, owners.index);
         if (!own.phones.size && found.some(item => item.kind === "phone" && !item.warning)) { counts.phoneElsewhere += 1; perList[dataset.id] = (perList[dataset.id] ?? 0) + 1; }
         if (!own.emails.size && found.some(item => item.kind === "email")) counts.emailElsewhere += 1;
@@ -89,7 +93,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
       }
     }
     return { ...counts, perList };
-  }, [owners]);
+  }, [owners, emailVerdicts]);
   const known = zipValues.filter(value => centres.has(value)).length;
   const [kind, setKind] = useState("all");
   const [status, setStatus] = useState("all");
@@ -111,7 +115,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
       const verdicts: Record<Verdict, number> = { corroborated: 0, unverified: 0, suspicious: 0, wrong: 0 };
       let callable = 0;
       const checked = phoneColumns.length > 0;
-      const context = reachContext(columns, setups[dataset.id]);
+      const context = reachContext(columns, setups[dataset.id], email => usableEmail(emailVerdicts, email));
       const reach = Object.fromEntries(REACH.map(kind => [kind.id, 0])) as Record<ReachKind, number>;
       for (const row of rows) {
         const marks = readMarks(row.raw, phoneColumns, manual);
@@ -187,7 +191,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
     };
   // `known` changes as ZIP centres arrive.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allRows, primary, datasets, manual, turf.areaMaps, centres, known, setups, photoIndex, ownerStats]);
+  }, [allRows, primary, datasets, manual, turf.areaMaps, centres, known, setups, photoIndex, ownerStats, emailVerdicts]);
   const [view, setView] = useState<"calls" | "checks" | null>(null);
 
   // For the street map: every list's rows, each at its own place where it has one, and gathered by ZIP, city and state.
@@ -381,6 +385,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
             {[
               { key: "phone", value: ownerStats.phoneElsewhere, label: "Phone in another list", hint: "No phone of their own; the same owner has one in another list" },
               { key: "email", value: ownerStats.emailElsewhere, label: "Email in another list", hint: "No email of their own; another list has the owner's" },
+              { key: "emails", value: ownerStats.badEmails, label: "Emails that can't be used", hint: "Invalid, misspelled, throwaway, or the domain takes no mail" },
               { key: "differs", value: ownerStats.ownerDiffers, label: "Owner differs", hint: "Another list names someone else at the same property: sold, or a wrong owner" },
               { key: "company", value: ownerStats.kinds.company, label: "Companies and LLCs", hint: "The people behind them are found elsewhere" },
               { key: "trust", value: ownerStats.kinds.trust, label: "Trusts", hint: "The trustee decides" },

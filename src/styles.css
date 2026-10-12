@@ -727,6 +727,10 @@ tbody tr:first-child th[scope="row"] { border-top: 0; }
 .found-contacts small { flex-basis: 100%; color: var(--muted); font-size: 12px; }
 .owner-panel .notice { margin: 0; font-size: 13px; }
 
+.email-verdict { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-right: 10px; overflow-wrap: anywhere; }
+.email-verdict small { color: var(--muted); font-size: 12px; }
+.email-verdict .pill, .owner-mail .pill { padding: 2px 9px; font-size: 11.5px; }
+
 /* Owners and leads: one tile per signal the lists show by themselves. */
 .owners-card header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
 .signal-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); gap: 10px; }

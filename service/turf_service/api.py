@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import SCHEMA_VERSION
-from . import datasets, dnc_registry, downloads, geo, images, manual, phone_evidence, phone_lookup, projects, skiptrace, tidy
+from . import datasets, dnc_registry, downloads, emails, geo, images, manual, phone_evidence, phone_lookup, projects, skiptrace, tidy
 from .contracts import health_check
 from .jobs import JobContext, JobKind, JobRunner, JobValidationError
 from .logs import log
@@ -71,6 +71,7 @@ class Service:
             "dnc_registry.status": lambda p: dnc_registry.status(),
             "dnc_registry.import": lambda p: {"job_id": self._submit("dnc_registry_import", p)},
             "dnc_registry.remove": lambda p: dnc_registry.remove(p.get("area_code")),
+            "emails.check": lambda p: emails.check(p.get("addresses")),
             "images.embedded": lambda p: images.embedded(self._store(), p.get("name")),
             "images.aerial": lambda p: images.aerial(p.get("lat"), p.get("lon")),
             "geo.zip_centres": lambda p: geo.zip_centres(list(p.get("zips") or [])),

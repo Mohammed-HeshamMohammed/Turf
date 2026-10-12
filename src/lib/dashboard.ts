@@ -146,13 +146,15 @@ export type ReachContext = {
   phoneColumns: string[]; emailColumns: string[]; mailColumns: string[];
   /** Status column and what each status key means, when the list has call results. */
   statusColumn?: string; statusKinds?: Map<string, ProgressKind>;
+  /** Whether an email can reach someone, once checked; until then any address counts. */
+  emailOk?: (address: string) => boolean;
 };
 
-export function reachContext(columns: string[], setup?: SkiptraceSuggestion | null): ReachContext {
+export function reachContext(columns: string[], setup?: SkiptraceSuggestion | null, emailOk?: (address: string) => boolean): ReachContext {
   const kinds = setup?.outcome_column ? new Map(setup.statuses.filter(status => status.key).map(status => [status.key, progressKind(status)])) : undefined;
   return {
     phoneColumns: phoneColumnsOf(columns, setup), emailColumns: ownColumns(columns).filter(name => EMAIL_NAME.test(name)),
-    mailColumns: mailColumnsOf(columns, setup), statusColumn: setup?.outcome_column ?? undefined, statusKinds: kinds,
+    mailColumns: mailColumnsOf(columns, setup), statusColumn: setup?.outcome_column ?? undefined, statusKinds: kinds, emailOk,
   };
 }
 
@@ -164,7 +166,8 @@ export function reachOf(row: DatasetRow, context: ReachContext, callable: boolea
   if (kind === "do_not_call") return "blocked";
   if (callable !== null && hasPhone) return callable ? "ready" : "blocked";
   if (hasPhone) return kind === "bad_number" ? "blocked" : "phone";
-  if (context.emailColumns.some(column => String(row.raw[column] ?? "").includes("@"))) return "email";
+  const emails = context.emailColumns.flatMap(column => String(row.raw[column] ?? "").match(/[^@\s,;<>"']+@[^@\s,;<>"']+\.[a-z]{2,}/gi) ?? []);
+  if (emails.some(email => !context.emailOk || context.emailOk(email.toLowerCase()))) return "email";
   if (context.mailColumns.some(column => String(row.raw[column] ?? "").trim().length > 3)) return "mail";
   return "none";
 }
