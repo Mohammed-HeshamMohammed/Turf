@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import type { Turf } from "../App";
 import { AreaMap, type Dot } from "../components/AreaMap";
 import { Empty, MiniBars, SearchBox, Segmented } from "../components/Bits";
@@ -6,12 +6,14 @@ import { Select } from "../components/Select";
 import { copyText, useContextMenu } from "../components/ContextMenu";
 import { Icon } from "../components/Icon";
 import { gatherForMap, placeRows, priceColumn, useZipCentres, useZipOutlines } from "../lib/geo";
+import { callProgress, contactCoverage, nextSteps, phoneColumnsOf, PROGRESS, type Coverage, type Progress, type ProgressKind } from "../lib/dashboard";
 import { marksSource, useAllRows } from "../lib/hooks";
+import { skiptraceSuggest } from "../lib/service";
 import {
   AREA_LABELS, AREA_LEVELS, KIND_LABELS, VERDICT_LABELS, areaColumns, checkedPhoneColumns, countAreas, formatDate, formatNumber,
   positionColumns, readMarks,
 } from "../lib/marks";
-import { VERDICTS, type AreaLevel, type Dataset, type DatasetRow, type Verdict } from "../lib/types";
+import { VERDICTS, type AreaLevel, type Dataset, type DatasetRow, type SkiptraceSuggestion, type Verdict } from "../lib/types";
 
 // The street map and its library are fetched the first time a map is shown, not when the app starts.
 const StreetMap = lazy(() => import("../components/StreetMap").then(module => ({ default: module.StreetMap })));
@@ -25,6 +27,10 @@ type Summary = {
   callable: number;
   verdicts: Record<Verdict, number>;
   zips: number;
+  coverage: Coverage;
+  zipColumn?: string;
+  zipless: number;
+  progress: Progress | null;
 };
 
 const money = (value: unknown) => `$${formatNumber(Number(value) || 0)}`;
@@ -48,6 +54,18 @@ export function Dashboard({ turf }: { turf: Turf }) {
     return [...values];
   }, [allRows, sources, turf.areaMaps]);
   const centres = useZipCentres(zipValues, turf.fail);
+  // Each list's Skip Tracing setup: its phone columns and what its call statuses mean, settled by Turf or by the person.
+  // Reading it needs no phone check.
+  const [setups, setSetups] = useState<Record<string, SkiptraceSuggestion | null>>({});
+  const listKey = primary.map(dataset => dataset.id).join();
+  useEffect(() => {
+    let current = true;
+    void Promise.all(primary.map(dataset => skiptraceSuggest(dataset.id).then(setup => [dataset.id, setup] as const, () => [dataset.id, null] as const)))
+      .then(entries => { if (current) setSetups(Object.fromEntries(entries)); });
+    return () => { current = false; };
+  // `listKey` stands for `primary`; `version` changes when a list is checked or a status is settled.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listKey, turf.version]);
   const known = zipValues.filter(value => centres.has(value)).length;
   const [kind, setKind] = useState("all");
   const [status, setStatus] = useState("all");
@@ -74,10 +92,14 @@ export function Dashboard({ turf }: { turf: Turf }) {
         if (marks.best) callable += 1;
         if ((marks.knownWrong || marks.doNotCall) && marks.number) blocked.add(marks.number);
       }
+      const zipColumn = areaColumns(columns, turf.areaMaps[dataset.id]).zip;
+      const coverage = contactCoverage(rows, columns, phoneColumnsOf(columns, setups[dataset.id]));
       return {
         dataset, rows, columns, checked: phoneColumns.length > 0, callable, verdicts,
-        hasPhones: phoneColumns.length > 0 || columns.some(name => /phone|mobile|cell/i.test(name)),
-        zips: countAreas(rows, areaColumns(columns, turf.areaMaps[dataset.id]).zip).length,
+        hasPhones: phoneColumns.length > 0 || coverage.phone > 0,
+        zips: countAreas(rows, zipColumn).length, coverage, zipColumn,
+        zipless: zipColumn ? rows.filter(row => !String(row.raw[zipColumn] ?? "").trim()).length : rows.length,
+        progress: callProgress(setups[dataset.id]),
       };
     });
     const total = summaries.reduce((sum, item) => sum + item.rows.length, 0);
@@ -96,10 +118,22 @@ export function Dashboard({ turf }: { turf: Turf }) {
       }
     }
     listings.sort((a, b) => Number(a.row.raw["Days on Zillow"] ?? 999) - Number(b.row.raw["Days on Zillow"] ?? 999));
-    return { summaries, total, checkedRows, callable, verdicts, blocked: blocked.size, dots, listings: listings.slice(0, 3) };
+    const phoneRows = summaries.reduce((sum, item) => sum + item.coverage.phone, 0);
+    const emailRows = summaries.reduce((sum, item) => sum + item.coverage.email, 0);
+    const checkedNothing = summaries.reduce((sum, item) => sum + (item.checked ? Math.max(0, item.coverage.phone - item.callable) : 0), 0);
+    const uncheckedPhones = summaries.reduce((sum, item) => sum + (item.checked ? 0 : item.coverage.phone), 0);
+    const progress = Object.fromEntries(PROGRESS.map(kind => [kind.id, summaries.reduce((sum, item) => sum + (item.progress?.[kind.id] ?? 0), 0)])) as Record<ProgressKind, number>;
+    const withStatus = summaries.filter(item => item.progress);
+    const rowsNeedingYou = withStatus.reduce((sum, item) => sum + (item.progress?.rowsNeedingYou ?? 0), 0);
+    const steps = nextSteps(summaries.map(item => ({ dataset: item.dataset, rows: item.rows.length, checked: item.checked, phoneRows: item.coverage.phone, zipColumn: item.zipColumn, zipless: item.zipless, progress: item.progress })));
+    return {
+      summaries, total, checkedRows, callable, verdicts, blocked: blocked.size, dots, listings: listings.slice(0, 3),
+      phoneRows, emailRows, checkedNothing, uncheckedPhones, progress, withStatus: withStatus.length, rowsNeedingYou, steps,
+    };
   // `known` changes as ZIP centres arrive.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allRows, primary, datasets, manual, turf.areaMaps, centres, known]);
+  }, [allRows, primary, datasets, manual, turf.areaMaps, centres, known, setups]);
+  const [view, setView] = useState<"calls" | "checks" | null>(null);
 
   // For the street map: every list's rows, each at its own place where it has one, and gathered by ZIP, city and state.
   // Areas are named at the level the Areas card is on.
@@ -136,6 +170,12 @@ export function Dashboard({ turf }: { turf: Turf }) {
   const verdictTotal = VERDICTS.reduce((sum, verdict) => sum + data.verdicts[verdict], 0);
   const verdictMax = Math.max(1, ...VERDICTS.map(verdict => data.verdicts[verdict]));
   const areaMax = Math.max(1, ...areas.map(area => area.count));
+  const anyChecked = data.summaries.some(item => item.checked);
+  const progressTotal = PROGRESS.reduce((sum, kind) => sum + data.progress[kind.id], 0);
+  const progressMax = Math.max(1, ...PROGRESS.map(kind => data.progress[kind.id]));
+  const statusBlocked = data.progress.do_not_call + data.progress.bad_number;
+  // Call results come from the lists themselves; phone verdicts from the person's checks. Show whichever exists.
+  const shownView = view ?? (data.withStatus ? "calls" : "checks");
   const shownSpots = mapData.spots;
 
   return (
@@ -148,19 +188,22 @@ export function Dashboard({ turf }: { turf: Turf }) {
               <strong>{formatNumber(data.total)}</strong>
             </div>
             <div className="figure">
-              <span>Rows with a number to call</span>
-              <strong>{formatNumber(data.callable)}</strong>
+              <span>Rows with a phone</span>
+              <strong>{formatNumber(data.phoneRows)}</strong>
+              <small>{anyChecked ? `${formatNumber(data.callable)} callable in checked lists · ` : ""}{formatNumber(data.emailRows)} with an email</small>
             </div>
           </div>
-          <div className="split-bar" role="img" aria-label={`${formatNumber(data.callable)} rows callable, ${formatNumber(data.checkedRows - data.callable)} checked with no number to call, ${formatNumber(data.total - data.checkedRows)} not checked`}>
+          <div className="split-bar" role="img" aria-label={`${formatNumber(data.callable)} rows callable after a check, ${formatNumber(data.checkedNothing)} checked with nothing to call, ${formatNumber(data.uncheckedPhones)} with a phone not checked yet, ${formatNumber(data.total - data.phoneRows)} with no phone`}>
             <i className="solid" style={{ width: `${share(data.callable, data.total)}%` }} />
-            <i className="accent" style={{ width: `${share(data.checkedRows - data.callable, data.total)}%` }} />
-            <i className="hatch" />
+            <i className="accent" style={{ width: `${share(data.checkedNothing, data.total)}%` }} />
+            <i className="hatch" style={{ width: `${share(data.uncheckedPhones, data.total)}%`, flex: "none" }} />
+            <i className="nophone" />
           </div>
           <ul className="legend">
-            <li><i className="solid" />Callable</li>
-            <li><i className="accent" />Checked, no number to call</li>
-            <li><i className="hatch" />Not checked</li>
+            {anyChecked && <li><i className="solid" />Callable after a check</li>}
+            {anyChecked && <li><i className="accent" />Checked, nothing to call</li>}
+            <li><i className="hatch" />{anyChecked ? "Has a phone, not checked" : "Has a phone"}</li>
+            <li><i className="nophone" />No phone</li>
           </ul>
         </div>
         <div className="hero-map">
@@ -176,18 +219,16 @@ export function Dashboard({ turf }: { turf: Turf }) {
 
       <section className="cards">
         <div className="stack">
-          <article className="card stat">
-            <header>
-              <h2>Lists</h2>
-              <button type="button" className="round" aria-label="Open Lists" onClick={() => turf.open("lists")}><Icon name="arrow" /></button>
-            </header>
-            <div className="stat-body">
-              <div>
-                <strong>{data.summaries.length}</strong>
-                <span>{formatNumber(data.total)} rows</span>
-              </div>
-              <MiniBars values={data.summaries.map(item => item.rows.length)} />
-            </div>
+          <article className="card next-steps">
+            <header><h2>Next steps</h2>{data.steps.length > 3 && <span className="count">{data.steps.length}</span>}</header>
+            {data.steps.length ? (
+              <ul>{data.steps.slice(0, 3).map(step => (
+                <li key={step.key}>
+                  <div><strong>{step.text}</strong><small>{step.detail}</small></div>
+                  <button type="button" className="round" aria-label={`${step.action}: ${step.text}`} onClick={() => turf.open(step.tab, step.datasetId)}><Icon name="arrow" /></button>
+                </li>
+              ))}</ul>
+            ) : <p className="muted">Nothing waiting: every list is checked, every call status is settled, and every row is on the map.</p>}
           </article>
           <article className="card stat">
             <header>
@@ -196,8 +237,9 @@ export function Dashboard({ turf }: { turf: Turf }) {
             </header>
             <div className="stat-body">
               <div>
-                <strong>{formatNumber(data.blocked)}</strong>
-                <span>Wrong or do-not-call</span>
+                <strong>{formatNumber(anyChecked ? data.blocked : statusBlocked)}</strong>
+                <span>{anyChecked ? "Wrong or do-not-call numbers in checked lists" : "Rows whose call status says do not call or bad number"}</span>
+                {anyChecked && statusBlocked > 0 && <small>{formatNumber(statusBlocked)} rows by call status in all lists</small>}
               </div>
               <MiniBars values={data.summaries.map(item => item.verdicts.wrong)} />
             </div>
@@ -205,21 +247,43 @@ export function Dashboard({ turf }: { turf: Turf }) {
         </div>
 
         <article className="card verdicts">
-          <header><h2>Phone verdicts</h2></header>
-          <div className="verdict-total">
-            <strong>{formatNumber(verdictTotal)}</strong>
-            <span>Rows checked</span>
-          </div>
-          <ul className="hbars">
-            {VERDICTS.map(verdict => (
-              <li key={verdict}>
-                <div className="hbar" style={{ width: `${Math.max(34, (data.verdicts[verdict] / verdictMax) * 100)}%` }}>
-                  <span>{VERDICT_LABELS[verdict]} · {formatNumber(data.verdicts[verdict])}</span>
-                  <b>{Math.round(share(data.verdicts[verdict], verdictTotal))}%</b>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <header>
+            <h2>{shownView === "calls" ? "Call results" : "Phone verdicts"}</h2>
+            <Segmented label="Show" value={shownView} onChange={setView} options={[{ value: "calls", label: "Calls" }, { value: "checks", label: "Checks" }]} />
+          </header>
+          {shownView === "calls" ? (data.withStatus ? <>
+            <div className="verdict-total">
+              <strong>{formatNumber(progressTotal)}</strong>
+              <span>Rows in {data.withStatus === 1 ? "a list" : `${data.withStatus} lists`} with a call status</span>
+            </div>
+            <ul className="hbars">
+              {PROGRESS.filter(kind => kind.id !== "unclear" || data.progress.unclear).map(kind => (
+                <li key={kind.id}>
+                  <div className="hbar" style={{ width: `${Math.max(34, (data.progress[kind.id] / progressMax) * 100)}%` }}>
+                    <span>{kind.label} · {formatNumber(data.progress[kind.id])}</span>
+                    <b>{Math.round(share(data.progress[kind.id], progressTotal))}%</b>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {data.rowsNeedingYou > 0 && <p className="card-note">{formatNumber(data.rowsNeedingYou)} rows have a status that still needs you; they count by its suggested meaning.</p>}
+          </> : <Empty title="No call results">A list with a call status column shows how its calls went here, without a phone check.</Empty>)
+          : (verdictTotal ? <>
+            <div className="verdict-total">
+              <strong>{formatNumber(verdictTotal)}</strong>
+              <span>Rows checked</span>
+            </div>
+            <ul className="hbars">
+              {VERDICTS.map(verdict => (
+                <li key={verdict}>
+                  <div className="hbar" style={{ width: `${Math.max(34, (data.verdicts[verdict] / verdictMax) * 100)}%` }}>
+                    <span>{VERDICT_LABELS[verdict]} · {formatNumber(data.verdicts[verdict])}</span>
+                    <b>{Math.round(share(data.verdicts[verdict], verdictTotal))}%</b>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </> : <Empty title="No list checked yet">Checking a list's phones in Skip Tracing narrows them to the ones worth calling; their verdicts show here.</Empty>)}
         </article>
 
         <article className="card listings">
