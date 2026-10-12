@@ -733,3 +733,7 @@ tbody tr:first-child th[scope="row"] { border-top: 0; }
 .photo-strip button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ink); }
 .thumb .property-photo { position: absolute; inset: 0; }
 .thumb .round { z-index: 1; }
+/* The calls card is as tall as the listings beside it: its bars take the room left and spread over it. */
+.verdicts .bar-list { flex: 1; align-content: space-evenly; gap: 14px; }
+.verdicts .bar-list i { height: 10px; }
+.verdicts .card-note { margin-top: 14px; }
