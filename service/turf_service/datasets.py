@@ -21,7 +21,7 @@ from .storage import ProjectStore
 FUZZY_HEADER_THRESHOLD = 92
 MAX_IMPORT_BYTES = 50 * 1024 * 1024
 MAX_IMPORT_ROWS = 1_000_000
-TABULAR_SUFFIXES = (".csv", ".json", ".jsonl", ".ndjson", ".xlsx", ".xml", ".parquet", ".docx")
+TABULAR_SUFFIXES = (".csv", ".tsv", ".txt", ".json", ".jsonl", ".ndjson", ".xlsx", ".xml", ".parquet", ".docx")
 
 
 @dataclass(frozen=True)
@@ -267,6 +267,17 @@ def _rows_from_bytes(filename: str, content: bytes) -> tuple[list[str], list[dic
     if suffix == ".csv":
         reader = csv.DictReader(io.StringIO(content.decode("utf-8-sig")))
         return _normalized_rows([dict(row) for row in reader], "CSV")
+    if suffix in (".tsv", ".txt"):
+        # Turf: delimited text such as a county appraisal export: tabs, pipes or commas, found from the header line;
+        # text that is not UTF-8 is read as Windows-1252, as such exports usually are.
+        try:
+            text = content.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            text = content.decode("cp1252", errors="replace")
+        header = text.splitlines()[0] if text else ""
+        delimiter = "\t" if "\t" in header else "|" if "|" in header else ","
+        reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+        return _normalized_rows([dict(row) for row in reader], "delimited text")
     if suffix == ".json":
         document = json.loads(content.decode("utf-8-sig"))
         rows = [document] if isinstance(document, dict) else document

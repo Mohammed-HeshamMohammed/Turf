@@ -152,3 +152,11 @@ def test_a_list_is_renamed_and_deleted(tmp_path: Path) -> None:
     ok(svc, "dataset.delete", dataset_id=dataset_id)
     assert ok(svc, "dataset.list") == []
     assert ok(svc, "dataset.rows", dataset_id=dataset_id, offset=0, limit=10) == []
+
+
+def test_delimited_text_such_as_a_county_export_is_imported(tmp_path):
+    from turf_service.datasets import _rows_from_bytes
+    headers, rows = _rows_from_bytes("real_acct.txt", "acct\tmailto\tsite_addr_1\n001\tSMITH JOHN & MARY\t1200 EXAMPLE ST\n".encode("cp1252"))
+    assert headers == ["acct", "mailto", "site_addr_1"] and rows[0]["mailto"] == "SMITH JOHN & MARY"
+    _, piped = _rows_from_bytes("owners.tsv", "Owner|Zip\nCAF\xc9 LLC|77009\n".encode("cp1252"))
+    assert piped[0]["Owner"] == "CAFÉ LLC"

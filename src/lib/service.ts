@@ -112,7 +112,7 @@ export async function pickFolder() {
 
 export async function pickImportFile() {
   const selected = await (await import("@tauri-apps/plugin-dialog")).open({
-    multiple: false, directory: false, filters: [{ name: "Lists", extensions: ["csv", "xlsx", "json", "jsonl", "parquet"] }],
+    multiple: false, directory: false, filters: [{ name: "Lists", extensions: ["csv", "tsv", "txt", "xlsx", "json", "jsonl", "parquet"] }],
   });
   return typeof selected === "string" ? selected : null;
 }
