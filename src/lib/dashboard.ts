@@ -1,3 +1,4 @@
+import { streetColumn } from "./geo";
 import { ownColumns } from "./marks";
 import type { Dataset, DatasetRow, SkiptraceSuggestion, StatusRow } from "./types";
 
@@ -98,4 +99,74 @@ export function nextSteps(lists: ListFacts[]): NextStep[] {
     }
   }
   return steps.sort((a, b) => b.weight - a.weight);
+}
+
+// ---------------------------------------------------------------------------------------------- how to reach a row
+
+/** Each row by the best way to reach it, each row once. Colours are a validated categorical set (see the dataviz notes in
+ * styles.css); "do not call" uses the critical status colour and always comes with its label. */
+export const REACH = [
+  { id: "ready", label: "Ready to call", hint: "A checked list found a number worth calling", color: "#2a78d6" },
+  { id: "phone", label: "Phone, not checked yet", hint: "Has a phone number; a check sorts the good ones from the bad", color: "#eb6834" },
+  { id: "email", label: "Email only", hint: "No phone, but an email address", color: "#1baf7a" },
+  { id: "mail", label: "Mail only", hint: "No phone or email; only an address to mail", color: "#eda100" },
+  { id: "blocked", label: "Do not call or bad number", hint: "A call status or a phone check says not to call", color: "#d03b3b" },
+  { id: "none", label: "No contact info", hint: "Nothing to reach them by; these need skip tracing", color: "#cfcdc6" },
+] as const;
+export type ReachKind = (typeof REACH)[number]["id"];
+
+const DATE_AFTER_UNTIL = /\b(until|till|through|thru|expires?|exp)\s*:?\s*(\d{1,4}[/\-.]\d{1,2}[/\-.]\d{1,4})/gi;
+
+/** A status value as the service keys it (turf_matching.skiptrace.normalize_status): spacing folded, a date after
+ * "until" replaced, lower case. */
+export function statusKey(value: unknown): string {
+  return String(value ?? "").replace(/\s+/g, " ").trim()
+    .replace(DATE_AFTER_UNTIL, (_, word: string) => `${word.toLowerCase()} [date]`).toLowerCase();
+}
+
+/** The columns a letter could go to: the mailing address the setup maps (or one named so), else the property's street. */
+export function mailColumnsOf(columns: string[], setup?: SkiptraceSuggestion | null): string[] {
+  const own = ownColumns(columns);
+  const config = setup?.config;
+  const mapped = [config?.mailing_address_column, ...(config?.additional_owners ?? []).map(owner => owner.mailing_address_column)]
+    .filter((column): column is string => Boolean(column) && own.includes(column!));
+  if (mapped.length) return [...new Set(mapped)];
+  const named = own.filter(name => /^(owner\s*)?mail(ing)?\s*(address|addr|street)/i.test(name.trim()));
+  if (named.length) return named;
+  const street = streetColumn(own);
+  return street ? [street] : [];
+}
+
+export type ReachContext = {
+  phoneColumns: string[]; emailColumns: string[]; mailColumns: string[];
+  /** Status column and what each status key means, when the list has call results. */
+  statusColumn?: string; statusKinds?: Map<string, ProgressKind>;
+};
+
+export function reachContext(columns: string[], setup?: SkiptraceSuggestion | null): ReachContext {
+  const kinds = setup?.outcome_column ? new Map(setup.statuses.filter(status => status.key).map(status => [status.key, progressKind(status)])) : undefined;
+  return {
+    phoneColumns: phoneColumnsOf(columns, setup), emailColumns: ownColumns(columns).filter(name => EMAIL_NAME.test(name)),
+    mailColumns: mailColumnsOf(columns, setup), statusColumn: setup?.outcome_column ?? undefined, statusKinds: kinds,
+  };
+}
+
+/** How a row can be reached. `callable` is the phone check's answer (null when the list is not checked); a call status
+ * that says do not call wins over everything, as it does when calling. */
+export function reachOf(row: DatasetRow, context: ReachContext, callable: boolean | null): ReachKind {
+  const kind = context.statusColumn ? context.statusKinds?.get(statusKey(row.raw[context.statusColumn])) : undefined;
+  const hasPhone = context.phoneColumns.some(column => digits(row.raw[column]) >= 7);
+  if (kind === "do_not_call") return "blocked";
+  if (callable !== null && hasPhone) return callable ? "ready" : "blocked";
+  if (hasPhone) return kind === "bad_number" ? "blocked" : "phone";
+  if (context.emailColumns.some(column => String(row.raw[column] ?? "").includes("@"))) return "email";
+  if (context.mailColumns.some(column => String(row.raw[column] ?? "").trim().length > 3)) return "mail";
+  return "none";
+}
+
+/** A share as people read it: under one percent is "<1%", never a misleading 0%. */
+export function shareText(part: number, whole: number): string {
+  if (!whole || !part) return "0%";
+  const value = (part / whole) * 100;
+  return value < 1 ? "<1%" : `${Math.round(value)}%`;
 }

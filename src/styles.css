@@ -155,7 +155,30 @@ table.compact { margin-top: 14px; }
 .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; color: var(--muted); }
 .legend li { display: flex; align-items: center; gap: 6px; }
 .legend i { width: 14px; height: 8px; border-radius: 999px; flex: none; }
-.nophone { flex: 1; background: var(--raised); box-shadow: inset 0 0 0 1px #cfcfcf; }
+/* Dashboard charts, following the dataviz method: one breakdown bar with a 2px surface gap between segments and 4px
+   ends, a legend that carries every value as text (three of the colours sit under 3:1 on the card, so the text is the
+   relief), and single-hue bars drawn to scale with their labels beside them, never inside. Segment colours:
+   #2a78d6 #eb6834 #1baf7a #eda100 #d03b3b, validated as a categorical set on #f7f7f7 (all checks pass). */
+.reach { display: grid; gap: 10px; }
+.reach-title { margin: 0; font-size: 13px; font-weight: 550; color: var(--muted); }
+.reach-bar { display: flex; gap: 2px; height: 22px; }
+.reach-bar i { min-width: 3px; border-radius: 4px; }
+.reach-legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: 6px 18px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.reach-legend li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; }
+.reach-legend i { width: 10px; height: 10px; border-radius: 3px; }
+.reach-legend span { color: #444; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reach-legend b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.reach-legend em { min-width: 34px; font-style: normal; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.calls-figures { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 18px 0 14px; }
+.calls-figures strong { display: block; font-size: 30px; font-weight: 500; letter-spacing: -0.03em; }
+.calls-figures span { color: #555; font-size: 13.5px; }
+.bar-list-title { margin: 0 0 8px; font-size: 13px; font-weight: 550; color: var(--muted); }
+.bar-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.bar-list div { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: baseline; font-size: 13.5px; }
+.bar-list span { color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-list b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.bar-list em { min-width: 36px; font-style: normal; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.bar-list i { display: block; height: 8px; margin-top: 4px; min-width: 2px; border-radius: 0 4px 4px 0; background: #2a78d6; }
 .figure small { display: block; margin-top: 4px; color: var(--muted); font-size: 13px; }
 .stat-body small, .card-note { display: block; margin-top: 4px; color: var(--muted); font-size: 12.5px; }
 .card-note { margin: 10px 0 0; }

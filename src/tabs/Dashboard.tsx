@@ -6,7 +6,7 @@ import { Select } from "../components/Select";
 import { copyText, useContextMenu } from "../components/ContextMenu";
 import { Icon } from "../components/Icon";
 import { gatherForMap, placeRows, priceColumn, useZipCentres, useZipOutlines } from "../lib/geo";
-import { callProgress, contactCoverage, nextSteps, phoneColumnsOf, PROGRESS, type Coverage, type Progress, type ProgressKind } from "../lib/dashboard";
+import { callProgress, contactCoverage, nextSteps, phoneColumnsOf, PROGRESS, REACH, reachContext, reachOf, shareText, type Coverage, type Progress, type ProgressKind, type ReachKind } from "../lib/dashboard";
 import { marksSource, useAllRows } from "../lib/hooks";
 import { skiptraceSuggest } from "../lib/service";
 import {
@@ -31,6 +31,7 @@ type Summary = {
   zipColumn?: string;
   zipless: number;
   progress: Progress | null;
+  reach: Record<ReachKind, number>;
 };
 
 const money = (value: unknown) => `$${formatNumber(Number(value) || 0)}`;
@@ -86,11 +87,15 @@ export function Dashboard({ turf }: { turf: Turf }) {
       const phoneColumns = checkedPhoneColumns(columns);
       const verdicts: Record<Verdict, number> = { corroborated: 0, unverified: 0, suspicious: 0, wrong: 0 };
       let callable = 0;
+      const checked = phoneColumns.length > 0;
+      const context = reachContext(columns, setups[dataset.id]);
+      const reach = Object.fromEntries(REACH.map(kind => [kind.id, 0])) as Record<ReachKind, number>;
       for (const row of rows) {
         const marks = readMarks(row.raw, phoneColumns, manual);
         if (marks.verdict) verdicts[marks.verdict] += 1;
         if (marks.best) callable += 1;
         if ((marks.knownWrong || marks.doNotCall) && marks.number) blocked.add(marks.number);
+        reach[reachOf(row, context, checked ? Boolean(marks.best) : null)] += 1;
       }
       const zipColumn = areaColumns(columns, turf.areaMaps[dataset.id]).zip;
       const coverage = contactCoverage(rows, columns, phoneColumnsOf(columns, setups[dataset.id]));
@@ -99,7 +104,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
         hasPhones: phoneColumns.length > 0 || coverage.phone > 0,
         zips: countAreas(rows, zipColumn).length, coverage, zipColumn,
         zipless: zipColumn ? rows.filter(row => !String(row.raw[zipColumn] ?? "").trim()).length : rows.length,
-        progress: callProgress(setups[dataset.id]),
+        progress: callProgress(setups[dataset.id]), reach,
       };
     });
     const total = summaries.reduce((sum, item) => sum + item.rows.length, 0);
@@ -122,13 +127,14 @@ export function Dashboard({ turf }: { turf: Turf }) {
     const emailRows = summaries.reduce((sum, item) => sum + item.coverage.email, 0);
     const checkedNothing = summaries.reduce((sum, item) => sum + (item.checked ? Math.max(0, item.coverage.phone - item.callable) : 0), 0);
     const uncheckedPhones = summaries.reduce((sum, item) => sum + (item.checked ? 0 : item.coverage.phone), 0);
+    const reach = Object.fromEntries(REACH.map(kind => [kind.id, summaries.reduce((sum, item) => sum + item.reach[kind.id], 0)])) as Record<ReachKind, number>;
     const progress = Object.fromEntries(PROGRESS.map(kind => [kind.id, summaries.reduce((sum, item) => sum + (item.progress?.[kind.id] ?? 0), 0)])) as Record<ProgressKind, number>;
     const withStatus = summaries.filter(item => item.progress);
     const rowsNeedingYou = withStatus.reduce((sum, item) => sum + (item.progress?.rowsNeedingYou ?? 0), 0);
     const steps = nextSteps(summaries.map(item => ({ dataset: item.dataset, rows: item.rows.length, checked: item.checked, phoneRows: item.coverage.phone, zipColumn: item.zipColumn, zipless: item.zipless, progress: item.progress })));
     return {
       summaries, total, checkedRows, callable, verdicts, blocked: blocked.size, dots, listings: listings.slice(0, 3),
-      phoneRows, emailRows, checkedNothing, uncheckedPhones, progress, withStatus: withStatus.length, rowsNeedingYou, steps,
+      phoneRows, emailRows, checkedNothing, uncheckedPhones, progress, withStatus: withStatus.length, rowsNeedingYou, steps, reach,
     };
   // `known` changes as ZIP centres arrive.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -171,8 +177,10 @@ export function Dashboard({ turf }: { turf: Turf }) {
   const verdictMax = Math.max(1, ...VERDICTS.map(verdict => data.verdicts[verdict]));
   const areaMax = Math.max(1, ...areas.map(area => area.count));
   const anyChecked = data.summaries.some(item => item.checked);
-  const progressTotal = PROGRESS.reduce((sum, kind) => sum + data.progress[kind.id], 0);
-  const progressMax = Math.max(1, ...PROGRESS.map(kind => data.progress[kind.id]));
+  // Call results show the calls made; rows without a result are counted beside them, not drawn against them.
+  const CALLED = PROGRESS.filter(kind => kind.id !== "no_result");
+  const called = CALLED.reduce((sum, kind) => sum + data.progress[kind.id], 0);
+  const calledMax = Math.max(1, ...CALLED.map(kind => data.progress[kind.id]));
   const statusBlocked = data.progress.do_not_call + data.progress.bad_number;
   // Call results come from the lists themselves; phone verdicts from the person's checks. Show whichever exists.
   const shownView = view ?? (data.withStatus ? "calls" : "checks");
@@ -188,23 +196,29 @@ export function Dashboard({ turf }: { turf: Turf }) {
               <strong>{formatNumber(data.total)}</strong>
             </div>
             <div className="figure">
-              <span>Rows with a phone</span>
-              <strong>{formatNumber(data.phoneRows)}</strong>
-              <small>{anyChecked ? `${formatNumber(data.callable)} callable in checked lists · ` : ""}{formatNumber(data.emailRows)} with an email</small>
+              <span>Reachable</span>
+              <strong>{formatNumber(data.total - data.reach.none)}</strong>
+              <small>{formatNumber(data.phoneRows)} by phone · {formatNumber(data.emailRows)} by email{anyChecked ? ` · ${formatNumber(data.callable)} ready to call` : ""}</small>
             </div>
           </div>
-          <div className="split-bar" role="img" aria-label={`${formatNumber(data.callable)} rows callable after a check, ${formatNumber(data.checkedNothing)} checked with nothing to call, ${formatNumber(data.uncheckedPhones)} with a phone not checked yet, ${formatNumber(data.total - data.phoneRows)} with no phone`}>
-            <i className="solid" style={{ width: `${share(data.callable, data.total)}%` }} />
-            <i className="accent" style={{ width: `${share(data.checkedNothing, data.total)}%` }} />
-            <i className="hatch" style={{ width: `${share(data.uncheckedPhones, data.total)}%`, flex: "none" }} />
-            <i className="nophone" />
+          <div className="reach">
+            <h2 className="reach-title">How each row can be reached</h2>
+            <div className="reach-bar" role="img" aria-label={REACH.map(kind => `${kind.label}: ${formatNumber(data.reach[kind.id])}`).join(", ")}>
+              {REACH.map(kind => data.reach[kind.id] ? (
+                <i key={kind.id} style={{ flexGrow: data.reach[kind.id], background: kind.color }} title={`${kind.label}: ${formatNumber(data.reach[kind.id])} rows (${shareText(data.reach[kind.id], data.total)}). ${kind.hint}`} />
+              ) : null)}
+            </div>
+            <ul className="reach-legend">
+              {REACH.filter(kind => data.reach[kind.id] || kind.id === "ready" && anyChecked).map(kind => (
+                <li key={kind.id} title={kind.hint}>
+                  <i style={{ background: kind.color }} aria-hidden="true" />
+                  <span>{kind.label}</span>
+                  <b>{formatNumber(data.reach[kind.id])}</b>
+                  <em>{shareText(data.reach[kind.id], data.total)}</em>
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className="legend">
-            {anyChecked && <li><i className="solid" />Callable after a check</li>}
-            {anyChecked && <li><i className="accent" />Checked, nothing to call</li>}
-            <li><i className="hatch" />{anyChecked ? "Has a phone, not checked" : "Has a phone"}</li>
-            <li><i className="nophone" />No phone</li>
-          </ul>
         </div>
         <div className="hero-map">
           {data.dots.length && !plain ? (
@@ -252,34 +266,34 @@ export function Dashboard({ turf }: { turf: Turf }) {
             <Segmented label="Show" value={shownView} onChange={setView} options={[{ value: "calls", label: "Calls" }, { value: "checks", label: "Checks" }]} />
           </header>
           {shownView === "calls" ? (data.withStatus ? <>
-            <div className="verdict-total">
-              <strong>{formatNumber(progressTotal)}</strong>
-              <span>Rows in {data.withStatus === 1 ? "a list" : `${data.withStatus} lists`} with a call status</span>
+            <div className="calls-figures">
+              <div><strong>{formatNumber(called)}</strong><span>rows called</span></div>
+              <div><strong>{formatNumber(data.progress.no_result)}</strong><span>not called yet</span></div>
             </div>
-            <ul className="hbars">
-              {PROGRESS.filter(kind => kind.id !== "unclear" || data.progress.unclear).map(kind => (
-                <li key={kind.id}>
-                  <div className="hbar" style={{ width: `${Math.max(34, (data.progress[kind.id] / progressMax) * 100)}%` }}>
-                    <span>{kind.label} · {formatNumber(data.progress[kind.id])}</span>
-                    <b>{Math.round(share(data.progress[kind.id], progressTotal))}%</b>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            {called ? <>
+              <p className="bar-list-title">What happened on the calls made</p>
+              <ul className="bar-list">
+                {CALLED.filter(kind => kind.id !== "unclear" || data.progress.unclear).map(kind => (
+                  <li key={kind.id} title={`${kind.label}: ${formatNumber(data.progress[kind.id])} of ${formatNumber(called)} called rows`}>
+                    <div><span>{kind.label}</span><b>{formatNumber(data.progress[kind.id])}</b><em>{shareText(data.progress[kind.id], called)}</em></div>
+                    {data.progress[kind.id] > 0 && <i style={{ width: `${(data.progress[kind.id] / calledMax) * 100}%` }} />}
+                  </li>
+                ))}
+              </ul>
+            </> : <p className="muted">No calls recorded yet in {data.withStatus === 1 ? "the status column" : "the status columns"}.</p>}
             {data.rowsNeedingYou > 0 && <p className="card-note">{formatNumber(data.rowsNeedingYou)} rows have a status that still needs you; they count by its suggested meaning.</p>}
           </> : <Empty title="No call results">A list with a call status column shows how its calls went here, without a phone check.</Empty>)
           : (verdictTotal ? <>
-            <div className="verdict-total">
-              <strong>{formatNumber(verdictTotal)}</strong>
-              <span>Rows checked</span>
+            <div className="calls-figures">
+              <div><strong>{formatNumber(verdictTotal)}</strong><span>rows checked</span></div>
+              <div><strong>{formatNumber(data.callable)}</strong><span>ready to call</span></div>
             </div>
-            <ul className="hbars">
+            <p className="bar-list-title">The best phone in each checked row</p>
+            <ul className="bar-list">
               {VERDICTS.map(verdict => (
-                <li key={verdict}>
-                  <div className="hbar" style={{ width: `${Math.max(34, (data.verdicts[verdict] / verdictMax) * 100)}%` }}>
-                    <span>{VERDICT_LABELS[verdict]} · {formatNumber(data.verdicts[verdict])}</span>
-                    <b>{Math.round(share(data.verdicts[verdict], verdictTotal))}%</b>
-                  </div>
+                <li key={verdict} title={`${VERDICT_LABELS[verdict]}: ${formatNumber(data.verdicts[verdict])} of ${formatNumber(verdictTotal)} checked rows`}>
+                  <div><span>{VERDICT_LABELS[verdict]}</span><b>{formatNumber(data.verdicts[verdict])}</b><em>{shareText(data.verdicts[verdict], verdictTotal)}</em></div>
+                  {data.verdicts[verdict] > 0 && <i style={{ width: `${(data.verdicts[verdict] / verdictMax) * 100}%` }} />}
                 </li>
               ))}
             </ul>

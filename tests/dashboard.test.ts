@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { callProgress, contactCoverage, nextSteps, phoneColumnsOf, progressKind } from "../src/lib/dashboard";
+import { callProgress, contactCoverage, mailColumnsOf, nextSteps, phoneColumnsOf, progressKind, reachContext, reachOf, shareText, statusKey } from "../src/lib/dashboard";
 import type { Dataset, DatasetRow, SkiptraceSuggestion, StatusRow } from "../src/lib/types";
 
 const row = (id: number, raw: Record<string, string>) => ({ id: String(id), row_number: id, raw }) as unknown as DatasetRow;
@@ -34,5 +34,34 @@ describe("what the Dashboard tells from a list on its own", () => {
     expect(steps.map(step => step.text)).toEqual(["Check the phones in March", "3 call statuses in March need you", "April has no ZIP column"]);
     expect(steps[0]).toMatchObject({ tab: "skiptracing", datasetId: "a" });
     expect(nextSteps([{ dataset: list("c", "Done"), rows: 10, checked: true, phoneRows: 10, zipColumn: "Zip", zipless: 0, progress: null }])).toEqual([]);
+  });
+
+  it("keys a status the way the service does, so its meaning is found for every row", () => {
+    expect(statusKey("  DNC until 10/07/2025:Not   interested ")).toBe("dnc until [date]:not interested");
+    expect(statusKey("Expires 2025-10-15")).toBe("expires [date]");
+    expect(statusKey(null)).toBe("");
+  });
+
+  it("puts each row in one way of reaching it, do not call first", () => {
+    const columns = ["Phone", "Email", "Mailing Address", "Status"];
+    const setup = { outcome_column: "Status", config: { phone_columns: ["Phone"] }, rows: 0,
+      statuses: [status("dnc", ["do_not_call"], true, 1), status("wrong number", ["wrong_number"], true, 1)] } as unknown as SkiptraceSuggestion;
+    const context = reachContext(columns, setup);
+    expect(mailColumnsOf(columns)).toEqual(["Mailing Address"]);
+    const raw = (values: Record<string, string>) => row(1, { Phone: "", Email: "", "Mailing Address": "", Status: "", ...values });
+    expect(reachOf(raw({ Phone: "7135553142", Status: "DNC" }), context, null)).toBe("blocked");
+    expect(reachOf(raw({ Phone: "7135553142", Status: "Wrong number" }), context, null)).toBe("blocked");
+    expect(reachOf(raw({ Phone: "7135553142" }), context, null)).toBe("phone");
+    expect(reachOf(raw({ Phone: "7135553142" }), context, true)).toBe("ready");
+    expect(reachOf(raw({ Phone: "7135553142" }), context, false)).toBe("blocked");
+    expect(reachOf(raw({ Email: "a@b.co" }), context, null)).toBe("email");
+    expect(reachOf(raw({ "Mailing Address": "12 Main St" }), context, null)).toBe("mail");
+    expect(reachOf(raw({}), context, null)).toBe("none");
+  });
+
+  it("never shows a small share as 0%", () => {
+    expect(shareText(24, 7557)).toBe("<1%");
+    expect(shareText(0, 7557)).toBe("0%");
+    expect(shareText(484, 813)).toBe("60%");
   });
 });
