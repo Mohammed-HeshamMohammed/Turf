@@ -10,7 +10,9 @@ import { Icon } from "../components/Icon";
 import { ListPicker } from "../components/ListPicker";
 import { ListDownloads } from "../components/ListDownloads";
 import { PhoneChoices } from "../components/PhoneChoices";
-import { marksSource, useRows, useVisited } from "../lib/hooks";
+import { marksSource, usePhotoIndex, useRows, useVisited } from "../lib/hooks";
+import { photoColumns, photosFor, photosIn, placeColumns, positionOf, type PhotoIndex, type PlaceColumns } from "../lib/photos";
+import { PhotoGallery, PropertyPhoto } from "../components/PropertyPhoto";
 import {
   AREA_LABELS, AREA_LEVELS, KIND_LABELS, MANUAL_LABELS, VERDICT_LABELS, areaColumns, checkedPhoneColumns, countAreas, formatDate,
   formatNumber, formatPhone, ownColumns, positionColumns, readMarks, type Marks,
@@ -86,6 +88,10 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   const columns = useMemo(() => (rows?.[0] ? Object.keys(rows[0].raw) : []), [rows]);
   const own = useMemo(() => ownColumns(columns), [columns]);
   const dull = useMemo(() => dullColumns(own, rows?.map(row => row.raw) ?? []), [own, rows]);
+  // Pictures: the list's own picture columns, and the project's photos by place for rows that have none.
+  const photoCols = useMemo(() => photoColumns(rows ?? [], own), [rows, own]);
+  const place = useMemo(() => placeColumns(columns, turf.areaMaps[dataset.id]), [columns, turf.areaMaps, dataset.id]);
+  const photoIndex = usePhotoIndex(turf.datasets, turf.areaMaps, turf.fail);
   const phoneColumns = useMemo(() => checkedPhoneColumns(columns), [columns]);
   const areaMap = useMemo(() => areaColumns(columns, turf.areaMaps[dataset.id]), [columns, turf.areaMaps, dataset.id]);
   const position = useMemo(() => positionColumns(columns), [columns]);
@@ -175,10 +181,11 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
 
   const checked = phoneColumns.length > 0;
   const rawPhones = own.filter(name => /phone|mobile|cell/i.test(name));
-  const shownColumns = own.filter(name => !PLUMBING.test(name) && !phoneColumns.includes(name) && !dull.has(name)).slice(0, checked ? 4 : 6);
+  const shownColumns = own.filter(name => !PLUMBING.test(name) && !phoneColumns.includes(name) && !dull.has(name) && !photoCols.includes(name)).slice(0, checked ? 4 : 6);
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
   const current = Math.min(page, pages - 1);
   const visible = filtered.slice(current * PAGE, current * PAGE + PAGE);
+  const showPhotos = photoCols.length > 0 || visible.some(({ row }) => photosFor(row, [], place, photoIndex, located?.exact?.[String(row.row_number)]).photos.length > 0);
   const areaMax = Math.max(1, ...areas.map(item => item.count));
   const filtering = Boolean(area || verdict !== "all" || flag !== "all" || (column && contains) || query);
   const reset = () => { setArea(null); setVerdict("all"); setFlag("all"); setColumn(""); setContains(""); setQuery(""); setPage(0); };
@@ -362,6 +369,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
             <thead>
               <tr>
                 <th className="num">#</th>
+                {showPhotos && <th><span className="sr-only">Photo</span></th>}
                 {shownColumns.map(name => <th key={name}>{name}</th>)}
                 {checked && <><th>Best phone</th><th>Phone quality</th><th>Combined verdict</th><th>Flags / calling restriction</th></>}
                 <th><span className="sr-only">Details</span></th>
@@ -372,6 +380,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                 <Fragment key={row.id}>
                   <tr className={openRow === row.id ? "open" : undefined} onContextMenu={event => menu(event, rowMenu(row, marks, (event.target as HTMLElement).closest("td")?.dataset.column))}>
                     <td className="num muted">{row.row_number}</td>
+                    {showPhotos && <td className="photo-cell">{(() => { const found = photosFor(row, photoCols, place, photoIndex, located?.exact?.[String(row.row_number)]); return found.photos.length ? <PropertyPhoto photos={found.photos} label={`Row ${row.row_number}`} borrowed={found.borrowed} className="thumb" /> : null; })()}</td>}
                     {shownColumns.map((name, index) => <td key={name} data-column={name}>{index === 0 ? <strong>{row.raw[name] ?? "–"}</strong> : formatCell(name, row.raw[name])}</td>)}
                     {checked && (
                       <>
@@ -398,8 +407,9 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                   </tr>
                   {openRow === row.id && (
                     <tr className="detail">
-                      <td colSpan={shownColumns.length + (checked ? 6 : 2)}>
-                        <RowDetail row={row} datasetId={source.id} onUpdated={turf.refresh} own={own} phoneColumns={phoneColumns} number={marks.number} manual={turf.manual} onMark={turf.setMark} />
+                      <td colSpan={shownColumns.length + (checked ? 6 : 2) + (showPhotos ? 1 : 0)}>
+                        <RowDetail row={row} datasetId={source.id} onUpdated={turf.refresh} own={own} phoneColumns={phoneColumns} number={marks.number} manual={turf.manual} onMark={turf.setMark}
+                          photos={{ columns: photoCols, place, index: photoIndex, exact: located?.exact?.[String(row.row_number)] }} />
                       </td>
                     </tr>
                   )}
@@ -523,27 +533,34 @@ function dullColumns(names: string[], rows: Record<string, string | number | nul
   return dull.size === names.length ? new Set<string>() : dull;
 }
 
+const photoCount = (count: number) => (count ? `${count} ${count === 1 ? "photo" : "photos"}, shown above` : "No photo");
+
 function formatCell(name: string, value: string | number | null) {
   if (value === null || value === "") return <span className="muted">–</span>;
   if (/price|value|zestimate/i.test(name) && typeof value === "number") return `$${formatNumber(value)}`;
   return typeof value === "number" && !/zip|year/i.test(name) ? formatNumber(value) : value;
 }
 
-function RowDetail({ row, own, phoneColumns, number, manual, onMark, datasetId, onUpdated }: {
+function RowDetail({ row, own, phoneColumns, number, manual, onMark, datasetId, onUpdated, photos }: {
   row: DatasetRow; own: string[]; phoneColumns: string[]; number: string | null; manual: Turf["manual"]; onMark: Turf["setMark"];
   datasetId: string; onUpdated: () => Promise<void>;
+  photos: { columns: string[]; place: PlaceColumns; index: PhotoIndex; exact?: [number, number] };
 }) {
+  const found = photosFor(row, photos.columns, photos.place, photos.index, photos.exact);
+  const where = positionOf(row, photos.place, photos.exact);
   const numbers = [...new Set(phoneColumns.flatMap(column => String(row.raw[`${column} (E.164)`] ?? "").split(";").map(value => value.trim()).filter(value => /^\+\d{6,15}$/.test(value))))];
   const [chosen, setChosen] = useState(number ?? numbers[0] ?? "");
   const activeNumber = numbers.includes(chosen) ? chosen : number ?? numbers[0] ?? "";
   const mark = manual[activeNumber]?.mark ?? null;
   return (
     <div className="row-detail">
+      {(found.photos.length > 0 || where) && <PhotoGallery photos={found.photos} position={where} label={`Row ${row.row_number}`} borrowed={found.borrowed} />}
       <dl>
         {own.map(name => (
           <div key={name}>
             <dt>{name}</dt>
-            <dd>{/url/i.test(name) && row.raw[name] ? <a href={String(row.raw[name])} target="_blank" rel="noreferrer">{row.raw[name]}</a> : row.raw[name] ?? "–"}</dd>
+            <dd>{photos.columns.includes(name) ? photoCount(photosIn(row.raw[name]).length)
+              : /url/i.test(name) && row.raw[name] ? <a href={String(row.raw[name])} target="_blank" rel="noreferrer">{row.raw[name]}</a> : row.raw[name] ?? "–"}</dd>
           </div>
         ))}
       </dl>

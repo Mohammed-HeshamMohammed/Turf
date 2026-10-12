@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { photoIndex, type PhotoIndex } from "./photos";
 import { allRows } from "./service";
-import type { Dataset, DatasetRow } from "./types";
+import type { AreaMapping, Dataset, DatasetRow } from "./types";
 
 /** State kept in this browser only. Reads and writes are guarded: storage can be blocked. */
 export function useStored<T>(key: string, initial: T) {
@@ -97,4 +98,17 @@ export function useVisited(currentId: string | null, existing: string[], limit =
   const visited = useRef<string[]>([]);
   if (currentId) visited.current = [...visited.current.filter(id => id !== currentId), currentId].slice(-limit);
   return visited.current.filter(id => existing.includes(id));
+}
+
+/** The pictures of every property in the project's lists, by place, so a row without its own can borrow one. */
+export function usePhotoIndex(datasets: Dataset[], areaMaps: Record<string, AreaMapping>, onError: (reason: unknown) => void): PhotoIndex {
+  // Each list once, read where its marks are (a checked copy has the same rows and pictures as its list).
+  const lists = useMemo(() => datasets.filter(dataset => !(dataset.kind === "checked" && datasets.some(other => other.id === dataset.parent_dataset_id)))
+    .map(dataset => ({ dataset, source: marksSource(dataset, datasets) })), [datasets]);
+  const sources = useMemo(() => lists.map(item => item.source), [lists]);
+  const all = useAllRows(sources, onError);
+  return useMemo(() => (all ? photoIndex(lists.map(({ dataset, source }) => {
+    const rows = all[source.id] ?? [];
+    return { rows, columns: rows[0] ? Object.keys(rows[0].raw) : [], saved: areaMaps[dataset.id] };
+  })) : new Map()), [all, lists, areaMaps]);
 }

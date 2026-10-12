@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import SCHEMA_VERSION
-from . import datasets, downloads, geo, manual, phone_evidence, phone_lookup, projects, skiptrace, tidy
+from . import datasets, downloads, geo, images, manual, phone_evidence, phone_lookup, projects, skiptrace, tidy
 from .contracts import health_check
 from .jobs import JobContext, JobKind, JobRunner, JobValidationError
 from .logs import log
@@ -68,6 +68,8 @@ class Service:
             "job.list": lambda p: [_job_dict(r) for r in self._store().list_jobs(self._project_id(), int(p.get("limit", 50)))],
             "job.get": self._job_get,
             "job.cancel": lambda p: self._runner().cancel(self._store(), p["job_id"]) or {"job_id": p["job_id"]},
+            "images.embedded": lambda p: images.embedded(self._store(), p.get("name")),
+            "images.aerial": lambda p: images.aerial(p.get("lat"), p.get("lon")),
             "geo.zip_centres": lambda p: geo.zip_centres(list(p.get("zips") or [])),
             "geo.zip_outlines": lambda p: geo.zip_outlines(list(p.get("zips") or [])),
             "geo.located": lambda p: geo.located(self._store(), p["dataset_id"], dict(p.get("columns") or {})),

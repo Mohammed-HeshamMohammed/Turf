@@ -47,6 +47,17 @@ npm run check
 
 Runs the type check and build of the window, UI interaction tests (Vitest), the service's tests (pytest), and the host's tests (cargo). For checks that do not need desktop libraries, run `npm run build`, `npm test`, and `python -m pytest service/tests -q`.
 
+## Property pictures
+
+Lists, row details and the Dashboard show a picture of each property, from free sources only, in this order:
+
+1. **The row's own picture**, in whatever form its list keeps it: a link, several links in one cell (new lines, commas, `|`), an `<img src="...">` tag, an Excel `=IMAGE("...")` formula, or the picture itself written into the cell (`data:image/...;base64,...` or bare base64). A column counts as pictures by what is in it, not only by its name. A picture written into a cell is saved once in the project's `artifacts/images` folder and travels to the screen on its own; the list's rows are not changed, and downloads keep them as imported. Only `http(s)` links and raster formats are accepted.
+2. **A photo of the same property from another list** in the project, matched by street and ZIP (or city), spelled one way ("Street" and "St", a unit after a comma), or by position to about ten metres. A lead takes the listing photo of its house this way.
+3. **The USGS aerial view** of its position (public domain, no key), fetched in the background and kept in app data; only the coordinates are sent. A position comes from the list's latitude and longitude, or from its looked-up addresses.
+4. A plain house icon.
+
+Photos load without telling their host which page asked. Any list with pictures and a price reads as listings on the Dashboard, imported or collected; without one, the card shows leads whose call reached a person.
+
 ## Skip Tracing workflow
 
 All five steps remain: phone columns, call outcomes, warning signs, results, and saving a checked copy.

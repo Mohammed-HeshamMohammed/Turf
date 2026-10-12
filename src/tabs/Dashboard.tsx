@@ -6,8 +6,10 @@ import { Select } from "../components/Select";
 import { copyText, useContextMenu } from "../components/ContextMenu";
 import { Icon } from "../components/Icon";
 import { gatherForMap, placeRows, priceColumn, useZipCentres, useZipOutlines } from "../lib/geo";
-import { callProgress, contactCoverage, nextSteps, phoneColumnsOf, PROGRESS, REACH, reachContext, reachOf, shareText, type Coverage, type Progress, type ProgressKind, type ReachKind } from "../lib/dashboard";
-import { marksSource, useAllRows } from "../lib/hooks";
+import { callProgress, contactCoverage, listingFields, nextSteps, phoneColumnsOf, PROGRESS, REACH, reachContext, reachOf, shareText, statusKey, type Coverage, type Progress, type ProgressKind, type ReachContext, type ReachKind } from "../lib/dashboard";
+import { photoColumns, photosFor, placeColumns, positionOf, streetPart } from "../lib/photos";
+import { PropertyPhoto } from "../components/PropertyPhoto";
+import { marksSource, useAllRows, usePhotoIndex } from "../lib/hooks";
 import { skiptraceSuggest } from "../lib/service";
 import {
   AREA_LABELS, AREA_LEVELS, KIND_LABELS, VERDICT_LABELS, areaColumns, checkedPhoneColumns, countAreas, formatDate, formatNumber,
@@ -32,6 +34,13 @@ type Summary = {
   zipless: number;
   progress: Progress | null;
   reach: Record<ReachKind, number>;
+  context: ReachContext;
+};
+
+// A property on the listings card: a listing from any list shaped like listings, or a lead whose call reached a person.
+type PropertyCard = {
+  key: string; dataset: Dataset; title: string; where: string; price?: number; tags: string[]; chips: string[];
+  photos: string[]; borrowed: boolean; position: [number, number] | null; link?: string; order: number;
 };
 
 const money = (value: unknown) => `$${formatNumber(Number(value) || 0)}`;
@@ -55,6 +64,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
     return [...values];
   }, [allRows, sources, turf.areaMaps]);
   const centres = useZipCentres(zipValues, turf.fail);
+  const photoIndex = usePhotoIndex(datasets, turf.areaMaps, turf.fail);
   // Each list's Skip Tracing setup: its phone columns and what its call statuses mean, settled by Turf or by the person.
   // Reading it needs no phone check.
   const [setups, setSetups] = useState<Record<string, SkiptraceSuggestion | null>>({});
@@ -104,7 +114,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
         hasPhones: phoneColumns.length > 0 || coverage.phone > 0,
         zips: countAreas(rows, zipColumn).length, coverage, zipColumn,
         zipless: zipColumn ? rows.filter(row => !String(row.raw[zipColumn] ?? "").trim()).length : rows.length,
-        progress: callProgress(setups[dataset.id]), reach,
+        progress: callProgress(setups[dataset.id]), reach, context,
       };
     });
     const total = summaries.reduce((sum, item) => sum + item.rows.length, 0);
@@ -112,17 +122,42 @@ export function Dashboard({ turf }: { turf: Turf }) {
     const callable = summaries.reduce((sum, item) => sum + item.callable, 0);
     const verdicts = Object.fromEntries(VERDICTS.map(verdict => [verdict, summaries.reduce((sum, item) => sum + item.verdicts[verdict], 0)])) as Record<Verdict, number>;
     const dots: Dot[] = [];
-    const listings: { row: DatasetRow; dataset: Dataset }[] = [];
+    const listings: PropertyCard[] = [];
+    const followUps: PropertyCard[] = [];
     for (const item of summaries) {
       const position = positionColumns(item.columns);
       const areas = areaColumns(item.columns, turf.areaMaps[item.dataset.id]);
       for (const dot of placeRows(item.rows, { position, zipColumn: areas.zip, stateColumn: areas.state, centres }).dots) dots.push(dot);
-      if (!position) continue;
+      // Any list with pictures and a price reads as listings, imported or collected.
+      const pictures = photoColumns(item.rows, item.columns);
+      const fields = listingFields(item.columns);
+      const place = placeColumns(item.columns, turf.areaMaps[item.dataset.id]);
+      const isListing = pictures.length > 0 && Boolean(fields.price);
+      const card = (row: DatasetRow, order: number, tags: string[], chips: string[]): PropertyCard => {
+        const found = photosFor(row, pictures, place, photoIndex);
+        const value = (column?: string) => (column ? String(row.raw[column] ?? "").trim() : "");
+        const link = value(fields.link);
+        return {
+          key: `${item.dataset.id}-${row.id}`, dataset: item.dataset, title: streetPart(value(place.street)) || `Row ${row.row_number}`,
+          where: [value(place.city), [value(areas.state), value(place.zip)].filter(Boolean).join(" ")].filter(Boolean).join(", "),
+          price: isListing && Number(value(fields.price)) ? Number(value(fields.price)) : undefined, tags: tags.filter(Boolean), chips: chips.filter(Boolean),
+          photos: found.photos, borrowed: found.borrowed, position: positionOf(row, place), link: /^https?:\/\//.test(link) ? link : undefined, order,
+        };
+      };
       for (const row of item.rows) {
-        if (item.dataset.kind === "scrape" && "Price" in row.raw) listings.push({ row, dataset: item.dataset });
+        const value = (column?: string) => (column ? String(row.raw[column] ?? "").trim() : "");
+        if (isListing) {
+          // Zillow writes -1 for a listing too new to count; it is not printed.
+          const days = Number(value(fields.days));
+          const known = value(fields.days) !== "" && Number.isFinite(days);
+          listings.push(card(row, known ? Math.max(0, days) : 9999, [value(fields.status), known && days >= 0 ? `${days} ${days === 1 ? "day" : "days"} on market` : ""],
+            [value(fields.area) && `${formatNumber(Number(value(fields.area)) || 0)} sq ft`, value(fields.beds) && `${value(fields.beds)} beds`, value(fields.baths) && `${value(fields.baths)} baths`]));
+        } else if (followUps.length < 60 && item.context.statusColumn && item.context.statusKinds?.get(statusKey(row.raw[item.context.statusColumn])) === "reached") {
+          followUps.push(card(row, followUps.length, [value(item.context.statusColumn)], [value(item.context.phoneColumns[0])]));
+        }
       }
     }
-    listings.sort((a, b) => Number(a.row.raw["Days on Zillow"] ?? 999) - Number(b.row.raw["Days on Zillow"] ?? 999));
+    listings.sort((a, b) => a.order - b.order || Number(b.photos.length > 0) - Number(a.photos.length > 0));
     const phoneRows = summaries.reduce((sum, item) => sum + item.coverage.phone, 0);
     const emailRows = summaries.reduce((sum, item) => sum + item.coverage.email, 0);
     const checkedNothing = summaries.reduce((sum, item) => sum + (item.checked ? Math.max(0, item.coverage.phone - item.callable) : 0), 0);
@@ -134,11 +169,12 @@ export function Dashboard({ turf }: { turf: Turf }) {
     const steps = nextSteps(summaries.map(item => ({ dataset: item.dataset, rows: item.rows.length, checked: item.checked, phoneRows: item.coverage.phone, zipColumn: item.zipColumn, zipless: item.zipless, progress: item.progress })));
     return {
       summaries, total, checkedRows, callable, verdicts, blocked: blocked.size, dots, listings: listings.slice(0, 3),
+      followUps: [...followUps].sort((a, b) => Number(b.photos.length > 0) - Number(a.photos.length > 0) || a.order - b.order).slice(0, 3),
       phoneRows, emailRows, checkedNothing, uncheckedPhones, progress, withStatus: withStatus.length, rowsNeedingYou, steps, reach,
     };
   // `known` changes as ZIP centres arrive.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allRows, primary, datasets, manual, turf.areaMaps, centres, known, setups]);
+  }, [allRows, primary, datasets, manual, turf.areaMaps, centres, known, setups, photoIndex]);
   const [view, setView] = useState<"calls" | "checks" | null>(null);
 
   // For the street map: every list's rows, each at its own place where it has one, and gathered by ZIP, city and state.
@@ -177,6 +213,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
   const verdictMax = Math.max(1, ...VERDICTS.map(verdict => data.verdicts[verdict]));
   const areaMax = Math.max(1, ...areas.map(area => area.count));
   const anyChecked = data.summaries.some(item => item.checked);
+  const shownCards = data.listings.length ? data.listings : data.followUps;
   // Call results show the calls made; rows without a result are counted beside them, not drawn against them.
   const CALLED = PROGRESS.filter(kind => kind.id !== "no_result");
   const called = CALLED.reduce((sum, kind) => sum + data.progress[kind.id], 0);
@@ -302,31 +339,25 @@ export function Dashboard({ turf }: { turf: Turf }) {
 
         <article className="card listings">
           <header>
-            <h2>Latest listings</h2>
-            {data.listings[0] && <button type="button" className="round" aria-label="Open the listings list" onClick={() => turf.open("lists", data.listings[0].dataset.id)}><Icon name="arrow" /></button>}
+            <h2>{data.listings.length ? "Latest listings" : "Leads to follow up"}</h2>
+            {shownCards[0] && <button type="button" className="round" aria-label={`Open ${shownCards[0].dataset.name} in Lists`} onClick={() => turf.open("lists", shownCards[0].dataset.id)}><Icon name="arrow" /></button>}
           </header>
-          {data.listings.length ? (
+          {shownCards.length ? (
             <div className="listing-row">
-              {data.listings.map(({ row }) => (
-                <div className="listing" key={row.id}>
+              {shownCards.map(card => (
+                <div className="listing" key={card.key}>
                   <div className="thumb">
-                    {row.raw.Image ? <img src={String(row.raw.Image)} alt="" loading="lazy" /> : <Icon name="home" size={44} />}
-                    {row.raw["Detail URL"] && (
-                      <a className="round dark" href={String(row.raw["Detail URL"])} target="_blank" rel="noreferrer" aria-label={`Open ${row.raw.Street} on Zillow`}><Icon name="arrow" /></a>
-                    )}
+                    <PropertyPhoto photos={card.photos} position={card.position} label={card.title} aerial borrowed={card.borrowed} />
+                    {card.link && <a className="round dark" href={card.link} target="_blank" rel="noreferrer" aria-label={`Open ${card.title} on its listing page`}><Icon name="arrow" /></a>}
                   </div>
-                  <div className="listing-tags"><span>{row.raw.Status}</span><span>{row.raw["Days on Zillow"]} days</span></div>
-                  <div className="listing-title"><strong>{row.raw.Street}</strong><b>{money(row.raw.Price)}</b></div>
-                  <p>{row.raw.City}, {row.raw.State} {row.raw.Zip}</p>
-                  <div className="listing-chips">
-                    <span>{formatNumber(Number(row.raw["Living area (sqft)"]))} sq ft</span>
-                    <span>{row.raw.Beds} beds</span>
-                    <span>{row.raw.Baths} baths</span>
-                  </div>
+                  {card.tags.length > 0 && <div className="listing-tags">{card.tags.map(tag => <span key={tag}>{tag}</span>)}</div>}
+                  <div className="listing-title"><strong>{card.title}</strong>{card.price !== undefined && <b>{money(card.price)}</b>}</div>
+                  {card.where && <p>{card.where}</p>}
+                  {card.chips.length > 0 && <div className="listing-chips">{card.chips.map(chip => <span key={chip}>{chip}</span>)}</div>}
                 </div>
               ))}
             </div>
-          ) : <Empty title="No collected listings">A run from the collector extension shows its newest listings here.</Empty>}
+          ) : <Empty title="No listings or leads to follow up yet">A list with photos and prices shows its newest listings here; otherwise, leads whose call reached a person show here, with a picture when one is known.</Empty>}
         </article>
       </section>
 

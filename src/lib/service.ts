@@ -260,3 +260,8 @@ export async function downloadDataset(datasetId: string, version: "original" | "
   }
   return true;
 }
+
+// Pictures: one written into a cell (saved in the project), and the free aerial view of a place.
+export const embeddedPicture = (name: string) => call<{ data_url: string }>("images.embedded", { name });
+export const aerialPicture = (lat: number, lon: number) =>
+  call<{ data_url?: string; credit?: string; pending?: boolean; unavailable?: string }>("images.aerial", { lat, lon });

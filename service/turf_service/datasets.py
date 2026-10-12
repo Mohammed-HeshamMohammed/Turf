@@ -387,7 +387,9 @@ def dataset_rows(store: ProjectStore, dataset_id: str, offset: int = 0, limit: i
         "SELECT id, source_row_number, raw_values_json FROM source_rows WHERE dataset_id = ? ORDER BY source_row_number LIMIT ? OFFSET ?",
         (dataset_id, limit, offset),
     ).fetchall()
-    return [{"id": r["id"], "row_number": r["source_row_number"], "raw": json.loads(r["raw_values_json"])} for r in rows]
+    # Turf: a picture written into a cell travels to the screen as a short reference (see images.py).
+    from .images import for_screen
+    return [{"id": r["id"], "row_number": r["source_row_number"], "raw": for_screen(store, json.loads(r["raw_values_json"]))} for r in rows]
 
 
 def latest_mapping(store: ProjectStore, dataset_id: str) -> sqlite3.Row | None:

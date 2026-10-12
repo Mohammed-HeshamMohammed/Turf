@@ -170,3 +170,18 @@ export function shareText(part: number, whole: number): string {
   const value = (part / whole) * 100;
   return value < 1 ? "<1%" : `${Math.round(value)}%`;
 }
+
+// ------------------------------------------------------------------------------------------ listings and follow-ups
+
+export type ListingFields = { price?: string; beds?: string; baths?: string; area?: string; days?: string; status?: string; link?: string };
+
+/** The columns a listing card reads, found by name in any list shaped like listings. */
+export function listingFields(columns: string[]): ListingFields {
+  const own = ownColumns(columns);
+  const find = (pattern: RegExp) => own.find(name => pattern.test(name.trim()));
+  return {
+    price: find(/^(list(ing)? )?price$|^asking price$/i), beds: find(/^(beds?|bedrooms?)$/i), baths: find(/^(baths?|bathrooms?)$/i),
+    area: find(/living area|^sq\.? ?ft$|square feet|^sqft$|building size/i), days: find(/days on (zillow|market)|^dom$/i),
+    status: find(/^(listing )?status$/i), link: find(/detail url|listing url|^url$|^link$|property url/i),
+  };
+}
