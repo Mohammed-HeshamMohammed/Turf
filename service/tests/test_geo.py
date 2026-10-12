@@ -71,7 +71,7 @@ def test_addresses_are_looked_up_once_and_kept_only_when_state_and_zip_agree(tmp
     monkeypatch.setattr(geo, "_send_batch", fake_geocoder(sent))
 
     before = ok(svc, "geo.located", dataset_id=dataset_id, columns=COLUMNS)
-    assert before == {"exact": {}, "addresses_to_look_up": 4, "rows_without_an_address": 1}
+    assert before == {"exact": {}, "addresses_to_look_up": 4, "rows_without_an_address": 1, "not_found": []}
 
     job = wait(svc, ok(svc, "geo.locate", dataset_id=dataset_id, columns=COLUMNS)["job_id"])
     assert job["state"] == "completed", job
@@ -86,7 +86,9 @@ def test_addresses_are_looked_up_once_and_kept_only_when_state_and_zip_agree(tmp
 
     after = ok(svc, "geo.located", dataset_id=dataset_id, columns=COLUMNS)
     # Rows 2, 3 and 6 (the twin) have a place; the unmatched one and the one matched in another ZIP do not.
+    not_found = after.pop("not_found")
     assert after == {"exact": {"2": [29.7801, -95.3601], "3": [29.7801, -95.3601], "6": [29.7801, -95.3601]}, "addresses_to_look_up": 0, "rows_without_an_address": 1}
+    assert len(not_found) == 2, "the two addresses looked up and not found are named"
 
     # Nothing is asked twice, and the answers are in the project folder.
     again = wait(svc, ok(svc, "geo.locate", dataset_id=dataset_id, columns=COLUMNS)["job_id"])

@@ -98,6 +98,29 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   const setups = useListSetups(turf.datasets, turf.version);
   const owners = useOwnerIndex(turf.datasets, setups, turf.areaMaps, turf.fail);
   const ownerCols = owners?.lists.find(item => item.dataset.id === dataset.id)?.columns ?? null;
+  // Mailing addresses, looked up with the same free US Census geocoder as the map: one the Census cannot find is worth a look.
+  const mailColumns = useMemo<AddressColumns | null>(() => {
+    const mail = ownerCols?.mail;
+    return mail?.street && (mail.zip || (mail.city && mail.state)) ? { street: mail.street, city: mail.city, state: mail.state, zip: mail.zip } : null;
+  }, [ownerCols]);
+  const [mailLocated, setMailLocated] = useState<Located | null>(null);
+  const [mailLookups, setMailLookups] = useState(0);
+  const [mailProgress, setMailProgress] = useState<string | null>(null);
+  useEffect(() => {
+    if (!mailColumns) return;
+    let current = true;
+    locatedAddresses(source.id, mailColumns).then(result => current && setMailLocated(result), turf.fail);
+    return () => { current = false; };
+  }, [source.id, mailColumns, mailLookups, turf.fail]);
+  const lookUpMail = async () => {
+    if (!mailColumns) return;
+    setMailProgress("Starting…");
+    try {
+      const result = await locateAddresses(source.id, mailColumns, progress => setMailProgress(`${progress.done} of ${progress.total} looked up`), () => undefined);
+      setMailProgress(`${result.found} of ${result.looked_up} mailing addresses found`);
+      setMailLookups(count => count + 1);
+    } catch (reason) { setMailProgress(reason instanceof Error ? reason.message : String(reason)); }
+  };
   const phoneColumns = useMemo(() => checkedPhoneColumns(columns), [columns]);
   const areaMap = useMemo(() => areaColumns(columns, turf.areaMaps[dataset.id]), [columns, turf.areaMaps, dataset.id]);
   const position = useMemo(() => positionColumns(columns), [columns]);
@@ -416,7 +439,8 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                       <td colSpan={shownColumns.length + (checked ? 6 : 2) + (showPhotos ? 1 : 0)}>
                         <RowDetail row={row} datasetId={source.id} onUpdated={turf.refresh} own={own} phoneColumns={phoneColumns} number={marks.number} manual={turf.manual} onMark={turf.setMark}
                           photos={{ columns: photoCols, place, index: photoIndex, exact: located?.exact?.[String(row.row_number)] }}
-                          owner={owners && ownerCols ? { columns: ownerCols, index: owners.index, datasetId: dataset.id } : null} />
+                          owner={owners && ownerCols ? { columns: ownerCols, index: owners.index, datasetId: dataset.id,
+                            mail: mailColumns ? { found: Boolean(mailLocated?.exact[String(row.row_number)]), missing: Boolean(mailLocated?.not_found?.includes(row.row_number)), waiting: mailLocated?.addresses_to_look_up ?? 0, progress: mailProgress, lookUp: lookUpMail } : null } : null} />
                       </td>
                     </tr>
                   )}
@@ -541,7 +565,9 @@ function dullColumns(names: string[], rows: Record<string, string | number | nul
 }
 
 /** The owner as the lists show them: the kind of owner, where their mail goes, and what other lists have for them. */
-function OwnerPanel({ row, owner }: { row: DatasetRow; owner: { columns: OwnerColumns; index: OwnerIndex; datasetId: string } }) {
+type MailCheck = { found: boolean; missing: boolean; waiting: number; progress: string | null; lookUp: () => void } | null;
+
+function OwnerPanel({ row, owner }: { row: DatasetRow; owner: { columns: OwnerColumns; index: OwnerIndex; datasetId: string; mail: MailCheck } }) {
   const facts = ownerFacts(row, owner.columns);
   const found = foundElsewhere(row, owner.datasetId, owner.columns, owner.index);
   const others = otherOwners(row, owner.datasetId, owner.columns, owner.index);
@@ -556,7 +582,11 @@ function OwnerPanel({ row, owner }: { row: DatasetRow; owner: { columns: OwnerCo
         <div><h3>{facts.name || "Owner not named"}</h3>{kind && <p className="muted">{kind.hint}</p>}</div>
         {kind && <span className={`pill owner-${kind.id}`}>{kind.label}</span>}
       </div>
-      {facts.mailing && <p className="owner-mail"><span className="muted">Mail goes to</span> {facts.mailing}{flags.map(flag => <span key={flag} className="pill pill-suspicious">{flag}</span>)}</p>}
+      {facts.mailing && <p className="owner-mail"><span className="muted">Mail goes to</span> {facts.mailing}{flags.map(flag => <span key={flag} className="pill pill-suspicious">{flag}</span>)}
+        {owner.mail && !facts.poBox && (owner.mail.found ? <span className="pill pill-corroborated" title="The free US Census geocoder matched this address">Address found</span>
+          : owner.mail.missing ? <span className="pill pill-suspicious" title="The US Census geocoder could not match this address; check it before mailing">Census can't find it</span>
+          : owner.mail.waiting > 0 ? <button type="button" className="link" disabled={Boolean(owner.mail.progress && /looked up|Starting/.test(owner.mail.progress))} onClick={owner.mail.lookUp}>Check this list's {owner.mail.waiting.toLocaleString()} mailing addresses</button> : null)}
+        {owner.mail?.progress && <small className="muted">{owner.mail.progress}</small>}</p>}
       {ownEmails.length > 0 && <p className="owner-mail"><span className="muted">Email</span> {ownEmails.map(email => <EmailWithVerdict key={email} email={email} verdict={verdicts.get(email)} />)}</p>}
       {others.map(item => <p key={item.list + item.owner} className="notice">{item.list} names {item.owner} as the owner of this property: it may have been sold, or one list has the wrong owner.</p>)}
       {found.length > 0 && (
@@ -605,7 +635,7 @@ function RowDetail({ row, own, phoneColumns, number, manual, onMark, datasetId, 
   row: DatasetRow; own: string[]; phoneColumns: string[]; number: string | null; manual: Turf["manual"]; onMark: Turf["setMark"];
   datasetId: string; onUpdated: () => Promise<void>;
   photos: { columns: string[]; place: PlaceColumns; index: PhotoIndex; exact?: [number, number] };
-  owner: { columns: OwnerColumns; index: OwnerIndex; datasetId: string } | null;
+  owner: { columns: OwnerColumns; index: OwnerIndex; datasetId: string; mail: MailCheck } | null;
 }) {
   const found = photosFor(row, photos.columns, photos.place, photos.index, photos.exact);
   const where = positionOf(row, photos.place, photos.exact);

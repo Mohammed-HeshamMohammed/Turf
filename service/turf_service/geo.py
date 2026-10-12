@@ -180,7 +180,7 @@ def _rows(store: ProjectStore, dataset_id: str) -> list[tuple[int, dict]]:
 def located(store: ProjectStore, dataset_id: str, columns: dict) -> dict:
     """What is already known about a list's addresses: the rows with an exact place, and how many addresses are still to look up."""
     cache = _load_cache(store)
-    exact, waiting, without = {}, set(), 0
+    exact, waiting, without, missing = {}, set(), 0, []
     for number, raw in _rows(store, dataset_id):
         address = _address(raw, columns)
         if address is None:
@@ -191,7 +191,9 @@ def located(store: ProjectStore, dataset_id: str, columns: dict) -> dict:
             waiting.add(key)
         elif cache[key] is not None:
             exact[str(number)] = cache[key]
-    return {"exact": exact, "addresses_to_look_up": len(waiting), "rows_without_an_address": without}
+        else:
+            missing.append(number)  # looked up, and the geocoder did not find it
+    return {"exact": exact, "addresses_to_look_up": len(waiting), "rows_without_an_address": without, "not_found": missing}
 
 
 def _send_batch(batch: list[tuple[str, tuple[str, str, str, str]]]) -> str:

@@ -9,7 +9,7 @@ import type { DatasetRow } from "./types";
 
 export type ZipCentre = { lat: number; lon: number; states: string[] };
 export type AddressColumns = { street: string; city?: string; state?: string; zip?: string };
-export type Located = { exact: Record<string, [number, number]>; addresses_to_look_up: number; rows_without_an_address: number };
+export type Located = { exact: Record<string, [number, number]>; addresses_to_look_up: number; rows_without_an_address: number; not_found?: number[] };
 export type LocateProgress = { done: number; total: number; found: number };
 
 export const locatedAddresses = (dataset_id: string, columns: AddressColumns) => call<Located>("geo.located", { dataset_id, columns });
