@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Turf } from "../App";
 import { Check, Empty, Field, SearchBox, VerdictPill } from "../components/Bits";
 import { copyText } from "../components/ContextMenu";
+import { Icon } from "../components/Icon";
 import { ListPicker } from "../components/ListPicker";
 import { ListDownloads } from "../components/ListDownloads";
 import { PhoneLookup } from "../components/PhoneLookup";
@@ -13,7 +14,7 @@ import { ManualEvidence } from "../components/ManualEvidence";
 import { CheckedPreview, SkiptraceReview } from "../components/SkiptraceReview";
 import { SkiptraceTemplates } from "../components/SkiptraceTemplates";
 import { SkiptraceColumns } from "../components/SkiptraceColumns";
-import { checkedCopies, missingColumns, namesMapped, readDraft, refreshReadings, reviewNote, sameOutcomes, settledKeys, SIGN_HELP, STAGE_LABELS, statusPage, stableKey, type WorkflowDraft } from "../lib/skiptrace-workflow";
+import { checkedCopies, missingColumns, namesMapped, ownerNames, readDraft, refreshReadings, reviewNote, sameOutcomes, settledKeys, SIGN_HELP, signEvidence, signReadiness, STAGE_LABELS, statusPage, stableKey, type WorkflowDraft } from "../lib/skiptrace-workflow";
 import type { Dataset, Outcome, SignReport, SkiptraceConfig, SkiptraceReport, SkiptraceSuggestion, StatusModelState, StatusRow, Verdict } from "../lib/types";
 
 // Wording follows DataForge's Skip Tracing tab, so the two say the same thing about the same data.
@@ -287,6 +288,14 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   const unreviewed = statuses.filter(item => !reviewed.includes(item.key));
   // Ignored by the person: a status Turf settled as "not called yet" is not counted.
   const ignored = statuses.filter(item => reviewed.includes(item.key) && !(meaning[item.key]?.length) && !(item.sure && !item.outcomes.length));
+  const signs = setup?.signals.filter(sign => !sign.measured_only) ?? [];
+  const signsOn = base ? signs.filter(sign => base.signals[sign.code]) : [];
+  const signsBlocked = base ? signsOn.filter(sign => !signReadiness(sign.code, base).ready) : [];
+  // Signs the last check measured with enough calls, whose switch disagrees with what they showed.
+  const advice = base && report?.outcomes.available ? signs.flatMap(sign => {
+    const evidence = signEvidence(report.signals.find(item => item.code === sign.code), true);
+    return evidence.on !== undefined && evidence.on !== Boolean(base.signals[sign.code]) && signReadiness(sign.code, base).ready ? [{ code: sign.code, label: sign.label, on: evidence.on }] : [];
+  }) : [];
   const settledBefore = statuses.filter(item => reviewed.includes(item.key) && (item.source === "memory" || item.source === "saved") && item.sure).length;
   const automatic = statuses.filter(item => reviewed.includes(item.key) && item.sure && item.source !== "memory" && item.source !== "saved").length;
   // What the person decides is kept for every list in the project, so the same wording is settled next time.
@@ -510,30 +519,64 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
       <div className="wizard-step" hidden={step !== 2}>
       <article className="card step">
         <header><h2>Warning signs</h2></header>
-        <p className="muted">Choose what should flag a number for review. A warning sign does not prove the number is wrong.</p>
-        <div className="checks column">
-          {setup.signals.filter(sign => !sign.measured_only).map(sign => (
-            <Check key={sign.code} checked={Boolean(base.signals[sign.code])} onChange={on => patch({ signals: { ...base.signals, [sign.code]: on } })}><span>{sign.label}</span><small>{SIGN_HELP[sign.code]?.needs}
-              {sign.code === "shared_number" && ![base, ...(base.additional_owners ?? [])].some(owner => owner.name_column || owner.first_name_column || owner.last_name_column) && <><br />No owner name column mapped yet.</>}
-              {sign.code === "area_code_other_state" && !base.state_column && <><br />No property state column mapped yet.</>}
-              {sign.code === "country_mismatch" && !base.country_column && !base.zip_column && !base.state_column && <><br />No address country evidence mapped yet.</>}
-            </small></Check>
-          ))}
+        <p className="muted">Signs that put a number up for review. A sign is not proof that a number is wrong; where the list has call results, each check measures whether a sign really predicts wrong numbers here.</p>
+        {advice.length > 0 && (
+          <p className="notice sign-advice">
+            <span>The last check of this list suggests turning {advice.map(item => `${item.on ? "on" : "off"} “${item.label}”`).join(" and ")}.</span>
+            <button type="button" className="button small" onClick={() => patch({ signals: { ...base.signals, ...Object.fromEntries(advice.map(item => [item.code, item.on])) } })}>Use what the data shows</button>
+          </p>
+        )}
+        <div className="sign-grid">
+          {signs.map(sign => {
+            const on = Boolean(base.signals[sign.code]);
+            const ready = signReadiness(sign.code, base);
+            const evidence = signEvidence(report?.signals.find(item => item.code === sign.code), report ? report.outcomes.available : Boolean(outcomeColumn));
+            return (
+              <div key={sign.code} className={on ? "sign-card on" : "sign-card"}>
+                <Check checked={on} onChange={value => patch({ signals: { ...base.signals, [sign.code]: value } })}><span className="sign-title">{sign.label}</span></Check>
+                <p className={ready.ready ? "sign-state ready" : "sign-state needs"}>
+                  <Icon name={ready.ready ? "check" : "flag"} size={14} /><span>{ready.ready ? ready.text : on ? `Can't work yet: ${ready.text.toLowerCase()}` : ready.text}</span>
+                  {!ready.ready && <button type="button" className="link" onClick={() => setStep(0)}>Map it</button>}
+                </p>
+                <p className="sign-measured">{evidence.text}</p>
+                <p className="sign-example muted">For example: {SIGN_HELP[sign.code]?.example}</p>
+              </div>
+            );
+          })}
         </div>
-        <details className="step skiptrace-optional"><summary>Warning-sign examples</summary><dl className="signal-examples">{setup.signals.filter(sign => !sign.measured_only).map(sign => <div key={sign.code}><dt>{sign.label}</dt><dd>{SIGN_HELP[sign.code]?.example}</dd></div>)}</dl></details>
-        <details className="step skiptrace-optional"><summary>Evidence age settings</summary><div className="fields"><label className="field"><span>Review successful-call evidence after this many days</span><input className="input" type="number" min="1" max="3650" value={base.evidence_age_days ?? 180} onChange={event => patch({ evidence_age_days: Number(event.target.value) })} /></label><label className="field"><span>Flag live lookup results after this many days</span><input className="input" type="number" min="1" max="365" value={base.lookup_age_days ?? 30} onChange={event => patch({ lookup_age_days: Number(event.target.value) })} /></label></div><p className="muted">Aging evidence prompts review; it does not prove reassignment.</p></details>
-        {config && <details className="step skiptrace-optional" onToggle={event => setAdvancedLookup(event.currentTarget.open)}><summary>Optional external lookup</summary><p className="muted">Dialer exports and normal phone checks work without an external provider.</p>{advancedLookup && <PhoneLookup datasetId={dataset.id} config={config} projectId={turf.projectId} onUpdated={turf.refresh} />}</details>}
-        <div className="skiptrace-check-summary"><span>{base.phone_columns.length} phone {base.phone_columns.length === 1 ? "column" : "columns"}</span><span>{1 + (base.additional_owners?.length ?? 0)} owner {(base.additional_owners?.length ?? 0) === 0 ? "group" : "groups"}</span><span>{outcomeColumn ? `${statuses.length - unreviewed.length}/${statuses.length} call statuses reviewed` : "No call outcomes"}</span></div>
-        <details className="step skiptrace-optional"><summary>Review before checking</summary>
-        <dl className="skiptrace-review-summary"><div><dt>Phone columns</dt><dd>{base.phone_columns.join(", ")}</dd></div><div><dt>Country</dt><dd>{regionName(base.region)} · row override: {base.country_column ?? "None"}</dd></div>
-          <div><dt>Owners and mailing fields</dt><dd>{[base, ...(base.additional_owners ?? [])].map((owner, index) => `Owner ${index + 1}: ${[owner.first_name_column, owner.last_name_column, owner.name_column, owner.mailing_address_column, owner.mailing_city_column, owner.mailing_state_column, owner.mailing_zip_column, owner.owner_type_column].filter(Boolean).join(", ") || "Not mapped"}`).join(" · ")}</dd></div>
-          <div><dt>Phone owner assignments</dt><dd>{base.phone_columns.map(column => `${column}: ${base.phone_owner_map?.[column] === -1 || (base.additional_owners?.length && base.phone_owner_map?.[column] === undefined) ? "Owner unknown" : `Owner ${(base.phone_owner_map?.[column] ?? 0) + 1}`}`).join(" · ")}</dd></div>
-          <div><dt>Property and vacancy fields</dt><dd>{[base.address_column, base.city_column, base.zip_column, base.state_column, base.vacancy_column].filter(Boolean).join(", ") || "Not mapped"}</dd></div>
-          <div><dt>Outcomes</dt><dd>{outcomeColumn ? `${outcomeColumn} describes ${called}; ${unreviewed.length} unreviewed statuses; ${ignored.length} intentionally ignored` : "No outcome column"}</dd></div>
-          <div><dt>Warning signs</dt><dd>{setup.signals.filter(sign => !sign.measured_only && base.signals[sign.code]).map(sign => sign.label).join(" · ") || "All configurable signs off"}</dd></div>
-        </dl>
+
+        <section className="ready-check" aria-labelledby="ready-check-title">
+          <h3 id="ready-check-title">Ready to check</h3>
+          <ul>
+            <li className="ok"><Icon name="check" size={14} /><span>{base.phone_columns.length} phone {base.phone_columns.length === 1 ? "column" : "columns"}: {base.phone_columns.join(", ")}</span></li>
+            {ownerNames(base).length
+              ? <li className="ok"><Icon name="check" size={14} /><span>Owner names: {ownerNames(base).join(", ")}</span></li>
+              : <li className="needs"><Icon name="flag" size={14} /><span>No owner name column: shared numbers and wrong-person results can't be told apart</span><button type="button" className="link" onClick={() => setStep(0)}>Map one</button></li>}
+            {!outcomeColumn
+              ? <li className="ok"><Icon name="check" size={14} /><span>Checking without call results</span><button type="button" className="link" onClick={() => setStep(1)}>Add them</button></li>
+              : unreviewed.length
+                ? <li className="needs"><Icon name="flag" size={14} /><span>{unreviewed.length} of {statuses.length} call statuses still need you; their suggested meanings are used if you check now</span><button type="button" className="link" onClick={() => setStep(1)}>Review them</button></li>
+                : <li className="ok"><Icon name="check" size={14} /><span>All {statuses.length} call statuses in {outcomeColumn} are settled</span></li>}
+            {signsBlocked.length
+              ? <li className="needs"><Icon name="flag" size={14} /><span>{signsOn.length} of {signs.length} warning signs on; {signsBlocked.length === 1 ? "one can't" : `${signsBlocked.length} can't`} work until {signsBlocked.length === 1 ? "its" : "their"} columns are mapped</span></li>
+              : <li className="ok"><Icon name="check" size={14} /><span>{signsOn.length} of {signs.length} warning signs on</span></li>}
+          </ul>
+          <details className="ready-details"><summary>See the full setup</summary>
+            <dl className="skiptrace-review-summary"><div><dt>Phone columns</dt><dd>{base.phone_columns.join(", ")}</dd></div><div><dt>Country</dt><dd>{regionName(base.region)} · row override: {base.country_column ?? "None"}</dd></div>
+              <div><dt>Owners and mailing fields</dt><dd>{[base, ...(base.additional_owners ?? [])].map((owner, index) => `Owner ${index + 1}: ${[owner.first_name_column, owner.last_name_column, owner.name_column, owner.mailing_address_column, owner.mailing_city_column, owner.mailing_state_column, owner.mailing_zip_column, owner.owner_type_column].filter(Boolean).join(", ") || "Not mapped"}`).join(" · ")}</dd></div>
+              <div><dt>Phone owner assignments</dt><dd>{base.phone_columns.map(column => `${column}: ${base.phone_owner_map?.[column] === -1 || (base.additional_owners?.length && base.phone_owner_map?.[column] === undefined) ? "Owner unknown" : `Owner ${(base.phone_owner_map?.[column] ?? 0) + 1}`}`).join(" · ")}</dd></div>
+              <div><dt>Property and vacancy fields</dt><dd>{[base.address_column, base.city_column, base.zip_column, base.state_column, base.vacancy_column].filter(Boolean).join(", ") || "Not mapped"}</dd></div>
+              <div><dt>Outcomes</dt><dd>{outcomeColumn ? `${outcomeColumn} describes ${called}; ${unreviewed.length} need you; ${ignored.length} intentionally ignored` : "No outcome column"}</dd></div>
+              <div><dt>Warning signs</dt><dd>{signsOn.map(sign => sign.label).join(" · ") || "All configurable signs off"}</dd></div>
+            </dl>
+          </details>
+        </section>
+
+        <details className="step skiptrace-optional"><summary>More settings</summary>
+          <div className="fields"><label className="field"><span>Review successful-call evidence after this many days</span><input className="input" type="number" min="1" max="3650" value={base.evidence_age_days ?? 180} onChange={event => patch({ evidence_age_days: Number(event.target.value) })} /></label><label className="field"><span>Flag live lookup results after this many days</span><input className="input" type="number" min="1" max="365" value={base.lookup_age_days ?? 30} onChange={event => patch({ lookup_age_days: Number(event.target.value) })} /></label></div>
+          <p className="muted">Aging evidence prompts review; it does not prove reassignment.</p>
+          {config && <details className="step skiptrace-optional" onToggle={event => setAdvancedLookup(event.currentTarget.open)}><summary>Optional external lookup</summary><p className="muted">Dialer exports and normal phone checks work without an external provider.</p>{advancedLookup && <PhoneLookup datasetId={dataset.id} config={config} projectId={turf.projectId} onUpdated={turf.refresh} />}</details>}
         </details>
-        <div className="row"><button type="button" className="link" onClick={() => setStep(0)}>Edit columns</button><button type="button" className="link" onClick={() => setStep(1)}>Review call outcomes</button></div>
       </article>
       </div>
 

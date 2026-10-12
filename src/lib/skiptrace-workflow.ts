@@ -1,4 +1,4 @@
-import type { Dataset, Outcome, SkiptraceConfig, SkiptraceReport, StatusRow } from "./types";
+import type { Dataset, Outcome, SignReport, SkiptraceConfig, SkiptraceReport, StatusRow } from "./types";
 
 export type WorkflowDraft = {
   base: SkiptraceConfig;
@@ -113,6 +113,37 @@ export const SIGN_HELP: Record<string, { example: string; needs: string }> = {
   area_code_other_state: { example: "A California area code is listed for a Texas property. People can move, so this is a warning, not proof.", needs: "Map a state column; applies to US numbers." },
   country_mismatch: { example: "The phone's country code differs from the property's country.", needs: "Map country, postal code, or state for address evidence." },
 };
+
+/** Every owner name column mapped, across owner groups. */
+export function ownerNames(config: SkiptraceConfig): string[] {
+  return [...new Set([config, ...(config.additional_owners ?? [])].flatMap(owner => [owner.first_name_column, owner.last_name_column, owner.name_column])
+    .filter((column): column is string => Boolean(column)))];
+}
+
+/** Whether a warning sign has the columns it needs, and what it compares. */
+export function signReadiness(code: string, config: SkiptraceConfig): { ready: boolean; text: string } {
+  if (code === "shared_number") {
+    const names = ownerNames(config);
+    return names.length ? { ready: true, text: `Compares ${names.join(", ")}` } : { ready: false, text: "Needs an owner name column to tell people apart" };
+  }
+  if (code === "area_code_other_state") {
+    return config.state_column ? { ready: true, text: `Compares the area code with ${config.state_column} (US numbers)` } : { ready: false, text: "Needs the property's state column" };
+  }
+  if (code === "country_mismatch") {
+    const places = [config.country_column, config.zip_column, config.state_column].filter((column): column is string => Boolean(column));
+    return places.length ? { ready: true, text: `Compares the phone's country with ${places.join(", ")}` } : { ready: false, text: "Needs a country, ZIP or state column" };
+  }
+  return { ready: true, text: "Uses the phone number itself" };
+}
+
+/** What the last check measured for a warning sign in this list's own call results, and whether it should be on. */
+export function signEvidence(sign: SignReport | undefined, hasOutcomes: boolean): { text: string; on?: boolean } {
+  if (!hasOutcomes) return { text: "Can't be measured: this list has no call results" };
+  if (!sign) return { text: "Not measured yet: a check shows whether it predicts wrong numbers in this list" };
+  if (!sign.enough_data) return { text: sign.contacted ? `Only ${sign.contacted} called ${sign.contacted === 1 ? "number has" : "numbers have"} a clear result; about 50 are needed to tell` : "No called number has a clear result yet, so it can't be measured" };
+  if (sign.predictive) return { text: `In this list it predicts wrong numbers: ${sign.lift}× as often`, on: true };
+  return { text: `In this list it makes no clear difference (${sign.lift ?? "–"}×)`, on: false };
+}
 
 export function stableKey(value: unknown): string {
   function ordered(item: unknown): unknown {

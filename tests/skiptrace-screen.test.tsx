@@ -284,6 +284,21 @@ describe("the complete five-step process", () => {
     expect((screen.getByRole("checkbox", { name: "Status 0: Do not call" }) as HTMLInputElement).checked).toBe(true);
     expect((screen.getByRole("checkbox", { name: "Status 0: Reached a person" }) as HTMLInputElement).checked).toBe(true);
   });
+  it("shows what each warning sign needs and offers what the last check measured", async () => {
+    const measured = (code: string, predictive: boolean) => ({ code, label: code, contacted: 120, wrong: 30, wrong_rate: 0.25, lift: predictive ? 2 : 1, counted: true, measured_only: false, predictive, enough_data: true });
+    mocks.scan.mockResolvedValue({ report: { ...structuredClone(report), signals: [measured("shared_number", false), measured("business_line", true)] } });
+    const user = await start();
+    await user.click(screen.getByRole("button", { name: /3\s*Warning signs/ }));
+    expect(screen.getByText("Compares Name")).toBeTruthy();
+    expect(screen.getByText("Can't work yet: needs a country, zip or state column")).toBeTruthy();
+    await scan(user);
+    await user.click(screen.getByRole("button", { name: /3\s*Warning signs/ }));
+    expect(screen.getByText(/suggests turning off “Shared number”/)).toBeTruthy();
+    expect(screen.getByText("In this list it predicts wrong numbers: 2× as often")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Use what the data shows" }));
+    expect((screen.getByRole("checkbox", { name: "Shared number" }) as HTMLInputElement).checked).toBe(false);
+    expect(screen.queryByRole("button", { name: "Use what the data shows" })).toBeNull();
+  });
   it("can skip call outcomes explicitly before checking", async () => {
     const user = await start();
     await user.click(within(document.querySelector(".wizard-nav") as HTMLElement).getByRole("button", { name: "Next" }));

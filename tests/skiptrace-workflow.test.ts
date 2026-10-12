@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkedCopies, missingColumns, namesMapped, readDraft, refreshReadings, reviewNote, settledKeys, stableKey, statusPage } from "../src/lib/skiptrace-workflow";
+import { checkedCopies, missingColumns, namesMapped, readDraft, refreshReadings, reviewNote, settledKeys, signEvidence, signReadiness, stableKey, statusPage } from "../src/lib/skiptrace-workflow";
 import type { Dataset, SkiptraceConfig } from "../src/lib/types";
 
 const config: SkiptraceConfig = { phone_columns: ["Phone"], region: "US", country_column: null, first_name_column: null, last_name_column: null, name_column: "Name", zip_column: null, state_column: null, signals: {}, outcome: { column: "Status", called_column: "Phone", map: { ignored: [] } } };
@@ -50,6 +50,19 @@ describe("complete and reusable setup", () => {
     const upgraded = refreshReadings(earlier, today, { lvm: [], interested: ["do_not_call"] } as never, ["lvm", "interested"]);
     expect(upgraded.meaning).toEqual({ lvm: ["voicemail"], interested: ["do_not_call"] });
     expect(upgraded.reviewed).toEqual(["lvm", "interested"]);
+  });
+  it("says whether each warning sign can work and what the list's calls showed", () => {
+    const config = { phone_columns: ["Phone"], first_name_column: "First", state_column: null, zip_column: "Zip", country_column: null } as unknown as Parameters<typeof signReadiness>[1];
+    expect(signReadiness("shared_number", config)).toEqual({ ready: true, text: "Compares First" });
+    expect(signReadiness("area_code_other_state", config).ready).toBe(false);
+    expect(signReadiness("country_mismatch", config).text).toBe("Compares the phone's country with Zip");
+    expect(signReadiness("business_line", config).ready).toBe(true);
+    const sign = { code: "area_code_other_state", label: "", contacted: 120, wrong: 30, wrong_rate: 0.25, lift: 2.1, counted: true, measured_only: false, predictive: true, enough_data: true };
+    expect(signEvidence(sign, true)).toEqual({ text: "In this list it predicts wrong numbers: 2.1× as often", on: true });
+    expect(signEvidence({ ...sign, predictive: false, lift: 1 }, true).on).toBe(false);
+    expect(signEvidence({ ...sign, enough_data: false, contacted: 12 }, true)).toEqual({ text: "Only 12 called numbers have a clear result; about 50 are needed to tell" });
+    expect(signEvidence(undefined, true).on).toBeUndefined();
+    expect(signEvidence(sign, false).text).toBe("Can't be measured: this list has no call results");
   });
   it("knows whether the called phone's owner has a name column", () => {
     const base = { phone_columns: ["P1", "P2"], first_name_column: "First", additional_owners: [{ name_column: null }], phone_owner_map: { P1: 0, P2: 1 } } as unknown as Parameters<typeof namesMapped>[0];
