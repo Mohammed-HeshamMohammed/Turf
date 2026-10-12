@@ -14,7 +14,7 @@ import { ManualEvidence } from "../components/ManualEvidence";
 import { CheckedPreview, SkiptraceReview } from "../components/SkiptraceReview";
 import { SkiptraceTemplates } from "../components/SkiptraceTemplates";
 import { SkiptraceColumns } from "../components/SkiptraceColumns";
-import { checkedCopies, missingColumns, namesMapped, ownerNames, readDraft, refreshReadings, reviewNote, sameOutcomes, settledKeys, SIGN_HELP, signEvidence, signReadiness, STAGE_LABELS, statusPage, stableKey, type WorkflowDraft } from "../lib/skiptrace-workflow";
+import { checkedCopies, missingColumns, namesMapped, ownerNames, readDraft, refreshReadings, reviewNote, ROW_GROUPS, sameOutcomes, settledKeys, SIGN_HELP, signEvidence, signReadiness, STAGE_LABELS, statusPage, stableKey, type WorkflowDraft } from "../lib/skiptrace-workflow";
 import type { Dataset, Outcome, SignReport, SkiptraceConfig, SkiptraceReport, SkiptraceSuggestion, StatusModelState, StatusRow, Verdict } from "../lib/types";
 
 // Wording follows DataForge's Skip Tracing tab, so the two say the same thing about the same data.
@@ -596,16 +596,41 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           <article className="card step">
             <header><h2>What needs attention?</h2><span className="count">Checked {new Date(report.checked_at).toLocaleString()}</span></header>
 
-            <div className="action-summary">{[
-              ["callable", "Rows with a usable number"], ["known_wrong", "Rows containing known wrong numbers"], ["dnc", "Rows containing do-not-call numbers"], ["needs_review", "Rows needing review"], ["no_phone", "Rows with no phone values"],
-            ].map(([filter, label]) => <button type="button" className="summary-item" key={filter} onClick={() => showRows(filter)}><strong>{formatNumber(report.row_counts[filter] ?? 0)}</strong><span>{label}</span><small>Review rows →</small></button>)}</div>
+            {report.row_counts.group_look === undefined ? (
+              // a check from before the rows were grouped
+              <div className="action-summary">{[
+                ["callable", "Rows with a usable number"], ["known_wrong", "Rows containing known wrong numbers"], ["dnc", "Rows containing do-not-call numbers"], ["needs_review", "Rows needing review"], ["no_phone", "Rows with no phone values"],
+              ].map(([filter, label]) => <button type="button" className="summary-item" key={filter} onClick={() => showRows(filter)}><strong>{formatNumber(report.row_counts[filter] ?? 0)}</strong><span>{label}</span><small>Review rows →</small></button>)}</div>
+            ) : (
+              <>
+                <p className="results-headline"><strong>{formatNumber(report.row_counts.callable ?? 0)} of {formatNumber(report.rows)} rows</strong> have a number you can call
+                  {report.row_counts.group_look ? <>; <strong>{formatNumber(report.row_counts.group_look)}</strong> of them need a look first.</> : "."}</p>
+                <div className="verdict-bar" role="img" aria-label={ROW_GROUPS.map(group => `${report.row_counts[`group_${group.id}`] ?? 0} ${group.label}`).join(", ")}>
+                  {ROW_GROUPS.map(group => (report.row_counts[`group_${group.id}`] ? <i key={group.id} className={`group-${group.id}`} style={{ flexGrow: report.row_counts[`group_${group.id}`] }} /> : null))}
+                </div>
+                <div className="row-groups">{ROW_GROUPS.map(group => (
+                  <button type="button" key={group.id} className={`row-group group-${group.id}`} disabled={!report.row_counts[`group_${group.id}`]} onClick={() => showRows(`group_${group.id}`)}>
+                    <i aria-hidden="true" /><strong>{formatNumber(report.row_counts[`group_${group.id}`] ?? 0)}</strong><span>{group.label}</span><small>{group.meaning}</small>
+                  </button>
+                ))}</div>
+                {(report.row_counts.known_wrong > 0 || report.row_counts.dnc > 0) && <p className="muted">{[
+                  report.row_counts.known_wrong > 0 && `${formatNumber(report.row_counts.known_wrong)} ${report.row_counts.known_wrong === 1 ? "row contains" : "rows contain"} a known wrong number`,
+                  report.row_counts.dnc > 0 && `${formatNumber(report.row_counts.dnc)} ${report.row_counts.known_wrong > 0 ? "" : report.row_counts.dnc === 1 ? "row contains " : "rows contain "}a do-not-call number`,
+                ].filter(Boolean).join(" and ")}. When another number in the same row is fine, it becomes the best phone; a blocked number never does.</p>}
+                <div className="row">
+                  {report.row_counts.group_look > 0 && <button type="button" className="button" onClick={() => showRows("group_look")}>Review the {formatNumber(report.row_counts.group_look)} to look at</button>}
+                  <button type="button" className={report.row_counts.group_look > 0 ? "button ghost" : "button"} disabled={stale} onClick={() => setStep(4)}>Save the checked copy</button>
+                </div>
+              </>
+            )}
             <details className="step skiptrace-optional"><summary>How to read this check</summary>
             <p className="muted">These are row counts; categories can overlap. A row with a blocked phone can still have another usable number. Usable includes suspicious and unverified numbers: it does not prove ownership or connection. Review blocked numbers without deleting the row.</p>
             <p className="muted">Cross-file evidence: {report.other_datasets_used.join(", ") || "No other saved lists"}. Manual marks: {Object.keys(report.manual_evidence).length} in this project at check time. Sign-performance measurements use mapped call outcomes.</p>
             </details>
 
-            <button type="button" className="button ghost" onClick={() => showRows("all")}>Review all checked rows</button>
+            <button type="button" className="link" onClick={() => showRows("all")}>Review all checked rows</button>
           </article>
+          <h3 className="report-heading">Details of this check</h3>
           {reviewOpen && <SkiptraceReview report={report} filter={reviewFilter} rowNumber={reviewRow} datasetId={dataset.id} onUpdated={turf.refresh} onFilter={filter => { setReviewFilter(filter); setReviewRow(undefined); }} />}
           {report.phone_assessments && <ReportSection id={`quality-${dataset.id}`} title="Phone quality and calling restrictions"><dl className="metrics">{(["corroborated", "unverified", "suspicious", "wrong"] as const).map(quality => <div key={quality}><dt>Quality: {quality}</dt><dd>{formatNumber(report.phone_assessments?.[quality] ?? 0)}</dd></div>)}<div><dt>Active DNC blocks</dt><dd>{formatNumber(report.phone_assessments.blocked_dnc ?? 0)}</dd></div><div><dt>Aging or review warnings</dt><dd>{formatNumber(report.phone_assessments.needs_review ?? 0)}</dd></div></dl><p className="muted">Counts are per-row phone choices. Quality and calling restrictions are separate; a valid number can still be blocked by DNC.</p></ReportSection>}
           <ReportSection id={`verdicts-${dataset.id}`} title="Results" count={`${formatNumber(report.values)} phone values`}>

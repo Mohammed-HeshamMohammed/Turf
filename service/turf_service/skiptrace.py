@@ -427,11 +427,33 @@ def _checked_row(row: dict, result: dict, config: dict) -> dict:
     return out
 
 
+# Every checked row is in exactly one group, so the counts add up to the rows of the list.
+ROW_GROUPS = ("look", "blocked", "ready", "unknown", "no_phone")
+_GROUP_FILTERS = {
+    "group_look": "has_callable=1 AND (needs_review=1 OR verdict NOT IN ('corroborated','unverified'))",
+    "group_blocked": "has_callable=0 AND verdict!='none'",
+    "group_ready": "has_callable=1 AND needs_review=0 AND verdict='corroborated'",
+    "group_unknown": "has_callable=1 AND needs_review=0 AND verdict='unverified'",
+    "group_no_phone": "verdict='none'",
+}
+
+
+def _row_group(has_phone: bool, callable_: bool, needs_review: bool, verdict: str) -> str:
+    if not has_phone:
+        return "no_phone"
+    if not callable_:
+        return "blocked"
+    if needs_review or verdict not in ("corroborated", "unverified"):
+        return "look"
+    return "ready" if verdict == "corroborated" else "unknown"
+
+
 def _run_scan(context: JobContext) -> dict:
     _, report, numbers, rows, _ = _evaluate(context, keep_rows=True)
     results = report.pop("_row_results")
     records = []
     counts = {"all": len(rows), "callable": 0, "known_wrong": 0, "dnc": 0, "needs_review": 0, "no_phone": 0}
+    counts.update({f"group_{group}": 0 for group in ROW_GROUPS})
     counts.update({verdict: 0 for verdict in engine.VERDICTS})
     preview = []
     for index, (number, row, result) in enumerate(zip(numbers, rows, results)):
@@ -446,8 +468,10 @@ def _run_scan(context: JobContext) -> dict:
         counts["callable"] += callable_
         counts["known_wrong"] += wrong
         counts["dnc"] += dnc
-        needs_review = verdict in ("suspicious", "unverified") or "conflicting_outcomes" in reasons or bool(out["Phone evidence warnings"]) or any(choice["quality"] == "suspicious" for choice in result.get("choices", []))
+        # Something to look at before calling. An unverified number is not one: it is valid, and nothing more is known.
+        needs_review = verdict == "suspicious" or "conflicting_outcomes" in reasons or bool(out["Phone evidence warnings"]) or any(choice["quality"] == "suspicious" for choice in result.get("choices", []))
         counts["needs_review"] += needs_review
+        counts[f"group_{_row_group(bool(verdicts), callable_, needs_review, verdict)}"] += 1
         counts["no_phone"] += not verdicts
         if verdict in counts:
             counts[verdict] += 1
@@ -470,7 +494,7 @@ def review(store: ProjectStore, job_id: str, filter_: str = "all", offset: int =
     if job is None or job["kind"] != "skiptrace_scan" or job["state"] != "completed":
         raise ValueError("Run a completed phone check before reviewing rows")
     filters = {"all": "1", "callable": "has_callable=1", "known_wrong": "known_wrong=1", "dnc": "do_not_call=1", "no_phone": "verdict='none'",
-               "needs_review": "needs_review=1"}
+               "needs_review": "needs_review=1", **_GROUP_FILTERS}
     filters.update({verdict: f"verdict='{verdict}'" for verdict in engine.VERDICTS})
     if filter_ not in filters:
         raise ValueError("Unknown review filter")

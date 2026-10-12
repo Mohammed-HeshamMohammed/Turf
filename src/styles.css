@@ -622,6 +622,24 @@ tbody tr:first-child th[scope="row"] { border-top: 0; }
 /* Table headers stay at the top of a table that scrolls inside its own box. */
 .skiptrace-report-body .table-wrap thead th, .preview-table thead th, .history-table thead th { position: sticky; top: 0; z-index: 1; background: var(--raised); box-shadow: 0 1px 0 var(--line); }
 .status-mapping-table table.compact, .skiptrace-report-body .table-wrap table.compact, .preview-table table.compact, .history-table table.compact { margin-top: 0; }
+/* Results: each checked row in one group, with what the group means. */
+.results-headline { margin: 0; font-size: 17px; }
+.row-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 10px; }
+.row-group { display: grid; grid-template-columns: auto 1fr; align-content: start; gap: 2px 8px; padding: 14px; border-radius: 16px; background: var(--well); text-align: left; }
+.row-group:not(:disabled):hover { box-shadow: inset 0 0 0 2px var(--ink); }
+.row-group:disabled { opacity: 0.55; cursor: default; }
+.row-group i { grid-row: span 2; align-self: center; width: 12px; height: 12px; border-radius: 4px; }
+.row-group strong { font-size: 24px; font-weight: 600; line-height: 1.1; }
+.row-group span { grid-column: 2; font-weight: 550; }
+.row-group small { grid-column: 1 / -1; margin-top: 4px; color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
+.group-look { --group: var(--accent); }
+.group-blocked { --group: var(--ink); }
+.group-ready { --group: #a9dd8d; }
+.group-unknown { --group: #cfcfcf; }
+.group-no_phone { --group: #e9e9e9; }
+.verdict-bar i[class^="group-"], .row-group i { background: var(--group); }
+.report-heading { margin: 8px 4px 0; font-size: 15px; color: var(--muted); font-weight: 550; }
+
 /* Warning signs: each one says whether it can work and what the list's own calls showed. */
 .sign-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 10px; }
 .sign-card { display: grid; gap: 6px; align-content: start; min-width: 0; padding: 14px 16px; border-radius: 16px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line); }

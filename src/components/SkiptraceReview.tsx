@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Field, VerdictPill } from "./Bits";
 import { skiptraceReview } from "../lib/service";
+import { ROW_GROUPS } from "../lib/skiptrace-workflow";
 import { formatNumber, checkedPhoneColumns } from "../lib/marks";
 import type { ReviewRow, SkiptraceReport, Verdict } from "../lib/types";
 import { PhoneChoices } from "./PhoneChoices";
@@ -23,9 +24,11 @@ export function SkiptraceReview({ report, filter, rowNumber, onFilter, datasetId
   return <article className="card step" id={`review-${report.scan_job_id}`}>
     <header><h2>Review checked rows</h2><span className="count">Original rows stay intact</span></header>
     <Field label="Rows to review" value={filter} onChange={value => onFilter(value ?? "all")} options={[
-      { value: "all", label: "All rows" }, { value: "callable", label: "Has a usable number" },
+      { value: "all", label: "All rows" },
+      ...ROW_GROUPS.map(group => ({ value: `group_${group.id}`, label: `${group.label}: ${group.meaning}` })),
+      { value: "callable", label: "Has a usable number" },
       { value: "known_wrong", label: "Contains a known wrong number" }, { value: "dnc", label: "Contains a do-not-call number" },
-      { value: "needs_review", label: "Needs review: suspicious, unverified, or conflicting outcomes" }, { value: "no_phone", label: "No phone values" },
+      { value: "needs_review", label: "Something to look at: suspicious numbers, conflicting call results, or old evidence" }, { value: "no_phone", label: "No phone values" },
       ...(["wrong", "suspicious", "unverified", "corroborated"] as const).map(value => ({ value, label: `Best row verdict: ${value}` })),
     ]} />
     {rowNumber !== undefined && <p className="muted">Showing source row {rowNumber}. <button className="link" onClick={() => onFilter("all")}>Show all rows</button></p>}

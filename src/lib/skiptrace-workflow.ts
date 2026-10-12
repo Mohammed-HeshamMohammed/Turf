@@ -114,6 +114,15 @@ export const SIGN_HELP: Record<string, { example: string; needs: string }> = {
   country_mismatch: { example: "The phone's country code differs from the property's country.", needs: "Map country, postal code, or state for address evidence." },
 };
 
+/** The groups a checked row falls in, each row in exactly one, in the order they matter. */
+export const ROW_GROUPS = [
+  { id: "look", label: "Look first", meaning: "A number you can call, but something needs a look first: a suspicious number, conflicting call results, or old evidence" },
+  { id: "blocked", label: "Nothing to call", meaning: "Every number in the row is a known wrong number, on a do-not-call list, or not a real number" },
+  { id: "ready", label: "Ready", meaning: "Someone was reached at the number, or independent files agree on it" },
+  { id: "unknown", label: "Nothing known yet", meaning: "A real number with no call history yet; fine to call" },
+  { id: "no_phone", label: "No phone", meaning: "The row has no phone number at all" },
+] as const;
+
 /** Every owner name column mapped, across owner groups. */
 export function ownerNames(config: SkiptraceConfig): string[] {
   return [...new Set([config, ...(config.additional_owners ?? [])].flatMap(owner => [owner.first_name_column, owner.last_name_column, owner.name_column])

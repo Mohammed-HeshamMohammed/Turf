@@ -299,6 +299,17 @@ describe("the complete five-step process", () => {
     expect((screen.getByRole("checkbox", { name: "Shared number" }) as HTMLInputElement).checked).toBe(false);
     expect(screen.queryByRole("button", { name: "Use what the data shows" })).toBeNull();
   });
+  it("puts every checked row in one group and opens the rows of a group", async () => {
+    const groups = { group_look: 4, group_blocked: 2, group_ready: 0, group_unknown: 95, group_no_phone: 0 };
+    mocks.scan.mockResolvedValue({ report: { ...structuredClone(report), row_counts: { ...report.row_counts, callable: 99, known_wrong: 0, dnc: 2, ...groups } } });
+    const user = await start();
+    await scan(user);
+    expect(screen.getByText((_, element) => element?.className === "results-headline" && /99 of 101 rows have a number you can call; 4 of them need a look first\./.test(element.textContent ?? ""))).toBeTruthy();
+    expect(screen.getByText("2 rows contain a do-not-call number. When another number in the same row is fine, it becomes the best phone; a blocked number never does.")).toBeTruthy();
+    expect((screen.getByRole("button", { name: /^0\s*Ready/ }) as HTMLButtonElement).disabled).toBe(true);
+    await user.click(screen.getByRole("button", { name: "Review the 4 to look at" }));
+    await waitFor(() => expect(mocks.review).toHaveBeenCalledWith("scan-1", "group_look", 0, undefined));
+  });
   it("can skip call outcomes explicitly before checking", async () => {
     const user = await start();
     await user.click(within(document.querySelector(".wizard-nav") as HTMLElement).getByRole("button", { name: "Next" }));

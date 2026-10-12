@@ -240,3 +240,13 @@ def test_checked_copy_preserves_column_mapping_and_mapping_failure_is_atomic(ser
     job = wait(service, ok(service, "skiptrace.apply", dataset_id=dataset, config=config, scan_job_id=report["scan_job_id"])["job_id"])
     assert job["state"] == "failed" and "Mapping save failed" in job["error"]
     assert len(ok(service, "dataset.list")) == before
+
+
+def test_every_row_is_in_exactly_one_group_and_each_group_can_be_reviewed(service, tmp_path):
+    dataset = make_dataset(service, tmp_path, "Groups", FILE_A)
+    report = run(service, "skiptrace.scan", dataset_id=dataset, config=confirmed(service, dataset))["report"]
+    groups = {group: report["row_counts"][f"group_{group}"] for group in skiptrace.ROW_GROUPS}
+    assert sum(groups.values()) == report["row_counts"]["all"] == len(FILE_A)
+    assert groups["blocked"] >= 1, "a row whose only number is a known wrong number has nothing to call"
+    for group, count in groups.items():
+        assert ok(service, "skiptrace.review", job_id=report["scan_job_id"], filter=f"group_{group}")["total"] == count
