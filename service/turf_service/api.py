@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import SCHEMA_VERSION
-from . import area, datasets, dnc_registry, downloads, emails, geo, images, manual, phone_evidence, phone_lookup, projects, skiptrace, tidy
+from . import area, datasets, dnc_registry, downloads, emails, flood, geo, images, nanpa_blocks, manual, phone_evidence, phone_lookup, projects, skiptrace, tidy
 from .contracts import health_check
 from .jobs import JobContext, JobKind, JobRunner, JobValidationError
 from .logs import log
@@ -71,6 +71,9 @@ class Service:
             "dnc_registry.status": lambda p: dnc_registry.status(),
             "dnc_registry.import": lambda p: {"job_id": self._submit("dnc_registry_import", p)},
             "dnc_registry.remove": lambda p: dnc_registry.remove(p.get("area_code")),
+            "nanpa_blocks.status": lambda p: nanpa_blocks.status(),
+            "nanpa_blocks.import": lambda p: {"job_id": self._submit("nanpa_blocks_import", p)},
+            "flood.of": lambda p: flood.flood_of(p.get("lat"), p.get("lon"), force=bool(p.get("again"))),
             "emails.check": lambda p: emails.check(p.get("addresses")),
             "area.of": lambda p: area.area_of(p.get("lat"), p.get("lon")),
             "area.key_status": lambda p: area.key_status(),
@@ -157,6 +160,7 @@ class Service:
             "skiptrace_apply": skiptrace.APPLY_JOB,
             "geo_locate": geo.LOCATE_JOB,
             "dnc_registry_import": dnc_registry.IMPORT_JOB,
+            "nanpa_blocks_import": nanpa_blocks.IMPORT_JOB,
             "phone_lookup": phone_lookup.LOOKUP_JOB,
         })
         # Lists that were in the project before imports left out empty rows and columns get the same treatment now.

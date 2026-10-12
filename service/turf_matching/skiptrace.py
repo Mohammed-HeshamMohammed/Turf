@@ -53,6 +53,7 @@ REASON_LABELS = {
     "reached": "A call reached a person at this number",
     "agreed_by_files": "Independent files agree on this number for the same person",
     "dnc_expired": "A do-not-call mark that has expired (not blocking)",
+    "unassigned_block": "The number's block is not assigned to any carrier",
     "shared_number": SIGNALS["shared_number"],
     "business_line": SIGNALS["business_line"],
     "area_code_other_state": SIGNALS["area_code_other_state"],
@@ -262,6 +263,8 @@ class Knowledge:
     people: dict[str, dict[str, set]] = field(default_factory=lambda: defaultdict(lambda: defaultdict(set)))
     events: dict[str, list[dict]] = field(default_factory=lambda: defaultdict(list))
     lookups: dict[str, dict] = field(default_factory=dict)
+    # Says why a number cannot exist (its block is assigned to no carrier), when that is known; see nanpa_blocks.
+    blocks: object = None
 
     def merge_outcomes(self) -> int:
         return len(self.wrong) + len(self.dnc)
@@ -396,6 +399,9 @@ def judge(info, row: dict, config: dict, context: dict) -> tuple[str, list[dict]
     if counted.get("country_mismatch") and _country_mismatch(info, row, config):
         where, _ = address_region(row, config)
         reasons.append({"code": "country_mismatch", "text": f"The phone is from {phone_rules.region_name(info.region)} (+{info.country_code}); the address is in {phone_rules.region_name(where)}", "effect": "suspicious"})
+    unassigned = knowledge.blocks(e164) if callable(knowledge.blocks) else None
+    if unassigned:
+        reasons.append({"code": "unassigned_block", "text": unassigned, "effect": "suspicious"})
     effects = {reason["effect"] for reason in reasons}
     if reached and not wrong and not active:
         reasons.append({"code": "reached", "text": f"A call reached a person here {_sources_text(reached, own)}", "effect": "corroborated"})
