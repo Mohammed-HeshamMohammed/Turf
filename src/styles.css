@@ -770,3 +770,8 @@ tbody tr:first-child th[scope="row"] { border-top: 0; }
 .listing .listing-chips { margin-top: auto; padding-top: 6px; }
 .owner-head .pill { background: var(--well); color: #333; }
 .owner-head .pill.owner-estate, .owner-head .pill.owner-bank { background: var(--accent-soft); color: var(--accent-ink); }
+
+/* The National Do Not Call Registry line in "Ready to check". */
+.registry-progress { display: block; margin-top: 3px; color: var(--muted); font-size: 12.5px; }
+.registry-path { display: flex; gap: 8px; margin-top: 6px; }
+.registry-path .input { flex: 1; min-width: 0; }

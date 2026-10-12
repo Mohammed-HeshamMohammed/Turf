@@ -89,6 +89,10 @@ Lists set up with the earlier version take the new readings by themselves: a sav
 
 `service/tests/status_wording.py` holds about 225 labelled statuses; the tests check that nothing there is confirmed wrongly and no do-not-call is dropped, with and without the model.
 
+### National Do Not Call Registry
+
+Telemarketers get their first five area codes free at telemarketing.donotcall.gov (register, and renew each year). Download them there and use **Load a file** in Skip Tracing's *Ready to check*. Turf reads ten-digit numbers from the file (flat text, CSV, XML or zipped), keeps them on this computer for every project, and blocks any number on it in a phone check, giving the file's date as the reason. A file replaces the numbers of the area codes it holds, so loading a fresh download refreshes them; numbers in other area codes are not checked. A file older than 31 days still blocks, and the screen asks for a fresh one.
+
 ### Use an existing dialer
 
 In **Call outcomes**, use **Import dialer results** for a CSV/Excel export, or select an export already in this project. Choose the exact dialed phone column, call-status column, and optional call date/time column. Map the exported statuses, then **Save outcome mappings**. Return to your lead list and run the normal phone check; the mapped dialer export contributes cross-list evidence without a Twilio account or subscription. Existing steps, rules, reports, downloads, and saved versions remain available.

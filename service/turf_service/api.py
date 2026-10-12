@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import SCHEMA_VERSION
-from . import datasets, downloads, geo, images, manual, phone_evidence, phone_lookup, projects, skiptrace, tidy
+from . import datasets, dnc_registry, downloads, geo, images, manual, phone_evidence, phone_lookup, projects, skiptrace, tidy
 from .contracts import health_check
 from .jobs import JobContext, JobKind, JobRunner, JobValidationError
 from .logs import log
@@ -68,6 +68,9 @@ class Service:
             "job.list": lambda p: [_job_dict(r) for r in self._store().list_jobs(self._project_id(), int(p.get("limit", 50)))],
             "job.get": self._job_get,
             "job.cancel": lambda p: self._runner().cancel(self._store(), p["job_id"]) or {"job_id": p["job_id"]},
+            "dnc_registry.status": lambda p: dnc_registry.status(),
+            "dnc_registry.import": lambda p: {"job_id": self._submit("dnc_registry_import", p)},
+            "dnc_registry.remove": lambda p: dnc_registry.remove(p.get("area_code")),
             "images.embedded": lambda p: images.embedded(self._store(), p.get("name")),
             "images.aerial": lambda p: images.aerial(p.get("lat"), p.get("lon")),
             "geo.zip_centres": lambda p: geo.zip_centres(list(p.get("zips") or [])),
@@ -149,6 +152,7 @@ class Service:
             "skiptrace_scan": skiptrace.SCAN_JOB,
             "skiptrace_apply": skiptrace.APPLY_JOB,
             "geo_locate": geo.LOCATE_JOB,
+            "dnc_registry_import": dnc_registry.IMPORT_JOB,
             "phone_lookup": phone_lookup.LOOKUP_JOB,
         })
         # Lists that were in the project before imports left out empty rows and columns get the same treatment now.

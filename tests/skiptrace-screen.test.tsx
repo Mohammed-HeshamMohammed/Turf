@@ -11,6 +11,8 @@ vi.mock("../src/lib/service", () => ({
   knownSuggestion: () => null, skiptraceSuggest: mocks.suggest, skiptraceStatuses: mocks.statuses, skiptraceSave: mocks.save,
   skiptraceScan: mocks.scan, skiptraceApply: mocks.apply, skiptraceFreshness: mocks.freshness, skiptraceReview: mocks.review,
   cancelSkiptraceJob: mocks.cancel, watchJob: mocks.watch, markHistory: async () => [], inDesktop: false, importFile: vi.fn(), pickImportFile: vi.fn(), describeLeftOut: () => "",
+  dncRegistryStatus: async () => ({ area_codes: [], numbers: 0, max_age_days: 31 }), dncRegistryImport: vi.fn(), dncRegistryRemove: vi.fn(), pickRegistryFile: vi.fn(),
+  skiptraceRemember: vi.fn(async () => ({ remembered: 0 })), skiptraceModelStatus: vi.fn(async () => ({ state: "ready" })),
 }));
 
 const config: SkiptraceConfig = { phone_columns: ["Phone"], region: "US", country_column: null, first_name_column: null, last_name_column: null, name_column: "Name", zip_column: null, state_column: null,
@@ -315,6 +317,12 @@ describe("the complete five-step process", () => {
     expect((screen.getByRole("button", { name: /^0\s*Ready/ }) as HTMLButtonElement).disabled).toBe(true);
     await user.click(screen.getByRole("button", { name: "Review the 4 to look at" }));
     await waitFor(() => expect(mocks.review).toHaveBeenCalledWith("scan-1", "group_look", 0, undefined));
+  });
+  it("says whether the National Do Not Call Registry is loaded", async () => {
+    const user = await start();
+    await user.click(screen.getByRole("button", { name: /3\s*Warning signs/ }));
+    expect(await screen.findByText(/National Do Not Call Registry not loaded/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Load a file" })).toBeTruthy();
   });
   it("can skip call outcomes explicitly before checking", async () => {
     const user = await start();

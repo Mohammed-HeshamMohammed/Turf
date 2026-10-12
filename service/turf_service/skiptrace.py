@@ -20,7 +20,7 @@ from .datasets import _register_rows, confirm_mapping, latest_mapping
 from .jobs import JobContext, JobKind, JobValidationError
 from .storage import ProjectStore, utc_now
 from .manual import list_marks
-from . import status_model
+from . import dnc_registry, status_model
 from .status_model import embedder
 
 OUTPUT_SUFFIXES = ("verdict", "why", "E.164", "type", "quality", "permission")
@@ -334,6 +334,8 @@ def _knowledge(store: ProjectStore, project_id: str, current: dict, config: dict
     for event in evidence(store):
         knowledge.events[event["number"]].append(event)
     knowledge.lookups = latest(store)
+    if dnc_registry.fingerprint():
+        knowledge.dnc = dnc_registry.WithRegistry(knowledge.dnc)
     return knowledge, used_names
 
 
@@ -389,7 +391,7 @@ def freshness(store: ProjectStore, dataset_id: str) -> dict:
                 "engine": engine.SKIPTRACE_VERSION, "phone": engine.phone_rules.PHONE_VERSION, "metadata": engine.phone_rules.METADATA_VERSION}
     from .phone_evidence import evidence
     from .phone_lookup import latest
-    snapshot.update({"phone_outcomes": evidence(store), "phone_lookups": latest(store)})
+    snapshot.update({"phone_outcomes": evidence(store), "phone_lookups": latest(store), "dnc_registry": dnc_registry.fingerprint()})
     digest = hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
     return {"fingerprint": digest, "date": snapshot["date"]}
 

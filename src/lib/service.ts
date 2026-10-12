@@ -265,3 +265,18 @@ export async function downloadDataset(datasetId: string, version: "original" | "
 export const embeddedPicture = (name: string) => call<{ data_url: string }>("images.embedded", { name });
 export const aerialPicture = (lat: number, lon: number) =>
   call<{ data_url?: string; credit?: string; pending?: boolean; unavailable?: string }>("images.aerial", { lat, lon });
+
+// The National Do Not Call Registry, from the person's own download; kept on this computer for every project.
+export type RegistryStatus = { area_codes: { area_code: string; count: number; imported_at: string; file: string; age_days: number; out_of_date: boolean }[]; numbers: number; max_age_days: number };
+export const dncRegistryStatus = () => call<RegistryStatus>("dnc_registry.status");
+export const dncRegistryRemove = (area_code: string) => call<RegistryStatus>("dnc_registry.remove", { area_code });
+export const dncRegistryImport = (path: string, onLines: (lines: number) => void) =>
+  runJob<{ area_codes: string[]; numbers: number; lines: number; skipped_lines: number }>("dnc_registry.import", { path }, {
+    onEvent: payload => { if (payload.stage === "reading_registry" && typeof payload.lines === "number") onLines(payload.lines); },
+  });
+export async function pickRegistryFile() {
+  const selected = await (await import("@tauri-apps/plugin-dialog")).open({
+    multiple: false, directory: false, filters: [{ name: "Do Not Call Registry files", extensions: ["txt", "csv", "zip", "xml", "dat"] }],
+  });
+  return typeof selected === "string" ? selected : null;
+}
