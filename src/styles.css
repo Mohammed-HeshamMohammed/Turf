@@ -715,6 +715,27 @@ tbody tr:first-child th[scope="row"] { border-top: 0; }
 .status-why { display: block; margin-top: 3px; font-size: 12.5px; overflow-wrap: anywhere; }
 .status-mapping-table tr.needs-you > th { box-shadow: inset 3px 0 0 var(--accent); }
 
+/* A row's owner, in its details. */
+.owner-panel { grid-column: 1 / -1; display: grid; gap: 10px; padding: 14px 16px; border-radius: 16px; background: var(--card); }
+.owner-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.owner-head h3 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
+.owner-head p { margin: 2px 0 0; font-size: 13px; }
+.owner-mail { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+.found-contacts h4 { margin: 0 0 6px; font-size: 13px; color: var(--muted); font-weight: 550; }
+.found-contacts ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.found-contacts li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.found-contacts small { flex-basis: 100%; color: var(--muted); font-size: 12px; }
+.owner-panel .notice { margin: 0; font-size: 13px; }
+
+/* Owners and leads: one tile per signal the lists show by themselves. */
+.owners-card header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.signal-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); gap: 10px; }
+.signal-tile { display: grid; align-content: start; gap: 3px; padding: 14px; border-radius: 16px; background: var(--raised); }
+.signal-tile strong { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+.signal-tile span { font-weight: 550; font-size: 13.5px; }
+.signal-tile small { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.signal-tile.none { opacity: 0.55; }
+
 /* Property pictures: a photo from the list, one borrowed from another list, or the free aerial view, else an icon. */
 .property-photo { position: relative; display: grid; place-items: center; overflow: hidden; color: #b9a892; background: linear-gradient(180deg, #dfe6ec 0%, #efe6da 62%, #fff 100%); }
 .property-photo img { width: 100%; height: 100%; object-fit: cover; }
@@ -737,3 +758,15 @@ tbody tr:first-child th[scope="row"] { border-top: 0; }
 .verdicts .bar-list { flex: 1; align-content: space-evenly; gap: 14px; }
 .verdicts .bar-list i { height: 10px; }
 .verdicts .card-note { margin-top: 14px; }
+/* Listing and follow-up tiles fill their card: the photo takes the room left, and the text below keeps one rhythm. */
+.card.listings { display: flex; flex-direction: column; }
+.card.listings > header { margin-bottom: 14px; }
+.card.listings .listing-row { flex: 1; align-items: stretch; }
+.listing { display: flex; flex-direction: column; gap: 6px; padding: 0 0 16px; }
+.listing .thumb { flex: 1 1 auto; height: auto; min-height: 180px; margin-bottom: 6px; }
+.listing .listing-tags { margin-top: 0; }
+.listing .listing-title { padding-top: 2px; }
+.listing p { margin: 0; padding: 0 14px; }
+.listing .listing-chips { margin-top: auto; padding-top: 6px; }
+.owner-head .pill { background: var(--well); color: #333; }
+.owner-head .pill.owner-estate, .owner-head .pill.owner-bank { background: var(--accent-soft); color: var(--accent-ink); }

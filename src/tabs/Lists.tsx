@@ -10,7 +10,8 @@ import { Icon } from "../components/Icon";
 import { ListPicker } from "../components/ListPicker";
 import { ListDownloads } from "../components/ListDownloads";
 import { PhoneChoices } from "../components/PhoneChoices";
-import { marksSource, usePhotoIndex, useRows, useVisited } from "../lib/hooks";
+import { marksSource, useListSetups, useOwnerIndex, usePhotoIndex, useRows, useVisited } from "../lib/hooks";
+import { foundElsewhere, otherOwners, ownerFacts, OWNER_KINDS, type OwnerColumns, type OwnerIndex } from "../lib/owners";
 import { photoColumns, photosFor, photosIn, placeColumns, positionOf, type PhotoIndex, type PlaceColumns } from "../lib/photos";
 import { PhotoGallery, PropertyPhoto } from "../components/PropertyPhoto";
 import {
@@ -92,6 +93,10 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   const photoCols = useMemo(() => photoColumns(rows ?? [], own), [rows, own]);
   const place = useMemo(() => placeColumns(columns, turf.areaMaps[dataset.id]), [columns, turf.areaMaps, dataset.id]);
   const photoIndex = usePhotoIndex(turf.datasets, turf.areaMaps, turf.fail);
+  // Owners: what the name and mail show, and what other lists in the project have for the same owner.
+  const setups = useListSetups(turf.datasets, turf.version);
+  const owners = useOwnerIndex(turf.datasets, setups, turf.areaMaps, turf.fail);
+  const ownerCols = owners?.lists.find(item => item.dataset.id === dataset.id)?.columns ?? null;
   const phoneColumns = useMemo(() => checkedPhoneColumns(columns), [columns]);
   const areaMap = useMemo(() => areaColumns(columns, turf.areaMaps[dataset.id]), [columns, turf.areaMaps, dataset.id]);
   const position = useMemo(() => positionColumns(columns), [columns]);
@@ -409,7 +414,8 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                     <tr className="detail">
                       <td colSpan={shownColumns.length + (checked ? 6 : 2) + (showPhotos ? 1 : 0)}>
                         <RowDetail row={row} datasetId={source.id} onUpdated={turf.refresh} own={own} phoneColumns={phoneColumns} number={marks.number} manual={turf.manual} onMark={turf.setMark}
-                          photos={{ columns: photoCols, place, index: photoIndex, exact: located?.exact?.[String(row.row_number)] }} />
+                          photos={{ columns: photoCols, place, index: photoIndex, exact: located?.exact?.[String(row.row_number)] }}
+                          owner={owners && ownerCols ? { columns: ownerCols, index: owners.index, datasetId: dataset.id } : null} />
                       </td>
                     </tr>
                   )}
@@ -533,6 +539,38 @@ function dullColumns(names: string[], rows: Record<string, string | number | nul
   return dull.size === names.length ? new Set<string>() : dull;
 }
 
+/** The owner as the lists show them: the kind of owner, where their mail goes, and what other lists have for them. */
+function OwnerPanel({ row, owner }: { row: DatasetRow; owner: { columns: OwnerColumns; index: OwnerIndex; datasetId: string } }) {
+  const facts = ownerFacts(row, owner.columns);
+  const found = foundElsewhere(row, owner.datasetId, owner.columns, owner.index);
+  const others = otherOwners(row, owner.datasetId, owner.columns, owner.index);
+  const kind = OWNER_KINDS.find(item => item.id === facts.kind);
+  if (!facts.name && !facts.mailing && !found.length) return null;
+  const flags = [facts.absentee && "Absentee owner", facts.outOfState && "Out of state", facts.poBox && "PO box"].filter(Boolean) as string[];
+  return (
+    <section className="owner-panel" aria-label="Owner">
+      <div className="owner-head">
+        <div><h3>{facts.name || "Owner not named"}</h3>{kind && <p className="muted">{kind.hint}</p>}</div>
+        {kind && <span className={`pill owner-${kind.id}`}>{kind.label}</span>}
+      </div>
+      {facts.mailing && <p className="owner-mail"><span className="muted">Mail goes to</span> {facts.mailing}{flags.map(flag => <span key={flag} className="pill pill-suspicious">{flag}</span>)}</p>}
+      {others.map(item => <p key={item.list + item.owner} className="notice">{item.list} names {item.owner} as the owner of this property: it may have been sold, or one list has the wrong owner.</p>)}
+      {found.length > 0 && (
+        <div className="found-contacts">
+          <h4>Found in your other lists</h4>
+          <ul>{found.map(item => (
+            <li key={item.value}>
+              <strong>{item.kind === "phone" && item.value.length === 10 ? formatPhone(`+1${item.value}`) : item.value}</strong>
+              {item.warning && <span className="pill pill-wrong">{item.warning}</span>}
+              <small>{item.list} · {item.basis}</small>
+            </li>
+          ))}</ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
 const photoCount = (count: number) => (count ? `${count} ${count === 1 ? "photo" : "photos"}, shown above` : "No photo");
 
 function formatCell(name: string, value: string | number | null) {
@@ -541,10 +579,11 @@ function formatCell(name: string, value: string | number | null) {
   return typeof value === "number" && !/zip|year/i.test(name) ? formatNumber(value) : value;
 }
 
-function RowDetail({ row, own, phoneColumns, number, manual, onMark, datasetId, onUpdated, photos }: {
+function RowDetail({ row, own, phoneColumns, number, manual, onMark, datasetId, onUpdated, photos, owner }: {
   row: DatasetRow; own: string[]; phoneColumns: string[]; number: string | null; manual: Turf["manual"]; onMark: Turf["setMark"];
   datasetId: string; onUpdated: () => Promise<void>;
   photos: { columns: string[]; place: PlaceColumns; index: PhotoIndex; exact?: [number, number] };
+  owner: { columns: OwnerColumns; index: OwnerIndex; datasetId: string } | null;
 }) {
   const found = photosFor(row, photos.columns, photos.place, photos.index, photos.exact);
   const where = positionOf(row, photos.place, photos.exact);
@@ -555,6 +594,7 @@ function RowDetail({ row, own, phoneColumns, number, manual, onMark, datasetId, 
   return (
     <div className="row-detail">
       {(found.photos.length > 0 || where) && <PhotoGallery photos={found.photos} position={where} label={`Row ${row.row_number}`} borrowed={found.borrowed} />}
+      {owner && <OwnerPanel row={row} owner={owner} />}
       <dl>
         {own.map(name => (
           <div key={name}>

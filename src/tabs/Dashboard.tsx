@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useMemo, useState } from "react";
 import type { Turf } from "../App";
 import { AreaMap, type Dot } from "../components/AreaMap";
 import { Empty, MiniBars, SearchBox, Segmented } from "../components/Bits";
@@ -9,13 +9,13 @@ import { gatherForMap, placeRows, priceColumn, useZipCentres, useZipOutlines } f
 import { callProgress, contactCoverage, listingFields, nextSteps, phoneColumnsOf, PROGRESS, REACH, reachContext, reachOf, shareText, statusKey, type Coverage, type Progress, type ProgressKind, type ReachContext, type ReachKind } from "../lib/dashboard";
 import { photoColumns, photosFor, placeColumns, positionOf, streetPart } from "../lib/photos";
 import { PropertyPhoto } from "../components/PropertyPhoto";
-import { marksSource, useAllRows, usePhotoIndex } from "../lib/hooks";
-import { skiptraceSuggest } from "../lib/service";
+import { marksSource, useAllRows, useListSetups, useOwnerIndex, usePhotoIndex } from "../lib/hooks";
+import { contactsOf, foundElsewhere, otherOwners, ownerFacts, OWNER_KINDS, type OwnerKind } from "../lib/owners";
 import {
   AREA_LABELS, AREA_LEVELS, KIND_LABELS, VERDICT_LABELS, areaColumns, checkedPhoneColumns, countAreas, formatDate, formatNumber,
   positionColumns, readMarks,
 } from "../lib/marks";
-import { VERDICTS, type AreaLevel, type Dataset, type DatasetRow, type SkiptraceSuggestion, type Verdict } from "../lib/types";
+import { VERDICTS, type AreaLevel, type Dataset, type DatasetRow, type Verdict } from "../lib/types";
 
 // The street map and its library are fetched the first time a map is shown, not when the app starts.
 const StreetMap = lazy(() => import("../components/StreetMap").then(module => ({ default: module.StreetMap })));
@@ -67,16 +67,29 @@ export function Dashboard({ turf }: { turf: Turf }) {
   const photoIndex = usePhotoIndex(datasets, turf.areaMaps, turf.fail);
   // Each list's Skip Tracing setup: its phone columns and what its call statuses mean, settled by Turf or by the person.
   // Reading it needs no phone check.
-  const [setups, setSetups] = useState<Record<string, SkiptraceSuggestion | null>>({});
-  const listKey = primary.map(dataset => dataset.id).join();
-  useEffect(() => {
-    let current = true;
-    void Promise.all(primary.map(dataset => skiptraceSuggest(dataset.id).then(setup => [dataset.id, setup] as const, () => [dataset.id, null] as const)))
-      .then(entries => { if (current) setSetups(Object.fromEntries(entries)); });
-    return () => { current = false; };
-  // `listKey` stands for `primary`; `version` changes when a list is checked or a status is settled.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listKey, turf.version]);
+  // `version` changes when a list is checked or a status is settled.
+  const setups = useListSetups(datasets, turf.version);
+  const owners = useOwnerIndex(datasets, setups, turf.areaMaps, turf.fail);
+  // What the owners and their mail show, and the contacts other lists have for them, counted once per row.
+  const ownerStats = useMemo(() => {
+    if (!owners) return null;
+    const counts = { phoneElsewhere: 0, emailElsewhere: 0, ownerDiffers: 0, absentee: 0, outOfState: 0, poBox: 0, named: 0,
+      kinds: Object.fromEntries(OWNER_KINDS.map(kind => [kind.id, 0])) as Record<OwnerKind, number> };
+    const perList: Record<string, number> = {};
+    for (const { dataset, rows, columns } of owners.lists) {
+      for (const row of rows) {
+        const facts = ownerFacts(row, columns);
+        if (facts.kind) { counts.kinds[facts.kind] += 1; counts.named += 1; }
+        counts.absentee += Number(facts.absentee); counts.outOfState += Number(facts.outOfState); counts.poBox += Number(facts.poBox);
+        const own = contactsOf(row, columns);
+        const found = foundElsewhere(row, dataset.id, columns, owners.index);
+        if (!own.phones.size && found.some(item => item.kind === "phone" && !item.warning)) { counts.phoneElsewhere += 1; perList[dataset.id] = (perList[dataset.id] ?? 0) + 1; }
+        if (!own.emails.size && found.some(item => item.kind === "email")) counts.emailElsewhere += 1;
+        if (otherOwners(row, dataset.id, columns, owners.index).length) counts.ownerDiffers += 1;
+      }
+    }
+    return { ...counts, perList };
+  }, [owners]);
   const known = zipValues.filter(value => centres.has(value)).length;
   const [kind, setKind] = useState("all");
   const [status, setStatus] = useState("all");
@@ -166,7 +179,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
     const progress = Object.fromEntries(PROGRESS.map(kind => [kind.id, summaries.reduce((sum, item) => sum + (item.progress?.[kind.id] ?? 0), 0)])) as Record<ProgressKind, number>;
     const withStatus = summaries.filter(item => item.progress);
     const rowsNeedingYou = withStatus.reduce((sum, item) => sum + (item.progress?.rowsNeedingYou ?? 0), 0);
-    const steps = nextSteps(summaries.map(item => ({ dataset: item.dataset, rows: item.rows.length, checked: item.checked, phoneRows: item.coverage.phone, zipColumn: item.zipColumn, zipless: item.zipless, progress: item.progress })));
+    const steps = nextSteps(summaries.map(item => ({ dataset: item.dataset, rows: item.rows.length, checked: item.checked, phoneRows: item.coverage.phone, zipColumn: item.zipColumn, zipless: item.zipless, progress: item.progress, phonesElsewhere: ownerStats?.perList[item.dataset.id] })));
     return {
       summaries, total, checkedRows, callable, verdicts, blocked: blocked.size, dots, listings: listings.slice(0, 3),
       followUps: [...followUps].sort((a, b) => Number(b.photos.length > 0) - Number(a.photos.length > 0) || a.order - b.order).slice(0, 3),
@@ -174,7 +187,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
     };
   // `known` changes as ZIP centres arrive.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allRows, primary, datasets, manual, turf.areaMaps, centres, known, setups, photoIndex]);
+  }, [allRows, primary, datasets, manual, turf.areaMaps, centres, known, setups, photoIndex, ownerStats]);
   const [view, setView] = useState<"calls" | "checks" | null>(null);
 
   // For the street map: every list's rows, each at its own place where it has one, and gathered by ZIP, city and state.
@@ -360,6 +373,32 @@ export function Dashboard({ turf }: { turf: Turf }) {
           ) : <Empty title="No listings or leads to follow up yet">A list with photos and prices shows its newest listings here; otherwise, leads whose call reached a person show here, with a picture when one is known.</Empty>}
         </article>
       </section>
+
+      {ownerStats && ownerStats.named + ownerStats.phoneElsewhere + ownerStats.absentee > 0 && (
+        <section className="card owners-card" aria-labelledby="owners-title">
+          <header><h2 id="owners-title">Owners and leads</h2><span className="count">From the lists themselves</span></header>
+          <div className="signal-tiles">
+            {[
+              { key: "phone", value: ownerStats.phoneElsewhere, label: "Phone in another list", hint: "No phone of their own; the same owner has one in another list" },
+              { key: "email", value: ownerStats.emailElsewhere, label: "Email in another list", hint: "No email of their own; another list has the owner's" },
+              { key: "differs", value: ownerStats.ownerDiffers, label: "Owner differs", hint: "Another list names someone else at the same property: sold, or a wrong owner" },
+              { key: "company", value: ownerStats.kinds.company, label: "Companies and LLCs", hint: "The people behind them are found elsewhere" },
+              { key: "trust", value: ownerStats.kinds.trust, label: "Trusts", hint: "The trustee decides" },
+              { key: "estate", value: ownerStats.kinds.estate, label: "Estates", hint: "The owner may have died; heirs or an executor decide" },
+              { key: "bank", value: ownerStats.kinds.bank + ownerStats.kinds.government, label: "Banks and government", hint: "Lender-owned (often after foreclosure) or public property" },
+              { key: "absentee", value: ownerStats.absentee, label: "Absentee owners", hint: "Mail goes somewhere other than the property" },
+              { key: "state", value: ownerStats.outOfState, label: "Out-of-state owners", hint: "Mail goes to another state" },
+              { key: "pobox", value: ownerStats.poBox, label: "PO box mailing", hint: "Mail goes to a PO box" },
+            ].map(tile => (
+              <div key={tile.key} className={tile.value ? "signal-tile" : "signal-tile none"} title={tile.hint}>
+                <strong>{formatNumber(tile.value)}</strong>
+                <span>{tile.label}</span>
+                <small>{tile.hint}</small>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="bottom">
         <article className="card table-card">

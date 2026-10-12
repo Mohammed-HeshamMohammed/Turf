@@ -77,6 +77,8 @@ export function callProgress(setup: SkiptraceSuggestion | null | undefined): Pro
 
 export type ListFacts = {
   dataset: Dataset; rows: number; checked: boolean; phoneRows: number; zipColumn?: string; zipless: number; progress: Progress | null;
+  /** Rows without a phone of their own whose owner has one in another list. */
+  phonesElsewhere?: number;
 };
 export type NextStep = { key: string; text: string; detail: string; action: string; tab: "skiptracing" | "lists"; datasetId: string; weight: number };
 
@@ -91,6 +93,9 @@ export function nextSteps(lists: ListFacts[]): NextStep[] {
     if (list.progress?.statusesNeedingYou) {
       const { statusesNeedingYou: count, rowsNeedingYou: rows } = list.progress;
       steps.push({ key: `statuses-${list.dataset.id}`, text: `${count} call ${count === 1 ? "status" : "statuses"} in ${name} ${count === 1 ? "needs" : "need"} you`, detail: `Used on ${rows.toLocaleString()} rows; Turf could not settle ${count === 1 ? "it" : "them"} alone`, action: "Review", tab: "skiptracing", datasetId: list.dataset.id, weight: rows });
+    }
+    if (list.phonesElsewhere) {
+      steps.push({ key: `found-${list.dataset.id}`, text: `${list.phonesElsewhere.toLocaleString()} rows in ${name} have no phone, but another list has one`, detail: "Same owner at the same property or mailing address; open a row to see it and where it came from", action: "Open", tab: "lists", datasetId: list.dataset.id, weight: list.phonesElsewhere * 1.5 });
     }
     if (!list.zipColumn && list.rows) {
       steps.push({ key: `zip-${list.dataset.id}`, text: `${name} has no ZIP column`, detail: "Its rows are not on the map or in Areas until a ZIP column is chosen", action: "Open", tab: "lists", datasetId: list.dataset.id, weight: list.rows / 2 });

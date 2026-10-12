@@ -134,6 +134,8 @@ def _samples(rows: list[dict], columns: list[str]) -> dict:
 # settled on the next. Only their own decisions are kept: a meaning Turf confirmed by itself is not, so a mistake
 # cannot teach itself.
 STATUS_MEMORY = "skiptrace.status_meanings"
+# A status column is taken as call results by itself only when this share of its rows reads like them.
+OUTCOME_UNDERSTOOD = 0.3
 # When this project's setups saved by the earlier version of Turf were taken over (see _upgrade_earlier_setups).
 STATUS_UPGRADE = "skiptrace.status_meanings.upgraded"
 
@@ -255,7 +257,7 @@ def suggest(store: ProjectStore, dataset_id: str, region: str = "US") -> dict:
     saved = get_settings(store, dataset_id)
     config = saved or found["config"]
     statuses = []
-    outcome = (config.get("outcome") or {}).get("column") if saved is not None else ((config.get("outcome") or {}).get("column") or (found["outcome_candidates"][0]["column"] if found["outcome_candidates"] else None))
+    outcome = (config.get("outcome") or {}).get("column") if saved is not None else ((config.get("outcome") or {}).get("column") or (found["outcome_candidates"][0]["column"] if found["outcome_candidates"] and found["outcome_candidates"][0]["understood"] >= OUTCOME_UNDERSTOOD else None))
     if outcome:
         saved_map = ((saved or {}).get("outcome") or {}).get("map") or {}
         upgraded = _upgrade_earlier_setups(store)

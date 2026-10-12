@@ -60,6 +60,9 @@ async function scan(user: ReturnType<typeof userEvent.setup>) {
   await waitFor(() => expect((within(document.querySelector(".wizard-nav") as HTMLElement).getByRole("button", { name: "Next" }) as HTMLButtonElement).disabled).toBe(false));
 }
 
+// These walk the whole five-step flow with a real screen; on a busy computer one can take longer than the default 5 s.
+vi.setConfig({ testTimeout: 20_000 });
+
 describe("the complete five-step process", () => {
   it("filters wide source-column lists and searches every field", async () => {
     const extra = Array.from({ length: 16 }, (_, index) => `Column ${index + 1}`);

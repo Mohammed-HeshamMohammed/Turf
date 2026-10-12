@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ownerColumns, ownerIndex } from "./owners";
 import { photoIndex, type PhotoIndex } from "./photos";
-import { allRows } from "./service";
-import type { AreaMapping, Dataset, DatasetRow } from "./types";
+import { allRows, skiptraceSuggest } from "./service";
+import type { AreaMapping, Dataset, DatasetRow, SkiptraceSuggestion } from "./types";
 
 /** State kept in this browser only. Reads and writes are guarded: storage can be blocked. */
 export function useStored<T>(key: string, initial: T) {
@@ -111,4 +112,38 @@ export function usePhotoIndex(datasets: Dataset[], areaMaps: Record<string, Area
     const rows = all[source.id] ?? [];
     return { rows, columns: rows[0] ? Object.keys(rows[0].raw) : [], saved: areaMaps[dataset.id] };
   })) : new Map()), [all, lists, areaMaps]);
+}
+
+/** Each list's own lists, once: a checked copy whose list is here is the same rows. */
+export function primaryLists(datasets: Dataset[]) {
+  return datasets.filter(dataset => !(dataset.kind === "checked" && datasets.some(other => other.id === dataset.parent_dataset_id)));
+}
+
+/** Each list's Skip Tracing setup (phone columns, owner columns, what its call statuses mean), read once and shared. */
+export function useListSetups(datasets: Dataset[], version: number): Record<string, SkiptraceSuggestion | null> {
+  const [setups, setSetups] = useState<Record<string, SkiptraceSuggestion | null>>({});
+  const ids = primaryLists(datasets).map(dataset => dataset.id).join();
+  useEffect(() => {
+    let current = true;
+    const lists = ids ? ids.split(",") : [];
+    void Promise.all(lists.map(id => skiptraceSuggest(id).then(setup => [id, setup] as const, () => [id, null] as const)))
+      .then(entries => { if (current) setSetups(Object.fromEntries(entries)); });
+    return () => { current = false; };
+  }, [ids, version]);
+  return setups;
+}
+
+/** Owners and contacts of every list, by property and by mailing address, for finding the same owner elsewhere. */
+export function useOwnerIndex(datasets: Dataset[], setups: Record<string, SkiptraceSuggestion | null>, areaMaps: Record<string, AreaMapping>, onError: (reason: unknown) => void) {
+  const lists = useMemo(() => primaryLists(datasets).map(dataset => ({ dataset, source: marksSource(dataset, datasets) })), [datasets]);
+  const sources = useMemo(() => lists.map(item => item.source), [lists]);
+  const all = useAllRows(sources, onError);
+  return useMemo(() => {
+    if (!all) return null;
+    const read = lists.map(({ dataset, source }) => {
+      const rows = all[source.id] ?? [];
+      return { dataset, rows, columns: ownerColumns(rows[0] ? Object.keys(rows[0].raw) : [], setups[dataset.id], areaMaps[dataset.id]) };
+    });
+    return { index: ownerIndex(read), lists: read };
+  }, [all, lists, setups, areaMaps]);
 }

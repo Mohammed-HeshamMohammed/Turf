@@ -220,3 +220,13 @@ def test_the_model_is_fetched_once_checked_and_never_used_damaged(tmp_path, monk
     monkeypatch.setenv("TURF_STATUS_MODEL_DOWNLOAD", "1")
     assert status_model.embedder() is None and len(started) == 1 and status_model.state()["state"] == "downloading"
     status_model._fetch.update(state="idle")
+
+
+def test_a_listing_status_is_not_taken_for_call_results(service, tmp_path, monkeypatch):
+    monkeypatch.setattr(skiptrace, "embedder", lambda: None)
+    listing = [["Ana", "Lopez", "(713) 555-3142", "", "77009", "TX", status] for status in ("House for sale", "Townhouse for sale", "Lot / Land for sale")]
+    dataset = make_dataset(service, tmp_path, "Listings", listing)
+    suggestion = ok(service, "skiptrace.suggest", dataset_id=dataset)
+    assert suggestion["outcome_column"] is None and suggestion["outcome_candidates"][0]["understood"] == 0
+    calls = make_dataset(service, tmp_path, "Calls", FILE_A)
+    assert ok(service, "skiptrace.suggest", dataset_id=calls)["outcome_column"] == "Status"

@@ -672,7 +672,11 @@ def suggest(rows: list[dict], roles: dict[str, str], region: str = "US", sample:
         values = [_clean(row.get(column)) for row in rows if _clean(row.get(column))]
         distinct = len(set(values))
         if _OUTCOME_HEADER.search(column) and values and 2 <= distinct <= 2000:
-            outcome_candidates.append({"column": column, "filled": len(values), "distinct": distinct})
+            # How much of it reads like call results: a listing's "Status" ("House for sale") is named the same way.
+            keys = Counter(normalize_status(value)[0] for value in values)
+            understood = sum(count for key, count in keys.items() if status_meaning.read_rules(key).doubt != "unknown") / len(values)
+            outcome_candidates.append({"column": column, "filled": len(values), "distinct": distinct, "understood": round(understood, 3)})
+    outcome_candidates.sort(key=lambda item: -item["understood"])
     config = {
         "phone_columns": phone_columns, "region": region, "country_column": role_column("country"),
         "first_name_column": role_column("first_name"), "last_name_column": role_column("last_name"), "name_column": role_column("name"),
