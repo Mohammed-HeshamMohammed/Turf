@@ -284,3 +284,11 @@ export async function pickRegistryFile() {
 // Email addresses: a verdict for each, with the domain's mail check finishing in the background.
 export type EmailVerdict = { verdict: "ok" | "role" | "invalid" | "typo" | "disposable" | "no_mail" | "pending" | "unknown"; why: string; suggestion?: string };
 export const checkEmails = (addresses: string[]) => call<Record<string, EmailVerdict>>("emails.check", { addresses });
+
+// The area around a property from the US Census: its tract (no key), and the tract's figures with the person's free key.
+export type CensusArea = {
+  tract?: { geoid: string; name: string }; needs_key?: boolean; pending?: boolean; unavailable?: string;
+  figures?: { year: number; median_income: number | null; median_value: number | null; owner_occupied_share: number | null; vacant_share: number | null } | null;
+};
+export const censusArea = (lat: number, lon: number) => call<CensusArea>("area.of", { lat, lon });
+export const setCensusKey = (key: string) => call<{ configured: boolean }>("area.set_key", { key });

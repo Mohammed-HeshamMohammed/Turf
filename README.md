@@ -47,6 +47,17 @@ npm run check
 
 Runs the type check and build of the window, UI interaction tests (Vitest), the service's tests (pytest), and the host's tests (cargo). For checks that do not need desktop libraries, run `npm run build`, `npm test`, and `python -m pytest service/tests -q`.
 
+## Owners, contacts and areas
+
+Beyond phones, Turf reads what the lists themselves say, for free:
+
+- **Owners.** Each owner name is read as a person, household, company or LLC, trust, estate (the owner may have died), government or bank, by wording rules (`src/lib/owners.ts`). The mailing address shows absentee, out-of-state and PO box owners, and row details can ask the free US Census geocoder whether it finds the mailing address.
+- **Contacts from your other lists.** The same owner at the same property, or at the same mailing address (two name words in common, in any order), is found in every other list in the project; its phones and emails are offered in row details with where they came from, and with any do-not-call or bad-number result recorded there. Another list that names a different owner for the same property (a county roll, say) is flagged. A county export in tab- or pipe-delimited text imports like any list.
+- **Emails.** Each email gets a verdict: not an email, a likely typo of a common provider (with the fix), a throwaway domain (a CC0 list bundled with the service), a shared box such as info@, or a domain that takes no mail (an ordinary DNS lookup, kept for a month). An unusable email does not count as a way to reach someone.
+- **Area.** Row details show the property's Census tract (no key needed) and, with a free Census key from api.census.gov/data/key_signup.html, the tract's median household income, share of owner-occupied homes, median home value and vacancy. The key stays on this computer.
+
+The Dashboard's *Owners and leads* card counts all of this across the lists.
+
 ## Property pictures
 
 Lists, row details and the Dashboard show a picture of each property, from free sources only, in this order:

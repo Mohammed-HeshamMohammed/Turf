@@ -779,3 +779,14 @@ tbody tr:first-child th[scope="row"] { border-top: 0; }
 .registry-progress { display: block; margin-top: 3px; color: var(--muted); font-size: 12.5px; }
 .registry-path { display: flex; gap: 8px; margin-top: 6px; }
 .registry-path .input { flex: 1; min-width: 0; }
+
+/* The area around a property, from the US Census. */
+.area-panel { grid-column: 1 / -1; display: grid; gap: 8px; padding: 14px 16px; border-radius: 16px; background: var(--card); }
+.area-panel h4 { margin: 0; font-size: 14px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.area-panel h4 small { font-weight: 400; font-size: 12.5px; }
+.area-panel p { margin: 0; font-size: 13px; }
+.area-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 8px; margin: 0; }
+.area-figures div { padding: 10px 12px; border-radius: 12px; background: var(--raised); }
+.area-figures dt { color: var(--muted); font-size: 12px; }
+.area-figures dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
+.area-source { font-size: 12px; }
