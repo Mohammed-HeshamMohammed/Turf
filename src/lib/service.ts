@@ -281,6 +281,23 @@ export async function pickRegistryFile() {
   return typeof selected === "string" ? selected : null;
 }
 
+// NANPA downloads stay on this computer and contribute to every project's phone checks.
+export type BlocksStatus = { area_codes: number; assigned: number; oldest_days: number | null; files: string[] };
+export const nanpaBlocksStatus = () => call<BlocksStatus>("nanpa_blocks.status");
+export const nanpaBlocksImport = (path: string) => runJob<{ area_codes: number; assigned: number; free: number }>("nanpa_blocks.import", { path });
+export async function pickNanpaFile() {
+  const selected = await (await import("@tauri-apps/plugin-dialog")).open({
+    multiple: false, directory: false, filters: [{ name: "NANPA number blocks", extensions: ["txt", "csv", "zip", "tsv", "dat"] }],
+  });
+  return typeof selected === "string" ? selected : null;
+}
+
+export type FloodZone =
+  | { zone: string; risk: "high" | "low" | "unknown"; text: string; pending?: never; unavailable?: never }
+  | { pending: true; unavailable?: never; zone?: never; risk?: never; text?: never }
+  | { unavailable: string; pending?: never; zone?: never; risk?: never; text?: never };
+export const floodZone = (lat: number, lon: number, again = false) => call<FloodZone>("flood.of", { lat, lon, again });
+
 // Email addresses: a verdict for each, with the domain's mail check finishing in the background.
 export type EmailVerdict = { verdict: "ok" | "role" | "invalid" | "typo" | "disposable" | "no_mail" | "pending" | "unknown"; why: string; suggestion?: string };
 export const checkEmails = (addresses: string[]) => call<Record<string, EmailVerdict>>("emails.check", { addresses });

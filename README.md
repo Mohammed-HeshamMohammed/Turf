@@ -104,6 +104,12 @@ Lists set up with the earlier version take the new readings by themselves: a sav
 
 Telemarketers get their first five area codes free at telemarketing.donotcall.gov (register, and renew each year). Download them there and use **Load a file** in Skip Tracing's *Ready to check*. Turf reads ten-digit numbers from the file (flat text, CSV, XML or zipped), keeps them on this computer for every project, and blocks any number on it in a phone check, giving the file's date as the reason. A file replaces the numbers of the area codes it holds, so loading a fresh download refreshes them; numbers in other area codes are not checked. A file older than 31 days still blocks, and the screen asks for a fresh one.
 
+### NANPA number blocks and FEMA flood zones
+
+Skip Tracing's **Ready to check** also accepts NANPA's regional or all-state utilized-code downloads (ZIP or tab-delimited text; CSV, TSV and DAT are supported). Download the text report from [Central Office Code Assignment Records](https://nanpa.com/reports/co-code-reports/cocodes_assign). Turf keeps it on this computer for every project. Missing blocks in a utilized-code file, and explicitly available blocks, add a suspicious reason; assigned blocks do not prove a number is active. Unknown area codes are not judged. Available-only files flag only listed free blocks. NANPA's UA status means unavailable for assignment and is retained, not treated as vacant. Loading another file invalidates reviewed scans; recheck before saving. After 90 days the screen asks for a newer download.
+
+Expand a row in **Lists** to see its FEMA flood zone when property coordinates are available. Only coordinates go to FEMA; successful responses are cached on this computer. Pending requests finish in the background. Connection errors provide **Try again**, with a US VPN suggestion when the connection is refused or reset. No returned data means unknown flood risk, not no risk; see [FEMA's Flood Map Service Center](https://msc.fema.gov/portal/home) for map coverage.
+
 ### Use an existing dialer
 
 In **Call outcomes**, use **Import dialer results** for a CSV/Excel export, or select an export already in this project. Choose the exact dialed phone column, call-status column, and optional call date/time column. Map the exported statuses, then **Save outcome mappings**. Return to your lead list and run the normal phone check; the mapped dialer export contributes cross-list evidence without a Twilio account or subscription. Existing steps, rules, reports, downloads, and saved versions remain available.

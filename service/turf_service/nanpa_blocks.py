@@ -3,8 +3,9 @@ central office code assignment files, which the person downloads at nanpa.com in
 programs, and may need a US VPN).
 
 Turf reads any such file loosely: tab, comma or pipe columns, with or without a header, "713-555" or "713" and "555"
-apart. A row whose status says the code is free (VC, UA, available, vacant), or every row of a file of available codes,
-counts as unassigned; any other row counts as assigned. A file replaces the area codes it holds.
+apart. A row whose status says the code is free (VC, available, vacant), or an unlabelled row of a file of available codes,
+counts as unassigned; other rows are retained as utilized. UA means unavailable, not unassigned.
+Utilized files replace the area codes they hold; available-only files flag only their explicit free codes.
 
 A phone check then marks a number suspicious when its area code is in the file and its block is not assigned to any
 carrier: no one can have that number. Suspicious, not wrong, because blocks keep being assigned after a file is made.
@@ -13,6 +14,7 @@ carrier: no one can have that number. Suspicious, not wrong, because blocks keep
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import re
 import threading
@@ -26,9 +28,10 @@ from .projects import app_data_dir
 from .storage import ProjectStore
 
 SUFFIXES = (".txt", ".csv", ".zip", ".tsv", ".dat")
-FREE = {"VC", "UA", "AV", "AVAILABLE", "VACANT", "UNASSIGNED", "SPARE"}
+FREE = {"VC", "AV", "AVAILABLE", "VACANT", "UNASSIGNED", "SPARE"}
 _BLOCK = re.compile(r"(?<!\d)([2-9]\d\d)[-\s.]?([2-9]\d\d)(?!\d)")
 _lock = threading.Lock()
+_import_lock = threading.Lock()
 _loaded: dict[str, dict] = {}
 
 
@@ -70,12 +73,12 @@ def _texts(path: Path):
 def read_blocks(name: str, text: str) -> dict[str, dict[str, set[str]]]:
     """{area code: {"assigned": {nxx}, "free": {nxx}}} from one file's text."""
     all_free = "avail" in name.lower()
-    lines = [line for line in text.splitlines() if line.strip()]
+    lines = [line for line in text.lstrip("\ufeff").splitlines() if line.strip()]
     if not lines:
         return {}
     delimiter = "\t" if "\t" in lines[0] else "|" if "|" in lines[0] else ","
     header = [cell.strip().casefold() for cell in next(csv.reader([lines[0]], delimiter=delimiter))]
-    has_header = not _BLOCK.search(lines[0]) and any(re.search(r"[a-z]", cell) for cell in header)
+    has_header = any(cell in ("npa", "nxx", "npa-nxx", "area code", "state", "use", "status") for cell in header)
     status_at = next((index for index, cell in enumerate(header) if cell in ("use", "status", "code status")), None) if has_header else None
     npa_at = next((index for index, cell in enumerate(header) if cell in ("npa", "area code")), None) if has_header else None
     nxx_at = next((index for index, cell in enumerate(header) if cell in ("nxx", "co code", "prefix")), None) if has_header else None
@@ -87,11 +90,13 @@ def read_blocks(name: str, text: str) -> dict[str, dict[str, set[str]]]:
             npa, nxx = (found.group(1), found.group(2)) if found else (None, None)
         else:
             found = _BLOCK.search(line)
+            if not found and len(cells) >= 2:
+                found = re.fullmatch(r"([2-9]\d\d)([2-9]\d\d)", cells[0].strip() + cells[1].strip())
             npa, nxx = (found.group(1), found.group(2)) if found else (None, None)
         if not npa:
             continue
         status = cells[status_at].strip().upper() if status_at is not None and status_at < len(cells) else ""
-        blocks[npa]["free" if all_free or status in FREE else "assigned"].add(nxx)
+        blocks[npa]["free" if status in FREE or (all_free and not status) else "assigned"].add(nxx)
     return blocks
 
 
@@ -103,16 +108,17 @@ def import_file(path: Path) -> dict:
             found[npa]["free"] |= block["free"]
     if not found:
         raise ValueError("No number blocks (area code and prefix) were found in this file")
-    data = _read()
-    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    codes = data.setdefault("area_codes", {})
-    for npa, block in found.items():
-        entry = codes.setdefault(npa, {"assigned": [], "free": []})
-        # a file of assigned codes replaces the area code's; a file of available codes only takes those out of it
-        assigned = block["assigned"] if block["assigned"] else set(entry["assigned"]) - block["free"]
-        free = block["free"] if block["assigned"] else set(entry.get("free", [])) | block["free"]
-        codes[npa] = {"assigned": sorted(assigned), "free": sorted(free - assigned), "imported_at": now, "file": path.name}
-    _write(data)
+    with _import_lock:
+        data = json.loads(json.dumps(_read()))
+        now = datetime.now(timezone.utc).isoformat()
+        codes = data.setdefault("area_codes", {})
+        for npa, block in found.items():
+            entry = codes.get(npa, {"assigned": [], "free": []})
+            assigned = block["assigned"] if block["assigned"] else set(entry["assigned"]) - block["free"]
+            free = block["free"] if block["assigned"] else set(entry.get("free", [])) | block["free"]
+            codes[npa] = {"assigned": sorted(assigned), "free": sorted(free - assigned), "imported_at": now, "file": path.name,
+                          "complete": bool(block["assigned"]) or entry.get("complete", bool(entry["assigned"]))}
+        _write(data)
     return {"area_codes": len(found), "assigned": sum(len(block["assigned"]) for block in found.values()), "free": sum(len(block["free"]) for block in found.values())}
 
 
@@ -129,13 +135,15 @@ def unassigned(e164: str) -> str | None:
     if not e164 or not e164.startswith("+1") or len(e164) != 12:
         return None
     entry = _read().get("area_codes", {}).get(e164[2:5])
-    if not entry or not entry["assigned"] or e164[5:8] in entry["assigned"]:
+    if not entry or e164[5:8] in entry["assigned"]:
+        return None
+    if e164[5:8] not in entry.get("free", []) and not entry.get("complete", bool(entry["assigned"])):
         return None
     return f"The block {e164[2:5]}-{e164[5:8]} is not assigned to any carrier (NANPA file of {entry['imported_at'][:10]})"
 
 
 def fingerprint() -> dict:
-    return {npa: entry["imported_at"] for npa, entry in _read().get("area_codes", {}).items()}
+    return {"sha256": hashlib.sha256(json.dumps(_read(), sort_keys=True).encode()).hexdigest()}
 
 
 def _validate(store: ProjectStore, params: dict) -> dict:

@@ -15,6 +15,7 @@ import { contactsOf, foundElsewhere, otherOwners, ownerFacts, OWNER_KINDS, type 
 import type { EmailVerdict } from "../lib/service";
 import { photoColumns, photosFor, photosIn, placeColumns, positionOf, type PhotoIndex, type PlaceColumns } from "../lib/photos";
 import { PhotoGallery, PropertyPhoto } from "../components/PropertyPhoto";
+import { FloodLine } from "../components/FloodLine";
 import { AreaPanel } from "../components/AreaPanel";
 import {
   AREA_LABELS, AREA_LEVELS, KIND_LABELS, MANUAL_LABELS, VERDICT_LABELS, areaColumns, checkedPhoneColumns, countAreas, formatDate,
@@ -649,6 +650,7 @@ function RowDetail({ row, own, phoneColumns, number, manual, onMark, datasetId, 
       {(found.photos.length > 0 || where) && <PhotoGallery photos={found.photos} position={where} label={`Row ${row.row_number}`} borrowed={found.borrowed} />}
       {owner && <OwnerPanel row={row} owner={owner} />}
       {where && <AreaPanel position={where} />}
+      {where && <FloodLine position={where} />}
       <dl>
         {own.map(name => (
           <div key={name}>

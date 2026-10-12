@@ -8,6 +8,7 @@ import { ListDownloads } from "../components/ListDownloads";
 import { PhoneLookup } from "../components/PhoneLookup";
 import { DialerEvidence } from "../components/DialerEvidence";
 import { DncRegistry } from "../components/DncRegistry";
+import { NanpaBlocks } from "../components/NanpaBlocks";
 import { cancelSkiptraceJob, knownSuggestion, skiptraceFreshness, skiptraceApply, skiptraceModelStatus, skiptraceRemember, skiptraceSave, skiptraceScan, skiptraceStatuses, skiptraceSuggest, watchJob } from "../lib/service";
 import { useVisited } from "../lib/hooks";
 import { formatNumber } from "../lib/marks";
@@ -562,6 +563,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
               ? <li className="needs"><Icon name="flag" size={14} /><span>{signsOn.length} of {signs.length} warning signs on; {signsBlocked.length === 1 ? "one can't" : `${signsBlocked.length} can't`} work until {signsBlocked.length === 1 ? "its" : "their"} columns are mapped</span></li>
               : <li className="ok"><Icon name="check" size={14} /><span>{signsOn.length} of {signs.length} warning signs on</span></li>}
             <DncRegistry onChanged={() => void turf.refresh()} />
+            <NanpaBlocks onChanged={() => void turf.refresh()} />
           </ul>
           <details className="ready-details"><summary>See the full setup</summary>
             <dl className="skiptrace-review-summary"><div><dt>Phone columns</dt><dd>{base.phone_columns.join(", ")}</dd></div><div><dt>Country</dt><dd>{regionName(base.region)} · row override: {base.country_column ?? "None"}</dd></div>

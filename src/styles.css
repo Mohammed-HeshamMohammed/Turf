@@ -785,6 +785,7 @@ tbody tr:first-child th[scope="row"] { border-top: 0; }
 .area-panel h4 { margin: 0; font-size: 14px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .area-panel h4 small { font-weight: 400; font-size: 12.5px; }
 .area-panel p { margin: 0; font-size: 13px; }
+.flood-line { grid-column: 1 / -1; margin: 0; font-size: 13px; overflow-wrap: anywhere; }
 .area-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 8px; margin: 0; }
 .area-figures div { padding: 10px 12px; border-radius: 12px; background: var(--raised); }
 .area-figures dt { color: var(--muted); font-size: 12px; }

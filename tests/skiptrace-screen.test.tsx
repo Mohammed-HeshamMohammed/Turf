@@ -12,6 +12,7 @@ vi.mock("../src/lib/service", () => ({
   skiptraceScan: mocks.scan, skiptraceApply: mocks.apply, skiptraceFreshness: mocks.freshness, skiptraceReview: mocks.review,
   cancelSkiptraceJob: mocks.cancel, watchJob: mocks.watch, markHistory: async () => [], inDesktop: false, importFile: vi.fn(), pickImportFile: vi.fn(), describeLeftOut: () => "",
   dncRegistryStatus: async () => ({ area_codes: [], numbers: 0, max_age_days: 31 }), dncRegistryImport: vi.fn(), dncRegistryRemove: vi.fn(), pickRegistryFile: vi.fn(),
+  nanpaBlocksStatus: async () => ({ area_codes: 0, assigned: 0, oldest_days: null, files: [] }), nanpaBlocksImport: vi.fn(), pickNanpaFile: vi.fn(),
   skiptraceRemember: vi.fn(async () => ({ remembered: 0 })), skiptraceModelStatus: vi.fn(async () => ({ state: "ready" })),
 }));
 
@@ -323,6 +324,8 @@ describe("the complete five-step process", () => {
     await user.click(screen.getByRole("button", { name: /3\s*Warning signs/ }));
     expect(await screen.findByText(/National Do Not Call Registry not loaded/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Load a file" })).toBeTruthy();
+    expect(await screen.findByText(/NANPA number blocks not loaded/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Load NANPA file" })).toBeTruthy();
   });
   it("can skip call outcomes explicitly before checking", async () => {
     const user = await start();

@@ -1,14 +1,14 @@
 """A property's FEMA flood zone, from the National Flood Hazard Layer (free, no key).
 
-FEMA's service answers connections from the United States only; from elsewhere it closes the connection. Users outside
-the US turn on a US VPN on their computer, and the screen tells them so. Only coordinates are sent. Answers are kept in
-app data; a failed attempt is not, so "try again" works as soon as the VPN is on.
+FEMA connections can be refused or reset; the screen offers retry and a US VPN suggestion. Only coordinates are sent.
+Answers are kept in app data; failed attempts can be retried after the connection changes.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import math
 import threading
 import urllib.error
 import urllib.parse
@@ -20,7 +20,7 @@ from .projects import app_data_dir
 log = logging.getLogger(__name__)
 
 SERVICE = "https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/28/query"
-NEEDS_US = "FEMA only answers connections from the United States. Turn on a US VPN, then try again."
+NEEDS_US = "The connection to FEMA was refused or reset. Check your connection; outside the US, try a US VPN, then try again."
 _lock = threading.Lock()
 _pending: set[str] = set()
 _failed: dict[str, str] = {}
@@ -51,8 +51,10 @@ def _keep(place: str, answer: dict) -> None:
 def meaning(zone: str, special: bool) -> dict:
     """What a FEMA zone means for an owner."""
     zone = zone.strip().upper()
+    if zone in ("", "AREA NOT INCLUDED", "ANI", "NP"):
+        return {"zone": zone, "risk": "unknown", "text": "FEMA flood risk is not mapped here; check FEMA's maps for coverage"}
     if special or zone.startswith(("A", "V")):
-        return {"zone": zone, "risk": "high", "text": f"High-risk flood zone ({zone}): flood insurance is usually required with a mortgage"}
+        return {"zone": zone, "risk": "high", "text": f"High-risk flood zone ({zone}), FEMA Special Flood Hazard Area"}
     if zone.startswith("X"):
         return {"zone": zone, "risk": "low", "text": f"Moderate or low flood risk (zone {zone})"}
     if zone == "D":
@@ -68,11 +70,14 @@ def zone_at(lat: float, lon: float, opener=urllib.request.urlopen) -> dict:
         answer = json.loads(response.read().decode("utf-8"))
     if "error" in answer:
         raise ValueError(answer["error"].get("message") or "FEMA answered with an error")
-    features = answer.get("features") or []
+    features = answer.get("features")
+    if not isinstance(features, list):
+        raise ValueError("FEMA did not return flood-zone features")
     if not features:
-        return {"zone": "", "risk": "none", "text": "Not in a mapped flood zone"}
-    first = features[0].get("attributes") or {}
-    return meaning(str(first.get("FLD_ZONE") or ""), str(first.get("SFHA_TF") or "").upper() == "T")
+        return {"zone": "", "risk": "unknown", "text": "No FEMA flood-zone data returned for this location; this does not establish low flood risk"}
+    zones = [meaning(str((feature.get("attributes") or {}).get("FLD_ZONE") or ""),
+                     str((feature.get("attributes") or {}).get("SFHA_TF") or "").upper() == "T") for feature in features]
+    return min(zones, key=lambda zone: {"high": 0, "unknown": 1, "low": 2}[zone["risk"]])
 
 
 def _why(error: Exception) -> str:
@@ -91,9 +96,11 @@ def flood_of(lat: object, lon: object, force: bool = False, opener=urllib.reques
         lat, lon = float(lat), float(lon)
     except (TypeError, ValueError):
         raise ValueError("A place needs a latitude and a longitude") from None
+    if not math.isfinite(lat) or not math.isfinite(lon) or not -90 <= lat <= 90 or not -180 <= lon <= 180:
+        raise ValueError("Latitude must be between -90 and 90 and longitude between -180 and 180")
     place = f"{lat:.5f},{lon:.5f}"
     known = _cache().get(place)
-    if known:
+    if known and known.get("risk") != "none" and not force:
         return known
     with _lock:
         if place in _failed and not force:
