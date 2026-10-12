@@ -16,6 +16,10 @@ The same stack as DataForge. Everything Turf runs is in this repository; it does
 
 A project is the same folder format as DataForge's, so a DataForge project opens in Turf.
 
+The frontend service client lives in `src/lib/service/`: `transport.ts` handles browser/native calls, `jobs.ts` watches jobs, and the other modules group project, dataset, Skip Tracing, local-state and enrichment operations. `src/lib/service.ts` remains the shared public entry point. Internal service modules import the transport directly to avoid cycles.
+
+Lists composes `ListRowDetail`, `OwnerPanel`, `EmailWithVerdict` and `MapNote`; table column selection lives in `src/lib/list-columns.tsx`. Skip Tracing delegates readiness and report details to `SkiptraceReadiness` and `SkiptraceReportDetails`, with configuration rules in `src/lib/skiptrace-workflow.ts`. DNC and NANPA share `RegistryFileImport` for loading files while retaining their own coverage and age messages.
+
 ## Run it
 
 Needs Node.js, Rust, and Python 3.11+ (`TURF_PYTHON` picks which one) with the service's packages:

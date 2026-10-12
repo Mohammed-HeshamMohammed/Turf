@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { SkiptraceReportDetails } from "../components/SkiptraceReportDetails";
+import { regionName } from "../lib/format";
+import { SkiptraceReadiness } from "../components/SkiptraceReadiness";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Turf } from "../App";
-import { Check, Empty, Field, SearchBox, VerdictPill } from "../components/Bits";
+import { Check, Empty, Field, SearchBox } from "../components/Bits";
 import { copyText } from "../components/ContextMenu";
 import { Icon } from "../components/Icon";
 import { ListPicker } from "../components/ListPicker";
 import { ListDownloads } from "../components/ListDownloads";
 import { PhoneLookup } from "../components/PhoneLookup";
 import { DialerEvidence } from "../components/DialerEvidence";
-import { DncRegistry } from "../components/DncRegistry";
-import { NanpaBlocks } from "../components/NanpaBlocks";
 import { cancelSkiptraceJob, knownSuggestion, skiptraceFreshness, skiptraceApply, skiptraceModelStatus, skiptraceRemember, skiptraceSave, skiptraceScan, skiptraceStatuses, skiptraceSuggest, watchJob } from "../lib/service";
 import { useVisited } from "../lib/hooks";
 import { formatNumber } from "../lib/marks";
@@ -16,47 +17,12 @@ import { ManualEvidence } from "../components/ManualEvidence";
 import { CheckedPreview, SkiptraceReview } from "../components/SkiptraceReview";
 import { SkiptraceTemplates } from "../components/SkiptraceTemplates";
 import { SkiptraceColumns } from "../components/SkiptraceColumns";
-import { checkedCopies, missingColumns, namesMapped, ownerNames, readDraft, refreshReadings, reviewNote, ROW_GROUPS, sameOutcomes, settledKeys, SIGN_HELP, signEvidence, signReadiness, STAGE_LABELS, statusPage, stableKey, type WorkflowDraft } from "../lib/skiptrace-workflow";
-import type { Dataset, Outcome, SignReport, SkiptraceConfig, SkiptraceReport, SkiptraceSuggestion, StatusModelState, StatusRow, Verdict } from "../lib/types";
-
-// Wording follows DataForge's Skip Tracing tab, so the two say the same thing about the same data.
-const MEANINGS: { id: Verdict; meaning: string }[] = [
-  { id: "wrong", meaning: "Certain: not a real number, made up, marked as a wrong number, or on a do-not-call list." },
-  { id: "suspicious", meaning: "Probably bad. The reasons say why." },
-  { id: "unverified", meaning: "A real number for its country, and nothing else is known. This is not proof it is connected or belongs to this person." },
-  { id: "corroborated", meaning: "A call reached a person here, or independent files agree on it for the same person." },
-];
+import { checkedCopies, missingColumns, namesMapped, buildConfig, toggled, readDraft, refreshReadings, reviewNote, ROW_GROUPS, sameOutcomes, settledKeys, SIGN_HELP, signEvidence, signReadiness, STAGE_LABELS, statusPage, stableKey, type WorkflowDraft } from "../lib/skiptrace-workflow";
+import type { Dataset, Outcome, SkiptraceConfig, SkiptraceReport, SkiptraceSuggestion, StatusModelState, StatusRow } from "../lib/types";
 
 const REGIONS = ["US", "CA", "GB", "IE", "AU", "NZ", "EG", "AE", "SA", "DE", "FR", "ES", "IT", "NL", "IN", "PH", "BR", "MX", "ZA", "NG"];
 const PHONE_COLUMN_NAME = /phone|mobile|cell|tel(?!l)|fax|whatsapp|contact number|landline|gsm|celular|m[oó]vil|portable|handy|هاتف|موبايل|جوال|تليفون|محمول/i;
 const IDENTIFIER_COLUMN_NAME = /\b(?:id|identifier|apn|parcel|account|property|mls|tax|zip|postal|ssn)\b/i;
-
-function regionName(code: string) {
-  try {
-    return new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? code;
-  } catch {
-    return code;
-  }
-}
-
-const percent = (share: number | null | undefined, digits = 0) => (share == null ? "–" : `${(share * 100).toFixed(digits)}%`);
-
-function toggled(outcomes: Outcome[], id: Outcome, on: boolean): Outcome[] {
-  const next = on ? [...new Set([...outcomes, id])] : outcomes.filter(item => item !== id);
-  const negative = ["wrong_number", "wrong_person", "disconnected"];
-  return negative.includes(id) && on ? next.filter(item => item !== "reached") : id === "reached" && on ? next.filter(item => !negative.includes(item)) : next;
-}
-
-function signVerdict(sign: SignReport) {
-  if (!sign.enough_data) return "Too few rows to say";
-  return sign.predictive ? `${sign.lift}× as often: predicts` : `No clear difference (${sign.lift ?? "–"}×)`;
-}
-
-function buildConfig(base: SkiptraceConfig, outcomeColumn: string | null, calledColumn: string, statuses: Record<string, Outcome[]>, reviewed: string[] = []): SkiptraceConfig {
-  const called = base.phone_columns.includes(calledColumn) ? calledColumn : base.phone_columns[0];
-  const map = Object.fromEntries(Object.entries(statuses).filter(([key, value]) => key && (value.length || reviewed.includes(key))));
-  return { ...base, outcome: outcomeColumn && called && Object.keys(map).length ? { column: outcomeColumn, called_column: called, map } : null };
-}
 
 export function SkipTracing({ turf }: { turf: Turf }) {
   const [listPickerOpen, setListPickerOpen] = useState(false);
@@ -89,10 +55,6 @@ export function SkipTracing({ turf }: { turf: Turf }) {
 }
 
 const STEPS = ["Column roles", "Call outcomes", "Warning signs", "Results", "Save the copy"];
-
-function ReportSection({ id, title, count, children }: { id: string; title: string; count?: ReactNode; children: ReactNode }) {
-  return <details className="card step skiptrace-report" id={id}><summary><h2>{title}</h2>{count && <span className="count">{count}</span>}</summary><div className="skiptrace-report-body">{children}</div></details>;
-}
 
 function scrollInPane(target: HTMLElement | null | undefined) {
   const pane = target?.closest<HTMLElement>(".scroller");
@@ -291,8 +253,6 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   // Ignored by the person: a status Turf settled as "not called yet" is not counted.
   const ignored = statuses.filter(item => reviewed.includes(item.key) && !(meaning[item.key]?.length) && !(item.sure && !item.outcomes.length));
   const signs = setup?.signals.filter(sign => !sign.measured_only) ?? [];
-  const signsOn = base ? signs.filter(sign => base.signals[sign.code]) : [];
-  const signsBlocked = base ? signsOn.filter(sign => !signReadiness(sign.code, base).ready) : [];
   // Signs the last check measured with enough calls, whose switch disagrees with what they showed.
   const advice = base && report?.outcomes.available ? signs.flatMap(sign => {
     const evidence = signEvidence(report.signals.find(item => item.code === sign.code), true);
@@ -547,34 +507,8 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           })}
         </div>
 
-        <section className="ready-check" aria-labelledby="ready-check-title">
-          <h3 id="ready-check-title">Ready to check</h3>
-          <ul>
-            <li className="ok"><Icon name="check" size={14} /><span>{base.phone_columns.length} phone {base.phone_columns.length === 1 ? "column" : "columns"}: {base.phone_columns.join(", ")}</span></li>
-            {ownerNames(base).length
-              ? <li className="ok"><Icon name="check" size={14} /><span>Owner names: {ownerNames(base).join(", ")}</span></li>
-              : <li className="needs"><Icon name="flag" size={14} /><span>No owner name column: shared numbers and wrong-person results can't be told apart</span><button type="button" className="link" onClick={() => setStep(0)}>Map one</button></li>}
-            {!outcomeColumn
-              ? <li className="ok"><Icon name="check" size={14} /><span>Checking without call results</span><button type="button" className="link" onClick={() => setStep(1)}>Add them</button></li>
-              : unreviewed.length
-                ? <li className="needs"><Icon name="flag" size={14} /><span>{unreviewed.length} of {statuses.length} call statuses still need you; their suggested meanings are used if you check now</span><button type="button" className="link" onClick={() => setStep(1)}>Review them</button></li>
-                : <li className="ok"><Icon name="check" size={14} /><span>All {statuses.length} call statuses in {outcomeColumn} are settled</span></li>}
-            {signsBlocked.length
-              ? <li className="needs"><Icon name="flag" size={14} /><span>{signsOn.length} of {signs.length} warning signs on; {signsBlocked.length === 1 ? "one can't" : `${signsBlocked.length} can't`} work until {signsBlocked.length === 1 ? "its" : "their"} columns are mapped</span></li>
-              : <li className="ok"><Icon name="check" size={14} /><span>{signsOn.length} of {signs.length} warning signs on</span></li>}
-            <DncRegistry onChanged={() => void turf.refresh()} />
-            <NanpaBlocks onChanged={() => void turf.refresh()} />
-          </ul>
-          <details className="ready-details"><summary>See the full setup</summary>
-            <dl className="skiptrace-review-summary"><div><dt>Phone columns</dt><dd>{base.phone_columns.join(", ")}</dd></div><div><dt>Country</dt><dd>{regionName(base.region)} · row override: {base.country_column ?? "None"}</dd></div>
-              <div><dt>Owners and mailing fields</dt><dd>{[base, ...(base.additional_owners ?? [])].map((owner, index) => `Owner ${index + 1}: ${[owner.first_name_column, owner.last_name_column, owner.name_column, owner.mailing_address_column, owner.mailing_city_column, owner.mailing_state_column, owner.mailing_zip_column, owner.owner_type_column].filter(Boolean).join(", ") || "Not mapped"}`).join(" · ")}</dd></div>
-              <div><dt>Phone owner assignments</dt><dd>{base.phone_columns.map(column => `${column}: ${base.phone_owner_map?.[column] === -1 || (base.additional_owners?.length && base.phone_owner_map?.[column] === undefined) ? "Owner unknown" : `Owner ${(base.phone_owner_map?.[column] ?? 0) + 1}`}`).join(" · ")}</dd></div>
-              <div><dt>Property and vacancy fields</dt><dd>{[base.address_column, base.city_column, base.zip_column, base.state_column, base.vacancy_column].filter(Boolean).join(", ") || "Not mapped"}</dd></div>
-              <div><dt>Outcomes</dt><dd>{outcomeColumn ? `${outcomeColumn} describes ${called}; ${unreviewed.length} need you; ${ignored.length} intentionally ignored` : "No outcome column"}</dd></div>
-              <div><dt>Warning signs</dt><dd>{signsOn.map(sign => sign.label).join(" · ") || "All configurable signs off"}</dd></div>
-            </dl>
-          </details>
-        </section>
+        <SkiptraceReadiness base={base} outcomeColumn={outcomeColumn} called={called} unreviewed={unreviewed.length}
+          statusCount={statuses.length} ignored={ignored.length} signs={signs} setStep={setStep} onEvidenceChanged={() => void turf.refresh()} />
 
         <details className="step skiptrace-optional"><summary>More settings</summary>
           <div className="fields"><label className="field"><span>Review successful-call evidence after this many days</span><input className="input" type="number" min="1" max="3650" value={base.evidence_age_days ?? 180} onChange={event => patch({ evidence_age_days: Number(event.target.value) })} /></label><label className="field"><span>Flag live lookup results after this many days</span><input className="input" type="number" min="1" max="365" value={base.lookup_age_days ?? 30} onChange={event => patch({ lookup_age_days: Number(event.target.value) })} /></label></div>
@@ -636,128 +570,10 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           </article>
           <h3 className="report-heading">Details of this check</h3>
           {reviewOpen && <SkiptraceReview report={report} filter={reviewFilter} rowNumber={reviewRow} datasetId={dataset.id} onUpdated={turf.refresh} onFilter={filter => { setReviewFilter(filter); setReviewRow(undefined); }} />}
-          {report.phone_assessments && <ReportSection id={`quality-${dataset.id}`} title="Phone quality and calling restrictions"><dl className="metrics">{(["corroborated", "unverified", "suspicious", "wrong"] as const).map(quality => <div key={quality}><dt>Quality: {quality}</dt><dd>{formatNumber(report.phone_assessments?.[quality] ?? 0)}</dd></div>)}<div><dt>Active DNC blocks</dt><dd>{formatNumber(report.phone_assessments.blocked_dnc ?? 0)}</dd></div><div><dt>Aging or review warnings</dt><dd>{formatNumber(report.phone_assessments.needs_review ?? 0)}</dd></div></dl><p className="muted">Counts are per-row phone choices. Quality and calling restrictions are separate; a valid number can still be blocked by DNC.</p></ReportSection>}
-          <ReportSection id={`verdicts-${dataset.id}`} title="Results" count={`${formatNumber(report.values)} phone values`}>
-
-            <div className="verdict-bar" role="img" aria-label={MEANINGS.map(item => `${report.verdicts[item.id]} ${item.id}`).join(", ")}>
-              {MEANINGS.map(item => (report.verdicts[item.id] ? <i key={item.id} className={`seg-${item.id}`} style={{ flexGrow: report.verdicts[item.id] }} /> : null))}
-            </div>
-            <div className="verdict-cards">
-              {MEANINGS.map(item => (
-                <div key={item.id}>
-                  <strong>{formatNumber(report.verdicts[item.id])}</strong>
-                  <VerdictPill verdict={item.id} />
-                  <small>{percent(report.values ? report.verdicts[item.id] / report.values : 0)} · {item.meaning}</small>
-                </div>
-              ))}
-            </div>
-            <dl className="metrics">
-              <div><dt>Rows with a usable number</dt><dd>{formatNumber(report.rows_with_callable_number)} <small>of {formatNumber(report.rows)}</small></dd></div>
-              <div><dt>Rows with any phone</dt><dd>{formatNumber(report.rows_with_phone)}</dd></div>
-              {(outcomes.available || Object.keys(report.manual_evidence).length > 0) && <div><dt>Numbers known wrong</dt><dd>{formatNumber(outcomes.known_wrong_numbers)}</dd></div>}
-              {(outcomes.available || Object.keys(report.manual_evidence).length > 0) && <div><dt>Do-not-call numbers</dt><dd>{formatNumber(outcomes.do_not_call_numbers)} <small>{formatNumber(outcomes.expired_do_not_call_numbers)} more expired</small></dd></div>}
-            </dl>
-            {outcomes.available && outcomes.carried_rows > 0 && (
-              <p className="notice" role="status">
-                <span>
-                  <strong>{formatNumber(outcomes.carried_rows)} rows not yet called have a number that is already known to be bad:</strong>{" "}
-                  {formatNumber(outcomes.carried_wrong_number)} marked wrong number and {formatNumber(outcomes.carried_do_not_call)} on a do-not-call list, in this list or {report.other_datasets_used.length ? report.other_datasets_used.join(", ") : "your other checked lists"}.
-                  Do not dial these blocked numbers. Review other phone columns in each row for an alternative; the row itself is kept.
-                </span>
-              </p>
-            )}
-            {report.other_datasets_used.length > 0 && <p className="muted">Outcomes from {report.other_datasets_used.join(", ")} were used.</p>}
-          </ReportSection>
-
-          <ReportSection id={`columns-${dataset.id}`} title="Which phone columns are worth using">
-
-            <div className="table-wrap">
-              <table className="compact">
-                <thead><tr><th scope="col">Column</th><th scope="col" className="num">Filled</th><th scope="col" className="num">Valid</th><th scope="col" className="num">Adds a new number</th><th scope="col" className="num">Wrong</th><th scope="col">Verdict</th></tr></thead>
-                <tbody>
-                  {report.columns.map(column => (
-                    <tr key={column.column}>
-                      <th scope="row">{column.column}</th>
-                      <td className="num">{formatNumber(column.filled)} ({percent(column.filled_share)})</td>
-                      <td className="num">{percent(column.valid_share)}</td>
-                      <td className="num">{percent(column.adds_info_share)}</td>
-                      <td className="num">{formatNumber(column.wrong)}</td>
-                      <td>{column.verdict_text}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </ReportSection>
-
-          {report.reasons.length > 0 && (
-            <ReportSection id={`reasons-${dataset.id}`} title="Why numbers got their verdict">
-
-              <div className="table-wrap">
-                <table className="compact">
-                  <thead><tr><th scope="col">Reason</th><th scope="col" className="num">Values</th><th scope="col">Examples</th></tr></thead>
-                  <tbody>
-                    {report.reasons.map(reason => (
-                      <tr key={reason.code}>
-                        <th scope="row">{reason.label}</th>
-                        <td className="num">{formatNumber(reason.count)}</td>
-                        <td>
-                          {reason.examples.map(example => (
-                            <div key={`${example.row}-${example.column}`} className="example"><code>{example.value}</code> <button type="button" className="link" onClick={() => showRows("all", example.row)}>row {example.row}</button>, {example.column}: {example.text}</div>
-                          ))}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </ReportSection>
-          )}
-
-          {outcomes.available && (
-            <ReportSection id={`signals-${dataset.id}`} title="Do the warning signs predict wrong numbers here?">
-
-              <p className="muted">
-                Measured on the {formatNumber(outcomes.contacted)} rows where a call either reached a person or found a wrong number. In this data, {percent(outcomes.baseline_wrong_rate, 1)} of those calls were a wrong number.
-                A sign is only useful if it is clearly above that.
-              </p>
-              {report.signals.some(sign => !sign.measured_only && sign.enough_data) && (
-                <div className="row">
-                  <button type="button" className="button ghost" disabled={busy !== null || stale || freshnessPending} onClick={() => { setPreviousSignals(base.signals); patch({ signals: { ...base.signals, ...Object.fromEntries(report.signals.filter(sign => !sign.measured_only && sign.enough_data).map(sign => [sign.code, sign.predictive])) } }); }}>
-                    Use the signs that predict
-                  </button>
-                  <span className="muted">Switches on the signs that clearly predict wrong numbers here and off the ones that do not. Check again afterwards.</span>
-                </div>
-              )}
-              <div className="table-wrap">
-                <table className="compact">
-                  <thead><tr><th scope="col">Sign</th><th scope="col" className="num">Rows</th><th scope="col" className="num">Wrong number rate</th><th scope="col">Compared with all calls</th><th scope="col">Counts as suspicious</th></tr></thead>
-                  <tbody>
-                    {report.signals.map(sign => (
-                      <tr key={sign.code}>
-                        <th scope="row">{sign.label}</th>
-                        <td className="num">{formatNumber(sign.contacted)}</td>
-                        <td className="num">{percent(sign.wrong_rate, 1)}</td>
-                        <td>{signVerdict(sign)}</td>
-                        <td>{sign.measured_only ? "Measured only" : sign.counted ? "Yes" : "No"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </ReportSection>
-          )}
-
-          {previousSignals && <p className="notice" role="status"><span>Predictive signs were applied. Review them in Warning signs and check again.</span><button type="button" className="button ghost" disabled={busy !== null} onClick={() => { patch({ signals: previousSignals }); setPreviousSignals(null); }}>Undo sign changes</button></p>}
-          <ReportSection id={`phone-details-${dataset.id}`} title="What was found in the numbers">
-
-            <dl className="metrics text">
-              <div><dt>Kinds of line</dt><dd>{Object.entries(report.types).map(([name, count]) => `${name}: ${formatNumber(count)}`).join(" · ") || "No valid numbers"}</dd></div>
-              <div><dt>Countries</dt><dd>{Object.entries(report.countries).map(([code, count]) => `${regionName(code)}: ${formatNumber(count)}`).join(" · ") || "None"}</dd></div>
-              {report.repairs.length > 0 && <div><dt>Repaired while reading</dt><dd>{report.repairs.map(repair => `${repair.note}: ${formatNumber(repair.count)}`).join(" · ")}</dd></div>}
-            </dl>
-            <p className="muted">In the US a landline cannot be told from a mobile, so most come back as “landline or mobile”. The rules check that a number follows its country&apos;s plan, not that it is in service.</p>
-          </ReportSection>
+          <SkiptraceReportDetails report={report} datasetId={dataset.id} showRows={showRows} busy={busy !== null}
+            disableApplySigns={busy !== null || stale || freshnessPending}
+            onApplySigns={() => { setPreviousSignals(base.signals); patch({ signals: { ...base.signals, ...Object.fromEntries(report.signals.filter(sign => !sign.measured_only && sign.enough_data).map(sign => [sign.code, sign.predictive])) } }); }}
+            onUndoSigns={previousSignals ? () => { patch({ signals: previousSignals }); setPreviousSignals(null); } : null} />
 
           </div>
 

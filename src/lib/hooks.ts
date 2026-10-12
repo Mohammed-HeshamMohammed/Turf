@@ -104,7 +104,7 @@ export function useVisited(currentId: string | null, existing: string[], limit =
 /** The pictures of every property in the project's lists, by place, so a row without its own can borrow one. */
 export function usePhotoIndex(datasets: Dataset[], areaMaps: Record<string, AreaMapping>, onError: (reason: unknown) => void): PhotoIndex {
   // Each list once, read where its marks are (a checked copy has the same rows and pictures as its list).
-  const lists = useMemo(() => datasets.filter(dataset => !(dataset.kind === "checked" && datasets.some(other => other.id === dataset.parent_dataset_id)))
+  const lists = useMemo(() => primaryLists(datasets)
     .map(dataset => ({ dataset, source: marksSource(dataset, datasets) })), [datasets]);
   const sources = useMemo(() => lists.map(item => item.source), [lists]);
   const all = useAllRows(sources, onError);

@@ -9,7 +9,7 @@ import { gatherForMap, placeRows, priceColumn, useZipCentres, useZipOutlines } f
 import { callProgress, contactCoverage, listingFields, nextSteps, phoneColumnsOf, PROGRESS, REACH, reachContext, reachOf, shareText, statusKey, type Coverage, type Progress, type ProgressKind, type ReachContext, type ReachKind } from "../lib/dashboard";
 import { photoColumns, photosFor, placeColumns, positionOf, streetPart } from "../lib/photos";
 import { PropertyPhoto } from "../components/PropertyPhoto";
-import { marksSource, usableEmail, useAllRows, useEmailVerdicts, useListSetups, useOwnerIndex, usePhotoIndex } from "../lib/hooks";
+import { marksSource, primaryLists, usableEmail, useAllRows, useEmailVerdicts, useListSetups, useOwnerIndex, usePhotoIndex } from "../lib/hooks";
 import { contactsOf, foundElsewhere, otherOwners, ownerFacts, OWNER_KINDS, type OwnerKind } from "../lib/owners";
 import {
   AREA_LABELS, AREA_LEVELS, KIND_LABELS, VERDICT_LABELS, areaColumns, checkedPhoneColumns, countAreas, formatDate, formatNumber,
@@ -50,7 +50,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
   const menu = useContextMenu();
   // A checked copy is the same rows as its list, so only the lists themselves are counted, each read once
   // from wherever its marks are.
-  const primary = useMemo(() => datasets.filter(dataset => !(dataset.kind === "checked" && datasets.some(other => other.id === dataset.parent_dataset_id))), [datasets]);
+  const primary = useMemo(() => primaryLists(datasets), [datasets]);
   const sources = useMemo(() => primary.map(dataset => marksSource(dataset, datasets)), [primary, datasets]);
   const allRows = useAllRows(sources, turf.fail);
   // Every ZIP in every list, so rows without their own coordinates can go on the map at their ZIP's centre.

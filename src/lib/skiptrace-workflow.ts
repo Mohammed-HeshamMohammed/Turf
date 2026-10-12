@@ -162,3 +162,16 @@ export function stableKey(value: unknown): string {
   }
   return JSON.stringify(ordered(value));
 }
+
+export function toggled(outcomes: Outcome[], id: Outcome, on: boolean): Outcome[] {
+  const next = on ? [...new Set([...outcomes, id])] : outcomes.filter(item => item !== id);
+  const negative = ["wrong_number", "wrong_person", "disconnected"];
+  return negative.includes(id) && on ? next.filter(item => item !== "reached") : id === "reached" && on ? next.filter(item => !negative.includes(item)) : next;
+}
+
+
+export function buildConfig(base: SkiptraceConfig, outcomeColumn: string | null, calledColumn: string, statuses: Record<string, Outcome[]>, reviewed: string[] = []): SkiptraceConfig {
+  const called = base.phone_columns.includes(calledColumn) ? calledColumn : base.phone_columns[0];
+  const map = Object.fromEntries(Object.entries(statuses).filter(([key, value]) => key && (value.length || reviewed.includes(key))));
+  return { ...base, outcome: outcomeColumn && called && Object.keys(map).length ? { column: outcomeColumn, called_column: called, map } : null };
+}

@@ -1,33 +1,30 @@
+import { ListRowDetail } from "../components/ListRowDetail";
+import { MapNote } from "../components/MapNote";
+import { dullColumns, formatCell } from "../lib/list-columns";
 import { Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import type { Turf } from "../App";
 import { AreaMap } from "../components/AreaMap";
 import { Empty, Field, SearchBox, Segmented, VerdictPill } from "../components/Bits";
 import { copyText, useContextMenu, type MenuItem } from "../components/ContextMenu";
 import { Select } from "../components/Select";
-import { cancelJob, gatherForMap, locateAddresses, locatedAddresses, placeRows, priceColumn, streetColumn, useZipCentres, useZipOutlines, type AddressColumns, type LocateProgress, type Located } from "../lib/geo";
+import { gatherForMap, locateAddresses, locatedAddresses, placeRows, priceColumn, streetColumn, useZipCentres, useZipOutlines, type AddressColumns, type Located } from "../lib/geo";
 import { deleteDataset, renameDataset } from "../lib/service";
 import { Icon } from "../components/Icon";
 import { ListPicker } from "../components/ListPicker";
 import { ListDownloads } from "../components/ListDownloads";
-import { PhoneChoices } from "../components/PhoneChoices";
-import { marksSource, useEmailVerdicts, useListSetups, useOwnerIndex, usePhotoIndex, useRows, useVisited } from "../lib/hooks";
-import { contactsOf, foundElsewhere, otherOwners, ownerFacts, OWNER_KINDS, type OwnerColumns, type OwnerIndex } from "../lib/owners";
-import type { EmailVerdict } from "../lib/service";
-import { photoColumns, photosFor, photosIn, placeColumns, positionOf, type PhotoIndex, type PlaceColumns } from "../lib/photos";
-import { PhotoGallery, PropertyPhoto } from "../components/PropertyPhoto";
-import { FloodLine } from "../components/FloodLine";
-import { AreaPanel } from "../components/AreaPanel";
+import { marksSource, useListSetups, useOwnerIndex, usePhotoIndex, useRows, useVisited } from "../lib/hooks";
+import { photoColumns, photosFor, placeColumns } from "../lib/photos";
+import { PropertyPhoto } from "../components/PropertyPhoto";
 import {
-  AREA_LABELS, AREA_LEVELS, KIND_LABELS, MANUAL_LABELS, VERDICT_LABELS, areaColumns, checkedPhoneColumns, countAreas, formatDate,
+  AREA_LABELS, AREA_LEVELS, KIND_LABELS, MANUAL_MARKS, MANUAL_LABELS, VERDICT_LABELS, areaColumns, checkedPhoneColumns, countAreas, formatDate,
   formatNumber, formatPhone, ownColumns, positionColumns, readMarks, type Marks,
 } from "../lib/marks";
-import { VERDICTS, type AreaLevel, type Dataset, type DatasetRow, type ManualMark, type Verdict } from "../lib/types";
+import { VERDICTS, type AreaLevel, type Dataset, type DatasetRow, type Verdict } from "../lib/types";
 
 // The street map and its library are fetched the first time a map is shown, not when the app starts.
 const StreetMap = lazy(() => import("../components/StreetMap").then(module => ({ default: module.StreetMap })));
 
 const PAGE = 25;
-const MANUAL: ManualMark[] = ["called", "interested", "wrong_number", "do_not_call"];
 const PLUMBING = /^(zpid|latitude|longitude|image|detail url)$/i;
 
 export function Lists({ turf }: { turf: Turf }) {
@@ -241,7 +238,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
     if (checked) {
       items.push("separator");
       // A mark belongs to the number, so a row with no readable number cannot be marked.
-      for (const mark of MANUAL) items.push({ label: `Mark: ${MANUAL_LABELS[mark].toLowerCase()}`, checked: marks.manual === mark, disabled: !number, onSelect: () => number && turf.setMark(number, marks.manual === mark ? null : mark) });
+      for (const mark of MANUAL_MARKS) items.push({ label: `Mark: ${MANUAL_LABELS[mark].toLowerCase()}`, checked: marks.manual === mark, disabled: !number, onSelect: () => number && turf.setMark(number, marks.manual === mark ? null : mark) });
       items.push({ label: "Remove the mark", disabled: !number || !marks.manual, onSelect: () => number && turf.setMark(number, null) });
     }
     return items;
@@ -439,7 +436,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                   {openRow === row.id && (
                     <tr className="detail">
                       <td colSpan={shownColumns.length + (checked ? 6 : 2) + (showPhotos ? 1 : 0)}>
-                        <RowDetail row={row} datasetId={source.id} onUpdated={turf.refresh} own={own} phoneColumns={phoneColumns} number={marks.number} manual={turf.manual} onMark={turf.setMark}
+                        <ListRowDetail row={row} datasetId={source.id} onUpdated={turf.refresh} own={own} phoneColumns={phoneColumns} number={marks.number} manual={turf.manual} onMark={turf.setMark}
                           photos={{ columns: photoCols, place, index: photoIndex, exact: located?.exact?.[String(row.row_number)] }}
                           owner={owners && ownerCols ? { columns: ownerCols, index: owners.index, datasetId: dataset.id,
                             mail: mailColumns ? { found: Boolean(mailLocated?.exact[String(row.row_number)]), missing: Boolean(mailLocated?.not_found?.includes(row.row_number)), waiting: mailLocated?.addresses_to_look_up ?? 0, progress: mailProgress, lookUp: lookUpMail } : null } : null} />
@@ -463,233 +460,5 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
         </footer>
       </article>
     </section>
-  );
-}
-
-/** Addresses already tried this session, so a list is looked up on its own once and a failure does not repeat. */
-const tried = new Set<string>();
-
-/**
- * Under the map: how the rows were placed, which were left off and why, and the lookup of exact addresses. The lookup
- * starts by itself when a list is shown, so each property ends up on its own address; it can be stopped, and what was
- * found before then is kept.
- */
-function MapNote({ placement, located, columns, datasetId, onStatus, onLocated, onError }: {
-  placement: ReturnType<typeof placeRows>; located: Located | null; columns: AddressColumns | null; datasetId: string;
-  onStatus: (text: string | null) => void; onLocated: () => void; onError: (reason: unknown) => void;
-}) {
-  const [progress, setProgress] = useState<LocateProgress | null>(null);
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [result, setResult] = useState<string | null>(null);
-  const waiting = located?.addresses_to_look_up ?? 0;
-  const n = formatNumber;
-  const placed = [
-    placement.own && `${n(placement.own)} by their own coordinates`,
-    placement.exact && `${n(placement.exact)} at their exact address`,
-    placement.byZip && `${n(placement.byZip)} at the centre of their ZIP`,
-  ].filter(Boolean);
-  const left = [
-    placement.stateDisagrees && `${n(placement.stateDisagrees)} whose ZIP is not in their state`,
-    placement.unknownZip && `${n(placement.unknownZip)} with a ZIP that is not a known area`,
-    placement.noZip && `${n(placement.noZip)} with no ZIP`,
-  ].filter(Boolean);
-
-  async function locate() {
-    if (!columns) return;
-    setResult(null);
-    setProgress({ done: 0, total: waiting, found: 0 });
-    let shownAt = 0;
-    try {
-      const done = await locateAddresses(datasetId, columns, update => {
-        setProgress(update);
-        // Pins appear as they are found, not only at the end.
-        if (update.done - shownAt >= 250) { shownAt = update.done; onLocated(); }
-      }, setJobId);
-      setResult(`Looked up ${n(done.looked_up)} addresses: ${n(done.found)} found, ${n(done.not_found)} not matched in their own state and ZIP.`);
-    } catch (reason) {
-      // Cancelling is not an error. What was found before it stopped is kept either way.
-      if (reason instanceof Error && /cancel/i.test(reason.message)) setResult("Stopped. The addresses found so far are kept.");
-      else onError(reason);
-    }
-    setProgress(null);
-    setJobId(null);
-    onLocated();
-  }
-
-  // Starts on its own, once for each list.
-  const start = useRef(locate);
-  start.current = locate;
-  const key = columns ? `${datasetId}:${columns.street}:${columns.zip ?? ""}:${columns.city ?? ""}:${columns.state ?? ""}` : "";
-  useEffect(() => {
-    if (!key || waiting === 0 || tried.has(key)) return;
-    tried.add(key);
-    void start.current();
-  }, [key, waiting]);
-
-  useEffect(() => {
-    onStatus(progress ? `Finding each property's address · ${n(progress.found)} of ${n(progress.total)}` : null);
-    return () => onStatus(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [progress?.found, progress?.total, Boolean(progress)]);
-
-  return (
-    <div className="map-note">
-      {placed.length > 0 && <p><strong>On the map:</strong> {placed.join(", ")}.</p>}
-      {left.length > 0 && <p className="muted"><strong>Left off:</strong> {left.join(", ")}.</p>}
-      {progress ? (
-        <p className="notice" role="status">
-          <span>Looking up addresses: {n(progress.done)} of {n(progress.total)} · {n(progress.found)} found. Only the street, city, state and ZIP are sent, to the US Census Bureau&apos;s geocoder.</span>
-          <button type="button" className="button ghost small" disabled={!jobId} onClick={() => jobId && void cancelJob(jobId).catch(onError)}>Stop</button>
-        </p>
-      ) : columns && waiting > 0 ? (
-        <p className="row">
-          <button type="button" className="button ghost small" onClick={() => void locate()}>Find exact addresses</button>
-          <span className="muted">{n(waiting)} addresses not looked up yet.</span>
-        </p>
-      ) : null}
-      {result && <p className="muted" role="status">{result}</p>}
-    </div>
-  );
-}
-
-const PLACEHOLDER = /^(n\/?a|null|none|nan|unknown|undefined|-+|\.+|0+)$/i;
-
-// Columns that tell the rows apart from nothing: the same value on every row, mostly blank, or only placeholders.
-// The table leaves them out so its few slots go to useful columns; the row's detail still lists every column.
-function dullColumns(names: string[], rows: Record<string, string | number | null>[]) {
-  const dull = new Set<string>();
-  if (rows.length < 2) return dull;
-  for (const name of names) {
-    const values = rows.map(row => String(row[name] ?? "").trim()).filter(value => value !== "" && !PLACEHOLDER.test(value));
-    if (values.length < rows.length * 0.1 || new Set(values).size <= 1 && values.length === rows.length) dull.add(name);
-  }
-  return dull.size === names.length ? new Set<string>() : dull;
-}
-
-/** The owner as the lists show them: the kind of owner, where their mail goes, and what other lists have for them. */
-type MailCheck = { found: boolean; missing: boolean; waiting: number; progress: string | null; lookUp: () => void } | null;
-
-function OwnerPanel({ row, owner }: { row: DatasetRow; owner: { columns: OwnerColumns; index: OwnerIndex; datasetId: string; mail: MailCheck } }) {
-  const facts = ownerFacts(row, owner.columns);
-  const found = foundElsewhere(row, owner.datasetId, owner.columns, owner.index);
-  const others = otherOwners(row, owner.datasetId, owner.columns, owner.index);
-  const kind = OWNER_KINDS.find(item => item.id === facts.kind);
-  const ownEmails = [...contactsOf(row, owner.columns).emails];
-  const verdicts = useEmailVerdicts([...ownEmails, ...found.filter(item => item.kind === "email").map(item => item.value)]);
-  if (!facts.name && !facts.mailing && !found.length && !ownEmails.length) return null;
-  const flags = [facts.absentee && "Absentee owner", facts.outOfState && "Out of state", facts.poBox && "PO box"].filter(Boolean) as string[];
-  return (
-    <section className="owner-panel" aria-label="Owner">
-      <div className="owner-head">
-        <div><h3>{facts.name || "Owner not named"}</h3>{kind && <p className="muted">{kind.hint}</p>}</div>
-        {kind && <span className={`pill owner-${kind.id}`}>{kind.label}</span>}
-      </div>
-      {facts.mailing && <p className="owner-mail"><span className="muted">Mail goes to</span> {facts.mailing}{flags.map(flag => <span key={flag} className="pill pill-suspicious">{flag}</span>)}
-        {owner.mail && !facts.poBox && (owner.mail.found ? <span className="pill pill-corroborated" title="The free US Census geocoder matched this address">Address found</span>
-          : owner.mail.missing ? <span className="pill pill-suspicious" title="The US Census geocoder could not match this address; check it before mailing">Census can't find it</span>
-          : owner.mail.waiting > 0 ? <button type="button" className="link" disabled={Boolean(owner.mail.progress && /looked up|Starting/.test(owner.mail.progress))} onClick={owner.mail.lookUp}>Check this list's {owner.mail.waiting.toLocaleString()} mailing addresses</button> : null)}
-        {owner.mail?.progress && <small className="muted">{owner.mail.progress}</small>}</p>}
-      {ownEmails.length > 0 && <p className="owner-mail"><span className="muted">Email</span> {ownEmails.map(email => <EmailWithVerdict key={email} email={email} verdict={verdicts.get(email)} />)}</p>}
-      {others.map(item => <p key={item.list + item.owner} className="notice">{item.list} names {item.owner} as the owner of this property: it may have been sold, or one list has the wrong owner.</p>)}
-      {found.length > 0 && (
-        <div className="found-contacts">
-          <h4>Found in your other lists</h4>
-          <ul>{found.map(item => (
-            <li key={item.value}>
-              {item.kind === "email" ? <EmailWithVerdict email={item.value} verdict={verdicts.get(item.value)} /> : <strong>{item.value.length === 10 ? formatPhone(`+1${item.value}`) : item.value}</strong>}
-              {item.warning && <span className="pill pill-wrong">{item.warning}</span>}
-              <small>{item.list} · {item.basis}</small>
-            </li>
-          ))}</ul>
-        </div>
-      )}
-    </section>
-  );
-}
-
-const EMAIL_PILLS: Record<EmailVerdict["verdict"], { label: string; tone: string }> = {
-  ok: { label: "Takes mail", tone: "pill-corroborated" }, role: { label: "Shared box", tone: "pill-suspicious" }, invalid: { label: "Not an email", tone: "pill-wrong" },
-  typo: { label: "Likely typo", tone: "pill-suspicious" }, disposable: { label: "Throwaway", tone: "pill-wrong" }, no_mail: { label: "Takes no mail", tone: "pill-wrong" },
-  pending: { label: "Checking…", tone: "pill-none" }, unknown: { label: "Not checked", tone: "pill-none" },
-};
-
-/** An email with what its check found; a likely typo shows the address it probably is. */
-function EmailWithVerdict({ email, verdict }: { email: string; verdict?: EmailVerdict }) {
-  const pill = verdict ? EMAIL_PILLS[verdict.verdict] : null;
-  return (
-    <span className="email-verdict" title={verdict?.why}>
-      <strong>{email}</strong>
-      {pill && <span className={`pill ${pill.tone}`}>{pill.label}</span>}
-      {verdict?.suggestion && <small>Probably {verdict.suggestion}</small>}
-    </span>
-  );
-}
-
-const photoCount = (count: number) => (count ? `${count} ${count === 1 ? "photo" : "photos"}, shown above` : "No photo");
-
-function formatCell(name: string, value: string | number | null) {
-  if (value === null || value === "") return <span className="muted">–</span>;
-  if (/price|value|zestimate/i.test(name) && typeof value === "number") return `$${formatNumber(value)}`;
-  return typeof value === "number" && !/zip|year/i.test(name) ? formatNumber(value) : value;
-}
-
-function RowDetail({ row, own, phoneColumns, number, manual, onMark, datasetId, onUpdated, photos, owner }: {
-  row: DatasetRow; own: string[]; phoneColumns: string[]; number: string | null; manual: Turf["manual"]; onMark: Turf["setMark"];
-  datasetId: string; onUpdated: () => Promise<void>;
-  photos: { columns: string[]; place: PlaceColumns; index: PhotoIndex; exact?: [number, number] };
-  owner: { columns: OwnerColumns; index: OwnerIndex; datasetId: string; mail: MailCheck } | null;
-}) {
-  const found = photosFor(row, photos.columns, photos.place, photos.index, photos.exact);
-  const where = positionOf(row, photos.place, photos.exact);
-  const numbers = [...new Set(phoneColumns.flatMap(column => String(row.raw[`${column} (E.164)`] ?? "").split(";").map(value => value.trim()).filter(value => /^\+\d{6,15}$/.test(value))))];
-  const [chosen, setChosen] = useState(number ?? numbers[0] ?? "");
-  const activeNumber = numbers.includes(chosen) ? chosen : number ?? numbers[0] ?? "";
-  const mark = manual[activeNumber]?.mark ?? null;
-  return (
-    <div className="row-detail">
-      {(found.photos.length > 0 || where) && <PhotoGallery photos={found.photos} position={where} label={`Row ${row.row_number}`} borrowed={found.borrowed} />}
-      {owner && <OwnerPanel row={row} owner={owner} />}
-      {where && <AreaPanel position={where} />}
-      {where && <FloodLine position={where} />}
-      <dl>
-        {own.map(name => (
-          <div key={name}>
-            <dt>{name}</dt>
-            <dd>{photos.columns.includes(name) ? photoCount(photosIn(row.raw[name]).length)
-              : /url/i.test(name) && row.raw[name] ? <a href={String(row.raw[name])} target="_blank" rel="noreferrer">{row.raw[name]}</a> : row.raw[name] ?? "–"}</dd>
-          </div>
-        ))}
-      </dl>
-      {phoneColumns.length > 0 && (
-        <div className="detail-side">
-          <PhoneChoices raw={row.raw} datasetId={datasetId} rowNumber={row.row_number} onSaved={onUpdated} />
-          <h3>Phone checks</h3>
-          <ul className="phone-checks">
-            {phoneColumns.filter(name => row.raw[`${name} (verdict)`]).map(name => (
-              <li key={name}>
-                <div><strong>{name}</strong> {formatPhone(row.raw[`${name} (E.164)`] ? String(row.raw[`${name} (E.164)`]) : null) || row.raw[name]} <small>{row.raw[`${name} (type)`]}</small></div>
-                <VerdictPill verdict={row.raw[`${name} (verdict)`] as never} />
-                <p>{row.raw[`${name} (why)`]}</p>
-              </li>
-            ))}
-          </ul>
-          <h3>Mark this number</h3>
-          {activeNumber ? (
-            <>
-              {numbers.length > 1 && <Field label="Number to mark" value={activeNumber} onChange={value => setChosen(value ?? "")} options={numbers.map(value => ({ value, label: formatPhone(value) }))} />}
-              <div className="mark-buttons">
-                {MANUAL.map(item => (
-                  <button key={item} type="button" className="button ghost" aria-pressed={mark === item} onClick={() => onMark(activeNumber, mark === item ? null : item)}>
-                    {mark === item && <Icon name="check" size={14} />}{MANUAL_LABELS[item]}
-                  </button>
-                ))}
-              </div>
-              {mark === "do_not_call" && <label className="field"><span>Do-not-call end date (optional)</span><input className="input" type="date" value={manual[activeNumber]?.until ?? ""} onChange={event => onMark(activeNumber, "do_not_call", event.target.value || null)} /></label>}
-              <p className="muted">The mark is kept for {formatPhone(activeNumber)} across this project's lists and used by the next phone check. Called alone does not prove a person answered. Previous marks are kept in history.</p>
-            </>
-          ) : <p className="muted">This row has no readable number to mark.</p>}
-        </div>
-      )}
-    </div>
   );
 }

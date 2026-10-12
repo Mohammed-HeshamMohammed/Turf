@@ -104,6 +104,7 @@ export function positionColumns(columns: string[]) {
 // ---------------------------------------------------------------- formatting
 
 export const VERDICT_LABELS: Record<Verdict, string> = { corroborated: "Corroborated", unverified: "Unverified", suspicious: "Suspicious", wrong: "Wrong" };
+export const MANUAL_MARKS: ManualMark[] = ["called", "interested", "wrong_number", "do_not_call"];
 export const MANUAL_LABELS: Record<ManualMark, string> = { called: "Called", wrong_number: "Wrong number", do_not_call: "Do not call", interested: "Interested" };
 export const KIND_LABELS = { import: "Imported file", scrape: "Collected run", cleaned: "Cleaned copy", checked: "Checked copy" } as const;
 
