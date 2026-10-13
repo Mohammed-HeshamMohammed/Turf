@@ -6,9 +6,11 @@ Only what Turf has was copied: projects, lists (import, list, rows) and Skip Tra
 
 | Here | From DataForge | Changed |
 | --- | --- | --- |
-| `turf_service/storage.py`, `jobs.py`, `contracts.py` | `services/application/src/dataforge_application/` | No |
-| `turf_service/datasets.py` | same folder | An import leaves out empty rows and empty columns and reports how many; rows read for the screen carry a reference instead of a picture written into a cell (marked `# Turf:`) |
-| `turf_service/cleaning.py`, `skiptrace.py` | same folder | Only the import of the matching package's name |
+| `turf_service/contracts.py` | `services/application/src/dataforge_application/` | No |
+| `turf_service/storage.py`, `jobs.py` | same folder | Cut down: the scrape-run records, pausing, resuming and retrying a job, and the fixture job are not here, because nothing in Turf asks for them |
+| `turf_service/datasets.py` | same folder | An import leaves out empty rows and empty columns and reports how many; rows read for the screen carry a reference instead of a picture written into a cell; delimited text and Windows-1252 files import; deleting a list removes its stored files once nothing needs them (marked `# Turf:`). The staged-rows registration, column profiles and the sensitive-roles list are not here |
+| `turf_service/skiptrace.py` | same folder | Only the import of the matching package's name |
+| `turf_service/cleaning.py` | same folder | Cut down to the two readers Skip Tracing uses (a list's rows, and what its columns are); the clean-up scan and job are not here |
 | `turf_service/projects.py`, `logs.py` | same folder | App data folder is `Turf`; environment variables are `TURF_APP_DATA`, `TURF_LOG_FILE`, `TURF_LOG_LEVEL`; two messages; an opened project reports the folder it was opened from, so a copied or moved project is remembered where it now is (marked `# Turf:`) |
 | `turf_service/api.py`, `server.py` | same folder | Rewritten shorter: only the project, dataset, job and skiptrace commands, over stdin/stdout only |
 | `turf_service/geo.py`, `turf_service/data/zip_centres.csv`, `tools/build_zip_centres.py` | Turf's own, not a copy | Places rows on the map: ZIP centres from two public US Census Bureau files, exact addresses through the Bureau's geocoder |
@@ -24,7 +26,7 @@ Only what Turf has was copied: projects, lists (import, list, rows) and Skip Tra
 
 Not copied: scraping, the collector extension, Clean & Combine (matching, review, exports), public records, automation, workbook export, updates.
 
-`cleaning.py` and `turf_matching/cleanup.py` are here because Skip Tracing uses a few of their helpers. Turf has no clean-up screen.
+`cleaning.py` and `turf_matching/cleanup.py` are here because Skip Tracing uses a few of their helpers. Turf has no clean-up screen. The rule files in `turf_matching/` are kept whole, unused parts included, so they can be copied again from DataForge; the service files above were cut down to what Turf calls, so take DataForge's fixes to those by hand.
 
 ## Staying compatible
 

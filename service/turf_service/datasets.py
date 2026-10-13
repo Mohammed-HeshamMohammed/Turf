@@ -37,20 +37,6 @@ class DatasetImport:
 
 
 @dataclass(frozen=True)
-class ColumnProfile:
-    name: str
-    null_count: int
-    distinct_count: int
-    sample_values: tuple[str, ...]
-
-    @property
-    def null_rate(self) -> float:
-        return self.null_count / self._row_count if self._row_count else 0.0
-
-    _row_count: int = 0
-
-
-@dataclass(frozen=True)
 class FieldMappingProposal:
     source_field: str
     role: str | None
@@ -365,21 +351,6 @@ def import_archive(store: ProjectStore, project_id: str, source_path: Path, name
     return _register_rows(store, project_id, source_path, source_bytes, headers, rows, name, source_row_start=1)
 
 
-def register_staged_rows(
-    store: ProjectStore,
-    project_id: str,
-    records: list[dict[str, object]],
-    source_name: str,
-    name: str | None = None,
-) -> DatasetImport:
-    if not records:
-        raise ValueError("Cannot register an empty staged dataset")
-    headers = list(dict.fromkeys(key for record in records for key in record))
-    payload = json.dumps(records, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    source_path = Path(source_name)
-    return _register_rows(store, project_id, source_path, payload, headers, records, name, source_row_start=1, kind="scrape")
-
-
 def import_file(store: ProjectStore, project_id: str, source_path: Path, name: str | None = None) -> DatasetImport:
     importers = {
         ".csv": import_csv, ".json": import_json, ".xlsx": import_xlsx,
@@ -542,11 +513,6 @@ SCRAPE_PROVENANCE_COLUMNS = frozenset({
 })
 # Roles that may be mapped to several columns (set comparison or column-namespaced identifiers).
 MULTI_COLUMN_ROLES = frozenset({"phone", "email", "identifier", "other", "ignore"})
-SENSITIVE_ROLES = frozenset({
-    "phone", "email", "address", "mailing_address", "building_name", "house_number", "street", "unit", "po_box",
-    "neighborhood", "district", "city", "county", "region", "country", "country_code", "postal_code", "latitude",
-    "longitude", "name", "first_name", "last_name",
-})
 
 
 def _store_artifact(store: ProjectStore, source_bytes: bytes, suffix: str) -> str:
@@ -621,26 +587,3 @@ def confirm_mapping(store: ProjectStore, dataset_id: str, mapping: dict[str, str
     if commit:
         store._connection.commit()
     return MappingVersion(mapping_id, dataset_id, version, dict(mapping))
-
-
-def profile_dataset(store: ProjectStore, dataset_id: str, sample_limit: int = 5) -> tuple[ColumnProfile, ...]:
-    rows = store._connection.execute(
-        "SELECT raw_values_json FROM source_rows WHERE dataset_id = ? ORDER BY source_row_number",
-        (dataset_id,),
-    ).fetchall()
-    values = [json.loads(row["raw_values_json"]) for row in rows]
-    headers = list(values[0]) if values else []
-    profiles: list[ColumnProfile] = []
-    for header in headers:
-        column_values = [row.get(header, "") or "" for row in values]
-        non_empty = [value for value in column_values if value != ""]
-        profiles.append(
-            ColumnProfile(
-                name=header,
-                null_count=len(column_values) - len(non_empty),
-                distinct_count=len(set(non_empty)),
-                sample_values=tuple(list(dict.fromkeys(non_empty))[:sample_limit]),
-                _row_count=len(column_values),
-            )
-        )
-    return tuple(profiles)

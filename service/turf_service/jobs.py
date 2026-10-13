@@ -29,8 +29,6 @@ class JobValidationError(ValueError):
 @dataclass
 class _Control:
     cancel: threading.Event = field(default_factory=threading.Event)
-    pause: threading.Event = field(default_factory=threading.Event)
-    resume: threading.Event = field(default_factory=threading.Event)
 
 
 class JobContext:
@@ -46,15 +44,7 @@ class JobContext:
         self.store.append_event(self.job_id, "job.stage_changed", {"stage": name, **(detail or {})})
 
     def should_stop(self) -> bool:
-        """Safe checkpoint: honours pause (blocks) and reports cancellation."""
-        if self._control.pause.is_set() and not self._control.cancel.is_set():
-            self.store.transition_job(self.job_id, "paused", "Paused at a safe checkpoint")
-            self._control.resume.clear()
-            while not (self._control.resume.wait(0.2) or self._control.cancel.is_set()):
-                pass
-            if not self._control.cancel.is_set():
-                self._control.pause.clear()
-                self.store.transition_job(self.job_id, "running", "Resumed")
+        """Safe checkpoint: reports cancellation. (Turf: DataForge's pause and resume are not here; nothing asks for them.)"""
         return self._control.cancel.is_set()
 
     def checkpoint(self) -> None:
@@ -73,7 +63,6 @@ class JobRunner:
         self.database_path = database_path
         self.kinds = kinds
         self._controls: dict[str, _Control] = {}
-        self._threads: dict[str, threading.Thread] = {}
 
     def submit(self, store: ProjectStore, project_id: str, kind: str, params: dict, secrets: dict | None = None) -> str:
         if kind not in self.kinds:
@@ -92,7 +81,6 @@ class JobRunner:
         control = _Control()
         self._controls[job_id] = control
         thread = threading.Thread(target=self._run, args=(job_id, kind, params, control, secrets), daemon=True, name=f"job-{job_id[:8]}")
-        self._threads[job_id] = thread
         thread.start()
         return job_id
 
@@ -126,38 +114,3 @@ class JobRunner:
         if control is None:
             raise ValueError(f"Job is not active (state: {state})")
         control.cancel.set()
-        control.resume.set()
-
-    def pause(self, job_id: str) -> None:
-        self._require(job_id).pause.set()
-
-    def resume(self, job_id: str) -> None:
-        self._require(job_id).resume.set()
-
-    def retry(self, store: ProjectStore, job_id: str, secrets: dict | None = None) -> str:
-        job = store.job(job_id)
-        if job is None or job["state"] not in ("failed", "cancelled"):
-            raise ValueError("Only failed or cancelled jobs can be retried")
-        params = {**json.loads(job["params_json"]), "retry_of": job_id}
-        return self.submit(store, job["project_id"], job["kind"], params, secrets)
-
-    def wait(self, job_id: str, timeout: float = 60.0) -> None:
-        thread = self._threads.get(job_id)
-        if thread is not None:
-            thread.join(timeout)
-
-    def _require(self, job_id: str) -> _Control:
-        control = self._controls.get(job_id)
-        if control is None:
-            raise ValueError("Job is not active")
-        return control
-
-
-def fixture_job(context: JobContext) -> dict:
-    """Fake long-running job that proves host → service → events → UI without real domain work."""
-    steps = int(context.params.get("steps", 5))
-    for step in range(1, steps + 1):
-        context.checkpoint()
-        context.stage("working", {"completed": step, "total": steps})
-        time.sleep(float(context.params.get("step_seconds", 0.5)))
-    return {"steps": steps}
