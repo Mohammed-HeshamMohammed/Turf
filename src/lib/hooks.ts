@@ -169,7 +169,17 @@ export function useListSetups(datasets: Dataset[], version: number): Record<stri
 // Reading every row of a long list at once holds the window still for seconds. Past this many rows the work is done
 // in turns of this size, and the window draws and answers in between.
 const TURN = 5000;
-const nextTurn = () => new Promise<void>(resolve => setTimeout(resolve));
+// A message to ourselves, not a timer: a window that is minimised or behind another slows its timers to one a second.
+const nextTurn = () =>
+  new Promise<void>(resolve => {
+    if (typeof MessageChannel === "undefined") return void setTimeout(resolve);
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => {
+      channel.port1.close();
+      resolve();
+    };
+    channel.port2.postMessage(null);
+  });
 
 /**
  * Something built from the rows of some lists: at once when there are few rows, otherwise in turns, `null` until it is
