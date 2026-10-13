@@ -56,6 +56,19 @@ function serviceBridge(): Plugin {
       }
 
       server.middlewares.use("/rpc", (incoming, outgoing) => {
+        // Only Turf's own page may give the service commands. Another site open in the same browser could otherwise
+        // post to this address: a browser sends such a request without asking when it is a plain form or text post,
+        // so a request from another origin, or one that is not JSON, is refused.
+        const origin = incoming.headers.origin;
+        const own = !origin || origin === `http://${incoming.headers.host}`;
+        const json = (incoming.headers["content-type"] ?? "").startsWith("application/json");
+        if (incoming.method !== "POST" || !own || !json) {
+          incoming.resume();
+          outgoing
+            .writeHead(403, { "Content-Type": "application/json" })
+            .end(JSON.stringify({ schema_version: 1, ok: false, error: { code: "forbidden", message: "Only Turf's own page may use the service" } }));
+          return;
+        }
         const chunks: Buffer[] = [];
         incoming.on("data", chunk => chunks.push(chunk as Buffer));
         incoming.on("end", () => {
