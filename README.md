@@ -51,6 +51,17 @@ npm run check
 
 Runs the linter (ESLint) and the format check (Prettier), the type check and build of the window, UI interaction tests (Vitest), the service's tests (pytest), and the host's tests (cargo). `npm run format` rewrites the screens and their tests in the house format. Every push to `main` and every pull request runs the same checks on GitHub (`.github/workflows/check.yml`). For checks that do not need desktop libraries, run `npm run build`, `npm test`, and `python -m pytest service/tests -q`.
 
+## Package it
+
+```bash
+pip install pyinstaller
+npm run package
+```
+
+This builds the service into one executable (`service/dist/turf-service.exe`, by `service/tools/build_service.py`), then the Windows installer with it and the migrations inside (`src-tauri/tauri.package.conf.json`). The installer is written under `src-tauri/target/release/bundle/nsis/`. A packaged Turf starts that executable and needs no Python; run from source, it still uses Python as before.
+
+The build needs a few gigabytes free. On a drive without room, send the working files elsewhere: `python service/tools/build_service.py --work D:\build`, and set `CARGO_TARGET_DIR` for the host's build.
+
 ## Owners, contacts and areas
 
 Beyond phones, Turf reads what the lists themselves say, for free:
@@ -146,11 +157,13 @@ Successful results for the same products are reused within the configured cache 
 | `service/turf_matching/` | Phone reading and the Skip Tracing rules, including how call statuses are read (`status_meaning.py`). |
 | `service/turf_service/geo.py` | Where rows go on the map: the centre of their ZIP (a file shipped with Turf, checked against the row's state), or their exact address once it has been looked up. The lookup starts by itself the first time a list with a street and a ZIP (or city and state) is shown in Lists, says so under the map, and can be stopped; what was found is kept in the project and not asked for again. It sends street, city, state and ZIP to the US Census Bureau's geocoder; nothing else leaves the computer. |
 | `service/migrations/` | The project database's schema. |
-| `vite.config.ts` | For a browser tab only: serves `/rpc` over the same bridge. |
+| `vite.config.ts` | For a browser tab only: serves `/rpc` over the same bridge, to Turf's own page and no other. |
+| `service/tools/build_service.py`, `src-tauri/tauri.package.conf.json` | Packaging: the service as one executable, and the installer that carries it. |
 
 ## Not done yet
 
-- **No installer.** A packaged Turf would ship the service built into one executable (`service/turf-service.exe`); the host already looks for it there. Until then Turf runs from source and needs Python.
+- **The installer is not signed, and is for Windows only.** Windows will warn about an unknown publisher until it is signed. The installed app has been started and seen to launch its own service; its screens have not been gone through one by one in that form.
+- **A very long list is read whole into the window.** Measured on a list of 200,000 rows: the Dashboard appears after about 6 seconds, and the window holds about 400 MB. Searching and filtering such a list takes about a tenth of a second. Lists of a few tens of thousands of rows open in a second or two. Reading only the page in view would mean doing the marks, owners, pictures and map in the service instead of the window.
 - **Listings come from DataForge.** Turf has no collector; a collected run shows in Turf when its project is opened here.
 - **Turf and DataForge open at once on one project** has not been tested. Opening a project recovers interrupted jobs, so do not open a project in Turf while DataForge is running a job on it.
 - **The street map needs the internet the first time.** Its background comes from OpenFreeMap (OpenStreetMap data, free, no key) and ZIP outlines from the US Census Bureau; only map addresses and ZIP codes are asked for, never a row. The desktop host keeps every piece on disk (`src-tauri/src/mapcache.rs`, and the service's outline folder), so what was looked at before draws without a connection. Parts never looked at do not, and the cache has no size limit yet.

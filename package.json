@@ -13,7 +13,9 @@
     "test": "vitest run",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,tsx}\" \"*.{ts,js,json}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,tsx}\" \"*.{ts,js,json}\""
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,tsx}\" \"*.{ts,js,json}\"",
+    "package:service": "python service/tools/build_service.py",
+    "package": "npm run package:service && tauri build --config src-tauri/tauri.package.conf.json"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

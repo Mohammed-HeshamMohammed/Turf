@@ -31,3 +31,7 @@ src-tauri/gen/schemas
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# The packaged service (service/tools/build_service.py)
+service/build
+service/dist
