@@ -5,6 +5,7 @@ export * from "./service/jobs";
 export * from "./service/projects";
 export * from "./service/datasets";
 export * from "./service/lists";
+export * from "./service/leads";
 export * from "./service/skiptrace";
 export * from "./service/state";
 export * from "./service/enrichment";

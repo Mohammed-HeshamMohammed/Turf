@@ -86,6 +86,13 @@ def for_list(store: ProjectStore, dataset_id: str) -> dict:
     return {"keys": {str(number): key for number, key in keys.items()}, "states": states, "notes": notes}
 
 
+def get(store: ProjectStore, payload: dict) -> dict:
+    """One row's lead and where it stands, without the rest of its list."""
+    key = _lead(store, payload)[0]
+    row = store._connection.execute("SELECT * FROM lead_states WHERE lead_key = ?", (key,)).fetchone()
+    return {"lead_key": key, "state": _state(row) if row else None}
+
+
 def _lead(store: ProjectStore, payload: dict) -> tuple[str, str, str, int]:
     dataset_id, row_number = str(payload["dataset_id"]), int(payload["row_number"])
     found = of_list(store, dataset_id)

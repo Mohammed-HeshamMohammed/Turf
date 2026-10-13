@@ -11,6 +11,7 @@ import { PhotoGallery } from "./PropertyPhoto";
 import { AreaPanel } from "./AreaPanel";
 import { FloodLine } from "./FloodLine";
 import { OwnerPanel, type MailCheck } from "./OwnerPanel";
+import { LeadOfRow } from "./LeadPanel";
 
 const photoCount = (count: number) => (count ? `${count} ${count === 1 ? "photo" : "photos"}, shown above` : "No photo");
 
@@ -23,10 +24,13 @@ export function ListRowDetail({
   onMark,
   datasetId,
   onUpdated,
+  onError,
   photos,
   owner,
 }: {
   row: DatasetRow;
+  /** Where a failed read or write of the row's lead is reported. */
+  onError: (reason: unknown) => void;
   own: string[];
   phoneColumns: string[];
   number: string | null;
@@ -56,6 +60,7 @@ export function ListRowDetail({
     <div className="row-detail">
       {(found.photos.length > 0 || where) && <PhotoGallery photos={found.photos} position={where} label={`Row ${row.row_number}`} borrowed={found.borrowed} />}
       {owner && <OwnerPanel row={row} owner={owner} />}
+      <LeadOfRow datasetId={datasetId} rowNumber={row.row_number} onError={onError} />
       {where && <AreaPanel position={where} />}
       {where && <FloodLine position={where} />}
       <dl>

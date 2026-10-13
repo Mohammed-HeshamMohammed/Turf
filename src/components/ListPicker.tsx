@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { describeLeftOut, importFile, inDesktop, pickImportFile } from "../lib/service";
 import { KIND_LABELS, formatNumber } from "../lib/marks";
 import type { Dataset } from "../lib/types";
@@ -11,6 +11,7 @@ export function ListPicker({
   onSelect,
   onImported,
   onCombine,
+  footer,
   menuFor,
 }: {
   datasets: Dataset[];
@@ -19,6 +20,8 @@ export function ListPicker({
   onImported: (datasetId: string) => Promise<void>;
   /** Opens combining lists into one, where the screen offers it. */
   onCombine?: () => void;
+  /** Shown under the lists: the deleted ones, where the screen keeps them. */
+  footer?: ReactNode;
   /** What right-clicking a list offers. */
   menuFor: (dataset: Dataset) => MenuItem[];
 }) {
@@ -123,6 +126,7 @@ export function ListPicker({
       </ul>
       {!datasets.length && <p className="muted">This project has no lists yet. Import a file to start.</p>}
       {datasets.length > 0 && !shown.length && <p className="muted">No list has that name.</p>}
+      {footer}
     </aside>
   );
 }

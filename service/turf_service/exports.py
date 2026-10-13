@@ -16,6 +16,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from turf_matching import duplicates
+from turf_matching.normalize import address
 
 from . import leads
 from .projects import app_data_dir
@@ -51,6 +52,12 @@ def _cell(row: dict, column: object) -> str:
 
 def _name(row: dict, config: dict) -> str:
     return _cell(row, config.get("name_column")) or " ".join(part for part in (_cell(row, config.get("first_name_column")), _cell(row, config.get("last_name_column"))) if part)
+
+
+def _street(value: str) -> str:
+    """An address in one spelling: "12 Main Street" and "12 main st" are the same place."""
+    parsed = address(value)
+    return parsed["full"] if parsed else ""
 
 
 def _calls(store: ProjectStore, dataset: dict, rows: list[tuple[int, dict]], config: dict, options: dict) -> tuple[list[str], list[dict], dict]:
@@ -107,13 +114,13 @@ def _mail(dataset: dict, rows: list[tuple[int, dict]], config: dict, options: di
         if not to[0]:
             left["no_address"] += 1
             continue
-        absentee = bool(site[0]) and duplicates.text(to[0]) != duplicates.text(site[0])
+        absentee = bool(site[0]) and _street(to[0]) != _street(site[0])
         phones = any(_cell(row, column) for column in config.get("phone_columns") or [])
         if (options.get("absentee_only") and not absentee) or (options.get("no_phone_only") and phones) or (options.get("skip_po_boxes") and _PO_BOX.search(to[0])):
             left["not_wanted"] += 1
             continue
         name = _name(row, config)
-        key = (frozenset(duplicates.text(name).split()), duplicates.text(to[0]), to[3][:5])
+        key = (frozenset(duplicates.text(name).split()), _street(to[0]), to[3][:5])
         if key in seen:
             left["repeats"] += 1
             continue

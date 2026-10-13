@@ -20,7 +20,8 @@ import {
   type AddressColumns,
   type Located,
 } from "../lib/geo";
-import { deleteDataset, renameDataset } from "../lib/service";
+import { renameDataset, trashDataset } from "../lib/service";
+import { DeletedLists, ListExports, SavedFilters } from "../components/ListExtras";
 import { Icon } from "../components/Icon";
 import { ListPicker } from "../components/ListPicker";
 import { ListDownloads } from "../components/ListDownloads";
@@ -72,6 +73,7 @@ export function Lists({ turf }: { turf: Turf }) {
           turf.select(id);
         }}
         onCombine={() => setCombining(true)}
+        footer={<DeletedLists turf={turf} />}
         onImported={async id => {
           await turf.refresh();
           turf.select(id);
@@ -437,7 +439,8 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           {editing === "delete" ? (
             <p className="notice" role="alertdialog" aria-label="Delete this list">
               <span>
-                Delete <strong>{dataset.name}</strong> and its {formatNumber(dataset.row_count)} rows from this project? This cannot be undone.
+                Delete <strong>{dataset.name}</strong> and its {formatNumber(dataset.row_count)} rows from this project? It can be put back for 30 days, from
+                Deleted lists under the lists.
                 {copies > 0 && (
                   <>
                     {" "}
@@ -445,7 +448,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                   </>
                 )}
               </span>
-              <button type="button" className="button" disabled={working} onClick={() => void act(() => deleteDataset(dataset.id))}>
+              <button type="button" className="button" disabled={working} onClick={() => void act(() => trashDataset(dataset.id))}>
                 {working ? "Deleting…" : "Yes, delete it"}
               </button>
               <button type="button" className="button ghost" disabled={working} onClick={() => setEditing(null)}>
@@ -469,6 +472,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                   Delete
                 </button>
                 <ListDownloads datasetId={dataset.id} checkedId={source.kind === "checked" ? source.id : undefined} fail={turf.fail} />
+                <ListExports datasetId={source.id} checked={checked} fail={turf.fail} />
               </div>
             )
           )}
@@ -693,6 +697,22 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
             </button>
           )}
           <span className="grow" />
+          <SavedFilters
+            datasetId={dataset.id}
+            filtering={filtering}
+            current={{ verdict, flag, column, contains, query, level: activeLevel, area }}
+            fail={turf.fail}
+            onApply={kept => {
+              setVerdict(kept.verdict ?? "all");
+              setFlag(kept.flag ?? "all");
+              setColumn(kept.column ?? "");
+              setContains(kept.contains ?? "");
+              setQuery(kept.query ?? "");
+              setLevel((kept.level as AreaLevel | null) ?? null);
+              setArea(kept.area ?? null);
+              setPage(0);
+            }}
+          />
           <SearchBox value={query} onChange={change(setQuery)} placeholder="Search rows" />
         </div>
 
@@ -818,6 +838,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                           row={row}
                           datasetId={source.id}
                           onUpdated={turf.refresh}
+                          onError={turf.fail}
                           own={own}
                           phoneColumns={phoneColumns}
                           number={marks.number}

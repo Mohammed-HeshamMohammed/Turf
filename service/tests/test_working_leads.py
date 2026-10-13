@@ -75,9 +75,10 @@ def test_the_call_list_has_each_lead_worth_calling_once(service, tmp_path):
 
 
 def test_the_mail_list_has_each_owner_once_at_where_their_mail_goes(service, tmp_path):
-    county = add(service, tmp_path, "County roll", [*COUNTY, ["GARCIA MARIA", "88 Pine Rd", "Houston", "TX", "77008", "PO Box 9"]])
+    more = [["GARCIA MARIA", "88 Pine Rd", "Houston", "TX", "77008", "PO Box 9"], ["John A Smith", "12 Main St", "Houston", "TX", "77008", "12 MAIN ST."]]
+    county = add(service, tmp_path, "County roll", [*COUNTY, *more])
     made, out = export(service, kind="mail", dataset_id=county)
-    assert made["rows"] == 3 and made["left_out"]["repeats"] == 1
+    assert made["rows"] == 3 and made["left_out"]["repeats"] == 2, "the same owner at the same address, however it is spelled, gets one letter"
     maria = next(row for row in out if row["Name"] == "GARCIA MARIA")
     assert (maria["Mailing Address"], maria["Property Address"]) == ("PO Box 9", "40 Oak Avenue")
     assert [row["Name"] for row in export(service, kind="mail", dataset_id=county, options={"absentee_only": True})[1]] == ["GARCIA MARIA"]

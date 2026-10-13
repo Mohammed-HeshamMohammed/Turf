@@ -106,6 +106,7 @@ class Service:
             "filters.list": lambda p: keeping.filters(self._store(), p["dataset_id"]),
             "filters.save": lambda p: keeping.save_filter(self._store(), p["dataset_id"], p.get("name"), p.get("filter")),
             "leads.for_list": lambda p: leads.for_list(self._store(), p["dataset_id"]),
+            "leads.get": lambda p: leads.get(self._store(), p),
             "leads.set": lambda p: leads.set_state(self._store(), p),
             "leads.notes": lambda p: leads.notes(self._store(), p),
             "leads.add_note": lambda p: leads.add_note(self._store(), p),

@@ -27,6 +27,7 @@ import {
 } from "../lib/dashboard";
 import { photoColumns, photosFor, placeColumns, positionOf, streetPart } from "../lib/photos";
 import { PropertyPhoto } from "../components/PropertyPhoto";
+import { CallbacksCard } from "../components/ListExtras";
 import { marksSource, primaryLists, usableEmail, useAllRows, useEmailVerdicts, useListSetups, useOwnerIndex, useOwnerStats, usePhotoIndex } from "../lib/hooks";
 import { contactsOf } from "../lib/owners";
 import {
@@ -420,6 +421,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
 
       <section className="cards">
         <div className="stack">
+          <CallbacksCard turf={turf} />
           <article className="card next-steps">
             <header>
               <h2>Next steps</h2>

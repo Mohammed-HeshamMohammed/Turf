@@ -5,6 +5,7 @@ import { DropImport } from "./components/DropImport";
 import { ProjectGate } from "./components/ProjectGate";
 import { TitleBar } from "./components/TitleBar";
 import {
+  backupProject,
   clearSuggestions,
   currentProject,
   describeLeftOut,
@@ -26,12 +27,14 @@ import type { ManualMarks } from "./lib/marks";
 import type { AreaMapping, Dataset, ManualMark } from "./lib/types";
 import { Dashboard } from "./tabs/Dashboard";
 import { Lists } from "./tabs/Lists";
+import { Calls } from "./tabs/Calls";
 import { SkipTracing } from "./tabs/SkipTracing";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard" },
   { id: "lists", label: "Lists" },
   { id: "skiptracing", label: "Skip Tracing" },
+  { id: "calls", label: "Calls" },
 ] as const;
 
 export type TabId = (typeof TABS)[number]["id"];
@@ -52,6 +55,10 @@ export type Turf = {
   areaMaps: Record<string, AreaMapping>;
   setAreaMap: (datasetId: string, mapping: AreaMapping) => void;
   fail: (reason: unknown) => void;
+  /** A lead to go straight to in Calls: a callback opened from the Dashboard. */
+  callTarget: { datasetId: string; rowNumber: number } | null;
+  openCall: (datasetId: string, rowNumber: number) => void;
+  clearCallTarget: () => void;
 };
 
 export function App() {
@@ -79,6 +86,7 @@ export function App() {
   const [datasets, setDatasets] = useState<Dataset[] | null>(null);
   const [version, setVersion] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [callTarget, setCallTarget] = useState<Turf["callTarget"]>(null);
   const [manual, setManual] = useState<ManualMarks>({});
   const [legacyManual, setLegacyManual] = useState<ManualMarks>({});
   const [areaMaps, setAreaMaps] = useState<Record<string, AreaMapping>>({});
@@ -161,8 +169,15 @@ export function App() {
         areaMaps,
         setAreaMap: (datasetId, mapping) => void setAreaColumns(datasetId, mapping).then(setAreaMaps, fail),
         fail,
+        callTarget,
+        openCall: (datasetId, rowNumber) => {
+          setSelectedId(datasetId);
+          setCallTarget({ datasetId, rowNumber });
+          setTab("calls");
+        },
+        clearCallTarget: () => setCallTarget(null),
       },
-    [datasets, version, refresh, selectedId, manual, legacyManual, project, areaMaps, setTab, fail],
+    [datasets, version, refresh, selectedId, manual, legacyManual, project, areaMaps, setTab, fail, callTarget],
   );
 
   // Read ahead in the background: every list's rows (the dashboard needs them all anyway), and the Skip Tracing
@@ -198,6 +213,20 @@ export function App() {
             setTab("lists");
           })
           .catch(fail);
+      },
+    },
+    {
+      label: "Back up this project",
+      hint: "One file with every list, check, note and stored file",
+      disabled: !project || choosing,
+      onSelect: () => {
+        if (!project) return;
+        void backupProject(project.name).then(made => {
+          if (made)
+            setNote(
+              `Backed up to ${made.path} (${Math.max(1, Math.round(made.size / 1024)).toLocaleString("en-US")} KB). Unpacked into an empty folder, it opens as this project.`,
+            );
+        }, fail);
       },
     },
     {
@@ -287,6 +316,11 @@ export function App() {
                 {shown("skiptracing") && (
                   <div hidden={tab !== "skiptracing"}>
                     <SkipTracing turf={turf} />
+                  </div>
+                )}
+                {shown("calls") && (
+                  <div hidden={tab !== "calls"}>
+                    <Calls turf={turf} />
                   </div>
                 )}
               </main>

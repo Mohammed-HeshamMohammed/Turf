@@ -3493,3 +3493,129 @@ tbody tr:first-child th[scope="row"] {
 .combine .duplicate-groups ul li .num {
   min-width: 190px;
 }
+
+/* Calls: one lead at a time. */
+.call-card {
+  display: grid;
+  gap: 18px;
+}
+.call-card > header {
+  align-items: flex-start;
+  gap: 16px;
+}
+.call-who {
+  display: flex;
+  gap: 16px;
+  min-width: 0;
+}
+.call-who h2 {
+  font-size: 22px;
+}
+.call-photo {
+  flex: none;
+  width: 112px;
+  height: 84px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--well);
+}
+.call-numbers {
+  display: grid;
+  gap: 10px;
+}
+.call-numbers > li {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--well);
+}
+.call-numbers > li.blocked {
+  opacity: 0.65;
+}
+.call-number {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.call-dial {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+}
+.call-dial:hover {
+  text-decoration: underline;
+}
+.call-window.closed {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+/* Where a lead stands: stage, callback and notes, in Calls and in a row's details. */
+.lead-panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--raised);
+}
+.lead-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+}
+.lead-label {
+  min-width: 72px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.lead-line .input {
+  width: auto;
+}
+.lead-line .input.grow {
+  flex: 1 1 220px;
+}
+.lead-notes {
+  display: grid;
+  gap: 6px;
+  padding-left: 82px;
+}
+.lead-notes li {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.export-options {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  max-width: 560px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--well);
+}
+.deleted-lists {
+  margin-top: 6px;
+  font-size: 13px;
+}
+.deleted-lists summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.deleted-lists ul {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+.deleted-lists li {
+  display: grid;
+  gap: 2px;
+}
+.deleted-lists strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

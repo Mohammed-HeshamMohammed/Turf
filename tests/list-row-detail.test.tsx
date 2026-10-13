@@ -9,6 +9,14 @@ import type { DatasetRow } from "../src/lib/types";
 const mocks = vi.hoisted(() => ({ census: vi.fn(), flood: vi.fn(), emails: vi.fn() }));
 vi.mock("../src/lib/service", () => ({
   censusArea: mocks.census,
+  getLead: async () => ({ lead_key: "a:1", state: null }),
+  leadNotes: async () => [],
+  setLead: vi.fn(),
+  addLeadNote: vi.fn(),
+  removeLeadNote: vi.fn(),
+  localDay: () => "2026-10-14",
+  STAGES: ["new", "contacted", "interested", "not_interested", "dead"],
+  STAGE_LABELS: { new: "New", contacted: "Contacted", interested: "Interested", not_interested: "Not interested", dead: "Dead" },
   floodZone: mocks.flood,
   checkEmails: mocks.emails,
   aerialPicture: async () => ({ unavailable: "Offline" }),
