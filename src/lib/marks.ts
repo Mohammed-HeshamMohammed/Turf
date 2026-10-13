@@ -7,7 +7,7 @@ const isVerdict = (value: unknown): value is Verdict => typeof value === "string
 export const isAddedColumn = (name: string) =>
   /\((verdict|why|E\.164|type|quality|permission)\)$/.test(name) ||
   name.startsWith("Best phone") ||
-  ["Phone choices", "Phone evidence warnings"].includes(name);
+  ["Phone choices", "Phone evidence warnings", "Duplicate group", "Duplicate status", "Duplicate why", "Same owner rows"].includes(name);
 
 export const ownColumns = (columns: string[]) => columns.filter(name => !isAddedColumn(name));
 

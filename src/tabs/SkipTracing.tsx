@@ -164,7 +164,7 @@ function Setup({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
             {stage.total !== undefined && (
               <>
                 {" "}
-                · {formatNumber(stage.completed ?? 0)} of {formatNumber(stage.total)} rows
+                · {formatNumber(stage.completed ?? 0)} of {formatNumber(stage.total)} {stage.stage === "finding_duplicates" ? "pairs compared" : "rows"}
               </>
             )}
             {stopping && " · Stopping at the next safe checkpoint…"}

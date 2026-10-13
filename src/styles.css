@@ -3392,3 +3392,34 @@ tbody tr:first-child th[scope="row"] {
 .area-source {
   font-size: 12px;
 }
+
+/* Repeated leads in a phone check's results: each group, its rows, and the one kept. */
+.duplicate-groups {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+}
+.duplicate-groups > li {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--well);
+}
+.duplicate-groups ul {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+}
+.duplicate-groups ul li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.duplicate-groups ul li .num {
+  min-width: 72px;
+}
+.summary-item:disabled {
+  opacity: 0.6;
+  cursor: default;
+  box-shadow: none;
+}

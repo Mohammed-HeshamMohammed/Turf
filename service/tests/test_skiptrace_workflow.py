@@ -119,7 +119,7 @@ def test_preview_review_and_saved_copy_are_identical_and_old_copies_remain(servi
     assert ok(service, "dataset.rows", dataset_id=dataset) == original
     for before, after in zip(original, stored):
         assert all(after["raw"][key] == value for key, value in before["raw"].items())
-    assert len(second["added_columns"]) == 21
+    assert len(second["added_columns"]) == 25  # 21 for the phones, 4 for repeated leads
     assert {"Phone choices", "Phone evidence warnings", "Best phone quality", "Best phone permission"} <= set(second["added_columns"])
 
 

@@ -50,6 +50,13 @@ export function SkiptraceStepSave({ s, report }: { s: ReadySetup; report: Skiptr
               <strong>For {base.phone_columns.length === 1 ? base.phone_columns[0] : `each of ${base.phone_columns.join(", ")}`}</strong>: its verdict, why, the
               number in international format, and the kind of line.
             </li>
+            {report.duplicates && (
+              <li>
+                <strong>Duplicate group, status and why</strong>: for a lead written more than once, the row to keep and the rows that repeat it;{" "}
+                {formatNumber(report.duplicates.duplicate_rows)} {report.duplicates.duplicate_rows === 1 ? "row repeats" : "rows repeat"} another. Every row
+                stays in the copy.
+              </li>
+            )}
           </ul>
           <details>
             <summary>All {report.added_columns.length} added columns</summary>

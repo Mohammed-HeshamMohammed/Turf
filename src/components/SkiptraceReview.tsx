@@ -59,6 +59,9 @@ export function SkiptraceReview({
           { value: "dnc", label: "Contains a do-not-call number" },
           { value: "needs_review", label: "Something to look at: suspicious numbers, conflicting call results, or old evidence" },
           { value: "no_phone", label: "No phone values" },
+          { value: "duplicates", label: "Repeated leads: the row to keep, then the rows that repeat it" },
+          { value: "possible_duplicates", label: "Rows that might repeat another" },
+          { value: "same_owner", label: "Owners with several properties" },
           ...(["wrong", "suspicious", "unverified", "corroborated"] as const).map(value => ({ value, label: `Best row verdict: ${value}` })),
         ]}
       />
@@ -94,7 +97,19 @@ export function SkiptraceReview({
               <tbody>
                 {data.rows.map(row => (
                   <tr key={row.row_number}>
-                    <th scope="row">{row.row_number}</th>
+                    <th scope="row">
+                      {row.row_number}
+                      {row.raw["Duplicate status"] && (
+                        <small className="status-why muted">
+                          {row.raw["Duplicate group"] ? `${row.raw["Duplicate group"]} · ` : ""}
+                          {row.raw["Duplicate status"]}
+                          {row.raw["Duplicate why"] ? `: ${row.raw["Duplicate why"]}` : ""}
+                        </small>
+                      )}
+                      {row.raw["Same owner rows"] && (
+                        <small className="status-why muted">Same owner as {String(row.raw["Same owner rows"]).toLowerCase()}</small>
+                      )}
+                    </th>
                     <td>{row.raw["Best phone"] || "No usable number"}</td>
                     <td>
                       {row.raw["Best phone quality"] ? (

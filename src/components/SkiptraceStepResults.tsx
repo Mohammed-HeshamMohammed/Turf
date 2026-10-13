@@ -3,6 +3,7 @@ import { formatNumber } from "../lib/marks";
 import { scrollInPane, type ReadySetup } from "../lib/skiptrace-setup";
 import { ROW_GROUPS } from "../lib/skiptrace-workflow";
 import type { SkiptraceReport } from "../lib/types";
+import { SkiptraceDuplicates } from "./SkiptraceDuplicates";
 import { SkiptraceReportDetails } from "./SkiptraceReportDetails";
 import { SkiptraceReview } from "./SkiptraceReview";
 
@@ -141,6 +142,7 @@ export function SkiptraceStepResults({ s, report }: { s: ReadySetup; report: Ski
           Review all checked rows
         </button>
       </article>
+      <SkiptraceDuplicates found={report.duplicates} showRows={showRows} />
       <h3 className="report-heading">Details of this check</h3>
       {reviewOpen && (
         <SkiptraceReview

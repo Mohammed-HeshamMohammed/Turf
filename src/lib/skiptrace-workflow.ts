@@ -138,6 +138,7 @@ export const STAGE_LABELS: Record<string, string> = {
   reading_file: "Reading the list",
   gathering_outcomes: "Gathering outcomes and manual marks",
   checking_phones: "Checking phone numbers",
+  finding_duplicates: "Looking for rows that repeat the same lead",
   saving_checked_copy: "Saving the reviewed copy",
 };
 

@@ -86,7 +86,7 @@ Photos load without telling their host which page asked. Any list with pictures 
 
 ## Skip Tracing workflow
 
-All five steps remain: phone columns, call outcomes, warning signs, results, and saving a checked copy.
+All five steps remain: phone columns, call outcomes, warning signs, results, and saving a checked copy. The check also finds rows that repeat the same lead ([how](#repeated-leads)).
 
 - Column samples help confirm the proposed mappings. Call statuses are searchable and paginated; every distinct status is available, including those beyond the former 80-status limit. Explicitly ignored meanings stay ignored.
 - Call statuses are settled for you where Turf can be sure, and the rest are listed first with the reason ([how](#how-call-statuses-are-read)). What you confirm or ignore is remembered for every list in the project.
@@ -98,6 +98,20 @@ All five steps remain: phone columns, call outcomes, warning signs, results, and
 - Phone choices now show **quality** separately from **calling restrictions**, alongside all previous combined verdicts. Active DNC always blocks a recommendation. Numbers are ranked individually (including several in one cell), retain their extensions and source columns, and show why the first choice or alternatives were selected. “No recorded block” describes project evidence; it does not establish consent or permission to call.
 - In a reviewed row's **All fields**, or a saved row's details in Lists, open **Phone choices** to record dated, number-specific call outcomes. Reached, wrong person, disconnected, voicemail, no answer, and known wrong number are supported. Wrong person stays scoped to the mapped person; disconnected/known wrong number apply across the project. Voicemail/no answer do not prove connection, ownership, or a bad number. Records can be retracted while retaining their audit history. The project call log is also available beside manual marks.
 - Optional street-address/company mappings distinguish possible household and business sharing from unrelated people or unknown relationships. Optional imported call-date columns and configurable age thresholds surface old, undated, and conflicting evidence, including possible reassignment warnings without claiming reassignment is confirmed. New logs and lookup results invalidate old scans; saving still uses the exact reviewed snapshot and records its evidence in lineage metadata.
+
+### Repeated leads
+
+A phone check also looks for rows that repeat the same lead, and says so in its results. It uses DataForge's matching engine (candidate groups, field-by-field evidence, guards that keep different people and different properties apart, and a likelihood estimated from the list itself), with the columns of the Skip Tracing setup; there is no second setup. On top of the engine, for lists of leads (`service/turf_matching/duplicates.py`):
+
+- **One owner with several properties is not a duplicate.** Those rows are told apart and reported as the same owner, so one call can cover them all.
+- **Names as lists write them.** "SMITH JOHN A" and "John Smith" are one name; a company is compared without "LLC" or "Inc."; "SMITH JOHN & MARY" is a household, not one person. People of one household with different first names are never merged.
+- **Different phones do not count against a pair.** Two rows for one lead often carry different numbers, which is what skip tracing returns. The same phone alone, with no name or address to go with it, is only a possible repeat.
+- **An office line or placeholder is not evidence.** A phone or email on more than five rows under more than two names is left out.
+- **The row to keep** is the one with the best number to call, then the most complete, then the first. When a repeat has a phone the kept row lacks, the kept row says so.
+
+No row is removed. The checked copy gets four columns: `Duplicate group`, `Duplicate status` (Keep, Duplicate of row N, or Possible duplicate of row N), `Duplicate why`, and `Same owner rows`. Results show the groups and open them for review, the kept row first; in Lists, the Flag filter shows each lead once, only the repeats, or only the possible ones. It can be turned off under More settings in Warning signs. Only rows of the same list are compared.
+
+To stay quick on a very long list, rows are compared only inside groups that share something (a phone, a street number and street, a name in one ZIP), and when those groups would add up to more than two million comparisons the largest are left out; the results say how many. On a 200,000-row test list this step took about 16 seconds.
 
 ### How call statuses are read
 
@@ -154,7 +168,7 @@ Successful results for the same products are reused within the configured cache 
 | `src-tauri/src/sidecar.rs` | The bridge to the service: a child process speaking JSON lines, as in DataForge's host. |
 | `src-tauri/src/store.rs` | Area mappings and earlier computer-wide marks in `turf.json`. New manual marks and their history are saved in the project database. Earlier marks can be explicitly imported into a project without deleting the old store. |
 | `service/turf_service/` | The service: the command router, projects, lists, jobs and the Skip Tracing commands. An import leaves out empty rows and columns; lists already in a project get the same when it is opened (`tidy.py`). |
-| `service/turf_matching/` | Phone reading and the Skip Tracing rules, including how call statuses are read (`status_meaning.py`). |
+| `service/turf_matching/` | Phone reading and the Skip Tracing rules, including how call statuses are read (`status_meaning.py`) and how repeated leads are found (`duplicates.py`, on DataForge's `engine.py`, `normalize.py` and `likelihood.py`). |
 | `service/turf_service/geo.py` | Where rows go on the map: the centre of their ZIP (a file shipped with Turf, checked against the row's state), or their exact address once it has been looked up. The lookup starts by itself the first time a list with a street and a ZIP (or city and state) is shown in Lists, says so under the map, and can be stopped; what was found is kept in the project and not asked for again. It sends street, city, state and ZIP to the US Census Bureau's geocoder; nothing else leaves the computer. |
 | `service/migrations/` | The project database's schema. |
 | `vite.config.ts` | For a browser tab only: serves `/rpc` over the same bridge, to Turf's own page and no other. |

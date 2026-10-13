@@ -52,6 +52,8 @@ export type SkiptraceConfig = OwnerColumns & {
   phone_owner_map?: Record<string, number>;
   call_date_column?: string | null;
   evidence_age_days?: number;
+  /** Whether the check also looks for rows that repeat the same lead. On unless turned off. */
+  find_duplicates?: boolean;
   lookup_age_days?: number;
   outcome: { column: string; called_column: string; map: Record<string, Outcome[]> } | null;
   signals: Record<string, boolean>;
@@ -147,7 +149,26 @@ export type PhoneChoice = {
     ownership_verified: false;
   } | null;
 };
+export type DuplicateRow = { row_number: number; keep: boolean; label: string };
+/** What a check found about rows that repeat a lead (see turf_matching/duplicates.py). */
+export type DuplicateSummary = {
+  groups: number;
+  duplicate_rows: number;
+  rows_in_groups: number;
+  possible_rows: number;
+  owner_groups: number;
+  owner_rows: number;
+  examples: { group: string; why: string; size: number; rows: DuplicateRow[] }[];
+  owner_examples: { size: number; rows: DuplicateRow[] }[];
+  compared_pairs: number;
+  ignored_shared_values: number;
+  skipped_groups: number;
+  has_names: boolean;
+  has_address: boolean;
+};
 export type SkiptraceReport = {
+  /** Absent in a check from before Turf looked for repeated leads; null when the person turned it off. */
+  duplicates?: DuplicateSummary | null;
   phone_assessments?: Record<string, number>;
   scan_job_id: string;
   fingerprint: string;

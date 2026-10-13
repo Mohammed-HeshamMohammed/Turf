@@ -118,7 +118,7 @@ def test_a_checked_copy_adds_the_verdict_columns_and_leaves_the_original_alone(s
     before = ok(service, "dataset.rows", dataset_id=file_a)
     result = run(service, "skiptrace.apply", dataset_id=file_a, config=config, name="File A checked")
     assert result["rows"] == 5 and result["rows_with_callable_number"] == 2
-    assert result["added_columns"][:4] == ["Phone (verdict)", "Phone (why)", "Phone (E.164)", "Phone (type)"] and result["added_columns"][-3:] == ["Best phone", "Best phone verdict", "Best phone from"]
+    assert result["added_columns"][:4] == ["Phone (verdict)", "Phone (why)", "Phone (E.164)", "Phone (type)"] and result["added_columns"][-7:] == ["Best phone", "Best phone verdict", "Best phone from", "Duplicate group", "Duplicate status", "Duplicate why", "Same owner rows"]
 
     listing = {d["id"]: d for d in ok(service, "dataset.list")}
     checked = listing[result["dataset_id"]]

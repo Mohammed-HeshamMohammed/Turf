@@ -100,6 +100,13 @@ export function SkiptraceStepSigns({ s }: { s: ReadySetup }) {
             </label>
           </div>
           <p className="muted">Aging evidence prompts review; it does not prove reassignment.</p>
+          <Check checked={base.find_duplicates !== false} onChange={on => s.patch({ find_duplicates: on })}>
+            Also look for rows that repeat the same lead
+          </Check>
+          <p className="muted">
+            The check then says which rows are the same lead written twice, which one to keep, and which owners are in the list with several properties. No row
+            is removed.
+          </p>
           <details className="step skiptrace-optional" onToggle={event => setAdvancedLookup(event.currentTarget.open)}>
             <summary>Optional external lookup</summary>
             <p className="muted">Dialer exports and normal phone checks work without an external provider.</p>

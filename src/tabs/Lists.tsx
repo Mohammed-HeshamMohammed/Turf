@@ -188,6 +188,11 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
       if (flag === "dnc" && !marks.doNotCall) return false;
       if (flag === "callable" && !marks.best) return false;
       if (flag === "manual" && !marks.manual) return false;
+      // A lead written more than once: its repeats alone, or the list with each lead once (the kept row stays).
+      const repeats = String(row.raw["Duplicate status"] ?? "").startsWith("Duplicate of");
+      if (flag === "repeat" && !repeats) return false;
+      if (flag === "once" && repeats) return false;
+      if (flag === "possible" && !String(row.raw["Duplicate status"] ?? "").startsWith("Possible")) return false;
       if (
         column &&
         part &&
@@ -289,6 +294,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   if (!rows) return <p className="loading">Loading rows…</p>;
 
   const checked = phoneColumns.length > 0;
+  const hasDuplicates = columns.includes("Duplicate status");
   const rawPhones = own.filter(name => /phone|mobile|cell/i.test(name));
   const shownColumns = own
     .filter(name => !PLUMBING.test(name) && !phoneColumns.includes(name) && !dull.has(name) && !photoCols.includes(name))
@@ -632,6 +638,13 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                   { value: "wrong", label: "Known wrong number" },
                   { value: "dnc", label: "Do not call" },
                   { value: "manual", label: "Marked by hand" },
+                  ...(hasDuplicates
+                    ? [
+                        { value: "once", label: "Each lead once (repeats left out)" },
+                        { value: "repeat", label: "Repeats another row" },
+                        { value: "possible", label: "Might repeat another row" },
+                      ]
+                    : []),
                 ]}
               />
             </>
@@ -750,6 +763,19 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                             {marks.manual === "called" && <span className="pill pill-none">Called</span>}
                             {marks.manual === "interested" && <span className="pill pill-corroborated">Interested</span>}
                             {row.raw["Phone evidence warnings"] && <span className="pill pill-suspicious">Review dated evidence</span>}
+                            {row.raw["Duplicate status"] && row.raw["Duplicate status"] !== "Keep" && (
+                              <span
+                                className={String(row.raw["Duplicate status"]).startsWith("Possible") ? "pill pill-suspicious" : "pill pill-none"}
+                                title={String(row.raw["Duplicate why"] ?? "")}
+                              >
+                                {row.raw["Duplicate status"]}
+                              </span>
+                            )}
+                            {row.raw["Duplicate status"] === "Keep" && (
+                              <span className="pill pill-none" title={String(row.raw["Duplicate why"] ?? "")}>
+                                Kept of {row.raw["Duplicate group"]}
+                              </span>
+                            )}
                           </div>
                         </td>
                       </>

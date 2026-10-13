@@ -12,6 +12,7 @@ import json
 from datetime import date
 from pathlib import Path
 
+from turf_matching import duplicates
 from turf_matching import skiptrace as engine
 from turf_matching import status_meaning
 
@@ -72,6 +73,8 @@ def clean_config(config: object, columns: list[str]) -> dict:
         **{key: column(key) for key in engine.OWNER_CONTEXT_COLUMNS},
         "evidence_age_days": int(config.get("evidence_age_days", 180)), "lookup_age_days": int(config.get("lookup_age_days", 30)),
         "signals": {code: bool((config.get("signals") or {}).get(code, engine.DEFAULT_SIGNALS[code])) for code in engine.COUNTABLE_SIGNALS},
+        # Turf: rows that repeat the same lead are looked for during the check, unless the person turns it off.
+        "find_duplicates": bool(config.get("find_duplicates", True)),
     }
     owners = config.get("additional_owners") or []
     if not isinstance(owners, list) or len(owners) > 19:
@@ -403,7 +406,19 @@ def freshness(store: ProjectStore, dataset_id: str) -> dict:
 
 
 def _added_columns(config: dict) -> list[str]:
-    return [f"{column} ({suffix})" for column in config["phone_columns"] for suffix in OUTPUT_SUFFIXES] + list(BEST_COLUMNS)
+    added = [f"{column} ({suffix})" for column in config["phone_columns"] for suffix in OUTPUT_SUFFIXES] + list(BEST_COLUMNS)
+    return added + (list(duplicates.COLUMNS) if config.get("find_duplicates", True) else [])
+
+
+def _find_duplicates(context: JobContext, rows: list[dict], numbers: list[int], checked: list[dict], config: dict) -> dict | None:
+    """Turf: marks the rows that repeat the same lead, in the checked rows themselves, and returns the summary."""
+    if not config.get("find_duplicates", True):
+        return None
+    context.stage("finding_duplicates")
+    found, summary = duplicates.find(rows, numbers, config, checked, context.checkpoint, context.stage)
+    for row, columns in zip(checked, found):
+        row.update(columns)
+    return summary
 
 
 def _checked_row(row: dict, result: dict, config: dict) -> dict:
@@ -462,14 +477,20 @@ def _run_scan(context: JobContext) -> dict:
     _, report, numbers, rows, _ = _evaluate(context, keep_rows=True)
     results = report.pop("_row_results")
     records = []
-    counts = {"all": len(rows), "callable": 0, "known_wrong": 0, "dnc": 0, "needs_review": 0, "no_phone": 0}
+    config = context.params["config"]
+    checked = [_checked_row(row, result, config) for row, result in zip(rows, results)]
+    found = _find_duplicates(context, rows, numbers, checked, config)
+    counts = {"all": len(rows), "callable": 0, "known_wrong": 0, "dnc": 0, "needs_review": 0, "no_phone": 0, "duplicates": 0, "possible_duplicates": 0, "same_owner": 0}
     counts.update({f"group_{group}": 0 for group in ROW_GROUPS})
     counts.update({verdict: 0 for verdict in engine.VERDICTS})
     preview = []
-    for index, (number, row, result) in enumerate(zip(numbers, rows, results)):
+    for index, (number, out, result) in enumerate(zip(numbers, checked, results)):
         if index % 250 == 0:
             context.checkpoint()
-        out = _checked_row(row, result, context.params["config"])
+        status = out.get("Duplicate status") or ""
+        counts["duplicates"] += bool(out.get("Duplicate group"))
+        counts["possible_duplicates"] += status.startswith("Possible")
+        counts["same_owner"] += bool(out.get("Same owner rows"))
         reasons = {reason["code"] for data in result["columns"].values() for _, _, items in data.get("judged", []) for reason in items}
         verdicts = [data["verdict"] for data in result["columns"].values() if data["verdict"]]
         verdict = out["Best phone verdict"] or ("wrong" if verdicts else "none")
@@ -489,6 +510,7 @@ def _run_scan(context: JobContext) -> dict:
         if len(preview) < 5:
             preview.append({"row_number": number, "raw": out})
     report["row_counts"] = counts
+    report["duplicates"] = found
     report["preview"] = preview
     report["added_columns"] = _added_columns(context.params["config"])
     report["scan_job_id"] = context.job_id
@@ -506,15 +528,24 @@ def review(store: ProjectStore, job_id: str, filter_: str = "all", offset: int =
     filters = {"all": "1", "callable": "has_callable=1", "known_wrong": "known_wrong=1", "dnc": "do_not_call=1", "no_phone": "verdict='none'",
                "needs_review": "needs_review=1", **_GROUP_FILTERS}
     filters.update({verdict: f"verdict='{verdict}'" for verdict in engine.VERDICTS})
+    # Turf: the duplicate columns are read from the checked row itself, so the scan's table needed no new column.
+    filters.update({
+        "duplicates": "COALESCE(json_extract(raw_json, '$.\"Duplicate group\"'), '') != ''",
+        "possible_duplicates": "COALESCE(json_extract(raw_json, '$.\"Duplicate status\"'), '') LIKE 'Possible%'",
+        "same_owner": "COALESCE(json_extract(raw_json, '$.\"Same owner rows\"'), '') != ''",
+    })
     if filter_ not in filters:
         raise ValueError("Unknown review filter")
+    # Duplicates are read a group at a time, the kept row first.
+    order = ("CAST(substr(json_extract(raw_json, '$.\"Duplicate group\"'), 2) AS INTEGER), json_extract(raw_json, '$.\"Duplicate status\"') != 'Keep', row_number"
+             if filter_ == "duplicates" else "row_number")
     where = "job_id=? AND " + filters[filter_]
     args = [job_id]
     if row_number is not None:
         where += " AND row_number=?"
         args.append(int(row_number))
     total = store._connection.execute(f"SELECT COUNT(*) FROM skiptrace_scan_rows WHERE {where}", args).fetchone()[0]
-    found = store._connection.execute(f"SELECT row_number, raw_json FROM skiptrace_scan_rows WHERE {where} ORDER BY row_number LIMIT ? OFFSET ?", [*args, max(1, min(limit, 100)), max(0, offset)])
+    found = store._connection.execute(f"SELECT row_number, raw_json FROM skiptrace_scan_rows WHERE {where} ORDER BY {order} LIMIT ? OFFSET ?", [*args, max(1, min(limit, 100)), max(0, offset)])
     return {"total": total, "rows": [{"row_number": r["row_number"], "raw": json.loads(r["raw_json"])} for r in found]}
 
 
@@ -539,6 +570,7 @@ def _run_apply(context: JobContext) -> dict:
     else:
         dataset, report, numbers, rows, others = _evaluate(context, keep_rows=True)
         checked_rows = [_checked_row(row, result, params["config"]) for row, result in zip(rows, report.pop("_row_results"))]
+        _find_duplicates(context, rows, numbers, checked_rows, params["config"])
     context.stage("saving_checked_copy", {"rows": len(checked_rows)})
     context.checkpoint()
     added = _added_columns(params["config"])

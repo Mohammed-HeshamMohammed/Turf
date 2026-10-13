@@ -20,11 +20,13 @@ Only what Turf has was copied: projects, lists (import, list, rows) and Skip Tra
 | `turf_service/images.py` | Turf's own, not a copy | Pictures written into cells are saved in the project's `artifacts/images`; the free USGS aerial view of a place, kept in app data |
 | `turf_service/tidy.py` | Turf's own, not a copy | Takes empty rows and columns out of imported lists already in a project, when the project is opened |
 | `turf_matching/phone.py`, `cleanup.py` | `workers/matching/src/dataforge_matching/` | No |
+| `turf_matching/engine.py`, `normalize.py`, `likelihood.py` | same folder, taken on 13 October 2026 from the working tree (`normalize.py` with its uncommitted changes) | No. Turf calls the engine's candidate groups, field evidence, decisions, grouping and likelihood; its request format, canonical records and survivor rules are here unused |
+| `turf_matching/duplicates.py` | Turf's own, not a copy | Rows of one list that repeat the same lead, found during a phone check with the Skip Tracing setup: what the engine decides, read for lists of leads (one owner with several properties, names as county rolls write them, different phones for one lead, office lines), and which row to keep |
 | `turf_matching/skiptrace.py` | same folder | Call statuses are read by `status_meaning.py` instead of four word lists; the status table says whether each meaning is sure; a disconnected line counts as a bad number when the warning signs are measured (`SKIPTRACE_VERSION` 5); the setup suggestion reads only status-like columns to the end of the list, with the same result |
 | `turf_matching/status_meaning.py`, `turf_service/status_model.py`, `tools/fetch_status_model.py` | Turf's own, not a copy | How call statuses are read: the project's remembered decisions, phrase rules, and an optional local embedding model |
 | `migrations/` | `migrations/` | No |
 
-Not copied: scraping, the collector extension, Clean & Combine (matching, review, exports), public records, automation, workbook export, updates.
+Not copied: scraping, the collector extension, Clean & Combine's screens and service (mapping confirmation, the review queue, merged records and exports; only its matching engine is here), public records, automation, workbook export, updates.
 
 `cleaning.py` and `turf_matching/cleanup.py` are here because Skip Tracing uses a few of their helpers. Turf has no clean-up screen. The rule files in `turf_matching/` are kept whole, unused parts included, so they can be copied again from DataForge; the service files above were cut down to what Turf calls, so take DataForge's fixes to those by hand.
 
