@@ -10,14 +10,19 @@ import type { AreaMapping, DatasetRow } from "./types";
 export const EMBEDDED = "turf-image:";
 const IMAGE_FILE = /\.(jpe?g|png|gif|webp|avif|bmp)(?:[?#]|$)/i;
 // Hosts that serve listing photos without a file ending.
-const PHOTO_HOSTS = /(^|\.)(photos\.zillowstatic\.com|ssl\.cdn-redfin\.com|ap\.rdcpix\.com|cdn\.realtor\.com|images\.homes\.com|photos\.harstatic\.com|img\.trulia\.com|lh3\.googleusercontent\.com)$/i;
+const PHOTO_HOSTS =
+  /(^|\.)(photos\.zillowstatic\.com|ssl\.cdn-redfin\.com|ap\.rdcpix\.com|cdn\.realtor\.com|images\.homes\.com|photos\.harstatic\.com|img\.trulia\.com|lh3\.googleusercontent\.com)$/i;
 const NAME_HINT = /image|photo|picture|thumb|img|pic\b/i;
 
 /** A link to a picture. In a column named for pictures any web link counts; elsewhere it must look like one. */
 function pictureLink(text: string, named = false): string | null {
   let url: URL;
-  try { url = new URL(text); } catch { return null; }
-  if (url.protocol !== "https:" && url.protocol !== "http:") return null;  // never javascript:, file: or data: links
+  try {
+    url = new URL(text);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null; // never javascript:, file: or data: links
   return named || IMAGE_FILE.test(url.pathname) || PHOTO_HOSTS.test(url.hostname) ? url.href : null;
 }
 
@@ -53,7 +58,10 @@ export function photoColumns(rows: DatasetRow[], columns: string[]): string[] {
     return { name, share, multiple, keep: withPhotos > 0 && (share >= 0.6 || (NAME_HINT.test(name) && share >= 0.3)) };
   });
   // a single picture first (usually the cover), then columns holding several
-  return scored.filter(item => item.keep).sort((a, b) => Number(a.multiple) - Number(b.multiple)).map(item => item.name);
+  return scored
+    .filter(item => item.keep)
+    .sort((a, b) => Number(a.multiple) - Number(b.multiple))
+    .map(item => item.name);
 }
 
 export function photosOfRow(row: DatasetRow, columns: string[]): string[] {
@@ -63,10 +71,35 @@ export function photosOfRow(row: DatasetRow, columns: string[]): string[] {
 // ------------------------------------------------------------------------------------------- the same property
 
 const STREET_WORDS: Record<string, string> = {
-  street: "st", avenue: "ave", av: "ave", drive: "dr", road: "rd", lane: "ln", court: "ct", boulevard: "blvd", place: "pl",
-  terrace: "ter", circle: "cir", parkway: "pkwy", highway: "hwy", trail: "trl", square: "sq", way: "way", point: "pt",
-  north: "n", south: "s", east: "e", west: "w", northeast: "ne", northwest: "nw", southeast: "se", southwest: "sw",
-  apartment: "apt", suite: "ste", unit: "unit", number: "#",
+  street: "st",
+  avenue: "ave",
+  av: "ave",
+  drive: "dr",
+  road: "rd",
+  lane: "ln",
+  court: "ct",
+  boulevard: "blvd",
+  place: "pl",
+  terrace: "ter",
+  circle: "cir",
+  parkway: "pkwy",
+  highway: "hwy",
+  trail: "trl",
+  square: "sq",
+  way: "way",
+  point: "pt",
+  north: "n",
+  south: "s",
+  east: "e",
+  west: "w",
+  northeast: "ne",
+  northwest: "nw",
+  southeast: "se",
+  southwest: "sw",
+  apartment: "apt",
+  suite: "ste",
+  unit: "unit",
+  number: "#",
 };
 
 const UNIT = /^\s*(unit|apt|apartment|suite|ste|#|bldg|building|lot|fl|floor)\b/i;
@@ -75,12 +108,22 @@ const UNIT = /^\s*(unit|apt|apartment|suite|ste|#|bldg|building|lot|fl|floor)\b/
 export function streetPart(value: unknown): string {
   const parts = String(value ?? "").split(",");
   const unitAt = parts.findIndex((part, index) => index > 0 && !UNIT.test(part));
-  return parts.slice(0, unitAt === -1 ? parts.length : unitAt).map(part => part.trim()).filter(Boolean).join(", ");
+  return parts
+    .slice(0, unitAt === -1 ? parts.length : unitAt)
+    .map(part => part.trim())
+    .filter(Boolean)
+    .join(", ");
 }
 
 /** A street address in one spelling: "2505 Hazard Street, Unit B" and "2505 hazard st unit b" are the same. */
 export function streetKey(value: unknown): string {
-  return streetPart(value).toLowerCase().replace(/[.#,]/g, " ").split(/\s+/).filter(Boolean).map(word => STREET_WORDS[word] ?? word).join(" ");
+  return streetPart(value)
+    .toLowerCase()
+    .replace(/[.#,]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(word => STREET_WORDS[word] ?? word)
+    .join(" ");
 }
 
 export type PlaceColumns = { street?: string; zip?: string; city?: string; position: { latitude: string; longitude: string } | null };
@@ -96,13 +139,22 @@ export function placeKeys(row: DatasetRow, columns: PlaceColumns, exact?: [numbe
   const keys: string[] = [];
   const street = columns.street ? streetKey(row.raw[columns.street]) : "";
   if (street && /\d/.test(street)) {
-    const zip = columns.zip ? String(row.raw[columns.zip] ?? "").trim().slice(0, 5) : "";
-    const city = columns.city ? String(row.raw[columns.city] ?? "").trim().toLowerCase() : "";
+    const zip = columns.zip
+      ? String(row.raw[columns.zip] ?? "")
+          .trim()
+          .slice(0, 5)
+      : "";
+    const city = columns.city
+      ? String(row.raw[columns.city] ?? "")
+          .trim()
+          .toLowerCase()
+      : "";
     if (zip) keys.push(`a:${street}|${zip}`);
     if (city) keys.push(`c:${street}|${city}`);
   }
-  const position = columns.position ? [Number(row.raw[columns.position.latitude]), Number(row.raw[columns.position.longitude])] as [number, number] : exact;
-  if (position && Number.isFinite(position[0]) && Number.isFinite(position[1]) && (position[0] || position[1])) keys.push(`p:${position[0].toFixed(4)},${position[1].toFixed(4)}`);
+  const position = columns.position ? ([Number(row.raw[columns.position.latitude]), Number(row.raw[columns.position.longitude])] as [number, number]) : exact;
+  if (position && Number.isFinite(position[0]) && Number.isFinite(position[1]) && (position[0] || position[1]))
+    keys.push(`p:${position[0].toFixed(4)},${position[1].toFixed(4)}`);
   return keys;
 }
 
@@ -125,7 +177,13 @@ export function photoIndex(lists: { rows: DatasetRow[]; columns: string[]; saved
 }
 
 /** A row's pictures: its own first, else those of the same property in another list. */
-export function photosFor(row: DatasetRow, own: string[], place: PlaceColumns, index: PhotoIndex, exact?: [number, number]): { photos: string[]; borrowed: boolean } {
+export function photosFor(
+  row: DatasetRow,
+  own: string[],
+  place: PlaceColumns,
+  index: PhotoIndex,
+  exact?: [number, number],
+): { photos: string[]; borrowed: boolean } {
   const photos = photosOfRow(row, own);
   if (photos.length) return { photos, borrowed: false };
   for (const key of placeKeys(row, place, exact)) {
@@ -138,7 +196,8 @@ export function photosFor(row: DatasetRow, own: string[], place: PlaceColumns, i
 /** Where a row is on the map, for the aerial view: its own position, else its looked-up address. */
 export function positionOf(row: DatasetRow, place: PlaceColumns, exact?: [number, number]): [number, number] | null {
   if (place.position) {
-    const lat = Number(row.raw[place.position.latitude]), lon = Number(row.raw[place.position.longitude]);
+    const lat = Number(row.raw[place.position.latitude]),
+      lon = Number(row.raw[place.position.longitude]);
     if (Number.isFinite(lat) && Number.isFinite(lon) && (lat || lon)) return [lat, lon];
   }
   return exact ?? null;

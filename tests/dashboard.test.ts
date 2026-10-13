@@ -1,19 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { callProgress, contactCoverage, mailColumnsOf, nextSteps, phoneColumnsOf, progressKind, reachContext, reachOf, shareText, statusKey, worthFollowingUp } from "../src/lib/dashboard";
+import {
+  callProgress,
+  contactCoverage,
+  mailColumnsOf,
+  nextSteps,
+  phoneColumnsOf,
+  progressKind,
+  reachContext,
+  reachOf,
+  shareText,
+  statusKey,
+  worthFollowingUp,
+} from "../src/lib/dashboard";
 import type { Dataset, DatasetRow, SkiptraceSuggestion, StatusRow } from "../src/lib/types";
 
 const row = (id: number, raw: Record<string, string>) => ({ id: String(id), row_number: id, raw }) as unknown as DatasetRow;
-const status = (key: string, outcomes: string[], confirmed: boolean, count: number) => ({ key, example: key, count, outcomes, confirmed }) as unknown as StatusRow;
+const status = (key: string, outcomes: string[], confirmed: boolean, count: number) =>
+  ({ key, example: key, count, outcomes, confirmed }) as unknown as StatusRow;
 const list = (id: string, name: string) => ({ id, name, kind: "import" }) as unknown as Dataset;
 
 describe("what the Dashboard tells from a list on its own", () => {
   it("does not offer a lead who said no as one to follow up", () => {
-    for (const status of ["Not interested", "NI", "Spoke to owner - not selling", "Sold already", "Hung up", "Remove from list"]) expect(worthFollowingUp(status)).toBe(false);
+    for (const status of ["Not interested", "NI", "Spoke to owner - not selling", "Sold already", "Hung up", "Remove from list"])
+      expect(worthFollowingUp(status)).toBe(false);
     for (const status of ["Interested - call back", "Spoke to owner", "Callback Tuesday", "Nina answered", ""]) expect(worthFollowingUp(status)).toBe(true);
   });
 
   it("counts rows that can be reached by phone or email, without a phone check", () => {
-    const rows = [row(1, { Phone: "(713) 555-3142", "Alt. Phone": "832-555-1111", Email: "" }), row(2, { Phone: "n/a", "Alt. Phone": "", Email: "a@b.co" }), row(3, { Phone: "", "Alt. Phone": "", Email: "" })];
+    const rows = [
+      row(1, { Phone: "(713) 555-3142", "Alt. Phone": "832-555-1111", Email: "" }),
+      row(2, { Phone: "n/a", "Alt. Phone": "", Email: "a@b.co" }),
+      row(3, { Phone: "", "Alt. Phone": "", Email: "" }),
+    ];
     const columns = ["Phone", "Alt. Phone", "Email"];
     expect(contactCoverage(rows, columns, phoneColumnsOf(columns))).toEqual({ phone: 1, severalPhones: 1, email: 1, neither: 1 });
     const setup = { config: { phone_columns: ["Phone"] } } as unknown as SkiptraceSuggestion;
@@ -25,13 +43,42 @@ describe("what the Dashboard tells from a list on its own", () => {
     expect(progressKind(status("wrong person", ["wrong_person"], true, 1))).toBe("bad_number");
     expect(progressKind(status("not yet reached", [], true, 1))).toBe("no_result");
     expect(progressKind(status("owner in hospital", [], false, 1))).toBe("unclear");
-    const setup = { outcome_column: "Status", rows: 100, statuses: [status("interested", ["reached"], true, 10), status("lvm", ["voicemail"], true, 20), status("dnc: sold", ["do_not_call", "reached"], false, 5), status("odd", [], false, 2)] } as unknown as SkiptraceSuggestion;
-    expect(callProgress(setup)).toEqual({ reached: 10, no_pickup: 20, bad_number: 0, do_not_call: 5, unclear: 2, no_result: 63, column: "Status", statusesNeedingYou: 2, rowsNeedingYou: 7 });
+    const setup = {
+      outcome_column: "Status",
+      rows: 100,
+      statuses: [
+        status("interested", ["reached"], true, 10),
+        status("lvm", ["voicemail"], true, 20),
+        status("dnc: sold", ["do_not_call", "reached"], false, 5),
+        status("odd", [], false, 2),
+      ],
+    } as unknown as SkiptraceSuggestion;
+    expect(callProgress(setup)).toEqual({
+      reached: 10,
+      no_pickup: 20,
+      bad_number: 0,
+      do_not_call: 5,
+      unclear: 2,
+      no_result: 63,
+      column: "Status",
+      statusesNeedingYou: 2,
+      rowsNeedingYou: 7,
+    });
     expect(callProgress({ ...setup, outcome_column: null })).toBeNull();
   });
 
   it("puts the biggest next step first", () => {
-    const progress = { reached: 0, no_pickup: 0, bad_number: 0, do_not_call: 0, unclear: 0, no_result: 0, column: "Status", statusesNeedingYou: 3, rowsNeedingYou: 900 };
+    const progress = {
+      reached: 0,
+      no_pickup: 0,
+      bad_number: 0,
+      do_not_call: 0,
+      unclear: 0,
+      no_result: 0,
+      column: "Status",
+      statusesNeedingYou: 3,
+      rowsNeedingYou: 900,
+    };
     const steps = nextSteps([
       { dataset: list("a", "March"), rows: 5000, checked: false, phoneRows: 4000, zipColumn: "Zip", zipless: 0, progress },
       { dataset: list("b", "April"), rows: 200, checked: true, phoneRows: 200, zipColumn: undefined, zipless: 200, progress: null },
@@ -49,8 +96,12 @@ describe("what the Dashboard tells from a list on its own", () => {
 
   it("puts each row in one way of reaching it, do not call first", () => {
     const columns = ["Phone", "Email", "Mailing Address", "Status"];
-    const setup = { outcome_column: "Status", config: { phone_columns: ["Phone"] }, rows: 0,
-      statuses: [status("dnc", ["do_not_call"], true, 1), status("wrong number", ["wrong_number"], true, 1)] } as unknown as SkiptraceSuggestion;
+    const setup = {
+      outcome_column: "Status",
+      config: { phone_columns: ["Phone"] },
+      rows: 0,
+      statuses: [status("dnc", ["do_not_call"], true, 1), status("wrong number", ["wrong_number"], true, 1)],
+    } as unknown as SkiptraceSuggestion;
     const context = reachContext(columns, setup);
     expect(mailColumnsOf(columns)).toEqual(["Mailing Address"]);
     const raw = (values: Record<string, string>) => row(1, { Phone: "", Email: "", "Mailing Address": "", Status: "", ...values });

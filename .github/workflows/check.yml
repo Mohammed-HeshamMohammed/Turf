@@ -1,0 +1,33 @@
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    # The same checks as `npm run check`, on the system Turf is built for.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: service/requirements.txt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: pip install -r service/requirements.txt pytest
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run build
+      - run: npm test
+      - run: python -m pytest service/tests -q
+      - run: cargo test --manifest-path src-tauri/Cargo.toml

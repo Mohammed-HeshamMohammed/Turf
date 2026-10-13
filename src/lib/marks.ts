@@ -4,12 +4,14 @@ const RANK: Record<Verdict, number> = { corroborated: 0, unverified: 1, suspicio
 const isVerdict = (value: unknown): value is Verdict => typeof value === "string" && value in RANK;
 
 /** Columns Skip Tracing adds to a checked copy; everything else is the list's own data. */
-export const isAddedColumn = (name: string) => /\((verdict|why|E\.164|type|quality|permission)\)$/.test(name) || name.startsWith("Best phone") || ["Phone choices", "Phone evidence warnings"].includes(name);
+export const isAddedColumn = (name: string) =>
+  /\((verdict|why|E\.164|type|quality|permission)\)$/.test(name) ||
+  name.startsWith("Best phone") ||
+  ["Phone choices", "Phone evidence warnings"].includes(name);
 
 export const ownColumns = (columns: string[]) => columns.filter(name => !isAddedColumn(name));
 
-export const checkedPhoneColumns = (columns: string[]) =>
-  columns.filter(name => name.endsWith(" (verdict)")).map(name => name.slice(0, -" (verdict)".length));
+export const checkedPhoneColumns = (columns: string[]) => columns.filter(name => name.endsWith(" (verdict)")).map(name => name.slice(0, -" (verdict)".length));
 
 export type Marks = {
   verdict: Verdict | null;
@@ -54,13 +56,35 @@ export function readMarks(raw: Raw, phoneColumns: string[], manual: ManualMarks)
   const number = (best ?? firstNumber)?.split(";")[0].trim() ?? null;
   const entry = number ? manual[number] : undefined;
   const today = [new Date().getFullYear(), String(new Date().getMonth() + 1).padStart(2, "0"), String(new Date().getDate()).padStart(2, "0")].join("-");
-  const mark = entry?.mark === "do_not_call" && entry.until && entry.until < today ? null : entry?.mark ?? null;
-  if (mark === "wrong_number") { verdict = verdict === "corroborated" || /but reached/i.test(why ?? "") ? "suspicious" : "wrong"; knownWrong = verdict === "wrong"; why = verdict === "suspicious" ? "Conflicting outcomes: marked wrong in Turf, but a person was reached" : "Marked a wrong number in Turf"; }
-  if (mark === "do_not_call") { verdict = "wrong"; doNotCall = true; doNotCallUntil = entry?.until ?? null; why = "Marked do-not-call in Turf"; }
-  if (mark === "interested" && verdict !== "wrong") { verdict = "corroborated"; why = "Marked interested in Turf: a call reached a person"; }
+  const mark = entry?.mark === "do_not_call" && entry.until && entry.until < today ? null : (entry?.mark ?? null);
+  if (mark === "wrong_number") {
+    verdict = verdict === "corroborated" || /but reached/i.test(why ?? "") ? "suspicious" : "wrong";
+    knownWrong = verdict === "wrong";
+    why = verdict === "suspicious" ? "Conflicting outcomes: marked wrong in Turf, but a person was reached" : "Marked a wrong number in Turf";
+  }
+  if (mark === "do_not_call") {
+    verdict = "wrong";
+    doNotCall = true;
+    doNotCallUntil = entry?.until ?? null;
+    why = "Marked do-not-call in Turf";
+  }
+  if (mark === "interested" && verdict !== "wrong") {
+    verdict = "corroborated";
+    why = "Marked interested in Turf: a call reached a person";
+  }
   const separatelyUsable = raw["Best phone quality"] && raw["Best phone quality"] !== "wrong" && raw["Best phone permission"] === "no_recorded_block";
   const blockedByNewMark = mark === "do_not_call" || (mark === "wrong_number" && verdict === "wrong");
-  return { verdict, best: blockedByNewMark ? null : separatelyUsable ? best : verdict === "wrong" ? null : best, bestFrom, why, knownWrong, doNotCall, doNotCallUntil, number, manual: mark };
+  return {
+    verdict,
+    best: blockedByNewMark ? null : separatelyUsable ? best : verdict === "wrong" ? null : best,
+    bestFrom,
+    why,
+    knownWrong,
+    doNotCall,
+    doNotCallUntil,
+    number,
+    manual: mark,
+  };
 }
 
 // ---------------------------------------------------------------- areas
@@ -105,12 +129,17 @@ export function positionColumns(columns: string[]) {
 
 export const VERDICT_LABELS: Record<Verdict, string> = { corroborated: "Corroborated", unverified: "Unverified", suspicious: "Suspicious", wrong: "Wrong" };
 export const MANUAL_MARKS: ManualMark[] = ["called", "interested", "wrong_number", "do_not_call"];
-export const MANUAL_LABELS: Record<ManualMark, string> = { called: "Called", wrong_number: "Wrong number", do_not_call: "Do not call", interested: "Interested" };
+export const MANUAL_LABELS: Record<ManualMark, string> = {
+  called: "Called",
+  wrong_number: "Wrong number",
+  do_not_call: "Do not call",
+  interested: "Interested",
+};
 export const KIND_LABELS = { import: "Imported file", scrape: "Collected run", cleaned: "Cleaned copy", checked: "Checked copy" } as const;
 
 export function formatPhone(e164: string | null) {
   const match = e164?.match(/^\+1(\d{3})(\d{3})(\d{4})$/);
-  return match ? `(${match[1]}) ${match[2]}-${match[3]}` : e164 ?? "";
+  return match ? `(${match[1]}) ${match[2]}-${match[3]}` : (e164 ?? "");
 }
 
 export const formatNumber = (value: number) => value.toLocaleString("en-US");

@@ -1,8 +1,16 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from "react";
 
-export type MenuItem =
-  | { label: string; onSelect: () => void; disabled?: boolean; hint?: string; checked?: boolean; danger?: boolean }
-  | "separator";
+export type MenuItem = { label: string; onSelect: () => void; disabled?: boolean; hint?: string; checked?: boolean; danger?: boolean } | "separator";
 
 type Open = (event: ReactMouseEvent, items: MenuItem[]) => void;
 
@@ -36,14 +44,42 @@ function textItems(target: EventTarget | null): MenuItem[] {
     const selected = target.value.slice(target.selectionStart ?? 0, target.selectionEnd ?? 0);
     const locked = target.readOnly || target.disabled;
     return [
-      { label: "Cut", disabled: !selected || locked, onSelect: () => { copyText(selected); insertInto(target, ""); target.focus(); } },
+      {
+        label: "Cut",
+        disabled: !selected || locked,
+        onSelect: () => {
+          copyText(selected);
+          insertInto(target, "");
+          target.focus();
+        },
+      },
       { label: "Copy", disabled: !selected, onSelect: () => copyText(selected) },
-      { label: "Paste", disabled: locked, onSelect: () => void navigator.clipboard.readText().then(text => { target.focus(); insertInto(target, text); }, () => undefined) },
-      { label: "Select all", disabled: !target.value, onSelect: () => { target.focus(); target.select(); } },
+      {
+        label: "Paste",
+        disabled: locked,
+        onSelect: () =>
+          void navigator.clipboard.readText().then(
+            text => {
+              target.focus();
+              insertInto(target, text);
+            },
+            () => undefined,
+          ),
+      },
+      {
+        label: "Select all",
+        disabled: !target.value,
+        onSelect: () => {
+          target.focus();
+          target.select();
+        },
+      },
     ];
   }
   const selection = window.getSelection()?.toString() ?? "";
-  return selection.trim() ? [{ label: "Copy", hint: selection.length > 28 ? `${selection.slice(0, 28)}…` : selection, onSelect: () => copyText(selection) }] : [];
+  return selection.trim()
+    ? [{ label: "Copy", hint: selection.length > 28 ? `${selection.slice(0, 28)}…` : selection, onSelect: () => copyText(selection) }]
+    : [];
 }
 
 const join = (...groups: MenuItem[][]) => groups.filter(group => group.length).flatMap((group, index) => (index ? ["separator" as const, ...group] : group));
@@ -83,7 +119,9 @@ export function ContextMenuProvider({ general, children }: { general: () => Menu
   useEffect(() => {
     if (!menu) return;
     const close = () => setMenu(null);
-    const outside = (event: PointerEvent) => { if (!panel.current?.contains(event.target as Node)) close(); };
+    const outside = (event: PointerEvent) => {
+      if (!panel.current?.contains(event.target as Node)) close();
+    };
     const keys = (event: KeyboardEvent) => {
       if (event.key === "Escape") return close();
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
@@ -121,14 +159,27 @@ export function ContextMenuProvider({ general, children }: { general: () => Menu
       {children}
       {menu && menu.items.length > 0 && (
         <div className="context-menu" role="menu" ref={panel} style={{ left: menu.x, top: menu.y }} onContextMenu={event => event.preventDefault()}>
-          {menu.items.map((item, index) => item === "separator" ? <hr key={index} /> : (
-            <button key={index} type="button" role="menuitem" disabled={item.disabled} className={item.danger ? "danger" : undefined}
-              onClick={() => { setMenu(null); item.onSelect(); }}>
-              <i aria-hidden="true">{item.checked ? "✓" : ""}</i>
-              <span>{item.label}</span>
-              {item.hint && <small>{item.hint}</small>}
-            </button>
-          ))}
+          {menu.items.map((item, index) =>
+            item === "separator" ? (
+              <hr key={index} />
+            ) : (
+              <button
+                key={index}
+                type="button"
+                role="menuitem"
+                disabled={item.disabled}
+                className={item.danger ? "danger" : undefined}
+                onClick={() => {
+                  setMenu(null);
+                  item.onSelect();
+                }}
+              >
+                <i aria-hidden="true">{item.checked ? "✓" : ""}</i>
+                <span>{item.label}</span>
+                {item.hint && <small>{item.hint}</small>}
+              </button>
+            ),
+          )}
         </div>
       )}
     </MenuContext.Provider>

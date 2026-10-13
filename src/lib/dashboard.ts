@@ -61,7 +61,17 @@ export function progressKind(status: StatusRow): ProgressKind {
  */
 export function callProgress(setup: SkiptraceSuggestion | null | undefined): Progress | null {
   if (!setup?.outcome_column) return null;
-  const progress: Progress = { reached: 0, no_pickup: 0, bad_number: 0, do_not_call: 0, unclear: 0, no_result: 0, column: setup.outcome_column, statusesNeedingYou: 0, rowsNeedingYou: 0 };
+  const progress: Progress = {
+    reached: 0,
+    no_pickup: 0,
+    bad_number: 0,
+    do_not_call: 0,
+    unclear: 0,
+    no_result: 0,
+    column: setup.outcome_column,
+    statusesNeedingYou: 0,
+    rowsNeedingYou: 0,
+  };
   let counted = 0;
   for (const status of setup.statuses) {
     progress[progressKind(status)] += status.count;
@@ -71,12 +81,18 @@ export function callProgress(setup: SkiptraceSuggestion | null | undefined): Pro
       progress.rowsNeedingYou += status.count;
     }
   }
-  progress.no_result += Math.max(0, setup.rows - counted);  // rows with an empty status
+  progress.no_result += Math.max(0, setup.rows - counted); // rows with an empty status
   return progress;
 }
 
 export type ListFacts = {
-  dataset: Dataset; rows: number; checked: boolean; phoneRows: number; zipColumn?: string; zipless: number; progress: Progress | null;
+  dataset: Dataset;
+  rows: number;
+  checked: boolean;
+  phoneRows: number;
+  zipColumn?: string;
+  zipless: number;
+  progress: Progress | null;
   /** Rows without a phone of their own whose owner has one in another list. */
   phonesElsewhere?: number;
 };
@@ -88,19 +104,59 @@ export function nextSteps(lists: ListFacts[]): NextStep[] {
   for (const list of lists) {
     const name = list.dataset.name;
     if (!list.checked && list.phoneRows > 0) {
-      steps.push({ key: `check-${list.dataset.id}`, text: `Check the phones in ${name}`, detail: `${list.phoneRows.toLocaleString()} rows have a phone; a check finds the ones worth calling`, action: "Check", tab: "skiptracing", datasetId: list.dataset.id, weight: list.phoneRows });
+      steps.push({
+        key: `check-${list.dataset.id}`,
+        text: `Check the phones in ${name}`,
+        detail: `${list.phoneRows.toLocaleString()} rows have a phone; a check finds the ones worth calling`,
+        action: "Check",
+        tab: "skiptracing",
+        datasetId: list.dataset.id,
+        weight: list.phoneRows,
+      });
     }
     if (list.progress?.statusesNeedingYou) {
       const { statusesNeedingYou: count, rowsNeedingYou: rows } = list.progress;
-      steps.push({ key: `statuses-${list.dataset.id}`, text: `${count} call ${count === 1 ? "status" : "statuses"} in ${name} ${count === 1 ? "needs" : "need"} you`, detail: `Used on ${rows.toLocaleString()} rows; Turf could not settle ${count === 1 ? "it" : "them"} alone`, action: "Review", tab: "skiptracing", datasetId: list.dataset.id, weight: rows });
+      steps.push({
+        key: `statuses-${list.dataset.id}`,
+        text: `${count} call ${count === 1 ? "status" : "statuses"} in ${name} ${count === 1 ? "needs" : "need"} you`,
+        detail: `Used on ${rows.toLocaleString()} rows; Turf could not settle ${count === 1 ? "it" : "them"} alone`,
+        action: "Review",
+        tab: "skiptracing",
+        datasetId: list.dataset.id,
+        weight: rows,
+      });
     }
     if (list.phonesElsewhere) {
-      steps.push({ key: `found-${list.dataset.id}`, text: `${list.phonesElsewhere.toLocaleString()} rows in ${name} have no phone, but another list has one`, detail: "Same owner at the same property or mailing address; open a row to see it and where it came from", action: "Open", tab: "lists", datasetId: list.dataset.id, weight: list.phonesElsewhere * 1.5 });
+      steps.push({
+        key: `found-${list.dataset.id}`,
+        text: `${list.phonesElsewhere.toLocaleString()} rows in ${name} have no phone, but another list has one`,
+        detail: "Same owner at the same property or mailing address; open a row to see it and where it came from",
+        action: "Open",
+        tab: "lists",
+        datasetId: list.dataset.id,
+        weight: list.phonesElsewhere * 1.5,
+      });
     }
     if (!list.zipColumn && list.rows) {
-      steps.push({ key: `zip-${list.dataset.id}`, text: `${name} has no ZIP column`, detail: "Its rows are not on the map or in Areas until a ZIP column is chosen", action: "Open", tab: "lists", datasetId: list.dataset.id, weight: list.rows / 2 });
+      steps.push({
+        key: `zip-${list.dataset.id}`,
+        text: `${name} has no ZIP column`,
+        detail: "Its rows are not on the map or in Areas until a ZIP column is chosen",
+        action: "Open",
+        tab: "lists",
+        datasetId: list.dataset.id,
+        weight: list.rows / 2,
+      });
     } else if (list.zipless > Math.max(10, list.rows * 0.05)) {
-      steps.push({ key: `zipless-${list.dataset.id}`, text: `${list.zipless.toLocaleString()} rows in ${name} have no ZIP`, detail: "They are left off the map and out of Areas", action: "Open", tab: "lists", datasetId: list.dataset.id, weight: list.zipless / 2 });
+      steps.push({
+        key: `zipless-${list.dataset.id}`,
+        text: `${list.zipless.toLocaleString()} rows in ${name} have no ZIP`,
+        detail: "They are left off the map and out of Areas",
+        action: "Open",
+        tab: "lists",
+        datasetId: list.dataset.id,
+        weight: list.zipless / 2,
+      });
     }
   }
   return steps.sort((a, b) => b.weight - a.weight);
@@ -125,16 +181,20 @@ const DATE_AFTER_UNTIL = /\b(until|till|through|thru|expires?|exp)\s*:?\s*(\d{1,
 /** A status value as the service keys it (turf_matching.skiptrace.normalize_status): spacing folded, a date after
  * "until" replaced, lower case. */
 export function statusKey(value: unknown): string {
-  return String(value ?? "").replace(/\s+/g, " ").trim()
-    .replace(DATE_AFTER_UNTIL, (_, word: string) => `${word.toLowerCase()} [date]`).toLowerCase();
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(DATE_AFTER_UNTIL, (_, word: string) => `${word.toLowerCase()} [date]`)
+    .toLowerCase();
 }
 
 /** The columns a letter could go to: the mailing address the setup maps (or one named so), else the property's street. */
 export function mailColumnsOf(columns: string[], setup?: SkiptraceSuggestion | null): string[] {
   const own = ownColumns(columns);
   const config = setup?.config;
-  const mapped = [config?.mailing_address_column, ...(config?.additional_owners ?? []).map(owner => owner.mailing_address_column)]
-    .filter((column): column is string => Boolean(column) && own.includes(column!));
+  const mapped = [config?.mailing_address_column, ...(config?.additional_owners ?? []).map(owner => owner.mailing_address_column)].filter(
+    (column): column is string => Boolean(column) && own.includes(column!),
+  );
   if (mapped.length) return [...new Set(mapped)];
   const named = own.filter(name => /^(owner\s*)?mail(ing)?\s*(address|addr|street)/i.test(name.trim()));
   if (named.length) return named;
@@ -143,9 +203,12 @@ export function mailColumnsOf(columns: string[], setup?: SkiptraceSuggestion | n
 }
 
 export type ReachContext = {
-  phoneColumns: string[]; emailColumns: string[]; mailColumns: string[];
+  phoneColumns: string[];
+  emailColumns: string[];
+  mailColumns: string[];
   /** Status column and what each status key means, when the list has call results. */
-  statusColumn?: string; statusKinds?: Map<string, ProgressKind>;
+  statusColumn?: string;
+  statusKinds?: Map<string, ProgressKind>;
   /** Whether an email can reach someone, once checked; until then any address counts. */
   emailOk?: (address: string) => boolean;
 };
@@ -153,8 +216,12 @@ export type ReachContext = {
 export function reachContext(columns: string[], setup?: SkiptraceSuggestion | null, emailOk?: (address: string) => boolean): ReachContext {
   const kinds = setup?.outcome_column ? new Map(setup.statuses.filter(status => status.key).map(status => [status.key, progressKind(status)])) : undefined;
   return {
-    phoneColumns: phoneColumnsOf(columns, setup), emailColumns: ownColumns(columns).filter(name => EMAIL_NAME.test(name)),
-    mailColumns: mailColumnsOf(columns, setup), statusColumn: setup?.outcome_column ?? undefined, statusKinds: kinds, emailOk,
+    phoneColumns: phoneColumnsOf(columns, setup),
+    emailColumns: ownColumns(columns).filter(name => EMAIL_NAME.test(name)),
+    mailColumns: mailColumnsOf(columns, setup),
+    statusColumn: setup?.outcome_column ?? undefined,
+    statusKinds: kinds,
+    emailOk,
   };
 }
 
@@ -188,14 +255,19 @@ export function listingFields(columns: string[]): ListingFields {
   const own = ownColumns(columns);
   const find = (pattern: RegExp) => own.find(name => pattern.test(name.trim()));
   return {
-    price: find(/^(list(ing)? )?price$|^asking price$/i), beds: find(/^(beds?|bedrooms?)$/i), baths: find(/^(baths?|bathrooms?)$/i),
-    area: find(/living area|^sq\.? ?ft$|square feet|^sqft$|building size/i), days: find(/days on (zillow|market)|^dom$/i),
-    status: find(/^(listing )?status$/i), link: find(/detail url|listing url|^url$|^link$|property url/i),
+    price: find(/^(list(ing)? )?price$|^asking price$/i),
+    beds: find(/^(beds?|bedrooms?)$/i),
+    baths: find(/^(baths?|bathrooms?)$/i),
+    area: find(/living area|^sq\.? ?ft$|square feet|^sqft$|building size/i),
+    days: find(/days on (zillow|market)|^dom$/i),
+    status: find(/^(listing )?status$/i),
+    link: find(/detail url|listing url|^url$|^link$|property url/i),
   };
 }
 
 // A call that reached someone who said no is a result, not a lead: "Not interested", "NI", "Sold", "Hung up".
-const REFUSAL = /\b(not|no longer|never|isn'?t|wasn'?t)\s+(interested|selling|for sale|the owner)\b|\bn\/?i\b|\bno interest\b|\b(already )?sold\b|\bhung up\b|\brefus|\bdeclin|\bremove (me|from)\b|\bstop calling\b/i;
+const REFUSAL =
+  /\b(not|no longer|never|isn'?t|wasn'?t)\s+(interested|selling|for sale|the owner)\b|\bn\/?i\b|\bno interest\b|\b(already )?sold\b|\bhung up\b|\brefus|\bdeclin|\bremove (me|from)\b|\bstop calling\b/i;
 
 /** Whether a row whose call reached a person is worth following up, by what its status says. */
 export function worthFollowingUp(status: unknown): boolean {

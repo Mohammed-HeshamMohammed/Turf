@@ -26,8 +26,13 @@ export const VERDICTS: Verdict[] = ["corroborated", "unverified", "suspicious", 
 export type Outcome = "wrong_number" | "do_not_call" | "reached" | "wrong_person" | "disconnected" | "voicemail" | "no_answer";
 
 export type OwnerColumns = {
-  first_name_column?: string | null; last_name_column?: string | null; name_column?: string | null;
-  mailing_address_column?: string | null; mailing_city_column?: string | null; mailing_state_column?: string | null; mailing_zip_column?: string | null;
+  first_name_column?: string | null;
+  last_name_column?: string | null;
+  name_column?: string | null;
+  mailing_address_column?: string | null;
+  mailing_city_column?: string | null;
+  mailing_state_column?: string | null;
+  mailing_zip_column?: string | null;
   owner_type_column?: string | null;
 };
 export type SkiptraceConfig = OwnerColumns & {
@@ -56,8 +61,15 @@ export type SkiptraceConfig = OwnerColumns & {
  * the model alone (only for wording the person decided before), this list's saved setup, or nothing. */
 export type StatusSource = "memory" | "rules" | "rules+model" | "model" | "saved" | "none";
 export type StatusRow = {
-  key: string; example: string; count: number; outcomes: Outcome[]; confirmed?: boolean;
-  sure?: boolean; source?: StatusSource; why?: string; doubt?: string;
+  key: string;
+  example: string;
+  count: number;
+  outcomes: Outcome[];
+  confirmed?: boolean;
+  sure?: boolean;
+  source?: StatusSource;
+  why?: string;
+  doubt?: string;
   /** What the earlier version of Turf suggested, to tell its old suggestions apart from the person's choices. */
   earlier?: Outcome[];
 };
@@ -80,23 +92,60 @@ export type SkiptraceSuggestion = {
 };
 
 export type ColumnReport = {
-  column: string; filled: number; filled_share: number; valid: number; valid_share: number; distinct: number; wrong: number;
-  adds_info: number; adds_info_share: number; verdicts: Record<Verdict, number>; verdict_text: string;
+  column: string;
+  filled: number;
+  filled_share: number;
+  valid: number;
+  valid_share: number;
+  distinct: number;
+  wrong: number;
+  adds_info: number;
+  adds_info_share: number;
+  verdicts: Record<Verdict, number>;
+  verdict_text: string;
 };
 
 export type SignReport = {
-  code: string; label: string; contacted: number; wrong: number; wrong_rate: number | null; lift: number | null;
-  counted: boolean; measured_only: boolean; predictive: boolean; enough_data: boolean;
+  code: string;
+  label: string;
+  contacted: number;
+  wrong: number;
+  wrong_rate: number | null;
+  lift: number | null;
+  counted: boolean;
+  measured_only: boolean;
+  predictive: boolean;
+  enough_data: boolean;
 };
 
 export type ReviewRow = { row_number: number; raw: Raw };
 export type PhoneChoice = {
-  number: string | null; raw: string; column: string; columns: string[]; rank: number; extension?: string | null;
-  valid_format: boolean; quality: Verdict; permission: "blocked_dnc" | "no_recorded_block"; blocked: boolean; type: string | null;
-  recommendation: string; explanations: string[]; warnings: string[]; last_success: string | null;
+  number: string | null;
+  raw: string;
+  column: string;
+  columns: string[];
+  rank: number;
+  extension?: string | null;
+  valid_format: boolean;
+  quality: Verdict;
+  permission: "blocked_dnc" | "no_recorded_block";
+  blocked: boolean;
+  type: string | null;
+  recommendation: string;
+  explanations: string[];
+  warnings: string[];
+  last_success: string | null;
   shared: { kind: string; people: number; explanation: string };
   last_outcome: { outcome: string; occurred_at: string | null; source: string } | null;
-  lookup: { provider: string; checked_at: string; stale: boolean; carrier: string | null; type: string | null; line_status: string; ownership_verified: false } | null;
+  lookup: {
+    provider: string;
+    checked_at: string;
+    stale: boolean;
+    carrier: string | null;
+    type: string | null;
+    line_status: string;
+    ownership_verified: false;
+  } | null;
 };
 export type SkiptraceReport = {
   phone_assessments?: Record<string, number>;
@@ -108,7 +157,10 @@ export type SkiptraceReport = {
   row_counts: Record<string, number>;
   preview: ReviewRow[];
   added_columns: string[];
-  rows: number; rows_with_phone: number; rows_with_callable_number: number; values: number;
+  rows: number;
+  rows_with_phone: number;
+  rows_with_callable_number: number;
+  values: number;
   verdicts: Record<Verdict, number>;
   reasons: { code: string; label: string; count: number; effect: string; examples: { row: number; column: string; value: string; text: string }[] }[];
   columns: ColumnReport[];
@@ -116,8 +168,16 @@ export type SkiptraceReport = {
   countries: Record<string, number>;
   repairs: { note: string; count: number }[];
   outcomes: {
-    available: boolean; rows: Record<string, number>; baseline_wrong_rate: number | null; contacted: number; known_wrong_numbers: number;
-    do_not_call_numbers: number; expired_do_not_call_numbers: number; carried_rows: number; carried_wrong_number: number; carried_do_not_call: number;
+    available: boolean;
+    rows: Record<string, number>;
+    baseline_wrong_rate: number | null;
+    contacted: number;
+    known_wrong_numbers: number;
+    do_not_call_numbers: number;
+    expired_do_not_call_numbers: number;
+    carried_rows: number;
+    carried_wrong_number: number;
+    carried_do_not_call: number;
   };
   signals: SignReport[];
   metadata_version: string;

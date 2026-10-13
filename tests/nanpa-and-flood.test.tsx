@@ -6,9 +6,16 @@ import { FloodLine } from "../src/components/FloodLine";
 
 const mocks = vi.hoisted(() => ({ status: vi.fn(), load: vi.fn(), flood: vi.fn(), dncStatus: vi.fn(), dncLoad: vi.fn(), pick: vi.fn(), desktop: false }));
 vi.mock("../src/lib/service", () => ({
-  get inDesktop() { return mocks.desktop; }, nanpaBlocksStatus: mocks.status, nanpaBlocksImport: mocks.load,
-  floodZone: mocks.flood, pickNanpaFile: mocks.pick,
-  dncRegistryStatus: mocks.dncStatus, dncRegistryImport: mocks.dncLoad, pickRegistryFile: mocks.pick,
+  get inDesktop() {
+    return mocks.desktop;
+  },
+  nanpaBlocksStatus: mocks.status,
+  nanpaBlocksImport: mocks.load,
+  floodZone: mocks.flood,
+  pickNanpaFile: mocks.pick,
+  dncRegistryStatus: mocks.dncStatus,
+  dncRegistryImport: mocks.dncLoad,
+  pickRegistryFile: mocks.pick,
 }));
 beforeEach(() => {
   vi.clearAllMocks();
@@ -24,9 +31,15 @@ describe("shared registry controls", () => {
     let finish!: (result: unknown) => void;
     mocks.dncLoad.mockImplementation((_path: string, progress: (lines: number) => void) => {
       progress(25_000);
-      return new Promise(resolve => { finish = resolve; });
+      return new Promise(resolve => {
+        finish = resolve;
+      });
     });
-    render(<ul><DncRegistry onChanged={changed} /></ul>);
+    render(
+      <ul>
+        <DncRegistry onChanged={changed} />
+      </ul>,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Load a file" }));
     fireEvent.change(screen.getByLabelText("Path to the downloaded registry file"), { target: { value: "registry.zip" } });
     fireEvent.click(screen.getByRole("button", { name: "Load", exact: true }));
@@ -34,7 +47,9 @@ describe("shared registry controls", () => {
     expect(changed).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Load", exact: true }).hasAttribute("disabled")).toBe(true);
     mocks.dncStatus.mockResolvedValue({ area_codes: [{ area_code: "713", age_days: 0, out_of_date: false }], numbers: 2, max_age_days: 31 });
-    await act(async () => { finish({ area_codes: ["713"], numbers: 2 }); });
+    await act(async () => {
+      finish({ area_codes: ["713"], numbers: 2 });
+    });
     expect(changed).toHaveBeenCalledOnce();
     expect(screen.getByText(/National Do Not Call Registry: 2 numbers for 713/)).toBeTruthy();
   });
@@ -43,7 +58,11 @@ describe("shared registry controls", () => {
     mocks.desktop = true;
     mocks.pick.mockResolvedValue(null);
     const changed = vi.fn();
-    render(<ul><NanpaBlocks onChanged={changed} /></ul>);
+    render(
+      <ul>
+        <NanpaBlocks onChanged={changed} />
+      </ul>,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Load NANPA file" }));
     await waitFor(() => expect(mocks.pick).toHaveBeenCalledOnce());
     expect(mocks.load).not.toHaveBeenCalled();
@@ -51,12 +70,19 @@ describe("shared registry controls", () => {
     expect(screen.queryByLabelText("Path to the downloaded NANPA file")).toBeNull();
   });
 });
-afterEach(() => { cleanup(); vi.useRealTimers(); });
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("NANPA import", () => {
   it("loads the selected file, refreshes coverage and invalidates the current check", async () => {
     const changed = vi.fn();
-    render(<ul><NanpaBlocks onChanged={changed} /></ul>);
+    render(
+      <ul>
+        <NanpaBlocks onChanged={changed} />
+      </ul>,
+    );
     await screen.findByText(/NANPA number blocks not loaded/);
     fireEvent.click(screen.getByRole("button", { name: "Load NANPA file" }));
     fireEvent.change(screen.getByLabelText("Path to the downloaded NANPA file"), { target: { value: "C:\\reports\\codes.tsv" } });
@@ -69,7 +95,11 @@ describe("NANPA import", () => {
   it("retains import errors and does not report changed evidence", async () => {
     const changed = vi.fn();
     mocks.load.mockRejectedValue(new Error("No number blocks found"));
-    render(<ul><NanpaBlocks onChanged={changed} /></ul>);
+    render(
+      <ul>
+        <NanpaBlocks onChanged={changed} />
+      </ul>,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Load NANPA file" }));
     fireEvent.change(screen.getByLabelText("Path to the downloaded NANPA file"), { target: { value: "bad.txt" } });
     fireEvent.click(screen.getByRole("button", { name: "Load", exact: true }));
@@ -96,20 +126,31 @@ describe("property flood zones", () => {
     vi.useFakeTimers();
     mocks.flood.mockResolvedValue({ pending: true });
     render(<FloodLine position={[30, -95]} />);
-    await act(async () => { await vi.advanceTimersByTimeAsync(77_500); });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(77_500);
+    });
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
     const count = mocks.flood.mock.calls.length;
-    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
     expect(mocks.flood).toHaveBeenCalledTimes(count);
   });
   it("ignores a response for a property that is no longer open", async () => {
     let oldAnswer!: (answer: unknown) => void;
-    mocks.flood.mockReturnValueOnce(new Promise(resolve => { oldAnswer = resolve; }))
+    mocks.flood
+      .mockReturnValueOnce(
+        new Promise(resolve => {
+          oldAnswer = resolve;
+        }),
+      )
       .mockResolvedValue({ zone: "X", risk: "low", text: "Moderate or low flood risk" });
     const view = render(<FloodLine position={[29, -95]} />);
     view.rerender(<FloodLine position={[30, -96]} />);
     await screen.findByText("Flood zone X");
-    await act(async () => { oldAnswer({ zone: "AE", risk: "high", text: "High risk" }); });
+    await act(async () => {
+      oldAnswer({ zone: "AE", risk: "high", text: "High risk" });
+    });
     expect(screen.queryByText("Flood zone AE")).toBeNull();
   });
 });

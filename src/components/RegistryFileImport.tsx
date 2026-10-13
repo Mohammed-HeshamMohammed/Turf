@@ -15,8 +15,14 @@ export type RegistrySource<State, Result> = {
 };
 
 /** Common file loading controls; each registry supplies its own coverage, age and import messages. */
-export function RegistryFileImport<State, Result>({ source, onChanged, children }: {
-  source: RegistrySource<State, Result>; onChanged: () => void; children: (state: State | null) => ReactNode;
+export function RegistryFileImport<State, Result>({
+  source,
+  onChanged,
+  children,
+}: {
+  source: RegistrySource<State, Result>;
+  onChanged: () => void;
+  children: (state: State | null) => ReactNode;
 }) {
   const [state, setState] = useState<State | null>(null);
   const [busy, setBusy] = useState(false);
@@ -27,27 +33,43 @@ export function RegistryFileImport<State, Result>({ source, onChanged, children 
 
   useEffect(() => {
     let current = true;
-    source.read().then(value => { if (current) setState(value); }, reason => {
-      if (current && source.showStatusError) setMessage(String(reason));
-    });
-    return () => { current = false; };
+    source.read().then(
+      value => {
+        if (current) setState(value);
+      },
+      reason => {
+        if (current && source.showStatusError) setMessage(String(reason));
+      },
+    );
+    return () => {
+      current = false;
+    };
   }, [source]);
 
   async function load(file: string | null) {
     if (!file) return;
-    setBusy(true); setMessage(null); setLines(0);
+    setBusy(true);
+    setMessage(null);
+    setLines(0);
     try {
       const result = await source.load(file, setLines);
       setMessage(source.describe(result));
       setState(await source.read());
       setTyping(false);
       onChanged();
-    } catch (reason) { setMessage(reason instanceof Error ? reason.message : String(reason)); }
-    finally { setBusy(false); }
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setBusy(false);
+    }
   }
 
   const chooseFile = () => {
-    if (inDesktop) void source.pick().then(load).catch(reason => setMessage(String(reason)));
+    if (inDesktop)
+      void source
+        .pick()
+        .then(load)
+        .catch(reason => setMessage(String(reason)));
     else setTyping(!typing);
   };
   const ready = source.ready(state);
@@ -58,12 +80,24 @@ export function RegistryFileImport<State, Result>({ source, onChanged, children 
         {children(state)}
         {busy && <small className="registry-progress"> {source.progress?.(lines) ?? "Reading…"}</small>}
         {message && <small className="registry-progress"> {message}</small>}
-        {typing && !inDesktop && <span className="registry-path">
-          <input className="input" value={path} placeholder="Path to the downloaded file" aria-label={source.pathLabel} onChange={event => setPath(event.target.value)} />
-          <button type="button" className="button small" disabled={busy || !path.trim()} onClick={() => void load(path.trim())}>Load</button>
-        </span>}
+        {typing && !inDesktop && (
+          <span className="registry-path">
+            <input
+              className="input"
+              value={path}
+              placeholder="Path to the downloaded file"
+              aria-label={source.pathLabel}
+              onChange={event => setPath(event.target.value)}
+            />
+            <button type="button" className="button small" disabled={busy || !path.trim()} onClick={() => void load(path.trim())}>
+              Load
+            </button>
+          </span>
+        )}
       </span>
-      <button type="button" className="link" disabled={busy} onClick={chooseFile}>{source.button(state)}</button>
+      <button type="button" className="link" disabled={busy} onClick={chooseFile}>
+        {source.button(state)}
+      </button>
     </li>
   );
 }

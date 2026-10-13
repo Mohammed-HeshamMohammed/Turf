@@ -14,17 +14,43 @@ import { OwnerPanel, type MailCheck } from "./OwnerPanel";
 
 const photoCount = (count: number) => (count ? `${count} ${count === 1 ? "photo" : "photos"}, shown above` : "No photo");
 
-export function ListRowDetail({ row, own, phoneColumns, number, manual, onMark, datasetId, onUpdated, photos, owner }: {
-  row: DatasetRow; own: string[]; phoneColumns: string[]; number: string | null; manual: Turf["manual"]; onMark: Turf["setMark"];
-  datasetId: string; onUpdated: () => Promise<void>;
+export function ListRowDetail({
+  row,
+  own,
+  phoneColumns,
+  number,
+  manual,
+  onMark,
+  datasetId,
+  onUpdated,
+  photos,
+  owner,
+}: {
+  row: DatasetRow;
+  own: string[];
+  phoneColumns: string[];
+  number: string | null;
+  manual: Turf["manual"];
+  onMark: Turf["setMark"];
+  datasetId: string;
+  onUpdated: () => Promise<void>;
   photos: { columns: string[]; place: PlaceColumns; index: PhotoIndex; exact?: [number, number] };
   owner: { columns: OwnerColumns; index: OwnerIndex; datasetId: string; mail: MailCheck } | null;
 }) {
   const found = photosFor(row, photos.columns, photos.place, photos.index, photos.exact);
   const where = positionOf(row, photos.place, photos.exact);
-  const numbers = [...new Set(phoneColumns.flatMap(column => String(row.raw[`${column} (E.164)`] ?? "").split(";").map(value => value.trim()).filter(value => /^\+\d{6,15}$/.test(value))))];
+  const numbers = [
+    ...new Set(
+      phoneColumns.flatMap(column =>
+        String(row.raw[`${column} (E.164)`] ?? "")
+          .split(";")
+          .map(value => value.trim())
+          .filter(value => /^\+\d{6,15}$/.test(value)),
+      ),
+    ),
+  ];
   const [chosen, setChosen] = useState(number ?? numbers[0] ?? "");
-  const activeNumber = numbers.includes(chosen) ? chosen : number ?? numbers[0] ?? "";
+  const activeNumber = numbers.includes(chosen) ? chosen : (number ?? numbers[0] ?? "");
   const mark = manual[activeNumber]?.mark ?? null;
   return (
     <div className="row-detail">
@@ -36,8 +62,17 @@ export function ListRowDetail({ row, own, phoneColumns, number, manual, onMark, 
         {own.map(name => (
           <div key={name}>
             <dt>{name}</dt>
-            <dd>{photos.columns.includes(name) ? photoCount(photosIn(row.raw[name], name).length)
-              : /url/i.test(name) && row.raw[name] ? <a href={String(row.raw[name])} target="_blank" rel="noreferrer">{row.raw[name]}</a> : row.raw[name] ?? "–"}</dd>
+            <dd>
+              {photos.columns.includes(name) ? (
+                photoCount(photosIn(row.raw[name], name).length)
+              ) : /url/i.test(name) && row.raw[name] ? (
+                <a href={String(row.raw[name])} target="_blank" rel="noreferrer">
+                  {row.raw[name]}
+                </a>
+              ) : (
+                (row.raw[name] ?? "–")
+              )}
+            </dd>
           </div>
         ))}
       </dl>
@@ -46,29 +81,63 @@ export function ListRowDetail({ row, own, phoneColumns, number, manual, onMark, 
           <PhoneChoices raw={row.raw} datasetId={datasetId} rowNumber={row.row_number} onSaved={onUpdated} />
           <h3>Phone checks</h3>
           <ul className="phone-checks">
-            {phoneColumns.filter(name => row.raw[`${name} (verdict)`]).map(name => (
-              <li key={name}>
-                <div><strong>{name}</strong> {formatPhone(row.raw[`${name} (E.164)`] ? String(row.raw[`${name} (E.164)`]) : null) || row.raw[name]} <small>{row.raw[`${name} (type)`]}</small></div>
-                <VerdictPill verdict={row.raw[`${name} (verdict)`] as never} />
-                <p>{row.raw[`${name} (why)`]}</p>
-              </li>
-            ))}
+            {phoneColumns
+              .filter(name => row.raw[`${name} (verdict)`])
+              .map(name => (
+                <li key={name}>
+                  <div>
+                    <strong>{name}</strong> {formatPhone(row.raw[`${name} (E.164)`] ? String(row.raw[`${name} (E.164)`]) : null) || row.raw[name]}{" "}
+                    <small>{row.raw[`${name} (type)`]}</small>
+                  </div>
+                  <VerdictPill verdict={row.raw[`${name} (verdict)`] as never} />
+                  <p>{row.raw[`${name} (why)`]}</p>
+                </li>
+              ))}
           </ul>
           <h3>Mark this number</h3>
           {activeNumber ? (
             <>
-              {numbers.length > 1 && <Field label="Number to mark" value={activeNumber} onChange={value => setChosen(value ?? "")} options={numbers.map(value => ({ value, label: formatPhone(value) }))} />}
+              {numbers.length > 1 && (
+                <Field
+                  label="Number to mark"
+                  value={activeNumber}
+                  onChange={value => setChosen(value ?? "")}
+                  options={numbers.map(value => ({ value, label: formatPhone(value) }))}
+                />
+              )}
               <div className="mark-buttons">
                 {MANUAL_MARKS.map(item => (
-                  <button key={item} type="button" className="button ghost" aria-pressed={mark === item} onClick={() => onMark(activeNumber, mark === item ? null : item)}>
-                    {mark === item && <Icon name="check" size={14} />}{MANUAL_LABELS[item]}
+                  <button
+                    key={item}
+                    type="button"
+                    className="button ghost"
+                    aria-pressed={mark === item}
+                    onClick={() => onMark(activeNumber, mark === item ? null : item)}
+                  >
+                    {mark === item && <Icon name="check" size={14} />}
+                    {MANUAL_LABELS[item]}
                   </button>
                 ))}
               </div>
-              {mark === "do_not_call" && <label className="field"><span>Do-not-call end date (optional)</span><input className="input" type="date" value={manual[activeNumber]?.until ?? ""} onChange={event => onMark(activeNumber, "do_not_call", event.target.value || null)} /></label>}
-              <p className="muted">The mark is kept for {formatPhone(activeNumber)} across this project's lists and used by the next phone check. Called alone does not prove a person answered. Previous marks are kept in history.</p>
+              {mark === "do_not_call" && (
+                <label className="field">
+                  <span>Do-not-call end date (optional)</span>
+                  <input
+                    className="input"
+                    type="date"
+                    value={manual[activeNumber]?.until ?? ""}
+                    onChange={event => onMark(activeNumber, "do_not_call", event.target.value || null)}
+                  />
+                </label>
+              )}
+              <p className="muted">
+                The mark is kept for {formatPhone(activeNumber)} across this project's lists and used by the next phone check. Called alone does not prove a
+                person answered. Previous marks are kept in history.
+              </p>
             </>
-          ) : <p className="muted">This row has no readable number to mark.</p>}
+          ) : (
+            <p className="muted">This row has no readable number to mark.</p>
+          )}
         </div>
       )}
     </div>

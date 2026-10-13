@@ -18,7 +18,7 @@ A project is the same folder format as DataForge's, so a DataForge project opens
 
 The frontend service client lives in `src/lib/service/`: `transport.ts` handles browser/native calls, `jobs.ts` watches jobs, and the other modules group project, dataset, Skip Tracing, local-state and enrichment operations. `src/lib/service.ts` remains the shared public entry point. Internal service modules import the transport directly to avoid cycles.
 
-Lists composes `ListRowDetail`, `OwnerPanel`, `EmailWithVerdict` and `MapNote`; table column selection lives in `src/lib/list-columns.tsx`. Skip Tracing delegates readiness and report details to `SkiptraceReadiness` and `SkiptraceReportDetails`, with configuration rules in `src/lib/skiptrace-workflow.ts`. DNC and NANPA share `RegistryFileImport` for loading files while retaining their own coverage and age messages.
+Lists composes `ListRowDetail`, `OwnerPanel`, `EmailWithVerdict` and `MapNote`; table column selection lives in `src/lib/list-columns.tsx`. Skip Tracing's screen (`src/tabs/SkipTracing.tsx`) draws the heading, the progress of a running check and the way between the steps; each of the five steps is its own component (`src/components/SkiptraceStep*.tsx`), and what they share (the setup being edited, the statuses, the running check, its report and the draft) is one hook, `useSkiptraceSetup` in `src/lib/skiptrace-setup.ts`. It delegates readiness and report details to `SkiptraceReadiness` and `SkiptraceReportDetails`, with configuration rules in `src/lib/skiptrace-workflow.ts`. DNC and NANPA share `RegistryFileImport` for loading files while retaining their own coverage and age messages.
 
 ## Run it
 
@@ -49,7 +49,7 @@ Then open http://localhost:5183. The dev server talks to the service the same wa
 npm run check
 ```
 
-Runs the type check and build of the window, UI interaction tests (Vitest), the service's tests (pytest), and the host's tests (cargo). For checks that do not need desktop libraries, run `npm run build`, `npm test`, and `python -m pytest service/tests -q`.
+Runs the linter (ESLint) and the format check (Prettier), the type check and build of the window, UI interaction tests (Vitest), the service's tests (pytest), and the host's tests (cargo). `npm run format` rewrites the screens and their tests in the house format. Every push to `main` and every pull request runs the same checks on GitHub (`.github/workflows/check.yml`). For checks that do not need desktop libraries, run `npm run build`, `npm test`, and `python -m pytest service/tests -q`.
 
 ## Owners, contacts and areas
 

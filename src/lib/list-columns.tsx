@@ -9,7 +9,7 @@ export function dullColumns(names: string[], rows: Record<string, string | numbe
   if (rows.length < 2) return dull;
   for (const name of names) {
     const values = rows.map(row => String(row[name] ?? "").trim()).filter(value => value !== "" && !PLACEHOLDER.test(value));
-    if (values.length < rows.length * 0.1 || new Set(values).size <= 1 && values.length === rows.length) dull.add(name);
+    if (values.length < rows.length * 0.1 || (new Set(values).size <= 1 && values.length === rows.length)) dull.add(name);
   }
   return dull.size === names.length ? new Set<string>() : dull;
 }

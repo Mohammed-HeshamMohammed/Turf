@@ -24,7 +24,14 @@ describe("pictures wherever a list keeps them", () => {
   });
 
   it("knows a picture column by what is in it, cover photo first", () => {
-    const rows = [1, 2, 3].map(id => row(id, { Image: ZILLOW, "All photos": `${ZILLOW}\nhttps://example.com/${id}.jpg`, "Detail URL": "https://www.zillow.com/homedetails/x/1_zpid/", Street: `${id} Main St` }));
+    const rows = [1, 2, 3].map(id =>
+      row(id, {
+        Image: ZILLOW,
+        "All photos": `${ZILLOW}\nhttps://example.com/${id}.jpg`,
+        "Detail URL": "https://www.zillow.com/homedetails/x/1_zpid/",
+        Street: `${id} Main St`,
+      }),
+    );
     expect(photoColumns(rows, ["Image", "All photos", "Detail URL", "Street"])).toEqual(["Image", "All photos"]);
   });
 });

@@ -15,11 +15,22 @@ export type LocateProgress = { done: number; total: number; found: number };
 export const locatedAddresses = (dataset_id: string, columns: AddressColumns) => call<Located>("geo.located", { dataset_id, columns });
 
 /** Sends the list's addresses to the US Census geocoder. Only street, city, state and ZIP leave the computer. */
-export const locateAddresses = (dataset_id: string, columns: AddressColumns, onProgress: (progress: LocateProgress) => void, onStart: (jobId: string) => void) =>
-  runJob<{ looked_up: number; found: number; not_found: number }>("geo.locate", { dataset_id, columns }, {
-    onStart,
-    onEvent: payload => { if (payload.stage === "locating_addresses") onProgress(payload as unknown as LocateProgress); },
-  });
+export const locateAddresses = (
+  dataset_id: string,
+  columns: AddressColumns,
+  onProgress: (progress: LocateProgress) => void,
+  onStart: (jobId: string) => void,
+) =>
+  runJob<{ looked_up: number; found: number; not_found: number }>(
+    "geo.locate",
+    { dataset_id, columns },
+    {
+      onStart,
+      onEvent: payload => {
+        if (payload.stage === "locating_addresses") onProgress(payload as unknown as LocateProgress);
+      },
+    },
+  );
 
 export const cancelJob = (job_id: string) => call("job.cancel", { job_id });
 
@@ -38,7 +49,9 @@ export function priceTag(value: unknown): string | undefined {
 
 /** The column holding the street address, found by its name only. */
 export const streetColumn = (columns: string[]) =>
-  columns.find(name => /^(street|address|street address|property address|site address|situs address|mailing address|address ?1|address line ?1)$/i.test(name.trim()));
+  columns.find(name =>
+    /^(street|address|street address|property address|site address|situs address|mailing address|address ?1|address line ?1)$/i.test(name.trim()),
+  );
 
 // ZIP centres are the same for every list, so each ZIP is asked for once.
 const centres = new Map<string, ZipCentre | null>();
@@ -50,11 +63,16 @@ export function useZipCentres(values: string[], onError: (reason: unknown) => vo
     const missing = values.filter(value => !centres.has(value));
     if (!missing.length) return;
     let current = true;
-    call<Record<string, ZipCentre>>("geo.zip_centres", { zips: missing }).then(found => {
-      for (const value of missing) centres.set(value, found[value] ?? null);
-      if (current) redraw(count => count + 1);
-    }, reason => current && onError(reason));
-    return () => { current = false; };
+    call<Record<string, ZipCentre>>("geo.zip_centres", { zips: missing }).then(
+      found => {
+        for (const value of missing) centres.set(value, found[value] ?? null);
+        if (current) redraw(count => count + 1);
+      },
+      reason => current && onError(reason),
+    );
+    return () => {
+      current = false;
+    };
   }, [values, onError]);
   return centres;
 }
@@ -91,7 +109,9 @@ export function useZipOutlines(values: string[], onError: (reason: unknown) => v
         }
       }
     })();
-    return () => { current = false; };
+    return () => {
+      current = false;
+    };
   }, [values, onError]);
   return { outlines, count: values.filter(value => outlines.get(value)).length };
 }
@@ -105,23 +125,33 @@ export type Placed = { lon: number; lat: number; rowId: string; zip?: string; la
 export type Placement = {
   dots: Placed[];
   /** Placed by the row's own coordinates, its exact address, or its ZIP centre. */
-  own: number; exact: number; byZip: number;
+  own: number;
+  exact: number;
+  byZip: number;
   /** Not placed: the ZIP is not in the row's state, the ZIP is unknown, or there is no ZIP. */
-  stateDisagrees: number; unknownZip: number; noZip: number;
+  stateDisagrees: number;
+  unknownZip: number;
+  noZip: number;
 };
 
 /**
  * Places each row. A ZIP centre is used only when the ZIP lies in the row's state: a row whose ZIP and state disagree
  * has something wrong with it, and is left off the map and counted. A list with no state column is placed by ZIP alone.
  */
-export function placeRows(rows: DatasetRow[], options: {
-  position: { latitude: string; longitude: string } | null; zipColumn?: string; stateColumn?: string;
-  centres: Map<string, ZipCentre | null>; exact?: Record<string, [number, number]>;
-  /** The column holding the street address, which names the rows that have a place of their own. */
-  streetColumn?: string;
-  /** The column holding each row's price, which its tag on the street map says. */
-  tagColumn?: string;
-}): Placement {
+export function placeRows(
+  rows: DatasetRow[],
+  options: {
+    position: { latitude: string; longitude: string } | null;
+    zipColumn?: string;
+    stateColumn?: string;
+    centres: Map<string, ZipCentre | null>;
+    exact?: Record<string, [number, number]>;
+    /** The column holding the street address, which names the rows that have a place of their own. */
+    streetColumn?: string;
+    /** The column holding each row's price, which its tag on the street map says. */
+    tagColumn?: string;
+  },
+): Placement {
   const placement: Placement = { dots: [], own: 0, exact: 0, byZip: 0, stateDisagrees: 0, unknownZip: 0, noZip: 0 };
   const { position, zipColumn, stateColumn, exact } = options;
   const tagOf = (row: DatasetRow) => (options.tagColumn ? priceTag(row.raw[options.tagColumn]) : undefined);
@@ -143,11 +173,24 @@ export function placeRows(rows: DatasetRow[], options: {
       placement.exact += 1;
       continue;
     }
-    if (!zip) { placement.noZip += 1; continue; }
+    if (!zip) {
+      placement.noZip += 1;
+      continue;
+    }
     const centre = options.centres.get(zip);
-    if (!centre) { placement.unknownZip += 1; continue; }
-    const state = stateColumn ? String(row.raw[stateColumn] ?? "").trim().toUpperCase() : "";
-    if (stateColumn && !centre.states.includes(state)) { placement.stateDisagrees += 1; continue; }
+    if (!centre) {
+      placement.unknownZip += 1;
+      continue;
+    }
+    const state = stateColumn
+      ? String(row.raw[stateColumn] ?? "")
+          .trim()
+          .toUpperCase()
+      : "";
+    if (stateColumn && !centre.states.includes(state)) {
+      placement.stateDisagrees += 1;
+      continue;
+    }
     placement.dots.push({ lat: centre.lat, lon: centre.lon, rowId: row.id, zip });
     placement.byZip += 1;
   }
@@ -155,9 +198,11 @@ export function placeRows(rows: DatasetRow[], options: {
 }
 
 export type MapSource = {
-  rows: DatasetRow[]; dots: Placed[];
+  rows: DatasetRow[];
+  dots: Placed[];
   /** The columns of this list that name each level, and the one the Areas card is on. */
-  columns: { zip?: string; city?: string; state?: string }; named?: string;
+  columns: { zip?: string; city?: string; state?: string };
+  named?: string;
   /** The rows the filters show; every row when absent. */
   kept?: Set<string>;
 };
@@ -175,28 +220,47 @@ export function gatherForMap(sources: MapSource[], centres: Map<string, ZipCentr
   const states = new Map<string, Sum>();
   const add = (groups: Map<string, Sum>, key: string, name: string, dot: Placed, shown: boolean) => {
     let group = groups.get(key);
-    if (!group) groups.set(key, group = { name, lat: 0, lon: 0, shown: 0, hidden: 0, n: 0 });
-    group.lat += dot.lat; group.lon += dot.lon; group.n += 1;
-    if (shown) group.shown += 1; else group.hidden += 1;
+    if (!group) groups.set(key, (group = { name, lat: 0, lon: 0, shown: 0, hidden: 0, n: 0 }));
+    group.lat += dot.lat;
+    group.lon += dot.lon;
+    group.n += 1;
+    if (shown) group.shown += 1;
+    else group.hidden += 1;
   };
   for (const source of sources) {
     const rowsById = new Map(source.rows.map(row => [row.id, row]));
     for (const dot of source.dots) {
       const row = rowsById.get(dot.rowId);
       const shown = source.kept ? source.kept.has(dot.rowId) : true;
-      if (dot.exact) points.push({ lon: dot.lon, lat: dot.lat, dim: !shown, label: dot.label, tag: dot.tag, area: (source.named ? String(row?.raw[source.named] ?? "").trim() : "") || dot.zip });
+      if (dot.exact)
+        points.push({
+          lon: dot.lon,
+          lat: dot.lat,
+          dim: !shown,
+          label: dot.label,
+          tag: dot.tag,
+          area: (source.named ? String(row?.raw[source.named] ?? "").trim() : "") || dot.zip,
+        });
       if (dot.zip) {
         let spot = spots.get(dot.zip);
         if (!spot) {
           const centre = centres.get(dot.zip);
           const named = source.named ? String(row?.raw[source.named] ?? "").trim() : "";
-          spots.set(dot.zip, spot = { zip: dot.zip, lat: centre?.lat ?? dot.lat, lon: centre?.lon ?? dot.lon, shown: 0, hidden: 0, loose: 0, area: named || dot.zip });
+          spots.set(
+            dot.zip,
+            (spot = { zip: dot.zip, lat: centre?.lat ?? dot.lat, lon: centre?.lon ?? dot.lon, shown: 0, hidden: 0, loose: 0, area: named || dot.zip }),
+          );
         }
-        if (shown) spot.shown += 1; else spot.hidden += 1;
+        if (shown) spot.shown += 1;
+        else spot.hidden += 1;
         if (shown && !dot.exact) spot.loose += 1;
       }
       const city = source.columns.city ? String(row?.raw[source.columns.city] ?? "").trim() : "";
-      const state = source.columns.state ? String(row?.raw[source.columns.state] ?? "").trim().toUpperCase() : "";
+      const state = source.columns.state
+        ? String(row?.raw[source.columns.state] ?? "")
+            .trim()
+            .toUpperCase()
+        : "";
       if (city) add(cities, `${state}|${city.toLowerCase()}`, state ? `${city}, ${state}` : city, dot, shown);
       if (state) add(states, state, state, dot, shown);
     }

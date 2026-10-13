@@ -1,6 +1,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
-export type Dot = { lon: number; lat: number; dim?: boolean; label?: string; /** The area it belongs to at the level the list is on, as the Areas list names it. */ area?: string; /** What its tag on the street map says: its price, when the list has one. */ tag?: string };
+export type Dot = {
+  lon: number;
+  lat: number;
+  dim?: boolean;
+  label?: string;
+  /** The area it belongs to at the level the list is on, as the Areas list names it. */ area?: string;
+  /** What its tag on the street map says: its price, when the list has one. */ tag?: string;
+};
 
 /** The part of the world in view, in degrees. */
 type View = { minLon: number; maxLon: number; minLat: number; maxLat: number };
@@ -50,7 +57,8 @@ function projection(view: View, width: number, height: number) {
   const offsetX = (width - spanX * scale) / 2;
   const offsetY = (height - spanY * scale) / 2;
   return {
-    scale, squeeze,
+    scale,
+    squeeze,
     x: (lon: number) => offsetX + (lon - view.minLon) * squeeze * scale,
     y: (lat: number) => height - offsetY - (lat - view.minLat) * scale,
   };
@@ -62,8 +70,18 @@ function projection(view: View, width: number, height: number) {
  * any length draws quickly. With `interactive`, the wheel (or pinching a touchpad) zooms, dragging or two
  * fingers on a touchpad move, and a double click goes back.
  */
-export function AreaMap({ dots, width = 520, height = 320, radius = 3.2, interactive = false }: {
-  dots: Dot[]; width?: number; height?: number; radius?: number; interactive?: boolean;
+export function AreaMap({
+  dots,
+  width = 520,
+  height = 320,
+  radius = 3.2,
+  interactive = false,
+}: {
+  dots: Dot[];
+  width?: number;
+  height?: number;
+  radius?: number;
+  interactive?: boolean;
 }) {
   const svg = useRef<SVGSVGElement>(null);
   const home = useMemo(() => homeView(dots), [dots]);
@@ -80,7 +98,10 @@ export function AreaMap({ dots, width = 520, height = 320, radius = 3.2, interac
     for (const dot of dots) {
       const px = x(dot.lon);
       const py = y(dot.lat);
-      if (px < 0 || px > width || py < 0 || py > height) { outside += 1; continue; }
+      if (px < 0 || px > width || py < 0 || py > height) {
+        outside += 1;
+        continue;
+      }
       const key = `${Math.round(px / CELL)},${Math.round(py / CELL)},${dot.dim ? 1 : 0}`;
       const cell = cells.get(key);
       if (cell) {
@@ -102,8 +123,10 @@ export function AreaMap({ dots, width = 520, height = 320, radius = 3.2, interac
     // Between a street and the whole country.
     if (span < 0.004 || span > 80) return;
     setChosen({
-      minLon: lon - (lon - view.minLon) * factor, maxLon: lon + (view.maxLon - lon) * factor,
-      minLat: lat - (lat - view.minLat) * factor, maxLat: lat + (view.maxLat - lat) * factor,
+      minLon: lon - (lon - view.minLon) * factor,
+      maxLon: lon + (view.maxLon - lon) * factor,
+      minLat: lat - (lat - view.minLat) * factor,
+      maxLat: lat + (view.maxLat - lat) * factor,
     });
   };
   const zoomRef = useRef(zoom);
@@ -158,15 +181,27 @@ export function AreaMap({ dots, width = 520, height = 320, radius = 3.2, interac
     const lat = (((event.clientY - start.y) / box.height) * height) / scale;
     setChosen({ minLon: start.view.minLon - lon, maxLon: start.view.maxLon - lon, minLat: start.view.minLat + lat, maxLat: start.view.maxLat + lat });
   };
-  const endDrag = () => { drag.current = null; };
+  const endDrag = () => {
+    drag.current = null;
+  };
 
   // Each map has its own grid pattern: a pattern inside a hidden map cannot be borrowed by a visible one.
   const grid = `grid${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
   return (
     <div className={interactive ? "map-frame interactive" : "map-frame"}>
-      <svg ref={svg} className="area-map" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${dots.length.toLocaleString("en-US")} properties plotted`}
-        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag} onDoubleClick={() => interactive && setChosen(null)}>
+      <svg
+        ref={svg}
+        className="area-map"
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label={`${dots.length.toLocaleString("en-US")} properties plotted`}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onDoubleClick={() => interactive && setChosen(null)}
+      >
         <defs>
           <pattern id={grid} width="34" height="34" patternUnits="userSpaceOnUse">
             <path d="M34 0H0V34" fill="none" stroke="var(--line)" strokeWidth="1" />
@@ -174,17 +209,33 @@ export function AreaMap({ dots, width = 520, height = 320, radius = 3.2, interac
         </defs>
         <rect width={width} height={height} fill={`url(#${grid})`} />
         {drawn.points.map((point, index) => (
-          <circle key={index} cx={point.x} cy={point.y} r={Math.min(10, radius + Math.log2(point.count) * 0.6)} className={point.dim ? "dot dim" : point.count > 1 ? "dot many" : "dot"} />
+          <circle
+            key={index}
+            cx={point.x}
+            cy={point.y}
+            r={Math.min(10, radius + Math.log2(point.count) * 0.6)}
+            className={point.dim ? "dot dim" : point.count > 1 ? "dot many" : "dot"}
+          />
         ))}
       </svg>
       {interactive && (
         <div className="map-controls">
-          <button type="button" aria-label="Zoom in" onClick={() => zoom(0.6)}>+</button>
-          <button type="button" aria-label="Zoom out" onClick={() => zoom(1 / 0.6)}>−</button>
-          <button type="button" aria-label="Back to where the rows are" disabled={!chosen} onClick={() => setChosen(null)}>⟲</button>
+          <button type="button" aria-label="Zoom in" onClick={() => zoom(0.6)}>
+            +
+          </button>
+          <button type="button" aria-label="Zoom out" onClick={() => zoom(1 / 0.6)}>
+            −
+          </button>
+          <button type="button" aria-label="Back to where the rows are" disabled={!chosen} onClick={() => setChosen(null)}>
+            ⟲
+          </button>
         </div>
       )}
-      {drawn.outside > 0 && <p className="map-outside">{drawn.outside.toLocaleString("en-US")} {drawn.outside === 1 ? "property is" : "properties are"} outside this view</p>}
+      {drawn.outside > 0 && (
+        <p className="map-outside">
+          {drawn.outside.toLocaleString("en-US")} {drawn.outside === 1 ? "property is" : "properties are"} outside this view
+        </p>
+      )}
     </div>
   );
 }

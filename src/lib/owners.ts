@@ -21,9 +21,15 @@ export const OWNER_KINDS: { id: OwnerKind; label: string; hint: string }[] = [
 const KIND_RULES: [RegExp, OwnerKind][] = [
   [/\b(estate of|est of|heirs? of|heirs|life estate|deceased|dec'?d)\b|\best\.?$/i, "estate"],
   [/\b(trusts?|trustees?|ttees?|trs?|living tr|revocable|irrevocable)\b/i, "trust"],
-  [/\b(city of|county of|state of|isd|independent school|school district|housing authority|united states|secretary of|department of|dept of|municipal)\b/i, "government"],
+  [
+    /\b(city of|county of|state of|isd|independent school|school district|housing authority|united states|secretary of|department of|dept of|municipal)\b/i,
+    "government",
+  ],
   [/\b(bank|banc|credit union|mortgage|savings|fannie mae|freddie mac|fnma|fhlmc|loan servicing)\b|\bn\.?a\.?$/i, "bank"],
-  [/\b(llc|l\.?l\.?c|inc|incorporated|corp|corporation|co|company|ltd|limited|lp|llp|pllc|plc|partners|partnership|holdings?|properties|investments?|investors|capital|group|enterprises?|ventures?|realty|development|management|associates|association|church|ministries|foundation|hoa|condominiums?)\b/i, "company"],
+  [
+    /\b(llc|l\.?l\.?c|inc|incorporated|corp|corporation|co|company|ltd|limited|lp|llp|pllc|plc|partners|partnership|holdings?|properties|investments?|investors|capital|group|enterprises?|ventures?|realty|development|management|associates|association|church|ministries|foundation|hoa|condominiums?)\b/i,
+    "company",
+  ],
 ];
 const HOUSEHOLD = /&|\band\b|;|\bet ?(ux|vir|al)\b/i;
 
@@ -35,12 +41,51 @@ export function ownerKind(name: string): OwnerKind | null {
   return HOUSEHOLD.test(text) ? "household" : "person";
 }
 
-const NOT_A_NAME = new Set(["llc", "inc", "co", "corp", "ltd", "lp", "trust", "trustee", "tr", "estate", "of", "the", "and", "et", "al", "etux", "etvir", "ux", "vir",
-  "jr", "sr", "ii", "iii", "iv", "mr", "mrs", "ms", "dr", "family", "living", "revocable", "irrevocable", "heirs", "est"]);
+const NOT_A_NAME = new Set([
+  "llc",
+  "inc",
+  "co",
+  "corp",
+  "ltd",
+  "lp",
+  "trust",
+  "trustee",
+  "tr",
+  "estate",
+  "of",
+  "the",
+  "and",
+  "et",
+  "al",
+  "etux",
+  "etvir",
+  "ux",
+  "vir",
+  "jr",
+  "sr",
+  "ii",
+  "iii",
+  "iv",
+  "mr",
+  "mrs",
+  "ms",
+  "dr",
+  "family",
+  "living",
+  "revocable",
+  "irrevocable",
+  "heirs",
+  "est",
+]);
 
 /** The words of a name, in any order: "SMITH JOHN & MARY" and "John & Mary Smith" share them. */
 export function nameWords(name: string): Set<string> {
-  return new Set(name.toLowerCase().split(/[^a-z']+/).filter(word => word.length >= 2 && !NOT_A_NAME.has(word)));
+  return new Set(
+    name
+      .toLowerCase()
+      .split(/[^a-z']+/)
+      .filter(word => word.length >= 2 && !NOT_A_NAME.has(word)),
+  );
 }
 
 const shared = (a: Set<string>, b: Set<string>) => [...a].filter(word => b.has(word)).length;
@@ -48,9 +93,13 @@ const shared = (a: Set<string>, b: Set<string>) => [...a].filter(word => b.has(w
 // -------------------------------------------------------------------------------------------- columns of a list
 
 export type OwnerColumns = {
-  names: string[]; place: PlaceColumns; state?: string;
+  names: string[];
+  place: PlaceColumns;
+  state?: string;
   mail: { street?: string; city?: string; state?: string; zip?: string };
-  phones: string[]; emails: string[]; status?: string;
+  phones: string[];
+  emails: string[];
+  status?: string;
   statusKinds?: Map<string, ReturnType<typeof progressKind>>;
 };
 
@@ -60,19 +109,24 @@ export function ownerColumns(columns: string[], setup?: SkiptraceSuggestion | nu
   const config = setup?.config;
   const find = (pattern: RegExp) => own.find(name => pattern.test(name.trim()));
   const mapped = (value?: string | null) => (value && own.includes(value) ? value : undefined);
-  const names = [mapped(config?.name_column), mapped(config?.first_name_column), mapped(config?.last_name_column)].filter((value): value is string => Boolean(value));
+  const names = [mapped(config?.name_column), mapped(config?.first_name_column), mapped(config?.last_name_column)].filter((value): value is string =>
+    Boolean(value),
+  );
   const named = find(/^(owner ?1? ?)?(full )?name$|^owner$|^owner ?1$|owner name/i);
-  const first = find(/^(owner ?1? ?)?first ?name$/i), last = find(/^(owner ?1? ?)?last ?name$/i);
+  const first = find(/^(owner ?1? ?)?first ?name$/i),
+    last = find(/^(owner ?1? ?)?last ?name$/i);
   return {
     names: names.length ? names : named ? [named] : [first, last].filter((value): value is string => Boolean(value)),
-    place: placeColumns(columns, saved), state: areaColumns(columns, saved).state,
+    place: placeColumns(columns, saved),
+    state: areaColumns(columns, saved).state,
     mail: {
       street: mapped(config?.mailing_address_column) ?? find(/^(owner ?)?mail(ing)? ?(address|street|addr)( ?1)?$/i),
       city: mapped(config?.mailing_city_column) ?? find(/^(owner ?)?mail(ing)? ?city$/i),
       state: mapped(config?.mailing_state_column) ?? find(/^(owner ?)?mail(ing)? ?state$/i),
       zip: mapped(config?.mailing_zip_column) ?? find(/^(owner ?)?mail(ing)? ?(zip|zip ?code|postal ?code)$/i),
     },
-    phones: phoneColumnsOf(columns, setup), emails: own.filter(name => /e-?mail/i.test(name)),
+    phones: phoneColumnsOf(columns, setup),
+    emails: own.filter(name => /e-?mail/i.test(name)),
     status: setup?.outcome_column ?? undefined,
     statusKinds: setup?.outcome_column ? new Map(setup.statuses.filter(status => status.key).map(status => [status.key, progressKind(status)])) : undefined,
   };
@@ -91,7 +145,11 @@ const EMAIL = /[^@\s,;<>"']+@[^@\s,;<>"']+\.[a-z]{2,}/gi;
 
 export function contactsOf(row: DatasetRow, columns: OwnerColumns) {
   const phones = new Set<string>();
-  for (const column of columns.phones) for (const part of cell(row, column).split(/[;,/|]|\s{2,}/)) { const key = phoneKey(part); if (key) phones.add(key); }
+  for (const column of columns.phones)
+    for (const part of cell(row, column).split(/[;,/|]|\s{2,}/)) {
+      const key = phoneKey(part);
+      if (key) phones.add(key);
+    }
   const emails = new Set<string>();
   for (const column of columns.emails) for (const match of cell(row, column).match(EMAIL) ?? []) emails.add(match.toLowerCase());
   return { phones, emails };
@@ -100,20 +158,31 @@ export function contactsOf(row: DatasetRow, columns: OwnerColumns) {
 // ------------------------------------------------------------------------------------------------ one owner's facts
 
 export type OwnerFacts = {
-  name: string; kind: OwnerKind | null; absentee: boolean; outOfState: boolean; poBox: boolean; mailing: string;
+  name: string;
+  kind: OwnerKind | null;
+  absentee: boolean;
+  outOfState: boolean;
+  poBox: boolean;
+  mailing: string;
 };
 
 const PO_BOX = /\bp\.?\s*o\.?\s*box\b|\bpost office box\b|^box\s+\d/i;
 
 export function ownerFacts(row: DatasetRow, columns: OwnerColumns): OwnerFacts {
-  const name = columns.names.map(column => cell(row, column)).filter(Boolean).join(" ");
+  const name = columns.names
+    .map(column => cell(row, column))
+    .filter(Boolean)
+    .join(" ");
   const mailStreet = cell(row, columns.mail.street);
   const property = streetKey(cell(row, columns.place.street));
   const mailing = streetKey(mailStreet);
-  const mailZip = cell(row, columns.mail.zip).slice(0, 5), zip = cell(row, columns.place.zip).slice(0, 5);
-  const mailState = cell(row, columns.mail.state).toUpperCase(), state = cell(row, columns.state).toUpperCase();
+  const mailZip = cell(row, columns.mail.zip).slice(0, 5),
+    zip = cell(row, columns.place.zip).slice(0, 5);
+  const mailState = cell(row, columns.mail.state).toUpperCase(),
+    state = cell(row, columns.state).toUpperCase();
   return {
-    name, kind: name ? ownerKind(name) : null,
+    name,
+    kind: name ? ownerKind(name) : null,
     absentee: Boolean(mailing && property) && (mailing !== property || Boolean(mailZip && zip && mailZip !== zip)),
     outOfState: Boolean(mailState && state && mailState.length === 2 && state.length === 2 && mailState !== state),
     poBox: PO_BOX.test(mailStreet),
@@ -141,14 +210,24 @@ const mailingKey = (row: DatasetRow, columns: OwnerColumns) => {
 /** Every list's owners and contacts, by property and by mailing address. */
 export function ownerIndex(lists: { dataset: Dataset; rows: DatasetRow[]; columns: OwnerColumns }[]): OwnerIndex {
   const index: OwnerIndex = { byProperty: new Map(), byMailing: new Map() };
-  const add = (map: Map<string, Entry[]>, key: string | null, entry: Entry) => { if (key) map.set(key, [...(map.get(key) ?? []), entry]); };
+  const add = (map: Map<string, Entry[]>, key: string | null, entry: Entry) => {
+    if (key) map.set(key, [...(map.get(key) ?? []), entry]);
+  };
   for (const { dataset, rows, columns } of lists) {
     for (const row of rows) {
-      const owner = columns.names.map(column => cell(row, column)).filter(Boolean).join(" ");
+      const owner = columns.names
+        .map(column => cell(row, column))
+        .filter(Boolean)
+        .join(" ");
       const { phones, emails } = contactsOf(row, columns);
       const kind = columns.status ? columns.statusKinds?.get(statusKey(row.raw[columns.status])) : undefined;
       const entry: Entry = {
-        list: dataset.name, datasetId: dataset.id, words: nameWords(owner), owner, phones, emails,
+        list: dataset.name,
+        datasetId: dataset.id,
+        words: nameWords(owner),
+        owner,
+        phones,
+        emails,
         warning: kind === "do_not_call" ? "Do not call there" : kind === "bad_number" ? "Bad number there" : undefined,
       };
       add(index.byProperty, propertyKey(row, columns), entry);
@@ -172,12 +251,22 @@ export function foundElsewhere(row: DatasetRow, datasetId: string, columns: Owne
       if (entry.datasetId === datasetId) continue;
       const why = basis(entry);
       if (!why) continue;
-      for (const phone of entry.phones) if (!own.phones.has(phone) && !found.has(phone)) found.set(phone, { value: phone, kind: "phone", list: entry.list, basis: why, warning: entry.warning });
-      for (const email of entry.emails) if (!own.emails.has(email) && !found.has(email)) found.set(email, { value: email, kind: "email", list: entry.list, basis: why });
+      for (const phone of entry.phones)
+        if (!own.phones.has(phone) && !found.has(phone))
+          found.set(phone, { value: phone, kind: "phone", list: entry.list, basis: why, warning: entry.warning });
+      for (const email of entry.emails)
+        if (!own.emails.has(email) && !found.has(email)) found.set(email, { value: email, kind: "email", list: entry.list, basis: why });
     }
   };
   take(index.byProperty.get(propertyKey(row, columns) ?? ""), entry =>
-    words.size && entry.words.size ? (shared(words, entry.words) ? "Same owner, same property" : null) : !words.size && !entry.words.size ? "Same property; no owner name to compare" : null);
+    words.size && entry.words.size
+      ? shared(words, entry.words)
+        ? "Same owner, same property"
+        : null
+      : !words.size && !entry.words.size
+        ? "Same property; no owner name to compare"
+        : null,
+  );
   take(index.byMailing.get(mailingKey(row, columns) ?? ""), entry => (shared(words, entry.words) >= 2 ? "Same owner, same mailing address" : null));
   return [...found.values()];
 }
@@ -188,6 +277,13 @@ export function otherOwners(row: DatasetRow, datasetId: string, columns: OwnerCo
   if (!words.size) return [];
   const seen = new Set<string>();
   return (index.byProperty.get(propertyKey(row, columns) ?? "") ?? [])
-    .filter(entry => entry.datasetId !== datasetId && entry.words.size && !shared(words, entry.words) && !seen.has(entry.list + entry.owner) && seen.add(entry.list + entry.owner))
+    .filter(
+      entry =>
+        entry.datasetId !== datasetId &&
+        entry.words.size &&
+        !shared(words, entry.words) &&
+        !seen.has(entry.list + entry.owner) &&
+        seen.add(entry.list + entry.owner),
+    )
     .map(entry => ({ list: entry.list, owner: entry.owner }));
 }

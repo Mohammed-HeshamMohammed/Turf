@@ -10,9 +10,22 @@ const tried = new Set<string>();
  * starts by itself when a list is shown, so each property ends up on its own address; it can be stopped, and what was
  * found before then is kept.
  */
-export function MapNote({ placement, located, columns, datasetId, onStatus, onLocated, onError }: {
-  placement: ReturnType<typeof placeRows>; located: Located | null; columns: AddressColumns | null; datasetId: string;
-  onStatus: (text: string | null) => void; onLocated: () => void; onError: (reason: unknown) => void;
+export function MapNote({
+  placement,
+  located,
+  columns,
+  datasetId,
+  onStatus,
+  onLocated,
+  onError,
+}: {
+  placement: ReturnType<typeof placeRows>;
+  located: Located | null;
+  columns: AddressColumns | null;
+  datasetId: string;
+  onStatus: (text: string | null) => void;
+  onLocated: () => void;
+  onError: (reason: unknown) => void;
 }) {
   const [progress, setProgress] = useState<LocateProgress | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -36,11 +49,19 @@ export function MapNote({ placement, located, columns, datasetId, onStatus, onLo
     setProgress({ done: 0, total: waiting, found: 0 });
     let shownAt = 0;
     try {
-      const done = await locateAddresses(datasetId, columns, update => {
-        setProgress(update);
-        // Pins appear as they are found, not only at the end.
-        if (update.done - shownAt >= 250) { shownAt = update.done; onLocated(); }
-      }, setJobId);
+      const done = await locateAddresses(
+        datasetId,
+        columns,
+        update => {
+          setProgress(update);
+          // Pins appear as they are found, not only at the end.
+          if (update.done - shownAt >= 250) {
+            shownAt = update.done;
+            onLocated();
+          }
+        },
+        setJobId,
+      );
       setResult(`Looked up ${n(done.looked_up)} addresses: ${n(done.found)} found, ${n(done.not_found)} not matched in their own state and ZIP.`);
     } catch (reason) {
       // Cancelling is not an error. What was found before it stopped is kept either way.
@@ -70,20 +91,39 @@ export function MapNote({ placement, located, columns, datasetId, onStatus, onLo
 
   return (
     <div className="map-note">
-      {placed.length > 0 && <p><strong>On the map:</strong> {placed.join(", ")}.</p>}
-      {left.length > 0 && <p className="muted"><strong>Left off:</strong> {left.join(", ")}.</p>}
+      {placed.length > 0 && (
+        <p>
+          <strong>On the map:</strong> {placed.join(", ")}.
+        </p>
+      )}
+      {left.length > 0 && (
+        <p className="muted">
+          <strong>Left off:</strong> {left.join(", ")}.
+        </p>
+      )}
       {progress ? (
         <p className="notice" role="status">
-          <span>Looking up addresses: {n(progress.done)} of {n(progress.total)} · {n(progress.found)} found. Only the street, city, state and ZIP are sent, to the US Census Bureau&apos;s geocoder.</span>
-          <button type="button" className="button ghost small" disabled={!jobId} onClick={() => jobId && void cancelJob(jobId).catch(onError)}>Stop</button>
+          <span>
+            Looking up addresses: {n(progress.done)} of {n(progress.total)} · {n(progress.found)} found. Only the street, city, state and ZIP are sent, to the
+            US Census Bureau&apos;s geocoder.
+          </span>
+          <button type="button" className="button ghost small" disabled={!jobId} onClick={() => jobId && void cancelJob(jobId).catch(onError)}>
+            Stop
+          </button>
         </p>
       ) : columns && waiting > 0 ? (
         <p className="row">
-          <button type="button" className="button ghost small" onClick={() => void locate()}>Find exact addresses</button>
+          <button type="button" className="button ghost small" onClick={() => void locate()}>
+            Find exact addresses
+          </button>
           <span className="muted">{n(waiting)} addresses not looked up yet.</span>
         </p>
       ) : null}
-      {result && <p className="muted" role="status">{result}</p>}
+      {result && (
+        <p className="muted" role="status">
+          {result}
+        </p>
+      )}
     </div>
   );
 }

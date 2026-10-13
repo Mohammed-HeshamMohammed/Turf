@@ -8,19 +8,44 @@ import type { DatasetRow } from "../src/lib/types";
 
 const mocks = vi.hoisted(() => ({ census: vi.fn(), flood: vi.fn(), emails: vi.fn() }));
 vi.mock("../src/lib/service", () => ({
-  censusArea: mocks.census, floodZone: mocks.flood, checkEmails: mocks.emails,
-  aerialPicture: async () => ({ unavailable: "Offline" }), embeddedPicture: vi.fn(), setCensusKey: vi.fn(),
-  allRows: vi.fn(), skiptraceSuggest: vi.fn(), call: vi.fn(),
+  censusArea: mocks.census,
+  floodZone: mocks.flood,
+  checkEmails: mocks.emails,
+  aerialPicture: async () => ({ unavailable: "Offline" }),
+  embeddedPicture: vi.fn(),
+  setCensusKey: vi.fn(),
+  allRows: vi.fn(),
+  skiptraceSuggest: vi.fn(),
+  call: vi.fn(),
 }));
-const row: DatasetRow = { id: "row", dataset_id: "checked", row_number: 2, raw: {
-  Owner: "Ana Lopez", Address: "12 Main St", Email: "ana@gmial.com", Latitude: 29.76, Longitude: -95.37,
-  Phone: "7135553142", Alternate: "7135554455",
-  "Phone (E.164)": "+17135553142", "Phone (verdict)": "unverified", "Phone (why)": "No other evidence",
-  "Alternate (E.164)": "+17135554455", "Alternate (verdict)": "unverified",
-} };
+const row: DatasetRow = {
+  id: "row",
+  dataset_id: "checked",
+  row_number: 2,
+  raw: {
+    Owner: "Ana Lopez",
+    Address: "12 Main St",
+    Email: "ana@gmial.com",
+    Latitude: 29.76,
+    Longitude: -95.37,
+    Phone: "7135553142",
+    Alternate: "7135554455",
+    "Phone (E.164)": "+17135553142",
+    "Phone (verdict)": "unverified",
+    "Phone (why)": "No other evidence",
+    "Alternate (E.164)": "+17135554455",
+    "Alternate (verdict)": "unverified",
+  },
+};
 const props = {
-  row, own: ["Owner", "Address", "Email"], phoneColumns: ["Phone", "Alternate"], number: "+17135553142",
-  datasetId: "checked", onUpdated: vi.fn(async () => {}), onMark: vi.fn(), manual: {},
+  row,
+  own: ["Owner", "Address", "Email"],
+  phoneColumns: ["Phone", "Alternate"],
+  number: "+17135553142",
+  datasetId: "checked",
+  onUpdated: vi.fn(async () => {}),
+  onMark: vi.fn(),
+  manual: {},
   photos: { columns: [], place: placeColumns(Object.keys(row.raw)), index: new Map() },
   owner: { columns: ownerColumns(Object.keys(row.raw)), index: { byProperty: new Map(), byMailing: new Map() }, datasetId: "checked", mail: null },
 };

@@ -5,16 +5,22 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
 let client: typeof import("../src/lib/service");
 
 beforeEach(async () => {
-  vi.resetModules(); vi.clearAllMocks(); localStorage.clear();
-  vi.stubGlobal("fetch", vi.fn(async (_url, options) => {
-    const { command, payload } = JSON.parse(options.body);
-    const result = await mocks.rpc(command, payload);
-    return { ok: true, json: async () => ({ schema_version: 1, ok: true, result }) };
-  }));
+  vi.resetModules();
+  vi.clearAllMocks();
+  localStorage.clear();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_url, options) => {
+      const { command, payload } = JSON.parse(options.body);
+      const result = await mocks.rpc(command, payload);
+      return { ok: true, json: async () => ({ schema_version: 1, ok: true, result }) };
+    }),
+  );
   client = await import("../src/lib/service");
 });
 afterEach(() => {
-  vi.useRealTimers(); vi.unstubAllGlobals();
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
   delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
 });
 
@@ -60,21 +66,26 @@ describe("the public service entry point", () => {
 
   it("imports a registry through the shared job runner and retains progress", async () => {
     mocks.rpc.mockResolvedValueOnce({ job_id: "import" }).mockResolvedValueOnce({
-      state: "completed", result: { numbers: 2, area_codes: ["713"] }, events: [{ id: 1, payload: { stage: "reading_registry", lines: 2 } }],
+      state: "completed",
+      result: { numbers: 2, area_codes: ["713"] },
+      events: [{ id: 1, payload: { stage: "reading_registry", lines: 2 } }],
     });
     const progress = vi.fn();
     expect(await client.dncRegistryImport("codes.txt", progress)).toEqual({ numbers: 2, area_codes: ["713"] });
     expect(progress).toHaveBeenCalledWith(2);
     expect(mocks.rpc.mock.calls).toEqual([
-      ["dnc_registry.import", { path: "codes.txt" }], ["job.get", { job_id: "import", after_event_id: 0 }],
+      ["dnc_registry.import", { path: "codes.txt" }],
+      ["job.get", { job_id: "import", after_event_id: 0 }],
     ]);
   });
 
   it("resumes a job without submitting another one and advances its event cursor", async () => {
     vi.useFakeTimers();
-    mocks.rpc.mockResolvedValueOnce({ state: "running", events: [{ id: 7, payload: { stage: "reading" } }] })
+    mocks.rpc
+      .mockResolvedValueOnce({ state: "running", events: [{ id: 7, payload: { stage: "reading" } }] })
       .mockResolvedValueOnce({ state: "completed", result: { rows: 2 } });
-    const onStart = vi.fn(), onEvent = vi.fn();
+    const onStart = vi.fn(),
+      onEvent = vi.fn();
     const job = client.watchJob("existing", { onStart, onEvent });
     await vi.advanceTimersByTimeAsync(500);
     expect(await job).toEqual({ rows: 2 });
@@ -93,8 +104,14 @@ describe("the public service entry point", () => {
   it("preserves actionable service errors and failed-job errors", async () => {
     mocks.rpc.mockResolvedValue({ state: "failed", error: "File not found" });
     await expect(client.watchJob("failed")).rejects.toMatchObject({ code: "job_failed", message: "File not found" });
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ schema_version: 1, ok: false, error: { code: "unknown_command", message: "old service" } }) })));
-    await expect(client.nanpaBlocksStatus()).rejects.toMatchObject({ code: "unknown_command", message: "Turf's service is older than its screens. Close Turf and open it again." });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => ({ schema_version: 1, ok: false, error: { code: "unknown_command", message: "old service" } }) })),
+    );
+    await expect(client.nanpaBlocksStatus()).rejects.toMatchObject({
+      code: "unknown_command",
+      message: "Turf's service is older than its screens. Close Turf and open it again.",
+    });
   });
 
   it("uses the native host for domain calls and local state with the original payloads", async () => {

@@ -27,7 +27,11 @@ export function useStored<T>(key: string, initial: T) {
 /** A list shows the marks of its checked copy when it has one. */
 export function marksSource(dataset: Dataset, datasets: Dataset[]) {
   if (dataset.kind === "checked") return dataset;
-  return datasets.filter(other => other.kind === "checked" && other.parent_dataset_id === dataset.id).sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))[0] ?? dataset;
+  return (
+    datasets
+      .filter(other => other.kind === "checked" && other.parent_dataset_id === dataset.id)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))[0] ?? dataset
+  );
 }
 
 // A list's rows never change once it exists (an import is immutable, and each phone check saves a new list),
@@ -70,8 +74,13 @@ export function useRows(datasetId: string | null, onError: (reason: unknown) => 
   useEffect(() => {
     if (!datasetId || rows) return;
     let current = true;
-    loadRows(datasetId).promise.then(() => current && redraw(count => count + 1), reason => current && onError(reason));
-    return () => { current = false; };
+    loadRows(datasetId).promise.then(
+      () => current && redraw(count => count + 1),
+      reason => current && onError(reason),
+    );
+    return () => {
+      current = false;
+    };
   }, [datasetId, rows, onError]);
   return rows ?? null;
 }
@@ -83,8 +92,13 @@ export function useAllRows(datasets: Dataset[], onError: (reason: unknown) => vo
   useEffect(() => {
     if (ready) return;
     let current = true;
-    Promise.all(datasets.map(dataset => loadRows(dataset.id).promise)).then(() => current && redraw(count => count + 1), reason => current && onError(reason));
-    return () => { current = false; };
+    Promise.all(datasets.map(dataset => loadRows(dataset.id).promise)).then(
+      () => current && redraw(count => count + 1),
+      reason => current && onError(reason),
+    );
+    return () => {
+      current = false;
+    };
   }, [datasets, ready, onError]);
   return useMemo(
     () => (ready ? Object.fromEntries(datasets.map(dataset => [dataset.id, rowsCache.get(dataset.id)!.rows!])) : null),
@@ -104,14 +118,21 @@ export function useVisited(currentId: string | null, existing: string[], limit =
 /** The pictures of every property in the project's lists, by place, so a row without its own can borrow one. */
 export function usePhotoIndex(datasets: Dataset[], areaMaps: Record<string, AreaMapping>, onError: (reason: unknown) => void): PhotoIndex {
   // Each list once, read where its marks are (a checked copy has the same rows and pictures as its list).
-  const lists = useMemo(() => primaryLists(datasets)
-    .map(dataset => ({ dataset, source: marksSource(dataset, datasets) })), [datasets]);
+  const lists = useMemo(() => primaryLists(datasets).map(dataset => ({ dataset, source: marksSource(dataset, datasets) })), [datasets]);
   const sources = useMemo(() => lists.map(item => item.source), [lists]);
   const all = useAllRows(sources, onError);
-  return useMemo(() => (all ? photoIndex(lists.map(({ dataset, source }) => {
-    const rows = all[source.id] ?? [];
-    return { rows, columns: rows[0] ? Object.keys(rows[0].raw) : [], saved: areaMaps[dataset.id] };
-  })) : new Map()), [all, lists, areaMaps]);
+  return useMemo(
+    () =>
+      all
+        ? photoIndex(
+            lists.map(({ dataset, source }) => {
+              const rows = all[source.id] ?? [];
+              return { rows, columns: rows[0] ? Object.keys(rows[0].raw) : [], saved: areaMaps[dataset.id] };
+            }),
+          )
+        : new Map(),
+    [all, lists, areaMaps],
+  );
 }
 
 /** Each list's own lists, once: a checked copy whose list is here is the same rows. */
@@ -122,19 +143,36 @@ export function primaryLists(datasets: Dataset[]) {
 /** Each list's Skip Tracing setup (phone columns, owner columns, what its call statuses mean), read once and shared. */
 export function useListSetups(datasets: Dataset[], version: number): Record<string, SkiptraceSuggestion | null> {
   const [setups, setSetups] = useState<Record<string, SkiptraceSuggestion | null>>({});
-  const ids = primaryLists(datasets).map(dataset => dataset.id).join();
+  const ids = primaryLists(datasets)
+    .map(dataset => dataset.id)
+    .join();
   useEffect(() => {
     let current = true;
     const lists = ids ? ids.split(",") : [];
-    void Promise.all(lists.map(id => skiptraceSuggest(id).then(setup => [id, setup] as const, () => [id, null] as const)))
-      .then(entries => { if (current) setSetups(Object.fromEntries(entries)); });
-    return () => { current = false; };
+    void Promise.all(
+      lists.map(id =>
+        skiptraceSuggest(id).then(
+          setup => [id, setup] as const,
+          () => [id, null] as const,
+        ),
+      ),
+    ).then(entries => {
+      if (current) setSetups(Object.fromEntries(entries));
+    });
+    return () => {
+      current = false;
+    };
   }, [ids, version]);
   return setups;
 }
 
 /** Owners and contacts of every list, by property and by mailing address, for finding the same owner elsewhere. */
-export function useOwnerIndex(datasets: Dataset[], setups: Record<string, SkiptraceSuggestion | null>, areaMaps: Record<string, AreaMapping>, onError: (reason: unknown) => void) {
+export function useOwnerIndex(
+  datasets: Dataset[],
+  setups: Record<string, SkiptraceSuggestion | null>,
+  areaMaps: Record<string, AreaMapping>,
+  onError: (reason: unknown) => void,
+) {
   const lists = useMemo(() => primaryLists(datasets).map(dataset => ({ dataset, source: marksSource(dataset, datasets) })), [datasets]);
   const sources = useMemo(() => lists.map(item => item.source), [lists]);
   const all = useAllRows(sources, onError);
@@ -153,7 +191,10 @@ export function useEmailVerdicts(addresses: string[]): Map<string, EmailVerdict>
   const [verdicts, setVerdicts] = useState<Map<string, EmailVerdict>>(new Map());
   const key = [...new Set(addresses)].sort().join("\n");
   useEffect(() => {
-    if (!key) { setVerdicts(new Map()); return; }
+    if (!key) {
+      setVerdicts(new Map());
+      return;
+    }
     let current = true;
     let timer = 0;
     let tries = 0;
@@ -165,10 +206,14 @@ export function useEmailVerdicts(addresses: string[]): Map<string, EmailVerdict>
       }
       if (!current) return;
       setVerdicts(found);
-      if ([...found.values()].some(item => item.verdict === "pending") && tries++ < 40) timer = window.setTimeout(() => void ask().catch(() => undefined), 2500);
+      if ([...found.values()].some(item => item.verdict === "pending") && tries++ < 40)
+        timer = window.setTimeout(() => void ask().catch(() => undefined), 2500);
     };
     void ask().catch(() => undefined);
-    return () => { current = false; window.clearTimeout(timer); };
+    return () => {
+      current = false;
+      window.clearTimeout(timer);
+    };
   }, [key]);
   return verdicts;
 }

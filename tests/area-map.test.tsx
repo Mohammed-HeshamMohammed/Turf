@@ -20,14 +20,24 @@ describe("touchpad scrolling", () => {
 
 /** Sends a wheel event with every field set: the test DOM's own WheelEvent drops Ctrl and the pointer position. Returns false when the page was stopped from scrolling. */
 function wheelOn(target: Element, fields: Partial<Record<"deltaX" | "deltaY" | "ctrlKey" | "clientX" | "clientY", number | boolean>>) {
-  const event = Object.assign(new Event("wheel", { bubbles: true, cancelable: true }), { deltaX: 0, deltaY: 0, deltaMode: 0, ctrlKey: false, metaKey: false, clientX: 0, clientY: 0 }, fields);
+  const event = Object.assign(
+    new Event("wheel", { bubbles: true, cancelable: true }),
+    { deltaX: 0, deltaY: 0, deltaMode: 0, ctrlKey: false, metaKey: false, clientX: 0, clientY: 0 },
+    fields,
+  );
   let allowed = true;
-  act(() => { allowed = target.dispatchEvent(event); });
+  act(() => {
+    allowed = target.dispatchEvent(event);
+  });
   return allowed;
 }
 
 describe("plot map on a touchpad", () => {
-  const dots = [{ lon: -95.4, lat: 29.7 }, { lon: -95.2, lat: 29.9 }, { lon: -95.6, lat: 29.5 }];
+  const dots = [
+    { lon: -95.4, lat: 29.7 },
+    { lon: -95.2, lat: 29.9 },
+    { lon: -95.6, lat: 29.5 },
+  ];
   const positions = (container: HTMLElement) => [...container.querySelectorAll("circle")].map(circle => Number(circle.getAttribute("cx")));
   /** The test DOM has no layout, so the plot is given the size it is drawn at. */
   const sized = (container: HTMLElement) => {
@@ -50,7 +60,10 @@ describe("plot map on a touchpad", () => {
   it("zooms smoothly with a pinch", () => {
     const { container } = render(<AreaMap dots={dots} interactive />);
     const svg = sized(container);
-    const spread = () => { const xs = positions(container); return Math.max(...xs) - Math.min(...xs); };
+    const spread = () => {
+      const xs = positions(container);
+      return Math.max(...xs) - Math.min(...xs);
+    };
     const before = spread();
     expect(wheelOn(svg, { deltaY: -4, ctrlKey: true, clientX: 260, clientY: 160 })).toBe(false);
     const small = spread();
@@ -61,10 +74,22 @@ describe("plot map on a touchpad", () => {
 
 describe("plot map with a mouse wheel", () => {
   it("zooms in and out without Ctrl", () => {
-    const { container } = render(<AreaMap dots={[{ lon: -95.4, lat: 29.7 }, { lon: -95.2, lat: 29.9 }, { lon: -95.6, lat: 29.5 }]} interactive />);
+    const { container } = render(
+      <AreaMap
+        dots={[
+          { lon: -95.4, lat: 29.7 },
+          { lon: -95.2, lat: 29.9 },
+          { lon: -95.6, lat: 29.5 },
+        ]}
+        interactive
+      />,
+    );
     const svg = container.querySelector("svg")!;
     svg.getBoundingClientRect = () => ({ left: 0, top: 0, width: 520, height: 320, right: 520, bottom: 320, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
-    const spread = () => { const xs = [...container.querySelectorAll("circle")].map(circle => Number(circle.getAttribute("cx"))); return Math.max(...xs) - Math.min(...xs); };
+    const spread = () => {
+      const xs = [...container.querySelectorAll("circle")].map(circle => Number(circle.getAttribute("cx")));
+      return Math.max(...xs) - Math.min(...xs);
+    };
     const start = spread();
     expect(wheelOn(svg, { deltaY: -100, clientX: 260, clientY: 160 })).toBe(false);
     const closer = spread();
@@ -97,7 +122,10 @@ describe("the levels of the map", () => {
     const map = gatherForMap([{ rows, dots, columns, kept: new Set(["1", "2"]) }], new Map([["91706", { lat: 34.09, lon: -117.96, states: ["CA"] }]]));
     expect(map.points).toEqual([{ lon: -117.97, lat: 34.08, dim: false, label: "12 Olive St", area: "91706" }]);
     expect(map.spots).toEqual([expect.objectContaining({ zip: "91706", shown: 2, hidden: 1, loose: 1, lat: 34.09 })]);
-    expect(map.cities.map(city => [city.name, city.shown, city.hidden])).toEqual([["Baldwin Park, CA", 2, 0], ["Irwindale, CA", 0, 1]]);
+    expect(map.cities.map(city => [city.name, city.shown, city.hidden])).toEqual([
+      ["Baldwin Park, CA", 2, 0],
+      ["Irwindale, CA", 0, 1],
+    ]);
     expect(map.states).toEqual([expect.objectContaining({ name: "CA", shown: 2, hidden: 1 })]);
   });
 });
@@ -120,7 +148,14 @@ describe("price tags", () => {
   it("puts a row's price on its place", async () => {
     const { placeRows } = await import("../src/lib/geo");
     const rows = [{ id: "a", row_number: 1, raw: { Street: "12 Olive St", Zip: "91706", Price: "$425,000" } }] as never;
-    const { dots } = placeRows(rows, { position: null, zipColumn: "Zip", centres: new Map(), exact: { "1": [34.08, -117.97] }, streetColumn: "Street", tagColumn: "Price" });
+    const { dots } = placeRows(rows, {
+      position: null,
+      zipColumn: "Zip",
+      centres: new Map(),
+      exact: { "1": [34.08, -117.97] },
+      streetColumn: "Street",
+      tagColumn: "Price",
+    });
     expect(dots[0].tag).toBe("$425K");
   });
 });

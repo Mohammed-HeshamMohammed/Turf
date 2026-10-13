@@ -10,25 +10,55 @@ export function VerdictPill({ verdict }: { verdict: Verdict | null }) {
 }
 
 /** A labelled dropdown for forms. `None` is offered first when the choice is optional. */
-export function Field({ label, value, onChange, options, optional, searchable }: {
-  label: string; value: string | null; onChange: (value: string | null) => void; options: Option[]; optional?: string; searchable?: boolean;
+export function Field({
+  label,
+  value,
+  onChange,
+  options,
+  optional,
+  searchable,
+}: {
+  label: string;
+  value: string | null;
+  onChange: (value: string | null) => void;
+  options: Option[];
+  optional?: string;
+  searchable?: boolean;
 }) {
   return (
     <div className="field">
       <span>{label}</span>
-      <Select label={label} value={value ?? ""} onChange={next => onChange(next || null)} searchable={searchable} placeholder={optional ?? "Choose"}
-        options={optional ? [{ value: "", label: optional }, ...options] : options} />
+      <Select
+        label={label}
+        value={value ?? ""}
+        onChange={next => onChange(next || null)}
+        searchable={searchable}
+        placeholder={optional ?? "Choose"}
+        options={optional ? [{ value: "", label: optional }, ...options] : options}
+      />
     </div>
   );
 }
 
-export function Check({ checked, onChange, children, disabled, label }: {
-  checked: boolean; onChange: (checked: boolean) => void; children?: ReactNode; disabled?: boolean; label?: string;
+export function Check({
+  checked,
+  onChange,
+  children,
+  disabled,
+  label,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  children?: ReactNode;
+  disabled?: boolean;
+  label?: string;
 }) {
   return (
     <label className="check">
       <input type="checkbox" checked={checked} disabled={disabled} aria-label={label} onChange={event => onChange(event.target.checked)} />
-      <i aria-hidden="true"><Icon name="check" size={13} /></i>
+      <i aria-hidden="true">
+        <Icon name="check" size={13} />
+      </i>
       {children}
     </label>
   );
@@ -43,8 +73,16 @@ export function SearchBox({ value, onChange, placeholder = "Search" }: { value: 
   );
 }
 
-export function Segmented<T extends string>({ options, value, onChange, label }: {
-  options: { value: T; label: string; disabled?: boolean }[]; value: T; onChange: (value: T) => void; label: string;
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+}: {
+  options: { value: T; label: string; disabled?: boolean }[];
+  value: T;
+  onChange: (value: T) => void;
+  label: string;
 }) {
   return (
     <div className="segmented" role="group" aria-label={label}>

@@ -4,8 +4,21 @@ import { ContextMenuProvider } from "./components/ContextMenu";
 import { ProjectGate } from "./components/ProjectGate";
 import { TitleBar } from "./components/TitleBar";
 import {
-  clearSuggestions, currentProject, describeLeftOut, importFile, inDesktop, listDatasets, openProject, pickImportFile, setAreaColumns, setMark, skiptraceSuggest,
-  turfState, projectMarks, importLegacyMarks, type Project,
+  clearSuggestions,
+  currentProject,
+  describeLeftOut,
+  importFile,
+  inDesktop,
+  listDatasets,
+  openProject,
+  pickImportFile,
+  setAreaColumns,
+  setMark,
+  skiptraceSuggest,
+  turfState,
+  projectMarks,
+  importLegacyMarks,
+  type Project,
 } from "./lib/service";
 import { clearRowsCache, marksSource, preloadRows, useStored } from "./lib/hooks";
 import type { ManualMarks } from "./lib/marks";
@@ -46,12 +59,15 @@ export function App() {
   const [openedTabs, setOpenedTabs] = useState<TabId[]>([]);
   const scroller = useRef<HTMLDivElement>(null);
   const scrolls = useRef<Partial<Record<TabId, number>>>({});
-  const setTab = useCallback((next: TabId) => {
-    setStoredTab(current => {
-      if (scroller.current) scrolls.current[current] = scroller.current.scrollTop;
-      return next;
-    });
-  }, [setStoredTab]);
+  const setTab = useCallback(
+    (next: TabId) => {
+      setStoredTab(current => {
+        if (scroller.current) scrolls.current[current] = scroller.current.scrollTop;
+        return next;
+      });
+    },
+    [setStoredTab],
+  );
   useLayoutEffect(() => {
     setOpenedTabs(current => (current.includes(tab) ? current : [...current, tab]));
     if (scroller.current) scroller.current.scrollTop = scrolls.current[tab] ?? 0;
@@ -89,47 +105,64 @@ export function App() {
       const open = await currentProject();
       setProject(open);
       noteTidied(open);
-      if (open) { setManual(await projectMarks()); await refresh(); }
+      if (open) {
+        setManual(await projectMarks());
+        await refresh();
+      }
     } catch (reason) {
       fail(reason);
     }
   }, [refresh, fail, noteTidied]);
 
-  useEffect(() => { void start(); }, [start]);
+  useEffect(() => {
+    void start();
+  }, [start]);
 
-  const opened = useCallback((next: Project) => {
-    clearRowsCache();
-    clearSuggestions();
-    scrolls.current = {};
-    setOpenedTabs([]);
-    setProject(next);
-    noteTidied(next);
-    setChoosing(false);
-    setDatasets(null);
-    setManual({});
-    setSelectedId(null);
-    projectMarks().then(setManual, fail);
-    refresh().catch(fail);
-  }, [refresh, fail, noteTidied]);
+  const opened = useCallback(
+    (next: Project) => {
+      clearRowsCache();
+      clearSuggestions();
+      scrolls.current = {};
+      setOpenedTabs([]);
+      setProject(next);
+      noteTidied(next);
+      setChoosing(false);
+      setDatasets(null);
+      setManual({});
+      setSelectedId(null);
+      projectMarks().then(setManual, fail);
+      refresh().catch(fail);
+    },
+    [refresh, fail, noteTidied],
+  );
 
-  const turf = useMemo<Turf | null>(() => datasets && {
-    projectId: project?.id ?? "",
-    legacyManual,
-    importLegacy: async () => { setManual(await importLegacyMarks(legacyManual)); },
-    datasets,
-    version,
-    refresh,
-    // A list that is gone (deleted, or another project) is not kept selected.
-    selectedId: datasets.some(dataset => dataset.id === selectedId) ? selectedId : datasets[0]?.id ?? null,
-    select: setSelectedId,
-    open: (next, id) => { if (id) setSelectedId(id); setTab(next); },
-    manual,
-    // Saved in the project; a failed write never looks saved.
-    setMark: (number, mark, until) => void setMark(number, mark, until).then(setManual, fail),
-    areaMaps,
-    setAreaMap: (datasetId, mapping) => void setAreaColumns(datasetId, mapping).then(setAreaMaps, fail),
-    fail,
-  }, [datasets, version, refresh, selectedId, manual, legacyManual, project, areaMaps, setTab, fail]);
+  const turf = useMemo<Turf | null>(
+    () =>
+      datasets && {
+        projectId: project?.id ?? "",
+        legacyManual,
+        importLegacy: async () => {
+          setManual(await importLegacyMarks(legacyManual));
+        },
+        datasets,
+        version,
+        refresh,
+        // A list that is gone (deleted, or another project) is not kept selected.
+        selectedId: datasets.some(dataset => dataset.id === selectedId) ? selectedId : (datasets[0]?.id ?? null),
+        select: setSelectedId,
+        open: (next, id) => {
+          if (id) setSelectedId(id);
+          setTab(next);
+        },
+        manual,
+        // Saved in the project; a failed write never looks saved.
+        setMark: (number, mark, until) => void setMark(number, mark, until).then(setManual, fail),
+        areaMaps,
+        setAreaMap: (datasetId, mapping) => void setAreaColumns(datasetId, mapping).then(setAreaMaps, fail),
+        fail,
+      },
+    [datasets, version, refresh, selectedId, manual, legacyManual, project, areaMaps, setTab, fail],
+  );
 
   // Read ahead in the background: every list's rows (the dashboard needs them all anyway), and the Skip Tracing
   // setup of the list in view. Switching tabs or lists then has nothing to wait for.
@@ -139,7 +172,7 @@ export function App() {
     void preloadRows([...new Set(primary.map(dataset => marksSource(dataset, datasets).id))]);
   }, [datasets]);
   const selected = datasets?.find(dataset => dataset.id === (selectedId ?? datasets[0]?.id));
-  const setupId = selected?.kind === "checked" ? selected.parent_dataset_id ?? selected.id : selected?.id;
+  const setupId = selected?.kind === "checked" ? (selected.parent_dataset_id ?? selected.id) : selected?.id;
   useEffect(() => {
     if (setupId) skiptraceSuggest(setupId).catch(() => undefined);
   }, [setupId]);
@@ -153,15 +186,17 @@ export function App() {
       // A browser tab cannot open a file dialog on the service's side; the Lists tab has a box to type the path.
       onSelect: () => {
         if (!inDesktop) return setTab("lists");
-        void pickImportFile().then(async file => {
-          if (!file) return;
-          const imported = await importFile(file);
-          const left = describeLeftOut(imported);
-          setNote(left ? `Left out ${left} from the imported file.` : null);
-          await refresh();
-          setSelectedId(imported.dataset_id);
-          setTab("lists");
-        }).catch(fail);
+        void pickImportFile()
+          .then(async file => {
+            if (!file) return;
+            const imported = await importFile(file);
+            const left = describeLeftOut(imported);
+            setNote(left ? `Left out ${left} from the imported file.` : null);
+            await refresh();
+            setSelectedId(imported.dataset_id);
+            setTab("lists");
+          })
+          .catch(fail);
       },
     },
     {
@@ -181,50 +216,76 @@ export function App() {
 
   return (
     <ContextMenuProvider general={() => menu.map(action => ({ label: action.label, disabled: action.disabled, onSelect: action.onSelect }))}>
-    <div className="window">
-      <TitleBar
-        title="Turf"
-        mark={(
-          <AppMenu project={project ?? null} actions={menu} onOpenProject={path => void openProject(path).then(opened, fail)}
-            mark={<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v4.4h-5.6V20H9.6V9.4H4z" fill="currentColor" /></svg>} />
-        )}
-      >
-        {!gate && (
-          <nav className="tabs" aria-label="Sections">
-            {TABS.map(item => (
-              <button key={item.id} type="button" className="tab" aria-current={tab === item.id ? "page" : undefined} onClick={() => setTab(item.id)}>
-                {item.label}
-              </button>
-            ))}
-          </nav>
-        )}
-      </TitleBar>
-      <div className="scroller" ref={scroller}>
-        <div className="shell">
-          {error && (
-            <p className="notice" role="alert">
-              <span>{error}</span>
-              <button type="button" className="button" onClick={() => (project === undefined ? void start() : setError(null))}>{project === undefined ? "Try again" : "Dismiss"}</button>
-            </p>
+      <div className="window">
+        <TitleBar
+          title="Turf"
+          mark={
+            <AppMenu
+              project={project ?? null}
+              actions={menu}
+              onOpenProject={path => void openProject(path).then(opened, fail)}
+              mark={
+                <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 5h16v4.4h-5.6V20H9.6V9.4H4z" fill="currentColor" />
+                </svg>
+              }
+            />
+          }
+        >
+          {!gate && (
+            <nav className="tabs" aria-label="Sections">
+              {TABS.map(item => (
+                <button key={item.id} type="button" className="tab" aria-current={tab === item.id ? "page" : undefined} onClick={() => setTab(item.id)}>
+                  {item.label}
+                </button>
+              ))}
+            </nav>
           )}
-          {note && !gate && (
-            <p className="notice good" role="status">
-              <span>{note}</span>
-              <button type="button" className="button" onClick={() => setNote(null)}>Dismiss</button>
-            </p>
-          )}
-          {gate ? (
-            <ProjectGate onOpen={opened} onCancel={project ? () => setChoosing(false) : undefined} />
-          ) : turf ? (
-            <main>
-              {shown("dashboard") && <div hidden={tab !== "dashboard"}><Dashboard turf={turf} /></div>}
-              {shown("lists") && <div hidden={tab !== "lists"}><Lists turf={turf} /></div>}
-              {shown("skiptracing") && <div hidden={tab !== "skiptracing"}><SkipTracing turf={turf} /></div>}
-            </main>
-          ) : !error && <p className="loading">Loading lists…</p>}
+        </TitleBar>
+        <div className="scroller" ref={scroller}>
+          <div className="shell">
+            {error && (
+              <p className="notice" role="alert">
+                <span>{error}</span>
+                <button type="button" className="button" onClick={() => (project === undefined ? void start() : setError(null))}>
+                  {project === undefined ? "Try again" : "Dismiss"}
+                </button>
+              </p>
+            )}
+            {note && !gate && (
+              <p className="notice good" role="status">
+                <span>{note}</span>
+                <button type="button" className="button" onClick={() => setNote(null)}>
+                  Dismiss
+                </button>
+              </p>
+            )}
+            {gate ? (
+              <ProjectGate onOpen={opened} onCancel={project ? () => setChoosing(false) : undefined} />
+            ) : turf ? (
+              <main>
+                {shown("dashboard") && (
+                  <div hidden={tab !== "dashboard"}>
+                    <Dashboard turf={turf} />
+                  </div>
+                )}
+                {shown("lists") && (
+                  <div hidden={tab !== "lists"}>
+                    <Lists turf={turf} />
+                  </div>
+                )}
+                {shown("skiptracing") && (
+                  <div hidden={tab !== "skiptracing"}>
+                    <SkipTracing turf={turf} />
+                  </div>
+                )}
+              </main>
+            ) : (
+              !error && <p className="loading">Loading lists…</p>
+            )}
+          </div>
         </div>
       </div>
-    </div>
     </ContextMenuProvider>
   );
 }

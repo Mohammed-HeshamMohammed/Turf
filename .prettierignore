@@ -1,0 +1,8 @@
+dist
+node_modules
+src-tauri
+service
+package-lock.json
+reference
+.playwright-cli
+*.md

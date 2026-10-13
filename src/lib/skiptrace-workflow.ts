@@ -17,19 +17,40 @@ export type WorkflowDraft = {
 export type SetupTemplate = { id: string; name: string; config: SkiptraceConfig; at: string };
 
 export function missingColumns(config: SkiptraceConfig, columns: string[]): string[] {
-  return [...new Set([...config.phone_columns, config.country_column, config.first_name_column, config.last_name_column,
-    config.name_column, config.zip_column, config.state_column, config.address_column, config.city_column, config.business_column, config.vacancy_column,
-    config.mailing_address_column, config.mailing_city_column, config.mailing_state_column, config.mailing_zip_column, config.owner_type_column,
-    ...(config.additional_owners ?? []).flatMap(owner => Object.values(owner)), ...Object.keys(config.phone_owner_map ?? {}),
-    config.call_date_column, config.outcome?.column, config.outcome?.called_column]
-    .filter((column): column is string => Boolean(column) && !columns.includes(column!)))];
+  return [
+    ...new Set(
+      [
+        ...config.phone_columns,
+        config.country_column,
+        config.first_name_column,
+        config.last_name_column,
+        config.name_column,
+        config.zip_column,
+        config.state_column,
+        config.address_column,
+        config.city_column,
+        config.business_column,
+        config.vacancy_column,
+        config.mailing_address_column,
+        config.mailing_city_column,
+        config.mailing_state_column,
+        config.mailing_zip_column,
+        config.owner_type_column,
+        ...(config.additional_owners ?? []).flatMap(owner => Object.values(owner)),
+        ...Object.keys(config.phone_owner_map ?? {}),
+        config.call_date_column,
+        config.outcome?.column,
+        config.outcome?.called_column,
+      ].filter((column): column is string => Boolean(column) && !columns.includes(column!)),
+    ),
+  ];
 }
 
 /** Whether the owner of the called phone column has a name column, which a wrong-person meaning needs. */
 export function namesMapped(config: SkiptraceConfig, called: string): boolean {
   const owners = config.additional_owners ?? [];
   const index = config.phone_owner_map?.[called] ?? (owners.length ? -1 : 0);
-  const person = index === 0 ? config : owners[index - 1] ?? {};
+  const person = index === 0 ? config : (owners[index - 1] ?? {});
   return Boolean(person.first_name_column || person.last_name_column || person.name_column);
 }
 
@@ -89,34 +110,60 @@ export function statusPage(statuses: StatusRow[], query: string, unreviewedOnly:
 }
 
 export function checkedCopies(datasets: Dataset[], parentId: string) {
-  return datasets.filter(item => item.kind === "checked" && item.parent_dataset_id === parentId)
+  return datasets
+    .filter(item => item.kind === "checked" && item.parent_dataset_id === parentId)
     .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
 }
 
 export function readDraft(key: string): WorkflowDraft | null {
   try {
     const data = JSON.parse(localStorage.getItem(key) ?? "null");
-    if (data?.version !== 1 || !Array.isArray(data.state?.base?.phone_columns) || !Array.isArray(data.state?.reviewed)
-      || typeof data.state?.meaning !== "object" || !Number.isInteger(data.state?.step)) return null;
+    if (
+      data?.version !== 1 ||
+      !Array.isArray(data.state?.base?.phone_columns) ||
+      !Array.isArray(data.state?.reviewed) ||
+      typeof data.state?.meaning !== "object" ||
+      !Number.isInteger(data.state?.step)
+    )
+      return null;
     return data.state;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 export const STAGE_LABELS: Record<string, string> = {
-  recovering: "Reconnecting to the saved job", saving_setup: "Saving the setup", reading_file: "Reading the list", gathering_outcomes: "Gathering outcomes and manual marks",
-  checking_phones: "Checking phone numbers", saving_checked_copy: "Saving the reviewed copy",
+  recovering: "Reconnecting to the saved job",
+  saving_setup: "Saving the setup",
+  reading_file: "Reading the list",
+  gathering_outcomes: "Gathering outcomes and manual marks",
+  checking_phones: "Checking phone numbers",
+  saving_checked_copy: "Saving the reviewed copy",
 };
 
 export const SIGN_HELP: Record<string, { example: string; needs: string }> = {
   shared_number: { example: "Two unrelated people are listed with the same phone number.", needs: "Map full name, or first and last name, to compare people." },
-  business_line: { example: "A toll-free or premium-rate number appears in a person's phone column.", needs: "Uses the phone number itself; no extra columns needed." },
-  area_code_other_state: { example: "A California area code is listed for a Texas property. People can move, so this is a warning, not proof.", needs: "Map a state column; applies to US numbers." },
-  country_mismatch: { example: "The phone's country code differs from the property's country.", needs: "Map country, postal code, or state for address evidence." },
+  business_line: {
+    example: "A toll-free or premium-rate number appears in a person's phone column.",
+    needs: "Uses the phone number itself; no extra columns needed.",
+  },
+  area_code_other_state: {
+    example: "A California area code is listed for a Texas property. People can move, so this is a warning, not proof.",
+    needs: "Map a state column; applies to US numbers.",
+  },
+  country_mismatch: {
+    example: "The phone's country code differs from the property's country.",
+    needs: "Map country, postal code, or state for address evidence.",
+  },
 };
 
 /** The groups a checked row falls in, each row in exactly one, in the order they matter. */
 export const ROW_GROUPS = [
-  { id: "look", label: "Look first", meaning: "A number you can call, but something needs a look first: a suspicious number, conflicting call results, or old evidence" },
+  {
+    id: "look",
+    label: "Look first",
+    meaning: "A number you can call, but something needs a look first: a suspicious number, conflicting call results, or old evidence",
+  },
   { id: "blocked", label: "Nothing to call", meaning: "Every number in the row is a known wrong number, on a do-not-call list, or not a real number" },
   { id: "ready", label: "Ready", meaning: "Someone was reached at the number, or independent files agree on it" },
   { id: "unknown", label: "Nothing known yet", meaning: "A real number with no call history yet; fine to call" },
@@ -125,8 +172,13 @@ export const ROW_GROUPS = [
 
 /** Every owner name column mapped, across owner groups. */
 export function ownerNames(config: SkiptraceConfig): string[] {
-  return [...new Set([config, ...(config.additional_owners ?? [])].flatMap(owner => [owner.first_name_column, owner.last_name_column, owner.name_column])
-    .filter((column): column is string => Boolean(column)))];
+  return [
+    ...new Set(
+      [config, ...(config.additional_owners ?? [])]
+        .flatMap(owner => [owner.first_name_column, owner.last_name_column, owner.name_column])
+        .filter((column): column is string => Boolean(column)),
+    ),
+  ];
 }
 
 /** Whether a warning sign has the columns it needs, and what it compares. */
@@ -136,11 +188,15 @@ export function signReadiness(code: string, config: SkiptraceConfig): { ready: b
     return names.length ? { ready: true, text: `Compares ${names.join(", ")}` } : { ready: false, text: "Needs an owner name column to tell people apart" };
   }
   if (code === "area_code_other_state") {
-    return config.state_column ? { ready: true, text: `Compares the area code with ${config.state_column} (US numbers)` } : { ready: false, text: "Needs the property's state column" };
+    return config.state_column
+      ? { ready: true, text: `Compares the area code with ${config.state_column} (US numbers)` }
+      : { ready: false, text: "Needs the property's state column" };
   }
   if (code === "country_mismatch") {
     const places = [config.country_column, config.zip_column, config.state_column].filter((column): column is string => Boolean(column));
-    return places.length ? { ready: true, text: `Compares the phone's country with ${places.join(", ")}` } : { ready: false, text: "Needs a country, ZIP or state column" };
+    return places.length
+      ? { ready: true, text: `Compares the phone's country with ${places.join(", ")}` }
+      : { ready: false, text: "Needs a country, ZIP or state column" };
   }
   return { ready: true, text: "Uses the phone number itself" };
 }
@@ -149,7 +205,12 @@ export function signReadiness(code: string, config: SkiptraceConfig): { ready: b
 export function signEvidence(sign: SignReport | undefined, hasOutcomes: boolean): { text: string; on?: boolean } {
   if (!hasOutcomes) return { text: "Can't be measured: this list has no call results" };
   if (!sign) return { text: "Not measured yet: a check shows whether it predicts wrong numbers in this list" };
-  if (!sign.enough_data) return { text: sign.contacted ? `Only ${sign.contacted} called ${sign.contacted === 1 ? "number has" : "numbers have"} a clear result; about 50 are needed to tell` : "No called number has a clear result yet, so it can't be measured" };
+  if (!sign.enough_data)
+    return {
+      text: sign.contacted
+        ? `Only ${sign.contacted} called ${sign.contacted === 1 ? "number has" : "numbers have"} a clear result; about 50 are needed to tell`
+        : "No called number has a clear result yet, so it can't be measured",
+    };
   if (sign.predictive) return { text: `In this list it predicts wrong numbers: ${sign.lift}× as often`, on: true };
   return { text: `In this list it makes no clear difference (${sign.lift ?? "–"}×)`, on: false };
 }
@@ -157,7 +218,12 @@ export function signEvidence(sign: SignReport | undefined, hasOutcomes: boolean)
 export function stableKey(value: unknown): string {
   function ordered(item: unknown): unknown {
     if (Array.isArray(item)) return item.map(ordered);
-    if (item && typeof item === "object") return Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b)).map(([key, child]) => [key, ordered(child)]));
+    if (item && typeof item === "object")
+      return Object.fromEntries(
+        Object.entries(item)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([key, child]) => [key, ordered(child)]),
+      );
     return item;
   }
   return JSON.stringify(ordered(value));
@@ -169,8 +235,13 @@ export function toggled(outcomes: Outcome[], id: Outcome, on: boolean): Outcome[
   return negative.includes(id) && on ? next.filter(item => item !== "reached") : id === "reached" && on ? next.filter(item => !negative.includes(item)) : next;
 }
 
-
-export function buildConfig(base: SkiptraceConfig, outcomeColumn: string | null, calledColumn: string, statuses: Record<string, Outcome[]>, reviewed: string[] = []): SkiptraceConfig {
+export function buildConfig(
+  base: SkiptraceConfig,
+  outcomeColumn: string | null,
+  calledColumn: string,
+  statuses: Record<string, Outcome[]>,
+  reviewed: string[] = [],
+): SkiptraceConfig {
   const called = base.phone_columns.includes(calledColumn) ? calledColumn : base.phone_columns[0];
   const map = Object.fromEntries(Object.entries(statuses).filter(([key, value]) => key && (value.length || reviewed.includes(key))));
   return { ...base, outcome: outcomeColumn && called && Object.keys(map).length ? { column: outcomeColumn, called_column: called, map } : null };

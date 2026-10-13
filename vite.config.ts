@@ -33,8 +33,12 @@ function serviceBridge(): Plugin {
           },
         });
         started.stderr.pipe(process.stderr);
-        started.on("error", () => { child = null; });
-        started.on("exit", () => { if (child === started) child = null; });
+        started.on("error", () => {
+          child = null;
+        });
+        started.on("exit", () => {
+          if (child === started) child = null;
+        });
         child = started;
         answers = createInterface({ input: started.stdout })[Symbol.asyncIterator]();
       }
@@ -64,7 +68,9 @@ function serviceBridge(): Plugin {
               child?.kill();
               child = null;
               const message = error instanceof Error ? error.message : String(error);
-              outgoing.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ schema_version: 1, ok: false, error: { code: "bridge_unavailable", message } }));
+              outgoing
+                .writeHead(200, { "Content-Type": "application/json" })
+                .end(JSON.stringify({ schema_version: 1, ok: false, error: { code: "bridge_unavailable", message } }));
             },
           );
         });
