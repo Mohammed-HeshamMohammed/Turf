@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import SCHEMA_VERSION
-from . import area, combine, datasets, sameness, dnc_registry, downloads, emails, flood, geo, images, nanpa_blocks, manual, phone_evidence, phone_lookup, projects, skiptrace, tidy
+from . import area, combine, datasets, exports, keeping, leads, sameness, dnc_registry, downloads, emails, flood, geo, images, nanpa_blocks, manual, phone_evidence, phone_lookup, projects, skiptrace, tidy
 from .contracts import health_check
 from .jobs import JobContext, JobKind, JobRunner, JobValidationError
 from .logs import log
@@ -98,6 +98,23 @@ class Service:
             "skiptrace.apply": lambda p: {"job_id": self._submit("skiptrace_apply", p)},
             "skiptrace.freshness": lambda p: skiptrace.freshness(self._store(), p["dataset_id"]),
             "skiptrace.review": lambda p: skiptrace.review(self._store(), p["job_id"], str(p.get("filter") or "all"), int(p.get("offset", 0)), int(p.get("limit", 25)), p.get("row_number")),
+            "dataset.trash": lambda p: keeping.trash(self._store(), self._project_id(), p["dataset_id"]),
+            "dataset.trashed": lambda p: keeping.trashed(self._store(), self._project_id()),
+            "dataset.restore": lambda p: keeping.restore(self._store(), self._project_id(), p["dataset_id"]),
+            "dataset.purge": lambda p: keeping.purge(self._store(), self._project_id(), p.get("dataset_id")),
+            "project.backup": lambda p: {"job_id": self._submit("project_backup", p)},
+            "filters.list": lambda p: keeping.filters(self._store(), p["dataset_id"]),
+            "filters.save": lambda p: keeping.save_filter(self._store(), p["dataset_id"], p.get("name"), p.get("filter")),
+            "leads.for_list": lambda p: leads.for_list(self._store(), p["dataset_id"]),
+            "leads.set": lambda p: leads.set_state(self._store(), p),
+            "leads.notes": lambda p: leads.notes(self._store(), p),
+            "leads.add_note": lambda p: leads.add_note(self._store(), p),
+            "leads.remove_note": lambda p: leads.remove_note(self._store(), p),
+            "leads.due": lambda p: leads.due(self._store(), self._project_id(), p.get("today")),
+            "calling.zones": lambda p: leads.zones(p.get("numbers")),
+            "export.prepare": lambda p: exports.prepare(self._store(), p),
+            "export.chunk": lambda p: exports.chunk(p),
+            "export.save": lambda p: exports.save(self._store(), p),
             "lists.combine": lambda p: {"job_id": self._submit("lists_combine", p)},
             "duplicates.overrule": lambda p: combine.overrule(self._store(), p),
             "duplicates.overrules": lambda p: combine.overrules(self._store(), [str(item) for item in p.get("dataset_ids") or []]),
@@ -171,6 +188,7 @@ class Service:
             "nanpa_blocks_import": nanpa_blocks.IMPORT_JOB,
             "phone_lookup": phone_lookup.LOOKUP_JOB,
             "lists_combine": combine.COMBINE_JOB,
+            "project_backup": keeping.BACKUP_JOB,
         })
         # Lists that were in the project before imports left out empty rows and columns get the same treatment now.
         # Opening must not fail over it: a list that cannot be tidied stays as it was.
@@ -179,6 +197,11 @@ class Service:
         except Exception as error:  # noqa: BLE001
             log("warning", "project.tidy_failed", error=type(error).__name__, message=str(error))
             tidied = []
+        # Lists deleted long enough ago are let go for good.
+        try:
+            keeping.purge(store, project["id"], older_than_days=keeping.KEEP_DAYS)
+        except Exception as error:  # noqa: BLE001
+            log("warning", "project.purge_failed", error=type(error).__name__, message=str(error))
         self.project = {**project, "tidied": tidied}
         return {**self.project, "recovered_jobs": recovered}
 
