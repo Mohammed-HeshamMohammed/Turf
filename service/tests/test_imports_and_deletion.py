@@ -55,3 +55,15 @@ def test_deleting_a_list_removes_its_stored_file_unless_something_still_needs_it
     assert len(stored()) == 1, "the other list still has the same file"
     ok(svc, "dataset.delete", dataset_id=second)
     assert stored() == []
+
+
+def test_a_long_list_is_not_read_through_for_every_column() -> None:
+    """The setup suggestion reads only status-like columns to the end, and samples stop once each column has three."""
+    from turf_matching import skiptrace as engine
+    from turf_service.skiptrace import _samples
+
+    rows = [{"Name": f"Person {index}", "State": "TX", "Phone": f"713555{index:04d}", "Call Status": ("LVM", "Wrong number", "")[index % 3]} for index in range(500)]
+    found = engine.suggest(rows, {})
+    assert [item["column"] for item in found["outcome_candidates"]] == ["Call Status"]
+    assert found["outcome_candidates"][0]["filled"] == 333 and found["outcome_candidates"][0]["distinct"] == 2
+    assert _samples(rows, ["Name", "State", "Call Status"]) == {"Name": ["Person 0", "Person 1", "Person 2"], "State": ["TX"], "Call Status": ["LVM", "Wrong number"]}

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import type { Turf } from "../App";
 import { AreaMap, type Dot } from "../components/AreaMap";
 import { Empty, MiniBars, SearchBox, Segmented } from "../components/Bits";
@@ -27,8 +27,8 @@ import {
 } from "../lib/dashboard";
 import { photoColumns, photosFor, placeColumns, positionOf, streetPart } from "../lib/photos";
 import { PropertyPhoto } from "../components/PropertyPhoto";
-import { marksSource, primaryLists, usableEmail, useAllRows, useEmailVerdicts, useListSetups, useOwnerIndex, usePhotoIndex } from "../lib/hooks";
-import { contactsOf, foundElsewhere, otherOwners, ownerFacts, OWNER_KINDS, type OwnerKind } from "../lib/owners";
+import { marksSource, primaryLists, usableEmail, useAllRows, useEmailVerdicts, useListSetups, useOwnerIndex, useOwnerStats, usePhotoIndex } from "../lib/hooks";
+import { contactsOf } from "../lib/owners";
 import {
   AREA_LABELS,
   AREA_LEVELS,
@@ -117,44 +117,10 @@ export function Dashboard({ turf }: { turf: Turf }) {
     [owners],
   );
   const emailVerdicts = useEmailVerdicts(allEmails);
-  // What the owners and their mail show, and the contacts other lists have for them, counted once per row.
-  const ownerStats = useMemo(() => {
-    if (!owners) return null;
-    const counts = {
-      phoneElsewhere: 0,
-      emailElsewhere: 0,
-      ownerDiffers: 0,
-      absentee: 0,
-      outOfState: 0,
-      poBox: 0,
-      named: 0,
-      badEmails: 0,
-      kinds: Object.fromEntries(OWNER_KINDS.map(kind => [kind.id, 0])) as Record<OwnerKind, number>,
-    };
-    const perList: Record<string, number> = {};
-    for (const { dataset, rows, columns } of owners.lists) {
-      for (const row of rows) {
-        const facts = ownerFacts(row, columns);
-        if (facts.kind) {
-          counts.kinds[facts.kind] += 1;
-          counts.named += 1;
-        }
-        counts.absentee += Number(facts.absentee);
-        counts.outOfState += Number(facts.outOfState);
-        counts.poBox += Number(facts.poBox);
-        const own = contactsOf(row, columns);
-        if (own.emails.size && ![...own.emails].some(email => usableEmail(emailVerdicts, email))) counts.badEmails += 1;
-        const found = foundElsewhere(row, dataset.id, columns, owners.index);
-        if (!own.phones.size && found.some(item => item.kind === "phone" && !item.warning)) {
-          counts.phoneElsewhere += 1;
-          perList[dataset.id] = (perList[dataset.id] ?? 0) + 1;
-        }
-        if (!own.emails.size && found.some(item => item.kind === "email")) counts.emailElsewhere += 1;
-        if (otherOwners(row, dataset.id, columns, owners.index).length) counts.ownerDiffers += 1;
-      }
-    }
-    return { ...counts, perList };
-  }, [owners, emailVerdicts]);
+  // What the owners and their mail show, and the contacts other lists have for them, counted once per row. A long
+  // list is counted in turns, so this card fills in a moment after the rest instead of holding the whole screen up.
+  const emailOk = useCallback((email: string) => usableEmail(emailVerdicts, email), [emailVerdicts]);
+  const ownerStats = useOwnerStats(owners, emailOk);
   const known = zipValues.filter(value => centres.has(value)).length;
   const [kind, setKind] = useState("all");
   const [status, setStatus] = useState("all");

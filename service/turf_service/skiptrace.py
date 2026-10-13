@@ -119,12 +119,16 @@ def clean_config(config: object, columns: list[str]) -> dict:
 
 def _samples(rows: list[dict], columns: list[str]) -> dict:
     samples = {column: [] for column in columns}
+    # Turf: only the columns still short of three samples are looked at, so a column with one value on every row
+    # (a State of "TX") does not keep every other column being read to the end of a long list.
+    wanting = list(columns)
     for row in rows:
-        for column in columns:
+        for column in wanting:
             value = str(row.get(column) if row.get(column) is not None else "").strip()
-            if value and value not in samples[column] and len(samples[column]) < 3:
+            if value and value not in samples[column]:
                 samples[column].append(value[:160])
-        if all(len(values) >= 3 for values in samples.values()):
+        wanting = [column for column in wanting if len(samples[column]) < 3]
+        if not wanting:
             break
     return samples
 

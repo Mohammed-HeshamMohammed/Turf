@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ownerColumns, ownerIndex } from "./owners";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { addOwners, countOwners, emptyOwnerCounts, emptyOwnerIndex, ownerColumns, type OwnerCounts, type OwnerIndex, type OwnerList } from "./owners";
 import { photoIndex, type PhotoIndex } from "./photos";
 import { allRows, checkEmails, skiptraceSuggest, type EmailVerdict } from "./service";
 import type { AreaMapping, Dataset, DatasetRow, SkiptraceSuggestion } from "./types";
@@ -166,6 +166,48 @@ export function useListSetups(datasets: Dataset[], version: number): Record<stri
   return setups;
 }
 
+// Reading every row of a long list at once holds the window still for seconds. Past this many rows the work is done
+// in turns of this size, and the window draws and answers in between.
+const TURN = 5000;
+const nextTurn = () => new Promise<void>(resolve => setTimeout(resolve));
+
+/**
+ * Something built from the rows of some lists: at once when there are few rows, otherwise in turns, `null` until it is
+ * done. While a long one is being built again (a setup changed, say) the earlier one stays, so nothing blinks.
+ * `start` and `add` must keep their identity between draws.
+ */
+function useInTurns<T>(lists: OwnerList[] | null, start: () => T, add: (value: T, list: OwnerList, from: number, to: number) => void): T | null {
+  const few = (lists?.reduce((sum, list) => sum + list.rows.length, 0) ?? 0) <= TURN;
+  const quick = useMemo(() => {
+    if (!lists || !few) return null;
+    const value = start();
+    for (const list of lists) add(value, list, 0, list.rows.length);
+    return value;
+  }, [lists, few, start, add]);
+  const [slow, setSlow] = useState<{ ids: string; value: T } | null>(null);
+  const ids = lists?.map(list => list.dataset.id).join() ?? "";
+  useEffect(() => {
+    if (!lists || few) return;
+    let current = true;
+    void (async () => {
+      const value = start();
+      for (const list of lists) {
+        for (let from = 0; from < list.rows.length; from += TURN) {
+          add(value, list, from, from + TURN);
+          await nextTurn();
+          if (!current) return;
+        }
+      }
+      setSlow({ ids: lists.map(list => list.dataset.id).join(), value });
+    })();
+    return () => {
+      current = false;
+    };
+  }, [lists, few, start, add]);
+  if (!lists) return null;
+  return few ? quick : slow?.ids === ids ? slow.value : null;
+}
+
 /** Owners and contacts of every list, by property and by mailing address, for finding the same owner elsewhere. */
 export function useOwnerIndex(
   datasets: Dataset[],
@@ -176,14 +218,30 @@ export function useOwnerIndex(
   const lists = useMemo(() => primaryLists(datasets).map(dataset => ({ dataset, source: marksSource(dataset, datasets) })), [datasets]);
   const sources = useMemo(() => lists.map(item => item.source), [lists]);
   const all = useAllRows(sources, onError);
-  return useMemo(() => {
-    if (!all) return null;
-    const read = lists.map(({ dataset, source }) => {
-      const rows = all[source.id] ?? [];
-      return { dataset, rows, columns: ownerColumns(rows[0] ? Object.keys(rows[0].raw) : [], setups[dataset.id], areaMaps[dataset.id]) };
-    });
-    return { index: ownerIndex(read), lists: read };
-  }, [all, lists, setups, areaMaps]);
+  const read = useMemo<OwnerList[] | null>(
+    () =>
+      all
+        ? lists.map(({ dataset, source }) => {
+            const rows = all[source.id] ?? [];
+            return { dataset, rows, columns: ownerColumns(rows[0] ? Object.keys(rows[0].raw) : [], setups[dataset.id], areaMaps[dataset.id]) };
+          })
+        : null,
+    [all, lists, setups, areaMaps],
+  );
+  const index = useInTurns(read, emptyOwnerIndex, addOwners);
+  return useMemo(() => (read && index ? { index, lists: read } : null), [read, index]);
+}
+
+/** What the owners of every list show, counted: `null` until the owners are read and counted. */
+export function useOwnerStats(owners: { index: OwnerIndex; lists: OwnerList[] } | null, emailOk: (email: string) => boolean): OwnerCounts | null {
+  const index = owners?.index;
+  const add = useCallback(
+    (counts: OwnerCounts, list: OwnerList, from: number, to: number) => {
+      if (index) countOwners(counts, list, index, emailOk, from, to);
+    },
+    [index, emailOk],
+  );
+  return useInTurns(owners?.lists ?? null, emptyOwnerCounts, add);
 }
 
 /** A verdict for each email address, asked again while domains are still being looked up. */
@@ -205,7 +263,10 @@ export function useEmailVerdicts(addresses: string[]): Map<string, EmailVerdict>
         Object.entries(await checkEmails(list.slice(start, start + 20_000))).forEach(([address, verdict]) => found.set(address, verdict));
       }
       if (!current) return;
-      setVerdicts(found);
+      // The same answers as last time are not a change: everything counted from them would be counted again.
+      setVerdicts(previous =>
+        previous.size === found.size && [...found].every(([address, item]) => previous.get(address)?.verdict === item.verdict) ? previous : found,
+      );
       if ([...found.values()].some(item => item.verdict === "pending") && tries++ < 40)
         timer = window.setTimeout(() => void ask().catch(() => undefined), 2500);
     };

@@ -207,33 +207,44 @@ const mailingKey = (row: DatasetRow, columns: OwnerColumns) => {
   return street && /\d/.test(street) && zip ? `${street}|${zip}` : null;
 };
 
-/** Every list's owners and contacts, by property and by mailing address. */
-export function ownerIndex(lists: { dataset: Dataset; rows: DatasetRow[]; columns: OwnerColumns }[]): OwnerIndex {
-  const index: OwnerIndex = { byProperty: new Map(), byMailing: new Map() };
+export type OwnerList = { dataset: Dataset; rows: DatasetRow[]; columns: OwnerColumns };
+
+export const emptyOwnerIndex = (): OwnerIndex => ({ byProperty: new Map(), byMailing: new Map() });
+
+/** Adds a list's rows (or some of them, so a long list can be read in turns) to the index. */
+export function addOwners(index: OwnerIndex, { dataset, rows, columns }: OwnerList, from = 0, to = rows.length) {
   const add = (map: Map<string, Entry[]>, key: string | null, entry: Entry) => {
-    if (key) map.set(key, [...(map.get(key) ?? []), entry]);
+    if (!key) return;
+    const entries = map.get(key);
+    if (entries) entries.push(entry);
+    else map.set(key, [entry]);
   };
-  for (const { dataset, rows, columns } of lists) {
-    for (const row of rows) {
-      const owner = columns.names
-        .map(column => cell(row, column))
-        .filter(Boolean)
-        .join(" ");
-      const { phones, emails } = contactsOf(row, columns);
-      const kind = columns.status ? columns.statusKinds?.get(statusKey(row.raw[columns.status])) : undefined;
-      const entry: Entry = {
-        list: dataset.name,
-        datasetId: dataset.id,
-        words: nameWords(owner),
-        owner,
-        phones,
-        emails,
-        warning: kind === "do_not_call" ? "Do not call there" : kind === "bad_number" ? "Bad number there" : undefined,
-      };
-      add(index.byProperty, propertyKey(row, columns), entry);
-      add(index.byMailing, mailingKey(row, columns), entry);
-    }
+  for (let at = from; at < Math.min(to, rows.length); at++) {
+    const row = rows[at];
+    const owner = columns.names
+      .map(column => cell(row, column))
+      .filter(Boolean)
+      .join(" ");
+    const { phones, emails } = contactsOf(row, columns);
+    const kind = columns.status ? columns.statusKinds?.get(statusKey(row.raw[columns.status])) : undefined;
+    const entry: Entry = {
+      list: dataset.name,
+      datasetId: dataset.id,
+      words: nameWords(owner),
+      owner,
+      phones,
+      emails,
+      warning: kind === "do_not_call" ? "Do not call there" : kind === "bad_number" ? "Bad number there" : undefined,
+    };
+    add(index.byProperty, propertyKey(row, columns), entry);
+    add(index.byMailing, mailingKey(row, columns), entry);
   }
+}
+
+/** Every list's owners and contacts, by property and by mailing address. */
+export function ownerIndex(lists: OwnerList[]): OwnerIndex {
+  const index = emptyOwnerIndex();
+  for (const list of lists) addOwners(index, list);
   return index;
 }
 
@@ -286,4 +297,65 @@ export function otherOwners(row: DatasetRow, datasetId: string, columns: OwnerCo
         seen.add(entry.list + entry.owner),
     )
     .map(entry => ({ list: entry.list, owner: entry.owner }));
+}
+
+// ------------------------------------------------------------------------------------ what the owners show, counted
+
+export type OwnerCounts = {
+  phoneElsewhere: number;
+  emailElsewhere: number;
+  ownerDiffers: number;
+  absentee: number;
+  outOfState: number;
+  poBox: number;
+  named: number;
+  badEmails: number;
+  kinds: Record<OwnerKind, number>;
+  /** Rows without a phone of their own whose owner has one in another list, by list. */
+  perList: Record<string, number>;
+};
+
+export const emptyOwnerCounts = (): OwnerCounts => ({
+  phoneElsewhere: 0,
+  emailElsewhere: 0,
+  ownerDiffers: 0,
+  absentee: 0,
+  outOfState: 0,
+  poBox: 0,
+  named: 0,
+  badEmails: 0,
+  kinds: Object.fromEntries(OWNER_KINDS.map(kind => [kind.id, 0])) as Record<OwnerKind, number>,
+  perList: {},
+});
+
+/** Counts what a list's rows (or some of them) show about their owners, each row once. `emailOk` says whether an
+ * email address can reach anyone. */
+export function countOwners(
+  counts: OwnerCounts,
+  { dataset, rows, columns }: OwnerList,
+  index: OwnerIndex,
+  emailOk: (email: string) => boolean,
+  from = 0,
+  to = rows.length,
+) {
+  for (let at = from; at < Math.min(to, rows.length); at++) {
+    const row = rows[at];
+    const facts = ownerFacts(row, columns);
+    if (facts.kind) {
+      counts.kinds[facts.kind] += 1;
+      counts.named += 1;
+    }
+    counts.absentee += Number(facts.absentee);
+    counts.outOfState += Number(facts.outOfState);
+    counts.poBox += Number(facts.poBox);
+    const own = contactsOf(row, columns);
+    if (own.emails.size && ![...own.emails].some(emailOk)) counts.badEmails += 1;
+    const found = foundElsewhere(row, dataset.id, columns, index);
+    if (!own.phones.size && found.some(item => item.kind === "phone" && !item.warning)) {
+      counts.phoneElsewhere += 1;
+      counts.perList[dataset.id] = (counts.perList[dataset.id] ?? 0) + 1;
+    }
+    if (!own.emails.size && found.some(item => item.kind === "email")) counts.emailElsewhere += 1;
+    if (otherOwners(row, dataset.id, columns, index).length) counts.ownerDiffers += 1;
+  }
 }

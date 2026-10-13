@@ -20,7 +20,7 @@ Only what Turf has was copied: projects, lists (import, list, rows) and Skip Tra
 | `turf_service/images.py` | Turf's own, not a copy | Pictures written into cells are saved in the project's `artifacts/images`; the free USGS aerial view of a place, kept in app data |
 | `turf_service/tidy.py` | Turf's own, not a copy | Takes empty rows and columns out of imported lists already in a project, when the project is opened |
 | `turf_matching/phone.py`, `cleanup.py` | `workers/matching/src/dataforge_matching/` | No |
-| `turf_matching/skiptrace.py` | same folder | Call statuses are read by `status_meaning.py` instead of four word lists; the status table says whether each meaning is sure; a disconnected line counts as a bad number when the warning signs are measured (`SKIPTRACE_VERSION` 5) |
+| `turf_matching/skiptrace.py` | same folder | Call statuses are read by `status_meaning.py` instead of four word lists; the status table says whether each meaning is sure; a disconnected line counts as a bad number when the warning signs are measured (`SKIPTRACE_VERSION` 5); the setup suggestion reads only status-like columns to the end of the list, with the same result |
 | `turf_matching/status_meaning.py`, `turf_service/status_model.py`, `tools/fetch_status_model.py` | Turf's own, not a copy | How call statuses are read: the project's remembered decisions, phrase rules, and an optional local embedding model |
 | `migrations/` | `migrations/` | No |
 

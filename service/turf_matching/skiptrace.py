@@ -673,11 +673,12 @@ def suggest(rows: list[dict], roles: dict[str, str], region: str = "US", sample:
 
     outcome_candidates = []
     for column in columns:
-        if column in phone_columns:
+        # Turf: only a column named like call results is read through; reading every column of a long list took seconds.
+        if column in phone_columns or not _OUTCOME_HEADER.search(column):
             continue
-        values = [_clean(row.get(column)) for row in rows if _clean(row.get(column))]
+        values = [value for value in (_clean(row.get(column)) for row in rows) if value]
         distinct = len(set(values))
-        if _OUTCOME_HEADER.search(column) and values and 2 <= distinct <= 2000:
+        if values and 2 <= distinct <= 2000:
             # How much of it reads like call results: a listing's "Status" ("House for sale") is named the same way.
             keys = Counter(normalize_status(value)[0] for value in values)
             understood = sum(count for key, count in keys.items() if status_meaning.read_rules(key).doubt != "unknown") / len(values)
