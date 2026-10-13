@@ -21,6 +21,7 @@ from .storage import ProjectStore
 FUZZY_HEADER_THRESHOLD = 92
 MAX_IMPORT_BYTES = 50 * 1024 * 1024
 MAX_IMPORT_ROWS = 1_000_000
+SUPPORTED_IMPORTS = "Supported imports are CSV, delimited text (TSV, TXT), JSON, JSONL, XLSX, XML, Parquet, DOCX, ZIP, and GZIP"
 TABULAR_SUFFIXES = (".csv", ".tsv", ".txt", ".json", ".jsonl", ".ndjson", ".xlsx", ".xml", ".parquet", ".docx")
 
 
@@ -125,8 +126,15 @@ def _without_empty(headers: list[str], rows: list[dict[str, object]], numbers: l
 
 def import_csv(store: ProjectStore, project_id: str, source_path: Path, name: str | None = None) -> DatasetImport:
     source_bytes = source_path.read_bytes()
+    if len(source_bytes) > MAX_IMPORT_BYTES:
+        raise ValueError("Imported data exceeds the 50 MB safety limit")
+    # Turf: text that is not UTF-8 is read as Windows-1252, as spreadsheet exports usually are.
+    try:
+        text = source_bytes.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = source_bytes.decode("cp1252", errors="replace")
 
-    with source_path.open("r", encoding="utf-8-sig", newline="") as source_file:
+    with io.StringIO(text, newline="") as source_file:
         reader = csv.reader(source_file)
         raw_headers = next(reader, None)
         if not raw_headers:
@@ -375,12 +383,13 @@ def register_staged_rows(
 def import_file(store: ProjectStore, project_id: str, source_path: Path, name: str | None = None) -> DatasetImport:
     importers = {
         ".csv": import_csv, ".json": import_json, ".xlsx": import_xlsx,
+        ".tsv": import_tabular, ".txt": import_tabular,
         ".jsonl": import_tabular, ".ndjson": import_tabular, ".xml": import_tabular,
         ".parquet": import_tabular, ".docx": import_tabular, ".zip": import_archive, ".gz": import_archive,
     }
     importer = importers.get(source_path.suffix.lower())
     if importer is None:
-        raise ValueError("Supported imports are CSV, JSON, JSONL, XLSX, XML, Parquet, DOCX, ZIP, and GZIP")
+        raise ValueError(SUPPORTED_IMPORTS)
     if not source_path.is_file():
         raise ValueError("Import path does not point to a readable file")
     return importer(store, project_id, source_path, name)
@@ -413,12 +422,46 @@ def latest_mapping(store: ProjectStore, dataset_id: str) -> sqlite3.Row | None:
 
 def delete_dataset(store: ProjectStore, dataset_id: str) -> None:
     """User-requested deletion of imported rows and mappings. Job history and exports stay until deleted separately."""
+    removed = store._connection.execute("SELECT source_artifact_hash, source_filename, derivation_json FROM datasets WHERE id = ?", (dataset_id,)).fetchone()
     with store._connection:
         store._connection.execute("DELETE FROM source_rows WHERE dataset_id = ?", (dataset_id,))
         store._connection.execute("DELETE FROM mapping_versions WHERE dataset_id = ?", (dataset_id,))
         store._connection.execute("DELETE FROM match_constraints WHERE dataset_id = ?", (dataset_id,))
         store._connection.execute("DELETE FROM skiptrace_settings WHERE dataset_id = ?", (dataset_id,))
         store._connection.execute("DELETE FROM datasets WHERE id = ?", (dataset_id,))
+    if removed is None:
+        return
+    # Turf: the files kept for the list go with it, unless something left in the project still needs them.
+    files = [(removed["source_artifact_hash"], removed["source_filename"])]
+    try:
+        derivation = json.loads(removed["derivation_json"] or "{}")
+    except json.JSONDecodeError:
+        derivation = {}
+    for reference in (derivation.get("checked_file"), derivation.get("original_file")):
+        if isinstance(reference, dict):
+            files.append((reference.get("hash"), reference.get("filename")))
+    for digest, filename in files:
+        _drop_unused_artifact(store, str(digest or ""), str(filename or ""))
+
+
+def _drop_unused_artifact(store: ProjectStore, digest: str, filename: str) -> None:
+    """Removes a stored file that no list in the project names any more.
+
+    A checked copy keeps downloading the original of a list that was deleted, so a file named anywhere in what is
+    left (as a list's own file, or inside a copy's derivation) stays.
+    """
+    if not re.fullmatch(r"[0-9a-f]{64}", digest):
+        return
+    needed = store._connection.execute(
+        "SELECT 1 FROM datasets WHERE source_artifact_hash = ? OR derivation_json LIKE ? LIMIT 1", (digest, f"%{digest}%")
+    ).fetchone()
+    if needed is not None:
+        return
+    path = store.project_root / "artifacts" / "sha256" / digest[:2] / f"{digest}{Path(filename).suffix.lower()}"
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass  # the list is gone either way; a file that cannot be removed is only disk space
 
 
 def import_xlsx(store: ProjectStore, project_id: str, source_path: Path, name: str | None = None) -> DatasetImport:

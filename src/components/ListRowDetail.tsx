@@ -36,7 +36,7 @@ export function ListRowDetail({ row, own, phoneColumns, number, manual, onMark, 
         {own.map(name => (
           <div key={name}>
             <dt>{name}</dt>
-            <dd>{photos.columns.includes(name) ? photoCount(photosIn(row.raw[name]).length)
+            <dd>{photos.columns.includes(name) ? photoCount(photosIn(row.raw[name], name).length)
               : /url/i.test(name) && row.raw[name] ? <a href={String(row.raw[name])} target="_blank" rel="noreferrer">{row.raw[name]}</a> : row.raw[name] ?? "–"}</dd>
           </div>
         ))}

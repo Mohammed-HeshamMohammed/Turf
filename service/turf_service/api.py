@@ -28,7 +28,7 @@ SERVICE_ROOT = Path(__file__).resolve().parents[1]
 # pages are much quicker over the pipe.
 MAX_ROWS_PER_CALL = 5000
 
-IMPORT_TYPES = (".csv", ".json", ".jsonl", ".ndjson", ".xlsx", ".xml", ".parquet", ".docx", ".zip", ".gz")
+IMPORT_TYPES = (".csv", ".tsv", ".txt", ".json", ".jsonl", ".ndjson", ".xlsx", ".xml", ".parquet", ".docx", ".zip", ".gz")
 
 
 class CommandError(Exception):
@@ -186,7 +186,7 @@ class Service:
     def _validate_import(store: ProjectStore, params: dict) -> dict:
         path = Path(str(params.get("path", "")))
         if path.suffix.lower() not in IMPORT_TYPES:
-            raise JobValidationError("Supported imports are CSV, JSON, JSONL, XLSX, XML, Parquet, DOCX, ZIP, and GZIP")
+            raise JobValidationError(datasets.SUPPORTED_IMPORTS)
         if not path.is_absolute() or not path.is_file():
             raise JobValidationError("Import path must be an absolute path to an existing file")
         return {**params, "path": str(path.resolve())}

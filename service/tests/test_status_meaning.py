@@ -7,8 +7,10 @@ import os
 import zlib
 from pathlib import Path
 
-import numpy as np
 import pytest
+
+# The status model is optional, and so is numpy: without it these tests are skipped, not broken.
+np = pytest.importorskip("numpy")
 
 from helpers import call, ok
 from status_wording import LABELLED, UNFAMILIAR

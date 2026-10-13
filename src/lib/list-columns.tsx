@@ -16,6 +16,10 @@ export function dullColumns(names: string[], rows: Record<string, string | numbe
 
 export function formatCell(name: string, value: string | number | null) {
   if (value === null || value === "") return <span className="muted">–</span>;
-  if (/price|value|zestimate/i.test(name) && typeof value === "number") return `$${formatNumber(value)}`;
+  if (/price|value|zestimate/i.test(name)) {
+    // A CSV keeps every value as text, so a price is usually "505000" or "$505,000", not a number.
+    const amount = typeof value === "number" ? value : /^\$?\s*\d[\d,]*(\.\d+)?$/.test(value.trim()) ? Number(value.replace(/[$,\s]/g, "")) : null;
+    if (amount !== null && Number.isFinite(amount)) return `$${formatNumber(amount)}`;
+  }
   return typeof value === "number" && !/zip|year/i.test(name) ? formatNumber(value) : value;
 }

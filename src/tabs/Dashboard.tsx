@@ -6,7 +6,7 @@ import { Select } from "../components/Select";
 import { copyText, useContextMenu } from "../components/ContextMenu";
 import { Icon } from "../components/Icon";
 import { gatherForMap, placeRows, priceColumn, useZipCentres, useZipOutlines } from "../lib/geo";
-import { callProgress, contactCoverage, listingFields, nextSteps, phoneColumnsOf, PROGRESS, REACH, reachContext, reachOf, shareText, statusKey, type Coverage, type Progress, type ProgressKind, type ReachContext, type ReachKind } from "../lib/dashboard";
+import { callProgress, contactCoverage, listingFields, nextSteps, phoneColumnsOf, PROGRESS, REACH, reachContext, reachOf, shareText, statusKey, worthFollowingUp, type Coverage, type Progress, type ProgressKind, type ReachContext, type ReachKind } from "../lib/dashboard";
 import { photoColumns, photosFor, placeColumns, positionOf, streetPart } from "../lib/photos";
 import { PropertyPhoto } from "../components/PropertyPhoto";
 import { marksSource, primaryLists, usableEmail, useAllRows, useEmailVerdicts, useListSetups, useOwnerIndex, usePhotoIndex } from "../lib/hooks";
@@ -169,7 +169,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
           const known = value(fields.days) !== "" && Number.isFinite(days);
           listings.push(card(row, known ? Math.max(0, days) : 9999, [value(fields.status), known && days >= 0 ? `${days} ${days === 1 ? "day" : "days"} on market` : ""],
             [value(fields.area) && `${formatNumber(Number(value(fields.area)) || 0)} sq ft`, value(fields.beds) && `${value(fields.beds)} beds`, value(fields.baths) && `${value(fields.baths)} baths`]));
-        } else if (followUps.length < 60 && item.context.statusColumn && item.context.statusKinds?.get(statusKey(row.raw[item.context.statusColumn])) === "reached") {
+        } else if (followUps.length < 60 && item.context.statusColumn && item.context.statusKinds?.get(statusKey(row.raw[item.context.statusColumn])) === "reached" && worthFollowingUp(row.raw[item.context.statusColumn])) {
           followUps.push(card(row, followUps.length, [value(item.context.statusColumn)], [value(item.context.phoneColumns[0])]));
         }
       }
@@ -251,8 +251,8 @@ export function Dashboard({ turf }: { turf: Turf }) {
             </div>
             <div className="figure">
               <span>Reachable</span>
-              <strong>{formatNumber(data.total - data.reach.none)}</strong>
-              <small>{formatNumber(data.phoneRows)} by phone · {formatNumber(data.emailRows)} by email{anyChecked ? ` · ${formatNumber(data.callable)} ready to call` : ""}</small>
+              <strong>{formatNumber(data.total - data.reach.none - data.reach.blocked)}</strong>
+              <small>{formatNumber(data.phoneRows)} by phone · {formatNumber(data.emailRows)} by email{anyChecked ? ` · ${formatNumber(data.callable)} ready to call` : ""}{data.reach.blocked ? ` · ${formatNumber(data.reach.blocked)} not to call` : ""}</small>
             </div>
           </div>
           <div className="reach">

@@ -193,3 +193,11 @@ export function listingFields(columns: string[]): ListingFields {
     status: find(/^(listing )?status$/i), link: find(/detail url|listing url|^url$|^link$|property url/i),
   };
 }
+
+// A call that reached someone who said no is a result, not a lead: "Not interested", "NI", "Sold", "Hung up".
+const REFUSAL = /\b(not|no longer|never|isn'?t|wasn'?t)\s+(interested|selling|for sale|the owner)\b|\bn\/?i\b|\bno interest\b|\b(already )?sold\b|\bhung up\b|\brefus|\bdeclin|\bremove (me|from)\b|\bstop calling\b/i;
+
+/** Whether a row whose call reached a person is worth following up, by what its status says. */
+export function worthFollowingUp(status: unknown): boolean {
+  return !REFUSAL.test(String(status ?? ""));
+}

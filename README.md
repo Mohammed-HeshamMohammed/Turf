@@ -144,7 +144,7 @@ Successful results for the same products are reused within the configured cache 
 | `src-tauri/src/store.rs` | Area mappings and earlier computer-wide marks in `turf.json`. New manual marks and their history are saved in the project database. Earlier marks can be explicitly imported into a project without deleting the old store. |
 | `service/turf_service/` | The service: the command router, projects, lists, jobs and the Skip Tracing commands. An import leaves out empty rows and columns; lists already in a project get the same when it is opened (`tidy.py`). |
 | `service/turf_matching/` | Phone reading and the Skip Tracing rules, including how call statuses are read (`status_meaning.py`). |
-| `service/turf_service/geo.py` | Where rows go on the map: the centre of their ZIP (a file shipped with Turf, checked against the row's state), or their exact address when the person asks for the lookup. The lookup sends street, city, state and ZIP to the US Census Bureau's geocoder; nothing else leaves the computer. |
+| `service/turf_service/geo.py` | Where rows go on the map: the centre of their ZIP (a file shipped with Turf, checked against the row's state), or their exact address once it has been looked up. The lookup starts by itself the first time a list with a street and a ZIP (or city and state) is shown in Lists, says so under the map, and can be stopped; what was found is kept in the project and not asked for again. It sends street, city, state and ZIP to the US Census Bureau's geocoder; nothing else leaves the computer. |
 | `service/migrations/` | The project database's schema. |
 | `vite.config.ts` | For a browser tab only: serves `/rpc` over the same bridge. |
 

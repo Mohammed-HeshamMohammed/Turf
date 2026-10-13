@@ -74,7 +74,7 @@ def test_a_bad_import_is_refused_with_a_reason(tmp_path: Path) -> None:
     svc = Service()
     ok(svc, "project.create", path=str(tmp_path / "project"), name="Lists")
     missing = call(svc, "dataset.import", path=str(tmp_path / "missing.csv"))
-    wrong_type = call(svc, "dataset.import", path=str(tmp_path / "notes.txt"))
+    wrong_type = call(svc, "dataset.import", path=str(tmp_path / "notes.pdf"))
     assert missing["error"]["code"] == wrong_type["error"]["code"] == "invalid_request"
     assert "existing file" in missing["error"]["message"] and "Supported imports" in wrong_type["error"]["message"]
 

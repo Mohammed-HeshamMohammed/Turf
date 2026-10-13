@@ -15,6 +15,11 @@ describe("pictures wherever a list keeps them", () => {
     expect(photosIn(`turf-image:${"a".repeat(32)}.png`)).toEqual([`turf-image:${"a".repeat(32)}.png`]);
     expect(photosIn("https://www.zillow.com/homedetails/2505-Hazard-St/2080432917_zpid/")).toEqual([]);
     expect(photosIn("javascript:alert(1).jpg")).toEqual([]);
+    // A link with no file ending is a picture only in a column named for pictures.
+    expect(photosIn("https://picsum.photos/seed/a/400/300")).toEqual([]);
+    expect(photosIn("https://picsum.photos/seed/a/400/300", "Image")).toEqual(["https://picsum.photos/seed/a/400/300"]);
+    expect(photosIn("https://picsum.photos/seed/a/400/300", "Detail URL")).toEqual([]);
+    expect(photosIn("javascript:alert(1)", "Photo")).toEqual([]);
     expect(photosIn("")).toEqual([]);
   });
 

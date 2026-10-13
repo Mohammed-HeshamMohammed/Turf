@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { callProgress, contactCoverage, mailColumnsOf, nextSteps, phoneColumnsOf, progressKind, reachContext, reachOf, shareText, statusKey } from "../src/lib/dashboard";
+import { callProgress, contactCoverage, mailColumnsOf, nextSteps, phoneColumnsOf, progressKind, reachContext, reachOf, shareText, statusKey, worthFollowingUp } from "../src/lib/dashboard";
 import type { Dataset, DatasetRow, SkiptraceSuggestion, StatusRow } from "../src/lib/types";
 
 const row = (id: number, raw: Record<string, string>) => ({ id: String(id), row_number: id, raw }) as unknown as DatasetRow;
@@ -7,6 +7,11 @@ const status = (key: string, outcomes: string[], confirmed: boolean, count: numb
 const list = (id: string, name: string) => ({ id, name, kind: "import" }) as unknown as Dataset;
 
 describe("what the Dashboard tells from a list on its own", () => {
+  it("does not offer a lead who said no as one to follow up", () => {
+    for (const status of ["Not interested", "NI", "Spoke to owner - not selling", "Sold already", "Hung up", "Remove from list"]) expect(worthFollowingUp(status)).toBe(false);
+    for (const status of ["Interested - call back", "Spoke to owner", "Callback Tuesday", "Nina answered", ""]) expect(worthFollowingUp(status)).toBe(true);
+  });
+
   it("counts rows that can be reached by phone or email, without a phone check", () => {
     const rows = [row(1, { Phone: "(713) 555-3142", "Alt. Phone": "832-555-1111", Email: "" }), row(2, { Phone: "n/a", "Alt. Phone": "", Email: "a@b.co" }), row(3, { Phone: "", "Alt. Phone": "", Email: "" })];
     const columns = ["Phone", "Alt. Phone", "Email"];

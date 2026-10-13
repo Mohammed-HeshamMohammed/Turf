@@ -57,7 +57,7 @@ export async function downloadDataset(datasetId: string, version: "original" | "
 
 export async function pickImportFile() {
   const selected = await (await import("@tauri-apps/plugin-dialog")).open({
-    multiple: false, directory: false, filters: [{ name: "Lists", extensions: ["csv", "tsv", "txt", "xlsx", "json", "jsonl", "parquet"] }],
+    multiple: false, directory: false, filters: [{ name: "Lists", extensions: ["csv", "tsv", "txt", "xlsx", "json", "jsonl", "ndjson", "xml", "parquet", "docx", "zip", "gz"] }],
   });
   return typeof selected === "string" ? selected : null;
 }

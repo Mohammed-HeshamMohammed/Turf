@@ -50,7 +50,7 @@ export function ListPicker({ datasets, selectedId, onSelect, onImported, menuFor
       </header>
       {typing && (
         <form className="row nowrap" onSubmit={event => { event.preventDefault(); void bringIn(path.trim() || null); }}>
-          <input className="input grow" value={path} placeholder="Full path to a CSV or Excel file" aria-label="File to import" onChange={event => setPath(event.target.value)} />
+          <input className="input grow" value={path} placeholder="Full path to a CSV, text or Excel file" aria-label="File to import" onChange={event => setPath(event.target.value)} />
           <button type="submit" className="button small" disabled={busy || !path.trim()}>Add</button>
         </form>
       )}

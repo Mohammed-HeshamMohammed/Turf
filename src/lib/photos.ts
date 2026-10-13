@@ -13,15 +13,18 @@ const IMAGE_FILE = /\.(jpe?g|png|gif|webp|avif|bmp)(?:[?#]|$)/i;
 const PHOTO_HOSTS = /(^|\.)(photos\.zillowstatic\.com|ssl\.cdn-redfin\.com|ap\.rdcpix\.com|cdn\.realtor\.com|images\.homes\.com|photos\.harstatic\.com|img\.trulia\.com|lh3\.googleusercontent\.com)$/i;
 const NAME_HINT = /image|photo|picture|thumb|img|pic\b/i;
 
-function pictureLink(text: string): string | null {
+/** A link to a picture. In a column named for pictures any web link counts; elsewhere it must look like one. */
+function pictureLink(text: string, named = false): string | null {
   let url: URL;
   try { url = new URL(text); } catch { return null; }
   if (url.protocol !== "https:" && url.protocol !== "http:") return null;  // never javascript:, file: or data: links
-  return IMAGE_FILE.test(url.pathname) || PHOTO_HOSTS.test(url.hostname) ? url.href : null;
+  return named || IMAGE_FILE.test(url.pathname) || PHOTO_HOSTS.test(url.hostname) ? url.href : null;
 }
 
-/** Every picture in a cell, in order, without repeats. */
-export function photosIn(value: unknown): string[] {
+/** Every picture in a cell, in order, without repeats. `column` is the cell's column, when its name says what it holds:
+ * many photo services give links with no file ending, and those only count in a column named for pictures. */
+export function photosIn(value: unknown, column?: string): string[] {
+  const named = column !== undefined && NAME_HINT.test(column);
   if (value === null || value === undefined) return [];
   const text = String(value).trim();
   if (!text) return [];
@@ -29,11 +32,11 @@ export function photosIn(value: unknown): string[] {
   for (const token of text.match(/turf-image:[0-9a-f]{32}\.(?:png|jpg|gif|webp)/g) ?? []) found.push(token);
   // <img src="..."> and =IMAGE("...") carry their link inside quotes
   for (const match of text.matchAll(/(?:src\s*=\s*|IMAGE\(\s*)["']([^"']+)["']/gi)) {
-    const link = pictureLink(match[1]);
+    const link = pictureLink(match[1], named);
     if (link) found.push(link);
   }
   for (const part of text.split(/[\s,|;"'<>()]+/)) {
-    const link = part.startsWith("http") ? pictureLink(part) : null;
+    const link = part.startsWith("http") ? pictureLink(part, named) : null;
     if (link) found.push(link);
   }
   return [...new Set(found)];
@@ -44,9 +47,9 @@ export function photoColumns(rows: DatasetRow[], columns: string[]): string[] {
   const sample = rows.slice(0, 200);
   const scored = ownColumns(columns).map(name => {
     const filled = sample.filter(row => String(row.raw[name] ?? "").trim());
-    const withPhotos = filled.filter(row => photosIn(row.raw[name]).length).length;
+    const withPhotos = filled.filter(row => photosIn(row.raw[name], name).length).length;
     const share = filled.length ? withPhotos / filled.length : 0;
-    const multiple = filled.some(row => photosIn(row.raw[name]).length > 1);
+    const multiple = filled.some(row => photosIn(row.raw[name], name).length > 1);
     return { name, share, multiple, keep: withPhotos > 0 && (share >= 0.6 || (NAME_HINT.test(name) && share >= 0.3)) };
   });
   // a single picture first (usually the cover), then columns holding several
@@ -54,7 +57,7 @@ export function photoColumns(rows: DatasetRow[], columns: string[]): string[] {
 }
 
 export function photosOfRow(row: DatasetRow, columns: string[]): string[] {
-  return [...new Set(columns.flatMap(column => photosIn(row.raw[column])))];
+  return [...new Set(columns.flatMap(column => photosIn(row.raw[column], column)))];
 }
 
 // ------------------------------------------------------------------------------------------- the same property
