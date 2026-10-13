@@ -182,7 +182,7 @@ def test_lists_set_up_before_take_todays_readings_and_keep_what_the_person_chose
     monkeypatch.setattr(skiptrace, "embedder", lambda: None)
     rows = [["Ana", "Lopez", f"(713) 555-{3100 + i}", "", "77009", "TX", status] for i, status in enumerate(("LVM", "Interested", "Not yet reached", "Callback"))]
     old = make_dataset(service, tmp_path, "Old", rows)
-    other = make_dataset(service, tmp_path, "Other old", rows)
+    other = make_dataset(service, tmp_path, "Other old", [[*row[:2], f"(713) 555-{3200 + i}", *row[3:]] for i, row in enumerate(rows)])
     # LVM: the earlier suggestion (nothing); Interested: changed by the person; Callback: two lists disagree
     old_setup(service, old, {"interested": ["do_not_call"], "callback": ["reached"]})
     config = ok(service, "skiptrace.suggest", dataset_id=other)["config"]
@@ -196,7 +196,7 @@ def test_lists_set_up_before_take_todays_readings_and_keep_what_the_person_chose
     memory = skiptrace.status_memory(service.store)
     assert memory["interested"]["outcomes"] == ["do_not_call"] and memory["interested"]["list"] == "Old"
     assert "callback" not in memory, "two lists answered differently: the person decides"
-    fresh = make_dataset(service, tmp_path, "New", rows)
+    fresh = make_dataset(service, tmp_path, "New", [[*row[:2], f"(713) 555-{3300 + i}", *row[3:]] for i, row in enumerate(rows)])
     later = {item["key"]: item for item in ok(service, "skiptrace.suggest", dataset_id=fresh)["statuses"]}
     assert later["interested"]["outcomes"] == ["do_not_call"] and later["interested"]["why"] == "You chose this on “Old”"
     # a setup saved from now on is not taken for an earlier one

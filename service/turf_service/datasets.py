@@ -399,6 +399,8 @@ def delete_dataset(store: ProjectStore, dataset_id: str) -> None:
         store._connection.execute("DELETE FROM mapping_versions WHERE dataset_id = ?", (dataset_id,))
         store._connection.execute("DELETE FROM match_constraints WHERE dataset_id = ?", (dataset_id,))
         store._connection.execute("DELETE FROM skiptrace_settings WHERE dataset_id = ?", (dataset_id,))
+        # Turf: what was kept to know the list's rows again (sameness.py) goes with it.
+        store._connection.execute("DELETE FROM project_settings WHERE key = ?", (f"sameness.sketch.{dataset_id}",))
         store._connection.execute("DELETE FROM datasets WHERE id = ?", (dataset_id,))
     if removed is None:
         return

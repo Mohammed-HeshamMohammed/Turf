@@ -401,6 +401,11 @@ def freshness(store: ProjectStore, dataset_id: str) -> dict:
     from .phone_evidence import evidence
     from .phone_lookup import latest
     snapshot.update({"phone_outcomes": evidence(store), "phone_lookups": latest(store), "dnc_registry": dnc_registry.fingerprint(), "nanpa_blocks": nanpa_blocks.fingerprint()})
+    # Turf: what the person said about rows being the same lead changes what a check finds, so it dates a check too.
+    from .combine import overrules
+    said = overrules(store, [dataset_id])
+    if said:
+        snapshot["overrules"] = [[item["same"], item["row_number"], item["other_row_number"]] for item in said]
     digest = hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
     return {"fingerprint": digest, "date": snapshot["date"]}
 
@@ -415,7 +420,9 @@ def _find_duplicates(context: JobContext, rows: list[dict], numbers: list[int], 
     if not config.get("find_duplicates", True):
         return None
     context.stage("finding_duplicates")
-    found, summary = duplicates.find(rows, numbers, config, checked, context.checkpoint, context.stage)
+    from .combine import decided
+    same, different = decided(context.store, context.params["dataset_id"])
+    found, summary = duplicates.find(rows, numbers, config, checked, context.checkpoint, context.stage, same, different)
     for row, columns in zip(checked, found):
         row.update(columns)
     return summary

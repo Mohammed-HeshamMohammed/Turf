@@ -107,9 +107,38 @@ def test_a_list_without_duplicates_says_so_and_changes_nothing():
     assert (summary["groups"], summary["possible_rows"], summary["owner_groups"]) == (0, 0, 0)
 
 
+def test_the_person_can_overrule_either_way():
+    rows = [
+        lead("John Smith", "12 Main St", "713-555-3142"), lead("John Smith", "12 Main Street", "713-555-3142"),
+        lead("Ann Lee", "7 Elm St", "713-555-7001", zip_code="77002"), lead("Anne Leigh", "9 Oak Ave", "713-555-7002", zip_code="77019"),
+    ]
+    out, summary = duplicates.find(rows, [2, 3, 4, 5], CONFIG, different=[(2, 3)], same=[(4, 5)])
+    assert statuses(out) == ["", "", "Keep", "Duplicate of row 4"]
+    assert out[3]["Duplicate why"] == "You said these are the same lead" and summary["overruled"] == 2
+    # Without the overrules the rules decide the opposite on both.
+    assert statuses(find(rows)[0]) == ["Keep", "Duplicate of row 2", "", ""]
+
+
+def test_a_very_large_group_is_gone_through_not_left_out():
+    """Three hundred people named the same in one ZIP: the two rows that are one lead are still found."""
+    rows = [lead("John Smith", f"{100 + index} Oak Ave", f"713-555-{2000 + index}") for index in range(300)]
+    rows.append(lead("JOHN SMITH", "250 Oak Avenue", ""))
+    out, summary = find(rows)
+    assert out[300]["Duplicate status"] == "Duplicate of row 152" and out[150]["Duplicate status"] == "Keep"
+    assert summary["groups"] == 1 and summary["narrowed_groups"] >= 1
+    assert summary["compared_pairs"] < 301 * 300 // 2 // 10, "not every pair of the group"
+
+
+def test_the_same_row_written_a_thousand_times_is_one_lead_at_once():
+    rows = [lead("John Smith", "12 Main St", "713-555-3142") for _ in range(1000)] + [lead("Maria Garcia", "40 Oak Ave", "713-555-0188")]
+    out, summary = find(rows)
+    assert statuses(out)[:3] == ["Keep", "Duplicate of row 2", "Duplicate of row 2"] and statuses(out)[-1] == ""
+    assert (summary["groups"], summary["duplicate_rows"]) == (1, 999) and summary["compared_pairs"] < 10
+
+
 # ------------------------------------------------------------------------------- through the phone check itself
 
-from helpers import ok  # noqa: E402
+from helpers import call, ok  # noqa: E402
 from test_service_skiptrace import make_dataset, run, service  # noqa: E402, F401
 
 REPEATED = [
@@ -148,3 +177,22 @@ def test_looking_for_duplicates_can_be_turned_off(service, tmp_path):
     assert report["duplicates"] is None and report["row_counts"]["duplicates"] == 0
     assert "Duplicate group" not in report["added_columns"]
     assert ok(service, "skiptrace.review", job_id=report["scan_job_id"], filter="duplicates")["total"] == 0
+
+
+# ------------------------------------------------------------------------------------------ overruling, by command
+
+def test_an_overrule_dates_the_check_and_the_next_check_follows_it(service, tmp_path):
+    dataset = make_dataset(service, tmp_path, "Repeated", REPEATED)
+    config = ok(service, "skiptrace.suggest", dataset_id=dataset)["config"]
+    first = run(service, "skiptrace.scan", dataset_id=dataset, config=config)["report"]
+    assert first["duplicates"]["groups"] == 1
+    before = ok(service, "skiptrace.freshness", dataset_id=dataset)["fingerprint"]
+    said = ok(service, "duplicates.overrule", dataset_id=dataset, row_number=4, other_row_number=2, same=False)["overrules"]
+    assert [(item["same"], item["row_number"], item["other_row_number"]) for item in said] == [(False, 4, 2)]
+    assert ok(service, "skiptrace.freshness", dataset_id=dataset)["fingerprint"] != before, "the earlier check is out of date"
+    second = run(service, "skiptrace.scan", dataset_id=dataset, config=config)["report"]
+    assert (second["duplicates"]["groups"], second["duplicates"]["overruled"], second["row_counts"]["duplicates"]) == (0, 1, 0)
+    # Taking it back brings the rules' own answer back, and the fingerprint with it.
+    assert ok(service, "duplicates.overrule", dataset_id=dataset, row_number=2, other_row_number=4, same=None)["overrules"] == []
+    assert ok(service, "skiptrace.freshness", dataset_id=dataset)["fingerprint"] == before
+    assert not call(service, "duplicates.overrule", dataset_id=dataset, row_number=2, other_row_number=2, same=True)["ok"]

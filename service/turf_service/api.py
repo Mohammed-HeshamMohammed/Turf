@@ -9,14 +9,18 @@ This is DataForge's command router cut down to what Turf has: projects, lists an
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
+import shutil
 import threading
+from uuid import uuid4
 from dataclasses import asdict
 from pathlib import Path
 from typing import Callable
 
 from . import SCHEMA_VERSION
-from . import area, datasets, dnc_registry, downloads, emails, flood, geo, images, nanpa_blocks, manual, phone_evidence, phone_lookup, projects, skiptrace, tidy
+from . import area, combine, datasets, sameness, dnc_registry, downloads, emails, flood, geo, images, nanpa_blocks, manual, phone_evidence, phone_lookup, projects, skiptrace, tidy
 from .contracts import health_check
 from .jobs import JobContext, JobKind, JobRunner, JobValidationError
 from .logs import log
@@ -58,6 +62,7 @@ class Service:
             "project.current": lambda p: self.project,
             "project.recent": lambda p: projects.recent_projects(),
             "dataset.import": lambda p: {"job_id": self._submit("dataset_import", p)},
+            "dataset.import_content": self._import_content,
             "dataset.list": lambda p: datasets.list_datasets(self._store(), self._project_id()),
             "dataset.rows": lambda p: datasets.dataset_rows(self._store(), p["dataset_id"], int(p.get("offset", 0)), min(int(p.get("limit", 50)), MAX_ROWS_PER_CALL)),
             "dataset.rename": self._dataset_rename,
@@ -93,6 +98,9 @@ class Service:
             "skiptrace.apply": lambda p: {"job_id": self._submit("skiptrace_apply", p)},
             "skiptrace.freshness": lambda p: skiptrace.freshness(self._store(), p["dataset_id"]),
             "skiptrace.review": lambda p: skiptrace.review(self._store(), p["job_id"], str(p.get("filter") or "all"), int(p.get("offset", 0)), int(p.get("limit", 25)), p.get("row_number")),
+            "lists.combine": lambda p: {"job_id": self._submit("lists_combine", p)},
+            "duplicates.overrule": lambda p: combine.overrule(self._store(), p),
+            "duplicates.overrules": lambda p: combine.overrules(self._store(), [str(item) for item in p.get("dataset_ids") or []]),
             "marks.list": lambda p: manual.list_marks(self._store()),
             "marks.set": lambda p: manual.set_mark(self._store(), p["number"], p.get("mark"), p.get("until")),
             "marks.history": lambda p: manual.history(self._store(), p.get("number")),
@@ -162,6 +170,7 @@ class Service:
             "dnc_registry_import": dnc_registry.IMPORT_JOB,
             "nanpa_blocks_import": nanpa_blocks.IMPORT_JOB,
             "phone_lookup": phone_lookup.LOOKUP_JOB,
+            "lists_combine": combine.COMBINE_JOB,
         })
         # Lists that were in the project before imports left out empty rows and columns get the same treatment now.
         # Opening must not fail over it: a list that cannot be tidied stays as it was.
@@ -193,12 +202,53 @@ class Service:
 
     @staticmethod
     def _run_import(context: JobContext) -> dict:
-        context.stage("reading_file")
-        project_id = context.store.job(context.job_id)["project_id"]
-        imported = datasets.import_file(context.store, project_id, Path(context.params["path"]), context.params.get("name"))
-        # The import left out its empty rows and columns already, so opening the project need not look at it again.
-        tidy.mark_checked(context.store, [imported.dataset_id])
-        return asdict(imported)
+        """Turf: a file whose rows are already in the project is not added a second time, whatever it is called now
+        and however its columns are named, unless the person asks for it (`allow_duplicate`). The answer says which
+        list holds its rows; a file that is added says which lists it shares rows with."""
+        store, params = context.store, context.params
+        path = Path(params["path"])
+        allowed = bool(params.get("allow_duplicate"))
+        try:
+            context.stage("reading_file")
+            project_id = store.job(context.job_id)["project_id"]
+            if not allowed:
+                already = sameness.same_file(store, project_id, hashlib.sha256(path.read_bytes()).hexdigest())
+                if already is not None:
+                    return {"dataset_id": None, "already": already}
+            imported = datasets.import_file(store, project_id, path, params.get("name"))
+            # The import left out its empty rows and columns already, so opening the project need not look at it again.
+            tidy.mark_checked(store, [imported.dataset_id])
+            context.stage("comparing_with_lists")
+            already, overlaps = sameness.compare(store, project_id, imported.dataset_id)
+            if already is not None and not allowed:
+                datasets.delete_dataset(store, imported.dataset_id)
+                return {"dataset_id": None, "already": already}
+            return {**asdict(imported), "already": None, "overlaps": overlaps}
+        finally:
+            if params.get("temporary"):
+                shutil.rmtree(path.parent, ignore_errors=True)
+
+    def _import_content(self, payload: dict) -> dict:
+        """Turf: adds a file handed over as its content, for a browser tab, which knows a dropped file's bytes but
+        not where it is on the disk. The desktop window gives the path and uses dataset.import."""
+        name = Path(str(payload.get("name") or "")).name
+        if Path(name).suffix.lower() not in IMPORT_TYPES:
+            raise CommandError("invalid_request", datasets.SUPPORTED_IMPORTS)
+        try:
+            content = base64.b64decode(str(payload.get("data") or ""), validate=True)
+        except ValueError as error:
+            raise CommandError("invalid_request", "The file did not arrive whole") from error
+        if len(content) > datasets.MAX_IMPORT_BYTES:
+            raise CommandError("invalid_request", "Imported data exceeds the 50 MB safety limit")
+        self._store()
+        folder = projects.app_data_dir() / "dropped" / uuid4().hex
+        folder.mkdir(parents=True)
+        (folder / name).write_bytes(content)
+        try:
+            return {"job_id": self._submit("dataset_import", {"path": str(folder / name), "allow_duplicate": bool(payload.get("allow_duplicate")), "temporary": True})}
+        except Exception:
+            shutil.rmtree(folder, ignore_errors=True)
+            raise
 
     def _dataset_rename(self, payload: dict) -> dict:
         """Turf: gives a list another name. Only the name changes; the file it came from keeps its own."""

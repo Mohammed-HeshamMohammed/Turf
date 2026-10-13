@@ -1,4 +1,4 @@
-"""Rows of one list that repeat the same lead, found during a phone check.
+"""Rows that repeat the same lead: in one list, during a phone check, or across lists that are being combined.
 
 Turf's own, built on DataForge's matching engine (engine.py, normalize.py and likelihood.py, copied unchanged): its
 candidate groups, field evidence, guarded grouping and likelihood. What Turf adds, because a list of leads is not a
@@ -12,6 +12,8 @@ contact file:
 - Two rows for one lead often carry different phones, which is what skip tracing returns; a phone the rows do not
   share says nothing either way, and the same town or ZIP is not a second field to be sure on.
 - The row to keep is the one with the best number to call, then the most complete, then the first.
+- No group of rows is left out for being large, and the person can overrule any answer: two rows they say are the
+  same lead are, and two they say are not never are.
 
 Nothing is removed. Each row is given what it is (keep, duplicate of a row, possibly a duplicate) and why, in columns
 the checked copy carries; the person decides what to do with them.
@@ -21,17 +23,19 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
+from itertools import combinations
 from typing import Callable
 
 from . import engine, likelihood
 from .cleanup import company_key
 from .normalize import normalize_row, phone_keys, text
 
-DUPLICATES_VERSION = 1
+DUPLICATES_VERSION = 2
 COLUMNS = ("Duplicate group", "Duplicate status", "Duplicate why", "Same owner rows")
 STRICTNESS = "conservative"
-MAX_BLOCK_SIZE = 200
-MAX_PAIRS = 2_000_000
+# Inside a candidate group of up to this many rows every pair is compared; a larger one is gone through more narrowly.
+FULL_GROUP = 60
+NEIGHBOURS = 5
 # A phone or email on more rows than this, under more than two different names, is an office line or a placeholder.
 MAX_SHARED = 5
 # A pair the rules left for review is shown only when the list itself makes it at least this likely.
@@ -114,23 +118,6 @@ def _ignore_shared(normalized: dict[str, dict]) -> int:
     return ignored
 
 
-def _block_size(normalized: dict[str, dict]) -> int:
-    """The largest candidate group to compare inside, so the whole search stays within MAX_PAIRS comparisons.
-
-    Rows are only compared inside a group that shares something (a phone, a street number and street, a name in
-    one ZIP). A very long list can have groups so large that comparing inside all of them would take minutes; the
-    largest are then left out, and the report says how many.
-    """
-    sizes: Counter = Counter()
-    for n in normalized.values():
-        sizes.update(set(engine._block_keys(n, True)))
-    counts = [size for size in sizes.values() if size >= 2]
-    for limit in (MAX_BLOCK_SIZE, 100, 50, 25, 10):
-        if sum(size * (size - 1) // 2 for size in counts if size <= limit) <= MAX_PAIRS:
-            return limit
-    return 5
-
-
 def compare(left: dict, right: dict) -> tuple[list[dict], float, int]:
     """The engine's field evidence, with names read the way lists of leads write them: the same words in another
     order, or with a middle initial, are the same name."""
@@ -184,45 +171,183 @@ def _label(row: dict, mapping: dict[str, str], phones: set[str]) -> str:
     return " · ".join(part for part in parts if part)[:160]
 
 
-def find(
-    rows: list[dict], row_numbers: list[int], config: dict, checked: list[dict] | None = None,
-    checkpoint: Callable[[], None] | None = None, progress: Callable[[str, dict], None] | None = None,
-) -> tuple[list[dict], dict]:
-    """Returns (one dict of the four duplicate columns for each row, a summary for the report).
+def normalize_list(rows: list[dict], config: dict, checked: list[dict] | None = None, checkpoint: Callable[[], None] | None = None) -> tuple[list[dict], dict[str, str]]:
+    """Each row as the engine compares it, and what each column is.
 
     `checked` is each row as the phone check wrote it (its numbers in international form, its best phone and that
     phone's verdict); without it the phones are read from the setup's phone columns.
     """
-    checkpoint = checkpoint or (lambda: None)
-    progress = progress or (lambda stage, detail: None)
     columns = list(dict.fromkeys(column for row in rows[:400] for column in row))
     mapping = roles(config, columns)
     region = str(config.get("region") or "US")
     phone_columns = [column for column in config.get("phone_columns") or [] if column in columns]
     if checked is None:
         mapping = {**mapping, **{column: "phone" for column in phone_columns}}
-
-    def checked_phones(index: int) -> set[str] | None:
-        if checked is None:
-            return None
-        numbers: set[str] = set()
-        for column in phone_columns:
-            read = {number.strip() for number in str(checked[index].get(f"{column} (E.164)") or "").split(";") if number.strip()}
-            # A number the check could not read as valid is still the same number when two rows carry it.
-            numbers |= read or phone_keys(rows[index].get(column), region)
-        return numbers
-
-    progress("finding_duplicates", {})
-    ids = [str(index) for index in range(len(rows))]
-    normalized: dict[str, dict] = {}
+    normalized = []
     for index, row in enumerate(rows):
-        if index % 2000 == 0:
+        if checkpoint and index % 2000 == 0:
             checkpoint()
-        normalized[ids[index]] = _normalize(row, mapping, region, checked_phones(index))
-    ignored = _ignore_shared(normalized)
+        phones: set[str] | None = None
+        if checked is not None:
+            phones = set()
+            for column in phone_columns:
+                read = {number.strip() for number in str(checked[index].get(f"{column} (E.164)") or "").split(";") if number.strip()}
+                # A number the check could not read as valid is still the same number when two rows carry it.
+                phones |= read or phone_keys(row.get(column), region)
+        normalized.append(_normalize(row, mapping, region, phones))
+    return normalized, mapping
 
-    block_size = _block_size(normalized)
-    pairs, block_metrics = engine.generate_candidates(normalized, block_size, person=True)
+
+def _signature(n: dict) -> tuple | None:
+    """What a row is compared by, whole. Rows with the same signature are the same row written again."""
+    signature = (
+        frozenset(n["phone"]), frozenset(n["email"]), n.get("words") or n.get("name") or "", (n.get("address") or {}).get("full", ""),
+        (n.get("mailing_address") or {}).get("full", ""),
+    )
+    return (*signature, n.get("postal_code") or "", n.get("city") or "") if any(signature) else None
+
+
+def _second_keys(n: dict) -> set[str]:
+    """What else two rows of one large group can share, to be worth comparing."""
+    keys = {f"p:{value}" for value in n["phone"]} | {f"e:{value}" for value in n["email"]}
+    for role, prefix in (("address", "a"), ("mailing_address", "m")):
+        parsed = n.get(role)
+        if parsed:
+            keys.add(f"{prefix}:{parsed['house_number'] or parsed['full']}")
+    if n.get("words"):
+        keys.add("w:" + " ".join(sorted(n["words"])))
+    return keys
+
+
+def _candidates(normalized: dict[str, dict], ids: list[str], checkpoint: Callable[[], None]) -> tuple[set[tuple[str, str]], int]:
+    """The pairs of rows worth comparing, and how many large groups were gone through the narrower way.
+
+    Rows are compared only when they share something: a phone, an email, a street number and street, a name in one
+    ZIP. Inside a group of up to FULL_GROUP rows every pair is compared. A larger group (a common name in a big
+    ZIP, a tower of flats at one address) is not left out, as it would be in DataForge, and not compared pair by
+    pair either, which would take minutes: its rows are compared when they share a second thing, and each with its
+    nearest neighbours by name and address. The work grows with the number of rows, not with its square.
+    """
+    blocks: dict[str, list[str]] = defaultdict(list)
+    for count, row_id in enumerate(ids):
+        if count % 5000 == 0:
+            checkpoint()
+        for key in set(engine._block_keys(normalized[row_id], True)):
+            blocks[key].append(row_id)
+    pairs: set[tuple[str, str]] = set()
+
+    def every(members: list[str]) -> None:
+        pairs.update(combinations(sorted(members), 2))
+
+    def neighbours(members: list[str]) -> None:
+        ordered = sorted(members, key=lambda row_id: (" ".join(sorted(normalized[row_id].get("words") or ())), (normalized[row_id].get("address") or {}).get("full", ""), row_id))
+        for at, left in enumerate(ordered):
+            for right in ordered[at + 1:at + 1 + NEIGHBOURS]:
+                pairs.add((left, right) if left < right else (right, left))
+
+    narrowed = 0
+    for count, members in enumerate(blocks.values()):
+        if len(members) < 2:
+            continue
+        if count % 2000 == 0:
+            checkpoint()
+        if len(members) <= FULL_GROUP:
+            every(members)
+            continue
+        narrowed += 1
+        inner: dict[str, list[str]] = defaultdict(list)
+        for row_id in members:
+            for key in _second_keys(normalized[row_id]):
+                inner[key].append(row_id)
+        for group in inner.values():
+            # A second value the whole group shares tells nothing more than the group itself.
+            if 2 <= len(group) < len(members):
+                (every if len(group) <= FULL_GROUP else neighbours)(group)
+        neighbours(members)
+    return pairs, narrowed
+
+
+class Resolution:
+    """Which rows are the same lead, which might be, and which are one owner with several properties."""
+
+    def __init__(self, normalized: dict[str, dict]) -> None:
+        self.normalized = normalized
+        self.groups: list[list[str]] = []
+        self.possible: dict[str, tuple[float, str]] = {}
+        self.owners: list[list[str]] = []
+        self.said_same: set[frozenset] = set()
+        self.compared = self.ignored = self.narrowed = self.overruled = 0
+
+    def why(self, member: str, keep: str, members: list[str]) -> str:
+        """Why a row and the kept one are the same lead; a row joined through another says through which."""
+        if frozenset((member, keep)) in self.said_same:
+            return "You said these are the same lead"
+        evidence = compare(self.normalized[member], self.normalized[keep])[0]
+        if not any(item["strength"] == "guard" for item in evidence) and any(item["result"] in ("exact", "similar") and item["field"] in _FIELD_LABELS for item in evidence):
+            return _why(evidence)
+        for other in members:
+            if other in (member, keep):
+                continue
+            if frozenset((member, other)) in self.said_same:
+                return "You said this is the same lead as another row of the group"
+            through = compare(self.normalized[member], self.normalized[other])[0]
+            if not any(item["strength"] == "guard" for item in through) and any(item["strength"] == "strong" for item in through):
+                return _why(through) + " as another row of the group"
+        return "Same lead"
+
+
+def resolve(
+    normalized: dict[str, dict], order: list[str], same: list[tuple[str, str]] = (), different: list[tuple[str, str]] = (),
+    checkpoint: Callable[[], None] | None = None, progress: Callable[[str, dict], None] | None = None,
+) -> Resolution:
+    """Compares the rows and gathers them into leads. `same` and `different` are pairs the person decided: they are
+    followed whatever the rules would say."""
+    checkpoint = checkpoint or (lambda: None)
+    progress = progress or (lambda stage, detail: None)
+    found = Resolution(normalized)
+    present = set(order)
+    same = [pair for pair in same if pair[0] in present and pair[1] in present and pair[0] != pair[1]]
+    different = [pair for pair in different if pair[0] in present and pair[1] in present]
+    found.overruled = len(same) + len(different)
+    found.said_same = {frozenset(pair) for pair in same}
+    apart = {frozenset(pair) for pair in different}
+    found.ignored = _ignore_shared(normalized)
+
+    # The same row written again is settled once, not compared with every other copy of itself. A row the person
+    # decided about is always looked at on its own.
+    decided = {row_id for pair in [*same, *different] for row_id in pair}
+    first: dict[tuple, str] = {}
+    copies: dict[str, list[str]] = defaultdict(list)
+    representatives: list[str] = []
+    for row_id in order:
+        signature = None if row_id in decided else _signature(normalized[row_id])
+        if signature is not None and signature in first:
+            copies[first[signature]].append(row_id)
+            continue
+        if signature is not None:
+            first[signature] = row_id
+        representatives.append(row_id)
+
+    parent = {row_id: row_id for row_id in order}
+
+    def root(row_id: str) -> str:
+        while parent[row_id] != row_id:
+            parent[row_id] = parent[parent[row_id]]
+            row_id = parent[row_id]
+        return row_id
+
+    possible_pairs: list[tuple[float | None, str, str]] = []
+    for representative, others in copies.items():
+        evidence, score, comparable = compare(normalized[representative], normalized[representative])
+        decision, _ = engine.decide(evidence, score, comparable, STRICTNESS)
+        for other in others:
+            if decision == "match":
+                parent[root(other)] = root(representative)
+            elif decision == "possible_match":
+                possible_pairs.append((None, representative, other))
+
+    pairs, found.narrowed = _candidates(normalized, representatives, checkpoint)
+    found.compared = len(pairs)
     # Only pairs that are, or might be, the same lead are kept; the rest are the great majority and say nothing more.
     decisions: list[dict] = []
     owner_pairs: list[tuple[str, str]] = []
@@ -233,52 +358,105 @@ def find(
         evidence, score, comparable = compare(normalized[left], normalized[right])
         decision, reason = engine.decide(evidence, score, comparable, STRICTNESS)
         if decision == "non_match":
-            if _same_owner(evidence):
+            if _same_owner(evidence) and frozenset((left, right)) not in found.said_same:
                 owner_pairs.append((left, right))
             continue
         decisions.append({"id": f"{left}|{right}", "left_row_id": left, "right_row_id": right, "evidence": evidence, "score": round(score, 4), "decision": decision, "reason": reason})
-    compared = len(pairs)
     del pairs
 
-    clusters, bridges, _ = engine.cluster(ids, normalized, decisions, [], [], person=True)
+    constraints = [{"left_row_id": left, "right_row_id": right, "kind": "must_not_link"} for left, right in different]
+    kept = {row_id: normalized[row_id] for row_id in representatives}
+    clusters, bridges, _ = engine.cluster(representatives, kept, decisions, constraints, [], person=True)
     bridged = set(bridges)
     for decision in decisions:
         if decision["id"] in bridged:
             decision["decision"] = "possible_match"
     checkpoint()
-    likelihood.annotate(decisions, normalized, lambda left, right: compare(left, right)[0])
-    by_pair = {(decision["left_row_id"], decision["right_row_id"]): decision for decision in decisions}
+    likelihood.annotate(decisions, kept, lambda left, right: compare(left, right)[0])
+    for cluster in clusters:
+        members = cluster["member_row_ids"]
+        for member in members[1:]:
+            parent[root(member)] = root(members[0])
+    # What the person said is the same lead is, whatever keeps the rules from saying so.
+    for left, right in same:
+        parent[root(left)] = root(right)
 
-    def between(a: str, b: str) -> dict | None:
-        return by_pair.get((a, b)) or by_pair.get((b, a))
+    gathered: dict[str, list[str]] = defaultdict(list)
+    for row_id in order:
+        gathered[root(row_id)].append(row_id)
+    found.groups = [members for members in gathered.values() if len(members) > 1]
 
-    def filled(index: int) -> int:
-        return sum(1 for value in rows[index].values() if value not in (None, ""))
+    possible_pairs += [(decision.get("likelihood"), decision["left_row_id"], decision["right_row_id"]) for decision in decisions if decision["decision"] == "possible_match"]
+    for chance, left, right in possible_pairs:
+        if root(left) == root(right) or frozenset((left, right)) in apart or (chance is not None and chance < MIN_POSSIBLE):
+            continue
+        for row_id, other in ((left, right), (right, left)):
+            if row_id not in found.possible or (1.0 if chance is None else chance) > found.possible[row_id][0]:
+                found.possible[row_id] = (1.0 if chance is None else chance, other)
+
+    # The same owner at other properties, gathered into one group per owner.
+    owner_parent = {row_id: row_id for pair in owner_pairs for row_id in pair}
+
+    def owner_root(row_id: str) -> str:
+        while owner_parent[row_id] != row_id:
+            owner_parent[row_id] = owner_parent[owner_parent[row_id]]
+            row_id = owner_parent[row_id]
+        return row_id
+
+    for left, right in owner_pairs:
+        if frozenset((left, right)) not in apart:
+            owner_parent[owner_root(left)] = owner_root(right)
+    owners: dict[str, list[str]] = defaultdict(list)
+    for row_id in owner_parent:
+        owners[owner_root(row_id)].append(row_id)
+    position = {row_id: index for index, row_id in enumerate(order)}
+    found.owners = sorted(([*sorted(members, key=position.__getitem__)] for members in owners.values() if len(members) > 1), key=lambda group: (-len(group), position[group[0]]))
+    return found
+
+
+def _rank(row: dict, best: dict | None, row_number: int, source: int = 0) -> tuple:
+    """Which row of a lead is kept: the best number to call, then the most complete, then the first."""
+    best = best or {}
+    filled = sum(1 for value in row.values() if value not in (None, ""))
+    return (not best.get("Best phone"), _VERDICT_RANK.get(str(best.get("Best phone verdict") or ""), 4), -filled, source, row_number)
+
+
+def find(
+    rows: list[dict], row_numbers: list[int], config: dict, checked: list[dict] | None = None,
+    checkpoint: Callable[[], None] | None = None, progress: Callable[[str, dict], None] | None = None,
+    same: list[tuple[int, int]] = (), different: list[tuple[int, int]] = (),
+) -> tuple[list[dict], dict]:
+    """Returns (one dict of the four duplicate columns for each row, a summary for the report).
+
+    `same` and `different` are pairs of row numbers the person decided are, or are not, the same lead.
+    """
+    checkpoint = checkpoint or (lambda: None)
+    (progress or (lambda stage, detail: None))("finding_duplicates", {})
+    listed, mapping = normalize_list(rows, config, checked, checkpoint)
+    ids = [str(index) for index in range(len(rows))]
+    normalized = dict(zip(ids, listed))
+    id_of = {number: ids[index] for index, number in enumerate(row_numbers)}
+
+    def decided(pairs) -> list[tuple[str, str]]:
+        return [(id_of[left], id_of[right]) for left, right in pairs if left in id_of and right in id_of]
+
+    found = resolve(normalized, ids, decided(same), decided(different), checkpoint, progress)
 
     def rank(row_id: str) -> tuple:
         index = int(row_id)
-        best = checked[index] if checked is not None else {}
-        callable_ = bool(best.get("Best phone"))
-        return (not callable_, _VERDICT_RANK.get(str(best.get("Best phone verdict") or ""), 4), -filled(index), row_numbers[index])
+        return _rank(rows[index], checked[index] if checked is not None else None, row_numbers[index])
 
     out = [dict.fromkeys(COLUMNS, "") for _ in rows]
-    cluster_of: dict[str, int] = {}
     examples: list[dict] = []
-    groups = extra = 0
-    for found in clusters:
-        members = found["member_row_ids"]
-        if len(members) < 2:
-            continue
-        groups += 1
+    extra = 0
+    for count, members in enumerate(found.groups, start=1):
         extra += len(members) - 1
         keep = min(members, key=rank)
-        name = f"D{groups}"
+        name = f"D{count}"
         others = [member for member in members if member != keep]
-        keep_phones = normalized[keep]["phone"]
-        more = [row_numbers[int(member)] for member in others if normalized[member]["phone"] - keep_phones]
+        more = [row_numbers[int(member)] for member in others if normalized[member]["phone"] - normalized[keep]["phone"]]
         callable_keep = checked is not None and bool(checked[int(keep)].get("Best phone"))
         for member in members:
-            cluster_of[member] = groups
             index = int(member)
             out[index]["Duplicate group"] = name
             if member == keep:
@@ -289,13 +467,7 @@ def find(
                 out[index]["Duplicate why"] = why
             else:
                 out[index]["Duplicate status"] = f"Duplicate of row {row_numbers[int(keep)]}"
-                # Why this row and the kept one are the same lead; a row joined through another says through which.
-                direct = between(member, keep)
-                if direct is not None and direct["decision"] == "match":
-                    out[index]["Duplicate why"] = _why(direct["evidence"])
-                else:
-                    via = next((other for other in members if other != member and (link := between(member, other)) is not None and link["decision"] == "match"), None)
-                    out[index]["Duplicate why"] = (_why(between(member, via)["evidence"]) + f" as row {row_numbers[int(via)]}, a duplicate of the same row") if via else "Same lead"
+                out[index]["Duplicate why"] = found.why(member, keep, members)
         if len(examples) < MAX_EXAMPLES:
             examples.append({
                 "group": name, "why": out[int(others[0])]["Duplicate why"],
@@ -304,44 +476,18 @@ def find(
             })
 
     # Pairs the rules could not settle: shown to the person, never grouped.
-    possible: dict[str, tuple[float, str]] = {}
-    for decision in decisions:
-        left, right = decision["left_row_id"], decision["right_row_id"]
-        if decision["decision"] != "possible_match" or (cluster_of.get(left) and cluster_of.get(left) == cluster_of.get(right)):
-            continue
-        chance = decision.get("likelihood")
-        if chance is not None and chance < MIN_POSSIBLE:
-            continue
-        for row_id, other in ((left, right), (right, left)):
-            if chance is None or row_id not in possible or (chance or 0.0) > possible[row_id][0]:
-                possible[row_id] = (chance or 0.0, other)
     possible_rows = 0
-    for row_id, (_chance, other) in possible.items():
+    for row_id, (_chance, other) in found.possible.items():
         index = int(row_id)
         if out[index]["Duplicate status"]:
             continue  # already settled as kept or as a duplicate; the surer answer stands
         possible_rows += 1
         out[index]["Duplicate status"] = f"Possible duplicate of row {row_numbers[int(other)]}"
-        out[index]["Duplicate why"] = _why(between(row_id, other)["evidence"]) + "; not enough to be sure"
+        out[index]["Duplicate why"] = _why(compare(normalized[row_id], normalized[other])[0]) + "; not enough to be sure"
 
-    # The same owner at other properties, gathered into one group per owner.
-    parent = {row_id: row_id for pair in owner_pairs for row_id in pair}
-
-    def root(row_id: str) -> str:
-        while parent[row_id] != row_id:
-            parent[row_id] = parent[parent[row_id]]
-            row_id = parent[row_id]
-        return row_id
-
-    for left, right in owner_pairs:
-        parent[root(left)] = root(right)
-    owners: dict[str, list[str]] = defaultdict(list)
-    for row_id in parent:
-        owners[root(row_id)].append(row_id)
     owner_examples: list[dict] = []
     owner_rows = 0
-    for members in sorted(owners.values(), key=lambda group: (-len(group), min(int(member) for member in group))):
-        members.sort(key=int)
+    for members in found.owners:
         owner_rows += len(members)
         for member in members:
             out[int(member)]["Same owner rows"] = _row_list([row_numbers[int(other)] for other in members if other != member]).capitalize()
@@ -351,11 +497,11 @@ def find(
                 "rows": [{"row_number": row_numbers[int(member)], "keep": False, "label": _label(rows[int(member)], mapping, normalized[member]["phone"])} for member in members[:6]],
             })
 
-    used = sorted({role for role in mapping.values()} | {"phone"})
     summary = {
-        "version": DUPLICATES_VERSION, "groups": groups, "duplicate_rows": extra, "rows_in_groups": groups + extra, "possible_rows": possible_rows,
-        "owner_groups": len(owners), "owner_rows": owner_rows, "examples": examples, "owner_examples": owner_examples,
-        "compared_pairs": compared, "ignored_shared_values": ignored, "skipped_groups": block_metrics["oversized_block_count"],
-        "uses": used, "has_names": any(role in ("name", "first_name", "last_name") for role in mapping.values()), "has_address": "address" in mapping.values(),
+        "version": DUPLICATES_VERSION, "groups": len(found.groups), "duplicate_rows": extra, "rows_in_groups": len(found.groups) + extra, "possible_rows": possible_rows,
+        "owner_groups": len(found.owners), "owner_rows": owner_rows, "examples": examples, "owner_examples": owner_examples,
+        "compared_pairs": found.compared, "ignored_shared_values": found.ignored, "narrowed_groups": found.narrowed, "overruled": found.overruled,
+        "uses": sorted({role for role in mapping.values()} | {"phone"}),
+        "has_names": any(role in ("name", "first_name", "last_name") for role in mapping.values()), "has_address": "address" in mapping.values(),
     }
     return out, summary
