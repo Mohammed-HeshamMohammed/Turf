@@ -31,6 +31,8 @@ vi.mock("../src/lib/service", () => ({
   markHistory: async () => [],
   inDesktop: false,
   importFile: vi.fn(),
+  overrules: vi.fn(async () => []),
+  overrule: vi.fn(async () => []),
   pickImportFile: vi.fn(),
   describeLeftOut: () => "",
   dncRegistryStatus: async () => ({ area_codes: [], numbers: 0, max_age_days: 31 }),

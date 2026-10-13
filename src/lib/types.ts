@@ -1,7 +1,7 @@
 // Shapes follow DataForge's IPC contract (docs/ipc-contract.md) so the sample
 // client in dataforge.ts can be swapped for the real one without touching the UI.
 
-export type DatasetKind = "import" | "scrape" | "cleaned" | "checked";
+export type DatasetKind = "import" | "scrape" | "cleaned" | "checked" | "combined";
 
 export type Dataset = {
   id: string;
@@ -162,7 +162,10 @@ export type DuplicateSummary = {
   owner_examples: { size: number; rows: DuplicateRow[] }[];
   compared_pairs: number;
   ignored_shared_values: number;
-  skipped_groups: number;
+  /** Large groups of rows sharing one value, gone through by a second shared value and by nearest neighbours. */
+  narrowed_groups: number;
+  /** How many of the person's own answers this check followed. */
+  overruled: number;
   has_names: boolean;
   has_address: boolean;
 };

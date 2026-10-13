@@ -10,12 +10,15 @@ export function ListPicker({
   selectedId,
   onSelect,
   onImported,
+  onCombine,
   menuFor,
 }: {
   datasets: Dataset[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onImported: (datasetId: string) => Promise<void>;
+  /** Opens combining lists into one, where the screen offers it. */
+  onCombine?: () => void;
   /** What right-clicking a list offers. */
   menuFor: (dataset: Dataset) => MenuItem[];
 }) {
@@ -63,6 +66,11 @@ export function ListPicker({
         >
           {busy ? "Importing…" : "Import"}
         </button>
+        {onCombine && datasets.length > 1 && (
+          <button type="button" className="button ghost small" onClick={onCombine}>
+            Combine
+          </button>
+        )}
       </header>
       {typing && (
         <form

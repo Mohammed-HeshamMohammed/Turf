@@ -1,9 +1,7 @@
 import type { Dataset, DatasetRow } from "../types";
 import { call, inDesktop } from "./transport";
-import { runJob } from "./jobs";
 
 export const listDatasets = () => call<Dataset[]>("dataset.list");
-export const importFile = (path: string) => runJob<{ dataset_id: string; row_count: number; dropped_empty_rows?: number; dropped_empty_columns?: number }>("dataset.import", { path });
 
 export const renameDataset = (dataset_id: string, name: string) => call<{ dataset_id: string; name: string }>("dataset.rename", { dataset_id, name });
 /** Removes the list and its rows from the project. Lists made from it stay. */

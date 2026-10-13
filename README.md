@@ -62,6 +62,22 @@ This builds the service into one executable (`service/dist/turf-service.exe`, by
 
 The build needs a few gigabytes free. On a drive without room, send the working files elsewhere: `python service/tools/build_service.py --work D:\build`, and set `CARGO_TARGET_DIR` for the host's build.
 
+## Adding lists, and never the same one twice
+
+Drop a list's file anywhere on the window to add it to the open project; several files are added one after another. While a file is held over the window, the whole window says where it will go. **Import** in Lists and in the menu do the same for one file.
+
+A file whose rows are already in the project is not added again, whatever it is called now. Turf reads each row as the values it holds, not as its columns' names or their order, so the same list is known again as another file, in another format (a spreadsheet where it was a CSV), with its columns renamed or moved, or with different capitals and spacing (`service/turf_service/sameness.py`). It is refused when it is the same file, the same rows, or a part of a list that is here; the message names the list, and **Add it all the same** adds it if that is what you want. A file that holds a list and more is added, and says how much of it is new; one that shares some rows with a list says how many, so you can combine the two.
+
+Each list's rows are kept as a small sketch in the project, so adding a file never reads every other list again. Up to 4,096 rows the answer is exact; for a longer list it is an estimate within a percent or two. A file with some of a list's columns left out is not recognised as that list.
+
+## Combining lists
+
+**Combine** in Lists makes one list out of several. Pick the lists and Turf compares their rows with the same rules as [repeated leads](#repeated-leads), so a lead that is in two lists under different spellings is one lead, and one owner with several properties stays several rows. The lists need not have the same columns: each is read with its own Skip Tracing setup, and a list that was never set up (a county roll with "Owner" and "Site Address", with no phones at all) is read from its columns' names.
+
+Before anything is saved you see what the lists share: how many leads each has, how many are only there, how many are in another list too, the leads found in more than one list, and the pairs that might be the same lead. You can overrule any of them there. Then choose what the new list holds: every lead once, only the leads in more than one list or in all of them, or only the leads one list has and the others do not (what is new in this month's list, say).
+
+Each lead is one row: the row with the best number to call, else one with a phone, else the most complete, with what the other lists have for it filled in where it is empty. One list's "Owner" and another's "Owner Name" are one column. A phone or email of another row that found no empty cell goes in `Other phones` or `Other emails`; `In lists` and `Combined from` say where each row came from. The lists themselves are not changed, and the combined list is a list like any other: it can be checked in Skip Tracing, downloaded, or combined again.
+
 ## Owners, contacts and areas
 
 Beyond phones, Turf reads what the lists themselves say, for free:
@@ -109,9 +125,11 @@ A phone check also looks for rows that repeat the same lead, and says so in its 
 - **An office line or placeholder is not evidence.** A phone or email on more than five rows under more than two names is left out.
 - **The row to keep** is the one with the best number to call, then the most complete, then the first. When a repeat has a phone the kept row lacks, the kept row says so.
 
-No row is removed. The checked copy gets four columns: `Duplicate group`, `Duplicate status` (Keep, Duplicate of row N, or Possible duplicate of row N), `Duplicate why`, and `Same owner rows`. Results show the groups and open them for review, the kept row first; in Lists, the Flag filter shows each lead once, only the repeats, or only the possible ones. It can be turned off under More settings in Warning signs. Only rows of the same list are compared.
+No row is removed. The checked copy gets four columns: `Duplicate group`, `Duplicate status` (Keep, Duplicate of row N, or Possible duplicate of row N), `Duplicate why`, and `Same owner rows`. Results show the groups and open them for review, the kept row first; in Lists, the Flag filter shows each lead once, only the repeats, or only the possible ones. It can be turned off under More settings in Warning signs. A check compares the rows of one list; to compare lists with one another, [combine them](#combining-lists).
 
-To stay quick on a very long list, rows are compared only inside groups that share something (a phone, a street number and street, a name in one ZIP), and when those groups would add up to more than two million comparisons the largest are left out; the results say how many. On a 200,000-row test list this step took about 16 seconds.
+No group of rows is left out for being large. Rows are compared when they share something (a phone, an email, a street number and street, a name in one ZIP), and inside a group of up to 60 such rows every pair is compared. A larger group (a common name in a big ZIP, a tower of flats at one address) is gone through by a second thing its rows share, and each row with its five nearest by name and address, so the work grows with the number of rows and not with its square. The same row written many times is settled once. On a 200,000-row test list this step took about 45 seconds.
+
+**You can overrule any answer.** In the review of a check, a row marked as a duplicate has *Not the same lead*, and a possible one has *Same lead* as well. Your answer is kept with the project (in the `match_constraints` table DataForge's review uses), dates the check so that it asks to be made again, and is followed from then on whatever the rules would say; the results list your answers and each can be taken back. A check saved before Turf looked for repeated leads offers to be made again.
 
 ### How call statuses are read
 
@@ -168,7 +186,9 @@ Successful results for the same products are reused within the configured cache 
 | `src-tauri/src/sidecar.rs` | The bridge to the service: a child process speaking JSON lines, as in DataForge's host. |
 | `src-tauri/src/store.rs` | Area mappings and earlier computer-wide marks in `turf.json`. New manual marks and their history are saved in the project database. Earlier marks can be explicitly imported into a project without deleting the old store. |
 | `service/turf_service/` | The service: the command router, projects, lists, jobs and the Skip Tracing commands. An import leaves out empty rows and columns; lists already in a project get the same when it is opened (`tidy.py`). |
-| `service/turf_matching/` | Phone reading and the Skip Tracing rules, including how call statuses are read (`status_meaning.py`) and how repeated leads are found (`duplicates.py`, on DataForge's `engine.py`, `normalize.py` and `likelihood.py`). |
+| `src/components/DropImport.tsx`, `CombineLists.tsx` | Dropping files on the window, and combining lists into one. |
+| `service/turf_service/sameness.py`, `combine.py` | Knowing a list's rows again whatever the file is called; combining lists, and what the person decided about rows being the same lead. |
+| `service/turf_matching/` | Phone reading and the Skip Tracing rules, including how call statuses are read (`status_meaning.py`) and how repeated leads are found and lists combined (`duplicates.py` and `combine.py`, on DataForge's `engine.py`, `normalize.py` and `likelihood.py`). |
 | `service/turf_service/geo.py` | Where rows go on the map: the centre of their ZIP (a file shipped with Turf, checked against the row's state), or their exact address once it has been looked up. The lookup starts by itself the first time a list with a street and a ZIP (or city and state) is shown in Lists, says so under the map, and can be stopped; what was found is kept in the project and not asked for again. It sends street, city, state and ZIP to the US Census Bureau's geocoder; nothing else leaves the computer. |
 | `service/migrations/` | The project database's schema. |
 | `vite.config.ts` | For a browser tab only: serves `/rpc` over the same bridge, to Turf's own page and no other. |

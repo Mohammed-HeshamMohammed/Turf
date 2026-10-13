@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AppMenu, type MenuAction } from "./components/AppMenu";
 import { ContextMenuProvider } from "./components/ContextMenu";
+import { DropImport } from "./components/DropImport";
 import { ProjectGate } from "./components/ProjectGate";
 import { TitleBar } from "./components/TitleBar";
 import {
@@ -217,6 +218,15 @@ export function App() {
   return (
     <ContextMenuProvider general={() => menu.map(action => ({ label: action.label, disabled: action.disabled, onSelect: action.onSelect }))}>
       <div className="window">
+        <DropImport
+          project={project ?? null}
+          onAdded={async id => {
+            await refresh();
+            setSelectedId(id);
+            setChoosing(false);
+            setTab("lists");
+          }}
+        />
         <TitleBar
           title="Turf"
           mark={

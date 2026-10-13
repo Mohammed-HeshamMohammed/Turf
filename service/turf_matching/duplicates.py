@@ -414,11 +414,12 @@ def resolve(
     return found
 
 
-def _rank(row: dict, best: dict | None, row_number: int, source: int = 0) -> tuple:
-    """Which row of a lead is kept: the best number to call, then the most complete, then the first."""
+def _rank(row: dict, best: dict | None, row_number: int, source: int = 0, has_phone: bool = True) -> tuple:
+    """Which row of a lead is kept: the best number to call, then one with a phone at all, then the most complete,
+    then the first."""
     best = best or {}
     filled = sum(1 for value in row.values() if value not in (None, ""))
-    return (not best.get("Best phone"), _VERDICT_RANK.get(str(best.get("Best phone verdict") or ""), 4), -filled, source, row_number)
+    return (not best.get("Best phone"), _VERDICT_RANK.get(str(best.get("Best phone verdict") or ""), 4), not has_phone, -filled, source, row_number)
 
 
 def find(
@@ -444,7 +445,7 @@ def find(
 
     def rank(row_id: str) -> tuple:
         index = int(row_id)
-        return _rank(rows[index], checked[index] if checked is not None else None, row_numbers[index])
+        return _rank(rows[index], checked[index] if checked is not None else None, row_numbers[index], has_phone=bool(normalized[row_id]["phone"]))
 
     out = [dict.fromkeys(COLUMNS, "") for _ in rows]
     examples: list[dict] = []

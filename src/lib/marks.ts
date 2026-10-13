@@ -135,7 +135,13 @@ export const MANUAL_LABELS: Record<ManualMark, string> = {
   do_not_call: "Do not call",
   interested: "Interested",
 };
-export const KIND_LABELS = { import: "Imported file", scrape: "Collected run", cleaned: "Cleaned copy", checked: "Checked copy" } as const;
+export const KIND_LABELS = {
+  import: "Imported file",
+  scrape: "Collected run",
+  cleaned: "Cleaned copy",
+  checked: "Checked copy",
+  combined: "Combined list",
+} as const;
 
 export function formatPhone(e164: string | null) {
   const match = e164?.match(/^\+1(\d{3})(\d{3})(\d{4})$/);

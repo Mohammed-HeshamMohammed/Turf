@@ -15,6 +15,7 @@ import re
 from typing import Callable
 
 from . import duplicates
+from .normalize import email, phone_keys
 
 COMBINE_VERSION = 1
 ADDED_COLUMNS = ("Other phones", "Other emails", "In lists", "Combined from")
@@ -109,7 +110,7 @@ def combine(
     def rank(row_id: str) -> tuple:
         at, index = place(row_id)
         item = lists[at]
-        return duplicates._rank(item["rows"][index], item["checked"][index] if item.get("checked") else None, item["numbers"][index], at)
+        return duplicates._rank(item["rows"][index], item["checked"][index] if item.get("checked") else None, item["numbers"][index], at, bool(normalized[row_id]["phone"]))
 
     def label(row_id: str) -> dict:
         at, index = place(row_id)
@@ -157,6 +158,7 @@ def combine(
             possible.append({"why": duplicates._why(duplicates.compare(normalized[row_id], normalized[other])[0]) + "; not enough to be sure", "size": 2, "rows": [label(row_id), label(other)]})
 
     columns, plans, contact_columns = column_plan(lists, mappings)
+    regions = [str(item["config"].get("region") or "US") for item in lists]
     out: list[dict] = []
     for count_done, (members, sources) in enumerate(wanted):
         if count_done % 2000 == 0:
@@ -164,18 +166,24 @@ def combine(
         ordered = sorted(members, key=rank)
         keep = ordered[0]
         row = dict.fromkeys(columns, "")
-        for at_member, row_id in enumerate(ordered):
+        # What the row already says, so a number or address another row adds is told from one it repeats.
+        phones, emails = set(normalized[keep]["phone"]), set(normalized[keep]["email"])
+        for row_id in ordered:
             at, index = place(row_id)
             for column, value in lists[at]["rows"][index].items():
                 target = plans[at].get(column)
-                # The kept row's phones and emails stay as they are; what the other rows add goes beside them, so no
-                # number takes the place of another without saying where it came from.
-                if target is None or value in (None, "") or row[target] not in (None, "") or (at_member and target in contact_columns):
+                # A cell is filled from the kept row first, then from the others where it is still empty. Nothing
+                # the kept row says is replaced.
+                if target is None or value in (None, "") or row[target] not in (None, ""):
                     continue
                 row[target] = value
+                if target in contact_columns and row_id != keep:
+                    phones |= phone_keys(value, regions[at])
+                    emails |= {found for found in (email(part) for part in str(value).replace(";", " ").replace(",", " ").split()) if found}
         others = ordered[1:]
-        row["Other phones"] = "; ".join(sorted({phone for row_id in others for phone in normalized[row_id]["phone"]} - normalized[keep]["phone"]))
-        row["Other emails"] = "; ".join(sorted({email for row_id in others for email in normalized[row_id]["email"]} - normalized[keep]["email"]))
+        # A phone or email of another row that found no empty cell is kept beside the row's own, not dropped.
+        row["Other phones"] = "; ".join(sorted({phone for row_id in others for phone in normalized[row_id]["phone"]} - phones))
+        row["Other emails"] = "; ".join(sorted({found for row_id in others for found in normalized[row_id]["email"]} - emails))
         row["In lists"] = "; ".join(lists[at]["name"] for at in sorted(sources))
         shown = [f"{lists[place(row_id)[0]]['name']} row {lists[place(row_id)[0]]['numbers'][place(row_id)[1]]}" for row_id in ordered[:10]]
         row["Combined from"] = "; ".join(shown) + (f"; and {len(ordered) - 10} more" if len(ordered) > 10 else "")

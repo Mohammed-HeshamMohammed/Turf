@@ -28,15 +28,20 @@ const found: DuplicateSummary = {
   owner_examples: [],
   compared_pairs: 41,
   ignored_shared_values: 1,
-  skipped_groups: 0,
+  narrowed_groups: 0,
+  overruled: 0,
   has_names: true,
   has_address: true,
 };
 
+// The person's own answers are asked of the service; there are none here.
+vi.mock("../src/lib/service", () => ({ overrules: vi.fn(async () => []), overrule: vi.fn(async () => []) }));
+const rest = { datasetId: "list", version: 0, busy: false, onCheck: () => undefined, onChanged: async () => undefined };
+
 describe("repeated leads in a phone check's results", () => {
   it("says how many rows repeat a lead, shows which row is kept, and opens the rows to review", async () => {
     const showRows = vi.fn();
-    render(<SkiptraceDuplicates found={found} showRows={showRows} />);
+    render(<SkiptraceDuplicates {...rest} found={found} showRows={showRows} />);
     expect(screen.getByText("3 rows")).toBeTruthy();
     expect(screen.getByText(/leaves 3 fewer to call/)).toBeTruthy();
     expect(screen.getByText("John Smith · 12 Main St · +17135550142")).toBeTruthy();
@@ -49,15 +54,23 @@ describe("repeated leads in a phone check's results", () => {
     expect((screen.getByRole("button", { name: /Owners with several properties/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("says so plainly when no row repeats another, when it is turned off, and nothing for a check from before", () => {
-    const { rerender, container } = render(
-      <SkiptraceDuplicates found={{ ...found, groups: 0, duplicate_rows: 0, rows_in_groups: 0, possible_rows: 0, examples: [] }} showRows={() => undefined} />,
+  it("says so plainly when no row repeats another or it is turned off, and offers a check from before to be made again", async () => {
+    const { rerender } = render(
+      <SkiptraceDuplicates
+        {...rest}
+        found={{ ...found, groups: 0, duplicate_rows: 0, rows_in_groups: 0, possible_rows: 0, examples: [] }}
+        showRows={() => undefined}
+      />,
     );
     expect(screen.getByText("No row repeats another.")).toBeTruthy();
-    rerender(<SkiptraceDuplicates found={null} showRows={() => undefined} />);
+    rerender(<SkiptraceDuplicates {...rest} found={null} showRows={() => undefined} />);
     expect(screen.getByText(/turned off for this list/)).toBeTruthy();
-    rerender(<SkiptraceDuplicates found={undefined} showRows={() => undefined} />);
-    expect(container.textContent).toBe("");
+    // A check from before this was looked for offers to check again, which is all it takes.
+    const onCheck = vi.fn();
+    rerender(<SkiptraceDuplicates {...rest} onCheck={onCheck} found={undefined} showRows={() => undefined} />);
+    expect(screen.getByText(/made before Turf looked for rows that repeat/)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Check again" }));
+    expect(onCheck).toHaveBeenCalledOnce();
   });
 
   it("keeps the duplicate columns apart from the list's own columns", () => {

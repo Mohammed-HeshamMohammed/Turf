@@ -142,7 +142,15 @@ export function SkiptraceStepResults({ s, report }: { s: ReadySetup; report: Ski
           Review all checked rows
         </button>
       </article>
-      <SkiptraceDuplicates found={report.duplicates} showRows={showRows} />
+      <SkiptraceDuplicates
+        found={report.duplicates}
+        showRows={showRows}
+        datasetId={s.dataset.id}
+        version={s.turf.version}
+        busy={busy !== null || !hasPhones}
+        onCheck={() => void s.check()}
+        onChanged={s.turf.refresh}
+      />
       <h3 className="report-heading">Details of this check</h3>
       {reviewOpen && (
         <SkiptraceReview

@@ -1,3 +1,4 @@
+import { CombineLists } from "../components/CombineLists";
 import { ListRowDetail } from "../components/ListRowDetail";
 import { MapNote } from "../components/MapNote";
 import { dullColumns, formatCell } from "../lib/list-columns";
@@ -59,12 +60,18 @@ export function Lists({ turf }: { turf: Turf }) {
     dataset?.id ?? null,
     turf.datasets.map(item => item.id),
   );
+  // Combining lists takes the place of the list in view until it is done or closed.
+  const [combining, setCombining] = useState(false);
   return (
     <div className="split">
       <ListPicker
         datasets={turf.datasets}
-        selectedId={turf.selectedId}
-        onSelect={turf.select}
+        selectedId={combining ? null : turf.selectedId}
+        onSelect={id => {
+          setCombining(false);
+          turf.select(id);
+        }}
+        onCombine={() => setCombining(true)}
         onImported={async id => {
           await turf.refresh();
           turf.select(id);
@@ -75,12 +82,24 @@ export function Lists({ turf }: { turf: Turf }) {
           { label: "Copy its name", onSelect: () => copyText(item.name) },
         ]}
       />
+      {combining && (
+        <div className="kept">
+          <CombineLists
+            turf={turf}
+            onCancel={() => setCombining(false)}
+            onDone={id => {
+              setCombining(false);
+              turf.select(id);
+            }}
+          />
+        </div>
+      )}
       {kept.map(id => (
-        <div key={id} className="kept" hidden={id !== dataset?.id}>
+        <div key={id} className="kept" hidden={combining || id !== dataset?.id}>
           <ListView turf={turf} dataset={turf.datasets.find(item => item.id === id)!} />
         </div>
       ))}
-      {!dataset && <Empty title="No lists yet">Import a file here, or save a collected run in DataForge. It appears in this project.</Empty>}
+      {!dataset && !combining && <Empty title="No lists yet">Import a file here, or save a collected run in DataForge. It appears in this project.</Empty>}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Field, VerdictPill } from "./Bits";
-import { skiptraceReview } from "../lib/service";
+import { overrule, skiptraceReview } from "../lib/service";
 import { ROW_GROUPS } from "../lib/skiptrace-workflow";
 import { formatNumber, checkedPhoneColumns } from "../lib/marks";
 import type { ReviewRow, SkiptraceReport, Verdict } from "../lib/types";
@@ -25,6 +25,19 @@ export function SkiptraceReview({
   const [data, setData] = useState<{ total: number; rows: ReviewRow[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
+  // What the person just said about a row and the row it was matched with. The next check follows it.
+  const [said, setSaid] = useState<Record<number, string>>({});
+  const decide = (rowNumber: number, other: number, same: boolean) =>
+    void overrule(datasetId, rowNumber, other, same).then(
+      async () => {
+        setSaid(current => ({
+          ...current,
+          [rowNumber]: `Noted: ${same ? "the same lead as" : "not the same lead as"} row ${other}. Check again to apply it.`,
+        }));
+        await onUpdated();
+      },
+      reason => setError(reason instanceof Error ? reason.message : String(reason)),
+    );
   useEffect(() => {
     setPage(0);
     setExpanded(null);
@@ -109,6 +122,27 @@ export function SkiptraceReview({
                       {row.raw["Same owner rows"] && (
                         <small className="status-why muted">Same owner as {String(row.raw["Same owner rows"]).toLowerCase()}</small>
                       )}
+                      {(() => {
+                        const status = String(row.raw["Duplicate status"] ?? "");
+                        const other = Number(/row (\d+)$/.exec(status)?.[1]);
+                        if (!other) return null;
+                        return said[row.row_number] ? (
+                          <small className="status-why" role="status">
+                            {said[row.row_number]}
+                          </small>
+                        ) : (
+                          <span className="row overrule">
+                            {status.startsWith("Possible") && (
+                              <button type="button" className="link" onClick={() => decide(row.row_number, other, true)}>
+                                Same lead
+                              </button>
+                            )}
+                            <button type="button" className="link" onClick={() => decide(row.row_number, other, false)}>
+                              Not the same lead
+                            </button>
+                          </span>
+                        );
+                      })()}
                     </th>
                     <td>{row.raw["Best phone"] || "No usable number"}</td>
                     <td>

@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { formatNumber } from "../lib/marks";
+import { overrule, overrules, type Overrule } from "../lib/service";
 import type { DuplicateSummary } from "../lib/types";
 
 const rowsOf = (count: number) => `${formatNumber(count)} ${count === 1 ? "row" : "rows"}`;
@@ -8,9 +10,87 @@ const rowsOf = (count: number) => `${formatNumber(count)} ${count === 1 ? "row" 
  * ones that might be, and the owners who are in the list with several properties. Nothing is removed from the list;
  * the checked copy says, row by row, what each one is.
  */
-export function SkiptraceDuplicates({ found, showRows }: { found: DuplicateSummary | null | undefined; showRows: (filter: string) => void }) {
-  // A check from before Turf looked for repeated leads says nothing about them.
-  if (found === undefined) return null;
+export function SkiptraceDuplicates({
+  found,
+  showRows,
+  datasetId,
+  version,
+  busy,
+  onCheck,
+  onChanged,
+}: {
+  found: DuplicateSummary | null | undefined;
+  showRows: (filter: string) => void;
+  datasetId: string;
+  /** Changes when the project's evidence does, so the person's answers are read again. */
+  version: number;
+  busy: boolean;
+  onCheck: () => void;
+  onChanged: () => Promise<void>;
+}) {
+  // What the person said about pairs of rows of this list. It is followed by the next check, not by this one.
+  const [said, setSaid] = useState<Overrule[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let current = true;
+    overrules([datasetId]).then(
+      list => current && setSaid(list),
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
+  }, [datasetId, version]);
+  const takeBack = (item: Overrule) =>
+    void overrule(item.dataset_id, item.row_number, item.other_row_number, null, item.other_dataset_id).then(
+      async list => {
+        setSaid(list);
+        await onChanged();
+      },
+      reason => setError(reason instanceof Error ? reason.message : String(reason)),
+    );
+  const answers = said.length > 0 && (
+    <details className="step skiptrace-optional">
+      <summary>
+        Your own answers ({said.length}){found && said.length !== found.overruled ? ": check again to use them" : ""}
+      </summary>
+      {error && (
+        <p className="notice" role="alert">
+          {error}
+        </p>
+      )}
+      <ul className="copy-history">
+        {said.map(item => (
+          <li key={`${item.row_number}-${item.other_row_number}`}>
+            <span>
+              Row {item.row_number} and row {item.other_row_number}: {item.same ? "the same lead" : "not the same lead"}
+            </span>
+            <button type="button" className="link" onClick={() => takeBack(item)}>
+              Take it back
+            </button>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+
+  // A check from before Turf looked for repeated leads says nothing about them: checking again does.
+  if (found === undefined)
+    return (
+      <article className="card step">
+        <header>
+          <h2>Repeated leads</h2>
+        </header>
+        <p className="notice" role="status">
+          <span>
+            This check was made before Turf looked for rows that repeat the same lead. Check again to find them; nothing else about the check changes.
+          </span>
+          <button type="button" className="button" disabled={busy} onClick={onCheck}>
+            Check again
+          </button>
+        </p>
+      </article>
+    );
   if (found === null)
     return (
       <article className="card step">
@@ -117,10 +197,10 @@ export function SkiptraceDuplicates({ found, showRows }: { found: DuplicateSumma
         repeats.
         {!found.has_names && " Map the owner's name in Column roles for surer answers: without a name, the same phone alone is only a possible repeat."}
         {found.ignored_shared_values > 0 &&
-          ` ${formatNumber(found.ignored_shared_values)} ${found.ignored_shared_values === 1 ? "number or email is" : "numbers or emails are"} on many rows under different names (an office line, a placeholder) and did not count.`}
-        {found.skipped_groups > 0 &&
-          ` ${formatNumber(found.skipped_groups)} very large ${found.skipped_groups === 1 ? "group" : "groups"} of rows sharing one value (a common name in one ZIP, say) ${found.skipped_groups === 1 ? "was" : "were"} not compared inside, to keep the check quick.`}
+          ` ${formatNumber(found.ignored_shared_values)} ${found.ignored_shared_values === 1 ? "number or email is" : "numbers or emails are"} on many rows under different names (an office line, a placeholder) and did not count.`}{" "}
+        If an answer is wrong, open the rows and say so: your answer is followed from the next check on.
       </p>
+      {answers}
     </article>
   );
 }

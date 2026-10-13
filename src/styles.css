@@ -3423,3 +3423,73 @@ tbody tr:first-child th[scope="row"] {
   cursor: default;
   box-shadow: none;
 }
+
+/* A file held over the window: the whole window says where it will go. */
+.drop-over {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--page) 82%, transparent);
+  backdrop-filter: blur(3px);
+  pointer-events: none;
+}
+.drop-over > div {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  max-width: 560px;
+  padding: 44px 40px;
+  text-align: center;
+  border-radius: var(--radius);
+  border: 2px dashed var(--ink);
+  background: var(--raised);
+}
+.drop-over strong {
+  font-size: 24px;
+  font-weight: 600;
+}
+.drop-over span {
+  color: var(--muted);
+}
+/* What became of each dropped file, in the corner until dismissed. */
+.drop-outcomes {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 50;
+  width: min(440px, calc(100vw - 40px));
+  max-height: 60vh;
+  overflow: auto;
+  background: var(--raised);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.16);
+}
+.drop-outcomes ul {
+  display: grid;
+  gap: 12px;
+}
+.drop-outcomes li {
+  display: grid;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+.drop-outcomes li span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.drop-outcomes li.already span,
+.drop-outcomes li.failed span {
+  color: var(--accent-ink);
+}
+.drop-outcomes li.added span {
+  color: var(--good-ink);
+}
+.overrule {
+  font-weight: 400;
+  gap: 4px 12px;
+}
+.combine .duplicate-groups ul li .num {
+  min-width: 190px;
+}

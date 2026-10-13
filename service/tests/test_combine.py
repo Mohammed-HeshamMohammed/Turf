@@ -61,6 +61,8 @@ def test_two_lists_with_different_columns_become_one_with_each_lead_once(service
     # One row for John: the traced row kept (it has the phone), the county roll's mailing address filled in.
     assert john["Phone"] == "(713) 555-3142" and john["Mail Address"] == "12 Main Street" and john["In lists"] == "Traced; County roll"
     assert john["Combined from"] == "Traced row 2; County roll row 2"
+    maria = next(row for row in rows if row["Owner Name"] == "Maria Garcia")
+    assert maria["Phone"] == "713-555-8877" and maria["Mail Address"] == "PO Box 9" and "Other phones" not in maria, "the row with a phone is kept, and nothing is said twice"
     assert "Owner" not in john and "Site Address" not in john, "the county roll's owner and address are the same columns under other names"
     assert [row["In lists"] for row in rows].count("County roll") == 1 and next(row for row in rows if row["In lists"] == "County roll")["Owner Name"] == "LEE ANN"
     saved = next(item for item in ok(service, "dataset.list") if item["id"] == made["dataset_id"])
