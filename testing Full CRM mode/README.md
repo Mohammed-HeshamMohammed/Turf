@@ -17,6 +17,8 @@ npm run dev -- --host 127.0.0.1 --port 5190
 
 Press the **Turf logo** to open the app menu and use **Explore as** to try all eight roles. The same menu provides workspace actions, connection controls, and reset. **Reset preview** restores the fictional sample workspace. Edits survive refresh in this browser under `turf.full-crm.prototype.v1`.
 
+**Connection preview**, **Sync & pending changes**, and **Workspace settings** live exclusively together in the Turf logo dropdown. They are absent from every sidebar mode and the personal menu. Workspace settings remain visible but disabled for roles without access; footer/offline messages provide status without duplicating the navigation actions.
+
 The sidebar toggle switches between full labels and a minimized icon rail. The preference survives refresh. Hovering an icon gently enlarges it and its neighbors while the rail bends outward; the selected item keeps a circular highlight. Tooltips also appear on keyboard focus. Reduced-motion preferences disable magnification and bending. Mobile retains the full-label drawer; role switching stays in the Turf logo menu.
 
 The workspace identity sits beside Turf in the header. The avatar opens a separate personal menu with My profile, personal/notification preferences, My tasks, and Calendar when available. Personal profile details and notification preferences persist per sample account; editing a display name does not rename lead responsibility. My tasks filters by the account's canonical responsible person.

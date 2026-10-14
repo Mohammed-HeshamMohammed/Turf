@@ -91,7 +91,7 @@ export function PersonalMenu({ onOpen }) {
           </div>
           <div className="personal-menu-footer">
             <Badge>{role.name}</Badge>
-            <span>{state.online ? "Connected preview" : "Offline preview"}</span>
+            <span>Sample account</span>
           </div>
         </div>
       )}

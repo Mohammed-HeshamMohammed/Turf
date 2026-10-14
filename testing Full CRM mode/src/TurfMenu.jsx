@@ -3,6 +3,7 @@ import { ArrowClockwise, CloudArrowUp, FileCsv, GearSix, SidebarSimple, SquaresF
 import { ROLES } from "./data.js";
 import { personalProfile } from "./model.js";
 import { useCrm } from "./context.jsx";
+import { Badge } from "./ui.jsx";
 
 export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen }) {
   const { state, dispatch, navigate, notify } = useCrm();
@@ -40,6 +41,7 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen }) {
     trigger.current?.focus();
   }
   const role = ROLES[state.role];
+  const pending = state.queue.filter(item => item.actor === role.person).length;
   return (
     <div className="turf-menu" ref={root}>
       <button
@@ -76,23 +78,34 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen }) {
                 <span>Source lists & imports</span>
               </button>
             )}
-            {role.pages.includes("settings") && (
-              <button onClick={() => run(() => navigate("settings"))}>
-                <GearSix size={19} />
-                <span>Workspace settings</span>
-              </button>
-            )}
             <button className="desktop-menu-action" onClick={() => run(onToggleSidebar)}>
               <SidebarSimple size={19} />
               <span>{collapsed ? "Expand sidebar" : "Minimize sidebar"}</span>
             </button>
-            <button onClick={() => run(() => dispatch({ type: "CONNECT", online: !state.online }))}>
-              {state.online ? <WifiSlash size={19} /> : <WifiHigh size={19} />}
-              <span>{state.online ? "Try offline mode" : "Reconnect preview"}</span>
+          </div>
+          <div className="turf-menu-actions turf-menu-tools">
+            <button
+              className={"menu-connection " + (!state.online ? "offline" : "")}
+              onClick={() => run(() => dispatch({ type: "CONNECT", online: !state.online }))}
+            >
+              {state.online ? <WifiHigh size={19} /> : <WifiSlash size={19} />}
+              <div>
+                <strong>{state.online ? "Connected preview" : "Offline preview"}</strong>
+                <small>{state.online ? "Click to try offline mode" : "Click to reconnect preview"}</small>
+              </div>
             </button>
             <button onClick={() => run(() => navigate("sync"))}>
               <CloudArrowUp size={19} />
               <span>Sync & pending changes</span>
+              {pending > 0 && <Badge tone="peach">{pending}</Badge>}
+            </button>
+            <button
+              disabled={!role.pages.includes("settings")}
+              title={!role.pages.includes("settings") ? "Workspace settings are outside this role" : undefined}
+              onClick={() => run(() => navigate("settings"))}
+            >
+              <GearSix size={19} />
+              <span>Workspace settings</span>
             </button>
           </div>
           <div className="role-switcher">

@@ -251,7 +251,6 @@ export function App() {
               <div className="offline-banner">
                 <WifiSlash size={18} />
                 <span>You're viewing cached records. CRM edits will queue; local Skip Tracing stays available.</span>
-                <button onClick={() => navigate("sync")}>View pending changes</button>
               </div>
             )}
             <div key={current + ":" + state.role} className="page-content">
@@ -263,14 +262,14 @@ export function App() {
           <span>
             Turf · Full CRM mode <span className="footer-divider">/</span> Interactive UI prototype
           </span>
-          <button onClick={() => navigate("sync")}>
+          <span className="footer-status">
             <span className={"status-dot " + (!state.online ? "amber" : "")} />
             {state.online
               ? queue.length
                 ? queue.length + " items awaiting sync"
                 : "All changes saved locally"
               : "Offline · " + queue.length + " pending items"}
-          </button>
+          </span>
           <span>Sample workspace · no external communications</span>
         </footer>
         {toast && (

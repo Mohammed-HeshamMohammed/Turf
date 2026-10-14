@@ -547,16 +547,13 @@ svg {
   transform-origin: center;
   transition: transform 210ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.sidebar .nav-group button,
-.sidebar .sidebar-link,
-.sidebar .connection-button {
+.sidebar .nav-group button {
   position: relative;
   transition:
     background 180ms,
     border-radius 180ms;
 }
-.sidebar .nav-group button[aria-current],
-.sidebar .sidebar-link[aria-current] {
+.sidebar .nav-group button[aria-current] {
   border-radius: 999px;
   background: white;
   box-shadow: inset 0 0 0 1px #d1d1d1;
@@ -625,6 +622,22 @@ svg {
 .turf-menu-actions button:hover {
   background: var(--shell);
 }
+.turf-menu-tools .menu-connection > svg {
+  color: var(--good-ink);
+}
+.turf-menu-tools .menu-connection.offline > svg {
+  color: var(--accent-ink);
+}
+.turf-menu-tools .menu-connection > div {
+  display: grid;
+  gap: 2px;
+}
+.turf-menu-tools .menu-connection small {
+  font-size: 10px;
+}
+.turf-menu-tools .badge {
+  margin-left: auto;
+}
 .turf-menu-panel .role-switcher {
   margin: 7px 0;
   padding: 13px;
@@ -677,9 +690,7 @@ svg {
     padding-top: 10px;
     border-top: 1px solid #d2d2d2;
   }
-  .sidebar.is-minimized .nav-group button,
-  .sidebar.is-minimized .sidebar-link,
-  .sidebar.is-minimized .connection-button {
+  .sidebar.is-minimized .nav-group button {
     width: 42px;
     height: 42px;
     min-height: 42px;
@@ -692,22 +703,15 @@ svg {
   .sidebar.is-minimized .nav-label {
     display: none;
   }
-  .sidebar.is-minimized .nav-group button:hover,
-  .sidebar.is-minimized .sidebar-link:hover,
-  .sidebar.is-minimized .connection-button:hover {
+  .sidebar.is-minimized .nav-group button:hover {
     background: #ffffff75;
   }
-  .sidebar.is-minimized .nav-group button[aria-current],
-  .sidebar.is-minimized .sidebar-link[aria-current] {
+  .sidebar.is-minimized .nav-group button[aria-current] {
     background: white;
     border-radius: 50%;
     box-shadow:
       inset 0 0 0 1px #c9c9c9,
       0 3px 8px #00000008;
-  }
-  .sidebar.is-minimized .sidebar-bottom {
-    padding-top: 10px;
-    gap: 5px;
   }
   .sidebar.is-minimized .badge {
     position: absolute;
@@ -739,16 +743,10 @@ svg {
   .sidebar.is-minimized .nav-group + .nav-group {
     padding-top: 4px;
   }
-  .sidebar.is-minimized .nav-group button,
-  .sidebar.is-minimized .sidebar-link,
-  .sidebar.is-minimized .connection-button {
+  .sidebar.is-minimized .nav-group button {
     width: 36px;
     height: 36px;
     min-height: 36px;
-  }
-  .sidebar.is-minimized .sidebar-bottom {
-    gap: 0;
-    padding-top: 7px;
   }
 }
 .workspace-label {
@@ -799,8 +797,7 @@ svg {
   letter-spacing: 0.11em;
   color: #858585;
 }
-.nav-group button,
-.sidebar-link {
+.nav-group button {
   display: flex;
   align-items: center;
   gap: 11px;
@@ -811,12 +808,10 @@ svg {
   font-size: 13px;
   min-height: 39px;
 }
-.nav-group button > span:nth-child(2),
-.sidebar-link > span:nth-child(2) {
+.nav-group button > span:nth-child(2) {
   flex: 1;
 }
-.nav-group button:hover,
-.sidebar-link:hover {
+.nav-group button:hover {
   background: #e3e3e3;
 }
 .nav-group button[aria-current] {
@@ -829,42 +824,6 @@ svg {
   font-size: 10px;
   background: var(--accent-soft);
   text-align: center;
-}
-.sidebar-bottom {
-  flex: none;
-  display: grid;
-  gap: 5px;
-  border-top: 1px solid var(--line);
-  padding-top: 13px;
-}
-.connection-button {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  text-align: left;
-  padding: 7px 10px;
-}
-.connection-button strong {
-  font-size: 12px;
-}
-.connection-button small {
-  font-size: 10px;
-  margin-top: 2px;
-}
-.connection-icon {
-  color: var(--good-ink);
-}
-.connection-button.offline .connection-icon {
-  color: var(--accent-ink);
-}
-.sidebar-link {
-  font-size: 11.5px;
-  min-height: 34px;
-  padding: 7px 10px;
-  gap: 8px;
-}
-.sidebar-link[aria-current] {
-  background: var(--card);
 }
 .role-switcher {
   padding: 10px;
@@ -2725,7 +2684,7 @@ textarea {
   color: #747474;
   font-size: 9px;
 }
-.app-footer button {
+.app-footer .footer-status {
   display: flex;
   gap: 6px;
   align-items: center;
@@ -2907,9 +2866,7 @@ textarea {
     width: min(300px, calc(100vw - 70px));
   }
   .sidebar .dock-icon,
-  .sidebar .nav-group button,
-  .sidebar .sidebar-link,
-  .sidebar .connection-button {
+  .sidebar .nav-group button {
     transform: none;
   }
   .sidebar.mobile-open {
@@ -3076,7 +3033,7 @@ textarea {
   .app-footer > span:first-child {
     display: none;
   }
-  .app-footer button {
+  .app-footer .footer-status {
     margin-left: auto;
   }
   .quality-list > div {
@@ -3170,9 +3127,7 @@ textarea {
 }
 @media (prefers-reduced-motion: reduce) {
   .sidebar .dock-icon,
-  .sidebar .nav-group button,
-  .sidebar .sidebar-link,
-  .sidebar .connection-button {
+  .sidebar .nav-group button {
     transform: none !important;
   }
   .sidebar-bend {

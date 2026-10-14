@@ -100,3 +100,14 @@ Source truth is the user's three annotated CRM screenshots and subsequent feedba
 - Mobile [personal menu](screenshots/personal-menu-mobile.jpg) stays between **69px and 359px** in the 375px viewport. The workspace name remains visible in the header. Mobile [chart details](screenshots/call-interval-mobile.jpg) render the same interval tooltip and document width remains **375px**.
 - Required fidelity surfaces were rechecked: bundled Inter Tight and compact hierarchy; preserved gray/peach/black tokens; unchanged property asset and icon family; deliberate header spacing; clear personal menu labels and illustrative chart copy. The supplied screenshots and working page were visibly reviewed, not inferred only from source code.
 - Browser checks found no remaining actionable P0/P1/P2 issue. Existing sample records and the user's role were preserved. Build, lint, and **10 model/hosting tests** pass; console errors/warnings were checked after restoring the desktop preview.
+
+## Turf dropdown tools placement
+
+**final result: passed**
+
+- Source truth: the supplied control-strip image `C:/Users/unwie/AppData/Local/Temp/codex-clipboard-2c2f5a8d-6553-4eb9-9bbc-99da00e20763.png` and the instruction to keep those three controls exclusively in the Turf dropdown.
+- Implementation evidence: [desktop dropdown](screenshots/menu-only-tools.jpg) and [mobile dropdown](screenshots/menu-only-tools-mobile.jpg). The source strip and mobile implementation were visibly opened in the same comparison input. This is a control-placement comparison, not a pixel-identical crop comparison. Mobile viewport/pixels are **375 × 812**, density **1**.
+- Connection preview, Sync & pending changes, and Workspace settings appear together in that order inside the logo menu. The connection row retains the green icon and helpful state label; the menu uses the existing font, white surface, rounded corners, and spacing.
+- All three are absent from the expanded/minimized/mobile sidebar. The personal menu no longer repeats the connection label. Footer status is plain text, and the offline banner no longer duplicates the Sync navigation action.
+- Checked offline/reconnect toggling, opening Sync, and opening Settings from the dropdown. Caller still sees the Settings entry but cannot activate it; no role access was broadened. Original manager/connection state was restored after verification.
+- Browser DOM checks found **0** utility items in the minimized/mobile sidebar and **0** footer buttons. Mobile document width remains **375px**. No actionable P0/P1/P2 finding remains for this placement change.

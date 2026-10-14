@@ -5,17 +5,13 @@ import {
   ChartBar,
   ChatCircle,
   CheckCircle,
-  CloudArrowUp,
   FileCsv,
-  GearSix,
   Handshake,
   Phone,
   ShieldCheck,
   SidebarSimple,
   SquaresFour,
   Users,
-  WifiHigh,
-  WifiSlash,
 } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
 import { visibleLeads, visibleTasks } from "./model.js";
@@ -37,13 +33,12 @@ const NAV = [
 ];
 
 export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
-  const { state, dispatch, navigate, notify } = useCrm();
+  const { state, navigate } = useCrm();
   const ref = useRef(null);
   const [hover, setHover] = useState(null);
   const role = ROLES[state.role];
   const leads = visibleLeads(state);
   const tasks = visibleTasks(state).filter(task => !task.done);
-  const queue = state.queue.filter(item => item.actor === role.person);
   const items = NAV.filter(item => role.pages.includes(item.id));
   function track(event) {
     const button = event.target.closest("button[data-dock-id]");
@@ -153,47 +148,6 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
             </div>
           ))}
       </nav>
-      <div className="sidebar-bottom">
-        <button
-          {...dockProps("connection", state.online ? "Connected preview — try offline mode" : "Offline preview — reconnect")}
-          className={"connection-button " + (!state.online ? "offline" : "")}
-          onClick={() => {
-            dispatch({ type: "CONNECT", online: !state.online });
-            notify(state.online ? "Offline preview enabled. Edits will queue on this device." : "Connection restored. Review and sync pending changes.");
-          }}
-        >
-          <span className="connection-icon dock-icon">{state.online ? <WifiHigh size={21} /> : <WifiSlash size={21} />}</span>
-          <div className="nav-label">
-            <strong>{state.online ? "Connected preview" : "Offline preview"}</strong>
-            <small>{state.online ? "Click to try offline mode" : "Your edits stay on this device"}</small>
-          </div>
-        </button>
-        <button
-          {...dockProps("sync", "Sync & pending changes")}
-          className="sidebar-link"
-          onClick={() => navigate("sync")}
-          aria-current={page === "sync" ? "page" : undefined}
-        >
-          <span className="dock-icon">
-            <CloudArrowUp size={21} />
-          </span>
-          <span className="nav-label">Sync & pending changes</span>
-          {queue.length > 0 && <Badge tone="peach">{queue.length}</Badge>}
-        </button>
-        {role.pages.includes("settings") && (
-          <button
-            {...dockProps("settings", "Workspace settings")}
-            className="sidebar-link"
-            onClick={() => navigate("settings")}
-            aria-current={page === "settings" ? "page" : undefined}
-          >
-            <span className="dock-icon">
-              <GearSix size={21} />
-            </span>
-            <span className="nav-label">Workspace settings</span>
-          </button>
-        )}
-      </div>
       {hover && collapsed && (
         <div className="dock-tooltip" role="tooltip" style={{ top: hover.tooltipY }}>
           <strong>{hover.label}</strong>
