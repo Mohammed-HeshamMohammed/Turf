@@ -10,8 +10,8 @@ The same stack as DataForge. Everything Turf runs is in this repository; it does
 
 | Part | Technology | What it does |
 | --- | --- | --- |
-| Window | React + TypeScript (`src/`) | The three tabs: Dashboard, Lists, Skip Tracing. It never touches files or the database itself. |
-| Host | Rust + Tauri 2 (`src-tauri/`) | The desktop window with its own title bar. Starts the service, forwards commands to it, and keeps what Turf itself saves. |
+| Window | React + TypeScript (`src/`) | The four tabs: Dashboard, Lists, Skip Tracing, Calls. It never touches files or the database itself. |
+| Host | Rust + Tauri 2 (`src-tauri/`) | The desktop window with its own title bar. Starts the service, forwards commands to it (restarting it if it does not answer within 3 minutes), and keeps what Turf itself saves. The window has a content security policy: scripts and styles from the app only, pictures from anywhere, connections only to the host and its map cache. |
 | Service | Python (`service/`) | Projects, lists and Skip Tracing, in a project folder (SQLite). Copied from DataForge; see [service/SOURCE.md](service/SOURCE.md). |
 
 A project is the same folder format as DataForge's, so a DataForge project opens in Turf.
@@ -77,6 +77,28 @@ Each list's rows are kept as a small sketch in the project, so adding a file nev
 Before anything is saved you see what the lists share: how many leads each has, how many are only there, how many are in another list too, the leads found in more than one list, and the pairs that might be the same lead. You can overrule any of them there. Then choose what the new list holds: every lead once, only the leads in more than one list or in all of them, or only the leads one list has and the others do not (what is new in this month's list, say).
 
 Each lead is one row: the row with the best number to call, else one with a phone, else the most complete, with what the other lists have for it filled in where it is empty. One list's "Owner" and another's "Owner Name" are one column. A phone or email of another row that found no empty cell goes in `Other phones` or `Other emails`; `In lists` and `Combined from` say where each row came from. The lists themselves are not changed, and the combined list is a list like any other: it can be checked in Skip Tracing, downloaded, or combined again.
+
+## Calling the leads
+
+**Calls** works a checked list one lead at a time. Each lead is there once (repeated rows are left out), with the number worth calling first and its other usable numbers below; a click on a number dials it through the computer's own phone app. Beside each number is the time it is where the number is, from its area code, and whether that is inside 8 am to 9 pm, the federal (TCPA) calling window. Some states are stricter and a moved number keeps its old area code, so the time is a warning to look at, not a permission; a number in several zones is inside the window only when it is in every one of them.
+
+One click says how the call went: reached, voicemail, no answer, wrong number, disconnected, or do not call. It is recorded as the call evidence Skip Tracing already uses, so the next phone check knows it. A call that gets no answer moves on to the next lead; one that reaches someone stays in view to set where the lead stands.
+
+**Where a lead stands** is its stage (new, contacted, interested, not interested, dead), a callback day with what it is about, and notes. A lead is its property (street number, street, unit and ZIP), or its phone when the row has no address, so all of it follows the lead into every list of the project that holds it, whatever the list calls its columns. It is set in Calls and in a row's details in Lists. Leads not interested or dead leave the queue; a callback comes back on its day, first in the queue and on the Dashboard's *Callbacks due* card, which opens the lead in Calls.
+
+## Handing a list on
+
+In Lists, beside the downloads:
+
+- **Call list**: a CSV for a dialer, made from the list's check. Each lead once, its best number in `Phone` and its other usable numbers in `Other phones`, with its stage, callback day and latest note; leads with no number to call, repeats, and (unless asked for) leads not interested or dead are left out, and the message says how many.
+- **Mail list**: a CSV for letters. Each owner once at where their mail goes (the same address however it is spelled), with the property it is about. It can be only absentee owners, only rows with no phone, and without PO boxes.
+
+## Keeping a project safe
+
+- **Deleting a list sets it aside for 30 days.** *Deleted lists* under the lists puts it back with everything it had (its rows, setup, checks and stored file), or deletes it for good. A list deleted more than 30 days ago is let go the next time the project is opened. A deleted list does not stop the same file from being added again.
+- **Back up this project**, in the menu behind the mark in the title bar, writes one zip with the project's database and every stored file. Unpacked into an empty folder, it opens as the project. The desktop window asks where to save it; a browser tab puts it in the project's `backups` folder.
+- **Filters can be kept by name** for each list (*Keep this filter* in the filter bar) and chosen again from *Saved filters*.
+- **Comparing lists** also points out properties that another list names a different owner for: sold since, or one list is wrong.
 
 ## Owners, contacts and areas
 
@@ -196,8 +218,11 @@ Successful results for the same products are reused within the configured cache 
 
 ## Not done yet
 
+- **Calling hours are the federal window only.** State rules (stricter hours, Sundays and holidays) are not known to Turf.
+- **Dropping a file on the desktop window** uses the window's own drop event, which has not been tried by hand; dropping on a browser tab has.
+
 - **The installer is not signed, and is for Windows only.** Windows will warn about an unknown publisher until it is signed. The installed app has been started and seen to launch its own service; its screens have not been gone through one by one in that form.
-- **A very long list is read whole into the window.** Measured on a list of 200,000 rows: the Dashboard appears after 6 to 8 seconds (it took 19), the owners card some ten seconds after that without holding the window still, and the window holds about 400 MB. Searching and filtering such a list takes about a tenth of a second. Lists of a few tens of thousands of rows open in a second or two. Reading only the page in view would mean doing the marks, owners, pictures and map in the service instead of the window.
+- **A very long list is read whole into the window.** Measured on a list of 200,000 rows: the Dashboard appears after 6 to 8 seconds (it took 19), the owners card some ten seconds after that without holding the window still, and the window holds about 400 MB. Rows now travel at half their former size, and a list's setup is remembered between screens. Reading only the page in view would mean doing the marks, owners, pictures and map in the service instead of the window, a rewrite of the Dashboard and Lists not yet done.
 - **Listings come from DataForge.** Turf has no collector; a collected run shows in Turf when its project is opened here.
 - **Turf and DataForge open at once on one project** has not been tested. Opening a project recovers interrupted jobs, so do not open a project in Turf while DataForge is running a job on it.
 - **The street map needs the internet the first time.** Its background comes from OpenFreeMap (OpenStreetMap data, free, no key) and ZIP outlines from the US Census Bureau; only map addresses and ZIP codes are asked for, never a row. The desktop host keeps every piece on disk (`src-tauri/src/mapcache.rs`, and the service's outline folder), so what was looked at before draws without a connection. Parts never looked at do not, and the cache has no size limit yet.
