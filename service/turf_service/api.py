@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import SCHEMA_VERSION
-from . import area, combine, datasets, exports, keeping, leads, sameness, dnc_registry, downloads, emails, flood, geo, images, nanpa_blocks, manual, phone_evidence, phone_lookup, projects, skiptrace, tidy
+from . import area, combine, datasets, exports, keeping, leads, sameness, views, dnc_registry, downloads, emails, flood, geo, images, nanpa_blocks, manual, phone_evidence, phone_lookup, projects, skiptrace, tidy
 from .contracts import health_check
 from .jobs import JobContext, JobKind, JobRunner, JobValidationError
 from .logs import log
@@ -117,6 +117,8 @@ class Service:
             "export.prepare": lambda p: exports.prepare(self._store(), p),
             "export.chunk": lambda p: exports.chunk(p),
             "export.save": lambda p: exports.save(self._store(), p),
+            "views.summary": lambda p: views.summary(self._store(), p),
+            "views.page": lambda p: views.page(self._store(), p),
             "lists.combine": lambda p: {"job_id": self._submit("lists_combine", p)},
             "duplicates.overrule": lambda p: combine.overrule(self._store(), p),
             "duplicates.overrules": lambda p: combine.overrules(self._store(), [str(item) for item in p.get("dataset_ids") or []]),

@@ -5,7 +5,7 @@ import { Empty, MiniBars, SearchBox, Segmented } from "../components/Bits";
 import { Select } from "../components/Select";
 import { copyText, useContextMenu } from "../components/ContextMenu";
 import { Icon } from "../components/Icon";
-import { gatherForMap, placeRows, priceColumn, useZipCentres, useZipOutlines } from "../lib/geo";
+import { gatherForMap, mergeMapData, placeRows, placesForMap, priceColumn, useZipCentres, useZipOutlines } from "../lib/geo";
 import {
   callProgress,
   contactCoverage,
@@ -28,7 +28,20 @@ import {
 import { photoColumns, photosFor, placeColumns, positionOf, streetPart } from "../lib/photos";
 import { PropertyPhoto } from "../components/PropertyPhoto";
 import { CallbacksCard } from "../components/ListExtras";
-import { marksSource, primaryLists, usableEmail, useAllRows, useEmailVerdicts, useListSetups, useOwnerIndex, useOwnerStats, usePhotoIndex } from "../lib/hooks";
+import {
+  isLarge,
+  marksSource,
+  primaryLists,
+  usableEmail,
+  useAllRows,
+  useEmailVerdicts,
+  useLargeSummaries,
+  useListSetups,
+  useOwnerIndex,
+  useOwnerStats,
+  usePhotoIndex,
+  type LargeSummary,
+} from "../lib/hooks";
 import { contactsOf } from "../lib/owners";
 import {
   AREA_LABELS,
@@ -50,7 +63,11 @@ const StreetMap = lazy(() => import("../components/StreetMap").then(module => ({
 
 type Summary = {
   dataset: Dataset;
+  /** The list's rows, when it is read whole; a long list's are counted by the service and this is empty. */
   rows: DatasetRow[];
+  count: number;
+  /** The service's counts of a long list. */
+  large?: LargeSummary;
   columns: string[];
   checked: boolean;
   hasPhones: boolean;
@@ -90,7 +107,12 @@ export function Dashboard({ turf }: { turf: Turf }) {
   // from wherever its marks are.
   const primary = useMemo(() => primaryLists(datasets), [datasets]);
   const sources = useMemo(() => primary.map(dataset => marksSource(dataset, datasets)), [primary, datasets]);
-  const allRows = useAllRows(sources, turf.fail);
+  // Long lists are not read whole: the service counts them.
+  const smallSources = useMemo(() => sources.filter(source => !isLarge(source)), [sources]);
+  const allRows = useAllRows(smallSources, turf.fail);
+  // `version` changes when a list is checked or a status is settled.
+  const setups = useListSetups(datasets, turf.version);
+  const large = useLargeSummaries(datasets, setups, turf.areaMaps, manual, turf.fail);
   // Every ZIP in every list, so rows without their own coordinates can go on the map at their ZIP's centre.
   const zipValues = useMemo(() => {
     const values = new Set<string>();
@@ -103,14 +125,11 @@ export function Dashboard({ turf }: { turf: Turf }) {
           if (value) values.add(value);
         }
     }
+    for (const summary of Object.values(large ?? {})) for (const area of summary.areas.zip ?? []) values.add(area.name);
     return [...values];
-  }, [allRows, sources, turf.areaMaps]);
+  }, [allRows, sources, turf.areaMaps, large]);
   const centres = useZipCentres(zipValues, turf.fail);
   const photoIndex = usePhotoIndex(datasets, turf.areaMaps, turf.fail);
-  // Each list's Skip Tracing setup: its phone columns and what its call statuses mean, settled by Turf or by the person.
-  // Reading it needs no phone check.
-  // `version` changes when a list is checked or a status is settled.
-  const setups = useListSetups(datasets, turf.version);
   const owners = useOwnerIndex(datasets, setups, turf.areaMaps, turf.fail);
   // Every email in the lists, checked: an address that cannot reach anyone does not count as a way to reach them.
   const allEmails = useMemo(
@@ -133,9 +152,34 @@ export function Dashboard({ turf }: { turf: Turf }) {
   const [plain, setPlain] = useState(false);
 
   const data = useMemo(() => {
-    if (!allRows) return null;
+    if (!allRows || !large) return null;
     const blocked = new Set<string>();
+    // A long list's numbers not to call are counted by the service, within that list.
+    let blockedElsewhere = 0;
     const summaries: Summary[] = primary.map(dataset => {
+      const counted = large[dataset.id];
+      if (counted) {
+        blockedElsewhere += counted.blocked_numbers;
+        const zipColumn = counted.areaColumns.zip;
+        return {
+          dataset,
+          rows: [],
+          count: counted.count,
+          large: counted,
+          columns: counted.columns,
+          checked: counted.checked,
+          callable: counted.callable,
+          verdicts: counted.verdicts,
+          hasPhones: counted.checked || counted.coverage.phone > 0,
+          zips: counted.areas.zip?.length ?? 0,
+          coverage: counted.coverage,
+          zipColumn,
+          zipless: zipColumn ? counted.zipless : counted.count,
+          progress: callProgress(setups[dataset.id]),
+          reach: Object.fromEntries(REACH.map(kind => [kind.id, counted.reach[kind.id] ?? 0])) as Record<ReachKind, number>,
+          context: counted.context,
+        };
+      }
       const source = marksSource(dataset, datasets);
       const rows = allRows[source.id] ?? [];
       const columns = rows[0] ? Object.keys(rows[0].raw) : [];
@@ -157,6 +201,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
       return {
         dataset,
         rows,
+        count: rows.length,
         columns,
         checked: phoneColumns.length > 0,
         callable,
@@ -171,8 +216,8 @@ export function Dashboard({ turf }: { turf: Turf }) {
         context,
       };
     });
-    const total = summaries.reduce((sum, item) => sum + item.rows.length, 0);
-    const checkedRows = summaries.reduce((sum, item) => sum + (item.checked ? item.rows.length : 0), 0);
+    const total = summaries.reduce((sum, item) => sum + item.count, 0);
+    const checkedRows = summaries.reduce((sum, item) => sum + (item.checked ? item.count : 0), 0);
     const callable = summaries.reduce((sum, item) => sum + item.callable, 0);
     const verdicts = Object.fromEntries(VERDICTS.map(verdict => [verdict, summaries.reduce((sum, item) => sum + item.verdicts[verdict], 0)])) as Record<
       Verdict,
@@ -185,6 +230,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
       const position = positionColumns(item.columns);
       const areas = areaColumns(item.columns, turf.areaMaps[item.dataset.id]);
       for (const dot of placeRows(item.rows, { position, zipColumn: areas.zip, stateColumn: areas.state, centres }).dots) dots.push(dot);
+      for (const spot of item.large ? placesForMap(item.large.places, centres).spots : []) dots.push({ lon: spot.lon, lat: spot.lat });
       // Any list with pictures and a price reads as listings, imported or collected.
       const pictures = photoColumns(item.rows, item.columns);
       const fields = listingFields(item.columns);
@@ -252,7 +298,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
     const steps = nextSteps(
       summaries.map(item => ({
         dataset: item.dataset,
-        rows: item.rows.length,
+        rows: item.count,
         checked: item.checked,
         phoneRows: item.coverage.phone,
         zipColumn: item.zipColumn,
@@ -267,7 +313,7 @@ export function Dashboard({ turf }: { turf: Turf }) {
       checkedRows,
       callable,
       verdicts,
-      blocked: blocked.size,
+      blocked: blocked.size + blockedElsewhere,
       dots,
       listings: listings.slice(0, 3),
       followUps: [...followUps].sort((a, b) => Number(b.photos.length > 0) - Number(a.photos.length > 0) || a.order - b.order).slice(0, 3),
@@ -283,27 +329,32 @@ export function Dashboard({ turf }: { turf: Turf }) {
     };
     // `known` changes as ZIP centres arrive.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allRows, primary, datasets, manual, turf.areaMaps, centres, known, setups, photoIndex, ownerStats, emailVerdicts]);
+  }, [allRows, large, primary, datasets, manual, turf.areaMaps, centres, known, setups, photoIndex, ownerStats, emailVerdicts]);
   const [view, setView] = useState<"calls" | "checks" | null>(null);
 
   // For the street map: every list's rows, each at its own place where it has one, and gathered by ZIP, city and state.
   // Areas are named at the level the Areas card is on.
   const mapData = useMemo(
     () =>
-      gatherForMap(
-        (data?.summaries ?? []).map(item => {
-          const found = areaColumns(item.columns, turf.areaMaps[item.dataset.id]);
-          const dots = placeRows(item.rows, {
-            position: positionColumns(item.columns),
-            zipColumn: found.zip,
-            stateColumn: found.state,
+      [...(data?.summaries ?? [])]
+        .filter(item => item.large)
+        .reduce(
+          (merged, item) => mergeMapData(merged, placesForMap(item.large!.places, centres, level)),
+          gatherForMap(
+            (data?.summaries ?? []).map(item => {
+              const found = areaColumns(item.columns, turf.areaMaps[item.dataset.id]);
+              const dots = placeRows(item.rows, {
+                position: positionColumns(item.columns),
+                zipColumn: found.zip,
+                stateColumn: found.state,
+                centres,
+                tagColumn: priceColumn(item.columns),
+              }).dots;
+              return { rows: item.rows, dots, columns: found, named: found[level] };
+            }),
             centres,
-            tagColumn: priceColumn(item.columns),
-          }).dots;
-          return { rows: item.rows, dots, columns: found, named: found[level] };
-        }),
-        centres,
-      ),
+          ),
+        ),
     // `known` changes as ZIP centres arrive.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, level, turf.areaMaps, centres, known],
@@ -315,7 +366,8 @@ export function Dashboard({ turf }: { turf: Turf }) {
     const counts = new Map<string, number>();
     for (const item of data.summaries) {
       const column = areaColumns(item.columns, turf.areaMaps[item.dataset.id])[level];
-      for (const area of countAreas(item.rows, column)) counts.set(area.name, (counts.get(area.name) ?? 0) + area.count);
+      for (const area of item.large ? (item.large.areas[level] ?? []) : countAreas(item.rows, column))
+        counts.set(area.name, (counts.get(area.name) ?? 0) + area.count);
     }
     return [...counts]
       .map(([name, count]) => ({ name, count }))
@@ -726,9 +778,9 @@ export function Dashboard({ turf }: { turf: Turf }) {
                       </div>
                     </td>
                     <td>{KIND_LABELS[item.dataset.kind]}</td>
-                    <td className="num">{formatNumber(item.rows.length)}</td>
+                    <td className="num">{formatNumber(item.count)}</td>
                     <td className="num">{item.zips || "–"}</td>
-                    <td className="num">{item.checked ? `${Math.round(share(item.callable, item.rows.length))}%` : "–"}</td>
+                    <td className="num">{item.checked ? `${Math.round(share(item.callable, item.count))}%` : "–"}</td>
                     <td>
                       {item.checked ? (
                         <span className="pill pill-corroborated">Checked</span>

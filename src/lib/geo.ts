@@ -268,3 +268,77 @@ export function gatherForMap(sources: MapSource[], centres: Map<string, ZipCentr
   const mean = (groups: Map<string, Sum>): Group[] => [...groups.values()].map(({ n, lat, lon, ...rest }) => ({ ...rest, lat: lat / n, lon: lon / n }));
   return { spots: [...spots.values()], points, zips: [...spots.keys()], cities: mean(cities), states: mean(states) };
 }
+
+export type Place = { zip: string; city: string; state: string; count: number };
+export type MapData = ReturnType<typeof gatherForMap>;
+
+/**
+ * A long list's rows for the map, from the service's counts of rows by ZIP, city and state rather than from the rows
+ * themselves: each ZIP at its centre with its count, and cities and states where their ZIPs are, weighted by rows.
+ * A long list's rows are not drawn one by one; at that size they are counted by area.
+ */
+export function placesForMap(places: Place[], centres: Map<string, ZipCentre | null>, named: "zip" | "city" | "state" = "zip"): MapData {
+  const spots = new Map<string, Spot>();
+  type Sum = Group & { n: number };
+  const cities = new Map<string, Sum>();
+  const states = new Map<string, Sum>();
+  const add = (groups: Map<string, Sum>, key: string, name: string, lat: number, lon: number, count: number) => {
+    let group = groups.get(key);
+    if (!group) groups.set(key, (group = { name, lat: 0, lon: 0, shown: 0, hidden: 0, n: 0 }));
+    group.lat += lat * count;
+    group.lon += lon * count;
+    group.n += count;
+    group.shown += count;
+  };
+  for (const place of places) {
+    const centre = place.zip ? centres.get(place.zip) : null;
+    if (!centre) continue;
+    const state = place.state.toUpperCase();
+    if (state && !centre.states.includes(state)) continue;
+    const area = (named === "city" ? place.city : named === "state" ? state : "") || place.zip;
+    const spot = spots.get(place.zip) ?? { zip: place.zip, lat: centre.lat, lon: centre.lon, shown: 0, hidden: 0, loose: 0, area };
+    spot.shown += place.count;
+    spot.loose += place.count;
+    spots.set(place.zip, spot);
+    if (place.city) add(cities, `${state}|${place.city.toLowerCase()}`, state ? `${place.city}, ${state}` : place.city, centre.lat, centre.lon, place.count);
+    if (state) add(states, state, state, centre.lat, centre.lon, place.count);
+  }
+  const mean = (groups: Map<string, Sum>): Group[] => [...groups.values()].map(({ n, lat, lon, ...rest }) => ({ ...rest, lat: lat / n, lon: lon / n }));
+  return { spots: [...spots.values()], points: [], zips: [...spots.keys()], cities: mean(cities), states: mean(states) };
+}
+
+/** Two sets of map data drawn as one: the same ZIP, city or state in both is one, with both counts. */
+export function mergeMapData(first: MapData, second: MapData): MapData {
+  const spots = new Map(first.spots.map(spot => [spot.zip, { ...spot }]));
+  for (const spot of second.spots) {
+    const known = spots.get(spot.zip);
+    if (known) {
+      known.shown += spot.shown;
+      known.hidden += spot.hidden;
+      known.loose += spot.loose;
+    } else spots.set(spot.zip, { ...spot });
+  }
+  const groups = (left: Group[], right: Group[]) => {
+    const merged = new Map(left.map(group => [group.name, { ...group }]));
+    for (const group of right) {
+      const known = merged.get(group.name);
+      if (!known) merged.set(group.name, { ...group });
+      else {
+        const weight = known.shown + known.hidden,
+          more = group.shown + group.hidden;
+        known.lat = (known.lat * weight + group.lat * more) / Math.max(1, weight + more);
+        known.lon = (known.lon * weight + group.lon * more) / Math.max(1, weight + more);
+        known.shown += group.shown;
+        known.hidden += group.hidden;
+      }
+    }
+    return [...merged.values()];
+  };
+  return {
+    spots: [...spots.values()],
+    points: [...first.points, ...second.points],
+    zips: [...spots.keys()],
+    cities: groups(first.cities, second.cities),
+    states: groups(first.states, second.states),
+  };
+}

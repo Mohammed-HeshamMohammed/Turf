@@ -22,7 +22,7 @@ import {
   importLegacyMarks,
   type Project,
 } from "./lib/service";
-import { clearRowsCache, marksSource, preloadRows, useStored } from "./lib/hooks";
+import { clearRowsCache, isLarge, marksSource, preloadRows, useStored } from "./lib/hooks";
 import type { ManualMarks } from "./lib/marks";
 import type { AreaMapping, Dataset, ManualMark } from "./lib/types";
 import { Dashboard } from "./tabs/Dashboard";
@@ -185,7 +185,15 @@ export function App() {
   useEffect(() => {
     if (!datasets) return;
     const primary = datasets.filter(dataset => !(dataset.kind === "checked" && datasets.some(other => other.id === dataset.parent_dataset_id)));
-    void preloadRows([...new Set(primary.map(dataset => marksSource(dataset, datasets).id))]);
+    // A long list is not read whole: the service counts and pages it.
+    void preloadRows([
+      ...new Set(
+        primary
+          .map(dataset => marksSource(dataset, datasets))
+          .filter(source => !isLarge(source))
+          .map(source => source.id),
+      ),
+    ]);
   }, [datasets]);
   const selected = datasets?.find(dataset => dataset.id === (selectedId ?? datasets[0]?.id));
   const setupId = selected?.kind === "checked" ? (selected.parent_dataset_id ?? selected.id) : selected?.id;

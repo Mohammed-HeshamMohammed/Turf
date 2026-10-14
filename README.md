@@ -62,6 +62,12 @@ This builds the service into one executable (`service/dist/turf-service.exe`, by
 
 The build needs a few gigabytes free. On a drive without room, send the working files elsewhere: `python service/tools/build_service.py --work D:\build`, and set `CARGO_TARGET_DIR` for the host's build.
 
+## Long lists
+
+A list of up to 50,000 rows is read whole into the window, which counts, filters and maps it by itself. A longer one is counted and paged by the service instead (`service/turf_service/views.py`): Lists shows it a page at a time, filtered by the service (verdict, flag, a column, search, area), and the Dashboard takes its counts (verdicts, how rows can be reached, areas, where its rows are) from the service. The service applies the window's own rules, and on a 60,000-row list both give the same counts. On that list the Dashboard opened in about 5 seconds with the window holding 26 MB.
+
+What needs every row of every list at once is left out for a long list: owners and contacts found in other lists, pictures borrowed from them, and each property on its own address on the map (a long list is drawn by ZIP). An email in a long list counts as a way to reach someone without its domain being looked up.
+
 ## Adding lists, and never the same one twice
 
 Drop a list's file anywhere on the window to add it to the open project; several files are added one after another. While a file is held over the window, the whole window says where it will go. **Import** in Lists and in the menu do the same for one file.
@@ -222,7 +228,7 @@ Successful results for the same products are reused within the configured cache 
 - **Dropping a file on the desktop window** uses the window's own drop event, which has not been tried by hand; dropping on a browser tab has.
 
 - **The installer is not signed, and is for Windows only.** Windows will warn about an unknown publisher until it is signed. The installed app has been started and seen to launch its own service; its screens have not been gone through one by one in that form.
-- **A very long list is read whole into the window.** Measured on a list of 200,000 rows: the Dashboard appears after 6 to 8 seconds (it took 19), the owners card some ten seconds after that without holding the window still, and the window holds about 400 MB. Rows now travel at half their former size, and a list's setup is remembered between screens. Reading only the page in view would mean doing the marks, owners, pictures and map in the service instead of the window, a rewrite of the Dashboard and Lists not yet done.
+- **Calls reads a long list whole.** Lists and the Dashboard show a list of more than 50,000 rows through the service (below), but Calls still reads the list into the window to order its queue: on 60,000 rows it opens in about 3 seconds and holds about 140 MB.
 - **Listings come from DataForge.** Turf has no collector; a collected run shows in Turf when its project is opened here.
 - **Turf and DataForge open at once on one project** has not been tested. Opening a project recovers interrupted jobs, so do not open a project in Turf while DataForge is running a job on it.
 - **The street map needs the internet the first time.** Its background comes from OpenFreeMap (OpenStreetMap data, free, no key) and ZIP outlines from the US Census Bureau; only map addresses and ZIP codes are asked for, never a row. The desktop host keeps every piece on disk (`src-tauri/src/mapcache.rs`, and the service's outline folder), so what was looked at before draws without a connection. Parts never looked at do not, and the cache has no size limit yet.

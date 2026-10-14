@@ -1,4 +1,5 @@
 import { CombineLists } from "../components/CombineLists";
+import { LargeListView } from "../components/LargeListView";
 import { ListRowDetail } from "../components/ListRowDetail";
 import { MapNote } from "../components/MapNote";
 import { dullColumns, formatCell } from "../lib/list-columns";
@@ -25,7 +26,7 @@ import { DeletedLists, ListExports, SavedFilters } from "../components/ListExtra
 import { Icon } from "../components/Icon";
 import { ListPicker } from "../components/ListPicker";
 import { ListDownloads } from "../components/ListDownloads";
-import { marksSource, useListSetups, useOwnerIndex, usePhotoIndex, useRows, useVisited } from "../lib/hooks";
+import { isLarge, marksSource, useListSetups, useOwnerIndex, usePhotoIndex, useRows, useVisited } from "../lib/hooks";
 import { photoColumns, photosFor, placeColumns } from "../lib/photos";
 import { PropertyPhoto } from "../components/PropertyPhoto";
 import {
@@ -98,7 +99,11 @@ export function Lists({ turf }: { turf: Turf }) {
       )}
       {kept.map(id => (
         <div key={id} className="kept" hidden={combining || id !== dataset?.id}>
-          <ListView turf={turf} dataset={turf.datasets.find(item => item.id === id)!} />
+          {(() => {
+            const shown = turf.datasets.find(item => item.id === id)!;
+            // A long list is counted and paged by the service; a shorter one is read whole.
+            return isLarge(marksSource(shown, turf.datasets)) ? <LargeListView turf={turf} dataset={shown} /> : <ListView turf={turf} dataset={shown} />;
+          })()}
         </div>
       ))}
       {!dataset && !combining && <Empty title="No lists yet">Import a file here, or save a collected run in DataForge. It appears in this project.</Empty>}

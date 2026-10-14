@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addOwners, countOwners, emptyOwnerCounts, emptyOwnerIndex, ownerColumns, type OwnerCounts, type OwnerIndex, type OwnerList } from "./owners";
 import { photoIndex, type PhotoIndex } from "./photos";
-import { allRows, checkEmails, skiptraceSuggest, type EmailVerdict } from "./service";
+import { allRows, checkEmails, datasetRows, LARGE, listSummary, skiptraceSuggest, type EmailVerdict, type ListSummary } from "./service";
+import { reachContext } from "./dashboard";
+import { areaColumns } from "./marks";
 import type { AreaMapping, Dataset, DatasetRow, SkiptraceSuggestion } from "./types";
 
 /** State kept in this browser only. Reads and writes are guarded: storage can be blocked. */
@@ -118,7 +120,7 @@ export function useVisited(currentId: string | null, existing: string[], limit =
 /** The pictures of every property in the project's lists, by place, so a row without its own can borrow one. */
 export function usePhotoIndex(datasets: Dataset[], areaMaps: Record<string, AreaMapping>, onError: (reason: unknown) => void): PhotoIndex {
   // Each list once, read where its marks are (a checked copy has the same rows and pictures as its list).
-  const lists = useMemo(() => primaryLists(datasets).map(dataset => ({ dataset, source: marksSource(dataset, datasets) })), [datasets]);
+  const lists = useMemo(() => smallLists(datasets).map(dataset => ({ dataset, source: marksSource(dataset, datasets) })), [datasets]);
   const sources = useMemo(() => lists.map(item => item.source), [lists]);
   const all = useAllRows(sources, onError);
   return useMemo(
@@ -225,7 +227,7 @@ export function useOwnerIndex(
   areaMaps: Record<string, AreaMapping>,
   onError: (reason: unknown) => void,
 ) {
-  const lists = useMemo(() => primaryLists(datasets).map(dataset => ({ dataset, source: marksSource(dataset, datasets) })), [datasets]);
+  const lists = useMemo(() => smallLists(datasets).map(dataset => ({ dataset, source: marksSource(dataset, datasets) })), [datasets]);
   const sources = useMemo(() => lists.map(item => item.source), [lists]);
   const all = useAllRows(sources, onError);
   const read = useMemo<OwnerList[] | null>(
@@ -292,3 +294,63 @@ export function useEmailVerdicts(addresses: string[]): Map<string, EmailVerdict>
 /** Whether an email can be used to reach someone: not invalid, a typo, a throwaway, or a domain without mail. */
 export const usableEmail = (verdicts: Map<string, EmailVerdict>, address: string) =>
   !["invalid", "typo", "disposable", "no_mail"].includes(verdicts.get(address)?.verdict ?? "ok");
+
+/** Whether a list is long enough to be counted and paged by the service rather than read whole into the window. */
+export const isLarge = (dataset: Dataset) => dataset.row_count > LARGE;
+
+/** The lists read whole into the window: every list's own rows, but not the long ones. What is found across lists
+ * (owners, pictures) is found among these. */
+export function smallLists(datasets: Dataset[]) {
+  return primaryLists(datasets).filter(dataset => !isLarge(marksSource(dataset, datasets)));
+}
+
+export type LargeSummary = ListSummary & { areaColumns: AreaMapping; reach: ListSummary["reach"]; context: ReturnType<typeof reachContext> };
+
+/** What the Dashboard needs of each long list, counted by the service: one read of its first row for its columns,
+ * then the counts. Asked again when its setup, area columns or the manual marks change. */
+export function useLargeSummaries(
+  datasets: Dataset[],
+  setups: Record<string, SkiptraceSuggestion | null>,
+  areaMaps: Record<string, AreaMapping>,
+  marks: unknown,
+  onError: (reason: unknown) => void,
+): Record<string, LargeSummary> | null {
+  const large = useMemo(() => primaryLists(datasets).filter(dataset => isLarge(marksSource(dataset, datasets))), [datasets]);
+  const [found, setFound] = useState<Record<string, LargeSummary> | null>(large.length ? null : {});
+  useEffect(() => {
+    if (!large.length) {
+      setFound({});
+      return;
+    }
+    let current = true;
+    void Promise.all(
+      large.map(async dataset => {
+        const source = marksSource(dataset, datasets);
+        const first = await datasetRows(source.id, 0, 1);
+        const columns = first[0] ? Object.keys(first[0].raw) : [];
+        const areas = areaColumns(columns, areaMaps[dataset.id]);
+        const context = reachContext(columns, setups[dataset.id]);
+        const summary = await listSummary(source.id, areas, reachPayload(context));
+        return [dataset.id, { ...summary, areaColumns: areas, context }] as const;
+      }),
+    ).then(
+      entries => current && setFound(Object.fromEntries(entries)),
+      reason => current && onError(reason),
+    );
+    return () => {
+      current = false;
+    };
+  }, [large, datasets, setups, areaMaps, marks, onError]);
+  return found;
+}
+
+/** How a row can be reached, as the service needs to be told it. */
+export function reachPayload(context: ReturnType<typeof reachContext>) {
+  return {
+    phone_columns: context.phoneColumns,
+    email_columns: context.emailColumns,
+    mail_columns: context.mailColumns,
+    status_column: context.statusColumn ?? null,
+    status_kinds: Object.fromEntries(context.statusKinds ?? []),
+  };
+}
