@@ -22,7 +22,7 @@ import {
   type Located,
 } from "../lib/geo";
 import { renameDataset, trashDataset } from "../lib/service";
-import { DeletedLists, ListExports, SavedFilters } from "../components/ListExtras";
+import { DeletedLists, ListExports, ManyAtOnce, SavedFilters } from "../components/ListExtras";
 import { Icon } from "../components/Icon";
 import { ListPicker } from "../components/ListPicker";
 import { ListDownloads } from "../components/ListDownloads";
@@ -126,6 +126,10 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
   const [openRow, setOpenRow] = useState<string | null>(null);
+  // One row asked for from the search in the title bar, shown alone with its details open.
+  const [onlyRow, setOnlyRow] = useState<number | null>(null);
+  // Rows chosen to change together (stage, callback, do not call), by row number.
+  const [chosen, setChosen] = useState<Set<number>>(new Set());
   // Renaming and deleting happen in place, in the heading. Deleting asks once more before it does anything.
   const [editing, setEditing] = useState<"rename" | "delete" | null>(null);
   const [newName, setNewName] = useState(dataset.name);
@@ -152,6 +156,14 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   }
 
   const columns = useMemo(() => (rows?.[0] ? Object.keys(rows[0].raw) : []), [rows]);
+  const asked = turf.rowTarget && (turf.rowTarget.datasetId === dataset.id || turf.rowTarget.datasetId === source.id) ? turf.rowTarget.rowNumber : null;
+  useEffect(() => {
+    if (asked === null || !rows) return;
+    setOnlyRow(asked);
+    setOpenRow(rows.find(row => row.row_number === asked)?.id ?? null);
+    setPage(0);
+    turf.clearRowTarget();
+  }, [asked, rows, turf]);
   const own = useMemo(() => ownColumns(columns), [columns]);
   const dull = useMemo(() => dullColumns(own, rows?.map(row => row.raw) ?? []), [own, rows]);
   // Pictures: the list's own picture columns, and the project's photos by place for rows that have none.
@@ -214,6 +226,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
       if (flag === "dnc" && !marks.doNotCall) return false;
       if (flag === "callable" && !marks.best) return false;
       if (flag === "manual" && !marks.manual) return false;
+      if (onlyRow !== null && row.row_number !== onlyRow) return false;
       // A lead written more than once: its repeats alone, or the list with each lead once (the kept row stays).
       const repeats = String(row.raw["Duplicate status"] ?? "").startsWith("Duplicate of");
       if (flag === "repeat" && !repeats) return false;
@@ -238,7 +251,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
         return false;
       return true;
     });
-  }, [marked, verdict, flag, column, contains, query, own]);
+  }, [marked, verdict, flag, column, contains, query, own, onlyRow]);
   const filtered = useMemo(
     () => (area && areaColumn ? filteredIgnoringArea.filter(({ row }) => String(row.raw[areaColumn] ?? "").trim() === area) : filteredIgnoringArea),
     [filteredIgnoringArea, area, areaColumn],
@@ -331,8 +344,9 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   const showPhotos =
     photoCols.length > 0 || visible.some(({ row }) => photosFor(row, [], place, photoIndex, located?.exact?.[String(row.row_number)]).photos.length > 0);
   const areaMax = Math.max(1, ...areas.map(item => item.count));
-  const filtering = Boolean(area || verdict !== "all" || flag !== "all" || (column && contains) || query);
+  const filtering = Boolean(area || verdict !== "all" || flag !== "all" || (column && contains) || query || onlyRow !== null);
   const reset = () => {
+    setOnlyRow(null);
     setArea(null);
     setVerdict("all");
     setFlag("all");
@@ -643,6 +657,24 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
       </article>
 
       <article className="card table-card">
+        {chosen.size > 0 && (
+          <ManyAtOnce
+            datasetId={source.id}
+            chosen={chosen}
+            matching={filtered.length}
+            onAll={() => setChosen(new Set(filtered.map(item => item.row.row_number)))}
+            onClear={() => setChosen(new Set())}
+            numbers={() =>
+              filtered
+                .filter(item => chosen.has(item.row.row_number))
+                .map(item => item.marks.best ?? item.marks.number)
+                .filter((value): value is string => Boolean(value))
+            }
+            setMark={turf.setMark}
+            fail={turf.fail}
+            onDone={() => void turf.refresh()}
+          />
+        )}
         <div className="filters">
           {checked && (
             <>
@@ -695,6 +727,12 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
               onChange={event => change(setContains)(event.target.value)}
             />
           )}
+          {onlyRow !== null && (
+            <button type="button" className="chip" onClick={() => setOnlyRow(null)}>
+              Row {onlyRow}
+              <Icon name="close" size={14} />
+            </button>
+          )}
           {area && (
             <button type="button" className="chip" onClick={() => change(setArea)(null)}>
               {area}
@@ -725,6 +763,21 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
           <table>
             <thead>
               <tr>
+                <th className="pick">
+                  <input
+                    type="checkbox"
+                    aria-label="Choose every row on this page"
+                    checked={visible.length > 0 && visible.every(item => chosen.has(item.row.row_number))}
+                    onChange={event => {
+                      const next = new Set(chosen);
+                      for (const item of visible) {
+                        if (event.target.checked) next.add(item.row.row_number);
+                        else next.delete(item.row.row_number);
+                      }
+                      setChosen(next);
+                    }}
+                  />
+                </th>
                 <th className="num">#</th>
                 {showPhotos && (
                   <th>
@@ -754,6 +807,19 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                     className={openRow === row.id ? "open" : undefined}
                     onContextMenu={event => menu(event, rowMenu(row, marks, (event.target as HTMLElement).closest("td")?.dataset.column))}
                   >
+                    <td className="pick">
+                      <input
+                        type="checkbox"
+                        aria-label={`Choose row ${row.row_number}`}
+                        checked={chosen.has(row.row_number)}
+                        onChange={event => {
+                          const next = new Set(chosen);
+                          if (event.target.checked) next.add(row.row_number);
+                          else next.delete(row.row_number);
+                          setChosen(next);
+                        }}
+                      />
+                    </td>
                     <td className="num muted">{row.row_number}</td>
                     {showPhotos && (
                       <td className="photo-cell">
@@ -838,7 +904,7 @@ function ListView({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
                   </tr>
                   {openRow === row.id && (
                     <tr className="detail">
-                      <td colSpan={shownColumns.length + (checked ? 6 : 2) + (showPhotos ? 1 : 0)}>
+                      <td colSpan={shownColumns.length + (checked ? 7 : 3) + (showPhotos ? 1 : 0)}>
                         <ListRowDetail
                           row={row}
                           datasetId={source.id}

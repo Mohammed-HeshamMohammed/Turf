@@ -11,7 +11,8 @@ import { marksSource, useListSetups, useRows } from "../lib/hooks";
 import { formatNumber, formatPhone, ownColumns, readMarks } from "../lib/marks";
 import { ownerColumns, ownerFacts } from "../lib/owners";
 import { photoColumns, photosOfRow, positionOf } from "../lib/photos";
-import { callingZones, listLeads, localDay, recordCall, setLead, STAGE_LABELS, type LeadState, type ListLeads } from "../lib/service";
+import { callingZones, listLeads, localDay, recordLeadCall, setLead, STAGE_LABELS, STAGES, type LeadState, type ListLeads, type Stage } from "../lib/service";
+import { FollowUpRules } from "../components/FollowUpRules";
 import type { Dataset, DatasetRow } from "../lib/types";
 
 const OUTCOMES = [
@@ -28,7 +29,7 @@ const OUTCOME_SAID: Record<string, string> = {
   wrong_number: "wrong number",
   disconnected: "disconnected",
 };
-type View = "queue" | "due" | "later" | "all";
+type View = "queue" | "due" | "later" | "all" | "board";
 
 /**
  * The leads of a list, one at a time, to call: the best number first, what time it is there, how the call went,
@@ -70,6 +71,8 @@ function Queue({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   const [at, setAt] = useState<number | null>(null);
   // Rows called since the queue was opened: they leave it, so the next one comes up.
   const [done, setDone] = useState<Record<number, string>>({});
+  // Calls recorded here, so the lead panel reads its history again.
+  const [calls, setCalls] = useState(0);
   // Rows that have left the queue for now: called without an answer, or called and moved on from.
   const [left, setLeft] = useState<Record<number, true>>({});
   // Where the lead in view stood in the list, so moving on from one that has left the list goes to its neighbour.
@@ -99,7 +102,7 @@ function Queue({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
 
   // Each lead once, with a number to call. Where it goes depends on where it stands.
   const sorted = useMemo(() => {
-    const groups: Record<View, DatasetRow[]> = { queue: [], due: [], later: [], all: [] };
+    const groups: Record<View, DatasetRow[]> = { queue: [], due: [], later: [], all: [], board: [] };
     if (!rows || !leads) return groups;
     const seen = new Set<string>();
     const fresh: DatasetRow[] = [];
@@ -112,7 +115,7 @@ function Queue({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
       groups.all.push(row);
       const state = leads.states[key];
       if (state?.stage === "dead" || state?.stage === "not_interested") continue;
-      if (state?.callback_on && state.callback_on > today) groups.later.push(row);
+      if (state?.callback_on && state.callback_on.slice(0, 10) > today) groups.later.push(row);
       else if (state?.callback_on) groups.due.push(row);
       else if (!left[row.row_number]) fresh.push(row);
     }
@@ -133,7 +136,7 @@ function Queue({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
     turf.clearCallTarget();
   }, [target, rows, turf]);
 
-  const list = sorted[view];
+  const list = view === "board" ? sorted.all : sorted[view];
   // The lead being worked stays in view while it is worked, even once what was set (a callback, a stage) takes it
   // out of the list it was opened from.
   const current = list.find(row => row.row_number === at) ?? (at !== null ? sorted.all.find(row => row.row_number === at) : undefined) ?? list[0] ?? null;
@@ -172,6 +175,9 @@ function Queue({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
     setAt(next ? next.row_number : null);
     setFields(false);
   };
+  /** A lead's new state, without moving to it. */
+  const remember = (row: DatasetRow, state: LeadState) =>
+    setLeads(known => (known ? { ...known, states: { ...known.states, [known.keys[String(row.row_number)]]: state } } : known));
   const keep = (row: DatasetRow, state: LeadState) => {
     setAt(row.row_number);
     setLeads(known => (known ? { ...known, states: { ...known.states, [known.keys[String(row.row_number)]]: state } } : known));
@@ -180,20 +186,22 @@ function Queue({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
   async function called(row: DatasetRow, number: string, outcome: (typeof OUTCOMES)[number]) {
     setBusy(true);
     try {
-      await recordCall({ dataset_id: source.id, row_number: row.row_number }, number, outcome.id);
-      // Someone answered: the lead is no longer new. What they said is for the person to set.
-      if (outcome.id === "reached" && (stateOf(row)?.stage ?? "new") === "new")
-        keep(row, await setLead({ dataset_id: source.id, row_number: row.row_number }, { stage: "contacted" }));
+      // The service records the call and does what the follow-up rules say (a callback after no answer, a new lead
+      // reached becomes contacted), and says what it did.
+      const result = await recordLeadCall({ dataset_id: source.id, row_number: row.row_number }, number, outcome.id);
+      remember(row, result.state);
+      setCalls(count => count + 1);
+      const said = OUTCOME_SAID[outcome.id] + (result.rules.length ? `, then ${result.rules.join(" and ")}` : "");
       if (outcome.next) {
         const next = list[position + 1];
-        setDone(known => ({ ...known, [row.row_number]: OUTCOME_SAID[outcome.id] }));
+        setDone(known => ({ ...known, [row.row_number]: said }));
         setLeft(known => ({ ...known, [row.row_number]: true }));
         setAt(next ? next.row_number : null);
         setFields(false);
       } else {
         // Someone is on the line: the lead stays in view for its stage, a note and a callback.
         setAt(row.row_number);
-        setDone(known => ({ ...known, [row.row_number]: OUTCOME_SAID[outcome.id] }));
+        setDone(known => ({ ...known, [row.row_number]: said }));
       }
     } catch (reason) {
       fail(reason);
@@ -234,11 +242,27 @@ function Queue({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
             { value: "due", label: `Callbacks due (${formatNumber(sorted.due.length)})` },
             { value: "later", label: `Later (${formatNumber(sorted.later.length)})` },
             { value: "all", label: `All (${formatNumber(sorted.all.length)})` },
+            { value: "board", label: "Board" },
           ]}
         />
       </header>
 
-      {!current ? (
+      <FollowUpRules fail={fail} />
+      {view === "board" ? (
+        <LeadBoard
+          rows={sorted.all}
+          stateOf={stateOf}
+          label={row => {
+            const facts = ownerFacts(row, owner);
+            return [facts.name, String(row.raw[owner.place.street ?? ""] ?? "").trim()].filter(Boolean).join(" · ") || `Row ${row.row_number}`;
+          }}
+          onOpen={row => {
+            setView("all");
+            setAt(row.row_number);
+          }}
+          onMove={(row, stage) => void setLead({ dataset_id: source.id, row_number: row.row_number }, { stage }).then(next => remember(row, next), fail)}
+        />
+      ) : !current ? (
         <Empty title={view === "queue" ? "Nothing left to call here" : "No lead here"}>
           {view === "queue"
             ? "Every lead with a number to call has been called, set aside for later, or closed. Callbacks come back on their day."
@@ -335,7 +359,14 @@ function Queue({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
             })}
           </ul>
 
-          <LeadPanel datasetId={source.id} rowNumber={current.row_number} state={state} onChanged={next => keep(current, next)} onError={fail} />
+          <LeadPanel
+            datasetId={source.id}
+            rowNumber={current.row_number}
+            state={state}
+            onChanged={next => keep(current, next)}
+            onError={fail}
+            refresh={calls}
+          />
 
           <details className="step skiptrace-optional" open={fields} onToggle={event => setFields(event.currentTarget.open)}>
             <summary>Everything the list has on this lead</summary>
@@ -353,5 +384,88 @@ function Queue({ turf, dataset }: { turf: Turf; dataset: Dataset }) {
         </article>
       )}
     </section>
+  );
+}
+
+const SHOWN_PER_STAGE = 60;
+
+/**
+ * The leads of a list by stage, a column each, to see the pipeline at a glance and move a lead from one stage to the
+ * next by dragging its card. A column shows its first leads and how many it holds.
+ */
+function LeadBoard({
+  rows,
+  stateOf,
+  label,
+  onOpen,
+  onMove,
+}: {
+  rows: DatasetRow[];
+  stateOf: (row: DatasetRow) => LeadState | undefined;
+  label: (row: DatasetRow) => string;
+  onOpen: (row: DatasetRow) => void;
+  onMove: (row: DatasetRow, stage: Stage) => void;
+}) {
+  const [dragging, setDragging] = useState<number | null>(null);
+  const [over, setOver] = useState<Stage | null>(null);
+  const columns = useMemo(() => {
+    const found = Object.fromEntries(STAGES.map(stage => [stage, [] as DatasetRow[]])) as Record<Stage, DatasetRow[]>;
+    for (const row of rows) found[stateOf(row)?.stage ?? "new"].push(row);
+    return found;
+  }, [rows, stateOf]);
+  return (
+    <div className="lead-board" role="list" aria-label="Leads by stage">
+      {STAGES.map(stage => (
+        <section
+          key={stage}
+          role="listitem"
+          aria-label={STAGE_LABELS[stage]}
+          className={over === stage ? "board-column over" : "board-column"}
+          onDragOver={event => {
+            event.preventDefault();
+            setOver(stage);
+          }}
+          onDragLeave={() => setOver(null)}
+          onDrop={event => {
+            event.preventDefault();
+            setOver(null);
+            const row = rows.find(item => item.row_number === dragging);
+            if (row && (stateOf(row)?.stage ?? "new") !== stage) onMove(row, stage);
+            setDragging(null);
+          }}
+        >
+          <header>
+            <h3>{STAGE_LABELS[stage]}</h3>
+            <span className="count">{formatNumber(columns[stage].length)}</span>
+          </header>
+          <ul>
+            {columns[stage].slice(0, SHOWN_PER_STAGE).map(row => {
+              const state = stateOf(row);
+              return (
+                <li key={row.id} draggable onDragStart={() => setDragging(row.row_number)} onDragEnd={() => setDragging(null)}>
+                  <button type="button" className="board-card" onClick={() => onOpen(row)}>
+                    <strong>{label(row)}</strong>
+                    {state?.callback_on && <small>Call back {state.callback_on.replace("T", " at ")}</small>}
+                  </button>
+                  <select
+                    className="board-move"
+                    aria-label={`Move ${label(row)} to another stage`}
+                    value={state?.stage ?? "new"}
+                    onChange={event => onMove(row, event.target.value as Stage)}
+                  >
+                    {STAGES.map(value => (
+                      <option key={value} value={value}>
+                        {STAGE_LABELS[value]}
+                      </option>
+                    ))}
+                  </select>
+                </li>
+              );
+            })}
+            {columns[stage].length > SHOWN_PER_STAGE && <li className="muted">and {formatNumber(columns[stage].length - SHOWN_PER_STAGE)} more</li>}
+          </ul>
+        </section>
+      ))}
+    </div>
   );
 }

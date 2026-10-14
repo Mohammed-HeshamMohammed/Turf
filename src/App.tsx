@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { AppMenu, type MenuAction } from "./components/AppMenu";
 import { ContextMenuProvider } from "./components/ContextMenu";
 import { DropImport } from "./components/DropImport";
+import { CallbackReminders, GlobalSearch } from "./components/CrmCards";
 import { ProjectGate } from "./components/ProjectGate";
 import { TitleBar } from "./components/TitleBar";
 import {
@@ -59,6 +60,9 @@ export type Turf = {
   callTarget: { datasetId: string; rowNumber: number } | null;
   openCall: (datasetId: string, rowNumber: number) => void;
   clearCallTarget: () => void;
+  /** A row to show in Lists: a search result from the title bar. */
+  rowTarget: { datasetId: string; rowNumber: number } | null;
+  clearRowTarget: () => void;
 };
 
 export function App() {
@@ -87,6 +91,7 @@ export function App() {
   const [version, setVersion] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [callTarget, setCallTarget] = useState<Turf["callTarget"]>(null);
+  const [rowTarget, setRowTarget] = useState<Turf["rowTarget"]>(null);
   const [manual, setManual] = useState<ManualMarks>({});
   const [legacyManual, setLegacyManual] = useState<ManualMarks>({});
   const [areaMaps, setAreaMaps] = useState<Record<string, AreaMapping>>({});
@@ -176,8 +181,10 @@ export function App() {
           setTab("calls");
         },
         clearCallTarget: () => setCallTarget(null),
+        rowTarget,
+        clearRowTarget: () => setRowTarget(null),
       },
-    [datasets, version, refresh, selectedId, manual, legacyManual, project, areaMaps, setTab, fail, callTarget],
+    [datasets, version, refresh, selectedId, manual, legacyManual, project, areaMaps, setTab, fail, callTarget, rowTarget],
   );
 
   // Read ahead in the background: every list's rows (the dashboard needs them all anyway), and the Skip Tracing
@@ -266,6 +273,17 @@ export function App() {
         />
         <TitleBar
           title="Turf"
+          end={
+            !gate && project ? (
+              <GlobalSearch
+                onOpen={found => {
+                  setSelectedId(found.dataset_id);
+                  setRowTarget({ datasetId: found.dataset_id, rowNumber: found.row_number });
+                  setTab("lists");
+                }}
+              />
+            ) : undefined
+          }
           mark={
             <AppMenu
               project={project ?? null}
@@ -289,6 +307,7 @@ export function App() {
             </nav>
           )}
         </TitleBar>
+        <CallbackReminders turf={turf} />
         <div className="scroller" ref={scroller}>
           <div className="shell">
             {error && (

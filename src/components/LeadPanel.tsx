@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import {
   addLeadNote,
+  describeHistory,
   getLead,
+  leadHistory,
   leadNotes,
   localDay,
   removeLeadNote,
   setLead,
   STAGE_LABELS,
   STAGES,
+  type HistoryItem,
   type LeadNote,
   type LeadState,
   type Stage,
@@ -30,6 +33,7 @@ export function LeadPanel({
   state,
   onChanged,
   onError,
+  refresh = 0,
 }: {
   datasetId: string;
   rowNumber: number;
@@ -37,6 +41,8 @@ export function LeadPanel({
   /** Told the lead's new state after every change, so lists and counts that show it can follow. */
   onChanged: (state: LeadState) => void;
   onError: (reason: unknown) => void;
+  /** Bumped by whoever records something else on the lead (a call), so its history is read again. */
+  refresh?: number;
 }) {
   const row = { dataset_id: datasetId, row_number: rowNumber };
   const [notes, setNotes] = useState<LeadNote[] | null>(null);
@@ -53,6 +59,20 @@ export function LeadPanel({
     };
   }, [datasetId, rowNumber, onError]);
   useEffect(() => setAbout(state?.callback_note ?? ""), [state?.callback_note, rowNumber]);
+  // Everything that happened to the lead, read again after each change made here or elsewhere.
+  const [history, setHistory] = useState<HistoryItem[] | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const changes = `${state?.stage}|${state?.callback_on}|${state?.callback_note}|${notes?.length}|${refresh}`;
+  useEffect(() => {
+    if (!showHistory) return;
+    let live = true;
+    leadHistory({ dataset_id: datasetId, row_number: rowNumber }).then(found => live && setHistory(found), onError);
+    return () => {
+      live = false;
+    };
+  }, [datasetId, rowNumber, onError, showHistory, changes]);
+  const day = current.callback_on?.slice(0, 10) ?? "";
+  const time = current.callback_on?.slice(11, 16) ?? "";
 
   const change = (value: Parameters<typeof setLead>[1]) => void setLead(row, value).then(onChanged, onError);
 
@@ -73,9 +93,20 @@ export function LeadPanel({
           className="input"
           type="date"
           aria-label="Call back on"
-          value={current.callback_on ?? ""}
-          onChange={event => change({ callback_on: event.target.value || null, callback_note: about })}
+          value={day}
+          onChange={event =>
+            change({ callback_on: event.target.value ? (time ? `${event.target.value}T${time}` : event.target.value) : null, callback_note: about })
+          }
         />
+        {day && (
+          <input
+            className="input"
+            type="time"
+            aria-label="Call back at"
+            value={time}
+            onChange={event => change({ callback_on: event.target.value ? `${day}T${event.target.value}` : day, callback_note: about })}
+          />
+        )}
         <button type="button" className="button ghost small" onClick={() => change({ callback_on: later(1), callback_note: about })}>
           Tomorrow
         </button>
@@ -130,6 +161,22 @@ export function LeadPanel({
           ))}
         </ul>
       )}
+      <details className="lead-history" onToggle={event => setShowHistory(event.currentTarget.open)}>
+        <summary>History</summary>
+        {showHistory && !history && <p className="muted">Reading the history…</p>}
+        {history && !history.length && <p className="muted">Nothing has happened to this lead yet.</p>}
+        {history && history.length > 0 && (
+          <ol>
+            {history.map((item, index) => (
+              <li key={`${item.at}-${index}`} className={`history-${item.kind}`}>
+                <small className="muted">{new Date(item.at).toLocaleString()}</small>
+                <span>{describeHistory(item)}</span>
+                {item.list && <small className="muted">{item.list}</small>}
+              </li>
+            ))}
+          </ol>
+        )}
+      </details>
     </div>
   );
 }

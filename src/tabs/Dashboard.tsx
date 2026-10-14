@@ -28,6 +28,7 @@ import {
 import { photoColumns, photosFor, placeColumns, positionOf, streetPart } from "../lib/photos";
 import { PropertyPhoto } from "../components/PropertyPhoto";
 import { CallbacksCard } from "../components/ListExtras";
+import { ActivityCard, CallStatsCard } from "../components/CrmCards";
 import {
   isLarge,
   marksSource,
@@ -706,6 +707,11 @@ export function Dashboard({ turf }: { turf: Turf }) {
           </div>
         </section>
       )}
+
+      <section className="crm-cards">
+        <CallStatsCard turf={turf} />
+        <ActivityCard turf={turf} />
+      </section>
 
       <section className="bottom">
         <article className="card table-card">

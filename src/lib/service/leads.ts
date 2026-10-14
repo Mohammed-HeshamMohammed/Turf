@@ -11,7 +11,7 @@ export const STAGE_LABELS: Record<Stage, string> = { new: "New", contacted: "Con
 export type LeadState = { stage: Stage; callback_on: string | null; callback_note: string; updated_at?: string };
 export type ListLeads = { keys: Record<string, string>; states: Record<string, LeadState>; notes: Record<string, number> };
 export type LeadNote = { id: string; note: string; at: string };
-export type Callback = { lead_key: string; label: string; on: string; note: string; stage: Stage; dataset_id: string; list: string; row_number: number; due: boolean };
+export type Callback = { lead_key: string; label: string; on: string; note: string; stage: Stage; dataset_id: string; list: string; row_number: number; due: boolean; time: string | null };
 export type Due = { today: string; due: Callback[]; coming: Callback[]; stages: Record<Stage, number> };
 
 type Row = { dataset_id: string; row_number: number };
@@ -92,3 +92,60 @@ export type SavedFilter = { name: string; filter: Record<string, string | null> 
 export const savedFilters = (dataset_id: string) => call<SavedFilter[]>("filters.list", { dataset_id });
 /** Keeps a filter under a name; `null` removes it. */
 export const saveFilter = (dataset_id: string, name: string, filter: SavedFilter["filter"] | null) => call<SavedFilter[]>("filters.save", { dataset_id, name, filter });
+
+// ------------------------------------------------------------- calls with follow-up, history, many at once
+
+export type Rules = { after_no_answer_days: number; after_voicemail_days: number; close_after_misses: number };
+export type HistoryItem = {
+  at: string;
+  kind: "call" | "note" | "stage" | "callback";
+  outcome?: string;
+  number?: string;
+  note?: string;
+  from?: Stage;
+  to?: Stage;
+  on?: string | null;
+  why?: string;
+  list: string;
+  label?: string;
+  dataset_id?: string;
+  row_number?: number;
+};
+export type CallStats = {
+  days: { day: string; calls: number; outcomes: Record<string, number> }[];
+  today: number;
+  week: number;
+  calls: number;
+  outcomes: Record<string, number>;
+  reached_share: number | null;
+};
+export type Found = { dataset_id: string; list: string; row_number: number; label: string };
+
+/** Records how a call went and does what the follow-up rules say; `rules` says what they did, in words. */
+export const recordLeadCall = (row: Row, number: string, outcome: string, notes = "") =>
+  call<{ call: { id: string }; state: LeadState & { lead_key: string }; rules: string[] }>("leads.record_call", { ...row, number, outcome, notes });
+export const leadHistory = (row: Row) => call<HistoryItem[]>("leads.history", row);
+export const recentActivity = (limit = 30) => call<HistoryItem[]>("leads.activity", { limit });
+export const setManyLeads = (dataset_id: string, row_numbers: number[], change: { stage?: Stage; callback_on?: string | null; callback_note?: string }) =>
+  call<{ leads: number }>("leads.set_many", { dataset_id, row_numbers, ...change });
+export const followUpRules = () => call<Rules>("leads.rules");
+export const setFollowUpRules = (rules: Partial<Rules>) => call<Rules>("leads.set_rules", rules);
+export const callStats = (days = 14) => call<CallStats>("calls.stats", { days, today: localDay() });
+export const searchEverywhere = (query: string) => call<Found[]>("search.everywhere", { query });
+
+export const OUTCOME_WORDS: Record<string, string> = {
+  reached: "Reached",
+  voicemail: "Voicemail",
+  no_answer: "No answer",
+  wrong_number: "Wrong number",
+  disconnected: "Disconnected",
+  wrong_person: "Wrong person",
+};
+
+/** A history item in words. */
+export function describeHistory(item: HistoryItem): string {
+  if (item.kind === "call") return `${OUTCOME_WORDS[item.outcome ?? ""] ?? item.outcome}${item.number ? ` · ${item.number}` : ""}${item.note ? ` · ${item.note}` : ""}`;
+  if (item.kind === "note") return item.note ?? "";
+  if (item.kind === "stage") return `Stage: ${STAGE_LABELS[item.from ?? "new"]} → ${STAGE_LABELS[item.to ?? "new"]}${item.why ? ` (${item.why})` : ""}`;
+  return item.on ? `Call back ${item.on.replace("T", " at ")}${item.note ? `: ${item.note}` : ""}${item.why ? ` (${item.why})` : ""}` : "Callback taken away";
+}

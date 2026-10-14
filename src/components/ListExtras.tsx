@@ -8,6 +8,9 @@ import {
   restoreDataset,
   saveFilter,
   savedFilters,
+  setManyLeads,
+  STAGES,
+  type Stage,
   STAGE_LABELS,
   trashedDatasets,
   type Due,
@@ -278,7 +281,8 @@ export function CallbacksCard({ turf }: { turf: Turf }) {
             <div>
               <strong>{item.label || `Row ${item.row_number}`}</strong>
               <small>
-                {item.on === found.today ? "Today" : formatDate(`${item.on}T12:00:00`)} · {STAGE_LABELS[item.stage]} · {item.list}
+                {item.on.slice(0, 10) === found.today ? "Today" : formatDate(`${item.on.slice(0, 10)}T12:00:00`)}
+                {item.time ? ` at ${item.time}` : ""} · {STAGE_LABELS[item.stage]} · {item.list}
                 {item.note ? ` · ${item.note}` : ""}
               </small>
             </div>
@@ -295,5 +299,95 @@ export function CallbacksCard({ turf }: { turf: Turf }) {
       </ul>
       {shown.length > 4 && <p className="muted">and {shown.length - 4} more, in Calls.</p>}
     </article>
+  );
+}
+
+/**
+ * In Lists, over the rows: what can be done to every chosen row at once. A stage or a callback goes to each lead
+ * once, however many of the rows are that lead; do not call goes on each row's number to call.
+ */
+export function ManyAtOnce({
+  datasetId,
+  chosen,
+  matching,
+  onAll,
+  onClear,
+  numbers,
+  setMark,
+  fail,
+  onDone,
+}: {
+  datasetId: string;
+  chosen: Set<number>;
+  matching: number;
+  onAll: () => void;
+  onClear: () => void;
+  numbers: () => string[];
+  setMark: (number: string, mark: "do_not_call" | null) => void;
+  fail: (reason: unknown) => void;
+  onDone: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [day, setDay] = useState("");
+  async function change(value: { stage?: Stage; callback_on?: string | null }) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const done = await setManyLeads(datasetId, [...chosen], value);
+      setMessage(`${formatNumber(done.leads)} ${done.leads === 1 ? "lead" : "leads"} changed.`);
+      onDone();
+    } catch (reason) {
+      fail(reason);
+    }
+    setBusy(false);
+  }
+  return (
+    <div className="many-at-once" role="region" aria-label="Change the chosen rows">
+      <strong>{formatNumber(chosen.size)} chosen</strong>
+      {chosen.size < matching && (
+        <button type="button" className="link" onClick={onAll}>
+          Choose all {formatNumber(matching)} that match
+        </button>
+      )}
+      <select
+        className="input"
+        aria-label="Set the stage of the chosen leads"
+        value=""
+        disabled={busy}
+        onChange={event => event.target.value && void change({ stage: event.target.value as Stage })}
+      >
+        <option value="">Set stage…</option>
+        {STAGES.map(stage => (
+          <option key={stage} value={stage}>
+            {STAGE_LABELS[stage]}
+          </option>
+        ))}
+      </select>
+      <input className="input" type="date" aria-label="Call the chosen leads back on" value={day} onChange={event => setDay(event.target.value)} />
+      <button type="button" className="button ghost small" disabled={busy || !day} onClick={() => void change({ callback_on: day })}>
+        Set callback
+      </button>
+      <button
+        type="button"
+        className="button ghost small"
+        disabled={busy}
+        onClick={() => {
+          const found = [...new Set(numbers())];
+          for (const number of found) setMark(number, "do_not_call");
+          setMessage(`${formatNumber(found.length)} ${found.length === 1 ? "number" : "numbers"} marked do not call.`);
+        }}
+      >
+        Do not call
+      </button>
+      <button type="button" className="button ghost small" onClick={onClear}>
+        Clear
+      </button>
+      {message && (
+        <span className="muted" role="status">
+          {message}
+        </span>
+      )}
+    </div>
   );
 }

@@ -92,6 +92,18 @@ One click says how the call went: reached, voicemail, no answer, wrong number, d
 
 **Where a lead stands** is its stage (new, contacted, interested, not interested, dead), a callback day with what it is about, and notes. A lead is its property (street number, street, unit and ZIP), or its phone when the row has no address, so all of it follows the lead into every list of the project that holds it, whatever the list calls its columns. It is set in Calls and in a row's details in Lists. Leads not interested or dead leave the queue; a callback comes back on its day, first in the queue and on the Dashboard's *Callbacks due* card, which opens the lead in Calls.
 
+### Working leads day to day
+
+Some of this follows what a CRM such as EspoCRM does, cut down to one person working lists on one computer (so there are no users, roles or teams):
+
+- **History.** Every call, note, stage change and callback is kept against the lead, and shows under *History* in the lead's panel. The Dashboard's *Recent activity* card shows the newest across the project, each with a link to the lead.
+- **Follow-up rules.** After a call the service does what the project's rules say: by default a callback 2 days after no answer and 3 after a voicemail (a callback already set is kept), and a new lead reached becomes contacted. A lead can also be closed as dead after so many calls in a row reach no one (off by default). The rules are set at the top of Calls, and what they did shows in the history.
+- **Board.** *Board* in Calls shows the list's leads in a column per stage; drag a card, or pick a stage on it, to move the lead.
+- **Callback times and reminders.** A callback can have a time of day. When it comes, a reminder shows in the corner of the window with *Call now*, once per session.
+- **Many rows at once.** Tick rows in Lists (or every row a filter matches) to set their stage or callback, or mark their numbers do not call. Each lead is changed once however many rows it has.
+- **Call statistics.** The Dashboard's *Calls made* card counts calls a day over two weeks, with the share that reached a person and the outcomes.
+- **Search everywhere.** The box in the title bar finds a phone number (however it is written), a name or a street in every list of the project, and opens the row in Lists.
+
 ## Handing a list on
 
 In Lists, beside the downloads:
@@ -214,6 +226,7 @@ Successful results for the same products are reused within the configured cache 
 | `src-tauri/src/sidecar.rs` | The bridge to the service: a child process speaking JSON lines, as in DataForge's host. |
 | `src-tauri/src/store.rs` | Area mappings and earlier computer-wide marks in `turf.json`. New manual marks and their history are saved in the project database. Earlier marks can be explicitly imported into a project without deleting the old store. |
 | `service/turf_service/` | The service: the command router, projects, lists, jobs and the Skip Tracing commands. An import leaves out empty rows and columns; lists already in a project get the same when it is opened (`tidy.py`). |
+| `src/components/CrmCards.tsx`, `FollowUpRules.tsx`, `service/turf_service/crm.py` | Activity, call statistics, callback reminders, search everywhere and the follow-up rules. |
 | `src/components/DropImport.tsx`, `CombineLists.tsx` | Dropping files on the window, and combining lists into one. |
 | `service/turf_service/sameness.py`, `combine.py` | Knowing a list's rows again whatever the file is called; combining lists, and what the person decided about rows being the same lead. |
 | `service/turf_matching/` | Phone reading and the Skip Tracing rules, including how call statuses are read (`status_meaning.py`) and how repeated leads are found and lists combined (`duplicates.py` and `combine.py`, on DataForge's `engine.py`, `normalize.py` and `likelihood.py`). |
