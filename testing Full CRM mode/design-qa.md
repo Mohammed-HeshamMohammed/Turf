@@ -67,3 +67,21 @@ No actionable P0/P1/P2 issue remains within the prototype scope. Intended backen
 - [x] Mobile overflow corrected and recaptured.
 - [x] Build, lint, model tests, and console checked.
 - [x] Actual prototype boundaries documented.
+
+## Sidebar and logo-menu revision
+
+**final result: passed**
+
+The requested revision adds a persistent minimized sidebar, Mac Dock-style icon magnification with neighbor falloff, a soft outward bend, rounded selected edges, and Explore as inside the restored Turf logo menu.
+
+- Visual baseline: `screenshots/dashboard-desktop.jpg`, the previously accepted Turf CRM layout. The baseline and [expanded sidebar](screenshots/sidebar-expanded.jpg) were opened together with the new [dock hover](screenshots/sidebar-dock-hover.jpg) and [Turf logo menu](screenshots/turf-logo-menu.jpg) in one comparison input.
+- Desktop comparison captures are **1280 × 720** pixels/CSS viewport at density **1**. Font, card geometry, palette, imagery, and business data remain consistent. Sidebar geometry, current-role control placement, and the wider content pane in minimized mode are intentional changes from the user's instructions.
+- Focused visual review covered the active white circular edge, enlarged icons and their neighbors, local rail bulge, tooltip legibility, and the menu's placement above the sidebar.
+- **[P2, corrected] Menu stacking:** the first menu render was partly obscured by the new rail. Raised the header stacking context above the sidebar. `screenshots/turf-logo-menu.jpg` is the post-fix capture; every menu action and Explore as is unobstructed.
+- **[P2, corrected] Short-window dock density:** the initial 720px-high rail partly cropped its last visible icon. Added a compact 36px circular target layout at short desktop heights. Post-fix measured nav viewport/content heights are **412/412px** for the manager view, with all its destinations reachable and visible. The new hover capture reflects the compact layout.
+- Mobile: **375 × 812**, density **1**. [Logo menu](screenshots/turf-logo-menu-mobile.jpg) remains within the viewport (right edge **355px**); [navigation drawer](screenshots/sidebar-mobile.jpg) uses readable labels and a **254px** width despite a saved minimized desktop preference. Document width remains **375px**.
+- Checked minimize/expand, persistence after refresh, destination navigation, selected `aria-current`, keyboard focus labels, role switching through the logo menu, Escape dismissal, click-outside dismissal, and restoring focus to the logo after a menu action.
+- Hover measurements: hovered icon scale **1.32**, immediate neighbors approximately **1.157**, second neighbor approximately **1.018**. The rail bulge follows the hovered/focused item rather than changing the page layout.
+- Reduced-motion emulation confirmed the rail bend is hidden and icon transforms are `none`; the temporary emulation was then removed.
+- The original Caller role was restored after checking manager/role-menu behavior. Existing sample edits were retained.
+- Updated guidance in AGENTS.md and README.md records the requested sidebar/menu behavior. No remaining P0/P1/P2 issue was found in this revision.

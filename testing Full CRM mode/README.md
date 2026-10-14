@@ -15,7 +15,9 @@ npm ci
 npm run dev -- --host 127.0.0.1 --port 5190
 ```
 
-Use **Explore as** in the sidebar to try all eight roles. On a narrow screen, open the menu first. **Reset preview** restores the fictional sample workspace. Edits survive refresh in this browser under `turf.full-crm.prototype.v1`.
+Press the **Turf logo** to open the app menu and use **Explore as** to try all eight roles. The same menu provides workspace actions, connection controls, and reset. **Reset preview** restores the fictional sample workspace. Edits survive refresh in this browser under `turf.full-crm.prototype.v1`.
+
+The sidebar toggle switches between full labels and a minimized icon rail. The preference survives refresh. Hovering an icon gently enlarges it and its neighbors while the rail bends outward; the selected item keeps a circular highlight. Tooltips also appear on keyboard focus. Reduced-motion preferences disable magnification and bending. Mobile retains the full-label drawer; role switching stays in the Turf logo menu.
 
 ## Roles
 

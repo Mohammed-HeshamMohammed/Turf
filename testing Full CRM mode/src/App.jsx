@@ -1,26 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import {
-  ArrowClockwise,
-  Bell,
-  CalendarBlank,
-  ChartBar,
-  ChatCircle,
-  CheckCircle,
-  CloudArrowUp,
-  FileCsv,
-  GearSix,
-  Handshake,
-  HouseLine,
-  List,
-  MagnifyingGlass,
-  Phone,
-  ShieldCheck,
-  SquaresFour,
-  Users,
-  WifiHigh,
-  WifiSlash,
-  X,
-} from "@phosphor-icons/react";
+import { Bell, CalendarBlank, CheckCircle, List, MagnifyingGlass, WifiSlash, X } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
 import { loadState, reducer, visibleLeads, visibleTasks } from "./model.js";
 import { CrmContext } from "./context.jsx";
@@ -30,20 +9,9 @@ import { LeadDetail, Leads, NewLead } from "./Leads.jsx";
 import { Calendar, Calls, Deals, Handoffs, Inbox, Tasks } from "./Work.jsx";
 import { Lists, SkipTracing } from "./DataPages.jsx";
 import { Reports, Settings, Sync } from "./Management.jsx";
+import { Sidebar } from "./Sidebar.jsx";
+import { TurfMenu } from "./TurfMenu.jsx";
 
-const NAV = [
-  { id: "dashboard", label: "Overview", path: "dashboard", icon: SquaresFour, group: "workspace" },
-  { id: "leads", label: "Leads", path: "work/leads", icon: Users, group: "workspace" },
-  { id: "calls", label: "Calls", path: "work/calls", icon: Phone, group: "workspace" },
-  { id: "deals", label: "Deals", path: "work/deals", icon: Handshake, group: "workspace" },
-  { id: "handoffs", label: "Handoffs", path: "work/handoffs", icon: ArrowClockwise, group: "workspace" },
-  { id: "tasks", label: "Tasks", path: "work/tasks", icon: CheckCircle, group: "workspace" },
-  { id: "calendar", label: "Calendar", path: "work/calendar", icon: CalendarBlank, group: "workspace" },
-  { id: "inbox", label: "Inbox", path: "work/inbox", icon: ChatCircle, group: "workspace" },
-  { id: "lists", label: "Source lists", path: "lists", icon: FileCsv, group: "data" },
-  { id: "skip", label: "Skip Tracing", path: "skip", icon: ShieldCheck, group: "data" },
-  { id: "reports", label: "Reports", path: "reports", icon: ChartBar, group: "data" },
-];
 const readRoute = () => window.location.hash.slice(1).replace(/^\//, "") || "dashboard";
 
 export function App() {
@@ -52,6 +20,13 @@ export function App() {
   const [toast, setToast] = useState("");
   const [query, setQuery] = useState("");
   const [mobileNav, setMobileNav] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return window.localStorage.getItem("turf.full-crm.sidebar-minimized") === "true";
+    } catch {
+      return false;
+    }
+  });
   const [notifications, setNotifications] = useState(false);
   const [reset, setReset] = useState(false);
   const [cacheError, setCacheError] = useState(false);
@@ -104,6 +79,17 @@ export function App() {
     }
   }, [state]);
   useEffect(() => () => clearTimeout(timer.current), []);
+  function toggleSidebar() {
+    setSidebarCollapsed(current => {
+      const next = !current;
+      try {
+        window.localStorage.setItem("turf.full-crm.sidebar-minimized", String(next));
+      } catch {
+        /* This session still supports the preference. */
+      }
+      return next;
+    });
+  }
   const context = { state, dispatch, navigate, notify, route };
   const primary = [
     { id: "dashboard", label: "Dashboard", target: "dashboard" },
@@ -144,9 +130,7 @@ export function App() {
             <button className="mobile-menu round-button" aria-label="Toggle navigation" onClick={() => setMobileNav(!mobileNav)}>
               <List size={22} />
             </button>
-            <button className="brand-mark" aria-label="Turf overview" onClick={() => navigate("dashboard")}>
-              <img src="/favicon.svg" alt="" />
-            </button>
+            <TurfMenu collapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar} onReset={() => setReset(true)} />
             <strong>Turf</strong>
             <span className="mode-label">Full CRM</span>
           </div>
@@ -219,91 +203,8 @@ export function App() {
             </button>
           </div>
         </header>
-        <div className="workspace-body">
-          <aside className={"sidebar " + (mobileNav ? "mobile-open" : "")}>
-            <div className="workspace-label">
-              <span className="workspace-symbol">
-                <HouseLine size={22} weight="light" />
-              </span>
-              <div>
-                <strong>{state.settings.workspace}</strong>
-                <small>{state.role === "client" ? "Partner workspace" : state.role === "solo" ? "Personal workspace" : "Acquisitions workspace"}</small>
-              </div>
-            </div>
-            <div className="scope-label">
-              <ShieldCheck size={14} />
-              {role.scope}
-            </div>
-            <nav aria-label="Workspace pages">
-              {["workspace", "data"].map(group => (
-                <div className="nav-group" key={group}>
-                  <small>{group === "workspace" ? "YOUR WORKSPACE" : "DATA & INSIGHT"}</small>
-                  {NAV.filter(item => item.group === group && role.pages.includes(item.id)).map(item => {
-                    const Icon = item.icon;
-                    const count =
-                      item.id === "handoffs"
-                        ? state.handoffs.filter(h => h.status === "Requested" && leads.some(lead => lead.id === h.leadId)).length
-                        : item.id === "tasks"
-                          ? tasks.length
-                          : null;
-                    return (
-                      <button key={item.id} aria-current={page === item.id ? "page" : undefined} onClick={() => navigate(item.path)}>
-                        <Icon size={20} weight="light" />
-                        <span>{item.label}</span>
-                        {count > 0 && <Badge>{count}</Badge>}
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-            </nav>
-            <div className="sidebar-bottom">
-              <button
-                className={"connection-button " + (!state.online ? "offline" : "")}
-                onClick={() => {
-                  dispatch({ type: "CONNECT", online: !state.online });
-                  notify(state.online ? "Offline preview enabled. Edits will queue on this device." : "Connection restored. Review and sync pending changes.");
-                }}
-              >
-                <span className="connection-icon">{state.online ? <WifiHigh size={19} /> : <WifiSlash size={19} />}</span>
-                <div>
-                  <strong>{state.online ? "Connected preview" : "Offline preview"}</strong>
-                  <small>{state.online ? "Click to try offline mode" : "Your edits stay on this device"}</small>
-                </div>
-              </button>
-              <button className="sidebar-link" onClick={() => navigate("sync")} aria-current={page === "sync" ? "page" : undefined}>
-                <CloudArrowUp size={19} />
-                <span>Sync & pending changes</span>
-                {queue.length > 0 && <Badge tone="peach">{queue.length}</Badge>}
-              </button>
-              {role.pages.includes("settings") && (
-                <button className="sidebar-link" onClick={() => navigate("settings")} aria-current={page === "settings" ? "page" : undefined}>
-                  <GearSix size={19} />
-                  <span>Workspace settings</span>
-                </button>
-              )}
-              <div className="role-switcher">
-                <label htmlFor="preview-role">Explore as</label>
-                <select
-                  id="preview-role"
-                  aria-label="Explore as role"
-                  value={state.role}
-                  onChange={event => {
-                    dispatch({ type: "ROLE", role: event.target.value });
-                    navigate("dashboard");
-                    notify("Now viewing as " + ROLES[event.target.value].name);
-                  }}
-                >
-                  {Object.entries(ROLES).map(([id, item]) => (
-                    <option key={id} value={id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-                <small>{role.person} · UI preview</small>
-              </div>
-            </div>
-          </aside>
+        <div className={"workspace-body " + (sidebarCollapsed ? "sidebar-minimized" : "")}>
+          <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} mobileOpen={mobileNav} page={page} />
           {mobileNav && <button className="nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
           <main className="main-content" ref={main} id="main-content">
             <div className="content-topline">
