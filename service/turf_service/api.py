@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import SCHEMA_VERSION
-from . import area, combine, datasets, exports, keeping, leads, sameness, views, dnc_registry, downloads, emails, flood, geo, images, nanpa_blocks, manual, phone_evidence, phone_lookup, projects, skiptrace, tidy
+from . import area, combine, crm, datasets, exports, keeping, leads, sameness, views, dnc_registry, downloads, emails, flood, geo, images, nanpa_blocks, manual, phone_evidence, phone_lookup, projects, skiptrace, tidy
 from .contracts import health_check
 from .jobs import JobContext, JobKind, JobRunner, JobValidationError
 from .logs import log
@@ -113,6 +113,14 @@ class Service:
             "leads.add_note": lambda p: leads.add_note(self._store(), p),
             "leads.remove_note": lambda p: leads.remove_note(self._store(), p),
             "leads.due": lambda p: leads.due(self._store(), self._project_id(), p.get("today")),
+            "leads.record_call": lambda p: crm.record_call(self._store(), p),
+            "leads.history": lambda p: crm.history(self._store(), p),
+            "leads.activity": lambda p: crm.activity(self._store(), self._project_id(), p.get("limit", 30)),
+            "leads.set_many": lambda p: crm.set_many(self._store(), p),
+            "leads.rules": lambda p: crm.rules(self._store()),
+            "leads.set_rules": lambda p: crm.set_rules(self._store(), p),
+            "calls.stats": lambda p: crm.call_stats(self._store(), self._project_id(), p.get("days", 14), p.get("today")),
+            "search.everywhere": lambda p: crm.search(self._store(), self._project_id(), p.get("query"), p.get("limit", 30)),
             "calling.zones": lambda p: leads.zones(p.get("numbers")),
             "export.prepare": lambda p: exports.prepare(self._store(), p),
             "export.chunk": lambda p: exports.chunk(p),

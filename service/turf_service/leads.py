@@ -8,7 +8,7 @@ columns. A row with neither is a lead of its own.
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, datetime
 from uuid import uuid4
 
 import phonenumbers
@@ -101,27 +101,42 @@ def _lead(store: ProjectStore, payload: dict) -> tuple[str, str, str, int]:
     return found["keys"][row_number], found["labels"][row_number], dataset_id, row_number
 
 
-def set_state(store: ProjectStore, payload: dict) -> dict:
-    """Sets a lead's stage, its callback date and what the callback is about. What is not given stays as it was;
-    a callback date of null takes the callback away."""
-    key, label, dataset_id, row_number = _lead(store, payload)
+def _callback(value: object) -> str | None:
+    """A callback: a day ("2026-10-20"), or a day and a time of this computer's clock ("2026-10-20T15:30")."""
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    try:
+        if "T" in text:
+            return datetime.fromisoformat(text).strftime("%Y-%m-%dT%H:%M")
+        return date.fromisoformat(text).isoformat()
+    except ValueError:
+        raise ValueError("Give the callback as a day, or a day and a time") from None
+
+
+def event(store: ProjectStore, key: str, kind: str, detail: dict, dataset_id: str | None, row_number: int | None, at: str | None = None) -> None:
+    store._connection.execute(
+        "INSERT INTO lead_events(id, lead_key, kind, detail_json, at, dataset_id, row_number) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (str(uuid4()), key, kind, json.dumps(detail, sort_keys=True), at or utc_now(), dataset_id, row_number),
+    )
+
+
+def apply(store: ProjectStore, key: str, label: str, dataset_id: str, row_number: int, change: dict, why: str = "") -> dict:
+    """Changes where a lead stands, keeping what is not changed, and writes each change into the lead's history.
+    `why` says what made the change when it was not the person (a follow-up rule)."""
     current = store._connection.execute("SELECT * FROM lead_states WHERE lead_key = ?", (key,)).fetchone()
     state = _state(current) if current else {"stage": "new", "callback_on": None, "callback_note": ""}
-    if "stage" in payload:
-        if payload["stage"] not in STAGES:
+    before = dict(state)
+    if "stage" in change:
+        if change["stage"] not in STAGES:
             raise ValueError("Choose one of the stages")
-        state["stage"] = payload["stage"]
-    if "callback_on" in payload:
-        value = payload["callback_on"]
-        if value in (None, ""):
-            state["callback_on"], state["callback_note"] = None, ""
-        else:
-            try:
-                state["callback_on"] = date.fromisoformat(str(value)).isoformat()
-            except ValueError:
-                raise ValueError("Give the callback day as a date") from None
-    if "callback_note" in payload and state["callback_on"]:
-        state["callback_note"] = " ".join(str(payload["callback_note"] or "").split())[:300]
+        state["stage"] = change["stage"]
+    if "callback_on" in change:
+        state["callback_on"] = _callback(change["callback_on"])
+        if state["callback_on"] is None:
+            state["callback_note"] = ""
+    if "callback_note" in change and state["callback_on"]:
+        state["callback_note"] = " ".join(str(change["callback_note"] or "").split())[:300]
     now = utc_now()
     with store._connection:
         store._connection.execute(
@@ -130,7 +145,19 @@ def set_state(store: ProjectStore, payload: dict) -> dict:
             "label = excluded.label, dataset_id = excluded.dataset_id, row_number = excluded.row_number, updated_at = excluded.updated_at",
             (key, state["stage"], state["callback_on"], state["callback_note"], label, dataset_id, row_number, now),
         )
+        extra = {"why": why} if why else {}
+        if state["stage"] != before["stage"]:
+            event(store, key, "stage", {"from": before["stage"], "to": state["stage"], **extra}, dataset_id, row_number, now)
+        if state["callback_on"] != before["callback_on"] or (state["callback_on"] and state["callback_note"] != before["callback_note"]):
+            event(store, key, "callback", {"on": state["callback_on"], "note": state["callback_note"], **extra}, dataset_id, row_number, now)
     return {"lead_key": key, **state, "updated_at": now}
+
+
+def set_state(store: ProjectStore, payload: dict) -> dict:
+    """Sets a lead's stage, its callback (a day, or a day and a time) and what the callback is about. What is not
+    given stays as it was; a callback of null takes the callback away."""
+    key, label, dataset_id, row_number = _lead(store, payload)
+    return apply(store, key, label, dataset_id, row_number, {name: payload[name] for name in ("stage", "callback_on", "callback_note") if name in payload})
 
 
 def notes(store: ProjectStore, payload: dict) -> list[dict]:
@@ -148,6 +175,7 @@ def add_note(store: ProjectStore, payload: dict) -> list[dict]:
         raise ValueError(f"A note holds up to {MAX_NOTE:,} characters")
     with store._connection:
         store._connection.execute("INSERT INTO lead_notes(id, lead_key, note, at, dataset_id, row_number) VALUES (?, ?, ?, ?, ?, ?)", (str(uuid4()), key, text, utc_now(), dataset_id, row_number))
+        del label
     return notes(store, payload)
 
 
@@ -170,7 +198,8 @@ def due(store: ProjectStore, project_id: str, today: str | None = None) -> dict:
         stages[row["stage"]] = stages.get(row["stage"], 0) + 1
         if row["callback_on"]:
             callbacks.append({"lead_key": row["lead_key"], "label": row["label"], "on": row["callback_on"], "note": row["callback_note"], "stage": row["stage"],
-                              "dataset_id": row["dataset_id"], "list": here[row["dataset_id"]], "row_number": row["row_number"], "due": row["callback_on"] <= today})
+                              "dataset_id": row["dataset_id"], "list": here[row["dataset_id"]], "row_number": row["row_number"], "due": row["callback_on"][:10] <= today,
+                              "time": row["callback_on"][11:16] or None})
     return {"today": today, "due": [item for item in callbacks if item["due"]], "coming": [item for item in callbacks if not item["due"]][:50], "stages": stages}
 
 
