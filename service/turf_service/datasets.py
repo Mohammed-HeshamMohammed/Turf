@@ -375,6 +375,14 @@ def list_datasets(store: ProjectStore, project_id: str) -> list[dict[str, object
     return [dict(row) for row in rows]
 
 
+def dataset_rows_compact(store: ProjectStore, dataset_id: str, offset: int = 0, limit: int = 50) -> dict[str, object]:
+    """Turf: the same rows with the column names said once, not on every row: about half the size to send and to
+    read, which is most of what opening a long list waits for."""
+    rows = dataset_rows(store, dataset_id, offset, limit)
+    columns = list(dict.fromkeys(column for row in rows for column in row["raw"]))
+    return {"columns": columns, "rows": [[row["id"], row["row_number"], *(row["raw"].get(column) for column in columns)] for row in rows]}
+
+
 def dataset_rows(store: ProjectStore, dataset_id: str, offset: int = 0, limit: int = 50) -> list[dict[str, object]]:
     rows = store._connection.execute(
         "SELECT id, source_row_number, raw_values_json FROM source_rows WHERE dataset_id = ? ORDER BY source_row_number LIMIT ? OFFSET ?",

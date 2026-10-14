@@ -12,13 +12,22 @@ export const datasetRows = (dataset_id: string, offset: number, limit: number) =
 
 const PAGE = 5000;
 
+type CompactRows = { columns: string[]; rows: [string, number, ...(string | number | null)[]][] };
+
+/** Every row of a list. They come with the column names said once for each page rather than on every row, which is
+ * about half as much to send and to read. */
 export async function allRows(dataset_id: string) {
   const rows: DatasetRow[] = [];
   for (;;) {
-    const page = await datasetRows(dataset_id, rows.length, PAGE);
+    const page = await call<CompactRows>("dataset.rows_compact", { dataset_id, offset: rows.length, limit: PAGE });
     // Ends on an empty page, not a short one, so it is right whatever page size the service allows.
-    if (!page.length) return rows;
-    rows.push(...page);
+    if (!page.rows.length) return rows;
+    const { columns } = page;
+    for (const [id, row_number, ...values] of page.rows) {
+      const raw: DatasetRow["raw"] = {};
+      for (let at = 0; at < columns.length; at++) raw[columns[at]] = values[at] ?? null;
+      rows.push({ id, row_number, raw });
+    }
   }
 }
 

@@ -36,12 +36,13 @@ describe("the public service entry point", () => {
   it("continues reading rows after a short page and stops only on an empty page", async () => {
     const first = { id: "one", row_number: 2, raw: { Name: "Ada" } };
     const second = { id: "two", row_number: 3, raw: { Name: "Bob" } };
-    mocks.rpc.mockResolvedValueOnce([first]).mockResolvedValueOnce([second]).mockResolvedValueOnce([]);
+    const page = (...rows: (typeof first)[]) => ({ columns: ["Name"], rows: rows.map(row => [row.id, row.row_number, row.raw.Name]) });
+    mocks.rpc.mockResolvedValueOnce(page(first)).mockResolvedValueOnce(page(second)).mockResolvedValueOnce(page());
     expect(await client.allRows("list")).toEqual([first, second]);
     expect(mocks.rpc.mock.calls).toEqual([
-      ["dataset.rows", { dataset_id: "list", offset: 0, limit: 5000 }],
-      ["dataset.rows", { dataset_id: "list", offset: 1, limit: 5000 }],
-      ["dataset.rows", { dataset_id: "list", offset: 2, limit: 5000 }],
+      ["dataset.rows_compact", { dataset_id: "list", offset: 0, limit: 5000 }],
+      ["dataset.rows_compact", { dataset_id: "list", offset: 1, limit: 5000 }],
+      ["dataset.rows_compact", { dataset_id: "list", offset: 2, limit: 5000 }],
     ]);
   });
 

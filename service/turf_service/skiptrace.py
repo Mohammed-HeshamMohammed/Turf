@@ -254,7 +254,27 @@ def _status_rows(store: ProjectStore, rows: list[dict], column: str, day_first: 
     return statuses
 
 
+# Turf: a list's setup is asked for by every screen that shows the list, and reading a long list for it takes
+# seconds. The answer only changes with the list's saved setup, the project's remembered statuses and the status
+# model, so it is kept while those stand.
+_suggested: dict[tuple, dict] = {}
+
+
 def suggest(store: ProjectStore, dataset_id: str, region: str = "US") -> dict:
+    _dataset(store, dataset_id)
+    saved = store._connection.execute("SELECT updated_at FROM skiptrace_settings WHERE dataset_id = ?", (dataset_id,)).fetchone()
+    memory = tuple(tuple(row) for row in store._connection.execute("SELECT key, updated_at FROM project_settings WHERE key LIKE 'skiptrace.status_meanings%' ORDER BY key"))
+    mapping = store._connection.execute("SELECT MAX(version) FROM mapping_versions WHERE dataset_id = ?", (dataset_id,)).fetchone()[0]
+    key = (str(store.database_path), dataset_id, region, saved["updated_at"] if saved else None, memory, mapping, status_model.state()["state"], id(embedder))
+    if key not in _suggested:
+        while len(_suggested) >= 12:
+            _suggested.pop(next(iter(_suggested)))
+        _suggested[key] = _suggest(store, dataset_id, region)
+    # The first time a project's earlier setups are taken up, the memory changes under the answer just made.
+    return json.loads(json.dumps(_suggested[key]))
+
+
+def _suggest(store: ProjectStore, dataset_id: str, region: str = "US") -> dict:
     _dataset(store, dataset_id)
     status_model.ensure()  # Skip Tracing is open: fetch the status model now if it is missing, in the background
     _, rows = _rows(store, dataset_id)

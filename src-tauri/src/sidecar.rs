@@ -4,14 +4,21 @@
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime};
+
+/// How long the service may take to answer one command. Long work runs as a job and answers at once; what answers
+/// directly (reading a page of rows, a map outline fetched with its own 60-second limit) is done well inside this.
+/// A service that says nothing for this long is hung, and the window must not hang with it.
+const ANSWER_WITHIN: Duration = Duration::from_secs(180);
 
 pub struct Sidecar {
     child: Child,
     stdin: ChildStdin,
-    stdout: BufReader<ChildStdout>,
+    /// The service's answers, a line each, read on a thread of their own so that waiting for one can give up.
+    lines: Receiver<std::io::Result<String>>,
     next_id: u64,
     /// When run from source: the service folder, when this process started, and when its files were last looked at.
     source: Option<PathBuf>,
@@ -101,7 +108,16 @@ pub fn spawn(resources: Option<&Path>) -> Result<Sidecar, String> {
         .map_err(|e| format!("Could not start Turf's service: {e}. Install Python 3.11+ or set TURF_PYTHON."))?;
     let stdin = child.stdin.take().ok_or("service stdin unavailable")?;
     let stdout = BufReader::new(child.stdout.take().ok_or("service stdout unavailable")?);
-    Ok(Sidecar { child, stdin, stdout, next_id: 0, source, started: SystemTime::now(), looked: Instant::now() })
+    let (sender, lines) = mpsc::channel();
+    // Ends by itself when the service's output closes, or when nobody is waiting for its lines any more.
+    std::thread::spawn(move || {
+        for line in stdout.lines() {
+            if sender.send(line).is_err() {
+                break;
+            }
+        }
+    });
+    Ok(Sidecar { child, stdin, lines, next_id: 0, source, started: SystemTime::now(), looked: Instant::now() })
 }
 
 pub fn is_valid_command(command: &str) -> bool {
@@ -111,14 +127,22 @@ pub fn is_valid_command(command: &str) -> bool {
 }
 
 pub fn roundtrip(sidecar: &mut Sidecar, command: &str, payload: &Value) -> Result<Value, String> {
+    roundtrip_within(sidecar, command, payload, ANSWER_WITHIN)
+}
+
+pub fn roundtrip_within(sidecar: &mut Sidecar, command: &str, payload: &Value, limit: Duration) -> Result<Value, String> {
     sidecar.next_id += 1;
     let request = json!({ "id": sidecar.next_id, "schema_version": 1, "command": command, "payload": payload });
     writeln!(sidecar.stdin, "{request}").map_err(|e| e.to_string())?;
     sidecar.stdin.flush().map_err(|e| e.to_string())?;
-    let mut line = String::new();
-    if sidecar.stdout.read_line(&mut line).map_err(|e| e.to_string())? == 0 {
-        return Err("Turf's service stopped unexpectedly".into());
-    }
+    let line = match sidecar.lines.recv_timeout(limit) {
+        Ok(line) => line.map_err(|e| e.to_string())?,
+        // The caller drops a service that failed, so the next command starts a fresh one.
+        Err(RecvTimeoutError::Timeout) => {
+            return Err(format!("Turf's service did not answer within {} seconds, so it was restarted. Try again.", limit.as_secs()))
+        }
+        Err(RecvTimeoutError::Disconnected) => return Err("Turf's service stopped unexpectedly".into()),
+    };
     let response: Value = serde_json::from_str(&line).map_err(|e| format!("Invalid service response: {e}"))?;
     if response.get("id").and_then(Value::as_u64) != Some(sidecar.next_id) {
         return Err("Service response did not match the request".into());
@@ -188,6 +212,15 @@ mod tests {
         assert!(sidecar.is_outdated());
         // And it is not looked at again straight away.
         assert!(!sidecar.is_outdated());
+        sidecar.kill();
+    }
+
+    #[test]
+    fn a_service_that_does_not_answer_in_time_is_given_up_on() {
+        let mut sidecar = spawn(None).expect("python service starts");
+        // No time at all to answer: the wait gives up instead of holding the window.
+        let error = roundtrip_within(&mut sidecar, "health.check", &json!({}), Duration::ZERO).expect_err("gives up");
+        assert!(error.contains("did not answer"), "{error}");
         sidecar.kill();
     }
 

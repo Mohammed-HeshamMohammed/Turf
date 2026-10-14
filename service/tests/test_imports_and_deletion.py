@@ -146,3 +146,12 @@ def test_a_dropped_file_arrives_as_its_content_and_leaves_nothing_behind(tmp_pat
     assert again["dataset_id"] is None and again["already"]["name"] == "march"
     assert not any((projects.app_data_dir() / "dropped").iterdir())
     assert not call(svc, "dataset.import_content", name="notes.pdf", data=data)["ok"]
+
+
+def test_rows_read_compactly_are_the_same_rows(tmp_path: Path) -> None:
+    svc = project(tmp_path)
+    dataset = attempt(svc, write(tmp_path / "march.csv", LEADS))["dataset_id"]
+    plain = ok(svc, "dataset.rows", dataset_id=dataset, offset=5, limit=10)
+    compact = ok(svc, "dataset.rows_compact", dataset_id=dataset, offset=5, limit=10)
+    assert [{"id": row[0], "row_number": row[1], "raw": dict(zip(compact["columns"], row[2:]))} for row in compact["rows"]] == plain
+    assert ok(svc, "dataset.rows_compact", dataset_id=dataset, offset=100, limit=10) == {"columns": [], "rows": []}

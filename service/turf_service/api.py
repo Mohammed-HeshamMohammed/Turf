@@ -65,6 +65,7 @@ class Service:
             "dataset.import_content": self._import_content,
             "dataset.list": lambda p: datasets.list_datasets(self._store(), self._project_id()),
             "dataset.rows": lambda p: datasets.dataset_rows(self._store(), p["dataset_id"], int(p.get("offset", 0)), min(int(p.get("limit", 50)), MAX_ROWS_PER_CALL)),
+            "dataset.rows_compact": lambda p: datasets.dataset_rows_compact(self._store(), p["dataset_id"], int(p.get("offset", 0)), min(int(p.get("limit", 50)), MAX_ROWS_PER_CALL)),
             "dataset.rename": self._dataset_rename,
             "dataset.download": lambda p: downloads.prepare(self._store(), p["dataset_id"], p["version"]),
             "dataset.download_chunk": lambda p: downloads.chunk(self._store(), p["dataset_id"], p["version"], int(p["offset"]), p["hash"]),
