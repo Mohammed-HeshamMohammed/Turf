@@ -77,6 +77,9 @@ export type CombineSummary = {
   examples: { why: string; size: number; rows: LeadRow[] }[];
   possible: { why: string; size: number; rows: LeadRow[] }[];
   possible_pairs: number;
+  /** Properties that another list names a different owner for: sold since, or one list is wrong. */
+  owner_differs: number;
+  owner_differs_examples: { why: string; size: number; rows: LeadRow[] }[];
   compared_pairs: number;
   overruled: number;
 };

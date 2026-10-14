@@ -157,6 +157,28 @@ def combine(
         if len(possible) < MAX_EXAMPLES:
             possible.append({"why": duplicates._why(duplicates.compare(normalized[row_id], normalized[other])[0]) + "; not enough to be sure", "size": 2, "rows": [label(row_id), label(other)]})
 
+    # The same property under another owner in another list: sold since, or one list has the owner wrong. Rows the
+    # rules kept apart for their different names, gathered back by the property alone.
+    lead_of = {row_id: index for index, members in enumerate(leads) for row_id in members}
+    properties: dict[tuple, dict[int, str]] = {}
+    for row_id in order:
+        n = normalized[row_id]
+        found_address = n.get("address")
+        if found_address and found_address["house_number"] and found_address["street"] and n.get("postal_code") and n.get("words"):
+            key = (found_address["house_number"], found_address["street"], found_address["unit"], n["postal_code"])
+            properties.setdefault(key, {}).setdefault(place(row_id)[0], row_id)
+    owner_differs: list[dict] = []
+    differing = 0
+    for by_list in properties.values():
+        firsts = list(by_list.values())
+        if len(firsts) < 2 or len({lead_of[row_id] for row_id in firsts}) < 2:
+            continue
+        if any(normalized[left]["words"] & normalized[right]["words"] for at, left in enumerate(firsts) for right in firsts[at + 1:]):
+            continue
+        differing += 1
+        if len(owner_differs) < MAX_EXAMPLES:
+            owner_differs.append({"why": "Same property, another owner", "size": len(firsts), "rows": [label(row_id) for row_id in firsts]})
+
     columns, plans, contact_columns = column_plan(lists, mappings)
     regions = [str(item["config"].get("region") or "US") for item in lists]
     out: list[dict] = []
@@ -192,7 +214,7 @@ def combine(
     summary = {
         "version": COMBINE_VERSION, "mode": mode, "lists": per_list, "counts": counts, "rows_out": len(out), "rows_in": len(order),
         "repeats_within": sum(len({place(row_id)[0] for row_id in members}) < len(members) for members in found.groups),
-        "examples": examples, "possible": possible, "possible_pairs": len(seen), "compared_pairs": found.compared, "overruled": found.overruled,
+        "examples": examples, "possible": possible, "owner_differs": differing, "owner_differs_examples": owner_differs, "possible_pairs": len(seen), "compared_pairs": found.compared, "overruled": found.overruled,
         "ignored_shared_values": found.ignored,
     }
     return [*columns, *ADDED_COLUMNS], out, summary

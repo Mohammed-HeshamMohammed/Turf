@@ -181,7 +181,7 @@ def _run(context: JobContext) -> dict:
     summary["mode"] = mode
     for item, counted in zip(lists, summary["lists"]):
         counted["dataset_id"] = item["id"]
-    for example in [*summary["examples"], *summary["possible"]]:
+    for example in [*summary["examples"], *summary["possible"], *summary["owner_differs_examples"]]:
         for row in example["rows"]:
             row["dataset_id"] = ids[row.pop("list")]
             row["list"] = lists[position[row["dataset_id"]]]["name"]

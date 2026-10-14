@@ -237,6 +237,30 @@ export function CombineLists({ turf, onDone, onCancel }: { turf: Turf; onDone: (
                 <ul className="duplicate-groups">{summary.possible.map((item, index) => group(item, index, true))}</ul>
               </details>
             )}
+            {summary.owner_differs > 0 && (
+              <details className="step skiptrace-optional">
+                <summary>
+                  {formatNumber(summary.owner_differs)} {summary.owner_differs === 1 ? "property has" : "properties have"} another owner in another list: sold
+                  since, or one of the lists is wrong
+                </summary>
+                <ul className="duplicate-groups">
+                  {summary.owner_differs_examples.map((item, index) => (
+                    <li key={index}>
+                      <ul>
+                        {item.rows.map(row => (
+                          <li key={`${row.dataset_id}-${row.row_number}`}>
+                            <span className="num muted">
+                              {row.list} · row {row.row_number}
+                            </span>
+                            <span>{row.label}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
             {summary.overruled > 0 && (
               <p className="muted">
                 {formatNumber(summary.overruled)} of your own {summary.overruled === 1 ? "answer was" : "answers were"} followed here.

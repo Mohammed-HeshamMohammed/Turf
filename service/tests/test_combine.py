@@ -88,3 +88,11 @@ def test_a_decision_across_lists_is_followed(service, tmp_path):
     # John is two leads now, and Wei Nguyen and Ann Lee one, because the person said so.
     assert summary["counts"]["all"] == 4 and summary["counts"]["shared"] == 2 and summary["overruled"] == 2
     assert any(example["why"] == "You said these are the same lead" for example in summary["examples"])
+
+
+def test_a_property_with_another_owner_in_another_list_is_pointed_out(service, tmp_path):
+    older = add(service, tmp_path, "March", [["Owner Name", "Property Address", "City", "State", "Zip"], ["John Smith", "12 Main St", "Houston", "TX", "77008"], ["Ann Lee", "7 Elm St", "Houston", "TX", "77002"]])
+    newer = add(service, tmp_path, "April", [["Owner", "Site Address", "City", "State", "Zip"], ["GARCIA MARIA", "12 Main Street", "Houston", "TX", "77008"], ["LEE ANN", "7 Elm St", "Houston", "TX", "77002"]])
+    summary = run(service, "lists.combine", dataset_ids=[older, newer], preview=True)["summary"]
+    assert summary["owner_differs"] == 1 and summary["counts"]["shared"] == 1
+    assert [row["label"].split(" · ")[0] for row in summary["owner_differs_examples"][0]["rows"]] == ["John Smith", "GARCIA MARIA"]

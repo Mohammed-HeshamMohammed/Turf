@@ -106,6 +106,8 @@ const summary: CombineSummary = {
   ],
   possible: [],
   possible_pairs: 0,
+  owner_differs: 0,
+  owner_differs_examples: [],
   compared_pairs: 3,
   overruled: 0,
 };
