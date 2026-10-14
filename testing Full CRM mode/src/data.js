@@ -319,16 +319,50 @@ export function seedState() {
     ],
     integrations: { Email: false, SMS: false, Voice: false },
     permissions: {},
+    personal: {},
     reportSchedules: [],
   };
 }
 
-export const CALL_TREND = [
-  { day: "Thu", calls: 18, reached: 7 },
-  { day: "Fri", calls: 25, reached: 12 },
-  { day: "Sat", calls: 16, reached: 8 },
-  { day: "Sun", calls: 9, reached: 3 },
-  { day: "Mon", calls: 32, reached: 16 },
-  { day: "Tue", calls: 28, reached: 13 },
-  { day: "Wed", calls: 37, reached: 21 },
+export const CALL_DAYS = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"];
+const CALL_INTERVALS = [
+  [
+    [2, 3, 4, 4, 3, 2],
+    [1, 1, 1, 2, 1, 1],
+  ],
+  [
+    [3, 4, 6, 5, 4, 3],
+    [1, 2, 3, 2, 2, 2],
+  ],
+  [
+    [2, 3, 4, 3, 3, 1],
+    [1, 1, 2, 2, 1, 1],
+  ],
+  [
+    [1, 1, 2, 2, 2, 1],
+    [0, 0, 1, 1, 1, 0],
+  ],
+  [
+    [4, 5, 7, 7, 5, 4],
+    [2, 2, 4, 4, 2, 2],
+  ],
+  [
+    [3, 5, 6, 6, 5, 3],
+    [1, 2, 3, 3, 2, 2],
+  ],
+  [
+    [4, 6, 8, 8, 6, 5],
+    [2, 3, 5, 4, 4, 3],
+  ],
 ];
+// Explicit illustrative intervals preserve the sample daily totals; no interpolation.
+export const CALL_TREND = CALL_INTERVALS.flatMap(([calls, reached], day) =>
+  calls.map((count, interval) => ({
+    day: CALL_DAYS[day],
+    date: "Oct " + (8 + day),
+    slot: day * 24 + 8 + interval * 2,
+    time: String(8 + interval * 2).padStart(2, "0") + ":00–" + String(10 + interval * 2).padStart(2, "0") + ":00",
+    calls: count,
+    reached: reached[interval],
+  })),
+);

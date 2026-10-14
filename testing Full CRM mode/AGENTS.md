@@ -6,6 +6,8 @@ Run the local server yourself and open the preview in the browser available to t
 
 The left sidebar must support a persistent minimized icon rail. Use restrained Mac Dock-style magnification for the hovered icon and its neighbors, with a soft local bend in the rail toward the hovered item. Keep a rounded/circular highlight around the selected item. Preserve labels through tooltips and keyboard focus, retain connection controls, respect reduced motion, and keep the mobile drawer readable. The Turf logo opens the app menu; place Explore as inside that menu instead of the sidebar.
 
+The workspace identity belongs beside Turf in the header, replacing Full CRM, rather than in the sidebar. The avatar opens a separate personal menu with profile and personal preferences. Charts need visible, hoverable interval points between day labels, with meaningful time/count details. Keep sidebar hover centered and restrained at the first/last items; contain the rail bend away from its rounded ends.
+
 Before making substantial visual changes, use the Product Design plugin's `get-context` skill when the visual source is unclear or no longer matches the current goal. When the user gives durable prototype-specific design feedback, preferences, or decisions, record them in `AGENTS.md`.
 
 When implementing from a selected generated mock, treat that image as the source of truth for layout, component anatomy, density, spacing, color, typography, visible content, and hierarchy.

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { Bell, CalendarBlank, CheckCircle, List, MagnifyingGlass, WifiSlash, X } from "@phosphor-icons/react";
+import { Bell, CalendarBlank, ChatCircle, CheckCircle, HouseLine, List, MagnifyingGlass, WifiSlash, X } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
-import { loadState, reducer, visibleLeads, visibleTasks } from "./model.js";
+import { loadState, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { CrmContext } from "./context.jsx";
-import { Avatar, Badge, Button, Empty, Modal, Search } from "./ui.jsx";
+import { Badge, Button, Empty, Modal, Search } from "./ui.jsx";
 import { Dashboard } from "./Dashboard.jsx";
 import { LeadDetail, Leads, NewLead } from "./Leads.jsx";
 import { Calendar, Calls, Deals, Handoffs, Inbox, Tasks } from "./Work.jsx";
@@ -11,6 +11,7 @@ import { Lists, SkipTracing } from "./DataPages.jsx";
 import { Reports, Settings, Sync } from "./Management.jsx";
 import { Sidebar } from "./Sidebar.jsx";
 import { TurfMenu } from "./TurfMenu.jsx";
+import { PersonalMenu, PersonalPage } from "./Personal.jsx";
 
 const readRoute = () => window.location.hash.slice(1).replace(/^\//, "") || "dashboard";
 
@@ -33,14 +34,18 @@ export function App() {
   const timer = useRef(null);
   const main = useRef(null);
   const role = ROLES[state.role];
+  const profile = personalProfile(state);
   const queue = state.queue.filter(item => item.actor === role.person);
   const current = route.split("?")[0];
   const parts = current.split("/");
   const page = parts[0] === "work" ? parts[1] : parts[0];
   const activePrimary = ["leads", "calls", "deals", "handoffs", "tasks", "calendar", "inbox"].includes(page) ? "work" : page;
-  const accessible = page === "sync" || role.pages.includes(page);
+  const accessible = ["sync", "personal"].includes(page) || role.pages.includes(page);
   const leads = visibleLeads(state);
   const tasks = visibleTasks(state).filter(item => !item.done);
+  const taskNotices = profile.taskReminders ? tasks : [];
+  const replyNotices = profile.replyReminders && role.pages.includes("inbox") ? visibleThreads(state).filter(thread => thread.unread) : [];
+  const noticeCount = taskNotices.length + replyNotices.length;
   const searchResults = query.trim()
     ? leads
         .filter(lead =>
@@ -120,6 +125,7 @@ export function App() {
     if (page === "reports") return <Reports />;
     if (page === "settings") return <Settings section={parts[1]} />;
     if (page === "sync") return <Sync />;
+    if (page === "personal") return <PersonalPage section={parts[1]} />;
     return <Empty title="Choose a workspace page" action={<Button onClick={() => navigate("dashboard")}>Open overview</Button>} />;
   }
   return (
@@ -130,9 +136,15 @@ export function App() {
             <button className="mobile-menu round-button" aria-label="Toggle navigation" onClick={() => setMobileNav(!mobileNav)}>
               <List size={22} />
             </button>
-            <TurfMenu collapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar} onReset={() => setReset(true)} />
+            <TurfMenu collapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar} onReset={() => setReset(true)} onOpen={() => setNotifications(false)} />
             <strong>Turf</strong>
-            <span className="mode-label">Full CRM</span>
+            <div className="header-workspace" title={state.settings.workspace}>
+              <HouseLine size={18} weight="light" />
+              <div>
+                <strong>{state.settings.workspace}</strong>
+                <small>{state.role === "client" ? "Partner workspace" : state.role === "solo" ? "Personal workspace" : "Acquisitions workspace"}</small>
+              </div>
+            </div>
           </div>
           <nav className="top-tabs" aria-label="Main sections">
             {primary.map(item => (
@@ -163,17 +175,17 @@ export function App() {
             <div className="notification-anchor">
               <button className="round-button" aria-label="Notifications" aria-expanded={notifications} onClick={() => setNotifications(!notifications)}>
                 <Bell size={21} />
-                {tasks.length > 0 && <span className="notification-count">{tasks.length}</span>}
+                {noticeCount > 0 && <span className="notification-count">{noticeCount}</span>}
               </button>
               {notifications && (
                 <div className="notification-panel">
                   <header>
-                    <strong>Your next steps</strong>
+                    <strong>Your notifications</strong>
                     <button aria-label="Close notifications" onClick={() => setNotifications(false)}>
                       <X size={16} />
                     </button>
                   </header>
-                  {tasks.slice(0, 4).map(task => (
+                  {taskNotices.slice(0, 4).map(task => (
                     <button
                       key={task.id}
                       onClick={() => {
@@ -190,17 +202,28 @@ export function App() {
                       </div>
                     </button>
                   ))}
-                  {!tasks.length && <p>You're all caught up.</p>}
+                  {replyNotices.slice(0, 2).map(thread => (
+                    <button
+                      key={thread.id}
+                      onClick={() => {
+                        navigate("work/inbox?lead=" + thread.leadId);
+                        setNotifications(false);
+                      }}
+                    >
+                      <ChatCircle size={19} />
+                      <div>
+                        <strong>Unread {thread.channel.toLowerCase()} conversation</strong>
+                        <small>{thread.preview}</small>
+                      </div>
+                    </button>
+                  ))}
+                  {!noticeCount && (
+                    <p>{!profile.taskReminders && !profile.replyReminders ? "Your personal notifications are paused." : "You're all caught up."}</p>
+                  )}
                 </div>
               )}
             </div>
-            <button
-              className="profile-button"
-              aria-label="Open role workspace settings"
-              onClick={() => (role.pages.includes("settings") ? navigate("settings") : notify("Viewing the workspace as " + role.name))}
-            >
-              <Avatar name={role.person} />
-            </button>
+            <PersonalMenu onOpen={() => setNotifications(false)} />
           </div>
         </header>
         <div className={"workspace-body " + (sidebarCollapsed ? "sidebar-minimized" : "")}>

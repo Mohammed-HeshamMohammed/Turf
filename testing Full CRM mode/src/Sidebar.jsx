@@ -9,7 +9,6 @@ import {
   FileCsv,
   GearSix,
   Handshake,
-  HouseLine,
   Phone,
   ShieldCheck,
   SidebarSimple,
@@ -46,19 +45,40 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
   const tasks = visibleTasks(state).filter(task => !task.done);
   const queue = state.queue.filter(item => item.actor === role.person);
   const items = NAV.filter(item => role.pages.includes(item.id));
-  const dockIds = [...items.map(item => item.id), "connection", "sync", ...(role.pages.includes("settings") ? ["settings"] : [])];
   function track(event) {
     const button = event.target.closest("button[data-dock-id]");
     if (!button || !ref.current.contains(button)) return setHover(null);
     const rect = button.getBoundingClientRect();
     const id = button.dataset.dockId;
-    const y = rect.top - ref.current.getBoundingClientRect().top + rect.height / 2;
-    setHover(current => (current?.id === id && Math.abs(current.y - y) < 1 ? current : { id, y, label: button.getAttribute("aria-label") }));
+    const rail = ref.current.getBoundingClientRect();
+    const y = rect.top - rail.top + rect.height / 2;
+    const pointerY = Number.isFinite(event.clientY) ? event.clientY - rail.top : y;
+    const edge = Math.max(0, Math.min(1, (y - 44) / 36, (rail.height - y - 44) / 36));
+    const centers = Object.fromEntries(
+      [...ref.current.querySelectorAll("[data-dock-id]")].map(item => {
+        const bounds = item.getBoundingClientRect();
+        return [item.dataset.dockId, bounds.top - rail.top + bounds.height / 2];
+      }),
+    );
+    setHover(current =>
+      current?.id === id && Math.abs(current.pointerY - pointerY) < 2
+        ? current
+        : {
+            id,
+            y,
+            pointerY,
+            edge,
+            centers,
+            bendY: Math.max(72, Math.min(rail.height - 72, y)),
+            tooltipY: Math.max(24, Math.min(rail.height - 24, y)),
+            label: button.getAttribute("aria-label"),
+          },
+    );
   }
   function influence(id) {
-    const distance = hover ? Math.abs(dockIds.indexOf(id) - dockIds.indexOf(hover.id)) : Infinity;
-    const strength = Math.exp((-distance * distance) / 1.4);
-    return { "--dock-scale": 1 + strength * 0.32, "--dock-shift": strength * 4 + "px" };
+    const distance = hover ? Math.abs(hover.centers[id] - hover.pointerY) : Infinity;
+    const strength = Math.exp(-Math.pow(distance / 38, 2));
+    return { "--dock-scale": 1 + strength * (collapsed ? 0.22 : 0.14) * (0.65 + 0.35 * (hover?.edge || 0)) };
   }
   function dockProps(id, label) {
     return { "data-dock-id": id, "aria-label": label, style: influence(id) };
@@ -74,18 +94,13 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
       onBlurCapture={event => {
         if (!event.currentTarget.contains(event.relatedTarget)) setHover(null);
       }}
-      style={{ "--hover-y": (hover?.y || 0) + "px", "--bend-opacity": hover ? 1 : 0 }}
+      style={{ "--hover-y": (hover?.bendY || 0) + "px", "--bend-opacity": hover?.edge || 0 }}
     >
       <span className="sidebar-bend" aria-hidden="true" />
       <div className="sidebar-heading">
-        <div className="workspace-label">
-          <span className="workspace-symbol">
-            <HouseLine size={22} weight="light" />
-          </span>
-          <div>
-            <strong>{state.settings.workspace}</strong>
-            <small>{state.role === "client" ? "Partner workspace" : state.role === "solo" ? "Personal workspace" : "Acquisitions workspace"}</small>
-          </div>
+        <div className="scope-label">
+          <ShieldCheck size={14} />
+          {role.scope}
         </div>
         <button
           className="sidebar-toggle"
@@ -100,10 +115,6 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
         >
           <SidebarSimple size={20} weight="light" />
         </button>
-      </div>
-      <div className="scope-label">
-        <ShieldCheck size={14} />
-        {role.scope}
       </div>
       <nav aria-label="Workspace pages" onScroll={() => setHover(null)}>
         {["workspace", "data"]
@@ -184,7 +195,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
         )}
       </div>
       {hover && collapsed && (
-        <div className="dock-tooltip" role="tooltip" style={{ top: hover.y }}>
+        <div className="dock-tooltip" role="tooltip" style={{ top: hover.tooltipY }}>
           <strong>{hover.label}</strong>
         </div>
       )}

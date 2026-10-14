@@ -436,9 +436,13 @@ export function Tasks({ create = false }) {
   const { state, dispatch, navigate, notify, route } = useCrm();
   const [filter, setFilter] = useState("Open");
   const [search, setSearch] = useState("");
+  const mine = new URLSearchParams(route.split("?")[1]).get("mine") === "1";
   const leads = visibleLeads(state);
   const tasks = visibleTasks(state).filter(
-    task => (filter === "All" || task.done === (filter === "Completed")) && task.title.toLowerCase().includes(search.toLowerCase()),
+    task =>
+      (!mine || task.assignee === ROLES[state.role].person) &&
+      (filter === "All" || task.done === (filter === "Completed")) &&
+      task.title.toLowerCase().includes(search.toLowerCase()),
   );
   const editable = capability(state, "edit") || capability(state, "review");
   if (create && editable)
@@ -536,6 +540,14 @@ export function Tasks({ create = false }) {
       </PageHeader>
       <div className="filter-bar">
         <Search value={search} onChange={setSearch} placeholder="Search tasks" />
+        <select
+          aria-label="Task scope"
+          value={mine ? "mine" : "all"}
+          onChange={event => navigate(event.target.value === "mine" ? "work/tasks?mine=1" : "work/tasks")}
+        >
+          <option value="all">All visible tasks</option>
+          <option value="mine">My tasks</option>
+        </select>
         <Segmented label="Task status" value={filter} onChange={setFilter} options={["Open", "Completed", "All"]} />
         <span className="result-count">{tasks.length} tasks</span>
       </div>

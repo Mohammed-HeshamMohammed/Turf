@@ -19,6 +19,8 @@ Press the **Turf logo** to open the app menu and use **Explore as** to try all e
 
 The sidebar toggle switches between full labels and a minimized icon rail. The preference survives refresh. Hovering an icon gently enlarges it and its neighbors while the rail bends outward; the selected item keeps a circular highlight. Tooltips also appear on keyboard focus. Reduced-motion preferences disable magnification and bending. Mobile retains the full-label drawer; role switching stays in the Turf logo menu.
 
+The workspace identity sits beside Turf in the header. The avatar opens a separate personal menu with My profile, personal/notification preferences, My tasks, and Calendar when available. Personal profile details and notification preferences persist per sample account; editing a display name does not rename lead responsibility. My tasks filters by the account's canonical responsible person.
+
 ## Roles
 
 | Role                  | Workspace and record scope                                                                                                                        |
@@ -37,6 +39,8 @@ These are frontend demonstration rules, not a security boundary. Every sample re
 ## Interactive workflows
 
 - **Overview:** role-specific metrics, next conversations, task completion, lead-stage navigation, scoped global search, and task notifications.
+- **Call activity chart:** 42 explicit illustrative intervals, six per day, with visible markers, day/time/count/reach-rate tooltips, keyboard navigation, and an accessible interval table. The sample daily totals are preserved; intermediate counts are sample data, not inferred production activity.
+- **Personal account:** full-page profile editing and preferences, with task/unread-conversation switches that control the notification panel. All saves remain local to the preview.
 - **Leads:** search and filters, list/board views, keyboard-accessible stage changes alongside drag and drop, bulk stage edits, assignment, full-page creation, callbacks, and internal/shared notes.
 - **Lead record:** property context, activity history, source evidence, approved brief preview, and print support. All photos are explicitly illustrative.
 - **Calls:** eligible sample queue, scripts, start/end simulated calls, outcomes, notes, and qualification handoff. No number is dialed and no microphone is used.
@@ -79,6 +83,8 @@ npm run build
 ```
 
 Pure-model tests cover role boundaries, client message isolation, handoff ownership/idempotency, offline persistence, scoped synchronization, retained drafts/conflicts, and do-not-call blocking. The existing scaffold worker tests cover static routing and build packaging. Browser flow and visual evidence are recorded in [design-qa.md](design-qa.md).
+
+Additional checks cover per-account profile persistence without changing record ownership, and interval totals matching the seven sample daily counts.
 
 The scaffold hosting worker, build-preparation script, and `.openai/hosting.json` remain intact for a possible later Sites handoff. Nothing has been published to Sites.
 

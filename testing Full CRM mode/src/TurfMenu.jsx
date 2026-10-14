@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowClockwise, CloudArrowUp, FileCsv, GearSix, SidebarSimple, SquaresFour, WifiHigh, WifiSlash } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
+import { personalProfile } from "./model.js";
 import { useCrm } from "./context.jsx";
 
-export function TurfMenu({ collapsed, onToggleSidebar, onReset }) {
+export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen }) {
   const { state, dispatch, navigate, notify } = useCrm();
   const [open, setOpen] = useState(false);
   const root = useRef(null);
@@ -48,7 +49,10 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset }) {
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls="turf-menu-panel"
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          if (!open) onOpen?.();
+          setOpen(!open);
+        }}
       >
         <img src="/favicon.svg" alt="" />
       </button>
@@ -58,7 +62,7 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset }) {
             <small>Current workspace</small>
             <strong>{state.settings.workspace}</strong>
             <span>
-              {role.person} · {role.name}
+              {personalProfile(state).name} · {role.name}
             </span>
           </div>
           <div className="turf-menu-actions">

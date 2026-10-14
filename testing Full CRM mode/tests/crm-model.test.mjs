@@ -1,9 +1,40 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { seedState } from "../src/data.js";
-import { canEditLead, loadState, reducer, visibleLeads, visibleTasks, visibleThreads } from "../src/model.js";
+import { CALL_DAYS, CALL_TREND, seedState } from "../src/data.js";
+import { canEditLead, loadState, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "../src/model.js";
 
 const as = role => ({ ...seedState(), role });
+test("personal details persist per account without renaming lead responsibility", () => {
+  const caller = as("caller");
+  const changed = reducer(caller, { type: "PERSONAL", profile: { name: "Maya C.", taskReminders: false } });
+  assert.equal(personalProfile(changed).name, "Maya C.");
+  assert.equal(changed.leads.find(lead => lead.id === "l01").assignee, "Maya Chen");
+  const closer = reducer(changed, { type: "ROLE", role: "closer" });
+  assert.equal(personalProfile(closer).name, "Alex Rivera");
+  assert.equal(personalProfile(closer).taskReminders, true);
+  const restored = reducer(loadState({ getItem: () => JSON.stringify(closer) }), { type: "ROLE", role: "caller" });
+  assert.equal(personalProfile(restored).taskReminders, false);
+  assert.equal(personalProfile(restored).name, "Maya C.");
+});
+test("interval detail preserves the daily sample counts and contact totals", () => {
+  assert.equal(CALL_TREND.length, 42);
+  const dailyCalls = [18, 25, 16, 9, 32, 28, 37];
+  const dailyReached = [7, 12, 8, 3, 16, 13, 21];
+  CALL_DAYS.forEach((day, index) => {
+    const intervals = CALL_TREND.filter(point => point.day === day);
+    assert.equal(intervals.length, 6);
+    assert.equal(
+      intervals.reduce((sum, point) => sum + point.calls, 0),
+      dailyCalls[index],
+    );
+    assert.equal(
+      intervals.reduce((sum, point) => sum + point.reached, 0),
+      dailyReached[index],
+    );
+  });
+  assert(CALL_TREND.every(point => point.reached <= point.calls));
+  assert.equal(new Set(CALL_TREND.map(point => point.slot)).size, 42);
+});
 test("role scopes keep admin, client, and caller records distinct", () => {
   assert.equal(visibleLeads(as("admin")).length, 0);
   assert(visibleLeads(as("client")).every(lead => lead.shared));

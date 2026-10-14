@@ -1,6 +1,16 @@
 import { ROLES, seedState } from "./data.js";
 
 export const uid = () => crypto.randomUUID();
+export function personalProfile(state) {
+  const person = ROLES[state.role].person;
+  return {
+    name: person,
+    email: person.toLowerCase().replaceAll(" ", ".") + "@example.com",
+    taskReminders: true,
+    replyReminders: true,
+    ...state.personal?.[person],
+  };
+}
 export function capability(state, name) {
   return state.permissions[state.role]?.[name] ?? ROLES[state.role].capabilities.includes(name);
 }
@@ -41,6 +51,10 @@ export function reducer(state, action) {
   switch (action.type) {
     case "ROLE":
       return ROLES[action.role] ? { ...state, role: action.role } : state;
+    case "PERSONAL": {
+      const person = ROLES[state.role].person;
+      return { ...state, personal: { ...state.personal, [person]: { ...personalProfile(state), ...action.profile } } };
+    }
     case "CONNECT":
       return { ...state, online: action.online };
     case "RESET":

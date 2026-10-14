@@ -1,7 +1,7 @@
 import { ArrowUpRight, ArrowRight, Phone, CheckCircle, Clock, Users, Handshake, ShieldCheck, Database, HardDrives, GearSix, Plus } from "@phosphor-icons/react";
-import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { CALL_TREND, ROLES } from "./data.js";
-import { capability, visibleLeads, visibleTasks } from "./model.js";
+import { CallActivityChart } from "./CallActivityChart.jsx";
+import { ROLES } from "./data.js";
+import { capability, personalProfile, visibleLeads, visibleTasks } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { Badge, Button, Card, Empty, LeadLink, Person, RoundButton, Status, money, PageHeader } from "./ui.jsx";
 
@@ -73,7 +73,7 @@ export function Dashboard() {
     <>
       <PageHeader
         eyebrow={isClient ? "Your shared workspace" : role.title}
-        title={isClient ? "A clearer view of your properties." : "Good morning, " + role.person.split(" ")[0] + "."}
+        title={isClient ? "A clearer view of your properties." : "Good morning, " + personalProfile(state).name.split(" ")[0] + "."}
         description={
           isClient
             ? "Your approved records, updates, and next steps in one place."
@@ -191,29 +191,7 @@ export function Dashboard() {
                   })}
                 </div>
               ) : (
-                <>
-                  <div className="chart-key">
-                    <span>
-                      <i className="key-dot peach" />
-                      Calls made
-                    </span>
-                    <span>
-                      <i className="key-dot black" />
-                      Reached a person
-                    </span>
-                  </div>
-                  <div className="chart-container" aria-label="Sample call activity: calls made and people reached across seven days">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                      <AreaChart data={CALL_TREND} margin={{ top: 12, right: 12, left: 12, bottom: 0 }}>
-                        <CartesianGrid vertical={false} stroke="#dedede" />
-                        <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "#6f6f6f", fontSize: 12 }} dy={8} />
-                        <Tooltip contentStyle={{ borderRadius: 14, border: 0 }} />
-                        <Area dataKey="calls" name="Calls made" stroke="#d7a66e" fill="#fbdfc2" strokeWidth={2} fillOpacity={0.65} />
-                        <Area dataKey="reached" name="Reached a person" stroke="#262626" fill="#bcbcbc" strokeWidth={2} fillOpacity={0.14} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </>
+                <CallActivityChart />
               )}
             </Card>
           )}
