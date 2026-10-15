@@ -53,7 +53,7 @@ These are frontend demonstration rules, not a security boundary. Every sample re
 - **Tasks and calendar:** full-page task creation, completion/reopening, priority, ownership, month navigation, and daily agenda.
 - **Inbox:** scoped email, SMS, team, and explicitly shared partner threads; new conversations, unread state, local demo messages, and offline drafts. Attachments preview filenames only.
 - **Lists:** source detail, CSV parsing/import, a sample import, and real CSV downloads of the visible data. Preview import is limited to 2 MB and 200 rows.
-- **Skip Tracing:** the five-step Turf flow, local/cloud mode preview, configurable checks, simulated progress/cancel, review, saving a sample check, and CSV export.
+- **Skip Tracing:** a spacious progressive workspace with actual-column mapping and original-value previews. Populated phone fields take priority, then address, email, and owner name; phone-only steps are skipped when unavailable. Manual mapping and missing-evidence guards keep the setup reviewable. Local/cloud execution remains simulated, with progress/cancel, review, saving a sample check, and CSV export.
 - **Reports:** scoped totals, source/location breakdowns, stage distribution, CSV export, browser print/save PDF, and locally saved delivery schedules.
 - **Sync:** offline preview, cached local edits, pending queue, sample conflicts, review/discard operations, and a simulated reconnect/sync. Another persona's operations are retained, and communication drafts are never automatically sent.
 - **Settings:** workspace defaults, action permission overrides, workflow rule previews, communication connection previews, and the planned language/storage architecture.

@@ -4,6 +4,7 @@ import { ArrowRight, ArrowUpRight, CheckCircle, Cloud, DownloadSimple, FileCsv, 
 import { ROLES } from "./data.js";
 import { capability, uid, visibleLeads } from "./model.js";
 import { useCrm } from "./context.jsx";
+import { sourceEvidence, sourceValue } from "./skiptrace-fields.js";
 import { Badge, Button, Card, Empty, Field, LeadLink, PageHeader, Search, Segmented, Status, downloadCsv, Breadcrumb } from "./ui.jsx";
 
 export function Lists({ id }) {
@@ -25,34 +26,33 @@ export function Lists({ id }) {
       const entry = Object.entries(row).find(([key]) => options.includes(key.trim().toLowerCase().replaceAll("_", " ")));
       return String(entry?.[1] || "").trim();
     };
-    const imported = rows
-      .slice(0, 200)
-      .map((row, index) => ({
-        id: uid(),
-        datasetId,
-        name: pick(row, ["owner", "owner name", "name", "full name"]) || "Imported owner " + (index + 1),
-        address: pick(row, ["address", "property address", "street"]) || "Address not supplied",
-        city: pick(row, ["city"]) || "Tampa",
-        region: pick(row, ["state", "region"]) || "FL",
-        zip: pick(row, ["zip", "zip code"]) || "",
-        phone: pick(row, ["phone", "phone number", "mobile"]),
-        email: pick(row, ["email"]),
-        stage: "New",
-        assignee: "Unassigned",
-        team: ROLES[state.role].team || "Tampa",
-        callback: "",
-        source: "CSV import",
-        verdict: "Unverified",
-        shared: false,
-        version: 1,
-        priority: "Normal",
-        value: Number(pick(row, ["value", "price"])) || 0,
-        beds: 3,
-        baths: 2,
-        area: 1600,
-        notes: [],
-        motivation: "Imported from " + name + ". Review source fields before outreach.",
-      }));
+    const imported = rows.slice(0, 200).map((row, index) => ({
+      id: uid(),
+      datasetId,
+      sourceValues: row,
+      name: pick(row, ["owner", "owner name", "name", "full name"]) || "Imported owner " + (index + 1),
+      address: pick(row, ["address", "property address", "street"]) || "Address not supplied",
+      city: pick(row, ["city"]) || "Tampa",
+      region: pick(row, ["state", "region"]) || "FL",
+      zip: pick(row, ["zip", "zip code"]) || "",
+      phone: pick(row, ["phone", "phone number", "mobile"]),
+      email: pick(row, ["email"]),
+      stage: "New",
+      assignee: "Unassigned",
+      team: ROLES[state.role].team || "Tampa",
+      callback: "",
+      source: "CSV import",
+      verdict: "Unverified",
+      shared: false,
+      version: 1,
+      priority: "Normal",
+      value: Number(pick(row, ["value", "price"])) || 0,
+      beds: 3,
+      baths: 2,
+      area: 1600,
+      notes: [],
+      motivation: "Imported from " + name + ". Review source fields before outreach.",
+    }));
     dispatch({
       type: "IMPORT",
       dataset: {
@@ -276,17 +276,45 @@ export function SkipTracing() {
   const [datasetId, setDatasetId] = useState(new URLSearchParams(route.split("?")[1]).get("list") || datasets[0]?.id || "");
   const [mode, setMode] = useState("Local");
   const [step, setStep] = useState(0);
-  const [phoneColumn, setPhoneColumn] = useState("Phone");
+  const [fieldOverrides, setFieldOverrides] = useState({});
   const [signals, setSignals] = useState({ duplicates: true, outcomes: true, dnc: true, age: true });
   const [progress, setProgress] = useState(-1);
   const [finished, setFinished] = useState(false);
   const [cancelled, setCancelled] = useState(false);
   const timers = useRef([]);
+  const stepNavigation = useRef(null);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
   const dataset = datasets.find(item => item.id === datasetId);
   const rows = leads.filter(lead => lead.datasetId === datasetId);
-  const stages = ["Phone columns", "Call outcomes", "Warning signs", "Results", "Save a copy"];
-  const jobStages = ["Reading source rows", "Normalizing phone evidence", "Comparing candidate pairs", "Building lead groups", "Preparing the review"];
+  const columns = dataset?.columns || [];
+  const { fields, primary } = sourceEvidence(columns, rows, fieldOverrides);
+  const hasPhones = fields.some(field => field.id === "phone" && field.count > 0);
+  useEffect(() => {
+    stepNavigation.current?.querySelector("[aria-current]")?.scrollIntoView({
+      block: "nearest",
+      inline: "center",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+    });
+  }, [step, hasPhones]);
+  const stages = ["Source fields", "Call outcomes", "Warning signs", "Results", "Save a copy"];
+  const jobStages = [
+    "Reading source rows",
+    `Reviewing ${primary?.label.toLowerCase() || "source"} evidence`,
+    "Comparing candidate pairs",
+    "Building lead groups",
+    "Preparing the review",
+  ];
+  const verdict = lead => (!hasPhones && !["Do not call", "Possible duplicate"].includes(lead.verdict) ? "Unverified" : lead.verdict);
+  function changeSource(id) {
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+    setDatasetId(id);
+    setFieldOverrides({});
+    setFinished(false);
+    setProgress(-1);
+    setCancelled(false);
+    setStep(0);
+  }
   function cancel() {
     timers.current.forEach(clearTimeout);
     timers.current = [];
@@ -295,6 +323,7 @@ export function SkipTracing() {
     notify("Demo check cancelled. Source data unchanged.");
   }
   function run() {
+    if (!primary || (!state.online && mode === "Cloud")) return;
     timers.current.forEach(clearTimeout);
     setProgress(0);
     setFinished(false);
@@ -313,11 +342,11 @@ export function SkipTracing() {
   const allowed = capability(state, "review") || capability(state, "import");
   if (!allowed) return <Empty title="Skip Tracing is outside this role">Data operators work here before leads enter the outreach queue.</Empty>;
   return (
-    <>
+    <div className="skip-workspace">
       <PageHeader
-        eyebrow="Contact evidence"
-        title="A clearer picture, before the first call."
-        description="Check source data, keep your evidence, and review possible repeats."
+        eyebrow="Data workspace · Skip Tracing"
+        title="Start with what your list knows."
+        description="Map your source, check the evidence, and review people and properties together."
       >
         <Segmented
           label="Skip Tracing execution mode"
@@ -339,27 +368,33 @@ export function SkipTracing() {
         </div>
         <Badge tone="good">UI simulation</Badge>
       </div>
-      <div className="wizard-steps">
-        {stages.map((label, index) => (
-          <button key={label} className={step === index ? "active" : ""} disabled={index >= 4 && !finished} onClick={() => setStep(index)}>
-            <span>{index + 1}</span>
-            {label}
-          </button>
-        ))}
-      </div>
+      <nav ref={stepNavigation} className="wizard-steps" aria-label="Skip Tracing steps">
+        {stages.map(
+          (label, index) =>
+            (index !== 1 || hasPhones) && (
+              <button
+                key={label}
+                aria-current={step === index ? "step" : undefined}
+                className={step === index ? "active" : ""}
+                disabled={(index >= 4 && !finished) || (index > 0 && !primary) || progress >= 0}
+                onClick={() => setStep(index)}
+              >
+                <span>{!hasPhones && index > 1 ? index : index + 1}</span>
+                {label}
+              </button>
+            ),
+        )}
+      </nav>
       <div className="skip-layout">
-        <Card title={stages[step]} subtitle={step < 3 ? "Use the source's actual fields. Keep every original value." : "Review before saving."}>
+        <Card
+          className="skip-stage"
+          title={stages[step]}
+          subtitle={step < 3 ? "Use the source's actual fields. Keep every original value." : "Review before saving."}
+        >
           {step === 0 && (
             <>
               <Field label="Source list">
-                <select
-                  aria-label="Skip Tracing source list"
-                  value={datasetId}
-                  onChange={event => {
-                    setDatasetId(event.target.value);
-                    setFinished(false);
-                  }}
-                >
+                <select aria-label="Skip Tracing source list" value={datasetId} onChange={event => changeSource(event.target.value)}>
                   {datasets.map(item => (
                     <option key={item.id} value={item.id}>
                       {item.name}
@@ -367,24 +402,86 @@ export function SkipTracing() {
                   ))}
                 </select>
               </Field>
-              <Field label="Phone column">
-                <select value={phoneColumn} onChange={event => setPhoneColumn(event.target.value)}>
-                  {[...new Set(["Phone", ...(dataset?.columns || [])])].map(column => (
-                    <option key={column}>{column}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Default region">
-                <select defaultValue="US">
-                  <option value="US">United States (+1)</option>
-                  <option value="CA">Canada (+1)</option>
-                  <option value="GB">United Kingdom (+44)</option>
-                </select>
-              </Field>
-              <p className="body-copy">The phone is evidence, not the identity of the property owner. Shared household or office numbers need context.</p>
-              <Button variant="primary" onClick={() => setStep(1)}>
-                Continue <ArrowRight size={16} />
-              </Button>
+              <div className="skip-evidence-banner" role="status">
+                <ShieldCheck size={26} weight="light" />
+                <div>
+                  <strong>{primary ? `Starting with ${primary.label.toLowerCase()} evidence` : "Choose an identity field to continue"}</strong>
+                  <p>
+                    {hasPhones
+                      ? "Phone fields found. Address, email and owner context stay alongside them."
+                      : primary
+                        ? `No populated phone field found. We’ll use ${primary.label.toLowerCase()} instead and skip phone-only checks.`
+                        : "No usable phone, address, email or owner-name field was detected. Map an available source column below."}
+                  </p>
+                </div>
+              </div>
+              <div className="skip-field-grid">
+                {fields.map(field => (
+                  <Field
+                    key={field.id}
+                    label={field.label + " column"}
+                    help={
+                      field.column
+                        ? `${field.count} of ${rows.length} rows supplied${primary?.id === field.id ? " · Starting point" : ""}`
+                        : "Not detected · optional if another identity field is available"
+                    }
+                  >
+                    <select
+                      value={field.column}
+                      onChange={event => {
+                        setFieldOverrides({ ...fieldOverrides, [field.id]: event.target.value });
+                        setFinished(false);
+                      }}
+                    >
+                      <option value="">Not mapped</option>
+                      {columns.map(column => (
+                        <option key={column} value={column}>
+                          {column}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                ))}
+              </div>
+              {hasPhones && (
+                <Field label="Default phone region">
+                  <select defaultValue="US">
+                    <option value="US">United States (+1)</option>
+                    <option value="CA">Canada (+1)</option>
+                    <option value="GB">United Kingdom (+44)</option>
+                  </select>
+                </Field>
+              )}
+              <div className="skip-source-preview">
+                <h3>Source preview</h3>
+                <p className="muted">First {Math.min(4, rows.length)} rows · original values · scroll to see every field</p>
+                <div className="skip-preview-scroll" tabIndex={0} role="region" aria-label="Source preview columns">
+                  <table>
+                    <thead>
+                      <tr>
+                        {columns.map(column => (
+                          <th key={column}>{column}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.slice(0, 4).map(row => (
+                        <tr key={row.id}>
+                          {columns.map(column => (
+                            <td key={column}>{sourceValue(row, column) || <span className="muted">—</span>}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="skip-step-actions">
+                <p className="muted">Only available evidence is used. Missing fields never block a useful starting point.</p>
+                <Button variant="primary" disabled={!primary} onClick={() => setStep(hasPhones ? 1 : 2)}>
+                  {hasPhones ? "Continue to call outcomes" : "Continue to warning signs"} <ArrowRight size={16} />
+                </Button>
+              </div>
             </>
           )}
           {step === 1 && (
@@ -430,15 +527,24 @@ export function SkipTracing() {
                   ["age", "Surface old or conflicting evidence", "Show what needs a fresh review."],
                 ].map(([key, title, description]) => (
                   <label key={key}>
-                    <input type="checkbox" checked={signals[key]} onChange={event => setSignals({ ...signals, [key]: event.target.checked })} />
+                    <input
+                      type="checkbox"
+                      disabled={!hasPhones && ["outcomes", "dnc"].includes(key)}
+                      checked={!hasPhones && ["outcomes", "dnc"].includes(key) ? false : signals[key]}
+                      onChange={event => setSignals({ ...signals, [key]: event.target.checked })}
+                    />
                     <div>
                       <strong>{title}</strong>
-                      <p>{description}</p>
+                      <p>
+                        {!hasPhones && ["outcomes", "dnc"].includes(key)
+                          ? "Skipped · no populated phone field. Existing blocked records stay blocked."
+                          : description}
+                      </p>
                     </div>
                   </label>
                 ))}
               </div>
-              <Button variant="primary" icon={ShieldCheck} disabled={!dataset || (!state.online && mode === "Cloud")} onClick={run}>
+              <Button variant="primary" icon={ShieldCheck} disabled={!primary || (!state.online && mode === "Cloud")} onClick={run}>
                 Run demo check
               </Button>
             </>
@@ -463,7 +569,7 @@ export function SkipTracing() {
                       <small>source rows</small>
                     </div>
                     <div>
-                      <strong>{rows.filter(item => item.verdict === "Ready to call").length}</strong>
+                      <strong>{rows.filter(item => verdict(item) === "Ready to call").length}</strong>
                       <small>ready in sample evidence</small>
                     </div>
                     <div>
@@ -475,7 +581,7 @@ export function SkipTracing() {
                     {rows.map(lead => (
                       <div key={lead.id}>
                         <LeadLink lead={lead} />
-                        <Status value={lead.verdict} />
+                        <Status value={verdict(lead)} />
                         <Button onClick={() => navigate("work/leads/" + lead.id)}>Review</Button>
                       </div>
                     ))}
@@ -491,7 +597,7 @@ export function SkipTracing() {
                 <Empty
                   title={cancelled ? "Check cancelled" : "Your results will appear here"}
                   action={
-                    <Button onClick={run} disabled={!dataset}>
+                    <Button onClick={run} disabled={!primary}>
                       Run demo check
                     </Button>
                   }
@@ -522,7 +628,7 @@ export function SkipTracing() {
                   onClick={() =>
                     downloadCsv("turf-demo-check.csv", [
                       ["Owner", "Address", "Phone", "Sample verdict"],
-                      ...rows.map(lead => [lead.name, lead.address, lead.phone, lead.verdict]),
+                      ...rows.map(lead => [lead.name, lead.address, lead.phone, verdict(lead)]),
                     ])
                   }
                 >
@@ -544,8 +650,8 @@ export function SkipTracing() {
                 <strong>{rows.length}</strong>
               </div>
               <div>
-                <small>Phone field</small>
-                <strong>{phoneColumn}</strong>
+                <small>Starting evidence</small>
+                <strong>{primary ? `${primary.label} · ${primary.column}` : "Needs a field mapping"}</strong>
               </div>
               <div>
                 <small>Execution</small>
@@ -557,6 +663,19 @@ export function SkipTracing() {
               </div>
             </div>
           </Card>
+          <Card title="Evidence order" subtitle="We move to the next available field.">
+            <ol className="skip-evidence-order">
+              {fields.map(field => (
+                <li key={field.id} className={primary?.id === field.id ? "is-primary" : ""}>
+                  <span>
+                    <strong>{field.label}</strong>
+                    <small>{field.column ? `${field.column} · ${field.count} rows` : "Not detected"}</small>
+                  </span>
+                  <Badge tone={primary?.id === field.id ? "good" : ""}>{primary?.id === field.id ? "Start here" : field.count ? "Available" : "Skip"}</Badge>
+                </li>
+              ))}
+            </ol>
+          </Card>
           <Card title="People and properties stay distinct">
             <p className="body-copy">
               A shared phone alone does not prove two people are the same. Different units and different properties need their own context.
@@ -565,6 +684,6 @@ export function SkipTracing() {
           </Card>
         </aside>
       </div>
-    </>
+    </div>
   );
 }

@@ -12,6 +12,8 @@ On first hover, the curve must emerge outward from inside the rail at that item'
 
 Connection preview, Sync & pending changes, and Workspace settings belong only in the Turf logo dropdown, grouped together in that order. Keep them out of the expanded/minimized/mobile sidebar and personal menu. Footer/banner status may be informative but must not duplicate those navigation actions. Workspace settings remain disabled for roles without access.
 
+Skip Tracing needs a spacious working area with readable controls, source-field mapping, and an original-value preview. Detect actual source fields rather than inventing a Phone column. Prefer populated phone evidence, then address, email, and owner name; show the active fallback and skip phone-only steps when no populated phone field exists. Let users correct mappings and require a usable field before checking. Preserve the progressive workflow and original source values.
+
 Before making substantial visual changes, use the Product Design plugin's `get-context` skill when the visual source is unclear or no longer matches the current goal. When the user gives durable prototype-specific design feedback, preferences, or decisions, record them in `AGENTS.md`.
 
 When implementing from a selected generated mock, treat that image as the source of truth for layout, component anatomy, density, spacing, color, typography, visible content, and hierarchy.
