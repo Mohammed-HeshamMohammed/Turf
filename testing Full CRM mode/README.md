@@ -19,7 +19,7 @@ Press the **Turf logo** to open the app menu and use **Explore as** to try all e
 
 **Connection preview**, **Sync & pending changes**, and **Workspace settings** live exclusively together in the Turf logo dropdown. They are absent from every sidebar mode and the personal menu. Workspace settings remain visible but disabled for roles without access; footer/offline messages provide status without duplicating the navigation actions.
 
-The sidebar toggle switches between full labels and a minimized icon rail. The preference survives refresh. Hovering an icon gently enlarges it and its neighbors while the rail bends outward; the selected item keeps a circular highlight. Tooltips also appear on keyboard focus. Reduced-motion preferences disable magnification and bending. Mobile retains the full-label drawer; role switching stays in the Turf logo menu.
+The sidebar toggle switches between full labels and a minimized icon rail. The preference survives refresh. Hovering an icon enlarges it and its neighbors while the rail forms a pronounced smooth outward curve; hovered items have rounded highlights and the selected item keeps its circular highlight. Tooltips also appear on keyboard focus. Reduced-motion preferences disable magnification and bending. Mobile retains the full-label drawer; role switching stays in the Turf logo menu.
 
 The workspace identity sits beside Turf in the header. The avatar opens a separate personal menu with My profile, personal/notification preferences, My tasks, and Calendar when available. Personal profile details and notification preferences persist per sample account; editing a display name does not rename lead responsibility. My tasks filters by the account's canonical responsible person.
 

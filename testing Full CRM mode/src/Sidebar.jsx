@@ -89,7 +89,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
       onBlurCapture={event => {
         if (!event.currentTarget.contains(event.relatedTarget)) setHover(null);
       }}
-      style={{ "--hover-y": (hover?.bendY || 0) + "px", "--bend-opacity": hover?.edge || 0 }}
+      style={{ "--hover-y": (hover?.bendY || 0) + "px", "--bend-opacity": hover ? 1 : 0 }}
     >
       <span className="sidebar-bend" aria-hidden="true" />
       <div className="sidebar-heading">

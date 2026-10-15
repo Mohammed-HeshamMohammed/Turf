@@ -524,11 +524,11 @@ svg {
 }
 .sidebar-bend {
   position: absolute;
-  top: calc(var(--hover-y, 0px) - 40px);
-  right: -5px;
+  top: calc(var(--hover-y, 0px) - 56px);
+  right: -22px;
   width: 24px;
-  height: 80px;
-  border-radius: 50%;
+  height: 112px;
+  clip-path: path("M 0 0 H 2 C 2 24 24 28 24 56 C 24 84 2 88 2 112 H 0 Z");
   background: #e5e5e5;
   pointer-events: none;
   opacity: var(--bend-opacity, 0);
@@ -553,6 +553,11 @@ svg {
     background 180ms,
     border-radius 180ms;
 }
+.sidebar .nav-group button:hover,
+.sidebar .nav-group button:focus-visible {
+  border-radius: 999px;
+  background: #ffffffb8;
+}
 .sidebar .nav-group button[aria-current] {
   border-radius: 999px;
   background: white;
@@ -560,7 +565,7 @@ svg {
 }
 .dock-tooltip {
   position: absolute;
-  left: calc(100% + 16px);
+  left: calc(100% + 32px);
   transform: translateY(-50%);
   pointer-events: none;
   z-index: 4;
@@ -654,6 +659,9 @@ svg {
 }
 
 @media (min-width: 721px) {
+  .workspace-body {
+    column-gap: 10px;
+  }
   .workspace-body.sidebar-minimized {
     grid-template-columns: 88px minmax(0, 1fr);
   }
@@ -704,7 +712,7 @@ svg {
     display: none;
   }
   .sidebar.is-minimized .nav-group button:hover {
-    background: #ffffff75;
+    background: #ffffffcf;
   }
   .sidebar.is-minimized .nav-group button[aria-current] {
     background: white;

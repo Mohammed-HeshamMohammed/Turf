@@ -111,3 +111,15 @@ Source truth is the user's three annotated CRM screenshots and subsequent feedba
 - All three are absent from the expanded/minimized/mobile sidebar. The personal menu no longer repeats the connection label. Footer status is plain text, and the offline banner no longer duplicates the Sync navigation action.
 - Checked offline/reconnect toggling, opening Sync, and opening Settings from the dropdown. Caller still sees the Settings entry but cannot activate it; no role access was broadened. Original manager/connection state was restored after verification.
 - Browser DOM checks found **0** utility items in the minimized/mobile sidebar and **0** footer buttons. Mobile document width remains **375px**. No actionable P0/P1/P2 finding remains for this placement change.
+
+## Noticeable rounded sidebar hover
+
+**final result: passed**
+
+- Source truth: the user's follow-up that the rail's roundness must be noticeable. The [before capture](screenshots/sidebar-roundness-before.jpg), [expanded result](screenshots/sidebar-roundness-expanded.jpg), [minimized result](screenshots/sidebar-roundness-minimized.jpg), [first item](screenshots/sidebar-roundness-top.jpg), [last item](screenshots/sidebar-roundness-bottom.jpg), and [mobile drawer](screenshots/sidebar-roundness-mobile.jpg) were opened together for visual comparison. Desktop captures are **1313 × 884** at density **1**; mobile is **375 × 812**, density **1**.
+- **[P2, corrected] The previous 5px bend was too subtle.** The rail now extends **22px** along a smooth 112px-tall curve with vertical tangents where it meets the rail. Hover highlights use fully rounded ends. The selected circular highlight and centered icon magnification remain intact.
+- **[P2, corrected] Curve clearance:** added a 10px desktop gutter so the larger bend clears the page content. Tooltips sit beyond the curve. Font, colors, imagery, data, and menu placement remain consistent with the source.
+- First/last hovered items retain the visible curve while its vertical bounds stay away from the rail caps. A checked last-item bend spans **565–677px** inside a rail spanning **94–846px**. No layout translation or cropped icon was found.
+- A **1280 × 720** short-window check confirmed all navigation content fits its scroll viewport (**534/534px**). Keyboard focus on Reports exposes the label and bend. Reduced-motion emulation hides the bend and sets icon transform to `none`; emulation was removed afterward.
+- Mobile retains a **254px** full-label drawer with the bend hidden and document width **375px**. All three workspace utility controls remain exclusively in the Turf dropdown. Restored the original expanded desktop preference and route without changing sample records.
+- Prototype lint, all **10** model/hosting tests, and production build pass. Browser console contains no errors or warnings. No actionable P0/P1/P2 issue remains for this revision.
