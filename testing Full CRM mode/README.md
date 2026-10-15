@@ -2,11 +2,21 @@
 
 A separate interactive frontend prototype of [Turf's CRM and performance plan](../TURF_CRM_AND_PERFORMANCE_PLAN.md). It extends the current Turf design: Inter Tight, gray surfaces, rounded cards, black pill navigation, and peach accents.
 
+**Client demo:** [turf-crm-demo.vercel.app](https://turf-crm-demo.vercel.app/). No Vercel login is needed. Open the Turf logo menu and choose **Explore as** to review different roles.
+
 The existing Turf app remains the primary application. This folder has its own package, dev server, source, sample records, and browser-storage key. It does not call Turf's Python service, Tauri commands, or any production API.
 
 ## Preview
 
 The local preview runs at http://127.0.0.1:5190/ during this review session.
+
+### Vercel client demo
+
+Deploy this folder as its own Vercel project. The included `vercel.json` selects Vite, installs with `npm ci`, builds with `npx vite build`, and serves `dist/client`. The hash-based routes work from the deployment's root URL. No environment variables or backend are required. Each visitor starts with sample data and keeps edits in their own browser.
+
+The Vercel upload excludes screenshots, tests, local environment files, dependency folders and Sites-specific hosting files. `.vercel/` account/project metadata stays outside Git. Responses request no search-engine indexing. The separate `turf-crm-demo` project in `mohammedheshams-projects` was published on October 15, 2026. Its remote build is READY; unauthenticated HTTP access and all 13 published asset hashes were verified against the tested local build.
+
+For later updates, deploy this folder with `npx vercel deploy --prod --scope mohammedheshams-projects` after signing in and linking the existing `turf-crm-demo` project. Git pushes alone do not redeploy this project; no automatic Git integration was enabled.
 
 To reopen it later, run these commands from this folder:
 
