@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowClockwise,
   CalendarBlank,
@@ -36,19 +36,56 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
   const { state, navigate } = useCrm();
   const ref = useRef(null);
   const [hover, setHover] = useState(null);
+  const [bend, setBend] = useState(null);
+  const [selection, setSelection] = useState(null);
   const role = ROLES[state.role];
   const leads = visibleLeads(state);
   const tasks = visibleTasks(state).filter(task => !task.done);
   const items = NAV.filter(item => role.pages.includes(item.id));
+  useLayoutEffect(() => {
+    const nav = ref.current.querySelector("nav");
+    function measureSelection() {
+      const button = nav.querySelector("[aria-current]");
+      if (!button) return setSelection(null);
+      const rect = button.getBoundingClientRect();
+      const bounds = nav.getBoundingClientRect();
+      if (!rect.width) return setSelection(null);
+      setSelection({
+        top: rect.top - bounds.top + nav.scrollTop,
+        left: rect.left - bounds.left,
+        width: rect.width,
+        height: rect.height,
+      });
+    }
+    measureSelection();
+    const observer = new ResizeObserver(measureSelection);
+    observer.observe(nav);
+    return () => observer.disconnect();
+  }, [page, collapsed, state.role, mobileOpen]);
+  function clearHover() {
+    setHover(null);
+    setBend(current => (current ? { ...current, active: false } : current));
+  }
   function track(event) {
-    const button = event.target.closest("button[data-dock-id]");
-    if (!button || !ref.current.contains(button)) return setHover(null);
+    let button = event.target.closest("button[data-dock-id]");
+    if (!button && event.target.closest("nav") && Number.isFinite(event.clientY)) {
+      button = [...ref.current.querySelectorAll("[data-dock-id]")].find(item => {
+        const rect = item.getBoundingClientRect();
+        return Math.abs(event.clientY - rect.top - rect.height / 2) <= rect.height / 2 + 5;
+      });
+    }
+    if (!button || !ref.current.contains(button)) return clearHover();
     const rect = button.getBoundingClientRect();
     const id = button.dataset.dockId;
     const rail = ref.current.getBoundingClientRect();
     const y = rect.top - rail.top + rect.height / 2;
     const pointerY = Number.isFinite(event.clientY) ? event.clientY - rail.top : y;
     const edge = Math.max(0, Math.min(1, (y - 44) / 36, (rail.height - y - 44) / 36));
+    setBend(current => ({
+      y: Math.max(72, Math.min(rail.height - 72, y)),
+      active: true,
+      entry: current?.active ? current.entry : (current?.entry || 0) + 1,
+    }));
     const centers = Object.fromEntries(
       [...ref.current.querySelectorAll("[data-dock-id]")].map(item => {
         const bounds = item.getBoundingClientRect();
@@ -64,7 +101,6 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
             pointerY,
             edge,
             centers,
-            bendY: Math.max(72, Math.min(rail.height - 72, y)),
             tooltipY: Math.max(24, Math.min(rail.height - 24, y)),
             label: button.getAttribute("aria-label"),
           },
@@ -84,14 +120,14 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
       ref={ref}
       className={"sidebar " + (collapsed ? "is-minimized " : "") + (mobileOpen ? "mobile-open" : "")}
       onPointerMove={track}
-      onPointerLeave={() => setHover(null)}
+      onPointerLeave={clearHover}
       onFocusCapture={track}
       onBlurCapture={event => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setHover(null);
+        if (!event.currentTarget.contains(event.relatedTarget)) clearHover();
       }}
-      style={{ "--hover-y": (hover?.bendY || 0) + "px", "--bend-opacity": hover ? 1 : 0 }}
+      style={{ "--hover-y": (bend?.y || 0) + "px" }}
     >
-      <span className="sidebar-bend" aria-hidden="true" />
+      <span key={bend?.entry || 0} className={"sidebar-bend" + (bend?.active ? " is-active" : "")} aria-hidden="true" />
       <div className="sidebar-heading">
         <div className="scope-label">
           <ShieldCheck size={14} />
@@ -104,14 +140,15 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
           title={collapsed ? "Expand sidebar" : "Minimize sidebar"}
           aria-expanded={!collapsed}
           onClick={() => {
-            setHover(null);
+            clearHover();
             onToggle();
           }}
         >
           <SidebarSimple size={20} weight="light" />
         </button>
       </div>
-      <nav aria-label="Workspace pages" onScroll={() => setHover(null)}>
+      <nav aria-label="Workspace pages" onScroll={clearHover}>
+        {selection && <span className="sidebar-selection" aria-hidden="true" style={selection} />}
         {["workspace", "data"]
           .filter(group => items.some(item => item.group === group))
           .map(group => (
@@ -133,7 +170,6 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
                       {...dockProps(item.id, item.label)}
                       aria-current={page === item.id ? "page" : undefined}
                       onClick={() => {
-                        setHover(null);
                         navigate(item.path);
                       }}
                     >

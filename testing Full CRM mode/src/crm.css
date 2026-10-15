@@ -531,11 +531,41 @@ svg {
   clip-path: path("M 0 0 H 2 C 2 24 24 28 24 56 C 24 84 2 88 2 112 H 0 Z");
   background: #e5e5e5;
   pointer-events: none;
-  opacity: var(--bend-opacity, 0);
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left center;
   z-index: -1;
   transition:
-    top 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    top 280ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 180ms ease-out,
     opacity 180ms;
+}
+.sidebar-bend.is-active {
+  opacity: 1;
+  transform: scaleX(1);
+  animation: sidebar-emerge 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes sidebar-emerge {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+.sidebar-selection {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 999px;
+  background: white;
+  box-shadow: inset 0 0 0 1px #d1d1d1;
+  transition:
+    top 300ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    left 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    height 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .dock-icon {
   flex: none;
@@ -560,8 +590,8 @@ svg {
 }
 .sidebar .nav-group button[aria-current] {
   border-radius: 999px;
-  background: white;
-  box-shadow: inset 0 0 0 1px #d1d1d1;
+  background: transparent;
+  box-shadow: none;
 }
 .dock-tooltip {
   position: absolute;
@@ -715,11 +745,9 @@ svg {
     background: #ffffffcf;
   }
   .sidebar.is-minimized .nav-group button[aria-current] {
-    background: white;
+    background: transparent;
     border-radius: 50%;
-    box-shadow:
-      inset 0 0 0 1px #c9c9c9,
-      0 3px 8px #00000008;
+    box-shadow: none;
   }
   .sidebar.is-minimized .badge {
     position: absolute;
@@ -789,6 +817,8 @@ svg {
   padding: 0 6px;
 }
 .sidebar > nav {
+  position: relative;
+  isolation: isolate;
   flex: 1;
   min-height: 0;
   overflow-y: auto;

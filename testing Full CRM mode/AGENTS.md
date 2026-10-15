@@ -8,6 +8,8 @@ The left sidebar must support a persistent minimized icon rail. Use Mac Dock-sty
 
 The workspace identity belongs beside Turf in the header, replacing Full CRM, rather than in the sidebar. The avatar opens a separate personal menu with profile and personal preferences. Charts need visible, hoverable interval points between day labels, with meaningful time/count details. Keep sidebar hover centered at the first/last items; contain the visible rail bend away from its rounded ends without distorting the caps.
 
+On first hover, the curve must emerge outward from inside the rail at that item's position, never travel down from the top. Keep its last position while retracting. Glide the existing curve between neighboring items, including across their small gaps, and animate the shared rounded selection highlight between destinations. Reduced motion disables all these transitions.
+
 Connection preview, Sync & pending changes, and Workspace settings belong only in the Turf logo dropdown, grouped together in that order. Keep them out of the expanded/minimized/mobile sidebar and personal menu. Footer/banner status may be informative but must not duplicate those navigation actions. Workspace settings remain disabled for roles without access.
 
 Before making substantial visual changes, use the Product Design plugin's `get-context` skill when the visual source is unclear or no longer matches the current goal. When the user gives durable prototype-specific design feedback, preferences, or decisions, record them in `AGENTS.md`.
