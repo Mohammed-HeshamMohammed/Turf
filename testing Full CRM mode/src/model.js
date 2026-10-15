@@ -1,4 +1,4 @@
-import { ROLES, seedState } from "./data.js";
+import { CALL_OUTCOMES, ROLES, TODAY, seedState } from "./data.js";
 import { mappedRecord, SOURCE_FIELDS } from "./skiptrace-fields.js";
 
 export const uid = () => crypto.randomUUID();
@@ -46,6 +46,29 @@ function queued(state, leadId, label, kind) {
     ...state.queue,
     { id: uid(), leadId, label, kind, actor: ROLES[state.role].person, role: state.role, status: "Pending", at: new Date().toISOString() },
   ];
+}
+function addDays(day, days) {
+  const date = new Date(day + "T12:00:00Z");
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+/** When the next call is due after an outcome: the time the person asked for, the dialer's recall, or none. */
+export function nextCall(lead, outcome, callbackAt) {
+  if (outcome.label === "Callback") return callbackAt && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(callbackAt) ? callbackAt : "";
+  if (!outcome.recallDays) return "";
+  return addDays(TODAY, outcome.recallDays) + "T" + (lead.callback || "10:00");
+}
+/** "Today, 10:30", "Oct 16, 10:30", or "" when nothing is scheduled. */
+export function callbackLabel(date, time) {
+  if (!time) return "";
+  if (!date || date === TODAY) return "Today, " + time;
+  return new Date(date + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) + ", " + time;
+}
+function callbackTasks(state, lead, at, title) {
+  const open = state.tasks.filter(task => !(task.leadId === lead.id && task.type === "Callback" && !task.done));
+  if (!at) return open;
+  const [date, time] = at.split("T");
+  return [...open, { id: uid(), title, leadId: lead.id, assignee: lead.assignee, time, date, priority: "Normal", done: false, type: "Callback" }];
 }
 export function reducer(state, action) {
   const lead = state.leads.find(item => item.id === action.id || item.id === action.leadId);
@@ -147,20 +170,36 @@ export function reducer(state, action) {
       };
     }
     case "CALL": {
-      if (!lead || !canEditLead(state, lead.id) || !capability(state, "call") || lead.verdict === "Do not call") return state;
-      const change =
-        action.outcome === "Reached"
-          ? { stage: lead.stage === "New" ? "Contacted" : lead.stage }
-          : action.outcome === "Do not call"
-            ? { verdict: "Do not call", stage: "Closed", callback: "" }
-            : action.outcome === "Wrong number"
-              ? { verdict: "Wrong number" }
-              : { callback: "10:30" };
+      const outcome = CALL_OUTCOMES.find(item => item.label === action.outcome);
+      if (!outcome || !lead || !canEditLead(state, lead.id) || !capability(state, "call") || lead.verdict === "Do not call") return state;
+      const scheduled = nextCall(lead, outcome, action.callbackAt);
+      if (outcome.label === "Callback" && !scheduled) return state;
+      const [callbackDate, callback] = scheduled ? scheduled.split("T") : ["", ""];
+      const reached = outcome.meaning === "reached";
+      const change = {
+        callback,
+        callbackDate,
+        stage: outcome.label === "Transfer" ? "Qualified" : outcome.label === "Do not call" ? "Closed" : reached && lead.stage === "New" ? "Contacted" : lead.stage,
+        ...(outcome.label === "Wrong number" && { verdict: "Wrong number" }),
+        ...(outcome.label === "Do not call" && { verdict: "Do not call" }),
+        ...(outcome.label === "Transfer" && { sentTo: "Appointments" }),
+      };
+      const now = new Date();
+      const at = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16); // local wall time, like the dialer log
+      const entry = { id: uid(), at, outcome: outcome.label, code: outcome.code, agent: ROLES[state.role].person, scheduled };
+      const label = outcome.label + " · " + lead.name;
+      let tasks = callbackTasks(state, lead, scheduled, (outcome.label === "Callback" ? "Callback: " : "Try again: ") + lead.name);
+      if (outcome.label === "Transfer")
+        tasks = [
+          ...tasks,
+          { id: uid(), title: "Appointment for " + lead.name + " (transferred)", leadId: lead.id, assignee: lead.assignee, time: "", date: TODAY, priority: "High", done: false, type: "Appointment" },
+        ];
       return {
         ...state,
-        leads: state.leads.map(item => (item.id === lead.id ? { ...item, ...change } : item)),
-        activities: [event(state, lead.id, action.outcome + " · " + lead.name, "Call"), ...state.activities],
-        queue: queued(state, lead.id, action.outcome + " · " + lead.name, "Call outcome"),
+        leads: state.leads.map(item => (item.id === lead.id ? { ...item, ...change, calls: [...(item.calls || []), entry], version: item.version + 1 } : item)),
+        tasks,
+        activities: [event(state, lead.id, label, "Call"), ...state.activities],
+        queue: queued(state, lead.id, label, "Call outcome"),
       };
     }
     case "DEAL": {
@@ -298,8 +337,11 @@ export function reducer(state, action) {
 export function loadState(storage) {
   try {
     const saved = JSON.parse(storage.getItem("turf.full-crm.prototype.v1"));
-    if (saved?.schema === 1 && ROLES[saved.role] && Array.isArray(saved.leads) && Array.isArray(saved.queue) && saved.settings && saved.permissions)
-      return saved;
+    if ([1, 2].includes(saved?.schema) && ROLES[saved.role] && Array.isArray(saved.leads) && Array.isArray(saved.queue) && saved.settings && saved.permissions)
+      // Schema 1 had no call history or callback dates: its callbacks were times today.
+      return saved.schema === 2
+        ? saved
+        : { ...saved, schema: 2, leads: saved.leads.map(lead => ({ calls: [], callbackDate: lead.callback ? TODAY : "", ...lead })) };
   } catch {
     /* An unavailable cache starts a fresh sample workspace. */
   }

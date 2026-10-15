@@ -37,6 +37,8 @@ export function Lists({ id }) {
         assignee: "Unassigned",
         team: ROLES[state.role].team || "Tampa",
         callback: "",
+        callbackDate: "",
+        calls: [],
         source: "CSV import",
         verdict: "Unverified",
         shared: false,

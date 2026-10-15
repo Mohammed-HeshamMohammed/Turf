@@ -9,6 +9,21 @@
         "dev"
       ],
       "port": 5183
+    },
+    {
+      "name": "full-crm-demo",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "testing Full CRM mode",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5190",
+        "--strictPort"
+      ],
+      "port": 5190
     }
   ]
 }

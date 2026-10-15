@@ -3625,3 +3625,42 @@ textarea {
     width: 100%;
   }
 }
+.outcome-code {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.65;
+}
+.callback-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+  margin: -8px 0 16px;
+}
+.callback-picker .field {
+  flex: 1 1 220px;
+  margin: 0;
+}
+.call-entry {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line, rgba(0, 0, 0, 0.08));
+}
+.call-entry:last-child {
+  border-bottom: 0;
+}
+.call-entry strong,
+.call-entry small {
+  display: block;
+}
+.call-entry small {
+  color: var(--muted, inherit);
+  font-size: 11px;
+}
+.call-entry .badge {
+  min-width: 46px;
+  justify-content: center;
+}

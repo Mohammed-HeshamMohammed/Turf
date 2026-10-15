@@ -12,7 +12,7 @@ LABELLED: list[tuple[str, list[str] | None]] = [
     ("Wrong Number", [WRONG]), ("WRONG #", [WRONG]), ("wrong num", [WRONG]), ("WN", [WRONG]), ("Bad Number", [WRONG]), ("Bad #", [WRONG]),
     ("invalid number", [WRONG]), ("Not a valid number", [WRONG]), ("Fax tone", [WRONG]), ("Fax/Modem", [WRONG]),
     ("No one by that name here", [WRONG]), ("Doesn't know the owner", [WRONG]), ("Wrong number, asked to be removed", [WRONG, DNC]),
-    ("Do Not Call - Wrong Number", [WRONG]), ("DNC: wrong number", [WRONG]),
+    ("Do Not Call - Wrong Number", [WRONG]), ("DNC: wrong number", [WRONG]), ("W#", [WRONG]),
     # the number is right, the person is not
     ("Wrong Person", [PERSON]), ("Wrong party", [PERSON]), ("Not the owner", [PERSON]), ("Owner moved", [PERSON]),
     ("Owner doesn't live here", [PERSON]), ("Incorrect info", [PERSON]), ("wrong contact", [PERSON]), ("WP", [PERSON]),
@@ -37,6 +37,7 @@ LABELLED: list[tuple[str, list[str] | None]] = [
     ("Price too high", [REACHED]), ("Spoke with owner", [REACHED]), ("Talked to homeowner", [REACHED]), ("Hung up", [REACHED]), ("HU", [REACHED]),
     ("Rude", [REACHED]), ("Spanish", [REACHED]), ("Spanish speaker", [REACHED]), ("Language barrier", [REACHED]), ("Gatekeeper", [REACHED]),
     ("Qualified", [REACHED]), ("Negotiating", [REACHED]), ("Motivated", [REACHED]), ("Unmotivated", [REACHED]), ("Live transfer", [REACHED]),
+    ("Transfer", [REACHED]), ("Trans", [REACHED]), ("Transferred to appointments", [REACHED]), ("Xfer", [REACHED]),
     ("Answered", [REACHED]), ("Left message with son", [REACHED]), ("Called back, not interested", [REACHED]),
     ("Interested - call back next week", [REACHED]), ("Spoke w/ owner - not selling", [REACHED]), ("No Eng", [REACHED]), ("RCB", [REACHED]),
     ("Not interested - hung up", [REACHED]), ("Angry", [REACHED]),
@@ -48,7 +49,7 @@ LABELLED: list[tuple[str, list[str] | None]] = [
     ("No Answer", [NA]), ("NA", [NA]), ("No Ans", [NA]), ("Busy", [NA]), ("Line busy", [NA]), ("Rang out", [NA]), ("Ring no answer", [NA]),
     ("No pickup", [NA]), ("Didn't answer", [NA]), ("Unanswered", [NA]), ("Dead air", [NA]), ("Dropped", [NA]), ("Could not reach", [NA]),
     ("Not available", [NA]), ("Unavailable", [NA]), ("Call failed", [NA]), ("Abandoned", [NA]), ("Not connected", [NA]),
-    ("Never answered", [NA]), ("No response", [NA]), ("Not reached", [NA]),
+    ("Never answered", [NA]), ("No response", [NA]), ("Not reached", [NA]), ("Dead Call", [NA]),
     # nobody called yet
     ("Not yet reached", []), ("Not called", []), ("Not called yet", []), ("New", []), ("New Lead", []), ("Uncalled", []), ("Pending", []),
     ("N/A", []), ("Untouched", []), ("Never dialed", []),

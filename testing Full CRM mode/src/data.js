@@ -1,5 +1,18 @@
 export const TODAY = "2026-10-15";
 export const LEAD_STAGES = ["New", "Contacted", "Interested", "Qualified", "Closed"];
+// The call results a ReadyMode dialer logs ("Log Type", with its abbreviation), and what each means for the lead.
+// meaning follows Turf's status reader; recallDays is when the dialer schedules the next try, null for no next try.
+export const CALL_OUTCOMES = [
+  { label: "Transfer", code: "Trans", meaning: "reached", recallDays: null, help: "Live transfer to Appointments" },
+  { label: "Callback", code: "CB", meaning: "reached", recallDays: null, help: "Asked to be called at a set time" },
+  { label: "Not interested", code: "NI", meaning: "reached", recallDays: 90, help: "Try again in three months" },
+  { label: "Language barrier", code: "Lang", meaning: "reached", recallDays: null, help: "Needs a speaker of their language" },
+  { label: "Voicemail", code: "VM", meaning: "voicemail", recallDays: 1, help: "Try again tomorrow" },
+  { label: "Not available", code: "NA", meaning: "no_answer", recallDays: 1, help: "Try again tomorrow" },
+  { label: "Dead call", code: "Dead", meaning: "no_answer", recallDays: 1, help: "Silence or dropped; not a bad number" },
+  { label: "Wrong number", code: "W#", meaning: "wrong_number", recallDays: null, help: "Stops calling this number" },
+  { label: "Do not call", code: "DNC", meaning: "do_not_call", recallDays: null, help: "Blocks every call to this lead" },
+];
 export const DEAL_STAGES = ["Qualified", "Appointment", "Offer preparation", "Offer sent", "Negotiation", "Under contract", "Closed won", "Closed lost"];
 export const PEOPLE = ["Maya Chen", "Alex Rivera", "Ben Carter", "Lena Brooks"];
 export const ROLES = {
@@ -73,6 +86,27 @@ export const ROLES = {
   },
 };
 
+// Sample dialer history, shaped like a ReadyMode call log: one entry per call, newest last.
+const call = (id, at, outcome, code, agent, scheduled = "") => ({ id, at, outcome, code, agent, scheduled });
+const CALL_HISTORY = {
+  l01: [
+    call("c01", "2026-10-09T15:12", "Voicemail", "VM", "Maya Chen", "2026-10-10T15:12"),
+    call("c02", "2026-10-10T15:20", "Not available", "NA", "Maya Chen", "2026-10-11T15:20"),
+    call("c03", "2026-10-14T16:04", "Callback", "CB", "Maya Chen", "2026-10-15T10:30"),
+  ],
+  l02: [
+    call("c04", "2026-10-08T17:41", "Voicemail", "VM", "Maya Chen", "2026-10-09T17:41"),
+    call("c05", "2026-10-13T18:02", "Callback", "CB", "Maya Chen", "2026-10-15T11:15"),
+  ],
+  l03: [call("c06", "2026-10-12T14:30", "Transfer", "Trans", "Ben Carter")],
+  l04: [call("c07", "2026-10-14T19:15", "Dead call", "Dead", "Maya Chen", "2026-10-15T15:30")],
+  l07: [
+    call("c08", "2026-10-06T16:10", "Voicemail", "VM", "Maya Chen", "2026-10-07T16:10"),
+    call("c09", "2026-10-07T16:22", "Do not call", "DNC", "Maya Chen"),
+  ],
+  l09: [call("c10", "2026-10-13T20:05", "Language barrier", "Lang", "Ben Carter")],
+};
+
 const LEADS = [
   ["l01", "Sarah Johnson", "1842 Palm Avenue", "Tampa", "FL", "Interested", "Maya Chen", "Tampa", "d01", "10:30", 245000, true, "Ready to call"],
   ["l02", "Michael Bennett", "620 Willow Street", "Tampa", "FL", "Contacted", "Maya Chen", "Tampa", "d01", "11:15", 198000, false, "Ready to call"],
@@ -97,6 +131,7 @@ const LEADS = [
   team: row[7],
   datasetId: row[8],
   callback: row[9],
+  callbackDate: row[9] ? TODAY : "",
   value: row[10],
   shared: row[11],
   verdict: row[12],
@@ -106,6 +141,7 @@ const LEADS = [
   source: index % 2 ? "County records" : "Absentee owners",
   priority: index < 3 ? "High" : "Normal",
   version: 1,
+  calls: structuredClone(CALL_HISTORY[row[0]] || []),
   beds: 3,
   baths: 2,
   area: 1640 + index * 55,
@@ -126,7 +162,7 @@ const LEADS = [
 
 export function seedState() {
   return {
-    schema: 1,
+    schema: 2,
     role: "manager",
     online: true,
     leads: structuredClone(LEADS),

@@ -17,8 +17,8 @@ import {
   PaperPlaneTilt,
   Paperclip,
 } from "@phosphor-icons/react";
-import { DEAL_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
-import { capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
+import { CALL_OUTCOMES, DEAL_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
+import { callbackLabel, capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { Badge, Button, Card, Empty, Field, LeadLink, Modal, PageHeader, Person, RoundButton, Search, Segmented, Status, money, Breadcrumb } from "./ui.jsx";
 
@@ -29,18 +29,28 @@ export function Calls({ target }) {
   const [script, setScript] = useState("First conversation");
   const [recording, setRecording] = useState(false);
   const [callNote, setCallNote] = useState("");
+  const [callbackAt, setCallbackAt] = useState("");
+  const [askingCallback, setAskingCallback] = useState(false);
   const leads = visibleLeads(state).filter(item => item.stage !== "Closed" && item.verdict !== "Do not call" && item.verdict !== "Wrong number");
   const lead = leads.find(item => item.id === chosen) || leads[0];
   if (!capability(state, "call")) return <Empty title="Calling is outside this role">Your workspace only shows the actions available to you.</Empty>;
   function outcome(value) {
     if (!lead) return;
-    dispatch({ type: "CALL", leadId: lead.id, outcome: value });
+    if (value === "Callback" && !callbackAt) {
+      setAskingCallback(true);
+      return;
+    }
+    dispatch({ type: "CALL", leadId: lead.id, outcome: value, callbackAt });
     if (callNote.trim()) dispatch({ type: "NOTE", leadId: lead.id, text: callNote });
     setCallNote("");
+    setCallbackAt("");
+    setAskingCallback(false);
     setActiveCall(false);
-    notify(state.online ? "Call outcome recorded" : "Manual call outcome queued for sync");
-    if (value !== "Reached") setChosen(leads[(leads.findIndex(item => item.id === lead.id) + 1) % leads.length]?.id || "");
+    notify(state.online ? value + " recorded" : "Manual call outcome queued for sync");
+    // A live conversation stays on screen for the next step; anything else moves to the next lead.
+    if (!["Transfer", "Callback"].includes(value)) setChosen(leads[(leads.findIndex(item => item.id === lead.id) + 1) % leads.length]?.id || "");
   }
+  const calls = [...(lead?.calls || [])].reverse();
   return (
     <>
       <PageHeader eyebrow="Outreach workspace" title="One good conversation at a time." description="Your queue, the seller context, and a clear next step." />
@@ -59,7 +69,10 @@ export function Calls({ target }) {
               <small>{item.address}</small>
               <div>
                 <Status value={item.stage} />
-                <span>{item.callback || "No time set"}</span>
+                <span>{callbackLabel(item.callbackDate, item.callback) || "No time set"}</span>
+              </div>
+              <div>
+                <small className="muted">{item.calls?.length ? item.calls.length + (item.calls.length === 1 ? " call · " : " calls · ") + item.calls.at(-1).outcome : "Not called yet"}</small>
               </div>
             </button>
           ))}
@@ -110,12 +123,35 @@ export function Calls({ target }) {
               <PropertyMap rows={[lead]} title="Call property location" compact />
               <Card title="How did the conversation go?" subtitle="Outcomes stay attached to the lead and its phone evidence.">
                 <div className="outcome-grid">
-                  {["Reached", "Voicemail", "No answer", "Wrong number", "Do not call"].map(value => (
-                    <Button key={value} variant={value === "Reached" ? "peach-button" : ""} onClick={() => outcome(value)}>
-                      {value}
+                  {CALL_OUTCOMES.map(item => (
+                    <Button
+                      key={item.label}
+                      title={item.help}
+                      variant={item.label === "Transfer" ? "peach-button" : item.label === "Do not call" ? "danger-button" : ""}
+                      onClick={() => outcome(item.label)}
+                    >
+                      {item.label} <span className="outcome-code">{item.code}</span>
                     </Button>
                   ))}
                 </div>
+                {askingCallback && (
+                  <div className="callback-picker">
+                    <Field label="Call back at" help="The callback is added to the lead and your tasks.">
+                      <input aria-label="Call back at" type="datetime-local" min={TODAY + "T00:00"} value={callbackAt} onChange={event => setCallbackAt(event.target.value)} />
+                    </Field>
+                    <Button variant="primary" disabled={!callbackAt} onClick={() => outcome("Callback")}>
+                      Schedule callback
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setAskingCallback(false);
+                        setCallbackAt("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
                 <Field label="Call note">
                   <textarea value={callNote} onChange={event => setCallNote(event.target.value)} placeholder="The detail you don't want to forget…" />
                 </Field>
@@ -130,6 +166,7 @@ export function Calls({ target }) {
                 </div>
                 {recording && <small>Recording preview enabled. This prototype does not record microphone audio.</small>}
               </Card>
+              <CallHistory calls={calls} />
             </>
           ) : (
             <Empty title="Your queue is clear">Choose another role or add a lead to continue.</Empty>
@@ -168,6 +205,29 @@ export function Calls({ target }) {
         </aside>
       </div>
     </>
+  );
+}
+
+function callTime(at) {
+  return at ? new Date(at + ":00Z").toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" }) : "";
+}
+export function CallHistory({ calls }) {
+  return (
+    <Card title="Call history" subtitle={calls.length ? calls.length + (calls.length === 1 ? " call, newest first" : " calls, newest first") : "Every dialed call is kept here."}>
+      {calls.map(item => (
+        <div className="call-entry" key={item.id}>
+          <Badge tone={["Wrong number", "Do not call"].includes(item.outcome) ? "danger" : ["Transfer", "Callback"].includes(item.outcome) ? "good" : ""}>{item.code}</Badge>
+          <div>
+            <strong>{item.outcome}</strong>
+            <small>
+              {callTime(item.at)} · {item.agent}
+              {item.scheduled ? " · next call " + callTime(item.scheduled) : ""}
+            </small>
+          </div>
+        </div>
+      ))}
+      {!calls.length && <Empty title="Not called yet">Outcomes you record appear here with their time and next call.</Empty>}
+    </Card>
   );
 }
 

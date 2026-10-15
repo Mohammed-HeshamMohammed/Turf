@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CALL_DAYS, CALL_TREND, seedState } from "../src/data.js";
-import { canEditLead, loadState, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "../src/model.js";
+import { CALL_DAYS, CALL_OUTCOMES, CALL_TREND, TODAY, seedState } from "../src/data.js";
+import { callbackLabel, canEditLead, loadState, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "../src/model.js";
 
 const as = role => ({ ...seedState(), role });
 test("personal details persist per account without renaming lead responsibility", () => {
@@ -110,5 +110,62 @@ test("blocked contacts cannot be logged as called and client comments stay share
   assert.equal(reducer(client, { type: "NOTE", id: "l02", text: "Private record" }), client);
   const commented = reducer(client, { type: "NOTE", id: "l01", text: "Please update the brief", visibility: "internal" });
   assert.equal(commented.leads.find(lead => lead.id === "l01").notes.at(-1).visibility, "shared");
-  assert.equal(loadState({ getItem: () => "{broken" }).schema, 1);
+  assert.equal(loadState({ getItem: () => "{broken" }).schema, 2);
+});
+test("ReadyMode call outcomes keep every call and schedule the next one", () => {
+  const caller = as("caller");
+  assert.deepEqual(
+    CALL_OUTCOMES.map(item => item.code),
+    ["Trans", "CB", "NI", "Lang", "VM", "NA", "Dead", "W#", "DNC"],
+  );
+  assert.equal(reducer(caller, { type: "CALL", id: "l01", outcome: "Reached" }), caller, "only known outcomes are recorded");
+  const before = caller.leads.find(lead => lead.id === "l01");
+  const voicemail = reducer(caller, { type: "CALL", id: "l01", outcome: "Voicemail" });
+  const left = voicemail.leads.find(lead => lead.id === "l01");
+  assert.equal(left.calls.length, before.calls.length + 1);
+  assert.deepEqual([left.calls.at(-1).outcome, left.calls.at(-1).code, left.calls.at(-1).agent], ["Voicemail", "VM", "Maya Chen"]);
+  assert.equal(left.callbackDate, "2026-10-16");
+  assert.equal(left.calls.at(-1).scheduled, "2026-10-16T" + before.callback);
+  const callbacks = voicemail.tasks.filter(task => task.leadId === "l01" && task.type === "Callback" && !task.done);
+  assert.equal(callbacks.length, 1, "a new try replaces the open callback task");
+  assert.equal(callbacks[0].date, "2026-10-16");
+
+  assert.equal(reducer(caller, { type: "CALL", id: "l02", outcome: "Callback" }), caller, "a callback needs a time");
+  const asked = reducer(caller, { type: "CALL", id: "l02", outcome: "Callback", callbackAt: "2026-10-20T09:15" });
+  const michael = asked.leads.find(lead => lead.id === "l02");
+  assert.deepEqual([michael.callbackDate, michael.callback], ["2026-10-20", "09:15"]);
+  assert.equal(callbackLabel(michael.callbackDate, michael.callback), "Oct 20, 09:15");
+  assert.equal(callbackLabel(TODAY, "10:30"), "Today, 10:30");
+
+  const notInterested = reducer(caller, { type: "CALL", id: "l04", outcome: "Not interested" }).leads.find(lead => lead.id === "l04");
+  assert.deepEqual([notInterested.stage, notInterested.callbackDate], ["Contacted", "2027-01-13"]);
+
+  const wrong = reducer(caller, { type: "CALL", id: "l02", outcome: "Wrong number" });
+  assert.equal(wrong.leads.find(lead => lead.id === "l02").verdict, "Wrong number");
+  assert.equal(wrong.leads.find(lead => lead.id === "l02").callback, "");
+  assert.equal(wrong.tasks.filter(task => task.leadId === "l02" && task.type === "Callback" && !task.done).length, 0);
+
+  const blocked = reducer(caller, { type: "CALL", id: "l01", outcome: "Do not call" });
+  const sarah = blocked.leads.find(lead => lead.id === "l01");
+  assert.deepEqual([sarah.verdict, sarah.stage, sarah.callback], ["Do not call", "Closed", ""]);
+  assert.equal(reducer(blocked, { type: "CALL", id: "l01", outcome: "Voicemail" }), blocked);
+});
+test("a transfer qualifies the lead and books an appointment task", () => {
+  const caller = as("caller");
+  const transferred = reducer(caller, { type: "CALL", id: "l02", outcome: "Transfer" });
+  const lead = transferred.leads.find(item => item.id === "l02");
+  assert.deepEqual([lead.stage, lead.sentTo, lead.callback], ["Qualified", "Appointments", ""]);
+  assert.ok(transferred.tasks.some(task => task.leadId === "l02" && task.type === "Appointment" && task.date === TODAY));
+});
+test("a saved schema 1 workspace gains empty call history and today's callback dates", () => {
+  const old = { ...seedState(), schema: 1 };
+  for (const lead of old.leads) {
+    delete lead.calls;
+    delete lead.callbackDate;
+  }
+  const loaded = loadState({ getItem: () => JSON.stringify(old) });
+  assert.equal(loaded.schema, 2);
+  assert.deepEqual(loaded.leads[0].calls, []);
+  assert.equal(loaded.leads[0].callbackDate, TODAY);
+  assert.equal(loaded.leads.find(lead => !lead.callback).callbackDate, "");
 });

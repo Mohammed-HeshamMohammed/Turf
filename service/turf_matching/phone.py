@@ -131,7 +131,8 @@ def _strip_extension(text: str) -> tuple[str, str | None]:
 def split_cell(value: object) -> list[str]:
     """One cell can hold several numbers ("713-555-0142 / 713-555-0199"). Returns each piece, trimmed."""
     text = re.sub(r"\s+", " ", str(value if value is not None else "")).strip()
-    if not text:
+    # A lone 0 is how dialers (ReadyMode's Ph#2 ... Ph#10) and spreadsheets write an empty slot, not a bad number.
+    if not text or re.fullmatch(r"0+(\.0+)?", text):
         return []
     pieces = [piece.strip(" ,.") for piece in _SEPARATORS.split(text) if piece.strip(" ,.")]
     if len(pieces) == 1 and "," in text and all(_PLAIN.fullmatch(part.strip()) for part in text.split(",")) and len(text.split(",")) > 1:

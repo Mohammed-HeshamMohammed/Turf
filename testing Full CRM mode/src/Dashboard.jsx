@@ -2,7 +2,7 @@ import { ArrowUpRight, ArrowRight, Phone, CheckCircle, Clock, Users, Handshake, 
 import { CallActivityChart } from "./CallActivityChart.jsx";
 import { PropertyMap } from "./PropertyMap.jsx";
 import { ROLES } from "./data.js";
-import { capability, personalProfile, visibleLeads, visibleTasks } from "./model.js";
+import { callbackLabel, capability, personalProfile, visibleLeads, visibleTasks } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { Badge, Button, Card, Empty, LeadLink, Person, RoundButton, Status, money, PageHeader } from "./ui.jsx";
 
@@ -156,7 +156,7 @@ export function Dashboard() {
                     {!isClient && (
                       <span className="callback-time">
                         <Clock size={15} />
-                        {next.callback || "No callback set"}
+                        {callbackLabel(next.callbackDate, next.callback) || "No callback set"}
                       </span>
                     )}
                   </div>

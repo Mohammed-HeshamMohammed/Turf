@@ -2,8 +2,9 @@ import { useState } from "react";
 import { PropertyMap } from "./PropertyMap.jsx";
 import { coordinates } from "./skiptrace-fields.js";
 import { ArrowUpRight, ArrowLeft, Plus, Phone, Envelope, Handshake, Clock, FileText, CheckCircle, Export, HouseLine } from "@phosphor-icons/react";
-import { LEAD_STAGES, PEOPLE, ROLES } from "./data.js";
-import { canEditLead, capability, uid, visibleLeads } from "./model.js";
+import { LEAD_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
+import { callbackLabel, canEditLead, capability, uid, visibleLeads } from "./model.js";
+import { CallHistory } from "./Work.jsx";
 import { useCrm } from "./context.jsx";
 import { Badge, Button, Card, Empty, Field, Modal, PageHeader, Person, RoundButton, Search, Segmented, Status, downloadCsv, money, Breadcrumb } from "./ui.jsx";
 
@@ -226,7 +227,7 @@ export function Leads() {
                       ) : lead.callback ? (
                         <span className="inline">
                           <Clock size={14} />
-                          Today, {lead.callback}
+                          {callbackLabel(lead.callbackDate, lead.callback)}
                         </span>
                       ) : (
                         <span className="muted">Set a next step</span>
@@ -422,6 +423,7 @@ export function LeadDetail({ id }) {
               </Card>
             </>
           )}
+          {tab === "Activity" && <CallHistory calls={[...(lead.calls || [])].reverse()} />}
           {tab === "Activity" && (
             <Card title="The full lead history" subtitle="Calls, stage changes, notes, and handoffs.">
               {activities.map(item => (
@@ -519,13 +521,23 @@ export function LeadDetail({ id }) {
                     ))}
                   </select>
                 </Field>
+                <Field label="Callback date">
+                  <input
+                    aria-label="Callback date"
+                    type="date"
+                    min={TODAY}
+                    disabled={!editable}
+                    value={lead.callbackDate || ""}
+                    onChange={event => dispatch({ type: "UPDATE_LEAD", id, change: { callbackDate: event.target.value, callback: event.target.value ? lead.callback || "10:00" : "" } })}
+                  />
+                </Field>
                 <Field label="Callback time">
                   <input
                     aria-label="Callback time"
                     type="time"
                     disabled={!editable}
                     value={lead.callback}
-                    onChange={event => dispatch({ type: "UPDATE_LEAD", id, change: { callback: event.target.value } })}
+                    onChange={event => dispatch({ type: "UPDATE_LEAD", id, change: { callback: event.target.value, callbackDate: event.target.value ? lead.callbackDate || TODAY : "" } })}
                   />
                 </Field>
                 {capability(state, "assign") && (
@@ -685,6 +697,8 @@ export function NewLead() {
             datasetId: "d04",
             stage: "New",
             callback: String(form.get("callback")),
+            callbackDate: form.get("callback") ? TODAY : "",
+            calls: [],
             verdict: "Unverified",
             shared: false,
             version: 1,

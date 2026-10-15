@@ -86,6 +86,26 @@ def _parse_date(text: str, day_first: bool) -> date | None:
         return None
 
 
+_DATE_TIME = re.compile(r"^(?P<date>\d{1,4}[/\-.]\d{1,2}[/\-.]\d{1,4})[ T]+(?P<hour>\d{1,2}):(?P<minute>\d{2})(?::(?P<second>\d{2}))?\s*(?P<half>am|pm)?$", re.IGNORECASE)
+
+
+def _parse_date_time(text: str, day_first: bool) -> datetime | None:
+    """A dialer's "8/10/2026 22:19" or "8/10/2026 10:19 PM". Without an offset it is read as UTC, like an ISO time."""
+    match = _DATE_TIME.match(text.strip())
+    day = _parse_date(match.group("date"), day_first) if match else None
+    if not day:
+        return None
+    hour, minute, second = int(match.group("hour")), int(match.group("minute")), int(match.group("second") or 0)
+    if match.group("half"):
+        if not 1 <= hour <= 12:
+            return None
+        hour = hour % 12 + (12 if match.group("half").casefold() == "pm" else 0)
+    try:
+        return datetime(day.year, day.month, day.day, hour, minute, second, tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
 def normalize_status(value: object, day_first: bool = False) -> tuple[str, date | None]:
     """A status text without its date, so "DNC until 10/15/2025:Not interested" and the same with another date group
     together. Returns the grouping key and the date the text names, if any."""
@@ -302,8 +322,11 @@ def collect(knowledge: Knowledge, rows: list[dict], config: dict, source_id: str
                         if parsed <= datetime.now(timezone.utc):
                             occurred_at = parsed.isoformat()
                     except ValueError:
+                        parsed_time = _parse_date_time(call_date, day_first)
                         parsed_date = _parse_date(call_date, day_first)
-                        if parsed_date and parsed_date <= date.today():
+                        if parsed_time and parsed_time <= datetime.now(timezone.utc):
+                            occurred_at = parsed_time.isoformat()
+                        elif parsed_date and parsed_date <= date.today():
                             occurred_at = parsed_date.isoformat() + "T00:00:00+00:00"
                 for outcome in outcomes:
                     knowledge.events[info.e164].append({"outcome": outcome, "occurred_at": occurred_at, "source": source_name, "person_key": who if outcome == "wrong_person" else None, "scope_unknown": outcome == "wrong_person" and not who})
@@ -647,7 +670,13 @@ def evaluate(rows: list[dict], row_numbers: list[int], config: dict, knowledge: 
 
 _PHONE_HEADER = re.compile(r"phone|mobile|cell|tel(?!l)|fax|whatsapp|contact number|landline|gsm|celular|m[oó]vil|portable|handy|هاتف|موبايل|جوال|تليفون|محمول", re.IGNORECASE)
 _IDENTIFIER_HEADER = re.compile(r"\b(?:id|identifier|apn|parcel|account|property|mls|tax|zip|postal|ssn)\b", re.IGNORECASE)
-_OUTCOME_HEADER = re.compile(r"status|outcome|disposition|dispo\b|result|call (result|outcome)|dnc|stage|response", re.IGNORECASE)
+_OUTCOME_HEADER = re.compile(r"status|outcome|disposition|dispo\b|result|call (result|outcome)|dnc|stage|response|log ?type|call ?type", re.IGNORECASE)
+# Extra numbers a dialer adds beside the dialed one: ReadyMode's "Ph#2" ... "Ph#10".
+_NUMBERED_PHONE_HEADER = re.compile(r"^(ph|phone|tel)\s*#?\s*\d{1,2}$", re.IGNORECASE)
+# When the call was made: ReadyMode's "Log Time", or "Call Date".
+_CALL_TIME_HEADER = re.compile(r"^(log|call|called|dial|dialed) ?(time|date|date ?time|at|on)$|^(date|time) called$", re.IGNORECASE)
+# The dialer's own user, never the person called: ReadyMode's "Agent name".
+_AGENT_HEADER = re.compile(r"\b(agent|rep|caller|user|dialer)\b", re.IGNORECASE)
 
 
 def suggest(rows: list[dict], roles: dict[str, str], region: str = "US", sample: int = 400) -> dict:
@@ -655,7 +684,9 @@ def suggest(rows: list[dict], roles: dict[str, str], region: str = "US", sample:
     columns = list(dict.fromkeys(column for row in rows[:sample] for column in row))
     sampled = rows[:sample]
     phone_columns = [column for column, role in roles.items() if role == "phone" and column in columns]
-    if not phone_columns:
+    if phone_columns:
+        phone_columns += [column for column in columns if column not in phone_columns and _NUMBERED_PHONE_HEADER.match(column.strip())]
+    else:
         for column in columns:
             # A parcel/account ID can accidentally parse as a valid telephone number.
             # Only an explicit phone-like heading or a confirmed phone role should override that warning.
@@ -690,6 +721,11 @@ def suggest(rows: list[dict], roles: dict[str, str], region: str = "US", sample:
         "zip_column": role_column("postal_code"), "state_column": role_column("region"),
         "outcome": None, "signals": dict(DEFAULT_SIGNALS),
     }
+    if config["name_column"] and _AGENT_HEADER.search(config["name_column"]):
+        config["name_column"] = None
+    call_time = next((column for column in columns if _CALL_TIME_HEADER.match(column.strip())), None)
+    if call_time:
+        config["call_date_column"] = call_time
     # Numbered owners and mailing fields are distinct from the property's location.
     owners = {}
     bindings = {}

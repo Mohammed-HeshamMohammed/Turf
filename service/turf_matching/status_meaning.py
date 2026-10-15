@@ -47,7 +47,8 @@ class Reading:
 
 _BEFORE = [  # forms that lose their meaning once punctuation is gone
     (re.compile(r"\bn/a\b"), " notapplicable "), (re.compile(r"\bv/m\b"), " voicemail "), (re.compile(r"\bw/o\b"), " without "),
-    (re.compile(r"\bw/"), " with "), (re.compile(r"\bf/u\b"), " follow up "), (re.compile(r"#"), " number "), (re.compile(r"[’']"), ""),
+    (re.compile(r"\bw/"), " with "), (re.compile(r"\bf/u\b"), " follow up "), (re.compile(r"\bw ?#"), " wrong number "),
+    (re.compile(r"#"), " number "), (re.compile(r"[’']"), ""),
 ]
 ABBREVIATIONS = {
     "lvm": "left voicemail", "lm": "left message", "lmom": "left message", "lmcb": "left message", "lmtcb": "left message",
@@ -60,6 +61,7 @@ ABBREVIATIONS = {
     "disc": "disconnected", "disco": "disconnected", "discon": "disconnected", "discont": "disconnected", "dsc": "disconnected",
     "nis": "not in service", "oos": "out of service",
     "appt": "appointment", "appts": "appointment", "hu": "hung up", "hungup": "hung up", "hangup": "hung up",
+    "trans": "transfer", "xfer": "transfer", "xfered": "transferred", "xferred": "transferred",
     "eng": "english", "spn": "spanish", "esp": "spanish", "dnt": "dont", "donot": "do not", "pls": "please",
 }
 
@@ -111,7 +113,7 @@ _PHRASES: list[tuple[str, str]] = [
     (r"(didnt|did not|doesnt|does not|wont|would not|not|never) (answer|answered|answering|pick up|pickup|picked up)", "no_answer"),
     (r"(could not|couldnt|cannot|cant|unable to) (reach|connect|get through)", "no_answer"),
     (r"no ?(one|body) (answered|home|picked up)", "no_answer"),
-    (r"no answer|unanswered|ring(ing|s)? (out|no answer)|rang( out)?|(line )?busy( signal)?|dead air|dropped( call)?|abandon(ed)?|silence|(not |un)available|call failed|failed", "no_answer"),
+    (r"no answer|unanswered|ring(ing|s)? (out|no answer)|rang( out)?|(line )?busy( signal)?|dead (air|call)|dropped( call)?|abandon(ed)?|silence|(not |un)available|call failed|failed", "no_answer"),
     # a message was left
     (r"left (a )?(message|voicemail|voice mail) (with|for) (the |his |her )?(wife|husband|spouse|son|daughter|relative|family|someone|assistant|tenant|mother|father|mom|dad|brother|sister|roommate)", "reached"),
     (r"left (a )?(voicemail|voice mail|message|vm)|message left|voicemail left", "voicemail"),
@@ -130,7 +132,9 @@ _PHRASES: list[tuple[str, str]] = [
     (r"(already )?listed( with (an |a )?(agent|realtor|broker))?|(has|with) (an |a )?(agent|realtor|broker)|off (the )?market", "reached"),
     (r"(wants|want|asking|asked) (too much|more|retail|full price)|price too high", "reached"),
     (r"(spoke|spoken|talked|speaking|talking) (with|to)|spoke|talked|conversation|answered|connected|contacted|reached", "reached"),
-    (r"live (answer|person|call|contact|transfer)", "reached"),
+    (r"live (answer|person|call|contact)", "reached"),
+    # handed to a closer or the appointments team (ReadyMode "Transfer")
+    (r"((live|warm|hot) )?transfer(red|s)?( to (appointments?|closer|manager|acquisitions))?", "reached"),
     (r"(spanish|chinese|vietnamese|korean|russian|portuguese|french|arabic|creole|foreign language|other language|language barrier|no english|english)( speaker| speaking| only)?", "reached"),
     (r"gatekeeper|rude|angry|upset|yelled|cursed|cussed", "reached"),
     (r"(hot|warm)( lead)?", "reached"),
@@ -258,11 +262,11 @@ EXAMPLES: list[tuple[str, tuple[str, ...]]] = [
                                          "not looking to sell", "wants too much money", "under contract", "spanish speaker",
                                          "talked to seller", "hot lead", "motivated seller", "follow up next month", "gatekeeper answered",
                                          "rude", "maybe later", "thinking about it", "will consider selling", "send info by mail",
-                                         "asked for a cash offer", "deal closed")),
+                                         "asked for a cash offer", "deal closed", "call transferred to the closer")),
     *((text, ("voicemail",)) for text in ("left voicemail", "voicemail", "left message", "answering machine", "voicemail full",
                                            "mailbox not set up", "machine picked up")),
     *((text, ("no_answer",)) for text in ("no answer", "busy", "rang out", "no pickup", "dead air", "dropped call", "nobody answered",
-                                           "line busy", "could not reach", "call failed")),
+                                           "line busy", "could not reach", "call failed", "dead call nobody on the line")),
     *((text, ()) for text in ("not called yet", "new lead", "untouched", "pending", "not yet dialed", "fresh lead")),
 ]
 

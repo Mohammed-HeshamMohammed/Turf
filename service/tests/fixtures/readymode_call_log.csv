@@ -1,0 +1,12 @@
+a,Agent name,Log Time,Scheduled time,Phone,Log Type,Abbreviation,Sent To,Call Notes,Recording Start,Recording End,First Name,Last Name,City,Address,Zip Code,State,Consent Date,Email,County,Ph#2,Ph#3,Company Name,Ph#4,# Employees,Ph#5,Ph#6,Ph#7,Ph#8,Ph#9,Ph#10
+1002,Agent.1,8/10/2026 22:20,9/30/2026 3:41,7165553102,Voicemail,,,,8/10/2026 22:20,8/10/2026 22:20,Bo,Reyes,Amherst,2 Test Rd,14226,NY,,bo@example.com,,(716) 555-3121,0,,0,,0,0,0,0,0,0
+1007,Agent.1,8/12/2026 19:10,Not scheduled,7165553106,Transfer,Trans,Appointments,,8/12/2026 19:08,8/12/2026 19:14,Fay,Nguyen,Amherst,6 Test Ave,14228,NY,,fay@example.com,,0,0,,0,,0,0,0,0,0,0
+1008,Agent.1,8/12/2026 19:20,Not scheduled,7165553107,Do Not Call,DNC,,,8/12/2026 19:20,8/12/2026 19:20,Gus,Hale,Amherst,7 Test Way,14228,NY,,,,0,0,,0,,0,0,0,0,0,0
+1005,Agent.1,8/11/2026 18:02,Not scheduled,7165553104,Dead Call,,,,8/11/2026 18:02,8/11/2026 18:02,Di,Shah,Tonawanda,4 Test Ter,14150,NY,,,,0,0,,0,,0,0,0,0,0,0
+1001,Agent.1,8/10/2026 22:19,Not scheduled,7165553101,Wrong Number,W#,,,8/10/2026 22:19,8/10/2026 22:19,Ana,Lopez,Amherst,1 Test Ln,14228,NY,,,,(716) 555-3111,(716) 555-3112,,0,,0,0,0,0,0,0
+1003,Agent.1,9/29/2026 23:41,9/30/2026 3:41,7165553102,Voicemail,,,,9/29/2026 23:41,9/29/2026 23:41,Bo,Reyes,Amherst,2 Test Rd,14226,NY,,bo@example.com,,(716) 555-3121,0,,0,,0,0,0,0,0,0
+1004,Agent.1,8/10/2026 22:28,11/10/2026 22:28,7165553103,Not interested,NI,,,8/10/2026 22:28,8/10/2026 22:28,Cy,Park,Tonawanda,3 Test Dr,14150,NY,,,,0,0,,0,,0,0,0,0,0,0
+1006,Agent.1,8/11/2026 18:05,8/12/2026 18:05,7165553105,Not Available,NA,,,8/11/2026 18:05,8/11/2026 18:05,Ed,Moss,Williamsville,5 Test Ct,14221,NY,,,,0,0,,0,,0,0,0,0,0,0
+1009,Agent.1,8/13/2026 17:00,10/16/2026 17:00,7165553108,Callback,CB,,,8/13/2026 17:00,8/13/2026 17:03,Hal,Ito,Tonawanda,8 Test Pl,14150,NY,,,,0,0,,0,,0,0,0,0,0,0
+1010,Manager,8/13/2026 17:30,Not scheduled,7165553109,Spanish Speaker ,,,,8/13/2026 17:30,8/13/2026 17:30,Ida,Ruiz,Tonawanda,9 Test St,14150,NY,,,,0,0,,0,,0,0,0,0,0,0
+1011,Agent.1,9/30/2026 18:07,Not scheduled,7165553102,Wrong Number,W#,,,9/30/2026 18:07,9/30/2026 18:07,Bo,Reyes,Amherst,2 Test Rd,14226,NY,,bo@example.com,,(716) 555-3121,0,,0,,0,0,0,0,0,0
