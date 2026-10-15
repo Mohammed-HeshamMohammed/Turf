@@ -1,5 +1,6 @@
 import { ArrowUpRight, ArrowRight, Phone, CheckCircle, Clock, Users, Handshake, ShieldCheck, Database, HardDrives, GearSix, Plus } from "@phosphor-icons/react";
 import { CallActivityChart } from "./CallActivityChart.jsx";
+import { PropertyMap } from "./PropertyMap.jsx";
 import { ROLES } from "./data.js";
 import { capability, personalProfile, visibleLeads, visibleTasks } from "./model.js";
 import { useCrm } from "./context.jsx";
@@ -284,6 +285,7 @@ export function Dashboard() {
           )}
         </div>
       </div>
+      <PropertyMap rows={leads} title={isClient ? "Shared property map" : "Workspace property map"} />
       {!isClient && state.role !== "caller" && state.role !== "closer" && (
         <Card title="People, not just numbers" subtitle="A shared view of responsibility." className="team-card">
           <div className="team-people">

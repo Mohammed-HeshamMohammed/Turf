@@ -270,7 +270,7 @@ export function App() {
                 : "All changes saved locally"
               : "Offline · " + queue.length + " pending items"}
           </span>
-          <span>Sample workspace · no external communications</span>
+          <span>Sample workspace · no live outreach</span>
         </footer>
         {toast && (
           <div className="toast" role="status">

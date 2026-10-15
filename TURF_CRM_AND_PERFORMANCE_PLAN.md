@@ -461,7 +461,17 @@ Provide:
 
 Windows acceptance must use the real packaged Tauri application. Verify offline Skip Tracing, queue durability, secure storage, notifications, browser-companion calling, and reconnect behavior on a clean machine.
 
-### 5.5 Completion and repository workflow
+### 5.5 Geographic context and complete source mapping
+
+Include geographic views in Dashboard, Leads, source-list details, Skip Tracing, individual properties and call context. Apply the same role scope, source selection and active filters to the map and record list. Group overlapping records without merging their identities. Keep every unplaced record accessible.
+
+Source mapping must cover full or split names, full or split property addresses, units, city/state/postal/country/county, latitude/longitude, parcel identifiers, separate mailing details, property value and imported call outcomes. Retain additional columns and original values. Save mappings per source, validate that each chosen column exists, and preserve blocked status. A usable coordinate pair is a valid starting point when contact evidence is absent.
+
+Treat supplied coordinates as unverified source evidence, city/postal areas as approximate context, and unresolved addresses as needing lookup. Reject invalid/partial coordinate pairs. Never invent exact property locations. Permit manual address search; production geocoding must add provider-backed lookup, ambiguity review, caching, rate limits and source/precision metadata before claiming resolved property locations. Property and mailing coordinates remain distinct.
+
+The CRM prototype implements shared Leaflet/OpenStreetMap views, a small set of labelled Florida city reference areas, source-coordinate pins, manual address-search links, saved column mappings and a record-list fallback while offline. It does not implement geocoding, verified parcel boundaries, general ZIP-centroid lookup, offline tile downloads or native/server geography services. Production tile/lookup providers and offline packaging must follow their service terms and authorization model. Do not infer production readiness from this preview.
+
+### 5.6 Completion and repository workflow
 
 A capability is complete only when its behavior, authorization, failure handling, tests, and documentation are finished. Distinguish mocked checks, live provider checks, packaged desktop checks, and deployed-server checks.
 

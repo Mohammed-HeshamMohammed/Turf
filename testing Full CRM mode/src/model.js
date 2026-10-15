@@ -1,4 +1,5 @@
 import { ROLES, seedState } from "./data.js";
+import { mappedRecord, SOURCE_FIELDS } from "./skiptrace-fields.js";
 
 export const uid = () => crypto.randomUUID();
 export function personalProfile(state) {
@@ -233,6 +234,33 @@ export function reducer(state, action) {
     case "IMPORT": {
       if (!capability(state, "import")) return state;
       return { ...state, datasets: [...state.datasets, action.dataset], leads: [...state.leads, ...action.leads] };
+    }
+    case "SOURCE_MAPPING": {
+      if (!capability(state, "review") && !capability(state, "import")) return state;
+      const source = state.datasets.find(item => item.id === action.id);
+      if (!source || !visibleLeads(state).some(item => item.datasetId === source.id)) return state;
+      const mappings = Object.fromEntries(
+        SOURCE_FIELDS.filter(field => Object.hasOwn(action.mappings, field.id)).map(field => [
+          field.id,
+          source.columns.includes(action.mappings[field.id]) ? action.mappings[field.id] : "",
+        ]),
+      );
+      return {
+        ...state,
+        datasets: state.datasets.map(item => (item.id === source.id ? { ...item, fieldMappings: mappings } : item)),
+        leads: state.leads.map(item => {
+          if (item.datasetId !== source.id || !item.sourceValues) return item;
+          const data = mappedRecord(source.columns, item, mappings);
+          return {
+            ...item,
+            ...data,
+            name: data.name || item.name,
+            address: data.address || "Address not supplied",
+            value: source.columns.includes(mappings.value) ? Number(data.value.replace(/[$,]/g, "")) || 0 : item.value,
+            version: item.version + 1,
+          };
+        }),
+      };
     }
     case "CHECK": {
       if (!capability(state, "review") && !capability(state, "import")) return state;

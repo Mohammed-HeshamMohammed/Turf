@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PropertyMap } from "./PropertyMap.jsx";
 import {
   Phone,
   PhoneDisconnect,
@@ -106,6 +107,7 @@ export function Calls({ target }) {
                 )}
                 {!state.online && <p className="notice">Calling needs a connection. You can record a manual outcome below.</p>}
               </Card>
+              <PropertyMap rows={[lead]} title="Call property location" compact />
               <Card title="How did the conversation go?" subtitle="Outcomes stay attached to the lead and its phone evidence.">
                 <div className="outcome-grid">
                   {["Reached", "Voicemail", "No answer", "Wrong number", "Do not call"].map(value => (

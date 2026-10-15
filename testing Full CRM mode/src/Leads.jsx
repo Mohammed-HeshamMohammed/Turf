@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { PropertyMap } from "./PropertyMap.jsx";
+import { coordinates } from "./skiptrace-fields.js";
 import { ArrowUpRight, ArrowLeft, Plus, Phone, Envelope, Handshake, Clock, FileText, CheckCircle, Export, HouseLine } from "@phosphor-icons/react";
 import { LEAD_STAGES, PEOPLE, ROLES } from "./data.js";
 import { canEditLead, capability, uid, visibleLeads } from "./model.js";
@@ -64,9 +66,9 @@ export function Leads() {
                 <option key={item}>{item}</option>
               ))}
             </select>
-            <Segmented label="Lead view" value={view} options={["List", "Board"]} onChange={setView} />
           </>
         )}
+        <Segmented label="Lead view" value={view} options={client ? ["List", "Map"] : ["List", "Board", "Map"]} onChange={setView} />
         <span className="result-count">
           {leads.length} {client ? "properties" : "leads"}
         </span>
@@ -93,7 +95,9 @@ export function Leads() {
           </button>
         </div>
       )}
-      {view === "Board" && !client ? (
+      {view === "Map" ? (
+        <PropertyMap rows={leads} title={client ? "Shared property map" : "Lead map"} />
+      ) : view === "Board" && !client ? (
         <div className="kanban lead-board">
           {LEAD_STAGES.map(column => (
             <section
@@ -336,6 +340,7 @@ export function LeadDetail({ id }) {
               options={client ? ["Overview", "Documents"] : ["Overview", "Activity", "Documents", "Evidence"]}
             />
           </div>
+          <PropertyMap rows={[lead]} title="Property location" compact />
           {tab === "Overview" && (
             <>
               <Card title={client ? "Approved property context" : "The conversation so far"}>
@@ -654,13 +659,23 @@ export function NewLead() {
         onSubmit={event => {
           event.preventDefault();
           const form = new FormData(event.currentTarget);
+          const latitude = String(form.get("latitude") || "").trim();
+          const longitude = String(form.get("longitude") || "").trim();
+          if ((latitude || longitude) && !coordinates(latitude, longitude)) {
+            notify("Supply both valid latitude and longitude, or leave both blank.");
+            return;
+          }
           const id = uid();
           const lead = {
             id,
             name: String(form.get("name")).trim(),
             address: String(form.get("address")).trim(),
             city: String(form.get("city")).trim(),
-            region: "FL",
+            region: String(form.get("region") || "").trim(),
+            country: String(form.get("country") || "").trim(),
+            unit: String(form.get("unit") || "").trim(),
+            latitude,
+            longitude,
             zip: String(form.get("zip")),
             phone: String(form.get("phone")),
             email: String(form.get("email")),
@@ -697,8 +712,23 @@ export function NewLead() {
           <Field label="City">
             <input name="city" required defaultValue="Tampa" />
           </Field>
+          <Field label="State / region">
+            <input name="region" defaultValue="FL" />
+          </Field>
+          <Field label="Country">
+            <input name="country" defaultValue="US" />
+          </Field>
+          <Field label="Unit / address line 2">
+            <input name="unit" />
+          </Field>
           <Field label="ZIP code">
-            <input name="zip" inputMode="numeric" pattern="[0-9]{5}" placeholder="33610" required />
+            <input name="zip" placeholder="ZIP or postal code" />
+          </Field>
+          <Field label="Latitude" help="Optional · both coordinates are needed for a map pin.">
+            <input name="latitude" type="number" min="-90" max="90" step="any" />
+          </Field>
+          <Field label="Longitude">
+            <input name="longitude" type="number" min="-180" max="180" step="any" />
           </Field>
           <Field label="Phone">
             <input name="phone" type="tel" placeholder="+1 (813) 555-0100" />

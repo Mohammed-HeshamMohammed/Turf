@@ -2534,6 +2534,228 @@ textarea {
   display: grid;
   gap: 17px;
 }
+
+.source-mapping-more {
+  margin: 12px 0 22px;
+  border: 1px solid var(--line);
+  padding: 18px;
+  border-radius: 16px;
+}
+.source-mapping-more summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 550;
+}
+.source-mapping-more fieldset {
+  border: 0;
+  padding: 20px 0 0;
+  min-width: 0;
+}
+.source-mapping-more legend {
+  padding-top: 20px;
+  font-size: 15px;
+}
+.property-map {
+  min-width: 0;
+  margin: 22px 0;
+}
+.property-map > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.property-map h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.property-map header p {
+  margin-top: 8px;
+  font-size: 12px;
+}
+.property-map-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 18px 0;
+  font-size: 12px;
+}
+.property-map-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.property-map-toolbar select {
+  min-height: 38px;
+  padding: 8px 12px;
+  background: var(--well);
+  border-radius: 12px;
+}
+.property-map-toolbar small {
+  color: var(--muted);
+}
+.property-map-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  gap: 16px;
+}
+.property-map-surface {
+  position: relative;
+  isolation: isolate;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #e1e7df;
+  min-width: 0;
+}
+.property-map-canvas,
+.property-map-offline {
+  height: 380px;
+  width: 100%;
+}
+.property-map .leaflet-container {
+  font: inherit;
+}
+.property-map .leaflet-control-attribution {
+  font-size: 10px;
+}
+.property-map .leaflet-tile {
+  max-width: none !important;
+}
+.property-map .leaflet-popup-content {
+  line-height: 1.6;
+  font-size: 13px;
+}
+.property-map .property-map-count {
+  border-radius: 50%;
+  padding: 6px;
+  min-width: 28px;
+  text-align: center;
+  background: #141414;
+  border: 2px solid white;
+  color: white;
+  box-shadow: none;
+}
+.property-map-status {
+  position: absolute;
+  z-index: 1000;
+  left: 12px;
+  right: 12px;
+  top: 12px;
+  padding: 10px 14px;
+  margin-left: 38px;
+  background: white;
+  border-radius: 12px;
+  font-size: 12px;
+}
+.property-map-status button {
+  text-decoration: underline;
+  margin-left: 10px;
+}
+.property-map-empty {
+  position: absolute;
+  z-index: 500;
+  bottom: 28px;
+  left: 14px;
+  right: 14px;
+  padding: 14px;
+  background: #ffffffed;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.property-map-offline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 25px;
+  text-align: center;
+  font-size: 13px;
+}
+.property-map-records {
+  max-height: 380px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.property-map-records button {
+  display: grid;
+  gap: 7px;
+  padding: 14px;
+  border-radius: 14px;
+  text-align: left;
+  font-size: 12px;
+}
+.property-map-records button[aria-pressed="true"] {
+  background: var(--accent-soft);
+}
+.property-map-records small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+.property-map-detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 18px 0;
+  font-size: 13px;
+}
+.property-map-detail p {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.property-map-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.property-map.is-compact .property-map-layout {
+  grid-template-columns: 1fr;
+}
+.property-map.is-compact .property-map-canvas {
+  height: 300px;
+}
+.property-map.is-compact .property-map-records {
+  max-height: 170px;
+}
+@media (max-width: 900px) {
+  .property-map-layout {
+    grid-template-columns: 1fr;
+  }
+  .property-map-records {
+    max-height: 220px;
+  }
+}
+@media (max-width: 480px) {
+  .property-map {
+    padding: 18px;
+  }
+  .property-map-canvas {
+    height: 300px;
+  }
+  .property-map-detail .row,
+  .property-map-detail .button {
+    width: 100%;
+  }
+}
 .definition-list > div {
   display: grid;
   gap: 5px;

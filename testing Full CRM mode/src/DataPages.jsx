@@ -4,7 +4,9 @@ import { ArrowRight, ArrowUpRight, CheckCircle, Cloud, DownloadSimple, FileCsv, 
 import { ROLES } from "./data.js";
 import { capability, uid, visibleLeads } from "./model.js";
 import { useCrm } from "./context.jsx";
-import { sourceEvidence, sourceValue } from "./skiptrace-fields.js";
+import { mappedRecord, sourceEvidence, sourceValue } from "./skiptrace-fields.js";
+import { SourceFieldMapping } from "./SourceFieldMapping.jsx";
+import { PropertyMap } from "./PropertyMap.jsx";
 import { Badge, Button, Card, Empty, Field, LeadLink, PageHeader, Search, Segmented, Status, downloadCsv, Breadcrumb } from "./ui.jsx";
 
 export function Lists({ id }) {
@@ -22,37 +24,32 @@ export function Lists({ id }) {
       return;
     }
     const datasetId = uid();
-    const pick = (row, options) => {
-      const entry = Object.entries(row).find(([key]) => options.includes(key.trim().toLowerCase().replaceAll("_", " ")));
-      return String(entry?.[1] || "").trim();
-    };
-    const imported = rows.slice(0, 200).map((row, index) => ({
-      id: uid(),
-      datasetId,
-      sourceValues: row,
-      name: pick(row, ["owner", "owner name", "name", "full name"]) || "Imported owner " + (index + 1),
-      address: pick(row, ["address", "property address", "street"]) || "Address not supplied",
-      city: pick(row, ["city"]) || "Tampa",
-      region: pick(row, ["state", "region"]) || "FL",
-      zip: pick(row, ["zip", "zip code"]) || "",
-      phone: pick(row, ["phone", "phone number", "mobile"]),
-      email: pick(row, ["email"]),
-      stage: "New",
-      assignee: "Unassigned",
-      team: ROLES[state.role].team || "Tampa",
-      callback: "",
-      source: "CSV import",
-      verdict: "Unverified",
-      shared: false,
-      version: 1,
-      priority: "Normal",
-      value: Number(pick(row, ["value", "price"])) || 0,
-      beds: 3,
-      baths: 2,
-      area: 1600,
-      notes: [],
-      motivation: "Imported from " + name + ". Review source fields before outreach.",
-    }));
+    const imported = rows.slice(0, 200).map((row, index) => {
+      const data = mappedRecord(columns, { sourceValues: row });
+      return {
+        ...data,
+        id: uid(),
+        datasetId,
+        sourceValues: row,
+        name: data.name || "Imported owner " + (index + 1),
+        address: data.address || "Address not supplied",
+        stage: "New",
+        assignee: "Unassigned",
+        team: ROLES[state.role].team || "Tampa",
+        callback: "",
+        source: "CSV import",
+        verdict: "Unverified",
+        shared: false,
+        version: 1,
+        priority: "Normal",
+        value: Number(data.value.replace(/[$,]/g, "")) || 0,
+        beds: 3,
+        baths: 2,
+        area: 1600,
+        notes: [],
+        motivation: "Imported from " + name + ". Review source fields before outreach.",
+      };
+    });
     dispatch({
       type: "IMPORT",
       dataset: {
@@ -114,8 +111,8 @@ export function Lists({ id }) {
               icon={DownloadSimple}
               onClick={() =>
                 downloadCsv("turf-list-preview.csv", [
-                  ["Owner", "Address", "Phone", "Stage"],
-                  ...leads.filter(lead => lead.datasetId === id).map(lead => [lead.name, lead.address, lead.phone, lead.stage]),
+                  [...dataset.columns, "CRM stage"],
+                  ...leads.filter(lead => lead.datasetId === id).map(lead => [...dataset.columns.map(column => sourceValue(lead, column)), lead.stage]),
                 ])
               }
             >
@@ -133,6 +130,7 @@ export function Lists({ id }) {
           <Badge>{dataset.team} project</Badge>
           <span>Fields: {dataset.columns.join(" · ")}</span>
         </div>
+        <PropertyMap rows={leads.filter(lead => lead.datasetId === id)} title="Source list map" />
         <Card className="table-card">
           <div className="table-scroll">
             <table>
@@ -287,7 +285,8 @@ export function SkipTracing() {
   const dataset = datasets.find(item => item.id === datasetId);
   const rows = leads.filter(lead => lead.datasetId === datasetId);
   const columns = dataset?.columns || [];
-  const { fields, primary } = sourceEvidence(columns, rows, fieldOverrides);
+  const mappings = { ...dataset?.fieldMappings, ...fieldOverrides };
+  const { fields, primary } = sourceEvidence(columns, rows, mappings);
   const hasPhones = fields.some(field => field.id === "phone" && field.count > 0);
   useEffect(() => {
     stepNavigation.current?.querySelector("[aria-current]")?.scrollIntoView({
@@ -385,6 +384,7 @@ export function SkipTracing() {
             ),
         )}
       </nav>
+      <PropertyMap rows={rows} mappings={mappings} title="Source location map" />
       <div className="skip-layout">
         <Card
           className="skip-stage"
@@ -411,38 +411,28 @@ export function SkipTracing() {
                       ? "Phone fields found. Address, email and owner context stay alongside them."
                       : primary
                         ? `No populated phone field found. We’ll use ${primary.label.toLowerCase()} instead and skip phone-only checks.`
-                        : "No usable phone, address, email or owner-name field was detected. Map an available source column below."}
+                        : "No usable identity, address or coordinate pair was detected. Map an available source column below."}
                   </p>
                 </div>
               </div>
-              <div className="skip-field-grid">
-                {fields.map(field => (
-                  <Field
-                    key={field.id}
-                    label={field.label + " column"}
-                    help={
-                      field.column
-                        ? `${field.count} of ${rows.length} rows supplied${primary?.id === field.id ? " · Starting point" : ""}`
-                        : "Not detected · optional if another identity field is available"
-                    }
-                  >
-                    <select
-                      value={field.column}
-                      onChange={event => {
-                        setFieldOverrides({ ...fieldOverrides, [field.id]: event.target.value });
-                        setFinished(false);
-                      }}
-                    >
-                      <option value="">Not mapped</option>
-                      {columns.map(column => (
-                        <option key={column} value={column}>
-                          {column}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                ))}
-              </div>
+              <SourceFieldMapping
+                columns={columns}
+                rows={rows}
+                mappings={mappings}
+                onChange={value => {
+                  setFieldOverrides(value);
+                  setFinished(false);
+                }}
+              />
+              <Button
+                disabled={!dataset}
+                onClick={() => {
+                  dispatch({ type: "SOURCE_MAPPING", id: datasetId, mappings });
+                  notify("Source mapping saved for this list");
+                }}
+              >
+                Save source mapping
+              </Button>
               {hasPhones && (
                 <Field label="Default phone region">
                   <select defaultValue="US">
@@ -487,10 +477,16 @@ export function SkipTracing() {
           {step === 1 && (
             <>
               <Field label="Imported call-status field">
-                <select defaultValue="None">
-                  <option>None</option>
-                  <option>Call outcome</option>
-                  <option>Status</option>
+                <select
+                  value={mappings.outcome ?? sourceEvidence(columns, rows).mappedFields.find(field => field.id === "outcome").column}
+                  onChange={event => setFieldOverrides({ ...fieldOverrides, outcome: event.target.value })}
+                >
+                  <option value="">Not mapped</option>
+                  {columns.map(column => (
+                    <option key={column} value={column}>
+                      {column}
+                    </option>
+                  ))}
                 </select>
               </Field>
               <div className="mapping-preview">
@@ -627,8 +623,8 @@ export function SkipTracing() {
                   icon={DownloadSimple}
                   onClick={() =>
                     downloadCsv("turf-demo-check.csv", [
-                      ["Owner", "Address", "Phone", "Sample verdict"],
-                      ...rows.map(lead => [lead.name, lead.address, lead.phone, verdict(lead)]),
+                      [...columns, "Sample verdict", "Starting evidence"],
+                      ...rows.map(lead => [...columns.map(column => sourceValue(lead, column)), verdict(lead), primary?.label || "None"]),
                     ])
                   }
                 >

@@ -14,6 +14,8 @@ Connection preview, Sync & pending changes, and Workspace settings belong only i
 
 Skip Tracing needs a spacious working area with readable controls, source-field mapping, and an original-value preview. Detect actual source fields rather than inventing a Phone column. Prefer populated phone evidence, then address, email, and owner name; show the active fallback and skip phone-only steps when no populated phone field exists. Let users correct mappings and require a usable field before checking. Preserve the progressive workflow and original source values.
 
+Both geographic maps and comprehensive column mapping belong in the CRM prototype. Support split names/addresses, property versus mailing details, international address parts, coordinates, parcels, values and call outcomes. Save mappings per source without changing original values or blocked status. Geographic views must respect visible-record scope and filters, distinguish supplied coordinates from approximate areas, and retain address-only, invalid-coordinate, missing-location and offline cases without inventing property pins. Keep address searches user-triggered.
+
 Before making substantial visual changes, use the Product Design plugin's `get-context` skill when the visual source is unclear or no longer matches the current goal. When the user gives durable prototype-specific design feedback, preferences, or decisions, record them in `AGENTS.md`.
 
 When implementing from a selected generated mock, treat that image as the source of truth for layout, component anatomy, density, spacing, color, typography, visible content, and hierarchy.
