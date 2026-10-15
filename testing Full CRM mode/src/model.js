@@ -13,9 +13,13 @@ export function personalProfile(state) {
   };
 }
 export function capability(state, name) {
+  // Connected to a server: the signed-in person's capabilities, which the server enforces again.
+  if (state.remote) return state.remote.capabilities.includes(name);
   return state.permissions[state.role]?.[name] ?? ROLES[state.role].capabilities.includes(name);
 }
 export function visibleLeads(state) {
+  // Server records arrive already scoped to the person.
+  if (state.remote) return state.leads;
   const role = ROLES[state.role];
   if (state.role === "admin") return [];
   if (state.role === "client") return state.leads.filter(lead => lead.shared);
@@ -25,14 +29,17 @@ export function visibleLeads(state) {
   return state.leads.filter(lead => lead.assignee === role.person || incoming.includes(lead.id));
 }
 export function visibleTasks(state) {
+  if (state.remote) return state.tasks;
   const leadIds = new Set(visibleLeads(state).map(lead => lead.id));
   return state.tasks.filter(task => leadIds.has(task.leadId) && (state.role !== "client" || task.shared));
 }
 export function visibleThreads(state) {
+  if (state.remote) return state.threads;
   const leadIds = new Set(visibleLeads(state).map(lead => lead.id));
   return state.threads.filter(thread => leadIds.has(thread.leadId) && (state.role !== "client" || thread.shared === true));
 }
 export function canEditLead(state, id) {
+  if (state.remote) return capability(state, "edit") && state.leads.some(item => item.id === id);
   if (!capability(state, "edit")) return false;
   const lead = visibleLeads(state).find(item => item.id === id);
   return Boolean(lead && (["owner", "solo", "manager"].includes(state.role) || lead.assignee === ROLES[state.role].person));

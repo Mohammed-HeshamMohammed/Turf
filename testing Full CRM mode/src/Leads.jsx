@@ -6,7 +6,7 @@ import { LEAD_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
 import { callbackLabel, canEditLead, capability, uid, visibleLeads } from "./model.js";
 import { CallHistory } from "./Work.jsx";
 import { useCrm } from "./context.jsx";
-import { Badge, Button, Card, Empty, Field, Modal, PageHeader, Person, RoundButton, Search, Segmented, Status, downloadCsv, money, Breadcrumb } from "./ui.jsx";
+import { Badge, Button, Card, Empty, Field, Modal, PageHeader, Person, RoundButton, Search, Segmented, Status, downloadCsv, money, Breadcrumb, propertyFacts } from "./ui.jsx";
 
 export function Leads() {
   const { state, navigate, dispatch, notify, route } = useCrm();
@@ -317,9 +317,9 @@ export function LeadDetail({ id }) {
                 {lead.city}, {lead.region} {lead.zip}
               </p>
               <div className="property-facts">
-                <span>{lead.beds} beds</span>
-                <span>{lead.baths} baths</span>
-                <span>{lead.area.toLocaleString()} sq ft</span>
+                {propertyFacts(lead).map(fact => (
+                  <span key={fact}>{fact}</span>
+                ))}
               </div>
               {capability(state, "finance") && (
                 <div className="property-value">
@@ -644,7 +644,7 @@ export function LeadDetail({ id }) {
               {lead.city}, {lead.region} {lead.zip}
             </p>
             <p>
-              {lead.beds} bedrooms · {lead.baths} bathrooms · {lead.area.toLocaleString()} square feet
+              {propertyFacts(lead).join(" · ") || "Property details not supplied"}
             </p>
             <p>
               This fictional property is included in the sample project. Your team will attach the approved inspection and closing documents as the transaction

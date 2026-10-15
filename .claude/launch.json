@@ -24,6 +24,22 @@
         "--strictPort"
       ],
       "port": 5190
+    },
+    {
+      "name": "turf-api",
+      "runtimeExecutable": "C:/Program Files/Git/bin/bash.exe",
+      "runtimeArgs": [
+        "backend/scripts/run-api.sh"
+      ],
+      "port": 8088
+    },
+    {
+      "name": "turf-worker",
+      "runtimeExecutable": "C:/Program Files/Git/bin/bash.exe",
+      "runtimeArgs": [
+        "backend/scripts/run-worker.sh"
+      ],
+      "port": 8090
     }
   ]
 }

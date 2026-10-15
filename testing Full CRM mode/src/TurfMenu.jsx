@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowClockwise, CloudArrowUp, FileCsv, GearSix, SidebarSimple, SquaresFour, WifiHigh, WifiSlash } from "@phosphor-icons/react";
+import { ArrowClockwise, CloudArrowUp, FileCsv, GearSix, Plugs, SidebarSimple, SignOut, SquaresFour, WifiHigh, WifiSlash } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
 import { personalProfile } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { Badge } from "./ui.jsx";
 
 export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen }) {
-  const { state, dispatch, navigate, notify } = useCrm();
+  const { state, dispatch, navigate, notify, connect, signOut } = useCrm();
   const [open, setOpen] = useState(false);
   const root = useRef(null);
   const trigger = useRef(null);
@@ -90,8 +90,8 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen }) {
             >
               {state.online ? <WifiHigh size={19} /> : <WifiSlash size={19} />}
               <div>
-                <strong>{state.online ? "Connected preview" : "Offline preview"}</strong>
-                <small>{state.online ? "Click to try offline mode" : "Click to reconnect preview"}</small>
+                <strong>{state.online ? (state.remote ? "Connected" : "Connected preview") : state.remote ? "Working offline" : "Offline preview"}</strong>
+                <small>{state.online ? "Click to work offline" : "Click to reconnect"}</small>
               </div>
             </button>
             <button onClick={() => run(() => navigate("sync"))}>
@@ -108,6 +108,20 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen }) {
               <span>Workspace settings</span>
             </button>
           </div>
+          {state.remote ? (
+            <div className="turf-menu-actions">
+              <div className="turf-menu-workspace">
+                <small>Signed in</small>
+                <strong>{state.remote.user.name}</strong>
+                <span>{state.remote.user.email}</span>
+              </div>
+              <button onClick={() => run(signOut)}>
+                <SignOut size={19} />
+                <span>Sign out</span>
+              </button>
+            </div>
+          ) : (
+          <>
           <div className="role-switcher">
             <label htmlFor="preview-role">Explore as</label>
             <select
@@ -137,7 +151,13 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen }) {
               <ArrowClockwise size={19} />
               <span>Reset sample workspace</span>
             </button>
+            <button onClick={() => run(connect)}>
+              <Plugs size={19} />
+              <span>Connect to a Turf server</span>
+            </button>
           </div>
+          </>
+          )}
         </div>
       )}
     </div>

@@ -4,7 +4,7 @@ import { PropertyMap } from "./PropertyMap.jsx";
 import { ROLES } from "./data.js";
 import { callbackLabel, capability, personalProfile, visibleLeads, visibleTasks } from "./model.js";
 import { useCrm } from "./context.jsx";
-import { Badge, Button, Card, Empty, LeadLink, Person, RoundButton, Status, money, PageHeader } from "./ui.jsx";
+import { Badge, Button, Card, Empty, LeadLink, Person, RoundButton, Status, money, PageHeader, propertyFacts } from "./ui.jsx";
 
 export function Dashboard() {
   const { state, navigate, dispatch, notify } = useCrm();
@@ -136,9 +136,9 @@ export function Dashboard() {
                     {next.city}, {next.region} {next.zip}
                   </p>
                   <div className="property-facts">
-                    <span>{next.beds} beds</span>
-                    <span>{next.baths} baths</span>
-                    <span>{next.area.toLocaleString()} sq ft</span>
+                    {propertyFacts(next).map(fact => (
+                      <span key={fact}>{fact}</span>
+                    ))}
                   </div>
                   <div className="seller-line">
                     <span>Property owner</span>

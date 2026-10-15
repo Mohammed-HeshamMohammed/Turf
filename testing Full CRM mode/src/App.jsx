@@ -2,6 +2,11 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Bell, CalendarBlank, ChatCircle, CheckCircle, HouseLine, List, MagnifyingGlass, WifiSlash, X } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
 import { loadState, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
+import { RemoteGate } from "./RemoteGate.jsx";
+import { api, apiBase, setApiBase } from "./remote/api.js";
+import { SyncEngine } from "./remote/engine.js";
+import { LOCAL_ONLY, remoteReducer, syncAction } from "./remote/session.js";
+import { applyIdentity, labelFor, operationFor } from "./remote/translate.js";
 import { CrmContext } from "./context.jsx";
 import { Badge, Button, Empty, Modal, Search } from "./ui.jsx";
 import { Dashboard } from "./Dashboard.jsx";
@@ -16,7 +21,12 @@ import { PersonalMenu, PersonalPage } from "./Personal.jsx";
 const readRoute = () => window.location.hash.slice(1).replace(/^\//, "") || "dashboard";
 
 export function App() {
-  const [state, dispatch] = useReducer(reducer, undefined, () => loadState(window.localStorage));
+  const [state, apply] = useReducer(remoteReducer, undefined, () => loadState(window.localStorage));
+  // "local": the sample workspace; "gate": signing in to a server; "remote": connected.
+  const [connection, setConnection] = useState(() => (apiBase() ? "gate" : "local"));
+  const engine = useRef(null);
+  const latest = useRef(state);
+  latest.current = state;
   const [route, setRoute] = useState(readRoute);
   const [toast, setToast] = useState("");
   const [query, setQuery] = useState("");
@@ -61,6 +71,63 @@ export function App() {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setToast(""), 4500);
   }, []);
+  // Connected: changes apply on screen at once and queue as operations for the server, which has the last word.
+  const dispatch = useCallback(
+    action => {
+      const sync = engine.current;
+      if (!sync) return apply(action);
+      if (action.type === "SYNC") return void sync.sync();
+      if (action.type === "RESOLVE") return void sync.resolve(action.id, action.discard ? "discard" : "keep");
+      if (["CONFLICT", "ROLE", "RESET"].includes(action.type)) return;
+      if (action.type === "CONNECT") {
+        sync.setOnline(action.online);
+        return apply(action);
+      }
+      if (LOCAL_ONLY.has(action.type)) return apply(action);
+      const before = latest.current;
+      const operation = operationFor(action, before, sync.store || {});
+      if (!operation) return apply(action);
+      if (operation.online && !before.online) {
+        notify("This change needs a connection. Reconnect and try again.");
+        return;
+      }
+      if (reducer(before, action) === before) return;
+      sync.enqueue({ ...operation, action, label: labelFor(operation, before) });
+      apply(action);
+    },
+    [notify],
+  );
+  const connect = useCallback(
+    async ({ me, vault }) => {
+      const role = applyIdentity(me);
+      const quiet = promise => promise.catch(() => []);
+      const [directory, teams, projects] = await Promise.all([quiet(api.directory()), quiet(api.teams()), quiet(api.projects())]);
+      const organization = me.organizations.find(item => item.id === me.organization_id)?.name || "";
+      apply({ type: "REMOTE_START", role, remote: { user: me.user, capabilities: me.capabilities, organization, roles: me.roles } });
+      const sync = new SyncEngine({ vault, onChange: snapshot => apply(syncAction(snapshot, me.user.name)) });
+      engine.current = sync;
+      setConnection("remote");
+      await sync.start({ directory, teams, projects });
+    },
+    [],
+  );
+  const signOut = useCallback(async () => {
+    engine.current?.stop();
+    engine.current = null;
+    await api.logout().catch(() => {});
+    apply({ type: "REMOTE_END" });
+    setConnection("gate");
+  }, []);
+  const useSample = useCallback(() => {
+    engine.current?.stop();
+    engine.current = null;
+    setApiBase("");
+    apply({ type: "REMOTE_END" });
+    setConnection("local");
+  }, []);
+  useEffect(() => {
+    if (state.remoteStatus === "signed-out") signOut();
+  }, [state.remoteStatus, signOut]);
   const navigate = useCallback(path => {
     window.location.hash = "/" + path;
     setQuery("");
@@ -76,6 +143,8 @@ export function App() {
     return () => window.removeEventListener("hashchange", change);
   }, []);
   useEffect(() => {
+    // Server records are kept only in the encrypted offline copy, never in plain browser storage.
+    if (state.remote) return;
     try {
       window.localStorage.setItem("turf.full-crm.prototype.v1", JSON.stringify(state));
       setCacheError(false);
@@ -95,7 +164,8 @@ export function App() {
       return next;
     });
   }
-  const context = { state, dispatch, navigate, notify, route };
+  const context = { state, dispatch, navigate, notify, route, connection, connect: () => setConnection("gate"), signOut };
+  if (connection === "gate") return <RemoteGate onReady={connect} onLeave={useSample} />;
   const primary = [
     { id: "dashboard", label: "Dashboard", target: "dashboard" },
     ...(role.pages.some(item => ["leads", "calls", "deals", "tasks", "inbox"].includes(item))
@@ -235,13 +305,26 @@ export function App() {
                 <span className="status-dot" />
                 Florida acquisitions · October 2026
               </span>
-              <div>
-                <Badge>Sample data</Badge>
-                <button className="text-button muted" onClick={() => setReset(true)}>
-                  Reset preview
-                </button>
-              </div>
+              {state.remote ? (
+                <div>
+                  <Badge tone={state.remoteStatus === "error" ? "danger" : "good"}>
+                    {state.remoteStatus === "syncing" ? "Syncing" : state.remoteStatus === "offline" ? "Server unreachable" : state.remoteStatus === "error" ? "Sync problem" : "Live server"}
+                  </Badge>
+                </div>
+              ) : (
+                <div>
+                  <Badge>Sample data</Badge>
+                  <button className="text-button muted" onClick={() => setReset(true)}>
+                    Reset preview
+                  </button>
+                </div>
+              )}
             </div>
+            {state.remoteError && state.remoteStatus === "error" && (
+              <p className="notice" role="alert">
+                {state.remoteError}
+              </p>
+            )}
             {cacheError && (
               <p className="notice" role="alert">
                 Browser storage is full or unavailable. Current edits work in this session but cannot survive a refresh.
@@ -267,10 +350,12 @@ export function App() {
             {state.online
               ? queue.length
                 ? queue.length + " items awaiting sync"
-                : "All changes saved locally"
+                : state.remote
+                  ? "All changes saved to the server"
+                  : "All changes saved locally"
               : "Offline · " + queue.length + " pending items"}
           </span>
-          <span>Sample workspace · no live outreach</span>
+          <span>{state.remote ? "Connected workspace · outreach stays as drafts" : "Sample workspace · no live outreach"}</span>
         </footer>
         {toast && (
           <div className="toast" role="status">

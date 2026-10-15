@@ -5,6 +5,7 @@ The server side of the full CRM (see `TURF_CRM_AND_PERFORMANCE_PLAN.md`). The de
 | Folder | Language | What it does |
 | --- | --- | --- |
 | `rust/` | Rust (Axum, sqlx) | Public API, sign-in and MFA, permissions, CRM transactions, sync, WebSocket events, rule execution, legacy import. Owns the PostgreSQL migrations. `crates/grouping` is the deterministic grouping library shared with offline Skip Tracing. |
+| `go/` | Go (standard library) | `turf-worker`: claims outbox events and has the API run their rules (one lead's events in order), ticks the scheduler every minute (overdue tasks and handoffs, scheduled reports), and publishes cache invalidations to Redis. Health on `:8090/healthz`. |
 
 Shared contracts (API, events, jobs, native ABIs) live in `contracts/`.
 
@@ -32,6 +33,16 @@ cd backend/rust && TEST_DATABASE_URL=postgres://turf_api:turf_api@127.0.0.1:5543
 ```
 
 Without `TEST_DATABASE_URL` the end-to-end tests skip themselves.
+
+### The whole stack, with the CRM interface
+
+```bash
+bash backend/scripts/run-api.sh          # API on http://127.0.0.1:8088 (starts PostgreSQL and Redis too)
+bash backend/scripts/run-worker.sh       # Go worker
+python backend/scripts/dev_seed.py       # once, on a fresh database: an organization, one person per role, sample leads
+```
+
+`dev_seed.py` writes the local test accounts to `backend/scripts/.dev-accounts.json` (git-ignored). In the CRM interface (`testing Full CRM mode`, `npm run dev`), open the Turf menu, choose **Connect to a Turf server**, and sign in at `http://localhost:8088`. Owners and administrators need an authenticator code. Records then come from the server. Changes apply on screen at once and queue as operations; offline they wait in an encrypted IndexedDB copy unlocked by a passphrase. On reconnect, a change someone else made meanwhile shows on the Sync page with both values.
 
 ## How a change flows
 

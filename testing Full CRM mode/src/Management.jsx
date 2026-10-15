@@ -205,6 +205,8 @@ export function Reports() {
   );
 }
 
+const shown = value => (value === null || value === undefined || value === "" ? "(empty)" : typeof value === "object" ? JSON.stringify(value) : String(value));
+
 export function Sync() {
   const { state, dispatch, notify } = useCrm();
   const queue = state.queue.filter(item => item.actor === ROLES[state.role].person);
@@ -276,7 +278,8 @@ export function Sync() {
               </small>
             </div>
             <Status value={item.status} />
-            {item.status === "Conflict" && <Button onClick={() => setResolution(item)}>Review conflict</Button>}
+            {["Conflict", "Rejected"].includes(item.status) && <Button onClick={() => setResolution(item)}>{item.status === "Conflict" ? "Review conflict" : "Review"}</Button>}
+            {item.status === "Rejected" && item.serverValue && <small className="muted">{item.serverValue}</small>}
             {item.kind === "Communication draft" && <Badge>Not sent</Badge>}
           </div>
         ))}
@@ -285,36 +288,59 @@ export function Sync() {
       {resolution && (
         <Modal title="Two people changed the same record." onClose={() => setResolution(null)}>
           <p className="body-copy">{resolution.label}</p>
-          <div className="conflict-options">
-            <Card title="Your pending change">
-              <p>{resolution.label}</p>
-              <Badge>This device</Badge>
-            </Card>
-            <Card title="Server version">
-              <p>A teammate updated the record while you were offline.</p>
-              <Badge>Simulated conflict</Badge>
-            </Card>
-          </div>
-          <p className="muted">A production sync would show both field values. Here you can review the pending operation or discard it.</p>
+          {resolution.fields ? (
+            <div className="conflict-fields">
+              {Object.entries(resolution.fields).map(([field, values]) => (
+                <div className="conflict-options" key={field}>
+                  <Card title={"Your change · " + field.replaceAll("_", " ")}>
+                    <p>{shown(values.local)}</p>
+                    <Badge>This device</Badge>
+                  </Card>
+                  <Card title="Now on the server">
+                    <p>{shown(values.server)}</p>
+                    <Badge tone="peach">Changed since you edited it (was {shown(values.base)})</Badge>
+                  </Card>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="conflict-options">
+              <Card title="Your pending change">
+                <p>{resolution.label}</p>
+                <Badge>This device</Badge>
+              </Card>
+              <Card title="Server version">
+                <p>{resolution.serverValue || "A teammate updated the record while you were offline."}</p>
+                <Badge>{state.remote ? "Not applied" : "Simulated conflict"}</Badge>
+              </Card>
+            </div>
+          )}
+          <p className="muted">
+            {state.remote
+              ? "Keeping yours applies it over the server's value. Using the server's drops your change. Nothing is replaced without your choice."
+              : "A production sync would show both field values. Here you can review the pending operation or discard it."}
+          </p>
           <div className="row">
-            <Button
-              variant="primary"
-              onClick={() => {
-                dispatch({ type: "RESOLVE", id: resolution.id });
-                setResolution(null);
-                notify("Local change reviewed; ready for demo sync");
-              }}
-            >
-              Keep local change
-            </Button>
+            {(!state.remote || resolution.status === "Conflict") && (
+              <Button
+                variant="primary"
+                onClick={() => {
+                  dispatch({ type: "RESOLVE", id: resolution.id });
+                  setResolution(null);
+                  notify(state.remote ? "Your change will be applied over the server's" : "Local change reviewed; ready for demo sync");
+                }}
+              >
+                Keep my change
+              </Button>
+            )}
             <Button
               onClick={() => {
                 dispatch({ type: "RESOLVE", id: resolution.id, discard: true });
                 setResolution(null);
-                notify("Pending operation discarded; optimistic preview values remain local");
+                notify(state.remote ? "Your change was dropped; the server's value stays" : "Pending operation discarded; optimistic preview values remain local");
               }}
             >
-              Discard pending operation
+              {state.remote ? "Use the server's" : "Discard pending operation"}
             </Button>
           </div>
         </Modal>

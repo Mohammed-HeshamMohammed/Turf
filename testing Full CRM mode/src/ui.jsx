@@ -3,6 +3,14 @@ import { useEffect, useRef } from "react";
 import { useCrm } from "./context.jsx";
 
 export const money = value => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
+/** Bedrooms, bathrooms and area, leaving out what the source did not supply. */
+export function propertyFacts(record) {
+  return [
+    record.beds != null && record.beds + " beds",
+    record.baths != null && record.baths + " baths",
+    record.area != null && Number(record.area).toLocaleString() + " sq ft",
+  ].filter(Boolean);
+}
 export function Badge({ children, tone = "" }) {
   return <span className={"badge " + tone}>{children}</span>;
 }
