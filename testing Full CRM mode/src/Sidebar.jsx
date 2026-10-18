@@ -106,8 +106,8 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
     );
   }
   function influence(id) {
-    const distance = hover ? Math.abs(hover.centers[id] - hover.pointerY) : Infinity;
-    const strength = Math.exp(-Math.pow(distance / 38, 2));
+    // Only the hovered item grows; its neighbours stay put.
+    const strength = hover?.id === id ? 1 : 0;
     return { "--dock-scale": 1 + strength * (collapsed ? 0.22 : 0.14) * (0.65 + 0.35 * (hover?.edge || 0)) };
   }
   function dockProps(id, label) {
