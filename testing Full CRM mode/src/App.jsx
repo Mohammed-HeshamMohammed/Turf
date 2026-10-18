@@ -1,22 +1,41 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Bell, CalendarBlank, ChatCircle, CheckCircle, HouseLine, List, MagnifyingGlass, WifiSlash, X } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
 import { loadState, navCounts, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
-import { RemoteGate } from "./RemoteGate.jsx";
 import { api, apiBase, setApiBase } from "./remote/api.js";
 import { SyncEngine } from "./remote/engine.js";
 import { LOCAL_ONLY, remoteReducer, syncAction } from "./remote/session.js";
 import { applyIdentity, labelFor, operationFor } from "./remote/translate.js";
 import { CrmContext } from "./context.jsx";
 import { Badge, Button, CountBadge, Empty, Modal, PageTransition, Search, useHeld, usePresence } from "./ui.jsx";
-import { Dashboard } from "./Dashboard.jsx";
-import { LeadDetail, Leads, NewLead } from "./Leads.jsx";
-import { Calendar, Calls, Deals, Handoffs, Inbox, Tasks } from "./Work.jsx";
-import { Lists, SkipTracing } from "./DataPages.jsx";
-import { Reports, Settings, Sync } from "./Management.jsx";
 import { Sidebar } from "./Sidebar.jsx";
 import { TurfMenu } from "./TurfMenu.jsx";
 import { PersonalMenu, PersonalPage } from "./Personal.jsx";
+
+// Pages load on demand, so the first screen only carries what it shows; the rest are fetched quietly once the app is idle.
+const lazyPage = (load, name) => lazy(() => load().then(module => ({ default: module[name] })));
+const loadDashboard = () => import("./Dashboard.jsx");
+const loadLeads = () => import("./Leads.jsx");
+const loadWork = () => import("./Work.jsx");
+const loadData = () => import("./DataPages.jsx");
+const loadManagement = () => import("./Management.jsx");
+const Dashboard = lazyPage(loadDashboard, "Dashboard");
+const LeadDetail = lazyPage(loadLeads, "LeadDetail");
+const Leads = lazyPage(loadLeads, "Leads");
+const NewLead = lazyPage(loadLeads, "NewLead");
+const Calendar = lazyPage(loadWork, "Calendar");
+const Calls = lazyPage(loadWork, "Calls");
+const Deals = lazyPage(loadWork, "Deals");
+const Handoffs = lazyPage(loadWork, "Handoffs");
+const Inbox = lazyPage(loadWork, "Inbox");
+const Tasks = lazyPage(loadWork, "Tasks");
+const Lists = lazyPage(loadData, "Lists");
+const SkipTracing = lazyPage(loadData, "SkipTracing");
+const Reports = lazyPage(loadManagement, "Reports");
+const Settings = lazyPage(loadManagement, "Settings");
+const Sync = lazyPage(loadManagement, "Sync");
+const RemoteGate = lazyPage(() => import("./RemoteGate.jsx"), "RemoteGate");
+const preloadPages = () => [loadLeads, loadWork, loadData, loadManagement, loadDashboard].forEach(load => load());
 
 const readRoute = () => window.location.hash.slice(1).replace(/^\//, "") || "dashboard";
 
@@ -51,12 +70,15 @@ export function App() {
   const page = parts[0] === "work" ? parts[1] : parts[0];
   const activePrimary = ["leads", "calls", "deals", "handoffs", "tasks", "calendar", "inbox"].includes(page) ? "work" : page;
   const accessible = ["sync", "personal"].includes(page) || role.pages.includes(page);
-  const leads = visibleLeads(state);
-  const tasks = visibleTasks(state).filter(item => !item.done);
+  const leads = useMemo(() => visibleLeads(state), [state]);
+  const tasks = useMemo(() => visibleTasks(state).filter(item => !item.done), [state]);
   const taskNotices = profile.taskReminders ? tasks : [];
-  const replyNotices = profile.replyReminders && role.pages.includes("inbox") ? visibleThreads(state).filter(thread => thread.unread) : [];
+  const replyNotices = useMemo(
+    () => (profile.replyReminders && role.pages.includes("inbox") ? visibleThreads(state).filter(thread => thread.unread) : []),
+    [state, profile.replyReminders, role],
+  );
   const noticeCount = taskNotices.length + replyNotices.length;
-  const counts = navCounts(state, role);
+  const counts = useMemo(() => navCounts(state, role), [state, role]);
   const workCount = (counts.tasks || 0) + (counts.handoffs || 0) + (counts.inbox || 0);
   const shownQuery = useHeld(query.trim());
   const searchPanel = usePresence(Boolean(query));
@@ -149,13 +171,27 @@ export function App() {
   useEffect(() => {
     // Server records are kept only in the encrypted offline copy, never in plain browser storage.
     if (state.remote) return;
-    try {
-      window.localStorage.setItem("turf.full-crm.prototype.v1", JSON.stringify(state));
-      setCacheError(false);
-    } catch {
-      setCacheError(true);
-    }
+    const save = () => {
+      try {
+        window.localStorage.setItem("turf.full-crm.prototype.v1", JSON.stringify(state));
+        setCacheError(false);
+      } catch {
+        setCacheError(true);
+      }
+    };
+    // Serialising the whole workspace is the heaviest thing a click does, so wait for a quiet moment and flush on the way out.
+    const timer = setTimeout(save, 350);
+    window.addEventListener("pagehide", save);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("pagehide", save);
+    };
   }, [state]);
+  useEffect(() => {
+    const idle = window.requestIdleCallback || (callback => setTimeout(callback, 1200));
+    const handle = idle(preloadPages);
+    return () => (window.cancelIdleCallback || clearTimeout)(handle);
+  }, []);
   useEffect(() => () => clearTimeout(timer.current), []);
   function toggleSidebar() {
     setSidebarCollapsed(current => {
@@ -168,8 +204,61 @@ export function App() {
       return next;
     });
   }
-  const context = { state, dispatch, navigate, notify, route, connection, connect: () => setConnection("gate"), signOut };
-  if (connection === "gate") return <RemoteGate onReady={connect} onLeave={useSample} />;
+  const showGate = useCallback(() => setConnection("gate"), []);
+  // Memoised so typing in search, opening a panel or a toast does not re-render every page.
+  const context = useMemo(
+    () => ({ state, dispatch, navigate, notify, route, connection, connect: showGate, signOut }),
+    [state, dispatch, navigate, notify, route, connection, showGate, signOut],
+  );
+  const pageElement = useMemo(() => {
+    if (!accessible)
+      return (
+        <Empty title="This page is outside your role" action={<Button onClick={() => navigate("dashboard")}>Return to your workspace</Button>}>
+          Your role determines the records and actions you can access in this preview.
+        </Empty>
+      );
+    const parts = current.split("/");
+    const section = parts[0] === "work" ? parts[1] : parts[0];
+    const last = parts[2];
+    switch (section) {
+      case "dashboard":
+        return <Dashboard />;
+      case "leads":
+        return last === "new" ? <NewLead /> : last ? <LeadDetail id={last} /> : <Leads />;
+      case "calls":
+        return <Calls target={last} />;
+      case "deals":
+        return <Deals id={last} />;
+      case "handoffs":
+        return <Handoffs />;
+      case "tasks":
+        return <Tasks create={last === "new"} />;
+      case "calendar":
+        return <Calendar />;
+      case "inbox":
+        return <Inbox />;
+      case "lists":
+        return <Lists id={parts[1]} />;
+      case "skip":
+        return <SkipTracing />;
+      case "reports":
+        return <Reports />;
+      case "settings":
+        return <Settings section={parts[1]} />;
+      case "sync":
+        return <Sync />;
+      case "personal":
+        return <PersonalPage section={parts[1]} />;
+      default:
+        return <Empty title="Choose a workspace page" action={<Button onClick={() => navigate("dashboard")}>Open overview</Button>} />;
+    }
+  }, [accessible, current, navigate]);
+  if (connection === "gate")
+    return (
+      <Suspense fallback={null}>
+        <RemoteGate onReady={connect} onLeave={useSample} />
+      </Suspense>
+    );
   const primary = [
     { id: "dashboard", label: "Dashboard", target: "dashboard" },
     ...(role.pages.some(item => ["leads", "calls", "deals", "tasks", "inbox"].includes(item))
@@ -179,29 +268,6 @@ export function App() {
     ...(role.pages.includes("skip") ? [{ id: "skip", label: "Skip Tracing", target: "skip" }] : []),
     ...(role.pages.includes("reports") ? [{ id: "reports", label: "Reports", target: "reports" }] : []),
   ];
-  function content() {
-    if (!accessible)
-      return (
-        <Empty title="This page is outside your role" action={<Button onClick={() => navigate("dashboard")}>Return to your workspace</Button>}>
-          Your role determines the records and actions you can access in this preview.
-        </Empty>
-      );
-    if (page === "dashboard") return <Dashboard />;
-    if (page === "leads") return parts[2] === "new" ? <NewLead /> : parts[2] ? <LeadDetail id={parts[2]} /> : <Leads />;
-    if (page === "calls") return <Calls target={parts[2]} />;
-    if (page === "deals") return <Deals id={parts[2]} />;
-    if (page === "handoffs") return <Handoffs />;
-    if (page === "tasks") return <Tasks create={parts[2] === "new"} />;
-    if (page === "calendar") return <Calendar />;
-    if (page === "inbox") return <Inbox />;
-    if (page === "lists") return <Lists id={parts[1]} />;
-    if (page === "skip") return <SkipTracing />;
-    if (page === "reports") return <Reports />;
-    if (page === "settings") return <Settings section={parts[1]} />;
-    if (page === "sync") return <Sync />;
-    if (page === "personal") return <PersonalPage section={parts[1]} />;
-    return <Empty title="Choose a workspace page" action={<Button onClick={() => navigate("dashboard")}>Open overview</Button>} />;
-  }
   return (
     <CrmContext.Provider value={context}>
       <div className="crm-window">
@@ -347,7 +413,9 @@ export function App() {
                 <span>You're viewing cached records. CRM edits will queue; local Skip Tracing stays available.</span>
               </div>
             )}
-            <PageTransition key={current + ":" + state.role}>{content()}</PageTransition>
+            <PageTransition key={current + ":" + state.role}>
+              <Suspense fallback={null}>{pageElement}</Suspense>
+            </PageTransition>
           </main>
         </div>
         <footer className="app-footer">

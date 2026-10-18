@@ -1,10 +1,13 @@
 import { ArrowUpRight, ArrowRight, Phone, CheckCircle, Clock, Users, Handshake, ShieldCheck, Database, HardDrives, GearSix, Plus } from "@phosphor-icons/react";
-import { CallActivityChart } from "./CallActivityChart.jsx";
+import { Suspense, lazy } from "react";
 import { PropertyMap } from "./PropertyMap.jsx";
 import { ROLES } from "./data.js";
 import { callbackLabel, capability, personalProfile, visibleLeads, visibleTasks } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { Badge, Button, Card, Empty, LeadLink, Person, RoundButton, Status, money, PageHeader, propertyFacts } from "./ui.jsx";
+
+// The chart library is the largest dependency, so the dashboard paints first and the chart follows.
+const CallActivityChart = lazy(() => import("./CallActivityChart.jsx").then(module => ({ default: module.CallActivityChart })));
 
 export function Dashboard() {
   const { state, navigate, dispatch, notify } = useCrm();
@@ -192,7 +195,9 @@ export function Dashboard() {
                   })}
                 </div>
               ) : (
-                <CallActivityChart />
+                <Suspense fallback={<div className="chart-placeholder" aria-busy="true" />}>
+                  <CallActivityChart />
+                </Suspense>
               )}
             </Card>
           )}

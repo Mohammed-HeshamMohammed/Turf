@@ -80,26 +80,19 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
     const y = rect.top - rail.top + rect.height / 2;
     const pointerY = Number.isFinite(event.clientY) ? event.clientY - rail.top : y;
     const edge = Math.max(0, Math.min(1, (y - 44) / 36, (rail.height - y - 44) / 36));
-    setBend(current => ({
-      y: Math.max(72, Math.min(rail.height - 72, y)),
-      active: true,
-      entry: current?.active ? current.entry : (current?.entry || 0) + 1,
-    }));
-    const centers = Object.fromEntries(
-      [...ref.current.querySelectorAll("[data-dock-id]")].map(item => {
-        const bounds = item.getBoundingClientRect();
-        return [item.dataset.dockId, bounds.top - rail.top + bounds.height / 2];
-      }),
+    const bendY = Math.max(72, Math.min(rail.height - 72, y));
+    // Moving within the same item changes nothing, so skip the re-render.
+    setBend(current =>
+      current?.active && current.y === bendY ? current : { y: bendY, active: true, entry: current?.active ? current.entry : (current?.entry || 0) + 1 },
     );
     setHover(current =>
-      current?.id === id && Math.abs(current.pointerY - pointerY) < 2
+      current?.id === id
         ? current
         : {
             id,
             y,
             pointerY,
             edge,
-            centers,
             tooltipY: Math.max(24, Math.min(rail.height - 24, y)),
             label: button.getAttribute("aria-label"),
           },

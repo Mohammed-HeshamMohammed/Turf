@@ -4186,14 +4186,12 @@ tbody tr:nth-child(n + 6), .kanban-card:nth-of-type(n + 6), .queue-lead:nth-chil
   from {
     opacity: 0;
     transform: translateY(0.55em);
-    filter: blur(4px);
   }
 }
 @keyframes text-out {
   to {
     opacity: 0;
     transform: translateY(-0.3em);
-    filter: blur(3px);
   }
 }
 /* Page titles: eyebrow, title, then the description. */
@@ -4256,4 +4254,26 @@ tbody tr:nth-child(n + 6), .kanban-card:nth-of-type(n + 6), .queue-lead:nth-chil
 .page-content.waiting,
 .page-content.waiting * {
   animation-play-state: paused !important;
+}
+.chart-placeholder {
+  height: 260px;
+  border-radius: 18px;
+  background: linear-gradient(100deg, var(--well) 30%, #efefef 50%, var(--well) 70%) 0 0 / 200% 100%;
+  animation: placeholder-shimmer 1.4s linear infinite;
+}
+@keyframes placeholder-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+/* Blur is costly to paint, so only the page title gets it. */
+@keyframes title-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.55em);
+    filter: blur(4px);
+  }
+}
+.page-heading h1 {
+  animation-name: title-in;
 }
