@@ -22,6 +22,14 @@
 }
 * {
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #c4bcb0 transparent;
+}
+*:hover {
+  scrollbar-color: #a99f90 transparent;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 body {
   margin: 0;
