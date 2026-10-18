@@ -1804,8 +1804,8 @@ textarea {
 }
 .call-layout {
   display: grid;
-  grid-template-columns: 198px minmax(0, 1fr) 240px;
-  gap: 17px;
+  grid-template-columns: 164px minmax(0, 1fr) 196px;
+  gap: 14px;
   align-items: start;
 }
 .queue-card {
@@ -3160,7 +3160,7 @@ textarea {
     display: none;
   }
   .call-layout {
-    grid-template-columns: 200px minmax(0, 1fr);
+    grid-template-columns: 164px minmax(0, 1fr);
   }
   .call-layout > aside {
     grid-column: 1/-1;
