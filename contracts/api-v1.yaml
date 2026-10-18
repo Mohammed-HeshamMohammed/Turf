@@ -124,3 +124,11 @@ paths:
   /internal/scheduler/tick: { post: { summary: "Worker: overdue tasks/handoffs and scheduled reports" } }
   /internal/legacy/import: { post: { summary: "Worker: import a desktop project idempotently (dry_run supported)" } }
   /internal/whoami: { post: { summary: "Worker: token check" } }
+  /internal/reports/run: { post: { summary: "Worker: a saved report's rows, in its owner's scope" } }
+  /internal/datasets: { post: { summary: "Worker: register an imported list" } }
+  /internal/datasets/{id}/rows: { post: { summary: "Worker: add immutable source rows (up to 2000)" } }
+  /internal/datasets/{id}/rows/read: { post: { summary: "Worker: read source rows after a row number" } }
+  /internal/datasets/{id}/leads: { post: { summary: "Worker: one lead per row, idempotent" } }
+  /internal/datasets/{id}/verdicts: { post: { summary: "Worker: Skip Tracing verdicts; do-not-call only added" } }
+  /internal/jobs/{id}/artifact: { post: { summary: "Worker: stream a job's output file; its owner is notified" } }
+  /internal/artifacts/read: { post: { summary: "Worker: read a stored file (an import's upload)" } }

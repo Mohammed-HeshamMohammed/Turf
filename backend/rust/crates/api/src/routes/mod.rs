@@ -5,6 +5,7 @@ pub mod internal;
 pub mod records;
 pub mod reports;
 pub mod sync;
+pub mod worker_data;
 
 use crate::state::AppState;
 use axum::{
@@ -24,7 +25,7 @@ pub fn router() -> Router<AppState> {
         .route("/sync/pull", get(sync::pull))
         .route("/sync/snapshot", get(sync::snapshot))
         .route("/events", get(crate::events::socket))
-        .nest("/internal", internal::routes())
+        .nest("/internal", internal::routes().merge(worker_data::routes()))
 }
 
 async fn ready(State(state): State<AppState>) -> (axum::http::StatusCode, Json<Value>) {

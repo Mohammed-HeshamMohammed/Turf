@@ -31,6 +31,7 @@ fn router_paths() -> BTreeSet<String> {
         ("reports.rs", "/api/v1"),
         ("artifacts.rs", "/api/v1"),
         ("internal.rs", "/internal"),
+        ("worker_data.rs", "/internal"),
     ] {
         let text = std::fs::read_to_string(format!("{src}/{file}")).unwrap();
         for piece in text.split(".route(\"").skip(1) {
