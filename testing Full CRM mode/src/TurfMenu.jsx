@@ -3,7 +3,7 @@ import { ArrowClockwise, CloudArrowUp, FileCsv, GearSix, Plugs, SidebarSimple, S
 import { ROLES } from "./data.js";
 import { personalProfile } from "./model.js";
 import { useCrm } from "./context.jsx";
-import { Badge } from "./ui.jsx";
+import { Badge, Select } from "./ui.jsx";
 
 export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen }) {
   const { state, dispatch, navigate, notify, connect, signOut } = useCrm();
@@ -124,7 +124,7 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen }) {
           <>
           <div className="role-switcher">
             <label htmlFor="preview-role">Explore as</label>
-            <select
+            <Select
               id="preview-role"
               aria-label="Explore as role"
               value={state.role}
@@ -143,7 +143,7 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen }) {
                   {item.name}
                 </option>
               ))}
-            </select>
+            </Select>
             <small>{role.scope} · UI preview</small>
           </div>
           <div className="turf-menu-actions">

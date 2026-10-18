@@ -15,7 +15,7 @@ import {
 import { ROLES } from "./data.js";
 import { capability, visibleLeads, visibleTasks } from "./model.js";
 import { useCrm } from "./context.jsx";
-import { Badge, Button, Card, Empty, Field, Modal, PageHeader, Person, Segmented, Status, downloadCsv, money } from "./ui.jsx";
+import { Badge, Select, Button, Card, Empty, Field, Modal, PageHeader, Person, Segmented, Status, downloadCsv, money } from "./ui.jsx";
 
 export function Reports() {
   const { state, dispatch, notify } = useCrm();
@@ -189,10 +189,10 @@ export function Reports() {
               <input type="email" name="email" placeholder="team@example.com" required />
             </Field>
             <Field label="Frequency">
-              <select name="frequency">
+              <Select name="frequency">
                 <option>Weekly on Monday</option>
                 <option>Monthly on the first</option>
-              </select>
+              </Select>
             </Field>
             <p className="muted">This prototype saves the schedule locally. No email is sent.</p>
             <button className="button primary" type="submit">
@@ -400,12 +400,12 @@ export function Settings({ section = "workspace" }) {
                 <input name="workspace" defaultValue={state.settings.workspace} required />
               </Field>
               <Field label="Display timezone">
-                <select name="timezone" defaultValue={state.settings.timezone}>
+                <Select name="timezone" defaultValue={state.settings.timezone}>
                   <option>America/New_York</option>
                   <option>America/Chicago</option>
                   <option>America/Los_Angeles</option>
                   <option>Africa/Cairo</option>
-                </select>
+                </Select>
               </Field>
               <Field label="Daily outreach goal">
                 <input name="goal" type="number" min="1" max="500" defaultValue={state.settings.dailyGoal} />
@@ -463,13 +463,13 @@ export function Settings({ section = "workspace" }) {
             subtitle="Presets demonstrate record scope and actions. Server enforcement belongs to the backend plan."
           >
             <Field label="Role preset">
-              <select aria-label="Permission role preset" value={permissionRole} onChange={event => setPermissionRole(event.target.value)}>
+              <Select aria-label="Permission role preset" value={permissionRole} onChange={event => setPermissionRole(event.target.value)}>
                 {Object.entries(ROLES).map(([id, role]) => (
                   <option value={id} key={id}>
                     {role.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <div className="permission-scope">
               <ShieldCheck size={22} />
@@ -583,11 +583,11 @@ export function Settings({ section = "workspace" }) {
               <input placeholder={"Team " + integration.toLowerCase() + " account"} required />
             </Field>
             <Field label="Provider">
-              <select>
+              <Select>
                 {(integration === "Email" ? ["SMTP / IMAP", "Google Workspace", "Microsoft 365"] : ["Twilio", "Custom provider adapter"]).map(provider => (
                   <option key={provider}>{provider}</option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <div className="row">
               <button className="button primary" type="submit">

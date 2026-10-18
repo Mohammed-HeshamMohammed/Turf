@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { PropertyMap } from "./PropertyMap.jsx";
 import { coordinates } from "./skiptrace-fields.js";
 import { ArrowUpRight, ArrowLeft, Plus, Phone, Envelope, Handshake, Clock, FileText, CheckCircle, Export, HouseLine } from "@phosphor-icons/react";
@@ -8,6 +8,7 @@ import { CallHistory } from "./Work.jsx";
 import { useCrm } from "./context.jsx";
 import {
   Badge,
+  Select,
   Button,
   Card,
   Checkbox,
@@ -35,6 +36,8 @@ export function Leads() {
   const [bulkStage, setBulkStage] = useState("Contacted");
   const [assignee, setAssignee] = useState("All people");
   const [hideEmpty, setHideEmpty] = useState(false);
+  const [drag, setDrag] = useState(null);
+  const justDragged = useRef(false);
   const client = state.role === "client";
   const leads = visibleLeads(state).filter(
     lead =>
@@ -49,6 +52,37 @@ export function Leads() {
     assignee: !hideEmpty || leads.some(assigned),
     next: !hideEmpty || client || leads.some(lead => lead.callback),
   };
+  // Pointer-based drag so cards move the same way in browsers and the desktop webview, which swallows native drag and drop.
+  function startDrag(event, lead) {
+    if (event.button !== 0 || event.target.closest(".select") || !canEditLead(state, lead.id)) return;
+    const card = event.currentTarget.getBoundingClientRect();
+    const start = { x: event.clientX, y: event.clientY };
+    const offset = { x: event.clientX - card.left, y: event.clientY - card.top };
+    let active = false;
+    let over = null;
+    const move = e => {
+      if (!active && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 6) return;
+      active = true;
+      over = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-stage]")?.dataset.stage ?? null;
+      setDrag({ id: lead.id, label: lead.name, address: lead.address, width: card.width, x: e.clientX - offset.x, y: e.clientY - offset.y, over });
+    };
+    const finish = e => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+      setDrag(null);
+      if (!active) return;
+      justDragged.current = true;
+      setTimeout(() => (justDragged.current = false), 0);
+      if (e.type !== "pointercancel" && over && over !== lead.stage) {
+        dispatch({ type: "UPDATE_LEAD", id: lead.id, change: { stage: over } });
+        notify("Lead moved to " + over);
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+  }
   function exportRows() {
     downloadCsv("turf-visible-leads.csv", [
       ["Owner", "Property", "City", "Stage", "Assigned to"],
@@ -80,18 +114,18 @@ export function Leads() {
         <Search value={search} onChange={setSearch} placeholder={client ? "Search shared properties" : "Search owner, property, or phone"} />
         {!client && (
           <>
-            <select aria-label="Filter by lead stage" value={stage} onChange={event => setStage(event.target.value)}>
+            <Select aria-label="Filter by lead stage" value={stage} onChange={event => setStage(event.target.value)}>
               <option>All stages</option>
               {LEAD_STAGES.map(item => (
                 <option key={item}>{item}</option>
               ))}
-            </select>
-            <select aria-label="Filter by assigned person" value={assignee} onChange={event => setAssignee(event.target.value)}>
+            </Select>
+            <Select aria-label="Filter by assigned person" value={assignee} onChange={event => setAssignee(event.target.value)}>
               <option>All people</option>
               {[...PEOPLE, "Unassigned"].map(item => (
                 <option key={item}>{item}</option>
               ))}
-            </select>
+            </Select>
           </>
         )}
         <Segmented label="Lead view" value={view} options={client ? ["List", "Map"] : ["List", "Board", "Map"]} onChange={setView} />
@@ -103,11 +137,11 @@ export function Leads() {
       {selected.length > 0 && (
         <div className="bulk-bar">
           <strong>{selected.length} selected</strong>
-          <select aria-label="Bulk lead stage" value={bulkStage} onChange={event => setBulkStage(event.target.value)}>
+          <Select aria-label="Bulk lead stage" value={bulkStage} onChange={event => setBulkStage(event.target.value)}>
             {LEAD_STAGES.map(item => (
               <option key={item}>{item}</option>
             ))}
-          </select>
+          </Select>
           <Button
             onClick={() => {
               selected.forEach(id => dispatch({ type: "UPDATE_LEAD", id, change: { stage: bulkStage } }));
@@ -127,18 +161,7 @@ export function Leads() {
       ) : view === "Board" && !client ? (
         <div className="kanban lead-board">
           {LEAD_STAGES.map(column => (
-            <section
-              className="kanban-column"
-              key={column}
-              onDragOver={event => event.preventDefault()}
-              onDrop={event => {
-                const id = event.dataTransfer.getData("text/plain");
-                if (canEditLead(state, id)) {
-                  dispatch({ type: "UPDATE_LEAD", id, change: { stage: column } });
-                  notify("Lead moved to " + column);
-                }
-              }}
-            >
+            <section className={"kanban-column" + (drag?.over === column ? " drop-target" : "")} data-stage={column} key={column}>
               <header>
                 <span>{column}</span>
                 <Badge>{leads.filter(lead => lead.stage === column).length}</Badge>
@@ -147,12 +170,15 @@ export function Leads() {
                 .filter(lead => lead.stage === column)
                 .map(lead => (
                   <article
-                    className="kanban-card"
+                    className={"kanban-card" + (drag?.id === lead.id ? " dragging" : "") + (canEditLead(state, lead.id) ? "" : " locked")}
                     key={lead.id}
-                    draggable={canEditLead(state, lead.id)}
-                    onDragStart={event => event.dataTransfer.setData("text/plain", lead.id)}
+                    onPointerDown={event => startDrag(event, lead)}
                   >
-                    <button onClick={() => navigate("work/leads/" + lead.id)}>
+                    <button
+                      onClick={() => {
+                        if (!justDragged.current) navigate("work/leads/" + lead.id);
+                      }}
+                    >
                       <strong>{lead.name}</strong>
                       <span>{lead.address}</span>
                       <small>
@@ -162,7 +188,7 @@ export function Leads() {
                     {!(hideEmpty && !lead.verdict) && <Status value={lead.verdict} />}
                     {!(hideEmpty && !assigned(lead)) && <Person name={lead.assignee} />}
                     {canEditLead(state, lead.id) && (
-                      <select
+                      <Select
                         aria-label={"Move " + lead.name + " to stage"}
                         value={lead.stage}
                         onChange={event => dispatch({ type: "UPDATE_LEAD", id: lead.id, change: { stage: event.target.value } })}
@@ -170,13 +196,19 @@ export function Leads() {
                         {LEAD_STAGES.map(item => (
                           <option key={item}>{item}</option>
                         ))}
-                      </select>
+                      </Select>
                     )}
                   </article>
                 ))}
               {!leads.some(lead => lead.stage === column) && <p className="column-empty">No leads here</p>}
             </section>
           ))}
+          {drag && (
+            <div className="kanban-ghost" style={{ width: drag.width, transform: `translate(${drag.x}px, ${drag.y}px)` }}>
+              <strong>{drag.label}</strong>
+              <span>{drag.address}</span>
+            </div>
+          )}
         </div>
       ) : (
         <div className="card table-card">
@@ -443,10 +475,10 @@ export function LeadDetail({ id }) {
                     />
                     <div className="row">
                       {!client && (
-                        <select aria-label="Note visibility" value={visibility} onChange={event => setVisibility(event.target.value)}>
+                        <Select aria-label="Note visibility" value={visibility} onChange={event => setVisibility(event.target.value)}>
                           <option value="internal">Internal note</option>
                           {lead.shared && <option value="shared">Shared with partner</option>}
-                        </select>
+                        </Select>
                       )}
                       <Button variant="primary" disabled={!note.trim()} onClick={event => event.currentTarget.closest("form").requestSubmit()}>
                         Save note
@@ -541,7 +573,7 @@ export function LeadDetail({ id }) {
             {!client && (
               <>
                 <Field label="Lead stage">
-                  <select
+                  <Select
                     aria-label="Lead stage"
                     disabled={!editable}
                     value={lead.stage}
@@ -553,7 +585,7 @@ export function LeadDetail({ id }) {
                     {LEAD_STAGES.map(item => (
                       <option key={item}>{item}</option>
                     ))}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="Callback date">
                   <input
@@ -588,7 +620,7 @@ export function LeadDetail({ id }) {
                 </Field>
                 {capability(state, "assign") && (
                   <Field label="Responsible person" help={!state.online ? "Assignment needs an online connection." : "Changes follow the lead across lists."}>
-                    <select
+                    <Select
                       aria-label="Responsible person"
                       disabled={!state.online}
                       value={lead.assignee}
@@ -600,7 +632,7 @@ export function LeadDetail({ id }) {
                       {[...PEOPLE, "Unassigned"].map(name => (
                         <option key={name}>{name}</option>
                       ))}
-                    </select>
+                    </Select>
                   </Field>
                 )}
               </>
@@ -661,11 +693,11 @@ export function LeadDetail({ id }) {
             }}
           >
             <Field label="Send to">
-              <select aria-label="Handoff recipient" value={recipient} onChange={event => setRecipient(event.target.value)}>
+              <Select aria-label="Handoff recipient" value={recipient} onChange={event => setRecipient(event.target.value)}>
                 {PEOPLE.filter(name => name !== ROLES[state.role].person).map(name => (
                   <option key={name}>{name}</option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <Field label="Qualification & seller context">
               <textarea aria-label="Handoff context" required value={handoffNote} onChange={event => setHandoffNote(event.target.value)} />
@@ -795,11 +827,11 @@ export function NewLead() {
             <input name="email" type="email" placeholder="owner@example.com" />
           </Field>
           <Field label="Responsible person">
-            <select name="assignee" defaultValue={ROLES[state.role].person}>
+            <Select name="assignee" defaultValue={ROLES[state.role].person}>
               {(capability(state, "assign") ? [...PEOPLE, "Unassigned"] : [ROLES[state.role].person]).map(name => (
                 <option key={name}>{name}</option>
               ))}
-            </select>
+            </Select>
           </Field>
           <Field label="Callback time">
             <input name="callback" type="time" />

@@ -7,7 +7,7 @@ import { useCrm } from "./context.jsx";
 import { mappedRecord, sourceEvidence, sourceValue } from "./skiptrace-fields.js";
 import { SourceFieldMapping } from "./SourceFieldMapping.jsx";
 import { PropertyMap } from "./PropertyMap.jsx";
-import { Badge, Button, Card, Checkbox, Empty, Field, LeadLink, PageHeader, Search, Segmented, Status, downloadCsv, Breadcrumb } from "./ui.jsx";
+import { Badge, Select, Button, Card, Checkbox, Empty, Field, LeadLink, PageHeader, Search, Segmented, Status, downloadCsv, Breadcrumb } from "./ui.jsx";
 
 export function Lists({ id }) {
   const { state, dispatch, navigate, notify } = useCrm();
@@ -398,13 +398,13 @@ export function SkipTracing() {
           {step === 0 && (
             <>
               <Field label="Source list">
-                <select aria-label="Skip Tracing source list" value={datasetId} onChange={event => changeSource(event.target.value)}>
+                <Select aria-label="Skip Tracing source list" value={datasetId} onChange={event => changeSource(event.target.value)}>
                   {datasets.map(item => (
                     <option key={item.id} value={item.id}>
                       {item.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
               <div className="skip-evidence-banner" role="status">
                 <ShieldCheck size={26} weight="light" />
@@ -440,11 +440,11 @@ export function SkipTracing() {
               </Button>
               {hasPhones && (
                 <Field label="Default phone region">
-                  <select defaultValue="US">
+                  <Select defaultValue="US">
                     <option value="US">United States (+1)</option>
                     <option value="CA">Canada (+1)</option>
                     <option value="GB">United Kingdom (+44)</option>
-                  </select>
+                  </Select>
                 </Field>
               )}
               <div className="skip-source-preview">
@@ -483,7 +483,7 @@ export function SkipTracing() {
           {step === 1 && (
             <>
               <Field label="Imported call-status field">
-                <select
+                <Select
                   value={mappings.outcome ?? sourceEvidence(columns, rows).mappedFields.find(field => field.id === "outcome").column}
                   onChange={event => setFieldOverrides({ ...fieldOverrides, outcome: event.target.value })}
                 >
@@ -493,7 +493,7 @@ export function SkipTracing() {
                       {column}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
               <div className="mapping-preview">
                 <div>

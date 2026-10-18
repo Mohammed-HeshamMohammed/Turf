@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MapPin, ArrowsOut, ArrowUpRight } from "@phosphor-icons/react";
 import { useCrm } from "./context.jsx";
 import { recordLocation, mapSearchUrl } from "./locations.js";
-import { Badge, Button } from "./ui.jsx";
+import { Badge, Select, Button } from "./ui.jsx";
 import "leaflet/dist/leaflet.css";
 
 export function PropertyMap({ rows, title = "Property map", mappings, compact = false }) {
@@ -138,11 +138,11 @@ export function PropertyMap({ rows, title = "Property map", mappings, compact = 
       <div className="property-map-toolbar">
         <label>
           Show{" "}
-          <select aria-label={title + " location filter"} value={filter} onChange={event => setFilter(event.target.value)}>
+          <Select aria-label={title + " location filter"} value={filter} onChange={event => setFilter(event.target.value)}>
             {["All locations", "Coordinates", "City areas", "Needs location"].map(option => (
               <option key={option}>{option}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <small>Solid dots: supplied coordinates. Dashed areas: approximate cities.</small>
       </div>

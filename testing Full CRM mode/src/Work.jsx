@@ -20,7 +20,7 @@ import {
 import { CALL_OUTCOMES, DEAL_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
 import { callbackLabel, capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { useCrm } from "./context.jsx";
-import { Badge, Button, Card, Empty, Field, LeadLink, Modal, PageHeader, Person, RoundButton, Search, Segmented, Status, money, Breadcrumb } from "./ui.jsx";
+import { Badge, Select, Button, Card, Empty, Field, LeadLink, Modal, PageHeader, Person, RoundButton, Search, Segmented, Status, money, Breadcrumb } from "./ui.jsx";
 
 export function Calls({ target }) {
   const { state, dispatch, navigate, notify } = useCrm();
@@ -175,11 +175,11 @@ export function Calls({ target }) {
         <aside>
           <Card title="A little help with the words">
             <Field label="Call script">
-              <select value={script} onChange={event => setScript(event.target.value)}>
+              <Select value={script} onChange={event => setScript(event.target.value)}>
                 <option>First conversation</option>
                 <option>Callback</option>
                 <option>Offer follow-up</option>
-              </select>
+              </Select>
             </Field>
             <div className="script">
               {script === "First conversation"
@@ -364,7 +364,7 @@ export function Deals({ id }) {
             <div className="deal-amount">{money(deal.amount)}</div>
             <div className="form-grid">
               <Field label="Deal stage">
-                <select
+                <Select
                   value={deal.stage}
                   onChange={event => {
                     dispatch({ type: "DEAL", id, change: { stage: event.target.value } });
@@ -374,7 +374,7 @@ export function Deals({ id }) {
                   {DEAL_STAGES.map(stage => (
                     <option key={stage}>{stage}</option>
                   ))}
-                </select>
+                </Select>
               </Field>
               <Field label="Target close date">
                 <input type="date" value={deal.closeDate} onChange={event => dispatch({ type: "DEAL", id, change: { closeDate: event.target.value } })} />
@@ -474,7 +474,7 @@ export function Deals({ id }) {
                         <CalendarBlank size={13} /> {deal.closeDate}
                       </small>
                       <Person name={lead.assignee} />
-                      <select
+                      <Select
                         aria-label={"Move deal for " + lead.name}
                         value={deal.stage}
                         onChange={event => dispatch({ type: "DEAL", id: deal.id, change: { stage: event.target.value } })}
@@ -482,7 +482,7 @@ export function Deals({ id }) {
                         {DEAL_STAGES.map(item => (
                           <option key={item}>{item}</option>
                         ))}
-                      </select>
+                      </Select>
                     </article>
                   );
                 })}
@@ -583,27 +583,27 @@ export function Tasks({ create = false }) {
               <input name="title" required placeholder="What needs to happen?" />
             </Field>
             <Field label="Related lead">
-              <select name="lead" defaultValue={new URLSearchParams(route.split("?")[1]).get("lead") || leads[0]?.id}>
+              <Select name="lead" defaultValue={new URLSearchParams(route.split("?")[1]).get("lead") || leads[0]?.id}>
                 {leads.map(lead => (
                   <option key={lead.id} value={lead.id}>
                     {lead.name} · {lead.address}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <Field label="Responsible person">
-              <select name="assignee" defaultValue={ROLES[state.role].person}>
+              <Select name="assignee" defaultValue={ROLES[state.role].person}>
                 {[...new Set([ROLES[state.role].person, ...PEOPLE])].map(name => (
                   <option key={name}>{name}</option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <Field label="Task type">
-              <select name="type">
+              <Select name="type">
                 {["Callback", "Appointment", "Offer", "Data review", "Document"].map(type => (
                   <option key={type}>{type}</option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <Field label="Due date">
               <input name="date" type="date" defaultValue={TODAY} required />
@@ -612,10 +612,10 @@ export function Tasks({ create = false }) {
               <input name="time" type="time" defaultValue="10:30" />
             </Field>
             <Field label="Priority">
-              <select name="priority">
+              <Select name="priority">
                 <option>Normal</option>
                 <option>High</option>
-              </select>
+              </Select>
             </Field>
           </div>
           <div className="form-actions">
@@ -647,14 +647,14 @@ export function Tasks({ create = false }) {
       </PageHeader>
       <div className="filter-bar">
         <Search value={search} onChange={setSearch} placeholder="Search tasks" />
-        <select
+        <Select
           aria-label="Task scope"
           value={mine ? "mine" : "all"}
           onChange={event => navigate(event.target.value === "mine" ? "work/tasks?mine=1" : "work/tasks")}
         >
           <option value="all">All visible tasks</option>
           <option value="mine">My tasks</option>
-        </select>
+        </Select>
         <Segmented label="Task status" value={filter} onChange={setFilter} options={["Open", "Completed", "All"]} />
         <span className="result-count">{tasks.length} tasks</span>
       </div>
@@ -959,16 +959,16 @@ export function Inbox() {
             }}
           >
             <Field label="Related lead">
-              <select value={newLeadId} onChange={event => setNewLeadId(event.target.value)}>
+              <Select value={newLeadId} onChange={event => setNewLeadId(event.target.value)}>
                 {leads.map(lead => (
                   <option key={lead.id} value={lead.id}>
                     {lead.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <Field label="Channel">
-              <select value={newChannel} onChange={event => setNewChannel(event.target.value)}>
+              <Select value={newChannel} onChange={event => setNewChannel(event.target.value)}>
                 {state.role !== "client" && (
                   <>
                     <option>SMS</option>
@@ -977,7 +977,7 @@ export function Inbox() {
                   </>
                 )}
                 <option>Partner</option>
-              </select>
+              </Select>
             </Field>
             <button type="submit" className="button primary" disabled={!newLeadId}>
               Open conversation

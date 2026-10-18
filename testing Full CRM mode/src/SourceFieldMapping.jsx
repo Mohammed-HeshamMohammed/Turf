@@ -1,5 +1,5 @@
 import { SOURCE_FIELDS, sourceEvidence } from "./skiptrace-fields.js";
-import { Field } from "./ui.jsx";
+import { Field, Select } from "./ui.jsx";
 
 export function SourceFieldMapping({ columns, rows, mappings, onChange, hideEmpty = false }) {
   const { mappedFields } = sourceEvidence(columns, rows, mappings);
@@ -10,14 +10,14 @@ export function SourceFieldMapping({ columns, rows, mappings, onChange, hideEmpt
         label={field.label + " column"}
         help={field.column ? `${field.count} of ${rows.length} rows supplied` : "Not mapped · original column retained"}
       >
-        <select aria-label={field.label + " column"} value={field.column} onChange={event => onChange({ ...mappings, [field.id]: event.target.value })}>
+        <Select aria-label={field.label + " column"} value={field.column} onChange={event => onChange({ ...mappings, [field.id]: event.target.value })}>
           <option value="">Not mapped</option>
           {columns.map(column => (
             <option key={column} value={column}>
               {column}
             </option>
           ))}
-        </select>
+        </Select>
       </Field>
     );
   }
