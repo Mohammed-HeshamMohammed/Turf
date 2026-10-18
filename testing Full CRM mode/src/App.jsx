@@ -8,7 +8,7 @@ import { SyncEngine } from "./remote/engine.js";
 import { LOCAL_ONLY, remoteReducer, syncAction } from "./remote/session.js";
 import { applyIdentity, labelFor, operationFor } from "./remote/translate.js";
 import { CrmContext } from "./context.jsx";
-import { Badge, Button, CountBadge, Empty, Modal, Search } from "./ui.jsx";
+import { Badge, Button, CountBadge, Empty, Modal, PageTransition, Search, useHeld, usePresence } from "./ui.jsx";
 import { Dashboard } from "./Dashboard.jsx";
 import { LeadDetail, Leads, NewLead } from "./Leads.jsx";
 import { Calendar, Calls, Deals, Handoffs, Inbox, Tasks } from "./Work.jsx";
@@ -58,13 +58,18 @@ export function App() {
   const noticeCount = taskNotices.length + replyNotices.length;
   const counts = navCounts(state, role);
   const workCount = (counts.tasks || 0) + (counts.handoffs || 0) + (counts.inbox || 0);
-  const searchResults = query.trim()
+  const shownQuery = useHeld(query.trim());
+  const searchPanel = usePresence(Boolean(query));
+  const notePanel = usePresence(notifications);
+  const toastPanel = usePresence(Boolean(toast));
+  const shownToast = useHeld(toast);
+  const searchResults = shownQuery
     ? leads
         .filter(lead =>
           [lead.name, lead.address, lead.city, ...(state.role === "client" ? [] : [lead.phone, lead.email])]
             .join(" ")
             .toLowerCase()
-            .includes(query.toLowerCase()),
+            .includes(shownQuery.toLowerCase()),
         )
         .slice(0, 6)
     : [];
@@ -99,20 +104,17 @@ export function App() {
     },
     [notify],
   );
-  const connect = useCallback(
-    async ({ me, vault }) => {
-      const role = applyIdentity(me);
-      const quiet = promise => promise.catch(() => []);
-      const [directory, teams, projects] = await Promise.all([quiet(api.directory()), quiet(api.teams()), quiet(api.projects())]);
-      const organization = me.organizations.find(item => item.id === me.organization_id)?.name || "";
-      apply({ type: "REMOTE_START", role, remote: { user: me.user, capabilities: me.capabilities, organization, roles: me.roles } });
-      const sync = new SyncEngine({ vault, onChange: snapshot => apply(syncAction(snapshot, me.user.name)) });
-      engine.current = sync;
-      setConnection("remote");
-      await sync.start({ directory, teams, projects });
-    },
-    [],
-  );
+  const connect = useCallback(async ({ me, vault }) => {
+    const role = applyIdentity(me);
+    const quiet = promise => promise.catch(() => []);
+    const [directory, teams, projects] = await Promise.all([quiet(api.directory()), quiet(api.teams()), quiet(api.projects())]);
+    const organization = me.organizations.find(item => item.id === me.organization_id)?.name || "";
+    apply({ type: "REMOTE_START", role, remote: { user: me.user, capabilities: me.capabilities, organization, roles: me.roles } });
+    const sync = new SyncEngine({ vault, onChange: snapshot => apply(syncAction(snapshot, me.user.name)) });
+    engine.current = sync;
+    setConnection("remote");
+    await sync.start({ directory, teams, projects });
+  }, []);
   const signOut = useCallback(async () => {
     engine.current?.stop();
     engine.current = null;
@@ -229,8 +231,8 @@ export function App() {
           <div className="header-tools">
             <div className="global-search">
               <Search value={query} onChange={setQuery} placeholder="Find a person or property" label="Search workspace" />
-              {query && (
-                <div className="search-results">
+              {searchPanel.mounted && (
+                <div className={"search-results" + (searchPanel.leaving ? " leaving" : "")}>
                   <small>{role.scope}</small>
                   {searchResults.map(lead => (
                     <button key={lead.id} onClick={() => navigate("work/leads/" + lead.id)}>
@@ -250,8 +252,8 @@ export function App() {
                 <Bell size={21} />
                 <CountBadge count={noticeCount} className="on-bell" />
               </button>
-              {notifications && (
-                <div className="notification-panel">
+              {notePanel.mounted && (
+                <div className={"notification-panel" + (notePanel.leaving ? " leaving" : "")}>
                   <header>
                     <strong>Your notifications</strong>
                     <button aria-label="Close notifications" onClick={() => setNotifications(false)}>
@@ -311,7 +313,13 @@ export function App() {
               {state.remote ? (
                 <div>
                   <Badge tone={state.remoteStatus === "error" ? "danger" : "good"}>
-                    {state.remoteStatus === "syncing" ? "Syncing" : state.remoteStatus === "offline" ? "Server unreachable" : state.remoteStatus === "error" ? "Sync problem" : "Live server"}
+                    {state.remoteStatus === "syncing"
+                      ? "Syncing"
+                      : state.remoteStatus === "offline"
+                        ? "Server unreachable"
+                        : state.remoteStatus === "error"
+                          ? "Sync problem"
+                          : "Live server"}
                   </Badge>
                 </div>
               ) : (
@@ -339,9 +347,7 @@ export function App() {
                 <span>You're viewing cached records. CRM edits will queue; local Skip Tracing stays available.</span>
               </div>
             )}
-            <div key={current + ":" + state.role} className="page-content">
-              {content()}
-            </div>
+            <PageTransition key={current + ":" + state.role}>{content()}</PageTransition>
           </main>
         </div>
         <footer className="app-footer">
@@ -360,10 +366,10 @@ export function App() {
           </span>
           <span>{state.remote ? "Connected workspace · outreach stays as drafts" : "Sample workspace · no live outreach"}</span>
         </footer>
-        {toast && (
-          <div className="toast" role="status">
+        {toastPanel.mounted && (
+          <div className={"toast" + (toastPanel.leaving ? " leaving" : "")} role="status">
             <CheckCircle size={20} />
-            <span>{toast}</span>
+            <span>{shownToast}</span>
             <button aria-label="Dismiss notification" onClick={() => setToast("")}>
               <X size={16} />
             </button>

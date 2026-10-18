@@ -3,11 +3,12 @@ import { ArrowClockwise, CloudArrowUp, FileCsv, GearSix, Plugs, SidebarSimple, S
 import { ROLES } from "./data.js";
 import { personalProfile } from "./model.js";
 import { useCrm } from "./context.jsx";
-import { Badge, Select } from "./ui.jsx";
+import { Badge, Select, usePresence } from "./ui.jsx";
 
 export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen }) {
   const { state, dispatch, navigate, notify, connect, signOut } = useCrm();
   const [open, setOpen] = useState(false);
+  const panel = usePresence(open);
   const root = useRef(null);
   const trigger = useRef(null);
   useEffect(() => {
@@ -58,8 +59,8 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen }) {
       >
         <img src="/favicon.svg" alt="" />
       </button>
-      {open && (
-        <div id="turf-menu-panel" className="turf-menu-panel" role="dialog" aria-label="Turf workspace menu">
+      {panel.mounted && (
+        <div id="turf-menu-panel" className={"turf-menu-panel" + (panel.leaving ? " leaving" : "")} role="dialog" aria-label="Turf workspace menu">
           <div className="turf-menu-workspace">
             <small>Current workspace</small>
             <strong>{state.settings.workspace}</strong>
@@ -121,42 +122,42 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen }) {
               </button>
             </div>
           ) : (
-          <>
-          <div className="role-switcher">
-            <label htmlFor="preview-role">Explore as</label>
-            <Select
-              id="preview-role"
-              aria-label="Explore as role"
-              value={state.role}
-              onChange={event => {
-                const selected = event.target.value;
-                run(() => {
-                  dispatch({ type: "ROLE", role: selected });
-                  navigate("dashboard");
-                  notify("Now viewing as " + ROLES[selected].name);
-                });
-                trigger.current?.focus();
-              }}
-            >
-              {Object.entries(ROLES).map(([id, item]) => (
-                <option key={id} value={id}>
-                  {item.name}
-                </option>
-              ))}
-            </Select>
-            <small>{role.scope} · UI preview</small>
-          </div>
-          <div className="turf-menu-actions">
-            <button onClick={() => run(onReset)}>
-              <ArrowClockwise size={19} />
-              <span>Reset sample workspace</span>
-            </button>
-            <button onClick={() => run(connect)}>
-              <Plugs size={19} />
-              <span>Connect to a Turf server</span>
-            </button>
-          </div>
-          </>
+            <>
+              <div className="role-switcher">
+                <label htmlFor="preview-role">Explore as</label>
+                <Select
+                  id="preview-role"
+                  aria-label="Explore as role"
+                  value={state.role}
+                  onChange={event => {
+                    const selected = event.target.value;
+                    run(() => {
+                      dispatch({ type: "ROLE", role: selected });
+                      navigate("dashboard");
+                      notify("Now viewing as " + ROLES[selected].name);
+                    });
+                    trigger.current?.focus();
+                  }}
+                >
+                  {Object.entries(ROLES).map(([id, item]) => (
+                    <option key={id} value={id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </Select>
+                <small>{role.scope} · UI preview</small>
+              </div>
+              <div className="turf-menu-actions">
+                <button onClick={() => run(onReset)}>
+                  <ArrowClockwise size={19} />
+                  <span>Reset sample workspace</span>
+                </button>
+                <button onClick={() => run(connect)}>
+                  <Plugs size={19} />
+                  <span>Connect to a Turf server</span>
+                </button>
+              </div>
+            </>
           )}
         </div>
       )}

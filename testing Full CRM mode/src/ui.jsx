@@ -179,8 +179,72 @@ export function Breadcrumb({ items }) {
     </nav>
   );
 }
+const reducedMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+export const EXIT_MS = 190;
+
+/**
+ * Keeps something mounted for a moment after it is hidden so it can animate out.
+ * `mounted` says whether to render it; `leaving` says to play the exit animation.
+ */
+export function usePresence(show, ms = EXIT_MS) {
+  const [mounted, setMounted] = useState(show);
+  useEffect(() => {
+    if (show) return setMounted(true);
+    const timer = setTimeout(() => setMounted(false), reducedMotion() ? 0 : ms);
+    return () => clearTimeout(timer);
+  }, [show, ms]);
+  return { mounted: show || mounted, leaving: !show && mounted };
+}
+/** The last truthy value, so content can keep showing what it was while it animates out. */
+export function useHeld(value) {
+  const held = useRef(value);
+  if (value) held.current = value;
+  return value || held.current;
+}
+/**
+ * A removed element is gone from the page at once, so to let it animate out we leave a non-interactive copy behind
+ * and take that away when the animation ends. Call it while the element is still attached, e.g. from a layout-effect cleanup.
+ */
+export function exitGhost(node, { className = "", parent, backdrop = false } = {}) {
+  if (!node?.isConnected || reducedMotion()) return;
+  const host = parent || node.offsetParent || document.body;
+  const ghost = node.cloneNode(true);
+  ghost.removeAttribute("open");
+  ghost.removeAttribute("id");
+  ghost.setAttribute("inert", "");
+  ghost.setAttribute("aria-hidden", "true");
+  ghost.classList.add("exit-ghost", className);
+  if (!backdrop) {
+    ghost.style.cssText += `left:${node.offsetLeft}px;top:${node.offsetTop}px;width:${node.offsetWidth}px;`;
+  }
+  const extras = [ghost];
+  if (backdrop) {
+    const veil = document.createElement("div");
+    veil.className = "exit-veil";
+    extras.unshift(veil);
+  }
+  extras.forEach(item => host.appendChild(item));
+  setTimeout(() => extras.forEach(item => item.remove()), EXIT_MS + 60);
+}
+/** A page's content: fades up when it arrives and leaves a fading copy behind when you move on. */
+export function PageTransition({ children }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    return () => exitGhost(node, { className: "page-ghost" });
+  }, []);
+  return (
+    <div className="page-content" ref={ref}>
+      {children}
+    </div>
+  );
+}
 export function Modal({ title, children, onClose }) {
   const ref = useRef(null);
+  useLayoutEffect(() => {
+    const dialog = ref.current;
+    return () => exitGhost(dialog, { className: "modal-ghost", parent: document.body, backdrop: true });
+  }, []);
   useEffect(() => {
     const dialog = ref.current;
     const previous = document.activeElement;
@@ -258,7 +322,10 @@ export function Select({ children, value, defaultValue, onChange, name, id, disa
   const menu = useRef(null);
   const typed = useRef({ text: "", at: 0 });
   const listId = useId();
-  const host = open ? trigger.current?.closest("dialog, .turf-menu, .personal-menu") || document.body : null;
+  const presence = usePresence(open);
+  const hostRef = useRef(null);
+  if (open) hostRef.current = trigger.current?.closest("dialog, .turf-menu, .personal-menu") || document.body;
+  const host = presence.mounted ? hostRef.current : null;
 
   function choose(option) {
     if (!option || option.disabled) return;
@@ -381,7 +448,7 @@ export function Select({ children, value, defaultValue, onChange, name, id, disa
             id={listId}
             role="listbox"
             aria-label={ariaLabel}
-            className="select-menu"
+            className={"select-menu" + (presence.leaving ? " leaving" : "")}
             style={place ? { left: place.left, top: place.top, minWidth: place.width, maxHeight: place.maxHeight } : { visibility: "hidden", left: 0, top: 0 }}
             onPointerDown={event => event.preventDefault()}
           >

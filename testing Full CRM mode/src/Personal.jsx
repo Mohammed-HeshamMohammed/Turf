@@ -5,13 +5,14 @@ import { AVATAR_PRESETS, squareAvatar } from "./avatars.js";
 import { EmailChange } from "./EmailChange.jsx";
 import { personalProfile } from "./model.js";
 import { useCrm } from "./context.jsx";
-import { Avatar, Badge, Breadcrumb, Button, Card, Field, PageHeader } from "./ui.jsx";
+import { Avatar, Badge, Breadcrumb, Button, Card, Field, PageHeader, usePresence } from "./ui.jsx";
 
 export function PersonalMenu({ onOpen }) {
   const { state, navigate } = useCrm();
   const role = ROLES[state.role];
   const profile = personalProfile(state);
   const [open, setOpen] = useState(false);
+  const panel = usePresence(open);
   const root = useRef(null);
   const trigger = useRef(null);
   useEffect(() => {
@@ -60,8 +61,13 @@ export function PersonalMenu({ onOpen }) {
       >
         <Avatar name={profile.name} avatar={profile.avatar} />
       </button>
-      {open && (
-        <div id="personal-menu-panel" className="personal-menu-panel turf-menu-panel" role="dialog" aria-label="Personal menu">
+      {panel.mounted && (
+        <div
+          id="personal-menu-panel"
+          className={"personal-menu-panel turf-menu-panel" + (panel.leaving ? " leaving" : "")}
+          role="dialog"
+          aria-label="Personal menu"
+        >
           <div className="personal-menu-identity">
             <Avatar name={profile.name} avatar={profile.avatar} />
             <div>

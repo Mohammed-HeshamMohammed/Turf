@@ -3993,3 +3993,190 @@ textarea {
   font-weight: 600;
   letter-spacing: 0.12em;
 }
+
+/* ---- Motion: everything arrives and leaves ---- */
+:root {
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in: cubic-bezier(0.5, 0, 0.9, 0.4);
+  --enter: 380ms;
+  --exit: 190ms;
+}
+@keyframes enter-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@keyframes enter-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes leave-up {
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+}
+@keyframes pop-out {
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 16px);
+  }
+}
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translate(-50%, 16px);
+  }
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+}
+@keyframes modal-out {
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+}
+@keyframes veil-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Pages: the content is staggered in, and the page you leave fades away behind it. */
+.main-content {
+  position: relative;
+}
+.page-content > * {
+  animation: enter-up var(--enter) var(--ease-out) backwards;
+}
+.page-content > :nth-child(2) { animation-delay: 50ms; }
+.page-content > :nth-child(3) { animation-delay: 100ms; }
+.page-content > :nth-child(4) { animation-delay: 150ms; }
+.page-content > :nth-child(5) { animation-delay: 200ms; }
+.page-content > :nth-child(6) { animation-delay: 250ms; }
+.page-content > :nth-child(n + 7) { animation-delay: 300ms; }
+.page-ghost {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  animation: leave-up var(--exit) var(--ease-in) forwards;
+}
+.page-ghost > * {
+  animation: none !important;
+}
+
+/* Things inside a page: cards, tiles, columns, rows and list items. */
+:is(.metrics-grid, .two-columns, .call-layout, .detail-grid, .skip-layout, .handoff-grid, .integration-grid, .dataset-grid, .outcome-grid) > *,
+.kanban-column,
+.pipeline-summary > *,
+.empty {
+  animation: enter-up var(--enter) var(--ease-out) 90ms backwards;
+}
+:is(.metrics-grid, .two-columns, .call-layout, .detail-grid, .skip-layout, .handoff-grid, .integration-grid, .dataset-grid, .outcome-grid) > :nth-child(2),
+.kanban-column:nth-child(2) { animation-delay: 140ms; }
+:is(.metrics-grid, .two-columns, .call-layout, .detail-grid, .skip-layout, .handoff-grid, .integration-grid, .dataset-grid, .outcome-grid) > :nth-child(3),
+.kanban-column:nth-child(3) { animation-delay: 190ms; }
+:is(.metrics-grid, .two-columns, .call-layout, .detail-grid, .skip-layout, .handoff-grid, .integration-grid, .dataset-grid, .outcome-grid) > :nth-child(n + 4),
+.kanban-column:nth-child(n + 4) { animation-delay: 240ms; }
+tbody tr,
+.kanban-card,
+.queue-lead,
+.task-list > *,
+.note,
+.thread,
+.search-results > button,
+.notification-panel > button,
+.signal-list > *,
+.plain-list > li {
+  animation: enter-up 320ms var(--ease-out) backwards;
+}
+tbody tr:nth-child(1), .kanban-card:nth-of-type(1), .queue-lead:nth-child(1), .task-list > :nth-child(1) { animation-delay: 120ms; }
+tbody tr:nth-child(2), .kanban-card:nth-of-type(2), .queue-lead:nth-child(2), .task-list > :nth-child(2) { animation-delay: 150ms; }
+tbody tr:nth-child(3), .kanban-card:nth-of-type(3), .queue-lead:nth-child(3), .task-list > :nth-child(3) { animation-delay: 180ms; }
+tbody tr:nth-child(4), .kanban-card:nth-of-type(4), .queue-lead:nth-child(4), .task-list > :nth-child(4) { animation-delay: 210ms; }
+tbody tr:nth-child(5), .kanban-card:nth-of-type(5), .queue-lead:nth-child(5), .task-list > :nth-child(5) { animation-delay: 240ms; }
+tbody tr:nth-child(n + 6), .kanban-card:nth-of-type(n + 6), .queue-lead:nth-child(n + 6), .task-list > :nth-child(n + 6) { animation-delay: 270ms; }
+.exit-ghost tbody tr,
+.exit-ghost .kanban-card,
+.exit-ghost .queue-lead,
+.exit-ghost .kanban-column {
+  animation: none;
+}
+
+/* Menus and panels: pop in, pop out. */
+.turf-menu-panel,
+.notification-panel,
+.search-results {
+  transform-origin: top left;
+  animation: pop-in 200ms var(--ease-out);
+}
+.notification-panel,
+.search-results {
+  transform-origin: top right;
+}
+.turf-menu-panel.leaving,
+.notification-panel.leaving,
+.search-results.leaving {
+  animation: pop-out var(--exit) var(--ease-in) forwards;
+  pointer-events: none;
+}
+.select-menu.leaving {
+  animation: pop-out 150ms var(--ease-in) forwards;
+  pointer-events: none;
+}
+.toast {
+  animation: toast-in 260ms var(--ease-out);
+}
+.toast.leaving {
+  animation: toast-out var(--exit) var(--ease-in) forwards;
+}
+.nav-backdrop {
+  animation: enter-fade 200ms ease-out;
+}
+
+/* Dialogs. */
+.modal[open] {
+  animation: modal-in 260ms var(--ease-out);
+}
+.modal[open]::backdrop {
+  animation: enter-fade 260ms ease-out;
+}
+.modal-ghost {
+  position: fixed !important;
+  inset: 0;
+  margin: auto !important;
+  height: fit-content;
+  z-index: 2100;
+  display: block;
+  animation: modal-out var(--exit) var(--ease-in) forwards;
+}
+.exit-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 2090;
+  pointer-events: none;
+  background: #16161666;
+  backdrop-filter: blur(3px);
+  animation: veil-out var(--exit) ease-in forwards;
+}
