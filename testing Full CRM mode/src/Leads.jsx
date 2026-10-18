@@ -6,7 +6,25 @@ import { LEAD_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
 import { callbackLabel, canEditLead, capability, uid, visibleLeads } from "./model.js";
 import { CallHistory } from "./Work.jsx";
 import { useCrm } from "./context.jsx";
-import { Badge, Button, Card, Checkbox, Empty, Field, Modal, PageHeader, Person, RoundButton, Search, Segmented, Status, downloadCsv, money, Breadcrumb, propertyFacts } from "./ui.jsx";
+import {
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  Empty,
+  Field,
+  Modal,
+  PageHeader,
+  Person,
+  RoundButton,
+  Search,
+  Segmented,
+  Status,
+  downloadCsv,
+  money,
+  Breadcrumb,
+  propertyFacts,
+} from "./ui.jsx";
 
 export function Leads() {
   const { state, navigate, dispatch, notify, route } = useCrm();
@@ -16,6 +34,7 @@ export function Leads() {
   const [selected, setSelected] = useState([]);
   const [bulkStage, setBulkStage] = useState("Contacted");
   const [assignee, setAssignee] = useState("All people");
+  const [hideEmpty, setHideEmpty] = useState(false);
   const client = state.role === "client";
   const leads = visibleLeads(state).filter(
     lead =>
@@ -24,6 +43,12 @@ export function Leads() {
       [lead.name, lead.address, lead.city, ...(client ? [] : [lead.phone, lead.email])].join(" ").toLowerCase().includes(search.toLowerCase()),
   );
   const editable = capability(state, "edit");
+  const assigned = lead => lead.assignee && lead.assignee !== "Unassigned";
+  const hasColumn = {
+    verdict: !hideEmpty || leads.some(lead => lead.verdict),
+    assignee: !hideEmpty || leads.some(assigned),
+    next: !hideEmpty || client || leads.some(lead => lead.callback),
+  };
   function exportRows() {
     downloadCsv("turf-visible-leads.csv", [
       ["Owner", "Property", "City", "Stage", "Assigned to"],
@@ -70,6 +95,7 @@ export function Leads() {
           </>
         )}
         <Segmented label="Lead view" value={view} options={client ? ["List", "Map"] : ["List", "Board", "Map"]} onChange={setView} />
+        <Checkbox label="Hide empty fields" checked={hideEmpty} onChange={event => setHideEmpty(event.target.checked)} />
         <span className="result-count">
           {leads.length} {client ? "properties" : "leads"}
         </span>
@@ -133,8 +159,8 @@ export function Leads() {
                         {lead.city}, {lead.region}
                       </small>
                     </button>
-                    <Status value={lead.verdict} />
-                    <Person name={lead.assignee} />
+                    {!(hideEmpty && !lead.verdict) && <Status value={lead.verdict} />}
+                    {!(hideEmpty && !assigned(lead)) && <Person name={lead.assignee} />}
                     {canEditLead(state, lead.id) && (
                       <select
                         aria-label={"Move " + lead.name + " to stage"}
@@ -173,10 +199,10 @@ export function Leads() {
                   )}
                   <th>Property owner</th>
                   <th>Property</th>
-                  {!client && <th>Phone quality</th>}
+                  {!client && hasColumn.verdict && <th>Phone quality</th>}
                   <th>Stage</th>
-                  {!client && <th>Responsible person</th>}
-                  <th>Next step</th>
+                  {!client && hasColumn.assignee && <th>Responsible person</th>}
+                  {hasColumn.next && <th>Next step</th>}
                   <th>
                     <span className="sr-only">Open</span>
                   </th>
@@ -208,7 +234,7 @@ export function Leads() {
                         {lead.city}, {lead.region} {lead.zip}
                       </small>
                     </td>
-                    {!client && (
+                    {!client && hasColumn.verdict && (
                       <td>
                         <Status value={lead.verdict} />
                       </td>
@@ -216,23 +242,25 @@ export function Leads() {
                     <td>
                       <Status value={lead.stage} />
                     </td>
-                    {!client && (
+                    {!client && hasColumn.assignee && (
                       <td>
                         <Person name={lead.assignee} />
                       </td>
                     )}
-                    <td>
-                      {client ? (
-                        "Review property brief"
-                      ) : lead.callback ? (
-                        <span className="inline">
-                          <Clock size={14} />
-                          {callbackLabel(lead.callbackDate, lead.callback)}
-                        </span>
-                      ) : (
-                        <span className="muted">Set a next step</span>
-                      )}
-                    </td>
+                    {hasColumn.next && (
+                      <td>
+                        {client ? (
+                          "Review property brief"
+                        ) : lead.callback ? (
+                          <span className="inline">
+                            <Clock size={14} />
+                            {callbackLabel(lead.callbackDate, lead.callback)}
+                          </span>
+                        ) : (
+                          <span className="muted">Set a next step</span>
+                        )}
+                      </td>
+                    )}
                     <td>
                       <RoundButton label={"Open " + lead.name} onClick={() => navigate("work/leads/" + lead.id)} />
                     </td>
@@ -351,9 +379,7 @@ export function LeadDetail({ id }) {
                     ? "Your team has shared this property for review. Use the approved brief below and ask questions in the shared notes."
                     : lead.motivation}
                 </p>
-                {!client && (
-                  <Checkbox label="Hide empty fields" checked={hideEmpty} onChange={event => setHideEmpty(event.target.checked)} />
-                )}
+                {!client && <Checkbox label="Hide empty fields" checked={hideEmpty} onChange={event => setHideEmpty(event.target.checked)} />}
                 {!client && (
                   <div className="detail-fields">
                     {!(hideEmpty && !lead.email) && (
@@ -536,7 +562,13 @@ export function LeadDetail({ id }) {
                     min={TODAY}
                     disabled={!editable}
                     value={lead.callbackDate || ""}
-                    onChange={event => dispatch({ type: "UPDATE_LEAD", id, change: { callbackDate: event.target.value, callback: event.target.value ? lead.callback || "10:00" : "" } })}
+                    onChange={event =>
+                      dispatch({
+                        type: "UPDATE_LEAD",
+                        id,
+                        change: { callbackDate: event.target.value, callback: event.target.value ? lead.callback || "10:00" : "" },
+                      })
+                    }
                   />
                 </Field>
                 <Field label="Callback time">
@@ -545,7 +577,13 @@ export function LeadDetail({ id }) {
                     type="time"
                     disabled={!editable}
                     value={lead.callback}
-                    onChange={event => dispatch({ type: "UPDATE_LEAD", id, change: { callback: event.target.value, callbackDate: event.target.value ? lead.callbackDate || TODAY : "" } })}
+                    onChange={event =>
+                      dispatch({
+                        type: "UPDATE_LEAD",
+                        id,
+                        change: { callback: event.target.value, callbackDate: event.target.value ? lead.callbackDate || TODAY : "" },
+                      })
+                    }
                   />
                 </Field>
                 {capability(state, "assign") && (
@@ -651,9 +689,7 @@ export function LeadDetail({ id }) {
             <p>
               {lead.city}, {lead.region} {lead.zip}
             </p>
-            <p>
-              {propertyFacts(lead).join(" · ") || "Property details not supplied"}
-            </p>
+            <p>{propertyFacts(lead).join(" · ") || "Property details not supplied"}</p>
             <p>
               This fictional property is included in the sample project. Your team will attach the approved inspection and closing documents as the transaction
               progresses.
