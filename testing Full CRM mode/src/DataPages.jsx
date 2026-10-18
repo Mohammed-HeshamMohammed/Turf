@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Papa from "papaparse";
-import { ArrowRight, ArrowUpRight, CheckCircle, Cloud, DownloadSimple, FileCsv, HardDrives, ShieldCheck, UploadSimple } from "@phosphor-icons/react";
+import { ArrowRight, ArrowUpRight, CheckCircle, Phone, Cloud, DownloadSimple, FileCsv, HardDrives, ShieldCheck, UploadSimple } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
 import { capability, uid, visibleLeads } from "./model.js";
 import { useCrm } from "./context.jsx";
@@ -119,6 +119,11 @@ export function Lists({ id }) {
               }
             >
               Export view
+            </Button>
+          )}
+          {capability(state, "call") && (
+            <Button icon={Phone} onClick={() => navigate("work/calls?list=" + id)}>
+              Call this list
             </Button>
           )}
           {(capability(state, "review") || capability(state, "import")) && (

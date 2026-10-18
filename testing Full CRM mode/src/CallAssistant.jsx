@@ -61,7 +61,7 @@ function readEnabled() {
  * The call-side AI helper: an opening line to start with and, when switched on, live prompts that keep arriving while a call is running.
  * The preview has no audio and no model behind it; the prompts come from the lead's own record.
  */
-export function CallAssistant({ lead, person, script, onScript, activeCall, onUse }) {
+export function CallAssistant({ lead, person, script, onScript, activeCall, captions, onCaptions, onUse }) {
   const [enabled, setEnabled] = useState(readEnabled);
   const [paused, setPaused] = useState(false);
   const [feed, setFeed] = useState([]);
@@ -172,6 +172,16 @@ export function CallAssistant({ lead, person, script, onScript, activeCall, onUs
           </ol>
         </div>
       )}
+
+      <div className="ai-captions-row">
+        <div>
+          <strong>Live captions</strong>
+          <small>{captions ? (activeCall ? "Showing on screen" : "On · starts with your call") : "Show what is said, as it is said"}</small>
+        </div>
+        <button type="button" role="switch" aria-checked={captions} aria-label="Live captions" className="ai-switch" onClick={() => onCaptions()}>
+          <span />
+        </button>
+      </div>
 
       <div className="ai-section">
         <Field label={enabled ? "Opening line for" : "Call script"}>

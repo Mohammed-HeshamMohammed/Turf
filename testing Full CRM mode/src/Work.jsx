@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { PropertyMap } from "./PropertyMap.jsx";
 import {
   Phone,
@@ -16,11 +16,13 @@ import {
   ChatCircle,
   PaperPlaneTilt,
   Paperclip,
+  ClosedCaptioning,
 } from "@phosphor-icons/react";
 import { CALL_OUTCOMES, DEAL_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
 import { callbackLabel, capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { CallAssistant } from "./CallAssistant.jsx";
+import { LiveCaptions } from "./LiveCaptions.jsx";
 import {
   Badge,
   Select,
@@ -41,7 +43,7 @@ import {
 } from "./ui.jsx";
 
 export function Calls({ target }) {
-  const { state, dispatch, navigate, notify } = useCrm();
+  const { state, dispatch, navigate, notify, route } = useCrm();
   const [chosen, setChosen] = useState(target || "");
   const [activeCall, setActiveCall] = useState(false);
   const [script, setScript] = useState("First conversation");
@@ -49,7 +51,49 @@ export function Calls({ target }) {
   const [callNote, setCallNote] = useState("");
   const [callbackAt, setCallbackAt] = useState("");
   const [askingCallback, setAskingCallback] = useState(false);
-  const leads = visibleLeads(state).filter(item => item.stage !== "Closed" && item.verdict !== "Do not call" && item.verdict !== "Wrong number");
+  const [captions, setCaptions] = useState(() => {
+    try {
+      return window.localStorage.getItem("turf.full-crm.captions") === "on";
+    } catch {
+      return false;
+    }
+  });
+  // The queue follows a list: the one chosen above it, or the one a list page sent you here with (?list=).
+  const listParam = new URLSearchParams(route.split("?")[1]).get("list") || "";
+  const [listId, setListId] = useState(listParam);
+  useEffect(() => setListId(listParam), [listParam]);
+  function toggleCaptions(next = !captions) {
+    setCaptions(next);
+    try {
+      window.localStorage.setItem("turf.full-crm.captions", next ? "on" : "off");
+    } catch {
+      /* The switch still works for this session. */
+    }
+  }
+  const callable = useMemo(
+    () => visibleLeads(state).filter(item => item.stage !== "Closed" && item.verdict !== "Do not call" && item.verdict !== "Wrong number"),
+    [state],
+  );
+  const lists = useMemo(
+    () =>
+      [...new Set(callable.map(item => item.datasetId || ""))].map(id => ({
+        id,
+        name: state.datasets.find(item => item.id === id)?.name || "Direct leads",
+        count: callable.filter(item => (item.datasetId || "") === id).length,
+      })),
+    [callable, state.datasets],
+  );
+  const activeList = lists.some(item => item.id === listId) ? listId : "";
+  // Within a list, callbacks that are due come first, then people who have never been called.
+  const leads = useMemo(() => {
+    const due = item => (item.callback ? (item.callbackDate || "") + item.callback : "~");
+    const order = item => String(lists.findIndex(entry => entry.id === (item.datasetId || ""))).padStart(3, "0") + due(item);
+    return callable
+      .filter(item => !activeList || (item.datasetId || "") === activeList)
+      .map((item, index) => ({ item, index, key: order(item) }))
+      .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : a.index - b.index))
+      .map(entry => entry.item);
+  }, [callable, activeList, lists]);
   const lead = leads.find(item => item.id === chosen) || leads[0];
   if (!capability(state, "call")) return <Empty title="Calling is outside this role">Your workspace only shows the actions available to you.</Empty>;
   function outcome(value) {
@@ -73,28 +117,54 @@ export function Calls({ target }) {
     <>
       <PageHeader eyebrow="Outreach workspace" title="One good conversation at a time." description="Your queue, the seller context, and a clear next step." />
       <div className="call-layout">
-        <Card title="Your call queue" subtitle={leads.length + " leads in your view"} className="queue-card">
-          {leads.map(item => (
-            <button
-              className={"queue-lead " + (item.id === lead?.id ? "selected" : "")}
-              key={item.id}
-              onClick={() => {
-                setChosen(item.id);
-                setActiveCall(false);
-              }}
-            >
-              <strong>{item.name}</strong>
-              <small>{item.address}</small>
-              <div>
-                <Status value={item.stage} />
-                <span>{callbackLabel(item.callbackDate, item.callback) || "No time set"}</span>
-              </div>
-              <div>
-                <small className="muted">
-                  {item.calls?.length ? item.calls.length + (item.calls.length === 1 ? " call · " : " calls · ") + item.calls.at(-1).outcome : "Not called yet"}
-                </small>
-              </div>
-            </button>
+        <Card
+          title="Your call queue"
+          subtitle={
+            leads.length +
+            (leads.length === 1 ? " lead" : " leads") +
+            (activeList ? " in " + (lists.find(item => item.id === activeList)?.name || "this list") : " across your lists")
+          }
+          className="queue-card"
+        >
+          {lists.length > 1 && (
+            <div className="queue-list-pick">
+              <Select aria-label="Call list" value={activeList} onChange={event => setListId(event.target.value)}>
+                <option value="">{"All lists · " + callable.length}</option>
+                {lists.map(item => (
+                  <option key={item.id} value={item.id}>
+                    {item.name + " · " + item.count}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+          {leads.map((item, position) => (
+            <Fragment key={item.id}>
+              {!activeList && lists.length > 1 && (position === 0 || (leads[position - 1].datasetId || "") !== (item.datasetId || "")) && (
+                <div className="queue-group">{lists.find(entry => entry.id === (item.datasetId || ""))?.name}</div>
+              )}
+              <button
+                className={"queue-lead " + (item.id === lead?.id ? "selected" : "")}
+                onClick={() => {
+                  setChosen(item.id);
+                  setActiveCall(false);
+                }}
+              >
+                <strong>{item.name}</strong>
+                <small>{item.address}</small>
+                <div>
+                  <Status value={item.stage} />
+                  <span>{callbackLabel(item.callbackDate, item.callback) || "No time set"}</span>
+                </div>
+                <div>
+                  <small className="muted">
+                    {item.calls?.length
+                      ? item.calls.length + (item.calls.length === 1 ? " call · " : " calls · ") + item.calls.at(-1).outcome
+                      : "Not called yet"}
+                  </small>
+                </div>
+              </button>
+            </Fragment>
           ))}
           {!leads.length && <Empty title="No callable leads">Blocked and closed leads are left out.</Empty>}
         </Card>
@@ -129,6 +199,9 @@ export function Calls({ target }) {
                     {activeCall ? "End demo call" : "Start demo call"}
                   </Button>
                   <Button onClick={() => navigate("work/leads/" + lead.id)}>Full lead record</Button>
+                  <Button icon={ClosedCaptioning} aria-pressed={captions} variant={captions ? "is-on" : ""} onClick={() => toggleCaptions()}>
+                    Live captions
+                  </Button>
                 </div>
                 {activeCall && (
                   <div className="call-live" role="status">
@@ -203,6 +276,8 @@ export function Calls({ target }) {
             script={script}
             onScript={setScript}
             activeCall={activeCall}
+            captions={captions}
+            onCaptions={toggleCaptions}
             onUse={text => setCallNote(note => (note.trim() ? note.trimEnd() + "\n" : "") + "• " + text)}
           />
           <Card title="Responsibility">
@@ -211,6 +286,7 @@ export function Calls({ target }) {
           </Card>
         </aside>
       </div>
+      <LiveCaptions show={captions && activeCall} lead={lead} agent={ROLES[state.role].person.split(" ")[0]} onClose={() => toggleCaptions(false)} />
     </>
   );
 }
