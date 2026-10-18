@@ -30,6 +30,12 @@
 *::-webkit-scrollbar-track {
   background: transparent;
 }
+*::-webkit-scrollbar-track:vertical {
+  margin: 26px 0;
+}
+*::-webkit-scrollbar-track:horizontal {
+  margin: 0 26px;
+}
 *::-webkit-scrollbar-thumb {
   background: #c4bcb0;
   border: 3px solid transparent;
