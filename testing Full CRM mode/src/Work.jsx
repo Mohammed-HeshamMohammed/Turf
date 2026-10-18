@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { PropertyMap } from "./PropertyMap.jsx";
 import {
   Phone,
@@ -308,9 +308,44 @@ export function Handoffs() {
 export function Deals({ id }) {
   const { state, dispatch, navigate, notify } = useCrm();
   const [view, setView] = useState("Pipeline");
+  const [drag, setDrag] = useState(null);
+  const justDragged = useRef(false);
   const leads = visibleLeads(state);
   const ids = new Set(leads.map(item => item.id));
   const deals = state.deals.filter(item => ids.has(item.leadId));
+  // Pointer-based drag so cards move the same way in browsers and the desktop webview, which swallows native drag and drop.
+  const startDrag = (event, deal, label) => {
+    if (event.button !== 0 || event.target.closest("select")) return;
+    const card = event.currentTarget.getBoundingClientRect();
+    const start = { x: event.clientX, y: event.clientY };
+    const offset = { x: event.clientX - card.left, y: event.clientY - card.top };
+    let active = false;
+    let over = null;
+    const stageAt = (x, y) => document.elementFromPoint(x, y)?.closest("[data-stage]")?.dataset.stage ?? null;
+    const move = e => {
+      if (!active && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 6) return;
+      active = true;
+      over = stageAt(e.clientX, e.clientY);
+      setDrag({ id: deal.id, label, amount: deal.amount, width: card.width, x: e.clientX - offset.x, y: e.clientY - offset.y, over });
+    };
+    const finish = e => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+      setDrag(null);
+      if (!active) return;
+      justDragged.current = true;
+      setTimeout(() => (justDragged.current = false), 0);
+      const target = e.type === "pointercancel" ? null : over;
+      if (target && target !== deal.stage) {
+        dispatch({ type: "DEAL", id: deal.id, change: { stage: target } });
+        notify("Deal moved to " + target);
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+  };
   if (!capability(state, "finance")) return <Empty title="Deal financials are outside this role">Your approved records are available in Leads.</Empty>;
   if (id) {
     const deal = deals.find(item => item.id === id);
@@ -409,12 +444,8 @@ export function Deals({ id }) {
           {DEAL_STAGES.map(stage => (
             <section
               key={stage}
-              className="kanban-column"
-              onDragOver={event => event.preventDefault()}
-              onDrop={event => {
-                dispatch({ type: "DEAL", id: event.dataTransfer.getData("text/plain"), change: { stage } });
-                notify("Deal moved to " + stage);
-              }}
+              className={"kanban-column" + (drag?.over === stage ? " drop-target" : "")}
+              data-stage={stage}
             >
               <header>
                 <span>{stage}</span>
@@ -425,8 +456,16 @@ export function Deals({ id }) {
                 .map(deal => {
                   const lead = leads.find(item => item.id === deal.leadId);
                   return (
-                    <article key={deal.id} className="kanban-card" draggable onDragStart={event => event.dataTransfer.setData("text/plain", deal.id)}>
-                      <button onClick={() => navigate("work/deals/" + deal.id)}>
+                    <article
+                      key={deal.id}
+                      className={"kanban-card" + (drag?.id === deal.id ? " dragging" : "")}
+                      onPointerDown={event => startDrag(event, deal, lead.address)}
+                    >
+                      <button
+                        onClick={() => {
+                          if (!justDragged.current) navigate("work/deals/" + deal.id);
+                        }}
+                      >
                         <strong>{lead.address}</strong>
                         <span>{lead.name}</span>
                       </button>
@@ -450,6 +489,12 @@ export function Deals({ id }) {
               {!deals.some(item => item.stage === stage) && <p className="column-empty">No deals here</p>}
             </section>
           ))}
+          {drag && (
+            <div className="kanban-ghost" style={{ width: drag.width, transform: `translate(${drag.x}px, ${drag.y}px)` }}>
+              <strong>{drag.label}</strong>
+              <div className="deal-card-amount">{money(drag.amount)}</div>
+            </div>
+          )}
         </div>
       ) : (
         <Card className="table-card">
