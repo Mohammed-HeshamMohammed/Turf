@@ -7,7 +7,7 @@ import { useCrm } from "./context.jsx";
 import { mappedRecord, sourceEvidence, sourceValue } from "./skiptrace-fields.js";
 import { SourceFieldMapping } from "./SourceFieldMapping.jsx";
 import { PropertyMap } from "./PropertyMap.jsx";
-import { Badge, Button, Card, Empty, Field, LeadLink, PageHeader, Search, Segmented, Status, downloadCsv, Breadcrumb } from "./ui.jsx";
+import { Badge, Button, Card, Checkbox, Empty, Field, LeadLink, PageHeader, Search, Segmented, Status, downloadCsv, Breadcrumb } from "./ui.jsx";
 
 export function Lists({ id }) {
   const { state, dispatch, navigate, notify } = useCrm();
@@ -276,6 +276,7 @@ export function SkipTracing() {
   const [datasetId, setDatasetId] = useState(new URLSearchParams(route.split("?")[1]).get("list") || datasets[0]?.id || "");
   const [mode, setMode] = useState("Local");
   const [step, setStep] = useState(0);
+  const [hideEmpty, setHideEmpty] = useState(false);
   const [fieldOverrides, setFieldOverrides] = useState({});
   const [signals, setSignals] = useState({ duplicates: true, outcomes: true, dnc: true, age: true });
   const [progress, setProgress] = useState(-1);
@@ -287,6 +288,7 @@ export function SkipTracing() {
   const dataset = datasets.find(item => item.id === datasetId);
   const rows = leads.filter(lead => lead.datasetId === datasetId);
   const columns = dataset?.columns || [];
+  const shownColumns = hideEmpty ? columns.filter(column => rows.some(row => String(sourceValue(row, column) ?? "").trim())) : columns;
   const mappings = { ...dataset?.fieldMappings, ...fieldOverrides };
   const { fields, primary } = sourceEvidence(columns, rows, mappings);
   const hasPhones = fields.some(field => field.id === "phone" && field.count > 0);
@@ -421,6 +423,7 @@ export function SkipTracing() {
                 columns={columns}
                 rows={rows}
                 mappings={mappings}
+                hideEmpty={hideEmpty}
                 onChange={value => {
                   setFieldOverrides(value);
                   setFinished(false);
@@ -446,12 +449,13 @@ export function SkipTracing() {
               )}
               <div className="skip-source-preview">
                 <h3>Source preview</h3>
+                <Checkbox label="Hide empty fields" checked={hideEmpty} onChange={event => setHideEmpty(event.target.checked)} />
                 <p className="muted">First {Math.min(4, rows.length)} rows · original values · scroll to see every field</p>
                 <div className="skip-preview-scroll" tabIndex={0} role="region" aria-label="Source preview columns">
                   <table>
                     <thead>
                       <tr>
-                        {columns.map(column => (
+                        {shownColumns.map(column => (
                           <th key={column}>{column}</th>
                         ))}
                       </tr>
@@ -459,7 +463,7 @@ export function SkipTracing() {
                     <tbody>
                       {rows.slice(0, 4).map(row => (
                         <tr key={row.id}>
-                          {columns.map(column => (
+                          {shownColumns.map(column => (
                             <td key={column}>{sourceValue(row, column) || <span className="muted">—</span>}</td>
                           ))}
                         </tr>

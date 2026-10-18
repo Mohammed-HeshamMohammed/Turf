@@ -6,7 +6,7 @@ import { LEAD_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
 import { callbackLabel, canEditLead, capability, uid, visibleLeads } from "./model.js";
 import { CallHistory } from "./Work.jsx";
 import { useCrm } from "./context.jsx";
-import { Badge, Button, Card, Empty, Field, Modal, PageHeader, Person, RoundButton, Search, Segmented, Status, downloadCsv, money, Breadcrumb, propertyFacts } from "./ui.jsx";
+import { Badge, Button, Card, Checkbox, Empty, Field, Modal, PageHeader, Person, RoundButton, Search, Segmented, Status, downloadCsv, money, Breadcrumb, propertyFacts } from "./ui.jsx";
 
 export function Leads() {
   const { state, navigate, dispatch, notify, route } = useCrm();
@@ -262,6 +262,7 @@ export function LeadDetail({ id }) {
   const [recipient, setRecipient] = useState("Alex Rivera");
   const [handoffNote, setHandoffNote] = useState("");
   const [document, setDocument] = useState(false);
+  const [hideEmpty, setHideEmpty] = useState(false);
   if (!lead)
     return (
       <Empty title="This record is outside your view" action={<Button onClick={() => navigate("work/leads")}>Back to visible leads</Button>}>
@@ -351,15 +352,22 @@ export function LeadDetail({ id }) {
                     : lead.motivation}
                 </p>
                 {!client && (
+                  <Checkbox label="Hide empty fields" checked={hideEmpty} onChange={event => setHideEmpty(event.target.checked)} />
+                )}
+                {!client && (
                   <div className="detail-fields">
-                    <div>
-                      <small>Email</small>
-                      <span>{lead.email}</span>
-                    </div>
-                    <div>
-                      <small>Best phone</small>
-                      <span>{lead.phone}</span>
-                    </div>
+                    {!(hideEmpty && !lead.email) && (
+                      <div>
+                        <small>Email</small>
+                        <span>{lead.email || <span className="muted">Not provided</span>}</span>
+                      </div>
+                    )}
+                    {!(hideEmpty && !lead.phone) && (
+                      <div>
+                        <small>Best phone</small>
+                        <span>{lead.phone || <span className="muted">Not provided</span>}</span>
+                      </div>
+                    )}
                     <div>
                       <small>Responsible person</small>
                       <Person name={lead.assignee} />

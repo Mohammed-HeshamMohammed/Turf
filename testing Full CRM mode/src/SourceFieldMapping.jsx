@@ -1,7 +1,7 @@
 import { SOURCE_FIELDS, sourceEvidence } from "./skiptrace-fields.js";
 import { Field } from "./ui.jsx";
 
-export function SourceFieldMapping({ columns, rows, mappings, onChange }) {
+export function SourceFieldMapping({ columns, rows, mappings, onChange, hideEmpty = false }) {
   const { mappedFields } = sourceEvidence(columns, rows, mappings);
   function renderField(field) {
     return (
@@ -28,12 +28,16 @@ export function SourceFieldMapping({ columns, rows, mappings, onChange }) {
       <div className="skip-field-grid">{mappedFields.filter(field => identity.includes(field.id)).map(renderField)}</div>
       <details className="source-mapping-more">
         <summary>All source fields · names, location, mailing & evidence</summary>
-        {[...new Set(SOURCE_FIELDS.map(field => field.group))].map(group => (
-          <fieldset key={group}>
-            <legend>{group}</legend>
-            <div className="skip-field-grid">{mappedFields.filter(field => field.group === group && !identity.includes(field.id)).map(renderField)}</div>
-          </fieldset>
-        ))}
+        {[...new Set(SOURCE_FIELDS.map(field => field.group))].map(group => {
+          const fields = mappedFields.filter(field => field.group === group && !identity.includes(field.id) && !(hideEmpty && !field.count));
+          if (!fields.length) return null;
+          return (
+            <fieldset key={group}>
+              <legend>{group}</legend>
+              <div className="skip-field-grid">{fields.map(renderField)}</div>
+            </fieldset>
+          );
+        })}
         <p className="muted">
           Property and mailing addresses stay separate. Coordinates need both latitude (−90 to 90) and longitude (−180 to 180). First and last names can form an
           owner name when no full-name column exists.
