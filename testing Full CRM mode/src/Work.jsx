@@ -108,7 +108,7 @@ export function Calls({ target }) {
                   >
                     {activeCall ? "End demo call" : "Start demo call"}
                   </Button>
-                  <Button icon={ArrowUpRight} onClick={() => navigate("work/leads/" + lead.id)}>
+                  <Button onClick={() => navigate("work/leads/" + lead.id)}>
                     Full lead record
                   </Button>
                 </div>

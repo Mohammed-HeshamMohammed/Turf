@@ -22,11 +22,30 @@
 }
 * {
   box-sizing: border-box;
-  scrollbar-width: thin;
-  scrollbar-color: #c4bcb0 transparent;
 }
-*:hover {
-  scrollbar-color: #a99f90 transparent;
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: #c4bcb0;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+  min-height: 48px;
+  min-width: 48px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #a99f90;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
 }
 *::-webkit-scrollbar-corner {
   background: transparent;
@@ -830,7 +849,6 @@ svg {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  scrollbar-width: thin;
 }
 .nav-group {
   display: grid;
@@ -901,7 +919,6 @@ svg {
   overflow-x: hidden;
   padding: 16px 26px 32px 18px;
   min-width: 0;
-  scrollbar-width: thin;
 }
 .content-topline {
   display: flex;
@@ -1384,7 +1401,6 @@ input[type="number"] {
 .table-scroll {
   position: relative;
   overflow-x: auto;
-  scrollbar-width: thin;
 }
 table {
   width: 100%;
@@ -1499,7 +1515,6 @@ input[type="checkbox"] {
   overflow-x: auto;
   padding-bottom: 15px;
   align-items: flex-start;
-  scrollbar-width: thin;
 }
 .kanban-column {
   flex: 0 0 207px;
@@ -1820,7 +1835,6 @@ textarea {
   padding: 18px 12px;
   max-height: 760px;
   overflow: auto;
-  scrollbar-width: thin;
 }
 .queue-card > header {
   padding: 0 7px;
