@@ -231,7 +231,14 @@ export function PageTransition({ children }) {
   const ref = useRef(null);
   useLayoutEffect(() => {
     const node = ref.current;
-    return () => exitGhost(node, { className: "page-ghost" });
+    // The page you are leaving is still fading out: hold this one back until it has gone, so the two never overlap.
+    const leaving = document.querySelector(".page-ghost");
+    const timer = leaving ? setTimeout(() => node.classList.remove("waiting"), EXIT_MS - 30) : null;
+    if (leaving) node.classList.add("waiting");
+    return () => {
+      clearTimeout(timer);
+      exitGhost(node, { className: "page-ghost" });
+    };
   }, []);
   return (
     <div className="page-content" ref={ref}>

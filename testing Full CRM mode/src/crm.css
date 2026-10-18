@@ -4249,3 +4249,11 @@ tbody tr:nth-child(n + 6), .kanban-card:nth-of-type(n + 6), .queue-lead:nth-chil
 .search-results.leaving :is(strong, span) {
   animation: text-out 140ms var(--ease-in) forwards;
 }
+
+.page-content.waiting {
+  visibility: hidden;
+}
+.page-content.waiting,
+.page-content.waiting * {
+  animation-play-state: paused !important;
+}
