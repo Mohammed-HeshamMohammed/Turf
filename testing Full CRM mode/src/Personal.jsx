@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Bell, CalendarBlank, CheckCircle, SlidersHorizontal, UserCircle } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
 import { AVATAR_PRESETS, squareAvatar } from "./avatars.js";
+import { EmailChange } from "./EmailChange.jsx";
 import { personalProfile } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { Avatar, Badge, Breadcrumb, Button, Card, Field, PageHeader } from "./ui.jsx";
@@ -179,20 +180,18 @@ export function PersonalPage({ section = "profile" }) {
               onSubmit={event => {
                 event.preventDefault();
                 const form = new FormData(event.currentTarget);
-                dispatch({ type: "PERSONAL", profile: { name: String(form.get("name")).trim(), email: String(form.get("email")).trim() } });
+                dispatch({ type: "PERSONAL", profile: { name: String(form.get("name")).trim() } });
                 notify("Personal profile saved on this device");
               }}
             >
               <Field label="Display name">
                 <input name="name" defaultValue={profile.name} required maxLength={80} />
               </Field>
-              <Field label="Email address">
-                <input name="email" type="email" defaultValue={profile.email} required />
-              </Field>
               <button className="button primary" type="submit">
-                Save profile
+                Save name
               </button>
             </form>
+            <EmailChange profile={profile} dispatch={dispatch} notify={notify} />
           </Card>
           <Card title="Your workspace identity">
             <div className="personal-profile-identity">

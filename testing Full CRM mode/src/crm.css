@@ -3927,3 +3927,69 @@ textarea {
   right: -3px;
   box-shadow: 0 0 0 2px var(--page);
 }
+
+.email-change {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.email-current {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.email-current > svg {
+  color: var(--good-ink);
+}
+.email-pending {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 18px;
+  background: var(--well);
+}
+.email-pending > header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.email-pending > header small {
+  margin-top: 3px;
+  line-height: 1.45;
+}
+.email-pending form {
+  display: grid;
+  gap: 12px;
+}
+.code-input {
+  font-size: 22px !important;
+  letter-spacing: 0.4em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.email-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.field-error {
+  color: #8a342b;
+  font-size: 12px;
+}
+.demo-inbox {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 12px;
+}
+.demo-inbox code {
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}

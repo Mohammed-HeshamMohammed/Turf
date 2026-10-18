@@ -49,11 +49,19 @@ function drawFace(seed) {
   );
 }
 
-/** Image source for an avatar choice: an uploaded photo (data URL), a numbered preset, or a face drawn from the person's name. */
-export function avatarSource(choice, name) {
-  if (typeof choice === "string" && choice.startsWith("data:image/")) return choice;
-  const seed = hash(typeof choice === "string" && choice.startsWith("preset:") ? choice + "-turf" : String(name || "?"));
-  return "data:image/svg+xml;utf8," + encodeURIComponent(drawFace(seed));
+const PORTRAIT_FORMATS = ["jpg", "png", "webp"];
+
+/**
+ * Image sources to try, best first, for an avatar choice: an uploaded photo (data URL), otherwise a portrait from
+ * public/avatars/ (1.jpg to 12.jpg; the person's own pick, or one chosen from their name), and finally a drawn face
+ * so nothing is ever blank while the portraits are missing.
+ */
+export function avatarSources(choice, name) {
+  if (typeof choice === "string" && choice.startsWith("data:image/")) return [choice];
+  const preset = typeof choice === "string" && choice.startsWith("preset:") ? Number(choice.slice(7)) : 0;
+  const number = preset || (hash(String(name || "?")) % AVATAR_PRESETS.length) + 1;
+  const drawn = "data:image/svg+xml;utf8," + encodeURIComponent(drawFace(hash(preset ? choice + "-turf" : String(name || "?"))));
+  return [...PORTRAIT_FORMATS.map(format => `/avatars/${number}.${format}`), drawn];
 }
 
 /** Crops an uploaded image to a small square so it fits comfortably in local storage. */
