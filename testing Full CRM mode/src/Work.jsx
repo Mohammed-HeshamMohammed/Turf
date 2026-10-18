@@ -20,7 +20,25 @@ import {
 import { CALL_OUTCOMES, DEAL_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
 import { callbackLabel, capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { useCrm } from "./context.jsx";
-import { Badge, Select, Button, Card, Empty, Field, LeadLink, Modal, PageHeader, Person, RoundButton, Search, Segmented, Status, money, Breadcrumb } from "./ui.jsx";
+import { CallAssistant } from "./CallAssistant.jsx";
+import {
+  Badge,
+  Select,
+  Button,
+  Card,
+  Empty,
+  Field,
+  LeadLink,
+  Modal,
+  PageHeader,
+  Person,
+  RoundButton,
+  Search,
+  Segmented,
+  Status,
+  money,
+  Breadcrumb,
+} from "./ui.jsx";
 
 export function Calls({ target }) {
   const { state, dispatch, navigate, notify } = useCrm();
@@ -72,7 +90,9 @@ export function Calls({ target }) {
                 <span>{callbackLabel(item.callbackDate, item.callback) || "No time set"}</span>
               </div>
               <div>
-                <small className="muted">{item.calls?.length ? item.calls.length + (item.calls.length === 1 ? " call · " : " calls · ") + item.calls.at(-1).outcome : "Not called yet"}</small>
+                <small className="muted">
+                  {item.calls?.length ? item.calls.length + (item.calls.length === 1 ? " call · " : " calls · ") + item.calls.at(-1).outcome : "Not called yet"}
+                </small>
               </div>
             </button>
           ))}
@@ -108,9 +128,7 @@ export function Calls({ target }) {
                   >
                     {activeCall ? "End demo call" : "Start demo call"}
                   </Button>
-                  <Button onClick={() => navigate("work/leads/" + lead.id)}>
-                    Full lead record
-                  </Button>
+                  <Button onClick={() => navigate("work/leads/" + lead.id)}>Full lead record</Button>
                 </div>
                 {activeCall && (
                   <div className="call-live" role="status">
@@ -137,7 +155,13 @@ export function Calls({ target }) {
                 {askingCallback && (
                   <div className="callback-picker">
                     <Field label="Call back at" help="The callback is added to the lead and your tasks.">
-                      <input aria-label="Call back at" type="datetime-local" min={TODAY + "T00:00"} value={callbackAt} onChange={event => setCallbackAt(event.target.value)} />
+                      <input
+                        aria-label="Call back at"
+                        type="datetime-local"
+                        min={TODAY + "T00:00"}
+                        value={callbackAt}
+                        onChange={event => setCallbackAt(event.target.value)}
+                      />
                     </Field>
                     <Button variant="primary" disabled={!callbackAt} onClick={() => outcome("Callback")}>
                       Schedule callback
@@ -173,31 +197,14 @@ export function Calls({ target }) {
           )}
         </div>
         <aside>
-          <Card title="A little help with the words">
-            <Field label="Call script">
-              <Select value={script} onChange={event => setScript(event.target.value)}>
-                <option>First conversation</option>
-                <option>Callback</option>
-                <option>Offer follow-up</option>
-              </Select>
-            </Field>
-            <div className="script">
-              {script === "First conversation"
-                ? "Hi, this is " +
-                  ROLES[state.role].person.split(" ")[0] +
-                  " from Oak & Palm. I'm reaching out about your property. Is now a good time for a quick conversation?"
-                : script === "Callback"
-                  ? "Hi, thanks for making time. Last time we spoke about your plans for the property. Has anything changed since then?"
-                  : "Hi, I wanted to see if you've had a chance to review the offer. What questions can I help with?"}
-            </div>
-            <h3>Listen for</h3>
-            <ul className="plain-list">
-              <li>Their plans and reason for selling</li>
-              <li>Property condition and occupancy</li>
-              <li>Expected timeline</li>
-              <li>The next agreed conversation</li>
-            </ul>
-          </Card>
+          <CallAssistant
+            lead={lead}
+            person={ROLES[state.role].person.split(" ")[0]}
+            script={script}
+            onScript={setScript}
+            activeCall={activeCall}
+            onUse={text => setCallNote(note => (note.trim() ? note.trimEnd() + "\n" : "") + "• " + text)}
+          />
           <Card title="Responsibility">
             {lead && <Person name={lead.assignee} />}
             <p className="muted">A handoff changes ownership only when accepted.</p>
@@ -213,10 +220,15 @@ function callTime(at) {
 }
 export function CallHistory({ calls }) {
   return (
-    <Card title="Call history" subtitle={calls.length ? calls.length + (calls.length === 1 ? " call, newest first" : " calls, newest first") : "Every dialed call is kept here."}>
+    <Card
+      title="Call history"
+      subtitle={calls.length ? calls.length + (calls.length === 1 ? " call, newest first" : " calls, newest first") : "Every dialed call is kept here."}
+    >
       {calls.map(item => (
         <div className="call-entry" key={item.id}>
-          <Badge tone={["Wrong number", "Do not call"].includes(item.outcome) ? "danger" : ["Transfer", "Callback"].includes(item.outcome) ? "good" : ""}>{item.code}</Badge>
+          <Badge tone={["Wrong number", "Do not call"].includes(item.outcome) ? "danger" : ["Transfer", "Callback"].includes(item.outcome) ? "good" : ""}>
+            {item.code}
+          </Badge>
           <div>
             <strong>{item.outcome}</strong>
             <small>
@@ -442,11 +454,7 @@ export function Deals({ id }) {
       {view === "Pipeline" ? (
         <div className="kanban deal-board">
           {DEAL_STAGES.map(stage => (
-            <section
-              key={stage}
-              className={"kanban-column" + (drag?.over === stage ? " drop-target" : "")}
-              data-stage={stage}
-            >
+            <section key={stage} className={"kanban-column" + (drag?.over === stage ? " drop-target" : "")} data-stage={stage}>
               <header>
                 <span>{stage}</span>
                 <Badge>{deals.filter(item => item.stage === stage).length}</Badge>
