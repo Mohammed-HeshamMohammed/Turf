@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Bell, CalendarBlank, CheckCircle, SlidersHorizontal, UserCircle } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
+import { AVATAR_PRESETS, squareAvatar } from "./avatars.js";
 import { personalProfile } from "./model.js";
 import { useCrm } from "./context.jsx";
-import { Avatar, Badge, Breadcrumb, Card, Field, PageHeader } from "./ui.jsx";
+import { Avatar, Badge, Breadcrumb, Button, Card, Field, PageHeader } from "./ui.jsx";
 
 export function PersonalMenu({ onOpen }) {
   const { state, navigate } = useCrm();
@@ -56,12 +57,12 @@ export function PersonalMenu({ onOpen }) {
           setOpen(!open);
         }}
       >
-        <Avatar name={profile.name} />
+        <Avatar name={profile.name} avatar={profile.avatar} />
       </button>
       {open && (
         <div id="personal-menu-panel" className="personal-menu-panel turf-menu-panel" role="dialog" aria-label="Personal menu">
           <div className="personal-menu-identity">
-            <Avatar name={profile.name} />
+            <Avatar name={profile.name} avatar={profile.avatar} />
             <div>
               <strong>{profile.name}</strong>
               <small>{profile.email}</small>
@@ -123,7 +124,56 @@ export function PersonalPage({ section = "profile" }) {
       </div>
       {section === "profile" ? (
         <div className="two-columns">
-          <Card title="Personal details" subtitle="Your display name and contact email.">
+          <Card title="Personal details" subtitle="Your picture, display name and contact email.">
+            <div className="avatar-picker">
+              <div className="avatar-grid" role="group" aria-label="Choose an avatar">
+                <button
+                  type="button"
+                  aria-label="Avatar drawn from your name"
+                  aria-pressed={!profile.avatar}
+                  onClick={() => dispatch({ type: "PERSONAL", profile: { avatar: "" } })}
+                >
+                  <Avatar name={profile.name} avatar="" />
+                </button>
+                {AVATAR_PRESETS.map((preset, index) => (
+                  <button
+                    type="button"
+                    key={preset}
+                    aria-label={"Avatar " + (index + 1)}
+                    aria-pressed={profile.avatar === preset}
+                    onClick={() => dispatch({ type: "PERSONAL", profile: { avatar: preset } })}
+                  >
+                    <Avatar name={"Avatar " + (index + 1)} avatar={preset} />
+                  </button>
+                ))}
+                {profile.avatar?.startsWith("data:") && (
+                  <button type="button" aria-label="Your uploaded photo" aria-pressed="true">
+                    <Avatar name={profile.name} avatar={profile.avatar} />
+                  </button>
+                )}
+              </div>
+              <div className="avatar-actions">
+                <label className="button" tabIndex={0}>
+                  Upload a photo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={async event => {
+                      const file = event.target.files?.[0];
+                      event.target.value = "";
+                      if (!file) return;
+                      try {
+                        dispatch({ type: "PERSONAL", profile: { avatar: await squareAvatar(file) } });
+                        notify("Photo saved on this device");
+                      } catch (error) {
+                        notify(error.message);
+                      }
+                    }}
+                  />
+                </label>
+                {profile.avatar && <Button onClick={() => dispatch({ type: "PERSONAL", profile: { avatar: "" } })}>Remove picture</Button>}
+              </div>
+            </div>
             <form
               key={role.person}
               onSubmit={event => {
@@ -146,7 +196,7 @@ export function PersonalPage({ section = "profile" }) {
           </Card>
           <Card title="Your workspace identity">
             <div className="personal-profile-identity">
-              <Avatar name={profile.name} />
+              <Avatar name={profile.name} avatar={profile.avatar} large />
               <div>
                 <h3>{profile.name}</h3>
                 <small>{profile.email}</small>

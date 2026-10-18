@@ -2,6 +2,7 @@ import { ArrowUpRight, CaretDown, CaretRight, Check, MagnifyingGlass, Plus, X, W
 import { Children, Fragment, isValidElement, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useCrm } from "./context.jsx";
+import { avatarSource } from "./avatars.js";
 
 export const money = value => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
 /** Bedrooms, bathrooms and area, leaving out what the source did not supply. */
@@ -104,15 +105,12 @@ export function Segmented({ value, options, onChange, label }) {
     </div>
   );
 }
-export function Avatar({ name, small = false }) {
+export function Avatar({ name, avatar, small = false, large = false }) {
+  const crm = useCrm();
+  const choice = avatar ?? crm?.state.personal?.[name]?.avatar;
   return (
-    <span className={"initials " + (small ? "small" : "")} aria-label={name}>
-      {name
-        .split(" ")
-        .filter(Boolean)
-        .slice(0, 2)
-        .map(word => word[0])
-        .join("")}
+    <span className={"initials " + (small ? "small " : "") + (large ? "large" : "")} role="img" aria-label={name}>
+      <img src={avatarSource(choice, name)} alt="" draggable="false" />
     </span>
   );
 }

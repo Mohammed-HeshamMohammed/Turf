@@ -453,6 +453,61 @@ svg {
   color: #44311d;
   background: var(--accent-soft);
 }
+.initials img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  display: block;
+}
+.initials.large {
+  width: 84px;
+  height: 84px;
+}
+.avatar-picker {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
+  gap: 10px;
+}
+.avatar-grid button {
+  display: grid;
+  place-items: center;
+  padding: 3px;
+  border-radius: 50%;
+  transition: transform 140ms;
+}
+.avatar-grid button:hover {
+  transform: scale(1.1);
+}
+.avatar-grid button[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 2.5px var(--raised),
+    0 0 0 5px var(--accent-ink);
+}
+.avatar-grid .initials {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+.avatar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.avatar-actions input[type="file"] {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .avatar-grid button {
+    transition: none;
+  }
+}
 .initials.small {
   width: 26px;
   height: 26px;
