@@ -4180,3 +4180,72 @@ tbody tr:nth-child(n + 6), .kanban-card:nth-of-type(n + 6), .queue-lead:nth-chil
   backdrop-filter: blur(3px);
   animation: veil-out var(--exit) ease-in forwards;
 }
+
+/* ---- Motion: the text itself ---- */
+@keyframes text-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.55em);
+    filter: blur(4px);
+  }
+}
+@keyframes text-out {
+  to {
+    opacity: 0;
+    transform: translateY(-0.3em);
+    filter: blur(3px);
+  }
+}
+/* Page titles: eyebrow, title, then the description. */
+.page-heading .eyebrow,
+.page-heading h1,
+.page-heading p {
+  animation: text-in 520ms var(--ease-out) backwards;
+}
+.page-heading .eyebrow { animation-delay: 40ms; }
+.page-heading h1 { animation-delay: 110ms; }
+.page-heading p { animation-delay: 210ms; }
+/* Titles and figures inside cards, tiles, dialogs and panels arrive just after their container. */
+:is(.card, .empty, .modal, .email-pending, .skip-evidence-banner) :is(h2, h3, h4),
+.card > header p,
+.metric > strong,
+.metric > small,
+.metric-label,
+.empty p,
+.body-copy,
+.definition-list strong,
+.property-value strong,
+.deal-amount,
+.dial-number,
+.call-person h2,
+.queue-lead strong {
+  animation: text-in 460ms var(--ease-out) 170ms backwards;
+}
+.card > header p,
+.metric > small,
+.empty p,
+.body-copy {
+  animation-delay: 240ms;
+}
+.modal[open] :is(h2, p, label > span) {
+  animation: text-in 420ms var(--ease-out) 120ms backwards;
+}
+.notification-panel strong,
+.notification-panel small,
+.turf-menu-panel strong,
+.turf-menu-panel small,
+.select-option span {
+  animation: text-in 300ms var(--ease-out) 60ms backwards;
+}
+/* A page or dialog leaving: its text slips away first. */
+.exit-ghost :is(h1, h2, h3, h4, p, strong, .eyebrow, .metric-label, .dial-number) {
+  animation: text-out 150ms var(--ease-in) forwards !important;
+}
+.exit-ghost :is(h1, h2, h3, h4, p, strong, .eyebrow, .metric-label, .dial-number) {
+  animation-delay: 0ms !important;
+}
+.turf-menu-panel.leaving :is(strong, small),
+.notification-panel.leaving :is(strong, small),
+.search-results.leaving :is(strong, span) {
+  animation: text-out 140ms var(--ease-in) forwards;
+}
