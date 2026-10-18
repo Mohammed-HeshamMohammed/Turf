@@ -33,6 +33,16 @@ export function visibleTasks(state) {
   const leadIds = new Set(visibleLeads(state).map(lead => lead.id));
   return state.tasks.filter(task => leadIds.has(task.leadId) && (state.role !== "client" || task.shared));
 }
+/** Open counts per page that need the person's attention; the sidebar, top tabs and bell all read from here. */
+export function navCounts(state, role) {
+  const leadIds = new Set(visibleLeads(state).map(lead => lead.id));
+  const counts = {
+    tasks: visibleTasks(state).filter(task => !task.done).length,
+    handoffs: state.handoffs.filter(handoff => handoff.status === "Requested" && leadIds.has(handoff.leadId)).length,
+    inbox: role.pages.includes("inbox") ? visibleThreads(state).filter(thread => thread.unread).length : 0,
+  };
+  return Object.fromEntries(Object.entries(counts).filter(([page]) => role.pages.includes(page)));
+}
 export function visibleThreads(state) {
   if (state.remote) return state.threads;
   const leadIds = new Set(visibleLeads(state).map(lead => lead.id));

@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Bell, CalendarBlank, ChatCircle, CheckCircle, HouseLine, List, MagnifyingGlass, WifiSlash, X } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
-import { loadState, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
+import { loadState, navCounts, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { RemoteGate } from "./RemoteGate.jsx";
 import { api, apiBase, setApiBase } from "./remote/api.js";
 import { SyncEngine } from "./remote/engine.js";
 import { LOCAL_ONLY, remoteReducer, syncAction } from "./remote/session.js";
 import { applyIdentity, labelFor, operationFor } from "./remote/translate.js";
 import { CrmContext } from "./context.jsx";
-import { Badge, Button, Empty, Modal, Search } from "./ui.jsx";
+import { Badge, Button, CountBadge, Empty, Modal, Search } from "./ui.jsx";
 import { Dashboard } from "./Dashboard.jsx";
 import { LeadDetail, Leads, NewLead } from "./Leads.jsx";
 import { Calendar, Calls, Deals, Handoffs, Inbox, Tasks } from "./Work.jsx";
@@ -56,6 +56,8 @@ export function App() {
   const taskNotices = profile.taskReminders ? tasks : [];
   const replyNotices = profile.replyReminders && role.pages.includes("inbox") ? visibleThreads(state).filter(thread => thread.unread) : [];
   const noticeCount = taskNotices.length + replyNotices.length;
+  const counts = navCounts(state, role);
+  const workCount = (counts.tasks || 0) + (counts.handoffs || 0) + (counts.inbox || 0);
   const searchResults = query.trim()
     ? leads
         .filter(lead =>
@@ -220,6 +222,7 @@ export function App() {
             {primary.map(item => (
               <button key={item.id} aria-current={activePrimary === item.id ? "page" : undefined} onClick={() => navigate(item.target)}>
                 {item.label}
+                {item.id === "work" && <CountBadge count={workCount} label="items needing attention" />}
               </button>
             ))}
           </nav>
@@ -245,7 +248,7 @@ export function App() {
             <div className="notification-anchor">
               <button className="round-button" aria-label="Notifications" aria-expanded={notifications} onClick={() => setNotifications(!notifications)}>
                 <Bell size={21} />
-                {noticeCount > 0 && <span className="notification-count">{noticeCount}</span>}
+                <CountBadge count={noticeCount} className="on-bell" />
               </button>
               {notifications && (
                 <div className="notification-panel">

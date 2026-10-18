@@ -147,6 +147,15 @@ export function Status({ value }) {
         : "";
   return <Badge tone={tone}>{value}</Badge>;
 }
+/** The one notification count used everywhere (sidebar rail, top tabs, bell): capped, never zero. */
+export function CountBadge({ count, label = "notifications", className = "" }) {
+  if (!(count > 0)) return null;
+  return (
+    <span className={"count-badge " + className} role="status" aria-label={count + " " + label}>
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
 export function Checkbox({ checked, onChange, label }) {
   return (
     <label className="check">

@@ -14,9 +14,9 @@ import {
   Users,
 } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
-import { visibleLeads, visibleTasks } from "./model.js";
+import { navCounts } from "./model.js";
 import { useCrm } from "./context.jsx";
-import { Badge } from "./ui.jsx";
+import { CountBadge } from "./ui.jsx";
 
 const NAV = [
   { id: "dashboard", label: "Overview", path: "dashboard", icon: SquaresFour, group: "workspace" },
@@ -39,8 +39,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
   const [bend, setBend] = useState(null);
   const [selection, setSelection] = useState(null);
   const role = ROLES[state.role];
-  const leads = visibleLeads(state);
-  const tasks = visibleTasks(state).filter(task => !task.done);
+  const counts = navCounts(state, role);
   const items = NAV.filter(item => role.pages.includes(item.id));
   useLayoutEffect(() => {
     const nav = ref.current.querySelector("nav");
@@ -158,12 +157,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
                 .filter(item => item.group === group)
                 .map(item => {
                   const Icon = item.icon;
-                  const count =
-                    item.id === "handoffs"
-                      ? state.handoffs.filter(h => h.status === "Requested" && leads.some(lead => lead.id === h.leadId)).length
-                      : item.id === "tasks"
-                        ? tasks.length
-                        : null;
+                  const count = counts[item.id] || 0;
                   return (
                     <button
                       key={item.id}
@@ -177,7 +171,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
                         <Icon size={21} weight="light" />
                       </span>
                       <span className="nav-label">{item.label}</span>
-                      {count > 0 && <Badge>{count}</Badge>}
+                      <CountBadge count={count} label={item.label.toLowerCase() + " needing attention"} />
                     </button>
                   );
                 })}
