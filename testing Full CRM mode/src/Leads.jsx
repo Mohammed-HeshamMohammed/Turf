@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { PropertyMap } from "./PropertyMap.jsx";
 import { coordinates } from "./skiptrace-fields.js";
-import { ArrowUpRight, ArrowLeft, Plus, Phone, Envelope, Handshake, Clock, FileText, CheckCircle, Export, HouseLine } from "@phosphor-icons/react";
+import { Archive, ArrowUpRight, ArrowLeft, Plus, Phone, Envelope, Handshake, Clock, FileText, CheckCircle, Export, HouseLine } from "@phosphor-icons/react";
 import { LEAD_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
-import { callbackLabel, canEditLead, capability, uid, visibleLeads } from "./model.js";
+import { archivedLeads, callbackLabel, canEditLead, capability, scopedLeads, uid, visibleLeads } from "./model.js";
 import { CallHistory, NewDealModal } from "./Work.jsx";
 import { useCrm } from "./context.jsx";
 import {
@@ -24,6 +24,7 @@ import {
   downloadCsv,
   money,
   Breadcrumb,
+  ConfirmDialog,
   propertyFacts,
 } from "./ui.jsx";
 
@@ -38,10 +39,12 @@ export function Leads() {
   const [assignee, setAssignee] = useState(assigneeParam);
   useEffect(() => setAssignee(assigneeParam), [assigneeParam]);
   const [hideEmpty, setHideEmpty] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [drag, setDrag] = useState(null);
   const justDragged = useRef(false);
   const client = state.role === "client";
-  const leads = visibleLeads(state).filter(
+  const archivedCount = archivedLeads(state).length;
+  const leads = (showArchived && archivedCount ? archivedLeads(state) : visibleLeads(state)).filter(
     lead =>
       (stage === "All stages" || lead.stage === stage) &&
       (assignee === "All people" || lead.assignee === assignee) &&
@@ -132,6 +135,9 @@ export function Leads() {
         )}
         <Segmented label="Lead view" value={view} options={client ? ["List", "Map"] : ["List", "Board", "Map"]} onChange={setView} />
         <Checkbox label="Hide empty fields" checked={hideEmpty} onChange={event => setHideEmpty(event.target.checked)} />
+        {!client && archivedCount > 0 && (
+          <Checkbox label={"Archived (" + archivedCount + ")"} checked={showArchived} onChange={event => setShowArchived(event.target.checked)} />
+        )}
         <span className="result-count">
           {leads.length} {client ? "properties" : "leads"}
         </span>
@@ -316,7 +322,7 @@ export function Leads() {
 
 export function LeadDetail({ id }) {
   const { state, dispatch, navigate, notify } = useCrm();
-  const lead = visibleLeads(state).find(item => item.id === id);
+  const lead = scopedLeads(state).find(item => item.id === id);
   const [tab, setTab] = useState("Overview");
   const [note, setNote] = useState("");
   const [visibility, setVisibility] = useState("internal");
@@ -325,6 +331,8 @@ export function LeadDetail({ id }) {
   const [handoffNote, setHandoffNote] = useState("");
   const [document, setDocument] = useState(false);
   const [newDeal, setNewDeal] = useState(false);
+  const [confirm, setConfirm] = useState("");
+  const [editingNote, setEditingNote] = useState(null);
   const [hideEmpty, setHideEmpty] = useState(false);
   if (!lead)
     return (
@@ -348,7 +356,28 @@ export function LeadDetail({ id }) {
         description={client ? "Property information approved for your workspace." : "A person, a property, and a shared next step."}
       >
         {pending && <Badge tone="peach">Pending sync</Badge>}
-        {editable && capability(state, "handoff") && (
+        {lead.archived && <Badge tone="danger">Archived</Badge>}
+        {lead.archived && editable && !state.remote && (
+          <Button
+            onClick={() => {
+              dispatch({ type: "RESTORE_LEAD", id });
+              notify("Lead restored");
+            }}
+          >
+            Restore lead
+          </Button>
+        )}
+        {lead.archived && editable && !state.remote && (
+          <Button variant="danger-button" onClick={() => setConfirm("delete")}>
+            Delete permanently
+          </Button>
+        )}
+        {!lead.archived && editable && !state.remote && !client && (
+          <Button icon={Archive} onClick={() => setConfirm("archive")}>
+            Archive
+          </Button>
+        )}
+        {!lead.archived && editable && capability(state, "handoff") && (
           <Button
             icon={Handshake}
             onClick={() => {
@@ -359,7 +388,7 @@ export function LeadDetail({ id }) {
             Request handoff
           </Button>
         )}
-        {capability(state, "call") && (
+        {!lead.archived && capability(state, "call") && (
           <Button variant="primary" icon={Phone} disabled={lead.verdict === "Do not call"} onClick={() => navigate("work/calls/" + id)}>
             Call workspace
           </Button>
@@ -445,17 +474,66 @@ export function LeadDetail({ id }) {
                 title={client ? "Shared notes" : "Notes & context"}
                 subtitle={client ? "Visible to you and the project team." : "Keep important details attached to the lead."}
               >
-                {notes.map(item => (
-                  <article className="note" key={item.id}>
-                    <p>{item.text}</p>
-                    <div>
-                      <small>
-                        {item.actor} · {item.at}
-                      </small>
-                      <Badge>{item.visibility === "shared" ? "Shared with partner" : "Internal"}</Badge>
-                    </div>
-                  </article>
-                ))}
+                {notes.map(item => {
+                  const mine = item.actor === ROLES[state.role].person;
+                  const manage = !state.remote && !client && (mine || editable);
+                  return (
+                    <article className="note" key={item.id}>
+                      {editingNote?.id === item.id ? (
+                        <form
+                          className="note-edit"
+                          onSubmit={event => {
+                            event.preventDefault();
+                            dispatch({ type: "EDIT_NOTE", leadId: id, noteId: item.id, text: editingNote.text });
+                            setEditingNote(null);
+                            notify("Note updated");
+                          }}
+                        >
+                          <textarea
+                            aria-label="Edit note"
+                            value={editingNote.text}
+                            onChange={event => setEditingNote({ ...editingNote, text: event.target.value })}
+                            required
+                            autoFocus
+                          />
+                          <div className="row">
+                            <button className="button primary" type="submit">
+                              Save
+                            </button>
+                            <Button onClick={() => setEditingNote(null)}>Cancel</Button>
+                          </div>
+                        </form>
+                      ) : (
+                        <p>
+                          {item.text}
+                          {item.edited && <small className="note-edited"> · edited</small>}
+                        </p>
+                      )}
+                      <div>
+                        <small>
+                          {item.actor} · {item.at}
+                        </small>
+                        <Badge>{item.visibility === "shared" ? "Shared with partner" : "Internal"}</Badge>
+                        {manage && editingNote?.id !== item.id && (
+                          <span className="note-tools">
+                            <button type="button" onClick={() => setEditingNote({ id: item.id, text: item.text })}>
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                dispatch({ type: "DELETE_NOTE", leadId: id, noteId: item.id });
+                                notify("Note deleted");
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </span>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
                 {!notes.length && <p className="muted">No shared notes yet.</p>}
                 {(editable || capability(state, "publicComment")) && (
                   <form
@@ -758,6 +836,39 @@ export function LeadDetail({ id }) {
         </Modal>
       )}
       {newDeal && <NewDealModal lead={lead} onClose={() => setNewDeal(false)} />}
+      {confirm === "archive" && (
+        <ConfirmDialog
+          title="Archive this lead?"
+          confirmLabel="Archive lead"
+          onClose={() => setConfirm("")}
+          onConfirm={() => {
+            dispatch({ type: "ARCHIVE_LEAD", id });
+            setConfirm("");
+            notify("Lead archived. You can restore it from the archived view.");
+            navigate("work/leads");
+          }}
+        >
+          <p>
+            {lead.name} at {lead.address} leaves your lists, call queue, deals and search. Nothing is deleted, and you can restore it whenever you like.
+          </p>
+        </ConfirmDialog>
+      )}
+      {confirm === "delete" && (
+        <ConfirmDialog
+          title="Delete this lead for good?"
+          confirmLabel="Delete permanently"
+          danger
+          onClose={() => setConfirm("")}
+          onConfirm={() => {
+            dispatch({ type: "DELETE_LEAD", id });
+            setConfirm("");
+            notify("Lead deleted");
+            navigate("work/leads");
+          }}
+        >
+          <p>This removes {lead.name} together with their notes, deals, tasks, conversations and history. It cannot be undone.</p>
+        </ConfirmDialog>
+      )}
       {document && (
         <Modal title="Approved property brief" onClose={() => setDocument(false)}>
           <article className="property-brief">

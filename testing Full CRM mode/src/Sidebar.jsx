@@ -12,6 +12,7 @@ import {
   SidebarSimple,
   SquaresFour,
   Users,
+  UsersThree,
 } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
 import { navCounts } from "./model.js";
@@ -29,6 +30,7 @@ const NAV = [
   { id: "inbox", label: "Inbox", path: "work/inbox", icon: ChatCircle, group: "workspace" },
   { id: "lists", label: "Source lists", path: "lists", icon: FileCsv, group: "data" },
   { id: "skip", label: "Skip Tracing", path: "skip", icon: ShieldCheck, group: "data" },
+  { id: "team", label: "Team", path: "team", icon: UsersThree, group: "data" },
   { id: "reports", label: "Reports", path: "reports", icon: ChartBar, group: "data" },
 ];
 

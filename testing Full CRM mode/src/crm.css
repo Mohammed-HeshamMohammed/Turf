@@ -4814,3 +4814,91 @@ tbody tr:nth-child(n + 6), .kanban-card:nth-of-type(n + 6), .queue-lead:nth-chil
   text-transform: uppercase;
   color: var(--muted);
 }
+
+/* ---- Managing records ---- */
+.confirm-actions {
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+.note-tools {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.note-tools button {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.note-tools button:hover {
+  background: var(--well);
+  color: var(--ink);
+}
+.note-edit {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.note-edited {
+  display: inline;
+  color: var(--muted);
+}
+/* ---- Team ---- */
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr));
+  gap: 16px;
+}
+.team-person {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+.team-person-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.team-person-head h2 {
+  font-size: 20px;
+}
+.team-person-head small {
+  margin: 3px 0 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.team-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0;
+}
+.team-stats > * {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--well);
+  text-align: left;
+}
+.team-stats button:hover {
+  background: #dcdcdc;
+}
+.team-stats dt {
+  font-size: 11px;
+  color: var(--muted);
+}
+.team-stats dd {
+  margin: 4px 0 0;
+  font-size: 24px;
+  font-weight: 450;
+  letter-spacing: -0.03em;
+}
+.team-pipeline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.team-pipeline strong {
+  font-size: 18px;
+}

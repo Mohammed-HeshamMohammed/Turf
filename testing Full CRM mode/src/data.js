@@ -22,7 +22,7 @@ export const ROLES = {
     title: "Tampa acquisitions",
     scope: "Team records",
     team: "Tampa",
-    pages: ["dashboard", "leads", "calls", "deals", "handoffs", "tasks", "calendar", "inbox", "lists", "reports", "settings"],
+    pages: ["dashboard", "leads", "calls", "deals", "handoffs", "tasks", "calendar", "inbox", "lists", "team", "reports", "settings"],
     capabilities: ["edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "rules"],
   },
   owner: {
@@ -30,7 +30,7 @@ export const ROLES = {
     person: "Jordan Ellis",
     title: "Oak & Palm Partners",
     scope: "Organization records",
-    pages: ["dashboard", "leads", "calls", "deals", "handoffs", "tasks", "calendar", "inbox", "lists", "skip", "reports", "settings"],
+    pages: ["dashboard", "leads", "calls", "deals", "handoffs", "tasks", "calendar", "inbox", "lists", "skip", "team", "reports", "settings"],
     capabilities: ["edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "admin"],
   },
   caller: {

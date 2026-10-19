@@ -292,6 +292,20 @@ export function Modal({ title, children, onClose }) {
     </dialog>
   );
 }
+/** A second look before anything is removed: says what will happen and takes a clear yes or no. */
+export function ConfirmDialog({ title, children, confirmLabel, danger = false, onConfirm, onClose }) {
+  return (
+    <Modal title={title} onClose={onClose}>
+      <div className="body-copy">{children}</div>
+      <div className="row confirm-actions">
+        <Button onClick={onClose}>Keep it</Button>
+        <Button variant={danger ? "danger-button" : "primary"} onClick={onConfirm}>
+          {confirmLabel}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
 export function downloadCsv(filename, rows) {
   const escape = value => '"' + String(value ?? "").replaceAll('"', '""') + '"';
   const csv = rows.map(row => row.map(escape).join(",")).join("\r\n");

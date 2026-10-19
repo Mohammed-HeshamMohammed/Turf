@@ -17,6 +17,7 @@ import {
   PaperPlaneTilt,
   Paperclip,
   ClosedCaptioning,
+  PencilSimple,
   X,
 } from "@phosphor-icons/react";
 import { CALL_OUTCOMES, DEAL_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
@@ -41,6 +42,7 @@ import {
   Status,
   money,
   Breadcrumb,
+  ConfirmDialog,
 } from "./ui.jsx";
 
 export function Calls({ target }) {
@@ -464,6 +466,7 @@ export function Deals({ id }) {
   const [drag, setDrag] = useState(null);
   const justDragged = useRef(false);
   const [creating, setCreating] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const leads = visibleLeads(state);
   const ids = new Set(leads.map(item => item.id));
   const deals = state.deals.filter(item => ids.has(item.leadId));
@@ -571,8 +574,31 @@ export function Deals({ id }) {
             <Button onClick={() => navigate("work/tasks/new?lead=" + lead.id)}>Add a next step</Button>
             <Button onClick={() => navigate("work/leads/" + lead.id)}>Open documents</Button>
             {capability(state, "message") && <Button onClick={() => navigate("work/inbox?lead=" + lead.id)}>Open conversation</Button>}
+            {!state.remote && canEditLead(state, lead.id) && (
+              <Button variant="danger-button" onClick={() => setRemoving(true)}>
+                Delete deal
+              </Button>
+            )}
           </Card>
         </div>
+        {removing && (
+          <ConfirmDialog
+            title="Delete this deal?"
+            confirmLabel="Delete deal"
+            danger
+            onClose={() => setRemoving(false)}
+            onConfirm={() => {
+              dispatch({ type: "DELETE_DEAL", id });
+              setRemoving(false);
+              notify("Deal deleted. The lead is untouched.");
+              navigate("work/deals");
+            }}
+          >
+            <p>
+              The {money(deal.amount)} deal for {lead.address} is removed. {lead.name} stays as a lead, and nothing else changes.
+            </p>
+          </ConfirmDialog>
+        )}
         <Card title="What has happened" subtitle="Everything recorded on this lead and its deal, newest first.">
           {state.activities
             .filter(item => item.leadId === lead.id)
@@ -725,11 +751,15 @@ export function Tasks({ create = false }) {
   const [search, setSearch] = useState("");
   const mine = new URLSearchParams(route.split("?")[1]).get("mine") === "1";
   const onlyLead = new URLSearchParams(route.split("?")[1]).get("lead") || "";
+  const onlyPerson = new URLSearchParams(route.split("?")[1]).get("assignee") || "";
+  const [editing, setEditing] = useState(null);
+  const [removingTask, setRemovingTask] = useState(null);
   const leads = visibleLeads(state);
   const tasks = visibleTasks(state).filter(
     task =>
       (!mine || task.assignee === ROLES[state.role].person) &&
       (!onlyLead || task.leadId === onlyLead) &&
+      (!onlyPerson || task.assignee === onlyPerson) &&
       (filter === "All" || task.done === (filter === "Completed")) &&
       task.title.toLowerCase().includes(search.toLowerCase()),
   );
@@ -838,6 +868,11 @@ export function Tasks({ create = false }) {
           <option value="mine">My tasks</option>
         </Select>
         <Segmented label="Task status" value={filter} onChange={setFilter} options={["Open", "Completed", "All"]} />
+        {onlyPerson && (
+          <button type="button" className="filter-chip" onClick={() => navigate("work/tasks")} aria-label="Show tasks for everyone">
+            {onlyPerson} <X size={13} />
+          </button>
+        )}
         {onlyLead && (
           <button type="button" className="filter-chip" onClick={() => navigate("work/tasks")} aria-label="Show tasks for every lead">
             {leads.find(item => item.id === onlyLead)?.address || "One lead"} <X size={13} />
@@ -875,12 +910,100 @@ export function Tasks({ create = false }) {
                 </span>
                 <Status value={task.priority} />
                 <Person name={task.assignee} link />
+                {editable && !state.remote && <RoundButton label={"Edit " + task.title} icon={PencilSimple} onClick={() => setEditing(task)} />}
               </div>
             );
           })}
         </div>
         {!tasks.length && <Empty title="Nothing waiting here">Try another status or add a next step.</Empty>}
       </Card>
+      {editing && (
+        <Modal title="Change this next step." onClose={() => setEditing(null)}>
+          <form
+            onSubmit={event => {
+              event.preventDefault();
+              const data = new FormData(event.currentTarget);
+              dispatch({
+                type: "UPDATE_TASK",
+                id: editing.id,
+                change: {
+                  title: String(data.get("title")),
+                  assignee: String(data.get("assignee")),
+                  type: String(data.get("type")),
+                  date: String(data.get("date")),
+                  time: String(data.get("time")),
+                  priority: String(data.get("priority")),
+                },
+              });
+              setEditing(null);
+              notify("Task updated");
+            }}
+          >
+            <Field label="Task">
+              <input name="title" defaultValue={editing.title} required />
+            </Field>
+            <div className="form-grid">
+              <Field label="Responsible person">
+                <Select name="assignee" defaultValue={editing.assignee}>
+                  {[...new Set([editing.assignee, ROLES[state.role].person, ...PEOPLE])].map(name => (
+                    <option key={name}>{name}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Task type">
+                <Select name="type" defaultValue={editing.type}>
+                  {[...new Set([editing.type, "Callback", "Appointment", "Offer", "Data review", "Document"])].filter(Boolean).map(type => (
+                    <option key={type}>{type}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Due date">
+                <input name="date" type="date" defaultValue={editing.date} required />
+              </Field>
+              <Field label="Due time">
+                <input name="time" type="time" defaultValue={editing.time} required />
+              </Field>
+              <Field label="Priority">
+                <Select name="priority" defaultValue={editing.priority}>
+                  {[...new Set([editing.priority, "High", "Normal", "Low"])].filter(Boolean).map(level => (
+                    <option key={level}>{level}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <div className="row confirm-actions">
+              <Button
+                variant="danger-button"
+                onClick={() => {
+                  setRemovingTask(editing);
+                  setEditing(null);
+                }}
+              >
+                Delete task
+              </Button>
+              <Button onClick={() => setEditing(null)}>Cancel</Button>
+              <button className="button primary" type="submit">
+                Save changes
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {removingTask && (
+        <ConfirmDialog
+          title="Delete this task?"
+          confirmLabel="Delete task"
+          danger
+          onClose={() => setRemovingTask(null)}
+          onConfirm={() => {
+            dispatch({ type: "DELETE_TASK", id: removingTask.id });
+            setRemovingTask(null);
+            notify("Task deleted");
+          }}
+        >
+          <p>“{removingTask.title}” is removed from the task list and the calendar.</p>
+        </ConfirmDialog>
+      )}
     </>
   );
 }

@@ -20,6 +20,7 @@ const loadLeads = () => import("./Leads.jsx");
 const loadWork = () => import("./Work.jsx");
 const loadData = () => import("./DataPages.jsx");
 const loadManagement = () => import("./Management.jsx");
+const loadTeam = () => import("./Team.jsx");
 const Dashboard = lazyPage(loadDashboard, "Dashboard");
 const LeadDetail = lazyPage(loadLeads, "LeadDetail");
 const Leads = lazyPage(loadLeads, "Leads");
@@ -35,8 +36,9 @@ const SkipTracing = lazyPage(loadData, "SkipTracing");
 const Reports = lazyPage(loadManagement, "Reports");
 const Settings = lazyPage(loadManagement, "Settings");
 const Sync = lazyPage(loadManagement, "Sync");
+const Team = lazyPage(loadTeam, "Team");
 const RemoteGate = lazyPage(() => import("./RemoteGate.jsx"), "RemoteGate");
-const preloadPages = () => [loadLeads, loadWork, loadData, loadManagement, loadDashboard].forEach(load => load());
+const preloadPages = () => [loadLeads, loadWork, loadData, loadManagement, loadTeam, loadDashboard].forEach(load => load());
 
 const readRoute = () => window.location.hash.slice(1).replace(/^\//, "") || "dashboard";
 
@@ -142,6 +144,7 @@ export function App() {
       ["inbox", "Inbox", "work/inbox"],
       ["lists", "Source lists", "lists"],
       ["skip", "Skip Tracing", "skip"],
+      ["team", "Team", "team"],
       ["reports", "Reports", "reports"],
       ["settings", "Settings", "settings"],
     ];
@@ -301,6 +304,8 @@ export function App() {
         return <Reports />;
       case "settings":
         return <Settings section={parts[1]} />;
+      case "team":
+        return <Team />;
       case "sync":
         return <Sync />;
       case "personal":

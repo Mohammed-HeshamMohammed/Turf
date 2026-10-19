@@ -17,7 +17,8 @@ export function capability(state, name) {
   if (state.remote) return state.remote.capabilities.includes(name);
   return state.permissions[state.role]?.[name] ?? ROLES[state.role].capabilities.includes(name);
 }
-export function visibleLeads(state) {
+/** Every lead the person's role can reach, archived ones included. */
+export function scopedLeads(state) {
   // Server records arrive already scoped to the person.
   if (state.remote) return state.leads;
   const role = ROLES[state.role];
@@ -28,6 +29,11 @@ export function visibleLeads(state) {
   const incoming = state.handoffs.filter(item => item.to === role.person && item.status === "Requested").map(item => item.leadId);
   return state.leads.filter(lead => lead.assignee === role.person || incoming.includes(lead.id));
 }
+/** The leads in play: everything in scope except what has been archived. */
+export function visibleLeads(state) {
+  return scopedLeads(state).filter(lead => !lead.archived);
+}
+export const archivedLeads = state => scopedLeads(state).filter(lead => lead.archived);
 export function visibleTasks(state) {
   if (state.remote) return state.tasks;
   const leadIds = new Set(visibleLeads(state).map(lead => lead.id));
@@ -51,7 +57,7 @@ export function visibleThreads(state) {
 export function canEditLead(state, id) {
   if (state.remote) return capability(state, "edit") && state.leads.some(item => item.id === id);
   if (!capability(state, "edit")) return false;
-  const lead = visibleLeads(state).find(item => item.id === id);
+  const lead = scopedLeads(state).find(item => item.id === id);
   return Boolean(lead && (["owner", "solo", "manager"].includes(state.role) || lead.assignee === ROLES[state.role].person));
 }
 function event(state, leadId, text, kind = "Update") {
@@ -244,6 +250,82 @@ export function reducer(state, action) {
           ? [event(state, deal.leadId, "Deal for " + (owner?.address || "a property") + " moved to " + action.change.stage, "Deal"), ...state.activities]
           : state.activities,
         queue: queued(state, deal.leadId, "Deal moved to " + (action.change.stage || deal.stage), "Deal update"),
+      };
+    }
+    case "DELETE_DEAL": {
+      const deal = state.deals.find(item => item.id === action.id);
+      if (state.remote || !deal || !capability(state, "finance") || !canEditLead(state, deal.leadId)) return state;
+      const owner = state.leads.find(item => item.id === deal.leadId);
+      return {
+        ...state,
+        deals: state.deals.filter(item => item.id !== action.id),
+        activities: [event(state, deal.leadId, "Removed the deal for " + (owner?.address || "a property"), "Deal"), ...state.activities],
+        queue: queued(state, deal.leadId, "Deal removed", "Deal update"),
+      };
+    }
+    case "ARCHIVE_LEAD":
+    case "RESTORE_LEAD": {
+      const archiving = action.type === "ARCHIVE_LEAD";
+      const target = state.leads.find(item => item.id === action.id);
+      if (state.remote || !target || !canEditLead(state, target.id) || Boolean(target.archived) === archiving) return state;
+      const text = (archiving ? "Archived " : "Restored ") + target.name;
+      return {
+        ...state,
+        leads: state.leads.map(item => (item.id === target.id ? { ...item, archived: archiving, version: item.version + 1 } : item)),
+        activities: [event(state, target.id, text), ...state.activities],
+        queue: queued(state, target.id, text, "Lead update"),
+      };
+    }
+    case "DELETE_LEAD": {
+      const target = state.leads.find(item => item.id === action.id);
+      // Only an archived lead can be deleted, so it always takes two deliberate steps.
+      if (state.remote || !target || !target.archived || !canEditLead(state, target.id)) return state;
+      return {
+        ...state,
+        leads: state.leads.filter(item => item.id !== target.id),
+        deals: state.deals.filter(item => item.leadId !== target.id),
+        tasks: state.tasks.filter(item => item.leadId !== target.id),
+        threads: state.threads.filter(item => item.leadId !== target.id),
+        handoffs: state.handoffs.filter(item => item.leadId !== target.id),
+        activities: state.activities.filter(item => item.leadId !== target.id),
+        queue: state.queue.filter(item => item.leadId !== target.id),
+      };
+    }
+    case "UPDATE_TASK": {
+      const task = state.tasks.find(item => item.id === action.id);
+      if (state.remote || !task || (!capability(state, "edit") && !capability(state, "review")) || !visibleTasks(state).some(item => item.id === task.id))
+        return state;
+      const change = {};
+      for (const key of ["title", "date", "time", "assignee", "priority", "type"])
+        if (typeof action.change[key] === "string") change[key] = action.change[key].trim();
+      if ("title" in change && !change.title) return state;
+      return {
+        ...state,
+        tasks: state.tasks.map(item => (item.id === task.id ? { ...item, ...change } : item)),
+        queue: queued(state, task.leadId, change.title || task.title, "Task"),
+      };
+    }
+    case "DELETE_TASK": {
+      const task = state.tasks.find(item => item.id === action.id);
+      if (state.remote || !task || (!capability(state, "edit") && !capability(state, "review")) || !visibleTasks(state).some(item => item.id === task.id))
+        return state;
+      return { ...state, tasks: state.tasks.filter(item => item.id !== task.id), queue: queued(state, task.leadId, "Task removed", "Task") };
+    }
+    case "EDIT_NOTE":
+    case "DELETE_NOTE": {
+      const target = state.leads.find(item => item.id === action.leadId);
+      const note = target?.notes.find(item => item.id === action.noteId);
+      const author = note?.actor === ROLES[state.role].person;
+      if (state.remote || !note || !(author || canEditLead(state, target.id))) return state;
+      if (action.type === "EDIT_NOTE" && !String(action.text || "").trim()) return state;
+      const notes =
+        action.type === "EDIT_NOTE"
+          ? target.notes.map(item => (item.id === note.id ? { ...item, text: action.text.trim(), edited: true } : item))
+          : target.notes.filter(item => item.id !== note.id);
+      return {
+        ...state,
+        leads: state.leads.map(item => (item.id === target.id ? { ...item, notes } : item)),
+        queue: queued(state, target.id, "Note on " + target.name, "Note"),
       };
     }
     case "NEW_DEAL": {
