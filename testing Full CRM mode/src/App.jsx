@@ -10,6 +10,7 @@ import { CrmContext } from "./context.jsx";
 import { Badge, Button, CountBadge, Empty, Modal, PageTransition, Search, money, useHeld, usePresence } from "./ui.jsx";
 import { LiveCaptions } from "./LiveCaptions.jsx";
 import { Sidebar } from "./Sidebar.jsx";
+import { WindowStrip, windowDrag } from "./WindowStrip.jsx";
 import { TurfMenu } from "./TurfMenu.jsx";
 import { PersonalMenu, PersonalPage } from "./Personal.jsx";
 
@@ -332,7 +333,8 @@ export function App() {
   return (
     <CrmContext.Provider value={context}>
       <div className="crm-window">
-        <header className="app-header">
+        <WindowStrip title="Turf · Full CRM mode" />
+        <header className="app-header" {...windowDrag}>
           <div className="brand">
             <button className="mobile-menu round-button" aria-label="Toggle navigation" onClick={() => setMobileNav(!mobileNav)}>
               <List size={22} />

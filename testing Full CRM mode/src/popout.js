@@ -46,6 +46,23 @@ export async function dragThisWindow() {
   await getCurrentWindow().startDragging();
 }
 
+async function thisWindow() {
+  return (await import("@tauri-apps/api/window")).getCurrentWindow();
+}
+export const minimizeWindow = async () => (await thisWindow()).minimize();
+export const toggleMaximizeWindow = async () => (await thisWindow()).toggleMaximize();
+/** Closing the app closes the floating caption window too, so it is never left behind on the screen. */
+export async function closeMainWindow() {
+  await closeCaptionsWindow().catch(() => {});
+  await (await thisWindow()).close();
+}
+/** Calls `report(true|false)` now and whenever the window is maximised or restored. Returns a function that stops watching. */
+export async function watchMaximized(report) {
+  const appWindow = await thisWindow();
+  report(await appWindow.isMaximized());
+  return appWindow.onResized(async () => report(await appWindow.isMaximized()));
+}
+
 /** Keeps the floating window exactly as large as the bar inside it. */
 export async function sizeThisWindow(width, height) {
   const { getCurrentWindow, LogicalSize } = await import("@tauri-apps/api/window");

@@ -4946,3 +4946,51 @@ html.captions-window #root {
 .captions-window-root .captions-bar {
   cursor: grab;
 }
+/* ---- The desktop window's own title bar ---- */
+.window-strip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 34px;
+  padding: 0 6px 0 18px;
+  background: var(--page);
+  user-select: none;
+}
+.window-strip-title {
+  font-size: 11px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.win-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 26px;
+  border-radius: 6px;
+  color: #5a5a5a;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.win-btn svg {
+  width: 11px;
+  height: 11px;
+}
+.win-btn:hover {
+  background: rgb(0 0 0 / 0.08);
+  color: var(--ink);
+}
+.win-close:hover {
+  background: rgb(214 48 49 / 0.16);
+  color: #c0392b;
+}
+.window-strip + .app-header {
+  height: 76px;
+  padding-top: 4px;
+}
