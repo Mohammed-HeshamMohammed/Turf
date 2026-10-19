@@ -4724,3 +4724,22 @@ tbody tr:nth-child(n + 6), .kanban-card:nth-of-type(n + 6), .queue-lead:nth-chil
     animation: none;
   }
 }
+
+/* The two dashboard columns finish together: the last card on the left stretches to meet the right. */
+@media (min-width: 1081px) {
+  .dashboard-left {
+    display: flex;
+    flex-direction: column;
+  }
+  .dashboard-right {
+    display: flex;
+    flex-direction: column;
+  }
+  .dashboard-left > .card:last-child,
+  .dashboard-right > .card:last-child {
+    flex: 1;
+  }
+}
+.dashboard-left .list-row {
+  padding: 13px 0;
+}

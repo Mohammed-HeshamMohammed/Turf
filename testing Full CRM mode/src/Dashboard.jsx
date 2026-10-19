@@ -22,6 +22,11 @@ export function Dashboard() {
   const finance = capability(state, "finance");
   const history = state.activities.filter(item => item.leadId && leadIds.has(item.leadId));
   const isClient = state.role === "client";
+  // Fills the left column: who is due a call next.
+  const callbacks = active
+    .filter(lead => lead.callback)
+    .sort((a, b) => ((a.callbackDate || "") + a.callback).localeCompare((b.callbackDate || "") + b.callback))
+    .slice(0, 3);
 
   if (state.role === "admin")
     return (
@@ -199,6 +204,29 @@ export function Dashboard() {
                   <CallActivityChart />
                 </Suspense>
               )}
+            </Card>
+          )}
+          {!isClient && (
+            <Card
+              title="Callbacks lined up"
+              subtitle="Who is expecting to hear from you next."
+              action={<RoundButton label="Open calls" onClick={() => navigate("work/calls")} />}
+            >
+              {callbacks.map(lead => (
+                <div className="list-row" key={lead.id}>
+                  <div>
+                    <LeadLink lead={lead} />
+                    <small>
+                      {lead.address} · {lead.city}
+                    </small>
+                  </div>
+                  <span className="callback-time">
+                    <Clock size={15} />
+                    {callbackLabel(lead.callbackDate, lead.callback)}
+                  </span>
+                </div>
+              ))}
+              {!callbacks.length && <Empty title="No callbacks waiting">Scheduled callbacks appear here.</Empty>}
             </Card>
           )}
           {isClient && (
