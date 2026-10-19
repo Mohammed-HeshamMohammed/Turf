@@ -1,0 +1,16 @@
+[package]
+name = "turf-crm"
+version = "0.1.0"
+description = "Turf Full CRM mode, as a desktop app"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[profile.dev]
+# Dependencies are compiled once and rarely change, so keep them fast while the app's own code builds quickly.
+[profile.dev.package."*"]
+opt-level = 2

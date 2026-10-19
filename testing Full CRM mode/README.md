@@ -113,3 +113,18 @@ The scaffold hosting worker, build-preparation script, and `.openai/hosting.json
 - `public/assets/property.jpg` was generated for this prototype with the image generation tool. It depicts a fictional house and is labeled as an illustrative sample photo.
 - Icons come from Phosphor; charts from Recharts; CSV parsing from Papa Parse; the bundled font is Inter Tight Variable.
 - Screenshot evidence contains the fictional preview workspace. The original Turf screenshot is stored outside the repository to avoid committing live workspace data.
+
+## Desktop app
+
+The CRM also runs as its own desktop app (Tauri), separate from the main Turf app in `../src-tauri`:
+
+```bash
+npm run desktop
+```
+
+This starts (or reuses) the dev server on port 5190 and opens the window. In the desktop app the live-caption bar has a **Pop out** button that moves it into its own always-on-top window, which you can drag anywhere on the screen. **Dock** puts it back. The two windows share one live feed, so the call, the captions and the assistant keep running in the main window.
+
+## Live captions and the call assistant
+
+- **Demo** plays a sample conversation built from the lead record. **Mic** captions what the microphone hears, using the browser's speech recogniser (Chrome and Edge; it may not exist in every webview, and the bar says so).
+- With captions on, the call assistant listens to the transcript and raises a prompt when something worth answering is said (price, timeline, repairs, tenants, a request to stop calling and so on). The rules are plain pattern matching in `src/cues.js` and run on the device.

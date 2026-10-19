@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ClosedCaptioning, DotsSixVertical, Microphone, PlayCircle, TextAa, X } from "@phosphor-icons/react";
+import { ArrowSquareIn, ArrowSquareOut, ClosedCaptioning, DotsSixVertical, Microphone, PlayCircle, TextAa, X } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
 import { useCrm } from "./context.jsx";
 import { addTranscriptLine, getCallSession, setCallSession, useCallSession } from "./callSession.js";
 import { speechSupported, startListening } from "./listen.js";
+import { CAPTIONS_CHANNEL, closeCaptionsWindow, inDesktopApp, openCaptionsWindow } from "./popout.js";
 import { usePresence } from "./ui.jsx";
 
 const WORD_MS = 230;
@@ -126,7 +127,7 @@ export function useCaptionEngine() {
 }
 
 /** The caption bar itself: the title row with its controls, then the lines. Used in the app and in a pop-out window. */
-export function CaptionsPanel({ shown, active, large, source, micState, onSource, onLarge, onClose, grip, barProps }) {
+export function CaptionsPanel({ shown, active, large, source, micState, onSource, onLarge, onClose, onPopOut, onDock, grip, barProps }) {
   const blocked = source === "mic" && (micState === "denied" || micState === "unavailable");
   return (
     <div className={"captions" + (large ? " is-large" : "")} role="log" aria-live="off" aria-label="Live captions">
@@ -147,6 +148,16 @@ export function CaptionsPanel({ shown, active, large, source, micState, onSource
         <button type="button" onClick={onLarge} aria-label={large ? "Smaller captions" : "Larger captions"} aria-pressed={large}>
           <TextAa size={17} />
         </button>
+        {onPopOut && (
+          <button type="button" onClick={onPopOut} aria-label="Pop out to a floating window" title="Pop out: float over the whole screen">
+            <ArrowSquareOut size={17} />
+          </button>
+        )}
+        {onDock && (
+          <button type="button" onClick={onDock} aria-label="Dock back into the app" title="Dock back into the app">
+            <ArrowSquareIn size={17} />
+          </button>
+        )}
         <button type="button" onClick={onClose} aria-label="Turn captions off">
           <X size={16} />
         </button>
@@ -191,9 +202,9 @@ export function CaptionsPanel({ shown, active, large, source, micState, onSource
  * The live-caption bar: a dark pill that floats over the whole app while captions are on, and can be dragged anywhere in the window.
  */
 export function LiveCaptions() {
-  const { captions, source, micState, active } = useCallSession();
+  const { captions, source, micState, active, popout } = useCallSession();
   const shown = useCaptionEngine();
-  const presence = usePresence(captions);
+  const presence = usePresence(captions && !popout);
   const [large, setLarge] = useState(false);
   const [position, setPosition] = useState(readPosition);
   const [dragging, setDragging] = useState(false);
@@ -221,6 +232,50 @@ export function LiveCaptions() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [position, place]);
+
+  // ---- Floating window (desktop app only): this window runs the captions and streams each frame to it.
+  const link = useRef(null);
+  const dock = useCallback(() => {
+    setCallSession({ popout: false });
+    closeCaptionsWindow().catch(() => {});
+  }, []);
+  const popOut = useCallback(async () => {
+    setCallSession({ popout: true });
+    try {
+      await openCaptionsWindow(() => setCallSession({ popout: false }));
+    } catch {
+      setCallSession({ popout: false });
+    }
+  }, []);
+  const frame = useRef(null);
+  frame.current = { type: "frame", shown, large, active, source, micState };
+  useEffect(() => {
+    if (!inDesktopApp()) return undefined;
+    const channel = new BroadcastChannel(CAPTIONS_CHANNEL);
+    link.current = channel;
+    channel.onmessage = event => {
+      const message = event.data;
+      if (message?.type === "hello") channel.postMessage(frame.current);
+      if (message?.type === "closed") setCallSession({ popout: false });
+      if (message?.type === "action") {
+        if (message.name === "source") setCallSession({ source: message.value });
+        if (message.name === "large") setLarge(value => !value);
+        if (message.name === "dock") dock();
+        if (message.name === "close") {
+          setCallSession({ captions: false, popout: false });
+          closeCaptionsWindow().catch(() => {});
+        }
+      }
+    };
+    return () => channel.close();
+  }, [dock]);
+  useEffect(() => {
+    if (popout) link.current?.postMessage({ type: "frame", shown, large, active, source, micState });
+  }, [popout, shown, large, active, source, micState]);
+  useEffect(() => {
+    // Switching captions off from anywhere also closes the floating window.
+    if (popout && !captions) dock();
+  }, [popout, captions, dock]);
 
   function remember(next) {
     setPosition(next);
@@ -295,6 +350,7 @@ export function LiveCaptions() {
         onSource={value => setCallSession({ source: value })}
         onLarge={() => setLarge(!large)}
         onClose={() => setCallSession({ captions: false })}
+        onPopOut={inDesktopApp() ? popOut : undefined}
         grip={
           <span
             className="captions-grip"

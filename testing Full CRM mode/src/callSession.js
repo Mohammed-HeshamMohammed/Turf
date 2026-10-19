@@ -19,6 +19,8 @@ let session = {
   // "demo" plays a sample conversation; "mic" captions what the microphone hears.
   source: read(SOURCE_KEY, "demo") === "mic" ? "mic" : "demo",
   micState: "idle",
+  // True while the captions float in their own desktop window instead of inside the app.
+  popout: false,
   active: false,
   lead: null,
   // Settled lines, oldest first: { id, who, side, text }.

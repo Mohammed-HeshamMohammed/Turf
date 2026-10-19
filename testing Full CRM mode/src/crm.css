@@ -4928,3 +4928,21 @@ tbody tr:nth-child(n + 6), .kanban-card:nth-of-type(n + 6), .queue-lead:nth-chil
   font-size: 10.5px;
   color: var(--muted);
 }
+/* The floating caption window is transparent apart from the bar itself. */
+html.captions-window,
+html.captions-window body,
+html.captions-window #root {
+  background: transparent !important;
+  overflow: hidden;
+}
+.captions-window-root {
+  width: 784px;
+  padding: 12px;
+}
+.captions-window-root .captions {
+  width: 760px;
+  animation: none;
+}
+.captions-window-root .captions-bar {
+  cursor: grab;
+}
