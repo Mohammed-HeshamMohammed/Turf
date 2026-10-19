@@ -1,7 +1,5 @@
 # Avatar portraits
 
-Drop square portraits here named `1.jpg` to `12.jpg` (`.png` or `.webp` also work). About 256×256 or larger is plenty.
+`1.jpg` to `12.jpg` are the portraits the app uses: the twelve choices on Profile → My profile, and the default face for everyone who has not picked one (the sample team have their own; other people get one chosen from their name).
 
-- Profile → "My profile" shows these twelve as the picker.
-- Anyone who has not picked one gets a portrait chosen from their name.
-- A missing file falls back to a drawn face, so you can add them a few at a time.
+They are AI-generated headshots of people who do not exist, made with Pollinations (https://pollinations.ai) from plain "friendly professional headshot" prompts, with the service's corner mark cropped off. Replace any of them with your own square images (`.jpg`, `.png` or `.webp`, about 384×384 or larger) using the same file names. A missing file falls back to a drawn face.

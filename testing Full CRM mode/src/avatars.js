@@ -51,6 +51,17 @@ function drawFace(seed) {
 
 const PORTRAIT_FORMATS = ["jpg", "png", "webp"];
 
+// The people on the sample team each get their own portrait; everyone else gets one chosen from their name.
+const TEAM_PORTRAITS = {
+  "Maya Chen": 1,
+  "Ben Carter": 2,
+  "Lena Brooks": 7,
+  "Jordan Ellis": 4,
+  "Alex Rivera": 8,
+  "Taylor Reed": 9,
+  "Sam Morgan": 6,
+};
+
 /**
  * Image sources to try, best first, for an avatar choice: an uploaded photo (data URL), otherwise a portrait from
  * public/avatars/ (1.jpg to 12.jpg; the person's own pick, or one chosen from their name), and finally a drawn face
@@ -59,7 +70,7 @@ const PORTRAIT_FORMATS = ["jpg", "png", "webp"];
 export function avatarSources(choice, name) {
   if (typeof choice === "string" && choice.startsWith("data:image/")) return [choice];
   const preset = typeof choice === "string" && choice.startsWith("preset:") ? Number(choice.slice(7)) : 0;
-  const number = preset || (hash(String(name || "?")) % AVATAR_PRESETS.length) + 1;
+  const number = preset || TEAM_PORTRAITS[name] || (hash(String(name || "?")) % AVATAR_PRESETS.length) + 1;
   const drawn = "data:image/svg+xml;utf8," + encodeURIComponent(drawFace(hash(preset ? choice + "-turf" : String(name || "?"))));
   return [...PORTRAIT_FORMATS.map(format => `/avatars/${number}.${format}`), drawn];
 }

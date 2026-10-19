@@ -136,7 +136,7 @@ export function PersonalPage({ section = "profile" }) {
               <div className="avatar-grid" role="group" aria-label="Choose an avatar">
                 <button
                   type="button"
-                  aria-label="Avatar drawn from your name"
+                  aria-label="Default avatar"
                   aria-pressed={!profile.avatar}
                   onClick={() => dispatch({ type: "PERSONAL", profile: { avatar: "" } })}
                 >
