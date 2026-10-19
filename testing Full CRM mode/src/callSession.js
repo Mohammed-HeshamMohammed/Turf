@@ -1,32 +1,49 @@
 import { useSyncExternalStore } from "react";
 
-// What a running call shares with the rest of the app: whether captions are on, whether a call is live and who it is with.
-// It lives outside any page so the call, and its caption bar, carry on while you move around the app.
+// What a running call shares with the rest of the app: whether captions are on, whether a call is live, who it is with,
+// and what has been said so far. It lives outside any page so the call, its caption bar and the assistant carry on
+// while you move around the app (and so a pop-out window can mirror it).
 const CAPTIONS_KEY = "turf.full-crm.captions";
+const SOURCE_KEY = "turf.full-crm.captions-source";
 
-function readCaptions() {
+function read(key, fallback) {
   try {
-    return window.localStorage.getItem(CAPTIONS_KEY) === "on";
+    return window.localStorage.getItem(key) ?? fallback;
   } catch {
-    return false;
+    return fallback;
   }
 }
 
-let session = { captions: readCaptions(), active: false, lead: null };
+let session = {
+  captions: read(CAPTIONS_KEY, "off") === "on",
+  // "demo" plays a sample conversation; "mic" captions what the microphone hears.
+  source: read(SOURCE_KEY, "demo") === "mic" ? "mic" : "demo",
+  micState: "idle",
+  active: false,
+  lead: null,
+  // Settled lines, oldest first: { id, who, side, text }.
+  transcript: [],
+};
 const listeners = new Set();
 
 export const getCallSession = () => session;
 
 export function setCallSession(patch) {
   session = { ...session, ...patch };
-  if ("captions" in patch) {
-    try {
-      window.localStorage.setItem(CAPTIONS_KEY, session.captions ? "on" : "off");
-    } catch {
-      /* The switch still works for this session. */
-    }
+  try {
+    if ("captions" in patch) window.localStorage.setItem(CAPTIONS_KEY, session.captions ? "on" : "off");
+    if ("source" in patch) window.localStorage.setItem(SOURCE_KEY, session.source);
+  } catch {
+    /* The choice still holds for this session. */
   }
   listeners.forEach(listener => listener());
+}
+
+let lineCounter = 0;
+/** Adds one settled line of speech to the call's transcript. */
+export function addTranscriptLine(line) {
+  lineCounter += 1;
+  setCallSession({ transcript: [...session.transcript, { id: lineCounter, ...line }].slice(-60) });
 }
 
 const subscribe = listener => {

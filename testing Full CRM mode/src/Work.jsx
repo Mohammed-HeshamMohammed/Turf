@@ -88,7 +88,11 @@ export function Calls({ target }) {
   }, [callable, activeList, lists]);
   const lead = leads.find(item => item.id === chosen) || leads[0];
   const setActiveCall = on =>
-    setCallSession({ active: on, lead: on && lead ? { id: lead.id, name: lead.name, address: lead.address, motivation: lead.motivation } : null });
+    setCallSession({
+      active: on,
+      lead: on && lead ? { id: lead.id, name: lead.name, address: lead.address, motivation: lead.motivation } : null,
+      transcript: [],
+    });
   if (!capability(state, "call")) return <Empty title="Calling is outside this role">Your workspace only shows the actions available to you.</Empty>;
   function outcome(value) {
     if (!lead) return;

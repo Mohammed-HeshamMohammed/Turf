@@ -4573,7 +4573,7 @@ tbody tr:nth-child(n + 6), .kanban-card:nth-of-type(n + 6), .queue-lead:nth-chil
   color: white;
   background: #ffffff1a;
 }
-.captions.leaving {
+.captions-anchor.leaving .captions {
   animation: captions-out var(--exit) var(--ease-in) forwards;
 }
 .captions-bar {
@@ -4901,4 +4901,30 @@ tbody tr:nth-child(n + 6), .kanban-card:nth-of-type(n + 6), .queue-lead:nth-chil
 }
 .team-pipeline strong {
   font-size: 18px;
+}
+.captions-source {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: #ffffff14;
+}
+.captions-bar .captions-source button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: auto;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: #bdbdbd;
+}
+.captions-bar .captions-source button[aria-pressed="true"] {
+  background: white;
+  color: #191919;
+}
+.ai-heard {
+  margin-top: -2px;
+  font-size: 10.5px;
+  color: var(--muted);
 }

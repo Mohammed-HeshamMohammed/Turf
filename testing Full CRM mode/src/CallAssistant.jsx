@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ChatCenteredText, Flag, Pause, Play, Plus, Question, Sparkle, Warning, X } from "@phosphor-icons/react";
 import { Card, Select, Field } from "./ui.jsx";
+import { cuesFor } from "./cues.js";
+import { useCallSession } from "./callSession.js";
 
 const STORAGE_KEY = "turf.full-crm.ai-assist";
 const INTERVAL = 6000;
@@ -59,7 +61,8 @@ function readEnabled() {
 
 /**
  * The call-side AI helper: an opening line to start with and, when switched on, live prompts that keep arriving while a call is running.
- * The preview has no audio and no model behind it; the prompts come from the lead's own record.
+ * With captions off, prompts come from the lead's record on a timer. With captions on, it listens to the transcript instead and
+ * answers what is actually said. All of it is matched on this device; nothing said is sent anywhere.
  */
 export function CallAssistant({ lead, person, script, onScript, activeCall, captions, onCaptions, onUse }) {
   const [enabled, setEnabled] = useState(readEnabled);
@@ -67,6 +70,9 @@ export function CallAssistant({ lead, person, script, onScript, activeCall, capt
   const [feed, setFeed] = useState([]);
   const counter = useRef(0);
   const plan = useRef([]);
+  const seen = useRef(new Set());
+  const handled = useRef(0);
+  const { transcript } = useCallSession();
   const status = !enabled ? "off" : !activeCall ? "ready" : paused ? "paused" : "listening";
 
   function toggle() {
@@ -83,12 +89,26 @@ export function CallAssistant({ lead, person, script, onScript, activeCall, capt
   useEffect(() => {
     plan.current = lead ? suggestionsFor(lead, script) : [];
     counter.current = 0;
+    seen.current = new Set();
+    handled.current = 0;
     setFeed([]);
     setPaused(false);
   }, [lead?.id, activeCall, script]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Listening mode: every new line said on the call can raise a prompt, once per topic.
   useEffect(() => {
-    if (status !== "listening") return;
+    if (status !== "listening" || !captions) return;
+    const fresh = transcript.filter(line => line.id > handled.current);
+    if (!fresh.length) return;
+    handled.current = fresh[fresh.length - 1].id;
+    const cues = fresh.filter(line => line.side !== "agent").flatMap(line => cuesFor(line.text, seen.current).map(cue => ({ ...cue, quote: line.text })));
+    if (!cues.length) return;
+    setFeed(current => [...cues.map(cue => ({ ...cue, id: "cue-" + cue.ruleId })), ...current].slice(0, MAX_SHOWN));
+  }, [transcript, status, captions]);
+
+  useEffect(() => {
+    // With captions on, the feed follows what is said; the timer only fills in when nothing is being transcribed.
+    if (status !== "listening" || captions) return;
     const push = () => {
       const pool = plan.current;
       if (!pool.length) return;
@@ -99,7 +119,7 @@ export function CallAssistant({ lead, person, script, onScript, activeCall, capt
     if (!counter.current) push();
     const timer = setInterval(push, INTERVAL);
     return () => clearInterval(timer);
-  }, [status]);
+  }, [status, captions]);
 
   const opening = (OPENINGS[script] || OPENINGS["First conversation"])(person);
 
@@ -137,7 +157,9 @@ export function CallAssistant({ lead, person, script, onScript, activeCall, capt
             </span>
             <span className="ai-live-text">
               {status === "listening"
-                ? "Suggesting as the call goes"
+                ? captions
+                  ? "Listening to the call for cues"
+                  : "Suggesting as the call goes"
                 : status === "paused"
                   ? "Paused. Nothing new until you resume"
                   : "Start the call and prompts will appear here"}
@@ -158,6 +180,7 @@ export function CallAssistant({ lead, person, script, onScript, activeCall, capt
                     {KINDS[item.kind].label}
                   </span>
                   <p>{item.text}</p>
+                  {item.heard && <small className="ai-heard">Heard “{item.heard}”</small>}
                   <div className="ai-card-actions">
                     <button type="button" onClick={() => onUse(item.text)}>
                       <Plus size={13} weight="bold" /> Add to note

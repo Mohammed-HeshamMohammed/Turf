@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ClosedCaptioning, DotsSixVertical, TextAa, X } from "@phosphor-icons/react";
+import { ClosedCaptioning, DotsSixVertical, Microphone, PlayCircle, TextAa, X } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
 import { useCrm } from "./context.jsx";
-import { setCallSession, useCallSession } from "./callSession.js";
+import { addTranscriptLine, getCallSession, setCallSession, useCallSession } from "./callSession.js";
+import { speechSupported, startListening } from "./listen.js";
 import { usePresence } from "./ui.jsx";
 
 const WORD_MS = 230;
@@ -46,20 +47,157 @@ function readPosition() {
 }
 
 /**
+ * Produces the caption lines while captions are on and a call is live: a played-back sample conversation, or what the
+ * microphone hears. Settled lines also go to the shared transcript, which is what the call assistant listens to.
+ */
+export function useCaptionEngine() {
+  const { state } = useCrm();
+  const { captions, source, active, lead } = useCallSession();
+  const agent = ROLES[state.role].person.split(" ")[0];
+  const [shown, setShown] = useState([]);
+
+  useEffect(() => {
+    setShown([]);
+    if (!captions || !active || !lead) return undefined;
+
+    if (source === "mic") {
+      if (!speechSupported()) {
+        setCallSession({ micState: "unavailable" });
+        return undefined;
+      }
+      let counter = 0;
+      // Browsers ask for permission without saying when they have been ignored, so say so ourselves after a few seconds.
+      const nudge = setTimeout(() => getCallSession().micState !== "listening" && setCallSession({ micState: "waiting" }), 5000);
+      const stop = startListening({
+        onState: micState => setCallSession({ micState }),
+        onInterim: text =>
+          setShown(previous =>
+            [...previous.filter(item => !item.live), ...(text ? [{ turn: "live", who: "You", side: "agent", text, live: true }] : [])].slice(-2),
+          ),
+        onFinal: text => {
+          counter += 1;
+          addTranscriptLine({ who: "You", side: "mic", text });
+          setShown(previous => [...previous.filter(item => !item.live), { turn: "m" + counter, who: "You", side: "agent", text, live: false }].slice(-2));
+        },
+      });
+      return () => {
+        clearTimeout(nudge);
+        stop();
+        setCallSession({ micState: "idle" });
+      };
+    }
+
+    // Sample conversation.
+    setCallSession({ micState: "idle" });
+    const turns = conversationFor(lead, agent);
+    let alive = true;
+    let turn = 0;
+    let word = 0;
+    let timer;
+    const tick = () => {
+      if (!alive) return;
+      const current = turns[turn];
+      if (!current) return;
+      const words = current.text.split(" ");
+      word += 1;
+      const index = turn;
+      const spoken = words.slice(0, word).join(" ");
+      const live = word < words.length;
+      setShown(previous =>
+        [...previous.filter(item => item.turn !== index), { turn: index, who: current.who, side: current.side, text: spoken, live }].slice(-2),
+      );
+      if (word >= words.length) {
+        addTranscriptLine({ who: current.who, side: current.side, text: current.text });
+        turn += 1;
+        word = 0;
+        timer = setTimeout(tick, TURN_PAUSE);
+      } else {
+        timer = setTimeout(tick, WORD_MS + Math.min(words[word - 1].length, 9) * 12);
+      }
+    };
+    timer = setTimeout(tick, 600);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [captions, source, active, lead?.id, agent]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return shown;
+}
+
+/** The caption bar itself: the title row with its controls, then the lines. Used in the app and in a pop-out window. */
+export function CaptionsPanel({ shown, active, large, source, micState, onSource, onLarge, onClose, grip, barProps }) {
+  const blocked = source === "mic" && (micState === "denied" || micState === "unavailable");
+  return (
+    <div className={"captions" + (large ? " is-large" : "")} role="log" aria-live="off" aria-label="Live captions">
+      <div className="captions-bar" {...barProps}>
+        {grip}
+        <span className="captions-tag">
+          <ClosedCaptioning size={16} weight="fill" /> Live captions
+          <i className="captions-dot" aria-hidden="true" />
+        </span>
+        <span className="captions-source" role="group" aria-label="Caption source">
+          <button type="button" aria-pressed={source === "demo"} onClick={() => onSource("demo")} title="Play a sample conversation">
+            <PlayCircle size={15} /> Demo
+          </button>
+          <button type="button" aria-pressed={source === "mic"} onClick={() => onSource("mic")} title="Caption what the microphone hears">
+            <Microphone size={15} /> Mic
+          </button>
+        </span>
+        <button type="button" onClick={onLarge} aria-label={large ? "Smaller captions" : "Larger captions"} aria-pressed={large}>
+          <TextAa size={17} />
+        </button>
+        <button type="button" onClick={onClose} aria-label="Turn captions off">
+          <X size={16} />
+        </button>
+      </div>
+      <div className="captions-lines">
+        {blocked && (
+          <p className="captions-wait">
+            {micState === "denied"
+              ? "Microphone access was blocked. Allow it for this app, or switch to Demo."
+              : "Live speech to text isn't available here. Try Chrome or Edge, or switch to Demo."}
+          </p>
+        )}
+        {source === "mic" && micState === "waiting" && shown.length === 0 && (
+          <p className="captions-wait">Still waiting for the microphone. Allow access when asked, or switch to Demo.</p>
+        )}
+        {!blocked && !(source === "mic" && micState === "waiting") && shown.length === 0 && (
+          <p className="captions-wait">
+            {!active
+              ? "Captions are on. Start the demo call and what is said appears here."
+              : source === "mic"
+                ? micState === "listening"
+                  ? "Listening… speak and your words appear here."
+                  : "Starting the microphone…"
+                : "Waiting for the conversation to start…"}
+          </p>
+        )}
+        {shown.map((line, index) => (
+          <p key={line.turn} className={"caption-line " + line.side + (index === shown.length - 1 ? " is-current" : "")}>
+            <b>{line.who}</b>
+            <span>
+              {line.text}
+              {line.live && <em className="caret" aria-hidden="true" />}
+            </span>
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
  * The live-caption bar: a dark pill that floats over the whole app while captions are on, and can be dragged anywhere in the window.
- * There is no audio in the preview, so the captions are a played-back demo conversation.
  */
 export function LiveCaptions() {
-  const { state } = useCrm();
-  const { captions, active, lead } = useCallSession();
-  const agent = ROLES[state.role].person.split(" ")[0];
+  const { captions, source, micState, active } = useCallSession();
+  const shown = useCaptionEngine();
   const presence = usePresence(captions);
-  const [shown, setShown] = useState([]);
   const [large, setLarge] = useState(false);
   const [position, setPosition] = useState(readPosition);
   const [dragging, setDragging] = useState(false);
   const anchor = useRef(null);
-  const run = useRef(0);
   const drag = useRef(null);
   const latest = useRef(null);
 
@@ -140,62 +278,24 @@ export function LiveCaptions() {
     }
   }
 
-  useEffect(() => {
-    if (!captions || !active || !lead) {
-      setShown([]);
-      return;
-    }
-    const token = ++run.current;
-    const turns = conversationFor(lead, agent);
-    let turn = 0;
-    let word = 0;
-    let timer;
-    setShown([]);
-    const tick = () => {
-      if (token !== run.current) return;
-      const current = turns[turn];
-      if (!current) return;
-      const words = current.text.split(" ");
-      word += 1;
-      const index = turn;
-      const spoken = words.slice(0, word).join(" ");
-      const live = word < words.length;
-      setShown(previous => {
-        const done = previous.filter(item => item.turn !== index);
-        return [...done, { turn: index, who: current.who, side: current.side, text: spoken, live }].slice(-2);
-      });
-      if (word >= words.length) {
-        turn += 1;
-        word = 0;
-        timer = setTimeout(tick, TURN_PAUSE);
-      } else {
-        timer = setTimeout(tick, WORD_MS + Math.min(words[word - 1].length, 9) * 12);
-      }
-    };
-    timer = setTimeout(tick, 600);
-    return () => {
-      run.current += 1;
-      clearTimeout(timer);
-    };
-  }, [captions, active, lead?.id, agent]); // eslint-disable-line react-hooks/exhaustive-deps
-
   if (!presence.mounted) return null;
   const spot = placed || { x: 0, y: 0 };
   return (
     <div
       ref={anchor}
-      className={"captions-anchor" + (dragging ? " is-dragging" : "") + (placed ? "" : " is-measuring")}
+      className={"captions-anchor" + (dragging ? " is-dragging" : "") + (placed ? "" : " is-measuring") + (presence.leaving ? " leaving" : "")}
       style={{ transform: `translate3d(${Math.round(spot.x)}px, ${Math.round(spot.y)}px, 0)` }}
     >
-      <div className={"captions" + (large ? " is-large" : "") + (presence.leaving ? " leaving" : "")} role="log" aria-live="off" aria-label="Live captions">
-        <div
-          className="captions-bar"
-          onPointerDown={startDrag}
-          onPointerMove={moveDrag}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
-          onDoubleClick={event => !event.target.closest("button") && resetPosition()}
-        >
+      <CaptionsPanel
+        shown={shown}
+        active={active}
+        large={large}
+        source={source}
+        micState={micState}
+        onSource={value => setCallSession({ source: value })}
+        onLarge={() => setLarge(!large)}
+        onClose={() => setCallSession({ captions: false })}
+        grip={
           <span
             className="captions-grip"
             role="button"
@@ -206,35 +306,15 @@ export function LiveCaptions() {
           >
             <DotsSixVertical size={18} weight="bold" />
           </span>
-          <span className="captions-tag">
-            <ClosedCaptioning size={16} weight="fill" /> Live captions
-            <i className="captions-dot" aria-hidden="true" />
-          </span>
-          <span className="captions-demo">Demo audio</span>
-          <button type="button" onClick={() => setLarge(!large)} aria-label={large ? "Smaller captions" : "Larger captions"} aria-pressed={large}>
-            <TextAa size={17} />
-          </button>
-          <button type="button" onClick={() => setCallSession({ captions: false })} aria-label="Turn captions off">
-            <X size={16} />
-          </button>
-        </div>
-        <div className="captions-lines">
-          {shown.length === 0 && (
-            <p className="captions-wait">
-              {active ? "Waiting for the conversation to start…" : "Captions are on. Start the demo call and what is said appears here."}
-            </p>
-          )}
-          {shown.map((line, index) => (
-            <p key={line.turn} className={"caption-line " + line.side + (index === shown.length - 1 ? " is-current" : "")}>
-              <b>{line.who}</b>
-              <span>
-                {line.text}
-                {line.live && <em className="caret" aria-hidden="true" />}
-              </span>
-            </p>
-          ))}
-        </div>
-      </div>
+        }
+        barProps={{
+          onPointerDown: startDrag,
+          onPointerMove: moveDrag,
+          onPointerUp: endDrag,
+          onPointerCancel: endDrag,
+          onDoubleClick: event => !event.target.closest("button") && resetPosition(),
+        }}
+      />
     </div>
   );
 }
