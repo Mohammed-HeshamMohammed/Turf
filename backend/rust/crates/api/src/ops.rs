@@ -78,7 +78,7 @@ impl From<ApiError> for Failure {
 type OpOutcome = Result<Value, Failure>;
 
 /// Kinds that change ownership, permissions or many records: never accepted from an offline queue (plan 2.7).
-const ONLINE_ONLY: &[&str] = &["lead.assign", "lead.delete", "lead.share", "handoff.decide"];
+const ONLINE_ONLY: &[&str] = &["lead.assign", "lead.delete", "lead.share", "handoff.decide", "task.delete", "deal.delete"];
 
 pub async fn apply(pool: &PgPool, actor: &Actor, op: Op) -> ApiResult<OpResult> {
     let mut tx = crate::db::begin(pool, &actor.scope).await?;
@@ -163,10 +163,12 @@ async fn run(tx: &mut PgConnection, actor: &Actor, op: &Op) -> OpOutcome {
         "task.create" => task_create(tx, actor, op, p).await,
         "task.update" => task_update(tx, actor, op, p).await,
         "task.complete" => task_complete(tx, actor, op, p).await,
+        "task.delete" => task_delete(tx, actor, op, p).await,
         "handoff.request" => handoff_request(tx, actor, op, p).await,
         "handoff.decide" => handoff_decide(tx, actor, op, p).await,
         "deal.create" => deal_create(tx, actor, op, p).await,
         "deal.update" => deal_update(tx, actor, op, p).await,
+        "deal.delete" => deal_delete(tx, actor, op, p).await,
         "message.draft" => message_draft(tx, actor, op, p).await,
         "follow" => follow(tx, actor, p).await,
         "notification.read" => notification_read(tx, actor, p).await,
@@ -758,6 +760,22 @@ async fn task_visible(tx: &mut PgConnection, id: Uuid, lock: bool) -> Result<Val
     sqlx::query_scalar(&sql).bind(id).fetch_optional(&mut *tx).await?.ok_or_else(|| Failure::Rejected("The task was not found or is outside your access".into()))
 }
 
+/// Removes a task. The change is recorded with the task as it was, so the audit trail keeps what was there.
+async fn task_delete(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -> OpOutcome {
+    if !actor.scope.access.can("edit") && !actor.scope.access.can("review") {
+        return Err(Failure::Rejected("Your role cannot change tasks".into()));
+    }
+    let id = uuid_field(p, "id")?;
+    let before = task_visible(tx, id, true).await?;
+    let lead_id = before.get("lead_id").and_then(Value::as_str).and_then(|s| Uuid::parse_str(s).ok());
+    sqlx::query("DELETE FROM tasks WHERE id = $1").bind(id).execute(&mut *tx).await?;
+    let mut c = change(actor, op, "task", id, lead_id, "task.deleted");
+    c.before = Some(before);
+    c.deleted = true;
+    record(tx, c).await?;
+    Ok(json!({ "id": id, "deleted": true }))
+}
+
 fn valid_recurrence(rule: &str) -> bool {
     rule.is_empty() || next_occurrence(rule, Utc::now()).is_some()
 }
@@ -1050,15 +1068,48 @@ async fn handoff_decide(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value
 
 const DEAL_EDITABLE: &[&str] = &["stage", "amount", "fee", "currency", "close_date", "outcome_reason"];
 
+/// A non-negative amount of money from the payload, or None when it was not given.
+fn money(p: &Value, name: &str) -> Result<Option<f64>, Failure> {
+    match p.get(name) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => value
+            .as_f64()
+            .filter(|n| n.is_finite() && *n >= 0.0 && *n < 1e12)
+            .map(Some)
+            .ok_or_else(|| Failure::Rejected(format!("{name} must be an amount of zero or more"))),
+    }
+}
+
+/// Opens a deal for a lead. Only `lead_id` is required; the client may also choose the id (so an offline device can refer
+/// to the deal at once) and give the stage, amount, fee and close date, so the whole deal arrives in one operation.
 async fn deal_create(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -> OpOutcome {
     need(actor, "finance")?;
     let lead_id = uuid_field(p, "lead_id")?;
     visible_lead(tx, lead_id, false).await?;
+    let id = opt_uuid(p, "id")?;
+    let stage = p.get("stage").and_then(Value::as_str).filter(|s| !s.is_empty()).unwrap_or("Qualified").to_string();
+    let pipeline = stages(tx, "pipeline.deal", DEAL_STAGES).await?;
+    if !pipeline.iter().any(|s| *s == stage) {
+        return Err(Failure::Rejected(format!("{stage} is not a deal stage")));
+    }
+    if stage.starts_with("Closed") {
+        return Err(Failure::Rejected("A new deal starts in an open stage".into()));
+    }
+    let close_date = match p.get("close_date").and_then(Value::as_str).filter(|s| !s.is_empty()) {
+        None => None,
+        Some(day) => Some(chrono::NaiveDate::parse_from_str(day, "%Y-%m-%d").map_err(|_| Failure::Rejected("close_date must be a date (YYYY-MM-DD)".into()))?.to_string()),
+    };
+    let figures = json!({ "amount": money(p, "amount")?, "fee": money(p, "fee")?, "close_date": close_date });
     let deal: Option<Value> = sqlx::query_scalar(
-        "INSERT INTO deals (org_id, lead_id, property_id, stage) SELECT org_id, id, property_id, 'Qualified' FROM leads WHERE id = $1 \
+        "INSERT INTO deals (id, org_id, lead_id, property_id, stage, amount, fee, close_date) \
+         SELECT coalesce($2, gen_random_uuid()), l.org_id, l.id, l.property_id, $3, ($4::jsonb->>'amount')::numeric, ($4::jsonb->>'fee')::numeric, \
+                ($4::jsonb->>'close_date')::date FROM leads l WHERE l.id = $1 \
          ON CONFLICT (lead_id) DO NOTHING RETURNING to_jsonb(deals.*)",
     )
     .bind(lead_id)
+    .bind(id)
+    .bind(&stage)
+    .bind(&figures)
     .fetch_optional(&mut *tx)
     .await?;
     let deal = deal.ok_or_else(|| Failure::Rejected("This lead already has a deal".into()))?;
@@ -1113,6 +1164,31 @@ async fn deal_update(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -
     c.after = Some(deal.clone());
     record(tx, c).await?;
     Ok(deal)
+}
+
+/// Removes a deal. Its follow-up tasks go with it, and each removal is recorded so every device drops them too.
+async fn deal_delete(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -> OpOutcome {
+    need(actor, "finance")?;
+    let id = uuid_field(p, "id")?;
+    let before: Value = sqlx::query_scalar("SELECT to_jsonb(d) FROM deals d WHERE d.id = $1 AND turf_visible_lead(d.lead_id) FOR UPDATE")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| Failure::Rejected("The deal was not found or is outside your access".into()))?;
+    let lead_id = before.get("lead_id").and_then(Value::as_str).and_then(|s| Uuid::parse_str(s).ok());
+    let attached: Vec<(Uuid, Value)> = sqlx::query_as("SELECT id, to_jsonb(t) FROM tasks t WHERE t.deal_id = $1").bind(id).fetch_all(&mut *tx).await?;
+    sqlx::query("DELETE FROM deals WHERE id = $1").bind(id).execute(&mut *tx).await?;
+    for (task_id, task) in attached {
+        let mut gone = change(actor, op, "task", task_id, lead_id, "task.deleted");
+        gone.before = Some(task);
+        gone.deleted = true;
+        record(tx, gone).await?;
+    }
+    let mut c = change(actor, op, "deal", id, lead_id, "deal.deleted");
+    c.before = Some(before);
+    c.deleted = true;
+    record(tx, c).await?;
+    Ok(json!({ "id": id, "deleted": true }))
 }
 
 // ---------------------------------------------------------------------------------------------- communication etc.

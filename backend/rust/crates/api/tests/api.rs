@@ -405,3 +405,65 @@ async fn dashboard_works_without_redis_and_legacy_import_is_idempotent() {
     assert_eq!(detail["sources"][0]["legacy_key"], "k1");
     assert_eq!(detail["notes"][0]["author_label"], "Legacy import");
 }
+
+#[tokio::test]
+async fn deals_open_whole_and_tasks_and_deals_can_be_removed() {
+    let h = harness!();
+    let w = world(&h).await;
+    let manager = w.client("manager");
+    let caller = w.client("caller");
+    let l = lead(manager, "Rita Hale", json!({})).await;
+    let lead_id = l["id"].clone();
+    let deal_id = Uuid::new_v4();
+    // A role without finance cannot open a deal; bad figures and stages are refused before anything is written.
+    assert_eq!(caller.op("deal.create", json!({ "lead_id": lead_id })).await["status"], "rejected");
+    assert_eq!(manager.op("deal.create", json!({ "lead_id": lead_id, "amount": -5 })).await["status"], "rejected");
+    assert_eq!(manager.op("deal.create", json!({ "lead_id": lead_id, "close_date": "soon" })).await["status"], "rejected");
+    assert_eq!(manager.op("deal.create", json!({ "lead_id": lead_id, "stage": "Closed won" })).await["status"], "rejected");
+    assert_eq!(manager.op("deal.create", json!({ "lead_id": lead_id, "stage": "Nonsense" })).await["status"], "rejected");
+    // The whole deal arrives in one operation, under the id the device chose.
+    let created = manager
+        .op("deal.create", json!({ "id": deal_id, "lead_id": lead_id, "stage": "Appointment", "amount": 250000, "fee": 15000, "close_date": "2027-01-15" }))
+        .await;
+    assert_eq!(created["status"], "applied", "{created}");
+    assert_eq!(created["result"]["id"], json!(deal_id));
+    assert_eq!(created["result"]["stage"], "Appointment");
+    assert_eq!(created["result"]["close_date"], "2027-01-15");
+    // One deal per lead.
+    assert_eq!(manager.op("deal.create", json!({ "lead_id": lead_id })).await["status"], "rejected");
+
+    // Tasks can be removed, and a second removal finds nothing.
+    let task = manager.op("task.create", json!({ "lead_id": lead_id, "title": "Send the offer" })).await;
+    assert_eq!(task["status"], "applied");
+    let task_id = task["result"]["id"].clone();
+    let snapshot = manager.get("/sync/snapshot").await.ok();
+    let revision = snapshot["access_revision"].as_i64().unwrap();
+    let cursor = snapshot["cursor"].as_i64().unwrap();
+    assert_eq!(manager.op("task.delete", json!({ "id": task_id })).await["status"], "applied");
+    assert_eq!(manager.op("task.delete", json!({ "id": task_id })).await["status"], "rejected");
+    // Removals are refused when queued offline, like the other destructive changes.
+    let offline = manager
+        .post("/api/v1/ops", json!({ "id": Uuid::new_v4(), "kind": "deal.delete", "queued_offline": true, "payload": { "id": deal_id } }))
+        .await
+        .ok();
+    assert_eq!(offline["status"], "rejected");
+
+    // A deal's own follow-up tasks go with it, and every device is told about both.
+    let attached = manager.op("task.create", json!({ "lead_id": lead_id, "title": "Chase the signature" })).await;
+    sqlx::query("UPDATE tasks SET deal_id = $2 WHERE id = $1::uuid").bind(attached["result"]["id"].as_str().unwrap()).bind(deal_id).execute(&h.owner).await.unwrap();
+    assert_eq!(caller.op("deal.delete", json!({ "id": deal_id })).await["status"], "rejected");
+    assert_eq!(manager.op("deal.delete", json!({ "id": deal_id })).await["status"], "applied");
+    assert_eq!(manager.op("deal.delete", json!({ "id": deal_id })).await["status"], "rejected");
+    let pulled = manager.get(&format!("/sync/pull?cursor={cursor}&access_revision={revision}")).await.ok();
+    let removed: Vec<(String, String)> = pulled["changes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|c| c["op"] == "remove")
+        .map(|c| (c["entity"].as_str().unwrap().to_string(), c["id"].as_str().unwrap().to_string()))
+        .collect();
+    assert!(removed.contains(&("task".into(), task_id.as_str().unwrap().to_string())));
+    assert!(removed.contains(&("deal".into(), deal_id.to_string())));
+    assert!(removed.contains(&("task".into(), attached["result"]["id"].as_str().unwrap().to_string())));
+    assert!(manager.get(&format!("/api/v1/leads/{}", lead_id.as_str().unwrap())).await.ok()["deal"].is_null());
+}

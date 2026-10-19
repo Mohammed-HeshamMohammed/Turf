@@ -377,6 +377,11 @@ export function LeadDetail({ id }) {
             Archive
           </Button>
         )}
+        {!lead.archived && editable && state.remote && capability(state, "assign") && (
+          <Button variant="danger-button" onClick={() => setConfirm("delete")}>
+            Delete lead
+          </Button>
+        )}
         {!lead.archived && editable && capability(state, "handoff") && (
           <Button
             icon={Handshake}
@@ -752,7 +757,7 @@ export function LeadDetail({ id }) {
                 </button>
               ))}
               {!leadDeals.length && <p className="muted">No deal opened for this property yet.</p>}
-              {editable && !state.remote && (
+              {editable && !(state.remote && leadDeals.length) && (
                 <Button icon={Plus} onClick={() => setNewDeal(true)}>
                   Open a deal
                 </Button>
@@ -866,7 +871,11 @@ export function LeadDetail({ id }) {
             navigate("work/leads");
           }}
         >
-          <p>This removes {lead.name} together with their notes, deals, tasks, conversations and history. It cannot be undone.</p>
+          <p>
+            {state.remote
+              ? lead.name + " is removed from every list for everyone on the team. The server keeps a record of it in its audit trail."
+              : "This removes " + lead.name + " together with their notes, deals, tasks, conversations and history. It cannot be undone."}
+          </p>
         </ConfirmDialog>
       )}
       {document && (

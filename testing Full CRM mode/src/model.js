@@ -254,7 +254,7 @@ export function reducer(state, action) {
     }
     case "DELETE_DEAL": {
       const deal = state.deals.find(item => item.id === action.id);
-      if (state.remote || !deal || !capability(state, "finance") || !canEditLead(state, deal.leadId)) return state;
+      if (!deal || !capability(state, "finance") || !canEditLead(state, deal.leadId)) return state;
       const owner = state.leads.find(item => item.id === deal.leadId);
       return {
         ...state,
@@ -279,7 +279,9 @@ export function reducer(state, action) {
     case "DELETE_LEAD": {
       const target = state.leads.find(item => item.id === action.id);
       // Only an archived lead can be deleted, so it always takes two deliberate steps.
-      if (state.remote || !target || !target.archived || !canEditLead(state, target.id)) return state;
+      if (!target || !canEditLead(state, target.id)) return state;
+      // On this device it takes two steps (archive, then delete). A server only has one: its removal, which needs the assign capability.
+      if (state.remote ? !capability(state, "assign") : !target.archived) return state;
       return {
         ...state,
         leads: state.leads.filter(item => item.id !== target.id),
@@ -293,8 +295,7 @@ export function reducer(state, action) {
     }
     case "UPDATE_TASK": {
       const task = state.tasks.find(item => item.id === action.id);
-      if (state.remote || !task || (!capability(state, "edit") && !capability(state, "review")) || !visibleTasks(state).some(item => item.id === task.id))
-        return state;
+      if (!task || (!capability(state, "edit") && !capability(state, "review")) || !visibleTasks(state).some(item => item.id === task.id)) return state;
       const change = {};
       for (const key of ["title", "date", "time", "assignee", "priority", "type"])
         if (typeof action.change[key] === "string") change[key] = action.change[key].trim();
@@ -307,8 +308,7 @@ export function reducer(state, action) {
     }
     case "DELETE_TASK": {
       const task = state.tasks.find(item => item.id === action.id);
-      if (state.remote || !task || (!capability(state, "edit") && !capability(state, "review")) || !visibleTasks(state).some(item => item.id === task.id))
-        return state;
+      if (!task || (!capability(state, "edit") && !capability(state, "review")) || !visibleTasks(state).some(item => item.id === task.id)) return state;
       return { ...state, tasks: state.tasks.filter(item => item.id !== task.id), queue: queued(state, task.leadId, "Task removed", "Task") };
     }
     case "EDIT_NOTE":
@@ -330,7 +330,9 @@ export function reducer(state, action) {
     }
     case "NEW_DEAL": {
       const target = state.leads.find(item => item.id === action.deal.leadId);
-      if (state.remote || !capability(state, "finance") || !target || !canEditLead(state, target.id)) return state;
+      // A server keeps one deal per lead, so a second one would only be refused there.
+      if (!capability(state, "finance") || !target || !canEditLead(state, target.id)) return state;
+      if (state.remote && state.deals.some(item => item.leadId === target.id)) return state;
       return {
         ...state,
         deals: [...state.deals, action.deal],

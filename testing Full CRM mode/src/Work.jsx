@@ -398,7 +398,10 @@ export function Handoffs() {
 /** Opens a deal for a lead. With a lead given it is fixed; otherwise you choose one that is yours to edit. */
 export function NewDealModal({ lead, onClose }) {
   const { state, dispatch, navigate, notify } = useCrm();
-  const choices = visibleLeads(state).filter(item => item.stage !== "Closed" && canEditLead(state, item.id));
+  // Against a server each lead has one deal, so only leads without one can open another.
+  const choices = visibleLeads(state).filter(
+    item => item.stage !== "Closed" && canEditLead(state, item.id) && !(state.remote && state.deals.some(deal => deal.leadId === item.id)),
+  );
   const [leadId, setLeadId] = useState(lead?.id || choices[0]?.id || "");
   return (
     <Modal title="Open a deal." onClose={onClose}>
@@ -578,7 +581,7 @@ export function Deals({ id }) {
             <Button onClick={() => navigate("work/tasks/new?lead=" + lead.id)}>Add a next step</Button>
             <Button onClick={() => navigate("work/leads/" + lead.id)}>Open documents</Button>
             {capability(state, "message") && <Button onClick={() => navigate("work/inbox?lead=" + lead.id)}>Open conversation</Button>}
-            {!state.remote && canEditLead(state, lead.id) && (
+            {canEditLead(state, lead.id) && capability(state, "finance") && (
               <Button variant="danger-button" onClick={() => setRemoving(true)}>
                 Delete deal
               </Button>
@@ -631,7 +634,7 @@ export function Deals({ id }) {
   return (
     <>
       <PageHeader title="From conversation to closing." description="A separate deal for every transaction, connected to its lead and property.">
-        {capability(state, "finance") && !state.remote && (
+        {capability(state, "finance") && (!state.remote || leads.some(item => !deals.some(deal => deal.leadId === item.id))) && (
           <Button variant="primary" icon={Plus} onClick={() => setCreating(true)}>
             New deal
           </Button>
@@ -914,7 +917,7 @@ export function Tasks({ create = false }) {
                 </span>
                 <Status value={task.priority} />
                 <Person name={task.assignee} link />
-                {editable && !state.remote && <RoundButton label={"Edit " + task.title} icon={PencilSimple} onClick={() => setEditing(task)} />}
+                {editable && <RoundButton label={"Edit " + task.title} icon={PencilSimple} onClick={() => setEditing(task)} />}
               </div>
             );
           })}

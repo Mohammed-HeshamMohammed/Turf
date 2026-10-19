@@ -169,3 +169,71 @@ test("a saved schema 1 workspace gains empty call history and today's callback d
   assert.equal(loaded.leads[0].callbackDate, TODAY);
   assert.equal(loaded.leads.find(lead => !lead.callback).callbackDate, "");
 });
+
+test("leads can be archived, restored and deleted for good, and the pieces go with them", () => {
+  const manager = as("manager");
+  const target = manager.leads.find(lead => lead.team === "Tampa");
+  const archived = reducer(manager, { type: "ARCHIVE_LEAD", id: target.id });
+  assert.equal(
+    visibleLeads(archived).some(lead => lead.id === target.id),
+    false,
+  );
+  assert.equal(archived.leads.find(lead => lead.id === target.id).archived, true);
+  assert.equal(reducer(archived, { type: "DELETE_LEAD", id: "nobody" }), archived);
+  const restored = reducer(archived, { type: "RESTORE_LEAD", id: target.id });
+  assert.equal(
+    visibleLeads(restored).some(lead => lead.id === target.id),
+    true,
+  );
+  // Only an archived lead can be deleted, and its tasks, deals and notes are removed with it.
+  assert.equal(reducer(restored, { type: "DELETE_LEAD", id: target.id }), restored);
+  const gone = reducer(archived, { type: "DELETE_LEAD", id: target.id });
+  assert.equal(
+    gone.leads.some(lead => lead.id === target.id),
+    false,
+  );
+  assert.equal(
+    gone.tasks.some(task => task.leadId === target.id),
+    false,
+  );
+  assert.equal(
+    gone.deals.some(deal => deal.leadId === target.id),
+    false,
+  );
+});
+
+test("tasks, deals and notes can be changed and removed by the people allowed to", () => {
+  const manager = as("manager");
+  const task = visibleTasks(manager)[0];
+  const renamed = reducer(manager, { type: "UPDATE_TASK", id: task.id, change: { title: "  New title ", time: "08:15" } });
+  assert.deepEqual([renamed.tasks.find(item => item.id === task.id).title, renamed.tasks.find(item => item.id === task.id).time], ["New title", "08:15"]);
+  assert.equal(reducer(manager, { type: "UPDATE_TASK", id: task.id, change: { title: "   " } }), manager);
+  assert.equal(
+    reducer(manager, { type: "DELETE_TASK", id: task.id }).tasks.some(item => item.id === task.id),
+    false,
+  );
+  // A deal opens for a lead and is removed again; a role without finance cannot.
+  const lead = visibleLeads(manager)[0];
+  const deal = { id: "deal-new", leadId: lead.id, stage: "Appointment", amount: 100000, fee: 5000, closeDate: "2026-12-01" };
+  const opened = reducer(manager, { type: "NEW_DEAL", deal });
+  assert.equal(
+    opened.deals.some(item => item.id === "deal-new"),
+    true,
+  );
+  assert.equal(
+    reducer(opened, { type: "DELETE_DEAL", id: "deal-new" }).deals.some(item => item.id === "deal-new"),
+    false,
+  );
+  assert.equal(reducer(as("caller"), { type: "NEW_DEAL", deal }).deals.length, as("caller").deals.length);
+  // Notes: the author or someone who can edit the lead may change or delete them.
+  const withNote = reducer(manager, { type: "NOTE", leadId: lead.id, text: "First version" });
+  const note = withNote.leads.find(item => item.id === lead.id).notes.at(-1);
+  const edited = reducer(withNote, { type: "EDIT_NOTE", leadId: lead.id, noteId: note.id, text: "Second version" });
+  assert.deepEqual(edited.leads.find(item => item.id === lead.id).notes.at(-1), { ...note, text: "Second version", edited: true });
+  assert.equal(
+    reducer(withNote, { type: "DELETE_NOTE", leadId: lead.id, noteId: note.id })
+      .leads.find(item => item.id === lead.id)
+      .notes.some(item => item.id === note.id),
+    false,
+  );
+});

@@ -28,10 +28,11 @@ components:
         kind:
           type: string
           enum: [lead.create, lead.update, lead.assign, lead.delete, lead.share, note.add, call.record, task.create, task.update,
-                 task.complete, handoff.request, handoff.decide, deal.create, deal.update, message.draft, follow, notification.read]
+                 task.complete, task.delete, handoff.request, handoff.decide, deal.create, deal.update, deal.delete, message.draft, follow,
+                 notification.read]
         payload: { type: object, description: "Versioned edits: {id, changes: {field: value}, base: {field: value the client edited from}}" }
         claimed_at: { type: string, format: date-time, description: The device's time; kept, never used for ordering. }
-        queued_offline: { type: boolean, description: lead.assign, lead.delete, lead.share and handoff.decide are refused when true. }
+        queued_offline: { type: boolean, description: lead.assign, lead.delete, lead.share, handoff.decide, task.delete and deal.delete are refused when true. }
         device_id: { type: string }
     OpResult:
       type: object

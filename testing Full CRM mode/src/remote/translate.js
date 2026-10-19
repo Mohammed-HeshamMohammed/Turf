@@ -135,7 +135,9 @@ export function collectionsFromStore(store) {
   const records = kind => Object.values(store[kind] || {});
   const context = { directory: store.directory || [], teams: store.teams || [], calls: records("calls"), notes: records("notes") };
   return {
-    leads: records("leads").map(lead => leadFromServer(lead, context)).sort((a, b) => a.name.localeCompare(b.name)),
+    leads: records("leads")
+      .map(lead => leadFromServer(lead, context))
+      .sort((a, b) => a.name.localeCompare(b.name)),
     tasks: records("tasks").map(task => taskFromServer(task, context.directory)),
     deals: records("deals").map(dealFromServer),
     handoffs: records("handoffs").map(handoff => handoffFromServer(handoff, context.directory)),
@@ -171,7 +173,8 @@ export function applyChanges(store, changes) {
     } else {
       const previous = next[kind][change.id];
       // A pulled lead has no property; keep the one the snapshot gave.
-      next[kind][change.id] = change.entity === "lead" && previous?.property && !change.record.property ? { ...change.record, property: previous.property } : change.record;
+      next[kind][change.id] =
+        change.entity === "lead" && previous?.property && !change.record.property ? { ...change.record, property: previous.property } : change.record;
     }
   }
   return next;
@@ -209,7 +212,12 @@ export function operationFor(action, before, store) {
       if (!lead) return null;
       const { change } = action;
       if (change.assignee !== undefined) {
-        return { ...base, online: true, kind: "lead.assign", payload: { ids: [lead.id], assignee_id: idOf(directory, change.assignee), reason: "Changed in the lead record" } };
+        return {
+          ...base,
+          online: true,
+          kind: "lead.assign",
+          payload: { ids: [lead.id], assignee_id: idOf(directory, change.assignee), reason: "Changed in the lead record" },
+        };
       }
       const changes = {};
       const edited = {};
@@ -266,7 +274,12 @@ export function operationFor(action, before, store) {
       if (!deal) return null;
       const changes = {};
       const edited = {};
-      for (const [field, server] of [["stage", "stage"], ["amount", "amount"], ["fee", "fee"], ["closeDate", "close_date"]]) {
+      for (const [field, server] of [
+        ["stage", "stage"],
+        ["amount", "amount"],
+        ["fee", "fee"],
+        ["closeDate", "close_date"],
+      ]) {
         if (action.change[field] !== undefined) {
           changes[server] = action.change[field];
           edited[server] = deal[field];
@@ -274,10 +287,56 @@ export function operationFor(action, before, store) {
       }
       return { ...base, kind: "deal.update", payload: { id: deal.id, changes, base: edited } };
     }
+    case "DELETE_LEAD":
+      return lead ? { ...base, online: true, kind: "lead.delete", payload: { id: lead.id } } : null;
+    case "NEW_DEAL": {
+      const deal = action.deal;
+      const owner = before.leads.find(item => item.id === deal?.leadId);
+      if (!owner) return null;
+      return {
+        ...base,
+        kind: "deal.create",
+        payload: { id: deal.id, lead_id: owner.id, stage: deal.stage, amount: deal.amount, fee: deal.fee, close_date: deal.closeDate || null },
+      };
+    }
+    case "DELETE_DEAL": {
+      const deal = before.deals.find(item => item.id === action.id);
+      return deal ? { ...base, online: true, kind: "deal.delete", payload: { id: deal.id } } : null;
+    }
+    case "UPDATE_TASK": {
+      const task = before.tasks.find(item => item.id === action.id);
+      if (!task) return null;
+      const changes = {};
+      const edited = {};
+      const { change } = action;
+      for (const field of ["title", "type", "priority"]) {
+        if (typeof change[field] === "string") {
+          changes[field] = change[field].trim();
+          edited[field] = task[field];
+        }
+      }
+      if (typeof change.assignee === "string") {
+        changes.assignee_id = idOf(directory, change.assignee);
+        edited.assignee_id = idOf(directory, task.assignee);
+      }
+      if (typeof change.date === "string" || typeof change.time === "string") {
+        changes.due_at = isoFromLocal(change.date ?? task.date, change.time ?? task.time);
+        edited.due_at = isoFromLocal(task.date, task.time);
+      }
+      return Object.keys(changes).length ? { ...base, kind: "task.update", payload: { id: task.id, changes, base: edited } } : null;
+    }
+    case "DELETE_TASK": {
+      const task = before.tasks.find(item => item.id === action.id);
+      return task ? { ...base, online: true, kind: "task.delete", payload: { id: task.id } } : null;
+    }
     case "MESSAGE": {
       const thread = before.threads.find(item => item.id === action.id);
       if (!thread || !action.text?.trim()) return null;
-      return { ...base, kind: "message.draft", payload: { conversation_id: thread.serverId || null, lead_id: thread.leadId, channel: "email", body: action.text.trim() } };
+      return {
+        ...base,
+        kind: "message.draft",
+        payload: { conversation_id: thread.serverId || null, lead_id: thread.leadId, channel: "email", body: action.text.trim() },
+      };
     }
     case "NEW_LEAD": {
       const created = action.lead;
@@ -321,6 +380,11 @@ export function labelFor(op, before) {
     "task.complete": "Task completion",
     "call.record": "Call outcome: " + (op.payload.outcome || ""),
     "deal.update": "Deal change",
+    "lead.delete": "Lead removal",
+    "deal.create": "New deal",
+    "deal.delete": "Deal removal",
+    "task.update": "Task change",
+    "task.delete": "Task removal",
     "message.draft": "Message draft",
     "lead.create": "New lead",
   };
