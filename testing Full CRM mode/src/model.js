@@ -196,7 +196,8 @@ export function reducer(state, action) {
       const change = {
         callback,
         callbackDate,
-        stage: outcome.label === "Transfer" ? "Qualified" : outcome.label === "Do not call" ? "Closed" : reached && lead.stage === "New" ? "Contacted" : lead.stage,
+        stage:
+          outcome.label === "Transfer" ? "Qualified" : outcome.label === "Do not call" ? "Closed" : reached && lead.stage === "New" ? "Contacted" : lead.stage,
         ...(outcome.label === "Wrong number" && { verdict: "Wrong number" }),
         ...(outcome.label === "Do not call" && { verdict: "Do not call" }),
         ...(outcome.label === "Transfer" && { sentTo: "Appointments" }),
@@ -209,7 +210,17 @@ export function reducer(state, action) {
       if (outcome.label === "Transfer")
         tasks = [
           ...tasks,
-          { id: uid(), title: "Appointment for " + lead.name + " (transferred)", leadId: lead.id, assignee: lead.assignee, time: "", date: TODAY, priority: "High", done: false, type: "Appointment" },
+          {
+            id: uid(),
+            title: "Appointment for " + lead.name + " (transferred)",
+            leadId: lead.id,
+            assignee: lead.assignee,
+            time: "",
+            date: TODAY,
+            priority: "High",
+            done: false,
+            type: "Appointment",
+          },
         ];
       return {
         ...state,
@@ -223,10 +234,26 @@ export function reducer(state, action) {
       if (!capability(state, "finance")) return state;
       const deal = state.deals.find(item => item.id === action.id);
       if (!deal || !canEditLead(state, deal.leadId)) return state;
+      const owner = state.leads.find(item => item.id === deal.leadId);
+      // Only a stage change is a story worth telling; amount and date edits stay quiet.
+      const moved = action.change.stage && action.change.stage !== deal.stage;
       return {
         ...state,
         deals: state.deals.map(item => (item.id === action.id ? { ...item, ...action.change } : item)),
-        queue: queued(state, deal.leadId, "Deal moved to " + action.change.stage, "Deal update"),
+        activities: moved
+          ? [event(state, deal.leadId, "Deal for " + (owner?.address || "a property") + " moved to " + action.change.stage, "Deal"), ...state.activities]
+          : state.activities,
+        queue: queued(state, deal.leadId, "Deal moved to " + (action.change.stage || deal.stage), "Deal update"),
+      };
+    }
+    case "NEW_DEAL": {
+      const target = state.leads.find(item => item.id === action.deal.leadId);
+      if (state.remote || !capability(state, "finance") || !target || !canEditLead(state, target.id)) return state;
+      return {
+        ...state,
+        deals: [...state.deals, action.deal],
+        activities: [event(state, target.id, "Opened a deal for " + target.address, "Deal"), ...state.activities],
+        queue: queued(state, target.id, "New deal for " + target.address, "Deal update"),
       };
     }
     case "MESSAGE": {

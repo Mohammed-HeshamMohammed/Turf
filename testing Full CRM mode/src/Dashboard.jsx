@@ -324,7 +324,7 @@ export function Dashboard() {
           <div className="team-people">
             {["Maya Chen", "Alex Rivera", "Ben Carter", "Lena Brooks"].map(name => (
               <div key={name}>
-                <Person name={name} />
+                <Person name={name} link />
                 <strong>{active.filter(lead => lead.assignee === name).length}</strong>
                 <small>active leads</small>
               </div>

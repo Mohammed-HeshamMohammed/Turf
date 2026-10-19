@@ -1,13 +1,13 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Bell, CalendarBlank, ChatCircle, CheckCircle, HouseLine, List, MagnifyingGlass, WifiSlash, X } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
-import { loadState, navCounts, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
+import { capability, loadState, navCounts, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { api, apiBase, setApiBase } from "./remote/api.js";
 import { SyncEngine } from "./remote/engine.js";
 import { LOCAL_ONLY, remoteReducer, syncAction } from "./remote/session.js";
 import { applyIdentity, labelFor, operationFor } from "./remote/translate.js";
 import { CrmContext } from "./context.jsx";
-import { Badge, Button, CountBadge, Empty, Modal, PageTransition, Search, useHeld, usePresence } from "./ui.jsx";
+import { Badge, Button, CountBadge, Empty, Modal, PageTransition, Search, money, useHeld, usePresence } from "./ui.jsx";
 import { LiveCaptions } from "./LiveCaptions.jsx";
 import { Sidebar } from "./Sidebar.jsx";
 import { TurfMenu } from "./TurfMenu.jsx";
@@ -86,16 +86,71 @@ export function App() {
   const notePanel = usePresence(notifications);
   const toastPanel = usePresence(Boolean(toast));
   const shownToast = useHeld(toast);
-  const searchResults = shownQuery
-    ? leads
-        .filter(lead =>
-          [lead.name, lead.address, lead.city, ...(state.role === "client" ? [] : [lead.phone, lead.email])]
-            .join(" ")
-            .toLowerCase()
-            .includes(shownQuery.toLowerCase()),
-        )
-        .slice(0, 6)
-    : [];
+  const searchResults = useMemo(() => {
+    if (!shownQuery) return [];
+    const needle = shownQuery.toLowerCase();
+    const has = (...parts) => parts.join(" ").toLowerCase().includes(needle);
+    const people = leads
+      .filter(lead => has(lead.name, lead.address, lead.city, ...(state.role === "client" ? [] : [lead.phone, lead.email])))
+      .slice(0, 5)
+      .map(lead => ({ key: "lead-" + lead.id, group: "Leads", icon: "lead", title: lead.name, detail: lead.address, path: "work/leads/" + lead.id }));
+    const found = [...people];
+    if (role.pages.includes("deals") && capability(state, "finance")) {
+      const ids = new Set(leads.map(lead => lead.id));
+      state.deals
+        .filter(deal => ids.has(deal.leadId))
+        .forEach(deal => {
+          const lead = leads.find(item => item.id === deal.leadId);
+          if (has(lead.address, lead.name, deal.stage, "deal"))
+            found.push({
+              key: "deal-" + deal.id,
+              group: "Deals",
+              icon: "deal",
+              title: lead.address,
+              detail: deal.stage + " · " + money(deal.amount),
+              path: "work/deals/" + deal.id,
+            });
+        });
+    }
+    if (role.pages.includes("tasks"))
+      tasks
+        .filter(task => has(task.title))
+        .slice(0, 3)
+        .forEach(task =>
+          found.push({
+            key: "task-" + task.id,
+            group: "Tasks",
+            icon: "task",
+            title: task.title,
+            detail: task.time + " · " + task.date,
+            path: "work/leads/" + task.leadId,
+          }),
+        );
+    if (role.pages.includes("lists"))
+      state.datasets
+        .filter(set => has(set.name))
+        .slice(0, 3)
+        .forEach(set => found.push({ key: "list-" + set.id, group: "Lists", icon: "list", title: set.name, detail: set.status, path: "lists/" + set.id }));
+    const pages = [
+      ["dashboard", "Overview", "dashboard"],
+      ["leads", "Leads", "work/leads"],
+      ["calls", "Calls", "work/calls"],
+      ["deals", "Deals", "work/deals"],
+      ["handoffs", "Handoffs", "work/handoffs"],
+      ["tasks", "Tasks", "work/tasks"],
+      ["calendar", "Calendar", "work/calendar"],
+      ["inbox", "Inbox", "work/inbox"],
+      ["lists", "Source lists", "lists"],
+      ["skip", "Skip Tracing", "skip"],
+      ["reports", "Reports", "reports"],
+      ["settings", "Settings", "settings"],
+    ];
+    pages
+      .filter(([id, label]) => role.pages.includes(id) && has(label))
+      .slice(0, 3)
+      .forEach(([id, label, path]) => found.push({ key: "page-" + id, group: "Go to", icon: "page", title: label, detail: "Open this page", path }));
+    return found.slice(0, 10);
+  }, [shownQuery, leads, tasks, state, role]);
   const notify = useCallback(message => {
     setToast(message);
     clearTimeout(timer.current);
@@ -301,14 +356,17 @@ export function App() {
               {searchPanel.mounted && (
                 <div className={"search-results" + (searchPanel.leaving ? " leaving" : "")}>
                   <small>{role.scope}</small>
-                  {searchResults.map(lead => (
-                    <button key={lead.id} onClick={() => navigate("work/leads/" + lead.id)}>
-                      <MagnifyingGlass size={16} />
-                      <div>
-                        <strong>{lead.name}</strong>
-                        <span>{lead.address}</span>
-                      </div>
-                    </button>
+                  {searchResults.map((result, index) => (
+                    <Fragment key={result.key}>
+                      {(index === 0 || searchResults[index - 1].group !== result.group) && <small className="search-group">{result.group}</small>}
+                      <button onClick={() => navigate(result.path)}>
+                        <MagnifyingGlass size={16} />
+                        <div>
+                          <strong>{result.title}</strong>
+                          <span>{result.detail}</span>
+                        </div>
+                      </button>
+                    </Fragment>
                   ))}
                   {!searchResults.length && <p>No records match in your view.</p>}
                 </div>

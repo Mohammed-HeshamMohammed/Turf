@@ -1,10 +1,10 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PropertyMap } from "./PropertyMap.jsx";
 import { coordinates } from "./skiptrace-fields.js";
 import { ArrowUpRight, ArrowLeft, Plus, Phone, Envelope, Handshake, Clock, FileText, CheckCircle, Export, HouseLine } from "@phosphor-icons/react";
 import { LEAD_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
 import { callbackLabel, canEditLead, capability, uid, visibleLeads } from "./model.js";
-import { CallHistory } from "./Work.jsx";
+import { CallHistory, NewDealModal } from "./Work.jsx";
 import { useCrm } from "./context.jsx";
 import {
   Badge,
@@ -34,7 +34,9 @@ export function Leads() {
   const [view, setView] = useState("List");
   const [selected, setSelected] = useState([]);
   const [bulkStage, setBulkStage] = useState("Contacted");
-  const [assignee, setAssignee] = useState("All people");
+  const assigneeParam = new URLSearchParams(route.split("?")[1]).get("assignee") || "All people";
+  const [assignee, setAssignee] = useState(assigneeParam);
+  useEffect(() => setAssignee(assigneeParam), [assigneeParam]);
   const [hideEmpty, setHideEmpty] = useState(false);
   const [drag, setDrag] = useState(null);
   const justDragged = useRef(false);
@@ -276,7 +278,7 @@ export function Leads() {
                     </td>
                     {!client && hasColumn.assignee && (
                       <td>
-                        <Person name={lead.assignee} />
+                        <Person name={lead.assignee} link />
                       </td>
                     )}
                     {hasColumn.next && (
@@ -322,6 +324,7 @@ export function LeadDetail({ id }) {
   const [recipient, setRecipient] = useState("Alex Rivera");
   const [handoffNote, setHandoffNote] = useState("");
   const [document, setDocument] = useState(false);
+  const [newDeal, setNewDeal] = useState(false);
   const [hideEmpty, setHideEmpty] = useState(false);
   if (!lead)
     return (
@@ -335,6 +338,7 @@ export function LeadDetail({ id }) {
   const activities = state.activities.filter(item => item.leadId === id);
   const tasks = state.tasks.filter(item => item.leadId === id && (!client || item.shared));
   const pending = state.queue.some(item => item.leadId === id);
+  const leadDeals = state.deals.filter(deal => deal.leadId === id);
   return (
     <>
       <Breadcrumb items={[{ label: client ? "Shared properties" : "Leads", path: "work/leads" }, { label: lead.name }]} />
@@ -651,19 +655,53 @@ export function LeadDetail({ id }) {
                 </div>
               ))}
             {!tasks.length && <p className="muted">{client ? "No shared actions waiting." : "No tasks attached to this lead."}</p>}
-            <Button onClick={() => navigate("work/tasks")}>
-              Open tasks <ArrowUpRight size={15} />
-            </Button>
+            <div className="row">
+              {capability(state, "edit") && <Button onClick={() => navigate("work/tasks/new?lead=" + id)}>Add a next step</Button>}
+              <Button onClick={() => navigate("work/tasks?lead=" + id)}>
+                All tasks <ArrowUpRight size={15} />
+              </Button>
+            </div>
           </Card>
+          {!client && capability(state, "finance") && (
+            <Card title="Deals" subtitle="Each transaction is tracked on its own.">
+              {leadDeals.map(deal => (
+                <button type="button" className="deal-row" key={deal.id} onClick={() => navigate("work/deals/" + deal.id)}>
+                  <div>
+                    <strong>{money(deal.amount)}</strong>
+                    <small>Close by {deal.closeDate}</small>
+                  </div>
+                  <Badge>{deal.stage}</Badge>
+                </button>
+              ))}
+              {!leadDeals.length && <p className="muted">No deal opened for this property yet.</p>}
+              {editable && !state.remote && (
+                <Button icon={Plus} onClick={() => setNewDeal(true)}>
+                  Open a deal
+                </Button>
+              )}
+            </Card>
+          )}
           {!client && (
             <Card title="Contact">
               <div className="contact-line">
                 <Phone size={18} />
-                <span>{lead.phone}</span>
+                {capability(state, "call") && lead.phone ? (
+                  <button type="button" className="text-link" onClick={() => navigate("work/calls/" + id)} title="Open this lead in the call workspace">
+                    {lead.phone}
+                  </button>
+                ) : (
+                  <span>{lead.phone || "No phone supplied"}</span>
+                )}
               </div>
               <div className="contact-line">
                 <Envelope size={18} />
-                <span>{lead.email}</span>
+                {capability(state, "message") && lead.email ? (
+                  <button type="button" className="text-link" onClick={() => navigate("work/inbox?lead=" + id)} title="Open the conversation">
+                    {lead.email}
+                  </button>
+                ) : (
+                  <span>{lead.email || "No email supplied"}</span>
+                )}
               </div>
               {capability(state, "message") && <Button onClick={() => navigate("work/inbox?lead=" + id)}>Open conversation</Button>}
               <Status value={lead.verdict} />
@@ -671,11 +709,17 @@ export function LeadDetail({ id }) {
           )}
           <Card title={client ? "Shared by your team" : "Source & ownership"}>
             <p className="body-copy">
-              {client
-                ? "Oak & Palm Partners has approved this property for your review."
-                : state.datasets.find(item => item.id === lead.datasetId)?.name || "Added manually"}
+              {client ? (
+                "Oak & Palm Partners has approved this property for your review."
+              ) : lead.datasetId && state.datasets.some(item => item.id === lead.datasetId) ? (
+                <button type="button" className="text-link" onClick={() => navigate("lists/" + lead.datasetId)}>
+                  {state.datasets.find(item => item.id === lead.datasetId).name} <ArrowUpRight size={13} />
+                </button>
+              ) : (
+                "Added manually"
+              )}
             </p>
-            {!client && <Person name={lead.assignee} />}
+            {!client && <Person name={lead.assignee} link />}
             <small>Record version {lead.version}</small>
           </Card>
         </aside>
@@ -713,6 +757,7 @@ export function LeadDetail({ id }) {
           </form>
         </Modal>
       )}
+      {newDeal && <NewDealModal lead={lead} onClose={() => setNewDeal(false)} />}
       {document && (
         <Modal title="Approved property brief" onClose={() => setDocument(false)}>
           <article className="property-brief">

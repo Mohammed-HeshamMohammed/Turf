@@ -118,9 +118,30 @@ export function Avatar({ name, avatar, small = false, large = false }) {
     </span>
   );
 }
-export function Person({ name }) {
+export function Person({ name, link = false }) {
+  const crm = useCrm();
+  const open = link && crm && name && name !== "Unassigned" && crm.state.role !== "client" && crm.state.role !== "admin";
+  if (!open)
+    return (
+      <span className="person">
+        <Avatar name={name} small />
+        {name}
+      </span>
+    );
+  // Not a <button>: people sit inside cards that are buttons themselves, and buttons cannot nest.
+  const go = event => {
+    event.stopPropagation();
+    crm.navigate("work/leads?assignee=" + encodeURIComponent(name));
+  };
   return (
-    <span className="person">
+    <span
+      className="person is-link"
+      role="link"
+      tabIndex={0}
+      title={"See " + name + "'s leads"}
+      onClick={go}
+      onKeyDown={event => (event.key === "Enter" || event.key === " ") && (event.preventDefault(), go(event))}
+    >
       <Avatar name={name} small />
       {name}
     </span>

@@ -17,9 +17,10 @@ import {
   PaperPlaneTilt,
   Paperclip,
   ClosedCaptioning,
+  X,
 } from "@phosphor-icons/react";
 import { CALL_OUTCOMES, DEAL_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
-import { callbackLabel, capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
+import { callbackLabel, canEditLead, capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { CallAssistant } from "./CallAssistant.jsx";
 import { getCallSession, setCallSession, useCallSession } from "./callSession.js";
@@ -334,9 +335,9 @@ export function Handoffs() {
           return (
             <Card key={item.id} title={lead.name} subtitle={lead.address} action={<Status value={item.status} />}>
               <div className="handoff-people">
-                <Person name={item.from} />
+                <Person name={item.from} link />
                 <ArrowRight size={20} />
-                <Person name={item.to} />
+                <Person name={item.to} link />
               </div>
               <p className="body-copy">{item.note}</p>
               <small>{item.at} · Ownership changes on acceptance</small>
@@ -388,11 +389,81 @@ export function Handoffs() {
   );
 }
 
+/** Opens a deal for a lead. With a lead given it is fixed; otherwise you choose one that is yours to edit. */
+export function NewDealModal({ lead, onClose }) {
+  const { state, dispatch, navigate, notify } = useCrm();
+  const choices = visibleLeads(state).filter(item => item.stage !== "Closed" && canEditLead(state, item.id));
+  const [leadId, setLeadId] = useState(lead?.id || choices[0]?.id || "");
+  return (
+    <Modal title="Open a deal." onClose={onClose}>
+      <p className="muted">A deal tracks one transaction, linked back to its lead and property.</p>
+      <form
+        onSubmit={event => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          const deal = {
+            id: uid(),
+            leadId,
+            stage: String(form.get("stage")),
+            amount: Math.max(0, Number(form.get("amount")) || 0),
+            fee: Math.max(0, Number(form.get("fee")) || 0),
+            closeDate: String(form.get("closeDate")),
+          };
+          dispatch({ type: "NEW_DEAL", deal });
+          onClose();
+          notify("Deal opened");
+          navigate("work/deals/" + deal.id);
+        }}
+      >
+        <Field label="Lead and property">
+          {lead ? (
+            <input value={lead.address + " · " + lead.name} readOnly />
+          ) : (
+            <Select aria-label="Lead for the deal" value={leadId} onChange={event => setLeadId(event.target.value)}>
+              {choices.map(item => (
+                <option key={item.id} value={item.id}>
+                  {item.address + " · " + item.name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        <div className="form-grid">
+          <Field label="Deal stage">
+            <Select name="stage" defaultValue={DEAL_STAGES[0]}>
+              {DEAL_STAGES.map(stage => (
+                <option key={stage}>{stage}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Target close date">
+            <input name="closeDate" type="date" min={TODAY} defaultValue={TODAY} required />
+          </Field>
+          <Field label="Offer amount">
+            <input name="amount" type="number" min="0" step="1000" placeholder="0" required />
+          </Field>
+          <Field label="Expected fee">
+            <input name="fee" type="number" min="0" step="500" placeholder="0" />
+          </Field>
+        </div>
+        <div className="row">
+          <Button onClick={onClose}>Cancel</Button>
+          <button className="button primary" type="submit" disabled={!leadId}>
+            <Plus size={17} />
+            Open deal
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 export function Deals({ id }) {
   const { state, dispatch, navigate, notify } = useCrm();
   const [view, setView] = useState("Pipeline");
   const [drag, setDrag] = useState(null);
   const justDragged = useRef(false);
+  const [creating, setCreating] = useState(false);
   const leads = visibleLeads(state);
   const ids = new Set(leads.map(item => item.id));
   const deals = state.deals.filter(item => ids.has(item.leadId));
@@ -482,7 +553,7 @@ export function Deals({ id }) {
             <p className="muted">These are manually recorded sample amounts, separate from estimated property value.</p>
           </Card>
           <Card title="Context & next steps">
-            <Person name={lead.assignee} />
+            <Person name={lead.assignee} link />
             <p className="body-copy">{lead.motivation}</p>
             {visibleTasks(state)
               .filter(task => task.leadId === lead.id)
@@ -499,14 +570,44 @@ export function Deals({ id }) {
               ))}
             <Button onClick={() => navigate("work/tasks/new?lead=" + lead.id)}>Add a next step</Button>
             <Button onClick={() => navigate("work/leads/" + lead.id)}>Open documents</Button>
+            {capability(state, "message") && <Button onClick={() => navigate("work/inbox?lead=" + lead.id)}>Open conversation</Button>}
           </Card>
         </div>
+        <Card title="What has happened" subtitle="Everything recorded on this lead and its deal, newest first.">
+          {state.activities
+            .filter(item => item.leadId === lead.id)
+            .slice(0, 8)
+            .map(item => (
+              <div className="activity-item" key={item.id}>
+                <span className="activity-icon">
+                  <ArrowUpRight size={16} />
+                </span>
+                <div>
+                  <p>{item.text}</p>
+                  <small>
+                    {item.actor} · {item.time}
+                  </small>
+                </div>
+              </div>
+            ))}
+          {!state.activities.some(item => item.leadId === lead.id) && (
+            <Empty title="Nothing yet">Stage changes, notes and calls appear here as they happen.</Empty>
+          )}
+          <Button onClick={() => navigate("work/leads/" + lead.id)}>Full lead history</Button>
+        </Card>
       </>
     );
   }
   return (
     <>
-      <PageHeader title="From conversation to closing." description="A separate deal for every transaction, connected to its lead and property." />
+      <PageHeader title="From conversation to closing." description="A separate deal for every transaction, connected to its lead and property.">
+        {capability(state, "finance") && !state.remote && (
+          <Button variant="primary" icon={Plus} onClick={() => setCreating(true)}>
+            New deal
+          </Button>
+        )}
+      </PageHeader>
+      {creating && <NewDealModal onClose={() => setCreating(false)} />}
       <div className="pipeline-summary">
         <div>
           <small>Active pipeline</small>
@@ -623,10 +724,12 @@ export function Tasks({ create = false }) {
   const [filter, setFilter] = useState("Open");
   const [search, setSearch] = useState("");
   const mine = new URLSearchParams(route.split("?")[1]).get("mine") === "1";
+  const onlyLead = new URLSearchParams(route.split("?")[1]).get("lead") || "";
   const leads = visibleLeads(state);
   const tasks = visibleTasks(state).filter(
     task =>
       (!mine || task.assignee === ROLES[state.role].person) &&
+      (!onlyLead || task.leadId === onlyLead) &&
       (filter === "All" || task.done === (filter === "Completed")) &&
       task.title.toLowerCase().includes(search.toLowerCase()),
   );
@@ -735,6 +838,11 @@ export function Tasks({ create = false }) {
           <option value="mine">My tasks</option>
         </Select>
         <Segmented label="Task status" value={filter} onChange={setFilter} options={["Open", "Completed", "All"]} />
+        {onlyLead && (
+          <button type="button" className="filter-chip" onClick={() => navigate("work/tasks")} aria-label="Show tasks for every lead">
+            {leads.find(item => item.id === onlyLead)?.address || "One lead"} <X size={13} />
+          </button>
+        )}
         <span className="result-count">{tasks.length} tasks</span>
       </div>
       <Card className="table-card">
@@ -766,7 +874,7 @@ export function Tasks({ create = false }) {
                   <small>{task.time}</small>
                 </span>
                 <Status value={task.priority} />
-                <Person name={task.assignee} />
+                <Person name={task.assignee} link />
               </div>
             );
           })}
@@ -859,8 +967,10 @@ export function Calendar() {
             .map(task => (
               <div className="calendar-agenda" key={task.id}>
                 <span>{task.time}</span>
-                <strong>{task.title}</strong>
-                <Person name={task.assignee} />
+                <button type="button" className="text-link agenda-title" onClick={() => navigate("work/leads/" + task.leadId)} title="Open the lead">
+                  <strong>{task.title}</strong>
+                </button>
+                <Person name={task.assignee} link />
                 <Button disabled={!capability(state, "edit") && !capability(state, "review")} onClick={() => dispatch({ type: "TASK", id: task.id })}>
                   {task.done ? "Reopen" : "Complete"}
                 </Button>
