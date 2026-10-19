@@ -1,9 +1,14 @@
-import { useEffect, useRef, useState } from "react";
-import { ClosedCaptioning, TextAa, X } from "@phosphor-icons/react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ClosedCaptioning, DotsSixVertical, TextAa, X } from "@phosphor-icons/react";
+import { ROLES } from "./data.js";
+import { useCrm } from "./context.jsx";
+import { setCallSession, useCallSession } from "./callSession.js";
 import { usePresence } from "./ui.jsx";
 
 const WORD_MS = 230;
 const TURN_PAUSE = 1100;
+const POSITION_KEY = "turf.full-crm.captions-position";
+const MARGIN = 8;
 
 /** A believable two-sided conversation drawn from the lead record, played back word by word like live captions. */
 function conversationFor(lead, agent) {
@@ -31,18 +36,112 @@ function conversationFor(lead, agent) {
   ];
 }
 
+function readPosition() {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(POSITION_KEY));
+    return Number.isFinite(saved?.x) && Number.isFinite(saved?.y) ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * The live-caption bar: a dark pill that floats above the page while a call is running and captions are on.
+ * The live-caption bar: a dark pill that floats over the whole app while captions are on, and can be dragged anywhere in the window.
  * There is no audio in the preview, so the captions are a played-back demo conversation.
  */
-export function LiveCaptions({ show, active, lead, agent, onClose }) {
-  const presence = usePresence(show);
+export function LiveCaptions() {
+  const { state } = useCrm();
+  const { captions, active, lead } = useCallSession();
+  const agent = ROLES[state.role].person.split(" ")[0];
+  const presence = usePresence(captions);
   const [shown, setShown] = useState([]);
   const [large, setLarge] = useState(false);
+  const [position, setPosition] = useState(readPosition);
+  const [dragging, setDragging] = useState(false);
+  const anchor = useRef(null);
   const run = useRef(0);
+  const drag = useRef(null);
+  const latest = useRef(null);
+
+  // Keep it fully on screen: clamp to the window, and sit bottom-centre until it has been moved.
+  const place = useCallback(wanted => {
+    const box = anchor.current?.getBoundingClientRect();
+    const width = box?.width || 0;
+    const height = box?.height || 0;
+    const maxX = Math.max(MARGIN, window.innerWidth - width - MARGIN);
+    const maxY = Math.max(MARGIN, window.innerHeight - height - MARGIN);
+    const base = wanted || { x: (window.innerWidth - width) / 2, y: window.innerHeight - height - 56 };
+    return { x: Math.min(Math.max(MARGIN, base.x), maxX), y: Math.min(Math.max(MARGIN, base.y), maxY) };
+  }, []);
+  const [placed, setPlaced] = useState(null);
+  useLayoutEffect(() => {
+    if (!presence.mounted) return;
+    setPlaced(place(position));
+  }, [presence.mounted, position, large, shown.length, place]);
+  useEffect(() => {
+    const onResize = () => setPlaced(place(position));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [position, place]);
+
+  function remember(next) {
+    setPosition(next);
+    try {
+      window.localStorage.setItem(POSITION_KEY, JSON.stringify(next));
+    } catch {
+      /* Still moves for this session. */
+    }
+  }
+  function startDrag(event) {
+    if (event.button !== 0 || event.target.closest("button")) return;
+    const current = latest.current || placed || place(position);
+    latest.current = current;
+    drag.current = { dx: event.clientX - current.x, dy: event.clientY - current.y };
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      /* Dragging still works without capture. */
+    }
+    setDragging(true);
+  }
+  function moveDrag(event) {
+    if (!drag.current) return;
+    latest.current = place({ x: event.clientX - drag.current.dx, y: event.clientY - drag.current.dy });
+    setPlaced(latest.current);
+  }
+  function endDrag(event) {
+    if (!drag.current) return;
+    drag.current = null;
+    setDragging(false);
+    if (latest.current) remember(latest.current);
+    try {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    } catch {
+      /* Already released. */
+    }
+  }
+  function keyMove(event) {
+    const step = event.shiftKey ? 64 : 16;
+    const delta = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[event.key];
+    if (!delta) return;
+    event.preventDefault();
+    const current = placed || place(position);
+    const next = place({ x: current.x + delta[0], y: current.y + delta[1] });
+    latest.current = next;
+    remember(next);
+  }
+  function resetPosition() {
+    latest.current = null;
+    setPosition(null);
+    try {
+      window.localStorage.removeItem(POSITION_KEY);
+    } catch {
+      /* Nothing saved to clear. */
+    }
+  }
 
   useEffect(() => {
-    if (!show || !active || !lead) {
+    if (!captions || !active || !lead) {
       setShown([]);
       return;
     }
@@ -78,39 +177,63 @@ export function LiveCaptions({ show, active, lead, agent, onClose }) {
       run.current += 1;
       clearTimeout(timer);
     };
-  }, [show, active, lead?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [captions, active, lead?.id, agent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!presence.mounted) return null;
+  const spot = placed || { x: 0, y: 0 };
   return (
-    <div className={"captions" + (large ? " is-large" : "") + (presence.leaving ? " leaving" : "")} role="log" aria-live="off" aria-label="Live captions">
-      <div className="captions-bar">
-        <span className="captions-tag">
-          <ClosedCaptioning size={16} weight="fill" /> Live captions
-          <i className="captions-dot" aria-hidden="true" />
-        </span>
-        <span className="captions-demo">Demo audio</span>
-        <button type="button" onClick={() => setLarge(!large)} aria-label={large ? "Smaller captions" : "Larger captions"} aria-pressed={large}>
-          <TextAa size={17} />
-        </button>
-        <button type="button" onClick={onClose} aria-label="Turn captions off">
-          <X size={16} />
-        </button>
-      </div>
-      <div className="captions-lines">
-        {shown.length === 0 && (
-          <p className="captions-wait">
-            {active ? "Waiting for the conversation to start…" : "Captions are on. Start the demo call and what is said appears here."}
-          </p>
-        )}
-        {shown.map((line, index) => (
-          <p key={line.turn} className={"caption-line " + line.side + (index === shown.length - 1 ? " is-current" : "")}>
-            <b>{line.who}</b>
-            <span>
-              {line.text}
-              {line.live && <em className="caret" aria-hidden="true" />}
-            </span>
-          </p>
-        ))}
+    <div
+      ref={anchor}
+      className={"captions-anchor" + (dragging ? " is-dragging" : "") + (placed ? "" : " is-measuring")}
+      style={{ transform: `translate3d(${Math.round(spot.x)}px, ${Math.round(spot.y)}px, 0)` }}
+    >
+      <div className={"captions" + (large ? " is-large" : "") + (presence.leaving ? " leaving" : "")} role="log" aria-live="off" aria-label="Live captions">
+        <div
+          className="captions-bar"
+          onPointerDown={startDrag}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onDoubleClick={event => !event.target.closest("button") && resetPosition()}
+        >
+          <span
+            className="captions-grip"
+            role="button"
+            tabIndex={0}
+            aria-label="Move captions. Drag, or use the arrow keys. Hold Shift to move further."
+            title="Drag to move · double-click to reset"
+            onKeyDown={keyMove}
+          >
+            <DotsSixVertical size={18} weight="bold" />
+          </span>
+          <span className="captions-tag">
+            <ClosedCaptioning size={16} weight="fill" /> Live captions
+            <i className="captions-dot" aria-hidden="true" />
+          </span>
+          <span className="captions-demo">Demo audio</span>
+          <button type="button" onClick={() => setLarge(!large)} aria-label={large ? "Smaller captions" : "Larger captions"} aria-pressed={large}>
+            <TextAa size={17} />
+          </button>
+          <button type="button" onClick={() => setCallSession({ captions: false })} aria-label="Turn captions off">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="captions-lines">
+          {shown.length === 0 && (
+            <p className="captions-wait">
+              {active ? "Waiting for the conversation to start…" : "Captions are on. Start the demo call and what is said appears here."}
+            </p>
+          )}
+          {shown.map((line, index) => (
+            <p key={line.turn} className={"caption-line " + line.side + (index === shown.length - 1 ? " is-current" : "")}>
+              <b>{line.who}</b>
+              <span>
+                {line.text}
+                {line.live && <em className="caret" aria-hidden="true" />}
+              </span>
+            </p>
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -4517,22 +4517,64 @@ tbody tr:nth-child(n + 6), .kanban-card:nth-of-type(n + 6), .queue-lead:nth-chil
 }
 
 /* ---- Live captions ---- */
-.captions {
+.captions-anchor {
   position: fixed;
-  left: 50%;
-  bottom: 52px;
+  left: 0;
+  top: 0;
   z-index: 69;
-  width: min(760px, calc(100vw - 32px));
-  transform: translateX(-50%);
+  width: min(760px, calc(100vw - 16px));
+  will-change: transform;
+}
+.captions-anchor.is-measuring {
+  visibility: hidden;
+}
+.captions {
   border-radius: 22px;
   background: #191919;
   color: white;
   box-shadow: 0 16px 48px #0004;
   overflow: hidden;
-  animation: toast-in 280ms var(--ease-out);
+  animation: captions-in 280ms var(--ease-out);
+}
+.is-dragging .captions {
+  box-shadow: 0 26px 64px #0006;
+}
+@keyframes captions-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+}
+@keyframes captions-out {
+  to {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+}
+.captions-bar {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.is-dragging .captions-bar {
+  cursor: grabbing;
+}
+.captions-grip {
+  display: grid;
+  place-items: center;
+  margin-left: -8px;
+  width: 24px;
+  height: 28px;
+  border-radius: 8px;
+  color: #8d8d8d;
+}
+.captions-grip:hover,
+.captions-grip:focus-visible {
+  color: white;
+  background: #ffffff1a;
 }
 .captions.leaving {
-  animation: toast-out var(--exit) var(--ease-in) forwards;
+  animation: captions-out var(--exit) var(--ease-in) forwards;
 }
 .captions-bar {
   display: flex;

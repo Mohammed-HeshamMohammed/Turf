@@ -8,6 +8,7 @@ import { LOCAL_ONLY, remoteReducer, syncAction } from "./remote/session.js";
 import { applyIdentity, labelFor, operationFor } from "./remote/translate.js";
 import { CrmContext } from "./context.jsx";
 import { Badge, Button, CountBadge, Empty, Modal, PageTransition, Search, useHeld, usePresence } from "./ui.jsx";
+import { LiveCaptions } from "./LiveCaptions.jsx";
 import { Sidebar } from "./Sidebar.jsx";
 import { TurfMenu } from "./TurfMenu.jsx";
 import { PersonalMenu, PersonalPage } from "./Personal.jsx";
@@ -434,6 +435,7 @@ export function App() {
           </span>
           <span>{state.remote ? "Connected workspace · outreach stays as drafts" : "Sample workspace · no live outreach"}</span>
         </footer>
+        <LiveCaptions />
         {toastPanel.mounted && (
           <div className={"toast" + (toastPanel.leaving ? " leaving" : "")} role="status">
             <CheckCircle size={20} />

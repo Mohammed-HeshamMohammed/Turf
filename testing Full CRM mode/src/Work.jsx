@@ -22,7 +22,7 @@ import { CALL_OUTCOMES, DEAL_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
 import { callbackLabel, capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { CallAssistant } from "./CallAssistant.jsx";
-import { LiveCaptions } from "./LiveCaptions.jsx";
+import { getCallSession, setCallSession, useCallSession } from "./callSession.js";
 import {
   Badge,
   Select,
@@ -44,32 +44,21 @@ import {
 
 export function Calls({ target }) {
   const { state, dispatch, navigate, notify, route } = useCrm();
-  const [chosen, setChosen] = useState(target || "");
-  const [activeCall, setActiveCall] = useState(false);
+  // A call in progress belongs to the app, not this page, so it carries on (with its captions) while you look around.
+  const session = useCallSession();
+  const activeCall = session.active;
+  const captions = session.captions;
+  const [chosen, setChosen] = useState(target || (getCallSession().active ? getCallSession().lead?.id : "") || "");
   const [script, setScript] = useState("First conversation");
   const [recording, setRecording] = useState(false);
   const [callNote, setCallNote] = useState("");
   const [callbackAt, setCallbackAt] = useState("");
   const [askingCallback, setAskingCallback] = useState(false);
-  const [captions, setCaptions] = useState(() => {
-    try {
-      return window.localStorage.getItem("turf.full-crm.captions") === "on";
-    } catch {
-      return false;
-    }
-  });
   // The queue follows a list: the one chosen above it, or the one a list page sent you here with (?list=).
   const listParam = new URLSearchParams(route.split("?")[1]).get("list") || "";
   const [listId, setListId] = useState(listParam);
   useEffect(() => setListId(listParam), [listParam]);
-  function toggleCaptions(next = !captions) {
-    setCaptions(next);
-    try {
-      window.localStorage.setItem("turf.full-crm.captions", next ? "on" : "off");
-    } catch {
-      /* The switch still works for this session. */
-    }
-  }
+  const toggleCaptions = (next = !captions) => setCallSession({ captions: next });
   const callable = useMemo(
     () => visibleLeads(state).filter(item => item.stage !== "Closed" && item.verdict !== "Do not call" && item.verdict !== "Wrong number"),
     [state],
@@ -95,6 +84,8 @@ export function Calls({ target }) {
       .map(entry => entry.item);
   }, [callable, activeList, lists]);
   const lead = leads.find(item => item.id === chosen) || leads[0];
+  const setActiveCall = on =>
+    setCallSession({ active: on, lead: on && lead ? { id: lead.id, name: lead.name, address: lead.address, motivation: lead.motivation } : null });
   if (!capability(state, "call")) return <Empty title="Calling is outside this role">Your workspace only shows the actions available to you.</Empty>;
   function outcome(value) {
     if (!lead) return;
@@ -291,7 +282,6 @@ export function Calls({ target }) {
           </Card>
         </aside>
       </div>
-      <LiveCaptions show={captions} active={activeCall} lead={lead} agent={ROLES[state.role].person.split(" ")[0]} onClose={() => toggleCaptions(false)} />
     </>
   );
 }
