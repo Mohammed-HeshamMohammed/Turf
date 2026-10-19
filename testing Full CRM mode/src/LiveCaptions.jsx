@@ -35,14 +35,14 @@ function conversationFor(lead, agent) {
  * The live-caption bar: a dark pill that floats above the page while a call is running and captions are on.
  * There is no audio in the preview, so the captions are a played-back demo conversation.
  */
-export function LiveCaptions({ show, lead, agent, onClose }) {
+export function LiveCaptions({ show, active, lead, agent, onClose }) {
   const presence = usePresence(show);
   const [shown, setShown] = useState([]);
   const [large, setLarge] = useState(false);
   const run = useRef(0);
 
   useEffect(() => {
-    if (!show || !lead) {
+    if (!show || !active || !lead) {
       setShown([]);
       return;
     }
@@ -78,7 +78,7 @@ export function LiveCaptions({ show, lead, agent, onClose }) {
       run.current += 1;
       clearTimeout(timer);
     };
-  }, [show, lead?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [show, active, lead?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!presence.mounted) return null;
   return (
@@ -97,7 +97,11 @@ export function LiveCaptions({ show, lead, agent, onClose }) {
         </button>
       </div>
       <div className="captions-lines">
-        {shown.length === 0 && <p className="captions-wait">Waiting for the conversation to start…</p>}
+        {shown.length === 0 && (
+          <p className="captions-wait">
+            {active ? "Waiting for the conversation to start…" : "Captions are on. Start the demo call and what is said appears here."}
+          </p>
+        )}
         {shown.map((line, index) => (
           <p key={line.turn} className={"caption-line " + line.side + (index === shown.length - 1 ? " is-current" : "")}>
             <b>{line.who}</b>

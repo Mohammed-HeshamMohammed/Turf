@@ -207,6 +207,11 @@ export function Calls({ target }) {
                   <div className="call-live" role="status">
                     <span className="status-dot" />
                     Demo call in progress · audio is simulated
+                    {!captions && (
+                      <button type="button" className="text-button" onClick={() => toggleCaptions(true)}>
+                        Turn on live captions
+                      </button>
+                    )}
                   </div>
                 )}
                 {!state.online && <p className="notice">Calling needs a connection. You can record a manual outcome below.</p>}
@@ -286,7 +291,7 @@ export function Calls({ target }) {
           </Card>
         </aside>
       </div>
-      <LiveCaptions show={captions && activeCall} lead={lead} agent={ROLES[state.role].person.split(" ")[0]} onClose={() => toggleCaptions(false)} />
+      <LiveCaptions show={captions} active={activeCall} lead={lead} agent={ROLES[state.role].person.split(" ")[0]} onClose={() => toggleCaptions(false)} />
     </>
   );
 }
