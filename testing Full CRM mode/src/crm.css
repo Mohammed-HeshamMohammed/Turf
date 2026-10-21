@@ -5140,19 +5140,29 @@ html.demo-quiet .demo-note {
   margin-bottom: 4px;
 }
 
-/* Outcome stages get their own tint so they read apart from the open pipeline. */
+/* Outcome stages are marked by a small dot beside the name; the columns stay the same neutral grey. */
+.deal-board .kanban-column[data-stage="Closed won"] > header > span:first-child,
+.deal-board .kanban-column[data-stage="Negotiation"] > header > span:first-child,
+.deal-board .kanban-column[data-stage="Closed lost"] > header > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.deal-board .kanban-column[data-stage="Closed won"] > header > span:first-child::before,
+.deal-board .kanban-column[data-stage="Negotiation"] > header > span:first-child::before,
+.deal-board .kanban-column[data-stage="Closed lost"] > header > span:first-child::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--stage-dot);
+}
 .deal-board .kanban-column[data-stage="Closed won"] {
-  background: #dcecd3;
-  border-top: 4px solid #6aa352;
+  --stage-dot: #5f9a47;
 }
 .deal-board .kanban-column[data-stage="Negotiation"] {
-  background: #f6e6c6;
-  border-top: 4px solid #d19a2e;
+  --stage-dot: #d19a2e;
 }
 .deal-board .kanban-column[data-stage="Closed lost"] {
-  background: #f1d9d6;
-  border-top: 4px solid #c25b52;
-}
-.deal-board .kanban-column.drop-target[data-stage] {
-  background: var(--accent-soft);
+  --stage-dot: #c25b52;
 }
