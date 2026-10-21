@@ -4440,8 +4440,7 @@ textarea {
     display: flex;
     flex-direction: column;
   }
-  .dashboard-left > .card:last-child,
-  .dashboard-right > .card:last-child {
+  .dashboard-left > .card:last-child {
     flex: 1;
   }
 }
