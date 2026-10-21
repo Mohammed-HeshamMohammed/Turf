@@ -5656,3 +5656,41 @@ html.demo-quiet .demo-note {
     min-height: 42px;
   }
 }
+
+/* Two things used to jump when the rail changed size: the toggle (centred vs. at the right edge) and the count badges
+   (corner dot vs. inline pill). Both now move continuously. */
+@media (min-width: 721px) {
+  .sidebar.is-minimized .sidebar-heading {
+    justify-content: space-between;
+  }
+  .sidebar-toggle {
+    margin-right: 0;
+    transition:
+      background 160ms,
+      width 260ms var(--ease-out),
+      height 260ms var(--ease-out),
+      margin-right 260ms var(--ease-out);
+  }
+  .sidebar.is-minimized .sidebar-toggle {
+    margin-right: 9.5px;
+  }
+  .sidebar .nav-group button .count-badge {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    margin: 0;
+    transform: translateY(-50%);
+    box-shadow: 0 0 0 0 var(--rail);
+    transition:
+      right 260ms var(--ease-out),
+      top 260ms var(--ease-out),
+      transform 260ms var(--ease-out),
+      box-shadow 260ms;
+  }
+  .sidebar.is-minimized .nav-group button .count-badge {
+    right: -3px;
+    top: -3px;
+    transform: none;
+    box-shadow: 0 0 0 2px var(--rail);
+  }
+}
