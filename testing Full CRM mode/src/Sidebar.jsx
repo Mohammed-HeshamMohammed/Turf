@@ -111,6 +111,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
   return (
     <aside
       id="crm-sidebar"
+      aria-label="Workspace navigation"
       ref={ref}
       className={"sidebar " + (collapsed ? "is-minimized " : "") + (mobileOpen ? "mobile-open" : "")}
       onPointerMove={track}

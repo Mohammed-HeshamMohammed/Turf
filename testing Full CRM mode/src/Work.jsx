@@ -289,7 +289,7 @@ export function Calls({ target }) {
             <Empty title="Your queue is clear">Choose another role or add a lead to continue.</Empty>
           )}
         </div>
-        <aside>
+        <aside aria-label="Call assistant">
           <CallAssistant
             lead={lead}
             person={ROLES[state.role].person.split(" ")[0]}
@@ -764,7 +764,9 @@ export function Deals({ id }) {
                   <th>Offer amount</th>
                   <th>Expected fee</th>
                   <th>Target close</th>
-                  <th />
+                  <th>
+                    <span className="sr-only">Open</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>

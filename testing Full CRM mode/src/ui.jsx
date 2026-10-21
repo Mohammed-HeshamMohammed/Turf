@@ -302,8 +302,13 @@ export function MoreMenu({ items, label = "More" }) {
   const shown = items.filter(item => item && !item.hidden);
   useEffect(() => {
     if (!open) return undefined;
+    root.current?.querySelector('[role="menuitem"]')?.focus();
     const outside = event => !root.current?.contains(event.target) && setOpen(false);
-    const escape = event => event.key === "Escape" && setOpen(false);
+    const escape = event => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      root.current?.querySelector('[aria-haspopup="menu"]')?.focus();
+    };
     document.addEventListener("pointerdown", outside);
     document.addEventListener("keydown", escape);
     return () => {
@@ -319,7 +324,20 @@ export function MoreMenu({ items, label = "More" }) {
         <span>{label}</span>
       </button>
       {presence.mounted && (
-        <div className={"more-menu-panel" + (presence.leaving ? " leaving" : "")} role="menu">
+        <div
+          className={"more-menu-panel" + (presence.leaving ? " leaving" : "")}
+          role="menu"
+          onKeyDown={event => {
+            const entries = [...event.currentTarget.querySelectorAll('[role="menuitem"]')];
+            const at = entries.indexOf(document.activeElement);
+            const step = { ArrowDown: 1, ArrowUp: -1 }[event.key];
+            if (step) {
+              event.preventDefault();
+              entries[(at + step + entries.length) % entries.length]?.focus();
+            }
+            if (event.key === "Tab") setOpen(false);
+          }}
+        >
           {shown.map(item => {
             const Icon = item.icon;
             return (

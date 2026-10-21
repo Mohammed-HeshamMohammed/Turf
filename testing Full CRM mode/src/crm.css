@@ -5,7 +5,7 @@
   --raised: #fff;
   --well: #e6e6e6;
   --ink: #121212;
-  --muted: #6c6c6c;
+  --muted: #595959;
   --line: #dcdcdc;
   --accent: #ecc394;
   --accent-soft: #fbdfc2;
@@ -904,7 +904,7 @@ svg {
   padding: 5px 11px 6px;
   font-size: 12px;
   letter-spacing: 0.11em;
-  color: #858585;
+  color: var(--muted);
 }
 .nav-group button {
   display: flex;
@@ -1303,7 +1303,7 @@ h1 {
   font-size: 12px;
 }
 .task-check {
-  color: #747474;
+  color: var(--muted);
   display: grid;
   place-items: center;
   flex: none;
@@ -1455,7 +1455,7 @@ table {
 }
 thead th {
   font-weight: 450;
-  color: #747474;
+  color: var(--muted);
   font-size: 12px;
   white-space: nowrap;
   padding: 17px 9px;
@@ -1640,7 +1640,7 @@ input[type="checkbox"] {
   background: var(--well);
 }
 .column-empty {
-  color: #858585;
+  color: var(--muted);
   padding: 18px 7px;
   font-size: 12px;
 }
@@ -2144,7 +2144,7 @@ textarea {
   background: var(--accent-soft);
 }
 .calendar-day.outside {
-  color: #a3a3a3;
+  color: var(--muted);
 }
 .calendar-day small {
   min-width: 0;
@@ -2258,7 +2258,7 @@ textarea {
 }
 .message > span {
   display: block;
-  color: #76716b;
+  color: var(--muted);
   font-size: 12px;
   margin-top: 9px;
 }
@@ -3215,7 +3215,7 @@ textarea {
   gap: 15px;
   background: var(--page);
   border-top: 1px solid #dedede;
-  color: #747474;
+  color: var(--muted);
   font-size: 12px;
 }
 .app-footer .footer-status {
@@ -3723,7 +3723,7 @@ textarea {
   margin-left: 6px;
   font-size: 12px;
   font-weight: 600;
-  opacity: 0.65;
+  opacity: 1;
 }
 .callback-picker {
   display: flex;
@@ -4374,7 +4374,7 @@ textarea {
 .ai-note {
   margin: 8px 20px 20px;
   font-size: 12px;
-  color: #858585;
+  color: var(--muted);
 }
 @media (prefers-reduced-motion: reduce) {
   .ai-wave.is-live i,
@@ -5085,4 +5085,33 @@ html.demo-quiet .demo-note {
 }
 .toast-undo:hover {
   background: #ffffff3a;
+}
+/* ---- Accessibility ---- */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 3000;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: var(--ink);
+  color: white;
+  font-size: 13px;
+  transform: translateY(-160%);
+}
+.skip-link:focus {
+  transform: none;
+}
+.team-stats > * > span {
+  display: block;
+}
+.team-stats .stat-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.team-stats .stat-value {
+  margin: 4px 0 0;
+  font-size: 24px;
+  font-weight: 450;
+  letter-spacing: -0.03em;
 }

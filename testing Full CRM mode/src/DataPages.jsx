@@ -148,7 +148,9 @@ export function Lists({ id }) {
                   <th>Best phone</th>
                   <th>Quality</th>
                   <th>CRM stage</th>
-                  <th />
+                  <th>
+                    <span className="sr-only">Open</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>

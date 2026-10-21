@@ -40,6 +40,7 @@ export function CallActivityChart() {
       </div>
       <div
         className="chart-container"
+        role="img"
         aria-label="Illustrative two-hour call activity across seven days. Hover a point or use arrow keys for interval details."
       >
         <ResponsiveContainer width="100%" height="100%" minWidth={0}>

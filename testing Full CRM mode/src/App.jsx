@@ -341,6 +341,9 @@ export function App() {
   return (
     <CrmContext.Provider value={context}>
       <div className="crm-window">
+        <a className="skip-link" href="#main-content" onClick={event => (event.preventDefault(), main.current?.focus())}>
+          Skip to content
+        </a>
         <WindowStrip title="Turf · Full CRM mode" />
         <header className="app-header" {...windowDrag}>
           <div className="brand">
@@ -445,7 +448,7 @@ export function App() {
         <div className={"workspace-body " + (sidebarCollapsed ? "sidebar-minimized" : "")}>
           <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} mobileOpen={mobileNav} page={page} />
           {mobileNav && <button className="nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
-          <main className="main-content" ref={main} id="main-content">
+          <main className="main-content" ref={main} id="main-content" tabIndex={-1}>
             {state.remoteError && state.remoteStatus === "error" && (
               <p className="notice" role="alert">
                 {state.remoteError}

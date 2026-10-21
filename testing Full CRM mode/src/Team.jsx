@@ -75,24 +75,24 @@ export function Team() {
                 <Badge>{person.title}</Badge>
               </div>
             </div>
-            <dl className="team-stats">
+            <div className="team-stats">
               <button type="button" onClick={() => navigate("work/leads?assignee=" + encodeURIComponent(person.name))}>
-                <dt>Active leads</dt>
-                <dd>{person.leads}</dd>
+                <span className="stat-label">Active leads</span>
+                <span className="stat-value">{person.leads}</span>
               </button>
               <button type="button" onClick={() => navigate("work/tasks?assignee=" + encodeURIComponent(person.name))}>
-                <dt>Open steps</dt>
-                <dd>{person.tasks}</dd>
+                <span className="stat-label">Open steps</span>
+                <span className="stat-value">{person.tasks}</span>
               </button>
               <div>
-                <dt>Calls logged</dt>
-                <dd>{person.calls}</dd>
+                <span className="stat-label">Calls logged</span>
+                <span className="stat-value">{person.calls}</span>
               </div>
               <button type="button" onClick={() => navigate("work/handoffs")}>
-                <dt>Handoffs waiting</dt>
-                <dd>{person.waiting}</dd>
+                <span className="stat-label">Handoffs waiting</span>
+                <span className="stat-value">{person.waiting}</span>
               </button>
-            </dl>
+            </div>
             {finance && (
               <div className="team-pipeline">
                 <small>Pipeline on their leads</small>
