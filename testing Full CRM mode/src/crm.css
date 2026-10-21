@@ -5603,3 +5603,56 @@ html.demo-quiet .demo-note {
     display: none;
   }
 }
+
+/* The rail keeps the same height minimised or expanded, so it only ever grows and shrinks sideways:
+   the minimised rail keeps the vertical space of the section headings (as a divider line) and the same spacing. */
+@media (min-width: 721px) {
+  .sidebar.is-minimized {
+    padding: 15px 5px;
+    gap: 14px;
+  }
+  .sidebar.is-minimized .sidebar-toggle {
+    height: 32px;
+  }
+  .sidebar.is-minimized > nav {
+    padding: 0 4px;
+  }
+  .sidebar.is-minimized .nav-group {
+    gap: 3px;
+    margin: 0 0 17px;
+  }
+  .sidebar.is-minimized .nav-group + .nav-group {
+    padding-top: 0;
+    border-top-color: transparent;
+  }
+  .nav-group > small {
+    position: relative;
+    transition:
+      color 160ms,
+      padding 260ms var(--ease-out);
+  }
+  .sidebar.is-minimized .nav-group > small {
+    max-height: 32px;
+    padding: 5px 11px 6px;
+    opacity: 1;
+    color: transparent;
+  }
+  .nav-group > small::after {
+    content: "";
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    top: 50%;
+    border-top: 1px solid #d2d2d2;
+    opacity: 0;
+    transition: opacity 200ms;
+  }
+  .sidebar.is-minimized .nav-group + .nav-group > small::after {
+    opacity: 1;
+  }
+  .sidebar.is-minimized .nav-group button {
+    width: 42px;
+    height: 42px;
+    min-height: 42px;
+  }
+}

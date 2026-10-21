@@ -46,3 +46,4 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Every table's column titles sort when pressed (ascending, descending, off; an arrow shows the order) and can be dragged (or moved with Alt + arrow keys) into a new order, which is remembered per table. Build tables with `DataTable` and `useTableView` from ui.jsx.
 - No native browser pickers: dates, times and date-times use `DatePicker`, `TimePicker` and `DateTimePicker` from ui.jsx (drawn by the app, like `Select`). Calendar day tiles are rounded, not a bordered grid.
 - The calendar month slides out and in the direction of travel (Today slides back or forward to the current month and the chosen day pops); reduced motion turns it off.
+- The sidebar rail keeps the same height and position minimised or expanded (it only grows sideways): the minimised rail keeps the space of the section headings as a divider line.
