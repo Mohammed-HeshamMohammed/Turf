@@ -21,6 +21,12 @@ export function Dashboard() {
   const finance = capability(state, "finance");
   const history = state.activities.filter(item => item.leadId && leadIds.has(item.leadId));
   const isClient = state.role === "client";
+  const leadById = Object.fromEntries(leads.map(lead => [lead.id, lead]));
+  const upcoming = tasks
+    .filter(task => task.date && task.date > TODAY)
+    .sort((a, b) => (a.date + (a.time || "")).localeCompare(b.date + (b.time || "")))
+    .slice(0, 4);
+  const closing = [...deals].sort((a, b) => (a.closeDate || "").localeCompare(b.closeDate || "")).slice(0, 4);
 
   if (state.role === "admin")
     return (
@@ -227,6 +233,62 @@ export function Dashboard() {
                 </div>
               ))}
               {history.length === 0 && <Empty>No activity in this view.</Empty>}
+            </Card>
+          )}
+          {!isClient && (
+            <Card
+              title="Coming up"
+              subtitle="Next steps after today."
+              action={
+                <Button onClick={() => navigate("work/tasks")}>
+                  All tasks <ArrowUpRight size={15} />
+                </Button>
+              }
+            >
+              {upcoming.map(task => (
+                <div className="list-row" key={task.id}>
+                  <div>
+                    <strong>{task.title}</strong>
+                    <small>
+                      {task.date}
+                      {task.time ? " · " + task.time : ""}
+                      {leadById[task.leadId] ? " · " + leadById[task.leadId].name : ""}
+                    </small>
+                  </div>
+                  {leadById[task.leadId] && (
+                    <Button onClick={() => navigate("work/leads/" + task.leadId)}>
+                      Open <ArrowUpRight size={16} />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              {upcoming.length === 0 && <Empty>Nothing scheduled after today.</Empty>}
+            </Card>
+          )}
+          {!isClient && role.pages.includes("deals") && (
+            <Card
+              title="Closing soonest"
+              subtitle={deals.length + " open " + (deals.length === 1 ? "deal" : "deals")}
+              action={
+                <Button onClick={() => navigate("work/deals")}>
+                  All deals <ArrowUpRight size={15} />
+                </Button>
+              }
+            >
+              {closing.map(deal => (
+                <div className="list-row" key={deal.id}>
+                  <div>
+                    <strong>{leadById[deal.leadId]?.address}</strong>
+                    <small>
+                      {deal.stage} · {money(deal.amount)} · closes {deal.closeDate}
+                    </small>
+                  </div>
+                  <Button onClick={() => navigate("work/leads/" + deal.leadId)}>
+                    Open <ArrowUpRight size={16} />
+                  </Button>
+                </div>
+              ))}
+              {closing.length === 0 && <Empty>No open deals in this view.</Empty>}
             </Card>
           )}
           {!isClient && (
