@@ -37,6 +37,7 @@ const NAV = [
 export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
   const { state, navigate } = useCrm();
   const ref = useRef(null);
+  const wasCollapsed = useRef(collapsed);
   const [hover, setHover] = useState(null);
   const [bend, setBend] = useState(null);
   const [selection, setSelection] = useState(null);
@@ -44,9 +45,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
   const counts = navCounts(state, role);
   const items = NAV.filter(item => role.pages.includes(item.id));
   // Same sections the top bar shows; the sidebar hides them while the top bar is visible.
-  const topIds = ["dashboard", "leads", "calls", "deals", "tasks", "inbox"]
-    .filter(id => id === "dashboard" || role.pages.includes(id))
-    .slice(0, 5);
+  const topIds = ["dashboard", "leads", "calls", "deals", "tasks", "inbox"].filter(id => id === "dashboard" || role.pages.includes(id)).slice(0, 5);
   useLayoutEffect(() => {
     const nav = ref.current.querySelector("nav");
     function measureSelection() {
@@ -65,7 +64,25 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
     measureSelection();
     const observer = new ResizeObserver(measureSelection);
     observer.observe(nav);
-    return () => observer.disconnect();
+    // While the rail minimises or expands, the selected pill follows its item frame by frame instead of lagging behind.
+    let frame = 0;
+    const rail = ref.current;
+    if (wasCollapsed.current !== collapsed) {
+      wasCollapsed.current = collapsed;
+      rail.classList.add("is-resizing");
+      const until = performance.now() + 340;
+      const follow = () => {
+        measureSelection();
+        if (performance.now() < until) frame = requestAnimationFrame(follow);
+        else rail.classList.remove("is-resizing");
+      };
+      frame = requestAnimationFrame(follow);
+    }
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+      rail.classList.remove("is-resizing");
+    };
   }, [page, collapsed, state.role, mobileOpen]);
   function clearHover() {
     setHover(null);
