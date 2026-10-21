@@ -5226,3 +5226,10 @@ html.demo-quiet .demo-note {
     transform: translateY(8px);
   }
 }
+
+/* Above a full-height board nothing may be squeezed: only the board gives up space. */
+@media (min-width: 721px) and (min-height: 600px) {
+  .page-content:has(> .kanban) > :not(.kanban) {
+    flex: none;
+  }
+}
