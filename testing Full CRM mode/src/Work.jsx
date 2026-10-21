@@ -39,7 +39,7 @@ import {
   RoundButton,
   Search,
   Segmented,
-  SortHeader,
+  DataTable,
   useTableView,
   Status,
   money,
@@ -532,6 +532,7 @@ export function Deals({ id }) {
       fee: { value: row => row.deal.fee },
       close: { value: row => row.deal.closeDate },
     },
+    "deals",
   );
   // Pointer-based drag so cards move the same way in browsers and the desktop webview, which swallows native drag and drop.
   const startDrag = (event, deal, label) => {
@@ -767,54 +768,29 @@ export function Deals({ id }) {
         </div>
       ) : (
         <Card className="table-card deals-list view-in">
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <SortHeader view={table} id="property">
-                    Property
-                  </SortHeader>
-                  <SortHeader view={table} id="stage">
-                    Stage
-                  </SortHeader>
-                  <SortHeader view={table} id="amount">
-                    Offer amount
-                  </SortHeader>
-                  <SortHeader view={table} id="fee">
-                    Expected fee
-                  </SortHeader>
-                  <SortHeader view={table} id="close">
-                    Target close
-                  </SortHeader>
-                  <th>
-                    <span className="sr-only">Open</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {table.rows.map(({ deal, lead }) => {
-                  return (
-                    <tr key={deal.id}>
-                      <td>
-                        <LeadLink lead={lead} />
-                      </td>
-                      <td>
-                        <span className="stage-pill" data-stage={deal.stage}>
-                          {deal.stage}
-                        </span>
-                      </td>
-                      <td className="num">{money(deal.amount)}</td>
-                      <td className="num">{money(deal.fee)}</td>
-                      <td>{shortDate(deal.closeDate)}</td>
-                      <td>
-                        <RoundButton label={"Open deal for " + lead.name} onClick={() => navigate("work/deals/" + deal.id)} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            view={table}
+            rowKey={row => row.deal.id}
+            columns={[
+              { id: "property", label: "Property", cell: ({ lead }) => <LeadLink lead={lead} /> },
+              {
+                id: "stage",
+                label: "Stage",
+                cell: ({ deal }) => (
+                  <span className="stage-pill" data-stage={deal.stage}>
+                    {deal.stage}
+                  </span>
+                ),
+              },
+              { id: "amount", label: "Offer amount", className: "num", cell: ({ deal }) => money(deal.amount) },
+              { id: "fee", label: "Expected fee", className: "num", cell: ({ deal }) => money(deal.fee) },
+              { id: "close", label: "Target close", cell: ({ deal }) => shortDate(deal.closeDate) },
+            ]}
+            trailing={{
+              head: <span className="sr-only">Open</span>,
+              cell: ({ deal, lead }) => <RoundButton label={"Open deal for " + lead.name} onClick={() => navigate("work/deals/" + deal.id)} />,
+            }}
+          />
           <div className="list-footer">
             <span>
               {table.rows.length} {table.rows.length === 1 ? "deal" : "deals"}

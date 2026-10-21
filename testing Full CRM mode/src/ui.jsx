@@ -119,9 +119,29 @@ export function Segmented({ value, options, onChange, label }) {
     </div>
   );
 }
-/** Sorting for a table. `columns` maps an id to { value(row) }: numbers sort as numbers, text alphabetically. */
-export function useTableView(rows, columns) {
+const readOrder = id => {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem("turf.columns." + id));
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+};
+/**
+ * Sorting and column order for a table. `columns` maps an id to { value(row) }: numbers sort as numbers, text alphabetically.
+ * The column order is remembered per `tableId`.
+ */
+export function useTableView(rows, columns, tableId) {
   const [sort, setSort] = useState(null);
+  const [order, setOrderState] = useState(() => readOrder(tableId));
+  function setOrder(next) {
+    setOrderState(next);
+    try {
+      window.localStorage.setItem("turf.columns." + tableId, JSON.stringify(next));
+    } catch {
+      // The order still holds for this session.
+    }
+  }
   let shown = rows;
   if (sort && columns[sort.id]) {
     const get = columns[sort.id].value;
@@ -133,24 +153,130 @@ export function useTableView(rows, columns) {
       return direction * String(x ?? "").localeCompare(String(y ?? ""), undefined, { numeric: true, sensitivity: "base" });
     });
   }
-  return { rows: shown, sort, setSort };
+  // Saved order first; a column the user has never placed goes after them in its natural order.
+  const arrange = list => {
+    const known = order.map(id => list.find(column => column.id === id)).filter(Boolean);
+    return [...known, ...list.filter(column => !order.includes(column.id))];
+  };
+  return { rows: shown, sort, setSort, arrange, setOrder };
 }
 /** A column title that sorts when pressed: ascending, then descending, then back to the original order. */
-export function SortHeader({ view, id, children, label = typeof children === "string" ? children : id }) {
+export function SortHeader({ view, id, children, label = typeof children === "string" ? children : id, ...props }) {
   const dir = view.sort?.id === id ? view.sort.dir : null;
   const Caret = dir === "asc" ? CaretUp : dir === "desc" ? CaretDown : CaretUpDown;
   return (
-    <th className="sort-th" aria-sort={dir === "asc" ? "ascending" : dir === "desc" ? "descending" : undefined}>
+    <th aria-sort={dir === "asc" ? "ascending" : dir === "desc" ? "descending" : undefined} {...props} className={"sort-th " + (props.className || "")}>
       <button
         type="button"
         className={"sort-button" + (dir ? " is-sorted" : "")}
-        title={"Sort by " + label.toLowerCase()}
+        title={"Sort by " + label.toLowerCase() + ". Drag the title, or press Alt and an arrow key, to move the column."}
         onClick={() => view.setSort(dir === "asc" ? { id, dir: "desc" } : dir === "desc" ? null : { id, dir: "asc" })}
       >
         <span>{children}</span>
         <Caret size={13} weight={dir ? "bold" : "regular"} aria-hidden="true" />
       </button>
     </th>
+  );
+}
+/**
+ * A table whose column titles sort and can be dragged into a new order.
+ * `columns`: [{ id, label, cell(row), className? }]. `leading` and `trailing` are fixed columns ({ head, cell(row), className? }).
+ */
+export function DataTable({ view, columns, rowKey, leading, trailing }) {
+  const ordered = view.arrange(columns);
+  const [drag, setDrag] = useState(null);
+  const justDragged = useRef(false);
+  const ids = ordered.map(column => column.id);
+  function moveColumn(id, over) {
+    if (!over || over === id) return;
+    const next = ids.filter(item => item !== id);
+    next.splice(next.indexOf(over) + (ids.indexOf(over) > ids.indexOf(id) ? 1 : 0), 0, id);
+    view.setOrder(next);
+  }
+  // Pointer-based, like the board cards, so it behaves the same in browsers and the desktop webview.
+  function startDrag(event, column) {
+    if (event.button !== 0 || event.pointerType === "touch") return;
+    const start = { x: event.clientX, y: event.clientY };
+    let active = false;
+    let over = null;
+    const track = e => {
+      if (!active && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 6) return;
+      active = true;
+      over = document.elementFromPoint(e.clientX, e.clientY)?.closest("th[data-col]")?.dataset.col ?? null;
+      setDrag({ id: column.id, label: column.label, x: e.clientX, y: e.clientY, over });
+    };
+    const finish = e => {
+      window.removeEventListener("pointermove", track);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+      setDrag(null);
+      if (!active) return;
+      justDragged.current = true;
+      setTimeout(() => (justDragged.current = false), 0);
+      if (e.type !== "pointercancel") moveColumn(column.id, over);
+    };
+    window.addEventListener("pointermove", track);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+  }
+  function keyMove(event, column, index) {
+    const step = event.altKey && { ArrowLeft: -1, ArrowRight: 1 }[event.key];
+    if (!step || !ordered[index + step]) return;
+    event.preventDefault();
+    moveColumn(column.id, ordered[index + step].id);
+    requestAnimationFrame(() => document.querySelector('th[data-col="' + column.id + '"] button')?.focus());
+  }
+  return (
+    <div className="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            {leading && <th className={leading.className}>{leading.head}</th>}
+            {ordered.map((column, index) => (
+              <SortHeader
+                key={column.id}
+                view={view}
+                id={column.id}
+                data-col={column.id}
+                className={
+                  (column.className || "") +
+                  (drag?.id === column.id ? " is-dragged" : "") +
+                  (drag?.over === column.id && drag.id !== column.id ? (ids.indexOf(drag.id) > index ? " drop-before" : " drop-after") : "")
+                }
+                onPointerDown={event => startDrag(event, column)}
+                onClickCapture={event => {
+                  if (!justDragged.current) return;
+                  event.stopPropagation();
+                  event.preventDefault();
+                }}
+                onKeyDown={event => keyMove(event, column, index)}
+              >
+                {column.label}
+              </SortHeader>
+            ))}
+            {trailing && <th className={trailing.className}>{trailing.head}</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {view.rows.map(row => (
+            <tr key={rowKey(row)}>
+              {leading && <td className={leading.className}>{leading.cell(row)}</td>}
+              {ordered.map(column => (
+                <td key={column.id} className={column.className}>
+                  {column.cell(row)}
+                </td>
+              ))}
+              {trailing && <td className={trailing.className}>{trailing.cell(row)}</td>}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {drag && (
+        <div className="column-ghost" style={{ transform: `translate(${drag.x + 12}px, ${drag.y + 12}px)` }}>
+          {drag.label}
+        </div>
+      )}
+    </div>
   );
 }
 export function Avatar({ name, avatar, small = false, large = false }) {

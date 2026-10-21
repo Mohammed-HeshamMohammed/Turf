@@ -19,7 +19,7 @@ import {
   PageHeader,
   Search,
   Segmented,
-  SortHeader,
+  DataTable,
   Status,
   downloadCsv,
   Breadcrumb,
@@ -44,6 +44,7 @@ export function Lists({ id }) {
       quality: { value: lead => lead.verdict || "" },
       stage: { value: lead => LEAD_STAGES.indexOf(lead.stage) },
     },
+    "source-list",
   );
   function importRows(rows, name, columns) {
     if (!rows.length) {
@@ -166,59 +167,36 @@ export function Lists({ id }) {
         </div>
         <PropertyMap rows={leads.filter(lead => lead.datasetId === id)} title="Source list map" />
         <Card className="table-card">
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <SortHeader view={table} id="owner">
-                    Owner
-                  </SortHeader>
-                  <SortHeader view={table} id="property">
-                    Property
-                  </SortHeader>
-                  <SortHeader view={table} id="phone">
-                    Best phone
-                  </SortHeader>
-                  <SortHeader view={table} id="quality">
-                    Quality
-                  </SortHeader>
-                  <SortHeader view={table} id="stage">
-                    CRM stage
-                  </SortHeader>
-                  <th>
-                    <span className="sr-only">Open</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {table.rows.map(lead => (
-                  <tr key={lead.id}>
-                    <td>
-                      <LeadLink lead={lead} detail={false} />
-                    </td>
-                    <td>
-                      {lead.address}
-                      <small>
-                        {lead.city}, {lead.region}
-                      </small>
-                    </td>
-                    <td>{lead.phone || <span className="muted">No phone supplied</span>}</td>
-                    <td>
-                      <Status value={lead.verdict} />
-                    </td>
-                    <td>
-                      <Status value={lead.stage} />
-                    </td>
-                    <td>
-                      <Button onClick={() => navigate("work/leads/" + lead.id)}>
-                        Open lead <ArrowUpRight size={14} />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            view={table}
+            rowKey={lead => lead.id}
+            columns={[
+              { id: "owner", label: "Owner", cell: lead => <LeadLink lead={lead} detail={false} /> },
+              {
+                id: "property",
+                label: "Property",
+                cell: lead => (
+                  <>
+                    {lead.address}
+                    <small>
+                      {lead.city}, {lead.region}
+                    </small>
+                  </>
+                ),
+              },
+              { id: "phone", label: "Best phone", cell: lead => lead.phone || <span className="muted">No phone supplied</span> },
+              { id: "quality", label: "Quality", cell: lead => <Status value={lead.verdict} /> },
+              { id: "stage", label: "CRM stage", cell: lead => <Status value={lead.stage} /> },
+            ]}
+            trailing={{
+              head: <span className="sr-only">Open</span>,
+              cell: lead => (
+                <Button onClick={() => navigate("work/leads/" + lead.id)}>
+                  Open lead <ArrowUpRight size={14} />
+                </Button>
+              ),
+            }}
+          />
         </Card>
       </>
     );

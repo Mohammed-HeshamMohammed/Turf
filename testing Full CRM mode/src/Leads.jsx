@@ -27,7 +27,7 @@ import {
   ConfirmDialog,
   propertyFacts,
   MoreMenu,
-  SortHeader,
+  DataTable,
   useTableView,
 } from "./ui.jsx";
 
@@ -60,14 +60,18 @@ export function Leads() {
     assignee: !hideEmpty || leads.some(assigned),
     next: !hideEmpty || client || leads.some(lead => lead.callback),
   };
-  const table = useTableView(leads, {
-    owner: { value: lead => lead.name },
-    property: { value: lead => lead.address },
-    verdict: { value: lead => lead.verdict || "" },
-    stage: { value: lead => LEAD_STAGES.indexOf(lead.stage) },
-    assignee: { value: lead => lead.assignee || "" },
-    next: { value: lead => (lead.callback ? (lead.callbackDate || "") + " " + lead.callback : "￿") },
-  });
+  const table = useTableView(
+    leads,
+    {
+      owner: { value: lead => lead.name },
+      property: { value: lead => lead.address },
+      verdict: { value: lead => lead.verdict || "" },
+      stage: { value: lead => LEAD_STAGES.indexOf(lead.stage) },
+      assignee: { value: lead => lead.assignee || "" },
+      next: { value: lead => (lead.callback ? (lead.callbackDate || "") + " " + lead.callback : "￿") },
+    },
+    "leads",
+  );
   // Pointer-based drag so cards move the same way in browsers and the desktop webview, which swallows native drag and drop.
   function startDrag(event, lead) {
     if (event.button !== 0 || event.target.closest(".select") || !canEditLead(state, lead.id)) return;
@@ -230,94 +234,67 @@ export function Leads() {
         </div>
       ) : (
         <div className="card table-card">
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  {editable && (
-                    <th className="checkbox-cell">
-                      <input
-                        type="checkbox"
-                        aria-label="Select all editable visible leads"
-                        checked={
-                          table.rows.some(lead => canEditLead(state, lead.id)) &&
-                          table.rows.filter(lead => canEditLead(state, lead.id)).every(lead => selected.includes(lead.id))
-                        }
-                        onChange={event => setSelected(event.target.checked ? table.rows.filter(lead => canEditLead(state, lead.id)).map(lead => lead.id) : [])}
-                      />
-                    </th>
-                  )}
-                  <SortHeader view={table} id="owner">
-                    Property owner
-                  </SortHeader>
-                  <SortHeader view={table} id="property">
-                    Property
-                  </SortHeader>
-                  {!client && hasColumn.verdict && (
-                    <SortHeader view={table} id="verdict">
-                      Phone quality
-                    </SortHeader>
-                  )}
-                  <SortHeader view={table} id="stage">
-                    Stage
-                  </SortHeader>
-                  {!client && hasColumn.assignee && (
-                    <SortHeader view={table} id="assignee">
-                      Responsible person
-                    </SortHeader>
-                  )}
-                  {hasColumn.next && (
-                    <SortHeader view={table} id="next">
-                      Next step
-                    </SortHeader>
-                  )}
-                  <th>
-                    <span className="sr-only">Open</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {table.rows.map(lead => (
-                  <tr key={lead.id}>
-                    {editable && (
-                      <td>
-                        <input
-                          type="checkbox"
-                          aria-label={"Select " + lead.name}
-                          disabled={!canEditLead(state, lead.id)}
-                          checked={selected.includes(lead.id)}
-                          onChange={event => setSelected(event.target.checked ? [...selected, lead.id] : selected.filter(id => id !== lead.id))}
-                        />
-                      </td>
-                    )}
-                    <td>
-                      <button className="lead-link" onClick={() => navigate("work/leads/" + lead.id)}>
-                        <strong>{lead.name}</strong>
-                        <small>{lead.source}</small>
-                      </button>
-                    </td>
-                    <td>
-                      <span>{lead.address}</span>
-                      <small>
-                        {lead.city}, {lead.region} {lead.zip}
-                      </small>
-                    </td>
-                    {!client && hasColumn.verdict && (
-                      <td>
-                        <Status value={lead.verdict} />
-                      </td>
-                    )}
-                    <td>
-                      <Status value={lead.stage} />
-                    </td>
-                    {!client && hasColumn.assignee && (
-                      <td>
-                        <Person name={lead.assignee} link />
-                      </td>
-                    )}
-                    {hasColumn.next && (
-                      <td>
-                        {client ? (
+          <DataTable
+            view={table}
+            rowKey={lead => lead.id}
+            leading={
+              editable && {
+                className: "checkbox-cell",
+                head: (
+                  <input
+                    type="checkbox"
+                    aria-label="Select all editable visible leads"
+                    checked={
+                      table.rows.some(lead => canEditLead(state, lead.id)) &&
+                      table.rows.filter(lead => canEditLead(state, lead.id)).every(lead => selected.includes(lead.id))
+                    }
+                    onChange={event => setSelected(event.target.checked ? table.rows.filter(lead => canEditLead(state, lead.id)).map(lead => lead.id) : [])}
+                  />
+                ),
+                cell: lead => (
+                  <input
+                    type="checkbox"
+                    aria-label={"Select " + lead.name}
+                    disabled={!canEditLead(state, lead.id)}
+                    checked={selected.includes(lead.id)}
+                    onChange={event => setSelected(event.target.checked ? [...selected, lead.id] : selected.filter(id => id !== lead.id))}
+                  />
+                ),
+              }
+            }
+            columns={[
+              {
+                id: "owner",
+                label: "Property owner",
+                cell: lead => (
+                  <button className="lead-link" onClick={() => navigate("work/leads/" + lead.id)}>
+                    <strong>{lead.name}</strong>
+                    <small>{lead.source}</small>
+                  </button>
+                ),
+              },
+              {
+                id: "property",
+                label: "Property",
+                cell: lead => (
+                  <>
+                    <span>{lead.address}</span>
+                    <small>
+                      {lead.city}, {lead.region} {lead.zip}
+                    </small>
+                  </>
+                ),
+              },
+              ...(!client && hasColumn.verdict ? [{ id: "verdict", label: "Phone quality", cell: lead => <Status value={lead.verdict} /> }] : []),
+              { id: "stage", label: "Stage", cell: lead => <Status value={lead.stage} /> },
+              ...(!client && hasColumn.assignee ? [{ id: "assignee", label: "Responsible person", cell: lead => <Person name={lead.assignee} link /> }] : []),
+              ...(hasColumn.next
+                ? [
+                    {
+                      id: "next",
+                      label: "Next step",
+                      cell: lead =>
+                        client ? (
                           "Review property brief"
                         ) : lead.callback ? (
                           <span className="inline">
@@ -326,17 +303,16 @@ export function Leads() {
                           </span>
                         ) : (
                           <span className="muted">Set a next step</span>
-                        )}
-                      </td>
-                    )}
-                    <td>
-                      <RoundButton label={"Open " + lead.name} onClick={() => navigate("work/leads/" + lead.id)} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        ),
+                    },
+                  ]
+                : []),
+            ]}
+            trailing={{
+              head: <span className="sr-only">Open</span>,
+              cell: lead => <RoundButton label={"Open " + lead.name} onClick={() => navigate("work/leads/" + lead.id)} />,
+            }}
+          />
           {!table.rows.length && <Empty title="No leads match this view">Try another stage or search term.</Empty>}
           <footer className="table-footer">
             <span>{ROLES[state.role].scope}</span>

@@ -1,6 +1,6 @@
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { CALL_DAYS, CALL_TREND } from "./data.js";
-import { SortHeader, useTableView } from "./ui.jsx";
+import { DataTable, useTableView } from "./ui.jsx";
 
 function IntervalTooltip({ active, payload }) {
   const point = payload?.[0]?.payload;
@@ -26,12 +26,16 @@ function IntervalTooltip({ active, payload }) {
   );
 }
 export function CallActivityChart() {
-  const table = useTableView(CALL_TREND, {
-    day: { value: point => point.slot },
-    time: { value: point => point.slot },
-    calls: { value: point => point.calls },
-    reached: { value: point => point.reached },
-  });
+  const table = useTableView(
+    CALL_TREND,
+    {
+      day: { value: point => point.slot },
+      time: { value: point => point.slot },
+      calls: { value: point => point.calls },
+      reached: { value: point => point.reached },
+    },
+    "call-intervals",
+  );
   return (
     <>
       <div className="chart-key">
@@ -96,38 +100,24 @@ export function CallActivityChart() {
       <p className="chart-help">Hover between the day labels for time, calls, and reach rate.</p>
       <details className="chart-data">
         <summary>View all 42 sample intervals</summary>
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <SortHeader view={table} id="day">
-                  Day
-                </SortHeader>
-                <SortHeader view={table} id="time">
-                  Time
-                </SortHeader>
-                <SortHeader view={table} id="calls">
-                  Calls
-                </SortHeader>
-                <SortHeader view={table} id="reached">
-                  Reached
-                </SortHeader>
-              </tr>
-            </thead>
-            <tbody>
-              {table.rows.map(point => (
-                <tr key={point.slot}>
-                  <td>
-                    {point.day}, {point.date}
-                  </td>
-                  <td>{point.time}</td>
-                  <td>{point.calls}</td>
-                  <td>{point.reached}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          view={table}
+          rowKey={point => point.slot}
+          columns={[
+            {
+              id: "day",
+              label: "Day",
+              cell: point => (
+                <>
+                  {point.day}, {point.date}
+                </>
+              ),
+            },
+            { id: "time", label: "Time", cell: point => point.time },
+            { id: "calls", label: "Calls", cell: point => point.calls },
+            { id: "reached", label: "Reached", cell: point => point.reached },
+          ]}
+        />
       </details>
     </>
   );

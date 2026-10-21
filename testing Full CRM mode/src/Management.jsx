@@ -15,23 +15,7 @@ import {
 import { ROLES } from "./data.js";
 import { capability, visibleLeads, visibleTasks } from "./model.js";
 import { useCrm } from "./context.jsx";
-import {
-  Badge,
-  Select,
-  Button,
-  Card,
-  Empty,
-  Field,
-  Modal,
-  PageHeader,
-  Person,
-  Segmented,
-  SortHeader,
-  Status,
-  downloadCsv,
-  money,
-  useTableView,
-} from "./ui.jsx";
+import { Badge, Select, Button, Card, Empty, Field, Modal, PageHeader, Person, Segmented, DataTable, Status, downloadCsv, money, useTableView } from "./ui.jsx";
 
 export function Reports() {
   const { state, dispatch, notify } = useCrm();
@@ -53,14 +37,18 @@ export function Reports() {
       deals: deals.filter(deal => found.some(lead => lead.id === deal.leadId)).length,
     };
   });
-  const table = useTableView(rows, {
-    source: { value: row => row.source },
-    count: { value: row => row.count },
-    ready: { value: row => row.ready },
-    qualified: { value: row => row.qualified },
-    deals: { value: row => row.deals },
-    share: { value: row => row.count },
-  });
+  const table = useTableView(
+    rows,
+    {
+      source: { value: row => row.source },
+      count: { value: row => row.count },
+      ready: { value: row => row.ready },
+      qualified: { value: row => row.qualified },
+      deals: { value: row => row.deals },
+      share: { value: row => row.count },
+    },
+    "reports",
+  );
   return (
     <>
       <PageHeader title="Reports" description="Based only on the records you can see.">
@@ -115,55 +103,27 @@ export function Reports() {
           )
         }
       >
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <SortHeader view={table} id="source">
-                  {client ? "Location" : "Source"}
-                </SortHeader>
-                <SortHeader view={table} id="count">
-                  Visible leads
-                </SortHeader>
-                {!client && (
-                  <SortHeader view={table} id="ready">
-                    Ready to call
-                  </SortHeader>
-                )}
-                <SortHeader view={table} id="qualified">
-                  Qualified
-                </SortHeader>
-                {finance && (
-                  <SortHeader view={table} id="deals">
-                    Deals
-                  </SortHeader>
-                )}
-                <SortHeader view={table} id="share">
-                  Share of records
-                </SortHeader>
-              </tr>
-            </thead>
-            <tbody>
-              {table.rows.map(row => (
-                <tr key={row.source}>
-                  <td>
-                    <strong>{row.source}</strong>
-                  </td>
-                  <td>{row.count}</td>
-                  {!client && <td>{row.ready}</td>}
-                  <td>{row.qualified}</td>
-                  {finance && <td>{row.deals}</td>}
-                  <td>
-                    <div className="report-meter">
-                      <meter min="0" max={Math.max(leads.length, 1)} value={row.count} />
-                      <span>{Math.round((row.count / Math.max(leads.length, 1)) * 100)}%</span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          view={table}
+          rowKey={row => row.source}
+          columns={[
+            { id: "source", label: client ? "Location" : "Source", cell: row => <strong>{row.source}</strong> },
+            { id: "count", label: "Visible leads", cell: row => row.count },
+            ...(!client ? [{ id: "ready", label: "Ready to call", cell: row => row.ready }] : []),
+            { id: "qualified", label: "Qualified", cell: row => row.qualified },
+            ...(finance ? [{ id: "deals", label: "Deals", cell: row => row.deals }] : []),
+            {
+              id: "share",
+              label: "Share of records",
+              cell: row => (
+                <div className="report-meter">
+                  <meter min="0" max={Math.max(leads.length, 1)} value={row.count} />
+                  <span>{Math.round((row.count / Math.max(leads.length, 1)) * 100)}%</span>
+                </div>
+              ),
+            },
+          ]}
+        />
       </Card>
       <div className="two-columns">
         <Card title="Lead progression" subtitle="Current record stages in your view.">

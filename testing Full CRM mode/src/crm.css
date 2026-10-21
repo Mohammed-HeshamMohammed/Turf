@@ -5337,3 +5337,29 @@ html.demo-quiet .demo-note {
 .sort-button:hover {
   background: var(--well);
 }
+
+/* Dragging a column title: a ghost follows the pointer and a bar shows where the column will land. */
+.sort-th {
+  user-select: none;
+}
+.sort-th.is-dragged {
+  opacity: 0.45;
+}
+.sort-th.drop-before {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.sort-th.drop-after {
+  box-shadow: inset -3px 0 0 var(--accent);
+}
+.column-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--raised);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.2);
+  font-size: 12px;
+  pointer-events: none;
+}
