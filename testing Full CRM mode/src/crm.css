@@ -5066,7 +5066,7 @@ html.demo-quiet .demo-note {
 
 /* Boards fill the window: the page is as tall as the window, and each column scrolls on its own. */
 @media (min-width: 721px) and (min-height: 600px) {
-  .page-content:has(> .kanban) {
+  .page-content:has(> .view-in) {
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -5229,7 +5229,16 @@ html.demo-quiet .demo-note {
 
 /* Above a full-height board nothing may be squeezed: only the board gives up space. */
 @media (min-width: 721px) and (min-height: 600px) {
-  .page-content:has(> .kanban) > :not(.kanban) {
+  .page-content:has(> .view-in) > :not(.kanban) {
     flex: none;
+  }
+}
+
+/* The list fills the same height as the board, so switching views does not change the size of the area. */
+@media (min-width: 721px) and (min-height: 600px) {
+  .page-content > .table-card.view-in {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
   }
 }
