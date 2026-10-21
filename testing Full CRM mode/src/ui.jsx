@@ -187,8 +187,24 @@ export function DataTable({ view, columns, rowKey, leading, trailing }) {
   const [drag, setDrag] = useState(null);
   const justDragged = useRef(false);
   const ids = ordered.map(column => column.id);
+  const layout = ids.join("|");
+  const tableRef = useRef(null);
+  const before = useRef(null);
+  const cellLefts = () => new Map([...tableRef.current.querySelectorAll("[data-cell]")].map(cell => [cell.dataset.cell, cell.getBoundingClientRect().left]));
+  // Columns slide to their new place (FLIP): the cells are measured before the change, then each one starts at its old position and eases to the new one.
+  useLayoutEffect(() => {
+    const from = before.current;
+    before.current = null;
+    if (!from || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    tableRef.current.querySelectorAll("[data-cell]").forEach(cell => {
+      const shift = from.get(cell.dataset.cell) - cell.getBoundingClientRect().left;
+      if (Math.abs(shift) > 1)
+        cell.animate([{ transform: `translateX(${shift}px)` }, { transform: "none" }], { duration: 240, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+    });
+  }, [layout]);
   function moveColumn(id, over) {
     if (!over || over === id) return;
+    before.current = cellLefts();
     const next = ids.filter(item => item !== id);
     next.splice(next.indexOf(over) + (ids.indexOf(over) > ids.indexOf(id) ? 1 : 0), 0, id);
     view.setOrder(next);
@@ -228,7 +244,7 @@ export function DataTable({ view, columns, rowKey, leading, trailing }) {
   }
   return (
     <div className="table-scroll">
-      <table>
+      <table ref={tableRef}>
         <thead>
           <tr>
             {leading && <th className={leading.className}>{leading.head}</th>}
@@ -238,6 +254,7 @@ export function DataTable({ view, columns, rowKey, leading, trailing }) {
                 view={view}
                 id={column.id}
                 data-col={column.id}
+                data-cell={"head:" + column.id}
                 className={
                   (column.className || "") +
                   (drag?.id === column.id ? " is-dragged" : "") +
@@ -262,7 +279,7 @@ export function DataTable({ view, columns, rowKey, leading, trailing }) {
             <tr key={rowKey(row)}>
               {leading && <td className={leading.className}>{leading.cell(row)}</td>}
               {ordered.map(column => (
-                <td key={column.id} className={column.className}>
+                <td key={column.id} className={column.className} data-cell={rowKey(row) + ":" + column.id}>
                   {column.cell(row)}
                 </td>
               ))}
