@@ -43,6 +43,10 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
   const role = ROLES[state.role];
   const counts = navCounts(state, role);
   const items = NAV.filter(item => role.pages.includes(item.id));
+  // Same sections the top bar shows; the sidebar hides them while the top bar is visible.
+  const topIds = ["dashboard", "leads", "calls", "deals", "tasks", "inbox"]
+    .filter(id => id === "dashboard" || role.pages.includes(id))
+    .slice(0, 5);
   useLayoutEffect(() => {
     const nav = ref.current.querySelector("nav");
     function measureSelection() {
@@ -158,6 +162,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, page }) {
                     <button
                       key={item.id}
                       {...dockProps(item.id, item.label)}
+                      className={topIds.includes(item.id) ? "in-top-bar" : undefined}
                       aria-current={page === item.id ? "page" : undefined}
                       onClick={() => {
                         navigate(item.path);

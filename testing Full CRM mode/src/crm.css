@@ -5040,6 +5040,11 @@ html.demo-quiet .demo-note {
     display: none;
   }
 }
+@media (min-width: 1081px) {
+  .sidebar nav button.in-top-bar {
+    display: none;
+  }
+}
 @media (max-width: 720px) {
   .app-header .header-tools {
     position: static;
