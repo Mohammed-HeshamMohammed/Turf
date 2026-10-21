@@ -5115,3 +5115,48 @@ html.demo-quiet .demo-note {
   font-weight: 450;
   letter-spacing: -0.03em;
 }
+/* ---- Phones and small windows ---- */
+.detail-grid > *,
+.call-layout > *,
+.dashboard-main > * {
+  min-width: 0;
+}
+@media (max-width: 720px) {
+  .detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Comfortable touch targets: nothing you tap is shorter than 40px. */
+  .page-content :is(.text-button, .text-link, .lead-link, .note-tools button, .person.is-link, .agenda-title, .breadcrumb button, .stage-summary button, .settings-tabs button) {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .page-content .task-check {
+    min-width: 40px;
+    min-height: 40px;
+    display: inline-grid;
+    place-items: center;
+  }
+  .page-content .ai-switch {
+    margin: 7px 0;
+  }
+  .page-content .notes-title-row,
+  .page-content .row {
+    flex-wrap: wrap;
+  }
+}
+/* The header on smaller windows: with the top tabs gone, the search keeps its place instead of disappearing. */
+@media (max-width: 900px) {
+  .header-search .global-search {
+    display: block;
+  }
+}
+@media (max-width: 720px) {
+  .app-header .header-search {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .header-search .global-search {
+    width: 100%;
+  }
+}
