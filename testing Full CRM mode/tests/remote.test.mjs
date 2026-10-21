@@ -158,3 +158,19 @@ test("removing a lead against a server is one online-only operation", () => {
   assert.equal(labelFor(removal, before), "Lead removal · Sarah Johnson");
   assert.equal(operationFor({ type: "DELETE_LEAD", id: "nobody" }, before, store), null);
 });
+
+test("archiving, restoring and note changes become server operations, and the server's marks come back", () => {
+  const archivedLead = { ...serverLead, archived_at: "2026-10-20T10:00:00Z" };
+  const store = storeFromSnapshot({ ...snapshot, leads: [archivedLead], notes: [{ ...snapshot.notes[0], edited_at: "2026-10-20T10:05:00Z" }] }, { directory });
+  const before = { ...seedState(), online: true, ...collectionsFromStore(store), threads: [] };
+  assert.equal(before.leads[0].archived, true);
+  assert.equal(before.leads[0].notes[0].edited, true);
+  assert.deepEqual(operationFor({ type: "RESTORE_LEAD", id: "lead-1" }, before, store).kind, "lead.restore");
+  assert.deepEqual(operationFor({ type: "ARCHIVE_LEAD", id: "lead-1" }, before, store).payload, { id: "lead-1" });
+  const edit = operationFor({ type: "EDIT_NOTE", leadId: "lead-1", noteId: "n1", text: " Better " }, before, store);
+  assert.deepEqual([edit.kind, edit.payload], ["note.edit", { id: "n1", body: "Better" }]);
+  const removal = operationFor({ type: "DELETE_NOTE", leadId: "lead-1", noteId: "n1" }, before, store);
+  assert.deepEqual([removal.kind, removal.online], ["note.delete", true]);
+  const back = operationFor({ type: "RESTORE_NOTE", leadId: "lead-1", note: { id: "n1", text: "Open to an offer", visibility: "internal" } }, before, store);
+  assert.deepEqual([back.kind, back.payload.id, back.payload.body], ["note.add", "n1", "Open to an offer"]);
+});

@@ -467,3 +467,49 @@ async fn deals_open_whole_and_tasks_and_deals_can_be_removed() {
     assert!(removed.contains(&("task".into(), attached["result"]["id"].as_str().unwrap().to_string())));
     assert!(manager.get(&format!("/api/v1/leads/{}", lead_id.as_str().unwrap())).await.ok()["deal"].is_null());
 }
+
+#[tokio::test]
+async fn leads_archive_and_restore_and_notes_can_be_corrected_or_removed() {
+    let h = harness!();
+    let w = world(&h).await;
+    let caller = w.client("caller");
+    let manager = w.client("manager");
+    let closer = w.client("closer");
+    let l = lead(caller, "Owen Hart", json!({})).await;
+    let id = l["id"].clone();
+    // Archive keeps the lead and marks it; it cannot be archived twice, and restoring clears the mark.
+    let archived = caller.op("lead.archive", json!({ "id": id })).await;
+    assert_eq!(archived["status"], "applied", "{archived}");
+    assert!(archived["result"]["archived_at"].is_string());
+    assert_eq!(caller.op("lead.archive", json!({ "id": id })).await["status"], "rejected");
+    assert!(caller.get(&format!("/api/v1/leads/{}", id.as_str().unwrap())).await.ok()["lead"]["archived_at"].is_string());
+    let restored = caller.op("lead.restore", json!({ "id": id })).await;
+    assert_eq!(restored["status"], "applied");
+    assert!(restored["result"]["archived_at"].is_null());
+    assert_eq!(caller.op("lead.restore", json!({ "id": id })).await["status"], "rejected");
+
+    // A note can be corrected by its author; someone who cannot see the lead cannot touch it.
+    let added = caller.op("note.add", json!({ "lead_id": id, "body": "Fisrt draft" })).await;
+    let note = added["result"]["id"].clone();
+    let edited = caller.op("note.edit", json!({ "id": note, "body": "First draft" })).await;
+    assert_eq!(edited["status"], "applied", "{edited}");
+    assert_eq!(edited["result"]["body"], "First draft");
+    assert!(edited["result"]["edited_at"].is_string());
+    assert_eq!(caller.op("note.edit", json!({ "id": note, "body": "" })).await["status"], "rejected");
+    assert_eq!(closer.op("note.edit", json!({ "id": note, "body": "Not mine" })).await["status"], "rejected");
+    // A manager who can edit the lead may remove it; the removal reaches other devices, and the earlier text stays in the audit trail.
+    let snapshot = caller.get("/sync/snapshot").await.ok();
+    let (revision, cursor) = (snapshot["access_revision"].as_i64().unwrap(), snapshot["cursor"].as_i64().unwrap());
+    assert_eq!(manager.op("note.delete", json!({ "id": note })).await["status"], "applied");
+    let pulled = caller.get(&format!("/sync/pull?cursor={cursor}&access_revision={revision}")).await.ok();
+    assert!(pulled["changes"].as_array().unwrap().iter().any(|c| c["entity"] == "note" && c["op"] == "remove" && c["id"] == note));
+    let kept: i64 = sqlx::query_scalar("SELECT count(*) FROM audit_events WHERE entity_id = $1::uuid AND before->>'body' = 'First draft'")
+        .bind(note.as_str().unwrap())
+        .fetch_one(&h.owner)
+        .await
+        .unwrap();
+    assert_eq!(kept, 1);
+    // An undone removal comes back as the same note.
+    let back = caller.op("note.add", json!({ "id": note, "lead_id": id, "body": "First draft" })).await;
+    assert_eq!(back["result"]["id"], note);
+}

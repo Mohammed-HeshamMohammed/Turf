@@ -353,7 +353,7 @@ export function LeadDetail({ id }) {
       <PageHeader title={lead.name} description={lead.address + " · " + lead.city}>
         {pending && <Badge tone="peach">Pending sync</Badge>}
         {lead.archived && <Badge tone="danger">Archived</Badge>}
-        {lead.archived && editable && !state.remote ? (
+        {lead.archived && editable ? (
           <Button
             variant="primary"
             onClick={() => {
@@ -391,18 +391,17 @@ export function LeadDetail({ id }) {
               {
                 label: "Archive lead",
                 icon: Archive,
-                hidden: lead.archived || !editable || state.remote,
+                hidden: lead.archived || !editable,
                 onClick: () => {
                   dispatch({ type: "ARCHIVE_LEAD", id });
                   notify(lead.name + " archived", { undo: () => dispatch({ type: "RESTORE_LEAD", id }) });
                   navigate("work/leads");
                 },
               },
-              { label: "Delete permanently", danger: true, hidden: !lead.archived || !editable || state.remote, onClick: () => setConfirm("delete") },
               {
-                label: "Delete lead",
+                label: "Delete permanently",
                 danger: true,
-                hidden: lead.archived || !editable || !state.remote || !capability(state, "assign"),
+                hidden: !lead.archived || !editable || (state.remote && !capability(state, "assign")),
                 onClick: () => setConfirm("delete"),
               },
             ]}
@@ -491,7 +490,7 @@ export function LeadDetail({ id }) {
               >
                 {notes.map(item => {
                   const mine = item.actor === ROLES[state.role].person;
-                  const manage = !state.remote && !client && (mine || editable);
+                  const manage = !client && (mine || editable);
                   return (
                     <article className="note" key={item.id}>
                       {editingNote?.id === item.id ? (

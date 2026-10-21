@@ -267,7 +267,7 @@ export function reducer(state, action) {
     case "RESTORE_LEAD": {
       const archiving = action.type === "ARCHIVE_LEAD";
       const target = state.leads.find(item => item.id === action.id);
-      if (state.remote || !target || !canEditLead(state, target.id) || Boolean(target.archived) === archiving) return state;
+      if (!target || !canEditLead(state, target.id) || Boolean(target.archived) === archiving) return state;
       const text = (archiving ? "Archived " : "Restored ") + target.name;
       return {
         ...state,
@@ -280,8 +280,8 @@ export function reducer(state, action) {
       const target = state.leads.find(item => item.id === action.id);
       // Only an archived lead can be deleted, so it always takes two deliberate steps.
       if (!target || !canEditLead(state, target.id)) return state;
-      // On this device it takes two steps (archive, then delete). A server only has one: its removal, which needs the assign capability.
-      if (state.remote ? !capability(state, "assign") : !target.archived) return state;
+      // It always takes two steps: archive, then delete for good. Against a server the removal also needs the assign capability.
+      if (!target.archived || (state.remote && !capability(state, "assign"))) return state;
       return {
         ...state,
         leads: state.leads.filter(item => item.id !== target.id),
@@ -318,7 +318,7 @@ export function reducer(state, action) {
     }
     case "RESTORE_NOTE": {
       const target = state.leads.find(item => item.id === action.leadId);
-      if (state.remote || !target || !action.note || target.notes.some(item => item.id === action.note.id)) return state;
+      if (!target || !action.note || target.notes.some(item => item.id === action.note.id)) return state;
       const notes = [...target.notes];
       notes.splice(Math.min(action.index ?? notes.length, notes.length), 0, action.note);
       return { ...state, leads: state.leads.map(item => (item.id === target.id ? { ...item, notes } : item)) };
@@ -328,7 +328,7 @@ export function reducer(state, action) {
       const target = state.leads.find(item => item.id === action.leadId);
       const note = target?.notes.find(item => item.id === action.noteId);
       const author = note?.actor === ROLES[state.role].person;
-      if (state.remote || !note || !(author || canEditLead(state, target.id))) return state;
+      if (!note || !(author || canEditLead(state, target.id))) return state;
       if (action.type === "EDIT_NOTE" && !String(action.text || "").trim()) return state;
       const notes =
         action.type === "EDIT_NOTE"

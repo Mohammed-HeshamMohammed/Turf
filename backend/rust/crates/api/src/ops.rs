@@ -78,7 +78,7 @@ impl From<ApiError> for Failure {
 type OpOutcome = Result<Value, Failure>;
 
 /// Kinds that change ownership, permissions or many records: never accepted from an offline queue (plan 2.7).
-const ONLINE_ONLY: &[&str] = &["lead.assign", "lead.delete", "lead.share", "handoff.decide", "task.delete", "deal.delete"];
+const ONLINE_ONLY: &[&str] = &["lead.assign", "lead.delete", "lead.share", "handoff.decide", "task.delete", "deal.delete", "note.delete"];
 
 pub async fn apply(pool: &PgPool, actor: &Actor, op: Op) -> ApiResult<OpResult> {
     let mut tx = crate::db::begin(pool, &actor.scope).await?;
@@ -157,8 +157,12 @@ async fn run(tx: &mut PgConnection, actor: &Actor, op: &Op) -> OpOutcome {
         "lead.update" => lead_update(tx, actor, op, p).await,
         "lead.assign" => lead_assign(tx, actor, op, p).await,
         "lead.delete" => lead_delete(tx, actor, op, p).await,
+        "lead.archive" => lead_archive(tx, actor, op, p, true).await,
+        "lead.restore" => lead_archive(tx, actor, op, p, false).await,
         "lead.share" => lead_share(tx, actor, op, p).await,
         "note.add" => note_add(tx, actor, op, p).await,
+        "note.edit" => note_change(tx, actor, op, p, false).await,
+        "note.delete" => note_change(tx, actor, op, p, true).await,
         "call.record" => call_record(tx, actor, op, p).await,
         "task.create" => task_create(tx, actor, op, p).await,
         "task.update" => task_update(tx, actor, op, p).await,
@@ -534,6 +538,30 @@ async fn lead_assign(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -
     Ok(json!({ "assigned": changed.len(), "ids": changed }))
 }
 
+/// Archives (or restores) a lead: it leaves everyday lists but nothing about it is removed. Anyone who can edit the lead may.
+async fn lead_archive(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value, archive: bool) -> OpOutcome {
+    need(actor, "edit")?;
+    let id = uuid_field(p, "id")?;
+    let before = visible_lead(tx, id, true).await?;
+    if !can_edit_lead(actor, &before) {
+        return Err(Failure::Rejected("You can only archive leads you can edit".into()));
+    }
+    if before["archived_at"].is_null() != archive {
+        return Err(Failure::Rejected(if archive { "This lead is already archived".into() } else { "This lead is not archived".into() }));
+    }
+    sqlx::query("UPDATE leads SET archived_at = CASE WHEN $2 THEN now() END, version = version + 1, updated_at = now() WHERE id = $1")
+        .bind(id)
+        .bind(archive)
+        .execute(&mut *tx)
+        .await?;
+    let after = visible_lead(tx, id, false).await?;
+    let mut c = change(actor, op, "lead", id, Some(id), if archive { "lead.archived" } else { "lead.restored" });
+    c.before = Some(before);
+    c.after = Some(after.clone());
+    record(tx, c).await?;
+    Ok(redact_lead(after, &actor.scope))
+}
+
 async fn lead_delete(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -> OpOutcome {
     need(actor, "assign")?;
     let id = uuid_field(p, "id")?;
@@ -586,6 +614,48 @@ async fn notify(tx: &mut PgConnection, user: Uuid, kind: &str, text: &str, entit
 
 // ---------------------------------------------------------------------------------------------- notes and calls
 
+/// Corrects (`remove` false) or removes (`remove` true) a note. Its author may, and so may anyone who can edit the lead.
+/// The audit trail keeps the note as it was, so the history is complete either way.
+async fn note_change(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value, remove: bool) -> OpOutcome {
+    let id = uuid_field(p, "id")?;
+    let before: Value = sqlx::query_scalar("SELECT to_jsonb(n) FROM notes n WHERE n.id = $1 AND turf_visible_lead(n.lead_id) FOR UPDATE")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| Failure::Rejected("The note was not found or is outside your access".into()))?;
+    let lead_id = before.get("lead_id").and_then(Value::as_str).and_then(|s| Uuid::parse_str(s).ok());
+    let author = before.get("author_id").and_then(Value::as_str) == actor.scope.user_id.map(|u| u.to_string()).as_deref();
+    let editor = match lead_id {
+        Some(lead) if actor.scope.access.can("edit") => can_edit_lead(actor, &visible_lead(tx, lead, false).await?),
+        _ => false,
+    };
+    if !author && !editor {
+        return Err(Failure::Rejected("Only the note's author or someone who can edit the lead can change it".into()));
+    }
+    if remove {
+        sqlx::query("DELETE FROM notes WHERE id = $1").bind(id).execute(&mut *tx).await?;
+        let mut c = change(actor, op, "note", id, lead_id, "note.deleted");
+        c.before = Some(before);
+        c.deleted = true;
+        record(tx, c).await?;
+        return Ok(json!({ "id": id, "deleted": true }));
+    }
+    let body = text(p, "body");
+    if body.is_empty() || body.chars().count() > 20000 {
+        return Err(Failure::Rejected("A note needs some text (up to 20,000 characters)".into()));
+    }
+    let note: Value = sqlx::query_scalar("UPDATE notes SET body = $2, edited_at = now() WHERE id = $1 RETURNING to_jsonb(notes.*)")
+        .bind(id)
+        .bind(&body)
+        .fetch_one(&mut *tx)
+        .await?;
+    let mut c = change(actor, op, "note", id, lead_id, "note.edited");
+    c.before = Some(before);
+    c.after = Some(note.clone());
+    record(tx, c).await?;
+    Ok(note)
+}
+
 async fn note_add(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -> OpOutcome {
     let lead_id = uuid_field(p, "lead_id")?;
     let body = text(p, "body");
@@ -605,8 +675,8 @@ async fn note_add(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -> O
         .map(|a| a.iter().filter_map(|v| v.as_str().and_then(|s| Uuid::parse_str(s).ok())).collect())
         .unwrap_or_default();
     let note: Value = sqlx::query_scalar(
-        "INSERT INTO notes (org_id, lead_id, author_id, author_label, body, visibility, mentions, occurred_at, operation_id) \
-         VALUES (turf_org(), $1, $2, $3, $4, $5, $6, coalesce($7, now()), $8) RETURNING to_jsonb(notes.*)",
+        "INSERT INTO notes (id, org_id, lead_id, author_id, author_label, body, visibility, mentions, occurred_at, operation_id) \
+         VALUES (coalesce($9, gen_random_uuid()), turf_org(), $1, $2, $3, $4, $5, $6, coalesce($7, now()), $8) RETURNING to_jsonb(notes.*)",
     )
     .bind(lead_id)
     .bind(actor.scope.user_id)
@@ -616,6 +686,7 @@ async fn note_add(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -> O
     .bind(&mentions)
     .bind(op.claimed_at)
     .bind(op.id)
+    .bind(opt_uuid(p, "id")?)
     .fetch_one(&mut *tx)
     .await?;
     let note_id = Uuid::parse_str(note["id"].as_str().unwrap_or_default()).unwrap_or_default();

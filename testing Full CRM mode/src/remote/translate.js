@@ -72,6 +72,7 @@ export function leadFromServer(lead, { directory = [], teams = [], calls = [], n
     baths: property.details?.baths ?? null,
     area: property.details?.area ?? null,
     motivation: lead.next_action || "",
+    archived: Boolean(lead.archived_at),
     calls: calls
       .filter(call => call.lead_id === lead.id)
       .sort((a, b) => a.occurred_at.localeCompare(b.occurred_at))
@@ -86,7 +87,14 @@ export function leadFromServer(lead, { directory = [], teams = [], calls = [], n
     notes: notes
       .filter(note => note.lead_id === lead.id)
       .sort((a, b) => a.occurred_at.localeCompare(b.occurred_at))
-      .map(note => ({ id: note.id, text: note.body, visibility: note.visibility, actor: note.author_label, at: new Date(note.occurred_at).toLocaleString() })),
+      .map(note => ({
+        id: note.id,
+        text: note.body,
+        visibility: note.visibility,
+        actor: note.author_label,
+        at: new Date(note.occurred_at).toLocaleString(),
+        ...(note.edited_at ? { edited: true } : {}),
+      })),
   };
 }
 
@@ -287,6 +295,22 @@ export function operationFor(action, before, store) {
       }
       return { ...base, kind: "deal.update", payload: { id: deal.id, changes, base: edited } };
     }
+    case "ARCHIVE_LEAD":
+      return lead ? { ...base, kind: "lead.archive", payload: { id: lead.id } } : null;
+    case "RESTORE_LEAD":
+      return lead ? { ...base, kind: "lead.restore", payload: { id: lead.id } } : null;
+    case "EDIT_NOTE":
+      return lead && action.text?.trim() ? { ...base, kind: "note.edit", payload: { id: action.noteId, body: action.text.trim() } } : null;
+    case "DELETE_NOTE":
+      return lead ? { ...base, online: true, kind: "note.delete", payload: { id: action.noteId } } : null;
+    case "RESTORE_NOTE":
+      return lead && action.note
+        ? {
+            ...base,
+            kind: "note.add",
+            payload: { id: action.note.id, lead_id: lead.id, body: action.note.text, visibility: action.note.visibility || "internal" },
+          }
+        : null;
     case "DELETE_LEAD":
       return lead ? { ...base, online: true, kind: "lead.delete", payload: { id: lead.id } } : null;
     case "NEW_DEAL": {
@@ -398,6 +422,10 @@ export function labelFor(op, before) {
     "call.record": "Call outcome: " + (op.payload.outcome || ""),
     "deal.update": "Deal change",
     "lead.delete": "Lead removal",
+    "lead.archive": "Archived",
+    "lead.restore": "Restored",
+    "note.edit": "Note change",
+    "note.delete": "Note removal",
     "deal.create": "New deal",
     "deal.delete": "Deal removal",
     "task.update": "Task change",
