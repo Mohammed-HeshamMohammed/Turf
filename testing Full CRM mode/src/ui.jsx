@@ -1,8 +1,23 @@
-import { ArrowUpRight, CaretDown, CaretRight, CaretUp, CaretUpDown, Check, DotsThree, MagnifyingGlass, Plus, X, WarningCircle } from "@phosphor-icons/react";
+import {
+  ArrowUpRight,
+  CalendarBlank,
+  CaretDown,
+  CaretLeft,
+  CaretRight,
+  CaretUp,
+  CaretUpDown,
+  Check,
+  DotsThree,
+  MagnifyingGlass,
+  Plus,
+  X,
+  WarningCircle,
+} from "@phosphor-icons/react";
 import { Children, Fragment, isValidElement, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useCrm } from "./context.jsx";
 import { avatarSources } from "./avatars.js";
+import { TODAY } from "./data.js";
 
 export const money = value => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
 /** Bedrooms, bathrooms and area, leaving out what the source did not supply. */
@@ -761,5 +776,251 @@ export function Select({ children, value, defaultValue, onChange, name, id, disa
           host,
         )}
     </span>
+  );
+}
+
+const pad = number => String(number).padStart(2, "0");
+const isoOf = date => date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate());
+const parseIso = text => {
+  const found = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text || "");
+  return found ? new Date(Number(found[1]), Number(found[2]) - 1, Number(found[3])) : null;
+};
+const readableDate = text => parseIso(text)?.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) ?? "";
+const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+/**
+ * Themed replacement for <input type="date">: the calendar is drawn by the app, not the browser.
+ * Same props as Select (value / defaultValue / onChange / name / disabled), values are "YYYY-MM-DD", plus min and max.
+ * onChange receives an event-like { target: { value, name } }.
+ */
+export function DatePicker({ value, defaultValue, onChange, name, min, max, disabled, required, id, "aria-label": ariaLabel }) {
+  const controlled = value !== undefined;
+  const [inner, setInner] = useState(defaultValue ?? "");
+  const current = controlled ? value : inner;
+  const [open, setOpen] = useState(false);
+  const [month, setMonth] = useState(() => parseIso(current) || parseIso(TODAY));
+  const [focused, setFocused] = useState(current || TODAY);
+  const [place, setPlace] = useState(null);
+  const trigger = useRef(null);
+  const panel = useRef(null);
+  const presence = usePresence(open);
+  const hostRef = useRef(null);
+  if (open) hostRef.current = trigger.current?.closest("dialog, .turf-menu, .personal-menu") || document.body;
+  const host = presence.mounted ? hostRef.current : null;
+  const blocked = day => (min && day < min) || (max && day > max);
+
+  function choose(day) {
+    if (blocked(day)) return;
+    if (!controlled) setInner(day);
+    onChange?.({ target: { value: day, name }, currentTarget: { value: day, name } });
+    setOpen(false);
+    trigger.current?.focus();
+  }
+  function show() {
+    if (disabled) return;
+    const start = parseIso(current) || parseIso(TODAY);
+    setMonth(new Date(start.getFullYear(), start.getMonth(), 1));
+    setFocused(isoOf(start));
+    setPlace(null);
+    setOpen(true);
+  }
+  function focusDay(day) {
+    const date = parseIso(day);
+    setFocused(day);
+    setMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+  }
+  function shift(days) {
+    const date = parseIso(focused);
+    focusDay(isoOf(new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)));
+  }
+  function jumpMonths(count) {
+    const date = parseIso(focused);
+    const last = new Date(date.getFullYear(), date.getMonth() + count + 1, 0).getDate();
+    focusDay(isoOf(new Date(date.getFullYear(), date.getMonth() + count, Math.min(date.getDate(), last))));
+  }
+
+  useLayoutEffect(() => {
+    if (!open || !panel.current || !trigger.current) return;
+    const box = trigger.current.getBoundingClientRect();
+    const height = panel.current.offsetHeight;
+    const width = panel.current.offsetWidth;
+    const below = window.innerHeight - box.bottom - 12;
+    const up = below < height && box.top > below;
+    setPlace({
+      left: Math.max(8, Math.min(box.left, window.innerWidth - width - 8)),
+      top: up ? Math.max(8, box.top - height - 6) : box.bottom + 6,
+    });
+  }, [open]);
+  useEffect(() => {
+    if (!open) return undefined;
+    const outside = event => {
+      if (!trigger.current?.contains(event.target) && !panel.current?.contains(event.target)) setOpen(false);
+    };
+    const close = () => setOpen(false);
+    document.addEventListener("pointerdown", outside, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("pointerdown", outside, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+  useEffect(() => {
+    if (open && place) panel.current?.querySelector('[data-day="' + focused + '"]')?.focus({ preventScroll: true });
+  }, [open, place, focused]);
+
+  const first = new Date(month.getFullYear(), month.getMonth(), 1);
+  const cells = Array.from({ length: 42 }, (_, index) => new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay() + index));
+  const label = month.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+  function onKeyDown(event) {
+    const moves = {
+      ArrowLeft: () => shift(-1),
+      ArrowRight: () => shift(1),
+      ArrowUp: () => shift(-7),
+      ArrowDown: () => shift(7),
+      PageUp: () => jumpMonths(-1),
+      PageDown: () => jumpMonths(1),
+    };
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+      trigger.current?.focus();
+    } else if (event.key === "Tab") {
+      setOpen(false);
+    } else if (event.key in moves) {
+      event.preventDefault();
+      moves[event.key]();
+    }
+  }
+
+  return (
+    <span className="select">
+      <button
+        type="button"
+        ref={trigger}
+        id={id}
+        className="select-trigger"
+        aria-label={ariaLabel}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={() => (open ? setOpen(false) : show())}
+        onKeyDown={event => {
+          if (!open && ["ArrowDown", "Enter", " "].includes(event.key)) {
+            event.preventDefault();
+            show();
+          }
+        }}
+      >
+        <span className="select-value">{readableDate(current) || <span className="muted">Pick a date</span>}</span>
+        <CalendarBlank size={15} className="select-caret" />
+      </button>
+      {name && <input type="hidden" name={name} value={current} />}
+      {host &&
+        createPortal(
+          <div
+            ref={panel}
+            role="dialog"
+            aria-label="Choose a date"
+            className={"select-menu date-menu" + (presence.leaving ? " leaving" : "")}
+            style={place ? { left: place.left, top: place.top } : { visibility: "hidden", left: 0, top: 0 }}
+            onPointerDown={event => event.target.closest("button") || event.preventDefault()}
+            onKeyDown={onKeyDown}
+          >
+            <div className="date-head">
+              <strong aria-live="polite">{label}</strong>
+              <span>
+                <button type="button" aria-label="Previous month" onClick={() => jumpMonths(-1)}>
+                  <CaretLeft size={15} weight="bold" />
+                </button>
+                <button type="button" aria-label="Next month" onClick={() => jumpMonths(1)}>
+                  <CaretRight size={15} weight="bold" />
+                </button>
+              </span>
+            </div>
+            <div className="date-grid" role="grid" aria-label={label}>
+              {WEEKDAYS.map(day => (
+                <span key={day} className="date-dow" role="columnheader">
+                  {day}
+                </span>
+              ))}
+              {cells.map(date => {
+                const day = isoOf(date);
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    role="gridcell"
+                    data-day={day}
+                    tabIndex={day === focused ? 0 : -1}
+                    aria-selected={day === current}
+                    aria-current={day === TODAY ? "date" : undefined}
+                    aria-label={date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                    disabled={blocked(day)}
+                    className={"date-day" + (date.getMonth() !== month.getMonth() ? " is-outside" : "")}
+                    onClick={() => choose(day)}
+                  >
+                    {date.getDate()}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="date-foot">
+              {!required && (
+                <button
+                  type="button"
+                  onClick={() => (!controlled && setInner(""), onChange?.({ target: { value: "", name }, currentTarget: { value: "", name } }), setOpen(false))}
+                >
+                  Clear
+                </button>
+              )}
+              <button type="button" disabled={blocked(TODAY)} onClick={() => choose(TODAY)}>
+                Today
+              </button>
+            </div>
+          </div>,
+          host,
+        )}
+    </span>
+  );
+}
+
+/** Themed replacement for <input type="time">: a list of times every 15 minutes (24-hour, like the rest of the app). Values are "HH:MM". */
+export function TimePicker({ value, defaultValue, onChange, name, disabled, required, id, "aria-label": ariaLabel }) {
+  const current = value ?? defaultValue ?? "";
+  const times = Array.from({ length: 96 }, (_, index) => pad(Math.floor(index / 4)) + ":" + pad((index % 4) * 15));
+  if (current && !times.includes(current)) (times.push(current), times.sort());
+  return (
+    <Select id={id} name={name} aria-label={ariaLabel} disabled={disabled} {...(value !== undefined ? { value } : { defaultValue })} onChange={onChange}>
+      {!required && <option value="">No time</option>}
+      {times.map(time => (
+        <option key={time}>{time}</option>
+      ))}
+    </Select>
+  );
+}
+
+/** Themed replacement for <input type="datetime-local">: a date picker and a time picker side by side. Values are "YYYY-MM-DDTHH:MM". */
+export function DateTimePicker({ value, onChange, min, disabled, "aria-label": ariaLabel }) {
+  const [date = "", time = ""] = (value || "").split("T");
+  const emit = next => onChange?.({ target: { value: next }, currentTarget: { value: next } });
+  return (
+    <div className="datetime">
+      <DatePicker
+        aria-label={ariaLabel + ", date"}
+        value={date}
+        min={min?.split("T")[0]}
+        disabled={disabled}
+        onChange={event => emit(event.target.value ? event.target.value + "T" + (time || "10:00") : "")}
+      />
+      <TimePicker
+        aria-label={ariaLabel + ", time"}
+        value={time}
+        required
+        disabled={disabled}
+        onChange={event => emit((date || TODAY) + "T" + event.target.value)}
+      />
+    </div>
   );
 }

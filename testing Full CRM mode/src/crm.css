@@ -5363,3 +5363,107 @@ html.demo-quiet .demo-note {
   padding-left: 6px;
   margin-left: -6px;
 }
+
+/* Date and time pickers: drawn by the app, built on the same menu surface as Select. */
+.date-menu {
+  width: 292px;
+  padding: 14px 14px 10px;
+  overflow: visible;
+}
+.date-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 2px 10px;
+}
+.date-head strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+.date-head span {
+  display: inline-flex;
+  gap: 4px;
+}
+.date-head button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+.date-head button:hover {
+  background: var(--well);
+}
+.date-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.date-dow {
+  display: grid;
+  place-items: center;
+  height: 28px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.date-day {
+  display: grid;
+  place-items: center;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.date-day:hover:not(:disabled) {
+  background: var(--well);
+}
+.date-day.is-outside {
+  color: var(--muted);
+}
+.date-day[aria-current="date"] {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.date-day[aria-selected="true"] {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 550;
+}
+.date-day:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.date-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.date-foot button {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--accent-ink);
+}
+.date-foot button:hover:not(:disabled) {
+  background: var(--well);
+}
+.date-foot button:disabled {
+  opacity: 0.4;
+}
+.date-foot button:only-child {
+  margin-left: auto;
+}
+.datetime {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 8px;
+}
+.datetime .select {
+  display: block;
+}
+.datetime .select-trigger {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}

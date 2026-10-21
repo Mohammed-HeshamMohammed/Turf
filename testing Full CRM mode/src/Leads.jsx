@@ -28,6 +28,8 @@ import {
   propertyFacts,
   MoreMenu,
   DataTable,
+  DatePicker,
+  TimePicker,
   useTableView,
 } from "./ui.jsx";
 
@@ -689,9 +691,8 @@ export function LeadDetail({ id }) {
                   </Select>
                 </Field>
                 <Field label="Callback date">
-                  <input
+                  <DatePicker
                     aria-label="Callback date"
-                    type="date"
                     min={TODAY}
                     disabled={!editable}
                     value={lead.callbackDate || ""}
@@ -705,9 +706,8 @@ export function LeadDetail({ id }) {
                   />
                 </Field>
                 <Field label="Callback time">
-                  <input
+                  <TimePicker
                     aria-label="Callback time"
-                    type="time"
                     disabled={!editable}
                     value={lead.callback}
                     onChange={event =>
@@ -996,7 +996,7 @@ export function NewLead() {
             </Select>
           </Field>
           <Field label="Callback time">
-            <input name="callback" type="time" />
+            <TimePicker name="callback" aria-label="Callback time" />
           </Field>
           {capability(state, "finance") && (
             <Field label="Estimated property value">

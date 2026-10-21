@@ -40,6 +40,9 @@ import {
   Search,
   Segmented,
   DataTable,
+  DatePicker,
+  DateTimePicker,
+  TimePicker,
   useTableView,
   Status,
   money,
@@ -247,9 +250,8 @@ export function Calls({ target }) {
                 {askingCallback && (
                   <div className="callback-picker">
                     <Field label="Call back at" help="The callback is added to the lead and your tasks.">
-                      <input
+                      <DateTimePicker
                         aria-label="Call back at"
-                        type="datetime-local"
                         min={TODAY + "T00:00"}
                         value={callbackAt}
                         onChange={event => setCallbackAt(event.target.value)}
@@ -492,7 +494,7 @@ export function NewDealModal({ lead, onClose }) {
             </Select>
           </Field>
           <Field label="Target close date">
-            <input name="closeDate" type="date" min={TODAY} defaultValue={TODAY} required />
+            <DatePicker name="closeDate" aria-label="Target close date" min={TODAY} defaultValue={TODAY} required />
           </Field>
           <Field label="Offer amount">
             <input name="amount" type="number" min="0" step="1000" placeholder="0" required />
@@ -598,7 +600,11 @@ export function Deals({ id }) {
                 </Select>
               </Field>
               <Field label="Target close date">
-                <input type="date" value={deal.closeDate} onChange={event => dispatch({ type: "DEAL", id, change: { closeDate: event.target.value } })} />
+                <DatePicker
+                  aria-label="Target close date"
+                  value={deal.closeDate}
+                  onChange={event => dispatch({ type: "DEAL", id, change: { closeDate: event.target.value } })}
+                />
               </Field>
               <Field label="Offer amount">
                 <input
@@ -876,10 +882,10 @@ export function Tasks({ create = false }) {
               </Select>
             </Field>
             <Field label="Due date">
-              <input name="date" type="date" defaultValue={TODAY} required />
+              <DatePicker name="date" aria-label="Due date" defaultValue={TODAY} required />
             </Field>
             <Field label="Time">
-              <input name="time" type="time" defaultValue="10:30" />
+              <TimePicker name="time" aria-label="Time" defaultValue="10:30" />
             </Field>
             <Field label="Priority">
               <Select name="priority">
@@ -1013,10 +1019,10 @@ export function Tasks({ create = false }) {
                 </Select>
               </Field>
               <Field label="Due date">
-                <input name="date" type="date" defaultValue={editing.date} required />
+                <DatePicker name="date" aria-label="Due date" defaultValue={editing.date} required />
               </Field>
               <Field label="Due time">
-                <input name="time" type="time" defaultValue={editing.time} required />
+                <TimePicker name="time" aria-label="Due time" defaultValue={editing.time} required />
               </Field>
               <Field label="Priority">
                 <Select name="priority" defaultValue={editing.priority}>
