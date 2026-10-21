@@ -15,7 +15,7 @@ import {
 import { ROLES } from "./data.js";
 import { capability, visibleLeads, visibleTasks } from "./model.js";
 import { useCrm } from "./context.jsx";
-import { Badge, Select, Button, Card, Empty, Field, Modal, PageHeader, Person, Segmented, Status, downloadCsv, money } from "./ui.jsx";
+import { Badge, Select, Button, Card, Empty, Field, Modal, PageHeader, Person, Segmented, SortHeader, Status, downloadCsv, money, useTableView } from "./ui.jsx";
 
 export function Reports() {
   const { state, dispatch, notify } = useCrm();
@@ -36,6 +36,14 @@ export function Reports() {
       qualified: found.filter(lead => lead.stage === "Qualified").length,
       deals: deals.filter(deal => found.some(lead => lead.id === deal.leadId)).length,
     };
+  });
+  const table = useTableView(rows, {
+    source: { value: row => row.source },
+    count: { value: row => row.count },
+    ready: { value: row => row.ready },
+    qualified: { value: row => row.qualified },
+    deals: { value: row => row.deals },
+    share: { value: row => row.count },
   });
   return (
     <>
@@ -95,16 +103,32 @@ export function Reports() {
           <table>
             <thead>
               <tr>
-                <th>{client ? "Location" : "Source"}</th>
-                <th>Visible leads</th>
-                {!client && <th>Ready to call</th>}
-                <th>Qualified</th>
-                {finance && <th>Deals</th>}
-                <th>Share of records</th>
+                <SortHeader view={table} id="source">
+                  {client ? "Location" : "Source"}
+                </SortHeader>
+                <SortHeader view={table} id="count" filterable={false}>
+                  Visible leads
+                </SortHeader>
+                {!client && (
+                  <SortHeader view={table} id="ready" filterable={false}>
+                    Ready to call
+                  </SortHeader>
+                )}
+                <SortHeader view={table} id="qualified" filterable={false}>
+                  Qualified
+                </SortHeader>
+                {finance && (
+                  <SortHeader view={table} id="deals" filterable={false}>
+                    Deals
+                  </SortHeader>
+                )}
+                <SortHeader view={table} id="share" filterable={false}>
+                  Share of records
+                </SortHeader>
               </tr>
             </thead>
             <tbody>
-              {rows.map(row => (
+              {table.rows.map(row => (
                 <tr key={row.source}>
                   <td>
                     <strong>{row.source}</strong>

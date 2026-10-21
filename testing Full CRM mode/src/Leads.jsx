@@ -27,6 +27,8 @@ import {
   ConfirmDialog,
   propertyFacts,
   MoreMenu,
+  SortHeader,
+  useTableView,
 } from "./ui.jsx";
 
 export function Leads() {
@@ -58,6 +60,17 @@ export function Leads() {
     assignee: !hideEmpty || leads.some(assigned),
     next: !hideEmpty || client || leads.some(lead => lead.callback),
   };
+  const table = useTableView(leads, {
+    owner: { value: lead => lead.name, text: lead => lead.name + " " + lead.source },
+    property: { value: lead => lead.address, text: lead => [lead.address, lead.city, lead.region, lead.zip].join(" ") },
+    verdict: { value: lead => lead.verdict || "" },
+    stage: { value: lead => LEAD_STAGES.indexOf(lead.stage), text: lead => lead.stage },
+    assignee: { value: lead => lead.assignee || "" },
+    next: {
+      value: lead => (lead.callback ? (lead.callbackDate || "") + " " + lead.callback : "￿"),
+      text: lead => (client ? "Review property brief" : lead.callback ? callbackLabel(lead.callbackDate, lead.callback) : "Set a next step"),
+    },
+  });
   // Pointer-based drag so cards move the same way in browsers and the desktop webview, which swallows native drag and drop.
   function startDrag(event, lead) {
     if (event.button !== 0 || event.target.closest(".select") || !canEditLead(state, lead.id)) return;
@@ -230,26 +243,44 @@ export function Leads() {
                         type="checkbox"
                         aria-label="Select all editable visible leads"
                         checked={
-                          leads.some(lead => canEditLead(state, lead.id)) &&
-                          leads.filter(lead => canEditLead(state, lead.id)).every(lead => selected.includes(lead.id))
+                          table.rows.some(lead => canEditLead(state, lead.id)) &&
+                          table.rows.filter(lead => canEditLead(state, lead.id)).every(lead => selected.includes(lead.id))
                         }
-                        onChange={event => setSelected(event.target.checked ? leads.filter(lead => canEditLead(state, lead.id)).map(lead => lead.id) : [])}
+                        onChange={event => setSelected(event.target.checked ? table.rows.filter(lead => canEditLead(state, lead.id)).map(lead => lead.id) : [])}
                       />
                     </th>
                   )}
-                  <th>Property owner</th>
-                  <th>Property</th>
-                  {!client && hasColumn.verdict && <th>Phone quality</th>}
-                  <th>Stage</th>
-                  {!client && hasColumn.assignee && <th>Responsible person</th>}
-                  {hasColumn.next && <th>Next step</th>}
+                  <SortHeader view={table} id="owner">
+                    Property owner
+                  </SortHeader>
+                  <SortHeader view={table} id="property">
+                    Property
+                  </SortHeader>
+                  {!client && hasColumn.verdict && (
+                    <SortHeader view={table} id="verdict">
+                      Phone quality
+                    </SortHeader>
+                  )}
+                  <SortHeader view={table} id="stage">
+                    Stage
+                  </SortHeader>
+                  {!client && hasColumn.assignee && (
+                    <SortHeader view={table} id="assignee">
+                      Responsible person
+                    </SortHeader>
+                  )}
+                  {hasColumn.next && (
+                    <SortHeader view={table} id="next">
+                      Next step
+                    </SortHeader>
+                  )}
                   <th>
                     <span className="sr-only">Open</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {leads.map(lead => (
+                {table.rows.map(lead => (
                   <tr key={lead.id}>
                     {editable && (
                       <td>
@@ -309,7 +340,7 @@ export function Leads() {
               </tbody>
             </table>
           </div>
-          {!leads.length && <Empty title="No leads match this view">Try another stage or search term.</Empty>}
+          {!table.rows.length && <Empty title="No leads match this view">Try another stage, search term or column filter.</Empty>}
           <footer className="table-footer">
             <span>{ROLES[state.role].scope}</span>
             <span>{leads.length} records · sample workspace</span>

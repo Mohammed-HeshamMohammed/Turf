@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import Papa from "papaparse";
 import { ArrowRight, ArrowUpRight, CheckCircle, Phone, Cloud, DownloadSimple, FileCsv, HardDrives, ShieldCheck, UploadSimple } from "@phosphor-icons/react";
-import { ROLES } from "./data.js";
+import { LEAD_STAGES, ROLES } from "./data.js";
 import { capability, uid, visibleLeads } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { mappedRecord, sourceEvidence, sourceValue } from "./skiptrace-fields.js";
 import { SourceFieldMapping } from "./SourceFieldMapping.jsx";
 import { PropertyMap } from "./PropertyMap.jsx";
-import { Badge, Select, Button, Card, Checkbox, Empty, Field, LeadLink, PageHeader, Search, Segmented, Status, downloadCsv, Breadcrumb } from "./ui.jsx";
+import { Badge, Select, Button, Card, Checkbox, Empty, Field, LeadLink, PageHeader, Search, Segmented, SortHeader, Status, downloadCsv, Breadcrumb, useTableView } from "./ui.jsx";
 
 export function Lists({ id }) {
   const { state, dispatch, navigate, notify } = useCrm();
@@ -18,6 +18,16 @@ export function Lists({ id }) {
   const datasetIds = new Set(leads.map(item => item.datasetId));
   const datasets = state.datasets.filter(item => datasetIds.has(item.id) || (capability(state, "import") && item.team === (ROLES[state.role].team || "Tampa")));
   const dataset = datasets.find(item => item.id === id);
+  const table = useTableView(
+    leads.filter(lead => lead.datasetId === id),
+    {
+      owner: { value: lead => lead.name },
+      property: { value: lead => lead.address, text: lead => [lead.address, lead.city, lead.region].join(" ") },
+      phone: { value: lead => lead.phone || "￿", text: lead => lead.phone || "No phone supplied" },
+      quality: { value: lead => lead.verdict || "" },
+      stage: { value: lead => LEAD_STAGES.indexOf(lead.stage), text: lead => lead.stage },
+    },
+  );
   function importRows(rows, name, columns) {
     if (!rows.length) {
       setError("The CSV has no data rows. Choose a file with a header and at least one record.");
@@ -143,20 +153,28 @@ export function Lists({ id }) {
             <table>
               <thead>
                 <tr>
-                  <th>Owner</th>
-                  <th>Property</th>
-                  <th>Best phone</th>
-                  <th>Quality</th>
-                  <th>CRM stage</th>
+                  <SortHeader view={table} id="owner">
+                    Owner
+                  </SortHeader>
+                  <SortHeader view={table} id="property">
+                    Property
+                  </SortHeader>
+                  <SortHeader view={table} id="phone">
+                    Best phone
+                  </SortHeader>
+                  <SortHeader view={table} id="quality">
+                    Quality
+                  </SortHeader>
+                  <SortHeader view={table} id="stage">
+                    CRM stage
+                  </SortHeader>
                   <th>
                     <span className="sr-only">Open</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {leads
-                  .filter(lead => lead.datasetId === id)
-                  .map(lead => (
+                {table.rows.map(lead => (
                     <tr key={lead.id}>
                       <td>
                         <LeadLink lead={lead} detail={false} />

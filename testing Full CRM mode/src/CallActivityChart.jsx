@@ -1,5 +1,6 @@
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { CALL_DAYS, CALL_TREND } from "./data.js";
+import { SortHeader, useTableView } from "./ui.jsx";
 
 function IntervalTooltip({ active, payload }) {
   const point = payload?.[0]?.payload;
@@ -25,6 +26,12 @@ function IntervalTooltip({ active, payload }) {
   );
 }
 export function CallActivityChart() {
+  const table = useTableView(CALL_TREND, {
+    day: { value: point => point.slot, text: point => point.day + " " + point.date },
+    time: { value: point => point.slot, text: point => point.time },
+    calls: { value: point => point.calls },
+    reached: { value: point => point.reached },
+  });
   return (
     <>
       <div className="chart-key">
@@ -93,14 +100,22 @@ export function CallActivityChart() {
           <table>
             <thead>
               <tr>
-                <th>Day</th>
-                <th>Time</th>
-                <th>Calls</th>
-                <th>Reached</th>
+                <SortHeader view={table} id="day">
+                  Day
+                </SortHeader>
+                <SortHeader view={table} id="time">
+                  Time
+                </SortHeader>
+                <SortHeader view={table} id="calls" filterable={false}>
+                  Calls
+                </SortHeader>
+                <SortHeader view={table} id="reached" filterable={false}>
+                  Reached
+                </SortHeader>
               </tr>
             </thead>
             <tbody>
-              {CALL_TREND.map(point => (
+              {table.rows.map(point => (
                 <tr key={point.slot}>
                   <td>
                     {point.day}, {point.date}

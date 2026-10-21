@@ -39,6 +39,8 @@ import {
   RoundButton,
   Search,
   Segmented,
+  SortHeader,
+  useTableView,
   Status,
   money,
   Breadcrumb,
@@ -521,6 +523,16 @@ export function Deals({ id }) {
   const leads = visibleLeads(state);
   const ids = new Set(leads.map(item => item.id));
   const deals = state.deals.filter(item => ids.has(item.leadId));
+  const table = useTableView(
+    deals.map(deal => ({ deal, lead: leads.find(item => item.id === deal.leadId) })),
+    {
+      property: { value: row => row.lead.address, text: row => row.lead.name + " " + row.lead.address },
+      stage: { value: row => DEAL_STAGES.indexOf(row.deal.stage), text: row => row.deal.stage },
+      amount: { value: row => row.deal.amount, text: row => money(row.deal.amount) },
+      fee: { value: row => row.deal.fee, text: row => money(row.deal.fee) },
+      close: { value: row => row.deal.closeDate, text: row => shortDate(row.deal.closeDate) + " " + row.deal.closeDate },
+    },
+  );
   // Pointer-based drag so cards move the same way in browsers and the desktop webview, which swallows native drag and drop.
   const startDrag = (event, deal, label) => {
     if (event.button !== 0 || event.target.closest("select")) return;
@@ -759,19 +771,28 @@ export function Deals({ id }) {
             <table>
               <thead>
                 <tr>
-                  <th>Property</th>
-                  <th>Stage</th>
-                  <th className="num">Offer amount</th>
-                  <th className="num">Expected fee</th>
-                  <th>Target close</th>
+                  <SortHeader view={table} id="property">
+                    Property
+                  </SortHeader>
+                  <SortHeader view={table} id="stage">
+                    Stage
+                  </SortHeader>
+                  <SortHeader view={table} id="amount">
+                    Offer amount
+                  </SortHeader>
+                  <SortHeader view={table} id="fee">
+                    Expected fee
+                  </SortHeader>
+                  <SortHeader view={table} id="close">
+                    Target close
+                  </SortHeader>
                   <th>
                     <span className="sr-only">Open</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {deals.map(deal => {
-                  const lead = leads.find(item => item.id === deal.leadId);
+                {table.rows.map(({ deal, lead }) => {
                   return (
                     <tr key={deal.id}>
                       <td>
@@ -796,10 +817,11 @@ export function Deals({ id }) {
           </div>
           <div className="list-footer">
             <span>
-              {deals.length} {deals.length === 1 ? "deal" : "deals"}
+              {table.rows.length} {table.rows.length === 1 ? "deal" : "deals"}
+              {table.filtered ? " shown" : ""}
             </span>
-            <span>{money(deals.reduce((sum, item) => sum + item.amount, 0))} in offers</span>
-            <span>{money(deals.reduce((sum, item) => sum + item.fee, 0))} expected fees</span>
+            <span>{money(table.rows.reduce((sum, row) => sum + row.deal.amount, 0))} in offers</span>
+            <span>{money(table.rows.reduce((sum, row) => sum + row.deal.fee, 0))} expected fees</span>
           </div>
         </Card>
       )}
