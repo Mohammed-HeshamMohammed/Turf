@@ -45,3 +45,4 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Switching a view (Pipeline/List, Board) slides the white pill in the segmented control and eases the new view in over 200ms; reduced motion turns it off.
 - Every table's column titles sort when pressed (ascending, descending, off; an arrow shows the order) and can be dragged (or moved with Alt + arrow keys) into a new order, which is remembered per table. Build tables with `DataTable` and `useTableView` from ui.jsx.
 - No native browser pickers: dates, times and date-times use `DatePicker`, `TimePicker` and `DateTimePicker` from ui.jsx (drawn by the app, like `Select`). Calendar day tiles are rounded, not a bordered grid.
+- The calendar month slides out and in the direction of travel (Today slides back or forward to the current month and the chosen day pops); reduced motion turns it off.

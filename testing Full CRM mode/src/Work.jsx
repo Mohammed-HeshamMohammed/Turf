@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { PropertyMap } from "./PropertyMap.jsx";
 import {
   Phone,
@@ -1066,23 +1066,57 @@ export function Calendar() {
   const offset = (first.getUTCDay() + 6) % 7;
   const cells = Array.from({ length: 42 }, (_, index) => new Date(Date.UTC(year, month, index - offset + 1)));
   const iso = date => date.getUTCFullYear() + "-" + String(date.getUTCMonth() + 1).padStart(2, "0") + "-" + String(date.getUTCDate()).padStart(2, "0");
+  const slide = useRef(null);
+  const direction = useRef(0);
+  const travelling = useRef(false);
+  const still = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Going to another month: the current one slides away in the direction of travel, the new one slides in from the other side.
+  async function goTo(toYear, toMonth, day) {
+    const way = Math.sign(toYear * 12 + toMonth - (year * 12 + month));
+    if (day) setSelected(day);
+    if (!way || travelling.current) return;
+    direction.current = way;
+    if (still() || !slide.current) {
+      setMonth(toMonth);
+      setYear(toYear);
+      return;
+    }
+    travelling.current = true;
+    const leaving = slide.current.animate(
+      [
+        { transform: "none", opacity: 1 },
+        { transform: `translateX(${-way * 56}px)`, opacity: 0 },
+      ],
+      { duration: 150, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" },
+    );
+    // The timer is a fallback for when the page is hidden and the animation never reports back.
+    await Promise.race([leaving.finished.catch(() => {}), new Promise(resolve => setTimeout(resolve, 220))]);
+    setMonth(toMonth);
+    setYear(toYear);
+  }
   function move(delta) {
     const date = new Date(Date.UTC(year, month + delta, 1));
-    setMonth(date.getUTCMonth());
-    setYear(date.getUTCFullYear());
+    goTo(date.getUTCFullYear(), date.getUTCMonth());
   }
+  useLayoutEffect(() => {
+    const element = slide.current;
+    if (!element || !direction.current) return;
+    element.getAnimations().forEach(animation => animation.cancel());
+    if (!still())
+      element.animate(
+        [
+          { transform: `translateX(${direction.current * 56}px)`, opacity: 0 },
+          { transform: "none", opacity: 1 },
+        ],
+        { duration: 260, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+      );
+    direction.current = 0;
+    travelling.current = false;
+  }, [month, year]);
   return (
     <>
       <PageHeader title="Calendar" description={"Appointments and next steps · " + state.settings.timezone}>
-        <Button
-          onClick={() => {
-            setMonth(9);
-            setYear(2026);
-            setSelected(TODAY);
-          }}
-        >
-          Today
-        </Button>
+        <Button onClick={() => goTo(2026, 9, TODAY)}>Today</Button>
         {capability(state, "edit") && (
           <Button variant="primary" icon={Plus} onClick={() => navigate("work/tasks/new")}>
             New task
@@ -1092,7 +1126,9 @@ export function Calendar() {
       <div className="calendar-layout">
         <Card className="calendar-card">
           <header>
-            <h2>{first.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}</h2>
+            <h2 key={year + "-" + month} className="view-in">
+              {first.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}
+            </h2>
             <div className="row">
               <RoundButton label="Previous month" icon={CaretLeft} onClick={() => move(-1)} />
               <RoundButton label="Next month" icon={CaretRight} onClick={() => move(1)} />
@@ -1103,33 +1139,35 @@ export function Calendar() {
               <span key={day}>{day}</span>
             ))}
           </div>
-          <div className="calendar-grid">
-            {cells.map(date => {
-              const value = iso(date);
-              const found = tasks.filter(task => task.date === value && !task.done);
-              return (
-                <button
-                  key={value}
-                  className={
-                    "calendar-day " +
-                    (date.getUTCMonth() !== month ? "outside " : "") +
-                    (value === selected ? "selected " : "") +
-                    (value === TODAY ? "today" : "")
-                  }
-                  aria-label={value + ", " + found.length + " tasks"}
-                  aria-pressed={value === selected}
-                  onClick={() => setSelected(value)}
-                >
-                  <span>{date.getUTCDate()}</span>
-                  {found.slice(0, 2).map(task => (
-                    <small key={task.id}>
-                      {task.time} {task.title}
-                    </small>
-                  ))}
-                  {found.length > 2 && <small>+{found.length - 2} more</small>}
-                </button>
-              );
-            })}
+          <div className="calendar-slide" ref={slide}>
+            <div className="calendar-grid">
+              {cells.map(date => {
+                const value = iso(date);
+                const found = tasks.filter(task => task.date === value && !task.done);
+                return (
+                  <button
+                    key={value}
+                    className={
+                      "calendar-day " +
+                      (date.getUTCMonth() !== month ? "outside " : "") +
+                      (value === selected ? "selected " : "") +
+                      (value === TODAY ? "today" : "")
+                    }
+                    aria-label={value + ", " + found.length + " tasks"}
+                    aria-pressed={value === selected}
+                    onClick={() => setSelected(value)}
+                  >
+                    <span>{date.getUTCDate()}</span>
+                    {found.slice(0, 2).map(task => (
+                      <small key={task.id}>
+                        {task.time} {task.title}
+                      </small>
+                    ))}
+                    {found.length > 2 && <small>+{found.length - 2} more</small>}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </Card>
         <Card className="agenda-card" title={selected === TODAY ? "Today, October 15" : selected} subtitle="The next steps on this day.">

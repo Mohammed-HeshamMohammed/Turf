@@ -5489,3 +5489,18 @@ html.demo-quiet .demo-note {
     padding-right: 8px;
   }
 }
+
+/* The month slides in and out; the chosen day pops when it is picked. */
+.calendar-slide {
+  overflow: hidden;
+  margin: -4px;
+  padding: 4px;
+}
+.calendar-day.selected {
+  animation: day-pop 260ms var(--ease-out);
+}
+@keyframes day-pop {
+  from {
+    transform: scale(0.9);
+  }
+}
