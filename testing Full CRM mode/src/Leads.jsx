@@ -26,6 +26,7 @@ import {
   Breadcrumb,
   ConfirmDialog,
   propertyFacts,
+  MoreMenu,
 } from "./ui.jsx";
 
 export function Leads() {
@@ -352,8 +353,9 @@ export function LeadDetail({ id }) {
       <PageHeader title={lead.name} description={lead.address + " · " + lead.city}>
         {pending && <Badge tone="peach">Pending sync</Badge>}
         {lead.archived && <Badge tone="danger">Archived</Badge>}
-        {lead.archived && editable && !state.remote && (
+        {lead.archived && editable && !state.remote ? (
           <Button
+            variant="primary"
             onClick={() => {
               dispatch({ type: "RESTORE_LEAD", id });
               notify("Lead restored");
@@ -361,37 +363,41 @@ export function LeadDetail({ id }) {
           >
             Restore lead
           </Button>
+        ) : (
+          capability(state, "call") && (
+            <Button variant="primary" icon={Phone} disabled={lead.verdict === "Do not call"} onClick={() => navigate("work/calls/" + id)}>
+              Call
+            </Button>
+          )
         )}
-        {lead.archived && editable && !state.remote && (
-          <Button variant="danger-button" onClick={() => setConfirm("delete")}>
-            Delete permanently
+        {!lead.archived && capability(state, "edit") && (
+          <Button icon={Plus} onClick={() => navigate("work/tasks/new?lead=" + id)}>
+            Add task
           </Button>
         )}
-        {!lead.archived && editable && !state.remote && !client && (
-          <Button icon={Archive} onClick={() => setConfirm("archive")}>
-            Archive
-          </Button>
-        )}
-        {!lead.archived && editable && state.remote && capability(state, "assign") && (
-          <Button variant="danger-button" onClick={() => setConfirm("delete")}>
-            Delete lead
-          </Button>
-        )}
-        {!lead.archived && editable && capability(state, "handoff") && (
-          <Button
-            icon={Handshake}
-            onClick={() => {
-              setHandoffNote(lead.motivation);
-              setHandoff(true);
-            }}
-          >
-            Request handoff
-          </Button>
-        )}
-        {!lead.archived && capability(state, "call") && (
-          <Button variant="primary" icon={Phone} disabled={lead.verdict === "Do not call"} onClick={() => navigate("work/calls/" + id)}>
-            Call workspace
-          </Button>
+        {!client && (
+          <MoreMenu
+            items={[
+              {
+                label: "Request handoff",
+                icon: Handshake,
+                hidden: lead.archived || !editable || !capability(state, "handoff"),
+                onClick: () => {
+                  setHandoffNote(lead.motivation);
+                  setHandoff(true);
+                },
+              },
+              { label: "Open conversation", icon: Envelope, hidden: !capability(state, "message"), onClick: () => navigate("work/inbox?lead=" + id) },
+              { label: "Archive lead", icon: Archive, hidden: lead.archived || !editable || state.remote, onClick: () => setConfirm("archive") },
+              { label: "Delete permanently", danger: true, hidden: !lead.archived || !editable || state.remote, onClick: () => setConfirm("delete") },
+              {
+                label: "Delete lead",
+                danger: true,
+                hidden: lead.archived || !editable || !state.remote || !capability(state, "assign"),
+                onClick: () => setConfirm("delete"),
+              },
+            ]}
+          />
         )}
       </PageHeader>
       <div className="detail-grid">
@@ -432,10 +438,10 @@ export function LeadDetail({ id }) {
               label="Lead record sections"
               value={tab}
               onChange={setTab}
-              options={client ? ["Overview", "Documents"] : ["Overview", "Activity", "Documents", "Evidence"]}
+              options={client ? ["Overview", "Location", "Documents"] : ["Overview", "Activity", "Location", "Documents", "Evidence"]}
             />
           </div>
-          <PropertyMap rows={[lead]} title="Property location" compact />
+          {tab === "Location" && <PropertyMap rows={[lead]} title="Property location" compact />}
           {tab === "Overview" && (
             <>
               <Card title={client ? "Approved property context" : "The conversation so far"}>

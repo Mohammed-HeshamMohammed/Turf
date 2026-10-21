@@ -1,4 +1,4 @@
-import { ArrowUpRight, CaretDown, CaretRight, Check, MagnifyingGlass, Plus, X, WarningCircle } from "@phosphor-icons/react";
+import { ArrowUpRight, CaretDown, CaretRight, Check, DotsThree, MagnifyingGlass, Plus, X, WarningCircle } from "@phosphor-icons/react";
 import { Children, Fragment, isValidElement, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useCrm } from "./context.jsx";
@@ -287,6 +287,58 @@ export function ConfirmDialog({ title, children, confirmLabel, danger = false, o
         </Button>
       </div>
     </Modal>
+  );
+}
+/**
+ * Keeps a page's header to one main action: everything secondary (and anything that removes something) sits in here.
+ * `items` is a list of { label, icon, onClick, danger, hidden }.
+ */
+export function MoreMenu({ items, label = "More" }) {
+  const [open, setOpen] = useState(false);
+  const presence = usePresence(open);
+  const root = useRef(null);
+  const shown = items.filter(item => item && !item.hidden);
+  useEffect(() => {
+    if (!open) return undefined;
+    const outside = event => !root.current?.contains(event.target) && setOpen(false);
+    const escape = event => event.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+  if (!shown.length) return null;
+  return (
+    <div className="more-menu" ref={root}>
+      <button type="button" className="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <DotsThree size={18} weight="bold" />
+        <span>{label}</span>
+      </button>
+      {presence.mounted && (
+        <div className={"more-menu-panel" + (presence.leaving ? " leaving" : "")} role="menu">
+          {shown.map(item => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.label}
+                type="button"
+                role="menuitem"
+                className={item.danger ? "danger" : ""}
+                onClick={() => {
+                  setOpen(false);
+                  item.onClick();
+                }}
+              >
+                {Icon && <Icon size={17} />}
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 export function downloadCsv(filename, rows) {

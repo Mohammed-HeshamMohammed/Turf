@@ -1,16 +1,28 @@
-import { ArrowUpRight, ArrowRight, Phone, CheckCircle, Clock, Users, Handshake, ShieldCheck, Database, HardDrives, GearSix, Plus } from "@phosphor-icons/react";
+import {
+  ArrowUpRight,
+  ChatCircle,
+  Phone,
+  CheckCircle,
+  Clock,
+  Users,
+  Handshake,
+  ShieldCheck,
+  Database,
+  HardDrives,
+  GearSix,
+  Plus,
+} from "@phosphor-icons/react";
 import { Suspense, lazy } from "react";
-import { PropertyMap } from "./PropertyMap.jsx";
-import { ROLES } from "./data.js";
-import { callbackLabel, capability, personalProfile, visibleLeads, visibleTasks } from "./model.js";
+import { ROLES, TODAY } from "./data.js";
+import { callbackLabel, capability, personalProfile, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { useCrm } from "./context.jsx";
-import { Badge, Button, Card, Empty, LeadLink, Person, RoundButton, Status, money, PageHeader, propertyFacts } from "./ui.jsx";
+import { Badge, Button, Card, Empty, LeadLink, RoundButton, Status, money, PageHeader, propertyFacts } from "./ui.jsx";
 
 // The chart library is the largest dependency, so the dashboard paints first and the chart follows.
 const CallActivityChart = lazy(() => import("./CallActivityChart.jsx").then(module => ({ default: module.CallActivityChart })));
 
 export function Dashboard() {
-  const { state, navigate, dispatch, notify } = useCrm();
+  const { state, navigate } = useCrm();
   const role = ROLES[state.role];
   const leads = visibleLeads(state);
   const tasks = visibleTasks(state).filter(task => !task.done);
@@ -22,11 +34,6 @@ export function Dashboard() {
   const finance = capability(state, "finance");
   const history = state.activities.filter(item => item.leadId && leadIds.has(item.leadId));
   const isClient = state.role === "client";
-  // Fills the left column: who is due a call next.
-  const callbacks = active
-    .filter(lead => lead.callback)
-    .sort((a, b) => ((a.callbackDate || "") + a.callback).localeCompare((b.callbackDate || "") + b.callback))
-    .slice(0, 3);
 
   if (state.role === "admin")
     return (
@@ -79,9 +86,7 @@ export function Dashboard() {
       <PageHeader
         title={isClient ? "Your properties" : "Good morning, " + personalProfile(state).name.split(" ")[0]}
         description={
-          isClient
-            ? "Your approved records, updates, and next steps in one place."
-            : tasks.length + " next steps. " + active.length + " active leads. Let's keep things moving."
+          isClient ? "Your approved records, updates, and next steps in one place." : active.length + " active leads · " + tasks.length + " open next steps"
         }
       >
         <span className="date-label">Thursday, October 15</span>
@@ -117,6 +122,7 @@ export function Dashboard() {
       </div>
       <div className="dashboard-main">
         <div className="dashboard-left">
+          <NeedsToday />
           <Card
             title={isClient ? "Property spotlight" : "A good next conversation"}
             subtitle={isClient ? "An approved property in your shared workspace." : "The context you need, before you pick up the phone."}
@@ -201,29 +207,6 @@ export function Dashboard() {
               )}
             </Card>
           )}
-          {!isClient && (
-            <Card
-              title="Callbacks lined up"
-              subtitle="Who is expecting to hear from you next."
-              action={<RoundButton label="Open calls" onClick={() => navigate("work/calls")} />}
-            >
-              {callbacks.map(lead => (
-                <div className="list-row" key={lead.id}>
-                  <div>
-                    <LeadLink lead={lead} />
-                    <small>
-                      {lead.address} · {lead.city}
-                    </small>
-                  </div>
-                  <span className="callback-time">
-                    <Clock size={15} />
-                    {callbackLabel(lead.callbackDate, lead.callback)}
-                  </span>
-                </div>
-              ))}
-              {!callbacks.length && <Empty title="No callbacks waiting">Scheduled callbacks appear here.</Empty>}
-            </Card>
-          )}
           {isClient && (
             <Card title="Approved updates" subtitle="Shared information from your project team.">
               {leads.map(lead => (
@@ -241,45 +224,6 @@ export function Dashboard() {
           )}
         </div>
         <div className="dashboard-right">
-          <Card
-            title="Your next steps"
-            subtitle="A little focus goes a long way."
-            action={<RoundButton label="Open tasks" onClick={() => navigate("work/tasks")} />}
-          >
-            {tasks.length ? (
-              <div className="task-preview">
-                {tasks.slice(0, 4).map(task => (
-                  <div key={task.id}>
-                    <button
-                      className="task-check"
-                      aria-label={"Complete " + task.title}
-                      disabled={isClient}
-                      onClick={() => {
-                        dispatch({ type: "TASK", id: task.id });
-                        notify("Task completed");
-                      }}
-                    >
-                      <CheckCircle size={24} weight="light" />
-                    </button>
-                    <div>
-                      <button className="text-button" onClick={() => navigate("work/leads/" + task.leadId)}>
-                        {task.title}
-                      </button>
-                      <small>
-                        {task.time} · {task.date === "2026-10-15" ? "Today" : "Tomorrow"}
-                      </small>
-                    </div>
-                    <Status value={task.priority} />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <Empty title="You're all caught up">Nothing waiting in your current scope.</Empty>
-            )}
-            <Button icon={ArrowRight} onClick={() => navigate("work/tasks")}>
-              See all next steps
-            </Button>
-          </Card>
           {!isClient && (
             <Card title="Team activity" subtitle="The story behind the records.">
               {history.slice(0, 4).map(item => (
@@ -313,23 +257,106 @@ export function Dashboard() {
           )}
         </div>
       </div>
-      <PropertyMap rows={leads} title={isClient ? "Shared property map" : "Workspace property map"} />
-      {!isClient && state.role !== "caller" && state.role !== "closer" && (
-        <Card title="People, not just numbers" subtitle="A shared view of responsibility." className="team-card">
-          <div className="team-people">
-            {["Maya Chen", "Alex Rivera", "Ben Carter", "Lena Brooks"].map(name => (
-              <div key={name}>
-                <Person name={name} link />
-                <strong>{active.filter(lead => lead.assignee === name).length}</strong>
-                <small>active leads</small>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
     </>
   );
 }
+/**
+ * Everything that is waiting on the person today, in time order, in one place: tasks that are due, callbacks people are
+ * expecting, handoffs to accept and unread messages. Each row has the one action that deals with it.
+ */
+function NeedsToday() {
+  const { state, navigate, dispatch, notify } = useCrm();
+  const role = ROLES[state.role];
+  const me = role.person;
+  const client = state.role === "client";
+  const leads = visibleLeads(state);
+  const byId = Object.fromEntries(leads.map(lead => [lead.id, lead]));
+  const due = visibleTasks(state).filter(task => !task.done && task.date && task.date <= TODAY);
+  const items = [
+    ...due.map(task => ({
+      key: "task-" + task.id,
+      at: (task.date < TODAY ? "0" : "1") + (task.time || ""),
+      icon: CheckCircle,
+      title: task.title,
+      detail: (task.date < TODAY ? "Overdue · " : "") + (task.time || "Today") + (byId[task.leadId] ? " · " + byId[task.leadId].name : ""),
+      complete: client
+        ? null
+        : () => {
+            dispatch({ type: "TASK", id: task.id });
+            notify("Task completed");
+          },
+      action: byId[task.leadId] ? { label: "Open", go: "work/leads/" + task.leadId } : null,
+    })),
+    // A callback with its own task is already listed above.
+    ...leads
+      .filter(lead => lead.callback && lead.callbackDate && lead.callbackDate <= TODAY && lead.stage !== "Closed")
+      .filter(lead => !due.some(task => task.leadId === lead.id && task.type === "Callback"))
+      .map(lead => ({
+        key: "call-" + lead.id,
+        at: (lead.callbackDate < TODAY ? "0" : "1") + lead.callback,
+        icon: Phone,
+        title: "Call " + lead.name,
+        detail: (lead.callbackDate < TODAY ? "Missed callback · " : "Callback at ") + lead.callback + " · " + lead.address,
+        action: capability(state, "call") ? { label: "Call", go: "work/calls/" + lead.id, primary: true } : { label: "Open", go: "work/leads/" + lead.id },
+      })),
+    ...(capability(state, "accept")
+      ? state.handoffs
+          .filter(item => item.status === "Requested" && byId[item.leadId] && (item.to === me || ["owner", "solo", "manager"].includes(state.role)))
+          .map(item => ({
+            key: "handoff-" + item.id,
+            at: "2",
+            icon: Handshake,
+            title: "Handoff waiting: " + byId[item.leadId].name,
+            detail: "From " + item.from + " to " + item.to,
+            action: { label: "Review", go: "work/handoffs" },
+          }))
+      : []),
+    ...(role.pages.includes("inbox")
+      ? visibleThreads(state)
+          .filter(thread => thread.unread && byId[thread.leadId])
+          .map(thread => ({
+            key: "thread-" + thread.id,
+            at: "3",
+            icon: ChatCircle,
+            title: "Reply to " + byId[thread.leadId].name,
+            detail: thread.channel + " · " + thread.preview,
+            action: { label: "Reply", go: "work/inbox?lead=" + thread.leadId },
+          }))
+      : []),
+  ].sort((a, b) => a.at.localeCompare(b.at));
+
+  return (
+    <Card title="Needs you today" subtitle={items.length ? items.length + (items.length === 1 ? " thing is" : " things are") + " waiting on you" : undefined}>
+      {items.map(item => {
+        const Icon = item.icon;
+        return (
+          <div className="today-row" key={item.key}>
+            {item.complete ? (
+              <button type="button" className="task-check" aria-label={"Complete " + item.title} onClick={item.complete}>
+                <CheckCircle size={22} weight="light" />
+              </button>
+            ) : (
+              <span className="today-icon">
+                <Icon size={18} />
+              </span>
+            )}
+            <div>
+              <strong>{item.title}</strong>
+              <small>{item.detail}</small>
+            </div>
+            {item.action && (
+              <Button variant={item.action.primary ? "primary" : ""} onClick={() => navigate(item.action.go)}>
+                {item.action.label}
+              </Button>
+            )}
+          </div>
+        );
+      })}
+      {!items.length && <Empty title="You're all caught up">Nothing is due today. New tasks, callbacks and messages show up here.</Empty>}
+    </Card>
+  );
+}
+
 function Metric({ label, value, detail, icon: Icon, onClick }) {
   return (
     <button className="card metric metric-button" onClick={onClick}>

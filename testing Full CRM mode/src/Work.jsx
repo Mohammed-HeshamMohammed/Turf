@@ -57,6 +57,7 @@ export function Calls({ target }) {
   const [callNote, setCallNote] = useState("");
   const [callbackAt, setCallbackAt] = useState("");
   const [askingCallback, setAskingCallback] = useState(false);
+  const [detailTab, setDetailTab] = useState("History");
   // The queue follows a list: the one chosen above it, or the one a list page sent you here with (?list=).
   const listParam = new URLSearchParams(route.split("?")[1]).get("list") || "";
   const [listId, setListId] = useState(listParam);
@@ -113,8 +114,8 @@ export function Calls({ target }) {
   const calls = [...(lead?.calls || [])].reverse();
   return (
     <>
-      <PageHeader title="Calls" />
-      <div className="call-layout">
+      <PageHeader title="Calls" description={activeCall ? "On a call · the queue is hidden until you record how it went" : undefined} />
+      <div className={"call-layout" + (activeCall ? " is-live" : "")}>
         <Card
           title="Your call queue"
           subtitle={
@@ -183,9 +184,13 @@ export function Calls({ target }) {
                 <div className="dial-number">{lead.phone}</div>
                 <div className="row">
                   <Status value={lead.verdict} />
-                  <span className="muted">Review current calling permission before a real call</span>
+                  <span className="muted">Check calling permission before a real call</span>
                 </div>
-                <p className="body-copy">{lead.motivation}</p>
+                {lead.motivation && <p className="body-copy">{lead.motivation}</p>}
+                <div className="call-owner">
+                  <small>Owner</small>
+                  <Person name={lead.assignee} link />
+                </div>
                 <div className="call-actions">
                   <Button
                     variant={activeCall ? "danger-button" : "primary"}
@@ -206,7 +211,8 @@ export function Calls({ target }) {
                 {activeCall && (
                   <div className="call-live" role="status">
                     <span className="status-dot" />
-                    Call in progress<span className="demo-note"> · demo audio, no number is dialled</span>
+                    Call in progress · <CallTimer />
+                    <span className="demo-note"> · demo audio, no number is dialled</span>
                     {!captions && (
                       <button type="button" className="text-button" onClick={() => toggleCaptions(true)}>
                         Turn on live captions
@@ -216,8 +222,13 @@ export function Calls({ target }) {
                 )}
                 {!state.online && <p className="notice">Calling needs a connection. You can record a manual outcome below.</p>}
               </Card>
-              <PropertyMap rows={[lead]} title="Call property location" compact />
-              <Card title="How did the conversation go?" subtitle="Outcomes stay attached to the lead and its phone evidence.">
+              <Card
+                className={"call-outcomes" + (activeCall ? " is-live" : "")}
+                title="How did it go?"
+                subtitle={
+                  activeCall ? "Pick the outcome when you hang up. It is saved to the lead." : "Record an outcome, even for a call made outside the app."
+                }
+              >
                 <div className="outcome-grid">
                   {CALL_OUTCOMES.map(item => (
                     <Button
@@ -268,7 +279,13 @@ export function Calls({ target }) {
                 </div>
                 {recording && <small className="demo-note">Recording preview enabled. This prototype does not record microphone audio.</small>}
               </Card>
-              <CallHistory calls={calls} />
+              <Card
+                className="call-details"
+                title="About this lead"
+                action={<Segmented label="Lead details" value={detailTab} onChange={setDetailTab} options={["History", "Location"]} />}
+              >
+                {detailTab === "History" ? <CallHistoryList calls={calls} /> : <PropertyMap rows={[lead]} title="Call property location" compact />}
+              </Card>
             </>
           ) : (
             <Empty title="Your queue is clear">Choose another role or add a lead to continue.</Empty>
@@ -285,10 +302,6 @@ export function Calls({ target }) {
             onCaptions={toggleCaptions}
             onUse={text => setCallNote(note => (note.trim() ? note.trimEnd() + "\n" : "") + "• " + text)}
           />
-          <Card title="Responsibility">
-            {lead && <Person name={lead.assignee} />}
-            <p className="muted">A handoff changes ownership only when accepted.</p>
-          </Card>
         </aside>
       </div>
     </>
@@ -298,6 +311,37 @@ export function Calls({ target }) {
 function callTime(at) {
   return at ? new Date(at + ":00Z").toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" }) : "";
 }
+/** How long the current call has been running, as m:ss. */
+function CallTimer() {
+  const [start] = useState(() => Date.now());
+  const [now, setNow] = useState(start);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const seconds = Math.floor((now - start) / 1000);
+  return <span className="call-timer">{Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0")}</span>;
+}
+
+/** The call history rows on their own, for places that already have a card around them. */
+function CallHistoryList({ calls }) {
+  if (!calls.length) return <Empty title="Not called yet">Outcomes you record appear here with their time and next call.</Empty>;
+  return calls.map(item => (
+    <div className="call-entry" key={item.id}>
+      <Badge tone={["Wrong number", "Do not call"].includes(item.outcome) ? "danger" : ["Transfer", "Callback"].includes(item.outcome) ? "good" : ""}>
+        {item.code}
+      </Badge>
+      <div>
+        <strong>{item.outcome}</strong>
+        <small>
+          {callTime(item.at)} · {item.agent}
+          {item.scheduled ? " · next call " + callTime(item.scheduled) : ""}
+        </small>
+      </div>
+    </div>
+  ));
+}
+
 export function CallHistory({ calls }) {
   return (
     <Card
