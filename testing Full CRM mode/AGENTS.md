@@ -24,7 +24,7 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 
 ## Design decisions (product design pass, October 2026)
 
-- One navigation: the sidebar. There are no top tabs; the header holds the Turf menu, workspace, a centred search, the bell and the avatar.
+- The sidebar lists every section. The top bar repeats only the most used ones (Overview, Leads, Calls, Deals, Tasks or Inbox, up to five, by role) and hides them below 1080px. Search sits on the right, beside the bell; on phones it gets its own row under the header.
 - Page titles are the page's plain name ("Leads", "Calls") with at most one short functional line under them. No eyebrow lines and no slogan headlines.
 - Nothing is smaller than 12px.
 - Motion is brief and only explains something: a 180ms page fade, menus and dialogs popping, board drag. No staggered rows, no text animations, no exit ghosts or waits between pages.

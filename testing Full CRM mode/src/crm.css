@@ -4989,11 +4989,68 @@ html.demo-quiet .demo-note {
   }
 }
 @media (max-width: 720px) {
-  .app-header .header-search {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
   .header-search .global-search {
+    width: 100%;
+  }
+}
+/* ---- Top bar: the most used sections in the middle, search beside the bell on the right ---- */
+.top-nav {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+}
+.top-nav button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.top-nav button:hover {
+  background: var(--well);
+}
+.top-nav button[aria-current="page"] {
+  background: var(--ink);
+  color: white;
+}
+.top-nav .count-badge {
+  min-width: 16px;
+  height: 16px;
+}
+.header-tools .header-search {
+  display: block;
+}
+.header-tools .header-search .global-search {
+  width: 280px;
+}
+@media (max-width: 1250px) {
+  .top-nav button {
+    padding: 9px 12px;
+  }
+  .header-tools .header-search .global-search {
+    width: 220px;
+  }
+}
+@media (max-width: 1080px) {
+  .top-nav {
+    display: none;
+  }
+}
+@media (max-width: 720px) {
+  .app-header .header-tools {
+    position: static;
+  }
+  .header-tools .header-search {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    top: 68px;
+  }
+  .header-tools .header-search .global-search {
     width: 100%;
   }
 }

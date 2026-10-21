@@ -1,7 +1,7 @@
 import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Bell, CalendarBlank, ChatCircle, CheckCircle, HouseLine, List, MagnifyingGlass, WifiSlash, X } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
-import { capability, loadState, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
+import { capability, loadState, navCounts, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { api, apiBase, setApiBase } from "./remote/api.js";
 import { SyncEngine } from "./remote/engine.js";
 import { LOCAL_ONLY, remoteReducer, syncAction } from "./remote/session.js";
@@ -281,6 +281,18 @@ export function App() {
       return next;
     });
   }
+  const counts = useMemo(() => navCounts(state, role), [state, role]);
+  // The most used sections, also in the top bar. The sidebar keeps the full list.
+  const topSections = [
+    { id: "dashboard", label: "Overview", path: "dashboard" },
+    { id: "leads", label: "Leads", path: "work/leads" },
+    { id: "calls", label: "Calls", path: "work/calls" },
+    { id: "deals", label: "Deals", path: "work/deals" },
+    { id: "tasks", label: "Tasks", path: "work/tasks" },
+    { id: "inbox", label: "Inbox", path: "work/inbox" },
+  ]
+    .filter(item => item.id === "dashboard" || role.pages.includes(item.id))
+    .slice(0, 5);
   const showGate = useCallback(() => setConnection("gate"), []);
   // Memoised so typing in search, opening a panel or a toast does not re-render every page.
   const context = useMemo(
@@ -367,30 +379,38 @@ export function App() {
               </div>
             </div>
           </div>
-          <div className="header-search">
-            <div className="global-search">
-              <Search value={query} onChange={setQuery} placeholder="Find a person or property" label="Search workspace" />
-              {searchPanel.mounted && (
-                <div className={"search-results" + (searchPanel.leaving ? " leaving" : "")}>
-                  <small>{role.scope}</small>
-                  {searchResults.map((result, index) => (
-                    <Fragment key={result.key}>
-                      {(index === 0 || searchResults[index - 1].group !== result.group) && <small className="search-group">{result.group}</small>}
-                      <button onClick={() => navigate(result.path)}>
-                        <MagnifyingGlass size={16} />
-                        <div>
-                          <strong>{result.title}</strong>
-                          <span>{result.detail}</span>
-                        </div>
-                      </button>
-                    </Fragment>
-                  ))}
-                  {!searchResults.length && <p>No records match in your view.</p>}
-                </div>
-              )}
-            </div>
-          </div>
+          <nav className="top-nav" aria-label="Main sections">
+            {topSections.map(item => (
+              <button key={item.id} type="button" aria-current={page === item.id ? "page" : undefined} onClick={() => navigate(item.path)}>
+                {item.label}
+                <CountBadge count={counts[item.id] || 0} label={item.label.toLowerCase() + " needing attention"} />
+              </button>
+            ))}
+          </nav>
           <div className="header-tools">
+            <div className="header-search">
+              <div className="global-search">
+                <Search value={query} onChange={setQuery} placeholder="Find a person or property" label="Search workspace" />
+                {searchPanel.mounted && (
+                  <div className={"search-results" + (searchPanel.leaving ? " leaving" : "")}>
+                    <small>{role.scope}</small>
+                    {searchResults.map((result, index) => (
+                      <Fragment key={result.key}>
+                        {(index === 0 || searchResults[index - 1].group !== result.group) && <small className="search-group">{result.group}</small>}
+                        <button onClick={() => navigate(result.path)}>
+                          <MagnifyingGlass size={16} />
+                          <div>
+                            <strong>{result.title}</strong>
+                            <span>{result.detail}</span>
+                          </div>
+                        </button>
+                      </Fragment>
+                    ))}
+                    {!searchResults.length && <p>No records match in your view.</p>}
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="notification-anchor">
               <button className="round-button" aria-label="Notifications" aria-expanded={notifications} onClick={() => setNotifications(!notifications)}>
                 <Bell size={21} />
