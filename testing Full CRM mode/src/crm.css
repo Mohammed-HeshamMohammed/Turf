@@ -5134,3 +5134,8 @@ html.demo-quiet .demo-note {
 .deal-board .kanban-card:last-of-type {
   margin-bottom: 0;
 }
+.deal-board .kanban-column[data-stage="Closed won"] > header,
+.deal-board .kanban-column[data-stage="Negotiation"] > header,
+.deal-board .kanban-column[data-stage="Closed lost"] > header {
+  margin-bottom: 4px;
+}
