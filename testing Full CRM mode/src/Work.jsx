@@ -1132,22 +1132,24 @@ export function Calendar() {
             })}
           </div>
         </Card>
-        <Card title={selected === TODAY ? "Today, October 15" : selected} subtitle="The next steps on this day.">
-          {tasks
-            .filter(task => task.date === selected)
-            .map(task => (
-              <div className="calendar-agenda" key={task.id}>
-                <span>{task.time}</span>
-                <button type="button" className="text-link agenda-title" onClick={() => navigate("work/leads/" + task.leadId)} title="Open the lead">
-                  <strong>{task.title}</strong>
-                </button>
-                <Person name={task.assignee} link />
-                <Button disabled={!capability(state, "edit") && !capability(state, "review")} onClick={() => dispatch({ type: "TASK", id: task.id })}>
-                  {task.done ? "Reopen" : "Complete"}
-                </Button>
-              </div>
-            ))}
-          {!tasks.some(task => task.date === selected) && <Empty title="A little breathing room">No scheduled next steps on this day.</Empty>}
+        <Card className="agenda-card" title={selected === TODAY ? "Today, October 15" : selected} subtitle="The next steps on this day.">
+          <div className="agenda-list">
+            {tasks
+              .filter(task => task.date === selected)
+              .map(task => (
+                <div className="calendar-agenda" key={task.id}>
+                  <span>{task.time}</span>
+                  <button type="button" className="text-link agenda-title" onClick={() => navigate("work/leads/" + task.leadId)} title="Open the lead">
+                    <strong>{task.title}</strong>
+                  </button>
+                  <Person name={task.assignee} link />
+                  <Button disabled={!capability(state, "edit") && !capability(state, "review")} onClick={() => dispatch({ type: "TASK", id: task.id })}>
+                    {task.done ? "Reopen" : "Complete"}
+                  </Button>
+                </div>
+              ))}
+            {!tasks.some(task => task.date === selected) && <Empty title="A little breathing room">No scheduled next steps on this day.</Empty>}
+          </div>
         </Card>
       </div>
     </>

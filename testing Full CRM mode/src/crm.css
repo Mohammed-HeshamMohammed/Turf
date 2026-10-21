@@ -5467,3 +5467,25 @@ html.demo-quiet .demo-note {
   width: 100%;
   min-width: 0;
 }
+
+/* The day's agenda is as tall as the month beside it and scrolls inside when there are more steps than fit. */
+.agenda-list {
+  min-height: 0;
+}
+@media (min-width: 1081px) {
+  .calendar-layout {
+    align-items: stretch;
+  }
+  .agenda-card {
+    display: flex;
+    flex-direction: column;
+    height: 0;
+    min-height: calc(100% - 16px);
+  }
+  .agenda-list {
+    flex: 1;
+    overflow-y: auto;
+    margin-right: -8px;
+    padding-right: 8px;
+  }
+}
