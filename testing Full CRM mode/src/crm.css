@@ -5694,3 +5694,13 @@ html.demo-quiet .demo-note {
     box-shadow: 0 0 0 2px var(--rail);
   }
 }
+
+/* Buttons are 42px tall in both states, so their height never dips while the rail changes width. */
+@media (min-width: 721px) {
+  .sidebar .nav-group button {
+    height: 42px;
+    min-height: 42px;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+}
