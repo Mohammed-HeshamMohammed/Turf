@@ -5363,3 +5363,9 @@ html.demo-quiet .demo-note {
   font-size: 12px;
   pointer-events: none;
 }
+
+/* Room on the left so the first title's hover pill is not clipped by the scroll area. */
+.table-scroll:has(.sort-th) {
+  padding-left: 6px;
+  margin-left: -6px;
+}
