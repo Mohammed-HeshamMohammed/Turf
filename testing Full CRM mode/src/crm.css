@@ -5704,3 +5704,24 @@ html.demo-quiet .demo-note {
     padding-bottom: 0;
   }
 }
+
+/* The icon keeps its left alignment in both states (centring is done with padding), so it slides instead of jumping. */
+@media (min-width: 721px) {
+  .sidebar.is-minimized .nav-group button {
+    justify-content: flex-start;
+    padding-left: 9px;
+    padding-right: 9px;
+  }
+}
+
+/* No auto-margin centring (it made the icons drift right while the rail changed width): the minimised rail centres its
+   icons with padding, which animates in a straight line. */
+@media (min-width: 721px) {
+  .sidebar .nav-group button,
+  .sidebar.is-minimized .nav-group button {
+    margin: 0;
+  }
+  .sidebar.is-minimized > nav {
+    padding: 0 0 0 8.5px;
+  }
+}
