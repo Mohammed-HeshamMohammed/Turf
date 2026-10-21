@@ -5157,42 +5157,42 @@ html.demo-quiet .demo-note {
   border-radius: 50%;
   background: var(--stage-dot);
 }
-.deal-board .kanban-column[data-stage="Qualified"] {
+.deal-board .kanban-column[data-stage="Qualified"], .stage-pill[data-stage="Qualified"] {
   --stage-bg: #dde8f3;
   --stage-dot: #5b86b5;
   --stage-ink: #274c75;
 }
-.deal-board .kanban-column[data-stage="Appointment"] {
+.deal-board .kanban-column[data-stage="Appointment"], .stage-pill[data-stage="Appointment"] {
   --stage-bg: #dfe3f5;
   --stage-dot: #6a73c4;
   --stage-ink: #2f3678;
 }
-.deal-board .kanban-column[data-stage="Offer preparation"] {
+.deal-board .kanban-column[data-stage="Offer preparation"], .stage-pill[data-stage="Offer preparation"] {
   --stage-bg: #e8dff3;
   --stage-dot: #9068b8;
   --stage-ink: #53307a;
 }
-.deal-board .kanban-column[data-stage="Offer sent"] {
+.deal-board .kanban-column[data-stage="Offer sent"], .stage-pill[data-stage="Offer sent"] {
   --stage-bg: #d9ede9;
   --stage-dot: #4d9c8f;
   --stage-ink: #1f5a50;
 }
-.deal-board .kanban-column[data-stage="Negotiation"] {
+.deal-board .kanban-column[data-stage="Negotiation"], .stage-pill[data-stage="Negotiation"] {
   --stage-bg: #f6e6c6;
   --stage-dot: #d19a2e;
   --stage-ink: #6b4a0c;
 }
-.deal-board .kanban-column[data-stage="Under contract"] {
+.deal-board .kanban-column[data-stage="Under contract"], .stage-pill[data-stage="Under contract"] {
   --stage-bg: #f9dcc6;
   --stage-dot: #d9803f;
   --stage-ink: #7a3d10;
 }
-.deal-board .kanban-column[data-stage="Closed won"] {
+.deal-board .kanban-column[data-stage="Closed won"], .stage-pill[data-stage="Closed won"] {
   --stage-bg: #d9ecd0;
   --stage-dot: #5f9a47;
   --stage-ink: #2d5a1b;
 }
-.deal-board .kanban-column[data-stage="Closed lost"] {
+.deal-board .kanban-column[data-stage="Closed lost"], .stage-pill[data-stage="Closed lost"] {
   --stage-bg: #f1d9d6;
   --stage-dot: #c25b52;
   --stage-ink: #7a2a24;
@@ -5241,4 +5241,41 @@ html.demo-quiet .demo-note {
     min-height: 0;
     overflow-y: auto;
   }
+}
+
+/* The list shows the same stage colours as the board; its totals sit at the bottom of the card. */
+.stage-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 11px 4px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: var(--stage-bg);
+  color: var(--stage-ink);
+}
+.stage-pill::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--stage-dot);
+}
+.list-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  margin-top: auto;
+  padding: 16px 2px 18px;
+  border-top: 1px solid #d4d4d4;
+  font-size: 12px;
+  color: var(--muted);
+}
+.table-card:has(> .list-footer) {
+  display: flex;
+  flex-direction: column;
+}
+
+.table-card:has(> .list-footer) > .table-scroll {
+  flex: none;
 }

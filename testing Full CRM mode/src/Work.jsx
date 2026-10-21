@@ -778,7 +778,9 @@ export function Deals({ id }) {
                         <LeadLink lead={lead} />
                       </td>
                       <td>
-                        <Status value={deal.stage} />
+                        <span className="stage-pill" data-stage={deal.stage}>
+                          {deal.stage}
+                        </span>
                       </td>
                       <td>{money(deal.amount)}</td>
                       <td>{money(deal.fee)}</td>
@@ -791,6 +793,13 @@ export function Deals({ id }) {
                 })}
               </tbody>
             </table>
+          </div>
+          <div className="list-footer">
+            <span>
+              {deals.length} {deals.length === 1 ? "deal" : "deals"}
+            </span>
+            <span>{money(deals.reduce((sum, item) => sum + item.amount, 0))} in offers</span>
+            <span>{money(deals.reduce((sum, item) => sum + item.fee, 0))} expected fees</span>
           </div>
         </Card>
       )}
