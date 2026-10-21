@@ -98,8 +98,7 @@ export function Leads() {
   return (
     <>
       <PageHeader
-        eyebrow={ROLES[state.role].scope}
-        title={client ? "Your shared properties" : "Leads, with a little more context."}
+        title={client ? "Shared properties" : "Leads"}
         description={
           client ? "Only records explicitly shared with your partner workspace." : "Keep the property, the person, and the next conversation together."
         }
@@ -350,11 +349,7 @@ export function LeadDetail({ id }) {
   return (
     <>
       <Breadcrumb items={[{ label: client ? "Shared properties" : "Leads", path: "work/leads" }, { label: lead.name }]} />
-      <PageHeader
-        eyebrow={lead.address + " · " + lead.city}
-        title={lead.name}
-        description={client ? "Property information approved for your workspace." : "A person, a property, and a shared next step."}
-      >
+      <PageHeader title={lead.name} description={lead.address + " · " + lead.city}>
         {pending && <Badge tone="peach">Pending sync</Badge>}
         {lead.archived && <Badge tone="danger">Archived</Badge>}
         {lead.archived && editable && !state.remote && (
@@ -404,7 +399,7 @@ export function LeadDetail({ id }) {
           <div className="card property-detail">
             <div className="detail-photo">
               <img src="/assets/property.jpg" alt="Illustrative sample Florida house" />
-              <span className="image-caption">Illustrative sample photo</span>
+              <span className="image-caption demo-note">Illustrative sample photo</span>
             </div>
             <div>
               <div className="row">
@@ -906,7 +901,7 @@ export function NewLead() {
   return (
     <>
       <Breadcrumb items={[{ label: "Leads", path: "work/leads" }, { label: "New lead" }]} />
-      <PageHeader title="Start with the person and property." description="Add a lead, give it an owner, and keep the next step clear." />
+      <PageHeader title="New lead" description="The person, the property and who looks after it." />
       <form
         className="card creation-form"
         onSubmit={event => {

@@ -38,7 +38,7 @@ export function Team() {
 
   return (
     <>
-      <PageHeader eyebrow="Your team" title="The people behind the work." description="Who owns what, what is waiting on them, and where to look next." />
+      <PageHeader title="Team" description="Who owns what, and what is waiting on them." />
       <div className="metrics-grid">
         {[
           ["People", people.length, "On this workspace", UsersThree],

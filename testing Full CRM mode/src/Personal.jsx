@@ -114,11 +114,7 @@ export function PersonalPage({ section = "profile" }) {
   return (
     <>
       <Breadcrumb items={[{ label: "My account", path: "personal/profile" }, { label: section === "profile" ? "Profile" : "Preferences" }]} />
-      <PageHeader
-        eyebrow="Your account"
-        title={section === "profile" ? "A little about you." : "Make yourself at home."}
-        description="Your personal details and preferences stay with your account."
-      />
+      <PageHeader title={section === "profile" ? "My profile" : "Preferences"} description="Only you see these." />
       <div className="settings-tabs">
         <button aria-current={section === "profile" ? "page" : undefined} onClick={() => navigate("personal/profile")}>
           <UserCircle size={18} />

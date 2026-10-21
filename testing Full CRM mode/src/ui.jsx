@@ -13,8 +13,8 @@ export function propertyFacts(record) {
     record.area != null && Number(record.area).toLocaleString() + " sq ft",
   ].filter(Boolean);
 }
-export function Badge({ children, tone = "" }) {
-  return <span className={"badge " + tone}>{children}</span>;
+export function Badge({ children, tone = "", className = "" }) {
+  return <span className={"badge " + tone + (className ? " " + className : "")}>{children}</span>;
 }
 export function Button({ children, variant = "", icon: Icon, ...props }) {
   return (
@@ -31,11 +31,10 @@ export function RoundButton({ label, onClick, icon: Icon = ArrowUpRight, ...prop
     </button>
   );
 }
-export function PageHeader({ eyebrow, title, description, children }) {
+export function PageHeader({ title, description, children }) {
   return (
     <header className="page-heading">
       <div>
-        <div className="eyebrow">{eyebrow || "Oak & Palm Partners"}</div>
         <h1>{title}</h1>
         {description && <p>{description}</p>}
       </div>
@@ -247,25 +246,9 @@ export function exitGhost(node, { className = "", parent, backdrop = false } = {
   extras.forEach(item => host.appendChild(item));
   setTimeout(() => extras.forEach(item => item.remove()), EXIT_MS + 60);
 }
-/** A page's content: fades up when it arrives and leaves a fading copy behind when you move on. */
+/** A page's content. It fades in briefly when it arrives; the page you leave is simply replaced, so nothing overlaps or waits. */
 export function PageTransition({ children }) {
-  const ref = useRef(null);
-  useLayoutEffect(() => {
-    const node = ref.current;
-    // The page you are leaving is still fading out: hold this one back until it has gone, so the two never overlap.
-    const leaving = document.querySelector(".page-ghost");
-    const timer = leaving ? setTimeout(() => node.classList.remove("waiting"), EXIT_MS - 30) : null;
-    if (leaving) node.classList.add("waiting");
-    return () => {
-      clearTimeout(timer);
-      exitGhost(node, { className: "page-ghost" });
-    };
-  }, []);
-  return (
-    <div className="page-content" ref={ref}>
-      {children}
-    </div>
-  );
+  return <div className="page-content">{children}</div>;
 }
 export function Modal({ title, children, onClose }) {
   const ref = useRef(null);

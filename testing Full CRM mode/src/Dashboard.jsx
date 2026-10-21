@@ -31,11 +31,7 @@ export function Dashboard() {
   if (state.role === "admin")
     return (
       <>
-        <PageHeader
-          eyebrow="System workspace"
-          title="Everything, in its place."
-          description="Workspace access, connections, and the services behind your team."
-        />
+        <PageHeader title="Overview" description="Access, connections and services." />
         <div className="metrics-grid">
           {[
             ["Workspace members", "6", Users],
@@ -81,8 +77,7 @@ export function Dashboard() {
   return (
     <>
       <PageHeader
-        eyebrow={isClient ? "Your shared workspace" : role.title}
-        title={isClient ? "A clearer view of your properties." : "Good morning, " + personalProfile(state).name.split(" ")[0] + "."}
+        title={isClient ? "Your properties" : "Good morning, " + personalProfile(state).name.split(" ")[0]}
         description={
           isClient
             ? "Your approved records, updates, and next steps in one place."
@@ -131,7 +126,7 @@ export function Dashboard() {
               <div className="spotlight">
                 <div className="property-image">
                   <img src="/assets/property.jpg" alt="Illustrative exterior of a fictional Florida property" />
-                  <span className="image-caption">Illustrative sample photo</span>
+                  <span className="image-caption demo-note">Illustrative sample photo</span>
                   <Badge tone="good">{isClient ? "Shared with you" : next.verdict}</Badge>
                 </div>
                 <div className="spotlight-info">

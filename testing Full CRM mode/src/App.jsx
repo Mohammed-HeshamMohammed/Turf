@@ -1,13 +1,13 @@
 import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Bell, CalendarBlank, ChatCircle, CheckCircle, HouseLine, List, MagnifyingGlass, WifiSlash, X } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
-import { capability, loadState, navCounts, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
+import { capability, loadState, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { api, apiBase, setApiBase } from "./remote/api.js";
 import { SyncEngine } from "./remote/engine.js";
 import { LOCAL_ONLY, remoteReducer, syncAction } from "./remote/session.js";
 import { applyIdentity, labelFor, operationFor } from "./remote/translate.js";
 import { CrmContext } from "./context.jsx";
-import { Badge, Button, CountBadge, Empty, Modal, PageTransition, Search, money, useHeld, usePresence } from "./ui.jsx";
+import { Button, CountBadge, Empty, Modal, PageTransition, Search, money, useHeld, usePresence } from "./ui.jsx";
 import { LiveCaptions } from "./LiveCaptions.jsx";
 import { Sidebar } from "./Sidebar.jsx";
 import { WindowStrip, windowDrag } from "./WindowStrip.jsx";
@@ -64,6 +64,25 @@ export function App() {
   const [notifications, setNotifications] = useState(false);
   const [reset, setReset] = useState(false);
   const [cacheError, setCacheError] = useState(false);
+  // One switch for every note that only exists to explain the demo ("sample photo", "no number is dialled" and so on).
+  const [demoNotes, setDemoNotesState] = useState(() => {
+    try {
+      return window.localStorage.getItem("turf.full-crm.demo-notes") === "on";
+    } catch {
+      return false;
+    }
+  });
+  const setDemoNotes = useCallback(next => {
+    setDemoNotesState(next);
+    try {
+      window.localStorage.setItem("turf.full-crm.demo-notes", next ? "on" : "off");
+    } catch {
+      /* Still applies for this session. */
+    }
+  }, []);
+  useEffect(() => {
+    document.documentElement.classList.toggle("demo-quiet", !demoNotes);
+  }, [demoNotes]);
   const timer = useRef(null);
   const main = useRef(null);
   const role = ROLES[state.role];
@@ -72,7 +91,6 @@ export function App() {
   const current = route.split("?")[0];
   const parts = current.split("/");
   const page = parts[0] === "work" ? parts[1] : parts[0];
-  const activePrimary = ["leads", "calls", "deals", "handoffs", "tasks", "calendar", "inbox"].includes(page) ? "work" : page;
   const accessible = ["sync", "personal"].includes(page) || role.pages.includes(page);
   const leads = useMemo(() => visibleLeads(state), [state]);
   const tasks = useMemo(() => visibleTasks(state).filter(item => !item.done), [state]);
@@ -82,8 +100,6 @@ export function App() {
     [state, profile.replyReminders, role],
   );
   const noticeCount = taskNotices.length + replyNotices.length;
-  const counts = useMemo(() => navCounts(state, role), [state, role]);
-  const workCount = (counts.tasks || 0) + (counts.handoffs || 0) + (counts.inbox || 0);
   const shownQuery = useHeld(query.trim());
   const searchPanel = usePresence(Boolean(query));
   const notePanel = usePresence(notifications);
@@ -321,15 +337,6 @@ export function App() {
         <RemoteGate onReady={connect} onLeave={useSample} />
       </Suspense>
     );
-  const primary = [
-    { id: "dashboard", label: "Dashboard", target: "dashboard" },
-    ...(role.pages.some(item => ["leads", "calls", "deals", "tasks", "inbox"].includes(item))
-      ? [{ id: "work", label: "Work", target: state.role === "caller" ? "work/calls" : state.role === "closer" ? "work/deals" : "work/leads" }]
-      : []),
-    ...(role.pages.includes("lists") ? [{ id: "lists", label: "Lists", target: "lists" }] : []),
-    ...(role.pages.includes("skip") ? [{ id: "skip", label: "Skip Tracing", target: "skip" }] : []),
-    ...(role.pages.includes("reports") ? [{ id: "reports", label: "Reports", target: "reports" }] : []),
-  ];
   return (
     <CrmContext.Provider value={context}>
       <div className="crm-window">
@@ -339,7 +346,14 @@ export function App() {
             <button className="mobile-menu round-button" aria-label="Toggle navigation" onClick={() => setMobileNav(!mobileNav)}>
               <List size={22} />
             </button>
-            <TurfMenu collapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar} onReset={() => setReset(true)} onOpen={() => setNotifications(false)} />
+            <TurfMenu
+              collapsed={sidebarCollapsed}
+              onToggleSidebar={toggleSidebar}
+              onReset={() => setReset(true)}
+              onOpen={() => setNotifications(false)}
+              demoNotes={demoNotes}
+              onDemoNotes={setDemoNotes}
+            />
             <strong>Turf</strong>
             <div className="header-workspace" title={state.settings.workspace}>
               <HouseLine size={18} weight="light" />
@@ -349,15 +363,7 @@ export function App() {
               </div>
             </div>
           </div>
-          <nav className="top-tabs" aria-label="Main sections">
-            {primary.map(item => (
-              <button key={item.id} aria-current={activePrimary === item.id ? "page" : undefined} onClick={() => navigate(item.target)}>
-                {item.label}
-                {item.id === "work" && <CountBadge count={workCount} label="items needing attention" />}
-              </button>
-            ))}
-          </nav>
-          <div className="header-tools">
+          <div className="header-search">
             <div className="global-search">
               <Search value={query} onChange={setQuery} placeholder="Find a person or property" label="Search workspace" />
               {searchPanel.mounted && (
@@ -379,6 +385,8 @@ export function App() {
                 </div>
               )}
             </div>
+          </div>
+          <div className="header-tools">
             <div className="notification-anchor">
               <button className="round-button" aria-label="Notifications" aria-expanded={notifications} onClick={() => setNotifications(!notifications)}>
                 <Bell size={21} />
@@ -437,32 +445,6 @@ export function App() {
           <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} mobileOpen={mobileNav} page={page} />
           {mobileNav && <button className="nav-backdrop" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
           <main className="main-content" ref={main} id="main-content">
-            <div className="content-topline">
-              <span>
-                <span className="status-dot" />
-                Florida acquisitions · October 2026
-              </span>
-              {state.remote ? (
-                <div>
-                  <Badge tone={state.remoteStatus === "error" ? "danger" : "good"}>
-                    {state.remoteStatus === "syncing"
-                      ? "Syncing"
-                      : state.remoteStatus === "offline"
-                        ? "Server unreachable"
-                        : state.remoteStatus === "error"
-                          ? "Sync problem"
-                          : "Live server"}
-                  </Badge>
-                </div>
-              ) : (
-                <div>
-                  <Badge>Sample data</Badge>
-                  <button className="text-button muted" onClick={() => setReset(true)}>
-                    Reset preview
-                  </button>
-                </div>
-              )}
-            </div>
             {state.remoteError && state.remoteStatus === "error" && (
               <p className="notice" role="alert">
                 {state.remoteError}
@@ -485,9 +467,7 @@ export function App() {
           </main>
         </div>
         <footer className="app-footer">
-          <span>
-            Turf · Full CRM mode <span className="footer-divider">/</span> Interactive UI prototype
-          </span>
+          <span>{state.settings.workspace}</span>
           <span className="footer-status">
             <span className={"status-dot " + (!state.online ? "amber" : "")} />
             {state.online
@@ -498,7 +478,23 @@ export function App() {
                   : "All changes saved locally"
               : "Offline · " + queue.length + " pending items"}
           </span>
-          <span>{state.remote ? "Connected workspace · outreach stays as drafts" : "Sample workspace · no live outreach"}</span>
+          <span>
+            {state.remote ? (
+              state.remoteStatus === "syncing" ? (
+                "Syncing with the server"
+              ) : state.remoteStatus === "offline" ? (
+                "Server unreachable"
+              ) : state.remoteStatus === "error" ? (
+                "Sync problem"
+              ) : (
+                "Connected to the server"
+              )
+            ) : (
+              <>
+                Sample workspace<span className="demo-note"> · no live outreach</span>
+              </>
+            )}
+          </span>
         </footer>
         <LiveCaptions />
         {toastPanel.mounted && (

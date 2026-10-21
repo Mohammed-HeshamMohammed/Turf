@@ -81,7 +81,9 @@ export function RemoteGate({ onReady, onLeave }) {
     <div className="remote-gate">
       <Card
         title={step === "unlock" ? "Keep an offline copy on this device?" : "Sign in to your Turf workspace"}
-        subtitle={step === "unlock" ? "Records and pending changes are encrypted with a passphrase only you know." : "Your records stay on your organization's server."}
+        subtitle={
+          step === "unlock" ? "Records and pending changes are encrypted with a passphrase only you know." : "Your records stay on your organization's server."
+        }
       >
         {step === "checking" && <p className="muted">Checking your session…</p>}
         {step === "offline" && (
@@ -158,8 +160,8 @@ export function RemoteGate({ onReady, onLeave }) {
         {step === "unlock" && (
           <form className="remote-step" onSubmit={event => unlock(event, true)}>
             <p className="body-copy">
-              Signed in as <strong>{me.user.name}</strong>. With a passphrase, this device keeps an encrypted copy so you can keep working without a
-              connection for up to a day. Without one, pending changes last only while this tab is open.
+              Signed in as <strong>{me.user.name}</strong>. With a passphrase, this device keeps an encrypted copy so you can keep working without a connection
+              for up to a day. Without one, pending changes last only while this tab is open.
             </p>
             <Field label="Offline passphrase" help="Use the same passphrase each time on this device.">
               <input type="password" autoComplete="new-password" minLength={8} value={form.passphrase} onChange={field("passphrase")} />

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowClockwise, CloudArrowUp, FileCsv, GearSix, Plugs, SidebarSimple, SignOut, SquaresFour, WifiHigh, WifiSlash } from "@phosphor-icons/react";
+import { ArrowClockwise, CloudArrowUp, FileCsv, GearSix, Plugs, SidebarSimple, SignOut, SquaresFour, WifiHigh, WifiSlash, Info } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
 import { personalProfile } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { Badge, Select, usePresence } from "./ui.jsx";
 
-export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen }) {
+export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen, demoNotes, onDemoNotes }) {
   const { state, dispatch, navigate, notify, connect, signOut } = useCrm();
   const [open, setOpen] = useState(false);
   const panel = usePresence(open);
@@ -123,6 +123,9 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen }) {
             </div>
           ) : (
             <>
+              <div className="turf-menu-demo-head">
+                <small>Sample workspace</small>
+              </div>
               <div className="role-switcher">
                 <label htmlFor="preview-role">Explore as</label>
                 <Select
@@ -148,6 +151,11 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen }) {
                 <small>{role.scope} · UI preview</small>
               </div>
               <div className="turf-menu-actions">
+                <button type="button" className="menu-switch" role="switch" aria-checked={Boolean(demoNotes)} onClick={() => onDemoNotes(!demoNotes)}>
+                  <Info size={19} />
+                  <span>Show demo notes</span>
+                  <i className="mini-switch" aria-hidden="true" />
+                </button>
                 <button onClick={() => run(onReset)}>
                   <ArrowClockwise size={19} />
                   <span>Reset sample workspace</span>

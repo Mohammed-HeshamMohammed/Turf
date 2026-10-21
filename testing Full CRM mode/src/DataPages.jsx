@@ -187,7 +187,7 @@ export function Lists({ id }) {
     );
   return (
     <>
-      <PageHeader eyebrow="Source data" title="Good work starts with a good list." description="Original rows, contact evidence, and CRM work stay connected.">
+      <PageHeader title="Source lists" description="Imported lists and the leads that came from them.">
         {capability(state, "import") && (
           <Button variant="primary" icon={UploadSimple} onClick={() => input.current.click()}>
             Import CSV
@@ -351,11 +351,7 @@ export function SkipTracing() {
   if (!allowed) return <Empty title="Skip Tracing is outside this role">Data operators work here before leads enter the outreach queue.</Empty>;
   return (
     <div className="skip-workspace">
-      <PageHeader
-        eyebrow="Data workspace · Skip Tracing"
-        title="Start with what your list knows."
-        description="Map your source, check the evidence, and review people and properties together."
-      >
+      <PageHeader title="Skip Tracing" description="Map a list, check its contact details, and review the results.">
         <Segmented
           label="Skip Tracing execution mode"
           value={mode}

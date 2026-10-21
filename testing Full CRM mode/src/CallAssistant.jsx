@@ -226,7 +226,7 @@ export function CallAssistant({ lead, person, script, onScript, activeCall, capt
           <li>The next agreed conversation</li>
         </ul>
       </div>
-      <p className="ai-note">Preview only: no audio is captured or sent, and prompts are drawn from the lead record.</p>
+      <p className="ai-note demo-note">Preview only: no audio is captured or sent, and prompts are drawn from the lead record.</p>
     </Card>
   );
 }

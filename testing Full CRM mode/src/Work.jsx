@@ -113,7 +113,7 @@ export function Calls({ target }) {
   const calls = [...(lead?.calls || [])].reverse();
   return (
     <>
-      <PageHeader eyebrow="Outreach workspace" title="One good conversation at a time." description="Your queue, the seller context, and a clear next step." />
+      <PageHeader title="Calls" />
       <div className="call-layout">
         <Card
           title="Your call queue"
@@ -171,7 +171,9 @@ export function Calls({ target }) {
             <>
               <Card className="call-person">
                 <div className="row">
-                  <Badge tone="good">Sample phone workspace</Badge>
+                  <Badge tone="good" className="demo-note">
+                    Sample phone workspace
+                  </Badge>
                   <Status value={lead.stage} />
                 </div>
                 <h2>{lead.name}</h2>
@@ -204,7 +206,7 @@ export function Calls({ target }) {
                 {activeCall && (
                   <div className="call-live" role="status">
                     <span className="status-dot" />
-                    Demo call in progress · audio is simulated
+                    Call in progress<span className="demo-note"> · demo audio, no number is dialled</span>
                     {!captions && (
                       <button type="button" className="text-button" onClick={() => toggleCaptions(true)}>
                         Turn on live captions
@@ -264,7 +266,7 @@ export function Calls({ target }) {
                     Record demo session
                   </label>
                 </div>
-                {recording && <small>Recording preview enabled. This prototype does not record microphone audio.</small>}
+                {recording && <small className="demo-note">Recording preview enabled. This prototype does not record microphone audio.</small>}
               </Card>
               <CallHistory calls={calls} />
             </>
@@ -329,7 +331,7 @@ export function Handoffs() {
   const items = state.handoffs.filter(item => ids.has(item.leadId) && (filter === "All" || item.status === filter));
   return (
     <>
-      <PageHeader title="Good handoffs keep the context." description="Know who sent it, who accepts it, and what happens next." />
+      <PageHeader title="Handoffs" description="Leads passed between people, waiting to be accepted or declined." />
       <div className="filter-bar">
         <Segmented label="Handoff status" value={filter} onChange={setFilter} options={["All", "Requested", "Accepted", "Declined"]} />
         <span className="result-count">{items.length} handoffs</span>
@@ -633,7 +635,7 @@ export function Deals({ id }) {
   }
   return (
     <>
-      <PageHeader title="From conversation to closing." description="A separate deal for every transaction, connected to its lead and property.">
+      <PageHeader title="Deals">
         {capability(state, "finance") && (!state.remote || leads.some(item => !deals.some(deal => deal.leadId === item.id))) && (
           <Button variant="primary" icon={Plus} onClick={() => setCreating(true)}>
             New deal
@@ -775,7 +777,7 @@ export function Tasks({ create = false }) {
     return (
       <>
         <Breadcrumb items={[{ label: "Tasks", path: "work/tasks" }, { label: "New task" }]} />
-        <PageHeader title="Make the next step explicit." />
+        <PageHeader title="New task" />
         <form
           className="card creation-form"
           onSubmit={event => {
@@ -849,10 +851,7 @@ export function Tasks({ create = false }) {
     );
   return (
     <>
-      <PageHeader
-        title={state.role === "client" ? "Your shared next steps" : "A place for every next step."}
-        description={"All times shown in " + state.settings.timezone + "."}
-      >
+      <PageHeader title="Tasks" description={"All times shown in " + state.settings.timezone + "."}>
         {editable && (
           <Button variant="primary" icon={Plus} onClick={() => navigate("work/tasks/new")}>
             New task
@@ -1032,7 +1031,7 @@ export function Calendar() {
   }
   return (
     <>
-      <PageHeader title="A little room to plan ahead." description={"Appointments and next steps · " + state.settings.timezone}>
+      <PageHeader title="Calendar" description={"Appointments and next steps · " + state.settings.timezone}>
         <Button
           onClick={() => {
             setMonth(9);
@@ -1131,10 +1130,7 @@ export function Inbox() {
   const canMessage = capability(state, "message") || capability(state, "publicComment");
   return (
     <>
-      <PageHeader
-        title={state.role === "client" ? "Conversations with your team." : "Every conversation stays connected."}
-        description="Email, SMS, and team context beside the record they belong to."
-      >
+      <PageHeader title="Inbox" description="Email, SMS and team messages, each beside its lead.">
         {canMessage && (
           <Button
             variant="primary"

@@ -39,11 +39,7 @@ export function Reports() {
   });
   return (
     <>
-      <PageHeader
-        eyebrow={ROLES[state.role].scope}
-        title={client ? "Your shared project, at a glance." : "A clearer view of what's working."}
-        description="Reports follow the same record and field permissions as the workspace."
-      >
+      <PageHeader title="Reports" description="Based only on the records you can see.">
         <Button icon={FilePdf} onClick={() => window.print()}>
           Print / save PDF
         </Button>
@@ -214,11 +210,7 @@ export function Sync() {
   const pending = queue.filter(item => item.status !== "Conflict" && item.kind !== "Communication draft");
   return (
     <>
-      <PageHeader
-        eyebrow="This device"
-        title="Your work should survive a lost connection."
-        description="Keep pending changes visible. Review conflicts before replacing anyone's work."
-      >
+      <PageHeader title="Sync" description="Changes waiting to be sent, and any that need your decision.">
         <Button
           variant="primary"
           icon={CloudArrowUp}
@@ -278,7 +270,9 @@ export function Sync() {
               </small>
             </div>
             <Status value={item.status} />
-            {["Conflict", "Rejected"].includes(item.status) && <Button onClick={() => setResolution(item)}>{item.status === "Conflict" ? "Review conflict" : "Review"}</Button>}
+            {["Conflict", "Rejected"].includes(item.status) && (
+              <Button onClick={() => setResolution(item)}>{item.status === "Conflict" ? "Review conflict" : "Review"}</Button>
+            )}
             {item.status === "Rejected" && item.serverValue && <small className="muted">{item.serverValue}</small>}
             {item.kind === "Communication draft" && <Badge>Not sent</Badge>}
           </div>
@@ -337,7 +331,9 @@ export function Sync() {
               onClick={() => {
                 dispatch({ type: "RESOLVE", id: resolution.id, discard: true });
                 setResolution(null);
-                notify(state.remote ? "Your change was dropped; the server's value stays" : "Pending operation discarded; optimistic preview values remain local");
+                notify(
+                  state.remote ? "Your change was dropped; the server's value stays" : "Pending operation discarded; optimistic preview values remain local",
+                );
               }}
             >
               {state.remote ? "Use the server's" : "Discard pending operation"}
@@ -370,11 +366,7 @@ export function Settings({ section = "workspace" }) {
     return <Empty title="This settings page is outside your role">Choose a section available in your workspace.</Empty>;
   return (
     <>
-      <PageHeader
-        eyebrow="Workspace settings"
-        title="Make the workspace work for your team."
-        description="Clear defaults, intentional access, and the right connections."
-      />
+      <PageHeader title="Settings" description="Workspace defaults, access and connections." />
       <div className="settings-tabs">
         {sections.map(item => (
           <Button key={item.id} icon={item.icon} variant={section === item.id ? "primary" : ""} onClick={() => navigate("settings/" + item.id)}>
