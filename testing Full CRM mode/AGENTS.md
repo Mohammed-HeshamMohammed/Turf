@@ -39,3 +39,4 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - `npm run css:unused` lists stylesheet rules no code uses (`-- --write` removes them). After any stylesheet clean-up, compare every screen at desktop and phone width before committing; merging repeated rules or @media blocks automatically changed phone layouts and was rejected.
 
 - The sidebar rail is only as tall as its items and sits at the vertical centre of the window (not stretched top to bottom).
+- Board pages (Deals, Leads pipeline) fill the window height; each column scrolls on its own and the page itself does not scroll.

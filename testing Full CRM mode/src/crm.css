@@ -5063,3 +5063,20 @@ html.demo-quiet .demo-note {
     width: 100%;
   }
 }
+
+/* Boards fill the window: the page is as tall as the window, and each column scrolls on its own. */
+@media (min-width: 721px) and (min-height: 600px) {
+  .page-content:has(> .kanban) {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .page-content > .kanban {
+    flex: 1;
+    min-height: 0;
+  }
+  .page-content > .kanban .kanban-column {
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
