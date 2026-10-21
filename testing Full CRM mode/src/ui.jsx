@@ -91,8 +91,23 @@ export function Search({ value, onChange, placeholder = "Search leads", label = 
   );
 }
 export function Segmented({ value, options, onChange, label }) {
+  const ref = useRef(null);
+  const [pill, setPill] = useState(null);
+  // The white pill slides to the chosen option instead of jumping.
+  useLayoutEffect(() => {
+    const group = ref.current;
+    const measure = () => {
+      const button = group.querySelector('[aria-pressed="true"]');
+      setPill(button ? { left: button.offsetLeft, width: button.offsetWidth, height: button.offsetHeight, top: button.offsetTop } : null);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(group);
+    return () => observer.disconnect();
+  }, [value, options]);
   return (
-    <div className="segmented" role="group" aria-label={label}>
+    <div className="segmented" role="group" aria-label={label} ref={ref}>
+      {pill && <span className="segmented-pill" aria-hidden="true" style={pill} />}
       {options.map(option => {
         const item = typeof option === "string" ? { id: option, label: option } : option;
         return (

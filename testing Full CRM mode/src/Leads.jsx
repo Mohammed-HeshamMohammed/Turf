@@ -167,7 +167,7 @@ export function Leads() {
       {view === "Map" ? (
         <PropertyMap rows={leads} title={client ? "Shared property map" : "Lead map"} />
       ) : view === "Board" && !client ? (
-        <div className="kanban lead-board">
+        <div className="kanban lead-board view-in">
           {LEAD_STAGES.map(column => (
             <section className={"kanban-column" + (drag?.over === column ? " drop-target" : "")} data-stage={column} key={column}>
               <header>

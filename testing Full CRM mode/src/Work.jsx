@@ -701,7 +701,7 @@ export function Deals({ id }) {
         <Segmented label="Deal view" value={view} options={["Pipeline", "List"]} onChange={setView} />
       </div>
       {view === "Pipeline" ? (
-        <div className="kanban deal-board">
+        <div className="kanban deal-board view-in">
           {DEAL_STAGES.map(stage => (
             <section key={stage} className={"kanban-column" + (drag?.over === stage ? " drop-target" : "")} data-stage={stage}>
               <header>
@@ -754,7 +754,7 @@ export function Deals({ id }) {
           )}
         </div>
       ) : (
-        <Card className="table-card">
+        <Card className="table-card view-in">
           <div className="table-scroll">
             <table>
               <thead>

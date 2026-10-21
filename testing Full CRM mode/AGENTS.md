@@ -42,3 +42,4 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Board pages (Deals, Leads pipeline) fill the window height; each column scrolls on its own and the page itself does not scroll.
 - Deals board: six open stages in the top row, Closed won and Closed lost in a shorter row beneath.
 - Deals board: five stages on top; Closed won, Negotiation and Closed lost in an equal-height bottom row, each a third wide with cards flowing into as many columns as fit.
+- Switching a view (Pipeline/List, Board) slides the white pill in the segmented control and eases the new view in over 200ms; reduced motion turns it off.

@@ -5197,3 +5197,32 @@ html.demo-quiet .demo-note {
   --stage-dot: #c25b52;
   --stage-ink: #7a2a24;
 }
+
+/* Switching views: the pill slides to the chosen option and the new view eases in. */
+.segmented {
+  position: relative;
+}
+.segmented button {
+  position: relative;
+  z-index: 1;
+}
+.segmented button[aria-pressed="true"] {
+  background: transparent;
+}
+.segmented-pill {
+  position: absolute;
+  border-radius: 999px;
+  background: white;
+  transition:
+    left 200ms var(--ease-out),
+    width 200ms var(--ease-out);
+}
+.view-in {
+  animation: view-in 200ms var(--ease-out);
+}
+@keyframes view-in {
+  from {
+    opacity: 0.001;
+    transform: translateY(8px);
+  }
+}
