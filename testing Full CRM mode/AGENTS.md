@@ -43,4 +43,4 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Deals board: six open stages in the top row, Closed won and Closed lost in a shorter row beneath.
 - Deals board: five stages on top; Closed won, Negotiation and Closed lost in an equal-height bottom row, each a third wide with cards flowing into as many columns as fit.
 - Switching a view (Pipeline/List, Board) slides the white pill in the segmented control and eases the new view in over 200ms; reduced motion turns it off.
-- Every table's column titles sort (click: ascending, descending, off; arrow shows the order) and most have a small funnel that filters that column by text. Use `useTableView` and `SortHeader` from ui.jsx for any new table.
+- Every table's column titles sort when pressed (ascending, descending, off; an arrow shows the order). Use `useTableView` and `SortHeader` from ui.jsx for any new table.

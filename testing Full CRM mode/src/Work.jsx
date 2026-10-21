@@ -526,11 +526,11 @@ export function Deals({ id }) {
   const table = useTableView(
     deals.map(deal => ({ deal, lead: leads.find(item => item.id === deal.leadId) })),
     {
-      property: { value: row => row.lead.address, text: row => row.lead.name + " " + row.lead.address },
-      stage: { value: row => DEAL_STAGES.indexOf(row.deal.stage), text: row => row.deal.stage },
-      amount: { value: row => row.deal.amount, text: row => money(row.deal.amount) },
-      fee: { value: row => row.deal.fee, text: row => money(row.deal.fee) },
-      close: { value: row => row.deal.closeDate, text: row => shortDate(row.deal.closeDate) + " " + row.deal.closeDate },
+      property: { value: row => row.lead.address },
+      stage: { value: row => DEAL_STAGES.indexOf(row.deal.stage) },
+      amount: { value: row => row.deal.amount },
+      fee: { value: row => row.deal.fee },
+      close: { value: row => row.deal.closeDate },
     },
   );
   // Pointer-based drag so cards move the same way in browsers and the desktop webview, which swallows native drag and drop.
@@ -818,7 +818,6 @@ export function Deals({ id }) {
           <div className="list-footer">
             <span>
               {table.rows.length} {table.rows.length === 1 ? "deal" : "deals"}
-              {table.filtered ? " shown" : ""}
             </span>
             <span>{money(table.rows.reduce((sum, row) => sum + row.deal.amount, 0))} in offers</span>
             <span>{money(table.rows.reduce((sum, row) => sum + row.deal.fee, 0))} expected fees</span>

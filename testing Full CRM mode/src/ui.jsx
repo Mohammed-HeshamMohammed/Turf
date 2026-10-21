@@ -1,4 +1,4 @@
-import { ArrowUpRight, CaretDown, CaretRight, CaretUp, CaretUpDown, Check, DotsThree, FunnelSimple, MagnifyingGlass, Plus, X, WarningCircle } from "@phosphor-icons/react";
+import { ArrowUpRight, CaretDown, CaretRight, CaretUp, CaretUpDown, Check, DotsThree, MagnifyingGlass, Plus, X, WarningCircle } from "@phosphor-icons/react";
 import { Children, Fragment, isValidElement, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useCrm } from "./context.jsx";
@@ -119,82 +119,37 @@ export function Segmented({ value, options, onChange, label }) {
     </div>
   );
 }
-/**
- * Sorting and per-column filtering for a table. `columns` maps an id to { value(row), text?(row) }:
- * `value` is what the column sorts by (numbers sort as numbers), `text` is what the filter searches.
- */
+/** Sorting for a table. `columns` maps an id to { value(row) }: numbers sort as numbers, text alphabetically. */
 export function useTableView(rows, columns) {
   const [sort, setSort] = useState(null);
-  const [filters, setFilters] = useState({});
-  const textOf = (row, id) => String((columns[id].text || columns[id].value)(row) ?? "").toLowerCase();
-  let shown = rows.filter(row => Object.entries(filters).every(([id, query]) => !query || !columns[id] || textOf(row, id).includes(query.toLowerCase())));
+  let shown = rows;
   if (sort && columns[sort.id]) {
     const get = columns[sort.id].value;
     const direction = sort.dir === "asc" ? 1 : -1;
-    shown = [...shown].sort((a, b) => {
+    shown = [...rows].sort((a, b) => {
       const x = get(a);
       const y = get(b);
       if (typeof x === "number" && typeof y === "number") return direction * (x - y);
       return direction * String(x ?? "").localeCompare(String(y ?? ""), undefined, { numeric: true, sensitivity: "base" });
     });
   }
-  return { rows: shown, sort, setSort, filters, setFilters, filtered: Object.values(filters).some(Boolean) };
+  return { rows: shown, sort, setSort };
 }
-/** A column title that sorts on click (up, down, off) and opens a small "contains" filter. */
-export function SortHeader({ view, id, children, label = typeof children === "string" ? children : id, filterable = true }) {
-  const [open, setOpen] = useState(false);
-  const root = useRef(null);
+/** A column title that sorts when pressed: ascending, then descending, then back to the original order. */
+export function SortHeader({ view, id, children, label = typeof children === "string" ? children : id }) {
   const dir = view.sort?.id === id ? view.sort.dir : null;
-  const query = view.filters[id] || "";
-  useEffect(() => {
-    if (!open) return undefined;
-    const outside = event => !root.current?.contains(event.target) && setOpen(false);
-    const escape = event => event.key === "Escape" && setOpen(false);
-    document.addEventListener("pointerdown", outside);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("pointerdown", outside);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [open]);
   const Caret = dir === "asc" ? CaretUp : dir === "desc" ? CaretDown : CaretUpDown;
   return (
-    <th ref={root} className="sort-th" aria-sort={dir === "asc" ? "ascending" : dir === "desc" ? "descending" : undefined}>
-      <div className="sort-head">
-        <button
-          type="button"
-          className={"sort-button" + (dir ? " is-sorted" : "")}
-          title={"Sort by " + label.toLowerCase()}
-          onClick={() => view.setSort(dir === "asc" ? { id, dir: "desc" } : dir === "desc" ? null : { id, dir: "asc" })}
-        >
-          <span>{children}</span>
-          <Caret size={13} weight={dir ? "bold" : "regular"} aria-hidden="true" />
-        </button>
-        {filterable && (
-          <button
-            type="button"
-            className={"filter-button" + (query ? " is-on" : "")}
-            aria-label={"Filter " + label.toLowerCase()}
-            aria-expanded={open}
-            onClick={() => setOpen(!open)}
-          >
-            <FunnelSimple size={14} weight={query ? "fill" : "regular"} />
-          </button>
-        )}
-      </div>
-      {open && (
-        <div className="filter-pop">
-          <input
-            autoFocus
-            type="search"
-            value={query}
-            placeholder={"Contains…"}
-            aria-label={"Show only " + label.toLowerCase() + " containing"}
-            onChange={event => view.setFilters({ ...view.filters, [id]: event.target.value })}
-            onKeyDown={event => event.key === "Enter" && setOpen(false)}
-          />
-        </div>
-      )}
+    <th className="sort-th" aria-sort={dir === "asc" ? "ascending" : dir === "desc" ? "descending" : undefined}>
+      <button
+        type="button"
+        className={"sort-button" + (dir ? " is-sorted" : "")}
+        title={"Sort by " + label.toLowerCase()}
+        onClick={() => view.setSort(dir === "asc" ? { id, dir: "desc" } : dir === "desc" ? null : { id, dir: "asc" })}
+      >
+        <span>{children}</span>
+        <Caret size={13} weight={dir ? "bold" : "regular"} aria-hidden="true" />
+      </button>
     </th>
   );
 }

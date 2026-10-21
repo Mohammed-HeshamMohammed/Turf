@@ -15,7 +15,23 @@ import {
 import { ROLES } from "./data.js";
 import { capability, visibleLeads, visibleTasks } from "./model.js";
 import { useCrm } from "./context.jsx";
-import { Badge, Select, Button, Card, Empty, Field, Modal, PageHeader, Person, Segmented, SortHeader, Status, downloadCsv, money, useTableView } from "./ui.jsx";
+import {
+  Badge,
+  Select,
+  Button,
+  Card,
+  Empty,
+  Field,
+  Modal,
+  PageHeader,
+  Person,
+  Segmented,
+  SortHeader,
+  Status,
+  downloadCsv,
+  money,
+  useTableView,
+} from "./ui.jsx";
 
 export function Reports() {
   const { state, dispatch, notify } = useCrm();
@@ -106,23 +122,23 @@ export function Reports() {
                 <SortHeader view={table} id="source">
                   {client ? "Location" : "Source"}
                 </SortHeader>
-                <SortHeader view={table} id="count" filterable={false}>
+                <SortHeader view={table} id="count">
                   Visible leads
                 </SortHeader>
                 {!client && (
-                  <SortHeader view={table} id="ready" filterable={false}>
+                  <SortHeader view={table} id="ready">
                     Ready to call
                   </SortHeader>
                 )}
-                <SortHeader view={table} id="qualified" filterable={false}>
+                <SortHeader view={table} id="qualified">
                   Qualified
                 </SortHeader>
                 {finance && (
-                  <SortHeader view={table} id="deals" filterable={false}>
+                  <SortHeader view={table} id="deals">
                     Deals
                   </SortHeader>
                 )}
-                <SortHeader view={table} id="share" filterable={false}>
+                <SortHeader view={table} id="share">
                   Share of records
                 </SortHeader>
               </tr>

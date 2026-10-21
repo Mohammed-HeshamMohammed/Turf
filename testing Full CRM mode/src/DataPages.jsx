@@ -7,7 +7,24 @@ import { useCrm } from "./context.jsx";
 import { mappedRecord, sourceEvidence, sourceValue } from "./skiptrace-fields.js";
 import { SourceFieldMapping } from "./SourceFieldMapping.jsx";
 import { PropertyMap } from "./PropertyMap.jsx";
-import { Badge, Select, Button, Card, Checkbox, Empty, Field, LeadLink, PageHeader, Search, Segmented, SortHeader, Status, downloadCsv, Breadcrumb, useTableView } from "./ui.jsx";
+import {
+  Badge,
+  Select,
+  Button,
+  Card,
+  Checkbox,
+  Empty,
+  Field,
+  LeadLink,
+  PageHeader,
+  Search,
+  Segmented,
+  SortHeader,
+  Status,
+  downloadCsv,
+  Breadcrumb,
+  useTableView,
+} from "./ui.jsx";
 
 export function Lists({ id }) {
   const { state, dispatch, navigate, notify } = useCrm();
@@ -22,10 +39,10 @@ export function Lists({ id }) {
     leads.filter(lead => lead.datasetId === id),
     {
       owner: { value: lead => lead.name },
-      property: { value: lead => lead.address, text: lead => [lead.address, lead.city, lead.region].join(" ") },
-      phone: { value: lead => lead.phone || "￿", text: lead => lead.phone || "No phone supplied" },
+      property: { value: lead => lead.address },
+      phone: { value: lead => lead.phone || "￿" },
       quality: { value: lead => lead.verdict || "" },
-      stage: { value: lead => LEAD_STAGES.indexOf(lead.stage), text: lead => lead.stage },
+      stage: { value: lead => LEAD_STAGES.indexOf(lead.stage) },
     },
   );
   function importRows(rows, name, columns) {
@@ -175,30 +192,30 @@ export function Lists({ id }) {
               </thead>
               <tbody>
                 {table.rows.map(lead => (
-                    <tr key={lead.id}>
-                      <td>
-                        <LeadLink lead={lead} detail={false} />
-                      </td>
-                      <td>
-                        {lead.address}
-                        <small>
-                          {lead.city}, {lead.region}
-                        </small>
-                      </td>
-                      <td>{lead.phone || <span className="muted">No phone supplied</span>}</td>
-                      <td>
-                        <Status value={lead.verdict} />
-                      </td>
-                      <td>
-                        <Status value={lead.stage} />
-                      </td>
-                      <td>
-                        <Button onClick={() => navigate("work/leads/" + lead.id)}>
-                          Open lead <ArrowUpRight size={14} />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                  <tr key={lead.id}>
+                    <td>
+                      <LeadLink lead={lead} detail={false} />
+                    </td>
+                    <td>
+                      {lead.address}
+                      <small>
+                        {lead.city}, {lead.region}
+                      </small>
+                    </td>
+                    <td>{lead.phone || <span className="muted">No phone supplied</span>}</td>
+                    <td>
+                      <Status value={lead.verdict} />
+                    </td>
+                    <td>
+                      <Status value={lead.stage} />
+                    </td>
+                    <td>
+                      <Button onClick={() => navigate("work/leads/" + lead.id)}>
+                        Open lead <ArrowUpRight size={14} />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

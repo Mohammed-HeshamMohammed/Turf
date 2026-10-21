@@ -5316,13 +5316,7 @@ html.demo-quiet .demo-note {
 .sort-th {
   position: relative;
 }
-.sort-head {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-.sort-button,
-.filter-button {
+.sort-button {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -5340,38 +5334,6 @@ html.demo-quiet .demo-note {
 .sort-button.is-sorted svg {
   opacity: 1;
 }
-.sort-button:hover,
-.filter-button:hover {
+.sort-button:hover {
   background: var(--well);
-}
-.filter-button {
-  margin-left: 0;
-  opacity: 0.45;
-}
-.filter-button:hover,
-.filter-button.is-on,
-.filter-button[aria-expanded="true"] {
-  opacity: 1;
-}
-.filter-pop {
-  position: absolute;
-  top: calc(100% - 6px);
-  left: -4px;
-  z-index: 30;
-  padding: 8px;
-  border-radius: 14px;
-  background: var(--raised);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14);
-}
-.filter-pop input {
-  width: 190px;
-  min-height: 34px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: var(--well);
-  font: inherit;
-  font-size: 13px;
-}
-.table-scroll:has(.filter-pop) {
-  min-height: 150px;
 }

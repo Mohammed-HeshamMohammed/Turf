@@ -61,15 +61,12 @@ export function Leads() {
     next: !hideEmpty || client || leads.some(lead => lead.callback),
   };
   const table = useTableView(leads, {
-    owner: { value: lead => lead.name, text: lead => lead.name + " " + lead.source },
-    property: { value: lead => lead.address, text: lead => [lead.address, lead.city, lead.region, lead.zip].join(" ") },
+    owner: { value: lead => lead.name },
+    property: { value: lead => lead.address },
     verdict: { value: lead => lead.verdict || "" },
-    stage: { value: lead => LEAD_STAGES.indexOf(lead.stage), text: lead => lead.stage },
+    stage: { value: lead => LEAD_STAGES.indexOf(lead.stage) },
     assignee: { value: lead => lead.assignee || "" },
-    next: {
-      value: lead => (lead.callback ? (lead.callbackDate || "") + " " + lead.callback : "￿"),
-      text: lead => (client ? "Review property brief" : lead.callback ? callbackLabel(lead.callbackDate, lead.callback) : "Set a next step"),
-    },
+    next: { value: lead => (lead.callback ? (lead.callbackDate || "") + " " + lead.callback : "￿") },
   });
   // Pointer-based drag so cards move the same way in browsers and the desktop webview, which swallows native drag and drop.
   function startDrag(event, lead) {
@@ -340,7 +337,7 @@ export function Leads() {
               </tbody>
             </table>
           </div>
-          {!table.rows.length && <Empty title="No leads match this view">Try another stage, search term or column filter.</Empty>}
+          {!table.rows.length && <Empty title="No leads match this view">Try another stage or search term.</Empty>}
           <footer className="table-footer">
             <span>{ROLES[state.role].scope}</span>
             <span>{leads.length} records · sample workspace</span>

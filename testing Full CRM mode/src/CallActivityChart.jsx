@@ -27,8 +27,8 @@ function IntervalTooltip({ active, payload }) {
 }
 export function CallActivityChart() {
   const table = useTableView(CALL_TREND, {
-    day: { value: point => point.slot, text: point => point.day + " " + point.date },
-    time: { value: point => point.slot, text: point => point.time },
+    day: { value: point => point.slot },
+    time: { value: point => point.slot },
     calls: { value: point => point.calls },
     reached: { value: point => point.reached },
   });
@@ -106,10 +106,10 @@ export function CallActivityChart() {
                 <SortHeader view={table} id="time">
                   Time
                 </SortHeader>
-                <SortHeader view={table} id="calls" filterable={false}>
+                <SortHeader view={table} id="calls">
                   Calls
                 </SortHeader>
-                <SortHeader view={table} id="reached" filterable={false}>
+                <SortHeader view={table} id="reached">
                   Reached
                 </SortHeader>
               </tr>
