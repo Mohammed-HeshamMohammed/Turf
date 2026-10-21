@@ -311,6 +311,18 @@ export function reducer(state, action) {
       if (!task || (!capability(state, "edit") && !capability(state, "review")) || !visibleTasks(state).some(item => item.id === task.id)) return state;
       return { ...state, tasks: state.tasks.filter(item => item.id !== task.id), queue: queued(state, task.leadId, "Task removed", "Task") };
     }
+    case "RESTORE_TASK": {
+      const task = action.task;
+      if (!task || state.tasks.some(item => item.id === task.id) || !visibleLeads(state).some(lead => lead.id === task.leadId)) return state;
+      return { ...state, tasks: [...state.tasks, task], queue: queued(state, task.leadId, task.title, "Task") };
+    }
+    case "RESTORE_NOTE": {
+      const target = state.leads.find(item => item.id === action.leadId);
+      if (state.remote || !target || !action.note || target.notes.some(item => item.id === action.note.id)) return state;
+      const notes = [...target.notes];
+      notes.splice(Math.min(action.index ?? notes.length, notes.length), 0, action.note);
+      return { ...state, leads: state.leads.map(item => (item.id === target.id ? { ...item, notes } : item)) };
+    }
     case "EDIT_NOTE":
     case "DELETE_NOTE": {
       const target = state.leads.find(item => item.id === action.leadId);

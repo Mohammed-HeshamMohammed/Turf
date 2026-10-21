@@ -21,9 +21,13 @@ export const windowDrag = {
 export function WindowStrip({ title }) {
   const [maximized, setMaximized] = useState(false);
   useEffect(() => {
+    // In a browser tab there is no window to watch.
+    if (!inDesktopApp()) return undefined;
     let stop;
     let gone = false;
-    watchMaximized(setMaximized).then(unlisten => (gone ? unlisten() : (stop = unlisten)));
+    watchMaximized(setMaximized)
+      .then(unlisten => (gone ? unlisten() : (stop = unlisten)))
+      .catch(() => {});
     return () => {
       gone = true;
       stop?.();

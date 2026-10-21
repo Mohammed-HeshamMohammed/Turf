@@ -388,7 +388,16 @@ export function LeadDetail({ id }) {
                 },
               },
               { label: "Open conversation", icon: Envelope, hidden: !capability(state, "message"), onClick: () => navigate("work/inbox?lead=" + id) },
-              { label: "Archive lead", icon: Archive, hidden: lead.archived || !editable || state.remote, onClick: () => setConfirm("archive") },
+              {
+                label: "Archive lead",
+                icon: Archive,
+                hidden: lead.archived || !editable || state.remote,
+                onClick: () => {
+                  dispatch({ type: "ARCHIVE_LEAD", id });
+                  notify(lead.name + " archived", { undo: () => dispatch({ type: "RESTORE_LEAD", id }) });
+                  navigate("work/leads");
+                },
+              },
               { label: "Delete permanently", danger: true, hidden: !lead.archived || !editable || state.remote, onClick: () => setConfirm("delete") },
               {
                 label: "Delete lead",
@@ -528,8 +537,9 @@ export function LeadDetail({ id }) {
                             <button
                               type="button"
                               onClick={() => {
+                                const index = lead.notes.findIndex(entry => entry.id === item.id);
                                 dispatch({ type: "DELETE_NOTE", leadId: id, noteId: item.id });
-                                notify("Note deleted");
+                                notify("Note deleted", { undo: () => dispatch({ type: "RESTORE_NOTE", leadId: id, note: item, index }) });
                               }}
                             >
                               Delete
@@ -842,23 +852,6 @@ export function LeadDetail({ id }) {
         </Modal>
       )}
       {newDeal && <NewDealModal lead={lead} onClose={() => setNewDeal(false)} />}
-      {confirm === "archive" && (
-        <ConfirmDialog
-          title="Archive this lead?"
-          confirmLabel="Archive lead"
-          onClose={() => setConfirm("")}
-          onConfirm={() => {
-            dispatch({ type: "ARCHIVE_LEAD", id });
-            setConfirm("");
-            notify("Lead archived. You can restore it from the archived view.");
-            navigate("work/leads");
-          }}
-        >
-          <p>
-            {lead.name} at {lead.address} leaves your lists, call queue, deals and search. Nothing is deleted, and you can restore it whenever you like.
-          </p>
-        </ConfirmDialog>
-      )}
       {confirm === "delete" && (
         <ConfirmDialog
           title="Delete this lead for good?"

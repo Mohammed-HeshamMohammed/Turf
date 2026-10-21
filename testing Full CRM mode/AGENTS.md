@@ -21,3 +21,16 @@ Before making substantial visual changes, use the Product Design plugin's `get-c
 When implementing from a selected generated mock, treat that image as the source of truth for layout, component anatomy, density, spacing, color, typography, visible content, and hierarchy.
 
 Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts/prepare-sites-build.mjs`, and `tests/sites-worker.test.mjs` intact so the same local prototype can be handed to Sites. Before a Sites handoff, run `npm run build` and `npm run test:sites`; the build must leave `dist/client/index.html`, `dist/server/index.js`, and `dist/.openai/hosting.json`.
+
+## Design decisions (product design pass, October 2026)
+
+- One navigation: the sidebar. There are no top tabs; the header holds the Turf menu, workspace, a centred search, the bell and the avatar.
+- Page titles are the page's plain name ("Leads", "Calls") with at most one short functional line under them. No eyebrow lines and no slogan headlines.
+- Nothing is smaller than 12px.
+- Motion is brief and only explains something: a 180ms page fade, menus and dialogs popping, board drag. No staggered rows, no text animations, no exit ghosts or waits between pages.
+- Notes that only explain the demo ("sample photo", "no number is dialled", "prototype does not record") carry the `demo-note` class and are hidden unless "Show demo notes" is on in the Turf menu's Sample workspace section, next to Explore as and Reset.
+- Calls has a focus mode: while a call is live the queue is hidden and the outcome card sits directly under the person. History and the map share one "About this lead" card with tabs.
+- Detail pages keep one primary action in the header (the lead page: Call); secondary and destructive actions go in the More menu.
+- The overview opens with "Needs you today": due tasks, expected callbacks, handoffs to accept and unread messages, each with the one action that deals with it.
+- Every on/off setting is the same switch (`Checkbox` renders it). Table row selection keeps plain checkboxes.
+- Reversible removals (archive a lead, delete a task or note) happen at once with Undo in the toast. Permanent removals (delete a lead for good, delete a deal) still ask first.

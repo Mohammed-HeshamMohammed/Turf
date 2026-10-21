@@ -42,6 +42,7 @@ import {
   Status,
   money,
   Breadcrumb,
+  Checkbox,
   ConfirmDialog,
 } from "./ui.jsx";
 
@@ -272,10 +273,7 @@ export function Calls({ target }) {
                   <Button icon={Handshake} onClick={() => navigate("work/leads/" + lead.id)}>
                     Qualify & hand off
                   </Button>
-                  <label className="check">
-                    <input type="checkbox" checked={recording} onChange={event => setRecording(event.target.checked)} />
-                    Record demo session
-                  </label>
+                  <Checkbox label="Record demo session" checked={recording} onChange={event => setRecording(event.target.checked)} />
                 </div>
                 {recording && <small className="demo-note">Recording preview enabled. This prototype does not record microphone audio.</small>}
               </Card>
@@ -806,7 +804,6 @@ export function Tasks({ create = false }) {
   const onlyLead = new URLSearchParams(route.split("?")[1]).get("lead") || "";
   const onlyPerson = new URLSearchParams(route.split("?")[1]).get("assignee") || "";
   const [editing, setEditing] = useState(null);
-  const [removingTask, setRemovingTask] = useState(null);
   const leads = visibleLeads(state);
   const tasks = visibleTasks(state).filter(
     task =>
@@ -1025,8 +1022,10 @@ export function Tasks({ create = false }) {
               <Button
                 variant="danger-button"
                 onClick={() => {
-                  setRemovingTask(editing);
+                  const removed = editing;
+                  dispatch({ type: "DELETE_TASK", id: removed.id });
                   setEditing(null);
+                  notify("Task deleted", { undo: () => dispatch({ type: "RESTORE_TASK", task: removed }) });
                 }}
               >
                 Delete task
@@ -1038,21 +1037,6 @@ export function Tasks({ create = false }) {
             </div>
           </form>
         </Modal>
-      )}
-      {removingTask && (
-        <ConfirmDialog
-          title="Delete this task?"
-          confirmLabel="Delete task"
-          danger
-          onClose={() => setRemovingTask(null)}
-          onConfirm={() => {
-            dispatch({ type: "DELETE_TASK", id: removingTask.id });
-            setRemovingTask(null);
-            notify("Task deleted");
-          }}
-        >
-          <p>“{removingTask.title}” is removed from the task list and the calendar.</p>
-        </ConfirmDialog>
       )}
     </>
   );

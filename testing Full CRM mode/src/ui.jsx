@@ -178,10 +178,12 @@ export function CountBadge({ count, label = "notifications", className = "" }) {
     </span>
   );
 }
+/** The one on/off control used everywhere: a switch, with its label to the right. (Selecting rows in a table keeps plain checkboxes.) */
 export function Checkbox({ checked, onChange, label }) {
   return (
-    <label className="check">
-      <input type="checkbox" checked={checked} onChange={onChange} />
+    <label className="switch-field">
+      <input type="checkbox" role="switch" checked={checked} onChange={onChange} />
+      <span className="switch-track" aria-hidden="true" />
       <span>{label}</span>
     </label>
   );

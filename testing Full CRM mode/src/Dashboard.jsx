@@ -1,17 +1,4 @@
-import {
-  ArrowUpRight,
-  ChatCircle,
-  Phone,
-  CheckCircle,
-  Clock,
-  Users,
-  Handshake,
-  ShieldCheck,
-  Database,
-  HardDrives,
-  GearSix,
-  Plus,
-} from "@phosphor-icons/react";
+import { ArrowUpRight, ChatCircle, Phone, CheckCircle, Clock, Users, Handshake, ShieldCheck, Database, HardDrives, GearSix, Plus } from "@phosphor-icons/react";
 import { Suspense, lazy } from "react";
 import { ROLES, TODAY } from "./data.js";
 import { callbackLabel, capability, personalProfile, visibleLeads, visibleTasks, visibleThreads } from "./model.js";

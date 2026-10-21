@@ -171,10 +171,11 @@ export function App() {
       .forEach(([id, label, path]) => found.push({ key: "page-" + id, group: "Go to", icon: "page", title: label, detail: "Open this page", path }));
     return found.slice(0, 10);
   }, [shownQuery, leads, tasks, state, role]);
-  const notify = useCallback(message => {
-    setToast(message);
+  // notify("Saved") or notify("Lead archived", { undo: () => ... }): a reversible change offers Undo instead of asking first.
+  const notify = useCallback((message, options = {}) => {
+    setToast({ message, undo: options.undo || null });
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => setToast(""), 4500);
+    timer.current = setTimeout(() => setToast(""), options.undo ? 7000 : 4500);
   }, []);
   // Connected: changes apply on screen at once and queue as operations for the server, which has the last word.
   const dispatch = useCallback(
@@ -500,7 +501,19 @@ export function App() {
         {toastPanel.mounted && (
           <div className={"toast" + (toastPanel.leaving ? " leaving" : "")} role="status">
             <CheckCircle size={20} />
-            <span>{shownToast}</span>
+            <span>{shownToast?.message ?? shownToast}</span>
+            {shownToast?.undo && (
+              <button
+                type="button"
+                className="toast-undo"
+                onClick={() => {
+                  shownToast.undo();
+                  setToast("");
+                }}
+              >
+                Undo
+              </button>
+            )}
             <button aria-label="Dismiss notification" onClick={() => setToast("")}>
               <X size={16} />
             </button>

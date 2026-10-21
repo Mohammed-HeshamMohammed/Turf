@@ -325,6 +325,23 @@ export function operationFor(action, before, store) {
       }
       return Object.keys(changes).length ? { ...base, kind: "task.update", payload: { id: task.id, changes, base: edited } } : null;
     }
+    case "RESTORE_TASK": {
+      const task = action.task;
+      if (!task) return null;
+      return {
+        ...base,
+        kind: "task.create",
+        payload: {
+          id: task.id,
+          lead_id: task.leadId || null,
+          title: task.title,
+          type: task.type,
+          priority: task.priority,
+          due_at: isoFromLocal(task.date, task.time || "09:00"),
+          assignee_id: idOf(directory, task.assignee),
+        },
+      };
+    }
     case "DELETE_TASK": {
       const task = before.tasks.find(item => item.id === action.id);
       return task ? { ...base, online: true, kind: "task.delete", payload: { id: task.id } } : null;
