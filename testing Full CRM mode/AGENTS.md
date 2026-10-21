@@ -40,3 +40,4 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 
 - The sidebar rail is only as tall as its items and sits at the vertical centre of the window (not stretched top to bottom).
 - Board pages (Deals, Leads pipeline) fill the window height; each column scrolls on its own and the page itself does not scroll.
+- Deals board: six open stages in the top row, Closed won and Closed lost in a shorter row beneath.

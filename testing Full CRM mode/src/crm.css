@@ -5080,3 +5080,18 @@ html.demo-quiet .demo-note {
     overflow-y: auto;
   }
 }
+
+/* Deals: the six open stages on top, the two closed stages in a shorter row beneath. */
+@media (min-width: 721px) {
+  .deal-board {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(150px, 1fr));
+    grid-template-rows: minmax(300px, 1fr) minmax(150px, 0.35fr);
+  }
+  .deal-board .kanban-column {
+    min-width: 0;
+  }
+  .deal-board .kanban-column[data-stage^="Closed"] {
+    grid-row: 2;
+  }
+}
