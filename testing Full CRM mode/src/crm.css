@@ -5234,15 +5234,6 @@ html.demo-quiet .demo-note {
   }
 }
 
-/* The list fills the same height as the board, so switching views does not change the size of the area. */
-@media (min-width: 721px) and (min-height: 600px) {
-  .page-content > .table-card.view-in {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-  }
-}
-
 /* The list shows the same stage colours as the board; its totals sit at the bottom of the card. */
 .stage-pill {
   display: inline-flex;
