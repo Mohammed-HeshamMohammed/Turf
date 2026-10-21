@@ -754,15 +754,15 @@ export function Deals({ id }) {
           )}
         </div>
       ) : (
-        <Card className="table-card view-in">
+        <Card className="table-card deals-list view-in">
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
                   <th>Property</th>
                   <th>Stage</th>
-                  <th>Offer amount</th>
-                  <th>Expected fee</th>
+                  <th className="num">Offer amount</th>
+                  <th className="num">Expected fee</th>
                   <th>Target close</th>
                   <th>
                     <span className="sr-only">Open</span>
@@ -782,9 +782,9 @@ export function Deals({ id }) {
                           {deal.stage}
                         </span>
                       </td>
-                      <td>{money(deal.amount)}</td>
-                      <td>{money(deal.fee)}</td>
-                      <td>{deal.closeDate}</td>
+                      <td className="num">{money(deal.amount)}</td>
+                      <td className="num">{money(deal.fee)}</td>
+                      <td>{shortDate(deal.closeDate)}</td>
                       <td>
                         <RoundButton label={"Open deal for " + lead.name} onClick={() => navigate("work/deals/" + deal.id)} />
                       </td>
@@ -1341,4 +1341,11 @@ export function Inbox() {
       )}
     </>
   );
+}
+
+/** "2026-11-03" as "3 Nov ’26". */
+function shortDate(iso) {
+  const [year, month, day] = iso.split("-").map(Number);
+  const name = new Date(year, month - 1, day).toLocaleDateString("en-US", { month: "short" });
+  return day + " " + name + " ’" + String(year).slice(-2);
 }
