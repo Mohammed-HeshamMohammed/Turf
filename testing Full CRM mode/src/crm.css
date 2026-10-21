@@ -5281,7 +5281,7 @@ html.demo-quiet .demo-note {
 }
 
 /* Deals list: figures line up on the right and read larger; the arrow glides through the button on hover. */
-.deals-list :is(th, td).num {
+.deals-list td.num {
   text-align: right;
   padding-right: 32px;
 }
