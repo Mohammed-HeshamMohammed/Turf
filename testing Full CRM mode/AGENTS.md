@@ -37,3 +37,5 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Grey text uses `--muted` (#595959), which passes contrast on every surface; avoid lighter greys for text. Landmarks are named, there is a skip link, and the More menu works from the keyboard.
 - On phones nothing scrolls sideways, tap targets are at least 40px tall, and the search moves to its own row under the header.
 - `npm run css:unused` lists stylesheet rules no code uses (`-- --write` removes them). After any stylesheet clean-up, compare every screen at desktop and phone width before committing; merging repeated rules or @media blocks automatically changed phone layouts and was rejected.
+
+- The sidebar rail is only as tall as its items and sits at the vertical centre of the window (not stretched top to bottom).

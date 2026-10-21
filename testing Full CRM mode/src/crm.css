@@ -538,8 +538,8 @@ svg {
   gap: 16px;
   padding: 18px 14px 14px 20px;
   min-height: 0;
-  /* The rail is as tall as its items, not the whole page. */
-  align-self: start;
+  /* The rail is as tall as its items and sits at the vertical centre of the window. */
+  align-self: center;
   max-height: calc(100% - 18px);
   position: relative;
   isolation: isolate;
