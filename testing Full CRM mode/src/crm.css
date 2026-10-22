@@ -5725,3 +5725,8 @@ html.demo-quiet .demo-note {
     padding: 0 0 0 8.5px;
   }
 }
+
+/* While the rail changes width, parts of the list (like the current-page pill) are briefly wider than it: clip them instead of showing a scrollbar. */
+.sidebar > nav {
+  overflow-x: hidden;
+}
