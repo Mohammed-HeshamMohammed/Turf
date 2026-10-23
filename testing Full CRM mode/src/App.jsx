@@ -41,12 +41,16 @@ const Team = lazyPage(loadTeam, "Team");
 const RemoteGate = lazyPage(() => import("./RemoteGate.jsx"), "RemoteGate");
 const preloadPages = () => [loadLeads, loadWork, loadData, loadManagement, loadTeam, loadDashboard].forEach(load => load());
 
+// The product (the desktop app, or a build made with VITE_TURF_REQUIRE_SIGN_IN=true) cannot be used without signing in
+// to a Turf server. Only the public demo build keeps the sample workspace.
+const REQUIRE_SIGN_IN = import.meta.env?.VITE_TURF_REQUIRE_SIGN_IN === "true" || (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window);
+
 const readRoute = () => window.location.hash.slice(1).replace(/^\//, "") || "dashboard";
 
 export function App() {
   const [state, apply] = useReducer(remoteReducer, undefined, () => loadState(window.localStorage));
   // "local": the sample workspace; "gate": signing in to a server; "remote": connected.
-  const [connection, setConnection] = useState(() => (apiBase() ? "gate" : "local"));
+  const [connection, setConnection] = useState(() => (REQUIRE_SIGN_IN || apiBase() ? "gate" : "local"));
   const engine = useRef(null);
   const latest = useRef(state);
   latest.current = state;
@@ -347,7 +351,7 @@ export function App() {
   if (connection === "gate")
     return (
       <Suspense fallback={null}>
-        <RemoteGate onReady={connect} onLeave={useSample} />
+        <RemoteGate onReady={connect} onLeave={REQUIRE_SIGN_IN ? undefined : useSample} />
       </Suspense>
     );
   return (

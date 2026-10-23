@@ -23,6 +23,8 @@ export function RemoteGate({ onReady, onLeave }) {
       const identity = await api.me();
       setMe(identity);
       if (identity.mfa.required && !identity.mfa.passed) setStep(identity.mfa.enrolled ? "mfa" : "enroll");
+      // The trial or plan has run out: the server refuses CRM records until it is renewed on the website.
+      else if (identity.subscription && !identity.subscription.usable) setStep("plan");
       else setStep("unlock");
     } catch (reason) {
       setStep(reason instanceof ApiError && reason.code === "offline" ? "offline" : "signin");
@@ -113,6 +115,14 @@ export function RemoteGate({ onReady, onLeave }) {
             <Button type="submit" variant="primary" icon={SignIn} disabled={busy}>
               {busy ? "Signing in…" : "Sign in"}
             </Button>
+            {form.url.trim() && (
+              <p className="muted">
+                No account yet?{" "}
+                <a href={form.url.trim().replace(/\/$/, "") + "/#/signup"} target="_blank" rel="noreferrer">
+                  Start a free trial
+                </a>
+              </p>
+            )}
           </form>
         )}
         {step === "mfa" && (
@@ -155,6 +165,19 @@ export function RemoteGate({ onReady, onLeave }) {
             <Button variant="primary" onClick={() => attempt(check)}>
               I saved them
             </Button>
+          </div>
+        )}
+        {step === "plan" && (
+          <div className="remote-step">
+            <p className="notice" role="alert">
+              {me.subscription.reason}
+            </p>
+            <div className="row">
+              <a className="button primary" href={apiBase() + "/#/account"} target="_blank" rel="noreferrer">
+                <span>Open your account</span>
+              </a>
+              <Button onClick={() => attempt(check)}>I renewed, check again</Button>
+            </div>
           </div>
         )}
         {step === "unlock" && (
