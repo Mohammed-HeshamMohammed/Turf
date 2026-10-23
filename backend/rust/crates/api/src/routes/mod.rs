@@ -1,5 +1,6 @@
 pub mod admin;
 pub mod artifacts;
+pub mod billing;
 pub mod identity;
 pub mod internal;
 pub mod records;
@@ -19,7 +20,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/healthz", get(|| async { Json(json!({ "ok": true })) }))
         .route("/readyz", get(ready))
-        .nest("/api/v1", identity::routes().merge(admin::routes()).merge(records::routes()).merge(reports::routes()).merge(artifacts::routes()))
+        .nest("/api/v1", identity::routes().merge(admin::routes()).merge(records::routes()).merge(reports::routes()).merge(artifacts::routes()).merge(billing::routes()))
         .route("/api/v1/ops", post(sync::one))
         .route("/sync/push", post(sync::push))
         .route("/sync/pull", get(sync::pull))

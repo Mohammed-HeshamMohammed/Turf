@@ -94,6 +94,8 @@ async fn invite(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Invite
     }
     let mut tx = db::begin(&state.db, &scope).await?;
     valid_roles(&mut tx, &body.roles).await?;
+    // The plan must allow a team and have a free seat (an open invitation holds one).
+    crate::routes::billing::check_invite(&mut tx).await?;
     let (token, hash) = auth::new_token();
     sqlx::query(
         "INSERT INTO invitations (token_hash, org_id, email, roles, team_ids, invited_by, expires_at) VALUES ($1, turf_org(), $2, $3, $4, $5, now() + interval '7 days')",

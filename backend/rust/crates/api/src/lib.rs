@@ -25,6 +25,8 @@ use tower_http::{
     limit::RequestBodyLimitLayer,
     propagate_header::PropagateHeaderLayer,
     request_id::{MakeRequestUuid, SetRequestIdLayer},
+    services::ServeDir,
+    set_header::SetResponseHeaderLayer,
     trace::TraceLayer,
 };
 
@@ -44,8 +46,19 @@ pub fn app(state: AppState) -> Router {
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
         .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION, HeaderName::from_static(auth::CSRF_HEADER), request_id.clone()]);
     let limit = state.config.max_body_bytes;
-    routes::router()
-        .with_state(state)
+    let site = state.config.site_dir.clone();
+    let mut router = routes::router().with_state(state);
+    if !site.is_empty() {
+        // The public website: plain files, its scripts only from itself, never framed by another site.
+        router = router.fallback_service(ServeDir::new(site));
+    }
+    router
+        .layer(SetResponseHeaderLayer::overriding(
+            header::CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static("default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")))
+        .layer(SetResponseHeaderLayer::overriding(header::REFERRER_POLICY, HeaderValue::from_static("same-origin")))
         .layer(RequestBodyLimitLayer::new(limit))
         .layer(cors)
         .layer(TraceLayer::new_for_http())

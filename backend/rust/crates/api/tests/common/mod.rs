@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 static LOCK: Mutex<()> = Mutex::new(());
 pub const WORKER: &str = "test-worker-token-0123456789abcdef";
+pub const WEBHOOK_SECRET: &str = "test-webhook-secret-0123456789abcdef";
 
 pub struct Harness {
     pub base: String,
@@ -31,6 +32,11 @@ pub fn config(redis: bool) -> Option<Config> {
         artifact_dir: std::env::temp_dir().join("turf-test-artifacts").to_string_lossy().into_owned(),
         session_hours: 24,
         max_body_bytes: 10 * 1024 * 1024,
+        public_signup: true,
+        billing_webhook_secret: WEBHOOK_SECRET.into(),
+        checkout_url: "https://pay.example/checkout".into(),
+        dev_tokens: true,
+        site_dir: String::new(),
     })
 }
 
@@ -47,7 +53,7 @@ pub async fn start_with(redis: bool) -> Option<Harness> {
     };
     turf_api::db::migrate(&config).await.expect("migrations");
     let owner = sqlx::PgPool::connect(&config.migration_database_url).await.expect("owner connection");
-    let tables: Vec<String> = sqlx::query_scalar("SELECT tablename::text FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_sqlx_migrations'")
+    let tables: Vec<String> = sqlx::query_scalar("SELECT tablename::text FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN ('_sqlx_migrations', 'plans')")
         .fetch_all(&owner)
         .await
         .unwrap();

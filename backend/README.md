@@ -49,3 +49,9 @@ python backend/scripts/dev_seed.py       # once, on a fresh database: an organiz
 Every CRM write is an operation (`POST /api/v1/ops`, or many at once through `/sync/push`) with a client-chosen id, so a replay gets the first answer back. In one transaction, an operation checks the person's capability and record scope, applies its change, and writes four things: an audit event, a change-log row for `/sync/pull`, an outbox event for workers and rules, and a `NOTIFY` that becomes a WebSocket message.
 
 Workers never touch the database directly. They claim jobs and outbox events through `/internal` with a worker token, and rule actions run back through the same operations path.
+
+## Paid service
+
+Sign-up, the trial, Solo and Business plans, seats, call minutes, checkout and the payment webhook are described in
+[docs/saas/README.md](../docs/saas/README.md), with the database diagram. The public website (`website/`) is served by
+the API when `TURF_SITE_DIR` is set (`run-api.sh` sets it).

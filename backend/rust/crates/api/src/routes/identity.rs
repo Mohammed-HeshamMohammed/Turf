@@ -73,7 +73,7 @@ fn time_duration(hours: i64) -> time::Duration {
     time::Duration::hours(hours)
 }
 
-async fn create_session(state: &AppState, user: Uuid, org: Option<Uuid>, kind: &str) -> ApiResult<String> {
+pub(crate) async fn create_session(state: &AppState, user: Uuid, org: Option<Uuid>, kind: &str) -> ApiResult<String> {
     let (token, hash) = auth::new_token();
     sqlx::query("INSERT INTO sessions (token_hash, user_id, org_id, kind, expires_at) VALUES ($1, $2, $3, $4, now() + make_interval(hours => $5))")
         .bind(&hash)
@@ -87,7 +87,7 @@ async fn create_session(state: &AppState, user: Uuid, org: Option<Uuid>, kind: &
 }
 
 /// Hands the token to the client: a cookie for browsers, the body for the desktop app (which keeps it in OS storage).
-fn signed_in(state: &AppState, jar: CookieJar, token: String, kind: &str, extra: Value) -> (CookieJar, Json<Value>) {
+pub(crate) fn signed_in(state: &AppState, jar: CookieJar, token: String, kind: &str, extra: Value) -> (CookieJar, Json<Value>) {
     if kind == "desktop" {
         let mut body = extra;
         body["token"] = json!(token);
@@ -109,7 +109,7 @@ struct Bootstrap {
     timezone: String,
 }
 
-fn browser() -> String {
+pub(crate) fn browser() -> String {
     "browser".into()
 }
 
@@ -331,6 +331,9 @@ async fn accept_invitation(State(state): State<AppState>, jar: CookieJar, Json(b
     .fetch_optional(&mut *tx)
     .await?;
     let (org, email, roles, teams) = invite.ok_or_else(|| ApiError::forbidden("This invitation is not valid or has expired"))?;
+    sqlx::query("SELECT set_config('turf.org_id', $1, true)").bind(org.to_string()).execute(&mut *tx).await?;
+    // Seats can have been reduced since the invitation was sent; this invitation's seat is now a member's.
+    crate::routes::billing::check_join(&mut tx).await?;
     let existing: Option<Uuid> = sqlx::query_scalar("SELECT id FROM users WHERE email = $1").bind(&email).fetch_optional(&mut *tx).await?;
     let user = match existing {
         // An existing account joins with its own password, which it must prove.
@@ -420,5 +423,6 @@ async fn me(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
         "team_ids": ctx.team_ids,
         "access_revision": ctx.access_revision,
         "mfa": { "required": ctx.mfa_required(), "enrolled": ctx.mfa_enrolled, "passed": ctx.mfa_passed },
+        "subscription": ctx.subscription.as_ref().map(|s| json!({ "plan": s.plan, "status": s.status, "usable": s.refusal().is_none(), "reason": s.refusal() })),
     })))
 }
