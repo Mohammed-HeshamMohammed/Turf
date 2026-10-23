@@ -237,3 +237,27 @@ test("tasks, deals and notes can be changed and removed by the people allowed to
     false,
   );
 });
+test("a saved engine check gives visible leads their verdicts and keeps do-not-call", () => {
+  const owner = as("owner");
+  const list = owner.leads.find(lead => lead.verdict === "Do not call")?.datasetId || owner.leads[0].datasetId;
+  const inList = owner.leads.filter(lead => lead.datasetId === list);
+  const verdicts = Object.fromEntries(inList.map(lead => [lead.id, "Ready to call"]));
+  const other = owner.leads.find(lead => lead.datasetId !== list);
+  verdicts[other.id] = "Wrong number";
+  const checked = reducer(owner, { type: "CHECK", id: list, verdicts });
+  for (const lead of checked.leads.filter(item => item.datasetId === list)) {
+    const before = inList.find(item => item.id === lead.id);
+    assert.equal(lead.verdict, before.verdict === "Do not call" ? "Do not call" : "Ready to call");
+  }
+  assert.equal(checked.leads.find(lead => lead.id === other.id).verdict, other.verdict, "another list is never changed");
+  assert.equal(checked.datasets.find(item => item.id === list).status, "Checked");
+  // A demo check changes no verdict.
+  const demo = reducer(owner, { type: "CHECK", id: list, verdicts: null });
+  assert.deepEqual(
+    demo.leads.map(lead => lead.verdict),
+    owner.leads.map(lead => lead.verdict),
+  );
+  // A role without data access cannot save a check at all.
+  const caller = as("caller");
+  assert.equal(reducer(caller, { type: "CHECK", id: list, verdicts }), caller);
+});

@@ -445,10 +445,21 @@ export function reducer(state, action) {
       if (!capability(state, "review") && !capability(state, "import")) return state;
       const original = state.datasets.find(item => item.id === action.id);
       if (!original) return state;
+      // A real check (Turf engine) gives each visible lead of the list its verdict. Leads outside the person's view, or
+      // of another list, are never touched; a do-not-call verdict already on a lead is kept whatever the check says.
+      const visible = new Set(visibleLeads(state).map(item => item.id));
+      const verdicts = action.verdicts && typeof action.verdicts === "object" ? action.verdicts : null;
       return {
         ...state,
         datasets: state.datasets.map(item => (item.id === action.id ? { ...item, status: "Checked" } : item)),
-        activities: [event(state, null, "Saved a demo check of " + original.name, "Research"), ...state.activities],
+        leads: verdicts
+          ? state.leads.map(item =>
+              item.datasetId === action.id && visible.has(item.id) && typeof verdicts[item.id] === "string" && item.verdict !== "Do not call"
+                ? { ...item, verdict: verdicts[item.id], version: item.version + 1 }
+                : item,
+            )
+          : state.leads,
+        activities: [event(state, null, (verdicts ? "Checked " : "Saved a demo check of ") + original.name, "Research"), ...state.activities],
       };
     }
     case "NEW_LEAD": {

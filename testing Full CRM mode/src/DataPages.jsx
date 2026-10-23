@@ -7,6 +7,7 @@ import { useCrm } from "./context.jsx";
 import { mappedRecord, sourceEvidence, sourceValue } from "./skiptrace-fields.js";
 import { SourceFieldMapping } from "./SourceFieldMapping.jsx";
 import { PropertyMap } from "./PropertyMap.jsx";
+import { cancelJob, check, engineAvailable, engineConfig, prepare, saveCopy } from "./engine.js";
 import {
   Badge,
   Select,
@@ -288,6 +289,23 @@ function RoundList({ item, navigate }) {
   );
 }
 
+const OUTCOME_NAMES = {
+  reached: "Contacted",
+  wrong_number: "Wrong number",
+  wrong_person: "Wrong person",
+  disconnected: "Disconnected",
+  do_not_call: "Do not call",
+  no_answer: "No answer",
+};
+
+const STAGE_LABELS = {
+  reading_file: "Reading source rows",
+  gathering_outcomes: "Gathering known call outcomes",
+  checking_phones: "Checking phone numbers",
+  finding_duplicates: "Finding repeated leads",
+  saving_checked_copy: "Saving the checked copy",
+};
+
 export function SkipTracing() {
   const { state, dispatch, navigate, notify, route } = useCrm();
   const leads = visibleLeads(state);
@@ -299,19 +317,35 @@ export function SkipTracing() {
   const [hideEmpty, setHideEmpty] = useState(false);
   const [fieldOverrides, setFieldOverrides] = useState({});
   const [signals, setSignals] = useState({ duplicates: true, outcomes: true, dnc: true, age: true });
-  const [progress, setProgress] = useState(-1);
-  const [finished, setFinished] = useState(false);
+  const [region, setRegion] = useState("US");
+  // The real engine when it can be reached (desktop window, dev server); the demo check otherwise (hosted demo).
+  const [engine, setEngine] = useState(null);
+  const [statuses, setStatuses] = useState(null);
+  const [progress, setProgress] = useState(null);
+  const [checked, setChecked] = useState(null);
+  const [error, setError] = useState("");
   const [cancelled, setCancelled] = useState(false);
+  const running = useRef(null);
   const timers = useRef([]);
   const stepNavigation = useRef(null);
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  useEffect(() => {
+    let live = true;
+    engineAvailable().then(value => live && setEngine(value));
+    return () => {
+      live = false;
+      timers.current.forEach(clearTimeout);
+      running.current?.abort();
+    };
+  }, []);
   const dataset = datasets.find(item => item.id === datasetId);
   const rows = leads.filter(lead => lead.datasetId === datasetId);
   const columns = dataset?.columns || [];
   const shownColumns = hideEmpty ? columns.filter(column => rows.some(row => String(sourceValue(row, column) ?? "").trim())) : columns;
   const mappings = { ...dataset?.fieldMappings, ...fieldOverrides };
-  const { fields, primary } = sourceEvidence(columns, rows, mappings);
+  const { fields, primary, mappedFields } = sourceEvidence(columns, rows, mappings);
   const hasPhones = fields.some(field => field.id === "phone" && field.count > 0);
+  const outcomeColumn = mappedFields.find(field => field.id === "outcome")?.column || "";
+  const finished = Boolean(checked);
   useEffect(() => {
     stepNavigation.current?.querySelector("[aria-current]")?.scrollIntoView({
       block: "nearest",
@@ -319,49 +353,117 @@ export function SkipTracing() {
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
     });
   }, [step, hasPhones]);
+  // The meaning the engine gives each imported call status, read when the outcome step opens.
+  useEffect(() => {
+    if (!engine || step !== 1 || !hasPhones || !outcomeColumn || statuses?.column === outcomeColumn) return;
+    let live = true;
+    prepare({ name: dataset.name, columns, rows, outcomeColumn }).then(
+      found => live && setStatuses({ column: outcomeColumn, items: found.statuses }),
+      reason => live && setError(reason.message),
+    );
+    return () => {
+      live = false;
+    };
+  }, [engine, step, hasPhones, outcomeColumn]); // eslint-disable-line react-hooks/exhaustive-deps
   const stages = ["Source fields", "Call outcomes", "Warning signs", "Results", "Save a copy"];
-  const jobStages = [
+  const demoStages = [
     "Reading source rows",
     `Reviewing ${primary?.label.toLowerCase() || "source"} evidence`,
     "Comparing candidate pairs",
     "Building lead groups",
     "Preparing the review",
   ];
-  const verdict = lead => (!hasPhones && !["Do not call", "Possible duplicate"].includes(lead.verdict) ? "Unverified" : lead.verdict);
-  function changeSource(id) {
+  const demoVerdict = lead => (!hasPhones && !["Do not call", "Possible duplicate"].includes(lead.verdict) ? "Unverified" : lead.verdict);
+  const verdictOf = (lead, index) => (checked?.engine ? checked.results[index]?.verdict || "Unverified" : demoVerdict(lead));
+  function reset() {
     timers.current.forEach(clearTimeout);
     timers.current = [];
+    running.current?.abort();
+    setChecked(null);
+    setProgress(null);
+    setCancelled(false);
+    setError("");
+  }
+  function changeSource(id) {
+    reset();
     setDatasetId(id);
     setFieldOverrides({});
-    setFinished(false);
-    setProgress(-1);
-    setCancelled(false);
+    setStatuses(null);
     setStep(0);
   }
-  function cancel() {
-    timers.current.forEach(clearTimeout);
-    timers.current = [];
-    setProgress(-1);
+  async function cancel() {
+    const job = running.current;
+    reset();
     setCancelled(true);
-    notify("Demo check cancelled. Source data unchanged.");
+    if (job?.jobId) await cancelJob(job.jobId).catch(() => undefined);
+    notify("Check cancelled. Source data unchanged.");
   }
-  function run() {
-    if (!primary || (!state.online && mode === "Cloud")) return;
-    timers.current.forEach(clearTimeout);
-    setProgress(0);
-    setFinished(false);
-    setCancelled(false);
-    setStep(3);
-    for (let index = 1; index <= jobStages.length; index++)
+  function runDemo() {
+    setProgress({ label: demoStages[0], value: 0, max: demoStages.length });
+    for (let index = 1; index <= demoStages.length; index++)
       timers.current.push(
         setTimeout(() => {
-          if (index === jobStages.length) {
-            setProgress(-1);
-            setFinished(true);
-          } else setProgress(index);
+          if (index === demoStages.length) {
+            setProgress(null);
+            setChecked({ engine: false });
+          } else setProgress({ label: demoStages[index], value: index, max: demoStages.length });
         }, index * 500),
       );
   }
+  async function run() {
+    if (!primary || (!state.online && mode === "Cloud")) return;
+    reset();
+    setStep(3);
+    if (!engine) return runDemo();
+    if (!hasPhones) {
+      // The engine checks phone numbers; without any, every lead keeps its evidence and is marked as having no phone.
+      setChecked({ engine: true, report: null, results: rows.map(() => ({ verdict: "No phone", why: "No populated phone field", bestPhone: "" })) });
+      return;
+    }
+    const controller = new AbortController();
+    running.current = controller;
+    setProgress({ label: "Preparing the list", value: 0, max: 1 });
+    try {
+      const prepared = await prepare({ name: dataset.name, columns, rows });
+      let meanings = [];
+      if (signals.outcomes && outcomeColumn)
+        meanings = statuses?.column === outcomeColumn ? statuses.items : (await prepare({ name: dataset.name, columns, rows, outcomeColumn })).statuses;
+      const outcomes = meanings.length ? { column: outcomeColumn, map: Object.fromEntries(meanings.map(item => [item.key, item.outcomes || []])) } : null;
+      const config = engineConfig(prepared.suggestion.config, columns, rows, mappings, { region, findDuplicates: signals.duplicates, outcomes });
+      const result = await check({
+        datasetId: prepared.datasetId,
+        config,
+        signal: controller.signal,
+        onStart: jobId => (controller.jobId = jobId),
+        onStage: event =>
+          !controller.signal.aborted &&
+          setProgress({ label: STAGE_LABELS[event.stage] || "Checking", value: event.completed ?? 0, max: event.total || 1 }),
+      });
+      if (controller.signal.aborted) return;
+      setChecked({ engine: true, datasetId: prepared.datasetId, ...result });
+    } catch (reason) {
+      if (!controller.signal.aborted) setError(reason.message);
+    } finally {
+      if (running.current === controller) running.current = null;
+      setProgress(null);
+    }
+  }
+  async function save() {
+    const verdicts = Object.fromEntries(rows.map((lead, index) => [lead.id, verdictOf(lead, index)]));
+    if (checked.engine && checked.report)
+      try {
+        await saveCopy({ datasetId: checked.datasetId, config: checked.config, jobId: checked.jobId, name: dataset.name + " · checked" });
+      } catch (reason) {
+        notify("The checked copy could not be saved: " + reason.message);
+        return;
+      }
+    dispatch({ type: "CHECK", id: datasetId, verdicts: checked.engine ? verdicts : null });
+    notify(checked.engine ? "Check saved. Lead verdicts updated." : "Demo check saved");
+    navigate("lists/" + datasetId);
+  }
+  const counts = checked?.engine
+    ? rows.reduce((all, lead, index) => ({ ...all, [verdictOf(lead, index)]: (all[verdictOf(lead, index)] || 0) + 1 }), {})
+    : null;
   const allowed = capability(state, "review") || capability(state, "import");
   if (!allowed) return <Empty title="Skip Tracing is outside this role">Data operators work here before leads enter the outreach queue.</Empty>;
   return (
@@ -385,7 +487,7 @@ export function SkipTracing() {
             {mode === "Local" ? "Your source stays on this device until you choose to publish it." : "Your team can follow the job and review its results."}
           </p>
         </div>
-        <Badge tone="good">UI simulation</Badge>
+        <Badge tone={engine ? "good" : ""}>{engine === null ? "Connecting…" : engine ? "Turf engine" : "Demo check"}</Badge>
       </div>
       <nav ref={stepNavigation} className="wizard-steps" aria-label="Skip Tracing steps">
         {stages.map(
@@ -395,7 +497,7 @@ export function SkipTracing() {
                 key={label}
                 aria-current={step === index ? "step" : undefined}
                 className={step === index ? "active" : ""}
-                disabled={(index >= 4 && !finished) || (index > 0 && !primary) || progress >= 0}
+                disabled={(index >= 4 && !finished) || (index > 0 && !primary) || Boolean(progress)}
                 onClick={() => setStep(index)}
               >
                 <span>{!hasPhones && index > 1 ? index : index + 1}</span>
@@ -442,7 +544,8 @@ export function SkipTracing() {
                 hideEmpty={hideEmpty}
                 onChange={value => {
                   setFieldOverrides(value);
-                  setFinished(false);
+                  setStatuses(null);
+                  reset();
                 }}
               />
               <Button
@@ -456,7 +559,7 @@ export function SkipTracing() {
               </Button>
               {hasPhones && (
                 <Field label="Default phone region">
-                  <Select defaultValue="US">
+                  <Select value={region} onChange={event => (setRegion(event.target.value), reset())}>
                     <option value="US">United States (+1)</option>
                     <option value="CA">Canada (+1)</option>
                     <option value="GB">United Kingdom (+44)</option>
@@ -500,8 +603,12 @@ export function SkipTracing() {
             <>
               <Field label="Imported call-status field">
                 <Select
-                  value={mappings.outcome ?? sourceEvidence(columns, rows).mappedFields.find(field => field.id === "outcome").column}
-                  onChange={event => setFieldOverrides({ ...fieldOverrides, outcome: event.target.value })}
+                  value={outcomeColumn}
+                  onChange={event => {
+                    setFieldOverrides({ ...fieldOverrides, outcome: event.target.value });
+                    setStatuses(null);
+                    reset();
+                  }}
                 >
                   <option value="">Not mapped</option>
                   {columns.map(column => (
@@ -511,24 +618,49 @@ export function SkipTracing() {
                   ))}
                 </Select>
               </Field>
-              <div className="mapping-preview">
-                <div>
-                  <span>Reached a person</span>
-                  <Status value="Contacted" />
+              {engine && outcomeColumn ? (
+                statuses?.column === outcomeColumn ? (
+                  statuses.items.length ? (
+                    <div className="mapping-preview" aria-label="What each imported status means">
+                      {statuses.items.map(item => (
+                        <div key={item.key}>
+                          <span>{item.value ?? item.key}</span>
+                          {item.outcomes?.length ? (
+                            item.outcomes.map(kind => <Status key={kind} value={OUTCOME_NAMES[kind] || kind} />)
+                          ) : (
+                            <Badge>Keep for follow-up</Badge>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="muted">The call-status field is empty in this list.</p>
+                  )
+                ) : (
+                  <p className="muted" role="status">
+                    Reading the statuses in {outcomeColumn}…
+                  </p>
+                )
+              ) : (
+                <div className="mapping-preview">
+                  <div>
+                    <span>Reached a person</span>
+                    <Status value="Contacted" />
+                  </div>
+                  <div>
+                    <span>No answer / voicemail</span>
+                    <Badge>Keep for follow-up</Badge>
+                  </div>
+                  <div>
+                    <span>Wrong number</span>
+                    <Status value="Wrong number" />
+                  </div>
+                  <div>
+                    <span>Do not call</span>
+                    <Status value="Do not call" />
+                  </div>
                 </div>
-                <div>
-                  <span>No answer / voicemail</span>
-                  <Badge>Keep for follow-up</Badge>
-                </div>
-                <div>
-                  <span>Wrong number</span>
-                  <Status value="Wrong number" />
-                </div>
-                <div>
-                  <span>Do not call</span>
-                  <Status value="Do not call" />
-                </div>
-              </div>
+              )}
               <p className="muted">Outcomes from every source stay distinct from phone quality.</p>
               <Button variant="primary" onClick={() => setStep(2)}>
                 Continue <ArrowRight size={16} />
@@ -543,42 +675,52 @@ export function SkipTracing() {
                   ["outcomes", "Use known call outcomes", "Keep wrong-number and owner context attached."],
                   ["dnc", "Review do-not-call evidence", "Blocked numbers remain blocked."],
                   ["age", "Surface old or conflicting evidence", "Show what needs a fresh review."],
-                ].map(([key, title, description]) => (
-                  <label key={key}>
-                    <input
-                      type="checkbox"
-                      disabled={!hasPhones && ["outcomes", "dnc"].includes(key)}
-                      checked={!hasPhones && ["outcomes", "dnc"].includes(key) ? false : signals[key]}
-                      onChange={event => setSignals({ ...signals, [key]: event.target.checked })}
-                    />
-                    <div>
-                      <strong>{title}</strong>
-                      <p>
-                        {!hasPhones && ["outcomes", "dnc"].includes(key)
-                          ? "Skipped · no populated phone field. Existing blocked records stay blocked."
-                          : description}
-                      </p>
-                    </div>
-                  </label>
-                ))}
+                ].map(([key, title, description]) => {
+                  const skipped = !hasPhones && ["outcomes", "dnc"].includes(key);
+                  const fixed = engine && ["dnc", "age"].includes(key);
+                  return (
+                    <label key={key}>
+                      <input
+                        type="checkbox"
+                        disabled={skipped || fixed}
+                        checked={skipped ? false : fixed ? true : signals[key]}
+                        onChange={event => setSignals({ ...signals, [key]: event.target.checked })}
+                      />
+                      <div>
+                        <strong>{title}</strong>
+                        <p>
+                          {skipped
+                            ? "Skipped · no populated phone field. Existing blocked records stay blocked."
+                            : fixed
+                              ? description + " Always on in the Turf engine."
+                              : description}
+                        </p>
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
-              <Button variant="primary" icon={ShieldCheck} disabled={!primary || (!state.online && mode === "Cloud")} onClick={run}>
-                Run demo check
+              <Button variant="primary" icon={ShieldCheck} disabled={!primary || engine === null || (!state.online && mode === "Cloud")} onClick={run}>
+                {engine ? "Run check" : "Run demo check"}
               </Button>
             </>
           )}
           {step === 3 && (
             <>
-              {progress >= 0 ? (
+              {progress ? (
                 <div className="job-progress">
                   <ShieldCheck size={40} weight="light" />
-                  <h3>{jobStages[progress]}</h3>
-                  <progress value={progress + 1} max={jobStages.length} />
+                  <h3>{progress.label}</h3>
+                  <progress value={progress.value} max={progress.max} />
                   <p>
-                    Simulated {mode.toLowerCase()} check · {rows.length} sample rows
+                    {engine ? "Turf engine" : "Simulated " + mode.toLowerCase() + " check"} · {rows.length} rows
                   </p>
                   <Button onClick={cancel}>Cancel check</Button>
                 </div>
+              ) : error ? (
+                <Empty title="The check could not finish" action={<Button onClick={run}>Try again</Button>}>
+                  {error} Original source rows are unchanged.
+                </Empty>
               ) : finished ? (
                 <>
                   <div className="review-metrics">
@@ -587,26 +729,37 @@ export function SkipTracing() {
                       <small>source rows</small>
                     </div>
                     <div>
-                      <strong>{rows.filter(item => verdict(item) === "Ready to call").length}</strong>
-                      <small>ready in sample evidence</small>
+                      <strong>{checked.engine ? counts["Ready to call"] || 0 : rows.filter(item => demoVerdict(item) === "Ready to call").length}</strong>
+                      <small>{checked.engine ? "ready to call" : "ready in sample evidence"}</small>
                     </div>
                     <div>
-                      <strong>{signals.duplicates ? rows.filter(item => item.verdict === "Possible duplicate").length : 0}</strong>
+                      <strong>
+                        {checked.engine ? counts["Possible duplicate"] || 0 : signals.duplicates ? rows.filter(item => item.verdict === "Possible duplicate").length : 0}
+                      </strong>
                       <small>possible repeats</small>
                     </div>
+                    {checked.engine && (
+                      <div>
+                        <strong>{(counts["Wrong number"] || 0) + (counts["Do not call"] || 0)}</strong>
+                        <small>blocked or wrong</small>
+                      </div>
+                    )}
                   </div>
                   <div className="review-rows">
-                    {rows.map(lead => (
+                    {rows.map((lead, index) => (
                       <div key={lead.id}>
                         <LeadLink lead={lead} />
-                        <Status value={verdict(lead)} />
+                        <Status value={verdictOf(lead, index)} />
+                        {checked.engine && <small className="muted review-why">{checked.results[index]?.why || checked.results[index]?.duplicate}</small>}
                         <Button onClick={() => navigate("work/leads/" + lead.id)}>Review</Button>
                       </div>
                     ))}
                   </div>
-                  <p className="notice subtle">
-                    These are illustrative results from the sample records. This UI does not run the planned native matching engine.
-                  </p>
+                  {!checked.engine && (
+                    <p className="notice subtle">
+                      These are illustrative results from the sample records. The Turf engine runs in the desktop app and on the dev server.
+                    </p>
+                  )}
                   <Button variant="primary" onClick={() => setStep(4)}>
                     Continue to save <ArrowRight size={16} />
                   </Button>
@@ -615,8 +768,8 @@ export function SkipTracing() {
                 <Empty
                   title={cancelled ? "Check cancelled" : "Your results will appear here"}
                   action={
-                    <Button onClick={run} disabled={!primary}>
-                      Run demo check
+                    <Button onClick={run} disabled={!primary || engine === null}>
+                      {engine ? "Run check" : "Run demo check"}
                     </Button>
                   }
                 >
@@ -629,28 +782,39 @@ export function SkipTracing() {
             <>
               <CheckCircle size={38} weight="light" />
               <h3>Keep a reviewable copy.</h3>
-              <p className="body-copy">Save the demo check to this workspace, or export a reviewed CSV. Original imported values stay unchanged.</p>
+              <p className="body-copy">
+                {checked.engine
+                  ? "Save the check: each lead gets its verdict and the engine keeps a checked copy beside the original. Or export a reviewed CSV."
+                  : "Save the demo check to this workspace, or export a reviewed CSV. Original imported values stay unchanged."}
+              </p>
               <div className="row">
-                <Button
-                  variant="primary"
-                  onClick={() => {
-                    dispatch({ type: "CHECK", id: datasetId });
-                    notify("Demo check saved");
-                    navigate("lists/" + datasetId);
-                  }}
-                >
-                  Save demo check
+                <Button variant="primary" onClick={save}>
+                  {checked.engine ? "Save check" : "Save demo check"}
                 </Button>
                 <Button
                   icon={DownloadSimple}
                   onClick={() =>
-                    downloadCsv("turf-demo-check.csv", [
-                      [...columns, "Sample verdict", "Starting evidence"],
-                      ...rows.map(lead => [...columns.map(column => sourceValue(lead, column)), verdict(lead), primary?.label || "None"]),
-                    ])
+                    downloadCsv(
+                      checked.engine ? "turf-check.csv" : "turf-demo-check.csv",
+                      checked.engine
+                        ? [
+                            [...columns, "Verdict", "Best phone", "Why", "Duplicate status"],
+                            ...rows.map((lead, index) => [
+                              ...columns.map(column => sourceValue(lead, column)),
+                              verdictOf(lead, index),
+                              checked.results[index]?.bestPhone || "",
+                              checked.results[index]?.why || "",
+                              checked.results[index]?.duplicate || "",
+                            ]),
+                          ]
+                        : [
+                            [...columns, "Sample verdict", "Starting evidence"],
+                            ...rows.map(lead => [...columns.map(column => sourceValue(lead, column)), demoVerdict(lead), primary?.label || "None"]),
+                          ],
+                    )
                   }
                 >
-                  Export demo CSV
+                  {checked.engine ? "Export CSV" : "Export demo CSV"}
                 </Button>
               </div>
             </>
@@ -673,7 +837,10 @@ export function SkipTracing() {
               </div>
               <div>
                 <small>Execution</small>
-                <strong>{mode === "Local" ? "This device" : "Shared cloud job"}</strong>
+                <strong>
+                  {mode === "Local" ? "This device" : "Shared cloud job"}
+                  {engine ? " · Turf engine" : ""}
+                </strong>
               </div>
               <div>
                 <small>Source safety</small>

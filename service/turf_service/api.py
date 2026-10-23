@@ -59,6 +59,7 @@ class Service:
             "health.check": lambda p: health_check().to_dict(),
             "project.create": lambda p: self._open(p.get("path", ""), p.get("name"), create=True),
             "project.open": lambda p: self._open(p.get("path", "")),
+            "project.open_workspace": self._open_workspace,
             "project.current": lambda p: self.project,
             "project.recent": lambda p: projects.recent_projects(),
             "dataset.import": lambda p: {"job_id": self._submit("dataset_import", p)},
@@ -262,6 +263,15 @@ class Service:
         finally:
             if params.get("temporary"):
                 shutil.rmtree(path.parent, ignore_errors=True)
+
+    def _open_workspace(self, payload: dict) -> dict:
+        """Turf CRM: opens (or makes, the first time) a project kept in Turf's own data folder, so a screen that only
+        needs the engine never asks for a folder. The name picks the folder; only letters, digits and dashes are kept."""
+        slug = "".join(c for c in str(payload.get("name") or "crm").lower() if c.isascii() and (c.isalnum() or c == "-"))[:40] or "crm"
+        root = projects.app_data_dir() / "workspaces" / slug
+        if self.project and Path(self.project["root_path"]) == root.resolve():
+            return self.project
+        return self._open(str(root), slug, create=not (root / projects.DATABASE_NAME).exists())
 
     def _import_content(self, payload: dict) -> dict:
         """Turf: adds a file handed over as its content, for a browser tab, which knows a dropped file's bytes but
