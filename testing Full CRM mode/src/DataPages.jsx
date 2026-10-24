@@ -4,7 +4,7 @@ import { ArrowRight, ArrowUpRight, CheckCircle, Phone, Cloud, DownloadSimple, Fi
 import { LEAD_STAGES, ROLES } from "./data.js";
 import { capability, uid, visibleLeads } from "./model.js";
 import { useCrm } from "./context.jsx";
-import { leadFromSource, sourceEvidence, sourceValue } from "./skiptrace-fields.js";
+import { detectSourceFields, leadFromSource, sourceEvidence, sourceValue } from "./skiptrace-fields.js";
 import { SourceFieldMapping } from "./SourceFieldMapping.jsx";
 import { PropertyMap } from "./PropertyMap.jsx";
 import { cancelJob, check, engineAvailable, engineConfig, prepare, saveCopy } from "./engine.js";
@@ -57,8 +57,12 @@ export function Lists({ id }) {
       return;
     }
     const datasetId = uid();
+    const fieldMappings = detectSourceFields(
+      columns,
+      rows.map(row => ({ sourceValues: row })),
+    );
     const imported = rows.map((row, index) => {
-      const data = leadFromSource(columns, { sourceValues: row });
+      const data = leadFromSource(columns, { sourceValues: row }, fieldMappings);
       return {
         ...data,
         id: uid(),
@@ -91,6 +95,7 @@ export function Lists({ id }) {
         team: ROLES[state.role].team || "Tampa",
         date: "Oct 15",
         columns,
+        fieldMappings,
       },
       leads: imported,
     });
@@ -449,8 +454,7 @@ export function SkipTracing() {
         signal: controller.signal,
         onStart: jobId => (controller.jobId = jobId),
         onStage: event =>
-          !controller.signal.aborted &&
-          setProgress({ label: STAGE_LABELS[event.stage] || "Checking", value: event.completed ?? 0, max: event.total || 1 }),
+          !controller.signal.aborted && setProgress({ label: STAGE_LABELS[event.stage] || "Checking", value: event.completed ?? 0, max: event.total || 1 }),
       });
       if (controller.signal.aborted) return;
       setChecked({ engine: true, datasetId: prepared.datasetId, ...result });
@@ -475,9 +479,7 @@ export function SkipTracing() {
     navigate("lists/" + datasetId);
   }
   const [reviewRows, reviewMore] = useShowMore(rows);
-  const counts = checked?.engine
-    ? rows.reduce((all, lead, index) => ({ ...all, [verdictOf(lead, index)]: (all[verdictOf(lead, index)] || 0) + 1 }), {})
-    : null;
+  const counts = checked?.engine ? rows.reduce((all, lead, index) => ({ ...all, [verdictOf(lead, index)]: (all[verdictOf(lead, index)] || 0) + 1 }), {}) : null;
   const allowed = capability(state, "review") || capability(state, "import");
   if (!allowed) return <Empty title="Skip Tracing is outside this role">Data operators work here before leads enter the outreach queue.</Empty>;
   return (
@@ -748,7 +750,11 @@ export function SkipTracing() {
                     </div>
                     <div>
                       <strong>
-                        {checked.engine ? counts["Possible duplicate"] || 0 : signals.duplicates ? rows.filter(item => item.verdict === "Possible duplicate").length : 0}
+                        {checked.engine
+                          ? counts["Possible duplicate"] || 0
+                          : signals.duplicates
+                            ? rows.filter(item => item.verdict === "Possible duplicate").length
+                            : 0}
                       </strong>
                       <small>possible repeats</small>
                     </div>

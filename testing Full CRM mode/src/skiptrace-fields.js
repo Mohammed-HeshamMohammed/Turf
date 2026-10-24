@@ -1,3 +1,5 @@
+import { FIRST_WORDS, LAST_WORDS, MAILING_WORDS, OWNER_WORDS, VOCABULARY } from "./field-vocabulary.js";
+
 export const EVIDENCE_FIELDS = [
   {
     id: "phone",
@@ -104,7 +106,13 @@ export const SOURCE_FIELDS = [
   { id: "stories", label: "Stories", property: "stories", group: "Property details", aliases: /^(?:of )?(?:stories|floors)$/ },
   { id: "garageType", label: "Garage type", property: "garageType", group: "Property details", aliases: /^garage(?: type)?$/ },
   { id: "garageSqft", label: "Garage (sq ft)", property: "garageSqft", group: "Property details", aliases: /^garage (?:square feet|sq ft|sqft|area)$/ },
-  { id: "cooling", label: "Air conditioning", property: "cooling", group: "Property details", aliases: /^(?:air conditioning(?: type)?|cooling(?: type)?|ac)$/ },
+  {
+    id: "cooling",
+    label: "Air conditioning",
+    property: "cooling",
+    group: "Property details",
+    aliases: /^(?:air conditioning(?: type)?|cooling(?: type)?|ac)$/,
+  },
   { id: "heating", label: "Heating", property: "heating", group: "Property details", aliases: /^heating(?: type)?$/ },
   { id: "fireplaces", label: "Fireplaces", property: "fireplaces", group: "Property details", aliases: /^(?:of )?fireplaces$/ },
   { id: "subdivision", label: "Subdivision", property: "subdivision", group: "Property details", aliases: /^subdivision(?: name)?$/ },
@@ -124,12 +132,16 @@ export const SOURCE_FIELDS = [
 ];
 
 const normalize = column =>
-  column
+  String(column)
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/([a-zA-Z])(\d)/g, "$1 $2")
+    .replace(/([\p{L}])(\d)/gu, "$1 $2")
+    .replace(/(\d)([\p{L}])/gu, "$1 $2")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
+
+/** A header's words. */
+const words = text => normalize(text).split(" ").filter(Boolean);
 
 export function sourceValue(row, column) {
   if (row.sourceValues) return String(row.sourceValues[column] ?? "").trim();
@@ -141,32 +153,214 @@ function supplied(value) {
   return Boolean(value && !/^(?:n\/?a|none|null|unknown|not supplied|address not supplied|imported owner \d+|-)$/i.test(value));
 }
 
-export function detectSourceFields(columns, rows) {
-  return Object.fromEntries(
-    SOURCE_FIELDS.map(field => {
-      const candidates = columns.filter(column => field.aliases.test(normalize(column)));
-      const populated = candidates.find(column => rows.some(row => supplied(sourceValue(row, column))));
-      return [field.id, populated || candidates[0] || ""];
-    }),
-  );
+// ---- Smart mapping -----------------------------------------------------------------------------------------------
+//
+// Lists name their columns in every way: "Owner Name", "Customer", "Client Full Name", "Seller", a first and last name
+// in two columns, or a header that says nothing ("Column 7"). Each column is scored for each field from three things:
+//   1. what you taught Turf: a header you mapped by hand before maps the same way again (learned);
+//   2. the header's words against the field's vocabulary (field-vocabulary.js);
+//   3. the values: phone numbers, email addresses, ZIP codes, street addresses, people's names, years and prices
+//      look like what they are, which confirms a header, overrules a misleading one, or names an unlabelled column.
+// Then every column goes to the field it fits best, highest scores first, one field per column.
+
+const VOCAB = Object.fromEntries(Object.entries(VOCABULARY).map(([id, phrases]) => [id, phrases.map(words)]));
+const has = (tokens, list) => tokens.some(token => list.some(word => token === word || token.startsWith(word)));
+const LOCATION_FIELDS = new Set(["address", "unit", "streetNumber", "streetName", "city", "region", "zip", "country"]);
+const NAME_FIELDS = new Set(["name", "firstName", "lastName"]);
+
+let learned = {};
+let learnedVersion = 0;
+/** The headers people mapped by hand ({normalised header: field id}); kept in the workspace settings. */
+export function setLearnedHeaders(map) {
+  const next = map && typeof map === "object" ? map : {};
+  if (JSON.stringify(next) === JSON.stringify(learned)) return;
+  learned = next;
+  learnedVersion++;
+}
+export const headerKey = column => normalize(column);
+
+/** How well a header's words name a field, 0 to 1. */
+function headerScore(field, column) {
+  const tokens = words(column);
+  if (!tokens.length) return 0;
+  const plain = normalize(column);
+  let score = field.aliases.test(plain) ? 0.95 : 0;
+  for (const phrase of VOCAB[field.id] || []) {
+    if (!phrase.length) continue;
+    const joined = phrase.join(" ");
+    if (joined === tokens.join(" ")) {
+      score = Math.max(score, 0.95);
+      continue;
+    }
+    const matched = phrase.filter(word => tokens.includes(word)).length;
+    if (matched === phrase.length) score = Math.max(score, 0.7 + 0.25 * (phrase.length / tokens.length));
+    else if (phrase.length > 1 && matched / phrase.length >= 0.5) score = Math.max(score, 0.4 * (matched / phrase.length));
+  }
+  // Words that change what the column is about.
+  const mailing = has(tokens, MAILING_WORDS);
+  if (mailing && LOCATION_FIELDS.has(field.id)) score *= 0.2;
+  if (!mailing && field.id.startsWith("mailing")) score *= 0.3;
+  const first = has(tokens, FIRST_WORDS),
+    last = has(tokens, LAST_WORDS);
+  if (field.id === "name" && (first || last)) score *= 0.3;
+  if (field.id === "firstName" && last && !first) score *= 0.2;
+  if (field.id === "lastName" && first && !last) score *= 0.2;
+  // "Owner 2 …" is a further owner, never the main one.
+  const ordinal = tokens.find(token => /^\d+$/.test(token));
+  if (NAME_FIELDS.has(field.id) && ordinal && Number(ordinal) > 1 && has(tokens, OWNER_WORDS)) score *= 0.2;
+  return Math.min(1, score);
 }
 
-// Which columns could hold each field depends only on the column names, so it is worked out once per list. Mapping a
-// row then only checks those few columns for a value, instead of testing every field's pattern against every column
-// (which, for each row of a list of tens of thousands, took seconds).
+const US_STATES = new Set(
+  "al ak az ar ca co ct de fl ga hi id il in ia ks ky la me md ma mi mn ms mo mt ne nv nh nj nm ny nc nd oh ok or pa ri sc sd tn tx ut vt va wa wv wi wy dc pr".split(
+    " ",
+  ),
+);
+const toNumber = value => Number(String(value).replace(/[$,\s]/g, ""));
+const isNumber = value => /^-?[$]?\s?[\d,]*\.?\d+$/.test(String(value).trim());
+const PERSON = /^[\p{L}][\p{L}'.-]*(?:\s+[\p{L}][\p{L}'.-]*){1,4}$/u;
+const WORD = /^[\p{L}][\p{L}'.-]*$/u;
+
+/** What each field's values look like. Fields without a check are decided by their header alone. */
+const LOOKS_LIKE = {
+  phone: value => {
+    const digits = value.replace(/\D/g, "");
+    return /^[+\d\s().\-/x]+$/i.test(value) && digits.length >= 7 && digits.length <= 15;
+  },
+  email: value => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value),
+  zip: value => /^\d{5}(?:-\d{4})?$/.test(value) || /^[a-z]\d[a-z] ?\d[a-z]\d$/i.test(value) || /^[a-z]{1,2}\d[a-z\d]? ?\d[a-z]{2}$/i.test(value),
+  region: value => US_STATES.has(value.toLowerCase()) || /^[\p{L}][\p{L} .'-]{1,30}$/u.test(value),
+  address: value => /^\d+[a-z]?\s+\S+/i.test(value) || /(?:street|avenue|road|blvd|lane|drive|\bst\b|\bave\b|\brd\b|\bdr\b|\bln\b)/i.test(value),
+  name: value => PERSON.test(value) && !/\d/.test(value),
+  firstName: value => WORD.test(value),
+  lastName: value => WORD.test(value) || PERSON.test(value),
+  city: value => /^[\p{L}][\p{L} .'-]*$/u.test(value),
+  yearBuilt: value => isNumber(value) && Number.isInteger(toNumber(value)) && toNumber(value) >= 1700 && toNumber(value) <= 2035,
+  value: value => isNumber(value) && toNumber(value) >= 1000,
+  beds: value => isNumber(value) && toNumber(value) >= 0 && toNumber(value) <= 50,
+  baths: value => isNumber(value) && toNumber(value) >= 0 && toNumber(value) <= 50,
+  units: value => isNumber(value) && toNumber(value) >= 0 && toNumber(value) <= 5000,
+  stories: value => isNumber(value) && toNumber(value) >= 0 && toNumber(value) <= 200,
+  area: value => isNumber(value) && toNumber(value) > 0,
+  lotSqft: value => isNumber(value) && toNumber(value) >= 0,
+  lotAcres: value => isNumber(value) && toNumber(value) >= 0,
+  latitude: value => isNumber(value) && Math.abs(toNumber(value)) <= 90 && /\./.test(value),
+  longitude: value => isNumber(value) && Math.abs(toNumber(value)) <= 180 && /\./.test(value),
+  ownershipMonths: value => isNumber(value) && toNumber(value) >= 0,
+};
+// The few kinds of value clear enough to name a column whose header says nothing. A price needs its dollar sign:
+// a bare number could be anything.
+const SELF_EVIDENT = {
+  email: LOOKS_LIKE.email,
+  phone: LOOKS_LIKE.phone,
+  address: LOOKS_LIKE.address,
+  zip: LOOKS_LIKE.zip,
+  name: LOOKS_LIKE.name,
+  value: value => /^\$\s?[\d,]+(?:\.\d+)?$/.test(value.trim()) && toNumber(value) >= 1000,
+};
+
+/** The share of a column's filled values (from up to 200 rows) that pass a check, and how many are filled. */
+function valueShare(fieldId, column, rows, check = LOOKS_LIKE[fieldId]) {
+  const sample = [];
+  const step = Math.max(1, Math.floor(rows.length / 200));
+  for (let index = 0; index < rows.length && sample.length < 200; index += step) {
+    const value = sourceValue(rows[index], column);
+    if (supplied(value)) sample.push(value);
+  }
+  if (!sample.length) return { share: null, filled: 0 };
+  return { share: check ? sample.filter(check).length / sample.length : null, filled: sample.length };
+}
+
+const mappingCache = new WeakMap();
+
+/**
+ * The best column for every field, and how each was found: { mappings: {field: column}, how: {field: "learned" |
+ * "header" | "values"}, scores: {field: 0..1} }. Rows are optional; without them only headers and learning count.
+ */
+export function smartMapping(columns, rows = []) {
+  const key = columns.join("\u0001") + "\u0002" + learnedVersion;
+  let byKey = mappingCache.get(rows);
+  if (!byKey) mappingCache.set(rows, (byKey = new Map()));
+  if (byKey.has(key)) return byKey.get(key);
+  const options = [];
+  for (const column of columns) {
+    const taught = learned[normalize(column)];
+    for (const field of SOURCE_FIELDS) {
+      if (taught) {
+        if (taught === field.id) options.push({ field: field.id, column, score: 1.2, how: "learned" });
+        continue;
+      }
+      const header = headerScore(field, column);
+      const { share, filled } = rows.length ? valueShare(field.id, column, rows) : { share: null, filled: 0 };
+      let score = header,
+        how = "header";
+      if (share !== null && header >= 0.4) {
+        // Values confirm a header, or show it is something else (a "Phone" column full of emails).
+        score = header * (0.65 + 0.35 * share);
+        if (share < 0.2) score *= 0.4;
+      } else if (header < 0.4 && SELF_EVIDENT[field.id] && rows.length) {
+        const evident = valueShare(field.id, column, rows, SELF_EVIDENT[field.id]).share;
+        if (evident >= 0.85) {
+          score = 0.5 + 0.15 * evident;
+          how = "values";
+        }
+      }
+      // Of two equally good columns, the one with values wins.
+      if (filled) score += 0.03;
+      if (score >= 0.5) options.push({ field: field.id, column, score, how });
+    }
+  }
+  options.sort((a, b) => b.score - a.score);
+  const mappings = {},
+    how = {},
+    scores = {},
+    used = new Set();
+  for (const option of options) {
+    if (mappings[option.field] || used.has(option.column)) continue;
+    mappings[option.field] = option.column;
+    how[option.field] = option.how;
+    scores[option.field] = Math.min(1, option.score);
+    used.add(option.column);
+  }
+  const result = { mappings, how, scores };
+  byKey.set(key, result);
+  return result;
+}
+
+/** Every column that holds phone numbers, best first: the Skip Tracing engine checks them all. */
+export function phoneColumns(columns, rows) {
+  return columns
+    .map(column => {
+      const taught = learned[normalize(column)];
+      const header = taught ? (taught === "phone" ? 1 : 0) : headerScore(SOURCE_FIELDS[0], column);
+      const { share } = valueShare("phone", column, rows);
+      const score = share === null ? 0 : header >= 0.4 ? header * (0.65 + 0.35 * share) : share >= 0.85 ? 0.5 + 0.15 * share : 0;
+      return { column, score };
+    })
+    .filter(item => item.score >= 0.5)
+    .sort((a, b) => b.score - a.score)
+    .map(item => item.column);
+}
+
+export function detectSourceFields(columns, rows) {
+  const { mappings } = smartMapping(columns, rows);
+  return Object.fromEntries(SOURCE_FIELDS.map(field => [field.id, mappings[field.id] || ""]));
+}
+
+// Mapping a row without a saved mapping (a lead page, the map) uses the headers alone, worked out once per list.
 const candidateCache = new Map();
 function candidatesFor(columns) {
-  const key = columns.join("\u0001");
+  const key = columns.join("\u0001") + "\u0002" + learnedVersion;
   let found = candidateCache.get(key);
   if (!found) {
-    found = SOURCE_FIELDS.map(field => [field.id, columns.filter(column => field.aliases.test(normalize(column)))]);
+    const { mappings } = smartMapping(columns);
+    found = SOURCE_FIELDS.map(field => [field.id, mappings[field.id] ? [mappings[field.id]] : []]);
     if (candidateCache.size > 50) candidateCache.clear();
     candidateCache.set(key, found);
   }
   return found;
 }
 
-/** The same choice detectSourceFields makes for a single row: the first candidate column populated in that row. */
 function detectForRow(columns, row) {
   return Object.fromEntries(
     candidatesFor(columns).map(([id, candidates]) => [id, candidates.find(column => supplied(sourceValue(row, column))) || candidates[0] || ""]),
@@ -183,8 +377,6 @@ export function mappedRecord(columns, row, overrides = {}) {
   return result;
 }
 
-const OWNER_COLUMN = /^owner (\d+) (first|last) name$/;
-
 /**
  * Every owner a list names, in order: "Owner 1 First Name", "Owner 2 Last Name" and so on, or the single mapped owner.
  * Owners with neither name are left out, so a list's empty Owner 2 does not become a blank person.
@@ -192,15 +384,17 @@ const OWNER_COLUMN = /^owner (\d+) (first|last) name$/;
 export function ownersOf(columns, row, record) {
   const numbered = new Map();
   for (const column of columns) {
-    const match = OWNER_COLUMN.exec(normalize(column));
-    if (!match) continue;
-    const owner = numbered.get(match[1]) || {};
-    owner[match[2]] = sourceValue(row, column);
-    numbered.set(match[1], owner);
+    const tokens = words(column);
+    const ordinal = tokens.find(token => /^\d+$/.test(token));
+    if (!ordinal || !has(tokens, OWNER_WORDS) || has(tokens, MAILING_WORDS) || tokens.some(token => /phone|mail/.test(token))) continue;
+    const part = has(tokens, FIRST_WORDS) ? "first" : has(tokens, LAST_WORDS) ? "last" : "full";
+    const owner = numbered.get(ordinal) || {};
+    owner[part] = sourceValue(row, column);
+    numbered.set(ordinal, owner);
   }
   const names = [...numbered.entries()]
     .sort((a, b) => Number(a[0]) - Number(b[0]))
-    .map(([, owner]) => [owner.first, owner.last].filter(supplied).join(" "))
+    .map(([, owner]) => (supplied(owner.full) ? owner.full : [owner.first, owner.last].filter(supplied).join(" ")))
     .filter(Boolean);
   if (!names.length && supplied(record?.name)) names.push(record.name);
   return names;
@@ -252,7 +446,7 @@ export function coordinates(latitude, longitude) {
 const evidenceCache = new WeakMap();
 
 export function sourceEvidence(columns, rows, overrides = {}) {
-  const key = columns.join("\u0001") + "\u0002" + JSON.stringify(overrides);
+  const key = columns.join("\u0001") + "\u0002" + JSON.stringify(overrides) + "\u0002" + learnedVersion;
   let byKey = evidenceCache.get(rows);
   if (!byKey) evidenceCache.set(rows, (byKey = new Map()));
   if (!byKey.has(key)) byKey.set(key, computeSourceEvidence(columns, rows, overrides));
@@ -260,11 +454,14 @@ export function sourceEvidence(columns, rows, overrides = {}) {
 }
 
 function computeSourceEvidence(columns, rows, overrides) {
+  const smart = smartMapping(columns, rows);
   const detected = detectSourceFields(columns, rows);
   const mappedFields = SOURCE_FIELDS.map(field => {
+    const chosen = Object.hasOwn(overrides, field.id) && overrides[field.id] !== detected[field.id];
     const requested = overrides[field.id] ?? detected[field.id];
     const column = columns.includes(requested) ? requested : "";
-    return { ...field, column, count: column ? rows.filter(row => supplied(sourceValue(row, column))).length : 0 };
+    const how = !column ? "" : chosen ? "chosen" : smart.how[field.id] || "header";
+    return { ...field, column, how, count: column ? rows.filter(row => supplied(sourceValue(row, column))).length : 0 };
   });
   const fields = mappedFields.filter(field => EVIDENCE_FIELDS.some(item => item.id === field.id)).map(field => ({ ...field }));
   const name = fields.find(field => field.id === "name");

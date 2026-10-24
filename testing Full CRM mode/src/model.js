@@ -1,5 +1,5 @@
 import { CALL_OUTCOMES, ROLES, TODAY, seedState } from "./data.js";
-import { leadFromSource, SOURCE_FIELDS } from "./skiptrace-fields.js";
+import { detectSourceFields, headerKey, leadFromSource, SOURCE_FIELDS } from "./skiptrace-fields.js";
 
 export const uid = () => crypto.randomUUID();
 export function personalProfile(state) {
@@ -444,8 +444,21 @@ export function reducer(state, action) {
           source.columns.includes(action.mappings[field.id]) ? action.mappings[field.id] : "",
         ]),
       );
+      // What Turf would have chosen by itself; only the differences are lessons. A header mapped elsewhere by hand
+      // stops being a lesson for its old field; a field set to "Not mapped" unlearns its old header.
+      const detected = detectSourceFields(
+        source.columns,
+        visibleLeads(state).filter(item => item.datasetId === source.id),
+      );
+      const learnedHeaders = { ...state.settings.learnedHeaders };
+      for (const field of SOURCE_FIELDS) {
+        if (!Object.hasOwn(mappings, field.id) || mappings[field.id] === detected[field.id]) continue;
+        if (mappings[field.id]) learnedHeaders[headerKey(mappings[field.id])] = field.id;
+        else if (detected[field.id] && learnedHeaders[headerKey(detected[field.id])] === field.id) delete learnedHeaders[headerKey(detected[field.id])];
+      }
       return {
         ...state,
+        settings: { ...state.settings, learnedHeaders },
         datasets: state.datasets.map(item => (item.id === source.id ? { ...item, fieldMappings: mappings } : item)),
         leads: state.leads.map(item => {
           if (item.datasetId !== source.id || !item.sourceValues) return item;
@@ -509,7 +522,9 @@ export function restoreState(saved) {
   if (!([1, 2].includes(saved?.schema) && ROLES[saved.role] && Array.isArray(saved.leads) && Array.isArray(saved.queue) && saved.settings && saved.permissions))
     return null;
   // Schema 1 had no call history or callback dates: its callbacks were times today.
-  return saved.schema === 2 ? saved : { ...saved, schema: 2, leads: saved.leads.map(lead => ({ calls: [], callbackDate: lead.callback ? TODAY : "", ...lead })) };
+  return saved.schema === 2
+    ? saved
+    : { ...saved, schema: 2, leads: saved.leads.map(lead => ({ calls: [], callbackDate: lead.callback ? TODAY : "", ...lead })) };
 }
 
 /** The workspace an earlier version left in localStorage; the IndexedDB copy (workspace-store.js) replaces it. */

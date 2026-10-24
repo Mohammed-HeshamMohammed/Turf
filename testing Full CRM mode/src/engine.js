@@ -1,7 +1,7 @@
 // Turf's Skip Tracing engine (../service, Python) as the CRM uses it. The desktop window reaches it through the Tauri
 // host (src-tauri/src/sidecar.rs); a browser tab on the dev server through /rpc (scripts/service-bridge.mjs). Where
 // neither exists, for instance the hosted demo, `engineAvailable` answers false and the page keeps its demo check.
-import { sourceValue } from "./skiptrace-fields.js";
+import { phoneColumns, sourceValue } from "./skiptrace-fields.js";
 
 export class EngineError extends Error {
   constructor(code, message) {
@@ -72,7 +72,6 @@ export async function watchJob(jobId, { onEvent, signal } = {}) {
 export const cancelJob = jobId => call("job.cancel", { job_id: jobId });
 
 const WORKSPACE = "turf-crm";
-const phoneColumn = /phone|mobile|cell|telephone/i;
 
 function csvCell(value) {
   const text = String(value ?? "");
@@ -91,7 +90,7 @@ export function sourceCsv(columns, rows) {
 /** The CRM's field mapping as the engine's setup. Phone columns: the mapped one first, then any other populated one. */
 export function engineConfig(suggested, columns, rows, mappings, { region = "US", findDuplicates = true, outcomes = null } = {}) {
   const populated = column => rows.some(row => sourceValue(row, column));
-  const phones = [mappings.phone, ...columns.filter(column => phoneColumn.test(column))].filter(
+  const phones = [mappings.phone, ...phoneColumns(columns, rows)].filter(
     (column, index, all) => column && columns.includes(column) && populated(column) && all.indexOf(column) === index,
   );
   const pick = id => (columns.includes(mappings[id]) ? mappings[id] : null);
@@ -109,8 +108,7 @@ export function engineConfig(suggested, columns, rows, mappings, { region = "US"
     find_duplicates: findDuplicates,
     outcome: null,
   };
-  if (outcomes && columns.includes(outcomes.column) && phones.length)
-    config.outcome = { column: outcomes.column, called_column: phones[0], map: outcomes.map };
+  if (outcomes && columns.includes(outcomes.column) && phones.length) config.outcome = { column: outcomes.column, called_column: phones[0], map: outcomes.map };
   return config;
 }
 
@@ -142,7 +140,11 @@ async function importRows(name, columns, rows) {
   const data = sourceCsv(columns, rows);
   const key = name + "\n" + data;
   if (imported.has(key)) return imported.get(key);
-  const file = name.replace(/[^\w .-]+/g, " ").trim().slice(0, 80) + ".csv";
+  const file =
+    name
+      .replace(/[^\w .-]+/g, " ")
+      .trim()
+      .slice(0, 80) + ".csv";
   const { job_id } = await call("dataset.import_content", { name: file || "list.csv", data, allow_duplicate: true });
   const { dataset_id } = await watchJob(job_id);
   imported.set(key, dataset_id);

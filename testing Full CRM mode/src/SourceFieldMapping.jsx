@@ -1,6 +1,14 @@
 import { SOURCE_FIELDS, sourceEvidence } from "./skiptrace-fields.js";
 import { Field, Select } from "./ui.jsx";
 
+/** How Turf found a field's column, shown under it. */
+const HOW = {
+  learned: "Remembered from your earlier choice",
+  header: "Matched by its header",
+  values: "Matched by its values",
+  chosen: "Your choice",
+};
+
 export function SourceFieldMapping({ columns, rows, mappings, onChange, hideEmpty = false }) {
   const { mappedFields } = sourceEvidence(columns, rows, mappings);
   function renderField(field) {
@@ -8,7 +16,7 @@ export function SourceFieldMapping({ columns, rows, mappings, onChange, hideEmpt
       <Field
         key={field.id}
         label={field.label + " column"}
-        help={field.column ? `${field.count} of ${rows.length} rows supplied` : "Not mapped · original column retained"}
+        help={field.column ? `${field.count} of ${rows.length} rows supplied · ${HOW[field.how] || "Matched"}` : "Not mapped · original column retained"}
       >
         <Select aria-label={field.label + " column"} value={field.column} onChange={event => onChange({ ...mappings, [field.id]: event.target.value })}>
           <option value="">Not mapped</option>
@@ -44,6 +52,7 @@ export function SourceFieldMapping({ columns, rows, mappings, onChange, hideEmpt
         </p>
       </details>
       <p className="muted">
+        Turf reads each column's header and its values. Correct anything it got wrong and save: it remembers that header for your next lists.{" "}
         {columns.filter(column => !used.has(column)).length} other source columns retained without a mapping. Every source column remains in the preview and
         original data.
       </p>

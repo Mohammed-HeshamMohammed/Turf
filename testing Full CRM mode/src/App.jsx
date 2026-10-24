@@ -2,6 +2,7 @@ import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useReducer, 
 import { Bell, CalendarBlank, ChatCircle, CheckCircle, HouseLine, List, MagnifyingGlass, WifiSlash, X } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
 import { loadWorkspace, saveWorkspace } from "./workspace-store.js";
+import { setLearnedHeaders } from "./skiptrace-fields.js";
 import { capability, loadState, navCounts, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { api, apiBase, setApiBase } from "./remote/api.js";
 import { SyncEngine } from "./remote/engine.js";
@@ -50,6 +51,9 @@ const readRoute = () => window.location.hash.slice(1).replace(/^\//, "") || "das
 
 export function App() {
   const [state, apply] = useReducer(remoteReducer, undefined, () => loadState(window.localStorage));
+  // Headers mapped by hand before are used for every list (skiptrace-fields.js). Set during render so the first
+  // render of a page already uses them.
+  setLearnedHeaders(state.settings?.learnedHeaders);
   // The saved workspace is read from IndexedDB once; nothing is saved (or shown) before that, so it is never overwritten.
   const [restored, setRestored] = useState(false);
   useEffect(() => {

@@ -34,7 +34,8 @@ test("blank phone columns fall back and another populated phone column takes pre
 
 test("manual mappings use original values and stale columns cannot carry into another source", () => {
   const row = { sourceValues: { Location: "10 Main St" } };
-  assert.equal(sourceEvidence(["Location"], [row]).primary, null);
+  // "Location" holding street addresses is recognised as the address now (header word plus the values).
+  assert.equal(sourceEvidence(["Location"], [row]).primary.id, "address");
   assert.equal(sourceEvidence(["Location"], [row], { address: "Location" }).primary.id, "address");
   assert.equal(sourceValue(row, "Location"), "10 Main St");
   assert.equal(sourceEvidence(["Notes"], [row], { address: "Location" }).primary, null);
@@ -82,4 +83,99 @@ test("a county-records export maps every column the lead uses", async () => {
   assert.equal(lead.sourceId, "110462");
   assert.equal(lead.value, null, "no value column: no made-up $0");
   assert.equal(lead.phone, "");
+});
+
+// Smart mapping: the same fields under every kind of header, and columns whose header says nothing.
+const sheet = (header, ...rows) => ({ columns: header, rows: rows.map(values => ({ sourceValues: Object.fromEntries(header.map((column, i) => [column, values[i]])) })) });
+
+test("different header wording still finds the same fields", async () => {
+  const { detectSourceFields } = await import("../src/skiptrace-fields.js");
+  const crm = sheet(
+    ["Customer Name", "Client Phone #", "E-mail Address", "Street Address", "Town", "Province", "Postal Code"],
+    ["Mona Adel", "(813) 274-6610", "mona@example.com", "12 Palm Ave", "Tampa", "FL", "33602"],
+  );
+  const found = detectSourceFields(crm.columns, crm.rows);
+  assert.equal(found.name, "Customer Name");
+  assert.equal(found.phone, "Client Phone #");
+  assert.equal(found.email, "E-mail Address");
+  assert.equal(found.address, "Street Address");
+  assert.equal(found.city, "Town");
+  assert.equal(found.region, "Province");
+  assert.equal(found.zip, "Postal Code");
+
+  const deals = sheet(
+    ["Seller", "Contact Number", "Home Value", "Beds", "Baths", "SqFt", "Yr Built", "Prop Type"],
+    ["Sam Hill", "813-274-6621", "$342,000", "4", "2.5", "1,980", "1987", "Single Family"],
+  );
+  const second = detectSourceFields(deals.columns, deals.rows);
+  assert.equal(second.name, "Seller");
+  assert.equal(second.phone, "Contact Number");
+  assert.equal(second.value, "Home Value");
+  assert.equal(second.beds, "Beds");
+  assert.equal(second.baths, "Baths");
+  assert.equal(second.area, "SqFt");
+  assert.equal(second.yearBuilt, "Yr Built");
+  assert.equal(second.propertyType, "Prop Type");
+});
+
+test("a name split in two, and property versus mailing addresses, are told apart", async () => {
+  const { detectSourceFields, leadFromSource } = await import("../src/skiptrace-fields.js");
+  const split = sheet(
+    ["FIRST", "LAST", "Cell", "Property Address", "Property City", "Mailing Address", "Mailing City", "Mailing State", "Mailing Zip"],
+    ["Ana", "Lopez", "7135553142", "77 Bay Road", "Houston", "PO Box 9", "Austin", "TX", "78701"],
+  );
+  const found = detectSourceFields(split.columns, split.rows);
+  assert.equal(found.firstName, "FIRST");
+  assert.equal(found.lastName, "LAST");
+  assert.equal(found.name, "", "no full-name column: it is built from first and last");
+  assert.equal(found.address, "Property Address");
+  assert.equal(found.city, "Property City");
+  assert.equal(found.mailingAddress, "Mailing Address");
+  assert.equal(found.mailingCity, "Mailing City");
+  const lead = leadFromSource(split.columns, split.rows[0], found);
+  assert.equal(lead.name, "Ana Lopez");
+  assert.equal(lead.address, "77 Bay Road");
+  assert.equal(lead.mailing, "PO Box 9, Austin, TX 78701");
+});
+
+test("columns with no useful header are named by their values, and a misleading header is overruled", async () => {
+  const { detectSourceFields } = await import("../src/skiptrace-fields.js");
+  const blank = sheet(
+    ["Column 1", "Column 2", "Column 3", "Column 4", "Column 5", "Column 6"],
+    ["Mona Adel", "(813) 274-6610", "mona@example.com", "12 Palm Ave", "$342,000", "4"],
+    ["Sam Hill", "813.274.6621", "sam@example.com", "40 Oak Street", "$210,500", "3"],
+  );
+  const found = detectSourceFields(blank.columns, blank.rows);
+  assert.equal(found.value, "Column 5", "dollar amounts are the property value");
+  assert.ok(!Object.values(found).includes("Column 6"), "a bare small number names nothing by itself");
+  assert.equal(found.name, "Column 1");
+  assert.equal(found.phone, "Column 2");
+  assert.equal(found.email, "Column 3");
+  assert.equal(found.address, "Column 4");
+
+  const wrong = sheet(["Owner", "Phone", "Contact"], ["Mona Adel", "mona@example.com", "(813) 274-6610"]);
+  const fixed = detectSourceFields(wrong.columns, wrong.rows);
+  assert.equal(fixed.email, "Phone", "a 'Phone' column full of email addresses is the email");
+  assert.equal(fixed.phone, "Contact");
+  assert.equal(fixed.name, "Owner");
+});
+
+test("a header mapped by hand is remembered for the next list", async () => {
+  const { detectSourceFields, setLearnedHeaders, headerKey } = await import("../src/skiptrace-fields.js");
+  const odd = sheet(["Owner", "Development", "Digits"], ["Mona Adel", "Palm Grove", "(813) 274-6610"]);
+  // A person's name and a phone number are recognised by their values; "Proprietor" would be too.
+  assert.equal(detectSourceFields(odd.columns, odd.rows).phone, "Digits");
+  assert.equal(detectSourceFields(odd.columns, odd.rows).subdivision, "", "nothing says 'Development' is the subdivision");
+  setLearnedHeaders({ [headerKey("Development")]: "subdivision" });
+  assert.equal(detectSourceFields(odd.columns, odd.rows).subdivision, "Development");
+  assert.equal(detectSourceFields(odd.columns, odd.rows).name, "Owner");
+  setLearnedHeaders({});
+});
+
+test("numbered owners with full or split names all become owners", async () => {
+  const { leadFromSource } = await import("../src/skiptrace-fields.js");
+  const owners = sheet(["Owner 1 Name", "Owner 2 Name", "Owner 3 First Name", "Owner 3 Last Name", "Address"], ["Mona Adel", "", "Sam", "Hill", "12 Palm Ave"]);
+  const lead = leadFromSource(owners.columns, owners.rows[0]);
+  assert.equal(lead.name, "Mona Adel");
+  assert.deepEqual(lead.owners, ["Mona Adel", "Sam Hill"]);
 });
