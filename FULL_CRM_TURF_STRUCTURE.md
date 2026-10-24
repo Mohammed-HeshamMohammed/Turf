@@ -97,26 +97,119 @@ Full CRM Turf/
 
 ### How the parts may talk
 
-```text
- ┌──────────────────────── the person's computer ────────────────────────┐
- │                                                                         │
- │   container/rust  (Tauri window)                                        │
- │   ┌─────────────────────────────────────────────┐                       │
- │   │  frontend/react  (webview)                   │                       │
- │   │     clients/local.js ──── Tauri invoke ──────┼──► local-backend/rust │
- │   │     clients/server/  ──┐                     │        │              │
- │   └────────────────────────┼─────────────────────┘        │ JSON lines   │
- │                            │                              ▼ over stdio   │
- │                            │                      local-backend/python   │
- └────────────────────────────┼────────────────────────────────────────────┘
-                              │ HTTPS  /api/v1  (contracts/api-v1.yaml)
-                              ▼
- ┌──────────────────────────── the VPS ───────────────────────────────────┐
- │   server/rust (API) ──── PostgreSQL (server/sql/migrations)            │
- │        ▲    ▲                                                           │
- │        │    └── /internal + worker token ── server/go, server/python    │
- │        └── serves server/website at /                                   │
- └─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph PC["The person's computer"]
+        subgraph C["container/rust — Tauri window"]
+            subgraph F["frontend/react — webview"]
+                Screens["pages/ and components/"]
+                Local["clients/local.js"]
+                Remote["clients/server/"]
+                Store[("storage/<br/>IndexedDB + encrypted vault")]
+            end
+        end
+        LR["local-backend/rust<br/>commands, sidecar, sign-in, downloads"]
+        LP["local-backend/python<br/>Skip Tracing engine (service/)"]
+        Files[("Downloads folder<br/>local files")]
+    end
+
+    subgraph VPS["The VPS"]
+        API["server/rust<br/>API"]
+        DB[("PostgreSQL<br/>server/sql/migrations")]
+        Redis[("Redis")]
+        Go["server/go<br/>outbox + scheduler worker"]
+        Py["server/python<br/>imports, jobs, PDFs"]
+        Site["server/website"]
+    end
+
+    Browser["The person's browser<br/>(sign-up, Google sign-in)"]
+
+    Screens --> Local
+    Screens --> Remote
+    Screens --> Store
+    Local -- "Tauri invoke<br/>contracts/local-commands.md" --> LR
+    LR -- "JSON lines over stdio" --> LP
+    LR --> Files
+    Remote -- "HTTPS /api/v1<br/>contracts/api-v1.yaml" --> API
+    API --> DB
+    API --> Redis
+    Go -- "/internal + worker token" --> API
+    Py -- "/internal + worker token" --> API
+    Go --> Redis
+    API -- "serves at /" --> Site
+    Browser --> Site
+```
+
+#### A Skip Tracing check (works offline)
+
+```mermaid
+sequenceDiagram
+    actor P as Person
+    participant UI as frontend/react
+    participant L as local-backend/rust
+    participant E as local-backend/python
+    P->>UI: Run the check on a list
+    UI->>L: invoke service_call (via clients/local.js)
+    L->>E: start the engine if needed, send the command (JSON line)
+    E-->>L: job id at once
+    loop until the job is done
+        UI->>L: invoke service_call (job status)
+        L->>E: status?
+        E-->>L: progress / result
+        L-->>UI: progress / result
+    end
+    UI->>L: invoke save_download (export CSV)
+    L-->>P: file in Downloads, shown in the file manager
+```
+
+#### A CRM change and sync
+
+```mermaid
+sequenceDiagram
+    participant UI as frontend/react
+    participant V as storage/ (encrypted vault)
+    participant A as server/rust API
+    participant DB as PostgreSQL
+    participant W as server/go worker
+    UI->>V: queue the operation (client-chosen id)
+    alt online
+        UI->>A: confirm session and permissions
+        UI->>A: POST /sync/push (queued operations, in order)
+        A->>DB: one transaction per operation + outbox event
+        A-->>UI: results (a replayed id gets its first answer)
+        UI->>A: pull committed changes until caught up
+        A-->>UI: changes since the cursor
+        UI->>V: save records and cursor
+    else offline
+        Note over UI,V: changes wait in the queue; the lease decides how long the cache stays usable
+    end
+    W->>A: claim outbox events (/internal)
+    A->>DB: run the rules through the same operations path
+```
+
+#### Desktop Google sign-in
+
+```mermaid
+sequenceDiagram
+    actor P as Person
+    participant UI as frontend/react
+    participant L as local-backend/rust
+    participant B as Browser
+    participant A as server/rust API
+    participant G as Google
+    UI->>L: invoke google_sign_in_listen
+    L-->>UI: listening on 127.0.0.1:port
+    UI->>L: invoke open_in_browser (server sign-in URL + port)
+    L->>B: open
+    B->>A: start sign-in
+    A->>G: redirect
+    G-->>A: signed in
+    A-->>B: redirect to 127.0.0.1:port/turf-sign-in?code=…
+    B->>L: one-time code
+    L-->>B: "Return to Turf" page
+    L-->>UI: turf-sign-in event (code)
+    UI->>A: POST /api/v1/auth/oauth/exchange
+    A-->>UI: session
 ```
 
 Rules:
