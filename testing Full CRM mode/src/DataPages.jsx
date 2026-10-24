@@ -158,7 +158,7 @@ export function Lists({ id }) {
             <Button
               icon={DownloadSimple}
               onClick={() =>
-                downloadCsv("turf-list-preview.csv", [
+                downloadCsv(exportName(dataset.name, "export"), [
                   [...dataset.columns, "CRM stage"],
                   ...leads.filter(lead => lead.datasetId === id).map(lead => [...dataset.columns.map(column => sourceValue(lead, column)), lead.stage]),
                 ])

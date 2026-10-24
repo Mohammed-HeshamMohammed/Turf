@@ -5,14 +5,32 @@
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
-/// A file name safe on every system: no folders, no reserved characters, never empty.
+/// A file name safe on every system: no folders, no reserved characters, never empty, and never so long that a
+/// shortened name loses its extension (a long name is cut in the middle of its stem; ".csv" always stays).
 pub fn safe_name(name: &str) -> String {
     let cleaned: String = name
         .chars()
         .map(|c| if c.is_control() || matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') { '_' } else { c })
         .collect();
     let trimmed = cleaned.trim().trim_matches('.').to_string();
-    if trimmed.is_empty() { "turf-export.csv".into() } else { trimmed.chars().take(150).collect() }
+    let (stem, extension) = match trimmed.rsplit_once('.') {
+        Some((stem, extension)) if !stem.is_empty() && (1..=5).contains(&extension.len()) => (stem.trim().to_string(), extension.to_string()),
+        _ => (trimmed.clone(), "csv".to_string()),
+    };
+    if stem.is_empty() {
+        return "turf-export.csv".into();
+    }
+    const MOST: usize = 100;
+    let chars: Vec<char> = stem.chars().collect();
+    let stem = if chars.len() <= MOST {
+        stem
+    } else {
+        // Keep the start (what the list is) and the end (what the file is, "(checked)").
+        let head: String = chars[..60].iter().collect();
+        let tail: String = chars[chars.len() - 30..].iter().collect();
+        format!("{}…{}", head.trim_end(), tail.trim_start())
+    };
+    format!("{stem}.{extension}")
 }
 
 /// `name.csv`, else `name (2).csv`, `name (3).csv`… in `folder`.
@@ -52,6 +70,12 @@ mod tests {
     fn names_are_safe_and_never_overwrite() {
         assert_eq!(safe_name("..\\..\\evil:name?.csv"), "_.._evil_name_.csv");
         assert_eq!(safe_name("   "), "turf-export.csv");
+        assert_eq!(safe_name("list"), "list.csv");
+        // A long list name is shortened in the middle: the extension and "(checked)" stay.
+        let long = format!("2024-11-06_0am_Results_for_{} (checked).csv", "infoakcallers_com-Tucson2_670044fce345b".repeat(4));
+        let short = safe_name(&long);
+        assert!(short.ends_with(" (checked).csv") && short.starts_with("2024-11-06_0am_Results_for_"), "{short}");
+        assert!(short.chars().count() <= 105, "{short}");
         let folder = std::env::temp_dir().join(format!("turf-downloads-{}", std::process::id()));
         std::fs::create_dir_all(&folder).unwrap();
         let first = free_path(&folder, "check.csv");
