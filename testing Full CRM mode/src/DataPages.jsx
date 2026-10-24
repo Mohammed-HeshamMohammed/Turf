@@ -323,6 +323,36 @@ const STAGE_LABELS = {
   saving_checked_copy: "Saving the checked copy",
 };
 
+const yes = value => (value ? "Yes" : "");
+const OWNER_COLUMNS = ["Owner properties in list", "All owner property addresses", "Absentee", "Out of state", "Vacant", "Score", "Score why"];
+const ownerCells = result => [
+  result?.properties || 1,
+  result?.addresses || "",
+  yes(result?.absentee),
+  yes(result?.outOfState),
+  yes(result?.vacant),
+  result?.score ?? "",
+  (result?.reasons || []).join("; "),
+];
+
+/** One row per owner, best score first: the owner's first row, with every property they hold in the list. Public
+ * owners (a housing authority, a city) are left out; repeats of one property count once. */
+function ownerRows(columns, rows, results) {
+  const seen = new Set();
+  // Best score first, so each owner is shown by their most promising property.
+  return rows
+    .map((lead, index) => ({ lead, index, result: results[index] || {} }))
+    .filter(({ result }) => !result.government && !String(result.duplicate || "").startsWith("Duplicate"))
+    .sort((a, b) => (b.result.score ?? 0) - (a.result.score ?? 0) || a.index - b.index)
+    .filter(({ result, index }) => {
+      const key = result.owner || "row" + index;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map(({ lead, result }) => [...columns.map(column => sourceValue(lead, column)), ...ownerCells(result)]);
+}
+
 const exportName = (list, what) => `${String(list || "turf list").replace(/\.[a-z0-9]{2,4}$/i, "")} (${what}).csv`;
 
 export function SkipTracing() {
@@ -501,7 +531,12 @@ export function SkipTracing() {
     notify(checked.engine ? "Check saved. Lead verdicts updated." : "Demo check saved");
     navigate("lists/" + datasetId);
   }
-  const [reviewRows, reviewMore] = useShowMore(rows);
+  // A list with no phones is reviewed best owner first; a phone check in the list's own order.
+  const reviewOrder = useMemo(() => {
+    const order = rows.map((lead, index) => ({ lead, index }));
+    return checked?.noPhones ? order.sort((a, b) => (checked.results[b.index]?.score ?? 0) - (checked.results[a.index]?.score ?? 0)) : order;
+  }, [rows, checked]);
+  const [reviewRows, reviewMore] = useShowMore(reviewOrder);
   const counts = checked?.engine ? rows.reduce((all, lead, index) => ({ ...all, [verdictOf(lead, index)]: (all[verdictOf(lead, index)] || 0) + 1 }), {}) : null;
   const allowed = capability(state, "review") || capability(state, "import");
   if (!allowed) return <Empty title="Skip Tracing is outside this role">Data operators work here before leads enter the outreach queue.</Empty>;
@@ -789,10 +824,34 @@ export function SkipTracing() {
                       <small>possible repeats</small>
                     </div>
                     {checked.noPhones && checked.engine && (
-                      <div>
-                        <strong>{(checked.sameOwner || 0).toLocaleString()}</strong>
-                        <small>owner has other properties here</small>
-                      </div>
+                      <>
+                        <div>
+                          <strong>{(checked.owners || 0).toLocaleString()}</strong>
+                          <small>owners</small>
+                        </div>
+                        <div>
+                          <strong>{(checked.sameOwner || 0).toLocaleString()}</strong>
+                          <small>owner has other properties here</small>
+                        </div>
+                        <div>
+                          <strong>{(checked.absentee || 0).toLocaleString()}</strong>
+                          <small>absentee owners</small>
+                        </div>
+                        <div>
+                          <strong>{(checked.outOfState || 0).toLocaleString()}</strong>
+                          <small>mail out of state</small>
+                        </div>
+                        <div>
+                          <strong>{(checked.vacant || 0).toLocaleString()}</strong>
+                          <small>vacant</small>
+                        </div>
+                        {checked.government > 0 && (
+                          <div>
+                            <strong>{checked.government.toLocaleString()}</strong>
+                            <small>government owned · not leads</small>
+                          </div>
+                        )}
+                      </>
                     )}
                     {checked.engine && !checked.noPhones && (
                       <div>
@@ -803,17 +862,24 @@ export function SkipTracing() {
                   </div>
                   {checked.noPhones && (
                     <p className="notice subtle">
-                      This list has no phone numbers, so there is nothing to call yet. Turf checked it for leads it repeats: a repeat is the same property
-                      listed twice (same parcel, or the same address and owner). One owner with several different properties is not a repeat; those leads
-                      are counted as sharing an owner. Add phone numbers (a skip-tracing data source) and run the check again to see which are ready to call.
+                      This list has no phone numbers, so there is nothing to call yet. Turf found each property&apos;s owner (the same name at the same mailing
+                      address, in any ZIP code), the properties each owner holds here, and scored them: vacant +3, absentee +2, owns several +2, mails out of
+                      state +1, investor +1, owned 25+ years +1. A repeat is the same property listed twice; one owner with several properties is not a
+                      repeat. Add phone numbers (a skip-tracing data source) and run the check again to see which are ready to call.
                     </p>
                   )}
                   <div className="review-rows">
-                    {reviewRows.map((lead, index) => (
+                    {reviewRows.map(({ lead, index }) => (
                       <div key={lead.id}>
                         <LeadLink lead={lead} />
                         <Status value={verdictOf(lead, index)} />
-                        {checked.engine && <small className="muted review-why">{checked.results[index]?.why || checked.results[index]?.duplicate}</small>}
+                        {checked.engine && (
+                          <small className="muted review-why">
+                            {checked.noPhones && checked.results[index]?.reasons?.length
+                              ? `Score ${checked.results[index].score}: ${checked.results[index].reasons.join(", ")}`
+                              : checked.results[index]?.why || checked.results[index]?.duplicate}
+                          </small>
+                        )}
                         <Button onClick={() => navigate("work/leads/" + lead.id)}>Review</Button>
                       </div>
                     ))}
@@ -864,7 +930,7 @@ export function SkipTracing() {
                       exportName(dataset?.name, checked.engine ? "checked" : "demo check"),
                       checked.engine
                         ? [
-                            [...columns, "Verdict", "Best phone", "Why", "Duplicate status", "Same owner rows"],
+                            [...columns, "Verdict", "Best phone", "Why", "Duplicate status", "Same owner rows", ...(checked.noPhones ? OWNER_COLUMNS : [])],
                             ...rows.map((lead, index) => [
                               ...columns.map(column => sourceValue(lead, column)),
                               verdictOf(lead, index),
@@ -872,6 +938,7 @@ export function SkipTracing() {
                               checked.results[index]?.why || "",
                               checked.results[index]?.duplicate || "",
                               checked.results[index]?.sameOwner || "",
+                              ...(checked.noPhones ? ownerCells(checked.results[index]) : []),
                             ]),
                           ]
                         : [
@@ -883,6 +950,14 @@ export function SkipTracing() {
                 >
                   {checked.engine ? "Export CSV" : "Export demo CSV"}
                 </Button>
+                {checked.engine && checked.noPhones && (
+                  <Button
+                    icon={DownloadSimple}
+                    onClick={() => downloadCsv(exportName(dataset?.name, "by owner"), [[...columns, ...OWNER_COLUMNS], ...ownerRows(columns, rows, checked.results)])}
+                  >
+                    Export one row per owner
+                  </Button>
+                )}
               </div>
             </>
           )}

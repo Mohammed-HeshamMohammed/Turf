@@ -108,6 +108,14 @@ export function engineConfig(suggested, columns, rows, mappings, { region = "US"
     mailing_address_column: pick("mailingAddress"),
     // Another parcel is another property, whoever owns it.
     parcel_column: pick("parcel"),
+    // What the owner looks like: absentee, out of state, vacant, investor, years owned.
+    mailing_city_column: pick("mailingCity"),
+    mailing_state_column: pick("mailingRegion"),
+    mailing_zip_column: pick("mailingZip"),
+    owner_type_column: pick("ownerType"),
+    owner_occupied_column: pick("ownerOccupied"),
+    vacant_column: pick("vacant"),
+    ownership_months_column: pick("ownershipMonths"),
     find_duplicates: findDuplicates,
     outcome: null,
   };
@@ -204,18 +212,40 @@ export async function checkRepeats({ datasetId, config, onStage, onStart, signal
   for (const item of found.results) {
     const repeat = item.status.startsWith("Duplicate") || item.status.startsWith("Possible");
     results[item.row_number - 2] = {
-      verdict: repeat ? "Possible duplicate" : "No phone",
+      verdict: repeat ? "Possible duplicate" : item.government ? "Not a lead" : "No phone",
       why: repeat
         ? item.why || item.status
-        : item.same_owner
-          ? "Same owner as " + item.same_owner.replace(/^Rows?/, word => word.toLowerCase()) + " of the list · a different property"
-          : "No phone number in this list",
+        : item.government
+          ? "Government owner: not a lead"
+          : item.same_owner
+            ? "Same owner as " + item.same_owner.replace(/^Rows?/, word => word.toLowerCase()) + " of the list · a different property"
+            : "No phone number in this list",
       duplicate: item.status,
       sameOwner: item.same_owner || "",
       bestPhone: "",
+      owner: item.owner || "",
+      properties: item.properties || 1,
+      addresses: item.addresses || "",
+      absentee: Boolean(item.absentee),
+      outOfState: Boolean(item.out_of_state),
+      vacant: Boolean(item.vacant),
+      government: Boolean(item.government),
+      score: item.score ?? 0,
+      reasons: item.reasons || [],
     };
   }
-  return { jobId: job_id, report: null, repeats: found.repeats, sameOwner: found.same_owner || 0, results };
+  return {
+    jobId: job_id,
+    report: null,
+    repeats: found.repeats,
+    sameOwner: found.same_owner || 0,
+    owners: found.owners || 0,
+    absentee: found.absentee || 0,
+    outOfState: found.out_of_state || 0,
+    vacant: found.vacant || 0,
+    government: found.government || 0,
+    results,
+  };
 }
 
 // ---- Placing leads on the map ----------------------------------------------------------------------------------

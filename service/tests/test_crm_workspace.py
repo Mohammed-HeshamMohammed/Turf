@@ -171,3 +171,36 @@ def test_another_parcel_or_house_number_is_never_a_repeat_even_with_the_same_own
     statuses = sorted(by_row[n]["status"] for n in (7, 8))
     assert statuses[1] == "Keep" and statuses[0].startswith(("Duplicate", "Possible")), "one parcel written twice is still a repeat"
     assert found["repeats"] == 1 and found["same_owner"] >= 3
+
+
+def test_each_property_is_told_its_owner_their_properties_and_a_score(service: Service):
+    ok(service, "project.open_workspace", name="crm")
+    header = ["Address", "State", "Zip", "Owner 1 First Name", "Owner 1 Last Name", "Owner Mailing Address", "Owner Mailing State",
+              "Owner Mailing Zip", "Owner Type", "Vacant?", "Ownership Length (Months)"]
+    rows = [
+        ["10 A ST", "CA", "90001", "GEORGE", "WILLIAMS", "8005 WEST BLVD", "CA", "90305", "INDIVIDUAL,INVESTOR", "1", "221"],
+        ["22 B ST", "CA", "91770", "GEORGE", "WILLIAMS", "8005 WEST BLVD", "CA", "90305", "INDIVIDUAL,INVESTOR", "", "221"],
+        ["5 C ST", "CA", "90002", "ANNA", "LEE", "5 C ST", "CA", "90002", "INDIVIDUAL", "", "320"],
+        ["7 D ST", "CA", "90003", "", "LANCASTER HOUSING AUTHORITY", "44933 FERN AVE", "CA", "93534", "GOVERNMENT,INDIVIDUAL", "", ""],
+        ["9 E ST", "CA", "90004", "JOHN", "SKALICKY", "3327 COUNTRY CLUB DR", "TX", "75001", "INDIVIDUAL", "", "1508"],
+    ]
+    buffer = io.StringIO()
+    csv.writer(buffer).writerows([header, *rows])
+    dataset = run(service, "dataset.import_content", name="Owners.csv", data=base64.b64encode(buffer.getvalue().encode()).decode())["dataset_id"]
+    config = {"first_name_column": "Owner 1 First Name", "last_name_column": "Owner 1 Last Name", "address_column": "Address", "state_column": "State",
+              "zip_column": "Zip", "mailing_address_column": "Owner Mailing Address", "mailing_state_column": "Owner Mailing State",
+              "mailing_zip_column": "Owner Mailing Zip", "owner_type_column": "Owner Type", "vacant_column": "Vacant?",
+              "ownership_months_column": "Ownership Length (Months)", "owner_occupied_column": "Owner Occupied"}
+    found = run(service, "skiptrace.repeats", dataset_id=dataset, config=config)
+    by_row = {item["row_number"]: item for item in found["results"]}
+    # One owner with properties in two ZIP codes: one owner, two properties, both addresses listed.
+    assert by_row[2]["owner"] == by_row[3]["owner"] and by_row[2]["properties"] == 2
+    assert by_row[2]["addresses"] == "10 A ST; 22 B ST" and by_row[2]["same_owner"] == "Row 3"
+    assert by_row[2]["score"] == 3 + 2 + 2 + 1 and by_row[2]["vacant"] and by_row[2]["absentee"]
+    # Living at the property: not absentee; owned over 25 years.
+    assert not by_row[4]["absentee"] and by_row[4]["score"] == 1
+    assert by_row[5]["government"] and by_row[5]["score"] == 0
+    assert by_row[6]["out_of_state"] and by_row[6]["owner"] != by_row[2]["owner"]
+    # 125 years of ownership is a fault in the source, not a reason.
+    assert by_row[6]["score"] == 2 + 1 and not any("years" in reason for reason in by_row[6]["reasons"])
+    assert found["owners"] == 4 and found["government"] == 1 and found["vacant"] == 1
