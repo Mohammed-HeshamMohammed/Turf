@@ -4,6 +4,8 @@ The place to manage your lists and the areas they cover.
 
 Start with [PLAN.md](PLAN.md). The mockup that started the idea is in `reference/` (only its look is a reference: revenue, appointments, messages and agent names are not part of Turf).
 
+**Layout.** `Turf/` is the desktop app described below (paths like `src/` and `src-tauri/` are inside it, so run its `npm` commands from `Turf/`). `Full CRM Turf/` is the full CRM app. `service/` (Python engine), `backend/`, `website/`, `contracts/` and `docs/` are shared and stay at the root.
+
 ## How it is built
 
 The same stack as DataForge. Everything Turf runs is in this repository; it does not call into the DataForge folder.

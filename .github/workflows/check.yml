@@ -15,6 +15,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: Turf/package-lock.json
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -22,12 +23,17 @@ jobs:
           cache-dependency-path: service/requirements.txt
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: Turf/src-tauri
       - run: npm ci
+        working-directory: Turf
       - run: pip install -r service/requirements.txt pytest
       - run: npm run lint
+        working-directory: Turf
       - run: npm run format:check
+        working-directory: Turf
       - run: npm run build
+        working-directory: Turf
       - run: npm test
+        working-directory: Turf
       - run: python -m pytest service/tests -q
-      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - run: cargo test --manifest-path Turf/src-tauri/Cargo.toml

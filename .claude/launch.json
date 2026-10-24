@@ -5,6 +5,8 @@
       "name": "turf",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
+        "--prefix",
+        "Turf",
         "run",
         "dev"
       ],
@@ -15,7 +17,7 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "--prefix",
-        "testing Full CRM mode",
+        "Full CRM Turf",
         "run",
         "dev",
         "--",

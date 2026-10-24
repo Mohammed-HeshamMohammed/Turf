@@ -1,4 +1,4 @@
-# Turf — testing Full CRM mode
+# Turf — Full CRM Turf
 
 A separate interactive frontend prototype of [Turf's CRM and performance plan](../TURF_CRM_AND_PERFORMANCE_PLAN.md). It extends the current Turf design: Inter Tight, gray surfaces, rounded cards, black pill navigation, and peach accents.
 

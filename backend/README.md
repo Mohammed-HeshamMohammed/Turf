@@ -42,7 +42,7 @@ bash backend/scripts/run-worker.sh       # Go worker
 python backend/scripts/dev_seed.py       # once, on a fresh database: an organization, one person per role, sample leads
 ```
 
-`dev_seed.py` writes the local test accounts to `backend/scripts/.dev-accounts.json` (git-ignored). In the CRM interface (`testing Full CRM mode`, `npm run dev`), open the Turf menu, choose **Connect to a Turf server**, and sign in at `http://localhost:8088`. Owners and administrators need an authenticator code. Records then come from the server. Changes apply on screen at once and queue as operations; offline they wait in an encrypted IndexedDB copy unlocked by a passphrase. On reconnect, a change someone else made meanwhile shows on the Sync page with both values.
+`dev_seed.py` writes the local test accounts to `backend/scripts/.dev-accounts.json` (git-ignored). In the CRM interface (`Full CRM Turf`, `npm run dev`), open the Turf menu, choose **Connect to a Turf server**, and sign in at `http://localhost:8088`. Owners and administrators need an authenticator code. Records then come from the server. Changes apply on screen at once and queue as operations; offline they wait in an encrypted IndexedDB copy unlocked by a passphrase. On reconnect, a change someone else made meanwhile shows on the Sync page with both values.
 
 ## How a change flows
 

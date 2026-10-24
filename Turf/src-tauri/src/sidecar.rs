@@ -67,7 +67,7 @@ pub struct ServiceBridge {
 fn service_root() -> PathBuf {
     std::env::var_os("TURF_SERVICE_ROOT")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../service")))
+        .unwrap_or_else(|| PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../service")))
 }
 
 fn service_executable(resources: &Path) -> PathBuf {

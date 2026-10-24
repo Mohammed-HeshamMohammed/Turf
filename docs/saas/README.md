@@ -261,7 +261,7 @@ bash backend/scripts/run-api.sh                     # API + website on http://12
 python backend/scripts/dev_pay.py <payment> <cents> # plays the payment provider after a checkout
 ```
 
-Open http://127.0.0.1:8088 to sign up. The CRM (`testing Full CRM mode`, `npm run dev`) signs in to the same server
+Open http://127.0.0.1:8088 to sign up. The CRM (`Full CRM Turf`, `npm run dev`) signs in to the same server
 through the Turf menu's **Connect to a Turf server**. The desktop app always asks for it.
 
 ## Deploying on a Hostinger VPS

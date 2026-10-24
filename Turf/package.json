@@ -9,12 +9,12 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "desktop": "tauri dev",
-    "check": "npm run lint && npm run format:check && npm run build && npm test && python -m pytest service/tests -q && cargo test --manifest-path src-tauri/Cargo.toml",
+    "check": "npm run lint && npm run format:check && npm run build && npm test && python -m pytest ../service/tests -q && cargo test --manifest-path src-tauri/Cargo.toml",
     "test": "vitest run",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,tsx}\" \"*.{ts,js,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,tsx}\" \"*.{ts,js,json}\"",
-    "package:service": "python service/tools/build_service.py",
+    "package:service": "python ../service/tools/build_service.py",
     "package": "npm run package:service && tauri build --config src-tauri/tauri.package.conf.json"
   },
   "devDependencies": {

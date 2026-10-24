@@ -16,7 +16,7 @@ function serviceBridge(): Plugin {
     apply: "serve",
     configureServer(server) {
       if (process.env.TAURI_ENV_PLATFORM) return;
-      const root = resolve(process.env.TURF_SERVICE_ROOT ?? "service");
+      const root = resolve(process.env.TURF_SERVICE_ROOT ?? "../service");
       let child: ChildProcessWithoutNullStreams | null = null;
       let answers: AsyncIterator<string> | null = null;
       let nextId = 0;

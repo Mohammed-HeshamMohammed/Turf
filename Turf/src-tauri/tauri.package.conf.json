@@ -4,8 +4,8 @@
     "targets": ["nsis"],
     "icon": ["icons/icon.ico"],
     "resources": {
-      "../service/dist/turf-service.exe": "service/turf-service.exe",
-      "../service/migrations/": "migrations/"
+      "../../service/dist/turf-service.exe": "service/turf-service.exe",
+      "../../service/migrations/": "migrations/"
     }
   }
 }
