@@ -179,3 +179,22 @@ test("numbered owners with full or split names all become owners", async () => {
   assert.equal(lead.name, "Mona Adel");
   assert.deepEqual(lead.owners, ["Mona Adel", "Sam Hill"]);
 });
+
+test("a dialer export: a status column of repeated phrases is never taken for the owner's name", async () => {
+  const { detectSourceFields, leadFromSource } = await import("../src/skiptrace-fields.js");
+  const header = ["Phone", "Alt. Phone", "First Name", "Last Name", "Address", "City", "State", "Country", "Zip", "Email", "Batch Name", "Status", "Original Status", "Status (agent)"];
+  const statuses = ["Not interested", "No answer", "Left voicemail", "Wrong number"];
+  const people = [["Jose", "Ortega"], ["Mona", "Adel"], ["Sam", "Hill"], ["Ana", "Lopez"], ["Ben", "Ortiz"], ["Cy", "Young"], ["Di", "Park"], ["Ed", "Shaw"]];
+  const dialer = sheet(
+    header,
+    ...people.map(([first, last], i) => [`520838${4890 + i}`, "", first, last, `${949 + i} W DREXEL RD`, "Tucson", "AZ", "", "85706", "", "cristianlist2", statuses[i % 4], statuses[i % 4], "SAHS.10"]),
+  );
+  const found = detectSourceFields(dialer.columns, dialer.rows);
+  assert.equal(found.name, "", "no column is the full name: it is built from First and Last Name");
+  assert.equal(found.outcome, "Status");
+  assert.equal(found.phone, "Phone");
+  const lead = leadFromSource(dialer.columns, dialer.rows[0], found);
+  assert.equal(lead.name, "Jose Ortega");
+  assert.deepEqual(lead.owners, ["Jose Ortega"]);
+  assert.equal(lead.zip, "85706");
+});

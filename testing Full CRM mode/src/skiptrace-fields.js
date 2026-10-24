@@ -269,9 +269,14 @@ function valueShare(fieldId, column, rows, check = LOOKS_LIKE[fieldId]) {
     const value = sourceValue(rows[index], column);
     if (supplied(value)) sample.push(value);
   }
-  if (!sample.length) return { share: null, filled: 0 };
-  return { share: check ? sample.filter(check).length / sample.length : null, filled: sample.length };
+  if (!sample.length) return { share: null, filled: 0, varied: 0 };
+  const varied = new Set(sample.map(value => value.toLowerCase())).size / sample.length;
+  return { share: check ? sample.filter(check).length / sample.length : null, filled: sample.length, varied };
 }
+
+// How different the values of a field are from row to row, at the least, before values alone may name a column:
+// "Not interested" looks like a name, but a column of a few repeated phrases is a status, not people.
+const VARIED = { name: 0.6, address: 0.6, email: 0.6, phone: 0.3, zip: 0, value: 0.3 };
 
 const mappingCache = new WeakMap();
 
@@ -285,6 +290,18 @@ export function smartMapping(columns, rows = []) {
   if (!byKey) mappingCache.set(rows, (byKey = new Map()));
   if (byKey.has(key)) return byKey.get(key);
   const options = [];
+  // A header that clearly names some field is never re-labelled by its values, unless those values contradict it (a
+  // "Phone" column full of email addresses): "Original Status" stays a status even though "Not interested" looks like
+  // a name.
+  const named = new Set(
+    columns.filter(column =>
+      SOURCE_FIELDS.some(field => {
+        if (headerScore(field, column) < 0.5) return false;
+        const { share } = rows.length ? valueShare(field.id, column, rows) : { share: null };
+        return share === null || share >= 0.2;
+      }),
+    ),
+  );
   for (const column of columns) {
     const taught = learned[normalize(column)];
     for (const field of SOURCE_FIELDS) {
@@ -300,9 +317,9 @@ export function smartMapping(columns, rows = []) {
         // Values confirm a header, or show it is something else (a "Phone" column full of emails).
         score = header * (0.65 + 0.35 * share);
         if (share < 0.2) score *= 0.4;
-      } else if (header < 0.4 && SELF_EVIDENT[field.id] && rows.length) {
-        const evident = valueShare(field.id, column, rows, SELF_EVIDENT[field.id]).share;
-        if (evident >= 0.85) {
+      } else if (header < 0.4 && SELF_EVIDENT[field.id] && rows.length && !named.has(column)) {
+        const { share: evident, varied } = valueShare(field.id, column, rows, SELF_EVIDENT[field.id]);
+        if (evident >= 0.85 && varied >= VARIED[field.id]) {
           score = 0.5 + 0.15 * evident;
           how = "values";
         }
@@ -317,7 +334,12 @@ export function smartMapping(columns, rows = []) {
     how = {},
     scores = {},
     used = new Set();
+  // With a first and a last name column, the full name is built from them: no other column is guessed as the name.
+  const parts = new Set(
+    options.filter(option => option.how !== "values" && (option.field === "firstName" || option.field === "lastName")).map(option => option.field),
+  );
   for (const option of options) {
+    if (option.field === "name" && option.how === "values" && parts.size === 2) continue;
     if (mappings[option.field] || used.has(option.column)) continue;
     mappings[option.field] = option.column;
     how[option.field] = option.how;
