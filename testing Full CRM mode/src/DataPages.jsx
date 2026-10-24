@@ -7,7 +7,7 @@ import { useCrm } from "./context.jsx";
 import { detectSourceFields, leadFromSource, sourceEvidence, sourceValue } from "./skiptrace-fields.js";
 import { SourceFieldMapping } from "./SourceFieldMapping.jsx";
 import { PropertyMap } from "./PropertyMap.jsx";
-import { cancelJob, check, engineAvailable, engineConfig, prepare, saveCopy } from "./engine.js";
+import { cancelJob, check, checkRepeats, engineAvailable, engineConfig, prepare, saveCopy } from "./engine.js";
 import {
   Badge,
   Select,
@@ -363,6 +363,7 @@ export function SkipTracing() {
   const { fields, primary, mappedFields } = useMemo(() => sourceEvidence(columns, rows, mappings), [columns, rows, mappings]);
   const hasPhones = fields.some(field => field.id === "phone" && field.count > 0);
   const outcomeColumn = mappedFields.find(field => field.id === "outcome")?.column || "";
+  const found = useMemo(() => Object.fromEntries(mappedFields.filter(field => field.column).map(field => [field.id, field.column])), [mappedFields]);
   const finished = Boolean(checked);
   useEffect(() => {
     stepNavigation.current?.querySelector("[aria-current]")?.scrollIntoView({
@@ -433,29 +434,33 @@ export function SkipTracing() {
     reset();
     setStep(3);
     if (!engine) return runDemo();
-    if (!hasPhones) {
-      // The engine checks phone numbers; without any, every lead keeps its evidence and is marked as having no phone.
-      setChecked({ engine: true, report: null, results: rows.map(() => ({ verdict: "No phone", why: "No populated phone field", bestPhone: "" })) });
-      return;
-    }
     const controller = new AbortController();
     running.current = controller;
     setProgress({ label: "Preparing the list", value: 0, max: 1 });
+    const follow = {
+      signal: controller.signal,
+      onStart: jobId => (controller.jobId = jobId),
+      onStage: event =>
+        !controller.signal.aborted && setProgress({ label: STAGE_LABELS[event.stage] || "Checking", value: event.completed ?? 0, max: event.total || 1 }),
+    };
     try {
       const prepared = await prepare({ name: dataset.name, columns, rows });
+      if (!hasPhones) {
+        // No phone numbers to check: the engine still finds the leads this list repeats, from names and addresses.
+        const config = engineConfig(prepared.suggestion.config, columns, rows, found, { region });
+        const result = signals.duplicates
+          ? await checkRepeats({ datasetId: prepared.datasetId, config, ...follow })
+          : { report: null, results: rows.map(() => ({ verdict: "No phone", why: "No phone number in this list", bestPhone: "" })) };
+        if (controller.signal.aborted) return;
+        setChecked({ engine: true, datasetId: prepared.datasetId, noPhones: true, ...result });
+        return;
+      }
       let meanings = [];
       if (signals.outcomes && outcomeColumn)
         meanings = statuses?.column === outcomeColumn ? statuses.items : (await prepare({ name: dataset.name, columns, rows, outcomeColumn })).statuses;
       const outcomes = meanings.length ? { column: outcomeColumn, map: Object.fromEntries(meanings.map(item => [item.key, item.outcomes || []])) } : null;
-      const config = engineConfig(prepared.suggestion.config, columns, rows, mappings, { region, findDuplicates: signals.duplicates, outcomes });
-      const result = await check({
-        datasetId: prepared.datasetId,
-        config,
-        signal: controller.signal,
-        onStart: jobId => (controller.jobId = jobId),
-        onStage: event =>
-          !controller.signal.aborted && setProgress({ label: STAGE_LABELS[event.stage] || "Checking", value: event.completed ?? 0, max: event.total || 1 }),
-      });
+      const config = engineConfig(prepared.suggestion.config, columns, rows, found, { region, findDuplicates: signals.duplicates, outcomes });
+      const result = await check({ datasetId: prepared.datasetId, config, ...follow });
       if (controller.signal.aborted) return;
       setChecked({ engine: true, datasetId: prepared.datasetId, ...result });
     } catch (reason) {
@@ -741,13 +746,20 @@ export function SkipTracing() {
                 <>
                   <div className="review-metrics">
                     <div>
-                      <strong>{rows.length}</strong>
+                      <strong>{rows.length.toLocaleString()}</strong>
                       <small>source rows</small>
                     </div>
-                    <div>
-                      <strong>{checked.engine ? counts["Ready to call"] || 0 : rows.filter(item => demoVerdict(item) === "Ready to call").length}</strong>
-                      <small>{checked.engine ? "ready to call" : "ready in sample evidence"}</small>
-                    </div>
+                    {checked.noPhones ? (
+                      <div>
+                        <strong>{(counts["No phone"] || 0).toLocaleString()}</strong>
+                        <small>leads to find phone numbers for</small>
+                      </div>
+                    ) : (
+                      <div>
+                        <strong>{checked.engine ? counts["Ready to call"] || 0 : rows.filter(item => demoVerdict(item) === "Ready to call").length}</strong>
+                        <small>{checked.engine ? "ready to call" : "ready in sample evidence"}</small>
+                      </div>
+                    )}
                     <div>
                       <strong>
                         {checked.engine
@@ -758,13 +770,19 @@ export function SkipTracing() {
                       </strong>
                       <small>possible repeats</small>
                     </div>
-                    {checked.engine && (
+                    {checked.engine && !checked.noPhones && (
                       <div>
                         <strong>{(counts["Wrong number"] || 0) + (counts["Do not call"] || 0)}</strong>
                         <small>blocked or wrong</small>
                       </div>
                     )}
                   </div>
+                  {checked.noPhones && (
+                    <p className="notice subtle">
+                      This list has no phone numbers, so there is nothing to call yet. Turf checked it for leads it repeats; add phone numbers (a skip-tracing
+                      data source) and run the check again to see which are ready to call.
+                    </p>
+                  )}
                   <div className="review-rows">
                     {reviewRows.map((lead, index) => (
                       <div key={lead.id}>
@@ -804,9 +822,11 @@ export function SkipTracing() {
               <CheckCircle size={38} weight="light" />
               <h3>Keep a reviewable copy.</h3>
               <p className="body-copy">
-                {checked.engine
-                  ? "Save the check: each lead gets its verdict and the engine keeps a checked copy beside the original. Or export a reviewed CSV."
-                  : "Save the demo check to this workspace, or export a reviewed CSV. Original imported values stay unchanged."}
+                {checked.noPhones
+                  ? "Save the check: each lead is marked as a possible repeat or as needing phone numbers. Original imported values stay unchanged. Or export a reviewed CSV."
+                  : checked.engine
+                    ? "Save the check: each lead gets its verdict and the engine keeps a checked copy beside the original. Or export a reviewed CSV."
+                    : "Save the demo check to this workspace, or export a reviewed CSV. Original imported values stay unchanged."}
               </p>
               <div className="row">
                 <Button variant="primary" onClick={save}>

@@ -634,3 +634,48 @@ def _run_apply(context: JobContext) -> dict:
 
 SCAN_JOB = JobKind(run=_run_scan, validate=_validate)
 APPLY_JOB = JobKind(run=_run_apply, validate=_validate)
+
+
+# ---- Turf CRM: a list without phone numbers ------------------------------------------------------------------------
+# A phone check needs phones, but a list of owners and properties (a county-records export) is still worth checking:
+# rows that repeat the same lead are found from names and addresses with the same engine and the same rules as a phone
+# check (one owner with several properties stays several leads). Nothing is changed in the list.
+
+_REPEAT_COLUMNS = ("first_name_column", "last_name_column", "name_column", "address_column", "city_column", "state_column", "zip_column",
+                   "mailing_address_column")
+
+
+def _validate_repeats(store: ProjectStore, params: dict) -> dict:
+    _dataset(store, params.get("dataset_id"))
+    config = params.get("config")
+    if not isinstance(config, dict):
+        raise JobValidationError("A setup is required")
+    _, rows = _rows(store, params["dataset_id"])
+    columns = list(dict.fromkeys(column for row in rows[:400] for column in row))
+    cleaned = {"region": str(config.get("region") or "US").upper(), "phone_columns": []}
+    for key in _REPEAT_COLUMNS:
+        value = config.get(key)
+        if value not in (None, "") and value not in columns:
+            raise JobValidationError(f"Unknown column: {value}")
+        cleaned[key] = value or None
+    if not any(cleaned[key] for key in ("first_name_column", "last_name_column", "name_column", "address_column")):
+        raise JobValidationError("Map an owner name or an address column first")
+    return {"dataset_id": params["dataset_id"], "config": cleaned}
+
+
+def _run_repeats(context: JobContext) -> dict:
+    context.stage("reading_file")
+    numbers, rows = _rows(context.store, context.params["dataset_id"])
+    from .combine import decided
+    same, different = decided(context.store, context.params["dataset_id"])
+    found, summary = duplicates.find(rows, numbers, context.params["config"], None, context.checkpoint, context.stage, same, different)
+    results = [
+        {"row_number": number, "group": columns["Duplicate group"], "status": columns["Duplicate status"], "why": columns["Duplicate why"],
+         "same_owner": columns["Same owner rows"]}
+        for number, columns in zip(numbers, found)
+    ]
+    repeats = sum(1 for item in results if item["status"] and item["status"] != "Keep")
+    return {"rows": len(results), "repeats": repeats, "summary": summary, "results": results}
+
+
+REPEATS_JOB = JobKind(run=_run_repeats, validate=_validate_repeats)

@@ -154,6 +154,8 @@ export const VOCABULARY = {
   stories: ["stories", "number of stories", "floors"],
   garageType: ["garage type", "garage", "parking"],
   garageSqft: ["garage square feet", "garage sq ft", "garage area"],
+  carport: ["carport", "carport type", "covered parking"],
+  carportSqft: ["carport area", "carport square feet", "carport sq ft"],
   cooling: ["air conditioning", "air conditioning type", "cooling", "ac"],
   heating: ["heating", "heating type"],
   fireplaces: ["fireplaces", "number of fireplaces"],

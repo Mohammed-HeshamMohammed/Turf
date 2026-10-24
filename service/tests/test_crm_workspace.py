@@ -102,3 +102,42 @@ def test_a_list_without_phone_columns_is_refused_with_a_reason(service: Service)
     dataset = run(service, "dataset.import_content", name="No phones.csv", data=csv_content(rows))["dataset_id"]
     response = call(service, "skiptrace.save_settings", dataset_id=dataset, config={"phone_columns": []})
     assert not response["ok"] and "phone column" in response["error"]["message"]
+
+
+COUNTY = ["Id", "Address", "City", "State", "Zip", "Owner 1 First Name", "Owner 1 Last Name", "Owner Mailing Address"]
+
+
+def county_csv(rows: list[list[str]]) -> str:
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(COUNTY)
+    writer.writerows(rows)
+    return base64.b64encode(buffer.getvalue().encode("utf-8")).decode("ascii")
+
+
+def test_a_list_without_phones_still_finds_repeated_leads(service: Service):
+    ok(service, "project.open_workspace", name="crm")
+    rows = [
+        ["1", "840 W 124TH ST", "LOS ANGELES", "CA", "90044", "VIRGINIA", "FRIZ", "721 W EL SEGUNDO BLVD"],
+        ["2", "840 W 124th Street", "Los Angeles", "CA", "90044", "Virginia", "Friz", "721 W EL SEGUNDO BLVD"],
+        ["3", "12 OAK AVE", "LOS ANGELES", "CA", "90045", "VIRGINIA", "FRIZ", "721 W EL SEGUNDO BLVD"],
+        ["4", "9 PINE RD", "GARDENA", "CA", "90247", "SAM", "HILL", "9 PINE RD"],
+    ]
+    dataset = run(service, "dataset.import_content", name="County.csv", data=county_csv(rows))["dataset_id"]
+    config = {"first_name_column": "Owner 1 First Name", "last_name_column": "Owner 1 Last Name", "address_column": "Address", "city_column": "City",
+              "state_column": "State", "zip_column": "Zip", "mailing_address_column": "Owner Mailing Address"}
+    found = run(service, "skiptrace.repeats", dataset_id=dataset, config=config)
+    by_row = {item["row_number"]: item for item in found["results"]}
+    assert found["rows"] == 4 and len(by_row) == 4
+    # Rows 2 and 3 are one lead written twice: one is kept, the other is its repeat.
+    statuses = sorted(by_row[n]["status"] for n in (2, 3))
+    assert statuses[1] == "Keep" and (statuses[0].startswith("Duplicate") or statuses[0].startswith("Possible")), by_row
+    assert not by_row[4]["status"].startswith(("Duplicate", "Possible")), "the same owner's other property is its own lead"
+    assert not by_row[5]["status"], "a different owner and property is not a repeat"
+
+
+def test_repeats_needs_a_name_or_address_and_known_columns(service: Service):
+    ok(service, "project.open_workspace", name="crm")
+    dataset = run(service, "dataset.import_content", name="County.csv", data=county_csv([["1", "1 Main", "X", "CA", "1", "A", "B", "C"]]))["dataset_id"]
+    assert not call(service, "skiptrace.repeats", dataset_id=dataset, config={})["ok"]
+    assert not call(service, "skiptrace.repeats", dataset_id=dataset, config={"address_column": "Nope"})["ok"]

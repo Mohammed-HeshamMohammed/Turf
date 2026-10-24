@@ -5791,3 +5791,11 @@ html.demo-quiet .demo-note {
 .detail-fields.source-row span {
   overflow-wrap: anywhere;
 }
+
+.mapping-summary {
+  margin: 0 0 4px;
+  color: var(--muted);
+}
+.mapping-summary strong {
+  color: var(--ink, inherit);
+}

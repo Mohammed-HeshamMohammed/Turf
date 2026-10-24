@@ -26,6 +26,7 @@ pub const ALLOWED: &[&str] = &[
     "skiptrace.scan",
     "skiptrace.review",
     "skiptrace.apply",
+    "skiptrace.repeats",
     "skiptrace.model_status",
 ];
 

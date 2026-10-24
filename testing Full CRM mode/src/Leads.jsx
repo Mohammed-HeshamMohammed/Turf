@@ -340,7 +340,8 @@ const months = total => {
     rest = total % 12;
   return [years && years + (years === 1 ? " year" : " years"), rest && rest + (rest === 1 ? " month" : " months")].filter(Boolean).join(" ") || "Under a month";
 };
-const yesNo = value => (/^(?:y|yes|true|1)$/i.test(String(value).trim()) ? "Yes" : /^(?:n|no|false|0)$/i.test(String(value).trim()) ? "No" : String(value ?? "").trim());
+const yesNo = value =>
+  /^(?:y|yes|true|1)$/i.test(String(value).trim()) ? "Yes" : /^(?:n|no|false|0)$/i.test(String(value).trim()) ? "No" : String(value ?? "").trim();
 
 /** The property and its owners as the source list describes them. Empty fields hide with "Hide empty fields". */
 function PropertyRecord({ lead, hideEmpty }) {
@@ -348,6 +349,7 @@ function PropertyRecord({ lead, hideEmpty }) {
     .filter(Boolean)
     .join(" · ");
   const garage = [lead.garageType, lead.garageSqft ? lead.garageSqft.toLocaleString() + " sq ft" : ""].filter(Boolean).join(" · ");
+  const carport = [lead.carport, lead.carportSqft ? lead.carportSqft.toLocaleString() + " sq ft" : ""].filter(Boolean).join(" · ");
   const sections = [
     [
       "Owners",
@@ -373,6 +375,7 @@ function PropertyRecord({ lead, hideEmpty }) {
         ["Units", lead.units ?? ""],
         ["Stories", lead.stories ?? ""],
         ["Garage", garage],
+        ["Carport", carport],
         ["Air conditioning", lead.cooling],
         ["Heating", lead.heating],
         ["Fireplaces", lead.fireplaces ?? ""],

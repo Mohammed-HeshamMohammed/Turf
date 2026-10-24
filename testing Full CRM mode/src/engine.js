@@ -105,6 +105,7 @@ export function engineConfig(suggested, columns, rows, mappings, { region = "US"
     city_column: pick("city") ?? suggested.city_column ?? null,
     state_column: pick("region") ?? suggested.state_column ?? null,
     zip_column: pick("zip") ?? suggested.zip_column ?? null,
+    mailing_address_column: pick("mailingAddress"),
     find_duplicates: findDuplicates,
     outcome: null,
   };
@@ -187,4 +188,29 @@ export async function check({ datasetId, config, onStage, onStart, signal }) {
 export async function saveCopy({ datasetId, config, jobId, name }) {
   const { job_id } = await call("skiptrace.apply", { dataset_id: datasetId, config, name, scan_job_id: jobId });
   return watchJob(job_id);
+}
+
+/**
+ * A list without phone numbers: finds the rows that repeat the same lead from owner names and addresses (the same
+ * engine and rules as a phone check). Answers one result per input row, in order: { verdict, why, duplicate }.
+ */
+export async function checkRepeats({ datasetId, config, onStage, onStart, signal }) {
+  const { job_id } = await call("skiptrace.repeats", { dataset_id: datasetId, config });
+  onStart?.(job_id);
+  const found = await watchJob(job_id, { onEvent: event => onStage?.(event), signal });
+  const results = [];
+  for (const item of found.results) {
+    const repeat = item.status.startsWith("Duplicate") || item.status.startsWith("Possible");
+    results[item.row_number - 2] = {
+      verdict: repeat ? "Possible duplicate" : "No phone",
+      why: repeat
+        ? item.why || item.status
+        : item.same_owner
+          ? "Same owner as " + item.same_owner.replace(/^Rows?/, word => word.toLowerCase()) + " of the list · a different property"
+          : "No phone number in this list",
+      duplicate: item.status,
+      bestPhone: "",
+    };
+  }
+  return { jobId: job_id, report: null, repeats: found.repeats, results };
 }

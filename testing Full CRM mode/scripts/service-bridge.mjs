@@ -20,6 +20,7 @@ export const ALLOWED_COMMANDS = new Set([
   "skiptrace.scan",
   "skiptrace.review",
   "skiptrace.apply",
+  "skiptrace.repeats",
   "skiptrace.model_status",
 ]);
 

@@ -106,6 +106,8 @@ export const SOURCE_FIELDS = [
   { id: "stories", label: "Stories", property: "stories", group: "Property details", aliases: /^(?:of )?(?:stories|floors)$/ },
   { id: "garageType", label: "Garage type", property: "garageType", group: "Property details", aliases: /^garage(?: type)?$/ },
   { id: "garageSqft", label: "Garage (sq ft)", property: "garageSqft", group: "Property details", aliases: /^garage (?:square feet|sq ft|sqft|area)$/ },
+  { id: "carport", label: "Carport", property: "carport", group: "Property details", aliases: /^carport(?: type)?$/ },
+  { id: "carportSqft", label: "Carport (sq ft)", property: "carportSqft", group: "Property details", aliases: /^carport (?:area|square feet|sq ft|sqft)$/ },
   {
     id: "cooling",
     label: "Air conditioning",
@@ -381,13 +383,27 @@ export function mappedRecord(columns, row, overrides = {}) {
  * Every owner a list names, in order: "Owner 1 First Name", "Owner 2 Last Name" and so on, or the single mapped owner.
  * Owners with neither name are left out, so a list's empty Owner 2 does not become a blank person.
  */
+const ownerColumnCache = new Map();
+/** The numbered owner columns of a list: [{ column, ordinal, part: "first" | "last" | "full" }]. */
+export function numberedOwnerColumns(columns) {
+  const key = columns.join("\u0001");
+  if (!ownerColumnCache.has(key)) {
+    const found = [];
+    for (const column of columns) {
+      const tokens = words(column);
+      const ordinal = tokens.find(token => /^\d+$/.test(token));
+      if (!ordinal || !has(tokens, OWNER_WORDS) || has(tokens, MAILING_WORDS) || tokens.some(token => /phone|mail/.test(token))) continue;
+      found.push({ column, ordinal, part: has(tokens, FIRST_WORDS) ? "first" : has(tokens, LAST_WORDS) ? "last" : "full" });
+    }
+    if (ownerColumnCache.size > 50) ownerColumnCache.clear();
+    ownerColumnCache.set(key, found);
+  }
+  return ownerColumnCache.get(key);
+}
+
 export function ownersOf(columns, row, record) {
   const numbered = new Map();
-  for (const column of columns) {
-    const tokens = words(column);
-    const ordinal = tokens.find(token => /^\d+$/.test(token));
-    if (!ordinal || !has(tokens, OWNER_WORDS) || has(tokens, MAILING_WORDS) || tokens.some(token => /phone|mail/.test(token))) continue;
-    const part = has(tokens, FIRST_WORDS) ? "first" : has(tokens, LAST_WORDS) ? "last" : "full";
+  for (const { column, ordinal, part } of numberedOwnerColumns(columns)) {
     const owner = numbered.get(ordinal) || {};
     owner[part] = sourceValue(row, column);
     numbered.set(ordinal, owner);
@@ -427,6 +443,7 @@ export function leadFromSource(columns, row, mappings = {}) {
     units: number(data.units),
     stories: number(data.stories),
     garageSqft: number(data.garageSqft),
+    carportSqft: number(data.carportSqft),
     fireplaces: number(data.fireplaces),
     ownershipMonths: number(data.ownershipMonths),
     value: number(data.value),
