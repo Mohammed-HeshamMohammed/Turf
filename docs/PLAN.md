@@ -15,7 +15,7 @@ You work with lists: files of rows, such as a skip-traced export or a run of Zil
 
 ## What Turf is not
 
-The first design idea was a brokerage dashboard (reference image in `reference/`). These parts are **dropped** because the data does not exist or is not wanted:
+The first design idea was a brokerage dashboard (reference image in `docs/reference/`). These parts are **dropped** because the data does not exist or is not wanted:
 
 - total revenue, average sale value, completed deals;
 - appointments and messages;

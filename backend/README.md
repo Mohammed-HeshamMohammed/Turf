@@ -1,6 +1,6 @@
 # Turf backend
 
-The server side of the full CRM (see `TURF_CRM_AND_PERFORMANCE_PLAN.md`). The desktop app's local Skip Tracing service stays in `service/`.
+The server side of the full CRM (see `docs/TURF_CRM_AND_PERFORMANCE_PLAN.md`). The desktop app's local Skip Tracing service stays in `service/`.
 
 | Folder | Language | What it does |
 | --- | --- | --- |

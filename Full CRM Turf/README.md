@@ -1,6 +1,6 @@
 # Turf — Full CRM Turf
 
-A separate interactive frontend prototype of [Turf's CRM and performance plan](../TURF_CRM_AND_PERFORMANCE_PLAN.md). It extends the current Turf design: Inter Tight, gray surfaces, rounded cards, black pill navigation, and peach accents.
+A separate interactive frontend prototype of [Turf's CRM and performance plan](../docs/TURF_CRM_AND_PERFORMANCE_PLAN.md). It extends the current Turf design: Inter Tight, gray surfaces, rounded cards, black pill navigation, and peach accents.
 
 **Client demo:** [turf-crm-demo.vercel.app](https://turf-crm-demo.vercel.app/). No Vercel login is needed. Open the Turf logo menu and choose **Explore as** to review different roles.
 
