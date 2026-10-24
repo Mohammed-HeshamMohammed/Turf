@@ -181,7 +181,7 @@ sequenceDiagram
         A-->>UI: changes since the cursor
         UI->>V: save records and cursor
     else offline
-        Note over UI,V: changes wait in the queue; the lease decides how long the cache stays usable
+        Note over UI,V: changes wait in the queue, and the lease decides how long the cache stays usable
     end
     W->>A: claim outbox events (/internal)
     A->>DB: run the rules through the same operations path
