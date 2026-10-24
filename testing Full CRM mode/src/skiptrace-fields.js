@@ -108,8 +108,30 @@ export function detectSourceFields(columns, rows) {
   );
 }
 
+// Which columns could hold each field depends only on the column names, so it is worked out once per list. Mapping a
+// row then only checks those few columns for a value, instead of testing every field's pattern against every column
+// (which, for each row of a list of tens of thousands, took seconds).
+const candidateCache = new Map();
+function candidatesFor(columns) {
+  const key = columns.join("\u0001");
+  let found = candidateCache.get(key);
+  if (!found) {
+    found = SOURCE_FIELDS.map(field => [field.id, columns.filter(column => field.aliases.test(normalize(column)))]);
+    if (candidateCache.size > 50) candidateCache.clear();
+    candidateCache.set(key, found);
+  }
+  return found;
+}
+
+/** The same choice detectSourceFields makes for a single row: the first candidate column populated in that row. */
+function detectForRow(columns, row) {
+  return Object.fromEntries(
+    candidatesFor(columns).map(([id, candidates]) => [id, candidates.find(column => supplied(sourceValue(row, column))) || candidates[0] || ""]),
+  );
+}
+
 export function mappedRecord(columns, row, overrides = {}) {
-  const mappings = { ...detectSourceFields(columns, [row]), ...overrides };
+  const mappings = { ...detectForRow(columns, row), ...overrides };
   const result = Object.fromEntries(
     SOURCE_FIELDS.map(field => [field.property, columns.includes(mappings[field.id]) ? sourceValue(row, mappings[field.id]) : ""]),
   );
@@ -126,7 +148,19 @@ export function coordinates(latitude, longitude) {
   return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? [lat, lng] : null;
 }
 
+// Several parts of a page ask for the same list's evidence on every render. The answer depends only on the rows (an
+// array that is replaced, never changed in place), the column names and the mapping, so it is kept per rows array.
+const evidenceCache = new WeakMap();
+
 export function sourceEvidence(columns, rows, overrides = {}) {
+  const key = columns.join("\u0001") + "\u0002" + JSON.stringify(overrides);
+  let byKey = evidenceCache.get(rows);
+  if (!byKey) evidenceCache.set(rows, (byKey = new Map()));
+  if (!byKey.has(key)) byKey.set(key, computeSourceEvidence(columns, rows, overrides));
+  return byKey.get(key);
+}
+
+function computeSourceEvidence(columns, rows, overrides) {
   const detected = detectSourceFields(columns, rows);
   const mappedFields = SOURCE_FIELDS.map(field => {
     const requested = overrides[field.id] ?? detected[field.id];

@@ -1,12 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+
+const EMPTY = [];
 import { MapPin, ArrowsOut, ArrowUpRight } from "@phosphor-icons/react";
 import { useCrm } from "./context.jsx";
 import { recordLocation, mapSearchUrl } from "./locations.js";
 import { Badge, Select, Button, useShowMore } from "./ui.jsx";
 import "leaflet/dist/leaflet.css";
 
-export function PropertyMap({ rows, title = "Property map", mappings, compact = false }) {
+export function PropertyMap({ rows: current, title = "Property map", mappings: given, compact = false }) {
   const { state, navigate } = useCrm();
+  // The page around the map draws first; locating thousands of records follows straight after, so opening a page
+  // with a long list never waits on the map.
+  const rows = useDeferredValue(current, EMPTY);
+  const mappingsKey = JSON.stringify(given ?? null);
+  const mappings = useMemo(() => JSON.parse(mappingsKey) ?? undefined, [mappingsKey]);
   const host = useRef(null),
     mapRef = useRef(null),
     layers = useRef(new Map()),

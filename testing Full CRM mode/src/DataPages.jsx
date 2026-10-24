@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import { ArrowRight, ArrowUpRight, CheckCircle, Phone, Cloud, DownloadSimple, FileCsv, HardDrives, ShieldCheck, UploadSimple } from "@phosphor-icons/react";
 import { LEAD_STAGES, ROLES } from "./data.js";
@@ -352,11 +352,14 @@ export function SkipTracing() {
     };
   }, []);
   const dataset = datasets.find(item => item.id === datasetId);
-  const rows = leads.filter(lead => lead.datasetId === datasetId);
-  const columns = dataset?.columns || [];
+  // Worked out again only when the list, its rows or the mapping change, not on every render: a list can hold tens of
+  // thousands of rows.
+  const rows = useMemo(() => leads.filter(lead => lead.datasetId === datasetId), [leads, datasetId]);
+  const columns = useMemo(() => dataset?.columns || [], [dataset]);
   const shownColumns = hideEmpty ? columns.filter(column => rows.some(row => String(sourceValue(row, column) ?? "").trim())) : columns;
-  const mappings = { ...dataset?.fieldMappings, ...fieldOverrides };
-  const { fields, primary, mappedFields } = sourceEvidence(columns, rows, mappings);
+  const mappingsKey = JSON.stringify({ ...dataset?.fieldMappings, ...fieldOverrides });
+  const mappings = useMemo(() => JSON.parse(mappingsKey), [mappingsKey]);
+  const { fields, primary, mappedFields } = useMemo(() => sourceEvidence(columns, rows, mappings), [columns, rows, mappings]);
   const hasPhones = fields.some(field => field.id === "phone" && field.count > 0);
   const outcomeColumn = mappedFields.find(field => field.id === "outcome")?.column || "";
   const finished = Boolean(checked);
