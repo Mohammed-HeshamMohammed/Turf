@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import date
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from turf_matching import duplicates
@@ -634,3 +636,216 @@ def _run_apply(context: JobContext) -> dict:
 
 SCAN_JOB = JobKind(run=_run_scan, validate=_validate)
 APPLY_JOB = JobKind(run=_run_apply, validate=_validate)
+
+
+# ---- Turf CRM: a list without phone numbers ------------------------------------------------------------------------
+# A phone check needs phones, but a list of owners and properties (a county-records export) is still worth checking:
+# rows that repeat the same lead are found from names and addresses with the same engine and the same rules as a phone
+# check (one owner with several properties stays several leads). Nothing is changed in the list.
+
+_REPEAT_COLUMNS = ("first_name_column", "last_name_column", "name_column", "address_column", "city_column", "state_column", "zip_column",
+                   "mailing_address_column", "parcel_column", "mailing_city_column", "mailing_state_column", "mailing_zip_column",
+                   "owner_type_column", "owner_occupied_column", "vacant_column", "ownership_months_column")
+_PROFILE_COLUMNS = {"mailing_city_column", "mailing_state_column", "mailing_zip_column", "owner_type_column", "owner_occupied_column",
+                    "vacant_column", "ownership_months_column"}
+
+# ---- The owner behind each property ----------------------------------------------------------------------------
+# A property list is worked owner by owner: one call reaches every property they hold. Each row is told who its owner
+# is (the same name at the same mailing address, wherever the properties are), how many of the list's properties that
+# owner holds, and what makes the owner worth calling first. A public body (a housing authority, a city) is no lead.
+
+_GOVERNMENT = re.compile(r"\b(?:HOUSING AUTHORITY|CITY OF|COUNTY OF|STATE OF|UNITED STATES|SCHOOL DISTRICT|REDEVELOPMENT AGENCY|"
+                         r"DEPARTMENT OF|DEPT OF|WATER DISTRICT|TRANSIT AUTHORITY|GOVERNMENT)\b")
+_TRUE = {"1", "y", "yes", "true", "t", "x", "vacant"}
+_LONG_OWNED = 300  # months: 25 years and more
+
+
+def _plain(text: object) -> str:
+    return " ".join(re.sub(r"[^0-9A-Z ]", " ", str(text or "").upper().replace("#", " APT ")).split())
+
+
+def _cell(row: dict, config: dict, key: str) -> str:
+    column = config.get(key)
+    return str(row.get(column) or "").strip() if column else ""
+
+
+def _owner_name(row: dict, config: dict) -> str:
+    return _plain(_cell(row, config, "name_column") or " ".join(filter(None, (_cell(row, config, "first_name_column"), _cell(row, config, "last_name_column")))))
+
+
+def _owner_key(row: dict, config: dict) -> tuple | None:
+    """The same owner: the same name words at the same mailing address. With no mailing address a name alone is
+    never enough (two John Smiths are two people)."""
+    name, mailing = _owner_name(row, config), _plain(_cell(row, config, "mailing_address_column"))
+    if not name or not mailing:
+        return None
+    return frozenset(name.split()), mailing, _cell(row, config, "mailing_zip_column")[:5]
+
+
+def _owner_profile(row: dict, config: dict) -> dict:
+    """What is known about this property's owner from the row itself."""
+    name = _owner_name(row, config)
+    owner_type = _cell(row, config, "owner_type_column").upper()
+    government = "GOVERNMENT" in owner_type or bool(_GOVERNMENT.search(name))
+    address, mailing = _plain(_cell(row, config, "address_column")), _plain(_cell(row, config, "mailing_address_column"))
+    occupied = _cell(row, config, "owner_occupied_column").lower() in _TRUE
+    absentee = bool(address and mailing and address != mailing and not occupied)
+    state, mailing_state = (_cell(row, config, key).upper()[:2] for key in ("state_column", "mailing_state_column"))
+    out_of_state = bool(absentee and state and mailing_state and state != mailing_state)
+    vacant = _cell(row, config, "vacant_column").lower() in _TRUE
+    try:
+        months = int(float(_cell(row, config, "ownership_months_column") or 0))
+    except ValueError:
+        months = 0
+    if months > 1200:
+        months = 0  # over a hundred years: a fault in the source, not a long ownership
+    return {"government": government, "investor": "INVESTOR" in owner_type, "absentee": absentee, "out_of_state": out_of_state,
+            "vacant": vacant, "months": months}
+
+
+def _score(profile: dict, properties: int) -> tuple[int, list[str]]:
+    """How worth calling first the owner is, and why: each reason with its points."""
+    if profile["government"]:
+        return 0, ["Government owner: not a lead"]
+    reasons = [(3, "vacant"), (2, "absentee owner"), (1, "mails out of state"), (2, f"owns {properties} properties in this list"),
+               (1, "investor"), (1, f"owned {profile['months'] // 12} years")]
+    held = [profile["vacant"], profile["absentee"], profile["out_of_state"], properties > 1, profile["investor"], profile["months"] >= _LONG_OWNED]
+    kept = [(points, why) for (points, why), yes in zip(reasons, held) if yes]
+    return sum(points for points, _ in kept), [f"{why} (+{points})" for points, why in kept]
+
+
+def _owners(rows: list[dict], numbers: list[int], config: dict, found: list[dict]) -> list[dict]:
+    """One owner per row: the engine's same-owner groups joined with exact name + mailing address matches, which also
+    reach an owner's properties in other ZIP codes."""
+    parent = list(range(len(rows)))
+
+    def root(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    first: dict[tuple, int] = {}
+    for index, row in enumerate(rows):
+        key = _owner_key(row, config)
+        if key is not None:
+            parent[root(index)] = root(first.setdefault(key, index))
+    index_of = {number: index for index, number in enumerate(numbers)}
+    # The engine's own same-owner pairs also catch a name spelt two ways ("Davila", "Davilla") at one mailing address;
+    # a pair is joined only when the two names are alike, so a chain of pairs never carries one owner into another's.
+    names = [" ".join(sorted(_owner_name(row, config).split())) for row in rows]
+    for index, columns in enumerate(found):
+        for number in re.findall(r"\d+", str(columns.get("Same owner rows") or "")):
+            other = index_of.get(int(number))
+            if other is not None and names[index] and SequenceMatcher(None, names[index], names[other]).ratio() >= 0.85:
+                parent[root(index)] = root(other)
+    groups: dict[int, list[int]] = {}
+    for index in range(len(rows)):
+        groups.setdefault(root(index), []).append(index)
+    address = config.get("address_column")
+    owners: list[dict] = [{} for _ in rows]
+    for count, members in enumerate(sorted(groups.values(), key=lambda members: members[0]), start=1):
+        places = [str(rows[i].get(address) or "").strip() for i in members] if address else []
+        for i in members:
+            owners[i] = {"owner": f"O{count}", "properties": len(members),
+                         "others": [numbers[j] for j in members if j != i], "addresses": "; ".join(place for place in places if place)}
+    return owners
+
+
+def _numbers_in(text: object) -> list[str]:
+    """The numbers in an address, in order: house number, numbered street ("58TH"), unit."""
+    return re.findall(r"\d+", str(text or ""))
+
+
+def _plainly_different(left: dict, right: dict, config: dict) -> bool:
+    """Two rows that cannot be one lead whatever their names say: another parcel, or another house number, numbered
+    street or unit ("826 W 58TH PL" and "826 W 59TH PL"; "APT 2" and "APT 3")."""
+    parcel = config.get("parcel_column")
+    if parcel:
+        a, b = (re.sub(r"[^0-9a-z]", "", str(row.get(parcel) or "").lower()) for row in (left, right))
+        if a and b and a != b:
+            return True
+    address = config.get("address_column")
+    if address:
+        a, b = _numbers_in(left.get(address)), _numbers_in(right.get(address))
+        if a and b and a != b:
+            return True
+    return False
+
+
+def _validate_repeats(store: ProjectStore, params: dict) -> dict:
+    _dataset(store, params.get("dataset_id"))
+    config = params.get("config")
+    if not isinstance(config, dict):
+        raise JobValidationError("A setup is required")
+    _, rows = _rows(store, params["dataset_id"])
+    columns = list(dict.fromkeys(column for row in rows[:400] for column in row))
+    cleaned = {"region": str(config.get("region") or "US").upper(), "phone_columns": []}
+    for key in _REPEAT_COLUMNS:
+        value = config.get(key)
+        if value not in (None, "") and value not in columns:
+            # A column only describing the owner (vacant, owner occupied...) may be empty in every row read: it adds
+            # nothing then, and is no reason to refuse the check.
+            if key in _PROFILE_COLUMNS:
+                value = None
+            else:
+                raise JobValidationError(f"Unknown column: {value}")
+        cleaned[key] = value or None
+    if not any(cleaned[key] for key in ("first_name_column", "last_name_column", "name_column", "address_column")):
+        raise JobValidationError("Map an owner name or an address column first")
+    return {"dataset_id": params["dataset_id"], "config": cleaned}
+
+
+def _run_repeats(context: JobContext) -> dict:
+    context.stage("reading_file")
+    numbers, rows = _rows(context.store, context.params["dataset_id"])
+    from .combine import decided
+    same, different = decided(context.store, context.params["dataset_id"])
+    config = context.params["config"]
+    found, summary = duplicates.find(rows, numbers, config, None, context.checkpoint, context.stage, same, different)
+    # A proposed repeat (sure or possible) that is plainly another property is not one: it stays its own lead, and the
+    # two rows are told as the same owner's.
+    index_of = {number: index for index, number in enumerate(numbers)}
+    keeps = {columns["Duplicate group"]: index for index, columns in enumerate(found) if columns["Duplicate status"] == "Keep"}
+    for index, columns in enumerate(found):
+        status = columns["Duplicate status"]
+        if not status or status == "Keep":
+            continue
+        named = re.search(r"row (\d+)", status)
+        other = keeps.get(columns["Duplicate group"]) if columns["Duplicate group"] else None
+        if other is None and named:
+            other = index_of.get(int(named.group(1)))
+        if other is None or not _plainly_different(rows[other], rows[index], config):
+            continue
+        columns.update({"Duplicate group": "", "Duplicate status": "", "Duplicate why": ""})
+        for one, two in ((index, other), (other, index)):
+            if not found[one]["Same owner rows"]:
+                found[one]["Same owner rows"] = f"Row {numbers[two]}"
+            if found[one]["Duplicate status"].startswith("Possible") and f"row {numbers[index if one == other else other]}" in found[one]["Duplicate status"]:
+                found[one].update({"Duplicate status": "", "Duplicate why": ""})
+    # A kept row left with no repeat is simply a lead.
+    for group, keep in keeps.items():
+        if not any(columns["Duplicate group"] == group for index, columns in enumerate(found) if index != keep):
+            found[keep].update({"Duplicate group": "", "Duplicate status": "", "Duplicate why": ""})
+    owners = _owners(rows, numbers, config, found)
+    results = []
+    for number, row, columns, owner in zip(numbers, rows, found, owners):
+        profile = _owner_profile(row, config)
+        score, reasons = _score(profile, owner["properties"])
+        others = owner["others"]
+        results.append({
+            "row_number": number, "group": columns["Duplicate group"], "status": columns["Duplicate status"], "why": columns["Duplicate why"],
+            "same_owner": (("Rows " if len(others) > 1 else "Row ") + ", ".join(map(str, others))) if others else "",
+            "owner": owner["owner"], "properties": owner["properties"], "addresses": owner["addresses"] if others else "",
+            "absentee": profile["absentee"], "out_of_state": profile["out_of_state"], "vacant": profile["vacant"],
+            "government": profile["government"], "score": score, "reasons": reasons,
+        })
+    repeats = sum(1 for item in results if item["status"] and item["status"] != "Keep")
+    same_owner = sum(1 for item in results if item["same_owner"])
+    return {"rows": len(results), "repeats": repeats, "same_owner": same_owner, "owners": len({item["owner"] for item in results}),
+            "absentee": sum(item["absentee"] for item in results), "out_of_state": sum(item["out_of_state"] for item in results),
+            "vacant": sum(item["vacant"] for item in results), "government": sum(item["government"] for item in results),
+            "summary": summary, "results": results}
+
+
+REPEATS_JOB = JobKind(run=_run_repeats, validate=_validate_repeats)

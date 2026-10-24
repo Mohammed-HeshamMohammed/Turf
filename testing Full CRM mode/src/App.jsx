@@ -1,6 +1,8 @@
 import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Bell, CalendarBlank, ChatCircle, CheckCircle, HouseLine, List, MagnifyingGlass, WifiSlash, X } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
+import { loadWorkspace, saveWorkspace } from "./workspace-store.js";
+import { setLearnedHeaders } from "./skiptrace-fields.js";
 import { capability, loadState, navCounts, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { api, apiBase, setApiBase } from "./remote/api.js";
 import { SyncEngine } from "./remote/engine.js";
@@ -41,12 +43,32 @@ const Team = lazyPage(loadTeam, "Team");
 const RemoteGate = lazyPage(() => import("./RemoteGate.jsx"), "RemoteGate");
 const preloadPages = () => [loadLeads, loadWork, loadData, loadManagement, loadTeam, loadDashboard].forEach(load => load());
 
+// The product (the desktop app, or a build made with VITE_TURF_REQUIRE_SIGN_IN=true) cannot be used without signing in
+// to a Turf server. Only the public demo build keeps the sample workspace.
+const REQUIRE_SIGN_IN = import.meta.env?.VITE_TURF_REQUIRE_SIGN_IN === "true" || (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window);
+
 const readRoute = () => window.location.hash.slice(1).replace(/^\//, "") || "dashboard";
 
 export function App() {
   const [state, apply] = useReducer(remoteReducer, undefined, () => loadState(window.localStorage));
+  // Headers mapped by hand before are used for every list (skiptrace-fields.js). Set during render so the first
+  // render of a page already uses them.
+  setLearnedHeaders(state.settings?.learnedHeaders);
+  // The saved workspace is read from IndexedDB once; nothing is saved (or shown) before that, so it is never overwritten.
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    let live = true;
+    loadWorkspace().then(saved => {
+      if (!live) return;
+      if (saved) apply({ type: "HYDRATE", state: saved });
+      setRestored(true);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
   // "local": the sample workspace; "gate": signing in to a server; "remote": connected.
-  const [connection, setConnection] = useState(() => (apiBase() ? "gate" : "local"));
+  const [connection, setConnection] = useState(() => (REQUIRE_SIGN_IN || apiBase() ? "gate" : "local"));
   const engine = useRef(null);
   const latest = useRef(state);
   latest.current = state;
@@ -85,6 +107,13 @@ export function App() {
   }, [demoNotes]);
   const timer = useRef(null);
   const main = useRef(null);
+  useEffect(() => {
+    const page = main.current;
+    if (!page) return undefined;
+    const keepLeft = () => page.scrollLeft && (page.scrollLeft = 0);
+    page.addEventListener("scroll", keepLeft, { passive: true });
+    return () => page.removeEventListener("scroll", keepLeft);
+  });
   const role = ROLES[state.role];
   const profile = personalProfile(state);
   const queue = state.queue.filter(item => item.actor === role.person);
@@ -177,6 +206,16 @@ export function App() {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setToast(""), options.undo ? 7000 : 4500);
   }, []);
+  // Every exported file says where it went (the desktop window saves to Downloads and shows it in the file manager).
+  useEffect(() => {
+    const saved = event => {
+      const { path, error, browser } = event.detail || {};
+      if (error) notify("The file could not be saved: " + error);
+      else if (!browser) notify("Saved to " + path);
+    };
+    window.addEventListener("turf-saved", saved);
+    return () => window.removeEventListener("turf-saved", saved);
+  }, [notify]);
   // Connected: changes apply on screen at once and queue as operations for the server, which has the last word.
   const dispatch = useCallback(
     action => {
@@ -247,15 +286,8 @@ export function App() {
   }, []);
   useEffect(() => {
     // Server records are kept only in the encrypted offline copy, never in plain browser storage.
-    if (state.remote) return;
-    const save = () => {
-      try {
-        window.localStorage.setItem("turf.full-crm.prototype.v1", JSON.stringify(state));
-        setCacheError(false);
-      } catch {
-        setCacheError(true);
-      }
-    };
+    if (state.remote || !restored) return;
+    const save = () => saveWorkspace(state).then(saved => setCacheError(!saved));
     // Serialising the whole workspace is the heaviest thing a click does, so wait for a quiet moment and flush on the way out.
     const timer = setTimeout(save, 350);
     window.addEventListener("pagehide", save);
@@ -263,7 +295,7 @@ export function App() {
       clearTimeout(timer);
       window.removeEventListener("pagehide", save);
     };
-  }, [state]);
+  }, [state, restored]);
   useEffect(() => {
     const idle = window.requestIdleCallback || (callback => setTimeout(callback, 1200));
     const handle = idle(preloadPages);
@@ -344,11 +376,17 @@ export function App() {
         return <Empty title="Choose a workspace page" action={<Button onClick={() => navigate("dashboard")}>Open overview</Button>} />;
     }
   }, [accessible, current, navigate]);
+  // A moment while the saved workspace is read, so the sample data never flashes in its place.
+  if (connection === "local" && !restored) return null;
   if (connection === "gate")
     return (
-      <Suspense fallback={null}>
-        <RemoteGate onReady={connect} onLeave={useSample} />
-      </Suspense>
+      <div className="gate-window">
+        {/* The desktop window has no system title bar, so the sign-in screen keeps the app's own controls. */}
+        <WindowStrip title="Turf" />
+        <Suspense fallback={null}>
+          <RemoteGate onReady={connect} onLeave={REQUIRE_SIGN_IN ? undefined : useSample} />
+        </Suspense>
+      </div>
     );
   return (
     <CrmContext.Provider value={context}>

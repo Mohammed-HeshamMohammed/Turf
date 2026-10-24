@@ -59,6 +59,7 @@ class Service:
             "health.check": lambda p: health_check().to_dict(),
             "project.create": lambda p: self._open(p.get("path", ""), p.get("name"), create=True),
             "project.open": lambda p: self._open(p.get("path", "")),
+            "project.open_workspace": self._open_workspace,
             "project.current": lambda p: self.project,
             "project.recent": lambda p: projects.recent_projects(),
             "dataset.import": lambda p: {"job_id": self._submit("dataset_import", p)},
@@ -97,6 +98,7 @@ class Service:
             "skiptrace.save_settings": lambda p: skiptrace.save_settings(self._store(), p["dataset_id"], p.get("config")),
             "skiptrace.scan": lambda p: {"job_id": self._submit("skiptrace_scan", p)},
             "skiptrace.apply": lambda p: {"job_id": self._submit("skiptrace_apply", p)},
+            "skiptrace.repeats": lambda p: {"job_id": self._submit("skiptrace_repeats", p)},
             "skiptrace.freshness": lambda p: skiptrace.freshness(self._store(), p["dataset_id"]),
             "skiptrace.review": lambda p: skiptrace.review(self._store(), p["job_id"], str(p.get("filter") or "all"), int(p.get("offset", 0)), int(p.get("limit", 25)), p.get("row_number")),
             "dataset.trash": lambda p: keeping.trash(self._store(), self._project_id(), p["dataset_id"]),
@@ -195,6 +197,7 @@ class Service:
             "dataset_import": JobKind(run=self._run_import, validate=self._validate_import),
             "skiptrace_scan": skiptrace.SCAN_JOB,
             "skiptrace_apply": skiptrace.APPLY_JOB,
+            "skiptrace_repeats": skiptrace.REPEATS_JOB,
             "geo_locate": geo.LOCATE_JOB,
             "dnc_registry_import": dnc_registry.IMPORT_JOB,
             "nanpa_blocks_import": nanpa_blocks.IMPORT_JOB,
@@ -262,6 +265,15 @@ class Service:
         finally:
             if params.get("temporary"):
                 shutil.rmtree(path.parent, ignore_errors=True)
+
+    def _open_workspace(self, payload: dict) -> dict:
+        """Turf CRM: opens (or makes, the first time) a project kept in Turf's own data folder, so a screen that only
+        needs the engine never asks for a folder. The name picks the folder; only letters, digits and dashes are kept."""
+        slug = "".join(c for c in str(payload.get("name") or "crm").lower() if c.isascii() and (c.isalnum() or c == "-"))[:40] or "crm"
+        root = projects.app_data_dir() / "workspaces" / slug
+        if self.project and Path(self.project["root_path"]) == root.resolve():
+            return self.project
+        return self._open(str(root), slug, create=not (root / projects.DATABASE_NAME).exists())
 
     def _import_content(self, payload: dict) -> dict:
         """Turf: adds a file handed over as its content, for a browser tab, which knows a dropped file's bytes but

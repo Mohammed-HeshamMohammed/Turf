@@ -59,7 +59,7 @@ fn cleared(email: &str) {
     }
 }
 
-fn session_cookie(state: &AppState, token: String) -> Cookie<'static> {
+pub(crate) fn session_cookie(state: &AppState, token: String) -> Cookie<'static> {
     let mut cookie = Cookie::new(COOKIE, token);
     cookie.set_http_only(true);
     cookie.set_secure(state.config.secure_cookies);
@@ -73,7 +73,7 @@ fn time_duration(hours: i64) -> time::Duration {
     time::Duration::hours(hours)
 }
 
-async fn create_session(state: &AppState, user: Uuid, org: Option<Uuid>, kind: &str) -> ApiResult<String> {
+pub(crate) async fn create_session(state: &AppState, user: Uuid, org: Option<Uuid>, kind: &str) -> ApiResult<String> {
     let (token, hash) = auth::new_token();
     sqlx::query("INSERT INTO sessions (token_hash, user_id, org_id, kind, expires_at) VALUES ($1, $2, $3, $4, now() + make_interval(hours => $5))")
         .bind(&hash)
@@ -87,7 +87,7 @@ async fn create_session(state: &AppState, user: Uuid, org: Option<Uuid>, kind: &
 }
 
 /// Hands the token to the client: a cookie for browsers, the body for the desktop app (which keeps it in OS storage).
-fn signed_in(state: &AppState, jar: CookieJar, token: String, kind: &str, extra: Value) -> (CookieJar, Json<Value>) {
+pub(crate) fn signed_in(state: &AppState, jar: CookieJar, token: String, kind: &str, extra: Value) -> (CookieJar, Json<Value>) {
     if kind == "desktop" {
         let mut body = extra;
         body["token"] = json!(token);
@@ -109,7 +109,7 @@ struct Bootstrap {
     timezone: String,
 }
 
-fn browser() -> String {
+pub(crate) fn browser() -> String {
     "browser".into()
 }
 
@@ -140,7 +140,7 @@ async fn bootstrap(State(state): State<AppState>, jar: CookieJar, Json(body): Js
     sqlx::query("INSERT INTO memberships (org_id, user_id, roles) VALUES ($1, $2, ARRAY['owner', 'admin'])").bind(org).bind(user).execute(&mut *tx).await?;
     tx.commit().await?;
     let token = create_session(&state, user, Some(org), &body.kind).await?;
-    Ok(signed_in(&state, jar, token, &body.kind, json!({ "organization_id": org, "user_id": user, "mfa_required": true })))
+    Ok(signed_in(&state, jar, token, &body.kind, json!({ "organization_id": org, "user_id": user, "mfa_required": state.config.require_mfa })))
 }
 
 /// Role presets and a default team for a new organization.
@@ -192,7 +192,7 @@ async fn login(State(state): State<AppState>, jar: CookieJar, Json(body): Json<L
         .fetch_all(&state.db)
         .await?;
     let chosen = body.organization_id.filter(|id| orgs.iter().any(|(o, _)| o == id)).or(if orgs.len() == 1 { Some(orgs[0].0) } else { None });
-    let mfa_required = chosen.and_then(|id| orgs.iter().find(|(o, _)| *o == id)).map(|(_, roles)| roles.iter().any(|r| requires_mfa(r))).unwrap_or(false);
+    let mfa_required = chosen.and_then(|id| orgs.iter().find(|(o, _)| *o == id)).map(|(_, roles)| roles.iter().any(|r| requires_mfa(r))).unwrap_or(false) && state.config.require_mfa;
     let kind = if body.kind == "desktop" { "desktop" } else { "browser" };
     let token = create_session(&state, user, chosen, kind).await?;
     Ok(signed_in(
@@ -331,6 +331,9 @@ async fn accept_invitation(State(state): State<AppState>, jar: CookieJar, Json(b
     .fetch_optional(&mut *tx)
     .await?;
     let (org, email, roles, teams) = invite.ok_or_else(|| ApiError::forbidden("This invitation is not valid or has expired"))?;
+    sqlx::query("SELECT set_config('turf.org_id', $1, true)").bind(org.to_string()).execute(&mut *tx).await?;
+    // Seats can have been reduced since the invitation was sent; this invitation's seat is now a member's.
+    crate::routes::billing::check_join(&mut tx).await?;
     let existing: Option<Uuid> = sqlx::query_scalar("SELECT id FROM users WHERE email = $1").bind(&email).fetch_optional(&mut *tx).await?;
     let user = match existing {
         // An existing account joins with its own password, which it must prove.
@@ -360,7 +363,7 @@ async fn accept_invitation(State(state): State<AppState>, jar: CookieJar, Json(b
     tx.commit().await?;
     let kind = if body.kind == "desktop" { "desktop" } else { "browser" };
     let token = create_session(&state, user, Some(org), kind).await?;
-    Ok(signed_in(&state, jar, token, kind, json!({ "organization_id": org, "user_id": user, "mfa_required": roles.iter().any(|r| requires_mfa(r)) })))
+    Ok(signed_in(&state, jar, token, kind, json!({ "organization_id": org, "user_id": user, "mfa_required": state.config.require_mfa && roles.iter().any(|r| requires_mfa(r)) })))
 }
 
 #[derive(Deserialize)]
@@ -405,6 +408,7 @@ async fn change_password(State(state): State<AppState>, ctx: Ctx, Json(body): Js
 }
 
 async fn me(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
+    let platform_admin: bool = sqlx::query_scalar("SELECT platform_admin FROM users WHERE id = $1").bind(ctx.user_id).fetch_one(&state.db).await?;
     let orgs: Vec<(Uuid, String)> =
         sqlx::query_as("SELECT o.id, o.name FROM memberships m JOIN organizations o ON o.id = m.org_id WHERE m.user_id = $1 ORDER BY o.name")
             .bind(ctx.user_id)
@@ -420,5 +424,7 @@ async fn me(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
         "team_ids": ctx.team_ids,
         "access_revision": ctx.access_revision,
         "mfa": { "required": ctx.mfa_required(), "enrolled": ctx.mfa_enrolled, "passed": ctx.mfa_passed },
+        "platform_admin": platform_admin,
+        "subscription": ctx.subscription.as_ref().map(|s| json!({ "plan": s.plan, "status": s.status, "usable": s.refusal().is_none(), "reason": s.refusal() })),
     })))
 }

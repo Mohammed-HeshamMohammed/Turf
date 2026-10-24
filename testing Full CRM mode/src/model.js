@@ -1,5 +1,5 @@
 import { CALL_OUTCOMES, ROLES, TODAY, seedState } from "./data.js";
-import { mappedRecord, SOURCE_FIELDS } from "./skiptrace-fields.js";
+import { detectSourceFields, headerKey, leadFromSource, SOURCE_FIELDS } from "./skiptrace-fields.js";
 
 export const uid = () => crypto.randomUUID();
 export function personalProfile(state) {
@@ -18,7 +18,25 @@ export function capability(state, name) {
   return state.permissions[state.role]?.[name] ?? ROLES[state.role].capabilities.includes(name);
 }
 /** Every lead the person's role can reach, archived ones included. */
+// The person's leads are worked out once per state, with a lookup by id: pages ask for them for every row and card,
+// which with a list of tens of thousands of leads would otherwise mean hundreds of millions of comparisons.
+// A state is never changed in place (the reducer returns a new one), so it is a safe cache key.
+const scopes = new WeakMap();
+function scope(state) {
+  let found = scopes.get(state);
+  if (!found) {
+    const leads = computeScopedLeads(state);
+    found = { leads, visible: leads.filter(lead => !lead.archived), byId: new Map(leads.map(lead => [lead.id, lead])) };
+    scopes.set(state, found);
+  }
+  return found;
+}
+
 export function scopedLeads(state) {
+  return scope(state).leads;
+}
+
+function computeScopedLeads(state) {
   // Server records arrive already scoped to the person.
   if (state.remote) return state.leads;
   const role = ROLES[state.role];
@@ -26,12 +44,12 @@ export function scopedLeads(state) {
   if (state.role === "client") return state.leads.filter(lead => lead.shared);
   if (["owner", "solo"].includes(state.role)) return state.leads;
   if (["manager", "researcher"].includes(state.role)) return state.leads.filter(lead => lead.team === role.team);
-  const incoming = state.handoffs.filter(item => item.to === role.person && item.status === "Requested").map(item => item.leadId);
-  return state.leads.filter(lead => lead.assignee === role.person || incoming.includes(lead.id));
+  const incoming = new Set(state.handoffs.filter(item => item.to === role.person && item.status === "Requested").map(item => item.leadId));
+  return state.leads.filter(lead => lead.assignee === role.person || incoming.has(lead.id));
 }
 /** The leads in play: everything in scope except what has been archived. */
 export function visibleLeads(state) {
-  return scopedLeads(state).filter(lead => !lead.archived);
+  return scope(state).visible;
 }
 export const archivedLeads = state => scopedLeads(state).filter(lead => lead.archived);
 export function visibleTasks(state) {
@@ -55,9 +73,9 @@ export function visibleThreads(state) {
   return state.threads.filter(thread => leadIds.has(thread.leadId) && (state.role !== "client" || thread.shared === true));
 }
 export function canEditLead(state, id) {
-  if (state.remote) return capability(state, "edit") && state.leads.some(item => item.id === id);
+  if (state.remote) return capability(state, "edit") && scope(state).byId.has(id);
   if (!capability(state, "edit")) return false;
-  const lead = scopedLeads(state).find(item => item.id === id);
+  const lead = scope(state).byId.get(id);
   return Boolean(lead && (["owner", "solo", "manager"].includes(state.role) || lead.assignee === ROLES[state.role].person));
 }
 function event(state, leadId, text, kind = "Update") {
@@ -96,6 +114,8 @@ function callbackTasks(state, lead, at, title) {
 export function reducer(state, action) {
   const lead = state.leads.find(item => item.id === action.id || item.id === action.leadId);
   switch (action.type) {
+    case "HYDRATE":
+      return restoreState(action.state) ?? state;
     case "ROLE":
       return ROLES[action.role] ? { ...state, role: action.role } : state;
     case "PERSONAL": {
@@ -424,20 +444,47 @@ export function reducer(state, action) {
           source.columns.includes(action.mappings[field.id]) ? action.mappings[field.id] : "",
         ]),
       );
+      // What Turf would have chosen by itself; only the differences are lessons. A header mapped elsewhere by hand
+      // stops being a lesson for its old field; a field set to "Not mapped" unlearns its old header.
+      const detected = detectSourceFields(
+        source.columns,
+        visibleLeads(state).filter(item => item.datasetId === source.id),
+      );
+      const learnedHeaders = { ...state.settings.learnedHeaders };
+      for (const field of SOURCE_FIELDS) {
+        if (!Object.hasOwn(mappings, field.id) || mappings[field.id] === detected[field.id]) continue;
+        if (mappings[field.id]) learnedHeaders[headerKey(mappings[field.id])] = field.id;
+        else if (detected[field.id] && learnedHeaders[headerKey(detected[field.id])] === field.id) delete learnedHeaders[headerKey(detected[field.id])];
+      }
       return {
         ...state,
+        settings: { ...state.settings, learnedHeaders },
         datasets: state.datasets.map(item => (item.id === source.id ? { ...item, fieldMappings: mappings } : item)),
         leads: state.leads.map(item => {
           if (item.datasetId !== source.id || !item.sourceValues) return item;
-          const data = mappedRecord(source.columns, item, mappings);
+          const data = leadFromSource(source.columns, item, mappings);
           return {
             ...item,
             ...data,
             name: data.name || item.name,
             address: data.address || "Address not supplied",
-            value: source.columns.includes(mappings.value) ? Number(data.value.replace(/[$,]/g, "")) || 0 : item.value,
             version: item.version + 1,
           };
+        }),
+      };
+    }
+    case "LOCATE": {
+      const places = action.places && typeof action.places === "object" ? action.places : {};
+      const missed = new Set(action.notFound || []);
+      if (!Object.keys(places).length && !missed.size) return state;
+      return {
+        ...state,
+        leads: state.leads.map(item => {
+          const place = places[item.id];
+          if (place && Number.isFinite(place.lat) && Number.isFinite(place.lng) && !(item.geo?.precision === "address" && place.precision !== "address"))
+            return { ...item, geo: { lat: place.lat, lng: place.lng, precision: place.precision === "address" ? "address" : "zip" } };
+          if (missed.has(item.id) && item.geo?.precision !== "address") return { ...item, geo: { ...item.geo, notFound: true } };
+          return item;
         }),
       };
     }
@@ -445,10 +492,21 @@ export function reducer(state, action) {
       if (!capability(state, "review") && !capability(state, "import")) return state;
       const original = state.datasets.find(item => item.id === action.id);
       if (!original) return state;
+      // A real check (Turf engine) gives each visible lead of the list its verdict. Leads outside the person's view, or
+      // of another list, are never touched; a do-not-call verdict already on a lead is kept whatever the check says.
+      const visible = new Set(visibleLeads(state).map(item => item.id));
+      const verdicts = action.verdicts && typeof action.verdicts === "object" ? action.verdicts : null;
       return {
         ...state,
         datasets: state.datasets.map(item => (item.id === action.id ? { ...item, status: "Checked" } : item)),
-        activities: [event(state, null, "Saved a demo check of " + original.name, "Research"), ...state.activities],
+        leads: verdicts
+          ? state.leads.map(item =>
+              item.datasetId === action.id && visible.has(item.id) && typeof verdicts[item.id] === "string" && item.verdict !== "Do not call"
+                ? { ...item, verdict: verdicts[item.id], version: item.version + 1 }
+                : item,
+            )
+          : state.leads,
+        activities: [event(state, null, (verdicts ? "Checked " : "Saved a demo check of ") + original.name, "Research"), ...state.activities],
       };
     }
     case "NEW_LEAD": {
@@ -474,14 +532,20 @@ export function reducer(state, action) {
   }
 }
 
+/** A saved workspace brought up to the current schema, or null when it is not one. */
+export function restoreState(saved) {
+  if (!([1, 2].includes(saved?.schema) && ROLES[saved.role] && Array.isArray(saved.leads) && Array.isArray(saved.queue) && saved.settings && saved.permissions))
+    return null;
+  // Schema 1 had no call history or callback dates: its callbacks were times today.
+  return saved.schema === 2
+    ? saved
+    : { ...saved, schema: 2, leads: saved.leads.map(lead => ({ calls: [], callbackDate: lead.callback ? TODAY : "", ...lead })) };
+}
+
+/** The workspace an earlier version left in localStorage; the IndexedDB copy (workspace-store.js) replaces it. */
 export function loadState(storage) {
   try {
-    const saved = JSON.parse(storage.getItem("turf.full-crm.prototype.v1"));
-    if ([1, 2].includes(saved?.schema) && ROLES[saved.role] && Array.isArray(saved.leads) && Array.isArray(saved.queue) && saved.settings && saved.permissions)
-      // Schema 1 had no call history or callback dates: its callbacks were times today.
-      return saved.schema === 2
-        ? saved
-        : { ...saved, schema: 2, leads: saved.leads.map(lead => ({ calls: [], callbackDate: lead.callback ? TODAY : "", ...lead })) };
+    return restoreState(JSON.parse(storage.getItem("turf.full-crm.prototype.v1"))) ?? seedState();
   } catch {
     /* An unavailable cache starts a fresh sample workspace. */
   }

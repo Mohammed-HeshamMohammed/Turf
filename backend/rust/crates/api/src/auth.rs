@@ -86,15 +86,50 @@ pub struct Ctx {
     pub mfa_passed: bool,
     pub mfa_enrolled: bool,
     pub via_cookie: bool,
+    /// The server requires MFA for the roles that call for it (Config::require_mfa).
+    pub mfa_enforced: bool,
+    /// The organization's subscription; `None` on a self-hosted organization, which has no limits.
+    pub subscription: Option<Subscription>,
+}
+
+/// What the request needs to know about the organization's plan.
+#[derive(Clone, Debug)]
+pub struct Subscription {
+    pub plan: String,
+    pub status: String,
+    /// The period has not ended yet.
+    pub current: bool,
+}
+
+impl Subscription {
+    /// Whether the organization may use the CRM now. Billing pages stay open either way, so it can pay.
+    pub fn refusal(&self) -> Option<&'static str> {
+        match (self.status.as_str(), self.current) {
+            ("trialing", true) | ("active", true) => None,
+            ("trialing", false) => Some("Your free trial has ended. Choose a plan to keep using Turf."),
+            ("past_due", _) => Some("Your last payment did not go through. Update your plan to keep using Turf."),
+            ("canceled", _) => Some("This subscription was cancelled. Choose a plan to use Turf again."),
+            _ => Some("Your plan has ended. Renew it to keep using Turf."),
+        }
+    }
 }
 
 impl Ctx {
     pub fn mfa_required(&self) -> bool {
-        self.roles.iter().any(|role| requires_mfa(role))
+        self.mfa_enforced && self.roles.iter().any(|role| requires_mfa(role))
     }
 
-    /// The organization scope for data access; fails until an organization is chosen and MFA is satisfied.
+    /// The organization scope for data access; fails until an organization is chosen, MFA is satisfied and the
+    /// organization's plan is in good standing.
     pub fn scope(&self) -> ApiResult<Scope> {
+        if let Some(reason) = self.subscription.as_ref().and_then(Subscription::refusal) {
+            return Err(ApiError::PaymentRequired(reason.into()));
+        }
+        self.member_scope()
+    }
+
+    /// The organization scope whatever the state of its plan: for billing, so an expired organization can still pay.
+    pub fn member_scope(&self) -> ApiResult<Scope> {
         let org_id = self.org_id.ok_or_else(|| ApiError::bad("Choose an organization first"))?;
         if self.mfa_required() && !self.mfa_passed {
             return Err(ApiError::MfaRequired);
@@ -147,6 +182,8 @@ pub async fn load(state: &AppState, token: &str, via_cookie: bool) -> ApiResult<
         mfa_passed: row.mfa_passed,
         mfa_enrolled: row.totp_secret.is_some(),
         via_cookie,
+        mfa_enforced: state.config.require_mfa,
+        subscription: None,
     };
     let Some(org_id) = row.org_id else { return Ok(ctx) };
     // Memberships are read before row security applies; the role table needs the organization set.
@@ -166,7 +203,12 @@ pub async fn load(state: &AppState, token: &str, via_cookie: bool) -> ApiResult<
     };
     let grants: Vec<(Vec<String>, String)> =
         sqlx::query_as("SELECT capabilities, scope FROM roles WHERE org_id = $1 AND key = ANY($2)").bind(org_id).bind(&roles).fetch_all(&mut *tx).await?;
+    let subscription: Option<(String, String, bool)> = sqlx::query_as("SELECT plan_key, status, period_end > now() FROM subscriptions WHERE org_id = $1")
+        .bind(org_id)
+        .fetch_optional(&mut *tx)
+        .await?;
     tx.commit().await?;
+    ctx.subscription = subscription.map(|(plan, status, current)| Subscription { plan, status, current });
     ctx.access = Access::combine(grants.iter().map(|(c, s)| (&c[..], s.as_str())), &restrictions);
     ctx.org_id = Some(org_id);
     ctx.roles = roles;

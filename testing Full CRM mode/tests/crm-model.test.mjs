@@ -237,3 +237,62 @@ test("tasks, deals and notes can be changed and removed by the people allowed to
     false,
   );
 });
+test("a saved engine check gives visible leads their verdicts and keeps do-not-call", () => {
+  const owner = as("owner");
+  const list = owner.leads.find(lead => lead.verdict === "Do not call")?.datasetId || owner.leads[0].datasetId;
+  const inList = owner.leads.filter(lead => lead.datasetId === list);
+  const verdicts = Object.fromEntries(inList.map(lead => [lead.id, "Ready to call"]));
+  const other = owner.leads.find(lead => lead.datasetId !== list);
+  verdicts[other.id] = "Wrong number";
+  const checked = reducer(owner, { type: "CHECK", id: list, verdicts });
+  for (const lead of checked.leads.filter(item => item.datasetId === list)) {
+    const before = inList.find(item => item.id === lead.id);
+    assert.equal(lead.verdict, before.verdict === "Do not call" ? "Do not call" : "Ready to call");
+  }
+  assert.equal(checked.leads.find(lead => lead.id === other.id).verdict, other.verdict, "another list is never changed");
+  assert.equal(checked.datasets.find(item => item.id === list).status, "Checked");
+  // A demo check changes no verdict.
+  const demo = reducer(owner, { type: "CHECK", id: list, verdicts: null });
+  assert.deepEqual(
+    demo.leads.map(lead => lead.verdict),
+    owner.leads.map(lead => lead.verdict),
+  );
+  // A role without data access cannot save a check at all.
+  const caller = as("caller");
+  assert.equal(reducer(caller, { type: "CHECK", id: list, verdicts }), caller);
+});
+test("a workspace read back from storage replaces the sample one, and anything else is ignored", () => {
+  const sample = seedState();
+  const big = { ...sample, leads: Array.from({ length: 25000 }, (_, index) => ({ ...sample.leads[0], id: "big" + index })) };
+  const restored = reducer(sample, { type: "HYDRATE", state: big });
+  assert.equal(restored.leads.length, 25000);
+  assert.equal(reducer(sample, { type: "HYDRATE", state: { schema: 2, leads: "nope" } }), sample);
+  assert.equal(reducer(sample, { type: "HYDRATE", state: null }), sample);
+  // Schema 1 workspaces are brought up to date on the way in.
+  const old = reducer(sample, { type: "HYDRATE", state: { ...sample, schema: 1, leads: [{ ...sample.leads[0], calls: undefined, callback: "09:00" }] } });
+  assert.equal(old.schema, 2);
+});
+test("correcting a mapping teaches Turf that header for later lists", () => {
+  const owner = as("owner");
+  const dataset = { id: "dx", name: "Odd list", columns: ["Owner", "Development", "Digits"], team: "Tampa" };
+  const lead = { ...owner.leads[0], id: "lx", datasetId: "dx", sourceValues: { Owner: "Mona Adel", Development: "Palm Grove", Digits: "(813) 274-6610" } };
+  const imported = reducer(owner, { type: "IMPORT", dataset, leads: [lead] });
+  const saved = reducer(imported, { type: "SOURCE_MAPPING", id: "dx", mappings: { name: "Owner", phone: "Digits", subdivision: "Development" } });
+  assert.equal(saved.settings.learnedHeaders.development, "subdivision");
+  assert.equal(saved.settings.learnedHeaders.digits, undefined, "Turf found Digits by itself, so there was nothing to learn");
+  assert.equal(saved.leads.find(item => item.id === "lx").subdivision, "Palm Grove");
+});
+test("a lead's place is kept; an exact address is never replaced by a ZIP centre", () => {
+  const owner = as("owner");
+  const id = owner.leads[0].id;
+  const zip = reducer(owner, { type: "LOCATE", places: { [id]: { lat: 27.95, lng: -82.45, precision: "zip" } } });
+  assert.deepEqual(zip.leads[0].geo, { lat: 27.95, lng: -82.45, precision: "zip" });
+  const exact = reducer(zip, { type: "LOCATE", places: { [id]: { lat: 27.96, lng: -82.46, precision: "address" } } });
+  assert.equal(exact.leads[0].geo.precision, "address");
+  const again = reducer(exact, { type: "LOCATE", places: { [id]: { lat: 1, lng: 1, precision: "zip" } } });
+  assert.equal(again.leads[0].geo.lat, 27.96, "a ZIP centre does not move an exact place");
+  const missed = reducer(zip, { type: "LOCATE", places: {}, notFound: [id] });
+  assert.equal(missed.leads[0].geo.notFound, true);
+  assert.equal(missed.leads[0].geo.precision, "zip", "it stays in its ZIP area");
+  assert.equal(reducer(owner, { type: "LOCATE", places: { [id]: { lat: "x", lng: 2 } } }).leads[0].geo, undefined);
+});

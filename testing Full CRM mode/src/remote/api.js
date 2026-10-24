@@ -17,6 +17,9 @@ export function apiBase() {
   }
 }
 
+/** Turf's server. People never type it: it is fixed when the app is built (VITE_TURF_API_URL). */
+export const SERVER = (import.meta.env?.VITE_TURF_API_URL || "http://localhost:8088").replace(/\/$/, "");
+
 export function setApiBase(url) {
   try {
     if (url) window.localStorage.setItem("turf.api.url", url.replace(/\/$/, ""));

@@ -20,12 +20,14 @@ import { avatarSources } from "./avatars.js";
 import { TODAY } from "./data.js";
 
 export const money = value => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
-/** Bedrooms, bathrooms and area, leaving out what the source did not supply. */
+/** Bedrooms, bathrooms, area, units and year built, leaving out what the source did not supply. */
 export function propertyFacts(record) {
   return [
     record.beds != null && record.beds + " beds",
     record.baths != null && record.baths + " baths",
     record.area != null && Number(record.area).toLocaleString() + " sq ft",
+    record.units > 1 && record.units + " units",
+    record.yearBuilt != null && "Built " + record.yearBuilt,
   ].filter(Boolean);
 }
 export function Badge({ children, tone = "", className = "" }) {
@@ -197,8 +199,28 @@ export function SortHeader({ view, id, children, label = typeof children === "st
  * A table whose column titles sort and can be dragged into a new order.
  * `columns`: [{ id, label, cell(row), className? }]. `leading` and `trailing` are fixed columns ({ head, cell(row), className? }).
  */
+/**
+ * Long lists draw a page at a time, so a list of tens of thousands of rows stays quick. Answers the rows to draw and
+ * the "Show more" bar (null when everything is shown).
+ */
+export function useShowMore(items, step = 100) {
+  const [count, setCount] = useState(step);
+  if (items.length <= count) return [items, null];
+  const next = Math.min(step, items.length - count);
+  return [
+    items.slice(0, count),
+    <div className="show-more" key="show-more">
+      <span>
+        Showing {count.toLocaleString()} of {items.length.toLocaleString()}
+      </span>
+      <Button onClick={() => setCount(count + step)}>Show {next.toLocaleString()} more</Button>
+    </div>,
+  ];
+}
+
 export function DataTable({ view, columns, rowKey, leading, trailing }) {
   const ordered = view.arrange(columns);
+  const [rows, more] = useShowMore(view.rows);
   const [drag, setDrag] = useState(null);
   const justDragged = useRef(false);
   const ids = ordered.map(column => column.id);
@@ -290,7 +312,7 @@ export function DataTable({ view, columns, rowKey, leading, trailing }) {
           </tr>
         </thead>
         <tbody>
-          {view.rows.map(row => (
+          {rows.map(row => (
             <tr key={rowKey(row)}>
               {leading && <td className={leading.className}>{leading.cell(row)}</td>}
               {ordered.map(column => (
@@ -303,6 +325,7 @@ export function DataTable({ view, columns, rowKey, leading, trailing }) {
           ))}
         </tbody>
       </table>
+      {more}
       {drag && (
         <div className="column-ghost" style={{ transform: `translate(${drag.x + 12}px, ${drag.y + 12}px)` }}>
           {drag.label}
@@ -568,9 +591,24 @@ export function MoreMenu({ items, label = "More" }) {
     </div>
   );
 }
+/**
+ * Saves rows as a CSV file. In a browser it downloads; the desktop window has no download bar, so the file goes to
+ * the Downloads folder and is shown in the file manager. Either way a "turf-saved" event says where it went.
+ */
 export function downloadCsv(filename, rows) {
   const escape = value => '"' + String(value ?? "").replaceAll('"', '""') + '"';
   const csv = rows.map(row => row.map(escape).join(",")).join("\r\n");
+  const saved = detail => window.dispatchEvent(new CustomEvent("turf-saved", { detail }));
+  if (window.__TAURI_INTERNALS__) {
+    import("@tauri-apps/api/core")
+      .then(({ invoke }) => invoke("save_download", { filename, contents: "﻿" + csv }))
+      .then(
+        path => saved({ path }),
+        reason => saved({ error: String(reason) }),
+      );
+    return;
+  }
+  saved({ path: filename, browser: true });
   const url = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
   const link = document.createElement("a");
   link.href = url;

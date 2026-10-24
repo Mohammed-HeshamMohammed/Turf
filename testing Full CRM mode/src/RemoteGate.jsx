@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
-import { Lock, ShieldCheck, SignIn, WifiSlash } from "@phosphor-icons/react";
-import { api, apiBase, ApiError, setApiBase } from "./remote/api.js";
+import { useEffect, useRef, useState } from "react";
+import { GoogleLogo, Lock, ShieldCheck, SignIn, WifiSlash } from "@phosphor-icons/react";
+import { api, apiBase, ApiError, request, SERVER, setApiBase } from "./remote/api.js";
 import { MemoryVault, Vault } from "./remote/vault.js";
+import { inDesktopApp } from "./popout.js";
 import { Button, Card, Field } from "./ui.jsx";
 
 /**
@@ -10,12 +11,13 @@ import { Button, Card, Field } from "./ui.jsx";
  */
 export function RemoteGate({ onReady, onLeave }) {
   const [step, setStep] = useState("checking");
-  const [error, setError] = useState("");
+  // A Google sign-in that did not work comes back with its reason in the address.
+  const [error, setError] = useState(() => new URLSearchParams(window.location.search).get("oauth_error") || "");
   const [busy, setBusy] = useState(false);
   const [me, setMe] = useState(null);
   const [enrolment, setEnrolment] = useState(null);
   const [recovery, setRecovery] = useState(null);
-  const [form, setForm] = useState({ url: apiBase(), email: "", password: "", code: "", passphrase: "" });
+  const [form, setForm] = useState({ email: "", password: "", code: "", passphrase: "" });
   const field = name => event => setForm({ ...form, [name]: event.target.value });
 
   async function check() {
@@ -23,14 +25,59 @@ export function RemoteGate({ onReady, onLeave }) {
       const identity = await api.me();
       setMe(identity);
       if (identity.mfa.required && !identity.mfa.passed) setStep(identity.mfa.enrolled ? "mfa" : "enroll");
+      // The trial or plan has run out: the server refuses CRM records until it is renewed on the website.
+      else if (identity.subscription && !identity.subscription.usable) setStep("plan");
       else setStep("unlock");
     } catch (reason) {
       setStep(reason instanceof ApiError && reason.code === "offline" ? "offline" : "signin");
     }
   }
   useEffect(() => {
+    if (!apiBase()) setApiBase(SERVER);
+    if (window.location.search) window.history.replaceState(null, "", window.location.pathname + window.location.hash);
     check();
   }, []);
+  /** Hands the window to Google; the server brings it back here signed in. */
+  const waiting = useRef(null);
+  useEffect(() => () => waiting.current?.(), []);
+  /**
+   * Google sign-in. In a browser tab the tab itself goes to Google and comes back. The desktop window never leaves
+   * the app: Google opens in the person's own browser, which hands a one-time code back to the app on this computer.
+   */
+  const continueWith = (provider, label) =>
+    attempt(async () => {
+      const available = await request("GET", "/api/v1/auth/providers").catch(() => ({}));
+      if (!available[provider]) throw new Error(`${label} sign-in isn't connected on this server yet. Use your email for now.`);
+      const server = apiBase() || SERVER;
+      if (!inDesktopApp()) {
+        window.location.href = server + `/api/v1/auth/oauth/${provider}/start?target=app`;
+        return;
+      }
+      const { invoke } = await import("@tauri-apps/api/core");
+      const { listen } = await import("@tauri-apps/api/event");
+      waiting.current?.();
+      const port = await invoke("google_sign_in_listen");
+      const stop = await listen("turf-sign-in", ({ payload }) => {
+        stop();
+        waiting.current = null;
+        attempt(async () => {
+          if (!payload.code) {
+            setStep("signin");
+            throw new Error(payload.error || "Sign-in did not finish.");
+          }
+          await request("POST", "/api/v1/auth/oauth/exchange", { code: payload.code });
+          await check();
+        });
+      });
+      waiting.current = stop;
+      await invoke("open_in_browser", { url: server + `/api/v1/auth/oauth/${provider}/start?target=desktop&port=${port}` });
+      setStep("browser");
+    });
+  const stopWaiting = () => {
+    waiting.current?.();
+    waiting.current = null;
+    setStep("signin");
+  };
 
   async function attempt(work) {
     setBusy(true);
@@ -47,7 +94,7 @@ export function RemoteGate({ onReady, onLeave }) {
   const signIn = event => {
     event.preventDefault();
     attempt(async () => {
-      setApiBase(form.url.trim());
+      if (!apiBase()) setApiBase(SERVER);
       await api.login(form.email.trim(), form.password);
       setForm(current => ({ ...current, password: "" }));
       await check();
@@ -86,24 +133,34 @@ export function RemoteGate({ onReady, onLeave }) {
         }
       >
         {step === "checking" && <p className="muted">Checking your session…</p>}
+        {step === "browser" && (
+          <div className="remote-step" role="status">
+            <p className="body-copy">Finish signing in with Google in your browser. Turf continues here by itself when you're done.</p>
+            <Button onClick={stopWaiting}>Cancel</Button>
+          </div>
+        )}
         {step === "offline" && (
           <div className="remote-step">
             <p className="notice">
-              <WifiSlash size={18} /> The server at {apiBase() || "(not set)"} cannot be reached.
+              <WifiSlash size={18} /> Turf's server cannot be reached. Check your internet connection.
             </p>
             <div className="row">
               <Button variant="primary" onClick={() => attempt(check)}>
                 Try again
               </Button>
-              <Button onClick={() => setStep("signin")}>Change server</Button>
             </div>
           </div>
         )}
         {step === "signin" && (
           <form className="remote-step" onSubmit={signIn}>
-            <Field label="Server address" help="For example https://crm.example.com">
-              <input value={form.url} onChange={field("url")} placeholder="https://" required />
-            </Field>
+            <div className="provider-buttons">
+              <Button icon={GoogleLogo} disabled={busy} onClick={() => continueWith("google", "Google")}>
+                Continue with Google
+              </Button>
+              <p className="provider-or muted" role="separator">
+                or with your email
+              </p>
+            </div>
             <Field label="Email">
               <input type="email" autoComplete="username" value={form.email} onChange={field("email")} required />
             </Field>
@@ -113,6 +170,12 @@ export function RemoteGate({ onReady, onLeave }) {
             <Button type="submit" variant="primary" icon={SignIn} disabled={busy}>
               {busy ? "Signing in…" : "Sign in"}
             </Button>
+            <p className="muted">
+              No account yet?{" "}
+              <a href={(apiBase() || SERVER) + "/#/signup"} target="_blank" rel="noreferrer">
+                Start a free trial
+              </a>
+            </p>
           </form>
         )}
         {step === "mfa" && (
@@ -155,6 +218,19 @@ export function RemoteGate({ onReady, onLeave }) {
             <Button variant="primary" onClick={() => attempt(check)}>
               I saved them
             </Button>
+          </div>
+        )}
+        {step === "plan" && (
+          <div className="remote-step">
+            <p className="notice" role="alert">
+              {me.subscription.reason}
+            </p>
+            <div className="row">
+              <a className="button primary" href={apiBase() + "/#/account"} target="_blank" rel="noreferrer">
+                <span>Open your account</span>
+              </a>
+              <Button onClick={() => attempt(check)}>I renewed, check again</Button>
+            </div>
           </div>
         )}
         {step === "unlock" && (

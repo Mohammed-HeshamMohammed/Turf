@@ -22,6 +22,9 @@ pub enum ApiError {
     Conflict(String),
     #[error("{0}")]
     TooMany(String),
+    /// The organization's plan has run out (trial over, minutes used, payment due).
+    #[error("{0}")]
+    PaymentRequired(String),
     #[error("internal error")]
     Internal(#[from] anyhow::Error),
 }
@@ -45,6 +48,7 @@ impl ApiError {
             ApiError::NotFound(_) => (StatusCode::NOT_FOUND, "not_found"),
             ApiError::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
             ApiError::TooMany(_) => (StatusCode::TOO_MANY_REQUESTS, "rate_limited"),
+            ApiError::PaymentRequired(_) => (StatusCode::PAYMENT_REQUIRED, "payment_required"),
             ApiError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal"),
         }
     }

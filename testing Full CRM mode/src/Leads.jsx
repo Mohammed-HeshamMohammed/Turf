@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { PropertyMap } from "./PropertyMap.jsx";
+import { LeadsMap } from "./LeadsMap.jsx";
 import { coordinates } from "./skiptrace-fields.js";
 import { Archive, ArrowUpRight, ArrowLeft, Plus, Phone, Envelope, Handshake, Clock, FileText, CheckCircle, Export, HouseLine } from "@phosphor-icons/react";
 import { LEAD_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
@@ -46,6 +47,9 @@ export function Leads() {
   const [hideEmpty, setHideEmpty] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [drag, setDrag] = useState(null);
+  // A board column shows this many cards per stage until "Show more" (a list of thousands stays quick).
+  const [boardShown, setBoardShown] = useState({});
+  const BOARD_STEP = 50;
   const justDragged = useRef(false);
   const client = state.role === "client";
   const archivedCount = archivedLeads(state).length;
@@ -181,17 +185,22 @@ export function Leads() {
         </div>
       )}
       {view === "Map" ? (
-        <PropertyMap rows={leads} title={client ? "Shared property map" : "Lead map"} />
+        client ? (
+          <PropertyMap rows={leads} title="Shared property map" />
+        ) : (
+          <LeadsMap leads={leads} />
+        )
       ) : view === "Board" && !client ? (
         <div className="kanban lead-board view-in">
           {LEAD_STAGES.map(column => (
             <section className={"kanban-column" + (drag?.over === column ? " drop-target" : "")} data-stage={column} key={column}>
               <header>
                 <span>{column}</span>
-                <Badge>{leads.filter(lead => lead.stage === column).length}</Badge>
+                <Badge>{leads.filter(lead => lead.stage === column).length.toLocaleString()}</Badge>
               </header>
               {leads
                 .filter(lead => lead.stage === column)
+                .slice(0, boardShown[column] || BOARD_STEP)
                 .map(lead => (
                   <article
                     className={"kanban-card" + (drag?.id === lead.id ? " dragging" : "") + (canEditLead(state, lead.id) ? "" : " locked")}
@@ -225,6 +234,11 @@ export function Leads() {
                   </article>
                 ))}
               {!leads.some(lead => lead.stage === column) && <p className="column-empty">No leads here</p>}
+              {leads.filter(lead => lead.stage === column).length > (boardShown[column] || BOARD_STEP) && (
+                <Button onClick={() => setBoardShown({ ...boardShown, [column]: (boardShown[column] || BOARD_STEP) + BOARD_STEP })}>
+                  Show more ({(leads.filter(lead => lead.stage === column).length - (boardShown[column] || BOARD_STEP)).toLocaleString()} left)
+                </Button>
+              )}
             </section>
           ))}
           {drag && (
@@ -323,6 +337,86 @@ export function Leads() {
         </div>
       )}
     </>
+  );
+}
+
+const months = total => {
+  const years = Math.floor(total / 12),
+    rest = total % 12;
+  return [years && years + (years === 1 ? " year" : " years"), rest && rest + (rest === 1 ? " month" : " months")].filter(Boolean).join(" ") || "Under a month";
+};
+const yesNo = value =>
+  /^(?:y|yes|true|1)$/i.test(String(value).trim()) ? "Yes" : /^(?:n|no|false|0)$/i.test(String(value).trim()) ? "No" : String(value ?? "").trim();
+
+/** The property and its owners as the source list describes them. Empty fields hide with "Hide empty fields". */
+function PropertyRecord({ lead, hideEmpty }) {
+  const lot = [lead.lotAcres != null && Number(lead.lotAcres.toFixed(3)) + " acres", lead.lotSqft != null && lead.lotSqft.toLocaleString() + " sq ft"]
+    .filter(Boolean)
+    .join(" · ");
+  const garage = [lead.garageType, lead.garageSqft ? lead.garageSqft.toLocaleString() + " sq ft" : ""].filter(Boolean).join(" · ");
+  const carport = [lead.carport, lead.carportSqft ? lead.carportSqft.toLocaleString() + " sq ft" : ""].filter(Boolean).join(" · ");
+  const sections = [
+    [
+      "Owners",
+      [
+        [lead.owners?.length > 1 ? "Names" : "Name", (lead.owners?.length ? lead.owners : [lead.name]).join(" · ")],
+        ["Mailing address", lead.mailing],
+        ["Owner type", lead.ownerType],
+        ["Owner occupied", yesNo(lead.ownerOccupied ?? "")],
+        ["Vacant", yesNo(lead.vacant ?? "")],
+        ["Owned for", lead.ownershipMonths != null ? months(lead.ownershipMonths) : ""],
+      ],
+    ],
+    [
+      "Property",
+      [
+        ["Property type", lead.propertyType],
+        ["Property use", lead.propertyUse],
+        ["Land use", lead.landUse],
+        ["Living area", lead.area != null ? lead.area.toLocaleString() + " sq ft" : ""],
+        ["Bedrooms / bathrooms", [lead.beds, lead.baths].some(v => v != null) ? (lead.beds ?? "—") + " / " + (lead.baths ?? "—") : ""],
+        ["Year built", lead.yearBuilt ?? ""],
+        ["Lot", lot],
+        ["Units", lead.units ?? ""],
+        ["Stories", lead.stories ?? ""],
+        ["Garage", garage],
+        ["Carport", carport],
+        ["Air conditioning", lead.cooling],
+        ["Heating", lead.heating],
+        ["Fireplaces", lead.fireplaces ?? ""],
+      ],
+    ],
+    [
+      "Records",
+      [
+        ["County", lead.county],
+        ["Parcel / APN", lead.parcel],
+        ["Subdivision", lead.subdivision],
+        ["Legal description", lead.legal],
+        ["Record ID in the source", lead.sourceId],
+      ],
+    ],
+  ];
+  return (
+    <Card title="Property & owners" subtitle="From the source list. Empty means the list did not include it.">
+      {sections.map(([title, fields]) => {
+        const shown = fields.filter(([, value]) => !hideEmpty || String(value ?? "").trim());
+        if (!shown.length) return null;
+        return (
+          <section key={title} className="record-section">
+            <h3>{title}</h3>
+            <div className="detail-fields">
+              {shown.map(([label, value]) => (
+                <div key={label}>
+                  <small>{label}</small>
+                  <span>{String(value ?? "").trim() || <span className="muted">Not in this list</span>}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </Card>
   );
 }
 
@@ -438,7 +532,7 @@ export function LeadDetail({ id }) {
               {capability(state, "finance") && (
                 <div className="property-value">
                   <small>Estimated property value</small>
-                  <strong>{money(lead.value)}</strong>
+                  {lead.value == null ? <strong className="muted">Not in this list</strong> : <strong>{money(lead.value)}</strong>}
                 </div>
               )}
               <div className="row">
@@ -490,6 +584,7 @@ export function LeadDetail({ id }) {
                   </div>
                 )}
               </Card>
+              {!client && lead.sourceValues && <PropertyRecord lead={lead} hideEmpty={hideEmpty} />}
               <Card
                 title={client ? "Shared notes" : "Notes & context"}
                 subtitle={client ? "Visible to you and the project team." : "Keep important details attached to the lead."}
@@ -668,6 +763,20 @@ export function LeadDetail({ id }) {
               <Button onClick={() => navigate("lists/" + lead.datasetId)}>
                 Open original source <ArrowUpRight size={16} />
               </Button>
+            </Card>
+          )}
+          {tab === "Evidence" && !client && lead.sourceValues && (
+            <Card title="Original source row" subtitle="Every column exactly as imported. CRM changes never edit it.">
+              <div className="detail-fields source-row">
+                {Object.entries(lead.sourceValues)
+                  .filter(([, value]) => !hideEmpty || String(value ?? "").trim())
+                  .map(([column, value]) => (
+                    <div key={column}>
+                      <small>{column}</small>
+                      <span>{String(value ?? "").trim() || <span className="muted">Empty</span>}</span>
+                    </div>
+                  ))}
+              </div>
             </Card>
           )}
         </div>

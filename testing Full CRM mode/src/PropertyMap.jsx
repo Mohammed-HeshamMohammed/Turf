@@ -1,12 +1,22 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+
+const EMPTY = [];
 import { MapPin, ArrowsOut, ArrowUpRight } from "@phosphor-icons/react";
 import { useCrm } from "./context.jsx";
 import { recordLocation, mapSearchUrl } from "./locations.js";
-import { Badge, Select, Button } from "./ui.jsx";
+import { Badge, Select, Button, useShowMore } from "./ui.jsx";
+import { Crosshair } from "@phosphor-icons/react";
+import { locateLabel, useLeadPlaces } from "./useLeadPlaces.js";
 import "leaflet/dist/leaflet.css";
 
-export function PropertyMap({ rows, title = "Property map", mappings, compact = false }) {
+export function PropertyMap({ rows: current, title = "Property map", mappings: given, compact = false }) {
   const { state, navigate } = useCrm();
+  // The page around the map draws first; locating thousands of records follows straight after, so opening a page
+  // with a long list never waits on the map.
+  const rows = useDeferredValue(current, EMPTY);
+  const places = useLeadPlaces(current);
+  const mappingsKey = JSON.stringify(given ?? null);
+  const mappings = useMemo(() => JSON.parse(mappingsKey) ?? undefined, [mappingsKey]);
   const host = useRef(null),
     mapRef = useRef(null),
     layers = useRef(new Map()),
@@ -36,6 +46,7 @@ export function PropertyMap({ rows, title = "Property map", mappings, compact = 
     [records, filter],
   );
   const chosen = shown.find(item => item.row.id === selected) || shown[0];
+  const [listed, more] = useShowMore(shown);
 
   useEffect(() => {
     if (!state.online || !host.current) return;
@@ -47,7 +58,7 @@ export function PropertyMap({ rows, title = "Property map", mappings, compact = 
       .then(L => {
         if (disposed) return;
         const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        map = L.map(host.current, { scrollWheelZoom: false, zoomAnimation: !reduce, fadeAnimation: !reduce }).setView([25, 0], 2);
+        map = L.map(host.current, { preferCanvas: true, scrollWheelZoom: false, zoomAnimation: !reduce, fadeAnimation: !reduce }).setView([25, 0], 2);
         mapRef.current = map;
         setStatus("Loading map");
         L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -127,13 +138,22 @@ export function PropertyMap({ rows, title = "Property map", mappings, compact = 
             {title}
           </h2>
           <p className="muted">
-            {records.filter(item => item.kind === "coordinates").length} with coordinates · {records.filter(item => item.kind === "area").length} in city areas
-            · {records.filter(item => !item.point).length} need a location
+            {records.filter(item => item.kind === "coordinates").length.toLocaleString()} at their exact place ·{" "}
+            {records.filter(item => item.kind === "area").length.toLocaleString()} in an approximate area ·{" "}
+            {records.filter(item => !item.point).length.toLocaleString()} without a location
+            {places.notFound > 0 && ` · ${places.notFound.toLocaleString()} addresses not found`}
           </p>
         </div>
-        <Button icon={ArrowsOut} disabled={!state.online} onClick={() => fit.current()}>
-          Fit records
-        </Button>
+        <div className="row">
+          {places.engine && places.toLocate.length > 0 && !compact && (
+            <Button variant="primary" icon={Crosshair} disabled={Boolean(places.locating)} onClick={places.locate}>
+              {locateLabel(places)}
+            </Button>
+          )}
+          <Button icon={ArrowsOut} disabled={!state.online} onClick={() => fit.current()}>
+            Fit records
+          </Button>
+        </div>
       </header>
       <div className="property-map-toolbar">
         <label>
@@ -144,7 +164,7 @@ export function PropertyMap({ rows, title = "Property map", mappings, compact = 
             ))}
           </Select>
         </label>
-        <small>Solid dots: supplied coordinates. Dashed areas: approximate cities.</small>
+        <small>Solid dots: exact places. Dashed areas: approximate (ZIP code or city).</small>
       </div>
       <div className="property-map-layout">
         <div className="property-map-surface">
@@ -173,7 +193,7 @@ export function PropertyMap({ rows, title = "Property map", mappings, compact = 
         </div>
         <div className="property-map-records" aria-label={title + " records"}>
           {!shown.length && <p className="muted">No records in this view. Change the location filter or your list filters.</p>}
-          {shown.map(item => (
+          {listed.map(item => (
             <button key={item.row.id} aria-pressed={chosen?.row.id === item.row.id} onClick={() => choose(item)}>
               <strong>{item.row.name}</strong>
               <span>{item.address || "No address supplied"}</span>
@@ -183,6 +203,7 @@ export function PropertyMap({ rows, title = "Property map", mappings, compact = 
               </small>
             </button>
           ))}
+          {more}
         </div>
       </div>
       {chosen && (
@@ -191,7 +212,8 @@ export function PropertyMap({ rows, title = "Property map", mappings, compact = 
             <strong>{chosen.row.name}</strong>
             <p>
               {chosen.point && chosen.kind === "coordinates"
-                ? chosen.point.join(", ") + " · Source supplied; not independently verified"
+                ? chosen.point.join(", ") +
+                  (chosen.label === "Located by address" ? " · Located by address (US Census Bureau)" : " · Source supplied; not independently verified")
                 : chosen.label + ". No exact property location has been confirmed."}
             </p>
           </div>
@@ -206,7 +228,7 @@ export function PropertyMap({ rows, title = "Property map", mappings, compact = 
         </div>
       )}
       <div className="property-map-note">
-        <Badge>{rows.length} visible records</Badge>
+        <Badge>{rows.length.toLocaleString()} visible records</Badge>
         <span>No address is automatically geocoded. Search opens OpenStreetMap only when you choose it. Missing locations stay in the record list.</span>
       </div>
     </section>

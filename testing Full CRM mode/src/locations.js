@@ -6,6 +6,12 @@ const present = value =>
   value !== undefined && value !== null && String(value).trim() !== "" && !/^(?:address not supplied|unknown|n\/?a|none)$/i.test(String(value).trim());
 
 export function recordLocation(row, dataset, overrides) {
+  if (row.geo && Number.isFinite(row.geo.lat) && Number.isFinite(row.geo.lng)) {
+    const address = [row.address, row.city, row.region, row.zip].filter(present).join(", ");
+    return row.geo.precision === "address"
+      ? { point: [row.geo.lat, row.geo.lng], kind: "coordinates", label: "Located by address", address, invalid: false }
+      : { point: [row.geo.lat, row.geo.lng], kind: "area", label: "ZIP code area · approximate", address, invalid: false };
+  }
   const data = row.sourceValues ? mappedRecord(dataset?.columns || Object.keys(row.sourceValues), row, { ...dataset?.fieldMappings, ...overrides }) : row;
   const point = coordinates(data.latitude ?? data.lat, data.longitude ?? data.lng ?? data.lon);
   const address = [data.address, data.unit, data.city, data.region, data.zip, data.country].filter(present).join(", ");
