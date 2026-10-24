@@ -225,6 +225,86 @@ Rules:
 
 The Python Skip Tracing engine is `service/` at the repository root. Both the Turf desktop app and Full CRM Turf run it, and `server/python` imports its phone and status rules so that a list reads the same on a laptop and on the server. Until Turf and Full CRM Turf become one product, `service/` stays where it is, and `local-backend/python/` holds only a README that points to it. When they merge, `service/` moves to `local-backend/python/`.
 
+### Languages by part
+
+The CRM's planned features (calling, SMS and email, live captions, call transcription, Skip Tracing, matching, maps, reports) pull in many languages. Most of them arrive as **libraries we use**, not code we write. The rule: **a language gets its own folder only when we write and maintain code in it.** A library written in C or C++ is a dependency, not a folder.
+
+**Status:** *Today* = already in the repo. *Planned* = already in [the CRM plan](docs/TURF_CRM_AND_PERFORMANCE_PLAN.md). *New* = found by the research below. *Optional* = only if that feature is approved.
+
+#### 1. The Rust container: `container/`
+
+| Language | We write | Status |
+| --- | --- | --- |
+| Rust | The window, menus, microphone permission handling for calls and captions, packaging | Today |
+| JSON | `tauri.conf.json`, capabilities | Today |
+| Swift, Kotlin | Mobile shell code (Tauri 2 mobile plugins), if a phone app for callers is approved. Folders: `container/swift`, `container/kotlin` | Optional |
+
+#### 2. The frontend: `frontend/`
+
+| Language | We write | Status |
+| --- | --- | --- |
+| JavaScript (React), moving to **TypeScript** | Every screen and client. Switch file by file as the screens are split: Turf's own app already uses TypeScript, and typed clients catch contract mistakes before they ship | Today, to change |
+| CSS | Design tokens and styles | Today |
+| HTML | `index.html` only | Today |
+
+#### 3. The backend inside the container: `local-backend/`
+
+| Language | We write | Status |
+| --- | --- | --- |
+| Rust | Commands, sidecar bridge, sign-in, downloads, **live captions** (Windows' own speech API or whisper.cpp), offline map tiles | Today + New |
+| Python | Skip Tracing engine (`service/`): phone, status and owner rules | Today |
+| SQL (SQLite) | Local job and workspace tables | Today |
+| C++ | The batch matching kernel (plan 2.9), only if it passes its 20% speed gate. Folder: `local-backend/cpp` | Planned |
+
+#### 4. The backend on the VPS: `server/`
+
+| Language | We write | Status |
+| --- | --- | --- |
+| Rust | Public API, auth, permissions, sync, events, billing | Today |
+| SQL + PL/pgSQL | Migrations and row security; the PostGIS TIGER geocoder for US addresses | Today + New |
+| Go | Outbox and scheduler worker, notification fan-out | Today |
+| Python | Imports, server Skip Tracing, report PDFs, **call transcription** (faster-whisper) | Today + New |
+| TypeScript (Node) | Twilio voice and SMS, email (SMTP/IMAP, Google, Microsoft), webhook signature checks, opt-out sync. Folder: `server/typescript` | Planned |
+| C++ | The same matching kernel as the desktop, shared | Planned |
+| ~~C~~ | The plan's C media worker is **not needed**: run the FFmpeg program for conversion and waveforms instead of linking its C libraries | Dropped |
+| HTML, CSS, JavaScript | `server/website` | Today |
+
+#### Everywhere: configuration and tooling (no folder of their own)
+
+| Language | Used for |
+| --- | --- |
+| YAML | GitHub Actions, Docker Compose, `contracts/api-v1.yaml` (OpenAPI) |
+| Dockerfile, Caddyfile | `server/deploy/`: one image per server language, the HTTPS proxy |
+| Bash, PowerShell | Dev scripts; Windows packaging and signing |
+| TOML, JSON | Cargo, npm, Tauri settings |
+| Markdown, Mermaid | Docs and these diagrams |
+
+#### Libraries in other languages (dependencies, not folders)
+
+| Need | Library | Its language | Called from |
+| --- | --- | --- | --- |
+| Phone parsing and validation | libphonenumber (`phonenumbers`, `rlibphonenumber`) | C++/Java, with ports | Python, Rust |
+| Address parsing and normalization | libpostal | C | Python (`postal`) |
+| Fuzzy name matching | RapidFuzz | C++ | Python |
+| Transcription | whisper.cpp, faster-whisper (CTranslate2) | C++ | Rust (desktop), Python (server) |
+| Audio conversion, waveforms | FFmpeg | C | Go or Python, as a program |
+| Maps | Leaflet now; MapLibre GL + PMTiles for offline maps | JavaScript | Frontend |
+| Geocoding | PostGIS TIGER geocoder | PL/pgSQL | `server/rust` |
+| Voice and SMS | Twilio Voice JS SDK; Twilio iOS/Android SDKs if mobile | JS, Swift, Kotlin | Frontend, mobile shell |
+
+#### What the research changed
+
+1. **Live captions must move out of the webview.** `src/listen.js` uses the browser's Web Speech API. Chromium keeps that API out of embedded webviews, WebKit does the same for embedded WKWebViews, and a feature check can pass even though recognition never starts. The desktop app should send microphone audio to `local-backend/rust`, which uses Windows' continuous dictation API or whisper.cpp. No new language is needed.
+2. **Calling in the desktop app needs microphone permission handling in Rust.** The Twilio Voice JS SDK asks for the microphone through `getUserMedia`, and WebView2 raises a permission request the host must answer. Tauri has recently exposed a permission handler with a microphone kind. Twilio does not list Tauri or WebView2 as supported, so test this early. The plan's fallback, a browser companion window, stays.
+3. **Opt-out is decided by Twilio, not by us.** On 10DLC numbers Twilio handles STOP itself and blocks later sends. The TypeScript adapter mirrors that status into the CRM instead of reading keywords.
+4. **Offline maps need a local tile file.** MapLibre GL with a PMTiles extract (a few MB for a county) works without a server. The local backend must serve range requests from that file.
+5. **Transcription runtime depends on the machine:** faster-whisper on NVIDIA GPUs (the server), whisper.cpp on CPU-only and Apple machines (the desktop). Neither streams on its own, so live captions need chunking with voice-activity detection on top.
+6. **Mobile is the only real source of new languages.** A caller app on phones means Swift and Kotlin plugin code plus Twilio's native Voice SDKs. Decide on it separately.
+
+**Result: the languages we write are Rust, TypeScript, Python, Go and SQL.** C++ comes in only if the matching gate passes, and Swift and Kotlin only if mobile is approved. That is five today and at most eight. Writing C is dropped.
+
+Sources: [Twilio Voice JS best practices](https://www.twilio.com/docs/voice/sdks/javascript/best-practices) · [Chromium: speech APIs kept out of WebView](https://issues.chromium.org/41172064) · [WebKit: speech recognition in WKWebView](https://bugs.webkit.org/show_bug.cgi?id=239816) · [Windows continuous dictation](https://learn.microsoft.com/en-us/uwp/api/windows.media.speechrecognition.speechcontinuousrecognitionsession.startasync?view=winrt-26100) · [faster-whisper](https://github.com/SYSTRAN/faster-whisper) · [Whisper streaming (ufal)](https://github.com/ufal/whisper_streaming) · [faster-whisper vs whisper.cpp (2026)](https://codersera.com/blog/faster-whisper-vs-whisper-cpp-speech-to-text-2026/amp/) · [libpostal Python bindings](https://www.pypi.org/project/postal) · [rlibphonenumber](https://awesome.ecosyste.ms/projects/github.com%2Fvloldik%2Frlibphonenumber) · [PostGIS TIGER geocoder](https://docs.pgedge.com/postgis/v3-5-5/postgis-extras/tiger-geocoder/) · [Twilio Advanced Opt-Out](https://support.twilio.com/hc/en-us/articles/360034798533) · [10DLC opt-out handling](https://www.rockrms.com/tech-bulletin/changes-to-rocks-sms-opt-inopt-out-handling) · [PMTiles with MapLibre](https://docs.protomaps.com/pmtiles/maplibre) · [Tauri 2 mobile plugins](https://v2.tauri.app/blog/roadmap-to-tauri-2-0/) · [Tauri webview permissions](https://gitverse.ru/githubmirror/tauri/content/dev/crates/tauri-runtime/src/webview_permissions.rs)
+
 ## Options considered
 
 ### Option A: Parts first, languages inside (chosen)
