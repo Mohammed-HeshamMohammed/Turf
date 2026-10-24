@@ -5974,3 +5974,20 @@ html.demo-quiet .demo-note {
 .map-card-price.is-address {
   font-size: 17px;
 }
+.map-cluster.is-approximate {
+  border-style: dashed;
+}
+.leads-map-spot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  border-radius: 16px;
+  padding: 10px 12px;
+}
+.leads-map-spot span {
+  display: grid;
+  gap: 2px;
+}

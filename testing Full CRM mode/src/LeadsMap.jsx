@@ -34,6 +34,8 @@ export function LeadsMap({ leads }) {
   const [onlyInView, setOnlyInView] = useState(true);
   const [hovered, setHovered] = useState(null);
   const [selected, setSelected] = useState(null);
+  // Leads sharing one spot (a ZIP centre, or one building): chosen from their bubble, they are what the list shows.
+  const [spot, setSpot] = useState(null);
   const [mapState, setMapState] = useState("Loading map");
   const places = useLeadPlaces(leads);
   const { engine, locating, locate, exact, notFound, toLocate, unplaced } = places;
@@ -108,7 +110,7 @@ export function LeadsMap({ leads }) {
     const groups = new Map();
     for (const lead of inView) {
       const point = map.project([lead.geo.lat, lead.geo.lng], zoom);
-      const key = zoom >= UNGROUP_AT ? lead.id : Math.floor(point.x / CELL) + ":" + Math.floor(point.y / CELL);
+      const key = zoom >= UNGROUP_AT ? lead.geo.lat.toFixed(6) + "," + lead.geo.lng.toFixed(6) : Math.floor(point.x / CELL) + ":" + Math.floor(point.y / CELL);
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(lead);
     }
@@ -117,16 +119,23 @@ export function LeadsMap({ leads }) {
         const lat = members.reduce((sum, lead) => sum + lead.geo.lat, 0) / members.length;
         const lng = members.reduce((sum, lead) => sum + lead.geo.lng, 0) / members.length;
         const size = members.length >= 1000 ? 56 : members.length >= 100 ? 48 : 40;
+        const first = members[0].geo;
+        const oneSpot = members.every(lead => Math.abs(lead.geo.lat - first.lat) < 1e-6 && Math.abs(lead.geo.lng - first.lng) < 1e-6);
+        const approximate = members.every(lead => lead.geo.precision !== "address");
         L.marker([lat, lng], {
           icon: L.divIcon({
             className: "map-cluster-icon",
-            html: `<span class="map-cluster">${members.length.toLocaleString()}</span>`,
+            html: `<span class="map-cluster${approximate ? " is-approximate" : ""}">${members.length.toLocaleString()}</span>`,
             iconSize: [size, size],
           }),
           keyboard: true,
-          title: members.length + " leads here · zoom in",
+          title: oneSpot ? members.length + " leads at this spot · show them" : members.length + " leads here · zoom in",
         })
-          .on("click", () => map.fitBounds(L.latLngBounds(members.map(lead => [lead.geo.lat, lead.geo.lng])).pad(0.2), { maxZoom: UNGROUP_AT }))
+          .on("click", () => {
+            // Leads on one spot never separate by zooming: list them instead.
+            if (oneSpot) setSpot({ ids: new Set(members.map(lead => lead.id)), approximate, count: members.length });
+            else map.fitBounds(L.latLngBounds(members.map(lead => [lead.geo.lat, lead.geo.lng])).pad(0.2), { maxZoom: UNGROUP_AT });
+          })
           .addTo(layer);
         continue;
       }
@@ -170,10 +179,11 @@ export function LeadsMap({ leads }) {
   }
 
   const listed = useMemo(() => {
+    if (spot) return leads.filter(lead => spot.ids.has(lead.id));
     if (!onlyInView || !view) return leads;
     const [[south, west], [north, east]] = view;
     return placed.filter(lead => lead.geo.lat >= south && lead.geo.lat <= north && lead.geo.lng >= west && lead.geo.lng <= east);
-  }, [leads, placed, view, onlyInView]);
+  }, [leads, placed, view, onlyInView, spot]);
   const [cards, more] = useShowMore(listed, 50);
 
   return (
@@ -195,6 +205,11 @@ export function LeadsMap({ leads }) {
           )}
         </div>
       </div>
+      {engine && exact === 0 && placed.length > 0 && toLocate.length > 0 && !locating && (
+        <p className="notice subtle">
+          Leads are on their ZIP code's centre for now, so each ZIP shows as one bubble. Find exact locations puts every lead on its own address.
+        </p>
+      )}
       {engine === false && (
         <p className="notice subtle">Placing leads by their address needs Turf's engine (the desktop app). Leads with coordinates are shown.</p>
       )}
@@ -212,9 +227,19 @@ export function LeadsMap({ leads }) {
           {state.online && mapState !== "Ready" && <div className="property-map-status">{mapState}</div>}
         </div>
         <div className="leads-map-list" aria-label="Leads in view">
-          <p className="muted leads-map-list-count">
-            {listed.length.toLocaleString()} {onlyInView ? "in this area" : "leads"}
-          </p>
+          {spot ? (
+            <div className="leads-map-spot" role="status">
+              <span>
+                <strong>{spot.count.toLocaleString()} leads at one spot</strong>
+                {spot.approximate && <small>Their ZIP code's centre: only the ZIP is known so far.</small>}
+              </span>
+              <Button onClick={() => setSpot(null)}>Show all in view</Button>
+            </div>
+          ) : (
+            <p className="muted leads-map-list-count">
+              {listed.length.toLocaleString()} {onlyInView ? "in this area" : "leads"}
+            </p>
+          )}
           {!listed.length && <p className="muted">No leads in this part of the map. Zoom out or move the map.</p>}
           {cards.map(lead => (
             <article
