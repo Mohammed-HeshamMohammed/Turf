@@ -5,6 +5,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 # Without PostgreSQL's tools on the PATH (Windows with the portable build), start the database yourself and run
 # backend/scripts/dev_db.py once instead.
 if command -v pg_ctl >/dev/null; then bash "$here/dev-services.sh" >/dev/null; fi
+# Private settings (Google/Apple sign-in keys) live in backend/.env.local, which git ignores.
+if [ -f "$here/../.env.local" ]; then set -a; . "$here/../.env.local"; set +a; fi
 export DATABASE_URL="${DATABASE_URL:-postgres://turf_api:turf_api@127.0.0.1:55432/turf}"
 export MIGRATION_DATABASE_URL="${MIGRATION_DATABASE_URL:-postgres://turf_owner:turf_owner@127.0.0.1:55432/turf}"
 export REDIS_URL="${REDIS_URL:-redis://127.0.0.1:56379}"

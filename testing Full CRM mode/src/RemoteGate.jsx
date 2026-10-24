@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AppleLogo, GoogleLogo, Lock, ShieldCheck, SignIn, WifiSlash } from "@phosphor-icons/react";
+import { GoogleLogo, Lock, ShieldCheck, SignIn, WifiSlash } from "@phosphor-icons/react";
 import { api, apiBase, ApiError, request, SERVER, setApiBase } from "./remote/api.js";
 import { MemoryVault, Vault } from "./remote/vault.js";
 import { Button, Card, Field } from "./ui.jsx";
@@ -10,7 +10,7 @@ import { Button, Card, Field } from "./ui.jsx";
  */
 export function RemoteGate({ onReady, onLeave }) {
   const [step, setStep] = useState("checking");
-  // A Google or Apple sign-in that did not work comes back with its reason in the address.
+  // A Google sign-in that did not work comes back with its reason in the address.
   const [error, setError] = useState(() => new URLSearchParams(window.location.search).get("oauth_error") || "");
   const [busy, setBusy] = useState(false);
   const [me, setMe] = useState(null);
@@ -36,7 +36,7 @@ export function RemoteGate({ onReady, onLeave }) {
     if (window.location.search) window.history.replaceState(null, "", window.location.pathname + window.location.hash);
     check();
   }, []);
-  /** Hands the window to Google or Apple; the server brings it back here signed in. */
+  /** Hands the window to Google; the server brings it back here signed in. */
   const continueWith = (provider, label) =>
     attempt(async () => {
       const available = await request("GET", "/api/v1/auth/providers").catch(() => ({}));
@@ -115,9 +115,6 @@ export function RemoteGate({ onReady, onLeave }) {
             <div className="provider-buttons">
               <Button icon={GoogleLogo} disabled={busy} onClick={() => continueWith("google", "Google")}>
                 Continue with Google
-              </Button>
-              <Button variant="primary" icon={AppleLogo} disabled={busy} onClick={() => continueWith("apple", "Apple")}>
-                Continue with Apple
               </Button>
               <p className="provider-or muted" role="separator">
                 or with your email

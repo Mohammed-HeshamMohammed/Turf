@@ -193,10 +193,11 @@ are unchanged.
 - **Sign-up abuse**: at most 30 new accounts per 10 minutes per server, one account per email. Put per-address limits in
   nginx as well.
 
-## Google and Apple sign-in
+## Google sign-in
 
-The sign-up and sign-in pages on the website, and the app's sign-in screen, offer **Continue with Google** and
-**Continue with Apple** above the email form. A new person gets the same trial as the email sign-up. Someone whose
+The sign-up and sign-in pages on the website, and the app's sign-in screen, offer **Continue with Google** above the
+email form. Apple is not offered: it needs a paid Apple Developer account and an HTTPS domain. The server supports it,
+but it stays off until `TURF_APPLE_*` are set and a button is added back. A new person gets the same trial as the email sign-up. Someone whose
 verified Google/Apple address matches an existing account signs in to that account. Owners still set up an
 authenticator code.
 
@@ -210,7 +211,10 @@ The server does the whole exchange itself (OpenID Connect authorization code flo
 Tests run the whole flow against a fake provider. They show that edited, expired, replayed, wrong-audience,
 wrong-issuer and unverified sign-ins are all refused.
 
-The buttons say "not connected on this server yet" until the keys are set:
+The button says "not connected on this server yet" until the keys are set. On this development machine they are in
+`backend/.env.local` (git-ignored, loaded by `run-api.sh`): Google Cloud project **Turf** (`turf-512607`) on
+softfix.dev@gmail.com, OAuth client **Turf Web**. The app is in Google's *Testing* mode, so only its listed test users
+can sign in (mo7amed.magdy28, mmeegoo20 and softfix.dev). Publish it on the Audience page before real customers use it.
 
 | Provider | Environment variables | Where to get them |
 | --- | --- | --- |
