@@ -22,15 +22,19 @@ import {
   Segmented,
   DataTable,
   Status,
+  useShowMore,
   downloadCsv,
   Breadcrumb,
   useTableView,
 } from "./ui.jsx";
 
+const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
+
 export function Lists({ id }) {
   const { state, dispatch, navigate, notify } = useCrm();
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
+  const [reading, setReading] = useState("");
   const input = useRef(null);
   const leads = visibleLeads(state);
   const datasetIds = new Set(leads.map(item => item.datasetId));
@@ -53,7 +57,7 @@ export function Lists({ id }) {
       return;
     }
     const datasetId = uid();
-    const imported = rows.slice(0, 200).map((row, index) => {
+    const imported = rows.map((row, index) => {
       const data = mappedRecord(columns, { sourceValues: row });
       return {
         ...data,
@@ -86,7 +90,7 @@ export function Lists({ id }) {
       dataset: {
         id: datasetId,
         name,
-        description: "Local prototype import",
+        description: "CSV import · " + rows.length.toLocaleString() + " rows",
         status: "Not checked",
         team: ROLES[state.role].team || "Tampa",
         date: "Oct 15",
@@ -95,28 +99,38 @@ export function Lists({ id }) {
       leads: imported,
     });
     setError("");
-    notify("Imported " + imported.length + " preview rows" + (rows.length > 200 ? " · preview limited to 200" : ""));
+    notify("Imported " + imported.length.toLocaleString() + " rows from " + name);
     navigate("lists/" + datasetId);
   }
   async function readFile(file) {
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".csv")) {
-      setError("This UI preview imports CSV files. Other formats belong to the planned import service.");
+      setError("Choose a CSV file. Save a spreadsheet as CSV first.");
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      setError("Choose a CSV smaller than 2 MB for this local UI preview.");
+    // The same ceiling as the Skip Tracing engine; a list this size is a few hundred thousand rows.
+    if (file.size > MAX_IMPORT_BYTES) {
+      setError("This file is over 50 MB. Split it into smaller CSV files and import each one.");
       return;
     }
+    setReading(file.name);
+    // Let the "Reading…" note paint before a large file keeps the page busy.
+    await new Promise(resolve => setTimeout(resolve, 30));
     try {
       const result = Papa.parse(await file.text(), { header: true, skipEmptyLines: "greedy" });
       if (result.errors.length) {
         setError("CSV could not be read: " + result.errors[0].message);
         return;
       }
+      if (!result.data.length) {
+        setError("This CSV has a header row but no data rows.");
+        return;
+      }
       importRows(result.data, file.name.replace(/\.csv$/i, ""), result.meta.fields || []);
     } catch {
       setError("The file could not be read. Try another CSV.");
+    } finally {
+      setReading("");
     }
   }
   const sample = () =>
@@ -270,12 +284,12 @@ export function Lists({ id }) {
         >
           <UploadSimple size={28} weight="light" />
           <h3>Bring in your next opportunity list.</h3>
-          <p>Drop a CSV here, or choose a file. This prototype keeps imported data in this browser only.</p>
+          <p>Drop a CSV here, or choose a file. Imported lists are kept on this device.</p>
           <div className="row">
             <Button onClick={() => input.current.click()}>Choose CSV</Button>
             <Button onClick={sample}>Try a sample import</Button>
           </div>
-          <small>Preview limit: 2 MB / 200 rows</small>
+          <small>{reading ? "Reading " + reading + "…" : "CSV files up to 50 MB · every row is imported"}</small>
         </div>
       )}
     </>
@@ -461,6 +475,7 @@ export function SkipTracing() {
     notify(checked.engine ? "Check saved. Lead verdicts updated." : "Demo check saved");
     navigate("lists/" + datasetId);
   }
+  const [reviewRows, reviewMore] = useShowMore(rows);
   const counts = checked?.engine
     ? rows.reduce((all, lead, index) => ({ ...all, [verdictOf(lead, index)]: (all[verdictOf(lead, index)] || 0) + 1 }), {})
     : null;
@@ -746,7 +761,7 @@ export function SkipTracing() {
                     )}
                   </div>
                   <div className="review-rows">
-                    {rows.map((lead, index) => (
+                    {reviewRows.map((lead, index) => (
                       <div key={lead.id}>
                         <LeadLink lead={lead} />
                         <Status value={verdictOf(lead, index)} />
@@ -754,6 +769,7 @@ export function SkipTracing() {
                         <Button onClick={() => navigate("work/leads/" + lead.id)}>Review</Button>
                       </div>
                     ))}
+                    {reviewMore}
                   </div>
                   {!checked.engine && (
                     <p className="notice subtle">

@@ -46,6 +46,9 @@ export function Leads() {
   const [hideEmpty, setHideEmpty] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [drag, setDrag] = useState(null);
+  // A board column shows this many cards per stage until "Show more" (a list of thousands stays quick).
+  const [boardShown, setBoardShown] = useState({});
+  const BOARD_STEP = 50;
   const justDragged = useRef(false);
   const client = state.role === "client";
   const archivedCount = archivedLeads(state).length;
@@ -188,10 +191,11 @@ export function Leads() {
             <section className={"kanban-column" + (drag?.over === column ? " drop-target" : "")} data-stage={column} key={column}>
               <header>
                 <span>{column}</span>
-                <Badge>{leads.filter(lead => lead.stage === column).length}</Badge>
+                <Badge>{leads.filter(lead => lead.stage === column).length.toLocaleString()}</Badge>
               </header>
               {leads
                 .filter(lead => lead.stage === column)
+                .slice(0, boardShown[column] || BOARD_STEP)
                 .map(lead => (
                   <article
                     className={"kanban-card" + (drag?.id === lead.id ? " dragging" : "") + (canEditLead(state, lead.id) ? "" : " locked")}
@@ -225,6 +229,11 @@ export function Leads() {
                   </article>
                 ))}
               {!leads.some(lead => lead.stage === column) && <p className="column-empty">No leads here</p>}
+              {leads.filter(lead => lead.stage === column).length > (boardShown[column] || BOARD_STEP) && (
+                <Button onClick={() => setBoardShown({ ...boardShown, [column]: (boardShown[column] || BOARD_STEP) + BOARD_STEP })}>
+                  Show more ({(leads.filter(lead => lead.stage === column).length - (boardShown[column] || BOARD_STEP)).toLocaleString()} left)
+                </Button>
+              )}
             </section>
           ))}
           {drag && (

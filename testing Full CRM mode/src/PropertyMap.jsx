@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MapPin, ArrowsOut, ArrowUpRight } from "@phosphor-icons/react";
 import { useCrm } from "./context.jsx";
 import { recordLocation, mapSearchUrl } from "./locations.js";
-import { Badge, Select, Button } from "./ui.jsx";
+import { Badge, Select, Button, useShowMore } from "./ui.jsx";
 import "leaflet/dist/leaflet.css";
 
 export function PropertyMap({ rows, title = "Property map", mappings, compact = false }) {
@@ -36,6 +36,7 @@ export function PropertyMap({ rows, title = "Property map", mappings, compact = 
     [records, filter],
   );
   const chosen = shown.find(item => item.row.id === selected) || shown[0];
+  const [listed, more] = useShowMore(shown);
 
   useEffect(() => {
     if (!state.online || !host.current) return;
@@ -47,7 +48,7 @@ export function PropertyMap({ rows, title = "Property map", mappings, compact = 
       .then(L => {
         if (disposed) return;
         const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        map = L.map(host.current, { scrollWheelZoom: false, zoomAnimation: !reduce, fadeAnimation: !reduce }).setView([25, 0], 2);
+        map = L.map(host.current, { preferCanvas: true, scrollWheelZoom: false, zoomAnimation: !reduce, fadeAnimation: !reduce }).setView([25, 0], 2);
         mapRef.current = map;
         setStatus("Loading map");
         L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -173,7 +174,7 @@ export function PropertyMap({ rows, title = "Property map", mappings, compact = 
         </div>
         <div className="property-map-records" aria-label={title + " records"}>
           {!shown.length && <p className="muted">No records in this view. Change the location filter or your list filters.</p>}
-          {shown.map(item => (
+          {listed.map(item => (
             <button key={item.row.id} aria-pressed={chosen?.row.id === item.row.id} onClick={() => choose(item)}>
               <strong>{item.row.name}</strong>
               <span>{item.address || "No address supplied"}</span>
@@ -183,6 +184,7 @@ export function PropertyMap({ rows, title = "Property map", mappings, compact = 
               </small>
             </button>
           ))}
+          {more}
         </div>
       </div>
       {chosen && (
@@ -206,7 +208,7 @@ export function PropertyMap({ rows, title = "Property map", mappings, compact = 
         </div>
       )}
       <div className="property-map-note">
-        <Badge>{rows.length} visible records</Badge>
+        <Badge>{rows.length.toLocaleString()} visible records</Badge>
         <span>No address is automatically geocoded. Search opens OpenStreetMap only when you choose it. Missing locations stay in the record list.</span>
       </div>
     </section>

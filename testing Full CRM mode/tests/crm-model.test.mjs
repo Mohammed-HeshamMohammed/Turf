@@ -261,3 +261,14 @@ test("a saved engine check gives visible leads their verdicts and keeps do-not-c
   const caller = as("caller");
   assert.equal(reducer(caller, { type: "CHECK", id: list, verdicts }), caller);
 });
+test("a workspace read back from storage replaces the sample one, and anything else is ignored", () => {
+  const sample = seedState();
+  const big = { ...sample, leads: Array.from({ length: 25000 }, (_, index) => ({ ...sample.leads[0], id: "big" + index })) };
+  const restored = reducer(sample, { type: "HYDRATE", state: big });
+  assert.equal(restored.leads.length, 25000);
+  assert.equal(reducer(sample, { type: "HYDRATE", state: { schema: 2, leads: "nope" } }), sample);
+  assert.equal(reducer(sample, { type: "HYDRATE", state: null }), sample);
+  // Schema 1 workspaces are brought up to date on the way in.
+  const old = reducer(sample, { type: "HYDRATE", state: { ...sample, schema: 1, leads: [{ ...sample.leads[0], calls: undefined, callback: "09:00" }] } });
+  assert.equal(old.schema, 2);
+});

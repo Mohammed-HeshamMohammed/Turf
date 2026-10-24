@@ -197,8 +197,28 @@ export function SortHeader({ view, id, children, label = typeof children === "st
  * A table whose column titles sort and can be dragged into a new order.
  * `columns`: [{ id, label, cell(row), className? }]. `leading` and `trailing` are fixed columns ({ head, cell(row), className? }).
  */
+/**
+ * Long lists draw a page at a time, so a list of tens of thousands of rows stays quick. Answers the rows to draw and
+ * the "Show more" bar (null when everything is shown).
+ */
+export function useShowMore(items, step = 100) {
+  const [count, setCount] = useState(step);
+  if (items.length <= count) return [items, null];
+  const next = Math.min(step, items.length - count);
+  return [
+    items.slice(0, count),
+    <div className="show-more" key="show-more">
+      <span>
+        Showing {count.toLocaleString()} of {items.length.toLocaleString()}
+      </span>
+      <Button onClick={() => setCount(count + step)}>Show {next.toLocaleString()} more</Button>
+    </div>,
+  ];
+}
+
 export function DataTable({ view, columns, rowKey, leading, trailing }) {
   const ordered = view.arrange(columns);
+  const [rows, more] = useShowMore(view.rows);
   const [drag, setDrag] = useState(null);
   const justDragged = useRef(false);
   const ids = ordered.map(column => column.id);
@@ -290,7 +310,7 @@ export function DataTable({ view, columns, rowKey, leading, trailing }) {
           </tr>
         </thead>
         <tbody>
-          {view.rows.map(row => (
+          {rows.map(row => (
             <tr key={rowKey(row)}>
               {leading && <td className={leading.className}>{leading.cell(row)}</td>}
               {ordered.map(column => (
@@ -303,6 +323,7 @@ export function DataTable({ view, columns, rowKey, leading, trailing }) {
           ))}
         </tbody>
       </table>
+      {more}
       {drag && (
         <div className="column-ghost" style={{ transform: `translate(${drag.x + 12}px, ${drag.y + 12}px)` }}>
           {drag.label}

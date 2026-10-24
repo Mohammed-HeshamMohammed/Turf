@@ -1,6 +1,7 @@
 import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Bell, CalendarBlank, ChatCircle, CheckCircle, HouseLine, List, MagnifyingGlass, WifiSlash, X } from "@phosphor-icons/react";
 import { ROLES } from "./data.js";
+import { loadWorkspace, saveWorkspace } from "./workspace-store.js";
 import { capability, loadState, navCounts, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { api, apiBase, setApiBase } from "./remote/api.js";
 import { SyncEngine } from "./remote/engine.js";
@@ -49,6 +50,19 @@ const readRoute = () => window.location.hash.slice(1).replace(/^\//, "") || "das
 
 export function App() {
   const [state, apply] = useReducer(remoteReducer, undefined, () => loadState(window.localStorage));
+  // The saved workspace is read from IndexedDB once; nothing is saved (or shown) before that, so it is never overwritten.
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    let live = true;
+    loadWorkspace().then(saved => {
+      if (!live) return;
+      if (saved) apply({ type: "HYDRATE", state: saved });
+      setRestored(true);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
   // "local": the sample workspace; "gate": signing in to a server; "remote": connected.
   const [connection, setConnection] = useState(() => (REQUIRE_SIGN_IN || apiBase() ? "gate" : "local"));
   const engine = useRef(null);
@@ -251,15 +265,8 @@ export function App() {
   }, []);
   useEffect(() => {
     // Server records are kept only in the encrypted offline copy, never in plain browser storage.
-    if (state.remote) return;
-    const save = () => {
-      try {
-        window.localStorage.setItem("turf.full-crm.prototype.v1", JSON.stringify(state));
-        setCacheError(false);
-      } catch {
-        setCacheError(true);
-      }
-    };
+    if (state.remote || !restored) return;
+    const save = () => saveWorkspace(state).then(saved => setCacheError(!saved));
     // Serialising the whole workspace is the heaviest thing a click does, so wait for a quiet moment and flush on the way out.
     const timer = setTimeout(save, 350);
     window.addEventListener("pagehide", save);
@@ -267,7 +274,7 @@ export function App() {
       clearTimeout(timer);
       window.removeEventListener("pagehide", save);
     };
-  }, [state]);
+  }, [state, restored]);
   useEffect(() => {
     const idle = window.requestIdleCallback || (callback => setTimeout(callback, 1200));
     const handle = idle(preloadPages);
@@ -348,6 +355,8 @@ export function App() {
         return <Empty title="Choose a workspace page" action={<Button onClick={() => navigate("dashboard")}>Open overview</Button>} />;
     }
   }, [accessible, current, navigate]);
+  // A moment while the saved workspace is read, so the sample data never flashes in its place.
+  if (connection === "local" && !restored) return null;
   if (connection === "gate")
     return (
       <div className="gate-window">
