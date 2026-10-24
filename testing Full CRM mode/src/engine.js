@@ -214,3 +214,111 @@ export async function checkRepeats({ datasetId, config, onStage, onStart, signal
   }
   return { jobId: job_id, report: null, repeats: found.repeats, results };
 }
+
+// ---- Placing leads on the map ----------------------------------------------------------------------------------
+// Two steps, both from the US Census Bureau through Turf's engine (service/turf_service/geo.py):
+//   1. the centre of each lead's ZIP code, from a file shipped with Turf: instant and offline, an approximate place;
+//   2. the exact address, from the Bureau's public geocoder: street, city, state and ZIP are sent (never names or
+//      phone numbers), only when the person asks, and every answer is remembered so nothing is looked up twice.
+
+const STATE_CODES = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "puerto rico": "PR",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY",
+};
+export const stateCode = value => {
+  const text = String(value ?? "").trim();
+  return /^[a-z]{2}$/i.test(text) ? text.toUpperCase() : STATE_CODES[text.toLowerCase()] || "";
+};
+const street = lead => (/^address not supplied$/i.test(String(lead.address || "").trim()) ? "" : String(lead.address || "").trim());
+
+/** Whether a lead has enough of an address to look up: a street, and a ZIP or a city and state. */
+export const locatable = lead => Boolean(street(lead) && (lead.zip || (lead.city && stateCode(lead.region))));
+
+/** Approximate places at once: each lead's ZIP centre ({ leadId: { lat, lng, precision: "zip" } }). */
+export async function zipPlaces(leads) {
+  const zips = [...new Set(leads.map(lead => String(lead.zip || "").trim()).filter(Boolean))];
+  if (!zips.length) return {};
+  const centres = await call("geo.zip_centres", { zips });
+  const places = {};
+  for (const lead of leads) {
+    const centre = centres[String(lead.zip || "").trim()];
+    const state = stateCode(lead.region);
+    // A ZIP in another state than the lead says is a typo somewhere: no place rather than a wrong one.
+    if (centre && (!state || centre.states.includes(state))) places[lead.id] = { lat: centre.lat, lng: centre.lon, precision: "zip" };
+  }
+  return places;
+}
+
+/**
+ * Exact places for leads' addresses. Answers { places: { leadId: { lat, lng, precision: "address" } }, notFound: [leadId] }.
+ * `onStage` gets { done, total, found } as batches come back.
+ */
+export async function locateAddresses(leads, { onStage, signal } = {}) {
+  const asked = leads.filter(locatable);
+  if (!asked.length) return { places: {}, notFound: [] };
+  const columns = ["Street", "City", "State", "Zip"];
+  const rows = asked.map(lead => ({
+    sourceValues: { Street: street(lead), City: String(lead.city || "").trim(), State: stateCode(lead.region), Zip: String(lead.zip || "").trim() },
+  }));
+  const datasetId = await importRows("Addresses to locate", columns, rows);
+  const roles = { street: "Street", city: "City", state: "State", zip: "Zip" };
+  const { job_id } = await call("geo.locate", { dataset_id: datasetId, columns: roles });
+  await watchJob(job_id, { onEvent: onStage, signal });
+  const found = await call("geo.located", { dataset_id: datasetId, columns: roles });
+  const places = {};
+  for (const [rowNumber, point] of Object.entries(found.exact)) {
+    const lead = asked[Number(rowNumber) - 2];
+    if (lead) places[lead.id] = { lat: point[0], lng: point[1], precision: "address" };
+  }
+  return { places, notFound: found.not_found.map(rowNumber => asked[rowNumber - 2]?.id).filter(Boolean) };
+}

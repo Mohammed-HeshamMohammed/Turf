@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { PropertyMap } from "./PropertyMap.jsx";
+import { LeadsMap } from "./LeadsMap.jsx";
 import { coordinates } from "./skiptrace-fields.js";
 import { Archive, ArrowUpRight, ArrowLeft, Plus, Phone, Envelope, Handshake, Clock, FileText, CheckCircle, Export, HouseLine } from "@phosphor-icons/react";
 import { LEAD_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
@@ -184,7 +185,11 @@ export function Leads() {
         </div>
       )}
       {view === "Map" ? (
-        <PropertyMap rows={leads} title={client ? "Shared property map" : "Lead map"} />
+        client ? (
+          <PropertyMap rows={leads} title="Shared property map" />
+        ) : (
+          <LeadsMap leads={leads} />
+        )
       ) : view === "Board" && !client ? (
         <div className="kanban lead-board view-in">
           {LEAD_STAGES.map(column => (

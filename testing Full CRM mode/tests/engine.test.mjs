@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { after, before, test } from "node:test";
-import { check, checkRepeats, crmVerdict, engineAvailable, engineConfig, prepare, saveCopy, sourceCsv } from "../src/engine.js";
+import { check, checkRepeats, crmVerdict, engineAvailable, engineConfig, locatable, prepare, saveCopy, sourceCsv, stateCode, zipPlaces } from "../src/engine.js";
 import { ALLOWED_COMMANDS, refusal } from "../scripts/service-bridge.mjs";
 
 const root = resolve(import.meta.dirname, "../../service");
@@ -128,4 +128,28 @@ test("a list without phones: the engine finds the leads it repeats, and the owne
   assert.equal(verdicts[2], "No phone", "the same owner's other property is its own lead");
   assert.match(result.results[2].why, /^Same owner as row/);
   assert.equal(verdicts[3], "No phone");
+});
+
+test("leads go on the map at their ZIP centre at once, offline, and a ZIP in another state is not trusted", async () => {
+  const places = await zipPlaces([
+    { id: "la", zip: "90044", region: "CA" },
+    { id: "tampa", zip: "33602", region: "Florida" },
+    { id: "wrong", zip: "90044", region: "TX" },
+    { id: "none", zip: "", region: "CA" },
+  ]);
+  assert.equal(places.la.precision, "zip");
+  assert.ok(Math.abs(places.la.lat - 33.95) < 0.05 && Math.abs(places.la.lng + 118.29) < 0.05);
+  assert.ok(places.tampa, "a full state name is understood");
+  assert.equal(places.wrong, undefined);
+  assert.equal(places.none, undefined);
+});
+
+test("only leads with a street and a ZIP (or a city and state) are looked up", () => {
+  assert.equal(stateCode("Florida"), "FL");
+  assert.equal(stateCode("ca"), "CA");
+  assert.equal(stateCode("Atlantis"), "");
+  assert.equal(locatable({ address: "840 W 124TH ST", zip: "90044" }), true);
+  assert.equal(locatable({ address: "840 W 124TH ST", city: "Los Angeles", region: "California" }), true);
+  assert.equal(locatable({ address: "Address not supplied", zip: "90044" }), false);
+  assert.equal(locatable({ address: "840 W 124TH ST" }), false);
 });

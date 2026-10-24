@@ -41,7 +41,9 @@ export function remoteReducer(state, action) {
 
 /** The REMOTE_SYNC action for an engine snapshot. */
 export function syncAction(snapshot, person) {
-  const collections = snapshot.store ? { ...collectionsFromStore(snapshot.store), threads: [], activities: [] } : { leads: [], tasks: [], deals: [], handoffs: [] };
+  const collections = snapshot.store
+    ? { ...collectionsFromStore(snapshot.store), threads: [], activities: [] }
+    : { leads: [], tasks: [], deals: [], handoffs: [] };
   return {
     type: "REMOTE_SYNC",
     collections,
@@ -65,4 +67,17 @@ export function syncAction(snapshot, person) {
 }
 
 /** Actions that only change this device's view and never reach the server. */
-export const LOCAL_ONLY = new Set(["PERSONAL", "MARK_READ", "SOURCE_MAPPING", "CHECK", "IMPORT", "SETTINGS", "INTEGRATION", "PERMISSION", "REPORT_SCHEDULE", "RULE", "NEW_THREAD"]);
+export const LOCAL_ONLY = new Set([
+  "LOCATE",
+  "PERSONAL",
+  "MARK_READ",
+  "SOURCE_MAPPING",
+  "CHECK",
+  "IMPORT",
+  "SETTINGS",
+  "INTEGRATION",
+  "PERMISSION",
+  "REPORT_SCHEDULE",
+  "RULE",
+  "NEW_THREAD",
+]);

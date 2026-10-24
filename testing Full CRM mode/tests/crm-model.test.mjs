@@ -282,3 +282,17 @@ test("correcting a mapping teaches Turf that header for later lists", () => {
   assert.equal(saved.settings.learnedHeaders.digits, undefined, "Turf found Digits by itself, so there was nothing to learn");
   assert.equal(saved.leads.find(item => item.id === "lx").subdivision, "Palm Grove");
 });
+test("a lead's place is kept; an exact address is never replaced by a ZIP centre", () => {
+  const owner = as("owner");
+  const id = owner.leads[0].id;
+  const zip = reducer(owner, { type: "LOCATE", places: { [id]: { lat: 27.95, lng: -82.45, precision: "zip" } } });
+  assert.deepEqual(zip.leads[0].geo, { lat: 27.95, lng: -82.45, precision: "zip" });
+  const exact = reducer(zip, { type: "LOCATE", places: { [id]: { lat: 27.96, lng: -82.46, precision: "address" } } });
+  assert.equal(exact.leads[0].geo.precision, "address");
+  const again = reducer(exact, { type: "LOCATE", places: { [id]: { lat: 1, lng: 1, precision: "zip" } } });
+  assert.equal(again.leads[0].geo.lat, 27.96, "a ZIP centre does not move an exact place");
+  const missed = reducer(zip, { type: "LOCATE", places: {}, notFound: [id] });
+  assert.equal(missed.leads[0].geo.notFound, true);
+  assert.equal(missed.leads[0].geo.precision, "zip", "it stays in its ZIP area");
+  assert.equal(reducer(owner, { type: "LOCATE", places: { [id]: { lat: "x", lng: 2 } } }).leads[0].geo, undefined);
+});

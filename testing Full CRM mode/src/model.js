@@ -473,6 +473,21 @@ export function reducer(state, action) {
         }),
       };
     }
+    case "LOCATE": {
+      const places = action.places && typeof action.places === "object" ? action.places : {};
+      const missed = new Set(action.notFound || []);
+      if (!Object.keys(places).length && !missed.size) return state;
+      return {
+        ...state,
+        leads: state.leads.map(item => {
+          const place = places[item.id];
+          if (place && Number.isFinite(place.lat) && Number.isFinite(place.lng) && !(item.geo?.precision === "address" && place.precision !== "address"))
+            return { ...item, geo: { lat: place.lat, lng: place.lng, precision: place.precision === "address" ? "address" : "zip" } };
+          if (missed.has(item.id) && item.geo?.precision !== "address") return { ...item, geo: { ...item.geo, notFound: true } };
+          return item;
+        }),
+      };
+    }
     case "CHECK": {
       if (!capability(state, "review") && !capability(state, "import")) return state;
       const original = state.datasets.find(item => item.id === action.id);

@@ -21,6 +21,9 @@ export const ALLOWED_COMMANDS = new Set([
   "skiptrace.review",
   "skiptrace.apply",
   "skiptrace.repeats",
+  "geo.zip_centres",
+  "geo.locate",
+  "geo.located",
   "skiptrace.model_status",
 ]);
 
