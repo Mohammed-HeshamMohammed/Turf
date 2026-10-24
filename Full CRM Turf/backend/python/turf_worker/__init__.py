@@ -8,6 +8,6 @@ import sys
 from pathlib import Path
 
 # The shared rules live in the repository's service folder; a container copies them beside this package.
-_service = Path(__file__).resolve().parents[3] / "service"
+_service = Path(__file__).resolve().parents[4] / "service"
 if _service.is_dir() and str(_service) not in sys.path:
     sys.path.append(str(_service))
