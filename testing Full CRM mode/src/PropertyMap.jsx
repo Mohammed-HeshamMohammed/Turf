@@ -5,6 +5,8 @@ import { MapPin, ArrowsOut, ArrowUpRight } from "@phosphor-icons/react";
 import { useCrm } from "./context.jsx";
 import { recordLocation, mapSearchUrl } from "./locations.js";
 import { Badge, Select, Button, useShowMore } from "./ui.jsx";
+import { Crosshair } from "@phosphor-icons/react";
+import { locateLabel, useLeadPlaces } from "./useLeadPlaces.js";
 import "leaflet/dist/leaflet.css";
 
 export function PropertyMap({ rows: current, title = "Property map", mappings: given, compact = false }) {
@@ -12,6 +14,7 @@ export function PropertyMap({ rows: current, title = "Property map", mappings: g
   // The page around the map draws first; locating thousands of records follows straight after, so opening a page
   // with a long list never waits on the map.
   const rows = useDeferredValue(current, EMPTY);
+  const places = useLeadPlaces(current);
   const mappingsKey = JSON.stringify(given ?? null);
   const mappings = useMemo(() => JSON.parse(mappingsKey) ?? undefined, [mappingsKey]);
   const host = useRef(null),
@@ -135,13 +138,22 @@ export function PropertyMap({ rows: current, title = "Property map", mappings: g
             {title}
           </h2>
           <p className="muted">
-            {records.filter(item => item.kind === "coordinates").length} with coordinates · {records.filter(item => item.kind === "area").length} in city areas
-            · {records.filter(item => !item.point).length} need a location
+            {records.filter(item => item.kind === "coordinates").length.toLocaleString()} at their exact place ·{" "}
+            {records.filter(item => item.kind === "area").length.toLocaleString()} in an approximate area ·{" "}
+            {records.filter(item => !item.point).length.toLocaleString()} without a location
+            {places.notFound > 0 && ` · ${places.notFound.toLocaleString()} addresses not found`}
           </p>
         </div>
-        <Button icon={ArrowsOut} disabled={!state.online} onClick={() => fit.current()}>
-          Fit records
-        </Button>
+        <div className="row">
+          {places.engine && places.toLocate.length > 0 && !compact && (
+            <Button variant="primary" icon={Crosshair} disabled={Boolean(places.locating)} onClick={places.locate}>
+              {locateLabel(places)}
+            </Button>
+          )}
+          <Button icon={ArrowsOut} disabled={!state.online} onClick={() => fit.current()}>
+            Fit records
+          </Button>
+        </div>
       </header>
       <div className="property-map-toolbar">
         <label>
@@ -152,7 +164,7 @@ export function PropertyMap({ rows: current, title = "Property map", mappings: g
             ))}
           </Select>
         </label>
-        <small>Solid dots: supplied coordinates. Dashed areas: approximate cities.</small>
+        <small>Solid dots: exact places. Dashed areas: approximate (ZIP code or city).</small>
       </div>
       <div className="property-map-layout">
         <div className="property-map-surface">
@@ -200,7 +212,8 @@ export function PropertyMap({ rows: current, title = "Property map", mappings: g
             <strong>{chosen.row.name}</strong>
             <p>
               {chosen.point && chosen.kind === "coordinates"
-                ? chosen.point.join(", ") + " · Source supplied; not independently verified"
+                ? chosen.point.join(", ") +
+                  (chosen.label === "Located by address" ? " · Located by address (US Census Bureau)" : " · Source supplied; not independently verified")
                 : chosen.label + ". No exact property location has been confirmed."}
             </p>
           </div>

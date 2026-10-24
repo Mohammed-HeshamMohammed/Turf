@@ -7,6 +7,7 @@ import { useCrm } from "./context.jsx";
 import { detectSourceFields, leadFromSource, sourceEvidence, sourceValue } from "./skiptrace-fields.js";
 import { SourceFieldMapping } from "./SourceFieldMapping.jsx";
 import { PropertyMap } from "./PropertyMap.jsx";
+import { LeadsMap } from "./LeadsMap.jsx";
 import { cancelJob, check, checkRepeats, engineAvailable, engineConfig, prepare, saveCopy } from "./engine.js";
 import {
   Badge,
@@ -37,6 +38,7 @@ export function Lists({ id }) {
   const [reading, setReading] = useState("");
   const input = useRef(null);
   const leads = visibleLeads(state);
+  const listLeads = useMemo(() => leads.filter(lead => lead.datasetId === id), [leads, id]);
   const datasetIds = new Set(leads.map(item => item.datasetId));
   const datasets = state.datasets.filter(item => datasetIds.has(item.id) || (capability(state, "import") && item.team === (ROLES[state.role].team || "Tampa")));
   const dataset = datasets.find(item => item.id === id);
@@ -181,7 +183,7 @@ export function Lists({ id }) {
           <Badge>{dataset.team} project</Badge>
           <span>Fields: {dataset.columns.join(" · ")}</span>
         </div>
-        <PropertyMap rows={leads.filter(lead => lead.datasetId === id)} title="Source list map" />
+        <LeadsMap leads={listLeads} />
         <Card className="table-card">
           <DataTable
             view={table}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import { Crosshair, MapPin } from "@phosphor-icons/react";
 import { useCrm } from "./context.jsx";
-import { engineAvailable, locatable, locateAddresses, zipPlaces } from "./engine.js";
+import { locateLabel, useLeadPlaces } from "./useLeadPlaces.js";
 import { Badge, Button, Checkbox, Status, money, propertyFacts, useShowMore } from "./ui.jsx";
 
 // The leads map, in the manner of a property search map: a pin for every lead with its price, nearby pins grouped
@@ -23,7 +23,7 @@ const pinLabel = lead => short(lead.value) || (lead.beds != null ? lead.beds + "
 const placeOf = lead => (lead.geo && Number.isFinite(lead.geo.lat) && Number.isFinite(lead.geo.lng) ? lead.geo : null);
 
 export function LeadsMap({ leads }) {
-  const { state, dispatch, navigate, notify } = useCrm();
+  const { state, navigate } = useCrm();
   const host = useRef(null);
   const mapRef = useRef(null);
   const leafletRef = useRef(null);
@@ -34,55 +34,10 @@ export function LeadsMap({ leads }) {
   const [onlyInView, setOnlyInView] = useState(true);
   const [hovered, setHovered] = useState(null);
   const [selected, setSelected] = useState(null);
-  const [engine, setEngine] = useState(null);
-  const [locating, setLocating] = useState(null);
   const [mapState, setMapState] = useState("Loading map");
-  const zipTried = useRef(new Set());
-
+  const places = useLeadPlaces(leads);
+  const { engine, locating, locate, exact, notFound, toLocate, unplaced } = places;
   const placed = useMemo(() => leads.filter(placeOf), [leads]);
-  const exact = placed.filter(lead => lead.geo.precision === "address").length;
-  const toLocate = useMemo(() => leads.filter(lead => locatable(lead) && lead.geo?.precision !== "address" && !lead.geo?.notFound), [leads]);
-  const notFound = leads.filter(lead => lead.geo?.notFound && lead.geo?.precision !== "address").length;
-  const unplaced = leads.length - placed.length;
-
-  useEffect(() => {
-    let live = true;
-    engineAvailable().then(value => live && setEngine(value));
-    return () => {
-      live = false;
-    };
-  }, []);
-
-  // Leads with a ZIP but no place yet go on the map at once, approximately, from the ZIP file shipped with Turf.
-  useEffect(() => {
-    if (!engine) return;
-    const waiting = leads.filter(lead => !placeOf(lead) && lead.zip && !zipTried.current.has(lead.id));
-    if (!waiting.length) return;
-    waiting.forEach(lead => zipTried.current.add(lead.id));
-    zipPlaces(waiting).then(
-      places => Object.keys(places).length && dispatch({ type: "LOCATE", places }),
-      () => {},
-    );
-  }, [engine, leads, dispatch]);
-
-  async function locate() {
-    setLocating({ done: 0, total: toLocate.length });
-    try {
-      const { places, notFound: missed } = await locateAddresses(toLocate, {
-        onStage: event => event.total && setLocating({ done: event.done || 0, total: event.total }),
-      });
-      dispatch({ type: "LOCATE", places, notFound: missed });
-      const found = Object.keys(places).length;
-      notify(
-        `Located ${found.toLocaleString()} of ${toLocate.length.toLocaleString()} addresses` +
-          (missed.length ? ` · ${missed.length.toLocaleString()} not found` : ""),
-      );
-    } catch (reason) {
-      notify("Addresses could not be located: " + reason.message);
-    } finally {
-      setLocating(null);
-    }
-  }
 
   // The map itself, once.
   useEffect(() => {
@@ -235,9 +190,7 @@ export function LeadsMap({ leads }) {
           <Checkbox label="List what's on the map" checked={onlyInView} onChange={event => setOnlyInView(event.target.checked)} />
           {engine && toLocate.length > 0 && (
             <Button variant="primary" icon={Crosshair} disabled={Boolean(locating)} onClick={locate}>
-              {locating
-                ? `Locating… ${locating.done.toLocaleString()} of ${locating.total.toLocaleString()}`
-                : `Find exact locations (${toLocate.length.toLocaleString()})`}
+              {locateLabel(places)}
             </Button>
           )}
         </div>
@@ -272,9 +225,19 @@ export function LeadsMap({ leads }) {
               onMouseLeave={() => setHovered(current => (current === lead.id ? null : current))}
             >
               <button type="button" className="map-card-main" onClick={() => focusLead(lead)}>
-                <span className="map-card-price">{lead.value > 0 ? money(lead.value) : <span className="muted">No value in the list</span>}</span>
-                <span className="map-card-facts">{propertyFacts(lead).join(" · ")}</span>
-                <span className="map-card-address">{lead.address}</span>
+                {/* The price leads, as on a property search; a list without prices leads with the address. */}
+                {lead.value > 0 ? (
+                  <>
+                    <span className="map-card-price">{money(lead.value)}</span>
+                    <span className="map-card-facts">{propertyFacts(lead).join(" · ")}</span>
+                    <span className="map-card-address">{lead.address}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="map-card-price is-address">{lead.address}</span>
+                    <span className="map-card-facts">{propertyFacts(lead).join(" · ")}</span>
+                  </>
+                )}
                 <small>{[lead.city, lead.region, lead.zip].filter(Boolean).join(", ")}</small>
                 <small className="map-card-owner">{lead.name}</small>
               </button>

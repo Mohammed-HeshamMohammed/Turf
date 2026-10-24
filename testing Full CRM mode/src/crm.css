@@ -5971,3 +5971,6 @@ html.demo-quiet .demo-note {
     transition: none;
   }
 }
+.map-card-price.is-address {
+  font-size: 17px;
+}
