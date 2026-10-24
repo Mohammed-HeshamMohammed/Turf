@@ -2,6 +2,8 @@
 
 The server side of the full CRM (see `docs/TURF_CRM_AND_PERFORMANCE_PLAN.md`). The desktop app's local Skip Tracing service stays in `service/`.
 
+(Paths below are relative to `Full CRM Turf/`, which holds `backend/`, `contracts/`, `website/` and `docs/saas/`.)
+
 | Folder | Language | What it does |
 | --- | --- | --- |
 | `rust/` | Rust (Axum, sqlx) | Public API, sign-in and MFA, permissions, CRM transactions, sync, WebSocket events, rule execution, legacy import. Owns the PostgreSQL migrations. `crates/grouping` is the deterministic grouping library shared with offline Skip Tracing. |
