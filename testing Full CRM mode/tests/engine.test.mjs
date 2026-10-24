@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { after, before, test } from "node:test";
-import { check, crmVerdict, engineAvailable, engineConfig, prepare, saveCopy, sourceCsv } from "../src/engine.js";
+import { check, checkRepeats, crmVerdict, engineAvailable, engineConfig, prepare, saveCopy, sourceCsv } from "../src/engine.js";
 import { ALLOWED_COMMANDS, refusal } from "../scripts/service-bridge.mjs";
 
 const root = resolve(import.meta.dirname, "../../service");
@@ -104,4 +104,28 @@ test("a do-not-call row keeps its verdict even when it is also a repeat", () => 
   assert.equal(crmVerdict({ "Phone (verdict)": "wrong", "Phone (why)": "Do not call until 2027", "Best phone": "", "Duplicate status": "Keep" }), "Do not call");
   assert.equal(crmVerdict({ "Phone (verdict)": "corroborated", "Best phone": "+18132746610", "Best phone verdict": "corroborated" }), "Ready to call");
   assert.equal(crmVerdict({ Owner: "x" }), "No phone");
+});
+
+test("a list without phones: the engine finds the leads it repeats, and the owner's other property stays its own", async () => {
+  const header = ["Id", "Address", "City", "State", "Zip", "Owner 1 First Name", "Owner 1 Last Name", "Owner Mailing Address"];
+  const make = (id, values) => ({ id, sourceValues: Object.fromEntries(header.map((column, index) => [column, values[index]])) });
+  const county = [
+    make("a", ["1", "840 W 124TH ST", "LOS ANGELES", "CA", "90044", "VIRGINIA", "FRIZ", "721 W EL SEGUNDO BLVD"]),
+    make("b", ["2", "840 W 124th Street", "Los Angeles", "CA", "90044", "Virginia", "Friz", "721 W EL SEGUNDO BLVD"]),
+    make("c", ["3", "12 OAK AVE", "LOS ANGELES", "CA", "90045", "VIRGINIA", "FRIZ", "721 W EL SEGUNDO BLVD"]),
+    make("d", ["4", "9 PINE RD", "GARDENA", "CA", "90247", "SAM", "HILL", "9 PINE RD"]),
+  ];
+  const found = { address: "Address", city: "City", region: "State", zip: "Zip", firstName: "Owner 1 First Name", lastName: "Owner 1 Last Name", mailingAddress: "Owner Mailing Address" };
+  const prepared = await prepare({ name: "County", columns: header, rows: county });
+  const config = engineConfig(prepared.suggestion.config, header, county, found, {});
+  assert.deepEqual(config.phone_columns, []);
+  assert.equal(config.mailing_address_column, "Owner Mailing Address");
+  const result = await checkRepeats({ datasetId: prepared.datasetId, config });
+  assert.equal(result.results.length, 4, "one result per lead, in order");
+  const verdicts = result.results.map(item => item.verdict);
+  assert.equal(verdicts.filter(verdict => verdict === "Possible duplicate").length, 1, "the same lead written twice is one repeat");
+  assert.ok(verdicts[0] === "Possible duplicate" || verdicts[1] === "Possible duplicate");
+  assert.equal(verdicts[2], "No phone", "the same owner's other property is its own lead");
+  assert.match(result.results[2].why, /^Same owner as row/);
+  assert.equal(verdicts[3], "No phone");
 });
