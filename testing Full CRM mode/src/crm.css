@@ -5991,3 +5991,46 @@ html.demo-quiet .demo-note {
   display: grid;
   gap: 2px;
 }
+
+/* Long words with nothing to break at (generated list names, IDs, long emails) wrap inside their box instead of
+   pushing it, and the page, wider than the window. */
+.main-content :is(p, h1, h2, h3, span, strong, small, a, td, dd, dt, li):not(.button, .button *, .badge, .badge *) {
+  overflow-wrap: anywhere;
+}
+
+/* The card a pin opens on the map. */
+.map-popup {
+  display: grid;
+  gap: 3px;
+  min-width: 200px;
+  font-family: inherit;
+}
+.map-popup-title {
+  font-size: 16px;
+}
+.map-popup small {
+  color: var(--muted);
+}
+.map-popup-facts,
+.map-popup-owner {
+  font-weight: 600;
+}
+.map-popup .button {
+  margin-top: 8px;
+  min-height: 34px;
+  justify-content: center;
+}
+.leaflet-popup-content-wrapper {
+  border-radius: 16px;
+}
+/* A long option (a generated list name) ends with "…" inside its field instead of widening the field and the page. */
+.field,
+.select {
+  min-width: 0;
+}
+.select-trigger > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -368,9 +368,12 @@ export function SkipTracing() {
   const found = useMemo(() => Object.fromEntries(mappedFields.filter(field => field.column).map(field => [field.id, field.column])), [mappedFields]);
   const finished = Boolean(checked);
   useEffect(() => {
-    stepNavigation.current?.querySelector("[aria-current]")?.scrollIntoView({
-      block: "nearest",
-      inline: "center",
+    // Centre the current step inside the step bar, and move nothing else on the page.
+    const bar = stepNavigation.current,
+      current = bar?.querySelector("[aria-current]");
+    if (!bar || !current) return;
+    bar.scrollTo({
+      left: current.offsetLeft - (bar.clientWidth - current.clientWidth) / 2,
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
     });
   }, [step, hasPhones]);

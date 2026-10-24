@@ -107,6 +107,13 @@ export function App() {
   }, [demoNotes]);
   const timer = useRef(null);
   const main = useRef(null);
+  useEffect(() => {
+    const page = main.current;
+    if (!page) return undefined;
+    const keepLeft = () => page.scrollLeft && (page.scrollLeft = 0);
+    page.addEventListener("scroll", keepLeft, { passive: true });
+    return () => page.removeEventListener("scroll", keepLeft);
+  });
   const role = ROLES[state.role];
   const profile = personalProfile(state);
   const queue = state.queue.filter(item => item.actor === role.person);

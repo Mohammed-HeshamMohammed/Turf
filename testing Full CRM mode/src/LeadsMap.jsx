@@ -20,6 +20,31 @@ const short = value => {
   return "$" + Math.round(value);
 };
 const pinLabel = lead => short(lead.value) || (lead.beds != null ? lead.beds + " bd" : "");
+function leadPopup(lead, open) {
+  const box = document.createElement("div");
+  box.className = "map-popup";
+  const line = (tag, text, className) => {
+    if (!text) return;
+    const element = document.createElement(tag);
+    element.textContent = text;
+    if (className) element.className = className;
+    box.append(element);
+  };
+  line("strong", lead.value > 0 ? money(lead.value) : lead.address, "map-popup-title");
+  if (lead.value > 0) line("span", lead.address);
+  line("small", [lead.city, lead.region, lead.zip].filter(Boolean).join(", "));
+  line("span", propertyFacts(lead).join(" · "), "map-popup-facts");
+  line("span", lead.name, "map-popup-owner");
+  line("small", [lead.stage, lead.phone, lead.geo?.precision === "zip" ? "ZIP area · approximate" : ""].filter(Boolean).join(" · "));
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "button primary";
+  button.textContent = "Open lead";
+  button.addEventListener("click", open);
+  box.append(button);
+  return box;
+}
+
 const placeOf = lead => (lead.geo && Number.isFinite(lead.geo.lat) && Number.isFinite(lead.geo.lng) ? lead.geo : null);
 
 export function LeadsMap({ leads }) {
@@ -29,6 +54,10 @@ export function LeadsMap({ leads }) {
   const leafletRef = useRef(null);
   const layerRef = useRef(null);
   const pinsRef = useRef(new Map());
+  // The lead whose card is open on the map. Pins are redrawn whenever the map moves (opening a card near the edge
+  // moves it), so the open card is opened again on its new pin.
+  const openRef = useRef(null);
+  const redrawing = useRef(false);
   const cardsRef = useRef(new Map());
   const [view, setView] = useState(null); // the map's bounds, as [[south, west], [north, east]]
   const [onlyInView, setOnlyInView] = useState(true);
@@ -40,6 +69,7 @@ export function LeadsMap({ leads }) {
   const places = useLeadPlaces(leads);
   const { engine, locating, locate, exact, notFound, toLocate, unplaced } = places;
   const placed = useMemo(() => leads.filter(placeOf), [leads]);
+  useEffect(() => setSpot(null), [exact]);
 
   // The map itself, once.
   useEffect(() => {
@@ -102,7 +132,9 @@ export function LeadsMap({ leads }) {
       L = leafletRef.current,
       layer = layerRef.current;
     if (!map || !L || !layer || !view) return;
+    redrawing.current = true;
     layer.clearLayers();
+    redrawing.current = false;
     pinsRef.current.clear();
     const bounds = L.latLngBounds(view).pad(0.25);
     const inView = placed.filter(lead => bounds.contains([lead.geo.lat, lead.geo.lng]));
@@ -151,13 +183,27 @@ export function LeadsMap({ leads }) {
         title: lead.name + " · " + lead.address,
         riseOnHover: true,
       })
-        .on("click", () => setSelected(lead.id))
+        .bindPopup(() => leadPopup(lead, () => navigate("work/leads/" + lead.id)), { closeButton: true, autoPanPadding: [24, 24], maxWidth: 280 })
+        .on("click", () => {
+          // The lead's card comes forward in the list too: leave a spot list it is not part of.
+          setSpot(current => (current && !current.ids.has(lead.id) ? null : current));
+          setSelected(lead.id);
+        })
         .on("mouseover", () => setHovered(lead.id))
         .on("mouseout", () => setHovered(current => (current === lead.id ? null : current)))
+        .on("popupopen", () => (openRef.current = lead.id))
+        .on("popupclose", () => !redrawing.current && openRef.current === lead.id && (openRef.current = null))
         .addTo(layer);
       pinsRef.current.set(lead.id, marker);
     }
-  }, [placed, view]);
+    const open = openRef.current && pinsRef.current.get(openRef.current);
+    if (open) {
+      // Opened again where it already fits: no second move of the map.
+      open.getPopup().options.autoPan = false;
+      open.openPopup();
+      open.getPopup().options.autoPan = true;
+    }
+  }, [placed, view, navigate]);
 
   // A lead pointed at or chosen in either place lights up in both.
   useEffect(() => {
@@ -169,7 +215,12 @@ export function LeadsMap({ leads }) {
     }
   }, [hovered, selected, view, placed]);
   useEffect(() => {
-    if (selected) cardsRef.current.get(selected)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    const card = selected && cardsRef.current.get(selected);
+    const list = card?.parentElement;
+    if (!card || !list) return;
+    const top = card.offsetTop - list.offsetTop;
+    if (top < list.scrollTop || top + card.offsetHeight > list.scrollTop + list.clientHeight)
+      list.scrollTo({ top: Math.max(0, top - 8), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
   }, [selected]);
 
   function focusLead(lead) {
@@ -179,11 +230,17 @@ export function LeadsMap({ leads }) {
   }
 
   const listed = useMemo(() => {
-    if (spot) return leads.filter(lead => spot.ids.has(lead.id));
-    if (!onlyInView || !view) return leads;
-    const [[south, west], [north, east]] = view;
-    return placed.filter(lead => lead.geo.lat >= south && lead.geo.lat <= north && lead.geo.lng >= west && lead.geo.lng <= east);
-  }, [leads, placed, view, onlyInView, spot]);
+    let found;
+    if (spot) found = leads.filter(lead => spot.ids.has(lead.id));
+    else if (!onlyInView || !view) found = leads;
+    else {
+      const [[south, west], [north, east]] = view;
+      found = placed.filter(lead => lead.geo.lat >= south && lead.geo.lat <= north && lead.geo.lng >= west && lead.geo.lng <= east);
+    }
+    // The lead picked on the map leads the list, so its card is always on screen.
+    const picked = selected && found.findIndex(lead => lead.id === selected);
+    return picked > 0 ? [found[picked], ...found.slice(0, picked), ...found.slice(picked + 1)] : found;
+  }, [leads, placed, view, onlyInView, spot, selected]);
   const [cards, more] = useShowMore(listed, 50);
 
   return (
