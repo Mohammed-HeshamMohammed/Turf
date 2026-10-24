@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import date
 from pathlib import Path
 
@@ -642,7 +643,28 @@ APPLY_JOB = JobKind(run=_run_apply, validate=_validate)
 # check (one owner with several properties stays several leads). Nothing is changed in the list.
 
 _REPEAT_COLUMNS = ("first_name_column", "last_name_column", "name_column", "address_column", "city_column", "state_column", "zip_column",
-                   "mailing_address_column")
+                   "mailing_address_column", "parcel_column")
+
+
+def _numbers_in(text: object) -> list[str]:
+    """The numbers in an address, in order: house number, numbered street ("58TH"), unit."""
+    return re.findall(r"\d+", str(text or ""))
+
+
+def _plainly_different(left: dict, right: dict, config: dict) -> bool:
+    """Two rows that cannot be one lead whatever their names say: another parcel, or another house number, numbered
+    street or unit ("826 W 58TH PL" and "826 W 59TH PL"; "APT 2" and "APT 3")."""
+    parcel = config.get("parcel_column")
+    if parcel:
+        a, b = (re.sub(r"[^0-9a-z]", "", str(row.get(parcel) or "").lower()) for row in (left, right))
+        if a and b and a != b:
+            return True
+    address = config.get("address_column")
+    if address:
+        a, b = _numbers_in(left.get(address)), _numbers_in(right.get(address))
+        if a and b and a != b:
+            return True
+    return False
 
 
 def _validate_repeats(store: ProjectStore, params: dict) -> dict:
@@ -668,14 +690,40 @@ def _run_repeats(context: JobContext) -> dict:
     numbers, rows = _rows(context.store, context.params["dataset_id"])
     from .combine import decided
     same, different = decided(context.store, context.params["dataset_id"])
-    found, summary = duplicates.find(rows, numbers, context.params["config"], None, context.checkpoint, context.stage, same, different)
+    config = context.params["config"]
+    found, summary = duplicates.find(rows, numbers, config, None, context.checkpoint, context.stage, same, different)
+    # A proposed repeat (sure or possible) that is plainly another property is not one: it stays its own lead, and the
+    # two rows are told as the same owner's.
+    index_of = {number: index for index, number in enumerate(numbers)}
+    keeps = {columns["Duplicate group"]: index for index, columns in enumerate(found) if columns["Duplicate status"] == "Keep"}
+    for index, columns in enumerate(found):
+        status = columns["Duplicate status"]
+        if not status or status == "Keep":
+            continue
+        named = re.search(r"row (\d+)", status)
+        other = keeps.get(columns["Duplicate group"]) if columns["Duplicate group"] else None
+        if other is None and named:
+            other = index_of.get(int(named.group(1)))
+        if other is None or not _plainly_different(rows[other], rows[index], config):
+            continue
+        columns.update({"Duplicate group": "", "Duplicate status": "", "Duplicate why": ""})
+        for one, two in ((index, other), (other, index)):
+            if not found[one]["Same owner rows"]:
+                found[one]["Same owner rows"] = f"Row {numbers[two]}"
+            if found[one]["Duplicate status"].startswith("Possible") and f"row {numbers[index if one == other else other]}" in found[one]["Duplicate status"]:
+                found[one].update({"Duplicate status": "", "Duplicate why": ""})
+    # A kept row left with no repeat is simply a lead.
+    for group, keep in keeps.items():
+        if not any(columns["Duplicate group"] == group for index, columns in enumerate(found) if index != keep):
+            found[keep].update({"Duplicate group": "", "Duplicate status": "", "Duplicate why": ""})
     results = [
         {"row_number": number, "group": columns["Duplicate group"], "status": columns["Duplicate status"], "why": columns["Duplicate why"],
          "same_owner": columns["Same owner rows"]}
         for number, columns in zip(numbers, found)
     ]
     repeats = sum(1 for item in results if item["status"] and item["status"] != "Keep")
-    return {"rows": len(results), "repeats": repeats, "summary": summary, "results": results}
+    same_owner = sum(1 for item in results if item["same_owner"])
+    return {"rows": len(results), "repeats": repeats, "same_owner": same_owner, "summary": summary, "results": results}
 
 
 REPEATS_JOB = JobKind(run=_run_repeats, validate=_validate_repeats)

@@ -141,3 +141,33 @@ def test_repeats_needs_a_name_or_address_and_known_columns(service: Service):
     dataset = run(service, "dataset.import_content", name="County.csv", data=county_csv([["1", "1 Main", "X", "CA", "1", "A", "B", "C"]]))["dataset_id"]
     assert not call(service, "skiptrace.repeats", dataset_id=dataset, config={})["ok"]
     assert not call(service, "skiptrace.repeats", dataset_id=dataset, config={"address_column": "Nope"})["ok"]
+
+
+def test_another_parcel_or_house_number_is_never_a_repeat_even_with_the_same_owner(service: Service):
+    ok(service, "project.open_workspace", name="crm")
+    header = ["Id", "Address", "City", "State", "Zip", "Owner 1 First Name", "Owner 1 Last Name", "Owner Mailing Address", "APN"]
+    rows = [
+        ["1", "826 W 58TH PL", "LOS ANGELES", "CA", "90044", "ANGELES", "LOS", "200 N SPRING ST", "6004-003-906"],
+        ["2", "826 W 59TH PL", "LOS ANGELES", "CA", "90044", "ANGELES", "LOS", "200 N SPRING ST", "6004-008-902"],
+        ["3", "917 W 69TH ST", "LOS ANGELES", "CA", "90044", "ANGELES", "LOS", "200 N SPRING ST", "6013-007-902"],
+        ["4", "12 OAK AVE APT 2", "LOS ANGELES", "CA", "90045", "MONA", "ADEL", "5 ELM", ""],
+        ["5", "12 OAK AVE APT 3", "LOS ANGELES", "CA", "90045", "MONA", "ADEL", "5 ELM", ""],
+        ["6", "840 W 124TH ST", "LOS ANGELES", "CA", "90044", "VIRGINIA", "FRIZ", "721 W EL SEGUNDO", "6117-016-011"],
+        ["7", "840 W 124th Street", "Los Angeles", "CA", "90044", "Virginia", "Friz", "721 W EL SEGUNDO", "6117-016-011"],
+    ]
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(header)
+    writer.writerows(rows)
+    data = base64.b64encode(buffer.getvalue().encode()).decode()
+    dataset = run(service, "dataset.import_content", name="Parcels.csv", data=data)["dataset_id"]
+    config = {"first_name_column": "Owner 1 First Name", "last_name_column": "Owner 1 Last Name", "address_column": "Address", "city_column": "City",
+              "state_column": "State", "zip_column": "Zip", "mailing_address_column": "Owner Mailing Address", "parcel_column": "APN"}
+    found = run(service, "skiptrace.repeats", dataset_id=dataset, config=config)
+    by_row = {item["row_number"]: item for item in found["results"]}
+    for number in (2, 3, 4, 5, 6):
+        assert not by_row[number]["status"], (number, by_row[number])
+    assert by_row[3]["same_owner"] and by_row[2]["same_owner"], "the same owner's other parcels are still linked"
+    statuses = sorted(by_row[n]["status"] for n in (7, 8))
+    assert statuses[1] == "Keep" and statuses[0].startswith(("Duplicate", "Possible")), "one parcel written twice is still a repeat"
+    assert found["repeats"] == 1 and found["same_owner"] >= 3

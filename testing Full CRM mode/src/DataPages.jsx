@@ -323,6 +323,8 @@ const STAGE_LABELS = {
   saving_checked_copy: "Saving the checked copy",
 };
 
+const exportName = (list, what) => `${String(list || "turf list").replace(/\.[a-z0-9]{2,4}$/i, "")} (${what}).csv`;
+
 export function SkipTracing() {
   const { state, dispatch, navigate, notify, route } = useCrm();
   const leads = visibleLeads(state);
@@ -377,6 +379,17 @@ export function SkipTracing() {
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
     });
   }, [step, hasPhones]);
+  const stage = useRef(null);
+  const firstStep = useRef(true);
+  useEffect(() => {
+    if (firstStep.current) return void (firstStep.current = false);
+    const page = stage.current?.closest(".main-content");
+    const card = stage.current;
+    if (!page || !card) return;
+    const top = card.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - 16;
+    if (top < page.scrollTop || card.getBoundingClientRect().top > page.getBoundingClientRect().top + page.clientHeight / 2)
+      page.scrollTo({ top: Math.max(0, top), behavior: "instant" });
+  }, [step]);
   // The meaning the engine gives each imported call status, read when the outcome step opens.
   useEffect(() => {
     if (!engine || step !== 1 || !hasPhones || !outcomeColumn || statuses?.column === outcomeColumn) return;
@@ -533,7 +546,7 @@ export function SkipTracing() {
         )}
       </nav>
       <PropertyMap rows={rows} mappings={mappings} title="Source location map" />
-      <div className="skip-layout">
+      <div ref={stage} className="skip-layout">
         <Card
           className="skip-stage"
           title={stages[step]}
@@ -775,6 +788,12 @@ export function SkipTracing() {
                       </strong>
                       <small>possible repeats</small>
                     </div>
+                    {checked.noPhones && checked.engine && (
+                      <div>
+                        <strong>{(checked.sameOwner || 0).toLocaleString()}</strong>
+                        <small>owner has other properties here</small>
+                      </div>
+                    )}
                     {checked.engine && !checked.noPhones && (
                       <div>
                         <strong>{(counts["Wrong number"] || 0) + (counts["Do not call"] || 0)}</strong>
@@ -784,8 +803,9 @@ export function SkipTracing() {
                   </div>
                   {checked.noPhones && (
                     <p className="notice subtle">
-                      This list has no phone numbers, so there is nothing to call yet. Turf checked it for leads it repeats; add phone numbers (a skip-tracing
-                      data source) and run the check again to see which are ready to call.
+                      This list has no phone numbers, so there is nothing to call yet. Turf checked it for leads it repeats: a repeat is the same property
+                      listed twice (same parcel, or the same address and owner). One owner with several different properties is not a repeat; those leads
+                      are counted as sharing an owner. Add phone numbers (a skip-tracing data source) and run the check again to see which are ready to call.
                     </p>
                   )}
                   <div className="review-rows">
@@ -841,16 +861,17 @@ export function SkipTracing() {
                   icon={DownloadSimple}
                   onClick={() =>
                     downloadCsv(
-                      checked.engine ? "turf-check.csv" : "turf-demo-check.csv",
+                      exportName(dataset?.name, checked.engine ? "checked" : "demo check"),
                       checked.engine
                         ? [
-                            [...columns, "Verdict", "Best phone", "Why", "Duplicate status"],
+                            [...columns, "Verdict", "Best phone", "Why", "Duplicate status", "Same owner rows"],
                             ...rows.map((lead, index) => [
                               ...columns.map(column => sourceValue(lead, column)),
                               verdictOf(lead, index),
                               checked.results[index]?.bestPhone || "",
                               checked.results[index]?.why || "",
                               checked.results[index]?.duplicate || "",
+                              checked.results[index]?.sameOwner || "",
                             ]),
                           ]
                         : [

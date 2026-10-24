@@ -591,9 +591,24 @@ export function MoreMenu({ items, label = "More" }) {
     </div>
   );
 }
+/**
+ * Saves rows as a CSV file. In a browser it downloads; the desktop window has no download bar, so the file goes to
+ * the Downloads folder and is shown in the file manager. Either way a "turf-saved" event says where it went.
+ */
 export function downloadCsv(filename, rows) {
   const escape = value => '"' + String(value ?? "").replaceAll('"', '""') + '"';
   const csv = rows.map(row => row.map(escape).join(",")).join("\r\n");
+  const saved = detail => window.dispatchEvent(new CustomEvent("turf-saved", { detail }));
+  if (window.__TAURI_INTERNALS__) {
+    import("@tauri-apps/api/core")
+      .then(({ invoke }) => invoke("save_download", { filename, contents: "﻿" + csv }))
+      .then(
+        path => saved({ path }),
+        reason => saved({ error: String(reason) }),
+      );
+    return;
+  }
+  saved({ path: filename, browser: true });
   const url = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
   const link = document.createElement("a");
   link.href = url;

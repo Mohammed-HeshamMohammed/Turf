@@ -106,6 +106,8 @@ export function engineConfig(suggested, columns, rows, mappings, { region = "US"
     state_column: pick("region") ?? suggested.state_column ?? null,
     zip_column: pick("zip") ?? suggested.zip_column ?? null,
     mailing_address_column: pick("mailingAddress"),
+    // Another parcel is another property, whoever owns it.
+    parcel_column: pick("parcel"),
     find_duplicates: findDuplicates,
     outcome: null,
   };
@@ -209,10 +211,11 @@ export async function checkRepeats({ datasetId, config, onStage, onStart, signal
           ? "Same owner as " + item.same_owner.replace(/^Rows?/, word => word.toLowerCase()) + " of the list · a different property"
           : "No phone number in this list",
       duplicate: item.status,
+      sameOwner: item.same_owner || "",
       bestPhone: "",
     };
   }
-  return { jobId: job_id, report: null, repeats: found.repeats, results };
+  return { jobId: job_id, report: null, repeats: found.repeats, sameOwner: found.same_owner || 0, results };
 }
 
 // ---- Placing leads on the map ----------------------------------------------------------------------------------

@@ -206,6 +206,16 @@ export function App() {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setToast(""), options.undo ? 7000 : 4500);
   }, []);
+  // Every exported file says where it went (the desktop window saves to Downloads and shows it in the file manager).
+  useEffect(() => {
+    const saved = event => {
+      const { path, error, browser } = event.detail || {};
+      if (error) notify("The file could not be saved: " + error);
+      else if (!browser) notify("Saved to " + path);
+    };
+    window.addEventListener("turf-saved", saved);
+    return () => window.removeEventListener("turf-saved", saved);
+  }, [notify]);
   // Connected: changes apply on screen at once and queue as operations for the server, which has the last word.
   const dispatch = useCallback(
     action => {
