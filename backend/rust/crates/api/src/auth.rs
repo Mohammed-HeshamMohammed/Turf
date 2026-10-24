@@ -86,6 +86,8 @@ pub struct Ctx {
     pub mfa_passed: bool,
     pub mfa_enrolled: bool,
     pub via_cookie: bool,
+    /// The server requires MFA for the roles that call for it (Config::require_mfa).
+    pub mfa_enforced: bool,
     /// The organization's subscription; `None` on a self-hosted organization, which has no limits.
     pub subscription: Option<Subscription>,
 }
@@ -114,7 +116,7 @@ impl Subscription {
 
 impl Ctx {
     pub fn mfa_required(&self) -> bool {
-        self.roles.iter().any(|role| requires_mfa(role))
+        self.mfa_enforced && self.roles.iter().any(|role| requires_mfa(role))
     }
 
     /// The organization scope for data access; fails until an organization is chosen, MFA is satisfied and the
@@ -180,6 +182,7 @@ pub async fn load(state: &AppState, token: &str, via_cookie: bool) -> ApiResult<
         mfa_passed: row.mfa_passed,
         mfa_enrolled: row.totp_secret.is_some(),
         via_cookie,
+        mfa_enforced: state.config.require_mfa,
         subscription: None,
     };
     let Some(org_id) = row.org_id else { return Ok(ctx) };

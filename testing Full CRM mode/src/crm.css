@@ -5754,3 +5754,15 @@ html.demo-quiet .demo-note {
   height: 1px;
   background: var(--line);
 }
+
+/* Sign-in screen in the desktop window: the window strip on top, the card centred below it. */
+.gate-window {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--page);
+}
+.gate-window .remote-gate {
+  flex: 1;
+  min-height: 0;
+}

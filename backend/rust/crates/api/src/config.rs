@@ -28,6 +28,9 @@ pub struct Config {
     pub dev_tokens: bool,
     /// Folder of the public website (sign-up, sign-in, account) served at `/`. Empty: no website.
     pub site_dir: String,
+    /// Owners and administrators must confirm an authenticator code (TURF_REQUIRE_MFA=true). Off for now; people can
+    /// still set one up from the API, and it is checked when they have.
+    pub require_mfa: bool,
     /// This server's public address, as browsers reach it (provider sign-ins return here).
     pub public_url: String,
     /// The CRM's address, where a sign-in started from the app returns.
@@ -103,6 +106,7 @@ impl Config {
             checkout_url: var("TURF_CHECKOUT_URL", ""),
             dev_tokens: var("TURF_DEV_TOKENS", "false") == "true",
             site_dir: var("TURF_SITE_DIR", ""),
+            require_mfa: var("TURF_REQUIRE_MFA", "false") == "true",
             public_url: var("TURF_PUBLIC_URL", "http://localhost:8088").trim_end_matches('/').to_string(),
             app_url: var("TURF_APP_URL", "http://localhost:5190").trim_end_matches('/').to_string(),
             google: OauthProvider {

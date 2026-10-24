@@ -140,7 +140,7 @@ async fn bootstrap(State(state): State<AppState>, jar: CookieJar, Json(body): Js
     sqlx::query("INSERT INTO memberships (org_id, user_id, roles) VALUES ($1, $2, ARRAY['owner', 'admin'])").bind(org).bind(user).execute(&mut *tx).await?;
     tx.commit().await?;
     let token = create_session(&state, user, Some(org), &body.kind).await?;
-    Ok(signed_in(&state, jar, token, &body.kind, json!({ "organization_id": org, "user_id": user, "mfa_required": true })))
+    Ok(signed_in(&state, jar, token, &body.kind, json!({ "organization_id": org, "user_id": user, "mfa_required": state.config.require_mfa })))
 }
 
 /// Role presets and a default team for a new organization.
@@ -192,7 +192,7 @@ async fn login(State(state): State<AppState>, jar: CookieJar, Json(body): Json<L
         .fetch_all(&state.db)
         .await?;
     let chosen = body.organization_id.filter(|id| orgs.iter().any(|(o, _)| o == id)).or(if orgs.len() == 1 { Some(orgs[0].0) } else { None });
-    let mfa_required = chosen.and_then(|id| orgs.iter().find(|(o, _)| *o == id)).map(|(_, roles)| roles.iter().any(|r| requires_mfa(r))).unwrap_or(false);
+    let mfa_required = chosen.and_then(|id| orgs.iter().find(|(o, _)| *o == id)).map(|(_, roles)| roles.iter().any(|r| requires_mfa(r))).unwrap_or(false) && state.config.require_mfa;
     let kind = if body.kind == "desktop" { "desktop" } else { "browser" };
     let token = create_session(&state, user, chosen, kind).await?;
     Ok(signed_in(
@@ -363,7 +363,7 @@ async fn accept_invitation(State(state): State<AppState>, jar: CookieJar, Json(b
     tx.commit().await?;
     let kind = if body.kind == "desktop" { "desktop" } else { "browser" };
     let token = create_session(&state, user, Some(org), kind).await?;
-    Ok(signed_in(&state, jar, token, kind, json!({ "organization_id": org, "user_id": user, "mfa_required": roles.iter().any(|r| requires_mfa(r)) })))
+    Ok(signed_in(&state, jar, token, kind, json!({ "organization_id": org, "user_id": user, "mfa_required": state.config.require_mfa && roles.iter().any(|r| requires_mfa(r)) })))
 }
 
 #[derive(Deserialize)]

@@ -54,6 +54,7 @@ pub fn config_for(redis: bool, base: &str, provider: &str) -> Option<Config> {
         checkout_url: "https://pay.example/checkout".into(),
         dev_tokens: true,
         site_dir: String::new(),
+        require_mfa: true,
         public_url: base.into(),
         app_url: "http://app.example".into(),
         google: turf_api::config::OauthProvider { client_secret: "google-test-secret".into(), ..endpoints("google-test-client") },
@@ -72,15 +73,25 @@ pub async fn start() -> Option<Harness> {
 }
 
 pub async fn start_with(redis: bool) -> Option<Harness> {
+    start_configured(redis, true).await
+}
+
+/// A server that does not require MFA (the current default: TURF_REQUIRE_MFA unset).
+pub async fn start_without_mfa() -> Option<Harness> {
+    start_configured(true, false).await
+}
+
+async fn start_configured(redis: bool, require_mfa: bool) -> Option<Harness> {
     let guard = LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     // The API's own address must be known before it starts: provider sign-ins return to it.
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
     let provider = provider::start().await;
-    let Some(config) = config_for(redis, &base, &provider) else {
+    let Some(mut config) = config_for(redis, &base, &provider) else {
         eprintln!("TEST_DATABASE_URL is not set; skipping");
         return None;
     };
+    config.require_mfa = require_mfa;
     turf_api::db::migrate(&config).await.expect("migrations");
     let owner = sqlx::PgPool::connect(&config.migration_database_url).await.expect("owner connection");
     let tables: Vec<String> = sqlx::query_scalar("SELECT tablename::text FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN ('_sqlx_migrations', 'plans')")

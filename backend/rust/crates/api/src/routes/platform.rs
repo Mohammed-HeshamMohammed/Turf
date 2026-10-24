@@ -36,8 +36,9 @@ async fn organizations(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Jso
     if !admin {
         return Err(ApiError::forbidden("Only Turf's platform administrators can see this"));
     }
-    // Seeing every customer always needs the second sign-in step, whatever the person's role in their own workspace.
-    if !ctx.mfa_enrolled || !ctx.mfa_passed {
+    // Seeing every customer needs the second sign-in step whenever the server requires MFA, whatever the person's role
+    // in their own workspace.
+    if state.config.require_mfa && (!ctx.mfa_enrolled || !ctx.mfa_passed) {
         return Err(ApiError::MfaRequired);
     }
     let rows: Vec<Row> = sqlx::query_as("SELECT * FROM turf_platform_overview($1)").bind(ctx.user_id).fetch_all(&state.db).await?;

@@ -259,7 +259,7 @@ async fn signup(State(state): State<AppState>, jar: CookieJar, Json(body): Json<
         &state,
         token,
         json!({ "organization_id": org, "user_id": user, "plan": "trial", "minutes": trial.minutes(1), "trial_days": trial.period_days,
-                "mfa_required": true, "email_verified": false }),
+                "mfa_required": state.config.require_mfa, "email_verified": false }),
     );
     Ok(signed_in(&state, jar, session, kind, reply))
 }

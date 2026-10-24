@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod sidecar;
+mod signin;
 
 use tauri::{Manager, RunEvent};
 
@@ -17,7 +18,7 @@ fn main() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![sidecar::service_call])
+        .invoke_handler(tauri::generate_handler![sidecar::service_call, signin::google_sign_in_listen, signin::open_in_browser])
         .build(tauri::generate_context!())
         .expect("error while building Turf Full CRM mode")
         .run(|app, event| {

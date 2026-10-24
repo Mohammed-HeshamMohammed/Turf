@@ -189,3 +189,61 @@ async fn platform_administrators_see_every_customer_and_nobody_else_does() {
     fresh.post("/api/v1/auth/login", json!({ "email": "boss@turf.example", "password": PASSWORD })).await.ok();
     assert_eq!(fresh.get("/api/v1/platform/organizations").await.status, 401);
 }
+
+
+#[tokio::test]
+async fn the_desktop_app_collects_its_sign_in_once_through_a_code_on_this_computer() {
+    let h = harness!();
+    let b = browser(&h);
+    // Only an unprivileged port is accepted, and only ever as 127.0.0.1.
+    assert_eq!(b.http.get(format!("{}/api/v1/auth/oauth/google/start?target=desktop", h.base)).send().await.unwrap().status().as_u16(), 400);
+    assert_eq!(b.http.get(format!("{}/api/v1/auth/oauth/google/start?target=desktop&port=80", h.base)).send().await.unwrap().status().as_u16(), 400);
+    let started = b.http.get(format!("{}/api/v1/auth/oauth/google/start?target=desktop&port=51234", h.base)).send().await.unwrap();
+    let to = location(&started);
+    let code = provider::code(json!({ "sub": "d-1", "email": "desk@example.com", "email_verified": true, "nonce": param(&to, "nonce").unwrap() }));
+    let back = b
+        .http
+        .get(format!("{}/api/v1/auth/oauth/google/callback", h.base))
+        .query(&[("code", code.as_str()), ("state", param(&to, "state").unwrap().as_str())])
+        .send()
+        .await
+        .unwrap();
+    let landed = location(&back);
+    assert!(landed.starts_with("http://127.0.0.1:51234/turf-sign-in?code="), "{landed}");
+    assert!(back.headers().get("set-cookie").is_none(), "the browser is not signed in; the app is");
+    let one_time = param(&landed, "code").unwrap();
+
+    // The app trades the code for its own session, once.
+    let app = Client::new(&h.base);
+    assert_eq!(app.get("/api/v1/me").await.status, 401);
+    app.post("/api/v1/auth/oauth/exchange", json!({ "code": one_time })).await.ok();
+    assert_eq!(app.get("/api/v1/me").await.ok()["user"]["email"], "desk@example.com");
+    assert_eq!(Client::new(&h.base).post("/api/v1/auth/oauth/exchange", json!({ "code": one_time })).await.status, 403);
+    assert_eq!(Client::new(&h.base).post("/api/v1/auth/oauth/exchange", json!({ "code": "made-up" })).await.status, 403);
+
+    // A cancelled sign-in comes back to the app as an error, with no code.
+    let started = b.http.get(format!("{}/api/v1/auth/oauth/google/start?target=desktop&port=51234", h.base)).send().await.unwrap();
+    let state = param(&location(&started), "state").unwrap();
+    let cancelled = b.http.get(format!("{}/api/v1/auth/oauth/google/callback", h.base)).query(&[("error", "access_denied"), ("state", state.as_str())]).send().await.unwrap();
+    let landed = location(&cancelled);
+    assert!(landed.starts_with("http://127.0.0.1:51234/turf-sign-in?error=") && !landed.contains("code="), "{landed}");
+}
+
+#[tokio::test]
+async fn without_required_mfa_owners_go_straight_in() {
+    let h = match start_without_mfa().await {
+        Some(h) => h,
+        None => return,
+    };
+    let owner = Client::new(&h.base);
+    let answer = owner.post("/api/v1/auth/signup", json!({ "email": "quick@example.com", "display_name": "Quick Owner", "password": PASSWORD })).await.ok();
+    assert_eq!(answer["mfa_required"], false);
+    assert_eq!(owner.get("/api/v1/me").await.ok()["mfa"]["required"], false);
+    assert_eq!(owner.get("/api/v1/billing").await.ok()["plan"]["key"], "trial", "no code needed");
+    let again = Client::new(&h.base);
+    assert_eq!(again.post("/api/v1/auth/login", json!({ "email": "quick@example.com", "password": PASSWORD })).await.ok()["mfa_required"], false);
+    assert_eq!(again.get("/api/v1/leads").await.status, 200);
+    // The platform page follows the same setting.
+    sqlx::query("UPDATE users SET platform_admin = true WHERE email = 'quick@example.com'").execute(&h.owner).await.unwrap();
+    assert_eq!(again.get("/api/v1/platform/organizations").await.status, 200);
+}

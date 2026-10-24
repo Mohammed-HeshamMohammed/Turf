@@ -38,6 +38,8 @@ pub fn routes() -> Router<AppState> {
         .route("/auth/oauth/{provider}/start", get(start))
         // Google returns with a GET; Apple posts a form back (response_mode=form_post) once it asked for a name.
         .route("/auth/oauth/{provider}/callback", get(callback_get).post(callback_post))
+        // The desktop app collects a sign-in its browser finished.
+        .route("/auth/oauth/exchange", axum::routing::post(exchange))
 }
 
 fn provider<'a>(state: &'a AppState, name: &str) -> ApiResult<&'a OauthProvider> {
@@ -67,8 +69,12 @@ async fn providers(State(state): State<AppState>) -> Json<Value> {
 
 #[derive(Deserialize)]
 struct Start {
+    /// "website" (default), "app" (the CRM in a browser tab) or "desktop" (the desktop app, with `port`).
     #[serde(default)]
     target: String,
+    /// Desktop only: the port the app listens on at 127.0.0.1 for the result.
+    #[serde(default)]
+    port: Option<i32>,
 }
 
 /// Sends the browser to the provider.
@@ -77,19 +83,32 @@ async fn start(State(state): State<AppState>, Path(name): Path<String>, Query(qu
     if !config.configured() {
         return Err(ApiError::NotFound(format!("{} sign-in is not set up on this server yet", label(&name))));
     }
-    let target = if query.target == "app" { "app" } else { "website" };
+    let target = match query.target.as_str() {
+        "app" => "app",
+        "desktop" => "desktop",
+        _ => "website",
+    };
+    // The desktop app's result only ever goes back to this computer (127.0.0.1), on an unprivileged port.
+    let port = if target == "desktop" {
+        Some(query.port.filter(|p| (1024..=65535).contains(p)).ok_or_else(|| ApiError::bad("The app did not say where to return"))?)
+    } else {
+        None
+    };
     let state_token = random();
     let nonce = random();
     // PKCE for Google; Apple's flow does not take it (the client secret already proves the server).
     let verifier = (name == "google").then(random);
-    sqlx::query("INSERT INTO oauth_states (state_hash, provider, nonce, code_verifier, target, expires_at) VALUES ($1, $2, $3, $4, $5, now() + interval '10 minutes')")
-        .bind(auth::token_hash(&state_token))
-        .bind(&name)
-        .bind(&nonce)
-        .bind(&verifier)
-        .bind(target)
-        .execute(&state.db)
-        .await?;
+    sqlx::query(
+        "INSERT INTO oauth_states (state_hash, provider, nonce, code_verifier, target, return_port, expires_at) VALUES ($1, $2, $3, $4, $5, $6, now() + interval '10 minutes')",
+    )
+    .bind(auth::token_hash(&state_token))
+    .bind(&name)
+    .bind(&nonce)
+    .bind(&verifier)
+    .bind(target)
+    .bind(port)
+    .execute(&state.db)
+    .await?;
     // Started sign-ins that were never finished are cleared as new ones begin.
     sqlx::query("DELETE FROM oauth_states WHERE expires_at < now()").execute(&state.db).await?;
     let mut url = reqwest::Url::parse(&config.auth_url).map_err(|e| ApiError::Internal(anyhow::anyhow!("auth url: {e}")))?;
@@ -136,14 +155,23 @@ async fn callback_post(State(state): State<AppState>, jar: CookieJar, Path(name)
     finish(state, jar, name, returned).await
 }
 
-/// Where the person goes back to, with an error message when the sign-in did not work.
-fn back(state: &AppState, target: &str, error: Option<&str>) -> Redirect {
+/// Where the person goes back to, with an error message when the sign-in did not work. The desktop app gets its
+/// one-time code (or the error) on 127.0.0.1 at the port it gave.
+fn back(state: &AppState, target: &str, port: Option<i32>, code: Option<&str>, error: Option<&str>) -> Redirect {
+    let query = |pairs: &[(&str, &str)]| reqwest::Url::parse_with_params("http://x/", pairs).map(|u| u.query().unwrap_or_default().to_string()).unwrap_or_default();
+    if target == "desktop" {
+        let base = format!("http://127.0.0.1:{}/turf-sign-in", port.unwrap_or(0));
+        return match (code, error) {
+            (Some(code), None) => Redirect::to(&format!("{base}?{}", query(&[("code", code)]))),
+            _ => Redirect::to(&format!("{base}?{}", query(&[("error", error.unwrap_or("Sign-in did not finish."))]))),
+        };
+    }
     let base = if target == "app" { format!("{}/", state.config.app_url) } else { format!("{}/", state.config.public_url) };
     match error {
         None if target == "app" => Redirect::to(&base),
         None => Redirect::to(&format!("{base}#/account")),
         Some(message) => {
-            let encoded: String = reqwest::Url::parse_with_params("http://x/", [("oauth_error", message)]).map(|u| u.query().unwrap_or_default().to_string()).unwrap_or_default();
+            let encoded = query(&[("oauth_error", message)]);
             if target == "app" { Redirect::to(&format!("{base}?{encoded}")) } else { Redirect::to(&format!("{base}?{encoded}#/signin")) }
         }
     }
@@ -151,8 +179,8 @@ fn back(state: &AppState, target: &str, error: Option<&str>) -> Redirect {
 
 async fn finish(state: AppState, jar: CookieJar, name: String, returned: Returned) -> Response {
     // The state is taken (and so used up) first: without a valid one nothing else is trusted, not even the target.
-    let row: Option<(String, String, Option<String>, String)> = match sqlx::query_as(
-        "DELETE FROM oauth_states WHERE state_hash = $1 AND expires_at > now() RETURNING provider, nonce, code_verifier, target",
+    let row: Option<(String, String, Option<String>, String, Option<i32>)> = match sqlx::query_as(
+        "DELETE FROM oauth_states WHERE state_hash = $1 AND expires_at > now() RETURNING provider, nonce, code_verifier, target, return_port",
     )
     .bind(auth::token_hash(&returned.state))
     .fetch_optional(&state.db)
@@ -161,14 +189,22 @@ async fn finish(state: AppState, jar: CookieJar, name: String, returned: Returne
         Ok(row) => row,
         Err(error) => return ApiError::from(error).into_response(),
     };
-    let Some((stored_provider, nonce, verifier, target)) = row.filter(|(p, ..)| *p == name) else {
-        return back(&state, "website", Some("That sign-in link has expired. Try again.")).into_response();
+    let Some((stored_provider, nonce, verifier, target, port)) = row.filter(|(p, ..)| *p == name) else {
+        return back(&state, "website", None, None, Some("That sign-in link has expired. Try again.")).into_response();
     };
     if !returned.error.is_empty() || returned.code.is_empty() {
-        return back(&state, &target, Some("Sign-in was cancelled.")).into_response();
+        return back(&state, &target, port, None, Some("Sign-in was cancelled.")).into_response();
     }
-    match sign_in(&state, jar, &stored_provider, &returned, &nonce, verifier.as_deref()).await {
-        Ok(jar) => (jar, back(&state, &target, None)).into_response(),
+    let outcome = match sign_in(&state, &stored_provider, &returned, &nonce, verifier.as_deref()).await {
+        // The desktop app is not this browser: it gets a one-time code to collect the session with.
+        Ok((user, org)) if target == "desktop" => handoff(&state, user, org).await.map(|code| (jar, back(&state, &target, port, Some(&code), None))),
+        Ok((user, org)) => identity::create_session(&state, user, org, "browser")
+            .await
+            .map(|token| (jar.add(identity::session_cookie(&state, token)), back(&state, &target, port, None, None))),
+        Err(error) => Err(error),
+    };
+    match outcome {
+        Ok(done) => done.into_response(),
         Err(error) => {
             if let ApiError::Internal(cause) = &error {
                 tracing::error!(error = %cause, provider = %name, "provider sign-in failed");
@@ -177,9 +213,39 @@ async fn finish(state: AppState, jar: CookieJar, name: String, returned: Returne
                 ApiError::Internal(_) => format!("{} sign-in did not work. Try again in a moment.", label(&name)),
                 other => other.to_string(),
             };
-            back(&state, &target, Some(&message)).into_response()
+            back(&state, &target, port, None, Some(&message)).into_response()
         }
     }
+}
+
+/// A finished sign-in for the desktop app to collect, once, within two minutes.
+async fn handoff(state: &AppState, user: Uuid, org: Option<Uuid>) -> ApiResult<String> {
+    let code = random();
+    sqlx::query("INSERT INTO oauth_handoffs (code_hash, user_id, org_id, expires_at) VALUES ($1, $2, $3, now() + interval '2 minutes')")
+        .bind(auth::token_hash(&code))
+        .bind(user)
+        .bind(org)
+        .execute(&state.db)
+        .await?;
+    sqlx::query("DELETE FROM oauth_handoffs WHERE expires_at < now()").execute(&state.db).await?;
+    Ok(code)
+}
+
+#[derive(Deserialize)]
+struct Exchange {
+    code: String,
+}
+
+/// The desktop app trades its one-time code for a session (the same cookie a browser sign-in sets).
+async fn exchange(State(state): State<AppState>, jar: CookieJar, Json(body): Json<Exchange>) -> ApiResult<(CookieJar, Json<Value>)> {
+    let found: Option<(Uuid, Option<Uuid>)> =
+        sqlx::query_as("DELETE FROM oauth_handoffs WHERE code_hash = $1 AND expires_at > now() RETURNING user_id, org_id")
+            .bind(auth::token_hash(body.code.trim()))
+            .fetch_optional(&state.db)
+            .await?;
+    let (user, org) = found.ok_or_else(|| ApiError::forbidden("This sign-in has expired. Try again."))?;
+    let token = identity::create_session(&state, user, org, "browser").await?;
+    Ok((jar.add(identity::session_cookie(&state, token)), Json(json!({ "signed_in": true, "organization_id": org }))))
 }
 
 #[derive(Deserialize)]
@@ -271,7 +337,7 @@ pub async fn verify_id_token(config: &OauthProvider, token: &str, nonce: &str) -
     Ok(claims)
 }
 
-async fn sign_in(state: &AppState, jar: CookieJar, name: &str, returned: &Returned, nonce: &str, verifier: Option<&str>) -> ApiResult<CookieJar> {
+async fn sign_in(state: &AppState, name: &str, returned: &Returned, nonce: &str, verifier: Option<&str>) -> ApiResult<(Uuid, Option<Uuid>)> {
     let config = provider(state, name)?;
     let secret = if name == "apple" { apple_client_secret(config)? } else { config.client_secret.clone() };
     let redirect = redirect_uri(state, name);
@@ -343,8 +409,7 @@ async fn sign_in(state: &AppState, jar: CookieJar, name: &str, returned: &Return
         }
     };
     tx.commit().await?;
-    let token = identity::create_session(state, user, org, "browser").await?;
-    Ok(jar.add(identity::session_cookie(state, token)))
+    Ok((user, org))
 }
 
 fn apple_name(user: &str) -> Option<String> {

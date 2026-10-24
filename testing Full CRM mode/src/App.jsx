@@ -350,9 +350,13 @@ export function App() {
   }, [accessible, current, navigate]);
   if (connection === "gate")
     return (
-      <Suspense fallback={null}>
-        <RemoteGate onReady={connect} onLeave={REQUIRE_SIGN_IN ? undefined : useSample} />
-      </Suspense>
+      <div className="gate-window">
+        {/* The desktop window has no system title bar, so the sign-in screen keeps the app's own controls. */}
+        <WindowStrip title="Turf" />
+        <Suspense fallback={null}>
+          <RemoteGate onReady={connect} onLeave={REQUIRE_SIGN_IN ? undefined : useSample} />
+        </Suspense>
+      </div>
     );
   return (
     <CrmContext.Provider value={context}>

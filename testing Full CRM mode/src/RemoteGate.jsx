@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { GoogleLogo, Lock, ShieldCheck, SignIn, WifiSlash } from "@phosphor-icons/react";
 import { api, apiBase, ApiError, request, SERVER, setApiBase } from "./remote/api.js";
 import { MemoryVault, Vault } from "./remote/vault.js";
+import { inDesktopApp } from "./popout.js";
 import { Button, Card, Field } from "./ui.jsx";
 
 /**
@@ -37,12 +38,46 @@ export function RemoteGate({ onReady, onLeave }) {
     check();
   }, []);
   /** Hands the window to Google; the server brings it back here signed in. */
+  const waiting = useRef(null);
+  useEffect(() => () => waiting.current?.(), []);
+  /**
+   * Google sign-in. In a browser tab the tab itself goes to Google and comes back. The desktop window never leaves
+   * the app: Google opens in the person's own browser, which hands a one-time code back to the app on this computer.
+   */
   const continueWith = (provider, label) =>
     attempt(async () => {
       const available = await request("GET", "/api/v1/auth/providers").catch(() => ({}));
       if (!available[provider]) throw new Error(`${label} sign-in isn't connected on this server yet. Use your email for now.`);
-      window.location.href = (apiBase() || SERVER) + `/api/v1/auth/oauth/${provider}/start?target=app`;
+      const server = apiBase() || SERVER;
+      if (!inDesktopApp()) {
+        window.location.href = server + `/api/v1/auth/oauth/${provider}/start?target=app`;
+        return;
+      }
+      const { invoke } = await import("@tauri-apps/api/core");
+      const { listen } = await import("@tauri-apps/api/event");
+      waiting.current?.();
+      const port = await invoke("google_sign_in_listen");
+      const stop = await listen("turf-sign-in", ({ payload }) => {
+        stop();
+        waiting.current = null;
+        attempt(async () => {
+          if (!payload.code) {
+            setStep("signin");
+            throw new Error(payload.error || "Sign-in did not finish.");
+          }
+          await request("POST", "/api/v1/auth/oauth/exchange", { code: payload.code });
+          await check();
+        });
+      });
+      waiting.current = stop;
+      await invoke("open_in_browser", { url: server + `/api/v1/auth/oauth/${provider}/start?target=desktop&port=${port}` });
+      setStep("browser");
     });
+  const stopWaiting = () => {
+    waiting.current?.();
+    waiting.current = null;
+    setStep("signin");
+  };
 
   async function attempt(work) {
     setBusy(true);
@@ -98,6 +133,12 @@ export function RemoteGate({ onReady, onLeave }) {
         }
       >
         {step === "checking" && <p className="muted">Checking your session…</p>}
+        {step === "browser" && (
+          <div className="remote-step" role="status">
+            <p className="body-copy">Finish signing in with Google in your browser. Turf continues here by itself when you're done.</p>
+            <Button onClick={stopWaiting}>Cancel</Button>
+          </div>
+        )}
         {step === "offline" && (
           <div className="remote-step">
             <p className="notice">

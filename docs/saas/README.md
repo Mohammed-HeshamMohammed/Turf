@@ -198,8 +198,7 @@ are unchanged.
 The sign-up and sign-in pages on the website, and the app's sign-in screen, offer **Continue with Google** above the
 email form. Apple is not offered: it needs a paid Apple Developer account and an HTTPS domain. The server supports it,
 but it stays off until `TURF_APPLE_*` are set and a button is added back. A new person gets the same trial as the email sign-up. Someone whose
-verified Google/Apple address matches an existing account signs in to that account. Owners still set up an
-authenticator code.
+verified Google address matches an existing account signs in to that account.
 
 The server does the whole exchange itself (OpenID Connect authorization code flow):
 
@@ -227,6 +226,21 @@ deployed, not on localhost. Google works on `http://localhost:8088`.
 
 For the packaged desktop app, Google may refuse sign-in inside an embedded window. If it does, the next step is to
 open the system browser and return through a turf:// link.
+
+### Desktop app
+
+Google does not allow sign-in inside an embedded app window, and the window must never leave the app. So the desktop
+app opens Google in the person's own browser, starting at `/auth/oauth/google/start?target=desktop&port=<p>`. When
+Google is done, the server sends the browser to `http://127.0.0.1:<p>/turf-sign-in` with a one-time code. Only the
+app on that same computer is listening there, and it trades the code at `POST /auth/oauth/exchange` for its own
+session. The code works once, for two minutes, and is stored only as a hash. The browser shows "You're signed in,
+return to Turf"; the app shows Cancel while it waits.
+
+## The authenticator step (MFA)
+
+Off for now: `TURF_REQUIRE_MFA` is unset, so owners and administrators go straight in after their password or Google.
+Set `TURF_REQUIRE_MFA=true` to bring back "Protect your account" for owners, administrators and the Customers page.
+The rest is already built: setup, codes, recovery codes, and the tests (which run with it on).
 
 ## Platform administrators
 
