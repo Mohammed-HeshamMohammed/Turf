@@ -335,6 +335,83 @@ export function Leads() {
   );
 }
 
+const months = total => {
+  const years = Math.floor(total / 12),
+    rest = total % 12;
+  return [years && years + (years === 1 ? " year" : " years"), rest && rest + (rest === 1 ? " month" : " months")].filter(Boolean).join(" ") || "Under a month";
+};
+const yesNo = value => (/^(?:y|yes|true|1)$/i.test(String(value).trim()) ? "Yes" : /^(?:n|no|false|0)$/i.test(String(value).trim()) ? "No" : String(value ?? "").trim());
+
+/** The property and its owners as the source list describes them. Empty fields hide with "Hide empty fields". */
+function PropertyRecord({ lead, hideEmpty }) {
+  const lot = [lead.lotAcres != null && Number(lead.lotAcres.toFixed(3)) + " acres", lead.lotSqft != null && lead.lotSqft.toLocaleString() + " sq ft"]
+    .filter(Boolean)
+    .join(" · ");
+  const garage = [lead.garageType, lead.garageSqft ? lead.garageSqft.toLocaleString() + " sq ft" : ""].filter(Boolean).join(" · ");
+  const sections = [
+    [
+      "Owners",
+      [
+        [lead.owners?.length > 1 ? "Names" : "Name", (lead.owners?.length ? lead.owners : [lead.name]).join(" · ")],
+        ["Mailing address", lead.mailing],
+        ["Owner type", lead.ownerType],
+        ["Owner occupied", yesNo(lead.ownerOccupied ?? "")],
+        ["Vacant", yesNo(lead.vacant ?? "")],
+        ["Owned for", lead.ownershipMonths != null ? months(lead.ownershipMonths) : ""],
+      ],
+    ],
+    [
+      "Property",
+      [
+        ["Property type", lead.propertyType],
+        ["Property use", lead.propertyUse],
+        ["Land use", lead.landUse],
+        ["Living area", lead.area != null ? lead.area.toLocaleString() + " sq ft" : ""],
+        ["Bedrooms / bathrooms", [lead.beds, lead.baths].some(v => v != null) ? (lead.beds ?? "—") + " / " + (lead.baths ?? "—") : ""],
+        ["Year built", lead.yearBuilt ?? ""],
+        ["Lot", lot],
+        ["Units", lead.units ?? ""],
+        ["Stories", lead.stories ?? ""],
+        ["Garage", garage],
+        ["Air conditioning", lead.cooling],
+        ["Heating", lead.heating],
+        ["Fireplaces", lead.fireplaces ?? ""],
+      ],
+    ],
+    [
+      "Records",
+      [
+        ["County", lead.county],
+        ["Parcel / APN", lead.parcel],
+        ["Subdivision", lead.subdivision],
+        ["Legal description", lead.legal],
+        ["Record ID in the source", lead.sourceId],
+      ],
+    ],
+  ];
+  return (
+    <Card title="Property & owners" subtitle="From the source list. Empty means the list did not include it.">
+      {sections.map(([title, fields]) => {
+        const shown = fields.filter(([, value]) => !hideEmpty || String(value ?? "").trim());
+        if (!shown.length) return null;
+        return (
+          <section key={title} className="record-section">
+            <h3>{title}</h3>
+            <div className="detail-fields">
+              {shown.map(([label, value]) => (
+                <div key={label}>
+                  <small>{label}</small>
+                  <span>{String(value ?? "").trim() || <span className="muted">Not in this list</span>}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </Card>
+  );
+}
+
 export function LeadDetail({ id }) {
   const { state, dispatch, navigate, notify } = useCrm();
   const lead = scopedLeads(state).find(item => item.id === id);
@@ -447,7 +524,7 @@ export function LeadDetail({ id }) {
               {capability(state, "finance") && (
                 <div className="property-value">
                   <small>Estimated property value</small>
-                  <strong>{money(lead.value)}</strong>
+                  {lead.value == null ? <strong className="muted">Not in this list</strong> : <strong>{money(lead.value)}</strong>}
                 </div>
               )}
               <div className="row">
@@ -499,6 +576,7 @@ export function LeadDetail({ id }) {
                   </div>
                 )}
               </Card>
+              {!client && lead.sourceValues && <PropertyRecord lead={lead} hideEmpty={hideEmpty} />}
               <Card
                 title={client ? "Shared notes" : "Notes & context"}
                 subtitle={client ? "Visible to you and the project team." : "Keep important details attached to the lead."}
@@ -677,6 +755,20 @@ export function LeadDetail({ id }) {
               <Button onClick={() => navigate("lists/" + lead.datasetId)}>
                 Open original source <ArrowUpRight size={16} />
               </Button>
+            </Card>
+          )}
+          {tab === "Evidence" && !client && lead.sourceValues && (
+            <Card title="Original source row" subtitle="Every column exactly as imported. CRM changes never edit it.">
+              <div className="detail-fields source-row">
+                {Object.entries(lead.sourceValues)
+                  .filter(([, value]) => !hideEmpty || String(value ?? "").trim())
+                  .map(([column, value]) => (
+                    <div key={column}>
+                      <small>{column}</small>
+                      <span>{String(value ?? "").trim() || <span className="muted">Empty</span>}</span>
+                    </div>
+                  ))}
+              </div>
             </Card>
           )}
         </div>

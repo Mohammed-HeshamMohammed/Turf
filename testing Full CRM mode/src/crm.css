@@ -5779,3 +5779,15 @@ html.demo-quiet .demo-note {
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
+
+/* Lead page: the property and owners card, one titled block per kind of detail. */
+.record-section + .record-section {
+  margin-top: 18px;
+}
+.record-section h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+.detail-fields.source-row span {
+  overflow-wrap: anywhere;
+}

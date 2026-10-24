@@ -4,7 +4,7 @@ import { ArrowRight, ArrowUpRight, CheckCircle, Phone, Cloud, DownloadSimple, Fi
 import { LEAD_STAGES, ROLES } from "./data.js";
 import { capability, uid, visibleLeads } from "./model.js";
 import { useCrm } from "./context.jsx";
-import { mappedRecord, sourceEvidence, sourceValue } from "./skiptrace-fields.js";
+import { leadFromSource, sourceEvidence, sourceValue } from "./skiptrace-fields.js";
 import { SourceFieldMapping } from "./SourceFieldMapping.jsx";
 import { PropertyMap } from "./PropertyMap.jsx";
 import { cancelJob, check, engineAvailable, engineConfig, prepare, saveCopy } from "./engine.js";
@@ -58,7 +58,7 @@ export function Lists({ id }) {
     }
     const datasetId = uid();
     const imported = rows.map((row, index) => {
-      const data = mappedRecord(columns, { sourceValues: row });
+      const data = leadFromSource(columns, { sourceValues: row });
       return {
         ...data,
         id: uid(),
@@ -77,10 +77,6 @@ export function Lists({ id }) {
         shared: false,
         version: 1,
         priority: "Normal",
-        value: Number(data.value.replace(/[$,]/g, "")) || 0,
-        beds: 3,
-        baths: 2,
-        area: 1600,
         notes: [],
         motivation: "Imported from " + name + ". Review source fields before outreach.",
       };

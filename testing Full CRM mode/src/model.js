@@ -1,5 +1,5 @@
 import { CALL_OUTCOMES, ROLES, TODAY, seedState } from "./data.js";
-import { mappedRecord, SOURCE_FIELDS } from "./skiptrace-fields.js";
+import { leadFromSource, SOURCE_FIELDS } from "./skiptrace-fields.js";
 
 export const uid = () => crypto.randomUUID();
 export function personalProfile(state) {
@@ -449,13 +449,12 @@ export function reducer(state, action) {
         datasets: state.datasets.map(item => (item.id === source.id ? { ...item, fieldMappings: mappings } : item)),
         leads: state.leads.map(item => {
           if (item.datasetId !== source.id || !item.sourceValues) return item;
-          const data = mappedRecord(source.columns, item, mappings);
+          const data = leadFromSource(source.columns, item, mappings);
           return {
             ...item,
             ...data,
             name: data.name || item.name,
             address: data.address || "Address not supplied",
-            value: source.columns.includes(mappings.value) ? Number(data.value.replace(/[$,]/g, "")) || 0 : item.value,
             version: item.version + 1,
           };
         }),

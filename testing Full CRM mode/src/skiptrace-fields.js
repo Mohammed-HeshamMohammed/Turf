@@ -12,13 +12,13 @@ export const EVIDENCE_FIELDS = [
     aliases: /^(?:(?:property|site|situs) )?(?:street )?(?:address|street)(?: (?:line )?1)?$/,
   },
   { id: "email", label: "Email", property: "email", aliases: /^(?:(?:owner|primary|contact) )?e ?mail(?: address)?$/ },
-  { id: "name", label: "Owner name", property: "name", aliases: /^(?:(?:owner|full|contact|seller) )?name$|^owner$/ },
+  { id: "name", label: "Owner name", property: "name", aliases: /^(?:(?:owner(?: 1)?|full|contact|seller) )?(?:full )?name$|^owner(?: 1)?$/ },
 ];
 
 export const SOURCE_FIELDS = [
   ...EVIDENCE_FIELDS.map(field => ({ ...field, group: "Contact & identity" })),
-  { id: "firstName", label: "First name", property: "firstName", group: "Contact & identity", aliases: /^(?:owner |contact )?first name$/ },
-  { id: "lastName", label: "Last name", property: "lastName", group: "Contact & identity", aliases: /^(?:owner |contact )?(?:last name|surname)$/ },
+  { id: "firstName", label: "First name", property: "firstName", group: "Contact & identity", aliases: /^(?:owner(?: 1)? |contact )?first name$/ },
+  { id: "lastName", label: "Last name", property: "lastName", group: "Contact & identity", aliases: /^(?:owner(?: 1)? |contact )?(?:last name|surname)$/ },
   {
     id: "unit",
     label: "Unit / address line 2",
@@ -77,7 +77,50 @@ export const SOURCE_FIELDS = [
     group: "Mailing & evidence",
     aliases: /^(?:call (?:status|outcome|result)|phone status|disposition)$/,
   },
-  { id: "value", label: "Property value", property: "value", group: "Mailing & evidence", aliases: /^(?:(?:property|estimated) )?(?:value|price)$/ },
+  {
+    id: "value",
+    label: "Property value",
+    property: "value",
+    group: "Mailing & evidence",
+    aliases: /^(?:(?:property|estimated|est|market|assessed|total assessed) )?(?:value|price)$/,
+  },
+  // The building and lot, as county-record exports (PropStream, BatchLeads, ListSource) name them.
+  { id: "beds", label: "Bedrooms", property: "beds", group: "Property details", aliases: /^(?:bedrooms?|beds?|br)$/ },
+  { id: "baths", label: "Bathrooms", property: "baths", group: "Property details", aliases: /^(?:bathrooms?|baths?|ba)$/ },
+  {
+    id: "area",
+    label: "Living area (sq ft)",
+    property: "area",
+    group: "Property details",
+    aliases: /^(?:living (?:square feet|sq ft|sqft|area)|building (?:square feet|sq ft|sqft|area)|square (?:feet|footage)|sq ft|sqft)$/,
+  },
+  { id: "yearBuilt", label: "Year built", property: "yearBuilt", group: "Property details", aliases: /^(?:year built|built|yr built)$/ },
+  { id: "lotAcres", label: "Lot (acres)", property: "lotAcres", group: "Property details", aliases: /^(?:lot (?:acres|size acres)|acreage|acres)$/ },
+  { id: "lotSqft", label: "Lot (sq ft)", property: "lotSqft", group: "Property details", aliases: /^lot (?:square feet|sq ft|sqft|size)$/ },
+  { id: "propertyType", label: "Property type", property: "propertyType", group: "Property details", aliases: /^property type$/ },
+  { id: "propertyUse", label: "Property use", property: "propertyUse", group: "Property details", aliases: /^property use$/ },
+  { id: "landUse", label: "Land use", property: "landUse", group: "Property details", aliases: /^land use$/ },
+  { id: "units", label: "Units", property: "units", group: "Property details", aliases: /^(?:units?(?: count)?|number of units|of units)$/ },
+  { id: "stories", label: "Stories", property: "stories", group: "Property details", aliases: /^(?:of )?(?:stories|floors)$/ },
+  { id: "garageType", label: "Garage type", property: "garageType", group: "Property details", aliases: /^garage(?: type)?$/ },
+  { id: "garageSqft", label: "Garage (sq ft)", property: "garageSqft", group: "Property details", aliases: /^garage (?:square feet|sq ft|sqft|area)$/ },
+  { id: "cooling", label: "Air conditioning", property: "cooling", group: "Property details", aliases: /^(?:air conditioning(?: type)?|cooling(?: type)?|ac)$/ },
+  { id: "heating", label: "Heating", property: "heating", group: "Property details", aliases: /^heating(?: type)?$/ },
+  { id: "fireplaces", label: "Fireplaces", property: "fireplaces", group: "Property details", aliases: /^(?:of )?fireplaces$/ },
+  { id: "subdivision", label: "Subdivision", property: "subdivision", group: "Property details", aliases: /^subdivision(?: name)?$/ },
+  { id: "legal", label: "Legal description", property: "legal", group: "Property details", aliases: /^legal description$/ },
+  // The owner and their hold on the property.
+  { id: "ownerType", label: "Owner type", property: "ownerType", group: "Ownership", aliases: /^owner type$/ },
+  { id: "ownerOccupied", label: "Owner occupied", property: "ownerOccupied", group: "Ownership", aliases: /^owner occupied$/ },
+  { id: "vacant", label: "Vacant", property: "vacant", group: "Ownership", aliases: /^(?:vacant|vacancy)$/ },
+  {
+    id: "ownershipMonths",
+    label: "Ownership length (months)",
+    property: "ownershipMonths",
+    group: "Ownership",
+    aliases: /^(?:ownership length(?: months)?|months owned|length of ownership(?: months)?)$/,
+  },
+  { id: "sourceId", label: "Record ID in the source", property: "sourceId", group: "Ownership", aliases: /^(?:id|record id|property id|lead id)$/ },
 ];
 
 const normalize = column =>
@@ -138,6 +181,62 @@ export function mappedRecord(columns, row, overrides = {}) {
   if (!result.name) result.name = [result.firstName, result.lastName].filter(Boolean).join(" ");
   if (!result.address) result.address = [result.streetNumber, result.streetName].filter(Boolean).join(" ");
   return result;
+}
+
+const OWNER_COLUMN = /^owner (\d+) (first|last) name$/;
+
+/**
+ * Every owner a list names, in order: "Owner 1 First Name", "Owner 2 Last Name" and so on, or the single mapped owner.
+ * Owners with neither name are left out, so a list's empty Owner 2 does not become a blank person.
+ */
+export function ownersOf(columns, row, record) {
+  const numbered = new Map();
+  for (const column of columns) {
+    const match = OWNER_COLUMN.exec(normalize(column));
+    if (!match) continue;
+    const owner = numbered.get(match[1]) || {};
+    owner[match[2]] = sourceValue(row, column);
+    numbered.set(match[1], owner);
+  }
+  const names = [...numbered.entries()]
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+    .map(([, owner]) => [owner.first, owner.last].filter(supplied).join(" "))
+    .filter(Boolean);
+  if (!names.length && supplied(record?.name)) names.push(record.name);
+  return names;
+}
+
+const number = value => {
+  const parsed = Number(String(value ?? "").replace(/[$,\s]/g, ""));
+  return String(value ?? "").trim() !== "" && Number.isFinite(parsed) ? parsed : null;
+};
+
+/**
+ * What a lead record takes from a source row: the mapped fields, numbers as numbers, every owner, and the mailing
+ * address in one line. Values the source does not have stay empty (null), never a made-up default.
+ */
+export function leadFromSource(columns, row, mappings = {}) {
+  const data = mappedRecord(columns, row, mappings);
+  const owners = ownersOf(columns, row, data);
+  const mailing = [data.mailingAddress, data.mailingCity, [data.mailingRegion, data.mailingZip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  return {
+    ...data,
+    name: data.name || owners[0] || "",
+    owners,
+    mailing,
+    beds: number(data.beds),
+    baths: number(data.baths),
+    area: number(data.area),
+    yearBuilt: number(data.yearBuilt),
+    lotAcres: number(data.lotAcres),
+    lotSqft: number(data.lotSqft),
+    units: number(data.units),
+    stories: number(data.stories),
+    garageSqft: number(data.garageSqft),
+    fireplaces: number(data.fireplaces),
+    ownershipMonths: number(data.ownershipMonths),
+    value: number(data.value),
+  };
 }
 
 export function coordinates(latitude, longitude) {
