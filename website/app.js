@@ -86,7 +86,11 @@ async function refreshMe() {
   me = await api("/me").catch(() => null);
   nav.replaceChildren(
     ...(me
-      ? [h("a", { class: "button", href: "#/account" }, "Account"), h("button", { class: "button", onclick: signOut }, "Sign out")]
+      ? [
+          me.platform_admin ? h("a", { class: "button", href: "#/platform" }, "Customers") : null,
+          h("a", { class: "button", href: "#/account" }, "Account"),
+          h("button", { class: "button", onclick: signOut }, "Sign out"),
+        ].filter(Boolean)
       : [h("a", { class: "button", href: "#/signin" }, "Sign in"), h("a", { class: "button primary", href: "#/signup" }, "Start free trial")]),
   );
   return me;
@@ -96,6 +100,69 @@ async function signOut() {
   await api("/auth/logout", {}).catch(() => undefined);
   await refreshMe();
   location.hash = "#/";
+}
+
+// --- Google and Apple ----------------------------------------------------------------------------------------------
+
+const LOGOS = {
+  google: [
+    ["#4285F4", "M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.7z"],
+    ["#34A853", "M12 24c3.2 0 6-1.1 8-2.9l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.7-5H1.3v3.1A12 12 0 0 0 12 24z"],
+    ["#FBBC05", "M5.3 14.3a7.2 7.2 0 0 1 0-4.6V6.6H1.3a12 12 0 0 0 0 10.8l4-3.1z"],
+    ["#EA4335", "M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.3 6.6l4 3.1c.9-2.8 3.6-4.9 6.7-4.9z"],
+  ],
+  apple: [
+    [
+      "currentColor",
+      "M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.8 1.2 1.8 2.6 3.1 2.6 1.3-.1 1.7-.8 3.3-.8 1.5 0 1.9.8 3.3.8 1.4 0 2.2-1.2 3-2.5 1-1.4 1.3-2.8 1.4-2.8-.1 0-2.4-.9-2.4-4.2zM13.9 4.9c.7-.8 1.2-2 1-3.1-1 0-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3 1.1.1 2.2-.6 2.9-1.4z",
+    ],
+  ],
+};
+
+function logo(name) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "18");
+  svg.setAttribute("height", "18");
+  svg.setAttribute("aria-hidden", "true");
+  for (const [fill, d] of LOGOS[name]) {
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("fill", fill);
+    path.setAttribute("d", d);
+    svg.append(path);
+  }
+  return svg;
+}
+
+/** "Continue with Google / Apple" for the sign-up and sign-in pages. A provider not set up on the server says so. */
+function providerButtons() {
+  const status = h("div");
+  const known = api("/auth/providers").catch(() => ({}));
+  const button = (name, text) =>
+    h(
+      "button",
+      {
+        type: "button",
+        class: "button provider " + name,
+        onclick: async () => {
+          if ((await known)[name]) return (location.href = `/api/v1/auth/oauth/${name}/start?target=website`);
+          status.replaceChildren(notice(`${text.replace("Continue with ", "")} sign-in isn't connected on this server yet. Use your email for now.`));
+        },
+      },
+      logo(name),
+      text,
+    );
+  const error = new URLSearchParams(location.search).get("oauth_error");
+  if (error) history.replaceState(null, "", location.pathname + location.hash);
+  return h(
+    "div",
+    { class: "stack providers" },
+    error ? notice(error, "error") : null,
+    button("google", "Continue with Google"),
+    button("apple", "Continue with Apple"),
+    status,
+    h("div", { class: "or", role: "separator" }, h("span", {}, "or with your email")),
+  );
 }
 
 // --- Pages ---------------------------------------------------------------------------------------------------------
@@ -141,6 +208,7 @@ function signup() {
       { class: "card narrow" },
       h("h2", {}, "Start your free trial"),
       h("p", { class: "muted" }, "10 calling minutes over 7 days. No card needed."),
+      providerButtons(),
       form(
         [
           input("Your name", "display_name", { autocomplete: "name", maxlength: 120 }),
@@ -167,6 +235,7 @@ function signin() {
       "section",
       { class: "card narrow" },
       h("h2", {}, "Sign in"),
+      providerButtons(),
       form(
         [input("Email", "email", { type: "email", autocomplete: "email" }), input("Password", "password", { type: "password", autocomplete: "current-password" })],
         "Sign in",
@@ -451,6 +520,64 @@ async function team(billing) {
   );
 }
 
+/** For Turf's own administrators: every customer organization, its plan, minutes, seats and what it has paid. */
+async function platform() {
+  if (!(await refreshMe())) return (location.hash = "#/signin");
+  if (me.mfa.required && !me.mfa.passed) return (location.hash = "#/mfa");
+  if (!me.platform_admin) return show(notice("This page is for Turf's platform administrators.", "error"));
+  const { organizations, totals } = await api("/platform/organizations");
+  const status = item => (item.status ? h("span", { class: "badge " + (item.status === "active" ? "good" : item.status === "trialing" ? "peach" : "danger") }, item.status) : h("span", { class: "badge" }, "no limits"));
+  show(
+    h("h1", {}, "Customers"),
+    h("p", { class: "muted" }, "Every organization on this Turf server. Their CRM records are never shown here."),
+    h(
+      "div",
+      { class: "stats" },
+      h("div", { class: "stat card" }, h("strong", {}, String(totals.organizations)), h("small", {}, "organizations")),
+      h("div", { class: "stat card" }, h("strong", {}, String(totals.paying)), h("small", {}, "paying")),
+      h("div", { class: "stat card" }, h("strong", {}, String(totals.trials)), h("small", {}, "on the trial")),
+      h("div", { class: "stat card" }, h("strong", {}, money(totals.paid_cents)), h("small", {}, "paid in total")),
+    ),
+    h(
+      "section",
+      { class: "card" },
+      h(
+        "div",
+        { class: "table-wrap" },
+        h(
+          "table",
+          {},
+          h(
+            "thead",
+            {},
+            h("tr", {}, ["Organization", "Owner", "Plan", "Status", "Minutes used", "Seats", "Members", "Period ends", "Paid", "Joined"].map(title => h("th", {}, title))),
+          ),
+          h(
+            "tbody",
+            {},
+            organizations.map(item =>
+              h(
+                "tr",
+                {},
+                h("td", {}, item.name),
+                h("td", {}, item.owner_email || "—"),
+                h("td", {}, item.plan || "—"),
+                h("td", {}, status(item)),
+                h("td", {}, item.minutes_included === null ? "—" : `${item.minutes_used.toLocaleString()} / ${item.minutes_included.toLocaleString()}`),
+                h("td", {}, item.seats === null ? "—" : String(item.seats)),
+                h("td", {}, String(item.members)),
+                h("td", {}, item.period_end ? date(item.period_end) : "—"),
+                h("td", {}, money(item.paid_cents)),
+                h("td", {}, date(item.created_at)),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 // --- Routing ---------------------------------------------------------------------------------------------------------
 
 async function route() {
@@ -461,6 +588,7 @@ async function route() {
     if (path === "/signin") return signin();
     if (path === "/mfa") return await mfa();
     if (path === "/account") return await account();
+    if (path === "/platform") return await platform();
     if (path === "/verify") return await verifyEmail(params.get("token") || "");
     if (path === "/join") return joinTeam(params.get("token") || "");
     return await home();

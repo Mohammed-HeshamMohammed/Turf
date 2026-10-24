@@ -59,7 +59,7 @@ fn cleared(email: &str) {
     }
 }
 
-fn session_cookie(state: &AppState, token: String) -> Cookie<'static> {
+pub(crate) fn session_cookie(state: &AppState, token: String) -> Cookie<'static> {
     let mut cookie = Cookie::new(COOKIE, token);
     cookie.set_http_only(true);
     cookie.set_secure(state.config.secure_cookies);
@@ -408,6 +408,7 @@ async fn change_password(State(state): State<AppState>, ctx: Ctx, Json(body): Js
 }
 
 async fn me(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
+    let platform_admin: bool = sqlx::query_scalar("SELECT platform_admin FROM users WHERE id = $1").bind(ctx.user_id).fetch_one(&state.db).await?;
     let orgs: Vec<(Uuid, String)> =
         sqlx::query_as("SELECT o.id, o.name FROM memberships m JOIN organizations o ON o.id = m.org_id WHERE m.user_id = $1 ORDER BY o.name")
             .bind(ctx.user_id)
@@ -423,6 +424,7 @@ async fn me(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
         "team_ids": ctx.team_ids,
         "access_revision": ctx.access_revision,
         "mfa": { "required": ctx.mfa_required(), "enrolled": ctx.mfa_enrolled, "passed": ctx.mfa_passed },
+        "platform_admin": platform_admin,
         "subscription": ctx.subscription.as_ref().map(|s| json!({ "plan": s.plan, "status": s.status, "usable": s.refusal().is_none(), "reason": s.refusal() })),
     })))
 }

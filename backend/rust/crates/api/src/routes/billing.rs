@@ -249,35 +249,8 @@ async fn signup(State(state): State<AppState>, jar: CookieJar, Json(body): Json<
     if taken {
         return Err(ApiError::Conflict("An account with this email already exists. Sign in instead.".into()));
     }
-    let org: Uuid = sqlx::query_scalar("INSERT INTO organizations (name, timezone, account_kind) VALUES ($1, $2, 'trial') RETURNING id")
-        .bind(&organization)
-        .bind(&tz)
-        .fetch_one(&mut *tx)
-        .await?;
-    let user: Uuid = sqlx::query_scalar("INSERT INTO users (email, display_name, password_hash, timezone) VALUES ($1, $2, $3, $4) RETURNING id")
-        .bind(&email)
-        .bind(name)
-        .bind(&hash)
-        .bind(&tz)
-        .fetch_one(&mut *tx)
-        .await?;
-    seed_organization(&mut tx, org).await?;
-    sqlx::query("INSERT INTO memberships (org_id, user_id, roles) VALUES ($1, $2, ARRAY['owner', 'admin'])").bind(org).bind(user).execute(&mut *tx).await?;
+    let (org, user) = open_trial_account(&mut tx, &email, name, &hash, &tz, Some(&organization)).await?;
     let trial = plan(&mut tx, "trial").await?;
-    sqlx::query(
-        "INSERT INTO subscriptions (org_id, plan_key, status, seats, minutes_included, period_end) \
-         VALUES ($1, 'trial', 'trialing', 1, $2, now() + make_interval(days => $3))",
-    )
-    .bind(org)
-    .bind(trial.minutes(1))
-    .bind(trial.period_days)
-    .execute(&mut *tx)
-    .await?;
-    let mut change = Change::new("organization", org, "organization.signed_up");
-    change.actor_id = Some(user);
-    change.actor_label = name;
-    change.after = Some(json!({ "plan": "trial", "minutes": trial.minutes(1) }));
-    record(&mut tx, change).await?;
     let token = new_verification(&mut tx, user).await?;
     tx.commit().await?;
     let kind = if body.kind == "desktop" { "desktop" } else { "browser" };
@@ -289,6 +262,46 @@ async fn signup(State(state): State<AppState>, jar: CookieJar, Json(body): Json<
                 "mfa_required": true, "email_verified": false }),
     );
     Ok(signed_in(&state, jar, session, kind, reply))
+}
+
+/// Stored as the password of an account that signs in only with Google or Apple. It is not a valid hash, so no
+/// password ever matches it.
+pub const NO_PASSWORD: &str = "!external-sign-in";
+
+/// A new person with a new organization on the free trial: the organization, its roles and team, the person as owner
+/// and administrator, the trial subscription, and the audit entry. Shared by the sign-up form and Google/Apple sign-in.
+pub async fn open_trial_account(tx: &mut db::Tx, email: &str, name: &str, password_hash: &str, tz: &str, organization: Option<&str>) -> ApiResult<(Uuid, Uuid)> {
+    let organization = organization.map(str::to_string).unwrap_or_else(|| format!("{name}'s workspace"));
+    let org: Uuid = sqlx::query_scalar("INSERT INTO organizations (name, timezone, account_kind) VALUES ($1, $2, 'trial') RETURNING id")
+        .bind(&organization)
+        .bind(tz)
+        .fetch_one(&mut **tx)
+        .await?;
+    let user: Uuid = sqlx::query_scalar("INSERT INTO users (email, display_name, password_hash, timezone) VALUES ($1, $2, $3, $4) RETURNING id")
+        .bind(email)
+        .bind(name)
+        .bind(password_hash)
+        .bind(tz)
+        .fetch_one(&mut **tx)
+        .await?;
+    seed_organization(tx, org).await?;
+    sqlx::query("INSERT INTO memberships (org_id, user_id, roles) VALUES ($1, $2, ARRAY['owner', 'admin'])").bind(org).bind(user).execute(&mut **tx).await?;
+    let trial = plan(&mut **tx, "trial").await?;
+    sqlx::query(
+        "INSERT INTO subscriptions (org_id, plan_key, status, seats, minutes_included, period_end) \
+         VALUES ($1, 'trial', 'trialing', 1, $2, now() + make_interval(days => $3))",
+    )
+    .bind(org)
+    .bind(trial.minutes(1))
+    .bind(trial.period_days)
+    .execute(&mut **tx)
+    .await?;
+    let mut change = Change::new("organization", org, "organization.signed_up");
+    change.actor_id = Some(user);
+    change.actor_label = name;
+    change.after = Some(json!({ "plan": "trial", "minutes": trial.minutes(1) }));
+    record(&mut **tx, change).await?;
+    Ok((org, user))
 }
 
 #[derive(Deserialize)]

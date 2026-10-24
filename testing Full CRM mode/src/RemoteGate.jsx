@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Lock, ShieldCheck, SignIn, WifiSlash } from "@phosphor-icons/react";
-import { api, apiBase, ApiError, setApiBase } from "./remote/api.js";
+import { AppleLogo, GoogleLogo, Lock, ShieldCheck, SignIn, WifiSlash } from "@phosphor-icons/react";
+import { api, apiBase, ApiError, request, SERVER, setApiBase } from "./remote/api.js";
 import { MemoryVault, Vault } from "./remote/vault.js";
 import { Button, Card, Field } from "./ui.jsx";
 
@@ -10,12 +10,13 @@ import { Button, Card, Field } from "./ui.jsx";
  */
 export function RemoteGate({ onReady, onLeave }) {
   const [step, setStep] = useState("checking");
-  const [error, setError] = useState("");
+  // A Google or Apple sign-in that did not work comes back with its reason in the address.
+  const [error, setError] = useState(() => new URLSearchParams(window.location.search).get("oauth_error") || "");
   const [busy, setBusy] = useState(false);
   const [me, setMe] = useState(null);
   const [enrolment, setEnrolment] = useState(null);
   const [recovery, setRecovery] = useState(null);
-  const [form, setForm] = useState({ url: apiBase(), email: "", password: "", code: "", passphrase: "" });
+  const [form, setForm] = useState({ email: "", password: "", code: "", passphrase: "" });
   const field = name => event => setForm({ ...form, [name]: event.target.value });
 
   async function check() {
@@ -31,8 +32,17 @@ export function RemoteGate({ onReady, onLeave }) {
     }
   }
   useEffect(() => {
+    if (!apiBase()) setApiBase(SERVER);
+    if (window.location.search) window.history.replaceState(null, "", window.location.pathname + window.location.hash);
     check();
   }, []);
+  /** Hands the window to Google or Apple; the server brings it back here signed in. */
+  const continueWith = (provider, label) =>
+    attempt(async () => {
+      const available = await request("GET", "/api/v1/auth/providers").catch(() => ({}));
+      if (!available[provider]) throw new Error(`${label} sign-in isn't connected on this server yet. Use your email for now.`);
+      window.location.href = (apiBase() || SERVER) + `/api/v1/auth/oauth/${provider}/start?target=app`;
+    });
 
   async function attempt(work) {
     setBusy(true);
@@ -49,7 +59,7 @@ export function RemoteGate({ onReady, onLeave }) {
   const signIn = event => {
     event.preventDefault();
     attempt(async () => {
-      setApiBase(form.url.trim());
+      if (!apiBase()) setApiBase(SERVER);
       await api.login(form.email.trim(), form.password);
       setForm(current => ({ ...current, password: "" }));
       await check();
@@ -91,21 +101,28 @@ export function RemoteGate({ onReady, onLeave }) {
         {step === "offline" && (
           <div className="remote-step">
             <p className="notice">
-              <WifiSlash size={18} /> The server at {apiBase() || "(not set)"} cannot be reached.
+              <WifiSlash size={18} /> Turf's server cannot be reached. Check your internet connection.
             </p>
             <div className="row">
               <Button variant="primary" onClick={() => attempt(check)}>
                 Try again
               </Button>
-              <Button onClick={() => setStep("signin")}>Change server</Button>
             </div>
           </div>
         )}
         {step === "signin" && (
           <form className="remote-step" onSubmit={signIn}>
-            <Field label="Server address" help="For example https://crm.example.com">
-              <input value={form.url} onChange={field("url")} placeholder="https://" required />
-            </Field>
+            <div className="provider-buttons">
+              <Button icon={GoogleLogo} disabled={busy} onClick={() => continueWith("google", "Google")}>
+                Continue with Google
+              </Button>
+              <Button variant="primary" icon={AppleLogo} disabled={busy} onClick={() => continueWith("apple", "Apple")}>
+                Continue with Apple
+              </Button>
+              <p className="provider-or muted" role="separator">
+                or with your email
+              </p>
+            </div>
             <Field label="Email">
               <input type="email" autoComplete="username" value={form.email} onChange={field("email")} required />
             </Field>
@@ -115,14 +132,12 @@ export function RemoteGate({ onReady, onLeave }) {
             <Button type="submit" variant="primary" icon={SignIn} disabled={busy}>
               {busy ? "Signing in…" : "Sign in"}
             </Button>
-            {form.url.trim() && (
-              <p className="muted">
-                No account yet?{" "}
-                <a href={form.url.trim().replace(/\/$/, "") + "/#/signup"} target="_blank" rel="noreferrer">
-                  Start a free trial
-                </a>
-              </p>
-            )}
+            <p className="muted">
+              No account yet?{" "}
+              <a href={(apiBase() || SERVER) + "/#/signup"} target="_blank" rel="noreferrer">
+                Start a free trial
+              </a>
+            </p>
           </form>
         )}
         {step === "mfa" && (

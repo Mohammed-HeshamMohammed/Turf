@@ -4,6 +4,9 @@
 
 #![allow(dead_code)]
 
+pub mod keys;
+pub mod provider;
+
 use serde_json::{json, Value};
 use std::sync::{Mutex, MutexGuard};
 use turf_api::config::Config;
@@ -15,11 +18,25 @@ pub const WEBHOOK_SECRET: &str = "test-webhook-secret-0123456789abcdef";
 
 pub struct Harness {
     pub base: String,
+    /// The fake Google/Apple both sign-ins use in tests (see provider.rs).
+    pub provider: String,
     pub owner: sqlx::PgPool,
     _guard: MutexGuard<'static, ()>,
 }
 
 pub fn config(redis: bool) -> Option<Config> {
+    config_for(redis, "http://127.0.0.1:9", "http://127.0.0.1:9")
+}
+
+pub fn config_for(redis: bool, base: &str, provider: &str) -> Option<Config> {
+    let endpoints = |client: &str| turf_api::config::OauthProvider {
+        client_id: client.into(),
+        auth_url: format!("{provider}/authorize"),
+        token_url: format!("{provider}/token"),
+        jwks_url: format!("{provider}/jwks"),
+        issuer: provider.into(),
+        ..Default::default()
+    };
     let database_url = std::env::var("TEST_DATABASE_URL").ok()?;
     Some(Config {
         database_url,
@@ -37,6 +54,15 @@ pub fn config(redis: bool) -> Option<Config> {
         checkout_url: "https://pay.example/checkout".into(),
         dev_tokens: true,
         site_dir: String::new(),
+        public_url: base.into(),
+        app_url: "http://app.example".into(),
+        google: turf_api::config::OauthProvider { client_secret: "google-test-secret".into(), ..endpoints("google-test-client") },
+        apple: turf_api::config::OauthProvider {
+            team_id: "TEAMTEST01".into(),
+            key_id: "KEYTEST001".into(),
+            private_key: keys::EC_PRIVATE_PEM.into(),
+            ..endpoints("apple-test-client")
+        },
     })
 }
 
@@ -47,7 +73,11 @@ pub async fn start() -> Option<Harness> {
 
 pub async fn start_with(redis: bool) -> Option<Harness> {
     let guard = LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-    let Some(config) = config(redis) else {
+    // The API's own address must be known before it starts: provider sign-ins return to it.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let provider = provider::start().await;
+    let Some(config) = config_for(redis, &base, &provider) else {
         eprintln!("TEST_DATABASE_URL is not set; skipping");
         return None;
     };
@@ -60,10 +90,8 @@ pub async fn start_with(redis: bool) -> Option<Harness> {
     sqlx::query(&format!("TRUNCATE {} RESTART IDENTITY CASCADE", tables.join(", "))).execute(&owner).await.unwrap();
     let state = turf_api::state(config).await.expect("state");
     turf_api::events::spawn_listener(state.clone());
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let base = format!("http://{}", listener.local_addr().unwrap());
     tokio::spawn(async move { axum::serve(listener, turf_api::app(state)).await.unwrap() });
-    Some(Harness { base, owner, _guard: guard })
+    Some(Harness { base, provider, owner, _guard: guard })
 }
 
 pub struct Client {

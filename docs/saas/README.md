@@ -165,6 +165,10 @@ are unchanged.
 | POST | `/calls/start` | members with the `call` capability | Opens a call; refused when no minutes are left; answers `max_seconds` |
 | POST | `/calls/{id}/end` | the caller (or an administrator) | Closes the call and records its minutes from the server clock |
 | POST | `/admin/members` | administrators | Invite; refused on Solo or when seats are full |
+| GET | `/auth/providers` | anyone | Whether Google and Apple sign-in are set up |
+| GET | `/auth/oauth/{google,apple}/start` | anyone | Sends the browser to the provider (`?target=app` returns to the app) |
+| GET/POST | `/auth/oauth/{google,apple}/callback` | the provider | Finishes the sign-in, sets the session, returns to the website or app |
+| GET | `/platform/organizations` | platform administrators with MFA | Every customer organization at a glance |
 
 `/me` now also says whether the organization's plan is usable, so the CRM can tell people why it is locked.
 
@@ -188,6 +192,48 @@ are unchanged.
   referrer. The page writes user data only as text.
 - **Sign-up abuse**: at most 30 new accounts per 10 minutes per server, one account per email. Put per-address limits in
   nginx as well.
+
+## Google and Apple sign-in
+
+The sign-up and sign-in pages on the website, and the app's sign-in screen, offer **Continue with Google** and
+**Continue with Apple** above the email form. A new person gets the same trial as the email sign-up. Someone whose
+verified Google/Apple address matches an existing account signs in to that account. Owners still set up an
+authenticator code.
+
+The server does the whole exchange itself (OpenID Connect authorization code flow):
+
+- a single-use state (kept only as a hash, 10 minutes), a nonce, and PKCE for Google;
+- the ID token's signature is checked against the provider's published keys (RS256 only), along with its issuer,
+  audience and expiry, and the nonce must match;
+- the provider must say the email address is verified.
+
+Tests run the whole flow against a fake provider. They show that edited, expired, replayed, wrong-audience,
+wrong-issuer and unverified sign-ins are all refused.
+
+The buttons say "not connected on this server yet" until the keys are set:
+
+| Provider | Environment variables | Where to get them |
+| --- | --- | --- |
+| Google | `TURF_GOOGLE_CLIENT_ID`, `TURF_GOOGLE_CLIENT_SECRET` | Google Cloud Console → APIs & Services → Credentials → OAuth client ID (Web application). Authorized redirect URI: `{TURF_PUBLIC_URL}/api/v1/auth/oauth/google/callback` |
+| Apple | `TURF_APPLE_CLIENT_ID` (the Services ID), `TURF_APPLE_TEAM_ID`, `TURF_APPLE_KEY_ID`, `TURF_APPLE_PRIVATE_KEY` (the .p8 file) | Apple Developer → Certificates, IDs & Profiles: a Services ID with Sign in with Apple, and a key with Sign in with Apple. Return URL: `{TURF_PUBLIC_URL}/api/v1/auth/oauth/apple/callback` |
+
+`TURF_PUBLIC_URL` is the server's address as browsers see it. `TURF_APP_URL` is where a sign-in started in the app
+returns to. Apple only accepts HTTPS return addresses on a real domain, so Apple sign-in works once the server is
+deployed, not on localhost. Google works on `http://localhost:8088`.
+
+For the packaged desktop app, Google may refuse sign-in inside an embedded window. If it does, the next step is to
+open the system browser and return through a turf:// link.
+
+## Platform administrators
+
+The people who run Turf the service. They get a workspace with no plan limits and a **Customers** page on the website:
+every organization with its owner, plan, real status (a lapsed period shows as expired), minutes, seats, members and
+amount paid. CRM records are never shown there. The page always needs the authenticator code. The database function
+behind it refuses anyone who is not a platform administrator. Nobody can become one through the API:
+
+```bash
+python backend/scripts/create_platform_admin.py <email> "<name>" ["<workspace>"]   # asks for the password
+```
 
 ## Running it locally
 

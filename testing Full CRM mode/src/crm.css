@@ -5730,3 +5730,27 @@ html.demo-quiet .demo-note {
 .sidebar > nav {
   overflow-x: hidden;
 }
+
+/* Sign-in screen: Google and Apple above the email form. */
+.provider-buttons {
+  display: grid;
+  gap: 10px;
+}
+.provider-buttons .button {
+  width: 100%;
+  justify-content: center;
+}
+.provider-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+.provider-or::before,
+.provider-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}

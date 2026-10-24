@@ -20,6 +20,7 @@ use axum::{
 };
 use state::AppState;
 use std::sync::Arc;
+use tower_layer::Layer;
 use tower_http::{
     cors::{AllowOrigin, CorsLayer},
     limit::RequestBodyLimitLayer,
@@ -50,7 +51,9 @@ pub fn app(state: AppState) -> Router {
     let mut router = routes::router().with_state(state);
     if !site.is_empty() {
         // The public website: plain files, its scripts only from itself, never framed by another site.
-        router = router.fallback_service(ServeDir::new(site));
+        // Browsers check back for a newer copy every time, so a release is seen at once.
+        let no_cache = SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+        router = router.fallback_service(no_cache.layer(ServeDir::new(site)));
     }
     router
         .layer(SetResponseHeaderLayer::overriding(
