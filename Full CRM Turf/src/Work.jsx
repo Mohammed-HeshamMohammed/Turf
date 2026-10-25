@@ -51,6 +51,7 @@ import {
   Breadcrumb,
   Checkbox,
   ConfirmDialog,
+  usePresence,
 } from "./ui.jsx";
 
 export function Calls({ target }) {
@@ -58,6 +59,7 @@ export function Calls({ target }) {
   // A call in progress belongs to the app, not this page, so it carries on (with its captions) while you look around.
   const session = useCallSession();
   const activeCall = session.active;
+  const callStatus = usePresence(activeCall, 320);
   const captions = session.captions;
   const [chosen, setChosen] = useState(target || (getCallSession().active ? getCallSession().lead?.id : "") || "");
   const [script, setScript] = useState("First conversation");
@@ -268,18 +270,25 @@ export function Calls({ target }) {
                     {activeCall ? "End demo call" : "Start demo call"}
                   </Button>
                 </div>
-                {activeCall ? (
-                  <div className="call-live" role="status">
-                    <span className="call-live-label"><span className="status-dot" />Call in progress</span>
-                    <CallTimer key={lead.id} />
-                    <span className="demo-note">Demo audio, no number is dialled</span>
+                <div className={"call-status" + (activeCall ? " is-live" : "")}>
+                  <div className="call-status-ready" aria-hidden={activeCall}>
+                    <div className="call-status-inner">
+                      <div className="row">
+                        <Status value={lead.verdict} />
+                        <span className="muted">Check calling permission before a real call</span>
+                      </div>
+                    </div>
                   </div>
-                ) : (
-                  <div className="row">
-                    <Status value={lead.verdict} />
-                    <span className="muted">Check calling permission before a real call</span>
+                  <div className="call-status-live" aria-hidden={!activeCall}>
+                    <div className="call-status-inner">
+                      <div className="call-live" role="status">
+                        <span className="call-live-label"><span className="status-dot" />Call in progress</span>
+                        {callStatus.mounted && <CallTimer key={lead.id} />}
+                        <span className="demo-note">Demo audio, no number is dialled</span>
+                      </div>
+                    </div>
                   </div>
-                )}
+                </div>
                 {lead.motivation && <p className="body-copy">{lead.motivation}</p>}
                 <div className="call-owner">
                   <small>Owner</small>

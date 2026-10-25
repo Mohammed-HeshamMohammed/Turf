@@ -1821,37 +1821,22 @@ textarea {
   min-height: 40px;
 }
 .calls-heading .auto-dial-button {
-  background: linear-gradient(120deg, #6d28d9, #4f46e5);
-  color: #fff;
+  background: var(--accent);
+  color: var(--ink);
   font-weight: 600;
   padding-inline: 18px;
-  box-shadow: 0 4px 14px #6d28d93b;
-}
-.calls-heading .auto-dial-button:not(:disabled) {
-  animation: auto-dial-glow 3s ease-in-out infinite;
+  box-shadow: inset 0 0 0 1px var(--ink);
+  transition: background 180ms, color 180ms;
 }
 .calls-heading .auto-dial-button:hover:not(:disabled) {
-  background: linear-gradient(120deg, #7c3aed, #4338ca);
+  background: var(--accent-soft);
 }
 .calls-heading .auto-dial-button[aria-pressed="true"] {
-  background: linear-gradient(120deg, #7e22ce, #4338ca);
-  animation-duration: 1.8s;
+  background: var(--ink);
+  color: var(--accent);
 }
-.calls-heading .auto-dial-button:disabled {
-  box-shadow: none;
-}
-@keyframes auto-dial-glow {
-  0%, 100% {
-    box-shadow: 0 4px 14px #6d28d93b, 0 0 0 0 #7c3aed33;
-  }
-  50% {
-    box-shadow: 0 5px 20px #6d28d966, 0 0 0 5px #7c3aed12;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .calls-heading .auto-dial-button:not(:disabled) {
-    animation: none;
-  }
+.calls-heading .auto-dial-button[aria-pressed="true"]:hover:not(:disabled) {
+  background: var(--dark);
 }
 .call-layout {
   display: grid;
@@ -1948,6 +1933,40 @@ textarea {
   justify-content: space-between;
   align-items: center;
 }
+.call-status-ready,
+.call-status-live {
+  display: grid;
+  transition: grid-template-rows 320ms var(--ease-out), opacity 220ms var(--ease-out);
+}
+.call-status-ready {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.call-status-live {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.call-status-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.call-status.is-live .call-status-ready {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.call-status.is-live .call-status-live {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.call-status-live .call-live {
+  transform: translateY(-8px);
+  border-radius: 24px;
+  transition: transform 320ms var(--ease-out), border-radius 320ms var(--ease-out);
+}
+.call-status.is-live .call-live {
+  transform: translateY(0);
+  border-radius: 16px;
+}
 .call-live {
   display: flex;
   align-items: center;
@@ -1979,6 +1998,14 @@ textarea {
 .call-live .demo-note {
   flex-basis: 100%;
   font-size: 12px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .calls-heading .auto-dial-button,
+  .call-status-ready,
+  .call-status-live,
+  .call-status-live .call-live {
+    transition: none;
+  }
 }
 .outcome-grid {
   display: flex;
