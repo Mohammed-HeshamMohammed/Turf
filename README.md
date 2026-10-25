@@ -88,7 +88,11 @@ Each lead is one row: the row with the best number to call, else one with a phon
 
 ## Calling the leads
 
-**Calls** works a checked list one lead at a time. Each lead is there once (repeated rows are left out), with the number worth calling first and its other usable numbers below; a click on a number dials it through the computer's own phone app. Beside each number is the time it is where the number is, from its area code, and whether that is inside 8 am to 9 pm, the federal (TCPA) calling window. Some states are stricter and a moved number keeps its old area code, so the time is a warning to look at, not a permission; a number in several zones is inside the window only when it is in every one of them.
+**Calls** works a checked list one lead at a time. Each lead is there once (repeated rows are left out), with the number worth calling first and its other usable numbers below.
+
+**Intended desktop calling experience:** clicking a number starts a call inside Turf using its built-in dialer. Call controls, the call log, and outcome recording stay in the app. Turf also shows the recipient's local time and 8 am–9 pm calling-window guidance. The current Full CRM demo simulates this in-app flow; live calling still needs a connected calling provider. The regular desktop implementation's existing system-dialer handoff is legacy behavior to be replaced.
+
+The existing time guidance uses the number's area code. Some states are stricter and a moved number keeps its old area code, so the time is a warning to look at, not a permission; a number in several zones is inside the window only when it is in every one of them.
 
 One click says how the call went: reached, voicemail, no answer, wrong number, disconnected, or do not call. It is recorded as the call evidence Skip Tracing already uses, so the next phone check knows it. A call that gets no answer moves on to the next lead; one that reaches someone stays in view to set where the lead stands.
 

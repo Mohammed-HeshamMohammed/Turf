@@ -57,7 +57,7 @@ These are frontend demonstration rules, not a security boundary. Every sample re
 - **Personal account:** full-page profile editing and preferences, with task/unread-conversation switches that control the notification panel. All saves remain local to the preview.
 - **Leads:** search and filters, list/board views, keyboard-accessible stage changes alongside drag and drop, bulk stage edits, assignment, full-page creation, callbacks, and internal/shared notes.
 - **Lead record:** property context, activity history, source evidence, approved brief preview, and print support. All photos are explicitly illustrative.
-- **Calls:** eligible sample queue, scripts, start/end simulated calls, outcomes, notes, and qualification handoff. No number is dialed and no microphone is used.
+- **Calls:** the intended desktop experience places calls inside Turf using its built-in dialer, with in-app call controls, call history, outcome recording, and local calling-window guidance. The current sample workspace simulates this flow: a call queue, compact floating dial pad, start/end controls, auto dial that waits for an outcome, a separate Call log tab, notes, and qualification handoff. No real number is dialed and no microphone is used; live calling requires provider integration.
 - **Handoffs:** request, review, accept, decline, and filter by status. Responsibility remains with the sender until acceptance. Acceptance is online-only and does not create duplicate deals.
 - **Deals:** pipeline/list views, stage changes, offer amounts, expected fees, and target close dates. Deal amounts remain distinct from estimated property values.
 - **Tasks and calendar:** full-page task creation, completion/reopening, priority, ownership, month navigation, and daily agenda.
