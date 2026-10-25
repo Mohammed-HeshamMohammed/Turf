@@ -31,6 +31,7 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Notes that only explain the demo ("sample photo", "no number is dialled", "prototype does not record") carry the `demo-note` class and are hidden unless "Show demo notes" is on in the Turf menu's Sample workspace section, next to Explore as and Reset.
 - Calls has a focus mode: while a call is live the queue is hidden and the outcome card sits directly under the person. History and the map share one "About this lead" card with tabs.
 - Preserve the original Calls card design and refine its spacing. New call, auto dial and SMS interactions belong in a separate pass after the spacing is settled.
+- In the Calls lead card, put Start/End call beside the phone number so it is easy to find; Live captions belongs at the bottom right, opposite Full lead record. Preserve the existing card styling.
 - Detail pages keep one primary action in the header (the lead page: Call); secondary and destructive actions go in the More menu.
 - The overview opens with "Needs you today": due tasks, expected callbacks, handoffs to accept and unread messages, each with the one action that deals with it.
 - Every on/off setting is the same switch (`Checkbox` renders it). Table row selection keeps plain checkboxes.

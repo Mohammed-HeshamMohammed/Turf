@@ -187,17 +187,8 @@ export function Calls({ target }) {
                 <p>
                   {lead.address} · {lead.city}, {lead.region}
                 </p>
-                <div className="dial-number">{lead.phone}</div>
-                <div className="row">
-                  <Status value={lead.verdict} />
-                  <span className="muted">Check calling permission before a real call</span>
-                </div>
-                {lead.motivation && <p className="body-copy">{lead.motivation}</p>}
-                <div className="call-owner">
-                  <small>Owner</small>
-                  <Person name={lead.assignee} link />
-                </div>
-                <div className="call-actions">
+                <div className="call-dial-row">
+                  <div className="dial-number">{lead.phone}</div>
                   <Button
                     variant={activeCall ? "danger-button" : "primary"}
                     icon={activeCall ? PhoneDisconnect : Phone}
@@ -209,10 +200,15 @@ export function Calls({ target }) {
                   >
                     {activeCall ? "End demo call" : "Start demo call"}
                   </Button>
-                  <Button onClick={() => navigate("work/leads/" + lead.id)}>Full lead record</Button>
-                  <Button icon={ClosedCaptioning} aria-pressed={captions} variant={captions ? "is-on" : ""} onClick={() => toggleCaptions()}>
-                    Live captions
-                  </Button>
+                </div>
+                <div className="row">
+                  <Status value={lead.verdict} />
+                  <span className="muted">Check calling permission before a real call</span>
+                </div>
+                {lead.motivation && <p className="body-copy">{lead.motivation}</p>}
+                <div className="call-owner">
+                  <small>Owner</small>
+                  <Person name={lead.assignee} link />
                 </div>
                 {activeCall && (
                   <div className="call-live" role="status">
@@ -227,6 +223,12 @@ export function Calls({ target }) {
                   </div>
                 )}
                 {!state.online && <p className="notice">Calling needs a connection. You can record a manual outcome below.</p>}
+                <div className="call-actions">
+                  <Button onClick={() => navigate("work/leads/" + lead.id)}>Full lead record</Button>
+                  <Button icon={ClosedCaptioning} aria-pressed={captions} variant={captions ? "is-on" : ""} onClick={() => toggleCaptions()}>
+                    Live captions
+                  </Button>
+                </div>
               </Card>
               <Card
                 className={"call-outcomes" + (activeCall ? " is-live" : "")}

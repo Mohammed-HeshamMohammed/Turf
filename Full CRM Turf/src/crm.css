@@ -1872,6 +1872,23 @@ textarea {
   letter-spacing: -0.04em;
   margin: 24px 0 14px;
 }
+.call-dial-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 24px 0 14px;
+}
+.call-dial-row .dial-number {
+  margin: 0;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.call-dial-row .button {
+  min-height: 44px;
+  flex-shrink: 0;
+}
 .call-actions {
   display: flex;
   gap: 9px;
@@ -1885,6 +1902,8 @@ textarea {
 }
 .call-person .call-actions {
   margin-top: 16px;
+  justify-content: space-between;
+  align-items: center;
 }
 .call-live {
   display: flex;
