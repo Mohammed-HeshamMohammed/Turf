@@ -1886,6 +1886,20 @@ textarea {
   font-size: 12px;
   background: #fff9;
 }
+.call-person-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.call-person-top > .row {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.call-person-top > .button {
+  min-height: 40px;
+  flex-shrink: 0;
+}
 .call-person h2 {
   font-size: 29px;
   margin: 16px 0 4px;

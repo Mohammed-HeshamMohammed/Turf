@@ -68,6 +68,8 @@ export function Calls({ target }) {
   const [callbackAt, setCallbackAt] = useState("");
   const [askingCallback, setAskingCallback] = useState(false);
   const [detailTab, setDetailTab] = useState("History");
+  const [smsLeadId, setSmsLeadId] = useState("");
+  const [smsDrafts, setSmsDrafts] = useState({});
   const [autoDial, setAutoDial] = useState(false);
   const autoQueue = useRef([]);
   useEffect(() => {
@@ -106,6 +108,9 @@ export function Calls({ target }) {
       .map(entry => entry.item);
   }, [callable, activeList, lists]);
   const lead = leads.find(item => item.id === chosen) || leads[0];
+  const smsLead = visibleLeads(state).find(item => item.id === smsLeadId);
+  const smsThread = visibleThreads(state).find(item => item.leadId === smsLeadId && item.channel === "SMS");
+  const smsDraft = smsDrafts[smsLeadId] || "";
   const autoEligible = leads.filter(item => item.phone?.trim() && canEditLead(state, item.id));
   const setActiveCall = (on, contact = lead) =>
     setCallSession({
@@ -114,6 +119,16 @@ export function Calls({ target }) {
       transcript: [],
     });
   if (!capability(state, "call")) return <Empty title="Calling is outside this role">Your workspace only shows the actions available to you.</Empty>;
+  function sendCallSms(event) {
+    event.preventDefault();
+    if (!smsLead || !smsDraft.trim() || !capability(state, "message")) return;
+    const id = smsThread?.id || uid();
+    if (!smsThread) dispatch({ type: "NEW_THREAD", thread: { id, leadId: smsLead.id, channel: "SMS", shared: false, unread: false, preview: "New conversation", messages: [] } });
+    dispatch({ type: "MESSAGE", id, text: smsDraft });
+    setSmsDrafts(previous => ({ ...previous, [smsLead.id]: "" }));
+    setSmsLeadId("");
+    notify(state.online ? "Demo SMS added to Inbox" : "SMS draft saved offline");
+  }
   function pauseAutoDial() {
     autoQueue.current = [];
     setAutoDial(false);
@@ -246,11 +261,16 @@ export function Calls({ target }) {
           {lead ? (
             <>
               <Card className="call-person">
-                <div className="row">
-                  <Badge tone="good" className="demo-note">
-                    Sample phone workspace
-                  </Badge>
-                  <Status value={lead.stage} />
+                <div className="call-person-top">
+                  <div className="row">
+                    <Badge tone="good" className="demo-note">
+                      Sample phone workspace
+                    </Badge>
+                    <Status value={lead.stage} />
+                  </div>
+                  <Button icon={ChatCircle} disabled={!capability(state, "message") || !lead.phone?.trim()} onClick={() => setSmsLeadId(lead.id)}>
+                    SMS
+                  </Button>
                 </div>
                 <h2>{lead.name}</h2>
                 <p>
@@ -380,6 +400,28 @@ export function Calls({ target }) {
           />
         </aside>
       </div>
+      {smsLead && capability(state, "message") && (
+        <Modal title="SMS" onClose={() => setSmsLeadId("")}>
+          <p className="muted">To {smsLead.name} · {smsLead.phone}</p>
+          <form onSubmit={sendCallSms}>
+            <Field label="Message">
+              <textarea
+                value={smsDraft}
+                onChange={event => setSmsDrafts(previous => ({ ...previous, [smsLeadId]: event.target.value }))}
+                placeholder={"Write to " + smsLead.name.split(" ")[0] + "…"}
+                required
+              />
+            </Field>
+            <div className="row">
+              <button type="submit" className="button primary" disabled={!smsDraft.trim()}>
+                <PaperPlaneTilt size={17} />{state.online ? "Send demo SMS" : "Save draft"}
+              </button>
+              <Button onClick={() => setSmsLeadId("")}>Cancel</Button>
+            </div>
+            <p className="demo-note">Messages stay in this sample workspace. No SMS is sent.</p>
+          </form>
+        </Modal>
+      )}
     </>
   );
 }

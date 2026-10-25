@@ -32,6 +32,7 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Starting a call keeps the queue visible and the same workspace columns and page heading in place. Do not turn calling into a different page or hide/reflow the queue. Keep the current lead selected until the call ends. History and the map share one "About this lead" card with tabs.
 - Preserve the original Calls card design and refine its spacing. Add calling controls incrementally without redesigning the card.
 - In the Calls lead card, put Start/End call beside the phone number so it is easy to find; Live captions belongs at the bottom right, opposite Full lead record. Preserve the existing card styling.
+- The SMS button belongs at the top right of the Calls lead card, using the existing button style. Its quick composer keeps Calls open and adds demo messages to that lead's SMS conversation in Inbox.
 - During a call, show Call in progress and a large elapsed timer in a clear green status bar directly below the phone/call controls. Do not bury it in small text beneath the owner or repeat the captions action there.
 - The call-status bar expands into the card and smoothly pushes the details below down, then collapses on hangup. Keep the queue and workspace columns fixed; respect reduced motion.
 - Auto dial belongs at the top right of the Calls page header. It runs one pass through the eligible demo queue, advances after saving each outcome, and pauses for callbacks or transfers. Pausing auto dial leaves the current call running.
