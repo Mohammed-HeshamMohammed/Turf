@@ -54,6 +54,9 @@ Filled in as each feature is agreed. The price column is the sum of each feature
 | [4. Leads map](../features/04-leads-map.md): exact locations per month | 500 | 5,000 | 10,000 shared | 5,000 per seat, shared | 15,000 per seat, shared |
 | 4. Leads map: offline maps (desktop) | — | 1 state | 2 states | 1 state per seat | All of the US |
 | 4. Leads map: selling price | Free | $19 | $29 | $15 per seat | $29 per seat |
-| **Plan price so far** | **Free** | **$246** | **$396** | **$202 per seat** (from $606) | **$416 per seat** (from $1,248) |
+| [5. The CRM](../features/05-crm.md): document storage | 1 GB | 25 GB | 50 GB shared | 25 GB per seat, shared | 100 GB per seat, shared |
+| 5. The CRM: roles / follow-up rules / API | — / 3 / ❌ | — / 10 / ❌ | Simple / 20 / ❌ | 8 roles / 25 / ❌ | Custom roles / unlimited / ✅ |
+| 5. The CRM: selling price | Free | $49 | $79 | $45 per seat | $59 per seat |
+| **Plan price so far** | **Free** | **$295** | **$475** | **$247 per seat** (from $741) | **$475 per seat** (from $1,425) |
 
 The plan price grows as features are added. The final prices are set once every feature is priced.

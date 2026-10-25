@@ -24,4 +24,6 @@ Every feature file uses the same five tiers:
 | 2 | [Skip Tracing the customer's lists](02-skip-tracing.md) | Agreed |
 | 3 | [Dialer, auto dialing, SMS and call logs](03-dialer-auto-dialing-sms.md) | Agreed |
 | 4 | [Leads map](04-leads-map.md) | Agreed |
+| 5 | [The CRM](05-crm.md) | Agreed |
+| 6 | AI email and messaging campaigns from the customer's lists | Open: to discuss next (an extra feature on top of the CRM) |
 | 1b | Requesting leads through Turf's supplier | Open: needs the supplier's price per lead, what a lead contains, and whether resale is allowed |
