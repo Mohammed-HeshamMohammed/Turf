@@ -8,6 +8,8 @@ Everything here runs on the existing Rust API and PostgreSQL (`backend/`), which
 
 ## Plans
 
+> Superseded: the tiers are now Free trial, Solo, Duo, Team and Pro, and prices are built from per-feature prices. See [the plans doc](../plans/README.md). The table below is what the server implements today.
+
 | Plan | Price | Minutes | Seats | Team invitations | Period |
 | --- | --- | --- | --- | --- | --- |
 | Free trial | Free | 10 | 1 | No | 7 days |

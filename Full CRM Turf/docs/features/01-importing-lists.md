@@ -92,13 +92,15 @@ This prices **the feature**, not the plans. Plan prices come later from adding u
 
 Every tier gets the same unlimited parts: lists on the computer, processing (import, dedup, Skip Tracing, re-runs), before and after downloads, archiving, and the uploaded CSV kept 30 days.
 
-| | Free trial | Solo | Team | Pro |
-| --- | --- | --- | --- | --- |
-| **Active leads on the server** | 25,000 | 1,000,000 | 1,000,000 per seat, shared | 2,500,000 per seat, shared |
-| **Cost to Turf, typical use** (~15% of the amount) | ~$0.01 | ~$0.20–0.50 | ~$0.20–0.50 per seat | ~$0.45–1.20 per seat |
-| **Cost to Turf, fully used** | ~$0.03–0.08 | ~$1.20–3.20 | ~$1.20–3.20 per seat | ~$3–8 per seat |
-| **Selling price of this feature** | Free | **$49 / month** | **$39 per seat / month** | **$59 per seat / month** |
-| **Margin when fully used** | — | ~93–98% | ~92–97% | ~86–95% |
+| | Free trial | Solo (1) | Duo (2) | Team (3+) | Pro (3+) |
+| --- | --- | --- | --- | --- | --- |
+| **Active leads on the server** | 25,000 | 1,000,000 | 2,000,000 shared | 1,000,000 per seat, shared | 2,500,000 per seat, shared |
+| **Cost to Turf, typical use** (~15% of the amount) | ~$0.01 | ~$0.20–0.50 | ~$0.40–1.00 | ~$0.20–0.50 per seat | ~$0.45–1.20 per seat |
+| **Cost to Turf, fully used** | ~$0.03–0.08 | ~$1.20–3.20 | ~$2.40–6.40 | ~$1.20–3.20 per seat | ~$3–8 per seat |
+| **Selling price of this feature** | Free | **$49 / month** | **$69 / month** for both | **$39 per seat / month** | **$59 per seat / month** |
+| **Margin when fully used** | — | ~93–98% | ~91–97% | ~92–97% | ~86–95% |
+
+The price per person falls as the group grows: $49 alone, $34.50 each as a Duo, $39 each on a Team (Team adds roles, assignments and handoffs that Duo doesn't have). Clients and partners are free seats and add no active leads of their own.
 
 **More active leads:** +500,000 for **$10 a month**. Cost to Turf when fully used: ~$0.60–1.60.
 
