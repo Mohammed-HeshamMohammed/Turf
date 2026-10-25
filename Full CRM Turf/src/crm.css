@@ -4793,13 +4793,7 @@ html.demo-quiet .demo-note {
   right: auto;
   width: 100%;
 }
-/* ---- Calls: focus mode. While a call is live the queue steps away and the outcome sits right under the person. ---- */
-.call-layout.is-live {
-  grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr);
-}
-.call-layout.is-live > .queue-card {
-  display: none;
-}
+/* ---- Calls: keep the workspace layout stable and highlight the active outcome card. ---- */
 .call-outcomes.is-live {
   box-shadow: inset 0 0 0 2px var(--accent);
 }
@@ -4819,11 +4813,6 @@ html.demo-quiet .demo-note {
 }
 .call-details .property-map {
   margin: 0;
-}
-@media (max-width: 1250px) {
-  .call-layout.is-live {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 /* ---- More menu ---- */
 .more-menu {

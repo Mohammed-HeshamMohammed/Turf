@@ -120,8 +120,8 @@ export function Calls({ target }) {
   const calls = [...(lead?.calls || [])].reverse();
   return (
     <>
-      <PageHeader title="Calls" description={activeCall ? "On a call · the queue is hidden until you record how it went" : undefined} />
-      <div className={"call-layout" + (activeCall ? " is-live" : "")}>
+      <PageHeader title="Calls" />
+      <div className="call-layout">
         <Card
           title="Your call queue"
           subtitle={
@@ -133,7 +133,7 @@ export function Calls({ target }) {
         >
           {lists.length > 1 && (
             <div className="queue-list-pick">
-              <Select aria-label="Call list" value={activeList} onChange={event => setListId(event.target.value)}>
+              <Select aria-label="Call list" value={activeList} disabled={activeCall} onChange={event => setListId(event.target.value)}>
                 <option value="">{"All lists · " + callable.length}</option>
                 {lists.map(item => (
                   <option key={item.id} value={item.id}>
@@ -150,7 +150,9 @@ export function Calls({ target }) {
               )}
               <button
                 className={"queue-lead " + (item.id === lead?.id ? "selected" : "")}
+                disabled={activeCall && item.id !== lead?.id}
                 onClick={() => {
+                  if (activeCall) return;
                   setChosen(item.id);
                   setActiveCall(false);
                 }}

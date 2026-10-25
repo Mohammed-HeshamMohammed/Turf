@@ -29,7 +29,7 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Nothing is smaller than 12px.
 - Motion is brief and only explains something: a 180ms page fade, menus and dialogs popping, board drag. No staggered rows, no text animations, no exit ghosts or waits between pages.
 - Notes that only explain the demo ("sample photo", "no number is dialled", "prototype does not record") carry the `demo-note` class and are hidden unless "Show demo notes" is on in the Turf menu's Sample workspace section, next to Explore as and Reset.
-- Calls has a focus mode: while a call is live the queue is hidden and the outcome card sits directly under the person. History and the map share one "About this lead" card with tabs.
+- Starting a call keeps the queue visible and the same workspace columns and page heading in place. Do not turn calling into a different page or hide/reflow the queue. Keep the current lead selected until the call ends. History and the map share one "About this lead" card with tabs.
 - Preserve the original Calls card design and refine its spacing. New call, auto dial and SMS interactions belong in a separate pass after the spacing is settled.
 - In the Calls lead card, put Start/End call beside the phone number so it is easy to find; Live captions belongs at the bottom right, opposite Full lead record. Preserve the existing card styling.
 - Detail pages keep one primary action in the header (the lead page: Call); secondary and destructive actions go in the More menu.
