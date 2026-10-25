@@ -48,6 +48,9 @@ Filled in as each feature is agreed. The price column is the sum of each feature
 | [2. Skip Tracing](../features/02-skip-tracing.md): rows checked on the server per month | 25,000 | 1,000,000 | 2,000,000 shared | 1,000,000 per seat, shared | 3,000,000 per seat, shared |
 | 2. Skip Tracing: number lookups per month | 100 | 1,000 | 2,000 shared | 1,000 per seat, shared | 3,000 per seat, shared |
 | 2. Skip Tracing: selling price | Free | $79 | $119 | $59 per seat | $89 per seat |
-| **Plan price so far** | **Free** | **$128** | **$188** | **$98 per seat** (from $294) | **$148 per seat** (from $444) |
+| [3. Dialer, auto dialing, SMS](../features/03-dialer-auto-dialing-sms.md): dialing mode | Power (1 line) | Power (1 line) | Power (1 line) | Power (1 line) | Multi-line (2–3), voicemail skip and drop |
+| 3. Dialer: minutes / texts / numbers per month | 30 / — / demo | 3,000 / 500 / 1 | 6,000 / 1,000 / 2 shared | 3,000 / 500 / 1 per seat | 8,000 / 2,000 / 3 per seat |
+| 3. Dialer: selling price | Free | $99 | $179 | $89 per seat | $239 per seat |
+| **Plan price so far** | **Free** | **$227** | **$367** | **$187 per seat** (from $561) | **$387 per seat** (from $1,161) |
 
 The plan price grows as features are added. The final prices are set once every feature is priced.
