@@ -26,6 +26,7 @@ import { CALL_OUTCOMES, DEAL_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
 import { callbackLabel, canEditLead, capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { CallAssistant } from "./CallAssistant.jsx";
+import { CallTimer } from "./CallTimer.jsx";
 import { beginDemoCall, clearCallOutcome, endDemoCall, getCallSession, setCallSession, useCallSession } from "./callSession.js";
 import {
   Badge,
@@ -58,8 +59,9 @@ export function Calls({ target }) {
   const { state, dispatch, navigate, notify, route } = useCrm();
   // A call in progress belongs to the app, not this page, so it carries on (with its captions) while you look around.
   const session = useCallSession();
-  const activeCall = session.active;
-  const awaitingOutcome = session.awaitingOutcome;
+  const manualDialBusy = Boolean(session.lead?.adHoc && (session.active || session.awaitingOutcome));
+  const activeCall = session.active && !manualDialBusy;
+  const awaitingOutcome = session.awaitingOutcome && !manualDialBusy;
   const callLocked = activeCall || awaitingOutcome;
   const callStatus = usePresence(callLocked, 320);
   const captions = session.captions;
@@ -111,6 +113,12 @@ export function Calls({ target }) {
       .map(entry => entry.item);
   }, [callable, activeList, lists]);
   const lead = callLocked ? visibleLeads(state).find(item => item.id === session.lead?.id) : leads.find(item => item.id === chosen) || leads[0];
+  useEffect(() => {
+    setCallNote("");
+    setSelectedOutcome("");
+    setCallbackAt("");
+    setAskingCallback(false);
+  }, [lead?.id]);
   const smsLead = visibleLeads(state).find(item => item.id === smsLeadId);
   const smsThread = visibleThreads(state).find(item => item.leadId === smsLeadId && item.channel === "SMS");
   const smsDraft = smsDrafts[smsLeadId] || "";
@@ -200,7 +208,7 @@ export function Calls({ target }) {
             icon={autoDial ? Pause : Play}
             variant="auto-dial-button"
             aria-pressed={autoDial}
-            disabled={!autoDial && (!state.online || !autoEligible.length || (callLocked && !autoEligible.some(item => item.id === lead?.id)))}
+            disabled={manualDialBusy || (!autoDial && (!state.online || !autoEligible.length || (callLocked && !autoEligible.some(item => item.id === lead?.id))))}
             title="Run through this demo queue. Save an outcome to start the next call. Callbacks and transfers pause auto dial."
             onClick={toggleAutoDial}
           >
@@ -241,7 +249,7 @@ export function Calls({ target }) {
                 onClick={() => {
                   if (callLocked || autoDial) return;
                   setChosen(item.id);
-                  clearCallOutcome();
+                  if (!session.active && !session.awaitingOutcome) clearCallOutcome();
                 }}
               >
                 <strong>{item.name}</strong>
@@ -286,7 +294,7 @@ export function Calls({ target }) {
                   <Button
                     variant={activeCall ? "danger-button" : "primary"}
                     icon={callLocked ? PhoneDisconnect : Phone}
-                    disabled={awaitingOutcome || (!activeCall && (!state.online || !lead.phone?.trim()))}
+                    disabled={manualDialBusy || awaitingOutcome || (!activeCall && (!state.online || !lead.phone?.trim()))}
                     title={awaitingOutcome ? "Record an outcome below before starting another call" : undefined}
                     onClick={() => {
                       if (activeCall) endDemoCall();
@@ -324,6 +332,7 @@ export function Calls({ target }) {
                   <Person name={lead.assignee} link />
                 </div>
                 {!state.online && <p className="notice">Calling needs a connection. You can record a manual outcome below.</p>}
+                {manualDialBusy && <p className="notice">Finish the manual call in the phone dialer before starting a lead call.</p>}
                 <div className="call-actions">
                   <Button onClick={() => navigate("work/leads/" + lead.id)}>Full lead record</Button>
                   <Button icon={ClosedCaptioning} aria-pressed={captions} variant={captions ? "is-on" : ""} onClick={() => toggleCaptions()}>
@@ -343,6 +352,7 @@ export function Calls({ target }) {
                     <Button
                       key={item.label}
                       title={item.help + (item.quick ? " · Saves immediately; no written feedback needed" : "")}
+                      disabled={manualDialBusy}
                       variant={item.label === "Transfer" ? "peach-button" : item.label === "Do not call" ? "danger-button" : ""}
                       aria-pressed={callLocked ? selectedOutcome === item.label : undefined}
                       onClick={() => chooseOutcome(item.label)}
@@ -361,7 +371,7 @@ export function Calls({ target }) {
                         onChange={event => setCallbackAt(event.target.value)}
                       />
                     </Field>
-                    {!awaitingOutcome && <Button variant="primary" disabled={!callbackAt} onClick={() => outcome("Callback")}>
+                    {!awaitingOutcome && <Button variant="primary" disabled={!callbackAt || manualDialBusy} onClick={() => outcome("Callback")}>
                       Schedule callback
                     </Button>}
                     <Button
@@ -450,18 +460,6 @@ export function Calls({ target }) {
 function callTime(at) {
   return at ? new Date(at + ":00Z").toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" }) : "";
 }
-/** How long the current call has been running, as m:ss. */
-function CallTimer({ startedAt, endedAt }) {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    if (endedAt) return undefined;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [endedAt]);
-  const seconds = Math.max(0, Math.floor(((endedAt || now) - (startedAt || now)) / 1000));
-  return <span className="call-timer">{Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0")}</span>;
-}
-
 /** The call history rows on their own, for places that already have a card around them. */
 function CallHistoryList({ calls }) {
   if (!calls.length) return <Empty title="Not called yet">Outcomes you record appear here with their time and next call.</Empty>;

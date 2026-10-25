@@ -46,3 +46,16 @@ test("agent hangup keeps the same feedback gate until the outcome is cleared", (
   assert.equal(getCallSession().startedAt, null);
   assert.equal(getCallSession().awaitingOutcome, false);
 });
+
+test("manual dial-pad calls share the call gate and retain their unlinked number", () => {
+  const manual = { id: "manual", name: "Dialed number", phone: "+44 20 7946 0123", adHoc: true };
+  assert.equal(beginDemoCall(manual), true);
+  assert.equal(getCallSession().lead.phone, manual.phone);
+  assert.equal(getCallSession().lead.adHoc, true);
+  assert.equal(beginDemoCall(sarah), false);
+  endDemoCall();
+  assert.equal(beginDemoCall(sarah), false, "the manual call must finish before a lead call starts");
+  clearCallOutcome();
+  assert.equal(beginDemoCall(sarah), true);
+  assert.equal(getCallSession().lead.adHoc, false);
+});

@@ -11,6 +11,7 @@ import { applyIdentity, labelFor, operationFor } from "./remote/translate.js";
 import { CrmContext } from "./context.jsx";
 import { Button, CountBadge, Empty, Modal, PageTransition, Search, money, useHeld, usePresence } from "./ui.jsx";
 import { LiveCaptions } from "./LiveCaptions.jsx";
+import { PhoneDialer } from "./PhoneDialer.jsx";
 import { Sidebar } from "./Sidebar.jsx";
 import { WindowStrip, windowDrag } from "./WindowStrip.jsx";
 import { TurfMenu } from "./TurfMenu.jsx";
@@ -561,6 +562,7 @@ export function App() {
             )}
           </span>
         </footer>
+        <PhoneDialer />
         <LiveCaptions />
         {toastPanel.mounted && (
           <div className={"toast" + (toastPanel.leaving ? " leaving" : "")} role="status">

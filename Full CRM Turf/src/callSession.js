@@ -51,7 +51,7 @@ export function beginDemoCall(lead) {
   setCallSession({
     active: true,
     awaitingOutcome: false,
-    lead: { id: lead.id, name: lead.name, address: lead.address, motivation: lead.motivation },
+    lead: { id: lead.id, name: lead.name, phone: lead.phone, address: lead.address, motivation: lead.motivation, adHoc: Boolean(lead.adHoc) },
     startedAt: Date.now(),
     endedAt: null,
     endedBy: null,
