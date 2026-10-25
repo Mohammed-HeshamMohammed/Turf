@@ -66,6 +66,6 @@ Filled in as each feature is agreed. The price column is the sum of each feature
 | [9. Accounts, security and billing](../features/09-accounts-security-billing.md): audit log / SSO | — / — | 30 days / — | 30 days / — | 1 year / — | 2 years / ✅ |
 | 9. Accounts, security and billing: selling price | Free | Included | Included | Included | Included |
 | **Plan price so far** | **Free** | **$344** | **$554** | **$286 per seat** (from $858) | **$554 per seat** (from $1,662) |
-| Payment fees on that price (Paddle, ~5% + $0.50) | — | ~$17.70 | ~$28.20 | ~$14.30 per seat + $0.50 | ~$27.70 per seat + $0.50 |
+| Payment fees on that price (Paddle, the default checkout: ~5% + $0.50; Stripe bank debit for annual plans: 0.8%, capped at $5) | — | ~$17.70 | ~$28.20 | ~$14.30 per seat + $0.50 | ~$27.70 per seat + $0.50 |
 
 The plan price grows as features are added. The final prices are set once every feature is priced.
