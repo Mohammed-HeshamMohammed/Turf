@@ -185,7 +185,7 @@ export function Calls({ target }) {
     if (!["Transfer", "Callback"].includes(value)) setChosen(leads[(leads.findIndex(item => item.id === lead.id) + 1) % leads.length]?.id || "");
   }
   function chooseOutcome(value) {
-    if (!callLocked) return outcome(value);
+    if (!callLocked || CALL_OUTCOMES.find(item => item.label === value)?.quick) return outcome(value);
     if (activeCall) endDemoCall();
     setSelectedOutcome(value);
     setAskingCallback(value === "Callback");
@@ -287,7 +287,7 @@ export function Calls({ target }) {
                     variant={activeCall ? "danger-button" : "primary"}
                     icon={callLocked ? PhoneDisconnect : Phone}
                     disabled={awaitingOutcome || (!activeCall && (!state.online || !lead.phone?.trim()))}
-                    title={awaitingOutcome ? "Save feedback below before starting another call" : undefined}
+                    title={awaitingOutcome ? "Record an outcome below before starting another call" : undefined}
                     onClick={() => {
                       if (activeCall) endDemoCall();
                       else beginDemoCall(lead);
@@ -311,7 +311,7 @@ export function Calls({ target }) {
                       <div className={"call-live" + (awaitingOutcome ? " is-ended" : "")} role="status">
                         <span className="call-live-label"><span className="status-dot" />{awaitingOutcome ? session.endedBy === "contact" ? "Contact ended the call" : "Call ended" : "Call in progress"}</span>
                         {callStatus.mounted && <CallTimer key={session.startedAt} startedAt={session.startedAt} endedAt={session.endedAt} />}
-                        {awaitingOutcome && <span className="call-wrapup-help">{autoDial ? "Auto dial is waiting. Save feedback below to continue." : "Save feedback below before starting another call."}</span>}
+                        {awaitingOutcome && <span className="call-wrapup-help">{autoDial ? "Auto dial is waiting. Record an outcome below to continue." : "Record an outcome below before starting another call."}</span>}
                         {activeCall && <button type="button" className="text-button demo-note" onClick={() => endDemoCall("contact")}>Simulate contact hangup</button>}
                         <span className="demo-note">Demo audio, no number is dialled</span>
                       </div>
@@ -335,14 +335,14 @@ export function Calls({ target }) {
                 className={"call-outcomes" + (callLocked ? " is-live" : "")}
                 title={awaitingOutcome ? "Record call outcome" : "How did it go?"}
                 subtitle={
-                  awaitingOutcome ? "Feedback stays with " + lead.name + ". Choose an outcome, add any notes, then save feedback." : activeCall ? "After the call, choose an outcome and save your feedback." : "Record an outcome, even for a call made outside the app."
+                  awaitingOutcome ? "Quick outcomes save immediately. Conversation outcomes keep " + lead.name + " open for review; notes are optional." : activeCall ? "Quick outcomes save immediately. Conversation outcomes let you review any notes before saving." : "Record an outcome, even for a call made outside the app."
                 }
               >
                 <div className="outcome-grid">
                   {CALL_OUTCOMES.map(item => (
                     <Button
                       key={item.label}
-                      title={item.help}
+                      title={item.help + (item.quick ? " · Saves immediately; no written feedback needed" : "")}
                       variant={item.label === "Transfer" ? "peach-button" : item.label === "Do not call" ? "danger-button" : ""}
                       aria-pressed={callLocked ? selectedOutcome === item.label : undefined}
                       onClick={() => chooseOutcome(item.label)}
@@ -375,7 +375,7 @@ export function Calls({ target }) {
                     </Button>
                   </div>
                 )}
-                <Field label="Call note">
+                <Field label="Call note" help="Optional. Any notes you add are saved with the outcome.">
                   <textarea value={callNote} onChange={event => setCallNote(event.target.value)} placeholder="The detail you don't want to forget…" />
                 </Field>
                 <div className="row">

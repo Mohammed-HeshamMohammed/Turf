@@ -7,11 +7,11 @@ export const CALL_OUTCOMES = [
   { label: "Callback", code: "CB", meaning: "reached", recallDays: null, help: "Asked to be called at a set time" },
   { label: "Not interested", code: "NI", meaning: "reached", recallDays: 90, help: "Try again in three months" },
   { label: "Language barrier", code: "Lang", meaning: "reached", recallDays: null, help: "Needs a speaker of their language" },
-  { label: "Voicemail", code: "VM", meaning: "voicemail", recallDays: 1, help: "Try again tomorrow" },
-  { label: "Not available", code: "NA", meaning: "no_answer", recallDays: 1, help: "Try again tomorrow" },
-  { label: "Dead call", code: "Dead", meaning: "no_answer", recallDays: 1, help: "Silence or dropped; not a bad number" },
-  { label: "Wrong number", code: "W#", meaning: "wrong_number", recallDays: null, help: "Stops calling this number" },
-  { label: "Do not call", code: "DNC", meaning: "do_not_call", recallDays: null, help: "Blocks every call to this lead" },
+  { label: "Voicemail", code: "VM", meaning: "voicemail", recallDays: 1, quick: true, help: "Try again tomorrow" },
+  { label: "Not available", code: "NA", meaning: "no_answer", recallDays: 1, quick: true, help: "Try again tomorrow" },
+  { label: "Dead call", code: "Dead", meaning: "no_answer", recallDays: 1, quick: true, help: "Silence or dropped; not a bad number" },
+  { label: "Wrong number", code: "W#", meaning: "wrong_number", recallDays: null, quick: true, help: "Stops calling this number" },
+  { label: "Do not call", code: "DNC", meaning: "do_not_call", recallDays: null, quick: true, help: "Blocks every call to this lead" },
 ];
 export const DEAL_STAGES = ["Qualified", "Appointment", "Offer preparation", "Offer sent", "Negotiation", "Under contract", "Closed won", "Closed lost"];
 export const PEOPLE = ["Maya Chen", "Alex Rivera", "Ben Carter", "Lena Brooks"];
