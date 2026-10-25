@@ -268,27 +268,23 @@ export function Calls({ target }) {
                     {activeCall ? "End demo call" : "Start demo call"}
                   </Button>
                 </div>
-                <div className="row">
-                  <Status value={lead.verdict} />
-                  <span className="muted">Check calling permission before a real call</span>
-                </div>
+                {activeCall ? (
+                  <div className="call-live" role="status">
+                    <span className="call-live-label"><span className="status-dot" />Call in progress</span>
+                    <CallTimer key={lead.id} />
+                    <span className="demo-note">Demo audio, no number is dialled</span>
+                  </div>
+                ) : (
+                  <div className="row">
+                    <Status value={lead.verdict} />
+                    <span className="muted">Check calling permission before a real call</span>
+                  </div>
+                )}
                 {lead.motivation && <p className="body-copy">{lead.motivation}</p>}
                 <div className="call-owner">
                   <small>Owner</small>
                   <Person name={lead.assignee} link />
                 </div>
-                {activeCall && (
-                  <div className="call-live" role="status">
-                    <span className="status-dot" />
-                    Call in progress · <CallTimer key={lead.id} />
-                    <span className="demo-note"> · demo audio, no number is dialled</span>
-                    {!captions && (
-                      <button type="button" className="text-button" onClick={() => toggleCaptions(true)}>
-                        Turn on live captions
-                      </button>
-                    )}
-                  </div>
-                )}
                 {!state.online && <p className="notice">Calling needs a connection. You can record a manual outcome below.</p>}
                 <div className="call-actions">
                   <Button onClick={() => navigate("work/leads/" + lead.id)}>Full lead record</Button>

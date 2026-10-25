@@ -1951,10 +1951,34 @@ textarea {
 .call-live {
   display: flex;
   align-items: center;
-  gap: 7px;
-  margin-top: 17px;
-  font-size: 12px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 13px 16px;
+  border-radius: 16px;
+  background: #e4f1dd;
   color: var(--good-ink);
+}
+.call-live-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 16px;
+  font-weight: 550;
+}
+.call-live .status-dot {
+  width: 8px;
+  height: 8px;
+  background: currentColor;
+}
+.call-live .call-timer {
+  margin-left: auto;
+  font-size: 26px;
+  line-height: 1.2;
+}
+.call-live .demo-note {
+  flex-basis: 100%;
+  font-size: 12px;
 }
 .outcome-grid {
   display: flex;
