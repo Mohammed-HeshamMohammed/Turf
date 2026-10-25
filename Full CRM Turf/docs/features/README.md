@@ -26,4 +26,10 @@ Every feature file uses the same five tiers:
 | 4 | [Leads map](04-leads-map.md) | Agreed |
 | 5 | [The CRM](05-crm.md) | Agreed |
 | 6 | [AI email and messaging campaigns](06-ai-campaigns.md) | Agreed |
+| 7 | [Exports for other tools](07-exports.md) | Written for review |
+| 8 | [Backup and restore](08-backup-and-restore.md) | Written for review |
+| 9 | [Accounts, security and billing](09-accounts-security-billing.md) | Written for review |
+| — | AI call assistant and live captions (already in the CRM demo) | Open |
+| — | Property and area insights: Census tract data, FEMA flood zones (already in the Turf desktop app) | Open |
+| — | Listings: newest listings with photos and prices (already in the Turf desktop app, from DataForge) | Open; overlaps 1b |
 | 1b | Requesting leads through Turf's supplier | Open: needs the supplier's price per lead, what a lead contains, and whether resale is allowed |

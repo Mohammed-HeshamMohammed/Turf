@@ -59,6 +59,13 @@ Filled in as each feature is agreed. The price column is the sum of each feature
 | 5. The CRM: selling price | Free | $49 | $79 | $45 per seat | $59 per seat |
 | [6. AI campaigns](../features/06-ai-campaigns.md): campaign emails / AI reply drafts per month | 100 / 20 | 5,000 / 500 | 10,000 / 1,000 shared | 5,000 / 500 per seat | 20,000 / 2,000 per seat |
 | 6. AI campaigns: selling price | Free | $49 | $79 | $39 per seat | $79 per seat |
+| [7. Exports](../features/07-exports.md): rows per export | 1,000 | Unlimited | Unlimited | Unlimited | Unlimited |
+| 7. Exports: selling price | Free | Included | Included | Included | Included |
+| [8. Backup and restore](../features/08-backup-and-restore.md): recycle bin / point-in-time restore | 7 days / — | 30 days / 14 days | 30 days / 14 days | 30 days / 30 days | 90 days / 30 days, priority |
+| 8. Backup and restore: selling price | Free | Included | Included | Included | Included |
+| [9. Accounts, security and billing](../features/09-accounts-security-billing.md): audit log / SSO | — / — | 30 days / — | 30 days / — | 1 year / — | 2 years / ✅ |
+| 9. Accounts, security and billing: selling price | Free | Included | Included | Included | Included |
 | **Plan price so far** | **Free** | **$344** | **$554** | **$286 per seat** (from $858) | **$554 per seat** (from $1,662) |
+| Payment fees on that price (Paddle, ~5% + $0.50) | — | ~$17.70 | ~$28.20 | ~$14.30 per seat + $0.50 | ~$27.70 per seat + $0.50 |
 
 The plan price grows as features are added. The final prices are set once every feature is priced.
