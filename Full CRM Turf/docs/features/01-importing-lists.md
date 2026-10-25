@@ -84,18 +84,22 @@ PropStream, BatchLeads and DealMachine **sell the data**, so their limits protec
 
 Sources: [REISift list stacking](https://intercom.help/reisift/pt-BR/articles/4364638-como-encontrar-registros-de-propriedades-stackadas) · [REISift upload limits](https://intercom.help/reisift/en/articles/9114372-limitasyon-sa-pag-upload-at-paano-bumili-ng-karagdagang-espasyo) · [REsimpli pricing](https://www.resimpli.com/pricing) · [List stacking software (REsimpli)](https://resimpli.com/blog/list-stacking-software/) · [Tools to pull lists in 2026 (REsimpli)](https://resimpli.com/blog/tools-to-pull-lists-for-real-estate-investors-in-2026/) · [PropStream pricing](https://www.propstream.com/news/how-much-does-propstream-cost) · [DealMachine pricing](https://dealmachine.com/guides/current-vs-classic-pricing) · [Pipedrive usage limits](https://support.pipedrive.com/article/usage-limits-in-pipedrive)
 
-## Amounts and prices by plan
+## Amounts, cost and selling price
+
+This prices **the feature**, not the plans. Plan prices come later from adding up the features. The tier names are labels only.
+
+**Unit cost:** about 12–16 KB per active lead on the server, counting the database, its indexes and 2–3 backup copies. At roughly $0.10–0.20 per GB-month of VPS disk, that's **about $1.20–3.20 a month per 1,000,000 active leads**. Lists on the computer and all processing cost Turf $0.
+
+Every tier gets the same unlimited parts: lists on the computer, processing (import, dedup, Skip Tracing, re-runs), before and after downloads, archiving, and the uploaded CSV kept 30 days.
 
 | | Free trial | Solo | Team | Pro |
 | --- | --- | --- | --- | --- |
-| **Plan price** | Free, 7 days | $150 / month | $129 per seat / month | ~$229–249 per seat / month |
-| **Lists on the computer** | Unlimited | Unlimited | Unlimited | Unlimited |
-| **Active leads on the server** | 25,000 | 1,000,000 | 1,000,000 per seat, shared by the team | 2,500,000 per seat, shared by the team |
-| **Processing** (import, dedup, Skip Tracing, re-runs) | Unlimited | Unlimited | Unlimited | Unlimited |
-| **Before / after downloads** | ✅ | ✅ | ✅ | ✅ |
-| **Archiving finished lists** | ✅ | ✅ | ✅ | ✅ |
-| **Uploaded CSV kept on the server** | 30 days | 30 days | 30 days | 30 days |
-| **Price of this feature** | Included | Included in the $150 | Included in the $129 per seat | Included in the Pro price |
-| **More active leads** | Upgrade to a paid plan | +500,000 for $10 / month | +500,000 for $10 / month | +500,000 for $10 / month |
+| **Active leads on the server** | 25,000 | 1,000,000 | 1,000,000 per seat, shared | 2,500,000 per seat, shared |
+| **Cost to Turf, typical use** (~15% of the amount) | ~$0.01 | ~$0.20–0.50 | ~$0.20–0.50 per seat | ~$0.45–1.20 per seat |
+| **Cost to Turf, fully used** | ~$0.03–0.08 | ~$1.20–3.20 | ~$1.20–3.20 per seat | ~$3–8 per seat |
+| **Selling price of this feature** | Free | **$49 / month** | **$39 per seat / month** | **$59 per seat / month** |
+| **Margin when fully used** | — | ~93–98% | ~92–97% | ~86–95% |
 
-The add-on costs Turf roughly $0.15–0.30 a month in storage, so it is almost all margin. Its size and price are a proposal: confirm when the Pro plan is settled.
+**More active leads:** +500,000 for **$10 a month**. Cost to Turf when fully used: ~$0.60–1.60.
+
+**Why these selling prices:** REsimpli sells unlimited list-stacking records as a **$199/month** add-on on its first two plans. DataSift charges **$5 per extra 10,000 records**, which would be $500 for 1,000,000. Turf's $39–59 is far below both and still leaves over 85% margin when fully used.
