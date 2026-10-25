@@ -1877,6 +1877,15 @@ textarea {
   gap: 9px;
   flex-wrap: wrap;
 }
+.call-person .body-copy {
+  margin: 16px 0 0;
+}
+.call-person .call-owner {
+  margin-top: 18px;
+}
+.call-person .call-actions {
+  margin-top: 16px;
+}
 .call-live {
   display: flex;
   align-items: center;
