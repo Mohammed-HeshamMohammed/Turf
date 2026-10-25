@@ -71,6 +71,24 @@ Everything runs on the server. The desktop and web apps show the screens; sign-i
 
 **Annual billing** cuts the fixed $0.30–0.50 per payment to once a year and is worth offering at a discount.
 
+Which methods customers can use in the US, Canada, Latin America, Europe and Africa, and who owes the tax in each: [Payment methods by region](../plans/payment-methods-by-region.md).
+
+**No crypto.** Egypt's Central Bank law (No. 194 of 2020, Article 206) bars issuing, trading or promoting crypto without a licence, and no licences have been issued. It applies to the founder living in Egypt whatever country the company is in.
+
+## Company setup
+
+Turf is run from Egypt. Stripe is not open to businesses registered in Egypt, and US texting registration, Telnyx and US contracts all go more smoothly for a US company, so:
+
+| Piece | Choice | Check before launch |
+| --- | --- | --- |
+| Company | **US LLC** (Wyoming or Delaware), through Stripe Atlas, doola or Firstbase | That the formation service accepts founders living in Egypt |
+| Bank | Mercury or Wise, in the LLC's name | That they accept owners living in Egypt (Mercury refuses founders in some countries) |
+| Checkout | Paddle (default) and Stripe, both paying out to the LLC | That Paddle accepts the LLC as a seller |
+| US filings | Even with no US income tax, a foreign-owned single-member LLC files **Form 5472 with a pro forma Form 1120 every year**; missing it costs **$25,000 per form per year**, and money put into the company counts as a reportable transaction | A US accountant |
+| Egyptian tax | Egypt treats a foreign company as **Egyptian-resident** when its real management is in Egypt (at least two of: daily decisions made there, managers' meetings held there, half the managers living there; some summaries add owners of more than half living there). A resident company is taxed on worldwide profits at **22.5%**, wherever its bank accounts are. | An Egyptian tax adviser, including the US–Egypt tax treaty |
+
+Non-Egyptian bank accounts don't change the Egyptian management rule; plan for it rather than around it.
+
 ## What it costs Turf
 
 | Item | Cost |
@@ -101,7 +119,7 @@ These fees are a cost of every plan, so the final plan prices must cover them.
 
 **Where Turf wins:** two-step sign-in for every role; SSO included on Pro rather than behind a $150-a-seat enterprise tier; a visible audit log; data never deleted for a late payment.
 
-Sources: [Stripe ACH fees (Dodo Payments)](https://dodopayments.com/blogs/stripe-ach-fees/) · [Stripe fees explained 2026](https://transferfees.io/guides/stripe-fees-explained/) · [SaaS sales tax statistics (Anrok)](https://www.anrok.com/resources/sales-tax-statistics) · [Economic nexus by state (Taxually)](https://www.taxually.com/blog/economic-nexus-by-state) · [Sales tax nexus for SaaS (Dodo Payments)](https://dodopayments.com/blogs/sales-tax-nexus-saas-when-to-collect) · [SaaS sales tax by state 2026 (Numeral)](https://numeral.com/blog/sales-tax-on-saas) · [Stripe pricing 2026 (Flexprice)](https://flexprice.io/blog/stripe-pricing-breakdown-2026) · [Stripe costs (EightX)](https://eightx.co/blog/compare/how-much-does-stripe-cost) · [Stripe's real cost for software (Freemius)](https://freemius.com/blog/stripe-transaction-fees-real-cost/) · [Paddle vs Lemon Squeezy (Dodo Payments)](https://dodopayments.com/blogs/paddle-vs-lemon-squeezy/) · [Paddle vs Lemon Squeezy 2026 (Rework)](https://resources.rework.com/tools/billing-revenue/paddle-vs-lemon-squeezy) · [HubSpot SSO and audit logs (Docsie)](https://www.docsie.io/solutions/vs/hubspot_kb-vs-slab-enterprise/) · [Amazon SES pricing](https://aws.amazon.com/ses/pricing/)
+Sources: [Egypt corporate residence (PwC)](https://taxsummaries.pwc.com/egypt/corporate/corporate-residence) · [Egypt income tax executive regulation (WIPO)](https://www.wipo.int/wipolex/es/text/577252) · [Egypt international corporate tax (Moore Global)](https://www.moore-global.com/services/tax/international-corporate-tax/egypt/) · [Form 5472 penalty (Taxes for Expats)](https://cdn.taxesforexpats.com/articles/foreign-business/form-5472-penalty.html) · [Form 5472 for foreign-owned businesses (SDO CPA)](https://www.sdocpa.com/form-5472-foreign-owned-business-filing/) · [Mercury eligibility (private.law wiki)](https://wiki.private.law/en/mercury) · [Stripe for Egyptian businesses (Osome)](https://osome.com/uk/blog/stripe-verified-business-egypt) · [Legality of cryptocurrency in Egypt (Andersen)](https://eg.andersen.com/legality-cryptocurrency-in-egypt/) · [10DLC brands for non-US companies (Infobip)](https://www.infobip.com/docs/10dlc/brands) · [Stripe ACH fees (Dodo Payments)](https://dodopayments.com/blogs/stripe-ach-fees/) · [Stripe fees explained 2026](https://transferfees.io/guides/stripe-fees-explained/) · [SaaS sales tax statistics (Anrok)](https://www.anrok.com/resources/sales-tax-statistics) · [Economic nexus by state (Taxually)](https://www.taxually.com/blog/economic-nexus-by-state) · [Sales tax nexus for SaaS (Dodo Payments)](https://dodopayments.com/blogs/sales-tax-nexus-saas-when-to-collect) · [SaaS sales tax by state 2026 (Numeral)](https://numeral.com/blog/sales-tax-on-saas) · [Stripe pricing 2026 (Flexprice)](https://flexprice.io/blog/stripe-pricing-breakdown-2026) · [Stripe costs (EightX)](https://eightx.co/blog/compare/how-much-does-stripe-cost) · [Stripe's real cost for software (Freemius)](https://freemius.com/blog/stripe-transaction-fees-real-cost/) · [Paddle vs Lemon Squeezy (Dodo Payments)](https://dodopayments.com/blogs/paddle-vs-lemon-squeezy/) · [Paddle vs Lemon Squeezy 2026 (Rework)](https://resources.rework.com/tools/billing-revenue/paddle-vs-lemon-squeezy) · [HubSpot SSO and audit logs (Docsie)](https://www.docsie.io/solutions/vs/hubspot_kb-vs-slab-enterprise/) · [Amazon SES pricing](https://aws.amazon.com/ses/pricing/)
 
 ## Amounts, cost and selling price
 
