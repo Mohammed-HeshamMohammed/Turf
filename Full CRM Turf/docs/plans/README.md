@@ -51,6 +51,9 @@ Filled in as each feature is agreed. The price column is the sum of each feature
 | [3. Dialer, auto dialing, SMS](../features/03-dialer-auto-dialing-sms.md): dialing mode | Power (1 line) | Power (1 line) | Power (1 line) | Power (1 line) | Multi-line (2–3), voicemail skip and drop |
 | 3. Dialer: minutes / texts / numbers per month | 30 / — / demo | 3,000 / 500 / 1 | 6,000 / 1,000 / 2 shared | 3,000 / 500 / 1 per seat | 8,000 / 2,000 / 3 per seat |
 | 3. Dialer: selling price | Free | $99 | $179 | $89 per seat | $239 per seat |
-| **Plan price so far** | **Free** | **$227** | **$367** | **$187 per seat** (from $561) | **$387 per seat** (from $1,161) |
+| [4. Leads map](../features/04-leads-map.md): exact locations per month | 500 | 5,000 | 10,000 shared | 5,000 per seat, shared | 15,000 per seat, shared |
+| 4. Leads map: offline maps (desktop) | — | 1 state | 2 states | 1 state per seat | All of the US |
+| 4. Leads map: selling price | Free | $19 | $29 | $15 per seat | $29 per seat |
+| **Plan price so far** | **Free** | **$246** | **$396** | **$202 per seat** (from $606) | **$416 per seat** (from $1,248) |
 
 The plan price grows as features are added. The final prices are set once every feature is priced.
