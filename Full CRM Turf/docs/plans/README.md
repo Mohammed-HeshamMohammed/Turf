@@ -57,6 +57,8 @@ Filled in as each feature is agreed. The price column is the sum of each feature
 | [5. The CRM](../features/05-crm.md): document storage | 1 GB | 25 GB | 50 GB shared | 25 GB per seat, shared | 100 GB per seat, shared |
 | 5. The CRM: roles / follow-up rules / API | — / 3 / ❌ | — / 10 / ❌ | Simple / 20 / ❌ | 8 roles / 25 / ❌ | Custom roles / unlimited / ✅ |
 | 5. The CRM: selling price | Free | $49 | $79 | $45 per seat | $59 per seat |
-| **Plan price so far** | **Free** | **$295** | **$475** | **$247 per seat** (from $741) | **$475 per seat** (from $1,425) |
+| [6. AI campaigns](../features/06-ai-campaigns.md): campaign emails / AI reply drafts per month | 100 / 20 | 5,000 / 500 | 10,000 / 1,000 shared | 5,000 / 500 per seat | 20,000 / 2,000 per seat |
+| 6. AI campaigns: selling price | Free | $49 | $79 | $39 per seat | $79 per seat |
+| **Plan price so far** | **Free** | **$344** | **$554** | **$286 per seat** (from $858) | **$554 per seat** (from $1,662) |
 
 The plan price grows as features are added. The final prices are set once every feature is priced.
