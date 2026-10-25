@@ -20,6 +20,7 @@ export function remoteReducer(state, action) {
         deals: [],
         handoffs: [],
         threads: [],
+        callLog: [],
         activities: [],
         datasets: [],
         queue: [],

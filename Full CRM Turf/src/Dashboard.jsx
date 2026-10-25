@@ -362,14 +362,14 @@ function NeedsToday() {
       : []),
     ...(role.pages.includes("inbox")
       ? visibleThreads(state)
-          .filter(thread => thread.unread && byId[thread.leadId])
+          .filter(thread => thread.unread)
           .map(thread => ({
             key: "thread-" + thread.id,
             at: "3",
             icon: ChatCircle,
-            title: "Reply to " + byId[thread.leadId].name,
+            title: "Reply to " + (byId[thread.leadId]?.name || thread.phone),
             detail: thread.channel + " · " + thread.preview,
-            action: { label: "Reply", go: "work/inbox?lead=" + thread.leadId },
+            action: { label: "Reply", go: "work/inbox?thread=" + thread.id },
           }))
       : []),
   ].sort((a, b) => a.at.localeCompare(b.at));

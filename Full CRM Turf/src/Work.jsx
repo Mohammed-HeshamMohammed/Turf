@@ -27,6 +27,8 @@ import { callbackLabel, canEditLead, capability, uid, visibleLeads, visibleTasks
 import { useCrm } from "./context.jsx";
 import { CallAssistant } from "./CallAssistant.jsx";
 import { CallTimer } from "./CallTimer.jsx";
+import { CallLog } from "./CallLog.jsx";
+import { smsRecipient } from "./sms.js";
 import { beginDemoCall, clearCallOutcome, endDemoCall, getCallSession, setCallSession, useCallSession } from "./callSession.js";
 import {
   Badge,
@@ -76,6 +78,7 @@ export function Calls({ target }) {
   const [smsLeadId, setSmsLeadId] = useState("");
   const [smsDrafts, setSmsDrafts] = useState({});
   const [autoDial, setAutoDial] = useState(false);
+  const [showCallLog, setShowCallLog] = useState(false);
   const autoQueue = useRef([]);
   useEffect(() => {
     if (!state.online || !capability(state, "call")) {
@@ -162,7 +165,7 @@ export function Calls({ target }) {
       setAskingCallback(true);
       return;
     }
-    dispatch({ type: "CALL", leadId: lead.id, outcome: value, callbackAt });
+    dispatch({ type: "CALL", leadId: lead.id, outcome: value, callbackAt, session: getCallSession() });
     if (callNote.trim()) dispatch({ type: "NOTE", leadId: lead.id, text: callNote });
     setCallNote("");
     setSelectedOutcome("");
@@ -204,6 +207,7 @@ export function Calls({ target }) {
     <>
       <div className="calls-heading">
         <PageHeader title="Calls">
+          <Button icon={Clock} onClick={() => setShowCallLog(true)}>Call log</Button>
           <Button
             icon={autoDial ? Pause : Play}
             variant="auto-dial-button"
@@ -216,6 +220,7 @@ export function Calls({ target }) {
           </Button>
         </PageHeader>
       </div>
+      {showCallLog && <Modal title="Call log" onClose={() => setShowCallLog(false)}><CallLog onClose={() => setShowCallLog(false)} /></Modal>}
       <div className="call-layout">
         <Card
           title="Your call queue"
@@ -1338,16 +1343,21 @@ export function Inbox() {
   const [newConversation, setNewConversation] = useState(false);
   const [newLeadId, setNewLeadId] = useState("");
   const [newChannel, setNewChannel] = useState("SMS");
+  const [recipientMode, setRecipientMode] = useState("Phone number");
+  const [newNumber, setNewNumber] = useState("");
   const leads = visibleLeads(state);
 
   const threads = visibleThreads(state).filter(thread => channel === "All" || thread.channel === channel);
   const requested = new URLSearchParams(route.split("?")[1]).get("lead");
-  const thread = threads.find(item => item.id === selected) || threads.find(item => item.leadId === requested) || threads[0];
+  const requestedThread = new URLSearchParams(route.split("?")[1]).get("thread");
+  const thread = threads.find(item => item.id === selected) || (requestedThread && threads.find(item => item.id === requestedThread)) || (requested && threads.find(item => item.leadId === requested)) || threads[0];
   const lead = leads.find(item => item.id === thread?.leadId);
   const canMessage = capability(state, "message") || capability(state, "publicComment");
+  const byNumber = newChannel === "SMS" && recipientMode === "Phone number" && state.role !== "client" && !state.remote;
+  const recipient = byNumber ? smsRecipient(state, newNumber) : null;
   return (
     <>
-      <PageHeader title="Inbox" description="Email, SMS and team messages, each beside its lead.">
+      <PageHeader title="Inbox" description="Email, SMS and team messages, with leads or phone numbers.">
         {canMessage && (
           <Button
             variant="primary"
@@ -1355,6 +1365,8 @@ export function Inbox() {
             onClick={() => {
               setNewLeadId(requested || leads[0]?.id || "");
               setNewChannel(state.role === "client" ? "Partner" : "SMS");
+              setRecipientMode("Phone number");
+              setNewNumber("");
               setNewConversation(true);
             }}
           >
@@ -1387,29 +1399,29 @@ export function Inbox() {
               >
                 <div>
                   <Icon size={19} />
-                  <strong>{person.name}</strong>
+                  <strong>{person?.name || item.phone}</strong>
                   {item.unread && <Badge tone="peach">New</Badge>}
                 </div>
                 <p>{item.preview}</p>
                 <small>
-                  {item.channel} · {person.address}
+                  {item.channel} · {person?.address || item.phone}
                 </small>
               </button>
             );
           })}
-          {!threads.length && <Empty title="No conversations here">Start a conversation from a visible lead.</Empty>}
+          {!threads.length && <Empty title="No conversations here">Start a conversation with a lead or phone number.</Empty>}
         </Card>
         <Card className="conversation">
-          {thread && lead ? (
+          {thread && (lead || thread.phone) ? (
             <>
               <header>
                 <div>
-                  <h2>{lead.name}</h2>
+                  <h2>{lead?.name || thread.phone}</h2>
                   <small>
-                    {thread.channel} · {lead.address}
+                    {thread.channel} · {lead?.address || "Phone number"}
                   </small>
                 </div>
-                <RoundButton label="Open conversation lead" onClick={() => navigate("work/leads/" + lead.id)} />
+                {lead && <RoundButton label="Open conversation lead" onClick={() => navigate("work/leads/" + lead.id)} />}
               </header>
               <div className="message-history">
                 {thread.messages.map((message, index) => (
@@ -1458,7 +1470,7 @@ export function Inbox() {
                       {state.online ? "Send demo message" : "Save draft"}
                     </button>
                   </div>
-                  <small>Prototype conversation · no real email or SMS is sent</small>
+                  <small className="demo-note">Prototype conversation · no real email or SMS is sent</small>
                 </form>
               )}
             </>
@@ -1468,17 +1480,23 @@ export function Inbox() {
         </Card>
       </div>
       {newConversation && (
-        <Modal title="Start with a lead." onClose={() => setNewConversation(false)}>
+        <Modal title="New conversation" onClose={() => setNewConversation(false)}>
           <form
+            className="sms-conversation-form"
             onSubmit={event => {
               event.preventDefault();
-              const id = uid();
-              dispatch({
+              if (byNumber && recipient.error) return;
+              const leadId = byNumber ? recipient.lead?.id || null : newLeadId;
+              const conversationChannel = state.role === "client" ? "Partner" : newChannel;
+              const existing = byNumber ? recipient.thread : visibleThreads(state).find(item => item.leadId === leadId && item.channel === conversationChannel);
+              const id = existing?.id || uid();
+              if (!existing) dispatch({
                 type: "NEW_THREAD",
                 thread: {
                   id,
-                  leadId: newLeadId,
-                  channel: state.role === "client" ? "Partner" : newChannel,
+                  leadId,
+                  phone: byNumber ? recipient.phone : undefined,
+                  channel: conversationChannel,
                   shared: state.role === "client" || newChannel === "Partner",
                   preview: "New conversation",
                   unread: false,
@@ -1488,9 +1506,15 @@ export function Inbox() {
               setSelected(id);
               setChannel("All");
               setNewConversation(false);
+              dispatch({ type: "MARK_READ", id });
+              setDraft("");
+              setAttachment("");
             }}
           >
-            <Field label="Related lead">
+            {newChannel === "SMS" && state.role !== "client" && !state.remote && <Segmented label="SMS recipient" value={recipientMode} options={["Phone number", "Existing lead"]} onChange={setRecipientMode} />}
+            {byNumber ? <Field label="Phone number" help={newNumber ? recipient.error || (recipient.lead ? "Linked to " + recipient.lead.name : recipient.thread ? "Existing SMS conversation" : "Start an SMS conversation without creating a lead.") : "Include the country code for international numbers."}>
+              <input type="tel" autoComplete="off" placeholder="e.g. +1 (813) 555-0101" value={newNumber} maxLength={28} onChange={event => setNewNumber(event.target.value)} required />
+            </Field> : <Field label="Related lead">
               <Select value={newLeadId} onChange={event => setNewLeadId(event.target.value)}>
                 {leads.map(lead => (
                   <option key={lead.id} value={lead.id}>
@@ -1498,7 +1522,7 @@ export function Inbox() {
                   </option>
                 ))}
               </Select>
-            </Field>
+            </Field>}
             <Field label="Channel">
               <Select value={newChannel} onChange={event => setNewChannel(event.target.value)}>
                 {state.role !== "client" && (
@@ -1511,7 +1535,7 @@ export function Inbox() {
                 <option>Partner</option>
               </Select>
             </Field>
-            <button type="submit" className="button primary" disabled={!newLeadId}>
+            <button type="submit" className="button primary" disabled={byNumber ? Boolean(recipient.error) : !newLeadId}>
               Open conversation
             </button>
           </form>

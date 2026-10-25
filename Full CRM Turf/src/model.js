@@ -1,5 +1,6 @@
 import { CALL_OUTCOMES, ROLES, TODAY, seedState } from "./data.js";
 import { detectSourceFields, headerKey, leadFromSource, SOURCE_FIELDS } from "./skiptrace-fields.js";
+import { phoneNumberKey, validPhoneNumber } from "./phone.js";
 
 export const uid = () => crypto.randomUUID();
 export function personalProfile(state) {
@@ -70,7 +71,9 @@ export function navCounts(state, role) {
 export function visibleThreads(state) {
   if (state.remote) return state.threads;
   const leadIds = new Set(visibleLeads(state).map(lead => lead.id));
-  return state.threads.filter(thread => leadIds.has(thread.leadId) && (state.role !== "client" || thread.shared === true));
+  return state.threads.filter(thread => thread.leadId
+    ? leadIds.has(thread.leadId) && (state.role !== "client" || thread.shared === true)
+    : thread.channel === "SMS" && capability(state, "message") && thread.owner === ROLES[state.role].person);
 }
 export function canEditLead(state, id) {
   if (state.remote) return capability(state, "edit") && scope(state).byId.has(id);
@@ -230,7 +233,10 @@ export function reducer(state, action) {
       };
       const now = new Date();
       const at = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16); // local wall time, like the dialer log
-      const entry = { id: uid(), at, outcome: outcome.label, code: outcome.code, agent: ROLES[state.role].person, scheduled };
+      const timing = action.session?.lead?.id === lead.id && action.session.callId
+        ? { id: action.session.callId, startedAt: action.session.startedAt, endedAt: action.session.endedAt || now.getTime(), endedBy: action.session.endedBy || "agent" }
+        : { id: uid() };
+      const entry = { ...timing, phone: action.session?.lead?.id === lead.id ? action.session.lead.phone : lead.phone, at, outcome: outcome.label, code: outcome.code, agent: ROLES[state.role].person, scheduled };
       const label = outcome.label + " · " + lead.name;
       let tasks = callbackTasks(state, lead, scheduled, (outcome.label === "Callback" ? "Callback: " : "Try again: ") + lead.name);
       if (outcome.label === "Transfer")
@@ -372,11 +378,18 @@ export function reducer(state, action) {
         queue: queued(state, target.id, "New deal for " + target.address, "Deal update"),
       };
     }
+    case "CALL_LOG": {
+      const call = action.call;
+      if (!call?.id || !Number.isFinite(call.startedAt) || !Number.isFinite(call.endedAt) || !capability(state, "call")) return state;
+      if (call.leadId && !visibleLeads(state).some(lead => lead.id === call.leadId)) return state;
+      const existing = (state.callLog || []).find(item => item.id === call.id);
+      return { ...state, callLog: [{ ...call, agent: existing?.agent || ROLES[state.role].person }, ...(state.callLog || []).filter(item => item.id !== call.id)] };
+    }
     case "MESSAGE": {
       const thread = state.threads.find(item => item.id === action.id);
       if (
         !thread ||
-        !visibleLeads(state).some(item => item.id === thread.leadId) ||
+        !visibleThreads(state).some(item => item.id === thread.id) ||
         (!capability(state, "message") && !capability(state, "publicComment")) ||
         !action.text.trim()
       )
@@ -394,10 +407,18 @@ export function reducer(state, action) {
         threads: state.threads.map(item =>
           item.id === thread.id ? { ...item, unread: false, preview: message.text, messages: [...item.messages, message] } : item,
         ),
-        queue: queued(state, thread.leadId, "Draft message for " + state.leads.find(item => item.id === thread.leadId).name, "Communication draft"),
+        queue: queued(state, thread.leadId, "Draft message for " + (state.leads.find(item => item.id === thread.leadId)?.name || thread.phone), "Communication draft"),
       };
     }
     case "NEW_THREAD": {
+      if (!action.thread.leadId) {
+        const thread = action.thread;
+        if (state.remote || thread.channel !== "SMS" || !capability(state, "message") || !validPhoneNumber(thread.phone)) return state;
+        const key = phoneNumberKey(thread.phone);
+        // Known numbers must use the lead path so entering a number cannot evade scope.
+        if (state.leads.some(lead => phoneNumberKey(lead.phone) === key) || visibleThreads(state).some(item => !item.leadId && phoneNumberKey(item.phone) === key)) return state;
+        return { ...state, threads: [...state.threads, { ...thread, phone: thread.phone.trim(), owner: ROLES[state.role].person, shared: false }] };
+      }
       if (
         (!capability(state, "message") && !capability(state, "publicComment")) ||
         !visibleLeads(state).some(item => item.id === action.thread.leadId) ||

@@ -1935,6 +1935,23 @@ textarea {
 .phone-current-call small { font-size: 12px; }
 .phone-current-call .button { min-height: 44px; width: 100%; }
 .phone-current-call .text-button { min-height: 40px; font-size: 12px; }
+.phone-panel > .segmented { margin-bottom: 18px; }
+.phone-panel > .segmented button { min-height: 40px; }
+.call-log { min-width: 0; }
+.call-log > .search { width: 100%; min-width: 0; min-height: 44px; margin-bottom: 14px; }
+.call-log-entries { display: grid; gap: 4px; max-height: 55dvh; overflow: auto; }
+.call-log-entry { display: flex; align-items: flex-start; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.call-log-entry:last-child { border-bottom: 0; }
+.call-log-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--well); }
+.call-log-details { display: grid; gap: 5px; min-width: 0; flex: 1; }
+.call-log-details strong { font-size: 14px; overflow-wrap: anywhere; }
+.call-log-details > span, .call-log-details time { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.call-log-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 5px; }
+.call-log-actions .button, .call-log-actions .text-button { min-height: 40px; font-size: 12px; }
+.call-log-actions .text-button { display: inline-flex; align-items: center; gap: 4px; }
+.sms-conversation-form > .segmented { margin-bottom: 18px; }
+.sms-conversation-form .segmented button { min-height: 40px; }
+.sms-conversation-form > .button { min-height: 44px; }
 .phone-call-icon { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; background: var(--good); color: var(--good-ink); }
 .phone-call-icon.is-ended { background: var(--accent-soft); color: var(--accent-ink); }
 @keyframes phone-pad-enter {

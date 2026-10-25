@@ -165,6 +165,7 @@ export function seedState() {
     schema: 2,
     role: "manager",
     online: true,
+    callLog: [],
     leads: structuredClone(LEADS),
     datasets: [
       {

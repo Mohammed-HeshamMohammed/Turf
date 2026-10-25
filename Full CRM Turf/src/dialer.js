@@ -1,9 +1,6 @@
 import { canEditLead, capability, visibleLeads } from "./model.js";
-
-export function dialNumberKey(value) {
-  const digits = String(value || "").replace(/\D/g, "");
-  return digits.length === 10 && !String(value).trim().startsWith("+") ? "1" + digits : digits;
-}
+import { phoneNumberKey as dialNumberKey } from "./phone.js";
+export { phoneNumberKey as dialNumberKey } from "./phone.js";
 
 /** Resolve a typed number without creating a lead or bypassing an existing contact's calling restrictions. */
 export function dialerTarget(state, number) {

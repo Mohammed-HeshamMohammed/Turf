@@ -22,6 +22,7 @@ let session = {
   // True while the captions float in their own desktop window instead of inside the app.
   popout: false,
   active: false,
+  callId: null,
   awaitingOutcome: false,
   startedAt: null,
   endedAt: null,
@@ -31,6 +32,11 @@ let session = {
   transcript: [],
 };
 const listeners = new Set();
+const logListeners = new Set();
+export function subscribeCallLog(listener) {
+  logListeners.add(listener);
+  return () => logListeners.delete(listener);
+}
 
 export const getCallSession = () => session;
 
@@ -50,6 +56,7 @@ export function beginDemoCall(lead) {
   if (session.active || session.awaitingOutcome || !lead?.phone?.trim()) return false;
   setCallSession({
     active: true,
+    callId: crypto.randomUUID(),
     awaitingOutcome: false,
     lead: { id: lead.id, name: lead.name, phone: lead.phone, address: lead.address, motivation: lead.motivation, adHoc: Boolean(lead.adHoc) },
     startedAt: Date.now(),
@@ -64,11 +71,13 @@ export function beginDemoCall(lead) {
 export function endDemoCall(endedBy = "agent") {
   if (!session.active) return false;
   setCallSession({ active: false, awaitingOutcome: true, endedAt: Date.now(), endedBy });
+  const call = { id: session.callId, leadId: session.lead.adHoc ? null : session.lead.id, name: session.lead.adHoc ? "" : session.lead.name, phone: session.lead.phone, startedAt: session.startedAt, endedAt: session.endedAt, endedBy };
+  logListeners.forEach(listener => listener(call));
   return true;
 }
 
 export function clearCallOutcome() {
-  setCallSession({ active: false, awaitingOutcome: false, lead: null, transcript: [], startedAt: null, endedAt: null, endedBy: null });
+  setCallSession({ active: false, awaitingOutcome: false, callId: null, lead: null, transcript: [], startedAt: null, endedAt: null, endedBy: null });
 }
 
 let lineCounter = 0;

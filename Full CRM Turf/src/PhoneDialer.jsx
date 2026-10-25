@@ -5,7 +5,8 @@ import { capability, visibleLeads } from "./model.js";
 import { beginDemoCall, clearCallOutcome, endDemoCall, useCallSession } from "./callSession.js";
 import { dialerTarget } from "./dialer.js";
 import { CallTimer } from "./CallTimer.jsx";
-import { Button, usePresence } from "./ui.jsx";
+import { CallLog } from "./CallLog.jsx";
+import { Button, Segmented, usePresence } from "./ui.jsx";
 
 const KEYS = [["1", ""], ["2", "ABC"], ["3", "DEF"], ["4", "GHI"], ["5", "JKL"], ["6", "MNO"], ["7", "PQRS"], ["8", "TUV"], ["9", "WXYZ"], ["*", ""], ["0", ""], ["#", ""]];
 
@@ -14,6 +15,7 @@ export function PhoneDialer() {
   const session = useCallSession();
   const [open, setOpen] = useState(false);
   const [number, setNumber] = useState("");
+  const [view, setView] = useState("Keypad");
   const root = useRef(null);
   const trigger = useRef(null);
   const input = useRef(null);
@@ -30,9 +32,9 @@ export function PhoneDialer() {
   }, [state.role, allowed]);
   useEffect(() => {
     if (!open) return;
-    if (!busy) input.current?.focus({ preventScroll: true });
+    if (!busy && view === "Keypad") input.current?.focus({ preventScroll: true });
     else root.current?.querySelector(".phone-panel button")?.focus({ preventScroll: true });
-  }, [open, busy, session.active]);
+  }, [open, busy, session.active, view]);
   useEffect(() => {
     if (!open) return undefined;
     const outside = event => {
@@ -71,10 +73,11 @@ export function PhoneDialer() {
     <div className="phone-dialer" ref={root}>
       {presence.mounted && <section id="phone-dial-pad" className={"phone-panel" + (presence.leaving ? " leaving" : "")} role="dialog" aria-label="Phone dial pad" aria-hidden={!open} inert={!open}>
         <header className="phone-panel-head">
-          <h2>{busy ? session.active ? "On a call" : "Call ended" : "Dial pad"}</h2>
+          <h2>{view === "Call log" ? "Call log" : busy ? session.active ? "On a call" : "Call ended" : "Dial pad"}</h2>
           <button type="button" className="phone-close" aria-label="Close dial pad" onClick={close}><X size={18} /></button>
         </header>
-        {busy ? <div className="phone-current-call">
+        <Segmented label="Phone view" value={view} options={["Keypad", "Call log"]} onChange={setView} />
+        {view === "Call log" ? <CallLog onDial={phone => { setNumber(phone); setView("Keypad"); }} /> : busy ? <div className="phone-current-call">
           <span className={"phone-call-icon" + (session.awaitingOutcome ? " is-ended" : "")}><Phone size={25} weight="fill" /></span>
           <strong>{contactVisible ? session.lead?.adHoc ? session.lead.phone : linkedLead?.name : "Current call"}</strong>
           {linkedLead && <p>{linkedLead.phone}</p>}

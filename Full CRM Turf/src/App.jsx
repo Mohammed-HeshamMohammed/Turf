@@ -12,6 +12,7 @@ import { CrmContext } from "./context.jsx";
 import { Button, CountBadge, Empty, Modal, PageTransition, Search, money, useHeld, usePresence } from "./ui.jsx";
 import { LiveCaptions } from "./LiveCaptions.jsx";
 import { PhoneDialer } from "./PhoneDialer.jsx";
+import { subscribeCallLog } from "./callSession.js";
 import { Sidebar } from "./Sidebar.jsx";
 import { WindowStrip, windowDrag } from "./WindowStrip.jsx";
 import { TurfMenu } from "./TurfMenu.jsx";
@@ -246,6 +247,7 @@ export function App() {
     },
     [notify],
   );
+  useEffect(() => subscribeCallLog(call => apply({ type: "CALL_LOG", call })), []);
   const connect = useCallback(async ({ me, vault }) => {
     const role = applyIdentity(me);
     const quiet = promise => promise.catch(() => []);
@@ -487,7 +489,7 @@ export function App() {
                     <button
                       key={thread.id}
                       onClick={() => {
-                        navigate("work/inbox?lead=" + thread.leadId);
+                        navigate("work/inbox?thread=" + thread.id);
                         setNotifications(false);
                       }}
                     >
