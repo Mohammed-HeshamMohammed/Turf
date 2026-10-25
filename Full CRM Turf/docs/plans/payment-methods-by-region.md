@@ -19,7 +19,7 @@ So every region below needs a way to pay, even though the leads are all American
 1. **Paddle is the default checkout everywhere.** As merchant of record, Paddle is the seller and handles the tax in every region: US sales tax, EU VAT, Canadian GST/HST, and digital VAT in other countries. Turf files none of it.
 2. **Stripe is used only where it saves real money**, mainly US bank debit for big annual plans. Every Stripe sale is Turf's own sale, so Turf owes the tax on it; keeping Stripe mostly to the US keeps Turf out of foreign tax registrations.
 3. **Prices are in US dollars.** Paddle can show local currencies at checkout.
-4. **No crypto.** Egypt's Central Bank law (No. 194 of 2020) bars trading and promoting crypto without a licence, and that applies to the founder living in Egypt whatever country the company is in.
+4. **Crypto is an optional planned payment route**, subject to provider approval and advice on the US-company/Egypt-resident setup. Prefer provider conversion to USD; see the crypto section below.
 5. **Stripe and US bank debit need the US company.** Stripe is not open to businesses registered in Egypt. Paddle and Stripe pay out to the US company's account (see [Company setup](../features/09-accounts-security-billing.md#company-setup)).
 
 ## By region
@@ -99,3 +99,42 @@ Many African banks block or limit international USD card payments, so some Afric
 - [ ] A US accountant on US sales tax and the LLC's filings; an Egyptian tax adviser on Egyptian tax.
 
 Sources: [Paddle payment methods](https://developer.paddle.com/concepts/payment-methods/overview) · [Paddle: which payment methods do you support](https://paddle.com/help/start/intro-to-paddle/which-payment-methods-do-you-support) · [Paddle payment methods (docs index)](https://developer.paddle.com/concepts/payment-methods.md) · [Stripe international fees 2026 (Checkout Page)](https://checkoutpage.com/blog/stripe-international-fees) · [Stripe ACH fees (Dodo Payments)](https://dodopayments.com/blogs/stripe-ach-fees/) · [Stripe fees explained 2026](https://transferfees.io/guides/stripe-fees-explained/) · [Paystack vs Flutterwave M-Pesa fees 2026 (Kolonell)](https://kolonell.com/en/blog/paystack-flutterwave-mpesa-transaction-fees-comparison-2026) · [Flutterwave alternatives for African SaaS (Dodo Payments)](https://dodopayments.com/blogs/flutterwave-alternatives) · [Paystack alternatives for African SaaS (Dodo Payments)](https://dodopayments.com/blogs/paystack-alternatives) · [Canada and EU tax changes (Sales Tax Institute)](https://www.salestaxinstitute.com/resources/sales-tax-changes-canada-eu) · [VAT and GST thresholds for digital sellers (Dodo Payments)](https://dodopayments.com/blogs/vat-gst-registration-thresholds/) · [Stripe: registering for tax outside the US](https://docs.stripe.com/tax/use-stripe-to-register/outside-united-states) · [SaaS sales tax statistics (Anrok)](https://www.anrok.com/resources/sales-tax-statistics) · [Economic nexus by state (Taxually)](https://www.taxually.com/blog/economic-nexus-by-state) · [Legality of cryptocurrency in Egypt (Andersen)](https://eg.andersen.com/legality-cryptocurrency-in-egypt/)
+
+
+## Expanded provider shortlist
+
+Updated 2026-10-25. These are candidates, not completed integrations or guaranteed merchant eligibility. Paddle remains the provisional default while alternatives are evaluated. Confirm seller country, beneficial-owner residence, payout bank, recurring-payment support and acceptance of Turf's calling, messaging and lead-data business before selection.
+
+| Provider | Intended use | Merchant of record for these sales? | Fees / verification |
+| --- | --- | --- | --- |
+| Paddle | Global software subscriptions | Yes | Previously budgeted at 5% + $0.50; verify contract |
+| Lemon Squeezy | Global subscriptions; Egypt listed for bank payouts | Yes | 5% + $0.50 base; additional fees may apply |
+| FastSpring | Global software subscriptions | Yes | Custom quote |
+| Polar | Global developer/SaaS subscriptions | Yes | Starter 5% + $0.50; paid plans reduce variable fees; international and payout extras |
+| Verifone / 2Checkout: 2Monetize | Global digital subscriptions and local methods | Yes, through 2Monetize | Obtain current quote; do not confuse with 2Sell/2Subscribe |
+| Paymob | Egyptian/local checkout | No | Merchant agreement and local eligibility to confirm |
+| Stripe standard Payments/Billing | Cards, subscriptions, ACH and eligible local methods | No | Method, company country, FX and billing fees vary |
+| PayPro Global | Global SaaS, usage billing and local methods | Yes | Custom quote |
+| Creem | Global software subscriptions and usage credits | Yes | Published 3.9% + $0.40; confirm contract and payouts |
+| PayTabs | Egyptian cards, invoices and repeat billing | No | Egypt offering confirmed; obtain current quote |
+| PayPal Business | Direct wallet subscriptions when useful | No | Country-specific fees and receiving eligibility |
+| Flutterwave | African mobile money, cards and transfers | No | Method and merchant-country eligibility vary |
+| Paystack | Subscriptions and payments in supported African markets | No | Merchant-country eligibility and recurring methods vary |
+| Dodo Payments | Additional global SaaS MoR candidate | Verify contract | Current pricing and seller/payout eligibility still unverified |
+
+MoR coverage concerns sales taxes on transactions it processes. It does not remove Turf's corporate or founder income-tax obligations. Direct processors leave transaction-tax obligations with Turf where applicable.
+
+## Optional crypto route
+
+**Planned, disabled until eligibility and legal treatment are confirmed.** A US entity and foreign bank account do not by themselves settle the application of Egyptian law to an Egypt-resident founder. The earlier blanket statement that the exact arrangement is certainly prohibited was too categorical; obtain advice on the actual structure.
+
+| Candidate | How it works | What needs confirming |
+| --- | --- | --- |
+| Stripe stablecoin payments | Customer pays supported stablecoins, including USDC, through hosted checkout; funds settle as fiat in Stripe. Current docs support invoices and subscriptions. | Eligible US company/account, permitted countries, enabled recurring flow and current fees |
+| BitPay | Hosted crypto invoice for supported coins, converted into USD for settlement to an approved US bank account | Merchant approval, bank settlement, current processing/FX fees and renewal workflow |
+
+Initial product flow: customer selects crypto, Turf creates a USD-priced provider invoice, customer pays, and Turf verifies the provider event and final payment status before granting a fixed paid term. The return page alone never activates service. Expired, underpaid or pending payments do not activate access. Refunds go through the provider. Automatic renewals are enabled only for a verified supported provider flow; otherwise send a renewal invoice. Keep private keys and customer wallet custody outside Turf.
+
+Crypto is a direct payment route, not MoR tax coverage. Track provider reference, USD invoice value, settlement amount, fees and refunds in the billing ledger. Never assume zero disputes eliminates fraud or refund obligations. No crypto processing fee is fixed in the plan economics until a provider quote is confirmed.
+
+Primary sources: [Lemon Squeezy pricing](https://www.lemonsqueezy.com/pricing), [supported payout countries](https://docs.lemonsqueezy.com/help/getting-started/supported-countries), [FastSpring](https://fastspring.com/pricing/), [Polar](https://polar.sh/resources/pricing), [2Monetize](https://www.2checkout.com/products/2monetize/), [PayPro Global](https://payproglobal.com/about/), [Creem](https://www.creem.io/), [PayTabs Egypt](https://paytabs.com/en/egypt/), [PayPal subscriptions](https://www.paypal.com/us/business/accept-payments/recurring-payments), [Flutterwave](https://developer.flutterwave.com/v4.0.0/docs/introduction-1), [Paystack](https://support.paystack.com/en/articles/2132546), [Stripe stablecoin payments](https://docs.stripe.com/payments/stablecoin-payments), [BitPay](https://www.bitpay.com/business), [BitPay settlement](https://developer.bitpay.com/docs/settlement).

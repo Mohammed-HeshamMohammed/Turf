@@ -73,7 +73,7 @@ Everything runs on the server. The desktop and web apps show the screens; sign-i
 
 Which methods customers can use in the US, Canada, Latin America, Europe and Africa, and who owes the tax in each: [Payment methods by region](../plans/payment-methods-by-region.md).
 
-**No crypto.** Egypt's Central Bank law (No. 194 of 2020, Article 206) bars issuing, trading or promoting crypto without a licence, and no licences have been issued. It applies to the founder living in Egypt whatever country the company is in.
+**Expanded shortlist and crypto:** the [payment methods document](../plans/payment-methods-by-region.md#expanded-provider-shortlist) lists all candidate providers. Crypto is now an optional planned route through Stripe stablecoins or BitPay, preferably settled in USD. It remains subject to provider approval and advice on the company/founder jurisdictions. No crypto integration or fee is assumed implemented. Stripe's current documentation supports stablecoin subscriptions; the earlier claim that recurring crypto is unavailable is superseded.
 
 ## Company setup
 
@@ -136,3 +136,8 @@ Sources: [Egypt corporate residence (PwC)](https://taxsummaries.pwc.com/egypt/co
 | **Selling price of this feature** | Free | **Included ($0)** | **Included ($0)** | **Included ($0)** | **Included ($0)** |
 
 **Why $0:** accounts and billing are how customers pay, not something they pay for. The payment fee is the cost to plan for: about 5% of every plan's price plus $0.50 per payment.
+
+
+## Current planning priority (2026-10-25)
+
+The user has deferred property and area insights (Census, FEMA and similar enrichment). Immediate attention goes to DNC, core product capabilities and company registration/verification. Formation, tax registration, carrier/business verification and DNC subscriptions are distinct processes; none is completed merely by documenting the plan.
