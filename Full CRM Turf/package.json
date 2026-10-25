@@ -13,6 +13,7 @@
     "format": "prettier --write src tests/crm-model.test.mjs eslint.config.js vite.config.mjs README.md design-qa.md",
     "tauri": "tauri",
     "desktop": "tauri dev",
+    "desktop:sample": "node scripts/desktop-sample.mjs",
     "css:unused": "node scripts/css-unused.mjs"
   },
   "dependencies": {
