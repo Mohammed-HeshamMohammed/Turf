@@ -21,4 +21,5 @@ Every feature file uses the same five tiers:
 | # | Feature | Status |
 | --- | --- | --- |
 | 1 | [Importing lists (local and server)](01-importing-lists.md) | Agreed |
+| 2 | [Skip Tracing the customer's lists](02-skip-tracing.md) | Agreed |
 | 1b | Requesting leads through Turf's supplier | Open: needs the supplier's price per lead, what a lead contains, and whether resale is allowed |

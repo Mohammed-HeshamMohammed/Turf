@@ -45,6 +45,9 @@ Filled in as each feature is agreed. The price column is the sum of each feature
 | --- | --- | --- | --- | --- | --- |
 | [1. Importing lists](../features/01-importing-lists.md): active leads on the server | 25,000 | 1,000,000 | 2,000,000 shared | 1,000,000 per seat, shared | 2,500,000 per seat, shared |
 | 1. Importing lists: selling price | Free | $49 | $69 | $39 per seat | $59 per seat |
-| **Plan price so far** | **Free** | **$49** | **$69** | **$39 per seat** (from $117) | **$59 per seat** (from $177) |
+| [2. Skip Tracing](../features/02-skip-tracing.md): rows checked on the server per month | 25,000 | 1,000,000 | 2,000,000 shared | 1,000,000 per seat, shared | 3,000,000 per seat, shared |
+| 2. Skip Tracing: number lookups per month | 100 | 1,000 | 2,000 shared | 1,000 per seat, shared | 3,000 per seat, shared |
+| 2. Skip Tracing: selling price | Free | $79 | $119 | $59 per seat | $89 per seat |
+| **Plan price so far** | **Free** | **$128** | **$188** | **$98 per seat** (from $294) | **$148 per seat** (from $444) |
 
 The plan price grows as features are added. The final prices are set once every feature is priced.
