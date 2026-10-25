@@ -80,7 +80,7 @@ PropStream, BatchLeads and DealMachine **sell the data**, so their limits protec
 
 **Where they win today:** they sell data inside the app (Feature 1b could close this), they find phone numbers Turf doesn't, and they are proven products.
 
-> "Stack and clean unlimited lists on your computer, and 1,000,000 leads for your team, for $150."
+> "Stack and clean unlimited lists on your computer, and 1,000,000 leads for your team."
 
 Sources: [REISift list stacking](https://intercom.help/reisift/pt-BR/articles/4364638-como-encontrar-registros-de-propriedades-stackadas) · [REISift upload limits](https://intercom.help/reisift/en/articles/9114372-limitasyon-sa-pag-upload-at-paano-bumili-ng-karagdagang-espasyo) · [REsimpli pricing](https://www.resimpli.com/pricing) · [List stacking software (REsimpli)](https://resimpli.com/blog/list-stacking-software/) · [Tools to pull lists in 2026 (REsimpli)](https://resimpli.com/blog/tools-to-pull-lists-for-real-estate-investors-in-2026/) · [PropStream pricing](https://www.propstream.com/news/how-much-does-propstream-cost) · [DealMachine pricing](https://dealmachine.com/guides/current-vs-classic-pricing) · [Pipedrive usage limits](https://support.pipedrive.com/article/usage-limits-in-pipedrive)
 
