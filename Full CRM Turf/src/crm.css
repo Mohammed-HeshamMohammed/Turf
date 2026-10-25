@@ -1810,6 +1810,16 @@ textarea {
 .offline-banner button {
   text-decoration: underline;
 }
+.calls-heading .page-heading {
+  flex-direction: row;
+  align-items: center;
+}
+.calls-heading .page-actions {
+  width: auto;
+}
+.calls-heading .button {
+  min-height: 40px;
+}
 .call-layout {
   display: grid;
   grid-template-columns: minmax(250px, 1fr) minmax(0, 2.2fr) minmax(290px, 1.2fr);

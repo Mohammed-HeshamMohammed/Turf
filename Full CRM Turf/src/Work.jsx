@@ -3,6 +3,8 @@ import { PropertyMap } from "./PropertyMap.jsx";
 import {
   Phone,
   PhoneDisconnect,
+  Play,
+  Pause,
   ArrowRight,
   ArrowUpRight,
   CheckCircle,
@@ -64,6 +66,14 @@ export function Calls({ target }) {
   const [callbackAt, setCallbackAt] = useState("");
   const [askingCallback, setAskingCallback] = useState(false);
   const [detailTab, setDetailTab] = useState("History");
+  const [autoDial, setAutoDial] = useState(false);
+  const autoQueue = useRef([]);
+  useEffect(() => {
+    if (!state.online || !capability(state, "call")) {
+      autoQueue.current = [];
+      setAutoDial(false);
+    }
+  }, [state]);
   // The queue follows a list: the one chosen above it, or the one a list page sent you here with (?list=).
   const listParam = new URLSearchParams(route.split("?")[1]).get("list") || "";
   const [listId, setListId] = useState(listParam);
@@ -94,13 +104,36 @@ export function Calls({ target }) {
       .map(entry => entry.item);
   }, [callable, activeList, lists]);
   const lead = leads.find(item => item.id === chosen) || leads[0];
-  const setActiveCall = on =>
+  const autoEligible = leads.filter(item => item.phone?.trim() && canEditLead(state, item.id));
+  const setActiveCall = (on, contact = lead) =>
     setCallSession({
       active: on,
-      lead: on && lead ? { id: lead.id, name: lead.name, address: lead.address, motivation: lead.motivation } : null,
+      lead: on && contact ? { id: contact.id, name: contact.name, address: contact.address, motivation: contact.motivation } : null,
       transcript: [],
     });
   if (!capability(state, "call")) return <Empty title="Calling is outside this role">Your workspace only shows the actions available to you.</Empty>;
+  function pauseAutoDial() {
+    autoQueue.current = [];
+    setAutoDial(false);
+  }
+  function toggleAutoDial() {
+    if (autoDial) {
+      pauseAutoDial();
+      notify("Auto dial paused");
+      return;
+    }
+    if (!state.online || !autoEligible.length) return;
+    const position = Math.max(0, autoEligible.findIndex(item => item.id === lead?.id));
+    const ordered = [...autoEligible.slice(position), ...autoEligible.slice(0, position)];
+    const first = ordered[0];
+    autoQueue.current = ordered.slice(1).map(item => item.id);
+    setAutoDial(true);
+    if (!activeCall) {
+      setChosen(first.id);
+      setActiveCall(true, first);
+    }
+    notify("Auto dial started · save each outcome to continue");
+  }
   function outcome(value) {
     if (!lead) return;
     if (value === "Callback" && !callbackAt) {
@@ -113,6 +146,25 @@ export function Calls({ target }) {
     setCallbackAt("");
     setAskingCallback(false);
     setActiveCall(false);
+    if (autoDial) {
+      if (state.online && !["Transfer", "Callback"].includes(value)) {
+        let next;
+        while (autoQueue.current.length && !next) {
+          const id = autoQueue.current.shift();
+          next = autoEligible.find(item => item.id === id && item.id !== lead.id);
+        }
+        if (next) {
+          setChosen(next.id);
+          setActiveCall(true, next);
+          notify(value + " recorded · calling " + next.name);
+          return;
+        }
+        pauseAutoDial();
+        notify(value + " recorded · Auto dial queue complete");
+        return;
+      }
+      pauseAutoDial();
+    }
     notify(state.online ? value + " recorded" : "Manual call outcome queued for sync");
     // A live conversation stays on screen for the next step; anything else moves to the next lead.
     if (!["Transfer", "Callback"].includes(value)) setChosen(leads[(leads.findIndex(item => item.id === lead.id) + 1) % leads.length]?.id || "");
@@ -120,7 +172,20 @@ export function Calls({ target }) {
   const calls = [...(lead?.calls || [])].reverse();
   return (
     <>
-      <PageHeader title="Calls" />
+      <div className="calls-heading">
+        <PageHeader title="Calls">
+          <Button
+            icon={autoDial ? Pause : Play}
+            variant={autoDial ? "primary" : ""}
+            aria-pressed={autoDial}
+            disabled={!autoDial && (!state.online || !autoEligible.length || (activeCall && !autoEligible.some(item => item.id === lead?.id)))}
+            title="Run through this demo queue. Save an outcome to start the next call. Callbacks and transfers pause auto dial."
+            onClick={toggleAutoDial}
+          >
+            {autoDial ? "Pause auto dial" : "Auto dial"}
+          </Button>
+        </PageHeader>
+      </div>
       <div className="call-layout">
         <Card
           title="Your call queue"
@@ -133,7 +198,7 @@ export function Calls({ target }) {
         >
           {lists.length > 1 && (
             <div className="queue-list-pick">
-              <Select aria-label="Call list" value={activeList} disabled={activeCall} onChange={event => setListId(event.target.value)}>
+              <Select aria-label="Call list" value={activeList} disabled={activeCall || autoDial} onChange={event => setListId(event.target.value)}>
                 <option value="">{"All lists · " + callable.length}</option>
                 {lists.map(item => (
                   <option key={item.id} value={item.id}>
@@ -150,9 +215,9 @@ export function Calls({ target }) {
               )}
               <button
                 className={"queue-lead " + (item.id === lead?.id ? "selected" : "")}
-                disabled={activeCall && item.id !== lead?.id}
+                disabled={(activeCall || autoDial) && item.id !== lead?.id}
                 onClick={() => {
-                  if (activeCall) return;
+                  if (activeCall || autoDial) return;
                   setChosen(item.id);
                   setActiveCall(false);
                 }}
@@ -215,7 +280,7 @@ export function Calls({ target }) {
                 {activeCall && (
                   <div className="call-live" role="status">
                     <span className="status-dot" />
-                    Call in progress · <CallTimer />
+                    Call in progress · <CallTimer key={lead.id} />
                     <span className="demo-note"> · demo audio, no number is dialled</span>
                     {!captions && (
                       <button type="button" className="text-button" onClick={() => toggleCaptions(true)}>
