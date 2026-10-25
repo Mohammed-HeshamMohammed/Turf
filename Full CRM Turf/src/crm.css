@@ -1951,8 +1951,15 @@ textarea {
 .sms-conversation-form > .segmented { margin-bottom: 18px; }
 .sms-conversation-form .segmented button { min-height: 40px; }
 .sms-conversation-form > .button { min-height: 44px; }
-.calls-heading > .segmented { margin-bottom: 18px; }
-.calls-heading > .segmented button { min-height: 40px; }
+.calls-heading .page-title-controls { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.calls-heading .page-title-controls .segmented { padding: 3px; }
+.calls-heading .page-title-controls .segmented button { font-size: 12px; padding: 5px 10px; min-height: 28px; }
+@media (max-width: 720px) {
+  .calls-heading .page-heading { flex-wrap: wrap; gap: 12px; }
+  .calls-heading .page-title-controls { gap: 10px; }
+  .calls-heading .page-title-controls .segmented button { min-height: 40px; }
+  .calls-heading .page-actions { margin-left: auto; }
+}
 @media (max-width: 800px) {
   .call-log-entry { align-items: flex-start; }
   .call-log-details { grid-template-columns: minmax(0, 1fr); gap: 9px; }

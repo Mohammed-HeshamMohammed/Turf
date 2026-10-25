@@ -48,11 +48,12 @@ export function RoundButton({ label, onClick, icon: Icon = ArrowUpRight, ...prop
     </button>
   );
 }
-export function PageHeader({ title, description, children }) {
+export function PageHeader({ title, titleAside, description, children }) {
   return (
     <header className="page-heading">
-      <div>
+      <div className={titleAside ? "page-title-controls" : undefined}>
         <h1>{title}</h1>
+        {titleAside}
         {description && <p>{description}</p>}
       </div>
       <div className="page-actions">{children}</div>

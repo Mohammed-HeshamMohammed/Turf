@@ -207,7 +207,7 @@ export function Calls({ target }) {
   return (
     <>
       <div className="calls-heading">
-        <PageHeader title="Calls">
+        <PageHeader title="Calls" titleAside={<Segmented label="Calls view" value={callsView} options={["Call queue", "Call log"]} onChange={value => navigate(route.split("?")[0] + (value === "Call log" ? "?view=log" : ""))} />}>
           <Button
             icon={autoDial ? Pause : Play}
             variant="auto-dial-button"
@@ -219,7 +219,6 @@ export function Calls({ target }) {
             {autoDial ? "Pause auto dial" : "Auto dial"}
           </Button>
         </PageHeader>
-        <Segmented label="Calls view" value={callsView} options={["Call queue", "Call log"]} onChange={value => navigate(route.split("?")[0] + (value === "Call log" ? "?view=log" : ""))} />
       </div>
       {callsView === "Call log" ? <Card className="calls-log-card"><CallLog onCall={() => navigate(route.split("?")[0])} /></Card> : <div className="call-layout">
         <Card
