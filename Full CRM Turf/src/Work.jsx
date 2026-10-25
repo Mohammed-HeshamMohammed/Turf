@@ -176,7 +176,7 @@ export function Calls({ target }) {
         <PageHeader title="Calls">
           <Button
             icon={autoDial ? Pause : Play}
-            variant={autoDial ? "primary" : ""}
+            variant="auto-dial-button"
             aria-pressed={autoDial}
             disabled={!autoDial && (!state.online || !autoEligible.length || (activeCall && !autoEligible.some(item => item.id === lead?.id)))}
             title="Run through this demo queue. Save an outcome to start the next call. Callbacks and transfers pause auto dial."

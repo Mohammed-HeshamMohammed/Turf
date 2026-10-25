@@ -33,6 +33,7 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Preserve the original Calls card design and refine its spacing. Add calling controls incrementally without redesigning the card.
 - In the Calls lead card, put Start/End call beside the phone number so it is easy to find; Live captions belongs at the bottom right, opposite Full lead record. Preserve the existing card styling.
 - Auto dial belongs at the top right of the Calls page header. It runs one pass through the eligible demo queue, advances after saving each outcome, and pauses for callbacks or transfers. Pausing auto dial leaves the current call running.
+- Auto dial has its own vivid violet/indigo color and a noticeable, gentle glow pulse. Keep that treatment in both idle and active states; disable the pulse for reduced motion and unavailable controls.
 - Detail pages keep one primary action in the header (the lead page: Call); secondary and destructive actions go in the More menu.
 - The overview opens with "Needs you today": due tasks, expected callbacks, handoffs to accept and unread messages, each with the one action that deals with it.
 - Every on/off setting is the same switch (`Checkbox` renders it). Table row selection keeps plain checkboxes.

@@ -1820,6 +1820,39 @@ textarea {
 .calls-heading .button {
   min-height: 40px;
 }
+.calls-heading .auto-dial-button {
+  background: linear-gradient(120deg, #6d28d9, #4f46e5);
+  color: #fff;
+  font-weight: 600;
+  padding-inline: 18px;
+  box-shadow: 0 4px 14px #6d28d93b;
+}
+.calls-heading .auto-dial-button:not(:disabled) {
+  animation: auto-dial-glow 3s ease-in-out infinite;
+}
+.calls-heading .auto-dial-button:hover:not(:disabled) {
+  background: linear-gradient(120deg, #7c3aed, #4338ca);
+}
+.calls-heading .auto-dial-button[aria-pressed="true"] {
+  background: linear-gradient(120deg, #7e22ce, #4338ca);
+  animation-duration: 1.8s;
+}
+.calls-heading .auto-dial-button:disabled {
+  box-shadow: none;
+}
+@keyframes auto-dial-glow {
+  0%, 100% {
+    box-shadow: 0 4px 14px #6d28d93b, 0 0 0 0 #7c3aed33;
+  }
+  50% {
+    box-shadow: 0 5px 20px #6d28d966, 0 0 0 5px #7c3aed12;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .calls-heading .auto-dial-button:not(:disabled) {
+    animation: none;
+  }
+}
 .call-layout {
   display: grid;
   grid-template-columns: minmax(250px, 1fr) minmax(0, 2.2fr) minmax(290px, 1.2fr);
