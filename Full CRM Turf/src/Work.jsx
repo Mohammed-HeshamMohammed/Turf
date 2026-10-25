@@ -78,7 +78,7 @@ export function Calls({ target }) {
   const [smsLeadId, setSmsLeadId] = useState("");
   const [smsDrafts, setSmsDrafts] = useState({});
   const [autoDial, setAutoDial] = useState(false);
-  const [showCallLog, setShowCallLog] = useState(false);
+  const callsView = new URLSearchParams(route.split("?")[1]).get("view") === "log" ? "Call log" : "Call queue";
   const autoQueue = useRef([]);
   useEffect(() => {
     if (!state.online || !capability(state, "call")) {
@@ -148,6 +148,7 @@ export function Calls({ target }) {
       return;
     }
     if (!state.online || !autoEligible.length) return;
+    if (callsView === "Call log") navigate(route.split("?")[0]);
     const position = Math.max(0, autoEligible.findIndex(item => item.id === lead?.id));
     const ordered = [...autoEligible.slice(position), ...autoEligible.slice(0, position)];
     const first = ordered[0];
@@ -207,7 +208,6 @@ export function Calls({ target }) {
     <>
       <div className="calls-heading">
         <PageHeader title="Calls">
-          <Button icon={Clock} onClick={() => setShowCallLog(true)}>Call log</Button>
           <Button
             icon={autoDial ? Pause : Play}
             variant="auto-dial-button"
@@ -219,9 +219,9 @@ export function Calls({ target }) {
             {autoDial ? "Pause auto dial" : "Auto dial"}
           </Button>
         </PageHeader>
+        <Segmented label="Calls view" value={callsView} options={["Call queue", "Call log"]} onChange={value => navigate(route.split("?")[0] + (value === "Call log" ? "?view=log" : ""))} />
       </div>
-      {showCallLog && <Modal title="Call log" onClose={() => setShowCallLog(false)}><CallLog onClose={() => setShowCallLog(false)} /></Modal>}
-      <div className="call-layout">
+      {callsView === "Call log" ? <Card className="calls-log-card"><CallLog onCall={() => navigate(route.split("?")[0])} /></Card> : <div className="call-layout">
         <Card
           title="Your call queue"
           subtitle={
@@ -435,7 +435,7 @@ export function Calls({ target }) {
             onUse={text => setCallNote(note => (note.trim() ? note.trimEnd() + "\n" : "") + "• " + text)}
           />
         </aside>
-      </div>
+      </div>}
       {smsLead && capability(state, "message") && (
         <Modal title="SMS" onClose={() => setSmsLeadId("")}>
           <p className="muted">To {smsLead.name} · {smsLead.phone}</p>

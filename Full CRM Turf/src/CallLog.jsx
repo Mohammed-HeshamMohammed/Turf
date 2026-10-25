@@ -6,7 +6,7 @@ import { dialerTarget } from "./dialer.js";
 import { callDuration, visibleCallLog } from "./callLog.js";
 import { Button, Empty, Search } from "./ui.jsx";
 
-export function CallLog({ onDial, onClose }) {
+export function CallLog({ onCall }) {
   const { state, navigate, notify } = useCrm();
   const session = useCallSession();
   const [search, setSearch] = useState("");
@@ -21,17 +21,14 @@ export function CallLog({ onDial, onClose }) {
         return <article className="call-log-entry" key={call.id}>
           <span className="call-log-icon"><Phone size={18} /></span>
           <div className="call-log-details">
-            <strong>{call.name || call.phone}</strong>
-            {call.name && call.phone && <span>{call.phone}</span>}
-            <span>{call.outcome}{duration && " · " + duration}</span>
-            <time>{new Date(call.startedAt || call.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</time>
-            <span>{call.agent}{call.endedBy === "contact" && " · Contact hung up"}</span>
+            <div className="call-log-person"><strong>{call.name || call.phone}</strong>{call.name && call.phone && <span>{call.phone}</span>}</div>
+            <div className="call-log-result"><span>{call.outcome}{duration && " · " + duration}</span>{call.endedBy === "contact" && <span>Contact hung up</span>}</div>
+            <div className="call-log-when"><time>{new Date(call.startedAt || call.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</time><span>{call.agent}</span></div>
             <div className="call-log-actions">
               <Button icon={Phone} disabled={busy || !state.online || Boolean(target.error)} title={busy ? "Finish the current call and its outcome first" : target.error} onClick={() => {
-                if (onDial) return onDial(call.phone);
-                if (beginDemoCall(target.lead)) { notify("Demo call started — no real number is dialed"); onClose?.(); }
+                if (beginDemoCall(target.lead)) { notify("Demo call started — no real number is dialed"); onCall?.(); }
               }}>Call again</Button>
-              {call.leadId && <button type="button" className="text-button" onClick={() => { navigate("work/leads/" + call.leadId); onClose?.(); }}><ArrowUpRight size={15} />Lead</button>}
+              {call.leadId && <button type="button" className="text-button" onClick={() => navigate("work/leads/" + call.leadId)}><ArrowUpRight size={15} />Lead</button>}
             </div>
           </div>
         </article>;
