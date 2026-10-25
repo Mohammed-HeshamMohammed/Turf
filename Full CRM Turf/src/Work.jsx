@@ -26,7 +26,7 @@ import { CALL_OUTCOMES, DEAL_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
 import { callbackLabel, canEditLead, capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { CallAssistant } from "./CallAssistant.jsx";
-import { getCallSession, setCallSession, useCallSession } from "./callSession.js";
+import { beginDemoCall, clearCallOutcome, endDemoCall, getCallSession, setCallSession, useCallSession } from "./callSession.js";
 import {
   Badge,
   Select,
@@ -59,12 +59,15 @@ export function Calls({ target }) {
   // A call in progress belongs to the app, not this page, so it carries on (with its captions) while you look around.
   const session = useCallSession();
   const activeCall = session.active;
-  const callStatus = usePresence(activeCall, 320);
+  const awaitingOutcome = session.awaitingOutcome;
+  const callLocked = activeCall || awaitingOutcome;
+  const callStatus = usePresence(callLocked, 320);
   const captions = session.captions;
-  const [chosen, setChosen] = useState(target || (getCallSession().active ? getCallSession().lead?.id : "") || "");
+  const [chosen, setChosen] = useState(target || getCallSession().lead?.id || "");
   const [script, setScript] = useState("First conversation");
   const [recording, setRecording] = useState(false);
   const [callNote, setCallNote] = useState("");
+  const [selectedOutcome, setSelectedOutcome] = useState("");
   const [callbackAt, setCallbackAt] = useState("");
   const [askingCallback, setAskingCallback] = useState(false);
   const [detailTab, setDetailTab] = useState("History");
@@ -107,17 +110,11 @@ export function Calls({ target }) {
       .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : a.index - b.index))
       .map(entry => entry.item);
   }, [callable, activeList, lists]);
-  const lead = leads.find(item => item.id === chosen) || leads[0];
+  const lead = callLocked ? visibleLeads(state).find(item => item.id === session.lead?.id) : leads.find(item => item.id === chosen) || leads[0];
   const smsLead = visibleLeads(state).find(item => item.id === smsLeadId);
   const smsThread = visibleThreads(state).find(item => item.leadId === smsLeadId && item.channel === "SMS");
   const smsDraft = smsDrafts[smsLeadId] || "";
   const autoEligible = leads.filter(item => item.phone?.trim() && canEditLead(state, item.id));
-  const setActiveCall = (on, contact = lead) =>
-    setCallSession({
-      active: on,
-      lead: on && contact ? { id: contact.id, name: contact.name, address: contact.address, motivation: contact.motivation } : null,
-      transcript: [],
-    });
   if (!capability(state, "call")) return <Empty title="Calling is outside this role">Your workspace only shows the actions available to you.</Empty>;
   function sendCallSms(event) {
     event.preventDefault();
@@ -145,11 +142,11 @@ export function Calls({ target }) {
     const first = ordered[0];
     autoQueue.current = ordered.slice(1).map(item => item.id);
     setAutoDial(true);
-    if (!activeCall) {
+    if (!callLocked) {
       setChosen(first.id);
-      setActiveCall(true, first);
+      beginDemoCall(first);
     }
-    notify("Auto dial started · save each outcome to continue");
+    notify(awaitingOutcome ? "Auto dial is waiting for this call's outcome" : "Auto dial started · save each outcome to continue");
   }
   function outcome(value) {
     if (!lead) return;
@@ -160,9 +157,10 @@ export function Calls({ target }) {
     dispatch({ type: "CALL", leadId: lead.id, outcome: value, callbackAt });
     if (callNote.trim()) dispatch({ type: "NOTE", leadId: lead.id, text: callNote });
     setCallNote("");
+    setSelectedOutcome("");
     setCallbackAt("");
     setAskingCallback(false);
-    setActiveCall(false);
+    clearCallOutcome();
     if (autoDial) {
       if (state.online && !["Transfer", "Callback"].includes(value)) {
         let next;
@@ -172,7 +170,7 @@ export function Calls({ target }) {
         }
         if (next) {
           setChosen(next.id);
-          setActiveCall(true, next);
+          beginDemoCall(next);
           notify(value + " recorded · calling " + next.name);
           return;
         }
@@ -186,6 +184,13 @@ export function Calls({ target }) {
     // A live conversation stays on screen for the next step; anything else moves to the next lead.
     if (!["Transfer", "Callback"].includes(value)) setChosen(leads[(leads.findIndex(item => item.id === lead.id) + 1) % leads.length]?.id || "");
   }
+  function chooseOutcome(value) {
+    if (!callLocked) return outcome(value);
+    if (activeCall) endDemoCall();
+    setSelectedOutcome(value);
+    setAskingCallback(value === "Callback");
+    if (value !== "Callback") setCallbackAt("");
+  }
   const calls = [...(lead?.calls || [])].reverse();
   return (
     <>
@@ -195,7 +200,7 @@ export function Calls({ target }) {
             icon={autoDial ? Pause : Play}
             variant="auto-dial-button"
             aria-pressed={autoDial}
-            disabled={!autoDial && (!state.online || !autoEligible.length || (activeCall && !autoEligible.some(item => item.id === lead?.id)))}
+            disabled={!autoDial && (!state.online || !autoEligible.length || (callLocked && !autoEligible.some(item => item.id === lead?.id)))}
             title="Run through this demo queue. Save an outcome to start the next call. Callbacks and transfers pause auto dial."
             onClick={toggleAutoDial}
           >
@@ -215,7 +220,7 @@ export function Calls({ target }) {
         >
           {lists.length > 1 && (
             <div className="queue-list-pick">
-              <Select aria-label="Call list" value={activeList} disabled={activeCall || autoDial} onChange={event => setListId(event.target.value)}>
+              <Select aria-label="Call list" value={activeList} disabled={callLocked || autoDial} onChange={event => setListId(event.target.value)}>
                 <option value="">{"All lists · " + callable.length}</option>
                 {lists.map(item => (
                   <option key={item.id} value={item.id}>
@@ -232,11 +237,11 @@ export function Calls({ target }) {
               )}
               <button
                 className={"queue-lead " + (item.id === lead?.id ? "selected" : "")}
-                disabled={(activeCall || autoDial) && item.id !== lead?.id}
+                disabled={(callLocked || autoDial) && item.id !== lead?.id}
                 onClick={() => {
-                  if (activeCall || autoDial) return;
+                  if (callLocked || autoDial) return;
                   setChosen(item.id);
-                  setActiveCall(false);
+                  clearCallOutcome();
                 }}
               >
                 <strong>{item.name}</strong>
@@ -280,18 +285,20 @@ export function Calls({ target }) {
                   <div className="dial-number">{lead.phone}</div>
                   <Button
                     variant={activeCall ? "danger-button" : "primary"}
-                    icon={activeCall ? PhoneDisconnect : Phone}
-                    disabled={!state.online}
+                    icon={callLocked ? PhoneDisconnect : Phone}
+                    disabled={awaitingOutcome || (!activeCall && (!state.online || !lead.phone?.trim()))}
+                    title={awaitingOutcome ? "Save feedback below before starting another call" : undefined}
                     onClick={() => {
-                      setActiveCall(!activeCall);
-                      notify(activeCall ? "Demo call ended" : "Demo call started — no real number is dialed");
+                      if (activeCall) endDemoCall();
+                      else beginDemoCall(lead);
+                      notify(activeCall ? "Call ended · record the outcome below" : "Demo call started — no real number is dialed");
                     }}
                   >
-                    {activeCall ? "End demo call" : "Start demo call"}
+                    {activeCall ? "End demo call" : awaitingOutcome ? "Call ended" : "Start demo call"}
                   </Button>
                 </div>
-                <div className={"call-status" + (activeCall ? " is-live" : "")}>
-                  <div className="call-status-ready" aria-hidden={activeCall}>
+                <div className={"call-status" + (callLocked ? " is-live" : "")}>
+                  <div className="call-status-ready" aria-hidden={callLocked}>
                     <div className="call-status-inner">
                       <div className="row">
                         <Status value={lead.verdict} />
@@ -299,11 +306,13 @@ export function Calls({ target }) {
                       </div>
                     </div>
                   </div>
-                  <div className="call-status-live" aria-hidden={!activeCall}>
+                  <div className="call-status-live" aria-hidden={!callLocked}>
                     <div className="call-status-inner">
-                      <div className="call-live" role="status">
-                        <span className="call-live-label"><span className="status-dot" />Call in progress</span>
-                        {callStatus.mounted && <CallTimer key={lead.id} />}
+                      <div className={"call-live" + (awaitingOutcome ? " is-ended" : "")} role="status">
+                        <span className="call-live-label"><span className="status-dot" />{awaitingOutcome ? session.endedBy === "contact" ? "Contact ended the call" : "Call ended" : "Call in progress"}</span>
+                        {callStatus.mounted && <CallTimer key={session.startedAt} startedAt={session.startedAt} endedAt={session.endedAt} />}
+                        {awaitingOutcome && <span className="call-wrapup-help">{autoDial ? "Auto dial is waiting. Save feedback below to continue." : "Save feedback below before starting another call."}</span>}
+                        {activeCall && <button type="button" className="text-button demo-note" onClick={() => endDemoCall("contact")}>Simulate contact hangup</button>}
                         <span className="demo-note">Demo audio, no number is dialled</span>
                       </div>
                     </div>
@@ -323,10 +332,10 @@ export function Calls({ target }) {
                 </div>
               </Card>
               <Card
-                className={"call-outcomes" + (activeCall ? " is-live" : "")}
-                title="How did it go?"
+                className={"call-outcomes" + (callLocked ? " is-live" : "")}
+                title={awaitingOutcome ? "Record call outcome" : "How did it go?"}
                 subtitle={
-                  activeCall ? "Pick the outcome when you hang up. It is saved to the lead." : "Record an outcome, even for a call made outside the app."
+                  awaitingOutcome ? "Feedback stays with " + lead.name + ". Choose an outcome, add any notes, then save feedback." : activeCall ? "After the call, choose an outcome and save your feedback." : "Record an outcome, even for a call made outside the app."
                 }
               >
                 <div className="outcome-grid">
@@ -335,7 +344,8 @@ export function Calls({ target }) {
                       key={item.label}
                       title={item.help}
                       variant={item.label === "Transfer" ? "peach-button" : item.label === "Do not call" ? "danger-button" : ""}
-                      onClick={() => outcome(item.label)}
+                      aria-pressed={callLocked ? selectedOutcome === item.label : undefined}
+                      onClick={() => chooseOutcome(item.label)}
                     >
                       {item.label} <span className="outcome-code">{item.code}</span>
                     </Button>
@@ -351,13 +361,14 @@ export function Calls({ target }) {
                         onChange={event => setCallbackAt(event.target.value)}
                       />
                     </Field>
-                    <Button variant="primary" disabled={!callbackAt} onClick={() => outcome("Callback")}>
+                    {!awaitingOutcome && <Button variant="primary" disabled={!callbackAt} onClick={() => outcome("Callback")}>
                       Schedule callback
-                    </Button>
+                    </Button>}
                     <Button
                       onClick={() => {
                         setAskingCallback(false);
                         setCallbackAt("");
+                        if (awaitingOutcome) setSelectedOutcome("");
                       }}
                     >
                       Cancel
@@ -368,6 +379,14 @@ export function Calls({ target }) {
                   <textarea value={callNote} onChange={event => setCallNote(event.target.value)} placeholder="The detail you don't want to forget…" />
                 </Field>
                 <div className="row">
+                  {awaitingOutcome && <Button
+                    variant="primary"
+                    icon={CheckCircle}
+                    disabled={!selectedOutcome || (selectedOutcome === "Callback" && !callbackAt)}
+                    onClick={() => outcome(selectedOutcome)}
+                  >
+                    {autoDial && !["Transfer", "Callback"].includes(selectedOutcome) ? "Save feedback & next call" : "Save feedback"}
+                  </Button>}
                   <Button icon={Handshake} onClick={() => navigate("work/leads/" + lead.id)}>
                     Qualify & hand off
                   </Button>
@@ -384,7 +403,9 @@ export function Calls({ target }) {
               </Card>
             </>
           ) : (
-            <Empty title="Your queue is clear">Choose another role or add a lead to continue.</Empty>
+            <Empty title={callLocked ? "This call is outside your current scope" : "Your queue is clear"}>
+              {callLocked ? "Return to the role that handled this call to finish its feedback." : "Choose another role or add a lead to continue."}
+            </Empty>
           )}
         </div>
         <aside aria-label="Call assistant">
@@ -430,14 +451,14 @@ function callTime(at) {
   return at ? new Date(at + ":00Z").toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" }) : "";
 }
 /** How long the current call has been running, as m:ss. */
-function CallTimer() {
-  const [start] = useState(() => Date.now());
-  const [now, setNow] = useState(start);
+function CallTimer({ startedAt, endedAt }) {
+  const [now, setNow] = useState(Date.now);
   useEffect(() => {
+    if (endedAt) return undefined;
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, []);
-  const seconds = Math.floor((now - start) / 1000);
+  }, [endedAt]);
+  const seconds = Math.max(0, Math.floor(((endedAt || now) - (startedAt || now)) / 1000));
   return <span className="call-timer">{Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0")}</span>;
 }
 

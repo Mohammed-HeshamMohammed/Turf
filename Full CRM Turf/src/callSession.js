@@ -22,6 +22,10 @@ let session = {
   // True while the captions float in their own desktop window instead of inside the app.
   popout: false,
   active: false,
+  awaitingOutcome: false,
+  startedAt: null,
+  endedAt: null,
+  endedBy: null,
   lead: null,
   // Settled lines, oldest first: { id, who, side, text }.
   transcript: [],
@@ -39,6 +43,32 @@ export function setCallSession(patch) {
     /* The choice still holds for this session. */
   }
   listeners.forEach(listener => listener());
+}
+
+/** Starting another call is blocked until the current call's outcome has been saved. */
+export function beginDemoCall(lead) {
+  if (session.active || session.awaitingOutcome || !lead?.phone?.trim()) return false;
+  setCallSession({
+    active: true,
+    awaitingOutcome: false,
+    lead: { id: lead.id, name: lead.name, address: lead.address, motivation: lead.motivation },
+    startedAt: Date.now(),
+    endedAt: null,
+    endedBy: null,
+    transcript: [],
+  });
+  return true;
+}
+
+/** Both sides hanging up enter the same feedback step, retaining the lead and transcript. */
+export function endDemoCall(endedBy = "agent") {
+  if (!session.active) return false;
+  setCallSession({ active: false, awaitingOutcome: true, endedAt: Date.now(), endedBy });
+  return true;
+}
+
+export function clearCallOutcome() {
+  setCallSession({ active: false, awaitingOutcome: false, lead: null, transcript: [], startedAt: null, endedAt: null, endedBy: null });
 }
 
 let lineCounter = 0;

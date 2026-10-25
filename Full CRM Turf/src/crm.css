@@ -2013,6 +2013,15 @@ textarea {
   flex-basis: 100%;
   font-size: 12px;
 }
+.call-live.is-ended {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.call-wrapup-help {
+  flex-basis: 100%;
+  font-size: 13px;
+  line-height: 1.5;
+}
 @media (prefers-reduced-motion: reduce) {
   .calls-heading .auto-dial-button,
   .call-status-ready,
@@ -2029,6 +2038,12 @@ textarea {
 }
 .outcome-grid .button {
   padding: 9px 12px;
+}
+.call-outcomes .outcome-grid .button[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+.call-outcomes .button {
+  min-height: 40px;
 }
 .check {
   display: flex;
