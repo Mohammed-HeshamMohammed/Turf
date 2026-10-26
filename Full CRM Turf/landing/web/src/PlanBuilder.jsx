@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ADDONS, BUILDER_FEATURES, MAX_SEATS, clampSeats, preset, quote, summarize } from "./plan.js";
+import { ADDONS, BUILDER_FEATURES, FLEX, MAX_SEATS, clampSeats, preset, quote, summarize } from "./plan.js";
 
 const money = n => `$${n.toLocaleString("en-US")}`;
 const LEVELS = [["off", "Off"], ["standard", "Standard"], ["power", "Power"]];
@@ -86,6 +86,17 @@ export function PlanBuilder({ onChoose, initial }) {
                     </div>
                   )}
                   <p className="fine">{line.level === "off" ? "Not in your plan" : limitText(f, line)}</p>
+                  {line.level !== "off" && FLEX[f.id] && (
+                    <div className="users flex">
+                      <span id={`flex-${f.id}`}>Need more texts?</span>
+                      <span className="stepper small" role="group" aria-labelledby={`flex-${f.id}`}>
+                        <button type="button" aria-label="1,000 fewer texts" onClick={() => setAddon(FLEX[f.id], (sel.addons[FLEX[f.id]] || 0) - 1)} disabled={!sel.addons[FLEX[f.id]]}>−</button>
+                        <output aria-live="polite">+{(sel.addons[FLEX[f.id]] || 0).toLocaleString("en-US")},000</output>
+                        <button type="button" aria-label="1,000 more texts" onClick={() => setAddon(FLEX[f.id], (sel.addons[FLEX[f.id]] || 0) + 1)}>+</button>
+                      </span>
+                      <span className="fine">$15 per 1,000</span>
+                    </div>
+                  )}
                 </fieldset>
                 <strong className="line-price">{line.level === "off" ? "—" : money(line.price)}</strong>
               </li>

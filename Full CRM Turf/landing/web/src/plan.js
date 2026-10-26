@@ -24,7 +24,6 @@ export const BUILDER_FEATURES = priceRows
 
 // Extras from the "Add-ons" tables in docs/features. Quantities are whole units.
 export const ADDONS = [
-  { id: "minutes", name: "Extra calling minutes", unit: "1,000 minutes", price: 20 },
   { id: "texts", name: "Extra texts", unit: "1,000 texts", price: 15 },
   { id: "numbers", name: "Extra phone number", unit: "number / month", price: 3 },
   { id: "lookups", name: "Extra number lookups", unit: "1,000 lookups", price: 10 },
@@ -32,6 +31,9 @@ export const ADDONS = [
   { id: "emails", name: "Extra campaign emails", unit: "5,000 emails", price: 10 },
   { id: "drafts", name: "Extra AI reply drafts", unit: "1,000 drafts", price: 10 },
 ];
+
+/** A feature whose volume the buyer can flex right in its row: Dialer and SMS includes unlimited calling and a set number of texts. */
+export const FLEX = { "dialer-and-sms": "texts" };
 
 export const clampSeats = n => Math.min(MAX_SEATS, Math.max(1, Math.round(Number(n)) || 1));
 

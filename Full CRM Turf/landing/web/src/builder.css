@@ -285,3 +285,7 @@
 .users .stepper.small {
   background: var(--well);
 }
+
+.users.flex .stepper.small output {
+  min-width: 64px;
+}

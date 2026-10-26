@@ -19,6 +19,11 @@ The four ready-made plans (Solo, Duo, Team, Pro) switch on every feature. A buye
 | --- | --- |
 | People on the team | The most people any feature can have |
 | People per feature | **Each feature is priced for the people who use it, not the whole team.** An owner who skip traces alone pays the one-person Skip tracing price however many callers there are. 1 person uses the Solo price; 2 use the Duo price (one price for both); 3 or more use the Team price per person |
+
+**Dialer and SMS is marketed as unlimited calling plus a flexible number of texts** (decided 2026-10-27). Calling shows as "Unlimited" instead of a minutes cap, Solo includes 1,500 texts, and a buyer adds more in the Dialer row at $15 per 1,000 (the existing add-on). The "extra minutes" add-on is gone. I scaled the included texts for the other tiers by the same factor as Solo (Duo 3,000 shared, Team 1,500 per seat, Pro 6,000 per seat); correct those if you meant something else.
+
+**Cost caveat.** `docs/features/03-dialer-auto-dialing-sms.md` priced the dialer on a 3,000-minute cap (about $33 of calls at $0.011 a minute) and 500 texts. Unlimited minutes removes that cap: a caller dialing six hours a day is about 7,900 minutes, roughly $87 of calling cost against a $99 price, before numbers, texts and registration. The site says "subject to fair use" but a fair-use limit has to be written and enforced, or Solo and Team can lose money on heavy callers. Pro's multi-line dialing burns minutes faster still. 1,500 texts at the same price also adds about $7 of cost.
+
 | Each of 5 priced features | Off, Standard (the tier's version) or Power (the Pro version, only when 3 or more people use that feature) |
 | Always included | The CRM, exports, backup and restore, accounts and security |
 | Extras | Minutes, texts, numbers, number lookups, active leads, campaign emails, AI reply drafts, at the add-on prices in the feature files |

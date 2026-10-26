@@ -56,7 +56,7 @@ export const features = [
     short: "Call and text from the app, with the queue, outcomes and history beside you.",
     status: "preview",
     pitch: "Calling that stays inside your CRM.",
-    text: "The call queue, call screen, outcomes, call log, SMS composer and dial pad all work in the app today with sample data. Live calling through the phone network is the next step.",
+    text: "The call queue, call screen, outcomes, call log, SMS composer and dial pad all work in the app today with sample data. Live calling through the phone network is the next step. Calling is unlimited, and texts are flexible: 1,500 a month included, more when you need them.",
     points: [
       "A call queue per list, with the lead, script and call assistant beside it",
       "One-click outcomes: voicemail, not available, wrong number, do not call",
@@ -197,7 +197,7 @@ export const tiers = [
 export const priceRows = [
   { feature: "Importing lists", values: ["Free", "$49", "$69", "$39", "$59"], limits: ["25,000 leads", "1,000,000 leads", "2,000,000 shared", "1,000,000 per seat", "2,500,000 per seat"] },
   { feature: "Skip tracing", values: ["Free", "$79", "$119", "$59", "$89"], limits: ["25,000 rows", "1,000,000 rows", "2,000,000 shared", "1,000,000 per seat", "3,000,000 per seat"] },
-  { feature: "Dialer and SMS", values: ["Free", "$99", "$179", "$89", "$239"], limits: ["30 minutes", "3,000 minutes", "6,000 shared", "3,000 per seat", "8,000 per seat"] },
+  { feature: "Dialer and SMS", values: ["Free", "$99", "$179", "$89", "$239"], limits: ["30 minutes of calling", "Unlimited calling · 1,500 texts", "Unlimited calling · 3,000 texts shared", "Unlimited calling · 1,500 texts per seat", "Unlimited calling · 6,000 texts per seat"] },
   { feature: "Leads map", values: ["Free", "$19", "$29", "$15", "$29"], limits: ["500 locations", "5,000 locations", "10,000 shared", "5,000 per seat", "15,000 per seat"] },
   { feature: "The CRM", values: ["Free", "Included", "Included", "Included", "Included"], limits: ["1 GB", "25 GB", "50 GB shared", "25 GB per seat", "100 GB per seat"] },
   { feature: "AI campaigns", values: ["Free", "$49", "$79", "$39", "$79"], limits: ["100 emails", "5,000 emails", "10,000 shared", "5,000 per seat", "20,000 per seat"] },

@@ -294,7 +294,7 @@ export function Pricing({ onPick }) {
         <ul className="fine-list">
           <li>Clients and partners you share properties with are free seats in every plan.</li>
           <li>Processing lists on your computer, including import, merge and skip tracing, is never counted.</li>
-          <li>Dialer prices are for the single-line Power dialer, except Pro, which adds multi-line dialing and voicemail drop.</li>
+          <li>Calling is unlimited, subject to fair use. Texts are flexible: the amount shown is included, and more are $15 per 1,000. Dialer prices are for the single-line Power dialer, except Pro, which adds multi-line dialing and voicemail drop.</li>
           <li>Payment fees, sales tax and annual discounts are settled before checkout opens.</li>
         </ul>
       </section>

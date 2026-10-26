@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ADDONS, BUILDER_FEATURES, MORE_PLANS, clampSeats, peopleFor, preset, quote, summarize } from "../src/plan.js";
+import { ADDONS, BUILDER_FEATURES, FLEX, MORE_PLANS, clampSeats, peopleFor, preset, quote, summarize } from "../src/plan.js";
 
 test("the ready-made plans add up to the drafted totals", () => {
   assert.equal(quote(preset("solo")).total, 295);
@@ -27,8 +27,8 @@ test("dropping features lowers the price and shows the saving against the ready-
 
 test("extras are added at their own price", () => {
   const s = preset("solo");
-  s.addons = { numbers: 2, minutes: 1 };
-  assert.equal(quote(s).total, 295 + 6 + 20);
+  s.addons = { numbers: 2, texts: 2 };
+  assert.equal(quote(s).total, 295 + 6 + 30);
 });
 
 test("power needs three or more people and falls back to standard below that", () => {
@@ -126,4 +126,10 @@ test("the CRM is a free base: it is not a priced feature and no plan charges for
   for (const id of ["solo", "duo", "team", "pro"]) {
     assert.ok(!quote(preset(id)).lines.some(l => l.id === "the-crm"), id);
   }
+});
+
+test("calling is unlimited, so there is no minutes add-on; texts are the flexible part", () => {
+  assert.ok(!ADDONS.some(a => a.id === "minutes"));
+  assert.ok(ADDONS.some(a => a.id === "texts"));
+  assert.equal(FLEX["dialer-and-sms"], "texts");
 });
