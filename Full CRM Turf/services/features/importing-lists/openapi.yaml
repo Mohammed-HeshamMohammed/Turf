@@ -1,0 +1,34 @@
+openapi: 3.0.3
+info:
+  title: Turf Importing lists (server)
+  version: 0.1.0
+  description: Feature 1: server-side list imports, column mapping and repeat merging for lists kept on the server.
+paths:
+  /healthz:
+    get:
+      summary: Is the service running
+      responses:
+        "200":
+          description: Running
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, service]
+                properties:
+                  ok: { type: boolean }
+                  service: { type: string, example: importing-lists }
+  /version:
+    get:
+      summary: The running version
+      responses:
+        "200":
+          description: Version
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service, version]
+                properties:
+                  service: { type: string }
+                  version: { type: string, example: 0.1.0 }

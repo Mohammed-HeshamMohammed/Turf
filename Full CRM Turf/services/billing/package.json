@@ -1,0 +1,12 @@
+{
+  "name": "turf-billing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Plans, features, seats, add-ons and the payment provider. Stores a subscription as entitlements. Checkout is off until a provider is chosen.",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node src/server.ts",
+    "test": "node --test test/*.test.ts"
+  }
+}

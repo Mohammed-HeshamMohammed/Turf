@@ -1,0 +1,6 @@
+[package]
+name = "turf-leads-map"
+version = "0.1.0"
+edition = "2021"
+description = "Feature 4: exact locations, reverse lookups and nearby search for leads."
+publish = false

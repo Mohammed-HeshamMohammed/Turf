@@ -132,6 +132,18 @@ Goal: you tell Claude "release 0.4.0" and it ships.
 
 Phases 1 and 2 come before the restructure because they are what lets you sell and ship; they only add folders. Phases 3 to 7 are the large refactor and should land one phase per pull request.
 
+## Scaffold status (2026-10-27)
+
+The folders and starting code from the target layout now exist beside the working app, without moving it:
+
+- `services/`: gateway, auth, notifications, billing and the eight feature services. Each starts, answers `/healthz` and `/version`, has tests, an `openapi.yaml`, a `Dockerfile` and, when it owns data, `migrations/`. Registry: `services/README.md`, `contracts/services.md`, event list: `contracts/events.md`.
+- `desktop/`: the container, frontend and backend folders, with one Rust module per feature under `desktop/backend/features/`.
+- `deploy/compose.yml`: every service plus Postgres and Redis (not run yet: no Docker on the machine that wrote it).
+- `tools/`: `stack.json` (the list of services), `scaffold-stack.mjs` (creates what is missing, never overwrites) and `check-stack.mjs` (runs every test).
+- Root `Cargo.toml`: one workspace for the new Rust crates; `src-tauri` and `backend/rust` stay out of it for now.
+
+Not verified: the two Go services (gateway, notifications) were not compiled because Go was not installed, and the Dockerfiles and compose file were not run. Nothing from `backend/`, `src/` or `src-tauri/` has moved yet; that is phase 3 and later.
+
 ## Risks
 
 - **Splitting too early** multiplies deploys and failure modes. Mitigation: decision 1 (one Compose on one VPS).

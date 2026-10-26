@@ -1,0 +1,26 @@
+{
+  "services": [
+    { "name": "gateway", "dir": "services/gateway", "lang": "go", "port": 8100, "owns": false, "title": "Gateway", "desc": "The one public entry point: HTTPS, token check, rate limits, and routing of /api/v1/<service>/* to the service behind it." },
+    { "name": "auth", "dir": "services/auth", "lang": "rust", "port": 8101, "owns": true, "title": "Authentication service", "desc": "Accounts, sessions, two-step sign-in, Google sign-in, roles and tokens. Signs short-lived tokens and publishes its public keys. Nothing else." },
+    { "name": "notifications", "dir": "services/notifications", "lang": "go", "port": 8102, "owns": true, "title": "Notification service", "desc": "Email, SMS, push and in-app notifications, sent when another service publishes notification.requested. Nothing else." },
+    { "name": "billing", "dir": "services/billing", "lang": "ts", "port": 8103, "owns": true, "title": "Billing service", "desc": "Plans, features, seats, add-ons and the payment provider. Stores a subscription as entitlements. Checkout is off until a provider is chosen." },
+    { "name": "importing-lists", "dir": "services/features/importing-lists", "lang": "python", "port": 8111, "owns": true, "title": "Importing lists (server)", "desc": "Feature 1: server-side list imports, column mapping and repeat merging for lists kept on the server." },
+    { "name": "skip-tracing", "dir": "services/features/skip-tracing", "lang": "python", "port": 8112, "owns": true, "title": "Skip tracing (server)", "desc": "Feature 2: server-side phone checks, Do Not Call, number lookups and network hints. Shares its rules with the shared service/ engine." },
+    { "name": "dialer-sms", "dir": "services/features/dialer-sms", "lang": "ts", "port": 8113, "owns": true, "title": "Dialer, auto dialing and SMS", "desc": "Feature 3: calling, auto dialing, texting, number health, call logs and the carrier webhooks." },
+    { "name": "leads-map", "dir": "services/features/leads-map", "lang": "rust", "port": 8114, "owns": true, "title": "Leads map", "desc": "Feature 4: exact locations, reverse lookups and nearby search for leads." },
+    { "name": "crm", "dir": "services/features/crm", "lang": "rust", "port": 8115, "owns": true, "title": "The CRM", "desc": "Feature 5: leads, deals, tasks, handoffs, roles and reports. Owns offline sync for records the desktop edits." },
+    { "name": "ai-campaigns", "dir": "services/features/ai-campaigns", "lang": "ts", "port": 8116, "owns": true, "title": "AI campaigns", "desc": "Feature 6: email and text campaigns, AI writing, reply sorting and sending limits." },
+    { "name": "exports", "dir": "services/features/exports", "lang": "python", "port": 8117, "owns": true, "title": "Exports", "desc": "Feature 7: call lists, mail lists, whole-workspace exports and report files." },
+    { "name": "backup-restore", "dir": "services/features/backup-restore", "lang": "rust", "port": 8118, "owns": true, "title": "Backup and restore", "desc": "Feature 8: the recycle bin, point-in-time restore and workspace downloads." }
+  ],
+  "desktopModules": [
+    { "name": "importing-lists", "title": "Importing lists", "desc": "Feature 1 on the person's computer: local list import, column mapping and merging." },
+    { "name": "skip-tracing", "title": "Skip tracing", "desc": "Feature 2 on the person's computer: the offline checks, run by the Python engine in service/." },
+    { "name": "dialer-sms", "title": "Dialer and SMS", "desc": "Feature 3 on the person's computer: call state, queue and outcomes; the microphone and call session." },
+    { "name": "leads-map", "title": "Leads map", "desc": "Feature 4 on the person's computer: ZIP-centre placement and offline map files." },
+    { "name": "crm", "title": "The CRM", "desc": "Feature 5 on the person's computer: the local workspace, the encrypted offline copy and the sync queue." },
+    { "name": "ai-campaigns", "title": "AI campaigns", "desc": "Feature 6 on the person's computer: drafts and approvals; sending happens on the server." },
+    { "name": "exports", "title": "Exports", "desc": "Feature 7 on the person's computer: writing call lists, mail lists and reports to Downloads." },
+    { "name": "backup-restore", "title": "Backup and restore", "desc": "Feature 8 on the person's computer: the recycle bin and the project backup zip." }
+  ]
+}

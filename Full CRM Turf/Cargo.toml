@@ -1,0 +1,19 @@
+# One workspace, one lock file and one `cargo test --workspace` for the new Rust crates (see docs/plans/service-architecture.md).
+# src-tauri and backend/rust are the existing apps and keep their own workspaces until they move into this layout.
+[workspace]
+resolver = "2"
+members = [
+  "services/auth",
+  "services/features/leads-map",
+  "services/features/crm",
+  "services/features/backup-restore",
+  "desktop/backend/features/importing-lists",
+  "desktop/backend/features/skip-tracing",
+  "desktop/backend/features/dialer-sms",
+  "desktop/backend/features/leads-map",
+  "desktop/backend/features/crm",
+  "desktop/backend/features/ai-campaigns",
+  "desktop/backend/features/exports",
+  "desktop/backend/features/backup-restore",
+]
+exclude = ["src-tauri", "backend/rust"]

@@ -10,3 +10,7 @@ src-tauri/gen/
 
 # Landing API database
 landing/api/data/
+
+# New stack (tools/scaffold-stack.mjs)
+/target
+.env

@@ -1,0 +1,6 @@
+[package]
+name = "turf-auth"
+version = "0.1.0"
+edition = "2021"
+description = "Accounts, sessions, two-step sign-in, Google sign-in, roles and tokens. Signs short-lived tokens and publishes its public keys. Nothing else."
+publish = false

@@ -1,0 +1,6 @@
+[package]
+name = "turf-desktop-dialer-sms"
+version = "0.1.0"
+edition = "2021"
+description = "Feature 3 on the person's computer: call state, queue and outcomes; the microphone and call session."
+publish = false
