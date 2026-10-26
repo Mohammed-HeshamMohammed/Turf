@@ -54,17 +54,17 @@
   color: var(--muted);
 }
 
-.reveal {
+.js .reveal {
   opacity: 0;
   transform: translateY(18px);
   transition: opacity 0.5s ease, transform 0.5s ease;
 }
-.reveal.in {
+.js .reveal.in {
   opacity: 1;
   transform: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .reveal {
+  .js .reveal {
     opacity: 1;
     transform: none;
     transition: none;

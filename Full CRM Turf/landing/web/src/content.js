@@ -70,6 +70,7 @@ export const features = [
     ],
     shot: "calls",
     alt: "The Calls page with the call queue, the lead card with a Start call button, and the call assistant.",
+    extra: [{ shot: "call-live", alt: "A demo call in progress: a green status bar with the elapsed timer, End call, and quick outcome buttons below." }],
   },
   {
     id: "map",
@@ -236,9 +237,9 @@ export const faqs = [
 ];
 
 export const footerLinks = [
-  { title: "Product", links: [["Features", "#/features"], ["Pricing", "#/pricing"], ["Why Turf", "#/compare"], ["Security", "#/security"], ["Download", "#download"]] },
-  { title: "Company", links: [["Join the waitlist", "#waitlist"], ["Contact", "#/contact"]] },
-  { title: "Legal", links: [["Privacy", "#/privacy"], ["Terms", "#/terms"]] },
+  { title: "Product", links: [["Features", "/features"], ["Pricing", "/pricing"], ["Why Turf", "/compare"], ["Security", "/security"], ["Download", "/#download"]] },
+  { title: "Company", links: [["Join the waitlist", "/#waitlist"], ["Contact", "/contact"]] },
+  { title: "Legal", links: [["Privacy", "/privacy"], ["Terms", "/terms"]] },
 ];
 
 export const pageMeta = {
@@ -250,4 +251,5 @@ export const pageMeta = {
   contact: ["Contact · Turf", "Questions about Turf? Send a message."],
   privacy: ["Privacy · Turf", "How the Turf website uses the details you give it."],
   terms: ["Terms · Turf", "Terms for the Turf website."],
+  notfound: ["Page not found · Turf", "That page does not exist."],
 };

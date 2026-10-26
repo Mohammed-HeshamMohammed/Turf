@@ -66,7 +66,7 @@ export function Header({ route }) {
   const links = [["features", "Features"], ["pricing", "Pricing"], ["compare", "Why Turf"], ["security", "Security"]];
   return (
     <header className="top">
-      <a className="brand" href="#/" aria-label="Turf home">
+      <a className="brand" href="/" aria-label="Turf home">
         <span className="logo" aria-hidden="true">T</span>
         Turf
       </a>
@@ -75,10 +75,10 @@ export function Header({ route }) {
       </button>
       <nav id="site-nav" aria-label="Site" className={open ? "open" : ""}>
         {links.map(([id, label]) => (
-          <a key={id} href={`#/${id}`} aria-current={route === id ? "page" : undefined}>{label}</a>
+          <a key={id} href={`/${id}`} aria-current={route === id ? "page" : undefined}>{label}</a>
         ))}
         {SIGN_IN_URL && <a href={SIGN_IN_URL}>Sign in</a>}
-        <a className="button small" href="#waitlist">Join the waitlist</a>
+        <a className="button small" href="/#waitlist">Join the waitlist</a>
       </nav>
     </header>
   );
@@ -89,7 +89,7 @@ export function Footer() {
     <footer className="foot">
       <div className="foot-main">
         <div className="foot-brand">
-          <a className="brand" href="#/"><span className="logo" aria-hidden="true">T</span>Turf</a>
+          <a className="brand" href="/"><span className="logo" aria-hidden="true">T</span>Turf</a>
           <p>The CRM and dialer for property outreach. Works offline, on your desktop.</p>
         </div>
         {footerLinks.map(col => (
@@ -142,7 +142,7 @@ export function FinalCta() {
     <Reveal as="section" className="cta">
       <h2>Ready to work your next list in Turf?</h2>
       <p>Join the waitlist and be first in when the doors open.</p>
-      <a className="button light" href="#waitlist">Join the waitlist</a>
+      <a className="button light" href="/#waitlist">Join the waitlist</a>
     </Reveal>
   );
 }

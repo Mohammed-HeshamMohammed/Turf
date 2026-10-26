@@ -9,7 +9,7 @@ The public site that sells Turf (Phase 1 of `docs/plans/service-architecture.md`
 
 ## Pages
 
-Routes use the URL hash (`#/features`, `#/features#map`), so the site is one static file set with no server rules.
+Real paths (`/features`, `/features#map`). `npm run build` writes every page as plain HTML into its own folder (`dist/pricing/index.html`) and the browser hydrates it, so search engines, link previews and visitors without scripts see the content. `landing/api` serves `dist` and its `404.html`. Set `SITE_URL` when building to add canonical links, `sitemap.xml` and the `Sitemap` line in `robots.txt`.
 
 | Page | Source of its text |
 | --- | --- |
@@ -42,7 +42,7 @@ Test and build:
 
 ```bash
 npm --prefix landing/api test
-npm --prefix landing/web run build    # landing/web/dist
+SITE_URL=https://your-domain npm --prefix landing/web run build    # landing/web/dist, prerendered
 ```
 
 ## Settings
@@ -61,5 +61,5 @@ npm --prefix landing/web run build    # landing/web/dist
 - Waitlist and contact messages are stored, not emailed. Sending the confirmation goes through the notification service (Phase 5).
 - Sign-up for an account stays on the existing server's site until the auth service exists (Phase 4).
 - Privacy and Terms are short drafts and must be reviewed before the product is sold.
-- Hash routes are fine for people, but search engines index them poorly. Before a real launch, move to path routes with a fallback in the web server, and pre-render the pages.
-- No analytics and no cookie banner yet.
+- Page views are counted by `landing/api` without cookies (a day, a page and a count; skipped when the browser sends Do Not Track). Read them with `GET /api/stats` and the stats token. There is no cookie banner because nothing needs one.
+- Set `SITE_URL` for the real domain at build time, or canonical links and the sitemap are left out.

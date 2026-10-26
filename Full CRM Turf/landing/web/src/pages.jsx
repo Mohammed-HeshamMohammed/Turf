@@ -18,8 +18,8 @@ export function Home({ onPick }) {
           working when your connection does not.
         </p>
         <div className="actions">
-          <a className="button" href="#waitlist">Join the waitlist</a>
-          <a className="button ghost" href="#/features">See every feature</a>
+          <a className="button" href="/#waitlist">Join the waitlist</a>
+          <a className="button ghost" href="/features">See every feature</a>
         </div>
         <ul className="hero-points" aria-label="Highlights">
           <li>Works offline</li>
@@ -40,7 +40,7 @@ export function Home({ onPick }) {
               <li key={c}>{c}</li>
             ))}
           </ul>
-          <a className="button ghost small" href="#/compare">See the difference</a>
+          <a className="button ghost small" href="/compare">See the difference</a>
         </Reveal>
       </section>
 
@@ -53,7 +53,7 @@ export function Home({ onPick }) {
               <h3>{f.title}</h3>
               <p>{f.short}</p>
               <Badge status={f.status} />
-              <a className="more" href={`#/features#${f.id}`}>Learn more</a>
+              <a className="more" href={`/features#${f.id}`}>Learn more</a>
             </Reveal>
           ))}
         </ul>
@@ -68,7 +68,7 @@ export function Home({ onPick }) {
               <div className="tour-copy">
                 <h3>{f.pitch}</h3>
                 <p>{f.text}</p>
-                <a className="more" href={`#/features#${f.id}`}>About {f.title.toLowerCase()}</a>
+                <a className="more" href={`/features#${f.id}`}>About {f.title.toLowerCase()}</a>
               </div>
               <Shot file={f.shot} alt={f.alt} />
             </Reveal>
@@ -121,11 +121,11 @@ export function Home({ onPick }) {
               <p className="price">{money(t.price)}<span> / {t.unit}</span></p>
               {t.from && <p className="fine">from {money(t.from)} a month for 3 seats</p>}
               <p>{t.text}</p>
-              <a className="button ghost small" href="#waitlist" onClick={() => onPick(t.id)}>I want {t.name}</a>
+              <a className="button ghost small" href="/#waitlist" onClick={() => onPick(t.id)}>I want {t.name}</a>
             </li>
           ))}
         </ul>
-        <p className="fine center-text"><a href="#/pricing">Compare every feature and limit</a></p>
+        <p className="fine center-text"><a href="/pricing">Compare every feature and limit</a></p>
       </section>
 
       <Faq />
@@ -143,7 +143,7 @@ export function Features() {
       />
       <nav className="jump" aria-label="Jump to a feature">
         {features.map(f => (
-          <a key={f.id} href={`#/features#${f.id}`}>{f.title}</a>
+          <a key={f.id} href={`/features#${f.id}`}>{f.title}</a>
         ))}
       </nav>
       {features.map((f, i) => (
@@ -205,7 +205,7 @@ export function Pricing({ onPick }) {
               <p className="price">{money(t.price)}<span> / {t.unit}</span></p>
               {t.from && <p className="fine">from {money(t.from)} a month for 3 seats</p>}
               <p>{t.text}</p>
-              <a className="button small" href="#waitlist" onClick={() => onPick(t.id)}>Join the waitlist for {t.name}</a>
+              <a className="button small" href="/#waitlist" onClick={() => onPick(t.id)}>Join the waitlist for {t.name}</a>
             </Reveal>
           ))}
         </ul>
@@ -361,7 +361,8 @@ const LEGAL = {
     title: "Privacy",
     body: [
       "This site stores the details you give us in the waitlist and contact forms: your email address, and your name, company and message if you add them. We use them only to reply to you and to tell you about the launch.",
-      "We do not sell this information and we do not use advertising trackers on this site.",
+      "We count how many times each page is viewed, per day. That count has no cookie, no address, no device details and nothing that identifies you, and it is not sent when your browser says Do Not Track. We use no advertising trackers, so there is no cookie banner.",
+      "We do not sell this information.",
       "To have your details removed, write to us through the contact form and we will delete them.",
     ],
   },
@@ -381,7 +382,7 @@ export function Legal({ page }) {
   const doc = LEGAL[page];
   return (
     <section className="section legal">
-      <a href="#/">← Back to the site</a>
+      <a href="/">← Back to the site</a>
       <h1>{doc.title}</h1>
       <p className="draft">Draft for launch. To be reviewed before the product is sold.</p>
       {doc.body.map(t => (
@@ -389,6 +390,16 @@ export function Legal({ page }) {
           <p>{t}</p>
         </Fragment>
       ))}
+    </section>
+  );
+}
+
+export function NotFound() {
+  return (
+    <section className="section legal">
+      <h1>That page does not exist.</h1>
+      <p>The link may be old or mistyped.</p>
+      <p><a className="button" href="/">Go to the home page</a></p>
     </section>
   );
 }
