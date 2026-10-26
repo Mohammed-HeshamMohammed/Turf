@@ -30,7 +30,7 @@ test("dropping features lowers the price and shows the saving against the ready-
 test("extras are added at their own price", () => {
   const s = preset("solo");
   s.addons = { numbers: 2, emails: 2 };
-  assert.equal(quote(s).total, 199 + 6 + 4);
+  assert.equal(quote(s).total, 199 + 2 + 4); // 2 numbers at $1, 2,000 emails at $2
 });
 
 test("power needs three or more people and falls back to standard below that", () => {
@@ -176,4 +176,8 @@ test("tier prices come from the same arithmetic as the builder", () => {
   assert.deepEqual(tierPrice("team"), { price: 163, list: 241, from: 489 });
   assert.deepEqual(tierPrice("pro"), { price: 334, list: 495, from: 1002 });
   assert.equal(tierPrice("trial").price, 0);
+});
+
+test("an extra phone number is sold at about what it costs Turf", () => {
+  assert.equal(ADDONS.find(a => a.id === "numbers").price, 1);
 });

@@ -25,7 +25,7 @@ export const BUILDER_FEATURES = priceRows
 // Extras from the "Add-ons" tables in docs/features. Quantities are whole units.
 export const ADDONS = [
   { id: "texts", name: "Extra texts", unit: "1,000 texts", price: 15 },
-  { id: "numbers", name: "Extra phone number", unit: "number / month", price: 3 },
+  { id: "numbers", name: "Extra phone number", unit: "number / month", price: 1 }, // about what a number costs Turf, passed on
   { id: "lookups", name: "Extra number lookups", unit: "1,000 lookups", price: 10 },
   { id: "leads", name: "Extra active leads", unit: "500,000 leads", price: 10 },
   { id: "emails", name: "Extra campaign emails", unit: "1,000 emails", price: 2 },
