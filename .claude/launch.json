@@ -42,6 +42,27 @@
         "Full CRM Turf/backend/scripts/run-worker.sh"
       ],
       "port": 8090
+    },
+    {
+      "name": "landing-api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "Full CRM Turf/landing/api",
+        "start"
+      ],
+      "port": 8095
+    },
+    {
+      "name": "landing-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "Full CRM Turf/landing/web",
+        "run",
+        "dev"
+      ],
+      "port": 5200
     }
   ]
 }

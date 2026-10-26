@@ -7,3 +7,6 @@ dist/
 .env*
 src-tauri/target/
 src-tauri/gen/
+
+# Landing API database
+landing/api/data/

@@ -1,0 +1,12 @@
+{
+  "name": "turf-landing-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Backend of the Turf landing site: waitlist, contact messages and the latest download.",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --test tests/*.test.mjs"
+  }
+}
