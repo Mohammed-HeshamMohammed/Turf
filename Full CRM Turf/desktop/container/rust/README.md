@@ -6,17 +6,17 @@ The container creates the window, registers the Tauri commands, handles sign-in 
 
 ## Run
 
-From the `Full CRM Turf` folder, as before:
+From `desktop/frontend/react`:
 
 ```bash
 npm run desktop           # signed-in mode (needs a Turf server)
 npm run desktop:sample    # sample workspace, no server
-cargo test --manifest-path desktop/container/rust/Cargo.toml
+cargo test --manifest-path ../../container/rust/Cargo.toml
 ```
 
 The Tauri CLI finds `tauri.conf.json` in this folder by itself. Two paths in it are relative to this folder:
 
-- `beforeDevCommand` and `beforeBuildCommand` run in `../../..` (the folder with `package.json`), and `frontendDist` is `../../../dist/client`. When the frontend moves to `desktop/frontend/react`, these change with it.
+- `beforeDevCommand` and `beforeBuildCommand` run in `../../frontend/react` (the folder with `package.json`), and `frontendDist` is `../../frontend/react/dist/client`.
 - The Python engine is found at `../../../../service` (the repository root's `service/`), or at `TURF_SERVICE_ROOT`.
 
 The container keeps its own `Cargo.lock` and is left out of the root Cargo workspace, because it pulls in a large dependency tree.

@@ -1,5 +1,5 @@
 // Captures the CRM's screens for the landing site through Chrome's DevTools protocol (Node 22+, Chrome installed).
-// Start the CRM first (npm run dev in Full CRM Turf), then:
+// Start the CRM first (npm run dev in desktop/frontend/react), then:
 //   node scripts/capture-screens.mjs http://localhost:5190 shots [name ...]
 // Convert the PNGs to WebP (quality 82) and copy them to public/screens/.
 import { spawn } from "node:child_process";

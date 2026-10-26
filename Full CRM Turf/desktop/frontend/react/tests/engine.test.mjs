@@ -1,4 +1,4 @@
-// The Skip Tracing page's engine client against the real Turf engine (../service, Python): the same commands the page
+// The Skip Tracing page's engine client against the real Turf engine (service/ at the repository root, Python): the same commands the page
 // sends, through a fetch that speaks to the service process the way the dev server's /rpc bridge does.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -10,7 +10,7 @@ import { after, before, test } from "node:test";
 import { check, checkRepeats, crmVerdict, engineAvailable, engineConfig, locatable, prepare, saveCopy, sourceCsv, stateCode, zipPlaces } from "../src/engine.js";
 import { ALLOWED_COMMANDS, refusal } from "../scripts/service-bridge.mjs";
 
-const root = resolve(import.meta.dirname, "../../service");
+const root = resolve(import.meta.dirname, "../../../../../service");
 let child;
 
 before(() => {

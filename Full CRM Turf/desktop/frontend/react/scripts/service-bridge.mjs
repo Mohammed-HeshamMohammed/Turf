@@ -1,4 +1,4 @@
-// Development only: serves /rpc by talking to Turf's Skip Tracing service (../service, Python) over JSON lines on
+// Development only: serves /rpc by talking to Turf's Skip Tracing service (service/ at the repository root, Python) over JSON lines on
 // stdin/stdout, one request at a time, like Turf's own vite.config.ts. The desktop window uses the Tauri host instead.
 //
 // This dev server listens on every interface (vite.config.mjs), so the bridge is stricter than Turf's: only requests
@@ -44,7 +44,7 @@ export function serviceBridge() {
     name: "turf-crm-service-bridge",
     apply: "serve",
     configureServer(server) {
-      const root = resolve(process.env.TURF_SERVICE_ROOT ?? "../service");
+      const root = resolve(process.env.TURF_SERVICE_ROOT ?? "../../../../service");
       let child = null;
       let answers = null;
       let nextId = 0;
