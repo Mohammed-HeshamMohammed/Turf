@@ -15,8 +15,9 @@ The four ready-made plans (Solo, Duo, Team, Pro) switch on every feature. A buye
 
 | Choice | Rule |
 | --- | --- |
-| People | 1 uses the Solo prices; 2 uses the Duo price (one price for both); 3 or more use the Team prices per seat |
-| Each of 6 features | Off, Standard (the tier's version) or Power (the Pro version, only for 3 or more people) |
+| People on the team | The most people any feature can have |
+| People per feature | **Each feature is priced for the people who use it, not the whole team.** An owner who skip traces alone pays the one-person Skip tracing price however many callers there are. 1 person uses the Solo price; 2 use the Duo price (one price for both); 3 or more use the Team price per person |
+| Each of 6 features | Off, Standard (the tier's version) or Power (the Pro version, only when 3 or more people use that feature) |
 | Always included | Exports, backup and restore, accounts and security |
 | Extras | Minutes, texts, numbers, number lookups, active leads, campaign emails, AI reply drafts, at the add-on prices in the feature files |
 | Presets | Start from Solo, Duo, Team or Pro, then change anything |
@@ -26,7 +27,7 @@ Examples at the draft prices: Solo without the map and AI campaigns is $276 agai
 
 ## More ready-made plans
 
-Nine more starting points beside Solo, Duo, Team and Pro. Each is a set of switched-on features, so the price is the plain sum at the draft prices. They live in `MORE_PLANS` in `landing/web/src/plan.js`; "Customize" opens one in the builder.
+Ten more starting points beside Solo, Duo, Team and Pro. Each is a set of switched-on features, so the price is the plain sum at the draft prices. They live in `MORE_PLANS` in `landing/web/src/plan.js`; "Customize" opens one in the builder.
 
 | Plan | For | Features | Per month |
 | --- | --- | --- | --- |
@@ -38,6 +39,7 @@ Nine more starting points beside Solo, Duo, Team and Pro. Each is a set of switc
 | Campaign Studio | 1 person who sells by email and text | Importing lists, AI campaigns, The CRM | $147 |
 | Lean Partners | Exactly 2 partners | Importing lists, Skip tracing, The CRM, Leads map | $296 for both |
 | Call Floor | 5 callers and closers | Importing lists, Skip tracing, Dialer and SMS, The CRM | $1,160 for 5 |
+| Owner and Callers | An owner who preps lists, and 4 callers | Skip tracing and Importing for 1 person; Dialer for 4; the CRM for all 5 | $709 for 5 |
 | Power Callers | 3 callers who dial all day | Same four, with the Dialer at Power | $1,146 for 3 |
 
 These are drafts to react to, not decisions. Names, the mix of features and the seat counts are easy to change in one file.
@@ -85,4 +87,5 @@ subscription ──< entitlement(feature or module, level, limit overrides)
 
 1. Prices for the four modules above (or tell me to keep SMS and DNC inside their features).
 2. Does a custom plan get a minimum (for example at least $49 a month), so a one-feature plan is not a loss?
-3. Should dropping features ever cost less per feature than the bundle? Today it does not: the ready-made total is the plain sum, so the custom plan is never cheaper per feature.
+3. A person is counted once per feature. If the owner also calls, they are one of the dialer's people. Should a person who uses several features ever count as one seat for the account minimum?
+4. Should dropping features ever cost less per feature than the bundle? Today it does not: the ready-made total is the plain sum, so the custom plan is never cheaper per feature.

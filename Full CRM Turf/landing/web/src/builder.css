@@ -273,3 +273,15 @@
   background: var(--well);
   font-size: 12px;
 }
+
+.users {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.users .stepper.small {
+  background: var(--well);
+}

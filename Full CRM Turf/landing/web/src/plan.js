@@ -35,29 +35,41 @@ export const ADDONS = [
 
 export const clampSeats = n => Math.min(MAX_SEATS, Math.max(1, Math.round(Number(n)) || 1));
 
-/** The price column a feature uses for this many people and this level. Power needs a team of three or more. */
-function column(seats, level) {
-  if (seats === 1) return "solo";
-  if (seats === 2) return "duo";
+/**
+ * The price column for the number of people who use a feature. Each feature is priced by its own head count, so an
+ * owner who skip traces alone pays the one-person price for it, however many callers there are.
+ */
+function column(people, level) {
+  if (people === 1) return "solo";
+  if (people === 2) return "duo";
   return level === "power" ? "pro" : "team";
 }
 
-/** What one feature costs per month: Duo is one price for both people; Team and Pro are per seat. */
-export function featurePrice(feature, seats, level) {
+/** What one feature costs per month: Duo is one price for both people; Team and Pro are per person. */
+export function featurePrice(feature, people, level) {
   if (level === "off") return 0;
-  const col = column(seats, level);
-  return feature.prices[col] * (seats >= 3 ? seats : 1);
+  const col = column(people, level);
+  return feature.prices[col] * (people >= 3 ? people : 1);
+}
+
+/** How many of the team use a feature: its own number, never more than the team, at least one. */
+export function peopleFor(selection, featureId) {
+  const seats = clampSeats(selection.seats);
+  const n = Math.round(Number(selection.users?.[featureId] ?? seats)) || seats;
+  return Math.min(seats, Math.max(1, n));
 }
 
 /**
- * selection: { seats, levels: { [featureId]: "off" | "standard" | "power" }, addons: { [addonId]: quantity } }
- * Returns the monthly total, the line items, and the price of the ready-made plan with every feature switched on.
+ * selection: { seats, levels: { [featureId]: "off" | "standard" | "power" },
+ *              users: { [featureId]: people using it (default: everyone) }, addons: { [addonId]: quantity } }
+ * Returns the monthly total, the line items, and the price with every feature switched on for the whole team.
  */
 export function quote(selection) {
   const seats = clampSeats(selection.seats);
   const lines = BUILDER_FEATURES.map(f => {
-    const level = seats < 3 && selection.levels[f.id] === "power" ? "standard" : selection.levels[f.id] || "off";
-    return { id: f.id, name: f.name, level, price: featurePrice(f, seats, level) };
+    const people = peopleFor(selection, f.id);
+    const level = people < 3 && selection.levels[f.id] === "power" ? "standard" : selection.levels[f.id] || "off";
+    return { id: f.id, name: f.name, level, people, price: featurePrice(f, people, level) };
   });
   const extras = ADDONS.map(a => ({ ...a, quantity: Math.max(0, Math.floor(selection.addons?.[a.id] || 0)) }))
     .filter(a => a.quantity > 0)
@@ -79,9 +91,11 @@ export function preset(id) {
   }[id];
 }
 
-const pick = (seats, levels) => ({
+// users: how many people use a feature, when not the whole team (for example one owner skip traces for five callers).
+const pick = (seats, levels, users = {}) => ({
   seats,
   levels: Object.fromEntries(BUILDER_FEATURES.map(f => [f.id, levels[f.id] || "off"])),
+  users: Object.fromEntries(BUILDER_FEATURES.map(f => [f.id, users[f.id] ?? seats])),
   addons: {},
 });
 
@@ -97,18 +111,21 @@ export const MORE_PLANS = [
   { id: "lists-to-dials", name: "Lists to Dials", who: "1 person, list to call", text: "Import, skip trace and call from one place, with no CRM or campaigns to pay for.", selection: pick(1, { "importing-lists": "standard", "skip-tracing": "standard", "dialer-and-sms": "standard" }) },
   { id: "campaign-studio", name: "Campaign Studio", who: "1 person who sells by email and text", text: "Import lists and run AI campaigns, with the CRM catching every reply.", selection: pick(1, { "importing-lists": "standard", "ai-campaigns": "standard", "the-crm": "standard" }) },
   { id: "lean-partners", name: "Lean Partners", who: "Exactly 2 partners", text: "Two people, the core loop only: import, skip trace, the CRM and the map.", selection: pick(2, { "importing-lists": "standard", "skip-tracing": "standard", "the-crm": "standard", "leads-map": "standard" }) },
+  { id: "owner-callers", name: "Owner and Callers", who: "An owner who preps lists, and 4 callers", text: "The owner imports and skip traces alone. Four callers get only the dialer, and everyone works in the CRM.", selection: pick(5, { "importing-lists": "standard", "skip-tracing": "standard", "dialer-and-sms": "standard", "the-crm": "standard" }, { "importing-lists": 1, "skip-tracing": 1, "dialer-and-sms": 4 }) },
   { id: "call-floor", name: "Call Floor", who: "5 callers and closers", text: "A calling team: lists, skip tracing, the dialer and the CRM for everyone, with roles.", selection: pick(5, { "importing-lists": "standard", "skip-tracing": "standard", "dialer-and-sms": "standard", "the-crm": "standard" }) },
   { id: "power-callers", name: "Power Callers", who: "3 callers who dial all day", text: "Multi-line dialing with voicemail drop, backed by skip tracing and the CRM.", selection: pick(3, { "importing-lists": "standard", "skip-tracing": "standard", "dialer-and-sms": "power", "the-crm": "standard" }) },
 ];
 
-/** A short text for the waitlist: "3 seats · Skip tracing, The CRM · Power: Dialer · +2 × Extra phone number". */
+/** A short text for the waitlist: "Call Floor (5 seats) · Standard: Skip tracing (1 person), The CRM · +2 × Extra phone number". */
 export function summarize(selection, name = "") {
   const q = quote(selection);
-  const on = q.lines.filter(l => l.level === "standard").map(l => l.name);
-  const power = q.lines.filter(l => l.level === "power").map(l => l.name);
+  const label = l => (l.people === q.seats ? l.name : `${l.name} (${l.people} ${l.people === 1 ? "person" : "people"})`);
+  const on = q.lines.filter(l => l.level === "standard").map(label);
+  const power = q.lines.filter(l => l.level === "power").map(label);
   const off = q.lines.filter(l => l.level === "off").map(l => l.name);
+  const team = `${q.seats} ${q.seats === 1 ? "seat" : "seats"}`;
   return [
-    name ? `${name} (${q.seats} ${q.seats === 1 ? "seat" : "seats"})` : `${q.seats} ${q.seats === 1 ? "seat" : "seats"}`,
+    name ? `${name} (${team})` : team,
     on.length ? `Standard: ${on.join(", ")}` : "",
     power.length ? `Power: ${power.join(", ")}` : "",
     off.length ? `Without: ${off.join(", ")}` : "",

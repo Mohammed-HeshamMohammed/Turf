@@ -236,7 +236,11 @@ export function Pricing({ onPick }) {
                 <p>{p.text}</p>
                 <ul className="chips" aria-label="Included features">
                   {on.map(l => (
-                    <li key={l.id}>{l.name}{l.level === "power" ? " (Power)" : ""}</li>
+                    <li key={l.id}>
+                      {l.name}
+                      {l.level === "power" ? " (Power)" : ""}
+                      {l.people !== q.seats ? ` · ${l.people} ${l.people === 1 ? "person" : "people"}` : ""}
+                    </li>
                   ))}
                 </ul>
                 {q.readyMade > q.total && <p className="fine">{money(q.readyMade - q.total)} less than all six features for {q.seats === 1 ? "one person" : `${q.seats} people`}.</p>}

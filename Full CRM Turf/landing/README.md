@@ -15,7 +15,7 @@ Real paths (`/features`, `/features#map`). `npm run build` writes every page as 
 | --- | --- |
 | Home | Hero, the five tools Turf replaces, feature cards, a tour of four screens, how it works, audiences, plans, FAQ |
 | Features | One section per feature in `docs/features/`, each with its screen, what works today, and what is coming |
-| Pricing | A plan builder (people, each feature Off / Standard / Power, extras, a live total) over the draft prices from `docs/plans/README.md`, then four ready-made plans, nine more (List Cleaner, Data Desk, Caller, Call Floor and others, each openable in the builder) and a comparison table. The arithmetic is in `web/src/plan.js` with tests in `web/tests`. Checkout is off. See `docs/plans/custom-plans.md` |
+| Pricing | A plan builder (the team size, each feature Off / Standard / Power with its own number of people, extras, a live total) over the draft prices from `docs/plans/README.md`, then four ready-made plans, ten more (List Cleaner, Data Desk, Caller, Call Floor and others, each openable in the builder) and a comparison table. The arithmetic is in `web/src/plan.js` with tests in `web/tests`. Checkout is off. See `docs/plans/custom-plans.md` |
 | Why Turf | One app instead of five, with a list of where Turf is limited. Competitors are not named and no competitor prices are quoted |
 | Security | What `docs/features/09-accounts-security-billing.md` says is built, and what is not |
 

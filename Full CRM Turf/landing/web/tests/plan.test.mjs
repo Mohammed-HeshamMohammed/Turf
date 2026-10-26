@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ADDONS, BUILDER_FEATURES, MORE_PLANS, clampSeats, preset, quote, summarize } from "../src/plan.js";
+import { ADDONS, BUILDER_FEATURES, MORE_PLANS, clampSeats, peopleFor, preset, quote, summarize } from "../src/plan.js";
 
 test("the ready-made plans add up to the drafted totals", () => {
   assert.equal(quote(preset("solo")).total, 344);
@@ -84,4 +84,40 @@ test("every more plan without Power is cheaper than every feature at Standard fo
 
 test("a named plan leads the waitlist summary", () => {
   assert.match(summarize(MORE_PLANS[0].selection, "List Cleaner"), /^List Cleaner \(1 seat\) · Standard: Skip tracing/);
+});
+
+test("a feature used by one person is priced for one person, not for the whole team", () => {
+  // An owner skip traces alone; four callers only use the dialer; all five are in the CRM.
+  const sel = MORE_PLANS.find(p => p.id === "owner-callers").selection;
+  const q = quote(sel);
+  const line = id => q.lines.find(l => l.id === id);
+  assert.equal(line("skip-tracing").price, 79); // one person, the Solo price, not 5 x $59
+  assert.equal(line("importing-lists").price, 49);
+  assert.equal(line("dialer-and-sms").price, 89 * 4);
+  assert.equal(line("the-crm").price, 45 * 5);
+  assert.equal(q.total, 79 + 49 + 356 + 225);
+  assert.ok(q.total < (39 + 59 + 89 + 45) * 5, "cheaper than giving all five every feature");
+});
+
+test("two people on a feature get the Duo price, and Power needs three on that feature", () => {
+  const sel = preset("pro");
+  sel.seats = 5;
+  sel.users = { "skip-tracing": 2, "dialer-and-sms": 2 };
+  const q = quote(sel);
+  assert.equal(q.lines.find(l => l.id === "skip-tracing").price, 119);
+  assert.equal(q.lines.find(l => l.id === "skip-tracing").level, "standard"); // Power needs 3 or more on the feature
+  assert.equal(q.lines.find(l => l.id === "the-crm").price, 59 * 5); // everyone else still at Power
+});
+
+test("people on a feature are kept between one and the team size", () => {
+  const sel = preset("team");
+  sel.users = { "the-crm": 99, "leads-map": 0 };
+  assert.equal(peopleFor(sel, "the-crm"), 3);
+  assert.equal(peopleFor(sel, "leads-map"), 3); // 0 means "not set", so the whole team
+});
+
+test("the summary says which features only some people use", () => {
+  const sel = MORE_PLANS.find(p => p.id === "owner-callers").selection;
+  assert.match(summarize(sel, "Owner and Callers"), /Skip tracing \(1 person\)/);
+  assert.match(summarize(sel), /Dialer and SMS \(4 people\)/);
 });
