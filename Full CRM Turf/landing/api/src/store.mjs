@@ -21,13 +21,29 @@ export function openStore(file = ":memory:") {
       message TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     );
+    CREATE TABLE IF NOT EXISTS hits (
+      day TEXT NOT NULL,
+      path TEXT NOT NULL,
+      count INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (day, path)
+    );
   `);
+  const addHit = db.prepare(
+    "INSERT INTO hits (day, path, count) VALUES (date('now'), ?, 1) ON CONFLICT (day, path) DO UPDATE SET count = count + 1",
+  );
   const addWaitlist = db.prepare("INSERT OR IGNORE INTO waitlist (email, name, company, tier) VALUES (?, ?, ?, ?)");
   const addMessage = db.prepare("INSERT INTO messages (email, name, message) VALUES (?, ?, ?)");
   return {
     /** True when the address is new, false when it was already on the list. */
     joinWaitlist: v => Number(addWaitlist.run(v.email, v.name, v.company, v.tier).changes) === 1,
     saveMessage: v => void addMessage.run(v.email, v.name, v.message),
+    recordHit: path => void addHit.run(path),
+    /** Page views per page for the last `days` days. */
+    hitSummary: days =>
+      db
+        .prepare("SELECT path, SUM(count) AS views FROM hits WHERE day >= date('now', ?) GROUP BY path ORDER BY views DESC")
+        .all(`-${Number(days)} days`)
+        .map(r => ({ path: r.path, views: Number(r.views) })),
     waitlistCount: () => db.prepare("SELECT COUNT(*) AS n FROM waitlist").get().n,
     close: () => db.close(),
   };

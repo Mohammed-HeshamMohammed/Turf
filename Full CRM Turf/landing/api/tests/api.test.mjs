@@ -1,5 +1,8 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createApp } from "../src/app.mjs";
 import { latestRelease } from "../src/release.mjs";
 import { openStore } from "../src/store.mjs";
@@ -11,7 +14,7 @@ let release = async () => ({ available: false });
 
 before(async () => {
   store = openStore();
-  server = createApp({ store, release: () => release(), origins: ["http://localhost:5200"] });
+  server = createApp({ store, release: () => release(), origins: ["http://localhost:5200"], statsToken: "secret" });
   await new Promise(r => server.listen(0, "127.0.0.1", r));
   base = `http://127.0.0.1:${server.address().port}`;
 });
@@ -82,6 +85,46 @@ test("latestRelease reads GitHub once and caches it", async () => {
   assert.equal(a.version, "0.4.0");
   assert.equal(a.url, "u1");
   assert.deepEqual(await latestRelease({ repo: "", fetchImpl })(), { available: false });
+});
+
+test("page views are counted without storing anything personal", async () => {
+  const hit = p => fetch(base + "/api/hit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path: p }) });
+  assert.equal((await hit("/pricing")).status, 204);
+  assert.equal((await hit("/pricing")).status, 204);
+  assert.equal((await hit("/../etc/passwd")).status, 204); // junk is ignored, not counted
+  assert.deepEqual(store.hitSummary(30), [{ path: "/pricing", views: 2 }]);
+});
+
+test("stats need the token", async () => {
+  assert.equal((await fetch(base + "/api/stats")).status, 401);
+  assert.equal((await fetch(base + "/api/stats", { headers: { authorization: "Bearer nope" } })).status, 401);
+  const ok = await fetch(base + "/api/stats", { headers: { authorization: "Bearer secret" } });
+  assert.equal(ok.status, 200);
+  assert.equal((await ok.json()).hits[0].path, "/pricing");
+});
+
+test("the built site is served, pages by folder, with a 404 page and no path escapes", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "site-"));
+  mkdirSync(join(dir, "pricing"));
+  mkdirSync(join(dir, "assets"));
+  writeFileSync(join(dir, "index.html"), "<h1>home</h1>");
+  writeFileSync(join(dir, "pricing", "index.html"), "<h1>pricing</h1>");
+  writeFileSync(join(dir, "404.html"), "<h1>missing</h1>");
+  writeFileSync(join(dir, "assets", "a.js"), "1");
+  const site = createApp({ store, release, webDir: dir });
+  await new Promise(r => site.listen(0, "127.0.0.1", r));
+  const root = `http://127.0.0.1:${site.address().port}`;
+  try {
+    assert.equal(await (await fetch(root + "/")).text(), "<h1>home</h1>");
+    assert.equal(await (await fetch(root + "/pricing")).text(), "<h1>pricing</h1>");
+    const missing = await fetch(root + "/nope");
+    assert.equal(missing.status, 404);
+    assert.equal(await missing.text(), "<h1>missing</h1>");
+    assert.match((await fetch(root + "/assets/a.js")).headers.get("cache-control"), /immutable/);
+    assert.equal((await fetch(root + "/%2e%2e/%2e%2e/secret.txt")).status, 404);
+  } finally {
+    site.close();
+  }
 });
 
 // Last on purpose: it uses up the per-address limit.

@@ -5,7 +5,7 @@ The public site that sells Turf (Phase 1 of `docs/plans/service-architecture.md`
 | Folder | What | Stack |
 | --- | --- | --- |
 | `web/` | The site: Home, Features, Pricing, Why Turf, Security, Contact, Privacy, Terms | React + Vite, the app's design tokens. No secrets. |
-| `api/` | `POST /api/waitlist`, `POST /api/contact`, `GET /api/download`, `GET /healthz` | Node 24+, no dependencies, its own SQLite file (`api/data/landing.db`, git-ignored) |
+| `api/` | `POST /api/waitlist`, `POST /api/contact`, `POST /api/hit`, `GET /api/stats`, `GET /api/download`, `GET /healthz`; also serves the built site | Node 24+, no dependencies, its own SQLite file (`api/data/landing.db`, git-ignored) |
 
 ## Pages
 
@@ -53,6 +53,8 @@ npm --prefix landing/web run build    # landing/web/dist
 | `TURF_LANDING_DB` | api | SQLite file, default `data/landing.db` |
 | `TURF_RELEASE_REPO` | api | `owner/repo` whose latest published GitHub release feeds the Download button. Unset: "coming soon" |
 | `TURF_LANDING_ORIGINS` | api | Comma-separated sites allowed to call the API from a browser (default the dev site) |
+| `TURF_LANDING_WEB_DIR` | api | Folder of the built site to serve. Default `landing/web/dist` |
+| `TURF_LANDING_STATS_TOKEN` | api | Bearer token for `GET /api/stats` (page views per page for 30 days, and the waitlist count). Unset: stats are off |
 | `VITE_TURF_SIGNUP_URL` | web, at build | If set, the header shows a "Sign in" link to it (the account site, once it is public) |
 
 ## What it does not do yet
