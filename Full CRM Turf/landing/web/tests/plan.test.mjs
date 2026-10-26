@@ -3,15 +3,15 @@ import assert from "node:assert/strict";
 import { ADDONS, BUILDER_FEATURES, MORE_PLANS, clampSeats, peopleFor, preset, quote, summarize } from "../src/plan.js";
 
 test("the ready-made plans add up to the drafted totals", () => {
-  assert.equal(quote(preset("solo")).total, 344);
-  assert.equal(quote(preset("duo")).total, 554);
-  assert.equal(quote(preset("team")).total, 858); // 3 seats x $286
-  assert.equal(quote(preset("pro")).total, 1662); // 3 seats x $554
+  assert.equal(quote(preset("solo")).total, 295);
+  assert.equal(quote(preset("duo")).total, 475);
+  assert.equal(quote(preset("team")).total, 723); // 3 seats x $241
+  assert.equal(quote(preset("pro")).total, 1485); // 3 seats x $495
 });
 
-test("six features are offered one by one", () => {
+test("five features are offered one by one, and the CRM is included", () => {
   assert.deepEqual(BUILDER_FEATURES.map(f => f.name), [
-    "Importing lists", "Skip tracing", "Dialer and SMS", "Leads map", "The CRM", "AI campaigns",
+    "Importing lists", "Skip tracing", "Dialer and SMS", "Leads map", "AI campaigns",
   ]);
 });
 
@@ -20,23 +20,23 @@ test("dropping features lowers the price and shows the saving against the ready-
   s.levels["ai-campaigns"] = "off";
   s.levels["leads-map"] = "off";
   const q = quote(s);
-  assert.equal(q.total, 344 - 49 - 19);
+  assert.equal(q.total, 295 - 49 - 19);
   assert.equal(q.saving, 68);
-  assert.equal(q.readyMade, 344);
+  assert.equal(q.readyMade, 295);
 });
 
 test("extras are added at their own price", () => {
   const s = preset("solo");
   s.addons = { numbers: 2, minutes: 1 };
-  assert.equal(quote(s).total, 344 + 6 + 20);
+  assert.equal(quote(s).total, 295 + 6 + 20);
 });
 
 test("power needs three or more people and falls back to standard below that", () => {
   const s = preset("pro");
   s.seats = 2;
-  assert.equal(quote(s).total, 554);
+  assert.equal(quote(s).total, 475);
   s.seats = 4;
-  assert.equal(quote(s).total, 554 * 4);
+  assert.equal(quote(s).total, 495 * 4);
 });
 
 test("seats are kept between 1 and 50", () => {
@@ -48,13 +48,13 @@ test("seats are kept between 1 and 50", () => {
 
 test("the summary names what is in and out, and the total", () => {
   const s = preset("duo");
-  s.levels["the-crm"] = "off";
+  s.levels["ai-campaigns"] = "off";
   s.addons = { texts: 1 };
   const text = summarize(s);
   assert.match(text, /^2 seats/);
-  assert.match(text, /Without: The CRM/);
+  assert.match(text, /Without: AI campaigns/);
   assert.match(text, /\+1 × Extra texts/);
-  assert.match(text, /\$490\/month$/); // 554 - 79 (The CRM) + 15 (1,000 texts)
+  assert.match(text, /\$411\/month$/); // 475 - 79 (AI campaigns) + 15 (1,000 texts)
 });
 
 test("every add-on has a positive price", () => {
@@ -65,13 +65,13 @@ test("the more plans are sums of the features they name", () => {
   const price = id => quote(MORE_PLANS.find(p => p.id === id).selection).total;
   assert.equal(price("cleaner"), 79);
   assert.equal(price("data-desk"), 49 + 79 + 19);
-  assert.equal(price("starter-pipeline"), 49 + 49 + 19);
-  assert.equal(price("caller"), 99 + 49);
+  assert.equal(price("starter-pipeline"), 49 + 19);
+  assert.equal(price("caller"), 99);
   assert.equal(price("lists-to-dials"), 49 + 79 + 99);
-  assert.equal(price("campaign-studio"), 49 + 49 + 49);
-  assert.equal(price("lean-partners"), 69 + 119 + 79 + 29);
-  assert.equal(price("call-floor"), (39 + 59 + 89 + 45) * 5);
-  assert.equal(price("power-callers"), (39 + 59 + 239 + 45) * 3);
+  assert.equal(price("campaign-studio"), 49 + 49);
+  assert.equal(price("lean-partners"), 69 + 119 + 29);
+  assert.equal(price("call-floor"), (39 + 59 + 89) * 5);
+  assert.equal(price("power-callers"), (39 + 59 + 239) * 3);
 });
 
 test("every more plan without Power is cheaper than every feature at Standard for the same people", () => {
@@ -87,16 +87,15 @@ test("a named plan leads the waitlist summary", () => {
 });
 
 test("a feature used by one person is priced for one person, not for the whole team", () => {
-  // An owner skip traces alone; four callers only use the dialer; all five are in the CRM.
+  // An owner imports and skip traces alone; four callers only use the dialer. The CRM is included for all five.
   const sel = MORE_PLANS.find(p => p.id === "owner-callers").selection;
   const q = quote(sel);
   const line = id => q.lines.find(l => l.id === id);
   assert.equal(line("skip-tracing").price, 79); // one person, the Solo price, not 5 x $59
   assert.equal(line("importing-lists").price, 49);
   assert.equal(line("dialer-and-sms").price, 89 * 4);
-  assert.equal(line("the-crm").price, 45 * 5);
-  assert.equal(q.total, 79 + 49 + 356 + 225);
-  assert.ok(q.total < (39 + 59 + 89 + 45) * 5, "cheaper than giving all five every feature");
+  assert.equal(q.total, 79 + 49 + 356);
+  assert.ok(q.total < (39 + 59 + 89) * 5, "cheaper than giving all five every feature");
 });
 
 test("two people on a feature get the Duo price, and Power needs three on that feature", () => {
@@ -106,13 +105,13 @@ test("two people on a feature get the Duo price, and Power needs three on that f
   const q = quote(sel);
   assert.equal(q.lines.find(l => l.id === "skip-tracing").price, 119);
   assert.equal(q.lines.find(l => l.id === "skip-tracing").level, "standard"); // Power needs 3 or more on the feature
-  assert.equal(q.lines.find(l => l.id === "the-crm").price, 59 * 5); // everyone else still at Power
+  assert.equal(q.lines.find(l => l.id === "ai-campaigns").price, 79 * 5); // everyone else still at Power
 });
 
 test("people on a feature are kept between one and the team size", () => {
   const sel = preset("team");
-  sel.users = { "the-crm": 99, "leads-map": 0 };
-  assert.equal(peopleFor(sel, "the-crm"), 3);
+  sel.users = { "ai-campaigns": 99, "leads-map": 0 };
+  assert.equal(peopleFor(sel, "ai-campaigns"), 3);
   assert.equal(peopleFor(sel, "leads-map"), 3); // 0 means "not set", so the whole team
 });
 
@@ -120,4 +119,11 @@ test("the summary says which features only some people use", () => {
   const sel = MORE_PLANS.find(p => p.id === "owner-callers").selection;
   assert.match(summarize(sel, "Owner and Callers"), /Skip tracing \(1 person\)/);
   assert.match(summarize(sel), /Dialer and SMS \(4 people\)/);
+});
+
+test("the CRM is a free base: it is not a priced feature and no plan charges for it", () => {
+  assert.ok(!BUILDER_FEATURES.some(f => f.id === "the-crm"));
+  for (const id of ["solo", "duo", "team", "pro"]) {
+    assert.ok(!quote(preset(id)).lines.some(l => l.id === "the-crm"), id);
+  }
 });

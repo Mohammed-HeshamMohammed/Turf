@@ -206,7 +206,7 @@ export function Pricing({ onPick }) {
 
       <section className="section band">
         <h2>Or start from a ready-made plan</h2>
-        <p className="sub">Every feature switched on, at the level that fits your team.</p>
+        <p className="sub">Every feature switched on, at the level that fits your team. The CRM is included.</p>
         <ul className="grid four">
           {tiers.filter(t => t.price).map(t => (
             <Reveal as="li" className="card" key={t.id}>
@@ -223,7 +223,7 @@ export function Pricing({ onPick }) {
 
       <section className="section" id="more-plans">
         <h2>More plans for how you work</h2>
-        <p className="sub">Not everyone needs everything. Start from the one closest to you, then change it in the builder.</p>
+        <p className="sub">Not everyone needs everything. The CRM is included in every plan. Start from the one closest to you, then change it in the builder.</p>
         <ul className="grid three plan-cards">
           {MORE_PLANS.map(p => {
             const q = quote(p.selection);

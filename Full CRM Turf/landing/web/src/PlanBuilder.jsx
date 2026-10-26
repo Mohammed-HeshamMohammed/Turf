@@ -94,7 +94,7 @@ export function PlanBuilder({ onChoose, initial }) {
           <li className="included">
             <div>
               <strong>Always included</strong>
-              <p className="fine">Exports, backup and restore, accounts and security</p>
+              <p className="fine">The CRM for your whole team, exports, backup and restore, accounts and security</p>
             </div>
             <strong className="line-price">Included</strong>
           </li>

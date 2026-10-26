@@ -9,6 +9,8 @@ The four ready-made plans (Solo, Duo, Team, Pro) switch on every feature. A buye
 
 ## The decision
 
+**The CRM is a free base in every plan** (decided 2026-10-27): everyone needs it, so it is not priced or switched off. The five other features are what a buyer chooses. This lowers every ready-made total by the CRM's old price: Solo $344 to $295, Duo $554 to $475, Team $286 to $241 per seat, Pro $554 to $495 per seat.
+
 **A plan is a set of switched-on features plus extras. The ready-made plans are only presets.** The price is always the sum, so a buyer who drops two features pays less, and nobody pays for a feature they do not use. This follows how the features are already priced: one price per feature per tier ([the features folder](../features/README.md)).
 
 ### What the builder does now (landing/web, `src/plan.js`)
@@ -17,30 +19,30 @@ The four ready-made plans (Solo, Duo, Team, Pro) switch on every feature. A buye
 | --- | --- |
 | People on the team | The most people any feature can have |
 | People per feature | **Each feature is priced for the people who use it, not the whole team.** An owner who skip traces alone pays the one-person Skip tracing price however many callers there are. 1 person uses the Solo price; 2 use the Duo price (one price for both); 3 or more use the Team price per person |
-| Each of 6 features | Off, Standard (the tier's version) or Power (the Pro version, only when 3 or more people use that feature) |
-| Always included | Exports, backup and restore, accounts and security |
+| Each of 5 priced features | Off, Standard (the tier's version) or Power (the Pro version, only when 3 or more people use that feature) |
+| Always included | The CRM, exports, backup and restore, accounts and security |
 | Extras | Minutes, texts, numbers, number lookups, active leads, campaign emails, AI reply drafts, at the add-on prices in the feature files |
 | Presets | Start from Solo, Duo, Team or Pro, then change anything |
 | Result | Monthly total, the saving against the ready-made plan, and a text summary saved with the waitlist sign-up |
 
-Examples at the draft prices: Solo without the map and AI campaigns is $276 against $344. Three people with every feature at Standard is $858; with only Importing, Skip tracing, Dialer and the CRM it is $696.
+Examples at the draft prices: Solo without the map and AI campaigns is $227 against $295. Three people with every feature at Standard is $723; with only Importing, Skip tracing and the Dialer it is $411.
 
 ## More ready-made plans
 
 Ten more starting points beside Solo, Duo, Team and Pro. Each is a set of switched-on features, so the price is the plain sum at the draft prices. They live in `MORE_PLANS` in `landing/web/src/plan.js`; "Customize" opens one in the builder.
 
-| Plan | For | Features | Per month |
+| Plan | For | Features (the CRM is included in all of them) | Per month |
 | --- | --- | --- | --- |
 | List Cleaner | 1 person who only cleans lists | Skip tracing | $79 |
+| Starter Pipeline | 1 person starting out | Importing lists, Leads map | $68 |
+| Caller | 1 person who lives on the phone | Dialer and SMS | $99 |
 | Data Desk | 1 researcher | Importing lists, Skip tracing, Leads map | $147 |
-| Starter Pipeline | 1 person starting out | Importing lists, The CRM, Leads map | $117 |
-| Caller | 1 person who lives on the phone | Dialer and SMS, The CRM | $148 |
+| Campaign Studio | 1 person who sells by email and text | Importing lists, AI campaigns | $98 |
 | Lists to Dials | 1 person, list to call | Importing lists, Skip tracing, Dialer and SMS | $227 |
-| Campaign Studio | 1 person who sells by email and text | Importing lists, AI campaigns, The CRM | $147 |
-| Lean Partners | Exactly 2 partners | Importing lists, Skip tracing, The CRM, Leads map | $296 for both |
-| Call Floor | 5 callers and closers | Importing lists, Skip tracing, Dialer and SMS, The CRM | $1,160 for 5 |
-| Owner and Callers | An owner who preps lists, and 4 callers | Skip tracing and Importing for 1 person; Dialer for 4; the CRM for all 5 | $709 for 5 |
-| Power Callers | 3 callers who dial all day | Same four, with the Dialer at Power | $1,146 for 3 |
+| Lean Partners | Exactly 2 partners | Importing lists, Skip tracing, Leads map | $217 for both |
+| Owner and Callers | An owner who preps lists, and 4 callers | Importing and Skip tracing for 1 person; Dialer for 4 | $484 for 5 |
+| Call Floor | 5 callers and closers | Importing lists, Skip tracing, Dialer and SMS | $935 for 5 |
+| Power Callers | 3 callers who dial all day | Same three, with the Dialer at Power | $1,011 for 3 |
 
 These are drafts to react to, not decisions. Names, the mix of features and the seat counts are easy to change in one file.
 
@@ -82,6 +84,10 @@ subscription ──< entitlement(feature or module, level, limit overrides)
 - A ready-made plan is a named list of entitlements that a subscription starts from.
 - Changing a plan mid-month changes the entitlements and prorates; nothing else moves.
 - The desktop app asks the server for the entitlements at sign-in and hides what is off.
+
+## Documents that still show the old CRM price
+
+The CRM's selling price ($49 / $79 / $45 / $59) is still in `docs/features/05-crm.md` and in the plan totals of `docs/plans/README.md` (Solo $344, Duo $554, Team $286, Pro $554). They are the source documents, so they are not changed here. Update them to match this decision, and re-check the margins: the CRM was a high-margin feature (about 87-95%), so removing its price lowers the blended margin of every plan.
 
 ## Open questions
 

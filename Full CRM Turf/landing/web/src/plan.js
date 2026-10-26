@@ -12,7 +12,7 @@ export const MAX_SEATS = 50;
 
 const dollars = text => (text.startsWith("$") ? Number(text.slice(1)) : 0);
 
-/** The six priced features. Exports, backup and security are included in every plan and are not offered one by one. */
+/** The five priced features. The CRM, exports, backup and restore, and accounts and security are included in every plan. */
 export const BUILDER_FEATURES = priceRows
   .filter(r => r.values[SOLO].startsWith("$"))
   .map(r => ({
@@ -106,14 +106,14 @@ const pick = (seats, levels, users = {}) => ({
 export const MORE_PLANS = [
   { id: "cleaner", name: "List Cleaner", who: "1 person who only cleans lists", text: "Skip tracing alone: rank the numbers and find the best one to call. Works offline.", selection: pick(1, { "skip-tracing": "standard" }) },
   { id: "data-desk", name: "Data Desk", who: "1 researcher", text: "Import, skip trace and map every list, without paying for calling or campaigns.", selection: pick(1, { "importing-lists": "standard", "skip-tracing": "standard", "leads-map": "standard" }) },
-  { id: "starter-pipeline", name: "Starter Pipeline", who: "1 person starting out", text: "Bring your own numbers: import lists, see them on a map and track deals in the CRM.", selection: pick(1, { "importing-lists": "standard", "the-crm": "standard", "leads-map": "standard" }) },
-  { id: "caller", name: "Caller", who: "1 person who lives on the phone", text: "The dialer with the CRM beside it, for working lists someone else prepared.", selection: pick(1, { "dialer-and-sms": "standard", "the-crm": "standard" }) },
+  { id: "starter-pipeline", name: "Starter Pipeline", who: "1 person starting out", text: "Bring your own numbers: import lists, see them on a map and track deals in the CRM.", selection: pick(1, { "importing-lists": "standard", "leads-map": "standard" }) },
+  { id: "caller", name: "Caller", who: "1 person who lives on the phone", text: "The dialer with the CRM beside it, for working lists someone else prepared.", selection: pick(1, { "dialer-and-sms": "standard" }) },
   { id: "lists-to-dials", name: "Lists to Dials", who: "1 person, list to call", text: "Import, skip trace and call from one place, with no CRM or campaigns to pay for.", selection: pick(1, { "importing-lists": "standard", "skip-tracing": "standard", "dialer-and-sms": "standard" }) },
-  { id: "campaign-studio", name: "Campaign Studio", who: "1 person who sells by email and text", text: "Import lists and run AI campaigns, with the CRM catching every reply.", selection: pick(1, { "importing-lists": "standard", "ai-campaigns": "standard", "the-crm": "standard" }) },
-  { id: "lean-partners", name: "Lean Partners", who: "Exactly 2 partners", text: "Two people, the core loop only: import, skip trace, the CRM and the map.", selection: pick(2, { "importing-lists": "standard", "skip-tracing": "standard", "the-crm": "standard", "leads-map": "standard" }) },
-  { id: "owner-callers", name: "Owner and Callers", who: "An owner who preps lists, and 4 callers", text: "The owner imports and skip traces alone. Four callers get only the dialer, and everyone works in the CRM.", selection: pick(5, { "importing-lists": "standard", "skip-tracing": "standard", "dialer-and-sms": "standard", "the-crm": "standard" }, { "importing-lists": 1, "skip-tracing": 1, "dialer-and-sms": 4 }) },
-  { id: "call-floor", name: "Call Floor", who: "5 callers and closers", text: "A calling team: lists, skip tracing, the dialer and the CRM for everyone, with roles.", selection: pick(5, { "importing-lists": "standard", "skip-tracing": "standard", "dialer-and-sms": "standard", "the-crm": "standard" }) },
-  { id: "power-callers", name: "Power Callers", who: "3 callers who dial all day", text: "Multi-line dialing with voicemail drop, backed by skip tracing and the CRM.", selection: pick(3, { "importing-lists": "standard", "skip-tracing": "standard", "dialer-and-sms": "power", "the-crm": "standard" }) },
+  { id: "campaign-studio", name: "Campaign Studio", who: "1 person who sells by email and text", text: "Import lists and run AI campaigns, with the CRM catching every reply.", selection: pick(1, { "importing-lists": "standard", "ai-campaigns": "standard" }) },
+  { id: "lean-partners", name: "Lean Partners", who: "Exactly 2 partners", text: "Two people, the core loop only: import, skip trace, the CRM and the map.", selection: pick(2, { "importing-lists": "standard", "skip-tracing": "standard", "leads-map": "standard" }) },
+  { id: "owner-callers", name: "Owner and Callers", who: "An owner who preps lists, and 4 callers", text: "The owner imports and skip traces alone, and four callers pay only for the dialer. The CRM is included for all five.", selection: pick(5, { "importing-lists": "standard", "skip-tracing": "standard", "dialer-and-sms": "standard" }, { "importing-lists": 1, "skip-tracing": 1, "dialer-and-sms": 4 }) },
+  { id: "call-floor", name: "Call Floor", who: "5 callers and closers", text: "A calling team: lists, skip tracing, the dialer and the CRM for everyone, with roles.", selection: pick(5, { "importing-lists": "standard", "skip-tracing": "standard", "dialer-and-sms": "standard" }) },
+  { id: "power-callers", name: "Power Callers", who: "3 callers who dial all day", text: "Multi-line dialing with voicemail drop, backed by skip tracing and the CRM.", selection: pick(3, { "importing-lists": "standard", "skip-tracing": "standard", "dialer-and-sms": "power" }) },
 ];
 
 /** A short text for the waitlist: "Call Floor (5 seats) · Standard: Skip tracing (1 person), The CRM · +2 × Extra phone number". */
