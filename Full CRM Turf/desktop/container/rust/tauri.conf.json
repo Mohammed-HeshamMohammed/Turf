@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "identifier": "local.turf.fullcrm",
   "build": {
-    "beforeDevCommand": "node scripts/dev-server.mjs",
+    "beforeDevCommand": { "script": "node scripts/dev-server.mjs", "cwd": "../../.." },
     "devUrl": "http://localhost:5190",
-    "beforeBuildCommand": "npm run build",
-    "frontendDist": "../dist/client"
+    "beforeBuildCommand": { "script": "npm run build", "cwd": "../../.." },
+    "frontendDist": "../../../dist/client"
   },
   "app": {
     "windows": [

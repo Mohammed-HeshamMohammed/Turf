@@ -11,4 +11,4 @@ design-qa.md
 README.md
 .openai
 worker
-src-tauri
+desktop/container

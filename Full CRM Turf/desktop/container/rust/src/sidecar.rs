@@ -1,5 +1,5 @@
-//! Turf's Skip Tracing service (../../service, Python) as a managed child process speaking JSON lines on stdin/stdout,
-//! the same bridge as Turf's own desktop host (src-tauri/src/sidecar.rs), cut down to the commands the CRM sends.
+//! Turf's Skip Tracing service (service/ at the repository root, Python) as a managed child process speaking JSON lines on stdin/stdout,
+//! the same bridge as Turf's own desktop host (Turf's own src-tauri/src/sidecar.rs), cut down to the commands the CRM sends.
 
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
@@ -57,7 +57,7 @@ pub struct ServiceBridge {
 fn service_root() -> PathBuf {
     std::env::var_os("TURF_SERVICE_ROOT")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../service")))
+        .unwrap_or_else(|| PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../../service")))
 }
 
 fn service_executable(resources: &Path) -> PathBuf {

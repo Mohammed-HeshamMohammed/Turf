@@ -4,7 +4,7 @@ The part of Full CRM Turf that runs on the person's computer. Three folders, mat
 
 | Folder | What | Where the code is today |
 | --- | --- | --- |
-| `container/rust/` | The Tauri shell only: window, menus, permissions, updater, packaging | `src-tauri/` (not moved yet) |
+| `container/rust/` | The Tauri shell only: window, menus, permissions, updater, packaging | **Moved here** from `src-tauri/` (branch `crm/desktop-container`) |
 | `frontend/react/` | Every screen the person sees | `src/`, `index.html`, `public/`, `vite.config.mjs` (not moved yet) |
 | `backend/` | The Rust library the container links in, one module per feature, working offline | The Tauri commands in `src-tauri/src/` (not moved yet); the new modules in `backend/features/` are scaffolds |
 
@@ -12,7 +12,7 @@ The part of Full CRM Turf that runs on the person's computer. Three folders, mat
 
 The scaffold adds the new folders without touching the working app, so the demo, the tests and the Tauri build keep working. Moving is a separate step, one folder per pull request:
 
-1. `src-tauri/` to `container/rust/`, with the Tauri commands' logic moved into `backend/` modules. The container registers commands; it does not implement them.
+1. ~~`src-tauri/` to `container/rust/`~~ **Done.** Still to do: move the Tauri commands' logic into `backend/` modules. The container registers commands; it does not implement them.
 2. `src/` to `frontend/react/src/`, then split into `app/`, `pages/`, `components/`, `styles/`, `state/`, `clients/`, `storage/`, as in `FULL_CRM_TURF_STRUCTURE.md`.
 3. Point `tauri.conf.json`, `vite.config.mjs`, `.claude/launch.json` and CI at the new paths.
 
