@@ -3,7 +3,7 @@ import {
   audiences, compareRows, features, priceRows, principles, securityPoints, steps, tiers,
 } from "./content.js";
 import { PlanBuilder } from "./PlanBuilder.jsx";
-import { MORE_PLANS, quote, summarize, tierPrice } from "./plan.js";
+import { ALL_IN, MORE_PLANS, quote, summarize, tierPrice } from "./plan.js";
 import { Badge, ContactForm, Faq, FinalCta, Icon, PageHead, Reveal, Shot } from "./components.jsx";
 
 const money = n => `$${n.toLocaleString("en-US")}`;
@@ -122,7 +122,7 @@ export function Home({ onPick }) {
               <p className="who">{t.who}</p>
               <p className="price">{money(tierPrice(t.id).price)}<span> / {t.unit}</span></p>
               {tierPrice(t.id).from && <p className="fine">from {money(tierPrice(t.id).from)} a month for 3 seats</p>}
-              {tierPrice(t.id).list > tierPrice(t.id).price && <p className="fine">One by one it would be {money(tierPrice(t.id).list)}. The all-in price holds it down.</p>}
+              {tierPrice(t.id).list > tierPrice(t.id).price && <p className="fine">One by one it would be {money(tierPrice(t.id).list)}. Together they cost less.</p>}
               <p>{t.text}</p>
               <a className="button ghost small" href="/#waitlist" onClick={() => onPick(t.id)}>I want {t.name}</a>
             </li>
@@ -215,7 +215,7 @@ export function Pricing({ onPick }) {
               <p className="who">{t.who}</p>
               <p className="price">{money(tierPrice(t.id).price)}<span> / {t.unit}</span></p>
               {tierPrice(t.id).from && <p className="fine">from {money(tierPrice(t.id).from)} a month for 3 seats</p>}
-              {tierPrice(t.id).list > tierPrice(t.id).price && <p className="fine">One by one it would be {money(tierPrice(t.id).list)}. The all-in price holds it down.</p>}
+              {tierPrice(t.id).list > tierPrice(t.id).price && <p className="fine">One by one it would be {money(tierPrice(t.id).list)}. Together they cost less.</p>}
               <p>{t.text}</p>
               <a className="button small" href="#waitlist" onClick={() => onPick(t.id)}>Join the waitlist for {t.name}</a>
             </Reveal>
@@ -300,9 +300,10 @@ export function Pricing({ onPick }) {
           </table>
         </div>
         <ul className="fine-list">
-          <li>All-in price: however many features one person switches on, they pay at most {money(199)} a month for them. Teams get the same cap per person.</li>
+          <li>All-in price: however many features one person switches on, they pay at most {money(ALL_IN.solo)} a month for them. Teams get a cap per person.</li>
+          <li>The all-in price lowers the software part only. Calling, texts, numbers, number lookups and campaign emails cost us money to provide, so they are priced close to cost and never discounted.</li>
           <li>Clients and partners you share properties with are free seats in every plan.</li>
-          <li>Processing lists on your computer, including import, merge and skip tracing, is never counted.</li>
+          <li>Processing lists on your computer, including import, merge and skip tracing, is not counted against your plan.</li>
           <li>Calling is unlimited, subject to fair use. Texts are flexible: the amount shown is included, and more are $15 per 1,000. Dialer prices are for the single-line Power dialer, except Pro, which adds multi-line dialing and voicemail drop.</li>
           <li>Payment fees, sales tax and annual discounts are settled before checkout opens.</li>
         </ul>

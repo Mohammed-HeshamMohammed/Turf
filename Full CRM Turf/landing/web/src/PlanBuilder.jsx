@@ -115,7 +115,7 @@ export function PlanBuilder({ onChoose, initial }) {
             <strong className="line-price">Included</strong>
           </li>
         </ul>
-        <p className="fine">Power versions (multi-line dialing and the biggest limits) need three or more people on that feature.</p>
+        <p className="fine">Power versions (multi-line dialing and higher limits) need three or more people on that feature.</p>
 
         <h3 className="addons-title">Extras, only when you need them</h3>
         <ul className="addons">
@@ -153,7 +153,7 @@ export function PlanBuilder({ onChoose, initial }) {
         </ul>
         {q.bundleSaving > 0 && (
           <p className="saving">
-            All-in price: you pay at most {money(q.cap)} a month for these features, so you save {money(q.bundleSaving)}.
+            All-in price: these features together are {money(q.features)} a month instead of {money(q.listPrice)}. It only lowers the software part. Calls, texts, numbers and lookups are never discounted.
           </p>
         )}
         {q.saving > 0 && <p className="saving">{money(q.saving)} less than the ready-made plan with every feature.</p>}

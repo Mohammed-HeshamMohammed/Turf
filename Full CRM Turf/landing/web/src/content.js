@@ -22,7 +22,7 @@ export const features = [
       "Smart column mapping, remembered for the next list from the same source",
       "Households, LLCs, trusts and owners with many properties told apart",
       "Download any list as it was imported or as it is after checking",
-      "Processing is never counted against your plan: import, merge and re-check as much as you like",
+      "Processing on your computer is not counted against your plan: import, merge and re-check as much as you like",
     ],
     shot: "lists",
     alt: "The Source lists page with four imported lists, each showing its records and check status.",
@@ -34,10 +34,10 @@ export const features = [
     short: "Clean and rank the phone numbers a list already has, on your own computer, offline.",
     status: "now",
     pitch: "Know which number to call first, and why.",
-    text: "Turf looks at the evidence in your own list, picks the best phone, and keeps every original value. You can correct any answer, and Turf remembers your decision.",
+    text: "Turf looks at the evidence in your own list, ranks the phone numbers, and keeps every original value. You can correct any answer, and Turf remembers your decision.",
     points: [
       "Starts with the strongest evidence: phone, then address, email and owner name",
-      "The best number first, with the reason",
+      "The strongest number first, with the reason",
       "Every source column kept; mappings saved per source",
       "Review and overrule any answer",
     ],
@@ -151,9 +151,9 @@ export const features = [
     id: "backup",
     icon: "Archive",
     title: "Backup and restore",
-    short: "A recycle bin and project backups, so a mistake is never the end of a list.",
+    short: "A recycle bin and project backups, so a mistake is easier to undo.",
     status: "now",
-    pitch: "Undo is always one click away.",
+    pitch: "A way back from most mistakes.",
     text: "Deleted lists wait for 30 days and come back with everything they had. Reversible changes, like archiving a lead, happen at once with an Undo.",
     points: [
       "A recycle bin for deleted lists, with every row, setup and check",
@@ -190,7 +190,7 @@ export const tiers = [
   { id: "solo", name: "Solo", who: "1 person", text: "You do everything: lists, skip tracing, calls and deals.", unit: "month" },
   { id: "duo", name: "Duo", who: "Exactly 2 people", text: "Two partners, or a caller and a closer. Both see everything, with nothing to set up.", unit: "month for both" },
   { id: "team", name: "Team", who: "3 or more people", text: "Roles for owners, team leads, callers, closers and researchers, with assignments and reports.", unit: "seat / month" },
-  { id: "pro", name: "Pro", who: "Teams with power features", text: "Multi-line dialing, the biggest limits and custom roles for teams that work leads all day.", unit: "seat / month" },
+  { id: "pro", name: "Pro", who: "Teams with power features", text: "Multi-line dialing, higher limits and custom roles for teams that work leads all day.", unit: "seat / month" },
 ];
 
 // Prices are drafts (docs/plans/README.md): each feature is priced alone and a plan is their sum.
@@ -205,7 +205,7 @@ export const priceRows = [
 ];
 
 export const compareRows = [
-  { need: "Stacking and cleaning lists", usual: "A list tool with a record limit", turf: "On your computer, unlimited, never counted" },
+  { need: "Stacking and cleaning lists", usual: "A list tool with a record limit", turf: "On your computer, with no record limit" },
   { need: "Ranking phone numbers", usual: "A separate skip-tracing or scrubbing service", turf: "One check, with the best number first and the reason" },
   { need: "Calling", usual: "A dialer, billed per user", turf: "In the same app as the lead" },
   { need: "Texting", usual: "Another subscription", turf: "On the lead's own thread in the Inbox" },
@@ -216,7 +216,7 @@ export const compareRows = [
 
 export const securityPoints = [
   { icon: "LockKey", title: "Passwords", text: "Stored only as Argon2id hashes. Sessions use HttpOnly cookies, and five failed sign-ins in 15 minutes pauses the account.", status: "now" },
-  { icon: "Buildings", title: "One organization never sees another", text: "Row-level security in the database, so an organization can never read another's rows, even through a bug in a page.", status: "now" },
+  { icon: "Buildings", title: "One organization never sees another", text: "Row-level security in the database, so one organization's rows are kept apart from every other's at the database level.", status: "now" },
   { icon: "GoogleLogo", title: "Google sign-in", text: "On the website and in the desktop app. In the app, sign-in happens in your own browser, never inside the app window.", status: "now" },
   { icon: "DeviceMobile", title: "Two-step sign-in", text: "Authenticator code plus recovery codes, required for owners and administrators. Built; switched on before launch.", status: "preview" },
   { icon: "HardDrives", title: "Encrypted offline copy", text: "Changes made offline wait in an encrypted copy on your machine, unlocked by your passphrase, and sync when you reconnect.", status: "now" },

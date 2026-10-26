@@ -20,16 +20,18 @@ The four ready-made plans (Solo, Duo, Team, Pro) switch on every feature. A buye
 | People on the team | The most people any feature can have |
 | People per feature | **Each feature is priced for the people who use it, not the whole team.** An owner who skip traces alone pays the one-person Skip tracing price however many callers there are. 1 person uses the Solo price; 2 use the Duo price (one price for both); 3 or more use the Team price per person |
 
-**All-in price: one person pays at most $199 a month** (decided 2026-10-27, "it needs to be under $200"). Features are still priced one by one, but the features together are held to a cap, so everything for one person is $199 instead of $295, and any mix that adds up to more than $199 (for example Importing, Skip tracing and the Dialer, $227 one by one) is also $199. The cap never lowers a price when a feature is added, so a bigger plan is never cheaper than a smaller one (a test checks every mix and team size).
+**All-in price: one person pays at most $179 a month** (set 2026-10-27: first under $200, then a little under the nearest competitors, see [positioning](positioning.md)). Features are still priced one by one, but the features together are held to a cap, so everything for one person is $179 instead of $295, and any mix that adds up to more than $179 (for example Importing, Skip tracing and the Dialer, $227 one by one) is also $179. **The cap lowers only the software part. It can never take a feature below what its metered parts cost Turf plus 25%, and extras are never discounted.** The cap never lowers a price when a feature is added, so a bigger plan is never cheaper than a smaller one (a test checks every mix and team size).
 
 | | Solo | Duo (both) | Team (per person) | Pro (per person) |
 | --- | --- | --- | --- | --- |
 | One by one, every feature | $295 | $475 | $241 | $495 |
-| **All-in price** | **$199** | **$320** | **$163** | **$334** |
+| **All-in price** | **$179** | **$288** | **$146** | **$300** |
 
-I set Duo, Team and Pro by scaling the Solo cap by the same factor (199 / 295, about 0.675) and rounding. They are proposals; the four numbers are in `ALL_IN` in `landing/web/src/plan.js`. The cap is per person, so a five-person team is held to 5 × $163. Power teams use the Pro cap.
+I set Duo, Team and Pro by scaling the Solo cap by the same factor (179 / 295, about 0.607) and rounding. They are proposals; the four numbers are in `ALL_IN` in `landing/web/src/plan.js`. The cap is per person, so a five-person team is held to 5 × $146. Power teams use the Pro cap.
 
-**Margin check at the cap.** Fully used, the features cost Turf about $60 a month for one person (the dialer is about $43 of that at the old 3,000-minute cap, plus Skip tracing about $4, Importing about $3 and AI campaigns about $1 with the lower email amount). $199 leaves roughly 70%, but only while calling is capped; see the unlimited-calling caveat below. Skip tracing and Importing are 95%+ margin, so the cap mostly gives away those, not the dialer.
+**Margin check at the cap.** Fully used, the features cost Turf about $60 a month for one person (the dialer is about $43 of that at the old 3,000-minute cap, plus Skip tracing about $4, Importing about $3, the map about $5 and AI campaigns about $1 with the lower email amount). $179 leaves roughly 65%, but only while calling is capped; see the unlimited-calling caveat below. Skip tracing and Importing are 95%+ margin, so the cap mostly gives away those, not the dialer. Pro is the exception: multi-line calling costs about $135 per person, so its $300 cap leaves about a third.
+
+**Extras are priced near cost and never discounted** (2026-10-27). That covers texts ($15 per 1,000), campaign emails ($2 per 1,000), numbers ($1), number lookups ($10 per 1,000) and the other add-ons. They sit outside the all-in price.
 
 **An extra phone number is $1 a month** (decided 2026-10-27; it was $3 in `docs/features/03-dialer-auto-dialing-sms.md`). A number costs Turf about $1 to $2 and buyers know what a number costs, so a $3 charge looked like padding. At $1 it is sold at roughly cost and the margin is about zero, and a heavily rotated number can cost slightly more than it earns. The reason to accept that is that numbers are what let a caller dial more and rotate away from spam labels, and calling is billed through the plan. If the real cost turns out nearer $2, move it to $1.50 or $2 in `ADDONS` (`plan.js`).
 
@@ -58,11 +60,11 @@ Ten more starting points beside Solo, Duo, Team and Pro. Each is a set of switch
 | Caller | 1 person who lives on the phone | Dialer and SMS | $99 |
 | Data Desk | 1 researcher | Importing lists, Skip tracing, Leads map | $147 |
 | Campaign Studio | 1 person who sells by email and text | Importing lists, AI campaigns | $98 |
-| Lists to Dials | 1 person, list to call | Importing lists, Skip tracing, Dialer and SMS | $199 ($227 one by one) |
+| Lists to Dials | 1 person, list to call | Importing lists, Skip tracing, Dialer and SMS | $179 ($227 one by one) |
 | Lean Partners | Exactly 2 partners | Importing lists, Skip tracing, Leads map | $217 for both |
 | Owner and Callers | An owner who preps lists, and 4 callers | Importing and Skip tracing for 1 person; Dialer for 4 | $484 for 5 |
-| Call Floor | 5 callers and closers | Importing lists, Skip tracing, Dialer and SMS | $815 for 5 ($935 one by one) |
-| Power Callers | 3 callers who dial all day | Same three, with the Dialer at Power | $1,002 for 3 ($1,011 one by one) |
+| Call Floor | 5 callers and closers | Importing lists, Skip tracing, Dialer and SMS | $730 for 5 ($935 one by one) |
+| Power Callers | 3 callers who dial all day | Same three, with the Dialer at Power | $900 for 3 ($1,011 one by one) |
 
 These are drafts to react to, not decisions. Names, the mix of features and the seat counts are easy to change in one file.
 

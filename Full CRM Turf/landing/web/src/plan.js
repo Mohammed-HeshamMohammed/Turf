@@ -40,10 +40,25 @@ export const FLEX = {
 
 /**
  * The all-in price: what a person at most pays for the priced features together, whatever is switched on. Without it,
- * everything for one person would be $295; with it, one person never pays more than $199. It is per person, so a
+ * everything for one person would be $295; with it, one person never pays more than $179. It is per person, so a
  * team's cap grows with the team. Duo is one price for both people. Power teams have their own, higher cap.
  */
-export const ALL_IN = { solo: 199, duo: 320, team: 163, pro: 334 };
+export const ALL_IN = { solo: 179, duo: 288, team: 146, pro: 300 };
+
+/**
+ * What the metered parts of each feature cost Turf when fully used, per person (docs/features, "Cost to Turf, fully
+ * used"): calls, texts and numbers; lookups; storage; geocoding; AI and sending. These are real bills, so the all-in
+ * price is never allowed to take a feature below its cost plus USAGE_MARKUP. Only the software margin above that is
+ * discounted. Extras (texts, emails, numbers, lookups) are outside the cap and always full price.
+ */
+export const COSTS = {
+  "importing-lists": { solo: 3.2, duo: 6.4, team: 3.2, pro: 8 },
+  "skip-tracing": { solo: 4, duo: 8, team: 4, pro: 12 },
+  "dialer-and-sms": { solo: 43, duo: 81, team: 40, pro: 135 },
+  "leads-map": { solo: 5, duo: 10, team: 5, pro: 15 },
+  "ai-campaigns": { solo: 5, duo: 10, team: 5, pro: 20 },
+};
+export const USAGE_MARKUP = 1.25;
 
 export function allInCap(seats, power) {
   if (seats === 1) return ALL_IN.solo;
@@ -95,13 +110,20 @@ export function quote(selection) {
     .map(a => ({ ...a, total: a.price * a.quantity }));
   const listPrice = lines.reduce((sum, l) => sum + l.price, 0);
   const cap = allInCap(seats, lines.some(l => l.level === "power"));
-  const features = Math.min(listPrice, cap);
+  // The metered cost of what is switched on, plus its markup: the all-in price never goes below this.
+  const floor = Math.ceil(
+    lines.filter(l => l.level !== "off").reduce((sum, l) => {
+      const col = l.people === 1 ? "solo" : l.people === 2 ? "duo" : l.level === "power" ? "pro" : "team";
+      return sum + COSTS[l.id][col] * (l.people >= 3 ? l.people : 1);
+    }, 0) * USAGE_MARKUP,
+  );
+  const features = Math.min(listPrice, Math.max(cap, floor));
   const total = features + extras.reduce((sum, e) => sum + e.total, 0);
   const allStandard = BUILDER_FEATURES.reduce((sum, f) => sum + featurePrice(f, seats, "standard"), 0);
   const readyMade = Math.min(allStandard, allInCap(seats, false));
   return {
     seats, lines, extras, total, readyMade, saving: Math.max(0, readyMade - features),
-    listPrice, cap, features, bundleSaving: listPrice - features,
+    listPrice, cap, floor, features, bundleSaving: listPrice - features,
   };
 }
 
