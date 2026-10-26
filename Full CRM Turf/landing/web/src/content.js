@@ -187,10 +187,10 @@ export const audiences = [
 
 export const tiers = [
   { id: "trial", name: "Free trial", who: "Anyone, 7 days", text: "Try everything at small limits." },
-  { id: "solo", name: "Solo", who: "1 person", text: "You do everything: lists, skip tracing, calls and deals.", price: 295, unit: "month" },
-  { id: "duo", name: "Duo", who: "Exactly 2 people", text: "Two partners, or a caller and a closer. Both see everything, with nothing to set up.", price: 475, unit: "month for both" },
-  { id: "team", name: "Team", who: "3 or more people", text: "Roles for owners, team leads, callers, closers and researchers, with assignments and reports.", price: 241, unit: "seat / month", from: 723 },
-  { id: "pro", name: "Pro", who: "Teams with power features", text: "Multi-line dialing, the biggest limits and custom roles for teams that work leads all day.", price: 495, unit: "seat / month", from: 1485 },
+  { id: "solo", name: "Solo", who: "1 person", text: "You do everything: lists, skip tracing, calls and deals.", unit: "month" },
+  { id: "duo", name: "Duo", who: "Exactly 2 people", text: "Two partners, or a caller and a closer. Both see everything, with nothing to set up.", unit: "month for both" },
+  { id: "team", name: "Team", who: "3 or more people", text: "Roles for owners, team leads, callers, closers and researchers, with assignments and reports.", unit: "seat / month" },
+  { id: "pro", name: "Pro", who: "Teams with power features", text: "Multi-line dialing, the biggest limits and custom roles for teams that work leads all day.", unit: "seat / month" },
 ];
 
 // Prices are drafts (docs/plans/README.md): each feature is priced alone and a plan is their sum.
@@ -200,7 +200,7 @@ export const priceRows = [
   { feature: "Dialer and SMS", values: ["Free", "$99", "$179", "$89", "$239"], limits: ["30 minutes of calling", "Unlimited calling · 1,500 texts", "Unlimited calling · 3,000 texts shared", "Unlimited calling · 1,500 texts per seat", "Unlimited calling · 6,000 texts per seat"] },
   { feature: "Leads map", values: ["Free", "$19", "$29", "$15", "$29"], limits: ["500 locations", "5,000 locations", "10,000 shared", "5,000 per seat", "15,000 per seat"] },
   { feature: "The CRM", values: ["Free", "Included", "Included", "Included", "Included"], limits: ["1 GB", "25 GB", "50 GB shared", "25 GB per seat", "100 GB per seat"] },
-  { feature: "AI campaigns", values: ["Free", "$49", "$79", "$39", "$79"], limits: ["100 emails", "5,000 emails", "10,000 shared", "5,000 per seat", "20,000 per seat"] },
+  { feature: "AI campaigns", values: ["Free", "$49", "$79", "$39", "$79"], limits: ["100 emails", "1,000 emails", "2,000 emails shared", "1,000 per seat", "4,000 per seat"] },
   { feature: "Exports, backup and restore, accounts and security", values: ["Free", "Included", "Included", "Included", "Included"], limits: [] },
 ];
 

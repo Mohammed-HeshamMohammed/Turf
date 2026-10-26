@@ -3,7 +3,7 @@ import {
   audiences, compareRows, features, priceRows, principles, securityPoints, steps, tiers,
 } from "./content.js";
 import { PlanBuilder } from "./PlanBuilder.jsx";
-import { MORE_PLANS, quote, summarize } from "./plan.js";
+import { MORE_PLANS, quote, summarize, tierPrice } from "./plan.js";
 import { Badge, ContactForm, Faq, FinalCta, Icon, PageHead, Reveal, Shot } from "./components.jsx";
 
 const money = n => `$${n.toLocaleString("en-US")}`;
@@ -116,12 +116,13 @@ export function Home({ onPick }) {
         <h2>A plan for how you work</h2>
         <p className="sub">Draft launch prices. Each feature is priced on its own, and a plan is the sum.</p>
         <ul className="grid four">
-          {tiers.filter(t => t.price).map(t => (
+          {tiers.filter(t => t.id !== "trial").map(t => (
             <li className="card" key={t.id}>
               <h3>{t.name}</h3>
               <p className="who">{t.who}</p>
-              <p className="price">{money(t.price)}<span> / {t.unit}</span></p>
-              {t.from && <p className="fine">from {money(t.from)} a month for 3 seats</p>}
+              <p className="price">{money(tierPrice(t.id).price)}<span> / {t.unit}</span></p>
+              {tierPrice(t.id).from && <p className="fine">from {money(tierPrice(t.id).from)} a month for 3 seats</p>}
+              {tierPrice(t.id).list > tierPrice(t.id).price && <p className="fine">One by one it would be {money(tierPrice(t.id).list)}. The all-in price holds it down.</p>}
               <p>{t.text}</p>
               <a className="button ghost small" href="/#waitlist" onClick={() => onPick(t.id)}>I want {t.name}</a>
             </li>
@@ -208,12 +209,13 @@ export function Pricing({ onPick }) {
         <h2>Or start from a ready-made plan</h2>
         <p className="sub">Every feature switched on, at the level that fits your team. The CRM is included.</p>
         <ul className="grid four">
-          {tiers.filter(t => t.price).map(t => (
+          {tiers.filter(t => t.id !== "trial").map(t => (
             <Reveal as="li" className="card" key={t.id}>
               <h3>{t.name}</h3>
               <p className="who">{t.who}</p>
-              <p className="price">{money(t.price)}<span> / {t.unit}</span></p>
-              {t.from && <p className="fine">from {money(t.from)} a month for 3 seats</p>}
+              <p className="price">{money(tierPrice(t.id).price)}<span> / {t.unit}</span></p>
+              {tierPrice(t.id).from && <p className="fine">from {money(tierPrice(t.id).from)} a month for 3 seats</p>}
+              {tierPrice(t.id).list > tierPrice(t.id).price && <p className="fine">One by one it would be {money(tierPrice(t.id).list)}. The all-in price holds it down.</p>}
               <p>{t.text}</p>
               <a className="button small" href="#waitlist" onClick={() => onPick(t.id)}>Join the waitlist for {t.name}</a>
             </Reveal>
@@ -243,7 +245,7 @@ export function Pricing({ onPick }) {
                     </li>
                   ))}
                 </ul>
-                {q.readyMade > q.total && <p className="fine">{money(q.readyMade - q.total)} less than all six features for {q.seats === 1 ? "one person" : `${q.seats} people`}.</p>}
+                {q.readyMade > q.total && <p className="fine">{money(q.readyMade - q.total)} less than every feature for {q.seats === 1 ? "one person" : `${q.seats} people`}.</p>}
                 <div className="card-actions">
                   <a className="button small" href="#builder" onClick={() => setSeed({ n: seed.n + 1, selection: p.selection })}>Customize</a>
                   <a className="button ghost small" href="#waitlist" onClick={() => onPick("custom", summarize(p.selection, p.name))}>Join the waitlist</a>
@@ -279,12 +281,18 @@ export function Pricing({ onPick }) {
                   ))}
                 </tr>
               ))}
+              <tr className="list">
+                <th scope="row">Features one by one</th>
+                {cols.map(t => (
+                  <td key={t.id} data-label={t.name}>{tierPrice(t.id).list ? money(tierPrice(t.id).list) : "Free"}</td>
+                ))}
+              </tr>
               <tr className="total">
-                <th scope="row">Total</th>
+                <th scope="row">All-in price</th>
                 {cols.map(t => (
                   <td key={t.id} data-label={t.name}>
-                    <strong>{t.price ? money(t.price) : "Free"}</strong>
-                    {t.from && <span>from {money(t.from)} for 3 seats</span>}
+                    <strong>{tierPrice(t.id).price ? money(tierPrice(t.id).price) : "Free"}</strong>
+                    {tierPrice(t.id).from && <span>from {money(tierPrice(t.id).from)} for 3 seats</span>}
                   </td>
                 ))}
               </tr>
@@ -292,6 +300,7 @@ export function Pricing({ onPick }) {
           </table>
         </div>
         <ul className="fine-list">
+          <li>All-in price: however many features one person switches on, they pay at most {money(199)} a month for them. Teams get the same cap per person.</li>
           <li>Clients and partners you share properties with are free seats in every plan.</li>
           <li>Processing lists on your computer, including import, merge and skip tracing, is never counted.</li>
           <li>Calling is unlimited, subject to fair use. Texts are flexible: the amount shown is included, and more are $15 per 1,000. Dialer prices are for the single-line Power dialer, except Pro, which adds multi-line dialing and voicemail drop.</li>

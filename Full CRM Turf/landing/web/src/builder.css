@@ -289,3 +289,8 @@
 .users.flex .stepper.small output {
   min-width: 64px;
 }
+
+.builder-sum ul li.discount {
+  color: var(--good);
+  font-weight: 600;
+}

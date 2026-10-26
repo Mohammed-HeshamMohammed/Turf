@@ -9,7 +9,7 @@ The four ready-made plans (Solo, Duo, Team, Pro) switch on every feature. A buye
 
 ## The decision
 
-**The CRM is a free base in every plan** (decided 2026-10-27): everyone needs it, so it is not priced or switched off. The five other features are what a buyer chooses. This lowers every ready-made total by the CRM's old price: Solo $344 to $295, Duo $554 to $475, Team $286 to $241 per seat, Pro $554 to $495 per seat.
+**The CRM is a free base in every plan** (decided 2026-10-27): everyone needs it, so it is not priced or switched off. The five other features are what a buyer chooses. This lowers every ready-made total by the CRM's old price: Solo $344 to $295, Duo $554 to $475, Team $286 to $241 per seat, Pro $554 to $495 per seat (one by one, before the all-in price below).
 
 **A plan is a set of switched-on features plus extras. The ready-made plans are only presets.** The price is always the sum, so a buyer who drops two features pays less, and nobody pays for a feature they do not use. This follows how the features are already priced: one price per feature per tier ([the features folder](../features/README.md)).
 
@@ -19,6 +19,19 @@ The four ready-made plans (Solo, Duo, Team, Pro) switch on every feature. A buye
 | --- | --- |
 | People on the team | The most people any feature can have |
 | People per feature | **Each feature is priced for the people who use it, not the whole team.** An owner who skip traces alone pays the one-person Skip tracing price however many callers there are. 1 person uses the Solo price; 2 use the Duo price (one price for both); 3 or more use the Team price per person |
+
+**All-in price: one person pays at most $199 a month** (decided 2026-10-27, "it needs to be under $200"). Features are still priced one by one, but the features together are held to a cap, so everything for one person is $199 instead of $295, and any mix that adds up to more than $199 (for example Importing, Skip tracing and the Dialer, $227 one by one) is also $199. The cap never lowers a price when a feature is added, so a bigger plan is never cheaper than a smaller one (a test checks every mix and team size).
+
+| | Solo | Duo (both) | Team (per person) | Pro (per person) |
+| --- | --- | --- | --- | --- |
+| One by one, every feature | $295 | $475 | $241 | $495 |
+| **All-in price** | **$199** | **$320** | **$163** | **$334** |
+
+I set Duo, Team and Pro by scaling the Solo cap by the same factor (199 / 295, about 0.675) and rounding. They are proposals; the four numbers are in `ALL_IN` in `landing/web/src/plan.js`. The cap is per person, so a five-person team is held to 5 × $163. Power teams use the Pro cap.
+
+**Margin check at the cap.** Fully used, the features cost Turf about $60 a month for one person (the dialer is about $43 of that at the old 3,000-minute cap, plus Skip tracing about $4, Importing about $3 and AI campaigns about $1 with the lower email amount). $199 leaves roughly 70%, but only while calling is capped; see the unlimited-calling caveat below. Skip tracing and Importing are 95%+ margin, so the cap mostly gives away those, not the dialer.
+
+**Campaign emails are fewer and flexible** (decided 2026-10-27). AI campaigns includes 1,000 emails a month for Solo (was 5,000), scaled the same way for the other tiers (Duo 2,000 shared, Team 1,000 per seat, Pro 4,000 per seat). More are bought in the AI campaigns row in steps of 1,000 at **$2 per 1,000** (the old add-on was $10 per 5,000, the same rate). Cost to Turf is about $0.50 per 1,000, so about 75% margin. The AI feature's $49 list price is unchanged; say if it should drop with the smaller email amount.
 
 **Dialer and SMS is marketed as unlimited calling plus a flexible number of texts** (decided 2026-10-27). Calling shows as "Unlimited" instead of a minutes cap, Solo includes 1,500 texts, and a buyer adds more in the Dialer row at $15 per 1,000 (the existing add-on). The "extra minutes" add-on is gone. I scaled the included texts for the other tiers by the same factor as Solo (Duo 3,000 shared, Team 1,500 per seat, Pro 6,000 per seat); correct those if you meant something else.
 
@@ -43,11 +56,11 @@ Ten more starting points beside Solo, Duo, Team and Pro. Each is a set of switch
 | Caller | 1 person who lives on the phone | Dialer and SMS | $99 |
 | Data Desk | 1 researcher | Importing lists, Skip tracing, Leads map | $147 |
 | Campaign Studio | 1 person who sells by email and text | Importing lists, AI campaigns | $98 |
-| Lists to Dials | 1 person, list to call | Importing lists, Skip tracing, Dialer and SMS | $227 |
+| Lists to Dials | 1 person, list to call | Importing lists, Skip tracing, Dialer and SMS | $199 ($227 one by one) |
 | Lean Partners | Exactly 2 partners | Importing lists, Skip tracing, Leads map | $217 for both |
 | Owner and Callers | An owner who preps lists, and 4 callers | Importing and Skip tracing for 1 person; Dialer for 4 | $484 for 5 |
-| Call Floor | 5 callers and closers | Importing lists, Skip tracing, Dialer and SMS | $935 for 5 |
-| Power Callers | 3 callers who dial all day | Same three, with the Dialer at Power | $1,011 for 3 |
+| Call Floor | 5 callers and closers | Importing lists, Skip tracing, Dialer and SMS | $815 for 5 ($935 one by one) |
+| Power Callers | 3 callers who dial all day | Same three, with the Dialer at Power | $1,002 for 3 ($1,011 one by one) |
 
 These are drafts to react to, not decisions. Names, the mix of features and the seat counts are easy to change in one file.
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ADDONS, BUILDER_FEATURES, FLEX, MAX_SEATS, clampSeats, preset, quote, summarize } from "./plan.js";
+import { ADDONS, ALL_IN, BUILDER_FEATURES, FLEX, MAX_SEATS, clampSeats, preset, quote, summarize } from "./plan.js";
 
 const money = n => `$${n.toLocaleString("en-US")}`;
 const LEVELS = [["off", "Off"], ["standard", "Standard"], ["power", "Power"]];
@@ -86,17 +86,22 @@ export function PlanBuilder({ onChoose, initial }) {
                     </div>
                   )}
                   <p className="fine">{line.level === "off" ? "Not in your plan" : limitText(f, line)}</p>
-                  {line.level !== "off" && FLEX[f.id] && (
-                    <div className="users flex">
-                      <span id={`flex-${f.id}`}>Need more texts?</span>
-                      <span className="stepper small" role="group" aria-labelledby={`flex-${f.id}`}>
-                        <button type="button" aria-label="1,000 fewer texts" onClick={() => setAddon(FLEX[f.id], (sel.addons[FLEX[f.id]] || 0) - 1)} disabled={!sel.addons[FLEX[f.id]]}>−</button>
-                        <output aria-live="polite">+{(sel.addons[FLEX[f.id]] || 0).toLocaleString("en-US")},000</output>
-                        <button type="button" aria-label="1,000 more texts" onClick={() => setAddon(FLEX[f.id], (sel.addons[FLEX[f.id]] || 0) + 1)}>+</button>
-                      </span>
-                      <span className="fine">$15 per 1,000</span>
-                    </div>
-                  )}
+                  {line.level !== "off" && FLEX[f.id] && (() => {
+                    const flex = FLEX[f.id];
+                    const addon = ADDONS.find(x => x.id === flex.addon);
+                    const n = sel.addons[flex.addon] || 0;
+                    return (
+                      <div className="users flex">
+                        <span id={`flex-${f.id}`}>{flex.ask}</span>
+                        <span className="stepper small" role="group" aria-labelledby={`flex-${f.id}`}>
+                          <button type="button" aria-label={`1,000 fewer ${addon.unit.split(" ")[1]}`} onClick={() => setAddon(flex.addon, n - 1)} disabled={!n}>−</button>
+                          <output aria-live="polite">+{(n * 1000).toLocaleString("en-US")}</output>
+                          <button type="button" aria-label={`1,000 more ${addon.unit.split(" ")[1]}`} onClick={() => setAddon(flex.addon, n + 1)}>+</button>
+                        </span>
+                        <span className="fine">{money(addon.price)} per 1,000</span>
+                      </div>
+                    );
+                  })()}
                 </fieldset>
                 <strong className="line-price">{line.level === "off" ? "—" : money(line.price)}</strong>
               </li>
@@ -141,12 +146,19 @@ export function PlanBuilder({ onChoose, initial }) {
           {q.lines.filter(l => l.level !== "off").map(l => (
             <li key={l.id}><span>{l.name}{l.level === "power" ? " (Power)" : ""}{l.people !== q.seats ? `, ${l.people} ${l.people === 1 ? "person" : "people"}` : ""}</span><span>{money(l.price)}</span></li>
           ))}
+          {q.bundleSaving > 0 && <li className="discount"><span>All-in price</span><span>−{money(q.bundleSaving)}</span></li>}
           {q.extras.map(e => (
             <li key={e.id}><span>{e.quantity} × {e.name}</span><span>{money(e.total)}</span></li>
           ))}
         </ul>
+        {q.bundleSaving > 0 && (
+          <p className="saving">
+            All-in price: you pay at most {money(q.cap)} a month for these features, so you save {money(q.bundleSaving)}.
+          </p>
+        )}
         {q.saving > 0 && <p className="saving">{money(q.saving)} less than the ready-made plan with every feature.</p>}
         {q.seats >= 3 && <p className="fine">Three or more people on a feature pay its per-person price.</p>}
+        <p className="fine">The most one person pays for features is {money(ALL_IN.solo)} a month.</p>
         <p className="fine">Draft prices. Checkout is not open yet.</p>
         <a className="button" href="#waitlist" onClick={() => onChoose("custom", summarize(sel))}>Join the waitlist with this plan</a>
       </aside>

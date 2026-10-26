@@ -28,12 +28,28 @@ export const ADDONS = [
   { id: "numbers", name: "Extra phone number", unit: "number / month", price: 3 },
   { id: "lookups", name: "Extra number lookups", unit: "1,000 lookups", price: 10 },
   { id: "leads", name: "Extra active leads", unit: "500,000 leads", price: 10 },
-  { id: "emails", name: "Extra campaign emails", unit: "5,000 emails", price: 10 },
+  { id: "emails", name: "Extra campaign emails", unit: "1,000 emails", price: 2 },
   { id: "drafts", name: "Extra AI reply drafts", unit: "1,000 drafts", price: 10 },
 ];
 
-/** A feature whose volume the buyer can flex right in its row: Dialer and SMS includes unlimited calling and a set number of texts. */
-export const FLEX = { "dialer-and-sms": "texts" };
+/** Features whose volume the buyer flexes right in their row, in steps of 1,000 priced as the matching add-on. */
+export const FLEX = {
+  "dialer-and-sms": { addon: "texts", ask: "Need more texts?" },
+  "ai-campaigns": { addon: "emails", ask: "Need more campaign emails?" },
+};
+
+/**
+ * The all-in price: what a person at most pays for the priced features together, whatever is switched on. Without it,
+ * everything for one person would be $295; with it, one person never pays more than $199. It is per person, so a
+ * team's cap grows with the team. Duo is one price for both people. Power teams have their own, higher cap.
+ */
+export const ALL_IN = { solo: 199, duo: 320, team: 163, pro: 334 };
+
+export function allInCap(seats, power) {
+  if (seats === 1) return ALL_IN.solo;
+  if (seats === 2) return ALL_IN.duo;
+  return (power ? ALL_IN.pro : ALL_IN.team) * seats;
+}
 
 export const clampSeats = n => Math.min(MAX_SEATS, Math.max(1, Math.round(Number(n)) || 1));
 
@@ -64,7 +80,8 @@ export function peopleFor(selection, featureId) {
 /**
  * selection: { seats, levels: { [featureId]: "off" | "standard" | "power" },
  *              users: { [featureId]: people using it (default: everyone) }, addons: { [addonId]: quantity } }
- * Returns the monthly total, the line items, and the price with every feature switched on for the whole team.
+ * Returns the monthly total (the features at their list prices, held to the all-in cap, plus extras), the line items, the
+ * list price before the cap, and the price of the ready-made plan with every feature switched on for the whole team.
  */
 export function quote(selection) {
   const seats = clampSeats(selection.seats);
@@ -76,10 +93,16 @@ export function quote(selection) {
   const extras = ADDONS.map(a => ({ ...a, quantity: Math.max(0, Math.floor(selection.addons?.[a.id] || 0)) }))
     .filter(a => a.quantity > 0)
     .map(a => ({ ...a, total: a.price * a.quantity }));
-  const features = lines.reduce((sum, l) => sum + l.price, 0);
+  const listPrice = lines.reduce((sum, l) => sum + l.price, 0);
+  const cap = allInCap(seats, lines.some(l => l.level === "power"));
+  const features = Math.min(listPrice, cap);
   const total = features + extras.reduce((sum, e) => sum + e.total, 0);
-  const readyMade = BUILDER_FEATURES.reduce((sum, f) => sum + featurePrice(f, seats, "standard"), 0);
-  return { seats, lines, extras, total, readyMade, saving: Math.max(0, readyMade - features) };
+  const allStandard = BUILDER_FEATURES.reduce((sum, f) => sum + featurePrice(f, seats, "standard"), 0);
+  const readyMade = Math.min(allStandard, allInCap(seats, false));
+  return {
+    seats, lines, extras, total, readyMade, saving: Math.max(0, readyMade - features),
+    listPrice, cap, features, bundleSaving: listPrice - features,
+  };
 }
 
 /** A starting point that matches a ready-made plan. */
@@ -117,6 +140,16 @@ export const MORE_PLANS = [
   { id: "call-floor", name: "Call Floor", who: "5 callers and closers", text: "A calling team: lists, skip tracing, the dialer and the CRM for everyone, with roles.", selection: pick(5, { "importing-lists": "standard", "skip-tracing": "standard", "dialer-and-sms": "standard" }) },
   { id: "power-callers", name: "Power Callers", who: "3 callers who dial all day", text: "Multi-line dialing with voicemail drop, backed by skip tracing and the CRM.", selection: pick(3, { "importing-lists": "standard", "skip-tracing": "standard", "dialer-and-sms": "power" }) },
 ];
+
+/** What a ready-made tier costs and what the same features would cost one by one. Team and Pro are per person, for a team of three. */
+export function tierPrice(id) {
+  if (id === "trial") return { price: 0, list: 0, from: null };
+  const q = quote(preset(id));
+  const perSeat = id === "team" || id === "pro";
+  return perSeat
+    ? { price: q.total / q.seats, list: q.listPrice / q.seats, from: q.total }
+    : { price: q.total, list: q.listPrice, from: null };
+}
 
 /** A short text for the waitlist: "Call Floor (5 seats) · Standard: Skip tracing (1 person), The CRM · +2 × Extra phone number". */
 export function summarize(selection, name = "") {

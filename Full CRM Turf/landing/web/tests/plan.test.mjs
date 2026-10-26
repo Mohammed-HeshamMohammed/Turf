@@ -1,12 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ADDONS, BUILDER_FEATURES, FLEX, MORE_PLANS, clampSeats, peopleFor, preset, quote, summarize } from "../src/plan.js";
+import { ADDONS, ALL_IN, BUILDER_FEATURES, FLEX, MORE_PLANS, allInCap, tierPrice, clampSeats, peopleFor, preset, quote, summarize } from "../src/plan.js";
 
-test("the ready-made plans add up to the drafted totals", () => {
-  assert.equal(quote(preset("solo")).total, 295);
-  assert.equal(quote(preset("duo")).total, 475);
-  assert.equal(quote(preset("team")).total, 723); // 3 seats x $241
-  assert.equal(quote(preset("pro")).total, 1485); // 3 seats x $495
+test("the ready-made plans come to the all-in prices", () => {
+  assert.equal(quote(preset("solo")).total, 199); // $295 one by one
+  assert.equal(quote(preset("duo")).total, 320); // $475 one by one
+  assert.equal(quote(preset("team")).total, 489); // 3 seats x $163 ($723 one by one)
+  assert.equal(quote(preset("pro")).total, 1002); // 3 seats x $334 ($1,485 one by one)
+  assert.equal(quote(preset("solo")).listPrice, 295);
 });
 
 test("five features are offered one by one, and the CRM is included", () => {
@@ -19,24 +20,25 @@ test("dropping features lowers the price and shows the saving against the ready-
   const s = preset("solo");
   s.levels["ai-campaigns"] = "off";
   s.levels["leads-map"] = "off";
+  s.levels["dialer-and-sms"] = "off";
   const q = quote(s);
-  assert.equal(q.total, 295 - 49 - 19);
-  assert.equal(q.saving, 68);
-  assert.equal(q.readyMade, 295);
+  assert.equal(q.total, 49 + 79);
+  assert.equal(q.saving, 199 - 128);
+  assert.equal(q.readyMade, 199);
 });
 
 test("extras are added at their own price", () => {
   const s = preset("solo");
-  s.addons = { numbers: 2, texts: 2 };
-  assert.equal(quote(s).total, 295 + 6 + 30);
+  s.addons = { numbers: 2, emails: 2 };
+  assert.equal(quote(s).total, 199 + 6 + 4);
 });
 
 test("power needs three or more people and falls back to standard below that", () => {
   const s = preset("pro");
   s.seats = 2;
-  assert.equal(quote(s).total, 475);
+  assert.equal(quote(s).total, 320);
   s.seats = 4;
-  assert.equal(quote(s).total, 495 * 4);
+  assert.equal(quote(s).total, 334 * 4);
 });
 
 test("seats are kept between 1 and 50", () => {
@@ -54,7 +56,7 @@ test("the summary names what is in and out, and the total", () => {
   assert.match(text, /^2 seats/);
   assert.match(text, /Without: AI campaigns/);
   assert.match(text, /\+1 × Extra texts/);
-  assert.match(text, /\$411\/month$/); // 475 - 79 (AI campaigns) + 15 (1,000 texts)
+  assert.match(text, /\$335\/month$/); // $320 all-in cap + 15 (1,000 texts)
 });
 
 test("every add-on has a positive price", () => {
@@ -67,17 +69,17 @@ test("the more plans are sums of the features they name", () => {
   assert.equal(price("data-desk"), 49 + 79 + 19);
   assert.equal(price("starter-pipeline"), 49 + 19);
   assert.equal(price("caller"), 99);
-  assert.equal(price("lists-to-dials"), 49 + 79 + 99);
+  assert.equal(price("lists-to-dials"), 199); // $227 one by one, held to the all-in price
   assert.equal(price("campaign-studio"), 49 + 49);
   assert.equal(price("lean-partners"), 69 + 119 + 29);
-  assert.equal(price("call-floor"), (39 + 59 + 89) * 5);
-  assert.equal(price("power-callers"), (39 + 59 + 239) * 3);
+  assert.equal(price("call-floor"), 163 * 5); // $935 one by one
+  assert.equal(price("power-callers"), 334 * 3); // $1,011 one by one
 });
 
-test("every more plan without Power is cheaper than every feature at Standard for the same people", () => {
+test("no more plan without Power costs more than every feature at Standard for the same people", () => {
   for (const p of MORE_PLANS) {
     const q = quote(p.selection);
-    if (!q.lines.some(l => l.level === "power")) assert.ok(q.total < q.readyMade, p.id);
+    if (!q.lines.some(l => l.level === "power")) assert.ok(q.total <= q.readyMade, p.id);
     assert.ok(q.lines.some(l => l.level !== "off"), p.id);
   }
 });
@@ -95,7 +97,7 @@ test("a feature used by one person is priced for one person, not for the whole t
   assert.equal(line("importing-lists").price, 49);
   assert.equal(line("dialer-and-sms").price, 89 * 4);
   assert.equal(q.total, 79 + 49 + 356);
-  assert.ok(q.total < (39 + 59 + 89) * 5, "cheaper than giving all five every feature");
+  assert.ok(q.total < q.readyMade, "cheaper than giving all five every feature");
 });
 
 test("two people on a feature get the Duo price, and Power needs three on that feature", () => {
@@ -131,5 +133,47 @@ test("the CRM is a free base: it is not a priced feature and no plan charges for
 test("calling is unlimited, so there is no minutes add-on; texts are the flexible part", () => {
   assert.ok(!ADDONS.some(a => a.id === "minutes"));
   assert.ok(ADDONS.some(a => a.id === "texts"));
-  assert.equal(FLEX["dialer-and-sms"], "texts");
+  assert.equal(FLEX["dialer-and-sms"].addon, "texts");
+  assert.equal(FLEX["ai-campaigns"].addon, "emails");
+  assert.equal(ADDONS.find(a => a.id === "emails").price, 2); // $2 per 1,000 campaign emails
+});
+
+test("one person never pays more than the all-in price for features, however many are on", () => {
+  assert.equal(ALL_IN.solo, 199);
+  const s = preset("solo");
+  assert.equal(quote(s).total, 199);
+  assert.equal(quote(s).bundleSaving, 295 - 199);
+  assert.equal(quote(s).cap, 199);
+});
+
+test("adding a feature never lowers the price, for any mix and any team size", () => {
+  const ids = BUILDER_FEATURES.map(f => f.id);
+  for (const seats of [1, 2, 3, 5, 12]) {
+    for (let mask = 0; mask < 1 << ids.length; mask++) {
+      const base = preset("solo");
+      base.seats = seats;
+      base.levels = Object.fromEntries(ids.map((id, i) => [id, mask & (1 << i) ? "standard" : "off"]));
+      const before = quote(base).total;
+      for (const [i, id] of ids.entries()) {
+        if (mask & (1 << i)) continue;
+        const more = { ...base, levels: { ...base.levels, [id]: "standard" } };
+        assert.ok(quote(more).total >= before, `${seats} seats, adding ${id} to mask ${mask}`);
+      }
+    }
+  }
+});
+
+test("a team's all-in price is per person and Power teams have their own", () => {
+  assert.equal(allInCap(1, false), 199);
+  assert.equal(allInCap(2, false), 320);
+  assert.equal(allInCap(5, false), 163 * 5);
+  assert.equal(allInCap(5, true), 334 * 5);
+});
+
+test("tier prices come from the same arithmetic as the builder", () => {
+  assert.deepEqual(tierPrice("solo"), { price: 199, list: 295, from: null });
+  assert.deepEqual(tierPrice("duo"), { price: 320, list: 475, from: null });
+  assert.deepEqual(tierPrice("team"), { price: 163, list: 241, from: 489 });
+  assert.deepEqual(tierPrice("pro"), { price: 334, list: 495, from: 1002 });
+  assert.equal(tierPrice("trial").price, 0);
 });
