@@ -79,14 +79,36 @@ export function preset(id) {
   }[id];
 }
 
+const pick = (seats, levels) => ({
+  seats,
+  levels: Object.fromEntries(BUILDER_FEATURES.map(f => [f.id, levels[f.id] || "off"])),
+  addons: {},
+});
+
+/**
+ * More ready-made plans for how people actually work. Each is only a starting point: the price is the sum of the
+ * features switched on (the same draft prices as the builder), and "Customize" opens it in the builder.
+ */
+export const MORE_PLANS = [
+  { id: "cleaner", name: "List Cleaner", who: "1 person who only cleans lists", text: "Skip tracing alone: rank the numbers and find the best one to call. Works offline.", selection: pick(1, { "skip-tracing": "standard" }) },
+  { id: "data-desk", name: "Data Desk", who: "1 researcher", text: "Import, skip trace and map every list, without paying for calling or campaigns.", selection: pick(1, { "importing-lists": "standard", "skip-tracing": "standard", "leads-map": "standard" }) },
+  { id: "starter-pipeline", name: "Starter Pipeline", who: "1 person starting out", text: "Bring your own numbers: import lists, see them on a map and track deals in the CRM.", selection: pick(1, { "importing-lists": "standard", "the-crm": "standard", "leads-map": "standard" }) },
+  { id: "caller", name: "Caller", who: "1 person who lives on the phone", text: "The dialer with the CRM beside it, for working lists someone else prepared.", selection: pick(1, { "dialer-and-sms": "standard", "the-crm": "standard" }) },
+  { id: "lists-to-dials", name: "Lists to Dials", who: "1 person, list to call", text: "Import, skip trace and call from one place, with no CRM or campaigns to pay for.", selection: pick(1, { "importing-lists": "standard", "skip-tracing": "standard", "dialer-and-sms": "standard" }) },
+  { id: "campaign-studio", name: "Campaign Studio", who: "1 person who sells by email and text", text: "Import lists and run AI campaigns, with the CRM catching every reply.", selection: pick(1, { "importing-lists": "standard", "ai-campaigns": "standard", "the-crm": "standard" }) },
+  { id: "lean-partners", name: "Lean Partners", who: "Exactly 2 partners", text: "Two people, the core loop only: import, skip trace, the CRM and the map.", selection: pick(2, { "importing-lists": "standard", "skip-tracing": "standard", "the-crm": "standard", "leads-map": "standard" }) },
+  { id: "call-floor", name: "Call Floor", who: "5 callers and closers", text: "A calling team: lists, skip tracing, the dialer and the CRM for everyone, with roles.", selection: pick(5, { "importing-lists": "standard", "skip-tracing": "standard", "dialer-and-sms": "standard", "the-crm": "standard" }) },
+  { id: "power-callers", name: "Power Callers", who: "3 callers who dial all day", text: "Multi-line dialing with voicemail drop, backed by skip tracing and the CRM.", selection: pick(3, { "importing-lists": "standard", "skip-tracing": "standard", "dialer-and-sms": "power", "the-crm": "standard" }) },
+];
+
 /** A short text for the waitlist: "3 seats · Skip tracing, The CRM · Power: Dialer · +2 × Extra phone number". */
-export function summarize(selection) {
+export function summarize(selection, name = "") {
   const q = quote(selection);
   const on = q.lines.filter(l => l.level === "standard").map(l => l.name);
   const power = q.lines.filter(l => l.level === "power").map(l => l.name);
   const off = q.lines.filter(l => l.level === "off").map(l => l.name);
   return [
-    `${q.seats} ${q.seats === 1 ? "seat" : "seats"}`,
+    name ? `${name} (${q.seats} ${q.seats === 1 ? "seat" : "seats"})` : `${q.seats} ${q.seats === 1 ? "seat" : "seats"}`,
     on.length ? `Standard: ${on.join(", ")}` : "",
     power.length ? `Power: ${power.join(", ")}` : "",
     off.length ? `Without: ${off.join(", ")}` : "",

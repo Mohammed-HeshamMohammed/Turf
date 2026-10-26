@@ -1,8 +1,9 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import {
   audiences, compareRows, features, priceRows, principles, securityPoints, steps, tiers,
 } from "./content.js";
 import { PlanBuilder } from "./PlanBuilder.jsx";
+import { MORE_PLANS, quote, summarize } from "./plan.js";
 import { Badge, ContactForm, Faq, FinalCta, Icon, PageHead, Reveal, Shot } from "./components.jsx";
 
 const money = n => `$${n.toLocaleString("en-US")}`;
@@ -190,6 +191,8 @@ export function Features() {
 
 export function Pricing({ onPick }) {
   const cols = tiers;
+  // "Customize" on a plan card loads it into the builder (a new key remounts the builder with that selection).
+  const [seed, setSeed] = useState({ n: 0, selection: null });
   return (
     <>
       <PageHead
@@ -198,7 +201,7 @@ export function Pricing({ onPick }) {
         lead="Switch features on and off and pay only for what you use. The ready-made plans are just starting points. These are draft launch prices and may change before launch. Checkout is not open yet."
       />
       <section className="section" id="builder">
-        <PlanBuilder onChoose={onPick} />
+        <PlanBuilder key={seed.n} initial={seed.selection} onChoose={onPick} />
       </section>
 
       <section className="section band">
@@ -218,7 +221,36 @@ export function Pricing({ onPick }) {
         </ul>
       </section>
 
-      <section className="section">
+      <section className="section" id="more-plans">
+        <h2>More plans for how you work</h2>
+        <p className="sub">Not everyone needs everything. Start from the one closest to you, then change it in the builder.</p>
+        <ul className="grid three plan-cards">
+          {MORE_PLANS.map(p => {
+            const q = quote(p.selection);
+            const on = q.lines.filter(l => l.level !== "off");
+            return (
+              <Reveal as="li" className="card" key={p.id}>
+                <h3>{p.name}</h3>
+                <p className="who">{p.who}</p>
+                <p className="price">{money(q.total)}<span> / month{q.seats > 1 ? ` for ${q.seats}` : ""}</span></p>
+                <p>{p.text}</p>
+                <ul className="chips" aria-label="Included features">
+                  {on.map(l => (
+                    <li key={l.id}>{l.name}{l.level === "power" ? " (Power)" : ""}</li>
+                  ))}
+                </ul>
+                {q.readyMade > q.total && <p className="fine">{money(q.readyMade - q.total)} less than all six features for {q.seats === 1 ? "one person" : `${q.seats} people`}.</p>}
+                <div className="card-actions">
+                  <a className="button small" href="#builder" onClick={() => setSeed({ n: seed.n + 1, selection: p.selection })}>Customize</a>
+                  <a className="button ghost small" href="#waitlist" onClick={() => onPick("custom", summarize(p.selection, p.name))}>Join the waitlist</a>
+                </div>
+              </Reveal>
+            );
+          })}
+        </ul>
+      </section>
+
+      <section className="section band">
         <h2>What is in each plan</h2>
         <p className="sub">Price per month, with what that includes. Seat prices are per person.</p>
         <div className="table-wrap">

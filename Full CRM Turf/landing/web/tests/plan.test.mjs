@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ADDONS, BUILDER_FEATURES, clampSeats, preset, quote, summarize } from "../src/plan.js";
+import { ADDONS, BUILDER_FEATURES, MORE_PLANS, clampSeats, preset, quote, summarize } from "../src/plan.js";
 
 test("the ready-made plans add up to the drafted totals", () => {
   assert.equal(quote(preset("solo")).total, 344);
@@ -59,4 +59,29 @@ test("the summary names what is in and out, and the total", () => {
 
 test("every add-on has a positive price", () => {
   for (const a of ADDONS) assert.ok(a.price > 0, a.id);
+});
+
+test("the more plans are sums of the features they name", () => {
+  const price = id => quote(MORE_PLANS.find(p => p.id === id).selection).total;
+  assert.equal(price("cleaner"), 79);
+  assert.equal(price("data-desk"), 49 + 79 + 19);
+  assert.equal(price("starter-pipeline"), 49 + 49 + 19);
+  assert.equal(price("caller"), 99 + 49);
+  assert.equal(price("lists-to-dials"), 49 + 79 + 99);
+  assert.equal(price("campaign-studio"), 49 + 49 + 49);
+  assert.equal(price("lean-partners"), 69 + 119 + 79 + 29);
+  assert.equal(price("call-floor"), (39 + 59 + 89 + 45) * 5);
+  assert.equal(price("power-callers"), (39 + 59 + 239 + 45) * 3);
+});
+
+test("every more plan without Power is cheaper than every feature at Standard for the same people", () => {
+  for (const p of MORE_PLANS) {
+    const q = quote(p.selection);
+    if (!q.lines.some(l => l.level === "power")) assert.ok(q.total < q.readyMade, p.id);
+    assert.ok(q.lines.some(l => l.level !== "off"), p.id);
+  }
+});
+
+test("a named plan leads the waitlist summary", () => {
+  assert.match(summarize(MORE_PLANS[0].selection, "List Cleaner"), /^List Cleaner \(1 seat\) · Standard: Skip tracing/);
 });

@@ -256,3 +256,20 @@
     text-align: right;
   }
 }
+
+/* More plans */
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 8px;
+}
+.plan-cards .chips {
+  margin: 4px 0;
+}
+.plan-cards .chips li {
+  padding: 4px 10px;
+  background: var(--well);
+  font-size: 12px;
+}

@@ -9,8 +9,8 @@ const PRESETS = [["solo", "Solo"], ["duo", "Duo"], ["team", "Team"], ["pro", "Pr
  * "Build your plan": switch features on and off, pick how many people, add extras. The ready-made plans are only
  * starting points; the price is always the sum of what is switched on.
  */
-export function PlanBuilder({ onChoose }) {
-  const [sel, setSel] = useState(() => preset("solo"));
+export function PlanBuilder({ onChoose, initial }) {
+  const [sel, setSel] = useState(() => initial || preset("solo"));
   const q = quote(sel);
   const canPower = q.seats >= 3;
   const setSeats = n => setSel({ ...sel, seats: clampSeats(n) });

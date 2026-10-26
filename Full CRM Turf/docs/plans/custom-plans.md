@@ -24,6 +24,24 @@ The four ready-made plans (Solo, Duo, Team, Pro) switch on every feature. A buye
 
 Examples at the draft prices: Solo without the map and AI campaigns is $276 against $344. Three people with every feature at Standard is $858; with only Importing, Skip tracing, Dialer and the CRM it is $696.
 
+## More ready-made plans
+
+Nine more starting points beside Solo, Duo, Team and Pro. Each is a set of switched-on features, so the price is the plain sum at the draft prices. They live in `MORE_PLANS` in `landing/web/src/plan.js`; "Customize" opens one in the builder.
+
+| Plan | For | Features | Per month |
+| --- | --- | --- | --- |
+| List Cleaner | 1 person who only cleans lists | Skip tracing | $79 |
+| Data Desk | 1 researcher | Importing lists, Skip tracing, Leads map | $147 |
+| Starter Pipeline | 1 person starting out | Importing lists, The CRM, Leads map | $117 |
+| Caller | 1 person who lives on the phone | Dialer and SMS, The CRM | $148 |
+| Lists to Dials | 1 person, list to call | Importing lists, Skip tracing, Dialer and SMS | $227 |
+| Campaign Studio | 1 person who sells by email and text | Importing lists, AI campaigns, The CRM | $147 |
+| Lean Partners | Exactly 2 partners | Importing lists, Skip tracing, The CRM, Leads map | $296 for both |
+| Call Floor | 5 callers and closers | Importing lists, Skip tracing, Dialer and SMS, The CRM | $1,160 for 5 |
+| Power Callers | 3 callers who dial all day | Same four, with the Dialer at Power | $1,146 for 3 |
+
+These are drafts to react to, not decisions. Names, the mix of features and the seat counts are easy to change in one file.
+
 ## Still all-or-nothing: pieces inside a feature
 
 The two things buyers ask for by name are bundled inside bigger features:
