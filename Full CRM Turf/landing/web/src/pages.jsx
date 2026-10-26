@@ -123,6 +123,13 @@ export function Home({ onPick }) {
               <p className="price">{money(tierPrice(t.id).price)}<span> / {t.unit}</span></p>
               {tierPrice(t.id).from && <p className="fine">from {money(tierPrice(t.id).from)} a month for 3 seats</p>}
               {tierPrice(t.id).list > tierPrice(t.id).price && <p className="fine">One by one it would be {money(tierPrice(t.id).list)}. Together they cost less.</p>}
+              {t.includes && (
+                <ul className="ticks small">
+                  {t.includes.map(i => (
+                    <li key={i}>{i}</li>
+                  ))}
+                </ul>
+              )}
               <p>{t.text}</p>
               <a className="button ghost small" href="/#waitlist" onClick={() => onPick(t.id)}>I want {t.name}</a>
             </li>
@@ -216,6 +223,13 @@ export function Pricing({ onPick }) {
               <p className="price">{money(tierPrice(t.id).price)}<span> / {t.unit}</span></p>
               {tierPrice(t.id).from && <p className="fine">from {money(tierPrice(t.id).from)} a month for 3 seats</p>}
               {tierPrice(t.id).list > tierPrice(t.id).price && <p className="fine">One by one it would be {money(tierPrice(t.id).list)}. Together they cost less.</p>}
+              {t.includes && (
+                <ul className="ticks small">
+                  {t.includes.map(i => (
+                    <li key={i}>{i}</li>
+                  ))}
+                </ul>
+              )}
               <p>{t.text}</p>
               <a className="button small" href="#waitlist" onClick={() => onPick(t.id)}>Join the waitlist for {t.name}</a>
             </Reveal>

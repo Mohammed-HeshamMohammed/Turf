@@ -28,7 +28,7 @@ Dialer plus skip tracing plus recording from Mojo alone is about $180 a month fo
 | Solo (1 person) | **$179** a month | ReadyMode Starter $199; Mojo plus skip tracing and recording about $180; REsimpli Basic about $149 with small allowances | A little under the dialer-focused tools, and above REsimpli's entry plan because calling is unlimited (subject to fair use) and Skip tracing and the map are included |
 | Duo (2 people) | **$288** for both | Two ReadyMode Starter seats $398 | About 28% under |
 | Team (per person) | **$146** | ReadyMode $199 to $249; BatchDialer $119; REsimpli Pro about $60 per person for 5, with small allowances | Under ReadyMode, above the cheapest allowance-limited options |
-| Pro (per person) | **$300** | ReadyMode iQ $249 | **Not cheaper.** Multi-line dialing makes calling minutes cost us about $135 per person, so Pro cannot undercut iQ without losing money. It competes on what is included, not on price |
+| Pro (per person) | **$300** | ReadyMode iQ $249 | **Not cheaper, and not sold as cheaper** (decided 2026-10-27). Multi-line dialing makes calling minutes cost us about $135 per person, so Pro cannot undercut iQ without losing money. The site lists what Pro includes instead: multi-line dialing with voicemail drop, number rotation, custom roles, API access, scheduled and custom reports, higher limits, a 90-day recycle bin, point-in-time restore and a 2-year audit log |
 
 The caps come from one rule, in `ALL_IN` in `landing/web/src/plan.js`: Solo $179, scaled by the same factor for the others.
 

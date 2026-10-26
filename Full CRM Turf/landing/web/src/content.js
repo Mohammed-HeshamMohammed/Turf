@@ -190,7 +190,18 @@ export const tiers = [
   { id: "solo", name: "Solo", who: "1 person", text: "You do everything: lists, skip tracing, calls and deals.", unit: "month" },
   { id: "duo", name: "Duo", who: "Exactly 2 people", text: "Two partners, or a caller and a closer. Both see everything, with nothing to set up.", unit: "month for both" },
   { id: "team", name: "Team", who: "3 or more people", text: "Roles for owners, team leads, callers, closers and researchers, with assignments and reports.", unit: "seat / month" },
-  { id: "pro", name: "Pro", who: "Teams with power features", text: "Multi-line dialing, higher limits and custom roles for teams that work leads all day.", unit: "seat / month" },
+  {
+    id: "pro", name: "Pro", who: "Teams with power features", text: "For teams that work leads all day and need more than the standard plan includes.", unit: "seat / month",
+    includes: [
+      "Multi-line dialing (2 to 3 lines) with voicemail drop",
+      "Number health checks and rotation",
+      "Custom roles and API access",
+      "Scheduled and custom reports",
+      "Higher limits: 2,500,000 leads, 6,000 texts and 4,000 campaign emails per person",
+      "90-day recycle bin and 30-day point-in-time restore",
+      "2-year audit log, and single sign-on when it is ready",
+    ],
+  },
 ];
 
 // Prices are drafts (docs/plans/README.md): each feature is priced alone and a plan is their sum.
