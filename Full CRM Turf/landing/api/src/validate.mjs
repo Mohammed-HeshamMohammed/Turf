@@ -11,7 +11,9 @@ export function checkWaitlist(body) {
       email,
       name: clean(body?.name, 120),
       company: clean(body?.company, 120),
-      tier: ["solo", "duo", "team", "pro"].includes(body?.tier) ? body.tier : "",
+      tier: ["solo", "duo", "team", "pro", "custom"].includes(body?.tier) ? body.tier : "",
+      // A plan built on the pricing page, as a short text summary (for example "2 seats: CRM, Skip tracing; +1 number").
+      plan: clean(body?.plan, 600),
     },
   };
 }

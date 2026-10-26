@@ -87,6 +87,11 @@ test("latestRelease reads GitHub once and caches it", async () => {
   assert.deepEqual(await latestRelease({ repo: "", fetchImpl })(), { available: false });
 });
 
+test("a plan built on the pricing page is kept with the sign-up", async () => {
+  await post("/api/waitlist", { email: "custom@example.com", tier: "custom", plan: "2 seats: CRM, Skip tracing; +1 number" });
+  assert.deepEqual(store.waitlistPlans(), [{ email: "custom@example.com", tier: "custom", plan: "2 seats: CRM, Skip tracing; +1 number" }]);
+});
+
 test("page views are counted without storing anything personal", async () => {
   const hit = p => fetch(base + "/api/hit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path: p }) });
   assert.equal((await hit("/pricing")).status, 204);
