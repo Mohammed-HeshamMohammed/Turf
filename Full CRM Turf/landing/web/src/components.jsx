@@ -192,9 +192,9 @@ function useForm(initial, submit) {
   return { form, set, state, onSubmit, setForm };
 }
 
-export function Waitlist({ tier, setTier }) {
+export function Waitlist({ tier, plan, setTier }) {
   const { form, set, state, onSubmit } = useForm({ email: "", name: "", company: "", website: "" }, async f => {
-    const r = await joinWaitlist({ ...f, tier });
+    const r = await joinWaitlist({ ...f, tier, plan: tier === "custom" ? plan : "" });
     return r.joined ? "You are on the list. We will email you at launch." : "You were already on the list.";
   });
   return (
@@ -202,6 +202,7 @@ export function Waitlist({ tier, setTier }) {
       <div className="panel">
         <h2>Join the waitlist</h2>
         <p className="sub">Be first to use Turf, and tell us which plan fits.</p>
+        {tier === "custom" && plan && <p className="notice good" role="status">Your plan: {plan}</p>}
         {state.status === "done" ? (
           <p className="notice good" role="status">{state.message}</p>
         ) : (
@@ -220,8 +221,9 @@ export function Waitlist({ tier, setTier }) {
             </label>
             <label>
               Plan you are leaning towards
-              <select value={tier} onChange={e => setTier(e.target.value)}>
+              <select value={tier} onChange={e => setTier(e.target.value, plan)}>
                 <option value="">Not sure yet</option>
+                {plan && <option value="custom">The plan I built</option>}
                 {tiers.filter(t => t.id !== "trial").map(t => (
                   <option key={t.id} value={t.id}>{t.name} · {t.who}</option>
                 ))}

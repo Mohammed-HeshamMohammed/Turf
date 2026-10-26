@@ -68,12 +68,14 @@ function useRoute(initialPath) {
 }
 
 export function App({ path = typeof window === "undefined" ? "/" : window.location.pathname }) {
-  const [tier, setTier] = useState("");
+  const [choice, setChoice] = useState({ tier: "", plan: "" });
+  // onPick("duo") picks a ready-made plan; onPick("custom", summary) carries a plan built on the pricing page.
+  const onPick = (tier, plan = "") => setChoice({ tier, plan: tier === "custom" ? plan : "" });
   const page = useRoute(path);
   const body = {
-    home: <Home onPick={setTier} />,
+    home: <Home onPick={onPick} />,
     features: <Features />,
-    pricing: <Pricing onPick={setTier} />,
+    pricing: <Pricing onPick={onPick} />,
     compare: <Compare />,
     security: <Security />,
     contact: <Contact />,
@@ -88,7 +90,7 @@ export function App({ path = typeof window === "undefined" ? "/" : window.locati
       <main id="main" tabIndex={-1}>
         {body}
         {!legalPages.includes(page) && page !== "notfound" && <Download />}
-        {!legalPages.includes(page) && page !== "notfound" && <Waitlist tier={tier} setTier={setTier} />}
+        {!legalPages.includes(page) && page !== "notfound" && <Waitlist tier={choice.tier} plan={choice.plan} setTier={onPick} />}
       </main>
       <Footer />
     </>

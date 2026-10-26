@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import {
   audiences, compareRows, features, priceRows, principles, securityPoints, steps, tiers,
 } from "./content.js";
+import { PlanBuilder } from "./PlanBuilder.jsx";
 import { Badge, ContactForm, Faq, FinalCta, Icon, PageHead, Reveal, Shot } from "./components.jsx";
 
 const money = n => `$${n.toLocaleString("en-US")}`;
@@ -193,10 +194,16 @@ export function Pricing({ onPick }) {
     <>
       <PageHead
         eyebrow="Pricing"
-        title="Pay for the features you use."
-        lead="Each feature is priced on its own and a plan is their sum. These are draft launch prices and may change before launch. Checkout is not open yet."
+        title="Build the plan you need."
+        lead="Switch features on and off and pay only for what you use. The ready-made plans are just starting points. These are draft launch prices and may change before launch. Checkout is not open yet."
       />
-      <section className="section">
+      <section className="section" id="builder">
+        <PlanBuilder onChoose={onPick} />
+      </section>
+
+      <section className="section band">
+        <h2>Or start from a ready-made plan</h2>
+        <p className="sub">Every feature switched on, at the level that fits your team.</p>
         <ul className="grid four">
           {tiers.filter(t => t.price).map(t => (
             <Reveal as="li" className="card" key={t.id}>
@@ -205,13 +212,13 @@ export function Pricing({ onPick }) {
               <p className="price">{money(t.price)}<span> / {t.unit}</span></p>
               {t.from && <p className="fine">from {money(t.from)} a month for 3 seats</p>}
               <p>{t.text}</p>
-              <a className="button small" href="/#waitlist" onClick={() => onPick(t.id)}>Join the waitlist for {t.name}</a>
+              <a className="button small" href="#waitlist" onClick={() => onPick(t.id)}>Join the waitlist for {t.name}</a>
             </Reveal>
           ))}
         </ul>
       </section>
 
-      <section className="section band">
+      <section className="section">
         <h2>What is in each plan</h2>
         <p className="sub">Price per month, with what that includes. Seat prices are per person.</p>
         <div className="table-wrap">

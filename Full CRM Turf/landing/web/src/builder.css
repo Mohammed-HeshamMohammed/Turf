@@ -1,0 +1,258 @@
+/* The plan builder on the Pricing page. */
+.builder {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 24px;
+  align-items: start;
+}
+.builder-main {
+  padding: 28px;
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.builder-main h3 {
+  font-size: 18px;
+}
+.builder-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--raised);
+}
+.stepper button {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--well);
+  color: var(--ink);
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.stepper button:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+.stepper button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.stepper output {
+  min-width: 44px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 18px;
+}
+.stepper.small button {
+  width: 32px;
+  height: 32px;
+  font-size: 17px;
+}
+.stepper.small output {
+  min-width: 34px;
+  font-size: 16px;
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.presets button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+.presets button:hover {
+  background: var(--accent-soft);
+}
+
+.builder-features,
+.addons {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+.builder-features > li,
+.addons > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-radius: 18px;
+  background: var(--raised);
+}
+.builder-features > li.off {
+  opacity: 0.65;
+}
+.builder-features fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.builder-features legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 0;
+  font-weight: 600;
+  font-size: 16px;
+}
+.levels {
+  clear: both;
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--well);
+}
+.levels label {
+  position: relative;
+  display: block;
+  font-size: 14px;
+}
+.levels input {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.levels span {
+  display: block;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.levels input:checked + span {
+  background: var(--dark);
+  color: #fff;
+}
+.levels input:focus-visible + span {
+  outline: 3px solid var(--dark);
+  outline-offset: 2px;
+}
+.levels label.disabled {
+  opacity: 0.4;
+}
+.levels label.disabled input {
+  cursor: not-allowed;
+}
+.builder-features .fine {
+  margin-top: 6px;
+}
+.line-price {
+  flex: none;
+  font-size: 18px;
+}
+.builder-features li.included {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--line);
+}
+.addons-title {
+  margin-top: 28px;
+}
+.addons > li > span:first-child {
+  display: grid;
+}
+
+.builder-sum {
+  position: sticky;
+  top: 84px;
+  display: grid;
+  gap: 10px;
+  padding: 26px;
+  border-radius: var(--radius);
+  background: var(--dark);
+  color: #fff;
+}
+.builder-sum h3 {
+  font-size: 16px;
+  color: #c9c9c9;
+}
+.builder-sum .total {
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.builder-sum .total span {
+  font-size: 16px;
+  font-weight: 500;
+  color: #c9c9c9;
+}
+.builder-sum ul {
+  display: grid;
+  gap: 6px;
+  padding: 12px 0;
+  border-top: 1px solid #3a3a3a;
+  border-bottom: 1px solid #3a3a3a;
+  font-size: 14px;
+}
+.builder-sum ul li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.builder-sum .fine {
+  color: #b5b5b5;
+}
+.builder-sum .saving {
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--good);
+  color: var(--good-ink);
+  font-weight: 600;
+  font-size: 14px;
+}
+.builder-sum .button {
+  margin-top: 6px;
+  background: var(--accent);
+  color: var(--dark);
+}
+.builder-sum .button:hover {
+  background: var(--accent-soft);
+}
+
+@media (max-width: 900px) {
+  .builder {
+    grid-template-columns: 1fr;
+  }
+  .builder-sum {
+    position: static;
+    order: -1;
+  }
+}
+@media (max-width: 520px) {
+  .builder-main {
+    padding: 18px;
+  }
+  .builder-features > li {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .line-price {
+    text-align: right;
+  }
+}

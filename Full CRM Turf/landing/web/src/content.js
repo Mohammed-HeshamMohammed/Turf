@@ -230,7 +230,7 @@ export const faqs = [
   { q: "Where are my records kept?", a: "On your computer, and on your organization's server when you sync. Records are never shared between organizations." },
   { q: "Which computers does it run on?", a: "Windows first. The download button serves the newest release." },
   { q: "How many people can use one account?", a: "Solo is one person and Duo is exactly two. Team starts at three and gives each person a role. Clients and partners you share properties with are free seats." },
-  { q: "What does it cost?", a: "Each feature is priced on its own and a plan is the sum of its features. The prices on the Pricing page are drafts until launch, and people on the waitlist hear first." },
+  { q: "What does it cost?", a: "Each feature is priced on its own, so you build the plan: switch off what you do not need, add extras where you need more. The ready-made plans are only starting points. The prices on the Pricing page are drafts until launch, and people on the waitlist hear first." },
   { q: "Can I take my data with me?", a: "Yes. Exports are included in every plan, and a recycle bin and project backups protect against mistakes." },
   { q: "Does Turf find new phone numbers?", a: "Not yet. Turf cleans and ranks the numbers your list already has. Looking up new numbers is planned as a separate service." },
   { q: "Is calling live today?", a: "Not yet. The call screens, outcomes and logs work with sample data. Live calling is a launch feature." },
