@@ -65,15 +65,20 @@ export function RemoteGate({ onReady, onLeave }) {
 
   useEffect(() => {
     if (!apiBase()) setApiBase(SERVER);
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("turf_code");
+    // Back from Google in this tab: finish that sign-in (it reads the address before it is cleared), then carry on.
+    const back = auth.finishProvider();
     if (window.location.search) window.history.replaceState(null, "", window.location.pathname + window.location.hash);
-    // Back from Google in this tab: trade the one-time code for tokens.
-    if (code) attempt(async () => {
-      await auth.exchange(code);
+    attempt(async () => {
+      try {
+        await back;
+      } catch (reason) {
+        // An authenticator is set up: the sign-in waits for its code.
+        if (reason.code === "mfa_required") return setStep("stepup");
+        setStep("signin");
+        throw reason;
+      }
       await check();
     });
-    else check();
   }, []);
 
   /** The desktop app waits for the person's browser to hand back a code; this stops waiting. */
@@ -88,10 +93,8 @@ export function RemoteGate({ onReady, onLeave }) {
     attempt(async () => {
       const available = await auth.providers().catch(() => ({}));
       if (!available[provider]) throw new Error(`${label} sign-in isn't connected yet. Use your email for now.`);
-      if (!inDesktopApp()) {
-        window.location.href = auth.startUrl(provider, "app");
-        return;
-      }
+      if (!inDesktopApp()) return auth.startProvider(provider, "app");
+      if (!auth.startUrl) throw new Error(`${label} sign-in in the desktop app is coming. Use your email for now.`);
       const { invoke } = await import("@tauri-apps/api/core");
       const { listen } = await import("@tauri-apps/api/event");
       waiting.current?.();
@@ -158,7 +161,9 @@ export function RemoteGate({ onReady, onLeave }) {
     event.preventDefault();
     attempt(async () => {
       const result = await auth.confirmMfa(form.code.trim());
-      setRecovery(result.recovery_codes);
+      // Firebase gives no recovery codes: staff reset a lost authenticator.
+      if (result.recovery_codes?.length) setRecovery(result.recovery_codes);
+      else await check();
     });
   };
   const startTrial = event => {
@@ -258,7 +263,7 @@ export function RemoteGate({ onReady, onLeave }) {
             )}
             {step === "code" && (
               <>
-                <p className="body-copy">Enter the six-digit code from your authenticator app, or one of your recovery codes.</p>
+                <p className="body-copy">Enter the six-digit code from your authenticator app.</p>
                 <Field label="Sign-in code">
                   <input inputMode="numeric" autoComplete="one-time-code" value={form.code} onChange={field("code")} required autoFocus />
                 </Field>
@@ -274,7 +279,7 @@ export function RemoteGate({ onReady, onLeave }) {
         )}
         {step === "stepup" && (
           <form className="remote-step" onSubmit={stepUp}>
-            <p className="body-copy">Your role needs your authenticator code too. Enter the six-digit code, or one of your recovery codes.</p>
+            <p className="body-copy">Your role needs your authenticator code too. Enter the six-digit code from the app.</p>
             <Field label="Sign-in code">
               <input inputMode="numeric" autoComplete="one-time-code" value={form.code} onChange={field("code")} required />
             </Field>

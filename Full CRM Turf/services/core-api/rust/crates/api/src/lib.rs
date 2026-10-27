@@ -96,10 +96,17 @@ mod auth_keys_tests {
         assert_eq!(super::origin_of("https://auth.turf.example/some/path"), "https://auth.turf.example");
         assert_eq!(super::origin_of("http://localhost:8101"), "http://localhost:8101");
         assert_eq!(super::origin_of("not a url"), "");
-        let policy = super::content_security_policy("https://auth.turf.example");
+        let policy = super::content_security_policy("https://auth.turf.example", None);
         assert!(policy.contains("connect-src 'self' https://auth.turf.example;"));
         assert!(policy.contains("script-src 'self';"));
-        assert!(super::content_security_policy("").contains("connect-src 'self';"));
+        assert!(super::content_security_policy("", None).contains("connect-src 'self';"));
+        assert!(!policy.contains("google"), "nothing of Google's without Firebase");
+        // With Firebase: its sign-in APIs, Google's sign-in script and the project's frame, and nothing more.
+        let firebase = super::content_security_policy("", Some("turf-dev.firebaseapp.com"));
+        assert!(firebase.contains("script-src 'self' https://apis.google.com;"));
+        assert!(firebase.contains("connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com;"));
+        assert!(firebase.contains("frame-src https://turf-dev.firebaseapp.com;"));
+        assert!(firebase.contains("frame-ancestors 'none'"));
     }
 
     #[tokio::test]
@@ -131,9 +138,16 @@ pub fn origin_of(url: &str) -> String {
 }
 
 /// The website talks to this server and to the auth service, and to nothing else.
-pub fn content_security_policy(auth_origin: &str) -> String {
-    let connect = if auth_origin.is_empty() { "'self'".to_string() } else { format!("'self' {auth_origin}") };
-    format!("default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src {connect}; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+pub fn content_security_policy(auth_origin: &str, firebase_auth_domain: Option<&str>) -> String {
+    let mut connect = if auth_origin.is_empty() { "'self'".to_string() } else { format!("'self' {auth_origin}") };
+    // Firebase: its two sign-in APIs, Google's script for signing in with Google, and the project's sign-in frame.
+    let (mut script, mut frame) = ("'self'".to_string(), String::new());
+    if let Some(domain) = firebase_auth_domain {
+        connect.push_str(" https://identitytoolkit.googleapis.com https://securetoken.googleapis.com");
+        script.push_str(" https://apis.google.com");
+        frame = format!(" frame-src https://{domain};");
+    }
+    format!("default-src 'self'; img-src 'self' data:; style-src 'self'; script-src {script}; connect-src {connect};{frame} frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 }
 
 pub fn app(state: AppState) -> Router {
@@ -152,6 +166,7 @@ pub fn app(state: AppState) -> Router {
         ]);
     let limit = state.config.max_body_bytes;
     let auth_origin = origin_of(&state.config.auth_public_url);
+    let firebase_domain = state.config.firebase_web().map(|_| state.config.firebase_auth_domain.clone());
     let site = state.config.site_dir.clone();
     let mut router = routes::router().with_state(state);
     if !site.is_empty() {
@@ -163,7 +178,7 @@ pub fn app(state: AppState) -> Router {
     router
         .layer(SetResponseHeaderLayer::overriding(
             header::CONTENT_SECURITY_POLICY,
-            HeaderValue::from_str(&content_security_policy(&auth_origin)).unwrap_or_else(|_| HeaderValue::from_static("default-src 'self'")),
+            HeaderValue::from_str(&content_security_policy(&auth_origin, firebase_domain.as_deref())).unwrap_or_else(|_| HeaderValue::from_static("default-src 'self'")),
         ))
         .layer(SetResponseHeaderLayer::overriding(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")))
         .layer(SetResponseHeaderLayer::overriding(header::REFERRER_POLICY, HeaderValue::from_static("same-origin")))

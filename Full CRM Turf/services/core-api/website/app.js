@@ -30,7 +30,10 @@ class ApiError extends Error {
 }
 
 const service = await fetch("/api/v1/auth/service").then(r => r.json(), () => ({}));
-const auth = createAuth({ base: service.url || "http://localhost:8101" });
+// A server that uses Firebase hands its web config here; the bundle with Firebase's SDK is loaded only then.
+const auth = service.firebase
+  ? await import("./firebase-auth.js").then(m => m.createFirebaseAuth({ sdk: m.firebaseSdk(service.firebase), providers: service.firebase.providers || [] }))
+  : createAuth({ base: service.url || "http://localhost:8101" });
 
 /** The organization this browser works in; Turf's server reads it from x-turf-org. */
 const organization = () => localStorage.getItem("turf.org") || "";
@@ -190,7 +193,7 @@ function providerButtons() {
         type: "button",
         class: "button provider " + name,
         onclick: async () => {
-          if ((await known)[name]) return (location.href = auth.startUrl(name, "website"));
+          if ((await known)[name]) return auth.startProvider(name, "website").catch(reason => status.replaceChildren(notice(reason.message, "error")));
           status.replaceChildren(notice(`${text.replace("Continue with ", "")} sign-in isn't connected on this server yet. Use your email for now.`));
         },
       },
@@ -304,7 +307,7 @@ function signinCode(values) {
       "section",
       { class: "card narrow" },
       h("h2", {}, "Enter your sign-in code"),
-      h("p", { class: "muted" }, "From your authenticator app, or one of your recovery codes."),
+      h("p", { class: "muted" }, "From your authenticator app."),
       form([input("Code", "code", { autocomplete: "one-time-code", maxlength: 12 })], "Sign in", async more => {
         await auth.signIn(values.email, values.password, more.code.trim());
         await afterSignIn();
@@ -341,6 +344,8 @@ async function mfa() {
       h("p", { class: "muted" }, "Or open this link on your phone: ", h("a", { href: setup.otpauth_url }, "add to authenticator")),
       form([input("6-digit code", "code", { inputmode: "numeric", autocomplete: "one-time-code", maxlength: 8 })], "Confirm", async values => {
         const { recovery_codes } = await auth.confirmMfa(values.code.trim());
+        // Firebase gives no recovery codes: staff reset a lost authenticator.
+        if (!recovery_codes?.length) return (location.hash = "#/account");
         show(
           h(
             "section",
@@ -1060,14 +1065,24 @@ document.addEventListener("click", event => {
     route();
   }
 });
-// Back from Google: the address carries a one-time code to trade for tokens, then the page carries on.
-const returned = new URLSearchParams(location.search).get("turf_code");
-if (returned) {
-  history.replaceState(null, "", location.pathname + location.hash);
-  auth
-    .exchange(returned)
-    .then(() => afterSignIn())
-    .catch(reason => show(notice(reason.message, "error")));
-} else {
-  refreshMe().then(route);
+/** Back from Google with an authenticator set up: the sign-in waits for its code. */
+function providerCode() {
+  show(
+    h(
+      "section",
+      { class: "card narrow" },
+      h("h2", {}, "Enter your sign-in code"),
+      h("p", { class: "muted" }, "From your authenticator app."),
+      form([input("6-digit code", "code", { inputmode: "numeric", autocomplete: "one-time-code", maxlength: 8 })], "Sign in", async values => {
+        await auth.verifyMfa(values.code.trim());
+        await afterSignIn();
+      }),
+    ),
+  );
 }
+
+// Back from Google: finish that sign-in, then the page carries on.
+auth.finishProvider().then(
+  back => (back ? afterSignIn() : refreshMe().then(route)),
+  reason => (reason.code === "mfa_required" ? providerCode() : show(notice(reason.message, "error"))),
+);

@@ -40,6 +40,30 @@ pub struct Config {
     /// `firebase_jwks_url` at start and every hour after, since Google rotates them.
     pub firebase_jwks: String,
     pub firebase_jwks_url: String,
+    /// The web app's Firebase config, handed to the website and the CRM so they sign in with Firebase. These are
+    /// public by design. Without an API key the pages keep signing in with the auth service.
+    pub firebase_api_key: String,
+    /// Default `<project>.firebaseapp.com`.
+    pub firebase_auth_domain: String,
+    pub firebase_app_id: String,
+    /// Providers turned on in the Firebase console besides email and password (comma separated: google, apple).
+    pub firebase_providers: Vec<String>,
+}
+
+impl Config {
+    /// The config the website's Firebase SDK starts with, or None when the pages should use the auth service.
+    pub fn firebase_web(&self) -> Option<serde_json::Value> {
+        if self.firebase_project.is_empty() || self.firebase_api_key.is_empty() {
+            return None;
+        }
+        Some(serde_json::json!({
+            "apiKey": self.firebase_api_key,
+            "authDomain": self.firebase_auth_domain,
+            "projectId": self.firebase_project,
+            "appId": self.firebase_app_id,
+            "providers": self.firebase_providers,
+        }))
+    }
 }
 
 impl Config {
@@ -70,6 +94,13 @@ impl Config {
             firebase_project: var("TURF_FIREBASE_PROJECT", "").trim().to_string(),
             firebase_jwks: var("TURF_FIREBASE_JWKS", ""),
             firebase_jwks_url: var("TURF_FIREBASE_JWKS_URL", turf_auth_verify::FIREBASE_JWKS_URL),
+            firebase_api_key: var("TURF_FIREBASE_API_KEY", "").trim().to_string(),
+            firebase_auth_domain: match var("TURF_FIREBASE_AUTH_DOMAIN", "").trim() {
+                "" => format!("{}.firebaseapp.com", var("TURF_FIREBASE_PROJECT", "").trim()),
+                given => given.to_string(),
+            },
+            firebase_app_id: var("TURF_FIREBASE_APP_ID", "").trim().to_string(),
+            firebase_providers: var("TURF_FIREBASE_PROVIDERS", "google").split(',').map(|p| p.trim().to_string()).filter(|p| !p.is_empty()).collect(),
             auth_public_url: var("TURF_AUTH_PUBLIC_URL", "http://localhost:8101").trim_end_matches('/').to_string(),
         })
     }

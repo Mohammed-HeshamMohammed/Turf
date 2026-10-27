@@ -1,7 +1,11 @@
-// The Turf API over fetch. Signing in is the auth service's job (./auth-client.js): every request here carries its
-// access token, and the organization the person is working in. No cookies: the token is the session.
+// The Turf API over fetch. Signing in is Firebase's job (./firebase-auth-client.js) when the app is built with a
+// Firebase project, and the auth service's (./auth-client.js) otherwise: every request here carries that access
+// token, and the organization the person is working in. No cookies: the token is the session.
 
+import { initializeApp } from "firebase/app";
+import { applyActionCode, createUserWithEmailAndPassword, getAuth, getMultiFactorResolver, getRedirectResult, GoogleAuthProvider, multiFactor, OAuthProvider, sendEmailVerification, signInWithEmailAndPassword, signInWithRedirect, signOut, TotpMultiFactorGenerator, updateProfile } from "firebase/auth";
 import { createAuth } from "./auth-client.js";
+import { createFirebaseAuth } from "./firebase-auth-client.js";
 
 export class ApiError extends Error {
   constructor(status, code, message) {
@@ -41,8 +45,23 @@ export function setApiBase(url) {
   remember("turf.api.url", url ? url.replace(/\/$/, "") : "");
 }
 
-/** The signed-in person, from the auth service. */
-export const auth = createAuth({ base: remembered("turf.auth.url") || AUTH_SERVER });
+/** The Firebase web app this build signs in with (VITE_FIREBASE_*, docs/plans/firebase-auth.md), or none. */
+const FIREBASE = import.meta.env?.VITE_FIREBASE_API_KEY
+  ? {
+      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
+      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+      appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    }
+  : null;
+
+/** The signed-in person: from Firebase, or from the auth service. */
+export const auth = FIREBASE
+  ? createFirebaseAuth({
+      sdk: { applyActionCode, createUserWithEmailAndPassword, getMultiFactorResolver, getRedirectResult, GoogleAuthProvider, multiFactor, OAuthProvider, sendEmailVerification, signInWithEmailAndPassword, signInWithRedirect, signOut, TotpMultiFactorGenerator, updateProfile, auth: getAuth(initializeApp(FIREBASE)) },
+      providers: (import.meta.env.VITE_FIREBASE_PROVIDERS || "google").split(",").map(name => name.trim()).filter(Boolean),
+    })
+  : createAuth({ base: remembered("turf.auth.url") || AUTH_SERVER });
 
 /** The organization this device works in; sent with every request as x-turf-org. */
 export const organization = () => remembered("turf.org");

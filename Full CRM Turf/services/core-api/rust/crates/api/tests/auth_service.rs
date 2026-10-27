@@ -170,7 +170,7 @@ async fn the_live_events_socket_takes_the_token_in_its_protocols() {
 
     // The website finds the auth service here.
     let (status, service) = get(&h.base, "/api/v1/auth/service", &t, None).await;
-    assert_eq!((status, service), (200, json!({ "url": "http://auth.example", "signup": true })));
+    assert_eq!((status, service), (200, json!({ "url": "http://auth.example", "signup": true, "firebase": null })));
 }
 
 #[tokio::test]

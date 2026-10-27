@@ -1,6 +1,6 @@
 # Sign-in on Firebase Authentication
 
-**Status:** Approved. Phase 1 done (the core API accepts Firebase tokens); phase 0 waits for the Firebase project
+**Status:** Approved. Phases 1 and 2 done (the core API accepts Firebase tokens; the website and the CRM sign in with Firebase when given a project); phase 0 waits for the Firebase project
 **Date:** 2026-10-27
 **Replaces:** `services/auth` (the Rust sign-in service). Amends rule 3 of `service-architecture.md`: tokens are signed by Firebase (RS256, Google's keys), not by our own service.
 
@@ -37,9 +37,9 @@ Console steps and `tools/firebase/configure-auth.mjs` below. Two projects: `turf
 - Migration: `users.firebase_uid`. Config: `TURF_FIREBASE_PROJECT`. While both run, the core API accepts either issuer; the old one is removed in phase 5.
 - Tests: the harness signs RS256 test tokens shaped like Firebase's, against a test key set, as it does today with Ed25519.
 
-### 2. One client file over the Firebase SDK
+### 2. One client file over the Firebase SDK (done)
 `auth-client.js` is rewritten on the Firebase JS SDK with **the same functions** (`signIn`, `signUp`, `signOut`, `accessToken`, `refresh`, `me`, `setupMfa`, `confirmMfa`, `verifyMfa`, `providers`), so the desktop app, the CRM and the website change little.
-- The website loads nothing from other servers: the SDK is bundled into a local file, and its policy adds `connect-src https://identitytoolkit.googleapis.com https://securetoken.googleapis.com`.
+- The SDK is bundled into `website/firebase-auth.js`; the website's policy adds Firebase's two sign-in APIs to `connect-src`, `https://apis.google.com` to `script-src` (Firebase loads it for Google sign-in) and the project's sign-in domain as `frame-src`.
 - `setupMfa` returns the setup key and `otpauth://` link from `TotpMultiFactorGenerator`; `confirmMfa` returns no recovery codes, and the screens that showed them say what to do instead.
 
 ### 3. Desktop sign-in with Google and Apple
@@ -94,4 +94,4 @@ Done once per project (`turf-dev`, then `turf-prod`), signed in to the Firebase 
 | --- | --- |
 | Core API | `TURF_FIREBASE_PROJECT` (the project id); `TURF_FIREBASE_SERVICE_ACCOUNT` (path to the key file, phase 4) |
 | Desktop app, CRM | `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`; `VITE_GOOGLE_DESKTOP_CLIENT_ID` (phase 3) |
-| Website | The same four values in `website/firebase-config.js` (phase 2) |
+| Core API, for the website | `TURF_FIREBASE_API_KEY`, `TURF_FIREBASE_APP_ID`; optionally `TURF_FIREBASE_AUTH_DOMAIN`, `TURF_FIREBASE_PROVIDERS` |

@@ -96,6 +96,10 @@ pub fn config(redis: bool) -> Option<Config> {
         firebase_project: String::new(),
         firebase_jwks: String::new(),
         firebase_jwks_url: String::new(),
+        firebase_api_key: String::new(),
+        firebase_auth_domain: String::new(),
+        firebase_app_id: String::new(),
+        firebase_providers: vec![],
     })
 }
 

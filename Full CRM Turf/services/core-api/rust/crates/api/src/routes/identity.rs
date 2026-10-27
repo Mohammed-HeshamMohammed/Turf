@@ -113,7 +113,8 @@ async fn join_invitation(State(state): State<AppState>, ctx: Ctx, Json(body): Js
 /// Where the auth service is, for the website and the app: they sign in there and bring its token here.
 async fn auth_service(State(state): State<AppState>) -> Json<Value> {
     // `signup`: whether a new account may open its own trial here, or must be invited.
-    Json(json!({ "url": state.config.auth_public_url, "signup": state.config.public_signup }))
+    // `firebase`: the web config to sign in with Firebase instead, when this server uses it.
+    Json(json!({ "url": state.config.auth_public_url, "signup": state.config.public_signup, "firebase": state.config.firebase_web() }))
 }
 
 async fn me(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {

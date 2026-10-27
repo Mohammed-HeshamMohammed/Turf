@@ -2,8 +2,12 @@
   "name": "turf-firebase-tools",
   "private": true,
   "type": "module",
-  "description": "One-off setup of Turf's Firebase projects (docs/plans/firebase-auth.md)",
+  "description": "Setup of Turf's Firebase projects, and the website's Firebase bundle (docs/plans/firebase-auth.md)",
   "dependencies": {
+    "firebase": "13.1.0",
     "firebase-admin": "14.5.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.11"
   }
 }
