@@ -132,6 +132,22 @@ Goal: you tell Claude "release 0.4.0" and it ships.
 
 Phases 1 and 2 come before the restructure because they are what lets you sell and ship; they only add folders. Phases 3 to 7 are the large refactor and should land one phase per pull request.
 
+## Scaffold status (2026-10-27)
+
+The folders and starting code from the target layout now exist beside the working app, without moving it:
+
+- `services/`: gateway, auth, notifications, billing and the eight feature services. Each starts, answers `/healthz` and `/version`, has tests, an `openapi.yaml`, a `Dockerfile` and, when it owns data, `migrations/`. Registry: `services/README.md`, `contracts/services.md`, event list: `contracts/events.md`.
+- `desktop/`: the container, frontend and backend folders, with one Rust module per feature under `desktop/backend/features/`.
+- `deploy/compose.yml`: every service plus Postgres and Redis (not run yet: no Docker on the machine that wrote it).
+- `tools/`: `stack.json` (the list of services), `scaffold-stack.mjs` (creates what is missing, never overwrites) and `check-stack.mjs` (runs every test).
+- Root `Cargo.toml`: one workspace for the new Rust crates; `src-tauri` and `backend/rust` stay out of it for now.
+
+Not verified: the two Go services (gateway, notifications) were not compiled because Go was not installed, and the Dockerfiles and compose file were not run. Nothing from `backend/`, `src/` or `src-tauri/` has moved yet; that is phase 3 and later.
+
+## Authentication: one source of truth (2026-10-27)
+
+`services/auth` is built and runs on its own. It is the only owner of accounts, passwords, two-step codes and sessions, for every app and service. It signs 15-minute EdDSA access tokens, and every other service checks them with its public keys (`/.well-known/jwks.json`, the `turf-auth-verify` crate) without calling it. All five steps in `services/auth/README.md` are done: accounts copied across, Google and Apple sign-in, email confirmation, invitations and desktop sign-in moved into auth, the website and the CRM pointed at it, and the core API's own sign-in and sessions turned off. The core API accepts only auth's tokens and refuses to start without its public keys. Its old sign-in tables are dropped once the import is confirmed in production. Organizations, memberships and roles stay with the CRM: auth says who someone is, each service decides what they may do.
+
 ## Risks
 
 - **Splitting too early** multiplies deploys and failure modes. Mitigation: decision 1 (one Compose on one VPS).

@@ -23,7 +23,7 @@ All copy lives in `web/src/content.js`. Every feature and security point carries
 
 ## Screenshots
 
-`web/public/screens/*.webp` are captures of the CRM in its sample workspace. To refresh them after the app changes, start the CRM (`npm run dev` in `Full CRM Turf`), then:
+`web/public/screens/*.webp` are captures of the CRM in its sample workspace. To refresh them after the app changes, start the CRM (`npm run dev` in `Full CRM Turf/desktop/frontend/react`), then:
 
 ```bash
 node landing/web/scripts/capture-screens.mjs http://localhost:5190 shots

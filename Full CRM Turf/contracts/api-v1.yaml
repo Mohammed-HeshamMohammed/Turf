@@ -5,9 +5,10 @@ info:
   description: |
     Versioned public contract (plan 2.3). Errors are always `{"error": {"code", "message"}}` with codes
     bad_request, unauthenticated, mfa_required, forbidden, not_found, conflict, rate_limited, internal.
-    Browser sessions use the HttpOnly `turf_session` cookie and must send `X-Turf-Request: 1` on writes;
-    the desktop app sends `Authorization: Bearer <token>`. Every write carries an operation id.
-    backend/rust/crates/api/tests/contract.rs checks that this file and the router list the same routes.
+    People sign in with the auth service (services/auth), never with this API: every request sends
+    `Authorization: Bearer <auth access token>` and the organization it acts in as `X-Turf-Org: <id>`.
+    Every write carries an operation id.
+    services/core-api/rust/crates/api/tests/contract.rs checks that this file and the router list the same routes.
 servers:
   - url: /
 components:
@@ -54,17 +55,10 @@ components:
 paths:
   /healthz: { get: { summary: Liveness } }
   /readyz: { get: { summary: Readiness (database and cache) } }
-  /api/v1/auth/bootstrap: { post: { summary: First organization and owner on a fresh server; refused afterwards } }
-  /api/v1/auth/login: { post: { summary: "Email/password; kind browser (cookie) or desktop (token in body)" } }
-  /api/v1/auth/logout: { post: { summary: End this session } }
-  /api/v1/auth/mfa/setup: { post: { summary: Start TOTP enrolment } }
-  /api/v1/auth/mfa/confirm: { post: { summary: Confirm TOTP; returns ten recovery codes once } }
-  /api/v1/auth/mfa/verify: { post: { summary: Pass MFA for this session with a code or recovery code } }
-  /api/v1/auth/sessions: { get: { summary: This person's active sessions } }
-  /api/v1/auth/sessions/revoke: { post: { summary: Revoke one session or all others } }
-  /api/v1/auth/invitations/accept: { post: { summary: Join an organization from an invitation token } }
-  /api/v1/auth/organization: { post: { summary: Choose the organization this session acts in } }
-  /api/v1/auth/password: { post: { summary: Change password; ends other sessions } }
+  /api/v1/auth/bootstrap: { post: { summary: First organization on a fresh server, owned by the signed-in person; refused afterwards } }
+  /api/v1/auth/service: { get: { summary: Where the auth service is (the website and the app sign in there) } }
+  /api/v1/invitations/join: { post: { summary: Join the organization of an invitation for this person's email, as the signed-in person } }
+  /api/v1/organizations/trial: { post: { summary: Open a trial organization for the signed-in person, with them as owner (one per person) } }
   /api/v1/me: { get: { summary: Identity, roles, capabilities, scopes, access revision, MFA state } }
   /api/v1/admin/members: { get: { summary: Members and open invitations }, post: { summary: Invite (returns a one-time token) } }
   /api/v1/admin/members/{user_id}: { patch: { summary: Roles, restrictions, teams, projects }, delete: { summary: Remove; revokes sessions } }
