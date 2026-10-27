@@ -15,6 +15,25 @@ Shared contracts (API, events, jobs, native ABIs) live in `contracts/`.
 
 ## Local development
 
+### PostgreSQL on Windows (no installer, no admin)
+
+PostgreSQL 17.11 runs from EDB's portable build in `D:\tools\pgsql`, with its data in `D:\turf-data`. `D:\tools\env.sh` puts it on the `PATH`. Delete both folders to remove it. Start it after a restart, from Git Bash:
+
+```bash
+TURF_TOOLS=/d/tools/env.sh TURF_DATA=/d/turf-data bash services/core-api/scripts/dev-services.sh
+```
+
+Do not pipe that command into `tail` or `head`: the server it starts keeps the pipe open and the command never returns. Stop the server with `source /d/tools/env.sh && pg_ctl -D /d/turf-data/pg stop`. Redis is not installed; the API and its tests run without it (the cache is off).
+
+Run every test, including the end-to-end ones against the database:
+
+```bash
+cd services/core-api/rust && TEST_DATABASE_URL=postgres://turf_api:turf_api@127.0.0.1:55432/turf_test TEST_MIGRATION_DATABASE_URL=postgres://turf_owner:turf_owner@127.0.0.1:55432/turf_test cargo test --workspace -- --test-threads=1
+```
+
+The auth service has its own login and databases on the same server: `turf_auth` (password `turf_auth`) owns `turf_auth` and `turf_auth_test`.
+
+
 ```bash
 bash services/core-api/scripts/dev-services.sh
 ```

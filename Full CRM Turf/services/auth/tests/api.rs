@@ -1,4 +1,5 @@
-//! The auth service end to end, in-process, on an in-memory SQLite database.
+//! The auth service end to end, in-process. On an in-memory SQLite database by default; set AUTH_TEST_DATABASE_URL
+//! to run the same tests on PostgreSQL (one at a time: --test-threads=1, as they share that database).
 
 use axum::{
     body::Body,
@@ -12,10 +13,20 @@ use tower::ServiceExt;
 use turf_auth::{app, config::Config, connect, keys::Keys, migrate, AppState};
 use turf_auth_verify::Verifier;
 
-async fn service() -> Router {
-    let db = connect("sqlite::memory:").await.unwrap();
+/// A fresh database: in memory, or the PostgreSQL test database emptied.
+async fn database() -> sqlx::AnyPool {
+    let url = std::env::var("AUTH_TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".into());
+    let db = connect(&url).await.unwrap();
     migrate(&db).await.unwrap();
     migrate(&db).await.unwrap(); // running the migration again is harmless
+    for table in ["outbox", "failed_sign_ins", "recovery_codes", "sessions", "users"] {
+        sqlx::query(&format!("DELETE FROM {table}")).execute(&db).await.unwrap();
+    }
+    db
+}
+
+async fn service() -> Router {
+    let db = database().await;
     let config = Config {
         database_url: "sqlite::memory:".into(),
         port: 0,
@@ -167,7 +178,7 @@ async fn a_bad_or_missing_token_is_refused() {
     assert_eq!(call(&app, "GET", "/v1/me", None, Some("a.b.c")).await.0, StatusCode::UNAUTHORIZED);
     // A token from another auth service (another key) is refused.
     let other = service().await;
-    let theirs = sign_up(&other, "sami@example.com").await;
+    let theirs = sign_up(&other, "other@example.com").await;
     sign_up(&app, "sami@example.com").await;
     assert_eq!(call(&app, "GET", "/v1/me", None, Some(token(&theirs))).await.0, StatusCode::UNAUTHORIZED);
 }
@@ -228,8 +239,7 @@ async fn changing_the_password_closes_other_sessions() {
 
 #[tokio::test]
 async fn sign_up_can_be_closed() {
-    let db = connect("sqlite::memory:").await.unwrap();
-    migrate(&db).await.unwrap();
+    let db = database().await;
     let config = Config { database_url: String::new(), port: 0, signing_key: String::new(), access_minutes: 15, refresh_days: 30, public_signup: false };
     let app = app(AppState { db, keys: Arc::new(Keys::generate().unwrap()), config: Arc::new(config) });
     let (status, _) = call(&app, "POST", "/v1/accounts", Some(json!({ "email": "a@example.com", "password": PASSWORD, "name": "A" })), None).await;

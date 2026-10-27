@@ -51,7 +51,9 @@ Every new account writes a `user.signed_up` event to the `outbox` table in the s
 ## Run and test
 
 ```bash
-cargo test -p turf-auth -p turf-auth-verify          # from Full CRM Turf/
+cargo test -p turf-auth -p turf-auth-verify          # from Full CRM Turf/, on SQLite
+AUTH_TEST_DATABASE_URL=postgres://turf_auth:turf_auth@127.0.0.1:55432/turf_auth_test \
+  cargo test -p turf-auth -- --test-threads=1         # the same tests on PostgreSQL
 cargo run -p turf-auth -- new-key                     # prints a signing key for AUTH_SIGNING_KEY
 AUTH_SIGNING_KEY=... cargo run -p turf-auth           # http://localhost:8101, SQLite file auth.db
 ```
@@ -72,7 +74,7 @@ The core API (`services/core-api`) still has its own accounts and sessions, and 
 The switch, in order:
 
 1. **Done:** auth runs on its own; the core API accepts its tokens next to its own sessions.
-2. Copy everyone across with the same ids: `scripts/import-from-core-api.sh`. Passwords, two-step secrets and recovery codes carry over unchanged. Not yet run against a real database.
+2. Copy everyone across with the same ids: `scripts/import-from-core-api.sh`. Passwords, two-step secrets and recovery codes carry over unchanged. **Checked on a local PostgreSQL:** an account copied from the core API signed in to auth with its old password and its old two-step secret, and the core API accepted the resulting token for the same person, with their roles and plan in their organization. Running the script again changes nothing.
 3. Move what still signs people in on the core API into auth: Google and Apple sign-in, email confirmation, accepting an invitation, desktop sign-in, platform administrators.
 4. Point the app and the website at auth for signing in.
 5. Turn the core API's own sessions off. From then on auth is the only place an account or a session exists.
