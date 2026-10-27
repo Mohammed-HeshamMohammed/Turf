@@ -1,0 +1,51 @@
+{
+  "comment": "The deployable parts, for tools/gen-infra.mjs (docs/plans/scaling-and-deployment.md). Resource numbers are starting points: measure, then change them here and run the script again.",
+  "namespace": "turf",
+  "registry": "registry.example.com/turf",
+  "services": [
+    {
+      "name": "gateway", "image": "turf-gateway", "port": 8100, "uid": 65532, "readOnlyRoot": true,
+      "replicas": { "min": 2, "max": 10 }, "cpu": ["50m", "250m"], "memory": ["32Mi", "128Mi"],
+      "env": { "PORT": "8100" }, "secret": null,
+      "ingress": { "host": "api.example.com", "path": "/", "tls": true }
+    },
+    {
+      "name": "auth", "image": "turf-auth", "port": 8101, "uid": 65534,
+      "replicas": { "min": 2, "max": 10 }, "cpu": ["100m", "500m"], "memory": ["64Mi", "256Mi"],
+      "secret": "auth-env", "startup": true,
+      "ingress": { "host": "auth.example.com", "path": "/", "tls": true }
+    },
+    {
+      "name": "notifications", "image": "turf-notifications", "port": 8102, "uid": 65532, "readOnlyRoot": true,
+      "replicas": { "min": 2, "max": 6 }, "cpu": ["50m", "250m"], "memory": ["32Mi", "128Mi"],
+      "env": { "PORT": "8102" }, "secret": null
+    },
+    {
+      "name": "core-api", "image": "turf-core-api", "port": 8088, "uid": 65534,
+      "replicas": { "min": 2, "max": 20 }, "cpu": ["250m", "1"], "memory": ["256Mi", "768Mi"],
+      "secret": "core-api-env", "startup": true,
+      "volume": { "name": "artifacts", "mount": "/var/lib/turf/artifacts", "size": "20Gi", "mode": "ReadWriteMany",
+        "note": "Uploaded files are kept on disk. With more than one copy they must share this volume: use a ReadWriteMany storage class (NFS, Longhorn, EFS) until files move to object storage." },
+      "ingress": { "host": "app.example.com", "path": "/", "tls": true, "websocket": true, "bodySize": "25m" }
+    },
+    {
+      "name": "core-api-worker", "image": "turf-core-api-worker", "port": 8090, "uid": 65532, "readOnlyRoot": true,
+      "replicas": { "min": 2, "max": 10 }, "cpu": ["50m", "250m"], "memory": ["32Mi", "128Mi"],
+      "secret": "worker-env", "noService": true
+    },
+    {
+      "name": "landing-api", "image": "turf-landing-api", "port": 8095, "uid": 1000,
+      "replicas": { "min": 1, "max": 1 }, "cpu": ["50m", "500m"], "memory": ["64Mi", "256Mi"],
+      "secret": "landing-api-env", "secretOptional": true,
+      "volume": { "name": "data", "mount": "/data", "size": "1Gi", "mode": "ReadWriteOnce",
+        "note": "The landing API keeps its data in a SQLite file, so it runs ONE copy (it stops the old one before starting the new)." },
+      "ingress": { "host": "www.example.com", "path": "/api", "tls": false }
+    },
+    {
+      "name": "landing-web", "image": "turf-landing-web", "port": 8080, "uid": 101,
+      "replicas": { "min": 2, "max": 6 }, "cpu": ["50m", "200m"], "memory": ["32Mi", "96Mi"],
+      "secret": null,
+      "ingress": { "host": "www.example.com", "path": "/", "tls": true }
+    }
+  ]
+}

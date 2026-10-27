@@ -8,11 +8,14 @@ One branch per part of Turf, each holding **only that part's code**, so a part c
 | `landing-backend-production` | The landing site's backend (`landing/api`) |
 | `auth-backend-production` | The authentication service (`services/auth`) |
 | `notifications-backend-production` | The notification service |
+| `gateway-backend-production` | The gateway: the one public entry point (it only answers its health check so far) |
 | `core-api-backend-production` | The core API: the CRM server and the website it serves, with the auth verifier crate and the contract it checks |
 | `desktop-app-production` | The whole desktop app: the frontend (`desktop/frontend/react`, also the CRM in a browser), the window container (Tauri) and the feature modules (`desktop/backend`) |
 | `skip-engine-production` | The Skip Tracing engine (`service/`, Python) that the desktop app runs |
 
-Only parts that are real and deployable today have a branch. The billing and gateway services, the eight server-side feature services and the compose file are scaffolds with no logic yet, and the original `Turf/` app is not developed any more: they have no branch. When one of them needs its own, add it to `tools/production.json` and run the script; nothing else is needed.
+A part gets a branch when it runs as its own container on the VPS. The billing service and the eight server-side feature services are scaffolds that are not deployed yet, so they have none; the compose file and the original `Turf/` app have none either. When one needs its own, add it to `tools/production.json` and run the script.
+
+Each server branch also carries its container file and its Kubernetes files (`infra/k8s/<part>/`): see `docs/plans/scaling-and-deployment.md`.
 
 ## What is in a branch
 

@@ -1,14 +1,15 @@
 {
   "comment": "One production branch per part (docs/plans/production-branches.md). `paths` are relative to `base` (default 'Full CRM Turf'); a branch holds only those, at those paths, plus .gitignore. `rust: true` adds the Cargo workspace file, cut down to the members present, and Cargo.lock.",
   "components": [
-    { "name": "landing-web-production", "title": "Landing site: frontend", "paths": ["landing/web"], "build": "npm install && npm run build   (static files in dist/)" },
-    { "name": "landing-backend-production", "title": "Landing site: backend", "paths": ["landing/api"], "build": "npm start   (Node 24+, no dependencies)" },
-    { "name": "auth-backend-production", "title": "Authentication service", "paths": ["services/auth"], "rust": true, "build": "docker build -f services/auth/Dockerfile -t turf-auth .   or   cargo test -p turf-auth -p turf-auth-verify" },
-    { "name": "notifications-backend-production", "title": "Notification service", "paths": ["services/notifications"], "build": "go test ./... in services/notifications; docker build -f Dockerfile services/notifications" },
+    { "name": "landing-web-production", "title": "Landing site: frontend", "paths": ["infra/k8s/landing-web", "landing/web"], "build": "npm install && npm run build   (static files in dist/)" },
+    { "name": "landing-backend-production", "title": "Landing site: backend", "paths": ["infra/k8s/landing-api", "landing/api"], "build": "npm start   (Node 24+, no dependencies)" },
+    { "name": "auth-backend-production", "title": "Authentication service", "paths": ["infra/k8s/auth", "services/auth"], "rust": true, "build": "docker build -f services/auth/Dockerfile -t turf-auth .   or   cargo test -p turf-auth -p turf-auth-verify" },
+    { "name": "notifications-backend-production", "title": "Notification service", "paths": ["infra/k8s/notifications", "services/notifications"], "build": "go test ./... in services/notifications; docker build -f Dockerfile services/notifications" },
+    { "name": "gateway-backend-production", "title": "Gateway", "paths": ["infra/k8s/gateway", "services/gateway"], "build": "go test ./... in services/gateway; docker build services/gateway" },
     {
       "name": "core-api-backend-production",
       "title": "Core API (the CRM server, and the website it serves)",
-      "paths": ["services/core-api", "services/auth/verify", "contracts/api-v1.yaml", "tools/load-env.sh", "tools/env-init.mjs", "env/core-api.env.example", "env/worker.env.example", "env/README.md"],
+      "paths": ["services/core-api", "infra/k8s/core-api", "infra/k8s/core-api-worker", "services/auth/verify", "contracts/api-v1.yaml", "tools/load-env.sh", "tools/env-init.mjs", "env/core-api.env.example", "env/worker.env.example", "env/README.md"],
       "build": "cd services/core-api/rust && cargo test --workspace   (needs PostgreSQL: services/core-api/README.md)"
     },
     { "name": "desktop-app-production", "title": "Desktop app: the frontend, the window container (Tauri) and the feature modules", "paths": ["desktop", "services/auth/clients", "env/desktop.env.example", "env/README.md"], "rust": true, "build": "npm install && npm run build in desktop/frontend/react; cargo test --workspace at the root (the feature modules); cargo build in desktop/container/rust. Their tests start the Skip Tracing engine from skip-engine-production: set TURF_SERVICE_ROOT to its checkout" },
