@@ -8,14 +8,11 @@ One branch per part of Turf, each holding **only that part's code**, so a part c
 | `landing-backend-production` | The landing site's backend (`landing/api`) |
 | `auth-backend-production` | The authentication service (`services/auth`) |
 | `notifications-backend-production` | The notification service |
-| `billing-backend-production` | The billing service |
-| `gateway-backend-production` | The gateway |
 | `core-api-backend-production` | The core API: the CRM server and the website it serves, with the auth verifier crate and the contract it checks |
-| `importing-lists-`, `skip-tracing-`, `dialer-sms-`, `leads-map-`, `crm-`, `ai-campaigns-`, `exports-`, `backup-restore-` `backend-production` | One feature service each |
 | `desktop-app-production` | The whole desktop app: the frontend (`desktop/frontend/react`, also the CRM in a browser), the window container (Tauri) and the feature modules (`desktop/backend`) |
-| `deploy-production` | The compose file that runs every service on one machine |
-| `turf-app-production` | The original Turf desktop app (`Turf/`) |
-| `skip-engine-production` | The Skip Tracing engine (`service/`) |
+| `skip-engine-production` | The Skip Tracing engine (`service/`, Python) that the desktop app runs |
+
+Only parts that are real and deployable today have a branch. The billing and gateway services, the eight server-side feature services and the compose file are scaffolds with no logic yet, and the original `Turf/` app is not developed any more: they have no branch. When one of them needs its own, add it to `tools/production.json` and run the script; nothing else is needed.
 
 ## What is in a branch
 
@@ -41,5 +38,3 @@ node tools/publish-production.mjs --push                    # and push what chan
 ## Things a single-part branch cannot do alone
 
 - `desktop-app-production` starts the Skip Tracing engine at run time and in its tests: check out `skip-engine-production` beside it and set `TURF_SERVICE_ROOT` to it.
-- `deploy-production` is the compose file only; it builds the services from their own branches checked out side by side.
-- The older `crm/<part>` branches are full working copies, kept for development. The production branches are what to deploy.

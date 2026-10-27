@@ -5,25 +5,13 @@
     { "name": "landing-backend-production", "title": "Landing site: backend", "paths": ["landing/api"], "build": "npm start   (Node 24+, no dependencies)" },
     { "name": "auth-backend-production", "title": "Authentication service", "paths": ["services/auth"], "rust": true, "build": "docker build -f services/auth/Dockerfile -t turf-auth .   or   cargo test -p turf-auth -p turf-auth-verify" },
     { "name": "notifications-backend-production", "title": "Notification service", "paths": ["services/notifications"], "build": "go test ./... in services/notifications; docker build -f Dockerfile services/notifications" },
-    { "name": "billing-backend-production", "title": "Billing service", "paths": ["services/billing"], "build": "npm test in services/billing; docker build services/billing" },
-    { "name": "gateway-backend-production", "title": "Gateway", "paths": ["services/gateway"], "build": "go test ./... in services/gateway; docker build services/gateway" },
     {
       "name": "core-api-backend-production",
       "title": "Core API (the CRM server, and the website it serves)",
       "paths": ["services/core-api", "services/auth/verify", "contracts/api-v1.yaml", "tools/load-env.sh", "tools/env-init.mjs", "env/core-api.env.example", "env/worker.env.example", "env/README.md"],
       "build": "cd services/core-api/rust && cargo test --workspace   (needs PostgreSQL: services/core-api/README.md)"
     },
-    { "name": "importing-lists-backend-production", "title": "Importing lists (server)", "paths": ["services/features/importing-lists"], "build": "python -m unittest discover -s tests in the service folder" },
-    { "name": "skip-tracing-backend-production", "title": "Skip tracing (server)", "paths": ["services/features/skip-tracing"], "build": "python -m unittest discover -s tests in the service folder" },
-    { "name": "dialer-sms-backend-production", "title": "Dialer, auto dialing and SMS", "paths": ["services/features/dialer-sms"], "build": "npm test in the service folder" },
-    { "name": "leads-map-backend-production", "title": "Leads map (server)", "paths": ["services/features/leads-map"], "rust": true, "build": "cargo test -p turf-leads-map" },
-    { "name": "crm-backend-production", "title": "The CRM service", "paths": ["services/features/crm"], "rust": true, "build": "cargo test -p turf-crm" },
-    { "name": "ai-campaigns-backend-production", "title": "AI campaigns", "paths": ["services/features/ai-campaigns"], "build": "npm test in the service folder" },
-    { "name": "exports-backend-production", "title": "Exports (server)", "paths": ["services/features/exports"], "build": "python -m unittest discover -s tests in the service folder" },
-    { "name": "backup-restore-backend-production", "title": "Backup and restore (server)", "paths": ["services/features/backup-restore"], "rust": true, "build": "cargo test -p turf-backup-restore" },
     { "name": "desktop-app-production", "title": "Desktop app: the frontend, the window container (Tauri) and the feature modules", "paths": ["desktop", "services/auth/clients", "env/desktop.env.example", "env/README.md"], "rust": true, "build": "npm install && npm run build in desktop/frontend/react; cargo test --workspace at the root (the feature modules); cargo build in desktop/container/rust. Their tests start the Skip Tracing engine from skip-engine-production: set TURF_SERVICE_ROOT to its checkout" },
-    { "name": "deploy-production", "title": "Deployment: every service on one machine", "paths": ["deploy", "env/compose.env.example", "env/README.md"], "build": "docker compose --env-file env/compose.env -f deploy/compose.yml up --build   (from a checkout of all the parts)" },
-    { "name": "turf-app-production", "title": "Turf app (the original desktop app)", "base": "Turf", "paths": ["."], "build": "npm install && npm run build" },
     { "name": "skip-engine-production", "title": "Skip Tracing engine (Python)", "base": "service", "paths": ["."], "build": "pip install -r requirements.txt pytest && python -m pytest" }
   ]
 }
