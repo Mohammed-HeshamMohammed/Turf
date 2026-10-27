@@ -1,0 +1,20 @@
+# The CRM server and the website it serves. Build with the branch (or the "Full CRM Turf" folder) as the context:
+#   docker build -f services/core-api/Dockerfile -t turf-core-api .
+# Runs any number of copies: it keeps no state in memory that matters, and a person's session is a signed token.
+# It needs PostgreSQL (DATABASE_URL, MIGRATION_DATABASE_URL) and its settings from env/core-api.env (env/README.md).
+FROM rust:1 AS build
+WORKDIR /src
+WORKDIR /src/services/core-api/rust
+RUN cargo build --release -p turf-api
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=build /src/services/core-api/rust/target/release/turf-api /usr/local/bin/turf-api
+COPY services/core-api/website /srv/website
+ENV TURF_BIND=0.0.0.0:8088 \
+    TURF_SITE_DIR=/srv/website \
+    TURF_ARTIFACT_DIR=/var/lib/turf/artifacts
+RUN mkdir -p /var/lib/turf/artifacts && chown -R 65534:65534 /var/lib/turf
+EXPOSE 8088
+USER 65534:65534
+CMD ["turf-api"]
