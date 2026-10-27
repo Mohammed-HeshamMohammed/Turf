@@ -2,7 +2,7 @@
 // its bundle, firebase-web-entry.js), since they cannot import across the repository at run time.
 //   node services/auth/clients/sync.mjs           copy it
 //   node services/auth/clients/sync.mjs --check   fail if a copy differs (run by the tests)
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,6 +19,8 @@ let stale = 0;
 for (const [name, copies] of Object.entries(files)) {
   const original = readFileSync(join(here, name), "utf8");
   for (const copy of copies) {
+    // A part that is not in this checkout (a production branch holds one part) has no copy to keep in step.
+    if (!existsSync(dirname(copy))) continue;
     let current = null;
     try {
       current = readFileSync(copy, "utf8");
