@@ -18,7 +18,7 @@ exclude = ["desktop/container/rust", "services/core-api/rust"]
 
 test("a Rust server branch keeps only the workspace members it holds", () => {
   const files = ["services/auth/Cargo.toml", "services/auth/verify/Cargo.toml", "services/auth/src/lib.rs"];
-  const has = member => Boolean(member) && files.some(f => f.startsWith(member + "/"));
+  const has = member => Boolean(member) && files.includes(`${member}/Cargo.toml`);
   const pruned = pruneWorkspace(cargo, has);
   assert.match(pruned, /"services\/auth",\n  "services\/auth\/verify",\n\]/);
   assert.doesNotMatch(pruned, /features\/crm/);

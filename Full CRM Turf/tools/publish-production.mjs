@@ -117,7 +117,8 @@ function run() {
     if (component.rust) {
       addPath("Cargo.lock");
       const files = listing();
-      const has = member => Boolean(member) && files.some(f => f.startsWith(member + "/"));
+      // A member is there only with its Cargo.toml (a branch can hold other files under the same folder).
+      const has = member => Boolean(member) && files.includes(`${member}/Cargo.toml`);
       put("Cargo.toml", pruneWorkspace(git(["show", `${sha}:${at("Cargo.toml")}`]), has));
     }
     const files = listing();
