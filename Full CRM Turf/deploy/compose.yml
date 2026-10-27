@@ -1,0 +1,96 @@
+# Every service on one machine (decision 1 of docs/plans/service-architecture.md). Only the gateway is published.
+# Build from the repository folder "Full CRM Turf":  docker compose -f deploy/compose.yml up --build
+name: turf
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: change-me-locally
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+  redis:
+    image: redis:7
+  gateway:
+    build:
+      context: ../services/gateway
+    environment:
+      PORT: "8100"
+      UPSTREAMS: "auth=http://auth:8101,notifications=http://notifications:8102,billing=http://billing:8103,importing-lists=http://importing-lists:8111,skip-tracing=http://skip-tracing:8112,dialer-sms=http://dialer-sms:8113,leads-map=http://leads-map:8114,crm=http://crm:8115,ai-campaigns=http://ai-campaigns:8116,exports=http://exports:8117,backup-restore=http://backup-restore:8118"
+    ports:
+      - "8100:8100"
+    restart: unless-stopped
+  auth:
+    build:
+      context: ..
+      dockerfile: services/auth/Dockerfile
+    environment:
+      PORT: "8101"
+      DATABASE_URL: "${AUTH_DATABASE_URL:-postgres://postgres:change-me-locally@postgres:5432/turf_auth}"
+      # turf-auth new-key; without it every token stops working on restart.
+      AUTH_SIGNING_KEY: "${AUTH_SIGNING_KEY:?set AUTH_SIGNING_KEY (cargo run -p turf-auth -- new-key)}"
+    restart: unless-stopped
+  notifications:
+    build:
+      context: ../services/notifications
+    environment:
+      PORT: "8102"
+    restart: unless-stopped
+  billing:
+    build:
+      context: ../services/billing
+    environment:
+      PORT: "8103"
+    restart: unless-stopped
+  importing-lists:
+    build:
+      context: ../services/features/importing-lists
+    environment:
+      PORT: "8111"
+    restart: unless-stopped
+  skip-tracing:
+    build:
+      context: ../services/features/skip-tracing
+    environment:
+      PORT: "8112"
+    restart: unless-stopped
+  dialer-sms:
+    build:
+      context: ../services/features/dialer-sms
+    environment:
+      PORT: "8113"
+    restart: unless-stopped
+  leads-map:
+    build:
+      context: ..
+      dockerfile: services/features/leads-map/Dockerfile
+    environment:
+      PORT: "8114"
+    restart: unless-stopped
+  crm:
+    build:
+      context: ..
+      dockerfile: services/features/crm/Dockerfile
+    environment:
+      PORT: "8115"
+    restart: unless-stopped
+  ai-campaigns:
+    build:
+      context: ../services/features/ai-campaigns
+    environment:
+      PORT: "8116"
+    restart: unless-stopped
+  exports:
+    build:
+      context: ../services/features/exports
+    environment:
+      PORT: "8117"
+    restart: unless-stopped
+  backup-restore:
+    build:
+      context: ..
+      dockerfile: services/features/backup-restore/Dockerfile
+    environment:
+      PORT: "8118"
+    restart: unless-stopped
+volumes:
+  postgres-data:

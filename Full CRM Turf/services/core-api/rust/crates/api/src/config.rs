@@ -1,0 +1,66 @@
+use anyhow::Context;
+
+#[derive(Clone, Debug)]
+pub struct Config {
+    /// The API's own connection: a login role that is a member of turf_app and never bypasses row security.
+    pub database_url: String,
+    /// The owning role, used only to run migrations. Empty: migrations are not run by this process.
+    pub migration_database_url: String,
+    /// Empty: no Redis; every cached read goes to PostgreSQL.
+    pub redis_url: String,
+    pub bind: String,
+    /// Browser origins allowed to call the API (the CRM's), comma separated.
+    pub allowed_origins: Vec<String>,
+    /// Tokens workers present on /internal routes, as name=token pairs.
+    pub worker_tokens: Vec<(String, String)>,
+    pub artifact_dir: String,
+    pub max_body_bytes: usize,
+    /// Anyone signed in with auth may open a trial organization (POST /organizations/trial). Off for a private server.
+    pub public_signup: bool,
+    /// Shared secret the payment provider signs webhooks with (HMAC-SHA256). Shorter than 24 characters: webhooks off.
+    pub billing_webhook_secret: String,
+    /// Where checkout sends the browser; the payment id is appended. Empty: no hosted checkout is configured.
+    pub checkout_url: String,
+    /// Folder of the public website (sign-up, sign-in, account) served at `/`. Empty: no website.
+    pub site_dir: String,
+    /// Owners and administrators must confirm an authenticator code (TURF_REQUIRE_MFA=true). Off for now; people can
+    /// still set one up from the API, and it is checked when they have.
+    pub require_mfa: bool,
+    /// The auth service's public keys (the JSON of its /.well-known/jwks.json). Required, here or as
+    /// TURF_AUTH_JWKS_URL: every request carries an auth access token.
+    pub auth_jwks: String,
+    /// Where to fetch those keys at start, when TURF_AUTH_JWKS is not given directly.
+    pub auth_jwks_url: String,
+    /// Where browsers reach the auth service, for the website and the app to find it.
+    pub auth_public_url: String,
+}
+
+impl Config {
+    pub fn from_env() -> anyhow::Result<Self> {
+        let var = |name: &str, default: &str| std::env::var(name).unwrap_or_else(|_| default.to_string());
+        let worker_tokens = var("TURF_WORKER_TOKENS", "")
+            .split(',')
+            .filter_map(|pair| pair.split_once('='))
+            .map(|(name, token)| (name.trim().to_string(), token.trim().to_string()))
+            .filter(|(_, token)| token.len() >= 24)
+            .collect();
+        Ok(Config {
+            database_url: std::env::var("DATABASE_URL").context("DATABASE_URL is required")?,
+            migration_database_url: var("MIGRATION_DATABASE_URL", ""),
+            redis_url: var("REDIS_URL", ""),
+            bind: var("TURF_BIND", "127.0.0.1:8088"),
+            allowed_origins: var("TURF_ALLOWED_ORIGINS", "").split(',').map(str::trim).filter(|s| !s.is_empty()).map(String::from).collect(),
+            worker_tokens,
+            artifact_dir: var("TURF_ARTIFACT_DIR", "artifacts"),
+            max_body_bytes: var("TURF_MAX_BODY_BYTES", "26214400").parse().context("TURF_MAX_BODY_BYTES")?,
+            public_signup: var("TURF_PUBLIC_SIGNUP", "true") != "false",
+            billing_webhook_secret: var("TURF_BILLING_WEBHOOK_SECRET", ""),
+            checkout_url: var("TURF_CHECKOUT_URL", ""),
+            site_dir: var("TURF_SITE_DIR", ""),
+            require_mfa: var("TURF_REQUIRE_MFA", "false") == "true",
+            auth_jwks: var("TURF_AUTH_JWKS", ""),
+            auth_jwks_url: var("TURF_AUTH_JWKS_URL", ""),
+            auth_public_url: var("TURF_AUTH_PUBLIC_URL", "http://localhost:8101").trim_end_matches('/').to_string(),
+        })
+    }
+}

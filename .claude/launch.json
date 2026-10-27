@@ -17,7 +17,7 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "--prefix",
-        "Full CRM Turf",
+        "Full CRM Turf/desktop/frontend/react",
         "run",
         "dev",
         "--",
@@ -31,7 +31,7 @@
       "name": "turf-api",
       "runtimeExecutable": "C:/Program Files/Git/bin/bash.exe",
       "runtimeArgs": [
-        "Full CRM Turf/backend/scripts/run-api.sh"
+        "Full CRM Turf/services/core-api/scripts/run-api.sh"
       ],
       "port": 8088
     },
@@ -39,7 +39,7 @@
       "name": "turf-worker",
       "runtimeExecutable": "C:/Program Files/Git/bin/bash.exe",
       "runtimeArgs": [
-        "Full CRM Turf/backend/scripts/run-worker.sh"
+        "Full CRM Turf/services/core-api/scripts/run-worker.sh"
       ],
       "port": 8090
     },

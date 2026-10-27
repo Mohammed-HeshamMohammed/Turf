@@ -1,0 +1,34 @@
+openapi: 3.0.3
+info:
+  title: Turf Skip tracing (server)
+  version: 0.1.0
+  description: Feature 2: server-side phone checks, Do Not Call, number lookups and network hints. Shares its rules with the shared service/ engine.
+paths:
+  /healthz:
+    get:
+      summary: Is the service running
+      responses:
+        "200":
+          description: Running
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, service]
+                properties:
+                  ok: { type: boolean }
+                  service: { type: string, example: skip-tracing }
+  /version:
+    get:
+      summary: The running version
+      responses:
+        "200":
+          description: Version
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service, version]
+                properties:
+                  service: { type: string }
+                  version: { type: string, example: 0.1.0 }

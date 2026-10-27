@@ -183,6 +183,10 @@
 .page-head .lead {
   max-width: 62ch;
 }
+/* The page's title and its first section belong together: no full section gap between them. */
+.page-head + .section:not(.band) {
+  padding-top: 24px;
+}
 
 .jump {
   display: flex;

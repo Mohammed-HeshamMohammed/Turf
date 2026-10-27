@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Turf Full CRM",
+  "version": "0.1.0",
+  "identifier": "local.turf.fullcrm",
+  "build": {
+    "beforeDevCommand": { "script": "node scripts/dev-server.mjs", "cwd": "../../frontend/react" },
+    "devUrl": "http://localhost:5190",
+    "beforeBuildCommand": { "script": "npm run build", "cwd": "../../frontend/react" },
+    "frontendDist": "../../frontend/react/dist/client"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Turf · Full CRM mode",
+        "width": 1500,
+        "height": 920,
+        "minWidth": 900,
+        "minHeight": 620,
+        "resizable": true,
+        "decorations": false,
+        "shadow": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false,
+    "icon": ["icons/icon.ico"]
+  }
+}

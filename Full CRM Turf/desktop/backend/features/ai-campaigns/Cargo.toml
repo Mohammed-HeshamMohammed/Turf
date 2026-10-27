@@ -1,0 +1,6 @@
+[package]
+name = "turf-desktop-ai-campaigns"
+version = "0.1.0"
+edition = "2021"
+description = "Feature 6 on the person's computer: drafts and approvals; sending happens on the server."
+publish = false
