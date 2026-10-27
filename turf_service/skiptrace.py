@@ -1,0 +1,851 @@
+"""Skip Tracing service: reads a dataset's phone columns, judges every number, and saves a checked copy.
+
+The judging is in turf_matching.skiptrace; this module loads rows, keeps each dataset's setup, gathers what the
+other datasets already say about a number, and writes results. A checked copy records the dataset it came from; the
+original rows are never changed.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+from datetime import date
+from difflib import SequenceMatcher
+from pathlib import Path
+
+from turf_matching import duplicates
+from turf_matching import skiptrace as engine
+from turf_matching import status_meaning
+
+from .cleaning import MAX_ROWS, _roles, _rows
+from .datasets import _register_rows, confirm_mapping, latest_mapping
+from .jobs import JobContext, JobKind, JobValidationError
+from .storage import ProjectStore, utc_now
+from .manual import list_marks
+from . import dnc_registry, nanpa_blocks, status_model
+from .status_model import embedder
+
+OUTPUT_SUFFIXES = ("verdict", "why", "E.164", "type", "quality", "permission")
+BEST_COLUMNS = ("Best phone quality", "Best phone permission", "Best phone extension", "Best phone why", "Phone choices", "Phone evidence warnings", "Best phone", "Best phone verdict", "Best phone from")
+
+
+def _dataset(store: ProjectStore, dataset_id: object):
+    row = store._connection.execute("SELECT id, name, project_id, source_artifact_hash FROM datasets WHERE id = ?", (dataset_id,)).fetchone()
+    if row is None:
+        raise ValueError("Dataset not found")
+    return row
+
+
+def get_settings(store: ProjectStore, dataset_id: str) -> dict | None:
+    row = store._connection.execute("SELECT config_json FROM skiptrace_settings WHERE dataset_id = ?", (dataset_id,)).fetchone()
+    return json.loads(row["config_json"]) if row else None
+
+
+def clean_config(config: object, columns: list[str]) -> dict:
+    """Checks a setup from the UI against the dataset's columns and keeps only what the engine reads."""
+    if not isinstance(config, dict):
+        raise ValueError("A setup is required")
+
+    def column(key: str, required: bool = False) -> str | None:
+        value = config.get(key)
+        if value in (None, ""):
+            if required:
+                raise ValueError("Choose at least one phone column")
+            return None
+        if value not in columns:
+            raise ValueError(f"Unknown column: {value}")
+        return str(value)
+
+    phones = [str(item) for item in config.get("phone_columns") or []]
+    if not phones:
+        raise ValueError("Choose at least one phone column")
+    unknown = [item for item in phones if item not in columns]
+    if unknown:
+        raise ValueError(f"Unknown column: {unknown[0]}")
+    region = str(config.get("region") or "US").upper()
+    if region not in engine.phone_rules.phonenumbers.SUPPORTED_REGIONS:
+        raise ValueError(f"{region} is not a country libphonenumber knows")
+    cleaned = {
+        "phone_columns": list(dict.fromkeys(phones)), "region": region, "country_column": column("country_column"),
+        "first_name_column": column("first_name_column"), "last_name_column": column("last_name_column"), "name_column": column("name_column"),
+        "zip_column": column("zip_column"), "state_column": column("state_column"), "outcome": None,
+        "address_column": column("address_column"), "business_column": column("business_column"), "call_date_column": column("call_date_column"),
+        "city_column": column("city_column"), "vacancy_column": column("vacancy_column"),
+        **{key: column(key) for key in engine.OWNER_CONTEXT_COLUMNS},
+        "evidence_age_days": int(config.get("evidence_age_days", 180)), "lookup_age_days": int(config.get("lookup_age_days", 30)),
+        "signals": {code: bool((config.get("signals") or {}).get(code, engine.DEFAULT_SIGNALS[code])) for code in engine.COUNTABLE_SIGNALS},
+        # Turf: rows that repeat the same lead are looked for during the check, unless the person turns it off.
+        "find_duplicates": bool(config.get("find_duplicates", True)),
+    }
+    owners = config.get("additional_owners") or []
+    if not isinstance(owners, list) or len(owners) > 19:
+        raise ValueError("Use at most 20 owner groups")
+    cleaned["additional_owners"] = []
+    for owner in owners:
+        if not isinstance(owner, dict):
+            raise ValueError("Each owner group must contain column mappings")
+        mapped = {}
+        for key in engine.OWNER_COLUMNS:
+            value = owner.get(key)
+            if value not in (None, "") and value not in columns:
+                raise ValueError(f"Unknown owner column: {value}")
+            mapped[key] = value or None
+        cleaned["additional_owners"].append(mapped)
+    bindings = config.get("phone_owner_map") or {}
+    if not isinstance(bindings, dict):
+        raise ValueError("Phone owner assignments must be a mapping")
+    for phone, index in bindings.items():
+        if phone not in phones or type(index) is not int or not -1 <= index <= len(owners):
+            raise ValueError("Choose a valid owner group for each phone column")
+    cleaned["phone_owner_map"] = dict(bindings)
+    if not 1 <= cleaned["evidence_age_days"] <= 3650 or not 1 <= cleaned["lookup_age_days"] <= 365:
+        raise ValueError("Evidence age must be 1–3650 days and lookup age 1–365 days")
+    outcome = config.get("outcome")
+    if outcome:
+        if not isinstance(outcome, dict) or outcome.get("column") not in columns:
+            raise ValueError("Choose the status column from this dataset")
+        called = outcome.get("called_column") or phones[0]
+        if called not in phones:
+            raise ValueError("The called number must be one of the phone columns")
+        mapping = {}
+        for key, kinds in (outcome.get("map") or {}).items():
+            chosen = [kind for kind in kinds if kind in engine.OUTCOMES] if isinstance(kinds, list) else []
+            if str(key):
+                if any(kind in chosen for kind in ("wrong_number", "wrong_person", "disconnected")) and "reached" in chosen:
+                    raise ValueError("A status cannot be both wrong number/wrong person/disconnected and reached a person")
+                person_config = engine.owner_config(cleaned, called)
+                if "wrong_person" in chosen and not any(person_config.get(key) for key in ("first_name_column", "last_name_column", "name_column")):
+                    raise ValueError("Map name columns before using a wrong-person outcome")
+                mapping[str(key)] = chosen
+        cleaned["outcome"] = {"column": outcome["column"], "called_column": called, "map": mapping}
+    return cleaned
+
+
+def _samples(rows: list[dict], columns: list[str]) -> dict:
+    samples = {column: [] for column in columns}
+    # Turf: only the columns still short of three samples are looked at, so a column with one value on every row
+    # (a State of "TX") does not keep every other column being read to the end of a long list.
+    wanting = list(columns)
+    for row in rows:
+        for column in wanting:
+            value = str(row.get(column) if row.get(column) is not None else "").strip()
+            if value and value not in samples[column]:
+                samples[column].append(value[:160])
+        wanting = [column for column in wanting if len(samples[column]) < 3]
+        if not wanting:
+            break
+    return samples
+
+
+# ------------------------------------------------------------------------------------------------- status meanings
+# What the person chose for each call status, kept for the whole project, so wording they settled on one list is
+# settled on the next. Only their own decisions are kept: a meaning Turf confirmed by itself is not, so a mistake
+# cannot teach itself.
+STATUS_MEMORY = "skiptrace.status_meanings"
+# A status column is taken as call results by itself only when this share of its rows reads like them.
+OUTCOME_UNDERSTOOD = 0.3
+# When this project's setups saved by the earlier version of Turf were taken over (see _upgrade_earlier_setups).
+STATUS_UPGRADE = "skiptrace.status_meanings.upgraded"
+
+
+def _project_setting(store: ProjectStore, key: str):
+    row = store._connection.execute("SELECT value_json FROM project_settings WHERE key = ?", (key,)).fetchone()
+    return json.loads(row["value_json"]) if row else None
+
+
+def _write_project_setting(store: ProjectStore, key: str, value) -> None:
+    store._connection.execute(
+        "INSERT INTO project_settings(key, value_json, updated_at) VALUES (?, ?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at",
+        (key, json.dumps(value, sort_keys=True), utc_now()),
+    )
+
+
+def status_memory(store: ProjectStore) -> dict[str, dict]:
+    _upgrade_earlier_setups(store)
+    return _project_setting(store, STATUS_MEMORY) or {}
+
+
+def _upgrade_earlier_setups(store: ProjectStore) -> str:
+    """Once per project: the meanings the person chose in setups saved by the earlier version of Turf join the
+    project's memory, so they apply to every list. A saved meaning equal to what that version suggested was its
+    suggestion, not a choice, and is left out; today's reading replaces it. Wording that two lists answered
+    differently is left for the person. Returns when this happened: setups saved before then are earlier ones."""
+    done = _project_setting(store, STATUS_UPGRADE)
+    if done:
+        return done["at"]
+    at = utc_now()
+    choices: dict[str, dict] = {}
+    clashing: set[str] = set()
+    for row in store._connection.execute(
+        "SELECT d.name, s.config_json FROM skiptrace_settings s JOIN datasets d ON d.id = s.dataset_id ORDER BY s.updated_at"
+    ):
+        for key, outcomes in (((json.loads(row["config_json"]).get("outcome") or {}).get("map")) or {}).items():
+            outcomes = status_meaning.sort_outcomes(outcomes)
+            wording = status_meaning.canonical(key)
+            if not wording or outcomes == status_meaning.earlier_outcomes(key):
+                continue
+            if wording in choices and choices[wording]["outcomes"] != outcomes:
+                clashing.add(wording)
+            choices[wording] = {"key": key, "outcomes": outcomes, "list": row["name"], "at": at}
+    memory = _project_setting(store, STATUS_MEMORY) or {}
+    for wording, choice in choices.items():
+        if wording not in clashing:
+            memory.setdefault(wording, choice)
+    with store._connection:
+        _write_project_setting(store, STATUS_MEMORY, memory)
+        _write_project_setting(store, STATUS_UPGRADE, {"at": at})
+    return at
+
+
+def remember_statuses(store: ProjectStore, dataset_id: str, decisions: object) -> dict:
+    """Keeps the person's decisions: {status key: [outcomes]}, or None to forget one."""
+    name = _dataset(store, dataset_id)["name"]
+    if not isinstance(decisions, dict):
+        raise ValueError("Decisions must map each status to its meanings")
+    memory = status_memory(store)
+    for key, outcomes in decisions.items():
+        wording = status_meaning.canonical(key)
+        if not wording:
+            continue
+        if outcomes is None:
+            memory.pop(wording, None)
+            continue
+        if not isinstance(outcomes, list) or any(kind not in engine.OUTCOMES for kind in outcomes):
+            raise ValueError(f"Unknown meaning for {key}")
+        if set(outcomes) & set(status_meaning.NEGATIVE) and "reached" in outcomes:
+            raise ValueError("A status cannot be both wrong number/wrong person/disconnected and reached a person")
+        memory[wording] = {"key": str(key), "outcomes": status_meaning.sort_outcomes(outcomes), "list": name, "at": utc_now()}
+    with store._connection:
+        _write_project_setting(store, STATUS_MEMORY, memory)
+    return {"remembered": len(memory)}
+
+
+def _names_mapped(config: dict) -> bool:
+    called = (config.get("outcome") or {}).get("called_column") or next(iter(config.get("phone_columns") or []), None)
+    person = engine.owner_config(config, called) if called else config
+    return any(person.get(key) for key in ("first_name_column", "last_name_column", "name_column"))
+
+
+def _status_rows(store: ProjectStore, rows: list[dict], column: str, day_first: bool, names_mapped: bool, saved_map: dict | None = None,
+                 earlier_setup: bool = False) -> list[dict]:
+    """The status table, read with the project's memory and the model, and marked confirmed where Turf is sure.
+    `earlier_setup`: `saved_map` was saved by the earlier version of Turf, whose plain suggestions give way."""
+    table = engine.status_table((row.get(column) for row in rows), day_first, memory=status_memory(store), embed=embedder())
+    statuses = []
+    for item in table:
+        earlier = status_meaning.earlier_outcomes(item["key"])
+        if not names_mapped and "wrong_person" in item["outcomes"]:
+            # Wrong person needs to know whose name it is about; without a name column it cannot be saved.
+            item = {**item, "outcomes": [kind for kind in item["outcomes"] if kind != "wrong_person"], "sure": False, "doubt": "names",
+                    "why": "Means wrong person: map a name column in Column roles to use it"}
+        if earlier_setup and saved_map and item["key"] in saved_map:
+            if status_meaning.sort_outcomes(saved_map[item["key"]]) != earlier:
+                item = {**item, "outcomes": status_meaning.sort_outcomes(saved_map[item["key"]]), "sure": True, "source": "saved", "doubt": "",
+                        "why": "You chose this on this list" if saved_map[item["key"]] else "Ignored on this list"}
+            # otherwise it was the earlier version's suggestion: today's reading stands
+        elif saved_map and item["key"] in saved_map and not saved_map[item["key"]]:
+            # A setup keeps a status without a meaning only when the person chose to ignore it.
+            item = {**item, "outcomes": [], "sure": True, "source": "saved", "doubt": "", "why": "Ignored on this list"}
+        elif saved_map and item["key"] in saved_map and saved_map[item["key"]] != item["outcomes"]:
+            # A saved meaning may be the person's, or a suggestion saved without a look: they say which.
+            item = {**item, "outcomes": saved_map[item["key"]], "sure": False, "source": "saved", "doubt": "saved",
+                    "why": "Saved with this list's earlier setup; confirm it to keep it"}
+        statuses.append({**item, "confirmed": bool(item["key"]) and item["sure"], "earlier": earlier})
+    return statuses
+
+
+# Turf: a list's setup is asked for by every screen that shows the list, and reading a long list for it takes
+# seconds. The answer only changes with the list's saved setup, the project's remembered statuses and the status
+# model, so it is kept while those stand.
+_suggested: dict[tuple, dict] = {}
+
+
+def suggest(store: ProjectStore, dataset_id: str, region: str = "US") -> dict:
+    _dataset(store, dataset_id)
+    saved = store._connection.execute("SELECT updated_at FROM skiptrace_settings WHERE dataset_id = ?", (dataset_id,)).fetchone()
+    memory = tuple(tuple(row) for row in store._connection.execute("SELECT key, updated_at FROM project_settings WHERE key LIKE 'skiptrace.status_meanings%' ORDER BY key"))
+    mapping = store._connection.execute("SELECT MAX(version) FROM mapping_versions WHERE dataset_id = ?", (dataset_id,)).fetchone()[0]
+    key = (str(store.database_path), dataset_id, region, saved["updated_at"] if saved else None, memory, mapping, status_model.state()["state"], id(embedder))
+    if key not in _suggested:
+        while len(_suggested) >= 12:
+            _suggested.pop(next(iter(_suggested)))
+        _suggested[key] = _suggest(store, dataset_id, region)
+    # The first time a project's earlier setups are taken up, the memory changes under the answer just made.
+    return json.loads(json.dumps(_suggested[key]))
+
+
+def _suggest(store: ProjectStore, dataset_id: str, region: str = "US") -> dict:
+    _dataset(store, dataset_id)
+    status_model.ensure()  # Skip Tracing is open: fetch the status model now if it is missing, in the background
+    _, rows = _rows(store, dataset_id)
+    columns = list(dict.fromkeys(column for row in rows for column in row))
+    roles, _, confirmed = _roles(store, dataset_id, columns)
+    found = engine.suggest(rows, roles, region)
+    saved = get_settings(store, dataset_id)
+    config = saved or found["config"]
+    statuses = []
+    outcome = (config.get("outcome") or {}).get("column") if saved is not None else ((config.get("outcome") or {}).get("column") or (found["outcome_candidates"][0]["column"] if found["outcome_candidates"] and found["outcome_candidates"][0]["understood"] >= OUTCOME_UNDERSTOOD else None))
+    if outcome:
+        saved_map = ((saved or {}).get("outcome") or {}).get("map") or {}
+        upgraded = _upgrade_earlier_setups(store)
+        saved_at = store._connection.execute("SELECT updated_at FROM skiptrace_settings WHERE dataset_id = ?", (dataset_id,)).fetchone()
+        statuses = _status_rows(store, rows, outcome, config.get("region", region) != "US", _names_mapped(config), saved_map,
+                                earlier_setup=bool(saved_at) and saved_at["updated_at"] <= upgraded)
+    return {
+        "dataset_id": dataset_id, "rows": len(rows), "columns": columns, "config": config, "saved": saved is not None,
+        "roles_confirmed": confirmed, "outcome_candidates": found["outcome_candidates"], "outcome_column": outcome, "statuses": statuses,
+        "status_model": status_model.state()["state"],
+        "outcomes": [{"id": kind, "label": engine.OUTCOME_LABELS[kind]} for kind in engine.OUTCOMES],
+        "column_samples": _samples(rows, columns),
+        "signals": [{"code": code, "label": engine.SIGNALS[code], "measured_only": code not in engine.COUNTABLE_SIGNALS} for code in engine.SIGNALS],
+    }
+
+
+def statuses_for(store: ProjectStore, dataset_id: str, column: str, region: str = "US", names_mapped: bool = True) -> list[dict]:
+    """The status table for another status column, when the person picks one."""
+    _dataset(store, dataset_id)
+    _, rows = _rows(store, dataset_id)
+    if not any(column in row for row in rows[:50]):
+        raise ValueError(f"Unknown column: {column}")
+    return _status_rows(store, rows, column, region.upper() != "US", names_mapped)
+
+
+def save_settings(store: ProjectStore, dataset_id: str, config: object) -> dict:
+    _dataset(store, dataset_id)
+    _, rows = _rows(store, dataset_id)
+    columns = list(dict.fromkeys(column for row in rows for column in row))
+    cleaned = clean_config(config, columns)
+    _upgrade_earlier_setups(store)  # first, so this setup is not taken for one saved by the earlier version
+    with store._connection:
+        store._connection.execute(
+            "INSERT INTO skiptrace_settings(dataset_id, config_json, updated_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(dataset_id) DO UPDATE SET config_json = excluded.config_json, updated_at = excluded.updated_at",
+            (dataset_id, json.dumps(cleaned, sort_keys=True), utc_now()),
+        )
+    return cleaned
+
+
+def _knowledge(store: ProjectStore, project_id: str, current: dict, config: dict, rows: list[dict], context: JobContext | None = None) -> tuple[engine.Knowledge, list[str]]:
+    """What every dataset in the project already says about a number. Files with identical content count once."""
+    knowledge = engine.Knowledge()
+    engine.collect(knowledge, rows, config, current["source_artifact_hash"], current["name"], context.checkpoint if context else None)
+    used_hashes = {current["source_artifact_hash"]}
+    used_names: list[str] = []
+    others = store._connection.execute(
+        "SELECT d.id, d.name, d.source_artifact_hash, s.config_json FROM datasets d JOIN skiptrace_settings s ON s.dataset_id = d.id "
+        "WHERE d.project_id = ? AND d.id != ? ORDER BY d.created_at",
+        (project_id, current["id"]),
+    ).fetchall()
+    for other in others:
+        if other["source_artifact_hash"] in used_hashes:
+            continue
+        if context is not None:
+            context.checkpoint()
+        used_hashes.add(other["source_artifact_hash"])
+        _, other_rows = _rows(store, other["id"])
+        engine.collect(knowledge, other_rows, json.loads(other["config_json"]), other["source_artifact_hash"], other["name"], context.checkpoint if context else None)
+        used_names.append(other["name"])
+    for number, entry in list_marks(store).items():
+        source = f"{entry['source']} manual mark ({entry['at'][:10]})"
+        if entry["mark"] == "wrong_number":
+            knowledge.wrong[number].append(source)
+        elif entry["mark"] == "do_not_call":
+            knowledge.dnc[number].append((source, date.fromisoformat(entry["until"]) if entry["until"] else None))
+        elif entry["mark"] == "interested":
+            knowledge.reached[number].append(source)
+        if entry["mark"] in ("wrong_number", "interested"):
+            knowledge.events[number].append({"outcome": "reached" if entry["mark"] == "interested" else "wrong_number", "occurred_at": entry["at"], "person_key": None, "source": source})
+        # Called alone is activity, not proof that a person answered.
+    from .phone_evidence import evidence
+    from .phone_lookup import latest
+    for event in evidence(store):
+        knowledge.events[event["number"]].append(event)
+    knowledge.lookups = latest(store)
+    if dnc_registry.fingerprint():
+        knowledge.dnc = dnc_registry.WithRegistry(knowledge.dnc)
+    if nanpa_blocks.fingerprint():
+        knowledge.blocks = nanpa_blocks.unassigned
+    return knowledge, used_names
+
+
+def _validate(store: ProjectStore, params: dict) -> dict:
+    dataset = store._connection.execute("SELECT id, name FROM datasets WHERE id = ?", (params.get("dataset_id"),)).fetchone()
+    if dataset is None:
+        raise JobValidationError("Dataset not found")
+    columns = set()
+    for row in store._connection.execute("SELECT raw_values_json FROM source_rows WHERE dataset_id = ? LIMIT 200", (dataset["id"],)):
+        columns.update(json.loads(row["raw_values_json"]))
+    try:
+        config = clean_config(params.get("config"), sorted(columns))
+    except ValueError as error:
+        raise JobValidationError(str(error)) from error
+    return {"dataset_id": dataset["id"], "config": config, "name": str(params.get("name") or f"{dataset['name']} (phones checked)").strip()[:200], "scan_job_id": params.get("scan_job_id")}
+
+
+def _evaluate(context: JobContext, keep_rows: bool) -> tuple[dict, dict, list[int], list[dict], list[str]]:
+    store, params = context.store, context.params
+    dataset = _dataset(store, params["dataset_id"])
+    fingerprint = freshness(store, dataset["id"])["fingerprint"]
+    context.stage("reading_file")
+    numbers, rows = _rows(store, dataset["id"])
+    if len(rows) > MAX_ROWS:
+        raise ValueError(f"Skip Tracing handles up to {MAX_ROWS:,} rows per dataset")
+    context.checkpoint()
+    context.stage("gathering_outcomes")
+    knowledge, other_names = _knowledge(store, dataset["project_id"], dataset, params["config"], rows, context)
+    context.checkpoint()
+    context.stage("checking_phones", {"rows": len(rows)})
+    report = engine.evaluate(rows, numbers, params["config"], knowledge, dataset["name"], date.today(), keep_rows=keep_rows, checkpoint=context.checkpoint, progress=lambda done, total: context.stage("checking_phones", {"completed": done, "total": total}))
+    if freshness(store, dataset["id"])["fingerprint"] != fingerprint:
+        raise ValueError("The project evidence changed during the check. Check again before saving.")
+    report["other_datasets_used"] = other_names
+    report["fingerprint"] = fingerprint
+    report["checked_at"] = utc_now()
+    report["checked_date"] = date.today().isoformat()
+    report["manual_evidence"] = list_marks(store)
+    from .phone_evidence import evidence
+    from .phone_lookup import latest
+    report["phone_outcomes"] = evidence(store)
+    report["phone_lookups"] = latest(store)
+    if freshness(store, dataset["id"])["fingerprint"] != fingerprint:
+        raise ValueError("The project evidence changed during the check. Check again before saving.")
+    return dataset, report, numbers, rows, other_names
+
+
+def freshness(store: ProjectStore, dataset_id: str) -> dict:
+    dataset = dict(_dataset(store, dataset_id))
+    sources = [dict(row) for row in store._connection.execute(
+        "SELECT d.id, d.name, d.source_artifact_hash, s.config_json FROM datasets d JOIN skiptrace_settings s ON s.dataset_id=d.id WHERE d.project_id=? ORDER BY d.id", (dataset["project_id"],))]
+    snapshot = {"date": date.today().isoformat(), "dataset": dataset, "sources": sources, "marks": list_marks(store),
+                "engine": engine.SKIPTRACE_VERSION, "phone": engine.phone_rules.PHONE_VERSION, "metadata": engine.phone_rules.METADATA_VERSION}
+    from .phone_evidence import evidence
+    from .phone_lookup import latest
+    snapshot.update({"phone_outcomes": evidence(store), "phone_lookups": latest(store), "dnc_registry": dnc_registry.fingerprint(), "nanpa_blocks": nanpa_blocks.fingerprint()})
+    # Turf: what the person said about rows being the same lead changes what a check finds, so it dates a check too.
+    from .combine import overrules
+    said = overrules(store, [dataset_id])
+    if said:
+        snapshot["overrules"] = [[item["same"], item["row_number"], item["other_row_number"]] for item in said]
+    digest = hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
+    return {"fingerprint": digest, "date": snapshot["date"]}
+
+
+def _added_columns(config: dict) -> list[str]:
+    added = [f"{column} ({suffix})" for column in config["phone_columns"] for suffix in OUTPUT_SUFFIXES] + list(BEST_COLUMNS)
+    return added + (list(duplicates.COLUMNS) if config.get("find_duplicates", True) else [])
+
+
+def _find_duplicates(context: JobContext, rows: list[dict], numbers: list[int], checked: list[dict], config: dict) -> dict | None:
+    """Turf: marks the rows that repeat the same lead, in the checked rows themselves, and returns the summary."""
+    if not config.get("find_duplicates", True):
+        return None
+    context.stage("finding_duplicates")
+    from .combine import decided
+    same, different = decided(context.store, context.params["dataset_id"])
+    found, summary = duplicates.find(rows, numbers, config, checked, context.checkpoint, context.stage, same, different)
+    for row, columns in zip(checked, found):
+        row.update(columns)
+    return summary
+
+
+def _checked_row(row: dict, result: dict, config: dict) -> dict:
+    out = dict(row)
+    for column in config["phone_columns"]:
+        data = result["columns"][column]
+        out[f"{column} (verdict)"] = data["verdict"]
+        out[f"{column} (why)"] = "; ".join(data["reasons"])
+        out[f"{column} (E.164)"] = "; ".join(data["e164"])
+        out[f"{column} (type)"] = "; ".join(data["type"])
+        choices = [choice for choice in result.get("choices", []) if column in choice["columns"]]
+        out[f"{column} (quality)"] = "; ".join(f"{choice['number'] or choice['raw']}: {choice['quality']}" for choice in choices)
+        out[f"{column} (permission)"] = "; ".join(f"{choice['number'] or choice['raw']}: {choice['permission']}" for choice in choices)
+    best = result["best"]
+    out["Best phone"] = "; ".join(best[1]["e164"]) if best else ""
+    out["Best phone verdict"] = best[1]["verdict"] if best else ""
+    out["Best phone from"] = best[0] if best else ""
+    choices = result.get("choices", [])
+    preferred = next((choice for choice in choices if not choice["blocked"]), None)
+    out["Phone choices"] = json.dumps(choices, ensure_ascii=False)
+    out["Phone evidence warnings"] = "; ".join(dict.fromkeys(warning for choice in choices for warning in choice["warnings"]))
+    assessed = preferred or (choices[0] if choices else None)
+    out["Best phone quality"] = assessed["quality"] if assessed else ""
+    out["Best phone permission"] = assessed["permission"] if assessed else ""
+    out["Best phone extension"] = (preferred.get("extension") or "") if preferred else ""
+    out["Best phone why"] = "; ".join(assessed["explanations"]) if assessed else ""
+    if choices:
+        out["Best phone"] = preferred["number"] if preferred else ""
+        out["Best phone from"] = preferred["column"] if preferred else ""
+        out["Best phone verdict"] = result["columns"][preferred["column"]]["verdict"] if preferred else ""
+    return out
+
+
+# Every checked row is in exactly one group, so the counts add up to the rows of the list.
+ROW_GROUPS = ("look", "blocked", "ready", "unknown", "no_phone")
+_GROUP_FILTERS = {
+    "group_look": "has_callable=1 AND (needs_review=1 OR verdict NOT IN ('corroborated','unverified'))",
+    "group_blocked": "has_callable=0 AND verdict!='none'",
+    "group_ready": "has_callable=1 AND needs_review=0 AND verdict='corroborated'",
+    "group_unknown": "has_callable=1 AND needs_review=0 AND verdict='unverified'",
+    "group_no_phone": "verdict='none'",
+}
+
+
+def _row_group(has_phone: bool, callable_: bool, needs_review: bool, verdict: str) -> str:
+    if not has_phone:
+        return "no_phone"
+    if not callable_:
+        return "blocked"
+    if needs_review or verdict not in ("corroborated", "unverified"):
+        return "look"
+    return "ready" if verdict == "corroborated" else "unknown"
+
+
+def _run_scan(context: JobContext) -> dict:
+    _, report, numbers, rows, _ = _evaluate(context, keep_rows=True)
+    results = report.pop("_row_results")
+    records = []
+    config = context.params["config"]
+    checked = [_checked_row(row, result, config) for row, result in zip(rows, results)]
+    found = _find_duplicates(context, rows, numbers, checked, config)
+    counts = {"all": len(rows), "callable": 0, "known_wrong": 0, "dnc": 0, "needs_review": 0, "no_phone": 0, "duplicates": 0, "possible_duplicates": 0, "same_owner": 0}
+    counts.update({f"group_{group}": 0 for group in ROW_GROUPS})
+    counts.update({verdict: 0 for verdict in engine.VERDICTS})
+    preview = []
+    for index, (number, out, result) in enumerate(zip(numbers, checked, results)):
+        if index % 250 == 0:
+            context.checkpoint()
+        status = out.get("Duplicate status") or ""
+        counts["duplicates"] += bool(out.get("Duplicate group"))
+        counts["possible_duplicates"] += status.startswith("Possible")
+        counts["same_owner"] += bool(out.get("Same owner rows"))
+        reasons = {reason["code"] for data in result["columns"].values() for _, _, items in data.get("judged", []) for reason in items}
+        verdicts = [data["verdict"] for data in result["columns"].values() if data["verdict"]]
+        verdict = out["Best phone verdict"] or ("wrong" if verdicts else "none")
+        wrong, dnc, callable_ = "known_wrong" in reasons, "do_not_call" in reasons, bool(out["Best phone"])
+        wrong = wrong or any(choice.get("known_wrong", False) for choice in result.get("choices", []))
+        counts["callable"] += callable_
+        counts["known_wrong"] += wrong
+        counts["dnc"] += dnc
+        # Something to look at before calling. An unverified number is not one: it is valid, and nothing more is known.
+        needs_review = verdict == "suspicious" or "conflicting_outcomes" in reasons or bool(out["Phone evidence warnings"]) or any(choice["quality"] == "suspicious" for choice in result.get("choices", []))
+        counts["needs_review"] += needs_review
+        counts[f"group_{_row_group(bool(verdicts), callable_, needs_review, verdict)}"] += 1
+        counts["no_phone"] += not verdicts
+        if verdict in counts:
+            counts[verdict] += 1
+        records.append((context.job_id, number, json.dumps(out, ensure_ascii=False), verdict, wrong, dnc, callable_, needs_review))
+        if len(preview) < 5:
+            preview.append({"row_number": number, "raw": out})
+    report["row_counts"] = counts
+    report["duplicates"] = found
+    report["preview"] = preview
+    report["added_columns"] = _added_columns(context.params["config"])
+    report["scan_job_id"] = context.job_id
+    with context.store._connection:
+        context.store._connection.executemany("INSERT INTO skiptrace_scan_rows VALUES (?, ?, ?, ?, ?, ?, ?, ?)", records)
+        context.checkpoint()
+    context.published = True
+    return {"report": report}
+
+
+def review(store: ProjectStore, job_id: str, filter_: str = "all", offset: int = 0, limit: int = 25, row_number: int | None = None) -> dict:
+    job = store.job(job_id)
+    if job is None or job["kind"] != "skiptrace_scan" or job["state"] != "completed":
+        raise ValueError("Run a completed phone check before reviewing rows")
+    filters = {"all": "1", "callable": "has_callable=1", "known_wrong": "known_wrong=1", "dnc": "do_not_call=1", "no_phone": "verdict='none'",
+               "needs_review": "needs_review=1", **_GROUP_FILTERS}
+    filters.update({verdict: f"verdict='{verdict}'" for verdict in engine.VERDICTS})
+    # Turf: the duplicate columns are read from the checked row itself, so the scan's table needed no new column.
+    filters.update({
+        "duplicates": "COALESCE(json_extract(raw_json, '$.\"Duplicate group\"'), '') != ''",
+        "possible_duplicates": "COALESCE(json_extract(raw_json, '$.\"Duplicate status\"'), '') LIKE 'Possible%'",
+        "same_owner": "COALESCE(json_extract(raw_json, '$.\"Same owner rows\"'), '') != ''",
+    })
+    if filter_ not in filters:
+        raise ValueError("Unknown review filter")
+    # Duplicates are read a group at a time, the kept row first.
+    order = ("CAST(substr(json_extract(raw_json, '$.\"Duplicate group\"'), 2) AS INTEGER), json_extract(raw_json, '$.\"Duplicate status\"') != 'Keep', row_number"
+             if filter_ == "duplicates" else "row_number")
+    where = "job_id=? AND " + filters[filter_]
+    args = [job_id]
+    if row_number is not None:
+        where += " AND row_number=?"
+        args.append(int(row_number))
+    total = store._connection.execute(f"SELECT COUNT(*) FROM skiptrace_scan_rows WHERE {where}", args).fetchone()[0]
+    found = store._connection.execute(f"SELECT row_number, raw_json FROM skiptrace_scan_rows WHERE {where} ORDER BY {order} LIMIT ? OFFSET ?", [*args, max(1, min(limit, 100)), max(0, offset)])
+    return {"total": total, "rows": [{"row_number": r["row_number"], "raw": json.loads(r["raw_json"])} for r in found]}
+
+
+def _run_apply(context: JobContext) -> dict:
+    store, params = context.store, context.params
+    scan_id = params.get("scan_job_id")
+    if scan_id:
+        scan = store.job(scan_id)
+        if scan is None or scan["kind"] != "skiptrace_scan" or scan["state"] != "completed":
+            raise ValueError("Check phone numbers again before saving")
+        scan_params = json.loads(scan["params_json"])
+        report = json.loads(scan["result_json"])["report"]
+        if scan_params["dataset_id"] != params["dataset_id"] or scan_params["config"] != params["config"]:
+            raise ValueError("The setup changed. Check again before saving.")
+        dataset = _dataset(store, params["dataset_id"])
+        records = list(store._connection.execute("SELECT row_number, raw_json FROM skiptrace_scan_rows WHERE job_id=? ORDER BY row_number", (scan_id,)))
+        numbers = [r["row_number"] for r in records]
+        checked_rows = [json.loads(r["raw_json"]) for r in records]
+        if len(checked_rows) != report["rows"]:
+            raise ValueError("The reviewed rows are unavailable. Check again before saving.")
+        others = report["other_datasets_used"]
+    else:
+        dataset, report, numbers, rows, others = _evaluate(context, keep_rows=True)
+        checked_rows = [_checked_row(row, result, params["config"]) for row, result in zip(rows, report.pop("_row_results"))]
+        _find_duplicates(context, rows, numbers, checked_rows, params["config"])
+    context.stage("saving_checked_copy", {"rows": len(checked_rows)})
+    context.checkpoint()
+    added = _added_columns(params["config"])
+    columns = list(dict.fromkeys(column for row in checked_rows for column in row if column not in added)) + added
+    from .downloads import archive_csv, original_file
+    derivation = {
+        "skiptrace_version": engine.SKIPTRACE_VERSION, "phone_version": report["phone_version"], "metadata_version": report["metadata_version"],
+        "config": params["config"], "summary": {"rows": report["rows"], "values": report["values"], "verdicts": report["verdicts"]}, "other_datasets_used": others,
+        "checked_at": report["checked_at"], "fingerprint": report["fingerprint"], "manual_evidence": report["manual_evidence"], "scan_job_id": scan_id,
+        "original_file": original_file(store, dataset["id"]),
+        "phone_outcomes": report.get("phone_outcomes", []), "phone_lookups": report.get("phone_lookups", {}),
+        "checked_file": archive_csv(store, columns, checked_rows),
+    }
+    payload = json.dumps({"derivation": derivation, "rows": checked_rows}, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    # Serialize publication against evidence edits. A cancelled save never leaves a partial list.
+    store._connection.execute("BEGIN IMMEDIATE")
+    try:
+        if freshness(store, dataset["id"])["fingerprint"] != report["fingerprint"]:
+            raise ValueError("The check is out of date: the date or project evidence changed. Check again before saving.")
+        context.checkpoint()
+        created = _register_rows(store, dataset["project_id"], Path(f"{params['name']}.json"), payload, columns, checked_rows, params["name"], kind="checked", row_numbers=numbers, commit=False)
+        store._connection.execute("UPDATE datasets SET parent_dataset_id = ?, derivation_json = ? WHERE id = ?", (dataset["id"], json.dumps(derivation, sort_keys=True), created.dataset_id))
+        mapping = latest_mapping(store, dataset["id"])
+        if mapping is not None:
+            confirm_mapping(store, created.dataset_id, json.loads(mapping["mapping_json"]), mapping["entity_type"], json.loads(mapping["export_exclude_json"] or "[]"), commit=False)
+        context.checkpoint()
+        store._connection.commit()
+        context.published = True
+    except BaseException:
+        store._connection.rollback()
+        raise
+    return {"dataset_id": created.dataset_id, "rows": len(checked_rows), "added_columns": added, "verdicts": report["verdicts"], "rows_with_callable_number": report["rows_with_callable_number"], "checked_at": report["checked_at"]}
+
+
+SCAN_JOB = JobKind(run=_run_scan, validate=_validate)
+APPLY_JOB = JobKind(run=_run_apply, validate=_validate)
+
+
+# ---- Turf CRM: a list without phone numbers ------------------------------------------------------------------------
+# A phone check needs phones, but a list of owners and properties (a county-records export) is still worth checking:
+# rows that repeat the same lead are found from names and addresses with the same engine and the same rules as a phone
+# check (one owner with several properties stays several leads). Nothing is changed in the list.
+
+_REPEAT_COLUMNS = ("first_name_column", "last_name_column", "name_column", "address_column", "city_column", "state_column", "zip_column",
+                   "mailing_address_column", "parcel_column", "mailing_city_column", "mailing_state_column", "mailing_zip_column",
+                   "owner_type_column", "owner_occupied_column", "vacant_column", "ownership_months_column")
+_PROFILE_COLUMNS = {"mailing_city_column", "mailing_state_column", "mailing_zip_column", "owner_type_column", "owner_occupied_column",
+                    "vacant_column", "ownership_months_column"}
+
+# ---- The owner behind each property ----------------------------------------------------------------------------
+# A property list is worked owner by owner: one call reaches every property they hold. Each row is told who its owner
+# is (the same name at the same mailing address, wherever the properties are), how many of the list's properties that
+# owner holds, and what makes the owner worth calling first. A public body (a housing authority, a city) is no lead.
+
+_GOVERNMENT = re.compile(r"\b(?:HOUSING AUTHORITY|CITY OF|COUNTY OF|STATE OF|UNITED STATES|SCHOOL DISTRICT|REDEVELOPMENT AGENCY|"
+                         r"DEPARTMENT OF|DEPT OF|WATER DISTRICT|TRANSIT AUTHORITY|GOVERNMENT)\b")
+_TRUE = {"1", "y", "yes", "true", "t", "x", "vacant"}
+_LONG_OWNED = 300  # months: 25 years and more
+
+
+def _plain(text: object) -> str:
+    return " ".join(re.sub(r"[^0-9A-Z ]", " ", str(text or "").upper().replace("#", " APT ")).split())
+
+
+def _cell(row: dict, config: dict, key: str) -> str:
+    column = config.get(key)
+    return str(row.get(column) or "").strip() if column else ""
+
+
+def _owner_name(row: dict, config: dict) -> str:
+    return _plain(_cell(row, config, "name_column") or " ".join(filter(None, (_cell(row, config, "first_name_column"), _cell(row, config, "last_name_column")))))
+
+
+def _owner_key(row: dict, config: dict) -> tuple | None:
+    """The same owner: the same name words at the same mailing address. With no mailing address a name alone is
+    never enough (two John Smiths are two people)."""
+    name, mailing = _owner_name(row, config), _plain(_cell(row, config, "mailing_address_column"))
+    if not name or not mailing:
+        return None
+    return frozenset(name.split()), mailing, _cell(row, config, "mailing_zip_column")[:5]
+
+
+def _owner_profile(row: dict, config: dict) -> dict:
+    """What is known about this property's owner from the row itself."""
+    name = _owner_name(row, config)
+    owner_type = _cell(row, config, "owner_type_column").upper()
+    government = "GOVERNMENT" in owner_type or bool(_GOVERNMENT.search(name))
+    address, mailing = _plain(_cell(row, config, "address_column")), _plain(_cell(row, config, "mailing_address_column"))
+    occupied = _cell(row, config, "owner_occupied_column").lower() in _TRUE
+    absentee = bool(address and mailing and address != mailing and not occupied)
+    state, mailing_state = (_cell(row, config, key).upper()[:2] for key in ("state_column", "mailing_state_column"))
+    out_of_state = bool(absentee and state and mailing_state and state != mailing_state)
+    vacant = _cell(row, config, "vacant_column").lower() in _TRUE
+    try:
+        months = int(float(_cell(row, config, "ownership_months_column") or 0))
+    except ValueError:
+        months = 0
+    if months > 1200:
+        months = 0  # over a hundred years: a fault in the source, not a long ownership
+    return {"government": government, "investor": "INVESTOR" in owner_type, "absentee": absentee, "out_of_state": out_of_state,
+            "vacant": vacant, "months": months}
+
+
+def _score(profile: dict, properties: int) -> tuple[int, list[str]]:
+    """How worth calling first the owner is, and why: each reason with its points."""
+    if profile["government"]:
+        return 0, ["Government owner: not a lead"]
+    reasons = [(3, "vacant"), (2, "absentee owner"), (1, "mails out of state"), (2, f"owns {properties} properties in this list"),
+               (1, "investor"), (1, f"owned {profile['months'] // 12} years")]
+    held = [profile["vacant"], profile["absentee"], profile["out_of_state"], properties > 1, profile["investor"], profile["months"] >= _LONG_OWNED]
+    kept = [(points, why) for (points, why), yes in zip(reasons, held) if yes]
+    return sum(points for points, _ in kept), [f"{why} (+{points})" for points, why in kept]
+
+
+def _owners(rows: list[dict], numbers: list[int], config: dict, found: list[dict]) -> list[dict]:
+    """One owner per row: the engine's same-owner groups joined with exact name + mailing address matches, which also
+    reach an owner's properties in other ZIP codes."""
+    parent = list(range(len(rows)))
+
+    def root(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    first: dict[tuple, int] = {}
+    for index, row in enumerate(rows):
+        key = _owner_key(row, config)
+        if key is not None:
+            parent[root(index)] = root(first.setdefault(key, index))
+    index_of = {number: index for index, number in enumerate(numbers)}
+    # The engine's own same-owner pairs also catch a name spelt two ways ("Davila", "Davilla") at one mailing address;
+    # a pair is joined only when the two names are alike, so a chain of pairs never carries one owner into another's.
+    names = [" ".join(sorted(_owner_name(row, config).split())) for row in rows]
+    for index, columns in enumerate(found):
+        for number in re.findall(r"\d+", str(columns.get("Same owner rows") or "")):
+            other = index_of.get(int(number))
+            if other is not None and names[index] and SequenceMatcher(None, names[index], names[other]).ratio() >= 0.85:
+                parent[root(index)] = root(other)
+    groups: dict[int, list[int]] = {}
+    for index in range(len(rows)):
+        groups.setdefault(root(index), []).append(index)
+    address = config.get("address_column")
+    owners: list[dict] = [{} for _ in rows]
+    for count, members in enumerate(sorted(groups.values(), key=lambda members: members[0]), start=1):
+        places = [str(rows[i].get(address) or "").strip() for i in members] if address else []
+        for i in members:
+            owners[i] = {"owner": f"O{count}", "properties": len(members),
+                         "others": [numbers[j] for j in members if j != i], "addresses": "; ".join(place for place in places if place)}
+    return owners
+
+
+def _numbers_in(text: object) -> list[str]:
+    """The numbers in an address, in order: house number, numbered street ("58TH"), unit."""
+    return re.findall(r"\d+", str(text or ""))
+
+
+def _plainly_different(left: dict, right: dict, config: dict) -> bool:
+    """Two rows that cannot be one lead whatever their names say: another parcel, or another house number, numbered
+    street or unit ("826 W 58TH PL" and "826 W 59TH PL"; "APT 2" and "APT 3")."""
+    parcel = config.get("parcel_column")
+    if parcel:
+        a, b = (re.sub(r"[^0-9a-z]", "", str(row.get(parcel) or "").lower()) for row in (left, right))
+        if a and b and a != b:
+            return True
+    address = config.get("address_column")
+    if address:
+        a, b = _numbers_in(left.get(address)), _numbers_in(right.get(address))
+        if a and b and a != b:
+            return True
+    return False
+
+
+def _validate_repeats(store: ProjectStore, params: dict) -> dict:
+    _dataset(store, params.get("dataset_id"))
+    config = params.get("config")
+    if not isinstance(config, dict):
+        raise JobValidationError("A setup is required")
+    _, rows = _rows(store, params["dataset_id"])
+    columns = list(dict.fromkeys(column for row in rows[:400] for column in row))
+    cleaned = {"region": str(config.get("region") or "US").upper(), "phone_columns": []}
+    for key in _REPEAT_COLUMNS:
+        value = config.get(key)
+        if value not in (None, "") and value not in columns:
+            # A column only describing the owner (vacant, owner occupied...) may be empty in every row read: it adds
+            # nothing then, and is no reason to refuse the check.
+            if key in _PROFILE_COLUMNS:
+                value = None
+            else:
+                raise JobValidationError(f"Unknown column: {value}")
+        cleaned[key] = value or None
+    if not any(cleaned[key] for key in ("first_name_column", "last_name_column", "name_column", "address_column")):
+        raise JobValidationError("Map an owner name or an address column first")
+    return {"dataset_id": params["dataset_id"], "config": cleaned}
+
+
+def _run_repeats(context: JobContext) -> dict:
+    context.stage("reading_file")
+    numbers, rows = _rows(context.store, context.params["dataset_id"])
+    from .combine import decided
+    same, different = decided(context.store, context.params["dataset_id"])
+    config = context.params["config"]
+    found, summary = duplicates.find(rows, numbers, config, None, context.checkpoint, context.stage, same, different)
+    # A proposed repeat (sure or possible) that is plainly another property is not one: it stays its own lead, and the
+    # two rows are told as the same owner's.
+    index_of = {number: index for index, number in enumerate(numbers)}
+    keeps = {columns["Duplicate group"]: index for index, columns in enumerate(found) if columns["Duplicate status"] == "Keep"}
+    for index, columns in enumerate(found):
+        status = columns["Duplicate status"]
+        if not status or status == "Keep":
+            continue
+        named = re.search(r"row (\d+)", status)
+        other = keeps.get(columns["Duplicate group"]) if columns["Duplicate group"] else None
+        if other is None and named:
+            other = index_of.get(int(named.group(1)))
+        if other is None or not _plainly_different(rows[other], rows[index], config):
+            continue
+        columns.update({"Duplicate group": "", "Duplicate status": "", "Duplicate why": ""})
+        for one, two in ((index, other), (other, index)):
+            if not found[one]["Same owner rows"]:
+                found[one]["Same owner rows"] = f"Row {numbers[two]}"
+            if found[one]["Duplicate status"].startswith("Possible") and f"row {numbers[index if one == other else other]}" in found[one]["Duplicate status"]:
+                found[one].update({"Duplicate status": "", "Duplicate why": ""})
+    # A kept row left with no repeat is simply a lead.
+    for group, keep in keeps.items():
+        if not any(columns["Duplicate group"] == group for index, columns in enumerate(found) if index != keep):
+            found[keep].update({"Duplicate group": "", "Duplicate status": "", "Duplicate why": ""})
+    owners = _owners(rows, numbers, config, found)
+    results = []
+    for number, row, columns, owner in zip(numbers, rows, found, owners):
+        profile = _owner_profile(row, config)
+        score, reasons = _score(profile, owner["properties"])
+        others = owner["others"]
+        results.append({
+            "row_number": number, "group": columns["Duplicate group"], "status": columns["Duplicate status"], "why": columns["Duplicate why"],
+            "same_owner": (("Rows " if len(others) > 1 else "Row ") + ", ".join(map(str, others))) if others else "",
+            "owner": owner["owner"], "properties": owner["properties"], "addresses": owner["addresses"] if others else "",
+            "absentee": profile["absentee"], "out_of_state": profile["out_of_state"], "vacant": profile["vacant"],
+            "government": profile["government"], "score": score, "reasons": reasons,
+        })
+    repeats = sum(1 for item in results if item["status"] and item["status"] != "Keep")
+    same_owner = sum(1 for item in results if item["same_owner"])
+    return {"rows": len(results), "repeats": repeats, "same_owner": same_owner, "owners": len({item["owner"] for item in results}),
+            "absentee": sum(item["absentee"] for item in results), "out_of_state": sum(item["out_of_state"] for item in results),
+            "vacant": sum(item["vacant"] for item in results), "government": sum(item["government"] for item in results),
+            "summary": summary, "results": results}
+
+
+REPEATS_JOB = JobKind(run=_run_repeats, validate=_validate_repeats)

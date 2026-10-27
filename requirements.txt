@@ -1,0 +1,9 @@
+# What the Turf service needs at run time. Versions follow DataForge's requirements.txt.
+phonenumbers==9.0.39
+rapidfuzz==3.14.6
+openpyxl==3.1.5
+pyarrow==25.0.1
+# Optional: reads unfamiliar call statuses with a small local model. Turf works without it; see turf_service/status_model.py.
+model2vec==0.9.0
+# Checks that an email address's domain can receive mail (an ordinary DNS lookup; see turf_service/emails.py).
+dnspython==2.8.0
