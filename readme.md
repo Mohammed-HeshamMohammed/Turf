@@ -2,7 +2,7 @@
 
 This branch is a **production snapshot of one part of Turf**: only the files this part needs, at the same paths as in `Full CRM Turf/` on `main`.
 
-- Last changed from `main` at `e594f1d` (2026-10-27)
+- Last changed from `main` at `573c142` (2026-10-27)
 - Content id: `b91073aab7c50aac279cc289665e9da502d9a61b` (the branch is only refreshed when this changes)
 - Holds: `desktop`, `services/auth/clients`, `env/desktop.env.example`, `env/README.md`, and the Cargo workspace file and lock for it
 - 163 files
