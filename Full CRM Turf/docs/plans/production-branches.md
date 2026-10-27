@@ -21,7 +21,7 @@ Each server branch also carries its container file and its Kubernetes files (`in
 
 - The part's folder(s), at the same paths as in `Full CRM Turf/` on `main` (the `Full CRM Turf/` prefix itself is dropped), and `.gitignore`.
 - For a Rust service: the Cargo workspace file cut down to the members present, and `Cargo.lock`. Dockerfile lines that copy a folder the branch does not have are removed.
-- A generated `PRODUCTION.md`: what it is, which `main` commit it was made from, how to build and test it.
+- A generated `readme.md`: what it is, which `main` commit it was made from, how to build and test it.
 
 `tools/production.json` lists each part and its files.
 

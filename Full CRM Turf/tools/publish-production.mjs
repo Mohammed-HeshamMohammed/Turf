@@ -51,6 +51,9 @@ export function pruneWorkspace(text, has) {
   return out.join("\n");
 }
 
+/** The note at the root of each branch. Named readme.md so GitHub shows it on the branch's page. */
+const NOTE = "readme.md";
+
 function note(component, { ref, short, date, files, content }) {
   return `# ${component.title}
 
@@ -139,7 +142,7 @@ function run() {
     }
     let before = "";
     try {
-      before = git(["show", `${parent}:PRODUCTION.md`]).match(/Content id: `([0-9a-f]+)`/)?.[1] ?? "";
+      before = git(["show", `${parent}:${NOTE}`]).match(/Content id: `([0-9a-f]+)`/)?.[1] ?? "";
     } catch {
       before = "";
     }
@@ -147,7 +150,7 @@ function run() {
       console.log(`${component.name}: up to date`);
       continue;
     }
-    put("PRODUCTION.md", note(component, { ref: from, short, date, files: files.length + 1, content }));
+    put(NOTE, note(component, { ref: from, short, date, files: files.length + 1, content }));
     const tree = git(["write-tree"], { env }).trim();
     if (flag("--list")) {
       console.log(`${component.name}: ${files.length + 1} files  (${component.paths.join(", ")})`);
