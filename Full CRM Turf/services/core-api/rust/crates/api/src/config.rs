@@ -15,7 +15,8 @@ pub struct Config {
     pub worker_tokens: Vec<(String, String)>,
     pub artifact_dir: String,
     pub max_body_bytes: usize,
-    /// Anyone signed in with auth may open a trial organization (POST /organizations/trial). Off for a private server.
+    /// Anyone signed in with auth may open a trial organization (POST /organizations/trial). Only with
+    /// TURF_PUBLIC_SIGNUP=true; otherwise only Turf's staff open workspaces, and everyone else joins by invitation.
     pub public_signup: bool,
     /// Shared secret the payment provider signs webhooks with (HMAC-SHA256). Shorter than 24 characters: webhooks off.
     pub billing_webhook_secret: String,
@@ -53,7 +54,7 @@ impl Config {
             worker_tokens,
             artifact_dir: var("TURF_ARTIFACT_DIR", "artifacts"),
             max_body_bytes: var("TURF_MAX_BODY_BYTES", "26214400").parse().context("TURF_MAX_BODY_BYTES")?,
-            public_signup: var("TURF_PUBLIC_SIGNUP", "true") != "false",
+            public_signup: var("TURF_PUBLIC_SIGNUP", "false") == "true",
             billing_webhook_secret: var("TURF_BILLING_WEBHOOK_SECRET", ""),
             checkout_url: var("TURF_CHECKOUT_URL", ""),
             site_dir: var("TURF_SITE_DIR", ""),

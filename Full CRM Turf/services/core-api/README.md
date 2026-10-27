@@ -86,13 +86,16 @@ The dashboard is on the website at `/#/admin` (an **Admin** button appears for s
 | Tab | Staff | Owner only |
 | --- | --- | --- |
 | Overview | Totals, newest workspaces, latest staff activity | |
-| Workspaces | Every workspace's plan, minutes, seats, payments; suspend or reactivate; extend by 7 or 30 days | Set any plan and seats without a payment; remove all limits |
+| Workspaces | Open a workspace for a customer (a trial, with a link that makes them its owner); every workspace's plan, minutes, seats, payments; suspend or reactivate; extend by 7 or 30 days | Set any plan and seats without a payment; remove all limits |
+| Payments | Every payment across workspaces, with paid, waiting, failed and refunded totals | |
 | People | Search everyone; turn a customer's access off or on | Turn another administrator's access off |
 | Staff | See Turf's staff | Name or remove system administrators |
 | Activity | Every change made from the dashboard (`platform_events`) | |
 | My workspace | Open a workspace of Turf's own with no plan, so no seat, minute or time limit, for as many callers and CRM users as needed | |
 
-Customer records are never shown. A suspended workspace refuses everything until reactivated; turning someone's access off refuses them on this server (auth still knows the account). With `TURF_REQUIRE_MFA=true` the dashboard needs two-step sign-in.
+Customer records are never shown. A suspended workspace refuses everything until reactivated; turning someone's access off refuses them on this server (auth still knows the account). Staff always need the authenticator code, whatever `TURF_REQUIRE_MFA` says.
+
+**Who gets in.** Only people given access: an account at auth opens nothing here by itself. Staff open a customer's workspace and send its owner the link (`POST /api/v1/platform/customers`); the owner invites everyone else, with an end date if they like. Members whose access ends, or is removed, lose the workspace at once, and the desktop app erases that workspace's offline copy at its next check. `TURF_PUBLIC_SIGNUP=true` lets new accounts open their own trial again (off by default).
 
 ## How a change flows
 

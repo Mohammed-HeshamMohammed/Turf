@@ -17,6 +17,8 @@ export function RemoteGate({ onReady, onLeave }) {
   const [error, setError] = useState(() => new URLSearchParams(window.location.search).get("oauth_error") || "");
   const [busy, setBusy] = useState(false);
   const [me, setMe] = useState(null);
+  // Closed until the server says otherwise: then only an invitation opens a workspace.
+  const [signupOpen, setSignupOpen] = useState(false);
   const [enrolment, setEnrolment] = useState(null);
   const [recovery, setRecovery] = useState(null);
   const [form, setForm] = useState({ email: "", password: "", code: "", passphrase: "", workspace: "", invitation: "" });
@@ -28,7 +30,13 @@ export function RemoteGate({ onReady, onLeave }) {
       if (!auth.signedIn()) return setStep("signin");
       let identity = await api.me();
       const organizations = identity.organizations || [];
+      // Access to the workspace this device last used was removed or has ended: its offline copy goes too.
+      if (organization() && !organizations.some(item => item.id === organization())) {
+        await Vault.wipe();
+        setOrganization("");
+      }
       if (!organizations.length) {
+        setSignupOpen(await api.signupOpen().catch(() => false));
         setMe(identity);
         return setStep("workspace");
       }
@@ -203,7 +211,9 @@ export function RemoteGate({ onReady, onLeave }) {
           step === "unlock"
             ? "Records and pending changes are encrypted with a passphrase only you know."
             : step === "workspace"
-              ? "Start a free trial, or join the team that invited you."
+              ? signupOpen
+                ? "Start a free trial, or join the team that invited you."
+                : "Only people given access by a workspace owner or by Turf can use Turf."
               : "Your records stay on your organization's server."
         }
       >
@@ -258,12 +268,7 @@ export function RemoteGate({ onReady, onLeave }) {
               {busy ? "Signing in…" : step === "code" ? "Confirm" : "Sign in"}
             </Button>
             {step === "signin" && (
-              <p className="muted">
-                No account yet?{" "}
-                <a href={(apiBase() || SERVER) + "/#/signup"} target="_blank" rel="noreferrer">
-                  Start a free trial
-                </a>
-              </p>
+              <p className="muted">New here? You need an invitation from your workspace owner or from Turf.</p>
             )}
           </form>
         )}
@@ -281,16 +286,18 @@ export function RemoteGate({ onReady, onLeave }) {
         )}
         {step === "workspace" && (
           <div className="remote-step">
-            <form onSubmit={startTrial}>
-              <Field label="Workspace name" help="Optional. You can change it later.">
-                <input value={form.workspace} onChange={field("workspace")} placeholder={me?.user ? `${me.user.name}'s workspace` : ""} />
-              </Field>
-              <Button type="submit" variant="primary" icon={Buildings} disabled={busy}>
-                Start my free trial
-              </Button>
-            </form>
+            {signupOpen && (
+              <form onSubmit={startTrial}>
+                <Field label="Workspace name" help="Optional. You can change it later.">
+                  <input value={form.workspace} onChange={field("workspace")} placeholder={me?.user ? `${me.user.name}'s workspace` : ""} />
+                </Field>
+                <Button type="submit" variant="primary" icon={Buildings} disabled={busy}>
+                  Start my free trial
+                </Button>
+              </form>
+            )}
             <form onSubmit={join}>
-              <Field label="Or join with an invitation" help="Paste the invitation link from your email.">
+              <Field label={signupOpen ? "Or join with an invitation" : "Your invitation"} help="Paste the invitation link from your email. No invitation? Ask your workspace owner.">
                 <input value={form.invitation} onChange={field("invitation")} required />
               </Field>
               <Button type="submit" disabled={busy}>

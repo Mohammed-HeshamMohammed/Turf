@@ -178,7 +178,9 @@ pub const NO_PASSWORD: &str = "!external-sign-in";
 
 /// A new organization on the free trial for someone who already has an account: its roles and team, the person as
 /// owner, the trial subscription, and the audit entry.
-pub async fn open_trial_organization(tx: &mut db::Tx, user: Uuid, name: &str, tz: &str, organization: Option<&str>) -> ApiResult<Uuid> {
+/// A trial organization. `owner` becomes its owner at once; without one (Turf's staff opening it for a customer) it
+/// waits for the owner invitation to be accepted.
+pub async fn open_trial_organization(tx: &mut db::Tx, owner: Option<Uuid>, actor: Uuid, name: &str, tz: &str, organization: Option<&str>) -> ApiResult<Uuid> {
     let organization = organization.map(str::to_string).unwrap_or_else(|| format!("{name}'s workspace"));
     let org: Uuid = sqlx::query_scalar("INSERT INTO organizations (name, timezone, account_kind) VALUES ($1, $2, 'trial') RETURNING id")
         .bind(&organization)
@@ -186,7 +188,9 @@ pub async fn open_trial_organization(tx: &mut db::Tx, user: Uuid, name: &str, tz
         .fetch_one(&mut **tx)
         .await?;
     seed_organization(tx, org).await?;
-    sqlx::query("INSERT INTO memberships (org_id, user_id, roles) VALUES ($1, $2, ARRAY['owner'])").bind(org).bind(user).execute(&mut **tx).await?;
+    if let Some(owner) = owner {
+        sqlx::query("INSERT INTO memberships (org_id, user_id, roles) VALUES ($1, $2, ARRAY['owner'])").bind(org).bind(owner).execute(&mut **tx).await?;
+    }
     let trial = plan(&mut **tx, "trial").await?;
     sqlx::query(
         "INSERT INTO subscriptions (org_id, plan_key, status, seats, minutes_included, period_end) \
@@ -198,7 +202,7 @@ pub async fn open_trial_organization(tx: &mut db::Tx, user: Uuid, name: &str, tz
     .execute(&mut **tx)
     .await?;
     let mut change = Change::new("organization", org, "organization.signed_up");
-    change.actor_id = Some(user);
+    change.actor_id = Some(actor);
     change.actor_label = name;
     change.after = Some(json!({ "plan": "trial", "minutes": trial.minutes(1) }));
     record(&mut **tx, change).await?;
@@ -217,7 +221,7 @@ pub struct StartTrial {
 /// trial, with them as owner. One trial per person.
 pub async fn start_trial(State(state): State<AppState>, ctx: Ctx, Json(body): Json<StartTrial>) -> ApiResult<Json<Value>> {
     if !state.config.public_signup {
-        return Err(ApiError::forbidden("This server does not take new sign-ups"));
+        return Err(ApiError::forbidden("Turf is by invitation only. Ask your workspace owner, or Turf, for an invitation"));
     }
     let organization = match body.organization.trim() {
         "" => format!("{}'s workspace", ctx.label),
@@ -240,7 +244,7 @@ pub async fn start_trial(State(state): State<AppState>, ctx: Ctx, Json(body): Js
     if had_trial {
         return Err(ApiError::Conflict("You already have a trial workspace".into()));
     }
-    let org = open_trial_organization(&mut tx, ctx.user_id, &ctx.label, &tz, Some(&organization)).await?;
+    let org = open_trial_organization(&mut tx, Some(ctx.user_id), ctx.user_id, &ctx.label, &tz, Some(&organization)).await?;
     let trial = plan(&mut tx, "trial").await?;
     tx.commit().await?;
     Ok(Json(json!({ "organization_id": org, "plan": "trial", "minutes": trial.minutes(1), "trial_days": trial.period_days })))

@@ -79,15 +79,20 @@ pub async fn start() -> Option<Harness> {
 }
 
 pub async fn start_with(redis: bool) -> Option<Harness> {
-    start_configured(redis, true).await
+    start_configured(redis, true, true).await
 }
 
 /// A server that does not require MFA (the current default: TURF_REQUIRE_MFA unset).
 pub async fn start_without_mfa() -> Option<Harness> {
-    start_configured(true, false).await
+    start_configured(true, false, true).await
 }
 
-async fn start_configured(redis: bool, require_mfa: bool) -> Option<Harness> {
+/// A server where new sign-ups cannot open a workspace themselves (the default: TURF_PUBLIC_SIGNUP unset).
+pub async fn start_closed() -> Option<Harness> {
+    start_configured(true, true, false).await
+}
+
+async fn start_configured(redis: bool, require_mfa: bool, public_signup: bool) -> Option<Harness> {
     let guard = LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     let Some(mut config) = config(redis) else {
         eprintln!("TEST_DATABASE_URL is not set; skipping");
@@ -95,6 +100,7 @@ async fn start_configured(redis: bool, require_mfa: bool) -> Option<Harness> {
     };
     let key = Arc::new(auth_key());
     config.require_mfa = require_mfa;
+    config.public_signup = public_signup;
     config.auth_jwks = key.jwks.clone();
     turf_api::db::migrate(&config).await.expect("migrations");
     let owner = sqlx::PgPool::connect(&config.migration_database_url).await.expect("owner connection");

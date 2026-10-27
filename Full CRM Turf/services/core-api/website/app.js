@@ -133,6 +133,9 @@ async function signOut() {
 /** An invitation waiting for the person to sign up or sign in (including with Google, which leaves the page). */
 const PENDING_JOIN = "turf.join";
 
+/** Whether a new account may open its own trial here; otherwise only an invitation opens a workspace. */
+const signupOpen = () => api("/auth/service").then(data => data?.signup === true).catch(() => false);
+
 /** After signing in: join a waiting invitation, or open the person's trial if they have no workspace yet. */
 async function afterSignIn({ newAccount = false, organizationName = "" } = {}) {
   const invitation = sessionStorage.getItem(PENDING_JOIN);
@@ -140,7 +143,7 @@ async function afterSignIn({ newAccount = false, organizationName = "" } = {}) {
     sessionStorage.removeItem(PENDING_JOIN);
     const joined = await api("/invitations/join", { token: invitation });
     setOrganization(joined.organization_id);
-  } else if (newAccount) {
+  } else if (newAccount && (await signupOpen())) {
     const opened = await api("/organizations/trial", { organization: organizationName, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
     setOrganization(opened.organization_id);
   }
@@ -408,6 +411,17 @@ async function joinTeam(token) {
 async function workspace() {
   if (!(await refreshMe())) return (location.hash = "#/signin");
   if (me.organizations.length) return (location.hash = "#/account");
+  if (!(await signupOpen())) {
+    return show(
+      h(
+        "section",
+        { class: "card narrow" },
+        h("h2", {}, "You need an invitation"),
+        h("p", {}, "Turf is by invitation only. Your workspace owner, or Turf, sends you a link; open it while signed in as " + me.user.email + "."),
+        me.platform_role ? h("p", {}, h("a", { href: "#/admin" }, "Open the admin dashboard")) : null,
+      ),
+    );
+  }
   show(
     h(
       "section",
@@ -784,8 +798,22 @@ async function adminWorkspaces(you) {
     return row;
   });
   search.addEventListener("input", () => rows.forEach(row => (row.hidden = !row.dataset.text.includes(search.value.trim().toLowerCase()))));
+  // Nobody opens a workspace by signing up: staff open it here and send its owner the link.
+  const opened = h("div");
+  const open = h(
+    "section",
+    { class: "card" },
+    h("h2", {}, "Open a workspace for a customer"),
+    form([input("Workspace name", "organization", { maxlength: 200 }), input("Owner's email", "email", { type: "email" })], "Open workspace", async values => {
+      const answer = await api("/platform/customers", { organization: values.organization, email: values.email });
+      const link = location.origin + "/#/join?token=" + encodeURIComponent(answer.token);
+      opened.replaceChildren(notice(`Ready. Send this link to ${values.email}; it makes them the owner, works once, for 7 days.`, "good"), h("span", { class: "code" }, link));
+    }),
+    opened,
+  );
   return [
     h("p", { class: "muted" }, "Every customer workspace. Their CRM records are never shown here."),
+    open,
     search,
     h(
       "section",

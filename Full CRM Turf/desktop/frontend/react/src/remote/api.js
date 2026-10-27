@@ -91,6 +91,8 @@ export const api = {
   me: () => request("GET", "/api/v1/me"),
   /** A new trial workspace for the signed-in person (one per person). */
   startTrial: (organizationName, timezone) => request("POST", "/api/v1/organizations/trial", { organization: organizationName || "", timezone: timezone || "" }),
+  /** Whether a new account may open its own trial on this server, or must be given access by an owner or Turf. */
+  signupOpen: () => request("GET", "/api/v1/auth/service").then(data => data?.signup === true),
   /** Joins the organization of an invitation for this person's email. */
   joinInvitation: token => request("POST", "/api/v1/invitations/join", { token }),
   directory: () => request("GET", "/api/v1/directory"),
