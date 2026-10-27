@@ -1,0 +1,12 @@
+FROM golang:1.23 AS build
+WORKDIR /src
+COPY go.mod ./
+COPY *.go ./
+RUN CGO_ENABLED=0 go build -o /out/service .
+
+FROM gcr.io/distroless/static-debian12
+COPY --from=build /out/service /service
+ENV PORT=8100
+EXPOSE 8100
+USER nonroot
+ENTRYPOINT ["/service"]
