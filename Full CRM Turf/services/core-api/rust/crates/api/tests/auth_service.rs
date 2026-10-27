@@ -221,7 +221,11 @@ async fn without_required_mfa_owners_go_straight_in() {
     assert_eq!(owner.get("/api/v1/me").await.ok()["mfa"]["required"], false);
     assert_eq!(owner.get("/api/v1/billing").await.ok()["plan"]["key"], "trial", "no code needed");
     assert_eq!(owner.get("/api/v1/leads").await.status, 200);
-    // The platform page follows the same setting.
+    // Turf's own staff are different: they always need the authenticator code, even when the server does not ask it
+    // of anyone else.
     sqlx::query("UPDATE users SET platform_role = 'admin' WHERE email = 'quick@example.com'").execute(&h.owner).await.unwrap();
+    assert_eq!(owner.get("/api/v1/platform/organizations").await.body["error"]["code"], "mfa_required");
+    assert_eq!(owner.get("/api/v1/me").await.ok()["mfa"]["required"], true);
+    owner.reissue(true, true);
     assert_eq!(owner.get("/api/v1/platform/organizations").await.status, 200);
 }

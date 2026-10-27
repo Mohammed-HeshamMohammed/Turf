@@ -36,11 +36,11 @@ const auth = createAuth({ base: service.url || "http://localhost:8101" });
 const organization = () => localStorage.getItem("turf.org") || "";
 const setOrganization = id => (id ? localStorage.setItem("turf.org", id) : localStorage.removeItem("turf.org"));
 
-async function api(path, body, retried = false) {
+async function api(path, body, retried = false, method = body === undefined ? "GET" : "POST") {
   const token = await auth.accessToken().catch(() => null);
   const org = organization();
   const response = await fetch("/api/v1" + path, {
-    method: body === undefined ? "GET" : "POST",
+    method,
     headers: {
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: "Bearer " + token } : {}),
@@ -49,7 +49,7 @@ async function api(path, body, retried = false) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   // A token that expired in flight: refresh once and try again.
-  if (response.status === 401 && token && !retried && (await auth.refresh().catch(() => null))) return api(path, body, true);
+  if (response.status === 401 && token && !retried && (await auth.refresh().catch(() => null))) return api(path, body, true, method);
   const data = await response.json().catch(() => null);
   if (!response.ok) throw new ApiError(response.status, data?.error?.code || "error", data?.error?.message || "Something went wrong");
   return data;
@@ -584,10 +584,11 @@ async function team(billing) {
     [
       input("Email", "email", { type: "email" }),
       h("label", {}, "Role", h("select", { name: "role" }, choices.map(key => h("option", { value: key }, ROLE_NAMES[key] || key)))),
+      h("label", {}, "Access lasts (days, optional)", h("input", { name: "days", type: "number", min: 1, max: 3650, placeholder: "No end date" })),
     ],
     "Send invitation",
     async values => {
-      const answer = await api("/admin/members", { email: values.email, roles: [values.role] });
+      const answer = await api("/admin/members", { email: values.email, roles: [values.role], ...(values.days ? { access_days: Number(values.days) } : {}) });
       const link = location.origin + "/#/join?token=" + encodeURIComponent(answer.token);
       result.replaceChildren(notice("Invitation ready. Send this link to them; it works once, for 7 days.", "good"), h("span", { class: "code" }, link));
     },
@@ -603,12 +604,29 @@ async function team(billing) {
       h(
         "table",
         {},
-        h("thead", {}, h("tr", {}, h("th", {}, "Name"), h("th", {}, "Email"), h("th", {}, "Role"))),
+        h("thead", {}, h("tr", {}, h("th", {}, "Name"), h("th", {}, "Email"), h("th", {}, "Role"), h("th", {}, "Access"), h("th", {}, ""))),
         h(
           "tbody",
           {},
-          members.map(member => h("tr", {}, h("td", {}, member.name), h("td", {}, member.email), h("td", {}, member.roles.map(key => ROLE_NAMES[key] || key).join(", ")))),
-          invitations.map(item => h("tr", {}, h("td", { class: "muted" }, "Invited"), h("td", {}, item.email), h("td", {}, item.roles.map(key => ROLE_NAMES[key] || key).join(", ")))),
+          members.map(member => {
+            const owner = member.roles.includes("owner") || member.roles.includes("solo");
+            const change = days => async () => {
+              await api(`/admin/members/${member.user_id}`, { access_days: days }, false, "PATCH");
+              await account();
+            };
+            return h(
+              "tr",
+              {},
+              h("td", {}, member.name),
+              h("td", {}, member.email),
+              h("td", {}, member.roles.map(key => ROLE_NAMES[key] || key).join(", ")),
+              h("td", {}, member.expired ? h("span", { class: "badge danger" }, "ended " + date(member.expires_at)) : member.expires_at ? "until " + date(member.expires_at) : "no end date"),
+              h("td", {}, owner ? null : h("div", { class: "row" }, small("+30 days", change(30)), member.expires_at ? small("No end", change(0)) : null)),
+            );
+          }),
+          invitations.map(item =>
+            h("tr", {}, h("td", { class: "muted" }, "Invited"), h("td", {}, item.email), h("td", {}, item.roles.map(key => ROLE_NAMES[key] || key).join(", ")), h("td", {}, item.access_days ? item.access_days + " days once they join" : "no end date"), h("td", {})),
+          ),
         ),
       ),
     ),
@@ -625,6 +643,7 @@ async function team(billing) {
 const ADMIN_TABS = [
   ["overview", "Overview"],
   ["workspaces", "Workspaces"],
+  ["payments", "Payments"],
   ["people", "People"],
   ["staff", "Staff"],
   ["activity", "Activity"],
@@ -834,6 +853,48 @@ async function adminPeople(you, query = "") {
   ];
 }
 
+async function adminPayments() {
+  const { payments, totals } = await api("/platform/payments");
+  const stat = (cents, label) => h("div", { class: "stat card" }, h("strong", {}, money(cents)), h("small", {}, label));
+  const tone = { paid: "good", pending: "peach", failed: "danger", refunded: "" };
+  return [
+    h("div", { class: "stats" }, stat(totals.paid_cents, "paid"), stat(totals.pending_cents, "waiting"), stat(totals.failed_cents, "failed"), stat(totals.refunded_cents, "refunded")),
+    h(
+      "section",
+      { class: "card" },
+      payments.length
+        ? h(
+            "div",
+            { class: "table-wrap" },
+            h(
+              "table",
+              {},
+              h("thead", {}, h("tr", {}, ["Date", "Workspace", "Paid by", "Plan", "Seats", "Amount", "Status", "Provider"].map(title => h("th", {}, title)))),
+              h(
+                "tbody",
+                {},
+                payments.map(item =>
+                  h(
+                    "tr",
+                    {},
+                    h("td", {}, date(item.paid_at || item.created_at)),
+                    h("td", {}, item.organization),
+                    h("td", {}, item.payer_email || "—"),
+                    h("td", {}, item.plan),
+                    h("td", {}, String(item.seats)),
+                    h("td", {}, money(item.amount_cents)),
+                    h("td", {}, h("span", { class: "badge " + (tone[item.status] || "") }, item.status)),
+                    h("td", {}, item.provider),
+                  ),
+                ),
+              ),
+            ),
+          )
+        : h("p", { class: "muted" }, "No payments yet. Card details never reach Turf: only the provider's reference and the amount."),
+    ),
+  ];
+}
+
 async function adminStaff(you) {
   const { staff } = await api("/platform/staff");
   const add =
@@ -936,7 +997,7 @@ async function admin(tab = "overview", done = null, failed = null) {
   if (!me.platform_role) return show(notice("This page is for Turf's own staff.", "error"));
   const you = me.platform_role;
   if (!ADMIN_TABS.some(([key]) => key === tab)) tab = "overview";
-  const build = { overview: adminOverview, workspaces: () => adminWorkspaces(you), people: () => adminPeople(you), staff: () => adminStaff(you), activity: adminActivity, mine: adminMine }[tab];
+  const build = { overview: adminOverview, workspaces: () => adminWorkspaces(you), people: () => adminPeople(you), payments: adminPayments, staff: () => adminStaff(you), activity: adminActivity, mine: adminMine }[tab];
   show(...adminFrame(tab, you, await build(), done, failed));
 }
 

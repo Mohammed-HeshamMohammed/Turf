@@ -31,6 +31,7 @@ pub fn routes() -> Router<AppState> {
         .route("/platform/people", get(people))
         .route("/platform/people/{id}/access", post(access))
         .route("/platform/staff", get(staff_list).post(set_staff))
+        .route("/platform/payments", get(payments))
         .route("/platform/activity", get(activity))
         .route("/platform/workspace", post(workspace))
 }
@@ -41,8 +42,8 @@ enum Staff {
     Admin,
 }
 
-/// The person's platform role, or a refusal. Seeing every customer needs the second sign-in step whenever the server
-/// requires MFA, whatever the person's role in their own workspace.
+/// The person's platform role, or a refusal. Turf's staff always need the second sign-in step (the authenticator
+/// code), whatever the server's MFA setting: a token that has not passed it opens nothing here.
 async fn staff(state: &AppState, ctx: &Ctx) -> ApiResult<Staff> {
     let role: Option<String> = sqlx::query_scalar("SELECT platform_role FROM users WHERE id = $1").bind(ctx.user_id).fetch_one(&state.db).await?;
     let role = match role.as_deref() {
@@ -50,7 +51,7 @@ async fn staff(state: &AppState, ctx: &Ctx) -> ApiResult<Staff> {
         Some("admin") => Staff::Admin,
         _ => return Err(ApiError::forbidden("Only Turf's platform administrators can see this")),
     };
-    if state.config.require_mfa && (!ctx.mfa_enrolled || !ctx.mfa_passed) {
+    if !ctx.mfa_passed {
         return Err(ApiError::MfaRequired);
     }
     Ok(role)
@@ -309,6 +310,40 @@ async fn set_staff(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Sta
     event(&mut tx, &ctx, if body.role.is_some() { "staff.added" } else { "staff.removed" }, "user", Some(user), json!({ "email": email })).await?;
     tx.commit().await?;
     Ok(Json(json!({ "user_id": user, "platform_role": body.role })))
+}
+
+type PaymentRow = (
+    Uuid,
+    Uuid,
+    String,
+    String,
+    i32,
+    i32,
+    String,
+    String,
+    String,
+    chrono::DateTime<chrono::Utc>,
+    Option<chrono::DateTime<chrono::Utc>>,
+    Option<String>,
+);
+
+/// Every payment on the server, newest first, with what is paid, waiting and refunded. Card details never reach Turf:
+/// only the provider's reference and the amounts.
+async fn payments(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
+    staff(&state, &ctx).await?;
+    let rows: Vec<PaymentRow> = sqlx::query_as("SELECT * FROM turf_platform_payments($1)").bind(ctx.user_id).fetch_all(&state.db).await?;
+    let sum = |status: &str| rows.iter().filter(|r| r.7 == status).map(|r| r.5 as i64).sum::<i64>();
+    let list: Vec<Value> = rows
+        .iter()
+        .map(|(id, org, org_name, plan, seats, amount, currency, status, provider, created, paid, payer)| {
+            json!({ "id": id, "organization_id": org, "organization": org_name, "plan": plan, "seats": seats, "amount_cents": amount, "currency": currency,
+                    "status": status, "provider": provider, "created_at": created, "paid_at": paid, "payer_email": payer })
+        })
+        .collect();
+    Ok(Json(json!({
+        "payments": list,
+        "totals": { "paid_cents": sum("paid"), "pending_cents": sum("pending"), "failed_cents": sum("failed"), "refunded_cents": sum("refunded") },
+    })))
 }
 
 async fn activity(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {

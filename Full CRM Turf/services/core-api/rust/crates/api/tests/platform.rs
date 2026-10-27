@@ -174,3 +174,85 @@ async fn staff_get_a_workspace_without_limits() {
     let (shop, _) = customer(&h, "shop@client.example", "Client Shop").await;
     assert_eq!(shop.post("/api/v1/platform/workspace", json!({ "organization": "Free stuff" })).await.status, 403);
 }
+
+#[tokio::test]
+async fn staff_always_need_the_authenticator_code() {
+    // Even on a server that asks nobody else for one.
+    let Some(h) = start_without_mfa().await else { return };
+    let (owner, _) = platform_owner(&h).await;
+    owner.reissue(false, true);
+    for path in ["/api/v1/platform/organizations", "/api/v1/platform/people", "/api/v1/platform/payments", "/api/v1/platform/staff", "/api/v1/platform/activity"] {
+        assert_eq!(owner.get(path).await.body["error"]["code"], "mfa_required", "{path}");
+    }
+    assert_eq!(owner.post("/api/v1/platform/staff", json!({ "email": "x@example.com", "role": "admin" })).await.status, 401);
+    assert_eq!(owner.get("/api/v1/leads").await.body["error"]["code"], "mfa_required", "also in their own workspace");
+    owner.reissue(true, true);
+    assert_eq!(owner.get("/api/v1/platform/organizations").await.status, 200);
+}
+
+#[tokio::test]
+async fn a_members_access_can_have_an_end_date() {
+    let Some(h) = start().await else { return };
+    let w = world(&h).await;
+    let caller = w.client("caller");
+    let id = w.id("caller");
+    assert_eq!(caller.get("/api/v1/leads").await.status, 200);
+
+    // A period from now: still open, and shown on the member.
+    w.owner.patch(&format!("/api/v1/admin/members/{id}"), json!({ "access_days": 14 })).await.ok();
+    let members = w.owner.get("/api/v1/admin/members").await.ok();
+    let row = members["members"].as_array().unwrap().iter().find(|m| m["user_id"] == id.as_str()).unwrap().clone();
+    assert!(row["expires_at"].is_string() && row["expired"] == false);
+    assert_eq!(caller.get("/api/v1/leads").await.status, 200);
+
+    // Once it is over, the workspace opens nothing for them and does not list them as a member of it.
+    sqlx::query("UPDATE memberships SET expires_at = now() - interval '1 minute' WHERE user_id = $1::uuid").bind(&id).execute(&h.owner).await.unwrap();
+    assert_eq!(caller.get("/api/v1/leads").await.status, 400);
+    assert_eq!(caller.get("/api/v1/me").await.ok()["organizations"], json!([]));
+    let members = w.owner.get("/api/v1/admin/members").await.ok();
+    assert!(members["members"].as_array().unwrap().iter().any(|m| m["user_id"] == id.as_str() && m["expired"] == true));
+
+    // The owner extends it, or removes the end date.
+    w.owner.patch(&format!("/api/v1/admin/members/{id}"), json!({ "access_days": 30 })).await.ok();
+    assert_eq!(caller.get("/api/v1/leads").await.status, 200);
+    w.owner.patch(&format!("/api/v1/admin/members/{id}"), json!({ "access_days": 0 })).await.ok();
+    let none: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar("SELECT expires_at FROM memberships WHERE user_id = $1::uuid").bind(&id).fetch_one(&h.owner).await.unwrap();
+    assert!(none.is_none());
+    assert_eq!(w.owner.patch(&format!("/api/v1/admin/members/{id}"), json!({ "access_days": 99999 })).await.status, 400);
+    // The owner has no end date.
+    assert_eq!(w.owner.patch(&format!("/api/v1/admin/members/{}", w.owner.id), json!({ "access_days": 5 })).await.status, 403);
+
+    // An invitation can carry a period that starts when it is accepted.
+    let invite = w.owner.post("/api/v1/admin/members", json!({ "email": "temp@example.com", "roles": ["caller"], "team_ids": [w.team], "access_days": 7 })).await.ok();
+    assert_eq!(w.owner.post("/api/v1/admin/members", json!({ "email": "bad@example.com", "roles": ["caller"], "access_days": 0 })).await.status, 400);
+    let temp = h.client("temp@example.com", "Temp Caller", false, true);
+    temp.post("/api/v1/invitations/join", json!({ "token": invite["token"] })).await.ok();
+    let days: f64 = sqlx::query_scalar("SELECT extract(epoch FROM expires_at - now())::float8 / 86400 FROM memberships WHERE user_id = $1::uuid").bind(&temp.id).fetch_one(&h.owner).await.unwrap();
+    assert!((6.9..=7.1).contains(&days), "{days}");
+}
+
+#[tokio::test]
+async fn staff_see_every_payment_and_customers_do_not() {
+    let Some(h) = start().await else { return };
+    let (owner, _) = platform_owner(&h).await;
+    let (shop, shop_org) = customer(&h, "shop@client.example", "Client Shop").await;
+    for (status, cents) in [("paid", 14900), ("paid", 25800), ("pending", 12900), ("failed", 14900)] {
+        sqlx::query("INSERT INTO payments (org_id, plan_key, seats, amount_cents, status, provider, created_by) VALUES ($1::uuid, 'business', 2, $2, $3, 'test', $4::uuid)")
+            .bind(&shop_org)
+            .bind(cents)
+            .bind(status)
+            .bind(&shop.id)
+            .execute(&h.owner)
+            .await
+            .unwrap();
+    }
+    let all = owner.get("/api/v1/platform/payments").await.ok();
+    assert_eq!(all["payments"].as_array().unwrap().len(), 4);
+    assert_eq!(all["totals"], json!({ "paid_cents": 40700, "pending_cents": 12900, "failed_cents": 14900, "refunded_cents": 0 }));
+    assert_eq!(all["payments"][0]["organization"], "Client Shop Homes");
+    assert_eq!(all["payments"][0]["payer_email"], "shop@client.example");
+    assert_eq!(shop.get("/api/v1/platform/payments").await.status, 403);
+    // The database refuses it to the API's own login for anyone who is not staff.
+    let api = sqlx::PgPool::connect(&std::env::var("TEST_DATABASE_URL").unwrap()).await.unwrap();
+    assert!(sqlx::query("SELECT * FROM turf_platform_payments($1::uuid)").bind(&shop.id).fetch_all(&api).await.is_err());
+}

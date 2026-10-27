@@ -83,13 +83,13 @@ struct Join {
 /// signing up or signing in happens there first. The invitation must be for this person's email address.
 async fn join_invitation(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Join>) -> ApiResult<Json<Value>> {
     let mut tx = state.db.begin().await?;
-    let invite: Option<(Uuid, String, Vec<String>, Vec<Uuid>)> = sqlx::query_as(
-        "SELECT org_id, email::text, roles, team_ids FROM invitations WHERE token_hash = $1 AND accepted_at IS NULL AND expires_at > now() FOR UPDATE",
+    let invite: Option<(Uuid, String, Vec<String>, Vec<Uuid>, Option<i32>)> = sqlx::query_as(
+        "SELECT org_id, email::text, roles, team_ids, access_days FROM invitations WHERE token_hash = $1 AND accepted_at IS NULL AND expires_at > now() FOR UPDATE",
     )
     .bind(auth::token_hash(body.token.trim()))
     .fetch_optional(&mut *tx)
     .await?;
-    let (org, email, roles, teams) = invite.ok_or_else(|| ApiError::forbidden("This invitation is not valid or has expired"))?;
+    let (org, email, roles, teams, access_days) = invite.ok_or_else(|| ApiError::forbidden("This invitation is not valid or has expired"))?;
     if !email.eq_ignore_ascii_case(&ctx.email) {
         return Err(ApiError::forbidden("This invitation is for another email address. Sign in with that address to join"));
     }
@@ -97,11 +97,12 @@ async fn join_invitation(State(state): State<AppState>, ctx: Ctx, Json(body): Js
     sqlx::query("SELECT set_config('turf.org_id', $1, true)").bind(org.to_string()).execute(&mut *tx).await?;
     // Seats can have been reduced since the invitation was sent; this invitation's seat is now a member's.
     crate::routes::billing::check_join(&mut tx).await?;
-    sqlx::query("INSERT INTO memberships (org_id, user_id, roles, team_ids) VALUES ($1, $2, $3, $4) ON CONFLICT (org_id, user_id) DO UPDATE SET roles = EXCLUDED.roles, team_ids = EXCLUDED.team_ids")
+    sqlx::query("INSERT INTO memberships (org_id, user_id, roles, team_ids, expires_at) VALUES ($1, $2, $3, $4, CASE WHEN $5::int IS NULL THEN NULL ELSE now() + make_interval(days => $5) END) \n         ON CONFLICT (org_id, user_id) DO UPDATE SET roles = EXCLUDED.roles, team_ids = EXCLUDED.team_ids, expires_at = EXCLUDED.expires_at")
         .bind(org)
         .bind(ctx.user_id)
         .bind(&roles)
         .bind(&teams)
+        .bind(access_days)
         .execute(&mut *tx)
         .await?;
     crate::record::access_changed(&mut tx).await?;
@@ -117,7 +118,7 @@ async fn auth_service(State(state): State<AppState>) -> Json<Value> {
 async fn me(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
     let platform_role: Option<String> = sqlx::query_scalar("SELECT platform_role FROM users WHERE id = $1").bind(ctx.user_id).fetch_one(&state.db).await?;
     let orgs: Vec<(Uuid, String)> =
-        sqlx::query_as("SELECT o.id, o.name FROM memberships m JOIN organizations o ON o.id = m.org_id WHERE m.user_id = $1 ORDER BY o.name")
+        sqlx::query_as("SELECT o.id, o.name FROM memberships m JOIN organizations o ON o.id = m.org_id WHERE m.user_id = $1 AND (m.expires_at IS NULL OR m.expires_at > now()) ORDER BY o.name")
             .bind(ctx.user_id)
             .fetch_all(&state.db)
             .await?;

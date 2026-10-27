@@ -51,13 +51,13 @@ async fn members(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Valu
     let mut tx = db::begin(&state.db, &scope).await?;
     let rows: Vec<Value> = sqlx::query_scalar(
         "SELECT json_build_object('user_id', u.id, 'email', u.email, 'name', u.display_name, 'roles', m.roles, 'restrictions', m.restrictions, \
-           'team_ids', m.team_ids, 'project_ids', m.project_ids, 'mfa', u.totp_secret IS NOT NULL, 'disabled', u.disabled_at IS NOT NULL)::jsonb \
+           'team_ids', m.team_ids, 'project_ids', m.project_ids, 'mfa', u.totp_secret IS NOT NULL, 'disabled', u.disabled_at IS NOT NULL, \n           'expires_at', m.expires_at, 'expired', m.expires_at IS NOT NULL AND m.expires_at <= now())::jsonb \
          FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.org_id = turf_org() ORDER BY u.display_name",
     )
     .fetch_all(&mut *tx)
     .await?;
     let invites: Vec<Value> = sqlx::query_scalar(
-        "SELECT json_build_object('email', email, 'roles', roles, 'expires_at', expires_at)::jsonb FROM invitations \
+        "SELECT json_build_object('email', email, 'roles', roles, 'expires_at', expires_at, 'access_days', access_days)::jsonb FROM invitations \
          WHERE org_id = turf_org() AND accepted_at IS NULL AND expires_at > now() ORDER BY expires_at",
     )
     .fetch_all(&mut *tx)
@@ -95,6 +95,8 @@ struct Invite {
     roles: Vec<String>,
     #[serde(default)]
     team_ids: Vec<Uuid>,
+    /// How long their access lasts once they accept, in days. Absent: no end date.
+    access_days: Option<i32>,
 }
 
 /// Creates an invitation and returns its one-time token. Sending it is the administrator's choice (or the email
@@ -107,21 +109,25 @@ async fn invite(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Invite
     }
     let mut tx = db::begin(&state.db, &scope).await?;
     valid_roles(&mut tx, &body.roles).await?;
+    if body.access_days.is_some_and(|d| !(1..=3650).contains(&d)) {
+        return Err(ApiError::bad("Access can last 1 to 3650 days"));
+    }
     // The plan must allow a team and have a free seat (an open invitation holds one).
     crate::routes::billing::check_invite(&mut tx).await?;
     let (token, hash) = auth::new_token();
     sqlx::query(
-        "INSERT INTO invitations (token_hash, org_id, email, roles, team_ids, invited_by, expires_at) VALUES ($1, turf_org(), $2, $3, $4, $5, now() + interval '7 days')",
+        "INSERT INTO invitations (token_hash, org_id, email, roles, team_ids, invited_by, expires_at, access_days) VALUES ($1, turf_org(), $2, $3, $4, $5, now() + interval '7 days', $6)",
     )
     .bind(&hash)
     .bind(&email)
     .bind(&body.roles)
     .bind(&body.team_ids)
     .bind(ctx.user_id)
+    .bind(body.access_days)
     .execute(&mut *tx)
     .await?;
     let mut c = actor_change(&ctx, "invitation", scope.org_id, "member.invited");
-    c.after = Some(json!({ "email": email, "roles": body.roles }));
+    c.after = Some(json!({ "email": email, "roles": body.roles, "access_days": body.access_days }));
     record(&mut tx, c).await?;
     tx.commit().await?;
     Ok(Json(json!({ "token": token, "expires_in_days": 7 })))
@@ -133,6 +139,8 @@ struct MemberChange {
     restrictions: Option<Vec<String>>,
     team_ids: Option<Vec<Uuid>>,
     project_ids: Option<Vec<Uuid>>,
+    /// Sets the end of their access to this many days from now; 0 removes the end date.
+    access_days: Option<i32>,
 }
 
 async fn update_member(State(state): State<AppState>, ctx: Ctx, Path(user): Path<Uuid>, Json(body): Json<MemberChange>) -> ApiResult<Json<Value>> {
@@ -149,6 +157,14 @@ async fn update_member(State(state): State<AppState>, ctx: Ctx, Path(user): Path
         }
         valid_roles(&mut tx, roles).await?;
     }
+    if let Some(days) = body.access_days {
+        if !(0..=3650).contains(&days) {
+            return Err(ApiError::bad("Access can last 1 to 3650 days, or 0 for no end"));
+        }
+        if is_owner(&mut tx, user).await? {
+            return Err(ApiError::forbidden("The owner's access has no end date"));
+        }
+    }
     if let Some(restrictions) = &body.restrictions {
         if let Some(bad) = restrictions.iter().find(|r| !CAPABILITIES.contains(&r.as_str()) && !r.starts_with("scope:")) {
             return Err(ApiError::bad(format!("{bad} is not a capability")));
@@ -156,13 +172,14 @@ async fn update_member(State(state): State<AppState>, ctx: Ctx, Path(user): Path
     }
     let after: Value = sqlx::query_scalar(
         "UPDATE memberships SET roles = coalesce($2, roles), restrictions = coalesce($3, restrictions), team_ids = coalesce($4, team_ids), \
-           project_ids = coalesce($5, project_ids) WHERE org_id = turf_org() AND user_id = $1 RETURNING to_jsonb(memberships.*)",
+           project_ids = coalesce($5, project_ids), \n           expires_at = CASE WHEN $6::int IS NULL THEN expires_at WHEN $6 = 0 THEN NULL ELSE now() + make_interval(days => $6) END \n         WHERE org_id = turf_org() AND user_id = $1 RETURNING to_jsonb(memberships.*)",
     )
     .bind(user)
     .bind(&body.roles)
     .bind(&body.restrictions)
     .bind(&body.team_ids)
     .bind(&body.project_ids)
+    .bind(body.access_days)
     .fetch_one(&mut *tx)
     .await?;
     access_changed(&mut tx).await?;
