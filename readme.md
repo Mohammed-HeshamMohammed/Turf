@@ -2,8 +2,8 @@
 
 This branch is a **production snapshot of one part of Turf**: only the files this part needs, at the same paths as in `Full CRM Turf/` on `main`.
 
-- Last changed from `main` at `573c142` (2026-10-27)
-- Content id: `20084fcb0b6329e011ba883effad6adccf6c52cd` (the branch is only refreshed when this changes)
+- Last changed from `main` at `560e61b` (2026-10-27)
+- Content id: `6a4c5a420348a0c6ad3af23e03f7bcab2fafae87` (the branch is only refreshed when this changes)
 - Holds: `services/core-api`, `infra/k8s/core-api`, `infra/k8s/core-api-worker`, `services/auth/verify`, `contracts/api-v1.yaml`, `tools/load-env.sh`, `tools/env-init.mjs`, `env/core-api.env.example`, `env/worker.env.example`, `env/README.md`
 - 103 files
 - Build and test: cd services/core-api/rust && cargo test --workspace   (needs PostgreSQL: services/core-api/README.md)

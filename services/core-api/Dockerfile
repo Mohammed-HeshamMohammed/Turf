@@ -4,6 +4,8 @@
 # It needs PostgreSQL (DATABASE_URL, MIGRATION_DATABASE_URL) and its settings from env/core-api.env (env/README.md).
 FROM rust:1 AS build
 WORKDIR /src
+COPY services/auth/verify ./services/auth/verify
+COPY services/core-api/rust ./services/core-api/rust
 WORKDIR /src/services/core-api/rust
 RUN cargo build --release -p turf-api
 
