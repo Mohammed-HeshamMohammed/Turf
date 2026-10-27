@@ -1,0 +1,459 @@
+/* Multi-page additions. The base tokens and components are in landing.css. */
+.top nav a[aria-current="page"] {
+  color: var(--ink);
+  box-shadow: inset 0 -2px 0 var(--ink);
+}
+.menu-toggle {
+  display: none;
+  min-height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--dark);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.center {
+  text-align: center;
+}
+.center .sub {
+  margin-bottom: 20px;
+}
+.center-text {
+  margin-top: 18px;
+  text-align: center;
+}
+.fine {
+  color: var(--muted);
+  font-size: 14px;
+}
+.fine a {
+  color: var(--ink);
+  font-weight: 600;
+}
+.more {
+  margin-top: auto;
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1.5px solid var(--accent);
+}
+.more:hover {
+  border-color: var(--ink);
+}
+.card .price {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.price span {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.reveal.in {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.badge.now {
+  background: var(--good);
+  color: var(--good-ink);
+}
+.badge.preview {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.badge.soon {
+  background: var(--well);
+  color: var(--muted);
+}
+
+.hero-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin-top: 28px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.hero-points li::before {
+  content: "✓";
+  margin-right: 8px;
+  color: var(--good-ink);
+  font-weight: 700;
+}
+
+.strip {
+  padding-top: 24px;
+  padding-bottom: 24px;
+}
+.old-new {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr auto;
+  align-items: center;
+  gap: 24px;
+  padding: 32px 36px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+.old-new h2 {
+  font-size: clamp(24px, 3vw, 32px);
+}
+.old-new .sub {
+  font-size: 16px;
+  color: var(--accent-ink);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chips li {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--raised);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.tour {
+  display: grid;
+  gap: 72px;
+  margin-top: 40px;
+}
+.tour-item {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  align-items: center;
+  gap: 40px;
+}
+.tour-item.flip {
+  grid-template-columns: 1.5fr 1fr;
+}
+.tour-item.flip .tour-copy {
+  order: 2;
+}
+.tour-copy {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+.tour-copy h3 {
+  font-size: clamp(22px, 2.6vw, 30px);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.tour-copy p {
+  color: var(--muted);
+}
+
+.page-head {
+  padding: 72px max(20px, calc((100% - 1120px) / 2)) 24px;
+}
+.page-head h1 {
+  max-width: 18ch;
+  margin-top: 18px;
+  font-size: clamp(36px, 6vw, 60px);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+.page-head .lead {
+  max-width: 62ch;
+}
+/* The page's title and its first section belong together: no full section gap between them. */
+.page-head + .section:not(.band) {
+  padding-top: 24px;
+}
+
+.jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px max(20px, calc((100% - 1120px) / 2)) 24px;
+}
+.jump a {
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--raised);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+}
+.jump a:hover {
+  background: var(--accent-soft);
+}
+
+.feature {
+  scroll-margin-top: 70px;
+}
+.feature-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 48px;
+  align-items: start;
+}
+.feature-grid.flip {
+  grid-template-columns: 1.3fr 1fr;
+}
+.feature-grid.flip .feature-copy {
+  order: 2;
+}
+.feature-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.feature-title svg,
+.principles li svg {
+  padding: 10px;
+  box-sizing: content-box;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.principles li svg {
+  margin-bottom: 8px;
+}
+.feature-copy {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+.feature-copy p {
+  color: var(--muted);
+}
+.feature-copy .pitch {
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.ticks {
+  display: grid;
+  gap: 10px;
+}
+.ticks li {
+  position: relative;
+  padding-left: 28px;
+}
+.ticks li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  top: 2px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--good);
+  color: var(--good-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+.soon {
+  width: 100%;
+  padding: 18px 22px;
+  border-radius: 20px;
+  background: var(--card);
+}
+.band .soon {
+  background: var(--raised);
+}
+.soon h3 {
+  font-size: 15px;
+  color: var(--accent-ink);
+}
+.soon ul {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  color: var(--muted);
+}
+.soon li::before {
+  content: "→ ";
+}
+.feature-shots {
+  display: grid;
+  gap: 20px;
+}
+
+.table-wrap {
+  margin-top: 28px;
+  overflow-x: auto;
+  border-radius: var(--radius);
+  background: var(--raised);
+}
+.pricing-table,
+.compare-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+}
+.pricing-table th,
+.pricing-table td,
+.compare-table th,
+.compare-table td {
+  padding: 16px 20px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+.pricing-table thead th,
+.compare-table thead th {
+  font-size: 14px;
+  color: var(--muted);
+  background: var(--card);
+}
+.pricing-table td strong {
+  display: block;
+  font-size: 18px;
+}
+.pricing-table td span {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+}
+.pricing-table tbody th,
+.compare-table tbody th {
+  font-weight: 600;
+}
+.pricing-table .total th,
+.pricing-table .total td {
+  background: var(--accent-soft);
+  border-bottom: 0;
+}
+.pricing-table .total strong {
+  font-size: 22px;
+}
+.turf-col {
+  background: color-mix(in srgb, var(--good) 35%, transparent);
+  font-weight: 600;
+}
+.compare-table thead .turf-col {
+  background: var(--good);
+  color: var(--good-ink);
+}
+.fine-list {
+  display: grid;
+  gap: 8px;
+  max-width: 760px;
+  margin-top: 22px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.fine-list li::before {
+  content: "• ";
+}
+
+main:focus {
+  outline: none;
+}
+
+@media (max-width: 900px) {
+  .old-new,
+  .tour-item,
+  .tour-item.flip,
+  .feature-grid,
+  .feature-grid.flip {
+    grid-template-columns: 1fr;
+  }
+  .tour-item.flip .tour-copy,
+  .feature-grid.flip .feature-copy {
+    order: 0;
+  }
+  .tour {
+    gap: 48px;
+  }
+}
+@media (max-width: 720px) {
+  .menu-toggle {
+    display: inline-block;
+  }
+  .top {
+    flex-wrap: wrap;
+  }
+  .top nav {
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 4px;
+    padding: 8px 0 12px;
+  }
+  .top nav.open {
+    display: flex;
+  }
+  .top nav a:not(.button) {
+    display: block;
+    padding: 12px 4px;
+    font-size: 17px;
+  }
+  .top nav .button {
+    margin-top: 8px;
+  }
+  .old-new {
+    padding: 24px;
+  }
+  .pricing-table,
+  .compare-table {
+    min-width: 0;
+  }
+  .pricing-table thead,
+  .compare-table thead {
+    display: none;
+  }
+  .pricing-table tr,
+  .compare-table tr {
+    display: block;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .pricing-table th,
+  .pricing-table td,
+  .compare-table th,
+  .compare-table td {
+    display: block;
+    padding: 6px 18px;
+    border: 0;
+    background: none;
+  }
+  .pricing-table td::before,
+  .compare-table td::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .pricing-table .total th,
+  .pricing-table .total td,
+  .compare-table .turf-col {
+    background: none;
+  }
+}
