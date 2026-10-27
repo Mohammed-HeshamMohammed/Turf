@@ -3,7 +3,6 @@
 [workspace]
 resolver = "2"
 members = [
-  "services/auth",
   "desktop/backend/features/importing-lists",
   "desktop/backend/features/skip-tracing",
   "desktop/backend/features/dialer-sms",
