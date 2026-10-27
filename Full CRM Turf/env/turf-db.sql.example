@@ -1,0 +1,16 @@
+-- Runs once, when the Turf PostgreSQL first starts (Coolify: the database's "Initialization scripts"). Creates the
+-- three logins and the two databases. Never use the "postgres" superuser from an app: it would bypass row security.
+CREATE ROLE turf_owner LOGIN PASSWORD '__DB_OWNER_PASSWORD__' CREATEROLE;
+CREATE ROLE turf_app NOLOGIN NOBYPASSRLS;
+CREATE ROLE turf_api LOGIN PASSWORD '__DB_API_PASSWORD__' NOBYPASSRLS IN ROLE turf_app;
+GRANT turf_app TO turf_owner WITH ADMIN OPTION;
+CREATE DATABASE turf OWNER turf_owner;
+
+-- The auth service owns its own database; nothing else reads it.
+CREATE ROLE turf_auth LOGIN PASSWORD '__DB_AUTH_PASSWORD__';
+CREATE DATABASE turf_auth OWNER turf_auth;
+
+\connect turf
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS citext;
+GRANT CONNECT ON DATABASE turf TO turf_app;
