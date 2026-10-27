@@ -10,7 +10,8 @@ import { after, before, test } from "node:test";
 import { check, checkRepeats, crmVerdict, engineAvailable, engineConfig, locatable, prepare, saveCopy, sourceCsv, stateCode, zipPlaces } from "../src/engine.js";
 import { ALLOWED_COMMANDS, refusal } from "../scripts/service-bridge.mjs";
 
-const root = resolve(import.meta.dirname, "../../../../../service");
+// TURF_SERVICE_ROOT: where the engine is when this part is checked out alone (skip-engine-production).
+const root = process.env.TURF_SERVICE_ROOT ? resolve(process.env.TURF_SERVICE_ROOT) : resolve(import.meta.dirname, "../../../../../service");
 let child;
 
 before(() => {
