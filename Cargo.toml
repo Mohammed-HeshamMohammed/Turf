@@ -1,0 +1,8 @@
+# One workspace, one lock file and one `cargo test --workspace` for the new Rust crates (see docs/plans/service-architecture.md).
+# The desktop container (Tauri) and services/core-api/rust keep their own lock files: the container pulls in a large dependency tree.
+[workspace]
+resolver = "2"
+members = [
+  "services/auth",
+  "services/auth/verify",
+]
