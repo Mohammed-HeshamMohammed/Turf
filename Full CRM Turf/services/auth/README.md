@@ -72,8 +72,10 @@ cargo test -p turf-auth -p turf-auth-verify          # from Full CRM Turf/, on S
 AUTH_TEST_DATABASE_URL=postgres://turf_auth:turf_auth@127.0.0.1:55432/turf_auth_test \
   cargo test -p turf-auth -- --test-threads=1         # the same tests on PostgreSQL
 cargo run -p turf-auth -- new-key                     # prints a signing key for AUTH_SIGNING_KEY
-AUTH_SIGNING_KEY=... cargo run -p turf-auth           # http://localhost:8101, SQLite file auth.db
+bash services/auth/scripts/run-auth.sh                # http://localhost:8101, SQLite file services/auth/auth.db
 ```
+
+`run-auth.sh` reads its settings and signing key from `env/auth.env` (`node tools/env-init.mjs` creates it with a new key; see `env/README.md`).
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -107,3 +109,5 @@ Organizations, memberships and roles stay with the CRM: auth says **who** someon
 ## The browser client
 
 `clients/auth-client.js` is the one piece of sign-in code the website and the CRM share: sign up, sign in (with a code when auth asks), Google or Apple through a one-time code, two-step set-up and step-up, email confirmation, refresh and sign-out. The access token stays in memory and is refreshed a minute before it expires, one refresh at a time; the refresh token is kept in the browser's storage so a reload stays signed in, which is why those pages load no scripts from other sites. The website and the CRM each keep a copy, because neither can import across the repository at run time: `node services/auth/clients/sync.mjs` copies it, and the CRM's tests fail if a copy differs. Its own tests: `node --test services/auth/clients/test/*.test.mjs`.
+
+`clients/firebase-auth-client.js` has the same functions over Firebase Authentication (`docs/plans/firebase-auth.md`), plus `startProvider` and `finishProvider`, which both clients have for Google and Apple (Firebase comes back through its own redirect, not a one-time code). It takes the Firebase SDK's functions as `sdk`, so it imports nothing and its tests use a fake. Differences: no recovery codes (staff reset a lost authenticator), a sign-in waiting for its code is kept in memory, and Google in the desktop window comes with phase 3. The CRM keeps a copy (`sync.mjs`) and turns it on when built with `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID` (and optionally `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROVIDERS`). The website loads it from `website/firebase-auth.js`, a bundle with the SDK built by `node tools/firebase/build-website.mjs`, when the core API hands it a Firebase config.

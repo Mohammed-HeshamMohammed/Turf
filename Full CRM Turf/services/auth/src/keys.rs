@@ -54,7 +54,7 @@ impl Keys {
     }
 
     /// A signed access token for a person and their session.
-    pub fn sign(&self, person: &Person, sid: &str, mfa: bool, now: u64, minutes: u64) -> anyhow::Result<(String, u64)> {
+    pub fn sign(&self, person: &Person, sid: &str, mfa: bool, provider: &str, now: u64, minutes: u64) -> anyhow::Result<(String, u64)> {
         let exp = now + minutes * 60;
         let claims = Claims {
             sub: person.id.clone(),
@@ -63,6 +63,7 @@ impl Keys {
             sid: sid.into(),
             mfa,
             email_verified: person.email_verified,
+            provider: provider.into(),
             iss: ISSUER.into(),
             aud: AUDIENCE.into(),
             iat: now,

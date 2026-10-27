@@ -256,3 +256,32 @@ async fn staff_see_every_payment_and_customers_do_not() {
     let api = sqlx::PgPool::connect(&std::env::var("TEST_DATABASE_URL").unwrap()).await.unwrap();
     assert!(sqlx::query("SELECT * FROM turf_platform_payments($1::uuid)").bind(&shop.id).fetch_all(&api).await.is_err());
 }
+
+#[tokio::test]
+async fn only_people_given_access_get_in() {
+    let Some(h) = start_closed().await else { return };
+    // A new account opens nothing by itself: no trial, no workspace, and the apps are told so.
+    let stranger = h.client("stranger@example.com", "Stranger", true, true);
+    assert_eq!(stranger.post("/api/v1/organizations/trial", json!({ "organization": "Mine" })).await.status, 403);
+    assert_eq!(stranger.get("/api/v1/me").await.ok()["organizations"], json!([]));
+    assert_eq!(stranger.get("/api/v1/leads").await.status, 400);
+    assert_eq!(stranger.get("/api/v1/auth/service").await.ok()["signup"], false);
+
+    // Staff open a workspace for a customer; it has no members until its owner accepts.
+    let staff = h.client("staff@turf.example", "Turf Staff", true, true);
+    staff.get("/api/v1/me").await.ok();
+    sqlx::query("UPDATE users SET platform_role = 'admin' WHERE email = 'staff@turf.example'").execute(&h.owner).await.unwrap();
+    assert_eq!(stranger.post("/api/v1/platform/customers", json!({ "organization": "X", "email": "stranger@example.com" })).await.status, 403);
+    assert_eq!(staff.post("/api/v1/platform/customers", json!({ "organization": "Shop", "email": "nope" })).await.status, 400);
+    let opened = staff.post("/api/v1/platform/customers", json!({ "organization": "Client Shop", "email": "Boss@Shop.example" })).await.ok();
+    let org = opened["organization_id"].as_str().unwrap().to_string();
+
+    // Only the person it was sent to can accept it, and they become the business owner.
+    assert_eq!(stranger.post("/api/v1/invitations/join", json!({ "token": opened["token"] })).await.status, 403);
+    let boss = h.client("boss@shop.example", "Shop Boss", true, true);
+    boss.post("/api/v1/invitations/join", json!({ "token": opened["token"] })).await.ok();
+    boss.set_org(&org);
+    let me = boss.get("/api/v1/me").await.ok();
+    assert_eq!(me["roles"], json!(["owner"]));
+    assert_eq!(boss.get("/api/v1/leads").await.status, 200);
+}

@@ -2,6 +2,10 @@
 
 > Moved here unchanged from `backend/` and `website/` (2026-10-27, history kept). It is still one program: the CRM, billing, sync and the website together. **It has no sign-in of its own:** accounts, passwords, two-step sign-in, Google and Apple, email confirmation and sessions live only in the auth service (`services/auth`). Every request carries an auth access token (`Authorization: Bearer`) and the organization it acts in (`x-turf-org`); the API checks the token with auth's public keys and refuses to start without them (`TURF_AUTH_JWKS`, or `TURF_AUTH_JWKS_URL` to fetch them at start). There are no cookies, so there is no CSRF header and CORS allows no credentials. Removing someone from an organization ends their access there at once, because every request reads their membership. The workspace half of joining stays here: `POST /api/v1/organizations/trial` opens a trial organization for the signed-in person, `POST /api/v1/invitations/join` joins an invitation's organization (the invitation must be for their email), and a person auth vouches for gets their copy here (same id, no usable password) on their first request. `GET /api/v1/auth/service` tells the website where auth is (`TURF_AUTH_PUBLIC_URL`, default `http://localhost:8101`), and the website's Content Security Policy allows requests to that address and nowhere else. The live-updates socket (`/events`) takes the token in its subprotocol list (`turf.v1`, `bearer.<token>`, `org.<id>`), since a browser cannot add headers to a WebSocket. Splitting the CRM out into `services/features/crm` comes later.
 
+> **Firebase (phase 1 of `docs/plans/firebase-auth.md`).** With `TURF_FIREBASE_PROJECT=<project id>` the API also accepts Firebase ID tokens, checked with Google's public keys, which it fetches at start and every hour after (`TURF_FIREBASE_JWKS_URL`; or give them in `TURF_FIREBASE_JWKS`). A Firebase token carries a Firebase uid, kept in `users.firebase_uid`: an account moved from the auth service is imported with its id as its uid and linked on its first request; anyone else gets a new id here, and an email already used by another account is refused. Only an authenticator code counts as the second sign-in step.
+
+> **How people sign in.** Every token carries `provider` ("password", "google", "apple"; the auth service records it on each session, Firebase says it in `sign_in_provider`). The API keeps the last one in `users.sign_in_provider` and returns it as `sign_in` on `/me`, the directory, the team page's members and the admin People and Staff lists; the apps show it as the provider's mark (`SignInMark` in the CRM, `signInMark` on the website). Someone who has not made a request since this was added has none, and shows no mark. The API starts with either key set, or both while sign-in moves. With `TURF_FIREBASE_API_KEY` and `TURF_FIREBASE_APP_ID` too (and optionally `TURF_FIREBASE_AUTH_DOMAIN`, default `<project>.firebaseapp.com`, and `TURF_FIREBASE_PROVIDERS`, default `google`), `GET /api/v1/auth/service` hands the website its Firebase web config, and the website signs in with Firebase. Its Content Security Policy then also allows Firebase's two sign-in APIs, Google's sign-in script (`https://apis.google.com`) and the project's sign-in frame, and nothing else.
+
 The server side of the full CRM (see `docs/TURF_CRM_AND_PERFORMANCE_PLAN.md`). The desktop app's local Skip Tracing service stays in `service/`.
 
 (Paths below are relative to `Full CRM Turf/`. This service is `services/core-api/`; the shared `contracts/` and `docs/saas/` stay at the top of `Full CRM Turf/`.)
@@ -46,8 +50,11 @@ This starts PostgreSQL and Redis with their data in `X:\turf-data` (set `TURF_DA
 Run the API:
 
 ```bash
-cd services/core-api/rust && DATABASE_URL=postgres://turf_api:turf_api@127.0.0.1:55432/turf MIGRATION_DATABASE_URL=postgres://turf_owner:turf_owner@127.0.0.1:55432/turf REDIS_URL=redis://127.0.0.1:56379 TURF_AUTH_JWKS_URL=http://localhost:8101/.well-known/jwks.json TURF_WORKER_TOKENS=go=change-me-to-a-long-random-token cargo run -p turf-api
+node tools/env-init.mjs                       # once, from Full CRM Turf/: env/core-api.env, env/worker.env, ... with new secrets
+bash services/core-api/scripts/run-api.sh     # reads env/core-api.env; start the auth service first
 ```
+
+Every setting and secret (database, worker tokens, webhook secret, auth, Firebase) is in `env/core-api.env`; `env/README.md` lists them. A variable already set in the environment wins over the file.
 
 Tests (unit, contract, and end to end against the real database):
 
@@ -86,13 +93,16 @@ The dashboard is on the website at `/#/admin` (an **Admin** button appears for s
 | Tab | Staff | Owner only |
 | --- | --- | --- |
 | Overview | Totals, newest workspaces, latest staff activity | |
-| Workspaces | Every workspace's plan, minutes, seats, payments; suspend or reactivate; extend by 7 or 30 days | Set any plan and seats without a payment; remove all limits |
+| Workspaces | Open a workspace for a customer (a trial, with a link that makes them its owner); every workspace's plan, minutes, seats, payments; suspend or reactivate; extend by 7 or 30 days | Set any plan and seats without a payment; remove all limits |
+| Payments | Every payment across workspaces, with paid, waiting, failed and refunded totals | |
 | People | Search everyone; turn a customer's access off or on | Turn another administrator's access off |
 | Staff | See Turf's staff | Name or remove system administrators |
 | Activity | Every change made from the dashboard (`platform_events`) | |
 | My workspace | Open a workspace of Turf's own with no plan, so no seat, minute or time limit, for as many callers and CRM users as needed | |
 
-Customer records are never shown. A suspended workspace refuses everything until reactivated; turning someone's access off refuses them on this server (auth still knows the account). With `TURF_REQUIRE_MFA=true` the dashboard needs two-step sign-in.
+Customer records are never shown. A suspended workspace refuses everything until reactivated; turning someone's access off refuses them on this server (auth still knows the account). Staff always need the authenticator code, whatever `TURF_REQUIRE_MFA` says.
+
+**Who gets in.** Only people given access: an account at auth opens nothing here by itself. Staff open a customer's workspace and send its owner the link (`POST /api/v1/platform/customers`); the owner invites everyone else, with an end date if they like. Members whose access ends, or is removed, lose the workspace at once, and the desktop app erases that workspace's offline copy at its next check. `TURF_PUBLIC_SIGNUP=true` lets new accounts open their own trial again (off by default).
 
 ## How a change flows
 

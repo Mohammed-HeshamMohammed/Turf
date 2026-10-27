@@ -16,13 +16,25 @@ import sys
 import urllib.error
 import urllib.request
 import uuid
+from pathlib import Path
 
 if len(sys.argv) < 3:
     sys.exit(__doc__)
 payment, amount = sys.argv[1], int(sys.argv[2])
 failed = len(sys.argv) > 3 and sys.argv[3] == "failed"
 base = (sys.argv[4] if len(sys.argv) > 4 else sys.argv[3] if len(sys.argv) > 3 and sys.argv[3].startswith("http") else "http://127.0.0.1:8088").rstrip("/")
-secret = os.environ.get("TURF_BILLING_WEBHOOK_SECRET", "dev-webhook-secret-change-me-000000")
+def setting(name: str) -> str:
+    """From the environment, else env/core-api.env (env/README.md), where run-api.sh reads it too."""
+    if os.environ.get(name):
+        return os.environ[name]
+    path = Path(__file__).resolve().parents[3] / "env" / "core-api.env"
+    for line in path.read_text(encoding="utf-8").splitlines() if path.exists() else []:
+        if line.startswith(name + "="):
+            return line.split("=", 1)[1].strip()
+    sys.exit(f"Set {name}, or run node tools/env-init.mjs (see env/README.md)")
+
+
+secret = setting("TURF_BILLING_WEBHOOK_SECRET")
 
 event = {"event_id": "dev-" + uuid.uuid4().hex, "type": "payment.failed" if failed else "payment.succeeded", "payment_id": payment,
          "amount_cents": amount, "provider_ref": "dev-" + uuid.uuid4().hex[:12]}

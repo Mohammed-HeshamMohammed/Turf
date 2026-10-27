@@ -51,7 +51,7 @@ async fn members(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Valu
     let mut tx = db::begin(&state.db, &scope).await?;
     let rows: Vec<Value> = sqlx::query_scalar(
         "SELECT json_build_object('user_id', u.id, 'email', u.email, 'name', u.display_name, 'roles', m.roles, 'restrictions', m.restrictions, \
-           'team_ids', m.team_ids, 'project_ids', m.project_ids, 'mfa', u.totp_secret IS NOT NULL, 'disabled', u.disabled_at IS NOT NULL, \n           'expires_at', m.expires_at, 'expired', m.expires_at IS NOT NULL AND m.expires_at <= now())::jsonb \
+           'team_ids', m.team_ids, 'project_ids', m.project_ids, 'mfa', u.totp_secret IS NOT NULL, 'disabled', u.disabled_at IS NOT NULL, 'sign_in', u.sign_in_provider, \n           'expires_at', m.expires_at, 'expired', m.expires_at IS NOT NULL AND m.expires_at <= now())::jsonb \
          FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.org_id = turf_org() ORDER BY u.display_name",
     )
     .fetch_all(&mut *tx)
@@ -476,7 +476,7 @@ async fn directory(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Va
     }
     let mut tx = db::begin(&state.db, &scope).await?;
     let rows: Vec<Value> = sqlx::query_scalar(
-        "SELECT json_build_object('id', u.id, 'name', u.display_name, 'roles', m.roles, 'team_ids', m.team_ids)::jsonb \
+        "SELECT json_build_object('id', u.id, 'name', u.display_name, 'roles', m.roles, 'team_ids', m.team_ids, 'sign_in', u.sign_in_provider)::jsonb \
          FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.org_id = turf_org() AND u.disabled_at IS NULL ORDER BY u.display_name",
     )
     .fetch_all(&mut *tx)

@@ -137,13 +137,13 @@ pub(crate) async fn user_by(state: &AppState, column: &str, value: &str) -> Auth
     })
 }
 
-/// Opens a session and returns the tokens for it.
-pub(crate) async fn open_session(state: &AppState, user: &User, kind: &str, mfa_passed: bool) -> AuthResult<Value> {
+/// Opens a session and returns the tokens for it. `provider`: how it began ("password", "google", "apple").
+pub(crate) async fn open_session(state: &AppState, user: &User, kind: &str, mfa_passed: bool, provider: &str) -> AuthResult<Value> {
     let t = now() as i64;
     let id = Uuid::new_v4().to_string();
     let (refresh, refresh_hash) = new_secret();
     let expires = t + state.config.refresh_days as i64 * 86_400;
-    sqlx::query("INSERT INTO sessions (id, user_id, refresh_hash, kind, mfa_passed, created_at, last_seen_at, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $6, $7)")
+    sqlx::query("INSERT INTO sessions (id, user_id, refresh_hash, kind, mfa_passed, created_at, last_seen_at, expires_at, provider) VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8)")
         .bind(&id)
         .bind(&user.id)
         .bind(&refresh_hash)
@@ -151,14 +151,15 @@ pub(crate) async fn open_session(state: &AppState, user: &User, kind: &str, mfa_
         .bind(mfa_passed as i64)
         .bind(t)
         .bind(expires)
+        .bind(provider)
         .execute(&state.db)
         .await?;
-    tokens(state, user, &id, mfa_passed, refresh)
+    tokens(state, user, &id, mfa_passed, provider, refresh)
 }
 
-fn tokens(state: &AppState, user: &User, sid: &str, mfa: bool, refresh: String) -> AuthResult<Value> {
+fn tokens(state: &AppState, user: &User, sid: &str, mfa: bool, provider: &str, refresh: String) -> AuthResult<Value> {
     let person = TokenPerson { id: user.id.clone(), email: user.email.clone(), name: user.name.clone(), email_verified: user.email_verified };
-    let (access, expires_in) = state.keys.sign(&person, sid, mfa, now(), state.config.access_minutes)?;
+    let (access, expires_in) = state.keys.sign(&person, sid, mfa, provider, now(), state.config.access_minutes)?;
     Ok(json!({
         "access_token": access,
         "token_type": "Bearer",
@@ -258,7 +259,7 @@ async fn sign_up(State(state): State<AppState>, Json(body): Json<SignUp>) -> Aut
     email::outbox(&mut tx, "user.signed_up", json!({ "user_id": user.id, "version": 1 })).await?;
     let link = email::new_verification(&mut tx, &user.id).await?;
     tx.commit().await?;
-    let mut reply = open_session(&state, &user, kind, false).await?;
+    let mut reply = open_session(&state, &user, kind, false, "password").await?;
     email::with_dev_token(&state, &mut reply, link);
     Ok((StatusCode::CREATED, Json(reply)))
 }
@@ -298,7 +299,7 @@ async fn sign_in(State(state): State<AppState>, Json(body): Json<SignIn>) -> Aut
         }
     }
     sqlx::query("DELETE FROM failed_sign_ins WHERE email = $1").bind(&email).execute(&state.db).await?;
-    Ok(Json(open_session(&state, &user, kind, mfa_passed).await?))
+    Ok(Json(open_session(&state, &user, kind, mfa_passed, "password").await?))
 }
 
 /// Marks a recovery code used. True when it was one of the person's unused codes.
@@ -321,7 +322,7 @@ struct Refresh {
 async fn refresh(State(state): State<AppState>, Json(body): Json<Refresh>) -> AuthResult<Json<Value>> {
     let presented = sha256(body.refresh_token.trim());
     let t = now() as i64;
-    let row = sqlx::query("SELECT id, user_id, mfa_passed FROM sessions WHERE refresh_hash = $1 AND revoked_at IS NULL AND expires_at > $2")
+    let row = sqlx::query("SELECT id, user_id, mfa_passed, provider FROM sessions WHERE refresh_hash = $1 AND revoked_at IS NULL AND expires_at > $2")
         .bind(&presented)
         .bind(t)
         .fetch_optional(&state.db)
@@ -334,6 +335,7 @@ async fn refresh(State(state): State<AppState>, Json(body): Json<Refresh>) -> Au
     let sid: String = row.try_get("id")?;
     let user_id: String = row.try_get("user_id")?;
     let mfa: i64 = row.try_get("mfa_passed")?;
+    let provider: String = row.try_get("provider")?;
     let user = user_by(&state, "id", &user_id).await?.filter(|u| !u.disabled).ok_or(AuthError::Unauthenticated)?;
     let (next, next_hash) = new_secret();
     sqlx::query("UPDATE sessions SET refresh_hash = $1, prev_refresh_hash = $2, last_seen_at = $3 WHERE id = $4")
@@ -343,7 +345,7 @@ async fn refresh(State(state): State<AppState>, Json(body): Json<Refresh>) -> Au
         .bind(&sid)
         .execute(&state.db)
         .await?;
-    Ok(Json(tokens(&state, &user, &sid, mfa == 1, next)?))
+    Ok(Json(tokens(&state, &user, &sid, mfa == 1, &provider, next)?))
 }
 
 #[derive(Deserialize, Default)]
@@ -490,7 +492,7 @@ async fn mfa_verify(State(state): State<AppState>, Person(claims): Person, Json(
     }
     sqlx::query("UPDATE sessions SET mfa_passed = 1 WHERE id = $1").bind(&claims.sid).execute(&state.db).await?;
     let person = TokenPerson { id: user.id.clone(), email: user.email.clone(), name: user.name.clone(), email_verified: user.email_verified };
-    let (access, expires_in) = state.keys.sign(&person, &claims.sid, true, now(), state.config.access_minutes)?;
+    let (access, expires_in) = state.keys.sign(&person, &claims.sid, true, &claims.provider, now(), state.config.access_minutes)?;
     Ok(Json(json!({ "access_token": access, "token_type": "Bearer", "expires_in": expires_in })))
 }
 

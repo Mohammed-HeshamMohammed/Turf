@@ -83,7 +83,7 @@ async fn a_person_auth_vouches_for_is_known_here_from_their_first_request() {
     // Signed up at auth, email not confirmed yet.
     let (status, me) = get(&h.base, "/api/v1/me", &token_with(&h, &id, "New.Person@Example.com", "New Person", false, false), None).await;
     assert_eq!(status, 200, "{me}");
-    assert_eq!(me["user"], json!({ "id": id, "email": "new.person@example.com", "name": "New Person" }));
+    assert_eq!(me["user"], json!({ "id": id, "email": "new.person@example.com", "name": "New Person", "sign_in": "password" }));
     assert_eq!(me["organizations"], json!([]));
     let verified: bool = sqlx::query_scalar("SELECT email_verified_at IS NOT NULL FROM users WHERE id = $1::uuid").bind(&id).fetch_one(&h.owner).await.unwrap();
     assert!(!verified);
@@ -170,7 +170,7 @@ async fn the_live_events_socket_takes_the_token_in_its_protocols() {
 
     // The website finds the auth service here.
     let (status, service) = get(&h.base, "/api/v1/auth/service", &t, None).await;
-    assert_eq!((status, service), (200, json!({ "url": "http://auth.example" })));
+    assert_eq!((status, service), (200, json!({ "url": "http://auth.example", "signup": true, "firebase": null })));
 }
 
 #[tokio::test]

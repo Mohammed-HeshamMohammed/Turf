@@ -253,7 +253,8 @@ export function App() {
     const quiet = promise => promise.catch(() => []);
     const [directory, teams, projects] = await Promise.all([quiet(api.directory()), quiet(api.teams()), quiet(api.projects())]);
     const organization = me.organizations.find(item => item.id === me.organization_id)?.name || "";
-    apply({ type: "REMOTE_START", role, remote: { user: me.user, capabilities: me.capabilities, organization, roles: me.roles } });
+    // `people`: the workspace's members from the server, with how each signs in.
+    apply({ type: "REMOTE_START", role, remote: { user: me.user, capabilities: me.capabilities, organization, roles: me.roles, people: directory } });
     const sync = new SyncEngine({ vault, onChange: snapshot => apply(syncAction(snapshot, me.user.name)) });
     engine.current = sync;
     setConnection("remote");
