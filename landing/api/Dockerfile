@@ -4,6 +4,7 @@
 FROM node:24-slim
 WORKDIR /app
 COPY package.json ./
+COPY src ./src
 ENV PORT=8095 TURF_LANDING_DB=/data/landing.db
 RUN mkdir -p /data && chown -R node:node /data
 VOLUME /data
