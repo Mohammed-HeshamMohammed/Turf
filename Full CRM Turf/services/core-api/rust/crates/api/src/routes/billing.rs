@@ -177,7 +177,7 @@ pub async fn check_join(tx: &mut db::Tx) -> ApiResult<()> {
 pub const NO_PASSWORD: &str = "!external-sign-in";
 
 /// A new organization on the free trial for someone who already has an account: its roles and team, the person as
-/// owner and administrator, the trial subscription, and the audit entry.
+/// owner, the trial subscription, and the audit entry.
 pub async fn open_trial_organization(tx: &mut db::Tx, user: Uuid, name: &str, tz: &str, organization: Option<&str>) -> ApiResult<Uuid> {
     let organization = organization.map(str::to_string).unwrap_or_else(|| format!("{name}'s workspace"));
     let org: Uuid = sqlx::query_scalar("INSERT INTO organizations (name, timezone, account_kind) VALUES ($1, $2, 'trial') RETURNING id")
@@ -186,7 +186,7 @@ pub async fn open_trial_organization(tx: &mut db::Tx, user: Uuid, name: &str, tz
         .fetch_one(&mut **tx)
         .await?;
     seed_organization(tx, org).await?;
-    sqlx::query("INSERT INTO memberships (org_id, user_id, roles) VALUES ($1, $2, ARRAY['owner', 'admin'])").bind(org).bind(user).execute(&mut **tx).await?;
+    sqlx::query("INSERT INTO memberships (org_id, user_id, roles) VALUES ($1, $2, ARRAY['owner'])").bind(org).bind(user).execute(&mut **tx).await?;
     let trial = plan(&mut **tx, "trial").await?;
     sqlx::query(
         "INSERT INTO subscriptions (org_id, plan_key, status, seats, minutes_included, period_end) \

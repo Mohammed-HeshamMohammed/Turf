@@ -70,7 +70,29 @@ python services/core-api/scripts/dev_seed.py       # once, on a fresh database: 
 
 `dev_seed.py` makes the accounts at auth, then the organization and memberships here, and writes the local test accounts to `services/core-api/scripts/.dev-accounts.json` (git-ignored). In the CRM interface (`desktop/frontend/react`, `npm run dev`), sign in with one of them; the CRM signs in at auth and talks to `http://localhost:8088`. Owners and administrators need an authenticator code.
 
-`create_platform_admin.py <email>` promotes someone who has already signed in with auth and opened the CRM once. Records then come from the server. Changes apply on screen at once and queue as operations; offline they wait in an encrypted IndexedDB copy unlocked by a passphrase. On reconnect, a change someone else made meanwhile shows on the Sync page with both values.
+Records then come from the server. Changes apply on screen at once and queue as operations; offline they wait in an encrypted IndexedDB copy unlocked by a passphrase. On reconnect, a change someone else made meanwhile shows on the Sync page with both values.
+
+## Who runs Turf: the admin dashboard
+
+Turf's own people have a platform role (`users.platform_role`, migration `0010_platform_roles.sql`):
+
+- **Platform owner**: the owner of the app. There is exactly one, set once on the server with `python services/core-api/scripts/create_platform_owner.py <email>` after that person has signed in with auth and opened Turf once. The script refuses a second owner.
+- **System administrators**: named and removed only by the owner, from the dashboard.
+
+Nobody gets either role by signing up, by an invitation or through any customer page, and the database itself refuses a platform role from the API's login (a trigger, and `turf_platform_set_role`, which only the owner can use and which can never give the owner role). Inside a customer's workspace the highest role is the **business owner**, the person who opened it: there is no "System administrator" role there any more, the owner role cannot be given or taken, and no other role may manage members and access. Existing workspace administrators became team managers.
+
+The dashboard is on the website at `/#/admin` (an **Admin** button appears for staff). Its API is `/api/v1/platform/*`:
+
+| Tab | Staff | Owner only |
+| --- | --- | --- |
+| Overview | Totals, newest workspaces, latest staff activity | |
+| Workspaces | Every workspace's plan, minutes, seats, payments; suspend or reactivate; extend by 7 or 30 days | Set any plan and seats without a payment; remove all limits |
+| People | Search everyone; turn a customer's access off or on | Turn another administrator's access off |
+| Staff | See Turf's staff | Name or remove system administrators |
+| Activity | Every change made from the dashboard (`platform_events`) | |
+| My workspace | Open a workspace of Turf's own with no plan, so no seat, minute or time limit, for as many callers and CRM users as needed | |
+
+Customer records are never shown. A suspended workspace refuses everything until reactivated; turning someone's access off refuses them on this server (auth still knows the account). With `TURF_REQUIRE_MFA=true` the dashboard needs two-step sign-in.
 
 ## How a change flows
 

@@ -117,7 +117,7 @@ async fn a_new_person_opens_their_trial_workspace_here() {
     let org = trial["organization_id"].as_str().unwrap().to_string();
 
     let (_, me) = get(&h.base, "/api/v1/me", &t, Some(&org)).await;
-    assert_eq!(me["roles"], json!(["owner", "admin"]));
+    assert_eq!(me["roles"], json!(["owner"]));
     assert_eq!(me["subscription"]["status"], "trialing");
     assert_eq!(me["organizations"][0]["name"], "Founder Homes");
 
@@ -184,7 +184,7 @@ async fn platform_administrators_see_every_customer_and_nobody_else_does() {
     // Not yet a platform administrator: refused, like every customer.
     assert_eq!(owner.get("/api/v1/platform/organizations").await.status, 403);
     assert_eq!(customer.get("/api/v1/platform/organizations").await.status, 403);
-    sqlx::query("UPDATE users SET platform_admin = true WHERE email = 'boss@turf.example'").execute(&h.owner).await.unwrap();
+    sqlx::query("UPDATE users SET platform_role = 'admin' WHERE email = 'boss@turf.example'").execute(&h.owner).await.unwrap();
     assert_eq!(owner.get("/api/v1/me").await.ok()["platform_admin"], true);
     let overview = owner.get("/api/v1/platform/organizations").await.ok();
     assert_eq!(overview["totals"]["organizations"], 2);
@@ -222,6 +222,6 @@ async fn without_required_mfa_owners_go_straight_in() {
     assert_eq!(owner.get("/api/v1/billing").await.ok()["plan"]["key"], "trial", "no code needed");
     assert_eq!(owner.get("/api/v1/leads").await.status, 200);
     // The platform page follows the same setting.
-    sqlx::query("UPDATE users SET platform_admin = true WHERE email = 'quick@example.com'").execute(&h.owner).await.unwrap();
+    sqlx::query("UPDATE users SET platform_role = 'admin' WHERE email = 'quick@example.com'").execute(&h.owner).await.unwrap();
     assert_eq!(owner.get("/api/v1/platform/organizations").await.status, 200);
 }

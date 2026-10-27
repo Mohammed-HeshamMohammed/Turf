@@ -52,7 +52,7 @@ async fn bootstrap(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Boo
     let tz = if body.timezone.is_empty() { "UTC".to_string() } else { body.timezone.clone() };
     let org: Uuid = sqlx::query_scalar("INSERT INTO organizations (name, timezone) VALUES ($1, $2) RETURNING id").bind(name).bind(&tz).fetch_one(&mut *tx).await?;
     seed_organization(&mut tx, org).await?;
-    sqlx::query("INSERT INTO memberships (org_id, user_id, roles) VALUES ($1, $2, ARRAY['owner', 'admin'])").bind(org).bind(ctx.user_id).execute(&mut *tx).await?;
+    sqlx::query("INSERT INTO memberships (org_id, user_id, roles) VALUES ($1, $2, ARRAY['owner'])").bind(org).bind(ctx.user_id).execute(&mut *tx).await?;
     tx.commit().await?;
     Ok(Json(json!({ "organization_id": org, "user_id": ctx.user_id, "mfa_required": state.config.require_mfa })))
 }
@@ -115,7 +115,7 @@ async fn auth_service(State(state): State<AppState>) -> Json<Value> {
 }
 
 async fn me(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
-    let platform_admin: bool = sqlx::query_scalar("SELECT platform_admin FROM users WHERE id = $1").bind(ctx.user_id).fetch_one(&state.db).await?;
+    let platform_role: Option<String> = sqlx::query_scalar("SELECT platform_role FROM users WHERE id = $1").bind(ctx.user_id).fetch_one(&state.db).await?;
     let orgs: Vec<(Uuid, String)> =
         sqlx::query_as("SELECT o.id, o.name FROM memberships m JOIN organizations o ON o.id = m.org_id WHERE m.user_id = $1 ORDER BY o.name")
             .bind(ctx.user_id)
@@ -131,7 +131,8 @@ async fn me(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
         "team_ids": ctx.team_ids,
         "access_revision": ctx.access_revision,
         "mfa": { "required": ctx.mfa_required(), "enrolled": ctx.mfa_enrolled, "passed": ctx.mfa_passed },
-        "platform_admin": platform_admin,
+        "platform_admin": platform_role.is_some(),
+        "platform_role": platform_role,
         "subscription": ctx.subscription.as_ref().map(|s| json!({ "plan": s.plan, "status": s.status, "usable": s.refusal().is_none(), "reason": s.refusal() })),
     })))
 }

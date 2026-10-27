@@ -2,7 +2,7 @@
 //! integration status. Every grant change bumps the access revision.
 
 use crate::{
-    access::CAPABILITIES,
+    access::{CAPABILITIES, HELD_ROLES},
     auth::{self, Ctx},
     db::{self, Scope},
     error::{ApiError, ApiResult},
@@ -73,7 +73,20 @@ async fn valid_roles(tx: &mut db::Tx, roles: &[String]) -> ApiResult<()> {
     if let Some(role) = roles.iter().find(|r| !known.contains(r)) {
         return Err(ApiError::bad(format!("{role} is not a role here")));
     }
+    if roles.iter().any(|r| HELD_ROLES.contains(&r.as_str())) {
+        return Err(ApiError::forbidden("Only the person who opened this workspace is its owner; that role cannot be given"));
+    }
     Ok(())
+}
+
+/// Whether this member is the workspace's owner, whose role and membership nobody else can change.
+async fn is_owner(tx: &mut db::Tx, user: Uuid) -> ApiResult<bool> {
+    Ok(sqlx::query_scalar("SELECT roles && $2 FROM memberships WHERE org_id = turf_org() AND user_id = $1")
+        .bind(user)
+        .bind(HELD_ROLES.iter().map(|r| r.to_string()).collect::<Vec<_>>())
+        .fetch_optional(&mut **tx)
+        .await?
+        .unwrap_or(false))
 }
 
 #[derive(Deserialize)]
@@ -131,17 +144,10 @@ async fn update_member(State(state): State<AppState>, ctx: Ctx, Path(user): Path
         .await?
         .ok_or_else(|| ApiError::not_found("The member"))?;
     if let Some(roles) = &body.roles {
-        valid_roles(&mut tx, roles).await?;
-        // The last administrator cannot remove their own administration.
-        if user == ctx.user_id && !roles.iter().any(|r| r == "admin") {
-            let others: i64 = sqlx::query_scalar("SELECT count(*) FROM memberships WHERE org_id = turf_org() AND 'admin' = ANY(roles) AND user_id <> $1")
-                .bind(user)
-                .fetch_one(&mut *tx)
-                .await?;
-            if others == 0 {
-                return Err(ApiError::bad("Another administrator is needed before you remove your own administration"));
-            }
+        if is_owner(&mut tx, user).await? {
+            return Err(ApiError::forbidden("The owner's role cannot be changed"));
         }
+        valid_roles(&mut tx, roles).await?;
     }
     if let Some(restrictions) = &body.restrictions {
         if let Some(bad) = restrictions.iter().find(|r| !CAPABILITIES.contains(&r.as_str()) && !r.starts_with("scope:")) {
@@ -174,6 +180,9 @@ async fn remove_member(State(state): State<AppState>, ctx: Ctx, Path(user): Path
         return Err(ApiError::bad("You cannot remove yourself"));
     }
     let mut tx = db::begin(&state.db, &scope).await?;
+    if is_owner(&mut tx, user).await? {
+        return Err(ApiError::forbidden("The workspace's owner cannot be removed"));
+    }
     let removed = sqlx::query("DELETE FROM memberships WHERE org_id = turf_org() AND user_id = $1").bind(user).execute(&mut *tx).await?;
     if removed.rows_affected() == 0 {
         return Err(ApiError::not_found("The member"));
@@ -230,9 +239,16 @@ struct RoleChange {
 
 async fn update_role(State(state): State<AppState>, ctx: Ctx, Path(key): Path<String>, Json(body): Json<RoleChange>) -> ApiResult<Json<Value>> {
     let scope = ctx.require("admin")?;
+    if HELD_ROLES.contains(&key.as_str()) || key == "admin" {
+        return Err(ApiError::forbidden("This role cannot be changed"));
+    }
     if let Some(caps) = &body.capabilities {
         if let Some(bad) = caps.iter().find(|c| !CAPABILITIES.contains(&c.as_str())) {
             return Err(ApiError::bad(format!("{bad} is not a capability")));
+        }
+        // Managing access stays with the business owner.
+        if caps.iter().any(|c| c == "admin") {
+            return Err(ApiError::forbidden("Managing members and access stays with the workspace's owner"));
         }
     }
     let mut tx = db::begin(&state.db, &scope).await?;

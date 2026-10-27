@@ -67,6 +67,8 @@ pub struct Ctx {
     pub mfa_enforced: bool,
     /// The organization's subscription; `None` on a self-hosted organization, which has no limits.
     pub subscription: Option<Subscription>,
+    /// Turf has suspended this workspace from the admin dashboard.
+    pub suspended: bool,
 }
 
 /// What the request needs to know about the organization's plan.
@@ -108,6 +110,9 @@ impl Ctx {
     /// The organization scope whatever the state of its plan: for billing, so an expired organization can still pay.
     pub fn member_scope(&self) -> ApiResult<Scope> {
         let org_id = self.org_id.ok_or_else(|| ApiError::bad("Choose an organization first"))?;
+        if self.suspended {
+            return Err(ApiError::forbidden("This workspace is suspended. Contact Turf support."));
+        }
         if self.mfa_required() && !self.mfa_passed {
             return Err(ApiError::MfaRequired);
         }
@@ -128,15 +133,15 @@ async fn with_organization(state: &AppState, mut ctx: Ctx, org_id: Uuid) -> ApiR
     // Memberships are read before row security applies; the role table needs the organization set.
     let mut tx = state.db.begin().await?;
     sqlx::query("SELECT set_config('turf.org_id', $1, true)").bind(org_id.to_string()).execute(&mut *tx).await?;
-    let membership: Option<(Vec<String>, Vec<String>, Vec<Uuid>, Vec<Uuid>, i64)> = sqlx::query_as(
-        "SELECT m.roles, m.restrictions, m.team_ids, m.project_ids, o.access_revision FROM memberships m \
+    let membership: Option<(Vec<String>, Vec<String>, Vec<Uuid>, Vec<Uuid>, i64, bool)> = sqlx::query_as(
+        "SELECT m.roles, m.restrictions, m.team_ids, m.project_ids, o.access_revision, o.suspended_at IS NOT NULL FROM memberships m \
          JOIN organizations o ON o.id = m.org_id WHERE m.org_id = $1 AND m.user_id = $2",
     )
     .bind(org_id)
     .bind(ctx.user_id)
     .fetch_optional(&mut *tx)
     .await?;
-    let Some((roles, restrictions, team_ids, project_ids, revision)) = membership else {
+    let Some((roles, restrictions, team_ids, project_ids, revision, suspended)) = membership else {
         // Membership removed: the session no longer opens this organization.
         return Ok(ctx);
     };
@@ -154,6 +159,7 @@ async fn with_organization(state: &AppState, mut ctx: Ctx, org_id: Uuid) -> ApiR
     ctx.team_ids = team_ids;
     ctx.project_ids = project_ids;
     ctx.access_revision = revision;
+    ctx.suspended = suspended;
     Ok(ctx)
 }
 
@@ -211,6 +217,7 @@ pub async fn load_from_auth(state: &AppState, claims: &turf_auth_verify::Claims,
         mfa_enrolled: claims.mfa || totp_secret.is_some(),
         mfa_enforced: state.config.require_mfa,
         subscription: None,
+        suspended: false,
     };
     match org_header.map(str::trim).filter(|v| !v.is_empty()) {
         Some(org) => with_organization(state, ctx, Uuid::parse_str(org).map_err(|_| ApiError::bad("x-turf-org is not an organization id"))?).await,

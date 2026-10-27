@@ -60,7 +60,10 @@ impl From<sqlx::Error> for ApiError {
             match db.code().as_deref() {
                 Some("23505") => return ApiError::Conflict("That already exists".into()),
                 Some("23503") => return ApiError::bad("A referenced record does not exist"),
-                Some("23514") | Some("22P02") | Some("22007") | Some("22008") => return ApiError::bad("A value is not valid"),
+                Some("23514") | Some("22P02") | Some("22007") | Some("22008") | Some("22023") => return ApiError::bad("A value is not valid"),
+                // Refused by the database itself (a guard trigger or a SECURITY DEFINER function's own check).
+                Some("42501") => return ApiError::forbidden("This is not allowed"),
+                Some("P0002") => return ApiError::not_found("The person"),
                 _ => {}
             }
         }

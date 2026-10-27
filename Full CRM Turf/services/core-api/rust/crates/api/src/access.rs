@@ -13,11 +13,14 @@ pub const PRESETS: &[(&str, &str, &[&str], &str, bool)] = &[
     ("caller", "Caller", &["edit", "handoff", "call", "message"], "own", false),
     ("closer", "Acquisitions / closer", &["edit", "accept", "call", "message", "finance"], "own", false),
     ("manager", "Team manager", &["edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "rules"], "team", false),
-    ("owner", "Business owner", &["edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "review"], "organization", true),
-    // System administration alone grants no customer-record access (plan 3.1).
-    ("admin", "System administrator", &["admin"], "none", true),
+    // The person who opened the workspace, and the only one who manages access in it. Nobody can be given this role,
+    // and customers' workspaces have no "System administrator": that is Turf's own staff (users.platform_role).
+    ("owner", "Business owner", &["edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "review", "admin"], "organization", true),
     ("client", "Client / partner", &["publicComment"], "shared", false),
 ];
+
+/// Roles that belong to whoever opened the workspace: never given by an invitation or a role change.
+pub const HELD_ROLES: &[&str] = &["owner", "solo"];
 
 pub fn requires_mfa(role: &str) -> bool {
     PRESETS.iter().any(|(key, _, _, _, mfa)| *key == role && *mfa)

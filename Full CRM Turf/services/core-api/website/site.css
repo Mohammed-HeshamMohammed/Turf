@@ -99,3 +99,16 @@ button.text {
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* Admin dashboard */
+.row.spread { justify-content: space-between; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 18px; border-bottom: 1px solid var(--line); }
+.tabs a { padding: 10px 14px; color: var(--muted); text-decoration: none; font-weight: 600; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+.tabs a.active { color: var(--ink); border-bottom-color: var(--ink); }
+.button.small { min-height: 32px; padding: 0 12px; font-size: 14px; }
+.button.danger { color: var(--danger-ink); border-color: var(--danger-ink); }
+.filter { width: 100%; max-width: 360px; margin-bottom: 12px; }
+.activity { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.activity li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+details > summary { list-style: none; display: inline-flex; }
+details[open] form { margin-top: 10px; min-width: 220px; }

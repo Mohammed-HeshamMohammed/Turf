@@ -16,7 +16,8 @@ const ROLE_NAMES = {
   caller: "Caller",
   closer: "Acquisitions / closer",
   researcher: "Data researcher",
-  admin: "System administrator",
+  owner: "Business owner",
+  solo: "Solo operator",
   client: "Client / partner",
 };
 
@@ -113,7 +114,7 @@ async function refreshMe() {
   nav.replaceChildren(
     ...(me
       ? [
-          me.platform_admin ? h("a", { class: "button", href: "#/platform" }, "Customers") : null,
+          me.platform_role ? h("a", { class: "button", href: "#/admin" }, "Admin") : null,
           h("a", { class: "button", href: "#/account" }, "Account"),
           h("button", { class: "button", onclick: signOut }, "Sign out"),
         ].filter(Boolean)
@@ -616,24 +617,157 @@ async function team(billing) {
   );
 }
 
-/** For Turf's own administrators: every customer organization, its plan, minutes, seats and what it has paid. */
-async function platform() {
-  if (!(await refreshMe())) return (location.hash = "#/signin");
-  if (me.mfa.required && !me.mfa.passed) return (location.hash = "#/mfa");
-  if (!me.platform_admin) return show(notice("This page is for Turf's platform administrators.", "error"));
-  const { organizations, totals } = await api("/platform/organizations");
-  const status = item => (item.status ? h("span", { class: "badge " + (item.status === "active" ? "good" : item.status === "trialing" ? "peach" : "danger") }, item.status) : h("span", { class: "badge" }, "no limits"));
-  show(
-    h("h1", {}, "Customers"),
-    h("p", { class: "muted" }, "Every organization on this Turf server. Their CRM records are never shown here."),
+// --- Admin dashboard ---------------------------------------------------------------------------------------------------
+//
+// For Turf's own people only: the platform owner (the owner of the app) and the system administrators the owner names.
+// Nobody gets there by signing up or by an invitation; the API checks every action again, so this page only asks.
+
+const ADMIN_TABS = [
+  ["overview", "Overview"],
+  ["workspaces", "Workspaces"],
+  ["people", "People"],
+  ["staff", "Staff"],
+  ["activity", "Activity"],
+  ["mine", "My workspace"],
+];
+
+const ACTION_NAMES = {
+  "workspace.suspended": "suspended a workspace",
+  "workspace.reactivated": "reactivated a workspace",
+  "workspace.plan_changed": "changed a plan",
+  "workspace.created": "opened a staff workspace",
+  "person.disabled": "turned off access for",
+  "person.enabled": "turned on access for",
+  "staff.added": "named a system administrator:",
+  "staff.removed": "removed a system administrator:",
+};
+
+const small = (label, onclick, tone = "") => h("button", { class: "button small " + tone, type: "button", onclick }, label);
+
+/** Runs a dashboard action, then shows the tab again with what changed. */
+async function act(work, tab, done) {
+  try {
+    await work();
+    await admin(tab, done);
+  } catch (reason) {
+    await admin(tab, null, reason.message);
+  }
+}
+
+function planStatus(item) {
+  if (item.suspended) return h("span", { class: "badge danger" }, "suspended");
+  if (!item.status) return h("span", { class: "badge" }, "no limits");
+  return h("span", { class: "badge " + (item.status === "active" ? "good" : item.status === "trialing" ? "peach" : "danger") }, item.status);
+}
+
+function activityList(events) {
+  if (!events.length) return h("p", { class: "muted" }, "Nothing yet.");
+  return h(
+    "ul",
+    { class: "activity" },
+    events.map(event =>
+      h(
+        "li",
+        {},
+        h("strong", {}, event.actor),
+        " ",
+        ACTION_NAMES[event.action] || event.action,
+        " ",
+        event.target ? h("strong", {}, event.target) : null,
+        event.detail?.action ? ` (${[event.detail.action, event.detail.plan, event.detail.seats && event.detail.seats + " seats", event.detail.days && event.detail.days + " days"].filter(Boolean).join(", ")})` : null,
+        event.detail?.reason ? ` (${event.detail.reason})` : null,
+        h("small", { class: "muted" }, " · " + new Date(event.at).toLocaleString()),
+      ),
+    ),
+  );
+}
+
+async function adminOverview() {
+  const [{ totals, organizations }, { events }] = await Promise.all([api("/platform/organizations"), api("/platform/activity")]);
+  const stat = (value, label) => h("div", { class: "stat card" }, h("strong", {}, String(value)), h("small", {}, label));
+  return [
     h(
       "div",
       { class: "stats" },
-      h("div", { class: "stat card" }, h("strong", {}, String(totals.organizations)), h("small", {}, "organizations")),
-      h("div", { class: "stat card" }, h("strong", {}, String(totals.paying)), h("small", {}, "paying")),
-      h("div", { class: "stat card" }, h("strong", {}, String(totals.trials)), h("small", {}, "on the trial")),
-      h("div", { class: "stat card" }, h("strong", {}, money(totals.paid_cents)), h("small", {}, "paid in total")),
+      stat(totals.organizations, "workspaces"),
+      stat(totals.paying, "paying"),
+      stat(totals.trials, "on the trial"),
+      stat(totals.suspended, "suspended"),
+      stat(totals.people, "people"),
+      stat(money(totals.paid_cents), "paid in total"),
     ),
+    h(
+      "section",
+      { class: "card stack" },
+      h("h2", {}, "Newest workspaces"),
+      h("ul", { class: "activity" }, organizations.slice(0, 5).map(item => h("li", {}, h("strong", {}, item.name), " ", item.owner_email || "", " ", planStatus(item), h("small", { class: "muted" }, " · " + date(item.created_at))))),
+    ),
+    h("section", { class: "card stack" }, h("h2", {}, "Latest staff activity"), activityList(events.slice(0, 8))),
+  ];
+}
+
+function planForm(item) {
+  return form(
+    [
+      h("label", {}, "Plan", h("select", { name: "plan" }, ["trial", "solo", "business"].map(key => h("option", { value: key, selected: key === (item.plan || "business") }, key)))),
+      input("Seats", "seats", { type: "number", min: 1, max: 500, value: item.seats || 2 }),
+      input("Days", "days", { type: "number", min: 1, max: 3650, value: 30 }),
+    ],
+    "Set plan",
+    values =>
+      act(
+        () => api(`/platform/organizations/${item.id}/subscription`, { action: "set", plan: values.plan, seats: Number(values.seats), days: Number(values.days) }),
+        "workspaces",
+        `${item.name} is on ${values.plan} now.`,
+      ),
+  );
+}
+
+async function adminWorkspaces(you) {
+  const { organizations } = await api("/platform/organizations");
+  const search = h("input", { type: "search", placeholder: "Filter by name or owner", class: "filter" });
+  const rows = organizations.map(item => {
+    const actions = h(
+      "div",
+      { class: "row" },
+      item.suspended
+        ? small("Reactivate", () => act(() => api(`/platform/organizations/${item.id}/suspend`, { suspended: false }), "workspaces", `${item.name} is open again.`))
+        : small(
+            "Suspend",
+            () => {
+              const reason = prompt(`Suspend ${item.name}? Its people lose access at once. Reason (kept in the activity log):`);
+              if (reason !== null) act(() => api(`/platform/organizations/${item.id}/suspend`, { suspended: true, reason }), "workspaces", `${item.name} is suspended.`);
+            },
+            "danger",
+          ),
+      item.plan ? small("+7 days", () => act(() => api(`/platform/organizations/${item.id}/subscription`, { action: "extend", days: 7 }), "workspaces", `${item.name}: 7 more days.`)) : null,
+      item.plan ? small("+30 days", () => act(() => api(`/platform/organizations/${item.id}/subscription`, { action: "extend", days: 30 }), "workspaces", `${item.name}: 30 more days.`)) : null,
+      you === "owner" && item.plan
+        ? small("No limits", () => confirm(`Take ${item.name} off its plan? It will have no seat, minute or time limits.`) && act(() => api(`/platform/organizations/${item.id}/subscription`, { action: "unlimited" }), "workspaces", `${item.name} has no limits now.`))
+        : null,
+      you === "owner" ? h("details", {}, h("summary", { class: "button small" }, "Set plan"), planForm(item)) : null,
+    );
+    const row = h(
+      "tr",
+      {},
+      h("td", {}, item.name),
+      h("td", {}, item.owner_email || "—"),
+      h("td", {}, item.plan || "—"),
+      h("td", {}, planStatus(item)),
+      h("td", {}, item.minutes_included === null ? "—" : `${item.minutes_used.toLocaleString()} / ${item.minutes_included.toLocaleString()}`),
+      h("td", {}, item.seats === null ? "—" : String(item.seats)),
+      h("td", {}, String(item.members)),
+      h("td", {}, item.period_end ? date(item.period_end) : "—"),
+      h("td", {}, money(item.paid_cents)),
+      h("td", {}, actions),
+    );
+    row.dataset.text = `${item.name} ${item.owner_email || ""}`.toLowerCase();
+    return row;
+  });
+  search.addEventListener("input", () => rows.forEach(row => (row.hidden = !row.dataset.text.includes(search.value.trim().toLowerCase()))));
+  return [
+    h("p", { class: "muted" }, "Every customer workspace. Their CRM records are never shown here."),
+    search,
     h(
       "section",
       { class: "card" },
@@ -643,35 +777,167 @@ async function platform() {
         h(
           "table",
           {},
-          h(
-            "thead",
-            {},
-            h("tr", {}, ["Organization", "Owner", "Plan", "Status", "Minutes used", "Seats", "Members", "Period ends", "Paid", "Joined"].map(title => h("th", {}, title))),
-          ),
+          h("thead", {}, h("tr", {}, ["Workspace", "Owner", "Plan", "Status", "Minutes", "Seats", "Members", "Period ends", "Paid", ""].map(title => h("th", {}, title)))),
+          h("tbody", {}, rows),
+        ),
+      ),
+    ),
+  ];
+}
+
+async function adminPeople(you, query = "") {
+  const { people } = await api("/platform/people?q=" + encodeURIComponent(query));
+  const finder = form([input("Email or name", "q", { type: "search", value: query, required: false })], "Search", async values => {
+    const nodes = await adminPeople(you, values.q || "");
+    show(...adminFrame("people", you, nodes));
+  });
+  const canChange = person => person.platform_role !== "owner" && person.id !== me.user.id && (!person.platform_role || you === "owner");
+  return [
+    finder,
+    h(
+      "section",
+      { class: "card" },
+      h(
+        "div",
+        { class: "table-wrap" },
+        h(
+          "table",
+          {},
+          h("thead", {}, h("tr", {}, ["Name", "Email", "Workspaces", "Turf role", "Access", ""].map(title => h("th", {}, title)))),
           h(
             "tbody",
             {},
-            organizations.map(item =>
+            people.map(person =>
               h(
                 "tr",
                 {},
-                h("td", {}, item.name),
-                h("td", {}, item.owner_email || "—"),
-                h("td", {}, item.plan || "—"),
-                h("td", {}, status(item)),
-                h("td", {}, item.minutes_included === null ? "—" : `${item.minutes_used.toLocaleString()} / ${item.minutes_included.toLocaleString()}`),
-                h("td", {}, item.seats === null ? "—" : String(item.seats)),
-                h("td", {}, String(item.members)),
-                h("td", {}, item.period_end ? date(item.period_end) : "—"),
-                h("td", {}, money(item.paid_cents)),
-                h("td", {}, date(item.created_at)),
+                h("td", {}, person.name),
+                h("td", {}, person.email),
+                h("td", {}, person.workspaces.map(w => `${w.name} (${w.roles.map(key => ROLE_NAMES[key] || key).join(", ")})`).join("; ") || "—"),
+                h("td", {}, person.platform_role === "owner" ? h("span", { class: "badge peach" }, "Platform owner") : person.platform_role ? h("span", { class: "badge good" }, "System administrator") : "—"),
+                h("td", {}, person.disabled ? h("span", { class: "badge danger" }, "off") : "on"),
+                h(
+                  "td",
+                  {},
+                  canChange(person)
+                    ? person.disabled
+                      ? small("Turn on", () => act(() => api(`/platform/people/${person.id}/access`, { disabled: false }), "people", `${person.email} can use Turf again.`))
+                      : small("Turn off", () => confirm(`Turn off ${person.email}'s access to Turf?`) && act(() => api(`/platform/people/${person.id}/access`, { disabled: true }), "people", `${person.email} can no longer use Turf.`), "danger")
+                    : null,
+                ),
               ),
             ),
           ),
         ),
       ),
     ),
-  );
+  ];
+}
+
+async function adminStaff(you) {
+  const { staff } = await api("/platform/staff");
+  const add =
+    you === "owner"
+      ? h(
+          "section",
+          { class: "card stack" },
+          h("h2", {}, "Name a system administrator"),
+          h("p", { class: "muted" }, "They must have signed in to Turf once. System administrators see every workspace and can suspend, extend and turn access off, but cannot name staff, set plans or touch your account."),
+          form([input("Email", "email", { type: "email" })], "Make system administrator", values =>
+            act(() => api("/platform/staff", { email: values.email, role: "admin" }), "staff", `${values.email} is a system administrator now.`),
+          ),
+        )
+      : notice("Only the platform owner names or removes system administrators.");
+  return [
+    h(
+      "section",
+      { class: "card" },
+      h(
+        "div",
+        { class: "table-wrap" },
+        h(
+          "table",
+          {},
+          h("thead", {}, h("tr", {}, ["Name", "Email", "Role", ""].map(title => h("th", {}, title)))),
+          h(
+            "tbody",
+            {},
+            staff.map(person =>
+              h(
+                "tr",
+                {},
+                h("td", {}, person.name),
+                h("td", {}, person.email, person.disabled ? h("span", { class: "badge danger" }, " off") : null),
+                h("td", {}, person.platform_role === "owner" ? "Platform owner" : "System administrator"),
+                h(
+                  "td",
+                  {},
+                  you === "owner" && person.platform_role === "admin"
+                    ? small("Remove", () => confirm(`Remove ${person.email} as system administrator?`) && act(() => api("/platform/staff", { email: person.email, role: null }), "staff", `${person.email} is no longer staff.`), "danger")
+                    : null,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+    add,
+  ];
+}
+
+async function adminActivity() {
+  const { events } = await api("/platform/activity");
+  return [h("section", { class: "card stack" }, h("p", { class: "muted" }, "Everything Turf's staff changed from this dashboard, newest first."), activityList(events))];
+}
+
+async function adminMine() {
+  const { organizations } = await api("/platform/organizations");
+  const mine = organizations.filter(item => !item.plan && item.owner_email === me.user.email);
+  if (mine.length)
+    return [
+      h(
+        "section",
+        { class: "card stack" },
+        h("h2", {}, mine[0].name),
+        h("p", {}, "Your own workspace has no plan, so no limits: invite as many callers and CRM users as you need from your account's Team section, and set their roles there."),
+        h("div", { class: "row" }, h("a", { class: "button primary", href: "#/account", onclick: () => setOrganization(mine[0].id) }, "Manage its team"), crmLink()),
+      ),
+    ];
+  return [
+    h(
+      "section",
+      { class: "card stack" },
+      h("h2", {}, "Open your workspace"),
+      h("p", { class: "muted" }, "A workspace of Turf's own, with no seat, minute or time limits, for your callers and anyone you give CRM access."),
+      form([input("Workspace name", "organization", { value: "Turf HQ" })], "Open workspace", async values => {
+        const { organization_id } = await api("/platform/workspace", { organization: values.organization });
+        setOrganization(organization_id);
+        await refreshMe();
+        await admin("mine", "Your workspace is open.");
+      }),
+    ),
+  ];
+}
+
+function adminFrame(tab, you, nodes, done = null, failed = null) {
+  return [
+    h("div", { class: "row spread" }, h("h1", {}, "Admin"), h("span", { class: "badge " + (you === "owner" ? "peach" : "good") }, you === "owner" ? "Platform owner" : "System administrator")),
+    h("nav", { class: "tabs", "aria-label": "Admin sections" }, ADMIN_TABS.map(([key, label]) => h("a", { href: "#/admin?tab=" + key, class: key === tab ? "active" : null, "aria-current": key === tab ? "page" : null }, label))),
+    done ? notice(done, "good") : null,
+    failed ? notice(failed, "error") : null,
+    ...nodes,
+  ].filter(Boolean);
+}
+
+async function admin(tab = "overview", done = null, failed = null) {
+  if (!(await refreshMe())) return (location.hash = "#/signin");
+  if (me.mfa.required && !me.mfa.passed) return (location.hash = "#/mfa");
+  if (!me.platform_role) return show(notice("This page is for Turf's own staff.", "error"));
+  const you = me.platform_role;
+  if (!ADMIN_TABS.some(([key]) => key === tab)) tab = "overview";
+  const build = { overview: adminOverview, workspaces: () => adminWorkspaces(you), people: () => adminPeople(you), staff: () => adminStaff(you), activity: adminActivity, mine: adminMine }[tab];
+  show(...adminFrame(tab, you, await build(), done, failed));
 }
 
 // --- Routing ---------------------------------------------------------------------------------------------------------
@@ -684,7 +950,7 @@ async function route() {
     if (path === "/signin") return signin();
     if (path === "/mfa") return await mfa();
     if (path === "/account") return await account();
-    if (path === "/platform") return await platform();
+    if (path === "/admin" || path === "/platform") return await admin(params.get("tab") || "overview");
     if (path === "/verify") return await verifyEmail(params.get("token") || "");
     if (path === "/join") return await joinTeam(params.get("token") || "");
     if (path === "/workspace") return await workspace();

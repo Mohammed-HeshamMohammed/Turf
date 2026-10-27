@@ -166,7 +166,7 @@ are unchanged.
 | POST | `/calls/start` | members with the `call` capability | Opens a call; refused when no minutes are left; answers `max_seconds` |
 | POST | `/calls/{id}/end` | the caller (or an administrator) | Closes the call and records its minutes from the server clock |
 | POST | `/admin/members` | administrators | Invite; refused on Solo or when seats are full |
-| GET | `/platform/organizations` | platform administrators with MFA | Every customer organization at a glance |
+| GET/POST | `/platform/*` | Turf's staff with MFA (the platform owner and system administrators) | The admin dashboard: every workspace, people, staff and activity (see `services/core-api/README.md`) |
 
 `/me` now also says whether the organization's plan is usable, so the CRM can tell people why it is locked.
 
