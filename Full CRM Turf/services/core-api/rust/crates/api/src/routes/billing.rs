@@ -271,16 +271,23 @@ pub const NO_PASSWORD: &str = "!external-sign-in";
 /// A new person with a new organization on the free trial: the organization, its roles and team, the person as owner
 /// and administrator, the trial subscription, and the audit entry. Shared by the sign-up form and Google/Apple sign-in.
 pub async fn open_trial_account(tx: &mut db::Tx, email: &str, name: &str, password_hash: &str, tz: &str, organization: Option<&str>) -> ApiResult<(Uuid, Uuid)> {
-    let organization = organization.map(str::to_string).unwrap_or_else(|| format!("{name}'s workspace"));
-    let org: Uuid = sqlx::query_scalar("INSERT INTO organizations (name, timezone, account_kind) VALUES ($1, $2, 'trial') RETURNING id")
-        .bind(&organization)
-        .bind(tz)
-        .fetch_one(&mut **tx)
-        .await?;
     let user: Uuid = sqlx::query_scalar("INSERT INTO users (email, display_name, password_hash, timezone) VALUES ($1, $2, $3, $4) RETURNING id")
         .bind(email)
         .bind(name)
         .bind(password_hash)
+        .bind(tz)
+        .fetch_one(&mut **tx)
+        .await?;
+    let org = open_trial_organization(tx, user, name, tz, organization).await?;
+    Ok((org, user))
+}
+
+/// A new organization on the free trial for someone who already has an account: its roles and team, the person as
+/// owner and administrator, the trial subscription, and the audit entry.
+pub async fn open_trial_organization(tx: &mut db::Tx, user: Uuid, name: &str, tz: &str, organization: Option<&str>) -> ApiResult<Uuid> {
+    let organization = organization.map(str::to_string).unwrap_or_else(|| format!("{name}'s workspace"));
+    let org: Uuid = sqlx::query_scalar("INSERT INTO organizations (name, timezone, account_kind) VALUES ($1, $2, 'trial') RETURNING id")
+        .bind(&organization)
         .bind(tz)
         .fetch_one(&mut **tx)
         .await?;
@@ -301,7 +308,48 @@ pub async fn open_trial_account(tx: &mut db::Tx, email: &str, name: &str, passwo
     change.actor_label = name;
     change.after = Some(json!({ "plan": "trial", "minutes": trial.minutes(1) }));
     record(&mut **tx, change).await?;
-    Ok((org, user))
+    Ok(org)
+}
+
+#[derive(Deserialize)]
+pub struct StartTrial {
+    #[serde(default)]
+    organization: String,
+    #[serde(default)]
+    timezone: String,
+}
+
+/// After signing up with the auth service, a person asks for their workspace here: a new organization on the free
+/// trial, with them as owner. One trial per person.
+pub async fn start_trial(State(state): State<AppState>, ctx: Ctx, Json(body): Json<StartTrial>) -> ApiResult<Json<Value>> {
+    if !state.config.public_signup {
+        return Err(ApiError::forbidden("This server does not take new sign-ups"));
+    }
+    let organization = match body.organization.trim() {
+        "" => format!("{}'s workspace", ctx.label),
+        given => given.to_string(),
+    };
+    if organization.chars().count() > 200 {
+        return Err(ApiError::bad("Use an organization name of up to 200 characters"));
+    }
+    if !signup_allowed() {
+        return Err(ApiError::TooMany("Too many new accounts right now; try again in a few minutes".into()));
+    }
+    let tz = if body.timezone.is_empty() { "UTC".to_string() } else { body.timezone.clone() };
+    let mut tx = state.db.begin().await?;
+    let had_trial: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM memberships m JOIN organizations o ON o.id = m.org_id WHERE m.user_id = $1 AND o.account_kind = 'trial')",
+    )
+    .bind(ctx.user_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if had_trial {
+        return Err(ApiError::Conflict("You already have a trial workspace".into()));
+    }
+    let org = open_trial_organization(&mut tx, ctx.user_id, &ctx.label, &tz, Some(&organization)).await?;
+    let trial = plan(&mut tx, "trial").await?;
+    tx.commit().await?;
+    Ok(Json(json!({ "organization_id": org, "plan": "trial", "minutes": trial.minutes(1), "trial_days": trial.period_days })))
 }
 
 #[derive(Deserialize)]

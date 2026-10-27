@@ -1,74 +1,12 @@
-//! The auth service end to end, in-process. On an in-memory SQLite database by default; set AUTH_TEST_DATABASE_URL
-//! to run the same tests on PostgreSQL (one at a time: --test-threads=1, as they share that database).
+//! The auth service end to end, in-process. On SQLite by default; AUTH_TEST_DATABASE_URL runs it on PostgreSQL.
 
-use axum::{
-    body::Body,
-    http::{Request, StatusCode},
-    Router,
-};
-use http_body_util::BodyExt;
-use serde_json::{json, Value};
-use std::sync::Arc;
-use tower::ServiceExt;
-use turf_auth::{app, config::Config, connect, keys::Keys, migrate, AppState};
+mod common;
+
+use axum::http::StatusCode;
+use common::*;
+use serde_json::json;
+use turf_auth::{config::Config, keys::Keys};
 use turf_auth_verify::Verifier;
-
-/// A fresh database: in memory, or the PostgreSQL test database emptied.
-async fn database() -> sqlx::AnyPool {
-    let url = std::env::var("AUTH_TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".into());
-    let db = connect(&url).await.unwrap();
-    migrate(&db).await.unwrap();
-    migrate(&db).await.unwrap(); // running the migration again is harmless
-    for table in ["outbox", "failed_sign_ins", "recovery_codes", "sessions", "users"] {
-        sqlx::query(&format!("DELETE FROM {table}")).execute(&db).await.unwrap();
-    }
-    db
-}
-
-async fn service() -> Router {
-    let db = database().await;
-    let config = Config {
-        database_url: "sqlite::memory:".into(),
-        port: 0,
-        signing_key: String::new(),
-        access_minutes: 15,
-        refresh_days: 30,
-        public_signup: true,
-    };
-    app(AppState { db, keys: Arc::new(Keys::generate().unwrap()), config: Arc::new(config) })
-}
-
-async fn call(app: &Router, method: &str, path: &str, body: Option<Value>, bearer: Option<&str>) -> (StatusCode, Value) {
-    let mut req = Request::builder().method(method).uri(path);
-    if let Some(token) = bearer {
-        req = req.header("authorization", format!("Bearer {token}"));
-    }
-    let req = match body {
-        Some(b) => req.header("content-type", "application/json").body(Body::from(b.to_string())).unwrap(),
-        None => req.body(Body::empty()).unwrap(),
-    };
-    let res = app.clone().oneshot(req).await.unwrap();
-    let status = res.status();
-    let bytes = res.into_body().collect().await.unwrap().to_bytes();
-    (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
-}
-
-const PASSWORD: &str = "correct horse battery";
-
-async fn sign_up(app: &Router, email: &str) -> Value {
-    let (status, body) = call(app, "POST", "/v1/accounts", Some(json!({ "email": email, "password": PASSWORD, "name": "Sami Lee" })), None).await;
-    assert_eq!(status, StatusCode::CREATED, "{body}");
-    body
-}
-
-fn token(body: &Value) -> &str {
-    body["access_token"].as_str().unwrap()
-}
-
-fn current_code(secret: &str, email: &str) -> String {
-    let bytes = totp_rs::Secret::Encoded(secret.into()).to_bytes().unwrap();
-    totp_rs::TOTP::new(totp_rs::Algorithm::SHA1, 6, 1, 30, bytes, Some("Turf".into()), email.into()).unwrap().generate_current().unwrap()
-}
 
 #[tokio::test]
 async fn health_and_version() {
@@ -239,9 +177,7 @@ async fn changing_the_password_closes_other_sessions() {
 
 #[tokio::test]
 async fn sign_up_can_be_closed() {
-    let db = database().await;
-    let config = Config { database_url: String::new(), port: 0, signing_key: String::new(), access_minutes: 15, refresh_days: 30, public_signup: false };
-    let app = app(AppState { db, keys: Arc::new(Keys::generate().unwrap()), config: Arc::new(config) });
+    let app = service_with(Config { public_signup: false, ..Config::for_tests() }).await;
     let (status, _) = call(&app, "POST", "/v1/accounts", Some(json!({ "email": "a@example.com", "password": PASSWORD, "name": "A" })), None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
@@ -252,7 +188,8 @@ async fn a_signing_key_survives_a_restart() {
     let a = Keys::from_base64(&secret).unwrap();
     let b = Keys::from_base64(&secret).unwrap();
     assert_eq!(a.kid, b.kid);
-    let (token, _) = a.sign("u", "e@example.com", "N", "s", false, turf_auth::now(), 15).unwrap();
+    let person = turf_auth::keys::Person { id: "u".into(), email: "e@example.com".into(), name: "N".into(), email_verified: false };
+    let (token, _) = a.sign(&person, "s", false, turf_auth::now(), 15).unwrap();
     assert!(b.verifier.verify(&token).is_ok());
     assert!(Keys::from_base64("not a key").is_err());
 }

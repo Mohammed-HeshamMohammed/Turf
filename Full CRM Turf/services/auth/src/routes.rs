@@ -1,8 +1,10 @@
 //! The HTTP API. Contract: services/auth/openapi.yaml.
 
 use crate::{
+    email,
     error::{AuthError, AuthResult},
-    now, AppState,
+    keys::Person as TokenPerson,
+    now, oauth, AppState,
 };
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
@@ -42,11 +44,13 @@ pub fn router() -> Router<AppState> {
         .route("/v1/password", post(change_password))
         .route("/v1/mfa/setup", post(mfa_setup))
         .route("/v1/mfa/confirm", post(mfa_confirm))
+        .merge(email::routes())
+        .merge(oauth::routes())
 }
 
 // ---- helpers ----
 
-fn hash_password(password: &str) -> AuthResult<String> {
+pub(crate) fn hash_password(password: &str) -> AuthResult<String> {
     if password.chars().count() < 12 {
         return Err(AuthError::Bad("Use a password of at least 12 characters.".into()));
     }
@@ -60,12 +64,12 @@ fn password_matches(password: &str, hash: &str) -> bool {
     PasswordHash::new(hash).map(|parsed| Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()).unwrap_or(false)
 }
 
-fn sha256(text: &str) -> String {
+pub(crate) fn sha256(text: &str) -> String {
     hex::encode(Sha256::digest(text.as_bytes()))
 }
 
 /// A random secret for the client and the hash the server keeps. Only the hash is stored.
-fn new_secret() -> (String, String) {
+pub(crate) fn new_secret() -> (String, String) {
     let mut bytes = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut bytes);
     let secret = hex::encode(bytes);
@@ -95,7 +99,7 @@ fn recovery_codes() -> Vec<String> {
         .collect()
 }
 
-fn normal_email(email: &str) -> AuthResult<String> {
+pub(crate) fn normal_email(email: &str) -> AuthResult<String> {
     let email = email.trim().to_lowercase();
     let ok = email.len() <= 254 && email.split_once('@').is_some_and(|(a, b)| !a.is_empty() && b.contains('.') && !b.starts_with('.') && !b.ends_with('.'));
     if ok && !email.contains(char::is_whitespace) {
@@ -105,17 +109,18 @@ fn normal_email(email: &str) -> AuthResult<String> {
     }
 }
 
-struct User {
-    id: String,
-    email: String,
-    name: String,
-    password_hash: String,
-    totp_secret: Option<String>,
-    disabled: bool,
+pub(crate) struct User {
+    pub id: String,
+    pub email: String,
+    pub name: String,
+    pub password_hash: String,
+    pub totp_secret: Option<String>,
+    pub disabled: bool,
+    pub email_verified: bool,
 }
 
-async fn user_by(state: &AppState, column: &str, value: &str) -> AuthResult<Option<User>> {
-    let sql = format!("SELECT id, email, display_name, password_hash, totp_secret, disabled_at FROM users WHERE {column} = $1");
+pub(crate) async fn user_by(state: &AppState, column: &str, value: &str) -> AuthResult<Option<User>> {
+    let sql = format!("SELECT id, email, display_name, password_hash, totp_secret, disabled_at, email_verified_at FROM users WHERE {column} = $1");
     let row = sqlx::query(&sql).bind(value).fetch_optional(&state.db).await?;
     Ok(match row {
         None => None,
@@ -126,12 +131,13 @@ async fn user_by(state: &AppState, column: &str, value: &str) -> AuthResult<Opti
             password_hash: r.try_get("password_hash")?,
             totp_secret: r.try_get("totp_secret")?,
             disabled: r.try_get::<Option<i64>, _>("disabled_at")?.is_some(),
+            email_verified: r.try_get::<Option<i64>, _>("email_verified_at")?.is_some(),
         }),
     })
 }
 
 /// Opens a session and returns the tokens for it.
-async fn open_session(state: &AppState, user: &User, kind: &str, mfa_passed: bool) -> AuthResult<Value> {
+pub(crate) async fn open_session(state: &AppState, user: &User, kind: &str, mfa_passed: bool) -> AuthResult<Value> {
     let t = now() as i64;
     let id = Uuid::new_v4().to_string();
     let (refresh, refresh_hash) = new_secret();
@@ -150,13 +156,14 @@ async fn open_session(state: &AppState, user: &User, kind: &str, mfa_passed: boo
 }
 
 fn tokens(state: &AppState, user: &User, sid: &str, mfa: bool, refresh: String) -> AuthResult<Value> {
-    let (access, expires_in) = state.keys.sign(&user.id, &user.email, &user.name, sid, mfa, now(), state.config.access_minutes)?;
+    let person = TokenPerson { id: user.id.clone(), email: user.email.clone(), name: user.name.clone(), email_verified: user.email_verified };
+    let (access, expires_in) = state.keys.sign(&person, sid, mfa, now(), state.config.access_minutes)?;
     Ok(json!({
         "access_token": access,
         "token_type": "Bearer",
         "expires_in": expires_in,
         "refresh_token": refresh,
-        "user": { "id": user.id, "email": user.email, "name": user.name },
+        "user": { "id": user.id, "email": user.email, "name": user.name, "email_verified": user.email_verified },
     }))
 }
 
@@ -236,7 +243,7 @@ async fn sign_up(State(state): State<AppState>, Json(body): Json<SignUp>) -> Aut
     if user_by(&state, "email", &email).await?.is_some() {
         return Err(AuthError::Conflict("An account with this email already exists. Sign in instead.".into()));
     }
-    let user = User { id: Uuid::new_v4().to_string(), email, name, password_hash: hash, totp_secret: None, disabled: false };
+    let user = User { id: Uuid::new_v4().to_string(), email, name, password_hash: hash, totp_secret: None, disabled: false, email_verified: false };
     let t = now() as i64;
     let mut tx = state.db.begin().await?;
     sqlx::query("INSERT INTO users (id, email, display_name, password_hash, created_at) VALUES ($1, $2, $3, $4, $5)")
@@ -247,14 +254,12 @@ async fn sign_up(State(state): State<AppState>, Json(body): Json<SignUp>) -> Aut
         .bind(t)
         .execute(&mut *tx)
         .await?;
-    sqlx::query("INSERT INTO outbox (id, name, payload, created_at) VALUES ($1, 'user.signed_up', $2, $3)")
-        .bind(Uuid::new_v4().to_string())
-        .bind(json!({ "user_id": user.id, "version": 1 }).to_string())
-        .bind(t)
-        .execute(&mut *tx)
-        .await?;
+    email::outbox(&mut tx, "user.signed_up", json!({ "user_id": user.id, "version": 1 })).await?;
+    let link = email::new_verification(&mut tx, &user.id).await?;
     tx.commit().await?;
-    Ok((StatusCode::CREATED, Json(open_session(&state, &user, kind, false).await?)))
+    let mut reply = open_session(&state, &user, kind, false).await?;
+    email::with_dev_token(&state, &mut reply, link);
+    Ok((StatusCode::CREATED, Json(reply)))
 }
 
 #[derive(Deserialize)]
@@ -404,6 +409,7 @@ async fn me(State(state): State<AppState>, Person(claims): Person) -> AuthResult
         "email": user.email,
         "name": user.name,
         "mfa_enrolled": user.totp_secret.is_some(),
+        "email_verified": user.email_verified,
         "mfa_passed": claims.mfa,
         "session_id": claims.sid,
     })))

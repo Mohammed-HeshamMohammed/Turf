@@ -21,6 +21,9 @@ pub struct Claims {
     pub sid: String,
     /// They confirmed a two-step code (or a recovery code) when they signed in.
     pub mfa: bool,
+    /// They confirmed their email address (a link, or Google or Apple vouching for it). Absent in older tokens: false.
+    #[serde(default)]
+    pub email_verified: bool,
     pub iss: String,
     pub aud: String,
     pub iat: u64,
@@ -110,7 +113,7 @@ mod tests {
     }
 
     fn claims(exp: u64) -> Claims {
-        Claims { sub: "u-1".into(), email: "a@example.com".into(), name: "A".into(), sid: "s-1".into(), mfa: true, iss: ISSUER.into(), aud: AUDIENCE.into(), iat: now(), exp }
+        Claims { sub: "u-1".into(), email: "a@example.com".into(), name: "A".into(), sid: "s-1".into(), mfa: true, email_verified: true, iss: ISSUER.into(), aud: AUDIENCE.into(), iat: now(), exp }
     }
 
     fn sign(key: &Key, kid: &str, claims: &Claims) -> String {

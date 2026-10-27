@@ -6,6 +6,14 @@ use ring::signature::{Ed25519KeyPair, KeyPair};
 use sha2::{Digest, Sha256};
 use turf_auth_verify::{Claims, Verifier, AUDIENCE, ISSUER};
 
+/// What a token says about the person it is for.
+pub struct Person {
+    pub id: String,
+    pub email: String,
+    pub name: String,
+    pub email_verified: bool,
+}
+
 pub struct Keys {
     pub kid: String,
     encoding: EncodingKey,
@@ -46,14 +54,15 @@ impl Keys {
     }
 
     /// A signed access token for a person and their session.
-    pub fn sign(&self, sub: &str, email: &str, name: &str, sid: &str, mfa: bool, now: u64, minutes: u64) -> anyhow::Result<(String, u64)> {
+    pub fn sign(&self, person: &Person, sid: &str, mfa: bool, now: u64, minutes: u64) -> anyhow::Result<(String, u64)> {
         let exp = now + minutes * 60;
         let claims = Claims {
-            sub: sub.into(),
-            email: email.into(),
-            name: name.into(),
+            sub: person.id.clone(),
+            email: person.email.clone(),
+            name: person.name.clone(),
             sid: sid.into(),
             mfa,
+            email_verified: person.email_verified,
             iss: ISSUER.into(),
             aud: AUDIENCE.into(),
             iat: now,

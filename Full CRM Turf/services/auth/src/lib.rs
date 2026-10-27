@@ -8,6 +8,8 @@
 pub mod config;
 pub mod error;
 pub mod keys;
+pub mod email;
+pub mod oauth;
 pub mod routes;
 
 use std::sync::Arc;
@@ -28,12 +30,25 @@ pub async fn connect(url: &str) -> anyhow::Result<AnyPool> {
     Ok(AnyPoolOptions::new().max_connections(max).connect(url).await?)
 }
 
-/// Creates the tables if they are missing. Every statement is safe to run again.
+/// The migrations, in order. Each runs once; `schema_migrations` remembers which ran.
+const MIGRATIONS: &[(i64, &str)] = &[(1, include_str!("../migrations/0001_auth.sql")), (2, include_str!("../migrations/0002_sign_in.sql"))];
+
+/// Brings the database up to date. Safe to run on every start.
 pub async fn migrate(db: &AnyPool) -> anyhow::Result<()> {
-    let sql = include_str!("../migrations/0001_auth.sql");
-    let without_comments: String = sql.lines().map(|l| l.split("--").next().unwrap_or("")).collect::<Vec<_>>().join("\n");
-    for statement in without_comments.split(';').map(str::trim).filter(|s| !s.is_empty()) {
-        sqlx::query(statement).execute(db).await?;
+    sqlx::query("CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT PRIMARY KEY, applied_at BIGINT NOT NULL)").execute(db).await?;
+    for (version, sql) in MIGRATIONS {
+        let done = sqlx::query("SELECT 1 AS one FROM schema_migrations WHERE version = $1").bind(version).fetch_optional(db).await?.is_some();
+        if done {
+            continue;
+        }
+        let mut tx = db.begin().await?;
+        let without_comments: String = sql.lines().map(|l| l.split("--").next().unwrap_or("")).collect::<Vec<_>>().join("
+");
+        for statement in without_comments.split(';').map(str::trim).filter(|s| !s.is_empty()) {
+            sqlx::query(statement).execute(&mut *tx).await?;
+        }
+        sqlx::query("INSERT INTO schema_migrations (version, applied_at) VALUES ($1, $2)").bind(version).bind(now() as i64).execute(&mut *tx).await?;
+        tx.commit().await?;
     }
     Ok(())
 }

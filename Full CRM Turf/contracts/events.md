@@ -1,6 +1,6 @@
 # Events
 
-Services announce what happened on the event bus (Redis Streams to start). An event is a past-tense fact with a stable name, a version and the ids of the things it is about. It never carries a password, a token or a whole record.
+Services announce what happened on the event bus (Redis Streams to start). An event is a past-tense fact with a stable name, a version and the ids of the things it is about. It never carries a password, a session or access token, or a whole record. The one exception is `notification.requested` for a link someone must receive by email (a confirmation link): it carries that single-use, short-lived token, because the email cannot be sent without it.
 
 | Event | Published by | Read by | Meaning |
 | --- | --- | --- | --- |

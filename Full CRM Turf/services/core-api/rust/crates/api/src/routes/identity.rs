@@ -32,6 +32,9 @@ pub fn routes() -> Router<AppState> {
         .route("/auth/sessions", get(sessions))
         .route("/auth/sessions/revoke", post(revoke_sessions))
         .route("/auth/invitations/accept", post(accept_invitation))
+        .route("/invitations/join", post(join_invitation))
+        // The workspace half of signing up with the auth service (the handler lives with the rest of the trial code).
+        .route("/organizations/trial", post(crate::routes::billing::start_trial))
         .route("/auth/organization", post(choose_organization))
         .route("/auth/password", post(change_password))
         .route("/me", get(me))
@@ -364,6 +367,42 @@ async fn accept_invitation(State(state): State<AppState>, jar: CookieJar, Json(b
     let kind = if body.kind == "desktop" { "desktop" } else { "browser" };
     let token = create_session(&state, user, Some(org), kind).await?;
     Ok(signed_in(&state, jar, token, kind, json!({ "organization_id": org, "user_id": user, "mfa_required": state.config.require_mfa && roles.iter().any(|r| requires_mfa(r)) })))
+}
+
+#[derive(Deserialize)]
+struct Join {
+    token: String,
+}
+
+/// Joins the organization an invitation is for, as the signed-in person (an auth-service token or a session here).
+/// The account itself is the auth service's: signing up or signing in happens there first. The invitation must be
+/// for this person's email address.
+async fn join_invitation(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Join>) -> ApiResult<Json<Value>> {
+    let mut tx = state.db.begin().await?;
+    let invite: Option<(Uuid, String, Vec<String>, Vec<Uuid>)> = sqlx::query_as(
+        "SELECT org_id, email::text, roles, team_ids FROM invitations WHERE token_hash = $1 AND accepted_at IS NULL AND expires_at > now() FOR UPDATE",
+    )
+    .bind(auth::token_hash(body.token.trim()))
+    .fetch_optional(&mut *tx)
+    .await?;
+    let (org, email, roles, teams) = invite.ok_or_else(|| ApiError::forbidden("This invitation is not valid or has expired"))?;
+    if !email.eq_ignore_ascii_case(&ctx.email) {
+        return Err(ApiError::forbidden("This invitation is for another email address. Sign in with that address to join"));
+    }
+    sqlx::query("UPDATE invitations SET accepted_at = now() WHERE token_hash = $1").bind(auth::token_hash(body.token.trim())).execute(&mut *tx).await?;
+    sqlx::query("SELECT set_config('turf.org_id', $1, true)").bind(org.to_string()).execute(&mut *tx).await?;
+    // Seats can have been reduced since the invitation was sent; this invitation's seat is now a member's.
+    crate::routes::billing::check_join(&mut tx).await?;
+    sqlx::query("INSERT INTO memberships (org_id, user_id, roles, team_ids) VALUES ($1, $2, $3, $4) ON CONFLICT (org_id, user_id) DO UPDATE SET roles = EXCLUDED.roles, team_ids = EXCLUDED.team_ids")
+        .bind(org)
+        .bind(ctx.user_id)
+        .bind(&roles)
+        .bind(&teams)
+        .execute(&mut *tx)
+        .await?;
+    crate::record::access_changed(&mut tx).await?;
+    tx.commit().await?;
+    Ok(Json(json!({ "organization_id": org, "roles": roles, "mfa_required": state.config.require_mfa && roles.iter().any(|r| requires_mfa(r)) })))
 }
 
 #[derive(Deserialize)]

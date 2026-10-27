@@ -228,13 +228,45 @@ async fn with_organization(state: &AppState, mut ctx: Ctx, org_id: Uuid) -> ApiR
     Ok(ctx)
 }
 
+/// This server's copy of a person the auth service vouches for: created the first time they arrive (same id, an
+/// unusable password, since auth checks passwords now), and told when auth says their email is confirmed. A disabled
+/// account here stays refused. An email already used by a different account here is refused rather than merged.
+async fn local_person(state: &AppState, user_id: Uuid, claims: &turf_auth_verify::Claims) -> ApiResult<(String, String, Option<String>)> {
+    let read = || sqlx::query_as::<_, (String, String, Option<String>, bool, bool)>(
+        "SELECT email::text, display_name, totp_secret, disabled_at IS NOT NULL, email_verified_at IS NOT NULL FROM users WHERE id = $1",
+    )
+    .bind(user_id);
+    let mut row = read().fetch_optional(&state.db).await?;
+    if row.is_none() {
+        sqlx::query(
+            "INSERT INTO users (id, email, display_name, password_hash, email_verified_at) VALUES ($1, $2, $3, $4, CASE WHEN $5 THEN now() END) ON CONFLICT DO NOTHING",
+        )
+        .bind(user_id)
+        .bind(claims.email.trim().to_lowercase())
+        .bind(claims.name.trim())
+        .bind(crate::routes::billing::NO_PASSWORD)
+        .bind(claims.email_verified)
+        .execute(&state.db)
+        .await?;
+        row = read().fetch_optional(&state.db).await?;
+    }
+    let Some((email, label, totp_secret, disabled, verified)) = row else {
+        return Err(ApiError::Conflict("This email address belongs to another account on this server. Contact support to merge them.".into()));
+    };
+    if disabled {
+        return Err(ApiError::Unauthenticated);
+    }
+    if claims.email_verified && !verified {
+        sqlx::query("UPDATE users SET email_verified_at = now() WHERE id = $1 AND email_verified_at IS NULL").bind(user_id).execute(&state.db).await?;
+    }
+    Ok((email, label, totp_secret))
+}
+
 /// A person signed in with the auth service. The token was already checked against auth's public keys; this server
 /// only needs the person to exist here too (the same id), and reads the organization from the x-turf-org header.
 pub async fn load_from_auth(state: &AppState, claims: &turf_auth_verify::Claims, org_header: Option<&str>) -> ApiResult<Ctx> {
     let user_id = Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthenticated)?;
-    let row: Option<(String, String, Option<String>)> =
-        sqlx::query_as("SELECT email::text, display_name, totp_secret FROM users WHERE id = $1 AND disabled_at IS NULL").bind(user_id).fetch_optional(&state.db).await?;
-    let (email, label, totp_secret) = row.ok_or(ApiError::Unauthenticated)?;
+    let (email, label, totp_secret) = local_person(state, user_id, claims).await?;
     let ctx = Ctx {
         user_id,
         email,
