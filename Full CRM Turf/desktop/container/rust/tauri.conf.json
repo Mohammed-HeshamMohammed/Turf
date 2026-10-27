@@ -4,16 +4,22 @@
   "version": "0.1.0",
   "identifier": "local.turf.fullcrm",
   "build": {
-    "beforeDevCommand": { "script": "node scripts/dev-server.mjs", "cwd": "../../frontend/react" },
+    "beforeDevCommand": {
+      "script": "node scripts/dev-server.mjs",
+      "cwd": "../../frontend/react"
+    },
     "devUrl": "http://localhost:5190",
-    "beforeBuildCommand": { "script": "npm run build", "cwd": "../../frontend/react" },
+    "beforeBuildCommand": {
+      "script": "npm run build",
+      "cwd": "../../frontend/react"
+    },
     "frontendDist": "../../frontend/react/dist/client"
   },
   "app": {
     "windows": [
       {
         "label": "main",
-        "title": "Turf · Full CRM mode",
+        "title": "Turf \u00b7 Full CRM mode",
         "width": 1500,
         "height": 920,
         "minWidth": 900,
@@ -25,11 +31,41 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob: https://tile.openstreetmap.org",
+        "font-src": "'self' data:",
+        "connect-src": "'self' ipc: http://ipc.localhost https: wss: http://localhost:* ws://localhost:* http://127.0.0.1:*",
+        "worker-src": "'self' blob:",
+        "frame-src": "'none'",
+        "object-src": "'none'",
+        "base-uri": "'none'",
+        "form-action": "'none'"
+      },
+      "devCsp": {
+        "default-src": "'self'",
+        "script-src": "'self' 'unsafe-inline' 'unsafe-eval' http://localhost:5190",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob: https://tile.openstreetmap.org",
+        "font-src": "'self' data:",
+        "connect-src": "'self' ipc: http://ipc.localhost https: wss: http://localhost:* ws://localhost:* http://127.0.0.1:*",
+        "worker-src": "'self' blob:",
+        "frame-src": "'none'",
+        "object-src": "'none'",
+        "base-uri": "'none'",
+        "form-action": "'none'"
+      },
+      "dangerousDisableAssetCspModification": [
+        "style-src"
+      ]
     }
   },
   "bundle": {
     "active": false,
-    "icon": ["icons/icon.ico"]
+    "icon": [
+      "icons/icon.ico"
+    ]
   }
 }

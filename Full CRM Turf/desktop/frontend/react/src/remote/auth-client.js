@@ -114,6 +114,18 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
     providers: () => call("GET", "/v1/providers"),
     /** Where to send the browser to sign in with a provider. `target` is website, app or desktop (with `port`). */
     startUrl: (provider, target, port) => `${base}/v1/oauth/${encodeURIComponent(provider)}/start?target=${target}${port ? `&port=${port}` : ""}`,
+    /** This page goes to the provider (through auth) and comes back with `?turf_code=`; `finishProvider` trades it. */
+    startProvider: async (provider, target) => {
+      globalThis.location.href = `${base}/v1/oauth/${encodeURIComponent(provider)}/start?target=${target}`;
+    },
+    /** True when this page came back from a provider and is now signed in. Reads the code before anything awaits. */
+    finishProvider: async () => {
+      const code = new URLSearchParams(globalThis.location?.search || "").get("turf_code");
+      if (!code) return false;
+      globalThis.history?.replaceState(null, "", globalThis.location.pathname + globalThis.location.hash);
+      await call("POST", "/v1/oauth/exchange", { code }).then(keep);
+      return true;
+    },
     me: () => withToken("GET", "/v1/me"),
     setupMfa: () => withToken("POST", "/v1/mfa/setup"),
     /** Turns two-step sign-in on; the session counts as confirmed, and the next token says so. */

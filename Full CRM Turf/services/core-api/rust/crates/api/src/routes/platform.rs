@@ -10,7 +10,7 @@
 //! names staff, sets a workspace's plan or makes one unlimited. Every change is kept in platform_events.
 
 use crate::{
-    auth::Ctx,
+    auth::{self, Ctx},
     error::{ApiError, ApiResult},
     state::AppState,
 };
@@ -34,6 +34,7 @@ pub fn routes() -> Router<AppState> {
         .route("/platform/payments", get(payments))
         .route("/platform/activity", get(activity))
         .route("/platform/workspace", post(workspace))
+        .route("/platform/customers", post(customer))
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -236,7 +237,7 @@ async fn people(State(state): State<AppState>, ctx: Ctx, Query(search): Query<Se
     staff(&state, &ctx).await?;
     let pattern = format!("%{}%", search.q.trim().replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_"));
     let rows: Vec<Value> = sqlx::query_scalar(
-        "SELECT json_build_object('id', u.id, 'email', u.email, 'name', u.display_name, 'platform_role', u.platform_role, \
+        "SELECT json_build_object('id', u.id, 'email', u.email, 'name', u.display_name, 'platform_role', u.platform_role, 'sign_in', u.sign_in_provider, \
            'disabled', u.disabled_at IS NOT NULL, 'created_at', u.created_at, \
            'workspaces', coalesce((SELECT json_agg(json_build_object('id', o.id, 'name', o.name, 'roles', m.roles) ORDER BY o.name) \
                                    FROM memberships m JOIN organizations o ON o.id = m.org_id WHERE m.user_id = u.id), '[]'))::jsonb \
@@ -277,7 +278,7 @@ async fn access(State(state): State<AppState>, ctx: Ctx, Path(user): Path<Uuid>,
 async fn staff_list(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
     staff(&state, &ctx).await?;
     let rows: Vec<Value> = sqlx::query_scalar(
-        "SELECT json_build_object('id', id, 'email', email, 'name', display_name, 'platform_role', platform_role, 'disabled', disabled_at IS NOT NULL)::jsonb \
+        "SELECT json_build_object('id', id, 'email', email, 'name', display_name, 'platform_role', platform_role, 'disabled', disabled_at IS NOT NULL, 'sign_in', sign_in_provider)::jsonb \
          FROM users WHERE platform_role IS NOT NULL ORDER BY platform_role DESC, email",
     )
     .fetch_all(&state.db)
@@ -389,4 +390,41 @@ async fn workspace(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Wor
     event(&mut tx, &ctx, "workspace.created", "organization", Some(org), json!({ "name": name })).await?;
     tx.commit().await?;
     Ok(Json(json!({ "organization_id": org })))
+}
+
+#[derive(Deserialize)]
+struct Customer {
+    organization: String,
+    email: String,
+}
+
+/// A trial workspace for a customer, with an invitation that makes them its owner. New sign-ups cannot open a
+/// workspace themselves (Config::public_signup), so this is how a business gets into Turf: staff open it, the owner
+/// accepts, and the owner invites everyone else.
+async fn customer(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Customer>) -> ApiResult<Json<Value>> {
+    staff(&state, &ctx).await?;
+    let name = body.organization.trim();
+    if name.is_empty() || name.chars().count() > 200 {
+        return Err(ApiError::bad("Name the workspace (up to 200 characters)"));
+    }
+    let email = body.email.trim().to_lowercase();
+    if email.len() > 254 || !email.contains('@') || email.starts_with('@') || email.ends_with('@') {
+        return Err(ApiError::bad("Enter the owner's email address"));
+    }
+    let mut tx = state.db.begin().await?;
+    let org = crate::routes::billing::open_trial_organization(&mut tx, None, ctx.user_id, &ctx.label, "UTC", Some(name)).await?;
+    sqlx::query("SELECT set_config('turf.org_id', $1, true)").bind(org.to_string()).execute(&mut *tx).await?;
+    let (token, hash) = auth::new_token();
+    sqlx::query(
+        "INSERT INTO invitations (token_hash, org_id, email, roles, team_ids, invited_by, expires_at) VALUES ($1, $2, $3, ARRAY['owner'], '{}', $4, now() + interval '7 days')",
+    )
+    .bind(&hash)
+    .bind(org)
+    .bind(&email)
+    .bind(ctx.user_id)
+    .execute(&mut *tx)
+    .await?;
+    event(&mut tx, &ctx, "workspace.opened_for_customer", "organization", Some(org), json!({ "name": name, "owner_email": email })).await?;
+    tx.commit().await?;
+    Ok(Json(json!({ "organization_id": org, "token": token, "expires_in_days": 7 })))
 }

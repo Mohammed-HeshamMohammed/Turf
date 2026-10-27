@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Buildings, GoogleLogo, Lock, ShieldCheck, SignIn, WifiSlash } from "@phosphor-icons/react";
-import { api, apiBase, auth, invitationToken, organization, SERVER, setApiBase, setOrganization } from "./remote/api.js";
+import { Buildings, Lock, ShieldCheck, SignIn, WifiSlash } from "@phosphor-icons/react";
+import { GoogleMark } from "./SignInMarks.jsx";
+import { api, apiBase, auth, invitationToken, organization, SERVER, setApiBase, setOrganization, stopDesktopSignIn } from "./remote/api.js";
 import { MemoryVault, Vault } from "./remote/vault.js";
 import { inDesktopApp } from "./popout.js";
 import { Button, Card, Field } from "./ui.jsx";
@@ -17,6 +18,8 @@ export function RemoteGate({ onReady, onLeave }) {
   const [error, setError] = useState(() => new URLSearchParams(window.location.search).get("oauth_error") || "");
   const [busy, setBusy] = useState(false);
   const [me, setMe] = useState(null);
+  // Closed until the server says otherwise: then only an invitation opens a workspace.
+  const [signupOpen, setSignupOpen] = useState(false);
   const [enrolment, setEnrolment] = useState(null);
   const [recovery, setRecovery] = useState(null);
   const [form, setForm] = useState({ email: "", password: "", code: "", passphrase: "", workspace: "", invitation: "" });
@@ -28,7 +31,13 @@ export function RemoteGate({ onReady, onLeave }) {
       if (!auth.signedIn()) return setStep("signin");
       let identity = await api.me();
       const organizations = identity.organizations || [];
+      // Access to the workspace this device last used was removed or has ended: its offline copy goes too.
+      if (organization() && !organizations.some(item => item.id === organization())) {
+        await Vault.wipe();
+        setOrganization("");
+      }
       if (!organizations.length) {
+        setSignupOpen(await api.signupOpen().catch(() => false));
         setMe(identity);
         return setStep("workspace");
       }
@@ -57,15 +66,20 @@ export function RemoteGate({ onReady, onLeave }) {
 
   useEffect(() => {
     if (!apiBase()) setApiBase(SERVER);
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("turf_code");
+    // Back from Google in this tab: finish that sign-in (it reads the address before it is cleared), then carry on.
+    const back = auth.finishProvider();
     if (window.location.search) window.history.replaceState(null, "", window.location.pathname + window.location.hash);
-    // Back from Google in this tab: trade the one-time code for tokens.
-    if (code) attempt(async () => {
-      await auth.exchange(code);
+    attempt(async () => {
+      try {
+        await back;
+      } catch (reason) {
+        // An authenticator is set up: the sign-in waits for its code.
+        if (reason.code === "mfa_required") return setStep("stepup");
+        setStep("signin");
+        throw reason;
+      }
       await check();
     });
-    else check();
   }, []);
 
   /** The desktop app waits for the person's browser to hand back a code; this stops waiting. */
@@ -80,9 +94,22 @@ export function RemoteGate({ onReady, onLeave }) {
     attempt(async () => {
       const available = await auth.providers().catch(() => ({}));
       if (!available[provider]) throw new Error(`${label} sign-in isn't connected yet. Use your email for now.`);
-      if (!inDesktopApp()) {
-        window.location.href = auth.startUrl(provider, "app");
-        return;
+      if (!inDesktopApp()) return auth.startProvider(provider, "app");
+      if (!auth.startUrl) {
+        // Firebase: the app opens Google in the browser itself, and signs in here when the browser is done.
+        waiting.current = stopDesktopSignIn;
+        setStep("browser");
+        try {
+          await auth.startProvider(provider, "desktop");
+        } catch (reason) {
+          if (reason.code === "mfa_required") return setStep("stepup");
+          setStep("signin");
+          if (reason.code === "cancelled") return;
+          throw reason;
+        } finally {
+          waiting.current = null;
+        }
+        return check();
       }
       const { invoke } = await import("@tauri-apps/api/core");
       const { listen } = await import("@tauri-apps/api/event");
@@ -150,7 +177,9 @@ export function RemoteGate({ onReady, onLeave }) {
     event.preventDefault();
     attempt(async () => {
       const result = await auth.confirmMfa(form.code.trim());
-      setRecovery(result.recovery_codes);
+      // Firebase gives no recovery codes: staff reset a lost authenticator.
+      if (result.recovery_codes?.length) setRecovery(result.recovery_codes);
+      else await check();
     });
   };
   const startTrial = event => {
@@ -203,7 +232,9 @@ export function RemoteGate({ onReady, onLeave }) {
           step === "unlock"
             ? "Records and pending changes are encrypted with a passphrase only you know."
             : step === "workspace"
-              ? "Start a free trial, or join the team that invited you."
+              ? signupOpen
+                ? "Start a free trial, or join the team that invited you."
+                : "Only people given access by a workspace owner or by Turf can use Turf."
               : "Your records stay on your organization's server."
         }
       >
@@ -231,7 +262,7 @@ export function RemoteGate({ onReady, onLeave }) {
             {step === "signin" && (
               <>
                 <div className="provider-buttons">
-                  <Button icon={GoogleLogo} disabled={busy} onClick={() => continueWith("google", "Google")}>
+                  <Button icon={GoogleMark} disabled={busy} onClick={() => continueWith("google", "Google")}>
                     Continue with Google
                   </Button>
                   <p className="provider-or muted" role="separator">
@@ -248,7 +279,7 @@ export function RemoteGate({ onReady, onLeave }) {
             )}
             {step === "code" && (
               <>
-                <p className="body-copy">Enter the six-digit code from your authenticator app, or one of your recovery codes.</p>
+                <p className="body-copy">{auth.startUrl ? "Enter the six-digit code from your authenticator app, or one of your recovery codes." : "Enter the six-digit code from your authenticator app."}</p>
                 <Field label="Sign-in code">
                   <input inputMode="numeric" autoComplete="one-time-code" value={form.code} onChange={field("code")} required autoFocus />
                 </Field>
@@ -258,18 +289,13 @@ export function RemoteGate({ onReady, onLeave }) {
               {busy ? "Signing in…" : step === "code" ? "Confirm" : "Sign in"}
             </Button>
             {step === "signin" && (
-              <p className="muted">
-                No account yet?{" "}
-                <a href={(apiBase() || SERVER) + "/#/signup"} target="_blank" rel="noreferrer">
-                  Start a free trial
-                </a>
-              </p>
+              <p className="muted">New here? You need an invitation from your workspace owner or from Turf.</p>
             )}
           </form>
         )}
         {step === "stepup" && (
           <form className="remote-step" onSubmit={stepUp}>
-            <p className="body-copy">Your role needs your authenticator code too. Enter the six-digit code, or one of your recovery codes.</p>
+            <p className="body-copy">Your role needs your authenticator code too. {auth.startUrl ? "Enter the six-digit code, or one of your recovery codes." : "Enter the six-digit code from the app."}</p>
             <Field label="Sign-in code">
               <input inputMode="numeric" autoComplete="one-time-code" value={form.code} onChange={field("code")} required />
             </Field>
@@ -281,16 +307,18 @@ export function RemoteGate({ onReady, onLeave }) {
         )}
         {step === "workspace" && (
           <div className="remote-step">
-            <form onSubmit={startTrial}>
-              <Field label="Workspace name" help="Optional. You can change it later.">
-                <input value={form.workspace} onChange={field("workspace")} placeholder={me?.user ? `${me.user.name}'s workspace` : ""} />
-              </Field>
-              <Button type="submit" variant="primary" icon={Buildings} disabled={busy}>
-                Start my free trial
-              </Button>
-            </form>
+            {signupOpen && (
+              <form onSubmit={startTrial}>
+                <Field label="Workspace name" help="Optional. You can change it later.">
+                  <input value={form.workspace} onChange={field("workspace")} placeholder={me?.user ? `${me.user.name}'s workspace` : ""} />
+                </Field>
+                <Button type="submit" variant="primary" icon={Buildings} disabled={busy}>
+                  Start my free trial
+                </Button>
+              </form>
+            )}
             <form onSubmit={join}>
-              <Field label="Or join with an invitation" help="Paste the invitation link from your email.">
+              <Field label={signupOpen ? "Or join with an invitation" : "Your invitation"} help="Paste the invitation link from your email. No invitation? Ask your workspace owner.">
                 <input value={form.invitation} onChange={field("invitation")} required />
               </Field>
               <Button type="submit" disabled={busy}>

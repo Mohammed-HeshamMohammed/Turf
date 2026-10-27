@@ -1,9 +1,10 @@
 import { useMemo } from "react";
 import { CheckCircle, Handshake, Phone, UsersThree } from "@phosphor-icons/react";
-import { PEOPLE, ROLES } from "./data.js";
+import { PEOPLE, ROLES, SIGN_IN } from "./data.js";
 import { capability, visibleLeads, visibleTasks } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { Avatar, Badge, Button, Card, PageHeader, money } from "./ui.jsx";
+import { SignInMark } from "./SignInMarks.jsx";
 
 /** Everyone on the team in one place: what they own, what is waiting on them and where to go next. */
 export function Team() {
@@ -21,6 +22,8 @@ export function Team() {
       const ownedIds = new Set(owned.map(lead => lead.id));
       return {
         name,
+        // From the server when connected; the sample workspace has its own.
+        signIn: state.remote ? state.remote.people?.find(person => person.name === name)?.sign_in : SIGN_IN[name],
         title: role?.name || "Team member",
         group: role?.title || "",
         leads: owned.length,
@@ -70,7 +73,10 @@ export function Team() {
             <div className="team-person-head">
               <Avatar name={person.name} large />
               <div>
-                <h2>{person.name}</h2>
+                <h2 className="named">
+                  {person.name}
+                  <SignInMark method={person.signIn} />
+                </h2>
                 <small>{person.group}</small>
                 <Badge>{person.title}</Badge>
               </div>

@@ -154,6 +154,7 @@ async fn apple_posts_back_with_a_name_the_first_time() {
     let (status, body) = exchange(&app, &param(&landed, "turf_code").unwrap()).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["user"]["name"], "Sami Lee");
+    assert_eq!(claims(&app, token(&body)).await.provider, "apple");
 }
 
 #[tokio::test]
@@ -223,14 +224,18 @@ async fn a_provider_sign_in_steps_up_with_a_two_step_code() {
     let landed = sign_in_with(&app, "google", "target=app", mona(), None).await;
     let (_, google) = exchange(&app, &param(&landed, "turf_code").unwrap()).await;
     assert!(!claims(&app, token(&google)).await.mfa);
+    assert_eq!(claims(&app, token(&made)).await.provider, "password", "each token says how its session began");
+    assert_eq!(claims(&app, token(&google)).await.provider, "google");
 
     assert_eq!(call(&app, "POST", "/v1/mfa/verify", Some(json!({ "code": "000000" })), Some(token(&google))).await.0, StatusCode::UNAUTHORIZED);
     let (status, stepped) = call(&app, "POST", "/v1/mfa/verify", Some(json!({ "code": current_code(&secret, "mona@example.com") })), Some(token(&google))).await;
     assert_eq!(status, StatusCode::OK, "{stepped}");
     assert!(claims(&app, stepped["access_token"].as_str().unwrap()).await.mfa);
+    assert_eq!(claims(&app, stepped["access_token"].as_str().unwrap()).await.provider, "google");
     // Later tokens for the same session keep it.
     let (_, refreshed) = call(&app, "POST", "/v1/sessions/refresh", Some(json!({ "refresh_token": google["refresh_token"] })), None).await;
     assert!(claims(&app, token(&refreshed)).await.mfa);
+    assert_eq!(claims(&app, token(&refreshed)).await.provider, "google");
 }
 
 #[tokio::test]

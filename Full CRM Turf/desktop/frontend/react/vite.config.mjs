@@ -2,6 +2,13 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { serviceBridge } from "./scripts/service-bridge.mjs";
 
+// Settings from env/desktop.env (env/README.md); a variable already set wins. Vite hands the VITE_ ones to the app.
+try {
+  process.loadEnvFile(new URL("../../../env/desktop.env", import.meta.url));
+} catch {
+  /* No file: the app's own defaults (a local server, the auth service). */
+}
+
 export default defineConfig({
   build: {
     outDir: "dist/client",

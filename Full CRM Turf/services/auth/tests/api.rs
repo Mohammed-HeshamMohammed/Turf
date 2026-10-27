@@ -189,7 +189,7 @@ async fn a_signing_key_survives_a_restart() {
     let b = Keys::from_base64(&secret).unwrap();
     assert_eq!(a.kid, b.kid);
     let person = turf_auth::keys::Person { id: "u".into(), email: "e@example.com".into(), name: "N".into(), email_verified: false };
-    let (token, _) = a.sign(&person, "s", false, turf_auth::now(), 15).unwrap();
+    let (token, _) = a.sign(&person, "s", false, "password", turf_auth::now(), 15).unwrap();
     assert!(b.verifier.verify(&token).is_ok());
     assert!(Keys::from_base64("not a key").is_err());
 }
