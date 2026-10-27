@@ -1,3 +1,11 @@
+/* Bundled so the site needs nothing from another server (its policy allows files from itself only). Latin only. */
+@font-face {
+  font-family: "Schibsted Grotesk Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400 900;
+  src: url(/schibsted-grotesk.woff2) format("woff2-variations");
+}
 :root {
   --bg: #f2f2f0;
   --surface: #ffffff;
@@ -12,7 +20,7 @@
   --danger-ink: #8a1c13;
   --radius: 20px;
   color-scheme: light;
-  font-family: "Inter Tight", "Segoe UI", system-ui, sans-serif;
+  font-family: "Schibsted Grotesk Variable", "Segoe UI", system-ui, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root {
