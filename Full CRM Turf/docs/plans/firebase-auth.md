@@ -83,21 +83,22 @@ Done once per project (`turf-dev`, then `turf-prod`), signed in to the Firebase 
 7. **Google Cloud console → APIs & Services → Credentials**:
    - Restrict the web API key to the Identity Toolkit API and the Token Service API.
    - Create an OAuth client of type **Desktop app** named `Turf desktop` (phase 3).
-8. **Project settings → Service accounts → Generate new private key**. Keep the file outside the repository. It is a secret: it can change every account.
+8. **Project settings → Service accounts → Generate new private key**. Put the key's JSON itself, on one line in single quotes, in `env/firebase.env` as `FIREBASE_SERVICE_ACCOUNT` (with `FIREBASE_PROJECT_ID`), then delete the downloaded file. It is a secret: it can change every account. Nothing reads a key file.
 9. Run the configuration script (authenticator codes, password policy, email privacy):
 
    ```bash
-   cd "Full CRM Turf/tools/firebase"
-   npm install
-   GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json node configure-auth.mjs turf-dev
+   npm --prefix "Full CRM Turf/tools/firebase" install
+   node "Full CRM Turf/tools/firebase/configure-auth.mjs"
    ```
 
    It prints the project's resulting configuration; check that TOTP shows `ENABLED`.
 
 ### Settings each part will read
 
+All of them go in the part's file in `env/` (`env/README.md`); nothing is set in source files or read from key files.
+
 | Where | Setting |
 | --- | --- |
-| Core API | `TURF_FIREBASE_PROJECT` (the project id); `TURF_FIREBASE_SERVICE_ACCOUNT` (path to the key file, phase 4) |
+| Core API | `TURF_FIREBASE_PROJECT` (the project id); `TURF_FIREBASE_SERVICE_ACCOUNT` (the key's JSON, phase 4) |
 | Desktop app, CRM | `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_PROVIDERS`; `VITE_GOOGLE_DESKTOP_CLIENT_ID`, `VITE_GOOGLE_DESKTOP_CLIENT_SECRET` |
 | Core API, for the website | `TURF_FIREBASE_API_KEY`, `TURF_FIREBASE_APP_ID`; optionally `TURF_FIREBASE_AUTH_DOMAIN`, `TURF_FIREBASE_PROVIDERS` |

@@ -189,13 +189,14 @@ const composeServices = stack.services
 put(
   join(root, "deploy", "compose.yml"),
   `# Every service on one machine (decision 1 of docs/plans/service-architecture.md). Only the gateway is published.
-# Build from the repository folder "Full CRM Turf":  docker compose -f deploy/compose.yml up --build
+# Build from the repository folder "Full CRM Turf":  docker compose --env-file env/compose.env -f deploy/compose.yml up --build
+# The secrets come from env/compose.env (node tools/env-init.mjs creates it; env/README.md).
 name: turf
 services:
   postgres:
     image: postgres:17
     environment:
-      POSTGRES_PASSWORD: change-me-locally
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in env/compose.env}"
     volumes:
       - postgres-data:/var/lib/postgresql/data
   redis:

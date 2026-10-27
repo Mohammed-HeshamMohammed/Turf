@@ -1,20 +1,38 @@
 // Sets a Firebase project's sign-in rules for Turf (docs/plans/firebase-auth.md, step 9): authenticator-app codes on,
 // passwords of 12 characters or more, and sign-in that does not reveal which emails have accounts. Safe to run again.
 //
-//   GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json node configure-auth.mjs <project-id>
+//   node tools/firebase/configure-auth.mjs [project-id]
 //
-// Needs the project upgraded to Identity Platform first; without it Firebase refuses the authenticator setting.
+// The project and the service account's key come from env/firebase.env (FIREBASE_PROJECT_ID, FIREBASE_SERVICE_ACCOUNT:
+// the key's JSON itself, not the path of a key file). Needs the project upgraded to Identity Platform first; without
+// it Firebase refuses the authenticator setting.
 
-import { applicationDefault, initializeApp } from "firebase-admin/app";
+import { cert, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 
-const projectId = process.argv[2];
-if (!projectId || !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-  console.error("Usage: GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json node configure-auth.mjs <project-id>");
+try {
+  process.loadEnvFile(new URL("../../env/firebase.env", import.meta.url));
+} catch {
+  /* No file: the environment must have the settings. */
+}
+
+/** The service account from FIREBASE_SERVICE_ACCOUNT. Its private key's "\n"s may have become line breaks on the way. */
+function serviceAccount(text) {
+  try {
+    return JSON.parse(String(text || "").trim().replace(/\r?\n/g, "\\n"));
+  } catch {
+    return null;
+  }
+}
+
+const projectId = process.argv[2] || process.env.FIREBASE_PROJECT_ID;
+const account = serviceAccount(process.env.FIREBASE_SERVICE_ACCOUNT);
+if (!projectId || !account?.private_key) {
+  console.error("Set FIREBASE_PROJECT_ID and FIREBASE_SERVICE_ACCOUNT in env/firebase.env (see env/README.md and firebase.env.example).");
   process.exit(1);
 }
 
-initializeApp({ credential: applicationDefault(), projectId });
+initializeApp({ credential: cert(account), projectId });
 const projects = getAuth().projectConfigManager();
 
 await projects.updateProjectConfig({

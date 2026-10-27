@@ -48,8 +48,11 @@ This starts PostgreSQL and Redis with their data in `X:\turf-data` (set `TURF_DA
 Run the API:
 
 ```bash
-cd services/core-api/rust && DATABASE_URL=postgres://turf_api:turf_api@127.0.0.1:55432/turf MIGRATION_DATABASE_URL=postgres://turf_owner:turf_owner@127.0.0.1:55432/turf REDIS_URL=redis://127.0.0.1:56379 TURF_AUTH_JWKS_URL=http://localhost:8101/.well-known/jwks.json TURF_WORKER_TOKENS=go=change-me-to-a-long-random-token cargo run -p turf-api
+node tools/env-init.mjs                       # once, from Full CRM Turf/: env/core-api.env, env/worker.env, ... with new secrets
+bash services/core-api/scripts/run-api.sh     # reads env/core-api.env; start the auth service first
 ```
+
+Every setting and secret (database, worker tokens, webhook secret, auth, Firebase) is in `env/core-api.env`; `env/README.md` lists them. A variable already set in the environment wins over the file.
 
 Tests (unit, contract, and end to end against the real database):
 

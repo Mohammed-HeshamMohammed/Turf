@@ -30,6 +30,10 @@ class ApiError extends Error {
 }
 
 const service = await fetch("/api/v1/auth/service").then(r => r.json(), () => ({}));
+/** Whether a new account may open its own trial here; otherwise only an invitation opens a workspace. */
+const SIGNUP_OPEN = service.signup === true;
+/** Said wherever a closed server would otherwise offer a trial. */
+const INVITE_ONLY = "Turf is by invitation only: your workspace owner, or Turf, sends you a link.";
 // A server that uses Firebase hands its web config here; the bundle with Firebase's SDK is loaded only then.
 const auth = service.firebase
   ? await import("./firebase-auth.js").then(m => m.createFirebaseAuth({ sdk: m.firebaseSdk(service.firebase), providers: service.firebase.providers || [] }))
@@ -121,7 +125,7 @@ async function refreshMe() {
           h("a", { class: "button", href: "#/account" }, "Account"),
           h("button", { class: "button", onclick: signOut }, "Sign out"),
         ].filter(Boolean)
-      : [h("a", { class: "button", href: "#/signin" }, "Sign in"), h("a", { class: "button primary", href: "#/signup" }, "Start free trial")]),
+      : [h("a", { class: "button" + (SIGNUP_OPEN ? "" : " primary"), href: "#/signin" }, "Sign in"), SIGNUP_OPEN ? h("a", { class: "button primary", href: "#/signup" }, "Start free trial") : null].filter(Boolean)),
   );
   return me;
 }
@@ -136,9 +140,6 @@ async function signOut() {
 /** An invitation waiting for the person to sign up or sign in (including with Google, which leaves the page). */
 const PENDING_JOIN = "turf.join";
 
-/** Whether a new account may open its own trial here; otherwise only an invitation opens a workspace. */
-const signupOpen = () => api("/auth/service").then(data => data?.signup === true).catch(() => false);
-
 /** After signing in: join a waiting invitation, or open the person's trial if they have no workspace yet. */
 async function afterSignIn({ newAccount = false, organizationName = "" } = {}) {
   const invitation = sessionStorage.getItem(PENDING_JOIN);
@@ -146,7 +147,7 @@ async function afterSignIn({ newAccount = false, organizationName = "" } = {}) {
     sessionStorage.removeItem(PENDING_JOIN);
     const joined = await api("/invitations/join", { token: invitation });
     setOrganization(joined.organization_id);
-  } else if (newAccount && (await signupOpen())) {
+  } else if (newAccount && SIGNUP_OPEN) {
     const opened = await api("/organizations/trial", { organization: organizationName, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
     setOrganization(opened.organization_id);
   }
@@ -224,7 +225,9 @@ async function home() {
   show(
     h("h1", {}, "The CRM and dialer for property outreach."),
     h("p", { class: "lead" }, "Import your lists, check every number with Turf's Skip Tracing, call owners, hand qualified sellers to your closers, and track every deal."),
-    h("div", { class: "row" }, h("a", { class: "button primary", href: "#/signup" }, "Start the free trial"), h("a", { class: "button", href: "#/signin" }, "Sign in")),
+    SIGNUP_OPEN
+      ? h("div", { class: "row" }, h("a", { class: "button primary", href: "#/signup" }, "Start the free trial"), h("a", { class: "button", href: "#/signin" }, "Sign in"))
+      : h("div", { class: "stack" }, h("p", { class: "muted" }, INVITE_ONLY), h("div", { class: "row" }, h("a", { class: "button primary", href: "#/signin" }, "Sign in"))),
     h(
       "div",
       { class: "grid", "aria-label": "Plans" },
@@ -241,7 +244,7 @@ async function home() {
           ),
           h("p", { class: "muted" }, `${plan.included_minutes.toLocaleString()} calling minutes${plan.per_seat ? " per seat" : ""}${plan.price_cents ? " each month" : ""}`),
           h("ul", { class: "ticks" }, (describe[plan.key] || []).map(item => h("li", {}, item))),
-          h("a", { class: "button" + (plan.key === "trial" ? " primary" : ""), href: "#/signup" }, plan.key === "trial" ? "Start free" : "Start with the trial"),
+          SIGNUP_OPEN ? h("a", { class: "button" + (plan.key === "trial" ? " primary" : ""), href: "#/signup" }, plan.key === "trial" ? "Start free" : "Start with the trial") : null,
         ),
       ),
     ),
@@ -249,6 +252,17 @@ async function home() {
 }
 
 function signup() {
+  if (!SIGNUP_OPEN) {
+    return show(
+      h(
+        "section",
+        { class: "card narrow" },
+        h("h2", {}, "You need an invitation"),
+        h("p", {}, INVITE_ONLY + " Open it to create your account."),
+        h("p", { class: "muted" }, "Already have an account? ", h("a", { href: "#/signin" }, "Sign in"), "."),
+      ),
+    );
+  }
   show(
     h(
       "section",
@@ -295,7 +309,7 @@ function signin() {
           await afterSignIn();
         },
       ),
-      h("p", { class: "muted" }, "New here? ", h("a", { href: "#/signup" }, "Start a free trial"), "."),
+      SIGNUP_OPEN ? h("p", { class: "muted" }, "New here? ", h("a", { href: "#/signup" }, "Start a free trial"), ".") : h("p", { class: "muted" }, "New here? " + INVITE_ONLY),
     ),
   );
 }
@@ -416,7 +430,7 @@ async function joinTeam(token) {
 async function workspace() {
   if (!(await refreshMe())) return (location.hash = "#/signin");
   if (me.organizations.length) return (location.hash = "#/account");
-  if (!(await signupOpen())) {
+  if (!SIGNUP_OPEN) {
     return show(
       h(
         "section",

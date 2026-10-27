@@ -28,6 +28,14 @@
       "port": 5190
     },
     {
+      "name": "turf-auth",
+      "runtimeExecutable": "C:/Program Files/Git/bin/bash.exe",
+      "runtimeArgs": [
+        "Full CRM Turf/services/auth/scripts/run-auth.sh"
+      ],
+      "port": 8101
+    },
+    {
       "name": "turf-api",
       "runtimeExecutable": "C:/Program Files/Git/bin/bash.exe",
       "runtimeArgs": [
