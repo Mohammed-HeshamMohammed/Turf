@@ -33,6 +33,8 @@ const service = await fetch("/api/v1/auth/service").then(r => r.json(), () => ({
 /** Whether a new account may open its own trial here; otherwise only an invitation opens a workspace. */
 const SIGNUP_OPEN = service.signup === true;
 /** Said wherever a closed server would otherwise offer a trial. */
+/** What a sign-in code can be: Firebase has no recovery codes, the auth service does. */
+const CODE_HELP = service.firebase ? "From your authenticator app." : "From your authenticator app, or one of your recovery codes.";
 const INVITE_ONLY = "Turf is by invitation only: your workspace owner, or Turf, sends you a link.";
 // A server that uses Firebase hands its web config here; the bundle with Firebase's SDK is loaded only then.
 const auth = service.firebase
@@ -159,7 +161,10 @@ async function afterSignIn({ newAccount = false, organizationName = "" } = {}) {
 
 // --- Google sign-in -----------------------------------------------------------------------------------------------
 
+/** Sign-in marks. Google's and Apple's are their own logos in their own colours; Apple's and email's follow the text. */
 const LOGOS = {
+  apple: [["currentColor", "M16.4 12.6c0-2.5 2.1-3.7 2.2-3.8-1.2-1.7-3-2-3.7-2-1.6-.2-3.1.9-3.9.9s-2-.9-3.4-.9c-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8s2 .8 3.4.8c1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.7-1-2.7-4.2zM13.9 5.1c.7-.9 1.2-2 1-3.2-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.1 1.2.1 2.4-.6 3.1-1.5z"]],
+  email: [["currentColor", "M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm1 2.4V17h16V7.4l-7.5 5.2a1 1 0 0 1-1 0L4 7.4zM5.8 7l6.2 4.3L18.2 7H5.8z"]],
   google: [
     ["#4285F4", "M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.7z"],
     ["#34A853", "M12 24c3.2 0 6-1.1 8-2.9l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.7-5H1.3v3.1A12 12 0 0 0 12 24z"],
@@ -182,6 +187,20 @@ function logo(name) {
   }
   return svg;
 }
+
+/** How someone signs in ("password", "google", "apple"), as its mark with the words for screen readers and on hover. */
+const SIGN_IN_NAMES = { password: "email and password", google: "Google", apple: "Apple" };
+function signInMark(method) {
+  if (!method) return null;
+  const label = "Signs in with " + (SIGN_IN_NAMES[method] || method);
+  const mark = logo(method === "password" ? "email" : LOGOS[method] ? method : "email");
+  mark.setAttribute("width", "16");
+  mark.setAttribute("height", "16");
+  return h("span", { class: "sign-in-mark", title: label, role: "img", "aria-label": label }, mark);
+}
+
+/** A person's name with how they sign in. */
+const named = (name, method) => h("span", { class: "named" }, signInMark(method), name);
 
 /** "Continue with Google" for the sign-up and sign-in pages. A provider not set up on the server says so. */
 function providerButtons() {
@@ -321,7 +340,7 @@ function signinCode(values) {
       "section",
       { class: "card narrow" },
       h("h2", {}, "Enter your sign-in code"),
-      h("p", { class: "muted" }, "From your authenticator app."),
+      h("p", { class: "muted" }, CODE_HELP),
       form([input("Code", "code", { autocomplete: "one-time-code", maxlength: 12 })], "Sign in", async more => {
         await auth.signIn(values.email, values.password, more.code.trim());
         await afterSignIn();
@@ -462,7 +481,7 @@ async function account() {
   const billing = await api("/billing");
   const org = me.organizations.find(item => item.id === me.organization_id);
   const admin = me.capabilities.includes("admin");
-  const sections = [h("h1", {}, org?.name || "Your account"), h("p", { class: "muted" }, me.user.name + " · " + me.user.email)];
+  const sections = [h("h1", {}, org?.name || "Your account"), h("p", { class: "muted named" }, signInMark(me.user.sign_in), me.user.name + " · " + me.user.email)];
 
   if (admin && !billing.email_verified) {
     const devToken = sessionStorage.getItem("turf.verify");
@@ -650,7 +669,7 @@ async function team(billing) {
             return h(
               "tr",
               {},
-              h("td", {}, member.name),
+              h("td", {}, named(member.name, member.sign_in)),
               h("td", {}, member.email),
               h("td", {}, member.roles.map(key => ROLE_NAMES[key] || key).join(", ")),
               h("td", {}, member.expired ? h("span", { class: "badge danger" }, "ended " + date(member.expires_at)) : member.expires_at ? "until " + date(member.expires_at) : "no end date"),
@@ -877,7 +896,7 @@ async function adminPeople(you, query = "") {
               h(
                 "tr",
                 {},
-                h("td", {}, person.name),
+                h("td", {}, named(person.name, person.sign_in)),
                 h("td", {}, person.email),
                 h("td", {}, person.workspaces.map(w => `${w.name} (${w.roles.map(key => ROLE_NAMES[key] || key).join(", ")})`).join("; ") || "—"),
                 h("td", {}, person.platform_role === "owner" ? h("span", { class: "badge peach" }, "Platform owner") : person.platform_role ? h("span", { class: "badge good" }, "System administrator") : "—"),
@@ -974,7 +993,7 @@ async function adminStaff(you) {
               h(
                 "tr",
                 {},
-                h("td", {}, person.name),
+                h("td", {}, named(person.name, person.sign_in)),
                 h("td", {}, person.email, person.disabled ? h("span", { class: "badge danger" }, " off") : null),
                 h("td", {}, person.platform_role === "owner" ? "Platform owner" : "System administrator"),
                 h(
@@ -1086,7 +1105,7 @@ function providerCode() {
       "section",
       { class: "card narrow" },
       h("h2", {}, "Enter your sign-in code"),
-      h("p", { class: "muted" }, "From your authenticator app."),
+      h("p", { class: "muted" }, CODE_HELP),
       form([input("6-digit code", "code", { inputmode: "numeric", autocomplete: "one-time-code", maxlength: 8 })], "Sign in", async values => {
         await auth.verifyMfa(values.code.trim());
         await afterSignIn();

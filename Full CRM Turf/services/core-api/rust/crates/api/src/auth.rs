@@ -170,8 +170,9 @@ async fn with_organization(state: &AppState, mut ctx: Ctx, org_id: Uuid) -> ApiR
 /// unusable password, since auth checks passwords now), and told when auth says their email is confirmed. A disabled
 /// account here stays refused. An email already used by a different account here is refused rather than merged.
 async fn local_person(state: &AppState, user_id: Uuid, claims: &turf_auth_verify::Claims) -> ApiResult<(String, String, Option<String>, bool)> {
-    let read = || sqlx::query_as::<_, (String, String, Option<String>, bool, bool, bool)>(
-        "SELECT email::text, display_name, totp_secret, disabled_at IS NOT NULL, email_verified_at IS NOT NULL, platform_role IS NOT NULL FROM users WHERE id = $1",
+    let read = || sqlx::query_as::<_, (String, String, Option<String>, bool, bool, bool, Option<String>)>(
+        "SELECT email::text, display_name, totp_secret, disabled_at IS NOT NULL, email_verified_at IS NOT NULL, platform_role IS NOT NULL, sign_in_provider \
+         FROM users WHERE id = $1",
     )
     .bind(user_id);
     let mut row = read().fetch_optional(&state.db).await?;
@@ -188,11 +189,15 @@ async fn local_person(state: &AppState, user_id: Uuid, claims: &turf_auth_verify
         .await?;
         row = read().fetch_optional(&state.db).await?;
     }
-    let Some((email, label, totp_secret, disabled, verified, staff)) = row else {
+    let Some((email, label, totp_secret, disabled, verified, staff, provider)) = row else {
         return Err(ApiError::Conflict("This email address belongs to another account on this server. Contact support to merge them.".into()));
     };
     if disabled {
         return Err(ApiError::Unauthenticated);
+    }
+    // How they signed in this time, for the people lists; written only when it changed.
+    if !claims.provider.is_empty() && provider.as_deref() != Some(claims.provider.as_str()) {
+        sqlx::query("UPDATE users SET sign_in_provider = $2 WHERE id = $1").bind(user_id).bind(&claims.provider).execute(&state.db).await?;
     }
     if claims.email_verified && !verified {
         sqlx::query("UPDATE users SET email_verified_at = now() WHERE id = $1 AND email_verified_at IS NULL").bind(user_id).execute(&state.db).await?;

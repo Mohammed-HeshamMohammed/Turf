@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Buildings, GoogleLogo, Lock, ShieldCheck, SignIn, WifiSlash } from "@phosphor-icons/react";
+import { Buildings, Lock, ShieldCheck, SignIn, WifiSlash } from "@phosphor-icons/react";
+import { GoogleMark } from "./SignInMarks.jsx";
 import { api, apiBase, auth, invitationToken, organization, SERVER, setApiBase, setOrganization, stopDesktopSignIn } from "./remote/api.js";
 import { MemoryVault, Vault } from "./remote/vault.js";
 import { inDesktopApp } from "./popout.js";
@@ -261,7 +262,7 @@ export function RemoteGate({ onReady, onLeave }) {
             {step === "signin" && (
               <>
                 <div className="provider-buttons">
-                  <Button icon={GoogleLogo} disabled={busy} onClick={() => continueWith("google", "Google")}>
+                  <Button icon={GoogleMark} disabled={busy} onClick={() => continueWith("google", "Google")}>
                     Continue with Google
                   </Button>
                   <p className="provider-or muted" role="separator">
@@ -278,7 +279,7 @@ export function RemoteGate({ onReady, onLeave }) {
             )}
             {step === "code" && (
               <>
-                <p className="body-copy">Enter the six-digit code from your authenticator app.</p>
+                <p className="body-copy">{auth.startUrl ? "Enter the six-digit code from your authenticator app, or one of your recovery codes." : "Enter the six-digit code from your authenticator app."}</p>
                 <Field label="Sign-in code">
                   <input inputMode="numeric" autoComplete="one-time-code" value={form.code} onChange={field("code")} required autoFocus />
                 </Field>
@@ -294,7 +295,7 @@ export function RemoteGate({ onReady, onLeave }) {
         )}
         {step === "stepup" && (
           <form className="remote-step" onSubmit={stepUp}>
-            <p className="body-copy">Your role needs your authenticator code too. Enter the six-digit code from the app.</p>
+            <p className="body-copy">Your role needs your authenticator code too. {auth.startUrl ? "Enter the six-digit code, or one of your recovery codes." : "Enter the six-digit code from the app."}</p>
             <Field label="Sign-in code">
               <input inputMode="numeric" autoComplete="one-time-code" value={form.code} onChange={field("code")} required />
             </Field>

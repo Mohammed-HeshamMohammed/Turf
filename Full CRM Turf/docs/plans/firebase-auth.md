@@ -33,7 +33,7 @@ Console steps and `tools/firebase/configure-auth.mjs` below. Two projects: `turf
 
 ### 1. Core API accepts Firebase tokens (done)
 - `turf-auth-verify` gets a Firebase mode: RS256, issuer `https://securetoken.google.com/<project>`, audience `<project>`, keys from `https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com` (cached, refreshed when a `kid` is unknown).
-- Claims map: `sub` → `firebase_uid`; `email`, `email_verified`, `name`; `mfa` = `firebase.sign_in_second_factor == "totp"`.
+- Claims map: `sub` → `firebase_uid`; `email`, `email_verified`, `name`; `mfa` = `firebase.sign_in_second_factor == "totp"`; `provider` = `firebase.sign_in_provider` without its ".com" ("password", "google", "apple").
 - Migration: `users.firebase_uid`. Config: `TURF_FIREBASE_PROJECT`. While both run, the core API accepts either issuer; the old one is removed in phase 5.
 - Tests: the harness signs RS256 test tokens shaped like Firebase's, against a test key set, as it does today with Ed25519.
 

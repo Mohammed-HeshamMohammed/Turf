@@ -84,3 +84,28 @@ async fn a_broken_firebase_token_is_refused() {
     let status = reqwest::Client::new().get(format!("{}/api/v1/me", h.base)).bearer_auth(parts.join(".")).send().await.unwrap().status();
     assert_eq!(status, 401);
 }
+
+#[tokio::test]
+async fn the_people_lists_show_how_each_person_signs_in() {
+    let Some(h) = start().await else { return };
+    let w = world(&h).await;
+    let caller = w.id("caller");
+    let email: String = sqlx::query_scalar("SELECT email::text FROM users WHERE id = $1::uuid").bind(&caller).fetch_one(&h.owner).await.unwrap();
+    // The owner signed in with a password (the auth service's token says so).
+    let me = w.owner.get("/api/v1/me").await.ok();
+    assert_eq!(me["user"]["sign_in"], "password");
+    // The caller comes back through Firebase with Google.
+    let google = reqwest::Client::new()
+        .get(format!("{}/api/v1/me", h.base))
+        .bearer_auth(firebase_token_via("google.com", &caller, &email, Some("Caller"), false, true))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(google.status(), 200);
+    let members = w.owner.get("/api/v1/admin/members").await.ok();
+    let row = |id: &str| members["members"].as_array().unwrap().iter().find(|m| m["user_id"] == id).unwrap()["sign_in"].clone();
+    assert_eq!(row(&caller), "google");
+    assert_eq!(row(&w.owner.id), "password");
+    let directory = w.owner.get("/api/v1/directory").await.ok();
+    assert!(directory.as_array().unwrap().iter().any(|p| p["id"] == caller.as_str() && p["sign_in"] == "google"));
+}

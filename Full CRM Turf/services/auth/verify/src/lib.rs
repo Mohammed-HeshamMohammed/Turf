@@ -26,6 +26,9 @@ pub struct Claims {
     /// They confirmed their email address (a link, or Google or Apple vouching for it). Absent in older tokens: false.
     #[serde(default)]
     pub email_verified: bool,
+    /// How they signed in: "password", "google" or "apple". Absent in older tokens: empty.
+    #[serde(default)]
+    pub provider: String,
     pub iss: String,
     pub aud: String,
     pub iat: u64,
@@ -107,8 +110,15 @@ struct FirebaseToken {
     firebase: FirebaseDetail,
 }
 
+/// Firebase's `sign_in_provider` in Turf's words: "google.com" is "google", "password" stays.
+pub fn provider_name(firebase: &str) -> String {
+    firebase.strip_suffix(".com").unwrap_or(firebase).to_string()
+}
+
 #[derive(Deserialize)]
 struct FirebaseDetail {
+    #[serde(default)]
+    sign_in_provider: String,
     /// Set when the person confirmed a second factor at sign-in: "totp" for an authenticator code.
     sign_in_second_factor: Option<String>,
 }
@@ -160,6 +170,7 @@ impl FirebaseVerifier {
             email,
             name,
             mfa: t.firebase.sign_in_second_factor.as_deref() == Some("totp"),
+            provider: provider_name(&t.firebase.sign_in_provider),
             email_verified: t.email_verified,
             iss: t.iss,
             aud: t.aud,
@@ -212,7 +223,7 @@ mod tests {
     }
 
     fn claims(exp: u64) -> Claims {
-        Claims { sub: "u-1".into(), email: "a@example.com".into(), name: "A".into(), sid: "s-1".into(), mfa: true, email_verified: true, iss: ISSUER.into(), aud: AUDIENCE.into(), iat: now(), exp }
+        Claims { sub: "u-1".into(), email: "a@example.com".into(), name: "A".into(), sid: "s-1".into(), mfa: true, email_verified: true, provider: "password".into(), iss: ISSUER.into(), aud: AUDIENCE.into(), iat: now(), exp }
     }
 
     fn sign(key: &Key, kid: &str, claims: &Claims) -> String {
@@ -288,7 +299,7 @@ mod tests {
     fn a_firebase_token_reads_as_turf_claims() {
         let v = FirebaseVerifier::from_jwks_json("turf-dev", FIREBASE_JWKS).unwrap();
         let c = v.verify(&firebase_token(firebase_claims())).unwrap();
-        assert_eq!((c.sub.as_str(), c.email.as_str(), c.name.as_str(), c.mfa, c.email_verified), ("fbUid123", "a@example.com", "a", true, true));
+        assert_eq!((c.sub.as_str(), c.email.as_str(), c.name.as_str(), c.mfa, c.email_verified, c.provider.as_str()), ("fbUid123", "a@example.com", "a", true, true, "password"));
         assert!(is_firebase(&c));
         assert!(!is_firebase(&claims(now() + 600)));
         // Only an authenticator code counts as the second step.
@@ -299,7 +310,8 @@ mod tests {
         none["firebase"] = serde_json::json!({ "sign_in_provider": "google.com" });
         none["name"] = "Ann".into();
         let c = v.verify(&firebase_token(none)).unwrap();
-        assert_eq!((c.mfa, c.name.as_str()), (false, "Ann"));
+        assert_eq!((c.mfa, c.name.as_str(), c.provider.as_str()), (false, "Ann", "google"));
+        assert_eq!(provider_name("apple.com"), "apple");
     }
 
     #[test]

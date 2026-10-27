@@ -26,8 +26,13 @@ const FIREBASE_JWKS: &str = include_str!("../../../../../../auth/verify/testdata
 
 /// A Firebase ID token as Firebase would sign it. `totp`: they confirmed an authenticator code at sign-in.
 pub fn firebase_token(uid: &str, email: &str, name: Option<&str>, totp: bool, email_verified: bool) -> String {
+    firebase_token_via("password", uid, email, name, totp, email_verified)
+}
+
+/// The same, signed in with `provider` as Firebase names it ("google.com", "apple.com", "password").
+pub fn firebase_token_via(provider: &str, uid: &str, email: &str, name: Option<&str>, totp: bool, email_verified: bool) -> String {
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-    let mut detail = json!({ "sign_in_provider": "password" });
+    let mut detail = json!({ "sign_in_provider": provider });
     if totp {
         detail["sign_in_second_factor"] = "totp".into();
     }
@@ -60,7 +65,7 @@ impl AuthKey {
     /// An access token as the auth service would sign it.
     pub fn sign(&self, sub: &str, email: &str, name: &str, mfa: bool, email_verified: bool) -> String {
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-        let claims = Claims { sub: sub.into(), email: email.into(), name: name.into(), sid: "s-1".into(), mfa, email_verified, iss: ISSUER.into(), aud: AUDIENCE.into(), iat: now, exp: now + 600 };
+        let claims = Claims { sub: sub.into(), email: email.into(), name: name.into(), sid: "s-1".into(), mfa, email_verified, provider: "password".into(), iss: ISSUER.into(), aud: AUDIENCE.into(), iat: now, exp: now + 600 };
         let mut header = Header::new(Algorithm::EdDSA);
         header.kid = Some("test".into());
         encode(&header, &claims, &EncodingKey::from_ed_der(&self.pkcs8)).unwrap()

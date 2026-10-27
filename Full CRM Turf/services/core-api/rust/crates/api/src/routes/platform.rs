@@ -237,7 +237,7 @@ async fn people(State(state): State<AppState>, ctx: Ctx, Query(search): Query<Se
     staff(&state, &ctx).await?;
     let pattern = format!("%{}%", search.q.trim().replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_"));
     let rows: Vec<Value> = sqlx::query_scalar(
-        "SELECT json_build_object('id', u.id, 'email', u.email, 'name', u.display_name, 'platform_role', u.platform_role, \
+        "SELECT json_build_object('id', u.id, 'email', u.email, 'name', u.display_name, 'platform_role', u.platform_role, 'sign_in', u.sign_in_provider, \
            'disabled', u.disabled_at IS NOT NULL, 'created_at', u.created_at, \
            'workspaces', coalesce((SELECT json_agg(json_build_object('id', o.id, 'name', o.name, 'roles', m.roles) ORDER BY o.name) \
                                    FROM memberships m JOIN organizations o ON o.id = m.org_id WHERE m.user_id = u.id), '[]'))::jsonb \
@@ -278,7 +278,7 @@ async fn access(State(state): State<AppState>, ctx: Ctx, Path(user): Path<Uuid>,
 async fn staff_list(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
     staff(&state, &ctx).await?;
     let rows: Vec<Value> = sqlx::query_scalar(
-        "SELECT json_build_object('id', id, 'email', email, 'name', display_name, 'platform_role', platform_role, 'disabled', disabled_at IS NOT NULL)::jsonb \
+        "SELECT json_build_object('id', id, 'email', email, 'name', display_name, 'platform_role', platform_role, 'disabled', disabled_at IS NOT NULL, 'sign_in', sign_in_provider)::jsonb \
          FROM users WHERE platform_role IS NOT NULL ORDER BY platform_role DESC, email",
     )
     .fetch_all(&state.db)
