@@ -13,13 +13,20 @@ import { readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** Drops `COPY <dir> ./<dir>` lines whose source is not in the branch (a server branch has no desktop/ to copy). */
-export function rewriteDockerfile(text, topLevel) {
+/**
+ * Drops `COPY <source> ./<dest>` lines whose source is not in the branch (a server branch has no desktop/ to copy). The
+ * source is looked for from the branch root (a Dockerfile built with the whole branch as its context) and from the
+ * Dockerfile's own folder `dir` (one built with its folder as the context, like `COPY src ./src` in landing/api).
+ */
+export function rewriteDockerfile(text, files, dir = "") {
+  const has = path => files.some(f => f === path || f.startsWith(path + "/"));
   return text
     .split("\n")
     .filter(line => {
       const copy = line.match(/^COPY\s+(\S+)\s+\.\/\S+\s*$/);
-      return !copy || topLevel.has(copy[1].replace(/\/$/, ""));
+      if (!copy || copy[1].startsWith("--")) return true;
+      const source = copy[1].replace(/\/$/, "");
+      return has(source) || Boolean(dir && has(`${dir}/${source}`));
     })
     .join("\n");
 }
@@ -125,11 +132,14 @@ function run() {
       put("Cargo.toml", pruneWorkspace(git(["show", `${sha}:${at("Cargo.toml")}`]), has));
     }
     const files = listing();
-    const topLevel = new Set(files.map(f => f.split("/")[0]));
     for (const dockerfile of files.filter(f => /(^|\/)Dockerfile$/.test(f))) {
       const original = git(["cat-file", "-p", git(["ls-files", "-s", "--", dockerfile], { env }).split(/\s+/)[1]]);
-      const rewritten = rewriteDockerfile(original, topLevel);
-      if (rewritten !== original) put(dockerfile, rewritten);
+      const rewritten = rewriteDockerfile(original, files, dockerfile.split("/").slice(0, -1).join("/"));
+      if (rewritten !== original) {
+        const kept = new Set(rewritten.split("\n"));
+        for (const line of original.split("\n")) if (!kept.has(line)) console.log(`${component.name}: ${dockerfile}: not in this branch, dropped: ${line}`);
+        put(dockerfile, rewritten);
+      }
     }
     // The branch changes only when its files do, not on every commit to main: compare the files without the note.
     const content = git(["write-tree"], { env }).trim();
