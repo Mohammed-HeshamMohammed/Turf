@@ -1,34 +1,108 @@
 openapi: 3.0.3
 info:
-  title: Turf Authentication service
+  title: Turf authentication service
   version: 0.1.0
-  description: Accounts, sessions, two-step sign-in, Google sign-in, roles and tokens. Signs short-lived tokens and publishes its public keys. Nothing else.
+  description: The one source of truth for who someone is. Other services verify its access tokens with the public keys at /.well-known/jwks.json and never call it to do so.
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT (EdDSA) }
+  schemas:
+    Error:
+      type: object
+      required: [error, code]
+      properties:
+        error: { type: string }
+        code: { type: string, enum: [bad_request, unauthenticated, wrong_credentials, mfa_required, wrong_code, forbidden, conflict, too_many_attempts, internal] }
+    Tokens:
+      type: object
+      required: [access_token, token_type, expires_in, refresh_token, user]
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, example: Bearer }
+        expires_in: { type: integer, example: 900 }
+        refresh_token: { type: string }
+        user:
+          type: object
+          properties:
+            id: { type: string }
+            email: { type: string }
+            name: { type: string }
 paths:
   /healthz:
-    get:
-      summary: Is the service running
-      responses:
-        "200":
-          description: Running
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [ok, service]
-                properties:
-                  ok: { type: boolean }
-                  service: { type: string, example: auth }
+    get: { summary: Is the service running, responses: { "200": { description: Running } } }
   /version:
+    get: { summary: The running version, responses: { "200": { description: Version } } }
+  /.well-known/jwks.json:
     get:
-      summary: The running version
+      summary: The public keys every service checks access tokens with
+      responses: { "200": { description: A JSON Web Key Set of Ed25519 keys } }
+  /v1/accounts:
+    post:
+      summary: Create an account
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, name]
+              properties: { email: { type: string }, password: { type: string, minLength: 12 }, name: { type: string }, kind: { type: string, enum: [browser, desktop] } }
       responses:
-        "200":
-          description: Version
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [service, version]
-                properties:
-                  service: { type: string }
-                  version: { type: string, example: 0.1.0 }
+        "201": { description: Created and signed in, content: { application/json: { schema: { $ref: "#/components/schemas/Tokens" } } } }
+        "400": { description: Not valid, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "403": { description: Sign-up is closed }
+        "409": { description: The email already has an account }
+  /v1/sessions:
+    post:
+      summary: Sign in
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties: { email: { type: string }, password: { type: string }, code: { type: string, description: Authenticator or recovery code }, kind: { type: string, enum: [browser, desktop] } }
+      responses:
+        "200": { description: Signed in, content: { application/json: { schema: { $ref: "#/components/schemas/Tokens" } } } }
+        "401": { description: wrong_credentials, mfa_required or wrong_code }
+        "429": { description: too_many_attempts }
+    get:
+      summary: This person's open sessions
+      security: [{ bearer: [] }]
+      responses: { "200": { description: The sessions }, "401": { description: Not signed in } }
+  /v1/sessions/refresh:
+    post:
+      summary: Swap a refresh token for a new pair. A refresh token works once
+      requestBody: { content: { application/json: { schema: { type: object, required: [refresh_token], properties: { refresh_token: { type: string } } } } } }
+      responses: { "200": { description: New tokens }, "401": { description: Not valid, used already, or the session ended } }
+  /v1/sessions/sign-out:
+    post:
+      summary: End the session of the bearer token, or of the refresh token in the body
+      responses: { "200": { description: Ended } }
+  /v1/sessions/revoke:
+    post:
+      summary: Close one session, or every other session
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { session_id: { type: string }, others: { type: boolean } } } } } }
+      responses: { "200": { description: Closed } }
+  /v1/me:
+    get:
+      summary: Who the token belongs to
+      security: [{ bearer: [] }]
+      responses: { "200": { description: The person }, "401": { description: Not signed in } }
+  /v1/password:
+    post:
+      summary: Change the password and close every other session
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [current, new], properties: { current: { type: string }, new: { type: string, minLength: 12 } } } } } }
+      responses: { "200": { description: Changed }, "401": { description: The current password is wrong } }
+  /v1/mfa/setup:
+    post:
+      summary: Start two-step sign-in; returns the secret and an otpauth link
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Started }, "409": { description: Already on } }
+  /v1/mfa/confirm:
+    post:
+      summary: Turn two-step sign-in on with the first code; returns ten recovery codes, once
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [code], properties: { code: { type: string } } } } } }
+      responses: { "200": { description: On }, "401": { description: The code is not right } }

@@ -192,6 +192,10 @@ a {
 .band {
   background: var(--card);
 }
+/* Bands that follow each other (a page's last band, then the shared FAQ and Download) read as one band, not a double gap. */
+.band + .band {
+  padding-top: 0;
+}
 
 .grid {
   display: grid;
@@ -232,6 +236,10 @@ a {
 .steps p,
 .principles p {
   color: var(--muted);
+}
+.steps h3 + p,
+.principles h3 + p {
+  margin-top: 8px;
 }
 .card .who {
   color: var(--accent-ink);
@@ -334,8 +342,13 @@ textarea {
   .top nav a:not(.button) {
     display: none;
   }
+  .section {
+    padding-top: 48px;
+    padding-bottom: 48px;
+  }
   .hero {
     padding-top: 56px;
+    padding-bottom: 56px;
   }
   .panel {
     padding: 24px;
@@ -398,7 +411,7 @@ textarea {
 }
 
 .cta {
-  margin: 0 max(20px, calc((100% - 1120px) / 2)) 72px;
+  margin: 72px max(20px, calc((100% - 1120px) / 2));
   padding: 64px 32px;
   border-radius: var(--radius);
   background: var(--dark);
@@ -502,6 +515,8 @@ textarea {
     grid-column: 1 / -1;
   }
   .cta {
+    margin-top: 48px;
+    margin-bottom: 48px;
     padding: 44px 22px;
   }
 }

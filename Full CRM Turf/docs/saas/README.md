@@ -158,28 +158,26 @@ are unchanged.
 | Method | Path | Who | What |
 | --- | --- | --- | --- |
 | GET | `/plans` | anyone | The plan catalogue |
-| POST | `/auth/signup` | anyone (rate limited) | Account, organization and trial; signs in |
-| POST | `/auth/verify-email` | anyone with the token | Confirms the address (single use, 2 days) |
-| POST | `/auth/verify-email/resend` | signed in | New link, at most one a minute |
+| POST | `/organizations/trial` | signed in with auth (rate limited) | Trial organization for that person, one each |
+| POST | `/invitations/join` | signed in with auth, as the invited email | Joins the invitation's organization |
 | GET | `/billing` | members | Plan, status, seats, minutes; payments for owners and administrators only |
 | POST | `/billing/checkout` | owner or administrator, email confirmed | Pending payment, then the provider's checkout address |
 | POST | `/billing/webhook` | payment provider (HMAC signed) | Marks the payment paid or failed; switches the plan |
 | POST | `/calls/start` | members with the `call` capability | Opens a call; refused when no minutes are left; answers `max_seconds` |
 | POST | `/calls/{id}/end` | the caller (or an administrator) | Closes the call and records its minutes from the server clock |
 | POST | `/admin/members` | administrators | Invite; refused on Solo or when seats are full |
-| GET | `/auth/providers` | anyone | Whether Google and Apple sign-in are set up |
-| GET | `/auth/oauth/{google,apple}/start` | anyone | Sends the browser to the provider (`?target=app` returns to the app) |
-| GET/POST | `/auth/oauth/{google,apple}/callback` | the provider | Finishes the sign-in, sets the session, returns to the website or app |
-| GET | `/platform/organizations` | platform administrators with MFA | Every customer organization at a glance |
+| GET/POST | `/platform/*` | Turf's staff with MFA (the platform owner and system administrators) | The admin dashboard: every workspace, people, staff and activity (see `services/core-api/README.md`) |
 
 `/me` now also says whether the organization's plan is usable, so the CRM can tell people why it is locked.
+
+Accounts, sign-in, two-step codes, Google and Apple, email confirmation and sessions are the auth service's (`services/auth/README.md`); every route here needs its access token and the organization in `X-Turf-Org`.
 
 ## Security
 
 - **Sign-in required everywhere.** The desktop CRM opens on the sign-in screen and cannot fall back to sample data.
-  Every API route except `/plans`, sign-up, verification and the webhook needs a session.
-- **MFA** for owners and administrators (TOTP plus recovery codes). Five failed sign-ins in 15 minutes pauses that
-  address.
+  Every API route except `/plans`, `/auth/service` and the webhook needs an auth access token.
+- **MFA** for owners and administrators (TOTP plus recovery codes, checked by auth; its token says whether it was
+  passed). Auth pauses an address after repeated failed sign-ins.
 - **Organization isolation in the database** (row-level security), not only in code. The API connects as a role that
   cannot bypass it.
 - **Payments only change through the signed webhook.** It checks the HMAC-SHA256 signature in constant time, the
@@ -188,83 +186,20 @@ are unchanged.
   count as spent. A call's length comes from the server clock and is capped at what it was allowed.
 - **Seats cannot be overdrawn.** Invitations and joins lock the subscription row and count members plus open
   invitations.
-- **CSRF**: cookie-authenticated writes need the `X-Turf-Request` header. Session cookies are HttpOnly, SameSite=Lax
-  and Secure in production.
+- **No cookies**: requests carry a bearer token, so another site cannot make them on someone's behalf, and CORS
+  allows no credentials.
 - **Website headers**: a strict Content-Security-Policy (no inline scripts, no framing), `nosniff`, same-origin
   referrer. The page writes user data only as text.
-- **Sign-up abuse**: at most 30 new accounts per 10 minutes per server, one account per email. Put per-address limits in
+- **Sign-up abuse**: at most 30 new trial organizations per 10 minutes per server, one per person. Put per-address limits in
   nginx as well.
 
 ## Google sign-in
 
-The sign-up and sign-in pages on the website, and the app's sign-in screen, offer **Continue with Google** above the
-email form. Apple is not offered: it needs a paid Apple Developer account and an HTTPS domain. The server supports it,
-but it stays off until `TURF_APPLE_*` are set and a button is added back. A new person gets the same trial as the email sign-up. Someone whose
-verified Google address matches an existing account signs in to that account.
-
-The server does the whole exchange itself (OpenID Connect authorization code flow):
-
-- a single-use state (kept only as a hash, 10 minutes), a nonce, and PKCE for Google;
-- the ID token's signature is checked against the provider's published keys (RS256 only), along with its issuer,
-  audience and expiry, and the nonce must match;
-- the provider must say the email address is verified.
-
-Tests run the whole flow against a fake provider. They show that edited, expired, replayed, wrong-audience,
-wrong-issuer and unverified sign-ins are all refused.
-
-The button says "not connected on this server yet" until the keys are set. On this development machine they are in
-`backend/.env.local` (git-ignored, loaded by `run-api.sh`): Google Cloud project **Turf** (`turf-512607`) on
-softfix.dev@gmail.com, OAuth client **Turf Web**. The app is in Google's *Testing* mode, so only its listed test users
-can sign in (mo7amed.magdy28, mmeegoo20 and softfix.dev). Publish it on the Audience page before real customers use it.
-
-| Provider | Environment variables | Where to get them |
-| --- | --- | --- |
-| Google | `TURF_GOOGLE_CLIENT_ID`, `TURF_GOOGLE_CLIENT_SECRET` | Google Cloud Console → APIs & Services → Credentials → OAuth client ID (Web application). Authorized redirect URI: `{TURF_PUBLIC_URL}/api/v1/auth/oauth/google/callback` |
-| Apple | `TURF_APPLE_CLIENT_ID` (the Services ID), `TURF_APPLE_TEAM_ID`, `TURF_APPLE_KEY_ID`, `TURF_APPLE_PRIVATE_KEY` (the .p8 file) | Apple Developer → Certificates, IDs & Profiles: a Services ID with Sign in with Apple, and a key with Sign in with Apple. Return URL: `{TURF_PUBLIC_URL}/api/v1/auth/oauth/apple/callback` |
-
-`TURF_PUBLIC_URL` is the server's address as browsers see it. `TURF_APP_URL` is where a sign-in started in the app
-returns to. Apple only accepts HTTPS return addresses on a real domain, so Apple sign-in works once the server is
-deployed, not on localhost. Google works on `http://localhost:8088`.
-
-For the packaged desktop app, Google may refuse sign-in inside an embedded window. If it does, the next step is to
-open the system browser and return through a turf:// link.
-
-### Desktop app
-
-Google does not allow sign-in inside an embedded app window, and the window must never leave the app. So the desktop
-app opens Google in the person's own browser, starting at `/auth/oauth/google/start?target=desktop&port=<p>`. When
-Google is done, the server sends the browser to `http://127.0.0.1:<p>/turf-sign-in` with a one-time code. Only the
-app on that same computer is listening there, and it trades the code at `POST /auth/oauth/exchange` for its own
-session. The code works once, for two minutes, and is stored only as a hash. The browser shows "You're signed in,
-return to Turf"; the app shows Cancel while it waits.
-
-## The authenticator step (MFA)
-
-Off for now: `TURF_REQUIRE_MFA` is unset, so owners and administrators go straight in after their password or Google.
-Set `TURF_REQUIRE_MFA=true` to bring back "Protect your account" for owners, administrators and the Customers page.
-The rest is already built: setup, codes, recovery codes, and the tests (which run with it on).
-
-## Platform administrators
-
-The people who run Turf the service. They get a workspace with no plan limits and a **Customers** page on the website:
-every organization with its owner, plan, real status (a lapsed period shows as expired), minutes, seats, members and
-amount paid. CRM records are never shown there. The page always needs the authenticator code. The database function
-behind it refuses anyone who is not a platform administrator. Nobody can become one through the API:
-
-```bash
-python backend/scripts/create_platform_admin.py <email> "<name>" ["<workspace>"]   # asks for the password
-```
-
-## Running it locally
-
-```bash
-python backend/scripts/dev_db.py                    # once: roles and databases (Windows portable PostgreSQL, no psql needed)
-bash backend/scripts/run-api.sh                     # API + website on http://127.0.0.1:8088
-python backend/scripts/dev_pay.py <payment> <cents> # plays the payment provider after a checkout
-```
-
-Open http://127.0.0.1:8088 to sign up. The CRM (`Full CRM Turf`, `npm run dev`) signs in to the same server
-through the Turf menu's **Connect to a Turf server**. The desktop app always asks for it.
+Google and Apple sign-in belong to the auth service now (`AUTH_GOOGLE_CLIENT_ID`, `AUTH_GOOGLE_CLIENT_SECRET`,
+`AUTH_APPLE_*`; see `services/auth/README.md`). Register `{AUTH_PUBLIC_URL}/v1/oauth/google/callback` as the
+authorized redirect URI. The Google Cloud project is **Turf** (`turf-512607`) on softfix.dev@gmail.com, OAuth client
+**Turf Web**, still in Google's *Testing* mode, so only its listed test users can sign in. Publish it on the Audience
+page before real customers use it.
 
 ## Deploying on a Hostinger VPS
 
@@ -272,8 +207,8 @@ through the Turf menu's **Connect to a Turf server**. The desktop app always ask
    passwords.
 2. Build `cargo build --release -p turf-api` and run it under systemd with `DATABASE_URL`, `MIGRATION_DATABASE_URL`,
    `TURF_SITE_DIR=/srv/turf/website`, `TURF_BILLING_WEBHOOK_SECRET` (32+ random characters), `TURF_CHECKOUT_URL`,
-   `TURF_ALLOWED_ORIGINS`, and `TURF_SECURE_COOKIES=true` (the default). Leave `TURF_DEV_TOKENS` unset.
-3. nginx terminates HTTPS (Let's Encrypt), proxies to `127.0.0.1:8088`, and rate-limits `/api/v1/auth/`.
+   `TURF_ALLOWED_ORIGINS`, and `TURF_AUTH_JWKS_URL` / `TURF_AUTH_PUBLIC_URL` pointing at the auth service.
+3. nginx terminates HTTPS (Let's Encrypt), proxies to `127.0.0.1:8088`, and rate-limits the auth service's `/v1/sessions` and `/v1/accounts`.
 4. Connect a payment provider (Stripe, or Paymob for Egypt). Its webhook adapter must sign the body with the shared
    secret, or a small adapter translates the provider's own signed event into Turf's `payment.succeeded` /
    `payment.failed`.
