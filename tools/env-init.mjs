@@ -27,19 +27,23 @@ const keys = text => text.split(/\r?\n/).map(line => line.match(/^([A-Z0-9_]+)=/
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   // One worker token, shared by the API and the worker.
-  const shared = { __WORKER_TOKEN__: token() };
-  for (const example of readdirSync(env).filter(name => name.endsWith(".env.example"))) {
+  const password = () => randomBytes(24).toString("hex");
+  const shared = { __WORKER_TOKEN__: token(), __DB_OWNER_PASSWORD__: password(), __DB_API_PASSWORD__: password(), __DB_AUTH_PASSWORD__: password() };
+  // Where the apps reach the database inside Coolify's network (the database's name there).
+  shared.__DB_HOST__ = process.env.TURF_DB_HOST || "turf-postgres";
+  for (const example of readdirSync(env).filter(name => name.endsWith(".example"))) {
     const target = join(env, example.replace(/\.example$/, ""));
     const template = readFileSync(join(env, example), "utf8");
     if (!existsSync(target)) {
-      const text = template
-        .replaceAll("__WORKER_TOKEN__", shared.__WORKER_TOKEN__)
+      const text = Object.entries(shared)
+        .reduce((out, [name, value]) => out.replaceAll(name, value), template)
         .replace(/__SECRET__/g, () => token())
         .replace(/__SIGNING_KEY__/g, () => signingKey());
       writeFileSync(target, text);
       console.log(`created env/${example.replace(/\.example$/, "")}`);
       continue;
     }
+    if (!example.endsWith(".env.example")) continue;
     const have = new Set(keys(readFileSync(target, "utf8")));
     const missing = keys(template).filter(key => !have.has(key));
     if (missing.length) console.log(`env/${example.replace(/\.example$/, "")} has no ${missing.join(", ")} (see ${example})`);
