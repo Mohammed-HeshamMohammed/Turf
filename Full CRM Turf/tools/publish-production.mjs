@@ -51,12 +51,13 @@ export function pruneWorkspace(text, has) {
   return out.join("\n");
 }
 
-function note(component, { ref, short, date, files }) {
+function note(component, { ref, short, date, files, content }) {
   return `# ${component.title}
 
 This branch is a **production snapshot of one part of Turf**: only the files this part needs, at the same paths as in \`${component.base ?? "Full CRM Turf"}/\` on \`main\`.
 
-- Made from \`${ref}\` at \`${short}\` (${date})
+- Last changed from \`${ref}\` at \`${short}\` (${date})
+- Content id: \`${content}\` (the branch is only refreshed when this changes)
 - Holds: ${component.paths.map(p => `\`${p}\``).join(", ")}${component.rust ? ", and the Cargo workspace file and lock for it" : ""}
 - ${files} files
 - Build and test: ${component.build}
@@ -126,9 +127,8 @@ function run() {
       const rewritten = rewriteDockerfile(original, topLevel);
       if (rewritten !== original) put(dockerfile, rewritten);
     }
-    put("PRODUCTION.md", note(component, { ref: from, short, date, files: files.length + 1 }));
-
-    const tree = git(["write-tree"], { env }).trim();
+    // The branch changes only when its files do, not on every commit to main: compare the files without the note.
+    const content = git(["write-tree"], { env }).trim();
     const ref = `refs/heads/${component.name}`;
     let parent = "";
     try {
@@ -136,10 +136,18 @@ function run() {
     } catch {
       parent = "";
     }
-    if (parent && git(["rev-parse", `${parent}^{tree}`]).trim() === tree) {
+    let before = "";
+    try {
+      before = git(["show", `${parent}:PRODUCTION.md`]).match(/Content id: `([0-9a-f]+)`/)?.[1] ?? "";
+    } catch {
+      before = "";
+    }
+    if (parent && before === content) {
       console.log(`${component.name}: up to date`);
       continue;
     }
+    put("PRODUCTION.md", note(component, { ref: from, short, date, files: files.length + 1, content }));
+    const tree = git(["write-tree"], { env }).trim();
     if (flag("--list")) {
       console.log(`${component.name}: ${files.length + 1} files  (${component.paths.join(", ")})`);
       continue;
