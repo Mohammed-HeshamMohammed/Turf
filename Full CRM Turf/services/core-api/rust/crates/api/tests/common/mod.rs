@@ -57,6 +57,8 @@ pub fn config_for(redis: bool, base: &str, provider: &str) -> Option<Config> {
         require_mfa: true,
         public_url: base.into(),
         app_url: "http://app.example".into(),
+        auth_jwks: String::new(),
+        auth_jwks_url: String::new(),
         google: turf_api::config::OauthProvider { client_secret: "google-test-secret".into(), ..endpoints("google-test-client") },
         apple: turf_api::config::OauthProvider {
             team_id: "TEAMTEST01".into(),
@@ -81,7 +83,16 @@ pub async fn start_without_mfa() -> Option<Harness> {
     start_configured(true, false).await
 }
 
+/// A server that also accepts access tokens signed by the auth service whose public keys are `jwks`.
+pub async fn start_with_auth(jwks: &str) -> Option<Harness> {
+    start_full(true, true, jwks).await
+}
+
 async fn start_configured(redis: bool, require_mfa: bool) -> Option<Harness> {
+    start_full(redis, require_mfa, "").await
+}
+
+async fn start_full(redis: bool, require_mfa: bool, jwks: &str) -> Option<Harness> {
     let guard = LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     // The API's own address must be known before it starts: provider sign-ins return to it.
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -92,6 +103,7 @@ async fn start_configured(redis: bool, require_mfa: bool) -> Option<Harness> {
         return None;
     };
     config.require_mfa = require_mfa;
+    config.auth_jwks = jwks.to_string();
     turf_api::db::migrate(&config).await.expect("migrations");
     let owner = sqlx::PgPool::connect(&config.migration_database_url).await.expect("owner connection");
     let tables: Vec<String> = sqlx::query_scalar("SELECT tablename::text FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN ('_sqlx_migrations', 'plans')")

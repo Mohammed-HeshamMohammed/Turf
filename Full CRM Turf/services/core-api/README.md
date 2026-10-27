@@ -1,6 +1,6 @@
 # Core API (the existing Turf server)
 
-> Moved here unchanged from `backend/` and `website/` (2026-10-27, history kept). It is still one program: sign-in, the CRM, billing, sync and the website together. Splitting auth and the CRM out of it into `services/auth` and `services/features/crm` comes next; until then this is the server the app talks to.
+> Moved here unchanged from `backend/` and `website/` (2026-10-27, history kept). It is still one program: sign-in, the CRM, billing, sync and the website together. It also accepts access tokens from the auth service (`services/auth`), the one source of truth for who someone is: set `TURF_AUTH_JWKS` to auth's public keys (or `TURF_AUTH_JWKS_URL` to fetch them at start) and send the organization in `x-turf-org`. Its own sessions keep working until people are moved over (see `services/auth/README.md`). Splitting the CRM out into `services/features/crm` comes later.
 
 The server side of the full CRM (see `docs/TURF_CRM_AND_PERFORMANCE_PLAN.md`). The desktop app's local Skip Tracing service stays in `service/`.
 

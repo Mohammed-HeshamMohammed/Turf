@@ -37,6 +37,11 @@ pub struct Config {
     pub app_url: String,
     pub google: OauthProvider,
     pub apple: OauthProvider,
+    /// The auth service's public keys (the JSON of its /.well-known/jwks.json). When set, a request may sign in with
+    /// an auth access token instead of a session of this server. Empty: only this server's own sessions.
+    pub auth_jwks: String,
+    /// Where to fetch those keys at start, when TURF_AUTH_JWKS is not given directly.
+    pub auth_jwks_url: String,
 }
 
 /// One outside sign-in (OpenID Connect). Not configured until it has a client id and a secret (or, for Apple, a key).
@@ -114,6 +119,8 @@ impl Config {
                 client_secret: var("TURF_GOOGLE_CLIENT_SECRET", ""),
                 ..OauthProvider::google_defaults()
             },
+            auth_jwks: var("TURF_AUTH_JWKS", ""),
+            auth_jwks_url: var("TURF_AUTH_JWKS_URL", ""),
             apple: OauthProvider {
                 client_id: var("TURF_APPLE_CLIENT_ID", ""),
                 team_id: var("TURF_APPLE_TEAM_ID", ""),

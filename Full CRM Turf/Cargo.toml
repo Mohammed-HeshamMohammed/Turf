@@ -4,6 +4,7 @@
 resolver = "2"
 members = [
   "services/auth",
+  "services/auth/verify",
   "services/features/leads-map",
   "services/features/crm",
   "services/features/backup-restore",

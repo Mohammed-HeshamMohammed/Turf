@@ -2656,6 +2656,7 @@ dependencies = [
  "rand 0.8.8",
  "redis",
  "reqwest",
+ "ring",
  "rust_decimal",
  "serde",
  "serde_json",
@@ -2669,8 +2670,19 @@ dependencies = [
  "tower-layer",
  "tracing",
  "tracing-subscriber",
+ "turf-auth-verify",
  "turf-grouping",
  "uuid",
+]
+
+[[package]]
+name = "turf-auth-verify"
+version = "0.1.0"
+dependencies = [
+ "jsonwebtoken",
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

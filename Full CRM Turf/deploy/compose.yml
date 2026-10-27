@@ -25,6 +25,9 @@ services:
       dockerfile: services/auth/Dockerfile
     environment:
       PORT: "8101"
+      DATABASE_URL: "${AUTH_DATABASE_URL:-postgres://postgres:change-me-locally@postgres:5432/turf_auth}"
+      # turf-auth new-key; without it every token stops working on restart.
+      AUTH_SIGNING_KEY: "${AUTH_SIGNING_KEY:?set AUTH_SIGNING_KEY (cargo run -p turf-auth -- new-key)}"
     restart: unless-stopped
   notifications:
     build:

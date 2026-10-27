@@ -144,6 +144,10 @@ The folders and starting code from the target layout now exist beside the workin
 
 Not verified: the two Go services (gateway, notifications) were not compiled because Go was not installed, and the Dockerfiles and compose file were not run. Nothing from `backend/`, `src/` or `src-tauri/` has moved yet; that is phase 3 and later.
 
+## Authentication: one source of truth (2026-10-27)
+
+`services/auth` is built and runs on its own. It is the only owner of accounts, passwords, two-step codes and sessions, for every app and service. It signs 15-minute EdDSA access tokens, and every other service checks them with its public keys (`/.well-known/jwks.json`, the `turf-auth-verify` crate) without calling it. The core API accepts these tokens next to its own sessions while people are moved over. The remaining steps are in `services/auth/README.md`: copy accounts across, move Google and Apple sign-in, email confirmation, invitations and desktop sign-in into auth, point the apps at it, then turn the core API's sessions off. Organizations, memberships and roles stay with the CRM: auth says who someone is, each service decides what they may do.
+
 ## Risks
 
 - **Splitting too early** multiplies deploys and failure modes. Mitigation: decision 1 (one Compose on one VPS).

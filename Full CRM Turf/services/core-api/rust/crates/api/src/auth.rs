@@ -19,6 +19,8 @@ use uuid::Uuid;
 pub const COOKIE: &str = "turf_session";
 /// Cookie-authenticated mutations must carry this header; browsers cannot add it cross-site without CORS approval.
 pub const CSRF_HEADER: &str = "x-turf-request";
+/// With an auth-service token, the organization the request acts in (a session of this server remembers it instead).
+pub const ORG_HEADER: &str = "x-turf-org";
 
 pub fn hash_password(password: &str) -> ApiResult<String> {
     if password.chars().count() < 12 {
@@ -168,7 +170,7 @@ pub async fn load(state: &AppState, token: &str, via_cookie: bool) -> ApiResult<
     .fetch_optional(&state.db)
     .await?;
     let row = row.ok_or(ApiError::Unauthenticated)?;
-    let mut ctx = Ctx {
+    let ctx = Ctx {
         user_id: row.user_id,
         email: row.email,
         label: row.display_name,
@@ -185,7 +187,15 @@ pub async fn load(state: &AppState, token: &str, via_cookie: bool) -> ApiResult<
         mfa_enforced: state.config.require_mfa,
         subscription: None,
     };
-    let Some(org_id) = row.org_id else { return Ok(ctx) };
+    let _ = row.session_revision;
+    match row.org_id {
+        Some(org_id) => with_organization(state, ctx, org_id).await,
+        None => Ok(ctx),
+    }
+}
+
+/// The person's roles, grants and plan in an organization. Without a membership there, the context has no organization.
+async fn with_organization(state: &AppState, mut ctx: Ctx, org_id: Uuid) -> ApiResult<Ctx> {
     // Memberships are read before row security applies; the role table needs the organization set.
     let mut tx = state.db.begin().await?;
     sqlx::query("SELECT set_config('turf.org_id', $1, true)").bind(org_id.to_string()).execute(&mut *tx).await?;
@@ -194,7 +204,7 @@ pub async fn load(state: &AppState, token: &str, via_cookie: bool) -> ApiResult<
          JOIN organizations o ON o.id = m.org_id WHERE m.org_id = $1 AND m.user_id = $2",
     )
     .bind(org_id)
-    .bind(row.user_id)
+    .bind(ctx.user_id)
     .fetch_optional(&mut *tx)
     .await?;
     let Some((roles, restrictions, team_ids, project_ids, revision)) = membership else {
@@ -215,8 +225,37 @@ pub async fn load(state: &AppState, token: &str, via_cookie: bool) -> ApiResult<
     ctx.team_ids = team_ids;
     ctx.project_ids = project_ids;
     ctx.access_revision = revision;
-    let _ = row.session_revision;
     Ok(ctx)
+}
+
+/// A person signed in with the auth service. The token was already checked against auth's public keys; this server
+/// only needs the person to exist here too (the same id), and reads the organization from the x-turf-org header.
+pub async fn load_from_auth(state: &AppState, claims: &turf_auth_verify::Claims, org_header: Option<&str>) -> ApiResult<Ctx> {
+    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthenticated)?;
+    let row: Option<(String, String, Option<String>)> =
+        sqlx::query_as("SELECT email::text, display_name, totp_secret FROM users WHERE id = $1 AND disabled_at IS NULL").bind(user_id).fetch_optional(&state.db).await?;
+    let (email, label, totp_secret) = row.ok_or(ApiError::Unauthenticated)?;
+    let ctx = Ctx {
+        user_id,
+        email,
+        label,
+        session_hash: format!("auth:{}", claims.sid),
+        org_id: None,
+        roles: vec![],
+        access: Access::default(),
+        team_ids: vec![],
+        project_ids: vec![],
+        access_revision: 0,
+        mfa_passed: claims.mfa,
+        mfa_enrolled: claims.mfa || totp_secret.is_some(),
+        via_cookie: false,
+        mfa_enforced: state.config.require_mfa,
+        subscription: None,
+    };
+    match org_header.map(str::trim).filter(|v| !v.is_empty()) {
+        Some(org) => with_organization(state, ctx, Uuid::parse_str(org).map_err(|_| ApiError::bad("x-turf-org is not an organization id"))?).await,
+        None => Ok(ctx),
+    }
 }
 
 impl FromRequestParts<AppState> for Ctx {
@@ -230,6 +269,12 @@ impl FromRequestParts<AppState> for Ctx {
             .and_then(|value| value.strip_prefix("Bearer "))
             .map(str::to_string);
         if let Some(token) = bearer {
+            // A token from the auth service is checked with its public keys, without calling it.
+            if let (Some(verifier), true) = (&state.auth, turf_auth_verify::looks_like_jwt(&token)) {
+                let claims = verifier.verify(&token).map_err(|_| ApiError::Unauthenticated)?;
+                let org = parts.headers.get(ORG_HEADER).and_then(|v| v.to_str().ok());
+                return load_from_auth(state, &claims, org).await;
+            }
             return load(state, &token, false).await;
         }
         let jar = CookieJar::from_headers(&parts.headers);
