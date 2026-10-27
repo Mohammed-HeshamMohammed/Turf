@@ -46,6 +46,13 @@ function fakeFirebase({ totp = false, redirect = null } = {}) {
     },
     GoogleAuthProvider: class {
       id = "google.com";
+      static credential = idToken => ({ providerId: "google.com", idToken });
+    },
+    signInWithCredential: async (_, credential) => {
+      calls.push(["credential", credential.idToken]);
+      if (totp) throw fail("auth/multi-factor-auth-required");
+      auth.currentUser = user;
+      return { user };
     },
     OAuthProvider: class {
       constructor(id) {
@@ -141,7 +148,7 @@ test("Google comes back through Firebase's redirect, and asks for the code when 
   assert.deepEqual(plain.calls.at(-1), ["redirect", "google.com"]);
   assert.equal(await client.finishProvider(), true);
   assert.equal(client.signedIn(), true);
-  await assert.rejects(client.startProvider("google", "desktop"), { code: "unavailable" });
+  await assert.rejects(client.startProvider("google", "desktop"), { code: "unavailable" }, "a browser page has no desktop sign-in");
 
   const guarded = createFirebaseAuth({ sdk: fakeFirebase({ totp: true, redirect: "mfa" }).sdk, storage: memoryStorage() });
   await assert.rejects(guarded.finishProvider(), { code: "mfa_required" });
@@ -174,4 +181,27 @@ test("signing up names the account and sends the confirmation email", async () =
   assert.deepEqual(calls.at(-1), ["getIdToken", true], "a fresh token carries the name");
   await client.verifyEmail("oob-1");
   assert.ok(calls.some(([name, value]) => name === "applyActionCode" && value === "oob-1"));
+});
+
+test("in the desktop app, Google's token from the browser signs in to Firebase", async () => {
+  const plain = fakeFirebase();
+  const asked = [];
+  const desktopSignIn = async name => (asked.push(name), "GOOGLE-ID-TOKEN");
+  const client = createFirebaseAuth({ sdk: { ...plain.sdk, getRedirectResult: undefined, signInWithRedirect: undefined }, storage: memoryStorage(), desktopSignIn });
+  assert.equal(await client.finishProvider(), false, "nothing to come back from");
+  await client.startProvider("google", "desktop");
+  assert.deepEqual(asked, ["google"]);
+  assert.deepEqual(plain.calls.at(-1), ["credential", "GOOGLE-ID-TOKEN"]);
+  assert.equal(await client.accessToken(), "ID");
+  await assert.rejects(client.startProvider("apple", "desktop"), { code: "unavailable" });
+
+  // With an authenticator set up, the code finishes it.
+  const guarded = createFirebaseAuth({ sdk: fakeFirebase({ totp: true }).sdk, storage: memoryStorage(), desktopSignIn });
+  await assert.rejects(guarded.startProvider("google", "desktop"), { code: "mfa_required" });
+  await guarded.verifyMfa("123456");
+  assert.equal(await guarded.accessToken(), "ID-TOTP");
+
+  // A browser sign-in that failed or was cancelled says why.
+  const cancelled = createFirebaseAuth({ sdk: plain.sdk, storage: memoryStorage(), desktopSignIn: async () => Promise.reject(Object.assign(new Error("Sign-in was cancelled."), { code: "cancelled" })) });
+  await assert.rejects(cancelled.startProvider("google", "desktop"), { message: "Sign-in was cancelled." });
 });

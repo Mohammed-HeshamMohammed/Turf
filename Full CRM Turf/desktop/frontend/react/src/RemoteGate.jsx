@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Buildings, GoogleLogo, Lock, ShieldCheck, SignIn, WifiSlash } from "@phosphor-icons/react";
-import { api, apiBase, auth, invitationToken, organization, SERVER, setApiBase, setOrganization } from "./remote/api.js";
+import { api, apiBase, auth, invitationToken, organization, SERVER, setApiBase, setOrganization, stopDesktopSignIn } from "./remote/api.js";
 import { MemoryVault, Vault } from "./remote/vault.js";
 import { inDesktopApp } from "./popout.js";
 import { Button, Card, Field } from "./ui.jsx";
@@ -94,7 +94,22 @@ export function RemoteGate({ onReady, onLeave }) {
       const available = await auth.providers().catch(() => ({}));
       if (!available[provider]) throw new Error(`${label} sign-in isn't connected yet. Use your email for now.`);
       if (!inDesktopApp()) return auth.startProvider(provider, "app");
-      if (!auth.startUrl) throw new Error(`${label} sign-in in the desktop app is coming. Use your email for now.`);
+      if (!auth.startUrl) {
+        // Firebase: the app opens Google in the browser itself, and signs in here when the browser is done.
+        waiting.current = stopDesktopSignIn;
+        setStep("browser");
+        try {
+          await auth.startProvider(provider, "desktop");
+        } catch (reason) {
+          if (reason.code === "mfa_required") return setStep("stepup");
+          setStep("signin");
+          if (reason.code === "cancelled") return;
+          throw reason;
+        } finally {
+          waiting.current = null;
+        }
+        return check();
+      }
       const { invoke } = await import("@tauri-apps/api/core");
       const { listen } = await import("@tauri-apps/api/event");
       waiting.current?.();

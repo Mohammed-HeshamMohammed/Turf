@@ -1,6 +1,6 @@
 # Sign-in on Firebase Authentication
 
-**Status:** Approved. Phases 1 and 2 done (the core API accepts Firebase tokens; the website and the CRM sign in with Firebase when given a project); phase 0 waits for the Firebase project
+**Status:** Approved. Phases 1 to 3 done (the core API accepts Firebase tokens; the website, the CRM and the desktop app sign in with Firebase when given a project; Google in the desktop app goes through the browser); phase 0 waits for the Firebase project
 **Date:** 2026-10-27
 **Replaces:** `services/auth` (the Rust sign-in service). Amends rule 3 of `service-architecture.md`: tokens are signed by Firebase (RS256, Google's keys), not by our own service.
 
@@ -42,12 +42,18 @@ Console steps and `tools/firebase/configure-auth.mjs` below. Two projects: `turf
 - The SDK is bundled into `website/firebase-auth.js`; the website's policy adds Firebase's two sign-in APIs to `connect-src`, `https://apis.google.com` to `script-src` (Firebase loads it for Google sign-in) and the project's sign-in domain as `frame-src`.
 - `setupMfa` returns the setup key and `otpauth://` link from `TotpMultiFactorGenerator`; `confirmMfa` returns no recovery codes, and the screens that showed them say what to do instead.
 
-### 3. Desktop sign-in with Google and Apple
+### 3. Desktop sign-in with Google (done), and Apple
 Firebase's popup and redirect do not work inside the Tauri window, and Google blocks embedded sign-in. The container already listens on `127.0.0.1:<port>` (`desktop/container/rust/src/signin.rs`); it is kept:
 1. The app opens the person's browser at Google with a **Desktop** OAuth client, PKCE, and `redirect_uri=http://127.0.0.1:<port>`.
 2. The listener receives the code; the app trades it for Google's ID token.
 3. `signInWithCredential(GoogleAuthProvider.credential(idToken))` signs in to Firebase.
-Apple: the same with `OAuthProvider("apple.com")`. Also turn on the desktop window's content security policy (`csp` is `null` in `tauri.conf.json` today), allowing only Turf's servers and Firebase's.
+Steps 1 and 2 run in the container (`google_sign_in` in `desktop/container/rust/src/signin.rs`), which also checks the `state`; the window does step 3. In the window Firebase starts without its redirect helper, so it loads nothing of Google's.
+
+The Google ID token's audience is the Desktop client. If Firebase refuses it, add that client id under **Authentication → Sign-in method → Google → Safelist client IDs**.
+
+Apple is not done: Apple only returns to registered `https` addresses, not to `127.0.0.1`. It needs a page on Turf's website that signs in with Apple and hands the result to the app; it comes once the Apple Developer account exists and can be tested.
+
+The desktop window's content security policy is on (`tauri.conf.json`): scripts only from the app itself, no frames.
 
 ### 4. Admin actions reach Firebase
 The core API calls the Identity Toolkit REST API with a service account (signed JWT → access token; no official Rust SDK):
@@ -93,5 +99,5 @@ Done once per project (`turf-dev`, then `turf-prod`), signed in to the Firebase 
 | Where | Setting |
 | --- | --- |
 | Core API | `TURF_FIREBASE_PROJECT` (the project id); `TURF_FIREBASE_SERVICE_ACCOUNT` (path to the key file, phase 4) |
-| Desktop app, CRM | `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`; `VITE_GOOGLE_DESKTOP_CLIENT_ID` (phase 3) |
+| Desktop app, CRM | `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_PROVIDERS`; `VITE_GOOGLE_DESKTOP_CLIENT_ID`, `VITE_GOOGLE_DESKTOP_CLIENT_SECRET` |
 | Core API, for the website | `TURF_FIREBASE_API_KEY`, `TURF_FIREBASE_APP_ID`; optionally `TURF_FIREBASE_AUTH_DOMAIN`, `TURF_FIREBASE_PROVIDERS` |

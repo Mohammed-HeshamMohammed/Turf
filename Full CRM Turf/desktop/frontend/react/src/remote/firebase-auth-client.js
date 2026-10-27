@@ -51,7 +51,11 @@ const refusal = reason => {
   return error;
 };
 
-export function createFirebaseAuth({ sdk, storage = globalThis.localStorage, providers = [] }) {
+/**
+ * `desktopSignIn(provider)`: in the desktop app, the container's Google sign-in through the person's browser; it
+ * resolves with Google's ID token (Firebase's own redirect cannot run in the app's window).
+ */
+export function createFirebaseAuth({ sdk, storage = globalThis.localStorage, providers = [], desktopSignIn = null }) {
   const auth = sdk.auth;
   /** A sign-in that needs its authenticator code: Firebase's resolver for it. */
   let pending = null;
@@ -160,15 +164,26 @@ export function createFirebaseAuth({ sdk, storage = globalThis.localStorage, pro
         }
       }),
     providers: async () => Object.fromEntries(providers.map(name => [name, true])),
-    /** Google or Apple: this page goes there and comes back; `finishProvider` then completes the sign-in. */
+    /**
+     * Google or Apple. A page goes there and comes back, and `finishProvider` completes the sign-in. The desktop app
+     * signs in here once the browser is done (it throws "mfa_required" when the code is needed).
+     */
     startProvider: (name, target) =>
       run(async () => {
-        if (target === "desktop") throw new AuthError(400, "unavailable", "Google sign-in in the desktop app is coming. Use your email for now.");
-        await sdk.signInWithRedirect(auth, provider(name));
+        if (target !== "desktop") return sdk.signInWithRedirect(auth, provider(name));
+        if (!desktopSignIn || name !== "google") throw new AuthError(400, "unavailable", "That sign-in is not available in the desktop app yet. Use Google or your email.");
+        // The container's messages are written for people already ("Sign-in was cancelled.").
+        const idToken = await desktopSignIn(name).catch(reason => {
+          throw new AuthError(400, reason?.code || "desktop_sign_in", String(reason?.message || reason || "Sign-in did not finish."));
+        });
+        await sdk.signInWithCredential(auth, sdk.GoogleAuthProvider.credential(idToken));
+        return done();
       }),
     /** True when this page came back from Google or Apple signed in. Throws "mfa_required" when it needs the code. */
     finishProvider: () =>
       run(async () => {
+        // The desktop app has no redirect to come back from.
+        if (!sdk.getRedirectResult) return false;
         const result = await sdk.getRedirectResult(auth);
         if (!result) return false;
         done();
