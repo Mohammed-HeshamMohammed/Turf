@@ -1,10 +1,12 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import {
   audiences, compareRows, features, priceRows, principles, securityPoints, steps, tiers,
 } from "./content.js";
 import { Badge, ContactForm, Faq, FinalCta, Icon, PageHead, Reveal, Shot } from "./components.jsx";
 
 const money = n => `$${n.toLocaleString("en-US")}`;
+const customPriceRows = priceRows.filter(row => row.values.some(value => value.startsWith("$")));
+const featurePrice = (row, planIndex) => Number(row.values[planIndex].replace(/[$,]/g, ""));
 
 export function Home({ onPick }) {
   const tour = ["crm", "skip", "map", "dialer"].map(id => features.find(f => f.id === id));
@@ -125,7 +127,7 @@ export function Home({ onPick }) {
             </li>
           ))}
         </ul>
-        <p className="fine center-text"><a href="#/pricing">Compare every feature and limit</a></p>
+        <p className="fine center-text"><a href="#/pricing#custom">Build a custom estimate</a> · <a href="#/pricing">Compare every feature and limit</a></p>
       </section>
 
       <Faq />
@@ -189,6 +191,14 @@ export function Features() {
 
 export function Pricing({ onPick }) {
   const cols = tiers;
+  const [plan, setPlan] = useState("solo");
+  const [seats, setSeats] = useState(3);
+  const [selected, setSelected] = useState(() => customPriceRows.map(row => row.feature));
+  const planIndex = cols.findIndex(t => t.id === plan);
+  const seatCount = plan === "solo" ? 1 : plan === "duo" ? 2 : Math.max(3, Math.floor(Number(seats) || 3));
+  const multiplier = plan === "team" || plan === "pro" ? seatCount : 1;
+  const total = customPriceRows.reduce((sum, row) =>
+    sum + (selected.includes(row.feature) ? featurePrice(row, planIndex) * multiplier : 0), 0);
   return (
     <>
       <PageHead
@@ -196,6 +206,50 @@ export function Pricing({ onPick }) {
         title="Pay for the features you use."
         lead="Each feature is priced on its own and a plan is their sum. These are draft launch prices and may change before launch. Checkout is not open yet."
       />
+      <section className="section custom-pricing" id="custom" aria-labelledby="custom-pricing-title">
+        <div className="custom-pricing-head">
+          <div>
+            <h2 id="custom-pricing-title">Build your price</h2>
+            <p className="sub">Choose the features and team size you expect to use. This is a draft monthly estimate.</p>
+          </div>
+          <div className="custom-total" aria-live="polite">
+            <span>Estimated monthly total</span>
+            <strong>{money(total)}</strong>
+            <small>{multiplier > 1 ? `for ${seatCount} paid seats` : plan === "duo" ? "for both people" : "for 1 person"}</small>
+          </div>
+        </div>
+        <div className="custom-controls">
+          <label>
+            Plan
+            <select value={plan} onChange={event => setPlan(event.target.value)}>
+              {cols.filter(t => t.price).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </label>
+          {(plan === "team" || plan === "pro") && (
+            <label>
+              Paid seats (3 or more)
+              <input type="number" min="3" step="1" value={seats} onChange={event => setSeats(event.target.value)} onBlur={() => setSeats(seatCount)} />
+            </label>
+          )}
+        </div>
+        <fieldset className="custom-features">
+          <legend>Features to include</legend>
+          <div className="custom-feature-grid">
+            {customPriceRows.map(row => {
+              const checked = selected.includes(row.feature);
+              const price = featurePrice(row, planIndex) * multiplier;
+              return (
+                <label className="custom-feature" key={row.feature}>
+                  <input type="checkbox" checked={checked} onChange={() => setSelected(current => checked ? current.filter(feature => feature !== row.feature) : [...current, row.feature])} />
+                  <span>{row.feature}</span>
+                  <strong>{money(price)}<small> / mo</small></strong>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+        <p className="fine">Exports, backup and restore, and account security are included. Clients and partners are free seats. Draft estimate only; checkout is not open.</p>
+      </section>
       <section className="section">
         <ul className="grid four">
           {tiers.filter(t => t.price).map(t => (
