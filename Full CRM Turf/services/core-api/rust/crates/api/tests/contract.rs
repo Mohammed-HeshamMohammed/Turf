@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 fn contract_paths() -> BTreeSet<String> {
-    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../../contracts/api-v1.yaml")).expect("contracts/api-v1.yaml");
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../../../contracts/api-v1.yaml")).expect("contracts/api-v1.yaml");
     let mut in_paths = false;
     let mut paths = BTreeSet::new();
     for line in text.lines() {

@@ -435,7 +435,7 @@ async function upgrade(billing) {
       result.replaceChildren(
         notice(`Checkout started: ${money(checkout.amount_cents)} for ${plan}. No payment provider is connected to this server.`),
         h("p", { class: "muted" }, "In development, confirm the payment as the provider would:"),
-        h("span", { class: "code" }, `python backend/scripts/dev_pay.py ${checkout.payment_id} ${checkout.amount_cents}`),
+        h("span", { class: "code" }, `python services/core-api/scripts/dev_pay.py ${checkout.payment_id} ${checkout.amount_cents}`),
         h("div", { class: "row" }, h("button", { class: "button", onclick: account }, "I paid, refresh")),
       );
     } catch (reason) {

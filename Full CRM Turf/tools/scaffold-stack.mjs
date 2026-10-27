@@ -96,13 +96,13 @@ const rustCrates = [
 put(
   join(root, "Cargo.toml"),
   `# One workspace, one lock file and one \`cargo test --workspace\` for the new Rust crates (see docs/plans/service-architecture.md).
-# The desktop container (Tauri) and backend/rust keep their own lock files: the container pulls in a large dependency tree.
+# The desktop container (Tauri) and services/core-api/rust keep their own lock files: the container pulls in a large dependency tree.
 [workspace]
 resolver = "2"
 members = [
 ${rustCrates.map(c => `  "${c}",`).join("\n")}
 ]
-exclude = ["desktop/container/rust", "backend/rust"]
+exclude = ["desktop/container/rust", "services/core-api/rust"]
 `,
   created,
 );

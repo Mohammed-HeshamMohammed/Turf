@@ -1,7 +1,7 @@
 """Creates the development roles and databases on a PostgreSQL that has no psql on the PATH (for instance the portable
 build from the @embedded-postgres npm package on Windows). Same result as the database half of dev-services.sh.
 
-    python backend/scripts/dev_db.py [port]
+    python services/core-api/scripts/dev_db.py [port]
 
 Needs `pip install "psycopg[binary]"`. Safe to run again: existing roles and databases are left alone.
 """

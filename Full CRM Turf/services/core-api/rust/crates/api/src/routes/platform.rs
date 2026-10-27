@@ -1,6 +1,6 @@
 //! For the people who run Turf the service: every customer organization with its plan, usage, seats and payments.
 //! Never their CRM records. Platform administrators are marked in the database by hand (see
-//! backend/scripts/create_platform_admin.py), never through the API.
+//! services/core-api/scripts/create_platform_admin.py), never through the API.
 
 use crate::{
     auth::Ctx,

@@ -1,9 +1,9 @@
 """Seeds a local development server with an organization, people in each role and sample leads.
 
-    python backend/scripts/dev_seed.py [http://127.0.0.1:8088]
+    python services/core-api/scripts/dev_seed.py [http://127.0.0.1:8088]
 
 Only for a fresh local database (bootstrap is refused once an organization exists). The accounts below are test
-accounts for this development server; the owner's MFA secret is written to backend/scripts/.dev-accounts.json
+accounts for this development server; the owner's MFA secret is written to services/core-api/scripts/.dev-accounts.json
 (git-ignored) so local tools can produce its sign-in code.
 """
 

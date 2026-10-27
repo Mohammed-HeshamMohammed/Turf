@@ -1,7 +1,7 @@
 """Development only: plays the payment provider and confirms (or fails) a checkout, signing the webhook exactly as a
 real provider integration must: HMAC-SHA256 of the raw body with TURF_BILLING_WEBHOOK_SECRET.
 
-    python backend/scripts/dev_pay.py <payment_id> <amount_cents> [failed] [http://127.0.0.1:8088]
+    python services/core-api/scripts/dev_pay.py <payment_id> <amount_cents> [failed] [http://127.0.0.1:8088]
 
 The website's account page shows the command with the right payment id and amount after a checkout.
 """

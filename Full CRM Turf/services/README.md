@@ -17,7 +17,7 @@ The server side of Full CRM Turf: one folder per service, each with its own code
 | exports | `services/features/exports/` | Python 3.13 or newer | 8117 | yes | Feature 7: call lists, mail lists, whole-workspace exports and report files. |
 | backup-restore | `services/features/backup-restore/` | Rust | 8118 | yes | Feature 8: the recycle bin, point-in-time restore and workspace downloads. |
 
-Everything is a scaffold today: each service starts, answers `/healthz` and `/version`, and has tests. The existing server code in `backend/` (Rust API, Go worker, Python worker) is not moved yet; it becomes the `crm` service and the `notifications` and `importing-lists` services in later steps.
+The new services are scaffolds: each starts, answers `/healthz` and `/version`, and has tests. The server that works today is **`core-api/`**: the old `backend/` (Rust API, Go worker, Python worker, dev scripts) and the `website/` it serves, moved here as one unit with no splitting. Auth and the CRM are split out of it into `auth/` and `features/crm/` in later steps, then the Go worker into `notifications/` and the Python worker into `features/importing-lists/`.
 
 ## Add a service
 

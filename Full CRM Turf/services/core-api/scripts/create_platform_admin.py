@@ -1,7 +1,7 @@
 """Makes someone a platform administrator of this Turf server: the people who run Turf the service. They get their own
 workspace with no plan limits and the Customers page listing every organization (never their CRM records).
 
-    TURF_ADMIN_PASSWORD=... python backend/scripts/create_platform_admin.py <email> "<name>" ["<workspace name>"]
+    TURF_ADMIN_PASSWORD=... python services/core-api/scripts/create_platform_admin.py <email> "<name>" ["<workspace name>"]
 
 Without TURF_ADMIN_PASSWORD it asks for the password. The account is made through the API's own sign-up (so the
 password is hashed and checked like any other), then promoted directly in the database with the owning role:

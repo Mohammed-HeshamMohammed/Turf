@@ -1,6 +1,6 @@
 //! Test harness: runs the API in-process against a real PostgreSQL (plan 5.1: mocked storage does not establish SQL
 //! correctness). Needs TEST_DATABASE_URL (the turf_api login) and TEST_MIGRATION_DATABASE_URL (the owner); see
-//! backend/scripts/dev-services.sh. Tests share one database, so they take a lock and start from empty tables.
+//! services/core-api/scripts/dev-services.sh. Tests share one database, so they take a lock and start from empty tables.
 
 #![allow(dead_code)]
 

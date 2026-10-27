@@ -1,8 +1,10 @@
-# Turf backend
+# Core API (the existing Turf server)
+
+> Moved here unchanged from `backend/` and `website/` (2026-10-27, history kept). It is still one program: sign-in, the CRM, billing, sync and the website together. Splitting auth and the CRM out of it into `services/auth` and `services/features/crm` comes next; until then this is the server the app talks to.
 
 The server side of the full CRM (see `docs/TURF_CRM_AND_PERFORMANCE_PLAN.md`). The desktop app's local Skip Tracing service stays in `service/`.
 
-(Paths below are relative to `Full CRM Turf/`, which holds `backend/`, `contracts/`, `website/` and `docs/saas/`.)
+(Paths below are relative to `Full CRM Turf/`. This service is `services/core-api/`; the shared `contracts/` and `docs/saas/` stay at the top of `Full CRM Turf/`.)
 
 | Folder | Language | What it does |
 | --- | --- | --- |
@@ -14,7 +16,7 @@ Shared contracts (API, events, jobs, native ABIs) live in `contracts/`.
 ## Local development
 
 ```bash
-bash backend/scripts/dev-services.sh
+bash services/core-api/scripts/dev-services.sh
 ```
 
 This starts PostgreSQL and Redis with their data in `X:\turf-data` (set `TURF_DATA` to change it), creates the roles and prints the connection URLs. Two roles matter:
@@ -25,13 +27,13 @@ This starts PostgreSQL and Redis with their data in `X:\turf-data` (set `TURF_DA
 Run the API:
 
 ```bash
-cd backend/rust && DATABASE_URL=postgres://turf_api:turf_api@127.0.0.1:55432/turf MIGRATION_DATABASE_URL=postgres://turf_owner:turf_owner@127.0.0.1:55432/turf REDIS_URL=redis://127.0.0.1:56379 TURF_SECURE_COOKIES=false TURF_WORKER_TOKENS=go=change-me-to-a-long-random-token cargo run -p turf-api
+cd services/core-api/rust && DATABASE_URL=postgres://turf_api:turf_api@127.0.0.1:55432/turf MIGRATION_DATABASE_URL=postgres://turf_owner:turf_owner@127.0.0.1:55432/turf REDIS_URL=redis://127.0.0.1:56379 TURF_SECURE_COOKIES=false TURF_WORKER_TOKENS=go=change-me-to-a-long-random-token cargo run -p turf-api
 ```
 
 Tests (unit, contract, and end to end against the real database):
 
 ```bash
-cd backend/rust && TEST_DATABASE_URL=postgres://turf_api:turf_api@127.0.0.1:55432/turf_test TEST_MIGRATION_DATABASE_URL=postgres://turf_owner:turf_owner@127.0.0.1:55432/turf_test TEST_REDIS_URL=redis://127.0.0.1:56379 cargo test --workspace
+cd services/core-api/rust && TEST_DATABASE_URL=postgres://turf_api:turf_api@127.0.0.1:55432/turf_test TEST_MIGRATION_DATABASE_URL=postgres://turf_owner:turf_owner@127.0.0.1:55432/turf_test TEST_REDIS_URL=redis://127.0.0.1:56379 cargo test --workspace
 ```
 
 Without `TEST_DATABASE_URL` the end-to-end tests skip themselves.
@@ -39,12 +41,12 @@ Without `TEST_DATABASE_URL` the end-to-end tests skip themselves.
 ### The whole stack, with the CRM interface
 
 ```bash
-bash backend/scripts/run-api.sh          # API on http://127.0.0.1:8088 (starts PostgreSQL and Redis too)
-bash backend/scripts/run-worker.sh       # Go worker
-python backend/scripts/dev_seed.py       # once, on a fresh database: an organization, one person per role, sample leads
+bash services/core-api/scripts/run-api.sh          # API on http://127.0.0.1:8088 (starts PostgreSQL and Redis too)
+bash services/core-api/scripts/run-worker.sh       # Go worker
+python services/core-api/scripts/dev_seed.py       # once, on a fresh database: an organization, one person per role, sample leads
 ```
 
-`dev_seed.py` writes the local test accounts to `backend/scripts/.dev-accounts.json` (git-ignored). In the CRM interface (`Full CRM Turf`, `npm run dev`), open the Turf menu, choose **Connect to a Turf server**, and sign in at `http://localhost:8088`. Owners and administrators need an authenticator code. Records then come from the server. Changes apply on screen at once and queue as operations; offline they wait in an encrypted IndexedDB copy unlocked by a passphrase. On reconnect, a change someone else made meanwhile shows on the Sync page with both values.
+`dev_seed.py` writes the local test accounts to `services/core-api/scripts/.dev-accounts.json` (git-ignored). In the CRM interface (`desktop/frontend/react`, `npm run dev`), open the Turf menu, choose **Connect to a Turf server**, and sign in at `http://localhost:8088`. Owners and administrators need an authenticator code. Records then come from the server. Changes apply on screen at once and queue as operations; offline they wait in an encrypted IndexedDB copy unlocked by a passphrase. On reconnect, a change someone else made meanwhile shows on the Sync page with both values.
 
 ## How a change flows
 
@@ -55,5 +57,5 @@ Workers never touch the database directly. They claim jobs and outbox events thr
 ## Paid service
 
 Sign-up, the trial, Solo and Business plans, seats, call minutes, checkout and the payment webhook are described in
-[docs/saas/README.md](../docs/saas/README.md), with the database diagram. The public website (`website/`) is served by
+[docs/saas/README.md](../../docs/saas/README.md), with the database diagram. The public website (`services/core-api/website/`) is served by
 the API when `TURF_SITE_DIR` is set (`run-api.sh` sets it).
