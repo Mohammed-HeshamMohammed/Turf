@@ -1,4 +1,6 @@
-//! Accounts, sessions and MFA (plan 2.4): Argon2id passwords, TOTP, recovery codes, revocable sessions.
+//! Who is asking (plan 2.4). Accounts, passwords, two-step sign-in and sessions live only in the auth service
+//! (services/auth); every request here carries its access token, checked with auth's public keys, and this server
+//! decides what that person may do in the organization they name.
 
 use crate::{
     access::{requires_mfa, Access},
@@ -6,20 +8,12 @@ use crate::{
     error::{ApiError, ApiResult},
     state::AppState,
 };
-use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
-    Argon2,
-};
 use axum::{extract::FromRequestParts, http::request::Parts};
-use axum_extra::extract::cookie::CookieJar;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-pub const COOKIE: &str = "turf_session";
-/// Cookie-authenticated mutations must carry this header; browsers cannot add it cross-site without CORS approval.
-pub const CSRF_HEADER: &str = "x-turf-request";
-/// With an auth-service token, the organization the request acts in (a session of this server remembers it instead).
+/// The organization the request acts in.
 pub const ORG_HEADER: &str = "x-turf-org";
 /// A browser cannot put headers on a WebSocket, so the live-events socket carries the token and organization in its
 /// subprotocol list instead: `["turf.v1", "bearer.<access token>", "org.<organization id>"]`. Unlike a query string,
@@ -40,20 +34,6 @@ pub fn from_socket_protocols(header: &str) -> (Option<String>, Option<String>) {
     (token, org)
 }
 
-pub fn hash_password(password: &str) -> ApiResult<String> {
-    if password.chars().count() < 12 {
-        return Err(ApiError::bad("Use a password of at least 12 characters"));
-    }
-    Argon2::default()
-        .hash_password(password.as_bytes(), &SaltString::generate(&mut OsRng))
-        .map(|hash| hash.to_string())
-        .map_err(|error| ApiError::Internal(anyhow::anyhow!("hashing failed: {error}")))
-}
-
-pub fn verify_password(password: &str, hash: &str) -> bool {
-    PasswordHash::new(hash).map(|parsed| Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()).unwrap_or(false)
-}
-
 /// A random token for the client and the hash the server keeps. Only hashes are stored.
 pub fn new_token() -> (String, String) {
     let mut bytes = [0u8; 32];
@@ -67,36 +47,14 @@ pub fn token_hash(token: &str) -> String {
     hex::encode(Sha256::digest(token.as_bytes()))
 }
 
-pub fn totp(secret_base32: &str, account: &str) -> ApiResult<totp_rs::TOTP> {
-    let secret = totp_rs::Secret::Encoded(secret_base32.to_string()).to_bytes().map_err(|_| ApiError::bad("The MFA secret is not valid"))?;
-    totp_rs::TOTP::new(totp_rs::Algorithm::SHA1, 6, 1, 30, secret, Some("Turf".into()), account.to_string())
-        .map_err(|error| ApiError::Internal(anyhow::anyhow!("totp: {error}")))
-}
-
-pub fn check_totp(secret_base32: &str, account: &str, code: &str) -> bool {
-    let code: String = code.chars().filter(|c| c.is_ascii_digit()).collect();
-    totp(secret_base32, account).map(|t| t.check_current(&code).unwrap_or(false)).unwrap_or(false)
-}
-
-/// Ten single-use recovery codes, shown once.
-pub fn recovery_codes() -> Vec<String> {
-    (0..10)
-        .map(|_| {
-            let mut bytes = [0u8; 5];
-            rand::thread_rng().fill_bytes(&mut bytes);
-            let raw = hex::encode(bytes);
-            format!("{}-{}", &raw[..5], &raw[5..])
-        })
-        .collect()
-}
-
-/// The authenticated person and what they may do in the organization their session has open.
+/// The authenticated person and what they may do in the organization the request names.
 #[derive(Clone, Debug)]
 pub struct Ctx {
     pub user_id: Uuid,
     pub email: String,
     pub label: String,
-    pub session_hash: String,
+    /// The auth service's session id, `auth:<sid>`.
+    pub session_id: String,
     pub org_id: Option<Uuid>,
     pub roles: Vec<String>,
     pub access: Access,
@@ -105,7 +63,6 @@ pub struct Ctx {
     pub access_revision: i64,
     pub mfa_passed: bool,
     pub mfa_enrolled: bool,
-    pub via_cookie: bool,
     /// The server requires MFA for the roles that call for it (Config::require_mfa).
     pub mfa_enforced: bool,
     /// The organization's subscription; `None` on a self-hosted organization, which has no limits.
@@ -163,52 +120,6 @@ impl Ctx {
             return Err(ApiError::forbidden(format!("Your role does not allow this ({capability})")));
         }
         Ok(scope)
-    }
-}
-
-#[derive(sqlx::FromRow)]
-struct SessionRow {
-    user_id: Uuid,
-    email: String,
-    display_name: String,
-    org_id: Option<Uuid>,
-    mfa_passed: bool,
-    totp_secret: Option<String>,
-    session_revision: i64,
-}
-
-pub async fn load(state: &AppState, token: &str, via_cookie: bool) -> ApiResult<Ctx> {
-    let hash = token_hash(token);
-    let row: Option<SessionRow> = sqlx::query_as(
-        "UPDATE sessions s SET last_seen_at = now() FROM users u \
-         WHERE s.token_hash = $1 AND s.user_id = u.id AND s.revoked_at IS NULL AND s.expires_at > now() AND u.disabled_at IS NULL \
-         RETURNING s.user_id, u.email::text AS email, u.display_name, s.org_id, s.mfa_passed, u.totp_secret, s.access_revision AS session_revision",
-    )
-    .bind(&hash)
-    .fetch_optional(&state.db)
-    .await?;
-    let row = row.ok_or(ApiError::Unauthenticated)?;
-    let ctx = Ctx {
-        user_id: row.user_id,
-        email: row.email,
-        label: row.display_name,
-        session_hash: hash,
-        org_id: None,
-        roles: vec![],
-        access: Access::default(),
-        team_ids: vec![],
-        project_ids: vec![],
-        access_revision: 0,
-        mfa_passed: row.mfa_passed,
-        mfa_enrolled: row.totp_secret.is_some(),
-        via_cookie,
-        mfa_enforced: state.config.require_mfa,
-        subscription: None,
-    };
-    let _ = row.session_revision;
-    match row.org_id {
-        Some(org_id) => with_organization(state, ctx, org_id).await,
-        None => Ok(ctx),
     }
 }
 
@@ -289,7 +200,7 @@ pub async fn load_from_auth(state: &AppState, claims: &turf_auth_verify::Claims,
         user_id,
         email,
         label,
-        session_hash: format!("auth:{}", claims.sid),
+        session_id: format!("auth:{}", claims.sid),
         org_id: None,
         roles: vec![],
         access: Access::default(),
@@ -298,7 +209,6 @@ pub async fn load_from_auth(state: &AppState, claims: &turf_auth_verify::Claims,
         access_revision: 0,
         mfa_passed: claims.mfa,
         mfa_enrolled: claims.mfa || totp_secret.is_some(),
-        via_cookie: false,
         mfa_enforced: state.config.require_mfa,
         subscription: None,
     };
@@ -324,24 +234,13 @@ impl FromRequestParts<AppState> for Ctx {
             .and_then(|v| v.to_str().ok())
             .map(from_socket_protocols)
             .unwrap_or_default();
-        // A socket's token is only ever an auth-service token: this server's own sessions use the cookie.
-        let bearer = bearer.or(socket_token.filter(|t| turf_auth_verify::looks_like_jwt(t)));
-        if let Some(token) = bearer {
-            // A token from the auth service is checked with its public keys, without calling it.
-            if let (Some(verifier), true) = (&state.auth, turf_auth_verify::looks_like_jwt(&token)) {
-                let claims = verifier.verify(&token).map_err(|_| ApiError::Unauthenticated)?;
-                let org = parts.headers.get(ORG_HEADER).and_then(|v| v.to_str().ok()).map(str::to_string).or(socket_org);
-                return load_from_auth(state, &claims, org.as_deref()).await;
-            }
-            return load(state, &token, false).await;
-        }
-        let jar = CookieJar::from_headers(&parts.headers);
-        let token = jar.get(COOKIE).map(|cookie| cookie.value().to_string()).ok_or(ApiError::Unauthenticated)?;
-        let unsafe_method = !matches!(parts.method, axum::http::Method::GET | axum::http::Method::HEAD | axum::http::Method::OPTIONS);
-        if unsafe_method && !parts.headers.contains_key(CSRF_HEADER) {
-            return Err(ApiError::forbidden("Missing request header"));
-        }
-        load(state, &token, true).await
+        // Only an auth-service token is accepted, checked with its public keys without calling it. With no cookie
+        // sessions any more, a request cannot be made on someone's behalf by another site, so there is no CSRF check.
+        let token = bearer.or(socket_token).filter(|t| turf_auth_verify::looks_like_jwt(t)).ok_or(ApiError::Unauthenticated)?;
+        let verifier = state.auth.as_ref().ok_or(ApiError::Unauthenticated)?;
+        let claims = verifier.verify(&token).map_err(|_| ApiError::Unauthenticated)?;
+        let org = parts.headers.get(ORG_HEADER).and_then(|v| v.to_str().ok()).map(str::to_string).or(socket_org);
+        load_from_auth(state, &claims, org.as_deref()).await
     }
 }
 

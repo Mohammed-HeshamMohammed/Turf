@@ -16,44 +16,27 @@ macro_rules! harness {
 }
 
 #[tokio::test]
-async fn mfa_is_required_for_owners_and_sessions_can_be_revoked() {
+async fn mfa_is_required_for_owners_and_only_auth_tokens_sign_in() {
     let h = harness!();
-    let owner = Client::new(&h.base);
-    owner
-        .post("/api/v1/auth/bootstrap", json!({ "organization": "Org", "email": "o@example.com", "display_name": "O", "password": PASSWORD }))
-        .await
-        .ok();
+    let owner = h.client("o@example.com", "O", false, true);
+    let boot = owner.post("/api/v1/auth/bootstrap", json!({ "organization": "Org" })).await.ok();
+    owner.set_org(boot["organization_id"].as_str().unwrap());
     // A second bootstrap is refused once the server is set up.
-    let again = Client::new(&h.base).post("/api/v1/auth/bootstrap", json!({ "organization": "X", "email": "x@example.com", "display_name": "X", "password": PASSWORD })).await;
+    let again = h.client("x@example.com", "X", true, true).post("/api/v1/auth/bootstrap", json!({ "organization": "X" })).await;
     assert_eq!(again.status, 403);
+    // Two-step sign-in is auth's: until its token says the owner passed it, the CRM stays closed to them.
     assert_eq!(owner.get("/api/v1/leads").await.body["error"]["code"], "mfa_required");
-    let setup = owner.post("/api/v1/auth/mfa/setup", json!({})).await.ok();
-    let wrong = owner.post("/api/v1/auth/mfa/confirm", json!({ "code": "000000" })).await;
-    assert_eq!(wrong.status, 400);
-    let confirmed = owner.post("/api/v1/auth/mfa/confirm", json!({ "code": totp_now(setup["secret"].as_str().unwrap(), "o@example.com") })).await.ok();
-    let codes = confirmed["recovery_codes"].as_array().unwrap().clone();
-    assert_eq!(codes.len(), 10);
+    owner.reissue(true, true);
     assert_eq!(owner.get("/api/v1/leads").await.status, 200);
-    // A new sign-in must pass MFA again; a recovery code works once.
-    let second = Client::new(&h.base);
-    second.post("/api/v1/auth/login", json!({ "email": "o@example.com", "password": PASSWORD })).await.ok();
-    assert_eq!(second.get("/api/v1/leads").await.body["error"]["code"], "mfa_required");
-    second.post("/api/v1/auth/mfa/verify", json!({ "recovery_code": codes[0] })).await.ok();
-    assert_eq!(second.get("/api/v1/leads").await.status, 200);
-    let third = Client::new(&h.base);
-    third.post("/api/v1/auth/login", json!({ "email": "o@example.com", "password": PASSWORD })).await.ok();
-    assert_eq!(third.post("/api/v1/auth/mfa/verify", json!({ "recovery_code": codes[0] })).await.status, 403);
-    // Revoking other sessions signs the second one out.
-    owner.post("/api/v1/auth/sessions/revoke", json!({ "all_others": true })).await.ok();
-    assert_eq!(second.get("/api/v1/me").await.status, 401);
-    // Wrong passwords are throttled.
-    for _ in 0..5 {
-        Client::new(&h.base).post("/api/v1/auth/login", json!({ "email": "o@example.com", "password": "nope nope nope" })).await;
+    // No token, or something that is not an auth token, is not signed in.
+    assert_eq!(h.anonymous().get("/api/v1/me").await.status, 401);
+    let opaque = owner.http.get(format!("{}/api/v1/me", h.base)).bearer_auth("0123456789abcdef0123456789abcdef").send().await.unwrap();
+    assert_eq!(opaque.status().as_u16(), 401);
+    // This server no longer signs anyone in or keeps sessions of its own.
+    for path in ["/api/v1/auth/login", "/api/v1/auth/logout", "/api/v1/auth/signup", "/api/v1/auth/mfa/setup", "/api/v1/auth/mfa/verify", "/api/v1/auth/sessions/revoke", "/api/v1/auth/invitations/accept", "/api/v1/auth/password", "/api/v1/auth/oauth/google/start"] {
+        assert_eq!(h.anonymous().post(path, json!({})).await.status, 404, "{path}");
     }
-    assert_eq!(Client::new(&h.base).post("/api/v1/auth/login", json!({ "email": "o@example.com", "password": PASSWORD })).await.status, 429);
-    // Cookie-authenticated writes need the request header.
-    let bare = owner.http.post(format!("{}/api/v1/ops", h.base)).json(&json!({})).send().await.unwrap();
-    assert_eq!(bare.status().as_u16(), 403);
+    assert_eq!(owner.get("/api/v1/auth/sessions").await.status, 404);
 }
 
 async fn lead(c: &Client, name: &str, extra: Value) -> Value {
@@ -97,15 +80,12 @@ async fn record_scope_separates_roles_and_organizations() {
     assert!(w.owner.get(&format!("/api/v1/leads/{}", mine["id"].as_str().unwrap())).await.ok()["lead"].get("value_amount").is_some());
     // A second organization never sees the first one's records, even by id.
     sqlx::query("INSERT INTO organizations (id, name) VALUES ('00000000-0000-0000-0000-0000000000bb', 'Other')").execute(&h.owner).await.unwrap();
-    let outsider_id: Uuid = sqlx::query_scalar("INSERT INTO users (email, display_name, password_hash) VALUES ('out@example.com', 'Out', $1) RETURNING id")
-        .bind(turf_api::auth::hash_password(PASSWORD).unwrap())
-        .fetch_one(&h.owner)
-        .await
-        .unwrap();
+    let outsider = h.client("out@example.com", "Out", true, true);
+    let outsider_id = Uuid::parse_str(&outsider.id).unwrap();
+    sqlx::query("INSERT INTO users (id, email, display_name, password_hash) VALUES ($1, 'out@example.com', 'Out', '!external-sign-in')").bind(outsider_id).execute(&h.owner).await.unwrap();
     sqlx::query("INSERT INTO roles (org_id, key, name, capabilities, scope) VALUES ('00000000-0000-0000-0000-0000000000bb', 'manager', 'M', '{edit}', 'organization')").execute(&h.owner).await.unwrap();
     sqlx::query("INSERT INTO memberships (org_id, user_id, roles) VALUES ('00000000-0000-0000-0000-0000000000bb', $1, '{manager}')").bind(outsider_id).execute(&h.owner).await.unwrap();
-    let outsider = Client::new(&h.base);
-    outsider.post("/api/v1/auth/login", json!({ "email": "out@example.com", "password": PASSWORD })).await.ok();
+    outsider.set_org("00000000-0000-0000-0000-0000000000bb");
     assert!(outsider.get("/api/v1/leads").await.ok()["leads"].as_array().unwrap().is_empty());
     assert_eq!(outsider.get(&format!("/api/v1/leads/{}", mine["id"].as_str().unwrap())).await.status, 404);
     let poke = outsider.op("lead.update", json!({ "id": mine["id"], "changes": { "stage": "Closed" } })).await;

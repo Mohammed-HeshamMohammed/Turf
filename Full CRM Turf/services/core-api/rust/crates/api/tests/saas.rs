@@ -17,18 +17,18 @@ macro_rules! harness {
     };
 }
 
-/// Signs up and passes MFA. Returns the client, the sign-up answer and the TOTP secret.
-async fn sign_up(h: &Harness, email: &str, name: &str) -> (Client, Value, String) {
-    let client = Client::new(&h.base);
-    let answer = client.post("/api/v1/auth/signup", json!({ "email": email, "display_name": name, "password": PASSWORD })).await.ok();
-    let setup = client.post("/api/v1/auth/mfa/setup", json!({})).await.ok();
-    let secret = setup["secret"].as_str().unwrap().to_string();
-    client.post("/api/v1/auth/mfa/confirm", json!({ "code": totp_now(&secret, email) })).await.ok();
-    (client, answer, secret)
+/// Signs up with auth (two-step sign-in passed, email not confirmed yet) and opens a trial workspace here. Returns the
+/// client, acting in that workspace, and the trial's answer.
+async fn sign_up(h: &Harness, email: &str, name: &str) -> (Client, Value) {
+    let client = h.client(email, name, true, false);
+    let answer = client.post("/api/v1/organizations/trial", json!({ "organization": format!("{name}'s workspace") })).await.ok();
+    client.set_org(answer["organization_id"].as_str().unwrap());
+    (client, answer)
 }
 
-async fn verify(client: &Client, answer: &Value) {
-    client.post("/api/v1/auth/verify-email", json!({ "token": answer["verification_token"] })).await.ok();
+/// The person confirms their email at auth; their next token says so.
+fn verify(client: &Client) {
+    client.reissue(true, true);
 }
 
 async fn webhook(h: &Harness, event: Value) -> Reply {
@@ -75,7 +75,7 @@ async fn age_call(h: &Harness, call: &Value, seconds: i64) {
 async fn sign_up_starts_a_ten_minute_trial_that_needs_sign_in() {
     let h = harness!();
     // Nothing works without signing in.
-    let stranger = Client::new(&h.base);
+    let stranger = h.anonymous();
     assert_eq!(stranger.get("/api/v1/leads").await.status, 401);
     assert_eq!(stranger.get("/api/v1/billing").await.status, 401);
     assert_eq!(stranger.post("/api/v1/calls/start", json!({})).await.status, 401);
@@ -84,10 +84,9 @@ async fn sign_up_starts_a_ten_minute_trial_that_needs_sign_in() {
     let keys: Vec<&str> = plans.as_array().unwrap().iter().map(|p| p["key"].as_str().unwrap()).collect();
     assert_eq!(keys, ["trial", "solo", "business"]);
 
-    let (owner, answer, _) = sign_up(&h, "new@example.com", "Nadia Farouk").await;
+    let (owner, answer) = sign_up(&h, "new@example.com", "Nadia Farouk").await;
     assert_eq!(answer["plan"], "trial");
     assert_eq!(answer["minutes"], 10);
-    assert!(answer["verification_token"].is_string(), "development servers hand the token back");
     let account = owner.get("/api/v1/billing").await.ok();
     assert_eq!(account["plan"]["key"], "trial");
     assert_eq!(account["minutes_left"], 10);
@@ -95,21 +94,19 @@ async fn sign_up_starts_a_ten_minute_trial_that_needs_sign_in() {
     assert_eq!(account["can_invite"], false);
     assert_eq!(account["email_verified"], false);
 
-    // The same address cannot sign up twice; weak passwords and bad addresses are refused.
-    assert_eq!(stranger.post("/api/v1/auth/signup", json!({ "email": "NEW@example.com", "display_name": "X", "password": PASSWORD })).await.status, 409);
-    assert_eq!(stranger.post("/api/v1/auth/signup", json!({ "email": "b@example.com", "display_name": "X", "password": "short" })).await.status, 400);
-    assert_eq!(stranger.post("/api/v1/auth/signup", json!({ "email": "not-an-email", "display_name": "X", "password": PASSWORD })).await.status, 400);
+    // One trial per person; a trial needs someone signed in.
+    assert_eq!(owner.post("/api/v1/organizations/trial", json!({ "organization": "Again" })).await.status, 409);
+    assert_eq!(stranger.post("/api/v1/organizations/trial", json!({ "organization": "Nobody" })).await.status, 401);
 
-    // A verification token works once.
-    verify(&owner, &answer).await;
-    assert_eq!(owner.post("/api/v1/auth/verify-email", json!({ "token": answer["verification_token"] })).await.status, 403);
+    // Once auth says the email is confirmed, this server records it.
+    verify(&owner);
     assert_eq!(owner.get("/api/v1/billing").await.ok()["email_verified"], true);
 }
 
 #[tokio::test]
 async fn trial_minutes_run_out_and_calls_are_timed_by_the_server() {
     let h = harness!();
-    let (owner, _, _) = sign_up(&h, "trial@example.com", "Omar Said").await;
+    let (owner, _) = sign_up(&h, "trial@example.com", "Omar Said").await;
     let call = owner.post("/api/v1/calls/start", json!({})).await.ok();
     assert_eq!(call["max_seconds"], 600, "ten minutes left");
     // While that call is open its ten minutes are spoken for.
@@ -139,7 +136,7 @@ async fn trial_minutes_run_out_and_calls_are_timed_by_the_server() {
 #[tokio::test]
 async fn an_ended_trial_locks_the_crm_but_not_billing() {
     let h = harness!();
-    let (owner, answer, _) = sign_up(&h, "late@example.com", "Laila Adel").await;
+    let (owner, answer) = sign_up(&h, "late@example.com", "Laila Adel").await;
     assert_eq!(owner.get("/api/v1/leads").await.status, 200);
     sqlx::query("UPDATE subscriptions SET period_start = now() - interval '8 days', period_end = now() - interval '1 day' WHERE org_id = $1::uuid")
         .bind(answer["organization_id"].as_str().unwrap())
@@ -152,7 +149,7 @@ async fn an_ended_trial_locks_the_crm_but_not_billing() {
     // The owner can still see the account and pay.
     let account = owner.get("/api/v1/billing").await.ok();
     assert_eq!(account["usable"], false);
-    verify(&owner, &answer).await;
+    verify(&owner);
     buy(&h, &owner, "solo", 1).await;
     assert_eq!(owner.get("/api/v1/leads").await.status, 200, "paying unlocks it at once");
 }
@@ -160,10 +157,10 @@ async fn an_ended_trial_locks_the_crm_but_not_billing() {
 #[tokio::test]
 async fn solo_gets_five_thousand_minutes_and_cannot_invite() {
     let h = harness!();
-    let (owner, answer, _) = sign_up(&h, "solo@example.com", "Sami Nour").await;
+    let (owner, _) = sign_up(&h, "solo@example.com", "Sami Nour").await;
     // Paying needs a confirmed address.
     assert_eq!(owner.post("/api/v1/billing/checkout", json!({ "plan": "solo" })).await.status, 403);
-    verify(&owner, &answer).await;
+    verify(&owner);
     let checkout = buy(&h, &owner, "solo", 1).await;
     assert_eq!(checkout["amount_cents"], 14900);
     assert!(checkout["checkout_url"].as_str().unwrap().starts_with("https://pay.example/checkout?payment="));
@@ -183,8 +180,8 @@ async fn solo_gets_five_thousand_minutes_and_cannot_invite() {
 #[tokio::test]
 async fn business_seats_limit_invitations_and_roles_set_privileges() {
     let h = harness!();
-    let (owner, answer, _) = sign_up(&h, "boss@example.com", "Hana Mostafa").await;
-    verify(&owner, &answer).await;
+    let (owner, _) = sign_up(&h, "boss@example.com", "Hana Mostafa").await;
+    verify(&owner);
     assert_eq!(owner.post("/api/v1/billing/checkout", json!({ "plan": "business", "seats": 1 })).await.status, 400, "Business starts at two seats");
     let checkout = buy(&h, &owner, "business", 3).await;
     assert_eq!(checkout["amount_cents"], 3 * 12900);
@@ -199,10 +196,12 @@ async fn business_seats_limit_invitations_and_roles_set_privileges() {
     assert_eq!(full.status, 402);
     assert!(full.body["error"]["message"].as_str().unwrap().contains("3 seats"));
 
-    let agent = Client::new(&h.base);
-    agent.post("/api/v1/auth/invitations/accept", json!({ "token": caller["token"], "display_name": "Maya Chen", "password": PASSWORD })).await.ok();
-    let analyst = Client::new(&h.base);
-    analyst.post("/api/v1/auth/invitations/accept", json!({ "token": researcher["token"], "display_name": "Ben Carter", "password": PASSWORD })).await.ok();
+    let agent = h.client("caller@example.com", "Maya Chen", false, true);
+    let joined = agent.post("/api/v1/invitations/join", json!({ "token": caller["token"] })).await.ok();
+    agent.set_org(joined["organization_id"].as_str().unwrap());
+    let analyst = h.client("researcher@example.com", "Ben Carter", false, true);
+    analyst.post("/api/v1/invitations/join", json!({ "token": researcher["token"] })).await.ok();
+    analyst.set_org(joined["organization_id"].as_str().unwrap());
 
     // Privileges follow the role: a caller can call but not manage the plan; a researcher cannot call.
     assert_eq!(agent.post("/api/v1/billing/checkout", json!({ "plan": "business", "seats": 5 })).await.status, 403);
@@ -220,8 +219,8 @@ async fn business_seats_limit_invitations_and_roles_set_privileges() {
 #[tokio::test]
 async fn webhooks_must_be_signed_matching_and_count_once() {
     let h = harness!();
-    let (owner, answer, _) = sign_up(&h, "pay@example.com", "Karim Fathy").await;
-    verify(&owner, &answer).await;
+    let (owner, _) = sign_up(&h, "pay@example.com", "Karim Fathy").await;
+    verify(&owner);
     let checkout = owner.post("/api/v1/billing/checkout", json!({ "plan": "solo" })).await.ok();
     let event = json!({ "event_id": "evt-1", "type": "payment.succeeded", "payment_id": checkout["payment_id"], "amount_cents": 14900 });
 
@@ -249,10 +248,10 @@ async fn webhooks_must_be_signed_matching_and_count_once() {
 #[tokio::test]
 async fn organizations_never_see_each_others_billing() {
     let h = harness!();
-    let (first, answer, _) = sign_up(&h, "first@example.com", "First Owner").await;
-    verify(&first, &answer).await;
+    let (first, _) = sign_up(&h, "first@example.com", "First Owner").await;
+    verify(&first);
     let checkout = buy(&h, &first, "solo", 1).await;
-    let (second, _, _) = sign_up(&h, "second@example.com", "Second Owner").await;
+    let (second, _) = sign_up(&h, "second@example.com", "Second Owner").await;
     let account = second.get("/api/v1/billing").await.ok();
     assert_eq!(account["plan"]["key"], "trial");
     assert_eq!(account["payments"], json!([]));

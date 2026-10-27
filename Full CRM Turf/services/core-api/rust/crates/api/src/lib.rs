@@ -35,7 +35,11 @@ pub async fn state(config: config::Config) -> anyhow::Result<AppState> {
     let db = db::connect(&config).await?;
     let cache = cache::Cache::connect(&config.redis_url).await;
     let (events, _) = tokio::sync::broadcast::channel(4096);
-    let auth = auth_verifier(&config.auth_jwks, &config.auth_jwks_url).await?.map(Arc::new);
+    // Signing in happens only at the auth service, so without its keys nobody could use this server.
+    let auth = auth_verifier(&config.auth_jwks, &config.auth_jwks_url)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Set TURF_AUTH_JWKS or TURF_AUTH_JWKS_URL: people sign in with the auth service"))?;
+    let auth = Some(Arc::new(auth));
     Ok(AppState { db, cache, events, config: Arc::new(config), auth })
 }
 
@@ -68,7 +72,7 @@ mod auth_keys_tests {
     }
 
     #[tokio::test]
-    async fn no_keys_means_only_this_servers_sessions() {
+    async fn no_keys_are_reported_as_none() {
         assert!(auth_verifier("", "").await.unwrap().is_none());
     }
 
@@ -98,12 +102,12 @@ pub fn app(state: AppState) -> Router {
     let origins: Vec<HeaderValue> = state.config.allowed_origins.iter().filter_map(|o| o.parse().ok()).collect();
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::list(origins))
-        .allow_credentials(true)
+        // Requests carry a bearer token, never a cookie, so no credentials are allowed across sites.
+        .allow_credentials(false)
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
         .allow_headers([
             header::CONTENT_TYPE,
             header::AUTHORIZATION,
-            HeaderName::from_static(auth::CSRF_HEADER),
             HeaderName::from_static(auth::ORG_HEADER),
             request_id.clone(),
         ]);

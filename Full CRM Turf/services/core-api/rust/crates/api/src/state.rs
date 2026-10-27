@@ -24,6 +24,6 @@ pub struct AppState {
     pub cache: Cache,
     pub events: broadcast::Sender<Event>,
     pub config: Arc<Config>,
-    /// Checks access tokens from the auth service (the one source of truth for who someone is). `None`: not configured.
+    /// Checks access tokens from the auth service, the one source of truth for who someone is.
     pub auth: Option<Arc<turf_auth_verify::Verifier>>,
 }

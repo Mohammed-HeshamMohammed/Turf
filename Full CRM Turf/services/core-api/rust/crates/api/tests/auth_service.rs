@@ -5,37 +5,16 @@
 
 mod common;
 
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use common::*;
-use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
-use ring::signature::{Ed25519KeyPair, KeyPair};
 use serde_json::{json, Value};
-use turf_auth_verify::{Claims, AUDIENCE, ISSUER};
 use uuid::Uuid;
 
-struct AuthKey {
-    pkcs8: Vec<u8>,
-    jwks: String,
+fn token_with(h: &Harness, sub: &str, email: &str, name: &str, mfa: bool, email_verified: bool) -> String {
+    h.token(sub, email, name, mfa, email_verified)
 }
 
-fn auth_key() -> AuthKey {
-    let pkcs8 = Ed25519KeyPair::generate_pkcs8(&ring::rand::SystemRandom::new()).unwrap().as_ref().to_vec();
-    let public = Ed25519KeyPair::from_pkcs8(&pkcs8).unwrap().public_key().as_ref().to_vec();
-    let jwks = json!({ "keys": [{ "kty": "OKP", "crv": "Ed25519", "alg": "EdDSA", "use": "sig", "kid": "test", "x": URL_SAFE_NO_PAD.encode(public) }] });
-    AuthKey { pkcs8, jwks: jwks.to_string() }
-}
-
-/// A token as the auth service would sign it.
-fn token_with(key: &AuthKey, sub: &str, email: &str, name: &str, mfa: bool, email_verified: bool) -> String {
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-    let claims = Claims { sub: sub.into(), email: email.into(), name: name.into(), sid: "s-1".into(), mfa, email_verified, iss: ISSUER.into(), aud: AUDIENCE.into(), iat: now, exp: now + 600 };
-    let mut header = Header::new(Algorithm::EdDSA);
-    header.kid = Some("test".into());
-    encode(&header, &claims, &EncodingKey::from_ed_der(&key.pkcs8)).unwrap()
-}
-
-fn token(key: &AuthKey, sub: &str, email: &str, mfa: bool) -> String {
-    token_with(key, sub, email, "From auth", mfa, true)
+fn token(h: &Harness, sub: &str, email: &str, mfa: bool) -> String {
+    token_with(h, sub, email, "From auth", mfa, true)
 }
 
 async fn send(base: &str, method: &str, path: &str, bearer: &str, org: Option<&str>, body: Option<Value>) -> (u16, Value) {
@@ -56,11 +35,10 @@ async fn get(base: &str, path: &str, bearer: &str, org: Option<&str>) -> (u16, V
 
 #[tokio::test]
 async fn an_auth_token_opens_the_api_for_the_same_person() {
-    let key = auth_key();
-    let Some(h) = start_with_auth(&key.jwks).await else { return };
+    let Some(h) = start().await else { return };
     let w = world(&h).await;
     let caller = w.id("caller");
-    let t = token(&key, &caller, "caller@example.com", false);
+    let t = token(&h, &caller, "caller@example.com", false);
 
     // Without an organization the person is known, with no organization open.
     let (status, me) = get(&h.base, "/api/v1/me", &t, None).await;
@@ -68,7 +46,7 @@ async fn an_auth_token_opens_the_api_for_the_same_person() {
     assert_eq!(me["user"]["id"], caller.as_str());
     assert!(me["organization_id"].is_null());
 
-    // With x-turf-org, their roles in that organization apply, exactly as with a session of this server.
+    // With x-turf-org, their roles in that organization apply, and only there.
     let (status, me) = get(&h.base, "/api/v1/me", &t, Some(&w.org)).await;
     assert_eq!(status, 200, "{me}");
     assert_eq!(me["organization_id"], w.org.as_str());
@@ -78,16 +56,15 @@ async fn an_auth_token_opens_the_api_for_the_same_person() {
 
 #[tokio::test]
 async fn auth_tokens_are_refused_when_they_should_be() {
-    let key = auth_key();
-    let Some(h) = start_with_auth(&key.jwks).await else { return };
+    let Some(h) = start().await else { return };
     let w = world(&h).await;
 
     // A token signed by some other key.
     let other = auth_key();
-    assert_eq!(get(&h.base, "/api/v1/me", &token(&other, &w.id("caller"), "caller@example.com", false), None).await.0, 401);
+    assert_eq!(get(&h.base, "/api/v1/me", &other.sign(&w.id("caller"), "caller@example.com", "Maya Chen", false, true), None).await.0, 401);
 
     // An organization the person is not in opens nothing.
-    let t = token(&key, &w.id("caller"), "caller@example.com", false);
+    let t = token(&h, &w.id("caller"), "caller@example.com", false);
     let (status, me) = get(&h.base, "/api/v1/me", &t, Some(&Uuid::new_v4().to_string())).await;
     assert_eq!(status, 200);
     assert!(me["organization_id"].is_null());
@@ -99,21 +76,12 @@ async fn auth_tokens_are_refused_when_they_should_be() {
 }
 
 #[tokio::test]
-async fn the_api_still_accepts_its_own_sessions_alongside_auth_tokens() {
-    let key = auth_key();
-    let Some(h) = start_with_auth(&key.jwks).await else { return };
-    let w = world(&h).await;
-    assert_eq!(w.client("caller").get("/api/v1/me").await.status, 200);
-}
-
-#[tokio::test]
 async fn a_person_auth_vouches_for_is_known_here_from_their_first_request() {
-    let key = auth_key();
-    let Some(h) = start_with_auth(&key.jwks).await else { return };
+    let Some(h) = start().await else { return };
     let id = Uuid::new_v4().to_string();
 
     // Signed up at auth, email not confirmed yet.
-    let (status, me) = get(&h.base, "/api/v1/me", &token_with(&key, &id, "New.Person@Example.com", "New Person", false, false), None).await;
+    let (status, me) = get(&h.base, "/api/v1/me", &token_with(&h, &id, "New.Person@Example.com", "New Person", false, false), None).await;
     assert_eq!(status, 200, "{me}");
     assert_eq!(me["user"], json!({ "id": id, "email": "new.person@example.com", "name": "New Person" }));
     assert_eq!(me["organizations"], json!([]));
@@ -121,7 +89,7 @@ async fn a_person_auth_vouches_for_is_known_here_from_their_first_request() {
     assert!(!verified);
 
     // Once auth says the email is confirmed, this server records it (checkout needs it).
-    assert_eq!(get(&h.base, "/api/v1/me", &token_with(&key, &id, "new.person@example.com", "New Person", false, true), None).await.0, 200);
+    assert_eq!(get(&h.base, "/api/v1/me", &token_with(&h, &id, "new.person@example.com", "New Person", false, true), None).await.0, 200);
     let verified: bool = sqlx::query_scalar("SELECT email_verified_at IS NOT NULL FROM users WHERE id = $1::uuid").bind(&id).fetch_one(&h.owner).await.unwrap();
     assert!(verified);
 
@@ -132,18 +100,16 @@ async fn a_person_auth_vouches_for_is_known_here_from_their_first_request() {
 
 #[tokio::test]
 async fn an_email_already_used_here_by_another_account_is_not_merged() {
-    let key = auth_key();
-    let Some(h) = start_with_auth(&key.jwks).await else { return };
+    let Some(h) = start().await else { return };
     let _w = world(&h).await;
-    let imposter = token(&key, &Uuid::new_v4().to_string(), "caller@example.com", false);
+    let imposter = token(&h, &Uuid::new_v4().to_string(), "caller@example.com", false);
     assert_eq!(get(&h.base, "/api/v1/me", &imposter, None).await.0, 409);
 }
 
 #[tokio::test]
 async fn a_new_person_opens_their_trial_workspace_here() {
-    let key = auth_key();
-    let Some(h) = start_with_auth(&key.jwks).await else { return };
-    let t = token(&key, &Uuid::new_v4().to_string(), "founder@example.com", false);
+    let Some(h) = start().await else { return };
+    let t = token(&h, &Uuid::new_v4().to_string(), "founder@example.com", false);
 
     let (status, trial) = send(&h.base, "POST", "/api/v1/organizations/trial", &t, None, Some(json!({ "organization": "Founder Homes" }))).await;
     assert_eq!(status, 200, "{trial}");
@@ -161,17 +127,16 @@ async fn a_new_person_opens_their_trial_workspace_here() {
 
 #[tokio::test]
 async fn an_invited_person_joins_with_their_auth_account() {
-    let key = auth_key();
-    let Some(h) = start_with_auth(&key.jwks).await else { return };
+    let Some(h) = start().await else { return };
     let w = world(&h).await;
     let invite = w.owner.post("/api/v1/admin/members", json!({ "email": "newbie@example.com", "roles": ["caller"], "team_ids": [w.team] })).await.ok();
     let invitation = invite["token"].as_str().unwrap().to_string();
 
     // Someone signed in as a different email cannot use it, and it stays usable.
-    let stranger = token(&key, &Uuid::new_v4().to_string(), "someone@example.com", false);
+    let stranger = token(&h, &Uuid::new_v4().to_string(), "someone@example.com", false);
     assert_eq!(send(&h.base, "POST", "/api/v1/invitations/join", &stranger, None, Some(json!({ "token": invitation }))).await.0, 403);
 
-    let newbie = token(&key, &Uuid::new_v4().to_string(), "Newbie@Example.com", false);
+    let newbie = token(&h, &Uuid::new_v4().to_string(), "Newbie@Example.com", false);
     let (status, joined) = send(&h.base, "POST", "/api/v1/invitations/join", &newbie, None, Some(json!({ "token": invitation }))).await;
     assert_eq!(status, 200, "{joined}");
     assert_eq!(joined["organization_id"], w.org.as_str());
@@ -185,10 +150,9 @@ async fn an_invited_person_joins_with_their_auth_account() {
 async fn the_live_events_socket_takes_the_token_in_its_protocols() {
     use futures_util::StreamExt;
     use tokio_tungstenite::tungstenite::{client::IntoClientRequest, http::HeaderValue};
-    let key = auth_key();
-    let Some(h) = start_with_auth(&key.jwks).await else { return };
+    let Some(h) = start().await else { return };
     let w = world(&h).await;
-    let t = token(&key, &w.id("caller"), "caller@example.com", false);
+    let t = token(&h, &w.id("caller"), "caller@example.com", false);
     let url = h.base.replace("http://", "ws://") + "/events";
 
     let mut request = url.as_str().into_client_request().unwrap();
@@ -207,4 +171,57 @@ async fn the_live_events_socket_takes_the_token_in_its_protocols() {
     // The website finds the auth service here.
     let (status, service) = get(&h.base, "/api/v1/auth/service", &t, None).await;
     assert_eq!((status, service), (200, json!({ "url": "http://auth.example" })));
+}
+
+#[tokio::test]
+async fn platform_administrators_see_every_customer_and_nobody_else_does() {
+    let Some(h) = start().await else { return };
+    let owner = h.client("boss@turf.example", "Platform Owner", true, true);
+    let answer = owner.post("/api/v1/organizations/trial", json!({ "organization": "Turf HQ" })).await.ok();
+    let customer = h.client("client@shop.example", "A Customer", true, true);
+    customer.post("/api/v1/organizations/trial", json!({ "organization": "A Shop" })).await.ok();
+
+    // Not yet a platform administrator: refused, like every customer.
+    assert_eq!(owner.get("/api/v1/platform/organizations").await.status, 403);
+    assert_eq!(customer.get("/api/v1/platform/organizations").await.status, 403);
+    sqlx::query("UPDATE users SET platform_admin = true WHERE email = 'boss@turf.example'").execute(&h.owner).await.unwrap();
+    assert_eq!(owner.get("/api/v1/me").await.ok()["platform_admin"], true);
+    let overview = owner.get("/api/v1/platform/organizations").await.ok();
+    assert_eq!(overview["totals"]["organizations"], 2);
+    assert_eq!(overview["totals"]["trials"], 2);
+    let emails: Vec<&str> = overview["organizations"].as_array().unwrap().iter().map(|o| o["owner_email"].as_str().unwrap()).collect();
+    assert!(emails.contains(&"client@shop.example") && emails.contains(&"boss@turf.example"));
+    // A trial whose time is up shows as expired, not as still trialing.
+    sqlx::query("UPDATE subscriptions SET period_start = now() - interval '8 days', period_end = now() - interval '1 day' WHERE org_id = $1::uuid")
+        .bind(answer["organization_id"].as_str().unwrap())
+        .execute(&h.owner)
+        .await
+        .unwrap();
+    let overview = owner.get("/api/v1/platform/organizations").await.ok();
+    assert_eq!(overview["totals"]["trials"], 1);
+    let mine = overview["organizations"].as_array().unwrap().iter().find(|o| o["owner_email"] == "boss@turf.example").unwrap().clone();
+    assert_eq!(mine["status"], "expired");
+
+    // The database refuses the overview to anyone else, even if the API were asked directly.
+    let api = sqlx::PgPool::connect(&std::env::var("TEST_DATABASE_URL").unwrap()).await.unwrap();
+    let direct = sqlx::query("SELECT * FROM turf_platform_overview($1::uuid)").bind(&customer.id).fetch_all(&api).await;
+    assert!(direct.is_err());
+
+    // A platform administrator still needs the second sign-in step: a token that has not passed it is refused.
+    owner.reissue(false, true);
+    assert_eq!(owner.get("/api/v1/platform/organizations").await.status, 401);
+}
+
+#[tokio::test]
+async fn without_required_mfa_owners_go_straight_in() {
+    let Some(h) = start_without_mfa().await else { return };
+    let owner = h.client("quick@example.com", "Quick Owner", false, true);
+    let answer = owner.post("/api/v1/organizations/trial", json!({ "organization": "Quick Homes" })).await.ok();
+    owner.set_org(answer["organization_id"].as_str().unwrap());
+    assert_eq!(owner.get("/api/v1/me").await.ok()["mfa"]["required"], false);
+    assert_eq!(owner.get("/api/v1/billing").await.ok()["plan"]["key"], "trial", "no code needed");
+    assert_eq!(owner.get("/api/v1/leads").await.status, 200);
+    // The platform page follows the same setting.
+    sqlx::query("UPDATE users SET platform_admin = true WHERE email = 'quick@example.com'").execute(&h.owner).await.unwrap();
+    assert_eq!(owner.get("/api/v1/platform/organizations").await.status, 200);
 }

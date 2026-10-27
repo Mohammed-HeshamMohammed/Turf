@@ -1,5 +1,5 @@
-//! Turf as a paid service: public sign-up onto a trial, email verification, plans, checkout, the payment provider's
-//! webhook, and the call-minute ledger. Seats and minutes are enforced here and in admin invitations.
+//! Turf as a paid service: the trial workspace, plans, checkout, the payment provider's webhook, and the call-minute
+//! ledger. Accounts and email confirmation are the auth service's. Seats and minutes are enforced here and in admin invitations.
 //!
 //! Money never moves through this API. Checkout records a pending payment and hands the browser to the provider; only
 //! the provider's signed webhook marks it paid and changes the plan.
@@ -9,7 +9,7 @@ use crate::{
     db::{self, Scope},
     error::{ApiError, ApiResult},
     record::{record, Change},
-    routes::identity::{browser, create_session, seed_organization, signed_in},
+    routes::identity::seed_organization,
     state::AppState,
 };
 use axum::{
@@ -19,13 +19,12 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use axum_extra::extract::cookie::CookieJar;
 use hmac::{Hmac, Mac};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sha2::Sha256;
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::VecDeque,
     sync::Mutex,
     time::{Duration, Instant},
 };
@@ -34,9 +33,6 @@ use uuid::Uuid;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/plans", get(plans))
-        .route("/auth/signup", post(signup))
-        .route("/auth/verify-email", post(verify_email))
-        .route("/auth/verify-email/resend", post(resend_verification))
         .route("/billing", get(account))
         .route("/billing/checkout", post(checkout))
         .route("/billing/webhook", post(webhook))
@@ -46,11 +42,9 @@ pub fn routes() -> Router<AppState> {
 
 // --- Abuse limits -------------------------------------------------------------------------------------------------
 
-/// New accounts across the whole server: at most this many in ten minutes. A proxy in front (nginx) limits per address.
+/// New trial workspaces across the whole server: at most this many in ten minutes. A proxy in front (nginx) limits per address.
 const SIGNUPS_PER_WINDOW: usize = 30;
 static SIGNUPS: Mutex<VecDeque<Instant>> = Mutex::new(VecDeque::new());
-/// Verification emails per account: one a minute.
-static RESENT: Mutex<Option<HashMap<Uuid, Instant>>> = Mutex::new(None);
 
 fn signup_allowed() -> bool {
     let mut recent = SIGNUPS.lock().unwrap();
@@ -178,109 +172,9 @@ pub async fn check_join(tx: &mut db::Tx) -> ApiResult<()> {
     Ok(())
 }
 
-// --- Sign-up and email verification -------------------------------------------------------------------------------
-
-#[derive(Deserialize)]
-struct Signup {
-    email: String,
-    display_name: String,
-    password: String,
-    #[serde(default)]
-    organization: String,
-    #[serde(default = "browser")]
-    kind: String,
-    #[serde(default)]
-    timezone: String,
-}
-
-fn valid_email(email: &str) -> bool {
-    let Some((local, domain)) = email.split_once('@') else { return false };
-    !local.is_empty() && domain.contains('.') && !domain.starts_with('.') && !domain.ends_with('.') && email.len() <= 254 && !email.chars().any(char::is_whitespace)
-}
-
-async fn new_verification(tx: &mut db::Tx, user: Uuid) -> ApiResult<String> {
-    let (token, hash) = auth::new_token();
-    sqlx::query("INSERT INTO email_verifications (token_hash, user_id, expires_at) VALUES ($1, $2, now() + interval '2 days')")
-        .bind(&hash)
-        .bind(user)
-        .execute(&mut **tx)
-        .await?;
-    Ok(token)
-}
-
-/// The verification link is the email adapter's to send. Until one is configured it is only logged as sent, without
-/// the token; in development (`TURF_DEV_TOKENS=true`) the token comes back in the response instead.
-fn verification_body(state: &AppState, token: String, mut body: Value) -> Value {
-    tracing::info!("email verification link issued");
-    if state.config.dev_tokens {
-        body["verification_token"] = json!(token);
-    }
-    body
-}
-
-/// Anyone may make an account: it opens a new organization on the free trial, with its maker as owner.
-async fn signup(State(state): State<AppState>, jar: CookieJar, Json(body): Json<Signup>) -> ApiResult<(CookieJar, Json<Value>)> {
-    if !state.config.public_signup {
-        return Err(ApiError::forbidden("This server does not take new sign-ups"));
-    }
-    let email = body.email.trim().to_lowercase();
-    let name = body.display_name.trim();
-    if !valid_email(&email) {
-        return Err(ApiError::bad("Enter a valid email address"));
-    }
-    if name.is_empty() || name.chars().count() > 120 {
-        return Err(ApiError::bad("Enter your name (up to 120 characters)"));
-    }
-    let organization = match body.organization.trim() {
-        "" => format!("{name}'s workspace"),
-        given => given.to_string(),
-    };
-    if organization.chars().count() > 200 {
-        return Err(ApiError::bad("Use an organization name of up to 200 characters"));
-    }
-    // The password is checked (and hashed) before anything is written or counted.
-    let hash = auth::hash_password(&body.password)?;
-    if !signup_allowed() {
-        return Err(ApiError::TooMany("Too many new accounts right now; try again in a few minutes".into()));
-    }
-    let tz = if body.timezone.is_empty() { "UTC".to_string() } else { body.timezone.clone() };
-    let mut tx = state.db.begin().await?;
-    let taken: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM users WHERE email = $1)").bind(&email).fetch_one(&mut *tx).await?;
-    if taken {
-        return Err(ApiError::Conflict("An account with this email already exists. Sign in instead.".into()));
-    }
-    let (org, user) = open_trial_account(&mut tx, &email, name, &hash, &tz, Some(&organization)).await?;
-    let trial = plan(&mut tx, "trial").await?;
-    let token = new_verification(&mut tx, user).await?;
-    tx.commit().await?;
-    let kind = if body.kind == "desktop" { "desktop" } else { "browser" };
-    let session = create_session(&state, user, Some(org), kind).await?;
-    let reply = verification_body(
-        &state,
-        token,
-        json!({ "organization_id": org, "user_id": user, "plan": "trial", "minutes": trial.minutes(1), "trial_days": trial.period_days,
-                "mfa_required": state.config.require_mfa, "email_verified": false }),
-    );
-    Ok(signed_in(&state, jar, session, kind, reply))
-}
-
-/// Stored as the password of an account that signs in only with Google or Apple. It is not a valid hash, so no
-/// password ever matches it.
+/// Stored as the password of this server's copy of a person: the auth service checks passwords now, and this is not
+/// a valid hash, so no password ever matches it here.
 pub const NO_PASSWORD: &str = "!external-sign-in";
-
-/// A new person with a new organization on the free trial: the organization, its roles and team, the person as owner
-/// and administrator, the trial subscription, and the audit entry. Shared by the sign-up form and Google/Apple sign-in.
-pub async fn open_trial_account(tx: &mut db::Tx, email: &str, name: &str, password_hash: &str, tz: &str, organization: Option<&str>) -> ApiResult<(Uuid, Uuid)> {
-    let user: Uuid = sqlx::query_scalar("INSERT INTO users (email, display_name, password_hash, timezone) VALUES ($1, $2, $3, $4) RETURNING id")
-        .bind(email)
-        .bind(name)
-        .bind(password_hash)
-        .bind(tz)
-        .fetch_one(&mut **tx)
-        .await?;
-    let org = open_trial_organization(tx, user, name, tz, organization).await?;
-    Ok((org, user))
-}
 
 /// A new organization on the free trial for someone who already has an account: its roles and team, the person as
 /// owner and administrator, the trial subscription, and the audit entry.
@@ -350,45 +244,6 @@ pub async fn start_trial(State(state): State<AppState>, ctx: Ctx, Json(body): Js
     let trial = plan(&mut tx, "trial").await?;
     tx.commit().await?;
     Ok(Json(json!({ "organization_id": org, "plan": "trial", "minutes": trial.minutes(1), "trial_days": trial.period_days })))
-}
-
-#[derive(Deserialize)]
-struct Verify {
-    token: String,
-}
-
-async fn verify_email(State(state): State<AppState>, Json(body): Json<Verify>) -> ApiResult<Json<Value>> {
-    let mut tx = state.db.begin().await?;
-    let user: Option<Uuid> = sqlx::query_scalar(
-        "UPDATE email_verifications SET used_at = now() WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now() RETURNING user_id",
-    )
-    .bind(auth::token_hash(body.token.trim()))
-    .fetch_optional(&mut *tx)
-    .await?;
-    let user = user.ok_or_else(|| ApiError::forbidden("This link is not valid or has expired"))?;
-    sqlx::query("UPDATE users SET email_verified_at = coalesce(email_verified_at, now()) WHERE id = $1").bind(user).execute(&mut *tx).await?;
-    tx.commit().await?;
-    Ok(Json(json!({ "email_verified": true })))
-}
-
-async fn resend_verification(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
-    let verified: bool = sqlx::query_scalar("SELECT email_verified_at IS NOT NULL FROM users WHERE id = $1").bind(ctx.user_id).fetch_one(&state.db).await?;
-    if verified {
-        return Ok(Json(json!({ "email_verified": true })));
-    }
-    {
-        let mut guard = RESENT.lock().unwrap();
-        let sent = guard.get_or_insert_with(HashMap::new);
-        sent.retain(|_, at| at.elapsed() < Duration::from_secs(60));
-        if sent.contains_key(&ctx.user_id) {
-            return Err(ApiError::TooMany("Wait a minute before asking for another email".into()));
-        }
-        sent.insert(ctx.user_id, Instant::now());
-    }
-    let mut tx = state.db.begin().await?;
-    let token = new_verification(&mut tx, ctx.user_id).await?;
-    tx.commit().await?;
-    Ok(Json(verification_body(&state, token, json!({ "sent": true }))))
 }
 
 // --- The account: plan, seats, minutes, payments ------------------------------------------------------------------
@@ -685,14 +540,6 @@ mod tests {
         assert!(!signature_valid("another-secret-of-enough-length!", b"{\"a\":1}", Some(&good)));
         assert!(!signature_valid(secret, b"{\"a\":1}", None));
         assert!(!signature_valid(secret, b"{\"a\":1}", Some("sha256=zz")));
-    }
-
-    #[test]
-    fn emails_are_checked_for_shape() {
-        assert!(valid_email("owner@example.com"));
-        assert!(!valid_email("owner@example"));
-        assert!(!valid_email("@example.com"));
-        assert!(!valid_email("owner @example.com"));
     }
 
     #[test]

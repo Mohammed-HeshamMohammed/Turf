@@ -1,6 +1,6 @@
 # Core API (the existing Turf server)
 
-> Moved here unchanged from `backend/` and `website/` (2026-10-27, history kept). It is still one program: sign-in, the CRM, billing, sync and the website together. It also accepts access tokens from the auth service (`services/auth`), the one source of truth for who someone is: set `TURF_AUTH_JWKS` to auth's public keys (or `TURF_AUTH_JWKS_URL` to fetch them at start) and send the organization in `x-turf-org`. Its own sessions keep working until people are moved over (see `services/auth/README.md`). For people who sign in with auth it adds the workspace half: `POST /api/v1/organizations/trial` opens a trial organization for the signed-in person, `POST /api/v1/invitations/join` joins an invitation's organization (the invitation must be for their email), and a person auth vouches for gets their copy here (same id, no usable password) on their first request. `GET /api/v1/auth/service` tells the website where auth is (`TURF_AUTH_PUBLIC_URL`, default `http://localhost:8101`), and the website's Content Security Policy allows requests to that address and nowhere else. The live-updates socket (`/events`) takes the token in its subprotocol list (`turf.v1`, `bearer.<token>`, `org.<id>`), since a browser cannot add headers to a WebSocket. Splitting the CRM out into `services/features/crm` comes later.
+> Moved here unchanged from `backend/` and `website/` (2026-10-27, history kept). It is still one program: the CRM, billing, sync and the website together. **It has no sign-in of its own:** accounts, passwords, two-step sign-in, Google and Apple, email confirmation and sessions live only in the auth service (`services/auth`). Every request carries an auth access token (`Authorization: Bearer`) and the organization it acts in (`x-turf-org`); the API checks the token with auth's public keys and refuses to start without them (`TURF_AUTH_JWKS`, or `TURF_AUTH_JWKS_URL` to fetch them at start). There are no cookies, so there is no CSRF header and CORS allows no credentials. Removing someone from an organization ends their access there at once, because every request reads their membership. The workspace half of joining stays here: `POST /api/v1/organizations/trial` opens a trial organization for the signed-in person, `POST /api/v1/invitations/join` joins an invitation's organization (the invitation must be for their email), and a person auth vouches for gets their copy here (same id, no usable password) on their first request. `GET /api/v1/auth/service` tells the website where auth is (`TURF_AUTH_PUBLIC_URL`, default `http://localhost:8101`), and the website's Content Security Policy allows requests to that address and nowhere else. The live-updates socket (`/events`) takes the token in its subprotocol list (`turf.v1`, `bearer.<token>`, `org.<id>`), since a browser cannot add headers to a WebSocket. Splitting the CRM out into `services/features/crm` comes later.
 
 The server side of the full CRM (see `docs/TURF_CRM_AND_PERFORMANCE_PLAN.md`). The desktop app's local Skip Tracing service stays in `service/`.
 
@@ -8,7 +8,7 @@ The server side of the full CRM (see `docs/TURF_CRM_AND_PERFORMANCE_PLAN.md`). T
 
 | Folder | Language | What it does |
 | --- | --- | --- |
-| `rust/` | Rust (Axum, sqlx) | Public API, sign-in and MFA, permissions, CRM transactions, sync, WebSocket events, rule execution, legacy import. Owns the PostgreSQL migrations. `crates/grouping` is the deterministic grouping library shared with offline Skip Tracing. |
+| `rust/` | Rust (Axum, sqlx) | Public API, permissions (people sign in with `services/auth`), CRM transactions, sync, WebSocket events, rule execution, legacy import. Owns the PostgreSQL migrations. `crates/grouping` is the deterministic grouping library shared with offline Skip Tracing. |
 | `go/` | Go (standard library) | `turf-worker`: claims outbox events and has the API run their rules (one lead's events in order), ticks the scheduler every minute (overdue tasks and handoffs, scheduled reports), and publishes cache invalidations to Redis. Health on `:8090/healthz`. |
 
 Shared contracts (API, events, jobs, native ABIs) live in `contracts/`.
@@ -46,7 +46,7 @@ This starts PostgreSQL and Redis with their data in `X:\turf-data` (set `TURF_DA
 Run the API:
 
 ```bash
-cd services/core-api/rust && DATABASE_URL=postgres://turf_api:turf_api@127.0.0.1:55432/turf MIGRATION_DATABASE_URL=postgres://turf_owner:turf_owner@127.0.0.1:55432/turf REDIS_URL=redis://127.0.0.1:56379 TURF_SECURE_COOKIES=false TURF_WORKER_TOKENS=go=change-me-to-a-long-random-token cargo run -p turf-api
+cd services/core-api/rust && DATABASE_URL=postgres://turf_api:turf_api@127.0.0.1:55432/turf MIGRATION_DATABASE_URL=postgres://turf_owner:turf_owner@127.0.0.1:55432/turf REDIS_URL=redis://127.0.0.1:56379 TURF_AUTH_JWKS_URL=http://localhost:8101/.well-known/jwks.json TURF_WORKER_TOKENS=go=change-me-to-a-long-random-token cargo run -p turf-api
 ```
 
 Tests (unit, contract, and end to end against the real database):
@@ -55,17 +55,22 @@ Tests (unit, contract, and end to end against the real database):
 cd services/core-api/rust && TEST_DATABASE_URL=postgres://turf_api:turf_api@127.0.0.1:55432/turf_test TEST_MIGRATION_DATABASE_URL=postgres://turf_owner:turf_owner@127.0.0.1:55432/turf_test TEST_REDIS_URL=redis://127.0.0.1:56379 cargo test --workspace
 ```
 
-Without `TEST_DATABASE_URL` the end-to-end tests skip themselves.
+Without `TEST_DATABASE_URL` the end-to-end tests skip themselves. The tests play the auth service's part: the harness holds a test signing key, gives the API its public half, and signs tokens for the people each test needs.
+
+The old sign-in tables (`sessions`, `oauth_states`, `oauth_handoffs`, `email_verifications`, `user_identities`, `recovery_codes`, and the password and two-step columns of `users`) are no longer read or written. They stay, untouched, until the copy into auth (`services/auth/scripts/import-from-core-api.sh`) has been confirmed on the production server; a later migration drops them.
 
 ### The whole stack, with the CRM interface
 
 ```bash
+# the auth service first, on http://127.0.0.1:8101 with AUTH_DEV_TOKENS=true (see services/auth/README.md)
 bash services/core-api/scripts/run-api.sh          # API on http://127.0.0.1:8088 (starts PostgreSQL and Redis too)
 bash services/core-api/scripts/run-worker.sh       # Go worker
 python services/core-api/scripts/dev_seed.py       # once, on a fresh database: an organization, one person per role, sample leads
 ```
 
-`dev_seed.py` writes the local test accounts to `services/core-api/scripts/.dev-accounts.json` (git-ignored). In the CRM interface (`desktop/frontend/react`, `npm run dev`), open the Turf menu, choose **Connect to a Turf server**, and sign in at `http://localhost:8088`. Owners and administrators need an authenticator code. Records then come from the server. Changes apply on screen at once and queue as operations; offline they wait in an encrypted IndexedDB copy unlocked by a passphrase. On reconnect, a change someone else made meanwhile shows on the Sync page with both values.
+`dev_seed.py` makes the accounts at auth, then the organization and memberships here, and writes the local test accounts to `services/core-api/scripts/.dev-accounts.json` (git-ignored). In the CRM interface (`desktop/frontend/react`, `npm run dev`), sign in with one of them; the CRM signs in at auth and talks to `http://localhost:8088`. Owners and administrators need an authenticator code.
+
+`create_platform_admin.py <email>` promotes someone who has already signed in with auth and opened the CRM once. Records then come from the server. Changes apply on screen at once and queue as operations; offline they wait in an encrypted IndexedDB copy unlocked by a passphrase. On reconnect, a change someone else made meanwhile shows on the Sync page with both values.
 
 ## How a change flows
 

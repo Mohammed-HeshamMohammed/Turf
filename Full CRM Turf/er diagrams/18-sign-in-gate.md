@@ -67,9 +67,9 @@ erDiagram
 
 | Screen | Fields | API call |
 | --- | --- | --- |
-| Sign in | Server address, Email, Password | `POST /api/v1/auth/login` after `GET /api/v1/me` check |
-| Sign-in code | Sign-in code, or recovery code | `POST /api/v1/auth/mfa/verify` |
-| Set up the code | Setup key, Code from the app | `POST /api/v1/auth/mfa/setup`, `…/confirm` |
+| Sign in | Email, Password | The auth service: `POST /v1/sessions`, then `GET /api/v1/me` on the core API with its token |
+| Sign-in code | Sign-in code, or recovery code | The auth service: `POST /v1/sessions` again with `code` |
+| Set up the code | Setup key, Code from the app | The auth service: `POST /v1/mfa/setup`, `/v1/mfa/confirm` |
 | Offline passphrase | Offline passphrase | none: unlocks the local encrypted vault. A wrong phrase is rejected. A vault owned by another account is wiped first |
 | After sign-in | – | `GET /api/v1/directory`, `/admin/teams`, `/projects`, then `/sync/snapshot`, `/sync/pull`, `/sync/push` and the `/events` WebSocket |
 

@@ -2,10 +2,10 @@
 //! never leave the app, so sign-in happens in the person's own browser:
 //!
 //! 1. `google_sign_in_listen` opens a listener on 127.0.0.1 (this computer only) at a free port.
-//! 2. `open_in_browser` opens Turf's server, which sends the browser to Google.
-//! 3. When Google is done, the server sends the browser to `http://127.0.0.1:<port>/turf-sign-in?code=…` (or
+//! 2. `open_in_browser` opens the auth service (services/auth), which sends the browser to Google.
+//! 3. When Google is done, auth sends the browser to `http://127.0.0.1:<port>/turf-sign-in?code=…` (or
 //!    `?error=…`). The listener answers with a "return to Turf" page and hands the one-time code to the window as the
-//!    `turf-sign-in` event; the window trades it for a session at /api/v1/auth/oauth/exchange.
+//!    `turf-sign-in` event; the window trades it for tokens at auth's /v1/oauth/exchange.
 
 use serde_json::json;
 use std::io::{BufRead, BufReader, Write};

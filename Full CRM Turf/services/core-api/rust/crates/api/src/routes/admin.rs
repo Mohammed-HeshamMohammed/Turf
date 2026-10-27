@@ -178,8 +178,7 @@ async fn remove_member(State(state): State<AppState>, ctx: Ctx, Path(user): Path
     if removed.rows_affected() == 0 {
         return Err(ApiError::not_found("The member"));
     }
-    // Their sessions in this organization end now; their leads go to the unassigned queue.
-    sqlx::query("UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND org_id = turf_org() AND revoked_at IS NULL").bind(user).execute(&mut *tx).await?;
+    // Every request reads the membership, so their access here ends now; their leads go to the unassigned queue.
     sqlx::query("UPDATE leads SET assignee_id = NULL, version = version + 1 WHERE assignee_id = $1").bind(user).execute(&mut *tx).await?;
     sqlx::query("UPDATE handoffs SET status = 'Cancelled', decided_at = now() WHERE status = 'Requested' AND (to_user = $1 OR from_user = $1)").bind(user).execute(&mut *tx).await?;
     sqlx::query("DELETE FROM lead_shares WHERE user_id = $1").bind(user).execute(&mut *tx).await?;
