@@ -1,0 +1,61 @@
+# Prototype Instructions
+
+Run the local server yourself and open the preview in the browser available to this environment. Do not give the user server-start instructions when you can run it.
+
+## Sidebar design preference
+
+The left sidebar must support a persistent minimized icon rail. Use Mac Dock-style magnification for the hovered icon and its neighbors, with a clearly noticeable rounded bend in the rail toward the hovered item. The previous 5px bend was too subtle: use a pronounced smooth contour and rounded hover highlights. Keep a rounded/circular highlight around the selected item. Preserve labels through tooltips and keyboard focus, respect reduced motion, and keep the mobile drawer readable. The Turf logo opens the app menu; place Explore as and connection controls inside that menu instead of the sidebar.
+
+The workspace identity belongs beside Turf in the header, replacing Full CRM, rather than in the sidebar. The avatar opens a separate personal menu with profile and personal preferences. Charts need visible, hoverable interval points between day labels, with meaningful time/count details. Keep sidebar hover centered at the first/last items; contain the visible rail bend away from its rounded ends without distorting the caps.
+
+On first hover, the curve must emerge outward from inside the rail at that item's position, never travel down from the top. Keep its last position while retracting. Glide the existing curve between neighboring items, including across their small gaps, and animate the shared rounded selection highlight between destinations. Reduced motion disables all these transitions.
+
+Connection preview, Sync & pending changes, and Workspace settings belong only in the Turf logo dropdown, grouped together in that order. Keep them out of the expanded/minimized/mobile sidebar and personal menu. Footer/banner status may be informative but must not duplicate those navigation actions. Workspace settings remain disabled for roles without access.
+
+Skip Tracing needs a spacious working area with readable controls, source-field mapping, and an original-value preview. Detect actual source fields rather than inventing a Phone column. Prefer populated phone evidence, then address, email, and owner name; show the active fallback and skip phone-only steps when no populated phone field exists. Let users correct mappings and require a usable field before checking. Preserve the progressive workflow and original source values.
+
+Both geographic maps and comprehensive column mapping belong in the CRM prototype. Support split names/addresses, property versus mailing details, international address parts, coordinates, parcels, values and call outcomes. Save mappings per source without changing original values or blocked status. Geographic views must respect visible-record scope and filters, distinguish supplied coordinates from approximate areas, and retain address-only, invalid-coordinate, missing-location and offline cases without inventing property pins. Keep address searches user-triggered.
+
+Before making substantial visual changes, use the Product Design plugin's `get-context` skill when the visual source is unclear or no longer matches the current goal. When the user gives durable prototype-specific design feedback, preferences, or decisions, record them in `AGENTS.md`.
+
+When implementing from a selected generated mock, treat that image as the source of truth for layout, component anatomy, density, spacing, color, typography, visible content, and hierarchy.
+
+Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts/prepare-sites-build.mjs`, and `tests/sites-worker.test.mjs` intact so the same local prototype can be handed to Sites. Before a Sites handoff, run `npm run build` and `npm run test:sites`; the build must leave `dist/client/index.html`, `dist/server/index.js`, and `dist/.openai/hosting.json`.
+
+## Design decisions (product design pass, October 2026)
+
+- The sidebar lists every section. The top bar repeats only the most used ones (Overview, Leads, Calls, Deals, Tasks or Inbox, up to five, by role) and hides them below 1080px. Search sits on the right, beside the bell; on phones it gets its own row under the header.
+- Page titles are the page's plain name ("Leads", "Calls") with at most one short functional line under them. No eyebrow lines and no slogan headlines.
+- Nothing is smaller than 12px.
+- Motion is brief and only explains something: a 180ms page fade, menus and dialogs popping, board drag. No staggered rows, no text animations, no exit ghosts or waits between pages.
+- Notes that only explain the demo ("sample photo", "no number is dialled", "prototype does not record") carry the `demo-note` class and are hidden unless "Show demo notes" is on in the Turf menu's Sample workspace section, next to Explore as and Reset.
+- Starting a call keeps the queue visible and the same workspace columns and page heading in place. Do not turn calling into a different page or hide/reflow the queue. Keep the current lead selected until the call ends. History and the map share one "About this lead" card with tabs.
+- Preserve the original Calls card design and refine its spacing. Add calling controls incrementally without redesigning the card.
+- In the Calls lead card, put Start/End call beside the phone number so it is easy to find; Live captions belongs at the bottom right, opposite Full lead record. Preserve the existing card styling.
+- The SMS button belongs at the top right of the Calls lead card, using the existing button style. Its quick composer keeps Calls open and adds demo messages to that lead's SMS conversation in Inbox.
+- During a call, show Call in progress and a large elapsed timer in a clear green status bar directly below the phone/call controls. Do not bury it in small text beneath the owner or repeat the captions action there.
+- The call-status bar expands into the card and smoothly pushes the details below down. On hangup it becomes the outcome-waiting state; collapse it after an outcome is recorded when no next call starts. Keep the queue and workspace columns fixed; respect reduced motion.
+- Auto dial belongs at the top right of the Calls page header. It runs one pass through the eligible demo queue, advances after saving each outcome, and pauses for callbacks or transfers. Pausing auto dial leaves the current call running.
+- Either side hanging up keeps the same lead and stopped timer until the caller records an outcome. Voicemail, Not available, Dead call, Wrong number and Do not call are quick outcomes: one click logs the result and continues auto dial, without written feedback or a second Save. Conversation outcomes retain the explicit Save feedback step. Notes are always optional, and any entered notes are saved with quick outcomes too. Block queue changes and new calls while the outcome is pending. "Simulate contact hangup" is available with Show demo notes enabled.
+- Auto dial must catch the eye using Turf's existing peach and black palette: peach with dark text/outline while idle, black with peach text while active. Avoid unrelated gradients and glowing pulses.
+- A persistent phone icon at the app's bottom right opens a compact dial pad. Use the same shared demo call session across pages; never start a second call over an active call or pending lead outcome. Match accessible lead numbers and keep calling restrictions. Unlinked numbers are manual demo calls and do not create CRM leads.
+- The intended desktop calling flow runs inside Turf: selecting a number uses the embedded dialer, and call controls, history and outcomes stay in the app. Describe this as the product direction, with the current demo explicitly simulated until live calling is integrated. Opening the computer's separate phone app is legacy behavior, not the intended calling flow.
+- Call log has its own tab beside Call queue on the Calls page. Place the compact view switch directly beside the Calls title, with smaller text than the heading. Keep it out of the floating dial pad and out of a modal. Include completed calls to numbers without a lead, timestamps, actual elapsed duration when known, outcomes and which side hung up; preserve existing lead history and avoid duplicate entries when an outcome is saved. Switching tabs keeps the current call, queue selection, feedback and auto dial state. New SMS conversations can start with a phone number or an existing lead. Reuse matching threads, scope unlinked conversations to their creator, and do not create a lead just to message a new number.
+- Detail pages keep one primary action in the header (the lead page: Call); secondary and destructive actions go in the More menu.
+- The overview opens with "Needs you today": due tasks, expected callbacks, handoffs to accept and unread messages, each with the one action that deals with it.
+- Every on/off setting is the same switch (`Checkbox` renders it). Table row selection keeps plain checkboxes.
+- Reversible removals (archive a lead, delete a task or note) happen at once with Undo in the toast. Permanent removals (delete a lead for good, delete a deal) still ask first.
+- Grey text uses `--muted` (#595959), which passes contrast on every surface; avoid lighter greys for text. Landmarks are named, there is a skip link, and the More menu works from the keyboard.
+- On phones nothing scrolls sideways, tap targets are at least 40px tall, and the search moves to its own row under the header.
+- `npm run css:unused` lists stylesheet rules no code uses (`-- --write` removes them). After any stylesheet clean-up, compare every screen at desktop and phone width before committing; merging repeated rules or @media blocks automatically changed phone layouts and was rejected.
+
+- The sidebar rail is only as tall as its items and sits at the vertical centre of the window (not stretched top to bottom).
+- Board pages (Deals, Leads pipeline) fill the window height; each column scrolls on its own and the page itself does not scroll.
+- Deals board: six open stages in the top row, Closed won and Closed lost in a shorter row beneath.
+- Deals board: five stages on top; Closed won, Negotiation and Closed lost in an equal-height bottom row, each a third wide with cards flowing into as many columns as fit.
+- Switching a view (Pipeline/List, Board) slides the white pill in the segmented control and eases the new view in over 200ms; reduced motion turns it off.
+- Every table's column titles sort when pressed (ascending, descending, off; an arrow shows the order) and can be dragged (or moved with Alt + arrow keys) into a new order, which is remembered per table. Build tables with `DataTable` and `useTableView` from ui.jsx.
+- No native browser pickers: dates, times and date-times use `DatePicker`, `TimePicker` and `DateTimePicker` from ui.jsx (drawn by the app, like `Select`). Calendar day tiles are rounded, not a bordered grid.
+- The calendar month slides out and in the direction of travel (Today slides back or forward to the current month and the chosen day pops); reduced motion turns it off.
+- The sidebar rail keeps the same height and position minimised or expanded (it only grows sideways): the minimised rail keeps the space of the section headings as a divider line.
+- Leads map (Leads → Map, `LeadsMap.jsx`), in the manner of a property search map: price pins (dashed when only the ZIP area is known), pins grouped into count bubbles when zoomed out, and a list of property cards beside the map showing what is in view (toggle "List what's on the map"). Hovering a card lights its pin; choosing a pin selects its card. Leads are placed at once from their ZIP centre (Census file shipped with Turf, offline); exact places come from the US Census geocoder only when the person presses "Find exact locations" (street, city, state and ZIP only, never names or phones) and are remembered on the lead.

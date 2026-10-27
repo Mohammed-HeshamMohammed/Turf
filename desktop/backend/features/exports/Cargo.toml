@@ -1,0 +1,6 @@
+[package]
+name = "turf-desktop-exports"
+version = "0.1.0"
+edition = "2021"
+description = "Feature 7 on the person's computer: writing call lists, mail lists and reports to Downloads."
+publish = false
