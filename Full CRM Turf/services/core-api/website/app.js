@@ -1,6 +1,12 @@
 // Turf's public website: plans, sign-up onto the trial, sign-in with MFA, email confirmation, the account (plan,
 // minutes, seats, payments), checkout and team invitations. Everything is enforced by the API; this page only asks.
 // User data is only ever written as text (never as HTML), and nothing runs inline, so the server's CSP holds.
+//
+// Signing in is the auth service's job (./auth-client.js, the same file the CRM uses): this page signs up, signs in
+// and confirms email there, then brings its token to Turf's server, which keeps the workspace (organization, plan,
+// team). Where auth is comes from the server, so one build works anywhere.
+
+import { createAuth } from "./auth-client.js";
 
 const main = document.getElementById("main");
 const nav = document.getElementById("site-nav");
@@ -22,13 +28,27 @@ class ApiError extends Error {
   }
 }
 
-async function api(path, body) {
+const service = await fetch("/api/v1/auth/service").then(r => r.json(), () => ({}));
+const auth = createAuth({ base: service.url || "http://localhost:8101" });
+
+/** The organization this browser works in; Turf's server reads it from x-turf-org. */
+const organization = () => localStorage.getItem("turf.org") || "";
+const setOrganization = id => (id ? localStorage.setItem("turf.org", id) : localStorage.removeItem("turf.org"));
+
+async function api(path, body, retried = false) {
+  const token = await auth.accessToken().catch(() => null);
+  const org = organization();
   const response = await fetch("/api/v1" + path, {
     method: body === undefined ? "GET" : "POST",
-    credentials: "same-origin",
-    headers: body === undefined ? {} : { "Content-Type": "application/json", "X-Turf-Request": "1" },
+    headers: {
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      ...(token ? { Authorization: "Bearer " + token } : {}),
+      ...(token && org ? { "x-turf-org": org } : {}),
+    },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  // A token that expired in flight: refresh once and try again.
+  if (response.status === 401 && token && !retried && (await auth.refresh().catch(() => null))) return api(path, body, true);
   const data = await response.json().catch(() => null);
   if (!response.ok) throw new ApiError(response.status, data?.error?.code || "error", data?.error?.message || "Something went wrong");
   return data;
@@ -83,7 +103,13 @@ const input = (label, name, attributes = {}) => h("label", {}, label, h("input",
 
 let me = null;
 async function refreshMe() {
-  me = await api("/me").catch(() => null);
+  me = auth.signedIn() ? await api("/me").catch(() => null) : null;
+  // Open the organization this browser used last, or the person's first.
+  if (me && me.organizations.length && !me.organizations.some(item => item.id === me.organization_id)) {
+    const chosen = me.organizations.find(item => item.id === organization())?.id || me.organizations[0].id;
+    setOrganization(chosen);
+    me = await api("/me").catch(() => null);
+  }
   nav.replaceChildren(
     ...(me
       ? [
@@ -97,9 +123,30 @@ async function refreshMe() {
 }
 
 async function signOut() {
-  await api("/auth/logout", {}).catch(() => undefined);
+  await auth.signOut();
+  setOrganization("");
   await refreshMe();
   location.hash = "#/";
+}
+
+/** An invitation waiting for the person to sign up or sign in (including with Google, which leaves the page). */
+const PENDING_JOIN = "turf.join";
+
+/** After signing in: join a waiting invitation, or open the person's trial if they have no workspace yet. */
+async function afterSignIn({ newAccount = false, organizationName = "" } = {}) {
+  const invitation = sessionStorage.getItem(PENDING_JOIN);
+  if (invitation) {
+    sessionStorage.removeItem(PENDING_JOIN);
+    const joined = await api("/invitations/join", { token: invitation });
+    setOrganization(joined.organization_id);
+  } else if (newAccount) {
+    const opened = await api("/organizations/trial", { organization: organizationName, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+    setOrganization(opened.organization_id);
+  }
+  await refreshMe();
+  if (!me) return (location.hash = "#/signin");
+  if (!me.organizations.length) return (location.hash = "#/workspace");
+  location.hash = me.mfa.required && !me.mfa.passed ? "#/mfa" : "#/account";
 }
 
 // --- Google sign-in -----------------------------------------------------------------------------------------------
@@ -131,7 +178,7 @@ function logo(name) {
 /** "Continue with Google" for the sign-up and sign-in pages. A provider not set up on the server says so. */
 function providerButtons() {
   const status = h("div");
-  const known = api("/auth/providers").catch(() => ({}));
+  const known = auth.providers().catch(() => ({}));
   const button = (name, text) =>
     h(
       "button",
@@ -139,7 +186,7 @@ function providerButtons() {
         type: "button",
         class: "button provider " + name,
         onclick: async () => {
-          if ((await known)[name]) return (location.href = `/api/v1/auth/oauth/${name}/start?target=website`);
+          if ((await known)[name]) return (location.href = auth.startUrl(name, "website"));
           status.replaceChildren(notice(`${text.replace("Continue with ", "")} sign-in isn't connected on this server yet. Use your email for now.`));
         },
       },
@@ -212,10 +259,9 @@ function signup() {
         ],
         "Create account",
         async values => {
-          const answer = await api("/auth/signup", { ...values, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+          const answer = await auth.signUp(values.display_name, values.email, values.password);
           sessionStorage.setItem("turf.verify", answer.verification_token || "");
-          await refreshMe();
-          location.hash = "#/mfa";
+          await afterSignIn({ newAccount: true, organizationName: values.organization });
         },
       ),
     ),
@@ -233,12 +279,32 @@ function signin() {
         [input("Email", "email", { type: "email", autocomplete: "email" }), input("Password", "password", { type: "password", autocomplete: "current-password" })],
         "Sign in",
         async values => {
-          const answer = await api("/auth/login", values);
-          await refreshMe();
-          location.hash = answer.mfa_required ? "#/mfa" : "#/account";
+          try {
+            await auth.signIn(values.email, values.password);
+          } catch (reason) {
+            if (reason.code === "mfa_required") return signinCode(values);
+            throw reason;
+          }
+          await afterSignIn();
         },
       ),
       h("p", { class: "muted" }, "New here? ", h("a", { href: "#/signup" }, "Start a free trial"), "."),
+    ),
+  );
+}
+
+/** Two-step sign-in is on: the same sign-in again with the code. The password stays only in this closure. */
+function signinCode(values) {
+  show(
+    h(
+      "section",
+      { class: "card narrow" },
+      h("h2", {}, "Enter your sign-in code"),
+      h("p", { class: "muted" }, "From your authenticator app, or one of your recovery codes."),
+      form([input("Code", "code", { autocomplete: "one-time-code", maxlength: 12 })], "Sign in", async more => {
+        await auth.signIn(values.email, values.password, more.code.trim());
+        await afterSignIn();
+      }),
     ),
   );
 }
@@ -247,20 +313,20 @@ function signin() {
 async function mfa() {
   if (!(await refreshMe())) return (location.hash = "#/signin");
   if (!me.mfa.required || me.mfa.passed) return (location.hash = "#/account");
-  if (me.mfa.enrolled) {
+  if ((await auth.me()).mfa_enrolled) {
     return show(
       h(
         "section",
         { class: "card narrow" },
         h("h2", {}, "Enter your sign-in code"),
         form([input("6-digit code", "code", { inputmode: "numeric", autocomplete: "one-time-code", maxlength: 8 })], "Continue", async values => {
-          await api("/auth/mfa/verify", values);
+          await auth.verifyMfa(values.code.trim());
           location.hash = "#/account";
         }),
       ),
     );
   }
-  const setup = await api("/auth/mfa/setup", {});
+  const setup = await auth.setupMfa();
   show(
     h(
       "section",
@@ -270,7 +336,7 @@ async function mfa() {
       h("span", { class: "code", "aria-label": "Setup key" }, setup.secret),
       h("p", { class: "muted" }, "Or open this link on your phone: ", h("a", { href: setup.otpauth_url }, "add to authenticator")),
       form([input("6-digit code", "code", { inputmode: "numeric", autocomplete: "one-time-code", maxlength: 8 })], "Confirm", async values => {
-        const { recovery_codes } = await api("/auth/mfa/confirm", values);
+        const { recovery_codes } = await auth.confirmMfa(values.code.trim());
         show(
           h(
             "section",
@@ -288,39 +354,76 @@ async function mfa() {
 
 async function verifyEmail(token) {
   try {
-    await api("/auth/verify-email", { token });
+    await auth.verifyEmail(token);
     sessionStorage.removeItem("turf.verify");
+    // The next token says the email is confirmed, and Turf's server records it.
+    if (auth.signedIn()) await auth.refresh().catch(() => null);
     show(h("section", { class: "card narrow" }, h("h2", {}, "Email confirmed"), h("a", { class: "button primary", href: "#/account" }, "Go to your account")));
   } catch (reason) {
     show(h("section", { class: "card narrow" }, notice(reason.message, "error"), h("a", { class: "button", href: "#/account" }, "Back to your account")));
   }
 }
 
-function joinTeam(token) {
+async function joinTeam(token) {
+  sessionStorage.setItem(PENDING_JOIN, token);
+  if (await refreshMe()) {
+    return show(
+      h(
+        "section",
+        { class: "card narrow" },
+        h("h2", {}, "Join your team on Turf"),
+        h("p", {}, "You're signed in as " + me.user.email + ". The invitation must be for this address."),
+        form([], "Join the team", async () => afterSignIn()),
+        h("p", { class: "muted" }, "Not you? ", h("button", { class: "text", onclick: signOut }, "Sign out"), " and open the link again."),
+      ),
+    );
+  }
   show(
     h(
       "section",
       { class: "card narrow" },
       h("h2", {}, "Join your team on Turf"),
+      h("p", { class: "muted" }, "Use the email address the invitation was sent to."),
+      providerButtons(),
       form(
         [
-          input("Your name", "display_name", { autocomplete: "name" }),
+          input("Your name", "display_name", { autocomplete: "name", maxlength: 120 }),
+          input("Email", "email", { type: "email", autocomplete: "email" }),
           input("Password", "password", { type: "password", autocomplete: "new-password", minlength: 12 }),
-          h("p", { class: "muted" }, "Already have a Turf account with this email? Enter its password."),
         ],
-        "Join",
+        "Create account and join",
         async values => {
-          const answer = await api("/auth/invitations/accept", { ...values, token });
-          await refreshMe();
-          location.hash = answer.mfa_required ? "#/mfa" : "#/account";
+          const answer = await auth.signUp(values.display_name, values.email, values.password);
+          sessionStorage.setItem("turf.verify", answer.verification_token || "");
+          await afterSignIn();
         },
       ),
+      h("p", { class: "muted" }, "Already have a Turf account? ", h("a", { href: "#/signin" }, "Sign in"), " and the invitation is accepted after."),
+    ),
+  );
+}
+
+/** Signed in, with no workspace yet (for example after Google sign-up): start the free trial here. */
+async function workspace() {
+  if (!(await refreshMe())) return (location.hash = "#/signin");
+  if (me.organizations.length) return (location.hash = "#/account");
+  show(
+    h(
+      "section",
+      { class: "card narrow" },
+      h("h2", {}, "Start your free trial"),
+      h("p", { class: "muted" }, "10 calling minutes over 7 days. No card needed."),
+      form([h("label", {}, "Business name (optional)", h("input", { name: "organization", maxlength: 200, autocomplete: "organization" }))], "Start the trial", async values =>
+        afterSignIn({ newAccount: true, organizationName: values.organization }),
+      ),
+      h("p", { class: "muted" }, "Invited by a team? Open the link from your invitation email instead."),
     ),
   );
 }
 
 async function account() {
   if (!(await refreshMe())) return (location.hash = "#/signin");
+  if (!me.organizations.length) return (location.hash = "#/workspace");
   if (me.mfa.required && !me.mfa.passed) return (location.hash = "#/mfa");
   const billing = await api("/billing");
   const org = me.organizations.find(item => item.id === me.organization_id);
@@ -341,7 +444,7 @@ async function account() {
               {
                 class: "button",
                 onclick: async event => {
-                  const answer = await api("/auth/verify-email/resend", {}).catch(reason => ({ error: reason.message }));
+                  const answer = await auth.resendEmail().catch(reason => ({ error: reason.message }));
                   if (answer.verification_token) sessionStorage.setItem("turf.verify", answer.verification_token);
                   event.target.replaceWith(answer.error || "Email sent.");
                   if (answer.verification_token) account();
@@ -583,7 +686,8 @@ async function route() {
     if (path === "/account") return await account();
     if (path === "/platform") return await platform();
     if (path === "/verify") return await verifyEmail(params.get("token") || "");
-    if (path === "/join") return joinTeam(params.get("token") || "");
+    if (path === "/join") return await joinTeam(params.get("token") || "");
+    if (path === "/workspace") return await workspace();
     return await home();
   } catch (reason) {
     if (reason instanceof ApiError && reason.code === "mfa_required") return (location.hash = "#/mfa");
@@ -601,4 +705,14 @@ document.addEventListener("click", event => {
     route();
   }
 });
-refreshMe().then(route);
+// Back from Google: the address carries a one-time code to trade for tokens, then the page carries on.
+const returned = new URLSearchParams(location.search).get("turf_code");
+if (returned) {
+  history.replaceState(null, "", location.pathname + location.hash);
+  auth
+    .exchange(returned)
+    .then(() => afterSignIn())
+    .catch(reason => show(notice(reason.message, "error")));
+} else {
+  refreshMe().then(route);
+}

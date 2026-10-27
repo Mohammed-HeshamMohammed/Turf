@@ -44,6 +44,7 @@ pub fn router() -> Router<AppState> {
         .route("/v1/password", post(change_password))
         .route("/v1/mfa/setup", post(mfa_setup))
         .route("/v1/mfa/confirm", post(mfa_confirm))
+        .route("/v1/mfa/verify", post(mfa_verify))
         .merge(email::routes())
         .merge(oauth::routes())
 }
@@ -472,6 +473,25 @@ async fn mfa_confirm(State(state): State<AppState>, Person(claims): Person, Json
     sqlx::query("UPDATE sessions SET mfa_passed = 1 WHERE id = $1").bind(&claims.sid).execute(&mut *tx).await?;
     tx.commit().await?;
     Ok(Json(json!({ "recovery_codes": codes })))
+}
+
+/// Confirms a two-step code for the session already open (a Google or Apple sign-in, which does not ask for one), and
+/// returns an access token that says so. The refresh token stays the same; its next tokens say so too.
+async fn mfa_verify(State(state): State<AppState>, Person(claims): Person, Json(body): Json<Code>) -> AuthResult<Json<Value>> {
+    let user = user_by(&state, "id", &claims.sub).await?.ok_or(AuthError::Unauthenticated)?;
+    let secret = user.totp_secret.clone().ok_or_else(|| AuthError::Bad("Two-step sign-in is not on for this account.".into()))?;
+    if recent_failures(&state, &user.email).await? >= LOCKOUT_FAILURES {
+        return Err(AuthError::TooMany);
+    }
+    let code = body.code.trim();
+    if !(code_matches(&secret, &user.email, code) || use_recovery_code(&state, &user.id, code).await?) {
+        record_failure(&state, &user.email).await?;
+        return Err(AuthError::WrongCode);
+    }
+    sqlx::query("UPDATE sessions SET mfa_passed = 1 WHERE id = $1").bind(&claims.sid).execute(&state.db).await?;
+    let person = TokenPerson { id: user.id.clone(), email: user.email.clone(), name: user.name.clone(), email_verified: user.email_verified };
+    let (access, expires_in) = state.keys.sign(&person, &claims.sid, true, now(), state.config.access_minutes)?;
+    Ok(Json(json!({ "access_token": access, "token_type": "Bearer", "expires_in": expires_in })))
 }
 
 #[cfg(test)]

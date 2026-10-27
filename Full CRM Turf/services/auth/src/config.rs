@@ -19,6 +19,8 @@ pub struct Config {
     pub app_url: String,
     /// Development only: return email confirmation tokens in responses, since no email is sent yet.
     pub dev_tokens: bool,
+    /// Browser origins that may call this service: the CRM, the website and the desktop window.
+    pub allowed_origins: Vec<String>,
     pub google: Provider,
     pub apple: Provider,
 }
@@ -82,6 +84,11 @@ impl Config {
             website_url: var("AUTH_WEBSITE_URL", "http://localhost:8088").trim_end_matches('/').to_string(),
             app_url: var("AUTH_APP_URL", "http://localhost:5190").trim_end_matches('/').to_string(),
             dev_tokens: var("AUTH_DEV_TOKENS", "false") == "true",
+            allowed_origins: var("AUTH_ALLOWED_ORIGINS", "http://localhost:5190,http://localhost:8088,tauri://localhost,http://tauri.localhost")
+                .split(',')
+                .map(|o| o.trim().trim_end_matches('/').to_string())
+                .filter(|o| !o.is_empty())
+                .collect(),
             google: Provider {
                 client_id: var("AUTH_GOOGLE_CLIENT_ID", ""),
                 client_secret: var("AUTH_GOOGLE_CLIENT_SECRET", ""),
@@ -111,6 +118,7 @@ impl Config {
             website_url: "http://website.example".into(),
             app_url: "http://app.example".into(),
             dev_tokens: true,
+            allowed_origins: vec!["http://app.example".into()],
             google: Provider::default(),
             apple: Provider::default(),
         }

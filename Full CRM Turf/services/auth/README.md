@@ -43,6 +43,7 @@ Closing a session stops new tokens at once. A token already handed out works unt
 | `GET /v1/me` | Who the token belongs to |
 | `POST /v1/password` | Change the password; closes every other session |
 | `POST /v1/mfa/setup`, `POST /v1/mfa/confirm` | Turn two-step sign-in on; returns the recovery codes once |
+| `POST /v1/mfa/verify` | Confirm a two-step code for the session already open (after a Google or Apple sign-in); returns an access token that says so |
 | `POST /v1/email/verify` | Confirm an email address with the token from the link |
 | `POST /v1/email/resend` | A new confirmation link (at most once a minute) |
 | `GET /v1/providers` | Which of Google and Apple are set up |
@@ -85,6 +86,7 @@ AUTH_SIGNING_KEY=... cargo run -p turf-auth           # http://localhost:8101, S
 | `AUTH_PUBLIC_URL` | `http://localhost:8101` | Where browsers reach this service; Google and Apple return to `<this>/v1/oauth/<provider>/callback`, so register that address with them |
 | `AUTH_WEBSITE_URL`, `AUTH_APP_URL` | `http://localhost:8088`, `http://localhost:5190` | Where a provider sign-in returns |
 | `AUTH_DEV_TOKENS` | false | Development only: return confirmation tokens in responses |
+| `AUTH_ALLOWED_ORIGINS` | `http://localhost:5190,http://localhost:8088,tauri://localhost,http://tauri.localhost` | Browser origins that may call auth: the CRM, the website and the desktop window. Set the real ones in production |
 | `AUTH_GOOGLE_CLIENT_ID`, `AUTH_GOOGLE_CLIENT_SECRET` | | Google sign-in |
 | `AUTH_APPLE_CLIENT_ID`, `AUTH_APPLE_TEAM_ID`, `AUTH_APPLE_KEY_ID`, `AUTH_APPLE_PRIVATE_KEY` | | Apple sign-in (the .p8 key, `\n` for line breaks) |
 
@@ -97,7 +99,11 @@ The switch, in order:
 1. **Done:** auth runs on its own; the core API accepts its tokens next to its own sessions.
 2. Copy everyone across with the same ids: `scripts/import-from-core-api.sh`. Passwords, two-step secrets, recovery codes, confirmed emails and Google/Apple links carry over unchanged. An email that auth already holds under a different id is skipped and listed, never merged. **Checked on a local PostgreSQL:** an account copied from the core API signed in to auth with its old password and its old two-step secret, and the core API accepted the resulting token for the same person, with their roles and plan in their organization. Running the script again changes nothing.
 3. **Done:** Google and Apple sign-in, desktop sign-in and email confirmation are here. Accepting an invitation is split: the account is made or signed in here, and joining the organization is the core API's `POST /api/v1/invitations/join`. The core API creates its copy of a person the first time they arrive with an auth token. Still on the core API: marking platform administrators (a CRM-side flag for now).
-4. Point the app and the website at auth for signing in.
+4. **Done:** the CRM (browser tab and desktop window) and the website sign in, sign up, confirm email and sign out through auth, using `clients/auth-client.js`, and send its token to the core API (live updates included). Checked in a browser against the local PostgreSQL: website sign-up with a trial, email confirmation, joining by invitation as a new person, sign-in with and without a two-step code; the CRM's sign-in, automatic organization, trial for a new person, live-updates socket and sign-out. Google needs real Google credentials to try in a browser; its flow is covered by the tests with a fake provider.
 5. Turn the core API's own sessions off. From then on auth is the only place an account or a session exists.
 
 Organizations, memberships and roles stay with the CRM: auth says **who** someone is, and each service decides **what they may do** there.
+
+## The browser client
+
+`clients/auth-client.js` is the one piece of sign-in code the website and the CRM share: sign up, sign in (with a code when auth asks), Google or Apple through a one-time code, two-step set-up and step-up, email confirmation, refresh and sign-out. The access token stays in memory and is refreshed a minute before it expires, one refresh at a time; the refresh token is kept in the browser's storage so a reload stays signed in, which is why those pages load no scripts from other sites. The website and the CRM each keep a copy, because neither can import across the repository at run time: `node services/auth/clients/sync.mjs` copies it, and the CRM's tests fail if a copy differs. Its own tests: `node --test services/auth/clients/test/`.

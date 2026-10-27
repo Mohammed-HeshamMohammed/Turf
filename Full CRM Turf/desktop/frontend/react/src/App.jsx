@@ -4,7 +4,7 @@ import { ROLES } from "./data.js";
 import { loadWorkspace, saveWorkspace } from "./workspace-store.js";
 import { setLearnedHeaders } from "./skiptrace-fields.js";
 import { capability, loadState, navCounts, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
-import { api, apiBase, setApiBase } from "./remote/api.js";
+import { api, apiBase, auth, setApiBase, setOrganization } from "./remote/api.js";
 import { SyncEngine } from "./remote/engine.js";
 import { LOCAL_ONLY, remoteReducer, syncAction } from "./remote/session.js";
 import { applyIdentity, labelFor, operationFor } from "./remote/translate.js";
@@ -262,7 +262,9 @@ export function App() {
   const signOut = useCallback(async () => {
     engine.current?.stop();
     engine.current = null;
-    await api.logout().catch(() => {});
+    // Signing out ends the session at the auth service; the organization is chosen again at the next sign-in.
+    await auth.signOut().catch(() => {});
+    setOrganization("");
     apply({ type: "REMOTE_END" });
     setConnection("gate");
   }, []);

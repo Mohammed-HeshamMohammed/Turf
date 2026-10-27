@@ -54,7 +54,15 @@ pub async fn migrate(db: &AnyPool) -> anyhow::Result<()> {
 }
 
 pub fn app(state: AppState) -> axum::Router {
-    routes::router().with_state(state)
+    use axum::http::{header, HeaderValue, Method};
+    use tower_http::cors::{AllowOrigin, CorsLayer};
+    // Browsers call this service directly with a bearer token (no cookies), from the origins listed in AUTH_ALLOWED_ORIGINS.
+    let origins: Vec<HeaderValue> = state.config.allowed_origins.iter().filter_map(|o| o.parse().ok()).collect();
+    let cors = CorsLayer::new()
+        .allow_origin(AllowOrigin::list(origins))
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
+    routes::router().with_state(state).layer(cors)
 }
 
 pub fn now() -> u64 {

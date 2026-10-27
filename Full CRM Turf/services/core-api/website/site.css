@@ -89,3 +89,13 @@ th { color: var(--muted); font-weight: 600; }
   .card { padding: 18px; }
   .button { min-height: 44px; }
 }
+
+button.text {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

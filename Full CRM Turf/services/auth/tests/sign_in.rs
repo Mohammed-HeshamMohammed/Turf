@@ -209,3 +209,48 @@ async fn confirmation_links_are_not_shown_outside_development() {
     let made = sign_up(&app, "sami@example.com").await;
     assert!(made.get("verification_token").is_none());
 }
+
+#[tokio::test]
+async fn a_provider_sign_in_steps_up_with_a_two_step_code() {
+    let (app, _) = with_providers(Config::for_tests()).await;
+    // Mona has a password account with two-step sign-in on.
+    let made = sign_up(&app, "mona@example.com").await;
+    let (_, setup) = call(&app, "POST", "/v1/mfa/setup", None, Some(token(&made))).await;
+    let secret = setup["secret"].as_str().unwrap().to_string();
+    call(&app, "POST", "/v1/mfa/confirm", Some(json!({ "code": current_code(&secret, "mona@example.com") })), Some(token(&made))).await;
+
+    // Signing in with Google does not ask for the code, and the token says so.
+    let landed = sign_in_with(&app, "google", "target=app", mona(), None).await;
+    let (_, google) = exchange(&app, &param(&landed, "turf_code").unwrap()).await;
+    assert!(!claims(&app, token(&google)).await.mfa);
+
+    assert_eq!(call(&app, "POST", "/v1/mfa/verify", Some(json!({ "code": "000000" })), Some(token(&google))).await.0, StatusCode::UNAUTHORIZED);
+    let (status, stepped) = call(&app, "POST", "/v1/mfa/verify", Some(json!({ "code": current_code(&secret, "mona@example.com") })), Some(token(&google))).await;
+    assert_eq!(status, StatusCode::OK, "{stepped}");
+    assert!(claims(&app, stepped["access_token"].as_str().unwrap()).await.mfa);
+    // Later tokens for the same session keep it.
+    let (_, refreshed) = call(&app, "POST", "/v1/sessions/refresh", Some(json!({ "refresh_token": google["refresh_token"] })), None).await;
+    assert!(claims(&app, token(&refreshed)).await.mfa);
+}
+
+#[tokio::test]
+async fn only_listed_browser_origins_may_call_auth() {
+    use axum::body::Body;
+    use axum::http::Request;
+    use tower::ServiceExt;
+    let app = service().await;
+    let preflight = |origin: &str| {
+        Request::builder()
+            .method("OPTIONS")
+            .uri("/v1/sessions")
+            .header("origin", origin)
+            .header("access-control-request-method", "POST")
+            .header("access-control-request-headers", "content-type,authorization")
+            .body(Body::empty())
+            .unwrap()
+    };
+    let ok = app.clone().oneshot(preflight("http://app.example")).await.unwrap();
+    assert_eq!(ok.headers().get("access-control-allow-origin").and_then(|v| v.to_str().ok()), Some("http://app.example"));
+    let other = app.clone().oneshot(preflight("http://evil.example")).await.unwrap();
+    assert!(other.headers().get("access-control-allow-origin").is_none());
+}

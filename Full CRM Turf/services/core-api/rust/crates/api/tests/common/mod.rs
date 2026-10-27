@@ -59,6 +59,7 @@ pub fn config_for(redis: bool, base: &str, provider: &str) -> Option<Config> {
         app_url: "http://app.example".into(),
         auth_jwks: String::new(),
         auth_jwks_url: String::new(),
+        auth_public_url: "http://auth.example".into(),
         google: turf_api::config::OauthProvider { client_secret: "google-test-secret".into(), ..endpoints("google-test-client") },
         apple: turf_api::config::OauthProvider {
             team_id: "TEAMTEST01".into(),

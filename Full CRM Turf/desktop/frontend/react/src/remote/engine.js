@@ -5,7 +5,7 @@
 // records (never the queue) and takes a fresh snapshot. One tab syncs at a time (Web Locks); the others hear about it
 // on a BroadcastChannel. Client clocks never decide anything: the server answers each operation.
 
-import { api as defaultApi, ApiError, eventsUrl } from "./api.js";
+import { api as defaultApi, ApiError, auth, eventsUrl, socketProtocols } from "./api.js";
 import { applyChanges, storeFromSnapshot } from "./translate.js";
 
 export class SyncEngine {
@@ -180,11 +180,15 @@ export class SyncEngine {
     }
   }
 
-  connect() {
-    if (this.socket || typeof WebSocket !== "function") return;
+  async connect() {
+    if (this.socket || this.connecting || typeof WebSocket !== "function") return;
+    this.connecting = true;
+    const token = await auth.accessToken().catch(() => null);
+    this.connecting = false;
+    if (this.socket || this.stopped) return;
     let socket;
     try {
-      socket = new WebSocket(eventsUrl());
+      socket = new WebSocket(eventsUrl(), socketProtocols(token));
     } catch {
       return;
     }

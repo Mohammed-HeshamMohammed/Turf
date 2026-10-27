@@ -56,6 +56,17 @@ pub async fn auth_verifier(jwks: &str, jwks_url: &str) -> anyhow::Result<Option<
 mod auth_keys_tests {
     use super::auth_verifier;
 
+    #[test]
+    fn the_website_may_call_the_auth_service_and_nothing_else() {
+        assert_eq!(super::origin_of("https://auth.turf.example/some/path"), "https://auth.turf.example");
+        assert_eq!(super::origin_of("http://localhost:8101"), "http://localhost:8101");
+        assert_eq!(super::origin_of("not a url"), "");
+        let policy = super::content_security_policy("https://auth.turf.example");
+        assert!(policy.contains("connect-src 'self' https://auth.turf.example;"));
+        assert!(policy.contains("script-src 'self';"));
+        assert!(super::content_security_policy("").contains("connect-src 'self';"));
+    }
+
     #[tokio::test]
     async fn no_keys_means_only_this_servers_sessions() {
         assert!(auth_verifier("", "").await.unwrap().is_none());
@@ -69,6 +80,17 @@ mod auth_keys_tests {
         assert!(auth_verifier("not json", "").await.is_err());
         assert!(auth_verifier(r#"{"keys":[]}"#, "").await.is_err());
     }
+}
+
+/// The scheme, host and port of an address ("https://auth.turf.example"), or nothing when it is not one.
+pub fn origin_of(url: &str) -> String {
+    reqwest::Url::parse(url).ok().map(|u| u.origin().ascii_serialization()).filter(|o| o != "null").unwrap_or_default()
+}
+
+/// The website talks to this server and to the auth service, and to nothing else.
+pub fn content_security_policy(auth_origin: &str) -> String {
+    let connect = if auth_origin.is_empty() { "'self'".to_string() } else { format!("'self' {auth_origin}") };
+    format!("default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src {connect}; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 }
 
 pub fn app(state: AppState) -> Router {
@@ -86,6 +108,7 @@ pub fn app(state: AppState) -> Router {
             request_id.clone(),
         ]);
     let limit = state.config.max_body_bytes;
+    let auth_origin = origin_of(&state.config.auth_public_url);
     let site = state.config.site_dir.clone();
     let mut router = routes::router().with_state(state);
     if !site.is_empty() {
@@ -97,7 +120,7 @@ pub fn app(state: AppState) -> Router {
     router
         .layer(SetResponseHeaderLayer::overriding(
             header::CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static("default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"),
+            HeaderValue::from_str(&content_security_policy(&auth_origin)).unwrap_or_else(|_| HeaderValue::from_static("default-src 'self'")),
         ))
         .layer(SetResponseHeaderLayer::overriding(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")))
         .layer(SetResponseHeaderLayer::overriding(header::REFERRER_POLICY, HeaderValue::from_static("same-origin")))

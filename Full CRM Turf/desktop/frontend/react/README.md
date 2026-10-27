@@ -14,6 +14,10 @@ npm run build            # dist/client, plus the Sites build files for the demo
 
 `npm run tauri -- <command>` runs the Tauri CLI inside `desktop/container/rust` (`scripts/tauri.mjs`): the CLI only finds `tauri.conf.json` in the folder it runs from or below, and the container is a sibling of this folder.
 
+## Signing in
+
+The CRM signs in with the auth service (`services/auth`) through `src/remote/auth-client.js`, a copy of `services/auth/clients/auth-client.js`, and sends its token, and the chosen organization in `x-turf-org`, with every request to Turf's server (`src/remote/api.js`). Set `VITE_TURF_API_URL` (default `http://localhost:8088`) and `VITE_TURF_AUTH_URL` (default `http://localhost:8101`) when building. A person with no workspace yet starts a trial or joins an invitation from the sign-in card.
+
 ## What is in this folder
 
 | Path | What |

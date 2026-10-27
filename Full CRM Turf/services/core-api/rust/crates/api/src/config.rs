@@ -42,6 +42,8 @@ pub struct Config {
     pub auth_jwks: String,
     /// Where to fetch those keys at start, when TURF_AUTH_JWKS is not given directly.
     pub auth_jwks_url: String,
+    /// Where browsers reach the auth service, for the website and the app to find it.
+    pub auth_public_url: String,
 }
 
 /// One outside sign-in (OpenID Connect). Not configured until it has a client id and a secret (or, for Apple, a key).
@@ -121,6 +123,7 @@ impl Config {
             },
             auth_jwks: var("TURF_AUTH_JWKS", ""),
             auth_jwks_url: var("TURF_AUTH_JWKS_URL", ""),
+            auth_public_url: var("TURF_AUTH_PUBLIC_URL", "http://localhost:8101").trim_end_matches('/').to_string(),
             apple: OauthProvider {
                 client_id: var("TURF_APPLE_CLIENT_ID", ""),
                 team_id: var("TURF_APPLE_TEAM_ID", ""),

@@ -38,6 +38,7 @@ pub fn routes() -> Router<AppState> {
         .route("/auth/organization", post(choose_organization))
         .route("/auth/password", post(change_password))
         .route("/me", get(me))
+        .route("/auth/service", get(auth_service))
 }
 
 /// Failed sign-ins per address: five in fifteen minutes, then wait (plan 5.1, rate limiting).
@@ -444,6 +445,11 @@ async fn change_password(State(state): State<AppState>, ctx: Ctx, Json(body): Js
         .await?;
     tx.commit().await?;
     Ok(Json(json!({ "changed": true })))
+}
+
+/// Where the auth service is, for the website and the app: they sign in there and bring its token here.
+async fn auth_service(State(state): State<AppState>) -> Json<Value> {
+    Json(json!({ "url": state.config.auth_public_url }))
 }
 
 async fn me(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {

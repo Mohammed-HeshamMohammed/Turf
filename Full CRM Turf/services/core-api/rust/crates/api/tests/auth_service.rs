@@ -180,3 +180,31 @@ async fn an_invited_person_joins_with_their_auth_account() {
     // An invitation works once.
     assert_eq!(send(&h.base, "POST", "/api/v1/invitations/join", &newbie, None, Some(json!({ "token": invitation }))).await.0, 403);
 }
+
+#[tokio::test]
+async fn the_live_events_socket_takes_the_token_in_its_protocols() {
+    use futures_util::StreamExt;
+    use tokio_tungstenite::tungstenite::{client::IntoClientRequest, http::HeaderValue};
+    let key = auth_key();
+    let Some(h) = start_with_auth(&key.jwks).await else { return };
+    let w = world(&h).await;
+    let t = token(&key, &w.id("caller"), "caller@example.com", false);
+    let url = h.base.replace("http://", "ws://") + "/events";
+
+    let mut request = url.as_str().into_client_request().unwrap();
+    let protocols = format!("turf.v1, bearer.{t}, org.{}", w.org);
+    request.headers_mut().insert("sec-websocket-protocol", HeaderValue::from_str(&protocols).unwrap());
+    let (mut socket, response) = tokio_tungstenite::connect_async(request).await.expect("the socket opens");
+    assert_eq!(response.headers().get("sec-websocket-protocol").unwrap(), "turf.v1");
+    let hello = socket.next().await.unwrap().unwrap().into_text().unwrap();
+    assert!(hello.contains("\"hello\""), "{hello}");
+
+    // Without a valid token there is no socket.
+    let mut refused = url.as_str().into_client_request().unwrap();
+    refused.headers_mut().insert("sec-websocket-protocol", HeaderValue::from_static("turf.v1, bearer.a.b.c"));
+    assert!(tokio_tungstenite::connect_async(refused).await.is_err());
+
+    // The website finds the auth service here.
+    let (status, service) = get(&h.base, "/api/v1/auth/service", &t, None).await;
+    assert_eq!((status, service), (200, json!({ "url": "http://auth.example" })));
+}

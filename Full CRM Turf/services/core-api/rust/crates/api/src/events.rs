@@ -39,7 +39,8 @@ pub fn spawn_listener(state: AppState) {
 
 pub async fn socket(State(state): State<AppState>, ctx: Ctx, upgrade: WebSocketUpgrade) -> ApiResult<Response> {
     let scope = ctx.scope()?;
-    Ok(upgrade.on_upgrade(move |socket| run(socket, state, scope, ctx.access_revision)))
+    // Echo the protocol a browser that sent its token in the subprotocol list asked for, or it drops the socket.
+    Ok(upgrade.protocols([crate::auth::SOCKET_PROTOCOL]).on_upgrade(move |socket| run(socket, state, scope, ctx.access_revision)))
 }
 
 async fn run(mut socket: WebSocket, state: AppState, scope: crate::db::Scope, access_revision: i64) {

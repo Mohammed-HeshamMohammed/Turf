@@ -63,6 +63,7 @@ paths:
   /api/v1/auth/sessions: { get: { summary: This person's active sessions } }
   /api/v1/auth/sessions/revoke: { post: { summary: Revoke one session or all others } }
   /api/v1/auth/invitations/accept: { post: { summary: Join an organization from an invitation token } }
+  /api/v1/auth/service: { get: { summary: Where the auth service is (the website and the app sign in there) } }
   /api/v1/invitations/join: { post: { summary: Join the organization of an invitation for this person's email, as the signed-in person (auth-service token or session) } }
   /api/v1/organizations/trial: { post: { summary: Open a trial organization for the signed-in person, with them as owner (one per person) } }
   /api/v1/auth/organization: { post: { summary: Choose the organization this session acts in } }

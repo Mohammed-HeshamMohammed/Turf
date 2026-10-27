@@ -21,6 +21,24 @@ pub const COOKIE: &str = "turf_session";
 pub const CSRF_HEADER: &str = "x-turf-request";
 /// With an auth-service token, the organization the request acts in (a session of this server remembers it instead).
 pub const ORG_HEADER: &str = "x-turf-org";
+/// A browser cannot put headers on a WebSocket, so the live-events socket carries the token and organization in its
+/// subprotocol list instead: `["turf.v1", "bearer.<access token>", "org.<organization id>"]`. Unlike a query string,
+/// that list is not written to proxy and server logs.
+pub const SOCKET_PROTOCOL: &str = "turf.v1";
+
+/// The token and organization from a Sec-WebSocket-Protocol header, when the client sent them that way.
+pub fn from_socket_protocols(header: &str) -> (Option<String>, Option<String>) {
+    let mut token = None;
+    let mut org = None;
+    for item in header.split(',').map(str::trim) {
+        if let Some(t) = item.strip_prefix("bearer.") {
+            token = Some(t.to_string());
+        } else if let Some(o) = item.strip_prefix("org.") {
+            org = Some(o.to_string());
+        }
+    }
+    (token, org)
+}
 
 pub fn hash_password(password: &str) -> ApiResult<String> {
     if password.chars().count() < 12 {
@@ -300,12 +318,20 @@ impl FromRequestParts<AppState> for Ctx {
             .and_then(|value| value.to_str().ok())
             .and_then(|value| value.strip_prefix("Bearer "))
             .map(str::to_string);
+        let (socket_token, socket_org) = parts
+            .headers
+            .get(axum::http::header::SEC_WEBSOCKET_PROTOCOL)
+            .and_then(|v| v.to_str().ok())
+            .map(from_socket_protocols)
+            .unwrap_or_default();
+        // A socket's token is only ever an auth-service token: this server's own sessions use the cookie.
+        let bearer = bearer.or(socket_token.filter(|t| turf_auth_verify::looks_like_jwt(t)));
         if let Some(token) = bearer {
             // A token from the auth service is checked with its public keys, without calling it.
             if let (Some(verifier), true) = (&state.auth, turf_auth_verify::looks_like_jwt(&token)) {
                 let claims = verifier.verify(&token).map_err(|_| ApiError::Unauthenticated)?;
-                let org = parts.headers.get(ORG_HEADER).and_then(|v| v.to_str().ok());
-                return load_from_auth(state, &claims, org).await;
+                let org = parts.headers.get(ORG_HEADER).and_then(|v| v.to_str().ok()).map(str::to_string).or(socket_org);
+                return load_from_auth(state, &claims, org.as_deref()).await;
             }
             return load(state, &token, false).await;
         }
@@ -316,5 +342,20 @@ impl FromRequestParts<AppState> for Ctx {
             return Err(ApiError::forbidden("Missing request header"));
         }
         load(state, &token, true).await
+    }
+}
+
+#[cfg(test)]
+mod socket_tests {
+    use super::from_socket_protocols;
+
+    #[test]
+    fn the_token_and_organization_come_from_the_socket_protocols() {
+        assert_eq!(
+            from_socket_protocols("turf.v1, bearer.a.b.c, org.7d3c0d2e-0000-4000-8000-000000000000"),
+            (Some("a.b.c".into()), Some("7d3c0d2e-0000-4000-8000-000000000000".into()))
+        );
+        assert_eq!(from_socket_protocols("turf.v1"), (None, None));
+        assert_eq!(from_socket_protocols(""), (None, None));
     }
 }
