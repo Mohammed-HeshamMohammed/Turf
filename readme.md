@@ -2,7 +2,7 @@
 
 This branch is a **production snapshot of one part of Turf**: only the files this part needs, at the same paths as in `Full CRM Turf/` on `main`.
 
-- Last changed from `main` at `681bdbb` (2026-10-27)
+- Last changed from `main` at `573c142` (2026-10-27)
 - Content id: `20084fcb0b6329e011ba883effad6adccf6c52cd` (the branch is only refreshed when this changes)
 - Holds: `services/core-api`, `infra/k8s/core-api`, `infra/k8s/core-api-worker`, `services/auth/verify`, `contracts/api-v1.yaml`, `tools/load-env.sh`, `tools/env-init.mjs`, `env/core-api.env.example`, `env/worker.env.example`, `env/README.md`
 - 103 files
