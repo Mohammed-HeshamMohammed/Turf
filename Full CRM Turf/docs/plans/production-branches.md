@@ -12,9 +12,7 @@ One branch per part of Turf, each holding **only that part's code**, so a part c
 | `gateway-backend-production` | The gateway |
 | `core-api-backend-production` | The core API: the CRM server and the website it serves, with the auth verifier crate and the contract it checks |
 | `importing-lists-`, `skip-tracing-`, `dialer-sms-`, `leads-map-`, `crm-`, `ai-campaigns-`, `exports-`, `backup-restore-` `backend-production` | One feature service each |
-| `desktop-frontend-production` | The desktop app's and the CRM's frontend (`desktop/frontend/react`) |
-| `desktop-container-production` | The desktop window (Tauri), with the frontend it packs |
-| `desktop-backend-production` | The desktop feature modules (`desktop/backend`) |
+| `desktop-app-production` | The whole desktop app: the frontend (`desktop/frontend/react`, also the CRM in a browser), the window container (Tauri) and the feature modules (`desktop/backend`) |
 | `deploy-production` | The compose file that runs every service on one machine |
 | `turf-app-production` | The original Turf desktop app (`Turf/`) |
 | `skip-engine-production` | The Skip Tracing engine (`service/`) |
@@ -42,6 +40,6 @@ node tools/publish-production.mjs --push                    # and push what chan
 
 ## Things a single-part branch cannot do alone
 
-- `desktop-container-production` includes the frontend because Tauri builds it. The container also expects the Skip Tracing engine (`skip-engine-production`) beside it at run time.
+- `desktop-app-production` starts the Skip Tracing engine at run time and in its tests: check out `skip-engine-production` beside it and set `TURF_SERVICE_ROOT` to it.
 - `deploy-production` is the compose file only; it builds the services from their own branches checked out side by side.
 - The older `crm/<part>` branches are full working copies, kept for development. The production branches are what to deploy.
