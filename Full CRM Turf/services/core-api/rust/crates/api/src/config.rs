@@ -27,13 +27,19 @@ pub struct Config {
     /// Owners and administrators must confirm an authenticator code (TURF_REQUIRE_MFA=true). Off for now; people can
     /// still set one up from the API, and it is checked when they have.
     pub require_mfa: bool,
-    /// The auth service's public keys (the JSON of its /.well-known/jwks.json). Required, here or as
-    /// TURF_AUTH_JWKS_URL: every request carries an auth access token.
+    /// The auth service's public keys (the JSON of its /.well-known/jwks.json), here or as TURF_AUTH_JWKS_URL. This or
+    /// a Firebase project is required: every request carries an access token.
     pub auth_jwks: String,
     /// Where to fetch those keys at start, when TURF_AUTH_JWKS is not given directly.
     pub auth_jwks_url: String,
     /// Where browsers reach the auth service, for the website and the app to find it.
     pub auth_public_url: String,
+    /// The Firebase project whose ID tokens are accepted too (docs/plans/firebase-auth.md). Empty: none.
+    pub firebase_project: String,
+    /// Firebase's public keys given directly (tests, or a server without internet). Empty: fetched from
+    /// `firebase_jwks_url` at start and every hour after, since Google rotates them.
+    pub firebase_jwks: String,
+    pub firebase_jwks_url: String,
 }
 
 impl Config {
@@ -61,6 +67,9 @@ impl Config {
             require_mfa: var("TURF_REQUIRE_MFA", "false") == "true",
             auth_jwks: var("TURF_AUTH_JWKS", ""),
             auth_jwks_url: var("TURF_AUTH_JWKS_URL", ""),
+            firebase_project: var("TURF_FIREBASE_PROJECT", "").trim().to_string(),
+            firebase_jwks: var("TURF_FIREBASE_JWKS", ""),
+            firebase_jwks_url: var("TURF_FIREBASE_JWKS_URL", turf_auth_verify::FIREBASE_JWKS_URL),
             auth_public_url: var("TURF_AUTH_PUBLIC_URL", "http://localhost:8101").trim_end_matches('/').to_string(),
         })
     }

@@ -35,12 +35,43 @@ pub async fn state(config: config::Config) -> anyhow::Result<AppState> {
     let db = db::connect(&config).await?;
     let cache = cache::Cache::connect(&config.redis_url).await;
     let (events, _) = tokio::sync::broadcast::channel(4096);
-    // Signing in happens only at the auth service, so without its keys nobody could use this server.
-    let auth = auth_verifier(&config.auth_jwks, &config.auth_jwks_url)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("Set TURF_AUTH_JWKS or TURF_AUTH_JWKS_URL: people sign in with the auth service"))?;
-    let auth = Some(Arc::new(auth));
-    Ok(AppState { db, cache, events, config: Arc::new(config), auth })
+    // Signing in happens only at the auth service or Firebase, so without the keys of one nobody could use this server.
+    let auth = auth_verifier(&config.auth_jwks, &config.auth_jwks_url).await?.map(Arc::new);
+    let firebase = firebase_verifier(&config.firebase_project, &config.firebase_jwks, &config.firebase_jwks_url).await?.map(|v| Arc::new(std::sync::RwLock::new(Arc::new(v))));
+    if auth.is_none() && firebase.is_none() {
+        anyhow::bail!("Set TURF_FIREBASE_PROJECT, or TURF_AUTH_JWKS or TURF_AUTH_JWKS_URL: people sign in with Firebase or the auth service");
+    }
+    if let (Some(shared), true) = (&firebase, config.firebase_jwks.trim().is_empty()) {
+        refresh_firebase_keys(shared.clone(), config.firebase_project.clone(), config.firebase_jwks_url.clone());
+    }
+    Ok(AppState { db, cache, events, config: Arc::new(config), auth, firebase })
+}
+
+/// Firebase's verifier for TURF_FIREBASE_PROJECT, from TURF_FIREBASE_JWKS or fetched from TURF_FIREBASE_JWKS_URL. A
+/// project with keys that cannot be read stops the start.
+pub async fn firebase_verifier(project: &str, jwks: &str, jwks_url: &str) -> anyhow::Result<Option<turf_auth_verify::FirebaseVerifier>> {
+    if project.is_empty() {
+        return Ok(None);
+    }
+    let json = if !jwks.trim().is_empty() { jwks.to_string() } else { reqwest::get(jwks_url).await?.error_for_status()?.text().await? };
+    Ok(Some(turf_auth_verify::FirebaseVerifier::from_jwks_json(project, &json)?))
+}
+
+/// Google publishes a new signing key hours before it uses it, so fetching the set every hour always has it. A failed
+/// fetch keeps the keys already held and tries again next hour.
+fn refresh_firebase_keys(shared: Arc<std::sync::RwLock<Arc<turf_auth_verify::FirebaseVerifier>>>, project: String, url: String) {
+    tokio::spawn(async move {
+        let mut every = tokio::time::interval(std::time::Duration::from_secs(3600));
+        every.tick().await;
+        loop {
+            every.tick().await;
+            let fresh = async { anyhow::Ok(turf_auth_verify::FirebaseVerifier::from_jwks_json(&project, &reqwest::get(&url).await?.error_for_status()?.text().await?)?) };
+            match fresh.await {
+                Ok(verifier) => *shared.write().unwrap_or_else(|p| p.into_inner()) = Arc::new(verifier),
+                Err(e) => tracing::warn!("Firebase's keys could not be refreshed: {e}"),
+            }
+        }
+    });
 }
 
 /// The auth service's public keys, from TURF_AUTH_JWKS or fetched once from TURF_AUTH_JWKS_URL. A bad key set stops the
@@ -83,6 +114,14 @@ mod auth_keys_tests {
         assert!(auth_verifier(jwks, "").await.unwrap().is_some());
         assert!(auth_verifier("not json", "").await.is_err());
         assert!(auth_verifier(r#"{"keys":[]}"#, "").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_firebase_project_needs_keys_it_can_read() {
+        let keys = include_str!("../../../../../auth/verify/testdata/firebase-test-jwks.json");
+        assert!(super::firebase_verifier("", keys, "").await.unwrap().is_none());
+        assert!(super::firebase_verifier("turf-dev", r#"{"keys":[]}"#, "").await.is_err());
+        assert!(super::firebase_verifier("turf-dev", keys, "").await.unwrap().is_some());
     }
 }
 

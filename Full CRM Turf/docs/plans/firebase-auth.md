@@ -1,6 +1,6 @@
 # Sign-in on Firebase Authentication
 
-**Status:** Approved, setup started
+**Status:** Approved. Phase 1 done (the core API accepts Firebase tokens); phase 0 waits for the Firebase project
 **Date:** 2026-10-27
 **Replaces:** `services/auth` (the Rust sign-in service). Amends rule 3 of `service-architecture.md`: tokens are signed by Firebase (RS256, Google's keys), not by our own service.
 
@@ -31,7 +31,7 @@ Every table in the core API keys people by `users.id` (a UUID), and today auth's
 ### 0. Firebase project (this commit)
 Console steps and `tools/firebase/configure-auth.mjs` below. Two projects: `turf-dev` and `turf-prod`.
 
-### 1. Core API accepts Firebase tokens
+### 1. Core API accepts Firebase tokens (done)
 - `turf-auth-verify` gets a Firebase mode: RS256, issuer `https://securetoken.google.com/<project>`, audience `<project>`, keys from `https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com` (cached, refreshed when a `kid` is unknown).
 - Claims map: `sub` → `firebase_uid`; `email`, `email_verified`, `name`; `mfa` = `firebase.sign_in_second_factor == "totp"`.
 - Migration: `users.firebase_uid`. Config: `TURF_FIREBASE_PROJECT`. While both run, the core API accepts either issuer; the old one is removed in phase 5.

@@ -19,6 +19,29 @@ use uuid::Uuid;
 static LOCK: Mutex<()> = Mutex::new(());
 pub const WORKER: &str = "test-worker-token-0123456789abcdef";
 pub const WEBHOOK_SECRET: &str = "test-webhook-secret-0123456789abcdef";
+/// The Firebase project the API trusts in tests, and the throwaway key pair its ID tokens are signed with.
+pub const FIREBASE_PROJECT: &str = "turf-test";
+const FIREBASE_PEM: &str = include_str!("../../../../../../auth/verify/testdata/firebase-test-key.pem");
+const FIREBASE_JWKS: &str = include_str!("../../../../../../auth/verify/testdata/firebase-test-jwks.json");
+
+/// A Firebase ID token as Firebase would sign it. `totp`: they confirmed an authenticator code at sign-in.
+pub fn firebase_token(uid: &str, email: &str, name: Option<&str>, totp: bool, email_verified: bool) -> String {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+    let mut detail = json!({ "sign_in_provider": "password" });
+    if totp {
+        detail["sign_in_second_factor"] = "totp".into();
+    }
+    let mut claims = json!({
+        "iss": format!("https://securetoken.google.com/{FIREBASE_PROJECT}"), "aud": FIREBASE_PROJECT, "sub": uid, "email": email,
+        "email_verified": email_verified, "auth_time": now - 5, "iat": now - 5, "exp": now + 3600, "firebase": detail,
+    });
+    if let Some(name) = name {
+        claims["name"] = name.into();
+    }
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = Some("firebase-test".into());
+    encode(&header, &claims, &EncodingKey::from_rsa_pem(FIREBASE_PEM.as_bytes()).unwrap()).unwrap()
+}
 
 /// A signing key as the auth service holds one, and the public key set it publishes.
 pub struct AuthKey {
@@ -70,6 +93,9 @@ pub fn config(redis: bool) -> Option<Config> {
         auth_jwks: String::new(),
         auth_jwks_url: String::new(),
         auth_public_url: "http://auth.example".into(),
+        firebase_project: String::new(),
+        firebase_jwks: String::new(),
+        firebase_jwks_url: String::new(),
     })
 }
 
@@ -102,6 +128,8 @@ async fn start_configured(redis: bool, require_mfa: bool, public_signup: bool) -
     config.require_mfa = require_mfa;
     config.public_signup = public_signup;
     config.auth_jwks = key.jwks.clone();
+    config.firebase_project = FIREBASE_PROJECT.into();
+    config.firebase_jwks = FIREBASE_JWKS.into();
     turf_api::db::migrate(&config).await.expect("migrations");
     let owner = sqlx::PgPool::connect(&config.migration_database_url).await.expect("owner connection");
     let tables: Vec<String> = sqlx::query_scalar("SELECT tablename::text FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN ('_sqlx_migrations', 'plans')")
@@ -121,6 +149,20 @@ impl Harness {
     /// Someone signed in with auth (a new account there), with no organization chosen yet.
     pub fn client(&self, email: &str, name: &str, mfa: bool, verified: bool) -> Client {
         Client::signed_in(&self.base, self.key.clone(), &Uuid::new_v4().to_string(), email, name, mfa, verified)
+    }
+
+    /// Someone signed in with Firebase: their token carries a Firebase uid, not an id of this server.
+    pub fn firebase_client(&self, uid: &str, email: &str, name: Option<&str>, totp: bool, verified: bool) -> Client {
+        Client {
+            http: reqwest::Client::new(),
+            base: self.base.clone(),
+            id: String::new(),
+            email: email.into(),
+            name: name.unwrap_or_default().into(),
+            key: None,
+            token: Mutex::new(Some(firebase_token(uid, email, name, totp, verified))),
+            org: Mutex::new(None),
+        }
     }
 
     /// A request with no token at all.
