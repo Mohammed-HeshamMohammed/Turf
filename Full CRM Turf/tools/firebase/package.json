@@ -1,0 +1,9 @@
+{
+  "name": "turf-firebase-tools",
+  "private": true,
+  "type": "module",
+  "description": "One-off setup of Turf's Firebase projects (docs/plans/firebase-auth.md)",
+  "dependencies": {
+    "firebase-admin": "14.5.0"
+  }
+}
