@@ -30,7 +30,16 @@ class ApiError extends Error {
 }
 
 const service = await fetch("/api/v1/auth/service").then(r => r.json(), () => ({}));
-const auth = createAuth({ base: service.url || "http://localhost:8101" });
+/** Whether a new account may open its own trial here; otherwise only an invitation opens a workspace. */
+const SIGNUP_OPEN = service.signup === true;
+/** Said wherever a closed server would otherwise offer a trial. */
+/** What a sign-in code can be: Firebase has no recovery codes, the auth service does. */
+const CODE_HELP = service.firebase ? "From your authenticator app." : "From your authenticator app, or one of your recovery codes.";
+const INVITE_ONLY = "Turf is by invitation only: your workspace owner, or Turf, sends you a link.";
+// A server that uses Firebase hands its web config here; the bundle with Firebase's SDK is loaded only then.
+const auth = service.firebase
+  ? await import("./firebase-auth.js").then(m => m.createFirebaseAuth({ sdk: m.firebaseSdk(service.firebase), providers: service.firebase.providers || [] }))
+  : createAuth({ base: service.url || "http://localhost:8101" });
 
 /** The organization this browser works in; Turf's server reads it from x-turf-org. */
 const organization = () => localStorage.getItem("turf.org") || "";
@@ -118,7 +127,7 @@ async function refreshMe() {
           h("a", { class: "button", href: "#/account" }, "Account"),
           h("button", { class: "button", onclick: signOut }, "Sign out"),
         ].filter(Boolean)
-      : [h("a", { class: "button", href: "#/signin" }, "Sign in"), h("a", { class: "button primary", href: "#/signup" }, "Start free trial")]),
+      : [h("a", { class: "button" + (SIGNUP_OPEN ? "" : " primary"), href: "#/signin" }, "Sign in"), SIGNUP_OPEN ? h("a", { class: "button primary", href: "#/signup" }, "Start free trial") : null].filter(Boolean)),
   );
   return me;
 }
@@ -140,7 +149,7 @@ async function afterSignIn({ newAccount = false, organizationName = "" } = {}) {
     sessionStorage.removeItem(PENDING_JOIN);
     const joined = await api("/invitations/join", { token: invitation });
     setOrganization(joined.organization_id);
-  } else if (newAccount) {
+  } else if (newAccount && SIGNUP_OPEN) {
     const opened = await api("/organizations/trial", { organization: organizationName, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
     setOrganization(opened.organization_id);
   }
@@ -152,7 +161,10 @@ async function afterSignIn({ newAccount = false, organizationName = "" } = {}) {
 
 // --- Google sign-in -----------------------------------------------------------------------------------------------
 
+/** Sign-in marks. Google's and Apple's are their own logos in their own colours; Apple's and email's follow the text. */
 const LOGOS = {
+  apple: [["currentColor", "M16.4 12.6c0-2.5 2.1-3.7 2.2-3.8-1.2-1.7-3-2-3.7-2-1.6-.2-3.1.9-3.9.9s-2-.9-3.4-.9c-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8s2 .8 3.4.8c1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.7-1-2.7-4.2zM13.9 5.1c.7-.9 1.2-2 1-3.2-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.1 1.2.1 2.4-.6 3.1-1.5z"]],
+  email: [["currentColor", "M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm1 2.4V17h16V7.4l-7.5 5.2a1 1 0 0 1-1 0L4 7.4zM5.8 7l6.2 4.3L18.2 7H5.8z"]],
   google: [
     ["#4285F4", "M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.7z"],
     ["#34A853", "M12 24c3.2 0 6-1.1 8-2.9l-3.9-3c-1.1.7-2.5 1.2-4.1 1.2-3.1 0-5.8-2.1-6.7-5H1.3v3.1A12 12 0 0 0 12 24z"],
@@ -176,6 +188,20 @@ function logo(name) {
   return svg;
 }
 
+/** How someone signs in ("password", "google", "apple"), as its mark with the words for screen readers and on hover. */
+const SIGN_IN_NAMES = { password: "email and password", google: "Google", apple: "Apple" };
+function signInMark(method) {
+  if (!method) return null;
+  const label = "Signs in with " + (SIGN_IN_NAMES[method] || method);
+  const mark = logo(method === "password" ? "email" : LOGOS[method] ? method : "email");
+  mark.setAttribute("width", "16");
+  mark.setAttribute("height", "16");
+  return h("span", { class: "sign-in-mark", title: label, role: "img", "aria-label": label }, mark);
+}
+
+/** A person's name with how they sign in. */
+const named = (name, method) => h("span", { class: "named" }, signInMark(method), name);
+
 /** "Continue with Google" for the sign-up and sign-in pages. A provider not set up on the server says so. */
 function providerButtons() {
   const status = h("div");
@@ -187,7 +213,7 @@ function providerButtons() {
         type: "button",
         class: "button provider " + name,
         onclick: async () => {
-          if ((await known)[name]) return (location.href = auth.startUrl(name, "website"));
+          if ((await known)[name]) return auth.startProvider(name, "website").catch(reason => status.replaceChildren(notice(reason.message, "error")));
           status.replaceChildren(notice(`${text.replace("Continue with ", "")} sign-in isn't connected on this server yet. Use your email for now.`));
         },
       },
@@ -218,7 +244,9 @@ async function home() {
   show(
     h("h1", {}, "The CRM and dialer for property outreach."),
     h("p", { class: "lead" }, "Import your lists, check every number with Turf's Skip Tracing, call owners, hand qualified sellers to your closers, and track every deal."),
-    h("div", { class: "row" }, h("a", { class: "button primary", href: "#/signup" }, "Start the free trial"), h("a", { class: "button", href: "#/signin" }, "Sign in")),
+    SIGNUP_OPEN
+      ? h("div", { class: "row" }, h("a", { class: "button primary", href: "#/signup" }, "Start the free trial"), h("a", { class: "button", href: "#/signin" }, "Sign in"))
+      : h("div", { class: "stack" }, h("p", { class: "muted" }, INVITE_ONLY), h("div", { class: "row" }, h("a", { class: "button primary", href: "#/signin" }, "Sign in"))),
     h(
       "div",
       { class: "grid", "aria-label": "Plans" },
@@ -235,7 +263,7 @@ async function home() {
           ),
           h("p", { class: "muted" }, `${plan.included_minutes.toLocaleString()} calling minutes${plan.per_seat ? " per seat" : ""}${plan.price_cents ? " each month" : ""}`),
           h("ul", { class: "ticks" }, (describe[plan.key] || []).map(item => h("li", {}, item))),
-          h("a", { class: "button" + (plan.key === "trial" ? " primary" : ""), href: "#/signup" }, plan.key === "trial" ? "Start free" : "Start with the trial"),
+          SIGNUP_OPEN ? h("a", { class: "button" + (plan.key === "trial" ? " primary" : ""), href: "#/signup" }, plan.key === "trial" ? "Start free" : "Start with the trial") : null,
         ),
       ),
     ),
@@ -243,6 +271,17 @@ async function home() {
 }
 
 function signup() {
+  if (!SIGNUP_OPEN) {
+    return show(
+      h(
+        "section",
+        { class: "card narrow" },
+        h("h2", {}, "You need an invitation"),
+        h("p", {}, INVITE_ONLY + " Open it to create your account."),
+        h("p", { class: "muted" }, "Already have an account? ", h("a", { href: "#/signin" }, "Sign in"), "."),
+      ),
+    );
+  }
   show(
     h(
       "section",
@@ -289,7 +328,7 @@ function signin() {
           await afterSignIn();
         },
       ),
-      h("p", { class: "muted" }, "New here? ", h("a", { href: "#/signup" }, "Start a free trial"), "."),
+      SIGNUP_OPEN ? h("p", { class: "muted" }, "New here? ", h("a", { href: "#/signup" }, "Start a free trial"), ".") : h("p", { class: "muted" }, "New here? " + INVITE_ONLY),
     ),
   );
 }
@@ -301,7 +340,7 @@ function signinCode(values) {
       "section",
       { class: "card narrow" },
       h("h2", {}, "Enter your sign-in code"),
-      h("p", { class: "muted" }, "From your authenticator app, or one of your recovery codes."),
+      h("p", { class: "muted" }, CODE_HELP),
       form([input("Code", "code", { autocomplete: "one-time-code", maxlength: 12 })], "Sign in", async more => {
         await auth.signIn(values.email, values.password, more.code.trim());
         await afterSignIn();
@@ -338,6 +377,8 @@ async function mfa() {
       h("p", { class: "muted" }, "Or open this link on your phone: ", h("a", { href: setup.otpauth_url }, "add to authenticator")),
       form([input("6-digit code", "code", { inputmode: "numeric", autocomplete: "one-time-code", maxlength: 8 })], "Confirm", async values => {
         const { recovery_codes } = await auth.confirmMfa(values.code.trim());
+        // Firebase gives no recovery codes: staff reset a lost authenticator.
+        if (!recovery_codes?.length) return (location.hash = "#/account");
         show(
           h(
             "section",
@@ -408,6 +449,17 @@ async function joinTeam(token) {
 async function workspace() {
   if (!(await refreshMe())) return (location.hash = "#/signin");
   if (me.organizations.length) return (location.hash = "#/account");
+  if (!SIGNUP_OPEN) {
+    return show(
+      h(
+        "section",
+        { class: "card narrow" },
+        h("h2", {}, "You need an invitation"),
+        h("p", {}, "Turf is by invitation only. Your workspace owner, or Turf, sends you a link; open it while signed in as " + me.user.email + "."),
+        me.platform_role ? h("p", {}, h("a", { href: "#/admin" }, "Open the admin dashboard")) : null,
+      ),
+    );
+  }
   show(
     h(
       "section",
@@ -429,7 +481,7 @@ async function account() {
   const billing = await api("/billing");
   const org = me.organizations.find(item => item.id === me.organization_id);
   const admin = me.capabilities.includes("admin");
-  const sections = [h("h1", {}, org?.name || "Your account"), h("p", { class: "muted" }, me.user.name + " · " + me.user.email)];
+  const sections = [h("h1", {}, org?.name || "Your account"), h("p", { class: "muted named" }, signInMark(me.user.sign_in), me.user.name + " · " + me.user.email)];
 
   if (admin && !billing.email_verified) {
     const devToken = sessionStorage.getItem("turf.verify");
@@ -617,7 +669,7 @@ async function team(billing) {
             return h(
               "tr",
               {},
-              h("td", {}, member.name),
+              h("td", {}, named(member.name, member.sign_in)),
               h("td", {}, member.email),
               h("td", {}, member.roles.map(key => ROLE_NAMES[key] || key).join(", ")),
               h("td", {}, member.expired ? h("span", { class: "badge danger" }, "ended " + date(member.expires_at)) : member.expires_at ? "until " + date(member.expires_at) : "no end date"),
@@ -784,8 +836,22 @@ async function adminWorkspaces(you) {
     return row;
   });
   search.addEventListener("input", () => rows.forEach(row => (row.hidden = !row.dataset.text.includes(search.value.trim().toLowerCase()))));
+  // Nobody opens a workspace by signing up: staff open it here and send its owner the link.
+  const opened = h("div");
+  const open = h(
+    "section",
+    { class: "card" },
+    h("h2", {}, "Open a workspace for a customer"),
+    form([input("Workspace name", "organization", { maxlength: 200 }), input("Owner's email", "email", { type: "email" })], "Open workspace", async values => {
+      const answer = await api("/platform/customers", { organization: values.organization, email: values.email });
+      const link = location.origin + "/#/join?token=" + encodeURIComponent(answer.token);
+      opened.replaceChildren(notice(`Ready. Send this link to ${values.email}; it makes them the owner, works once, for 7 days.`, "good"), h("span", { class: "code" }, link));
+    }),
+    opened,
+  );
   return [
     h("p", { class: "muted" }, "Every customer workspace. Their CRM records are never shown here."),
+    open,
     search,
     h(
       "section",
@@ -830,7 +896,7 @@ async function adminPeople(you, query = "") {
               h(
                 "tr",
                 {},
-                h("td", {}, person.name),
+                h("td", {}, named(person.name, person.sign_in)),
                 h("td", {}, person.email),
                 h("td", {}, person.workspaces.map(w => `${w.name} (${w.roles.map(key => ROLE_NAMES[key] || key).join(", ")})`).join("; ") || "—"),
                 h("td", {}, person.platform_role === "owner" ? h("span", { class: "badge peach" }, "Platform owner") : person.platform_role ? h("span", { class: "badge good" }, "System administrator") : "—"),
@@ -927,7 +993,7 @@ async function adminStaff(you) {
               h(
                 "tr",
                 {},
-                h("td", {}, person.name),
+                h("td", {}, named(person.name, person.sign_in)),
                 h("td", {}, person.email, person.disabled ? h("span", { class: "badge danger" }, " off") : null),
                 h("td", {}, person.platform_role === "owner" ? "Platform owner" : "System administrator"),
                 h(
@@ -1032,14 +1098,24 @@ document.addEventListener("click", event => {
     route();
   }
 });
-// Back from Google: the address carries a one-time code to trade for tokens, then the page carries on.
-const returned = new URLSearchParams(location.search).get("turf_code");
-if (returned) {
-  history.replaceState(null, "", location.pathname + location.hash);
-  auth
-    .exchange(returned)
-    .then(() => afterSignIn())
-    .catch(reason => show(notice(reason.message, "error")));
-} else {
-  refreshMe().then(route);
+/** Back from Google with an authenticator set up: the sign-in waits for its code. */
+function providerCode() {
+  show(
+    h(
+      "section",
+      { class: "card narrow" },
+      h("h2", {}, "Enter your sign-in code"),
+      h("p", { class: "muted" }, CODE_HELP),
+      form([input("6-digit code", "code", { inputmode: "numeric", autocomplete: "one-time-code", maxlength: 8 })], "Sign in", async values => {
+        await auth.verifyMfa(values.code.trim());
+        await afterSignIn();
+      }),
+    ),
+  );
 }
+
+// Back from Google: finish that sign-in, then the page carries on.
+auth.finishProvider().then(
+  back => (back ? afterSignIn() : refreshMe().then(route)),
+  reason => (reason.code === "mfa_required" ? providerCode() : show(notice(reason.message, "error"))),
+);

@@ -220,7 +220,7 @@ async fn finish(state: AppState, name: String, returned: Returned) -> Response {
     }
     let kind = if target == "desktop" { "desktop" } else { "browser" };
     let outcome = match sign_in(&state, &stored_provider, &returned, &nonce, verifier.as_deref()).await {
-        Ok(user) => handoff(&state, &user, kind).await,
+        Ok(user) => handoff(&state, &user, kind, &stored_provider).await,
         Err(error) => Err(error),
     };
     match outcome {
@@ -239,14 +239,15 @@ async fn finish(state: AppState, name: String, returned: Returned) -> Response {
 }
 
 /// A finished sign-in to collect, once, within two minutes.
-async fn handoff(state: &AppState, user: &str, kind: &str) -> AuthResult<String> {
+async fn handoff(state: &AppState, user: &str, kind: &str, provider: &str) -> AuthResult<String> {
     let (code, hash) = new_secret();
     let t = now() as i64;
-    sqlx::query("INSERT INTO oauth_handoffs (code_hash, user_id, kind, expires_at) VALUES ($1, $2, $3, $4)")
+    sqlx::query("INSERT INTO oauth_handoffs (code_hash, user_id, kind, expires_at, provider) VALUES ($1, $2, $3, $4, $5)")
         .bind(&hash)
         .bind(user)
         .bind(kind)
         .bind(t + HANDOFF_SECONDS)
+        .bind(provider)
         .execute(&state.db)
         .await?;
     sqlx::query("DELETE FROM oauth_handoffs WHERE expires_at < $1").bind(t).execute(&state.db).await?;
@@ -262,7 +263,7 @@ struct Exchange {
 async fn exchange(State(state): State<AppState>, Json(body): Json<Exchange>) -> AuthResult<Json<Value>> {
     let hash = sha256(body.code.trim());
     let mut tx = state.db.begin().await?;
-    let row = sqlx::query("SELECT user_id, kind FROM oauth_handoffs WHERE code_hash = $1 AND expires_at > $2")
+    let row = sqlx::query("SELECT user_id, kind, provider FROM oauth_handoffs WHERE code_hash = $1 AND expires_at > $2")
         .bind(&hash)
         .bind(now() as i64)
         .fetch_optional(&mut *tx)
@@ -270,6 +271,7 @@ async fn exchange(State(state): State<AppState>, Json(body): Json<Exchange>) -> 
         .ok_or_else(|| AuthError::Forbidden("This sign-in has expired. Try again.".into()))?;
     let user_id: String = row.try_get("user_id")?;
     let kind: String = row.try_get("kind")?;
+    let provider: String = row.try_get("provider")?;
     let used = sqlx::query("DELETE FROM oauth_handoffs WHERE code_hash = $1").bind(&hash).execute(&mut *tx).await?;
     tx.commit().await?;
     if used.rows_affected() != 1 {
@@ -277,7 +279,7 @@ async fn exchange(State(state): State<AppState>, Json(body): Json<Exchange>) -> 
     }
     let user = user_by(&state, "id", &user_id).await?.filter(|u| !u.disabled).ok_or_else(|| AuthError::Forbidden("This account is disabled.".into()))?;
     // A provider sign-in does not pass two-step sign-in: the token says so, and services that need it will ask.
-    Ok(Json(open_session(&state, &user, &kind, false).await?))
+    Ok(Json(open_session(&state, &user, &kind, false, &provider).await?))
 }
 
 #[derive(Deserialize)]

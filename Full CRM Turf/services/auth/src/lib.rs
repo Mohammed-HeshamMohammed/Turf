@@ -31,7 +31,11 @@ pub async fn connect(url: &str) -> anyhow::Result<AnyPool> {
 }
 
 /// The migrations, in order. Each runs once; `schema_migrations` remembers which ran.
-const MIGRATIONS: &[(i64, &str)] = &[(1, include_str!("../migrations/0001_auth.sql")), (2, include_str!("../migrations/0002_sign_in.sql"))];
+const MIGRATIONS: &[(i64, &str)] = &[
+    (1, include_str!("../migrations/0001_auth.sql")),
+    (2, include_str!("../migrations/0002_sign_in.sql")),
+    (3, include_str!("../migrations/0003_session_provider.sql")),
+];
 
 /// Brings the database up to date. Safe to run on every start.
 pub async fn migrate(db: &AnyPool) -> anyhow::Result<()> {

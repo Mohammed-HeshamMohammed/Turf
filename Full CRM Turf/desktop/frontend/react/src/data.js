@@ -15,6 +15,8 @@ export const CALL_OUTCOMES = [
 ];
 export const DEAL_STAGES = ["Qualified", "Appointment", "Offer preparation", "Offer sent", "Negotiation", "Under contract", "Closed won", "Closed lost"];
 export const PEOPLE = ["Maya Chen", "Alex Rivera", "Ben Carter", "Lena Brooks"];
+/** How each sample person signs in, as the server reports it for real members ("password", "google", "apple"). */
+export const SIGN_IN = { "Maya Chen": "google", "Alex Rivera": "password", "Ben Carter": "apple", "Lena Brooks": "google" };
 export const ROLES = {
   manager: {
     name: "Team manager",

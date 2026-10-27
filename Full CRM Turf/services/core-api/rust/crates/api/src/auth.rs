@@ -170,8 +170,9 @@ async fn with_organization(state: &AppState, mut ctx: Ctx, org_id: Uuid) -> ApiR
 /// unusable password, since auth checks passwords now), and told when auth says their email is confirmed. A disabled
 /// account here stays refused. An email already used by a different account here is refused rather than merged.
 async fn local_person(state: &AppState, user_id: Uuid, claims: &turf_auth_verify::Claims) -> ApiResult<(String, String, Option<String>, bool)> {
-    let read = || sqlx::query_as::<_, (String, String, Option<String>, bool, bool, bool)>(
-        "SELECT email::text, display_name, totp_secret, disabled_at IS NOT NULL, email_verified_at IS NOT NULL, platform_role IS NOT NULL FROM users WHERE id = $1",
+    let read = || sqlx::query_as::<_, (String, String, Option<String>, bool, bool, bool, Option<String>)>(
+        "SELECT email::text, display_name, totp_secret, disabled_at IS NOT NULL, email_verified_at IS NOT NULL, platform_role IS NOT NULL, sign_in_provider \
+         FROM users WHERE id = $1",
     )
     .bind(user_id);
     let mut row = read().fetch_optional(&state.db).await?;
@@ -188,11 +189,15 @@ async fn local_person(state: &AppState, user_id: Uuid, claims: &turf_auth_verify
         .await?;
         row = read().fetch_optional(&state.db).await?;
     }
-    let Some((email, label, totp_secret, disabled, verified, staff)) = row else {
+    let Some((email, label, totp_secret, disabled, verified, staff, provider)) = row else {
         return Err(ApiError::Conflict("This email address belongs to another account on this server. Contact support to merge them.".into()));
     };
     if disabled {
         return Err(ApiError::Unauthenticated);
+    }
+    // How they signed in this time, for the people lists; written only when it changed.
+    if !claims.provider.is_empty() && provider.as_deref() != Some(claims.provider.as_str()) {
+        sqlx::query("UPDATE users SET sign_in_provider = $2 WHERE id = $1").bind(user_id).bind(&claims.provider).execute(&state.db).await?;
     }
     if claims.email_verified && !verified {
         sqlx::query("UPDATE users SET email_verified_at = now() WHERE id = $1 AND email_verified_at IS NULL").bind(user_id).execute(&state.db).await?;
@@ -200,10 +205,47 @@ async fn local_person(state: &AppState, user_id: Uuid, claims: &turf_auth_verify
     Ok((email, label, totp_secret, staff))
 }
 
+/// The person's id here. An auth-service token carries it. A Firebase token carries a Firebase uid instead, kept in
+/// users.firebase_uid: an account moved from the auth service has its id as its uid and is linked the first time it
+/// arrives; anyone else gets a new id. An email already used by a different account here is refused, not merged.
+async fn person_id(state: &AppState, claims: &turf_auth_verify::Claims) -> ApiResult<Uuid> {
+    if !turf_auth_verify::is_firebase(claims) {
+        return Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthenticated);
+    }
+    let uid = claims.sub.as_str();
+    let find = || sqlx::query_scalar::<_, Uuid>("SELECT id FROM users WHERE firebase_uid = $1").bind(uid);
+    if let Some(id) = find().fetch_optional(&state.db).await? {
+        return Ok(id);
+    }
+    if let Ok(id) = Uuid::parse_str(uid) {
+        let linked: Option<Uuid> = sqlx::query_scalar("UPDATE users SET firebase_uid = $1 WHERE id = $2 AND firebase_uid IS NULL RETURNING id")
+            .bind(uid)
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?;
+        if let Some(id) = linked {
+            return Ok(id);
+        }
+    }
+    // Two first requests at once: the second insert does nothing and both read the same row.
+    sqlx::query(
+        "INSERT INTO users (id, email, display_name, password_hash, email_verified_at, firebase_uid) \
+         VALUES (gen_random_uuid(), $1, $2, $3, CASE WHEN $4 THEN now() END, $5) ON CONFLICT DO NOTHING",
+    )
+    .bind(claims.email.trim().to_lowercase())
+    .bind(claims.name.trim())
+    .bind(crate::routes::billing::NO_PASSWORD)
+    .bind(claims.email_verified)
+    .bind(uid)
+    .execute(&state.db)
+    .await?;
+    find().fetch_optional(&state.db).await?.ok_or_else(|| ApiError::Conflict("This email address belongs to another account on this server. Contact support to merge them.".into()))
+}
+
 /// A person signed in with the auth service. The token was already checked against auth's public keys; this server
 /// only needs the person to exist here too (the same id), and reads the organization from the x-turf-org header.
 pub async fn load_from_auth(state: &AppState, claims: &turf_auth_verify::Claims, org_header: Option<&str>) -> ApiResult<Ctx> {
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthenticated)?;
+    let user_id = person_id(state, claims).await?;
     let (email, label, totp_secret, staff) = local_person(state, user_id, claims).await?;
     let ctx = Ctx {
         user_id,
@@ -248,8 +290,16 @@ impl FromRequestParts<AppState> for Ctx {
         // Only an auth-service token is accepted, checked with its public keys without calling it. With no cookie
         // sessions any more, a request cannot be made on someone's behalf by another site, so there is no CSRF check.
         let token = bearer.or(socket_token).filter(|t| turf_auth_verify::looks_like_jwt(t)).ok_or(ApiError::Unauthenticated)?;
-        let verifier = state.auth.as_ref().ok_or(ApiError::Unauthenticated)?;
-        let claims = verifier.verify(&token).map_err(|_| ApiError::Unauthenticated)?;
+        // A token is the auth service's (EdDSA) or Firebase's (RS256); each verifier refuses the other's.
+        let from_auth = state.auth.as_ref().and_then(|v| v.verify(&token).ok());
+        let claims = match from_auth {
+            Some(claims) => claims,
+            None => {
+                let firebase = state.firebase.as_ref().ok_or(ApiError::Unauthenticated)?;
+                let verifier = firebase.read().unwrap_or_else(|p| p.into_inner()).clone();
+                verifier.verify(&token).map_err(|_| ApiError::Unauthenticated)?
+            }
+        };
         let org = parts.headers.get(ORG_HEADER).and_then(|v| v.to_str().ok()).map(str::to_string).or(socket_org);
         load_from_auth(state, &claims, org.as_deref()).await
     }

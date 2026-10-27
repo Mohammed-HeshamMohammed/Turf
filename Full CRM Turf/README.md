@@ -3,7 +3,7 @@
 > **Where things are now (2026-10-27).** The app moved into the new layout. Run every command in the sections below from **`desktop/frontend/react`**, not from this folder: that is where `package.json`, `src/` and `tests/` are. The Tauri container is `desktop/container/rust`. "Deploy this folder" means `desktop/frontend/react`. The server code moved from `backend/` and `website/` to `services/core-api/`; `contracts/` stays here. See [desktop/README.md](desktop/README.md) and [services/README.md](services/README.md).
 
 
-A separate interactive frontend prototype of [Turf's CRM and performance plan](../docs/TURF_CRM_AND_PERFORMANCE_PLAN.md). It extends the current Turf design: Inter Tight, gray surfaces, rounded cards, black pill navigation, and peach accents.
+A separate interactive frontend prototype of [Turf's CRM and performance plan](../docs/TURF_CRM_AND_PERFORMANCE_PLAN.md). It extends the current Turf design: Schibsted Grotesk, gray surfaces, rounded cards, black pill navigation, and peach accents.
 
 **Client demo:** [turf-crm-demo.vercel.app](https://turf-crm-demo.vercel.app/). No Vercel login is needed. Open the Turf logo menu and choose **Explore as** to review different roles.
 
@@ -115,7 +115,7 @@ The scaffold hosting worker, build-preparation script, and `.openai/hosting.json
 
 - Turf's existing `src/styles.css`, title bar, favicon, and live dashboard informed the visual system. The favicon is reused from Turf.
 - `public/assets/property.jpg` was generated for this prototype with the image generation tool. It depicts a fictional house and is labeled as an illustrative sample photo.
-- Icons come from Phosphor; charts from Recharts; CSV parsing from Papa Parse; the bundled font is Inter Tight Variable.
+- Icons come from Phosphor; charts from Recharts; CSV parsing from Papa Parse; the bundled font is Schibsted Grotesk Variable.
 - Screenshot evidence contains the fictional preview workspace. The original Turf screenshot is stored outside the repository to avoid committing live workspace data.
 
 ## Desktop app

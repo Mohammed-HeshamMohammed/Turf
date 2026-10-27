@@ -1,7 +1,30 @@
-// The Turf API over fetch. Signing in is the auth service's job (./auth-client.js): every request here carries its
-// access token, and the organization the person is working in. No cookies: the token is the session.
+// The Turf API over fetch. Signing in is Firebase's job (./firebase-auth-client.js) when the app is built with a
+// Firebase project, and the auth service's (./auth-client.js) otherwise: every request here carries that access
+// token, and the organization the person is working in. No cookies: the token is the session.
 
+import { initializeApp } from "firebase/app";
+import {
+  applyActionCode,
+  browserLocalPersistence,
+  createUserWithEmailAndPassword,
+  getAuth,
+  getMultiFactorResolver,
+  getRedirectResult,
+  GoogleAuthProvider,
+  indexedDBLocalPersistence,
+  initializeAuth,
+  multiFactor,
+  OAuthProvider,
+  sendEmailVerification,
+  signInWithCredential,
+  signInWithEmailAndPassword,
+  signInWithRedirect,
+  signOut,
+  TotpMultiFactorGenerator,
+  updateProfile,
+} from "firebase/auth";
 import { createAuth } from "./auth-client.js";
+import { createFirebaseAuth } from "./firebase-auth-client.js";
 
 export class ApiError extends Error {
   constructor(status, code, message) {
@@ -41,8 +64,48 @@ export function setApiBase(url) {
   remember("turf.api.url", url ? url.replace(/\/$/, "") : "");
 }
 
-/** The signed-in person, from the auth service. */
-export const auth = createAuth({ base: remembered("turf.auth.url") || AUTH_SERVER });
+/** The Firebase web app this build signs in with (VITE_FIREBASE_*, docs/plans/firebase-auth.md), or none. */
+const FIREBASE = import.meta.env?.VITE_FIREBASE_API_KEY
+  ? {
+      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
+      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+      appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    }
+  : null;
+
+const inDesktopWindow = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+/** A Google sign-in in the browser that the gate stopped waiting for: its answer is dropped. */
+let stopWaiting = () => {};
+export const stopDesktopSignIn = () => stopWaiting();
+
+/** The container's Google sign-in (desktop/container/rust/src/signin.rs): resolves with Google's ID token. */
+async function desktopSignIn() {
+  const { invoke } = await import("@tauri-apps/api/core");
+  const stopped = new Promise((_, reject) => {
+    stopWaiting = () => reject(Object.assign(new Error("Sign-in was cancelled."), { code: "cancelled" }));
+  });
+  const signedIn = invoke("google_sign_in", {
+    clientId: import.meta.env.VITE_GOOGLE_DESKTOP_CLIENT_ID || "",
+    clientSecret: import.meta.env.VITE_GOOGLE_DESKTOP_CLIENT_SECRET || "",
+  });
+  return Promise.race([signedIn, stopped]);
+}
+
+function firebaseAuth(config) {
+  const app = initializeApp(config);
+  const common = { applyActionCode, createUserWithEmailAndPassword, getMultiFactorResolver, GoogleAuthProvider, multiFactor, OAuthProvider, sendEmailVerification, signInWithCredential, signInWithEmailAndPassword, signOut, TotpMultiFactorGenerator, updateProfile };
+  const providers = (import.meta.env.VITE_FIREBASE_PROVIDERS || "google").split(",").map(name => name.trim()).filter(Boolean);
+  if (!inDesktopWindow) return createFirebaseAuth({ sdk: { ...common, getRedirectResult, signInWithRedirect, auth: getAuth(app) }, providers });
+  // The window loads no scripts from other sites, so Firebase starts without its redirect helper (which loads
+  // Google's), and Google sign-in goes through the person's browser instead.
+  const auth = initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence] });
+  return createFirebaseAuth({ sdk: { ...common, auth }, providers, desktopSignIn });
+}
+
+/** The signed-in person: from Firebase, or from the auth service. */
+export const auth = FIREBASE ? firebaseAuth(FIREBASE) : createAuth({ base: remembered("turf.auth.url") || AUTH_SERVER });
 
 /** The organization this device works in; sent with every request as x-turf-org. */
 export const organization = () => remembered("turf.org");
@@ -91,6 +154,8 @@ export const api = {
   me: () => request("GET", "/api/v1/me"),
   /** A new trial workspace for the signed-in person (one per person). */
   startTrial: (organizationName, timezone) => request("POST", "/api/v1/organizations/trial", { organization: organizationName || "", timezone: timezone || "" }),
+  /** Whether a new account may open its own trial on this server, or must be given access by an owner or Turf. */
+  signupOpen: () => request("GET", "/api/v1/auth/service").then(data => data?.signup === true),
   /** Joins the organization of an invitation for this person's email. */
   joinInvitation: token => request("POST", "/api/v1/invitations/join", { token }),
   directory: () => request("GET", "/api/v1/directory"),

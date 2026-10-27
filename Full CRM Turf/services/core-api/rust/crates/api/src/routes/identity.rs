@@ -112,18 +112,21 @@ async fn join_invitation(State(state): State<AppState>, ctx: Ctx, Json(body): Js
 
 /// Where the auth service is, for the website and the app: they sign in there and bring its token here.
 async fn auth_service(State(state): State<AppState>) -> Json<Value> {
-    Json(json!({ "url": state.config.auth_public_url }))
+    // `signup`: whether a new account may open its own trial here, or must be invited.
+    // `firebase`: the web config to sign in with Firebase instead, when this server uses it.
+    Json(json!({ "url": state.config.auth_public_url, "signup": state.config.public_signup, "firebase": state.config.firebase_web() }))
 }
 
 async fn me(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
-    let platform_role: Option<String> = sqlx::query_scalar("SELECT platform_role FROM users WHERE id = $1").bind(ctx.user_id).fetch_one(&state.db).await?;
+    let (platform_role, sign_in): (Option<String>, Option<String>) =
+        sqlx::query_as("SELECT platform_role, sign_in_provider FROM users WHERE id = $1").bind(ctx.user_id).fetch_one(&state.db).await?;
     let orgs: Vec<(Uuid, String)> =
         sqlx::query_as("SELECT o.id, o.name FROM memberships m JOIN organizations o ON o.id = m.org_id WHERE m.user_id = $1 AND (m.expires_at IS NULL OR m.expires_at > now()) ORDER BY o.name")
             .bind(ctx.user_id)
             .fetch_all(&state.db)
             .await?;
     Ok(Json(json!({
-        "user": { "id": ctx.user_id, "email": ctx.email, "name": ctx.label },
+        "user": { "id": ctx.user_id, "email": ctx.email, "name": ctx.label, "sign_in": sign_in },
         "organization_id": ctx.org_id,
         "organizations": orgs.iter().map(|(id, name)| json!({ "id": id, "name": name })).collect::<Vec<_>>(),
         "roles": ctx.roles,

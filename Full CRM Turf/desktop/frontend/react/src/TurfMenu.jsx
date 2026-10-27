@@ -4,6 +4,7 @@ import { ROLES } from "./data.js";
 import { personalProfile } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { Badge, Select, usePresence } from "./ui.jsx";
+import { SignInMark } from "./SignInMarks.jsx";
 
 export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen, demoNotes, onDemoNotes }) {
   const { state, dispatch, navigate, notify, connect, signOut } = useCrm();
@@ -113,7 +114,10 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen, demoNote
             <div className="turf-menu-actions">
               <div className="turf-menu-workspace">
                 <small>Signed in</small>
-                <strong>{state.remote.user.name}</strong>
+                <strong className="named">
+                  <SignInMark method={state.remote.user.sign_in} />
+                  {state.remote.user.name}
+                </strong>
                 <span>{state.remote.user.email}</span>
               </div>
               <button onClick={() => run(signOut)}>

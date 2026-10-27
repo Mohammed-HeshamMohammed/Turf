@@ -1,0 +1,5 @@
+node_modules/
+# Service account keys can change every account: never commit one.
+*service-account*.json
+*serviceAccount*.json
+*-firebase-adminsdk-*.json

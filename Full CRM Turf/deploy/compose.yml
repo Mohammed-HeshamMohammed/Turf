@@ -1,11 +1,12 @@
 # Every service on one machine (decision 1 of docs/plans/service-architecture.md). Only the gateway is published.
-# Build from the repository folder "Full CRM Turf":  docker compose -f deploy/compose.yml up --build
+# Build from the repository folder "Full CRM Turf":  docker compose --env-file env/compose.env -f deploy/compose.yml up --build
+# The secrets come from env/compose.env (node tools/env-init.mjs creates it; env/README.md).
 name: turf
 services:
   postgres:
     image: postgres:17
     environment:
-      POSTGRES_PASSWORD: change-me-locally
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in env/compose.env}"
     volumes:
       - postgres-data:/var/lib/postgresql/data
   redis:
@@ -25,9 +26,9 @@ services:
       dockerfile: services/auth/Dockerfile
     environment:
       PORT: "8101"
-      DATABASE_URL: "${AUTH_DATABASE_URL:-postgres://postgres:change-me-locally@postgres:5432/turf_auth}"
-      # turf-auth new-key; without it every token stops working on restart.
-      AUTH_SIGNING_KEY: "${AUTH_SIGNING_KEY:?set AUTH_SIGNING_KEY (cargo run -p turf-auth -- new-key)}"
+      DATABASE_URL: "${AUTH_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/turf_auth}"
+      # Without it every token stops working on restart.
+      AUTH_SIGNING_KEY: "${AUTH_SIGNING_KEY:?set AUTH_SIGNING_KEY in env/compose.env}"
     restart: unless-stopped
   notifications:
     build:

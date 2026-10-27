@@ -17,7 +17,7 @@
   --switch-off: #cfcfcf;
   --dark: #191919;
   --radius: 28px;
-  font-family: "Inter Tight Variable", "Inter Tight", system-ui, sans-serif;
+  font-family: "Schibsted Grotesk Variable", system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.45;
   color: var(--ink);
@@ -6345,4 +6345,22 @@ html.demo-quiet .demo-note {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* How someone signs in (SignInMarks.jsx): the provider's own mark in a small white disc. */
+.named {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.sign-in-mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--ink, #121212);
+  box-shadow: inset 0 0 0 1px var(--line, #dcdcdc);
 }
