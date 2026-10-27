@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.jsx";
-import "@fontsource-variable/inter-tight";
+import "@fontsource-variable/schibsted-grotesk";
 import "./styles.css";
 import "./crm.css";
 
