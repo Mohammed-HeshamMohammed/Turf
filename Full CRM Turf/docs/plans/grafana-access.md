@@ -89,7 +89,7 @@ Coolify rules for this resource:
 
 Mark each step when it is merged and checked.
 
-- [ ] **1. `whoami` endpoint** in the core API, with tests in `tests/platform.rs`: owner returns 200 owner, admin returns 200 admin, staff without MFA are refused, a customer workspace owner gets 403, no token gets 401. Add it to `contracts/api-v1.yaml`.
+- [x] **1. `whoami` endpoint** (done 2026-10-28) in the core API, with tests in `tests/platform.rs`: owner returns 200 owner, admin returns 200 admin, staff without MFA are refused, a customer workspace owner gets 403, no token gets 401. Add it to `contracts/api-v1.yaml`.
 - [ ] **2. `services/grafana-proxy`**: session post, signed cookie, header stripping, re-check, logout. Go tests against a fake core API and a fake Grafana. The fakes cover expired cookie, forged cookie, forged `X-WEBAUTH-*` headers, a 403 on re-check, and a core API that's down (fail closed).
 - [ ] **3. Website handoff**: the `/#/admin/grafana` route in `services/core-api/website/app.js` (posts the token, then follows `return`), plus a "Grafana" link in the admin dashboard for staff only. Add the proxy's origin to the website's `form-action` CSP.
 - [ ] **4. Compose file and local check**: write `deploy/grafana/compose.yml` (Grafana and the proxy, fixed subnet, Grafana not published). It's the same file Coolify will use. Run it locally against the local core API and check by hand:
@@ -122,3 +122,4 @@ Mark each step when it is merged and checked.
 
 - 2026-10-28: Plan written. Findings gathered: Grafana isn't in the repo yet; `staff()` with MFA exists and is tested; `/me` exposes the platform role but doesn't require MFA; sign-in is moving to Firebase, which is why the proxy asks the core API instead of checking tokens itself.
 - 2026-10-28: Deployment is Coolify, with Grafana in its own container. The plan now uses one Coolify Docker Compose resource for Grafana and the proxy. Only the proxy has a domain, Grafana trusts only the proxy's fixed IP, and step 5 is Coolify instead of Kubernetes.
+- 2026-10-28: Step 1 done. `GET /api/v1/platform/whoami` reuses `staff()` and answers `{ id, email, name, role }`. Test `whoami_answers_only_for_staff` covers owner, admin, no organization, customer owner (403), no token (401), staff without MFA (`mfa_required`), a turned-off admin, and a removed admin (403). Along the way, the contract test was found to skip `billing.rs` and `platform.rs`; it now scans both, and their 17 routes are in `contracts/api-v1.yaml`.

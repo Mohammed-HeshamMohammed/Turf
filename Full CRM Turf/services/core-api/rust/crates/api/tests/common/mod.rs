@@ -234,6 +234,10 @@ impl Client {
         *self.org.lock().unwrap() = Some(org.to_string());
     }
 
+    pub fn clear_org(&self) {
+        *self.org.lock().unwrap() = None;
+    }
+
     pub fn token(&self) -> Option<String> {
         self.token.lock().unwrap().clone()
     }
