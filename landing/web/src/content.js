@@ -22,7 +22,7 @@ export const features = [
       "Smart column mapping, remembered for the next list from the same source",
       "Households, LLCs, trusts and owners with many properties told apart",
       "Download any list as it was imported or as it is after checking",
-      "Processing is never counted against your plan: import, merge and re-check as much as you like",
+      "Processing on your computer is not counted against your plan: import, merge and re-check as much as you like",
     ],
     shot: "lists",
     alt: "The Source lists page with four imported lists, each showing its records and check status.",
@@ -34,10 +34,10 @@ export const features = [
     short: "Clean and rank the phone numbers a list already has, on your own computer, offline.",
     status: "now",
     pitch: "Know which number to call first, and why.",
-    text: "Turf looks at the evidence in your own list, picks the best phone, and keeps every original value. You can correct any answer, and Turf remembers your decision.",
+    text: "Turf looks at the evidence in your own list, ranks the phone numbers, and keeps every original value. You can correct any answer, and Turf remembers your decision.",
     points: [
       "Starts with the strongest evidence: phone, then address, email and owner name",
-      "The best number first, with the reason",
+      "The strongest number first, with the reason",
       "Every source column kept; mappings saved per source",
       "Review and overrule any answer",
     ],
@@ -56,7 +56,7 @@ export const features = [
     short: "Call and text from the app, with the queue, outcomes and history beside you.",
     status: "preview",
     pitch: "Calling that stays inside your CRM.",
-    text: "The call queue, call screen, outcomes, call log, SMS composer and dial pad all work in the app today with sample data. Live calling through the phone network is the next step.",
+    text: "The call queue, call screen, outcomes, call log, SMS composer and dial pad all work in the app today with sample data. Live calling through the phone network is the next step. Calling is unlimited, and texts are flexible: 1,500 a month included, more when you need them.",
     points: [
       "A call queue per list, with the lead, script and call assistant beside it",
       "One-click outcomes: voicemail, not available, wrong number, do not call",
@@ -70,6 +70,7 @@ export const features = [
     ],
     shot: "calls",
     alt: "The Calls page with the call queue, the lead card with a Start call button, and the call assistant.",
+    extra: [{ shot: "call-live", alt: "A demo call in progress: a green status bar with the elapsed timer, End call, and quick outcome buttons below." }],
   },
   {
     id: "map",
@@ -150,9 +151,9 @@ export const features = [
     id: "backup",
     icon: "Archive",
     title: "Backup and restore",
-    short: "A recycle bin and project backups, so a mistake is never the end of a list.",
+    short: "A recycle bin and project backups, so a mistake is easier to undo.",
     status: "now",
-    pitch: "Undo is always one click away.",
+    pitch: "A way back from most mistakes.",
     text: "Deleted lists wait for 30 days and come back with everything they had. Reversible changes, like archiving a lead, happen at once with an Undo.",
     points: [
       "A recycle bin for deleted lists, with every row, setup and check",
@@ -186,25 +187,36 @@ export const audiences = [
 
 export const tiers = [
   { id: "trial", name: "Free trial", who: "Anyone, 7 days", text: "Try everything at small limits." },
-  { id: "solo", name: "Solo", who: "1 person", text: "You do everything: lists, skip tracing, calls and deals.", price: 344, unit: "month" },
-  { id: "duo", name: "Duo", who: "Exactly 2 people", text: "Two partners, or a caller and a closer. Both see everything, with nothing to set up.", price: 554, unit: "month for both" },
-  { id: "team", name: "Team", who: "3 or more people", text: "Roles for owners, team leads, callers, closers and researchers, with assignments and reports.", price: 286, unit: "seat / month", from: 858 },
-  { id: "pro", name: "Pro", who: "Teams with power features", text: "Multi-line dialing, the biggest limits and custom roles for teams that work leads all day.", price: 554, unit: "seat / month", from: 1662 },
+  { id: "solo", name: "Solo", who: "1 person", text: "You do everything: lists, skip tracing, calls and deals.", unit: "month" },
+  { id: "duo", name: "Duo", who: "Exactly 2 people", text: "Two partners, or a caller and a closer. Both see everything, with nothing to set up.", unit: "month for both" },
+  { id: "team", name: "Team", who: "3 or more people", text: "Roles for owners, team leads, callers, closers and researchers, with assignments and reports.", unit: "seat / month" },
+  {
+    id: "pro", name: "Pro", who: "Teams with power features", text: "For teams that work leads all day and need more than the standard plan includes.", unit: "seat / month",
+    includes: [
+      "Multi-line dialing (2 to 3 lines) with voicemail drop",
+      "Number health checks and rotation",
+      "Custom roles and API access",
+      "Scheduled and custom reports",
+      "Higher limits: 2,500,000 leads, 6,000 texts and 4,000 campaign emails per person",
+      "90-day recycle bin and 30-day point-in-time restore",
+      "2-year audit log, and single sign-on when it is ready",
+    ],
+  },
 ];
 
 // Prices are drafts (docs/plans/README.md): each feature is priced alone and a plan is their sum.
 export const priceRows = [
   { feature: "Importing lists", values: ["Free", "$49", "$69", "$39", "$59"], limits: ["25,000 leads", "1,000,000 leads", "2,000,000 shared", "1,000,000 per seat", "2,500,000 per seat"] },
   { feature: "Skip tracing", values: ["Free", "$79", "$119", "$59", "$89"], limits: ["25,000 rows", "1,000,000 rows", "2,000,000 shared", "1,000,000 per seat", "3,000,000 per seat"] },
-  { feature: "Dialer and SMS", values: ["Free", "$99", "$179", "$89", "$239"], limits: ["30 minutes", "3,000 minutes", "6,000 shared", "3,000 per seat", "8,000 per seat"] },
+  { feature: "Dialer and SMS", values: ["Free", "$99", "$179", "$89", "$239"], limits: ["30 minutes of calling", "Unlimited calling · 1,500 texts", "Unlimited calling · 3,000 texts shared", "Unlimited calling · 1,500 texts per seat", "Unlimited calling · 6,000 texts per seat"] },
   { feature: "Leads map", values: ["Free", "$19", "$29", "$15", "$29"], limits: ["500 locations", "5,000 locations", "10,000 shared", "5,000 per seat", "15,000 per seat"] },
-  { feature: "The CRM", values: ["Free", "$49", "$79", "$45", "$59"], limits: ["1 GB", "25 GB", "50 GB shared", "25 GB per seat", "100 GB per seat"] },
-  { feature: "AI campaigns", values: ["Free", "$49", "$79", "$39", "$79"], limits: ["100 emails", "5,000 emails", "10,000 shared", "5,000 per seat", "20,000 per seat"] },
+  { feature: "The CRM", values: ["Free", "Included", "Included", "Included", "Included"], limits: ["1 GB", "25 GB", "50 GB shared", "25 GB per seat", "100 GB per seat"] },
+  { feature: "AI campaigns", values: ["Free", "$49", "$79", "$39", "$79"], limits: ["100 emails", "1,000 emails", "2,000 emails shared", "1,000 per seat", "4,000 per seat"] },
   { feature: "Exports, backup and restore, accounts and security", values: ["Free", "Included", "Included", "Included", "Included"], limits: [] },
 ];
 
 export const compareRows = [
-  { need: "Stacking and cleaning lists", usual: "A list tool with a record limit", turf: "On your computer, unlimited, never counted" },
+  { need: "Stacking and cleaning lists", usual: "A list tool with a record limit", turf: "On your computer, with no record limit" },
   { need: "Ranking phone numbers", usual: "A separate skip-tracing or scrubbing service", turf: "One check, with the best number first and the reason" },
   { need: "Calling", usual: "A dialer, billed per user", turf: "In the same app as the lead" },
   { need: "Texting", usual: "Another subscription", turf: "On the lead's own thread in the Inbox" },
@@ -215,7 +227,7 @@ export const compareRows = [
 
 export const securityPoints = [
   { icon: "LockKey", title: "Passwords", text: "Stored only as Argon2id hashes. Sessions use HttpOnly cookies, and five failed sign-ins in 15 minutes pauses the account.", status: "now" },
-  { icon: "Buildings", title: "One organization never sees another", text: "Row-level security in the database, so an organization can never read another's rows, even through a bug in a page.", status: "now" },
+  { icon: "Buildings", title: "One organization never sees another", text: "Row-level security in the database, so one organization's rows are kept apart from every other's at the database level.", status: "now" },
   { icon: "GoogleLogo", title: "Google sign-in", text: "On the website and in the desktop app. In the app, sign-in happens in your own browser, never inside the app window.", status: "now" },
   { icon: "DeviceMobile", title: "Two-step sign-in", text: "Authenticator code plus recovery codes, required for owners and administrators. Built; switched on before launch.", status: "preview" },
   { icon: "HardDrives", title: "Encrypted offline copy", text: "Changes made offline wait in an encrypted copy on your machine, unlocked by your passphrase, and sync when you reconnect.", status: "now" },
@@ -229,16 +241,16 @@ export const faqs = [
   { q: "Where are my records kept?", a: "On your computer, and on your organization's server when you sync. Records are never shared between organizations." },
   { q: "Which computers does it run on?", a: "Windows first. The download button serves the newest release." },
   { q: "How many people can use one account?", a: "Solo is one person and Duo is exactly two. Team starts at three and gives each person a role. Clients and partners you share properties with are free seats." },
-  { q: "What does it cost?", a: "Each feature is priced on its own and a plan is the sum of its features. The prices on the Pricing page are drafts until launch, and people on the waitlist hear first." },
+  { q: "What does it cost?", a: "Each feature is priced on its own, so you build the plan: switch off what you do not need, add extras where you need more. The ready-made plans are only starting points. The prices on the Pricing page are drafts until launch, and people on the waitlist hear first." },
   { q: "Can I take my data with me?", a: "Yes. Exports are included in every plan, and a recycle bin and project backups protect against mistakes." },
   { q: "Does Turf find new phone numbers?", a: "Not yet. Turf cleans and ranks the numbers your list already has. Looking up new numbers is planned as a separate service." },
   { q: "Is calling live today?", a: "Not yet. The call screens, outcomes and logs work with sample data. Live calling is a launch feature." },
 ];
 
 export const footerLinks = [
-  { title: "Product", links: [["Features", "#/features"], ["Pricing", "#/pricing"], ["Why Turf", "#/compare"], ["Security", "#/security"], ["Download", "#download"]] },
-  { title: "Company", links: [["Join the waitlist", "#waitlist"], ["Contact", "#/contact"]] },
-  { title: "Legal", links: [["Privacy", "#/privacy"], ["Terms", "#/terms"]] },
+  { title: "Product", links: [["Features", "/features"], ["Pricing", "/pricing"], ["Why Turf", "/compare"], ["Security", "/security"], ["Download", "/#download"]] },
+  { title: "Company", links: [["Join the waitlist", "/#waitlist"], ["Contact", "/contact"]] },
+  { title: "Legal", links: [["Privacy", "/privacy"], ["Terms", "/terms"]] },
 ];
 
 export const pageMeta = {
@@ -250,4 +262,5 @@ export const pageMeta = {
   contact: ["Contact · Turf", "Questions about Turf? Send a message."],
   privacy: ["Privacy · Turf", "How the Turf website uses the details you give it."],
   terms: ["Terms · Turf", "Terms for the Turf website."],
+  notfound: ["Page not found · Turf", "That page does not exist."],
 };

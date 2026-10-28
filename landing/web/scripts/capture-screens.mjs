@@ -43,6 +43,7 @@ const shots = [
   { name: "skip", hash: "skip", role: "owner" },
   { name: "reports", hash: "reports", role: "owner" },
   { name: "team", hash: "team", role: "owner" },
+  { name: "call-live", hash: "calls", run: [clickText("Start demo call")], wait: 6500 },
   { name: "mobile-dashboard", hash: "dashboard", mobile: true },
   { name: "mobile-leads", hash: "leads", mobile: true },
 ];
