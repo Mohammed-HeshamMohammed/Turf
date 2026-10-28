@@ -18,7 +18,27 @@ Every `*-production` branch (`docs/plans/production-branches.md`) is one contain
 
 All answer `GET /healthz`. Settings and secrets are environment variables named in `env/*.env.example`.
 
-### Dokploy (what you run now)
+### Coolify (what you run now)
+
+Turf runs on Coolify at `187.7.72.171`, in the project "Turf". The environments are "production" (the applications), "database" (PostgreSQL and Redis for auth and the core API) and "monitoring" (Grafana). Each application builds its `*-production` branch with the Dockerfile and port from the table above.
+
+**Domains** (since 2026-10-28; Turf has no domain of its own yet, so it lives under `softfix.dev`):
+
+| Address | Application | Port |
+| --- | --- | --- |
+| `https://turf.softfix.dev` (and `www.`) | landing-web | 8080 |
+| `https://turf.softfix.dev/api` | landing-api, with **Advanced → Path prefixes: Keep paths as-is** (it serves `/api/...` itself) | 8095 |
+| `https://app.turf.softfix.dev` | core-api: the CRM's website and API | 8088 |
+| `https://auth.turf.softfix.dev` | auth | 8101 |
+| `https://api.turf.softfix.dev` | gateway | 8100 |
+| `https://grafana.turf.softfix.dev` | grafana-proxy (`deploy/grafana`), not set up yet | 8120 |
+
+- **DNS** is in Cloudflare (`softfix.dev` zone): an A record for `turf` and one for `*.turf`, both pointing at the server, both **DNS only** (grey cloud). Coolify's Traefik gets Let's Encrypt certificates itself. Cloudflare's proxy would break these names, because its free certificate covers only one level below `softfix.dev`, and `app.turf.softfix.dev` is two.
+- **No `www.` on the two-level names.** Coolify adds a `www.` copy of every domain. Remove it from auth, core-api and gateway: `www.app.turf.softfix.dev` has no DNS, and one failing name holds up the certificate for the rest. `www.turf.softfix.dev` is fine, since the wildcard covers it.
+- A domain change takes effect on the next **Redeploy** of that application.
+- **Settings and secrets:** each application's settings come from its `env/<part>.env.example`. The secrets come from your local `env/` files (`node tools/env-init.mjs` writes them), and you enter them in Coolify yourself. The database logins are made once by running `env/turf-auth-db.sql` and `env/turf-db.sql` in each database's Terminal (`psql -U postgres`).
+
+### Dokploy
 
 For each branch, create an **Application**: provider Git, the repository, **that branch**, build type **Dockerfile**, the Dockerfile path and context from the table, the port, a domain, and the environment from the matching `env/<part>.env.example` (secrets from `node tools/env-init.mjs`, or your own). Set the health check to `/healthz`. To run several copies, use the application's replicas setting (Dokploy runs on Docker Swarm). Redeploy when the branch changes: `node tools/publish-production.mjs --push` updates the branches from `main`. Menu names differ a little between Dokploy versions.
 
