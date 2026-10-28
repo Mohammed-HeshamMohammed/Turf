@@ -17,7 +17,7 @@ Grafana trusts the `X-WEBAUTH-*` headers only from `172.30.10.10`. Its login for
 
 1. **New resource → Docker Compose**, from this repository's `grafana-production` branch. It holds only Grafana's files, at the same paths, so the base directory is `/` and the compose file is `deploy/grafana/compose.yml`. From `main` instead, use the base directory `/Full CRM Turf`.
    - Don't use Coolify's one-click Grafana service. It gives Grafana a domain and a login form.
-2. **Domains:** set one on `grafana-proxy` only, for example `https://grafana.turf.example` (port 8120). Leave `grafana` empty.
+2. **Domains:** set one on `grafana-proxy` only, `https://grafana.turf.softfix.dev` (port 8120; the `*.turf` DNS record already covers it). Remove the `www.` copy Coolify adds. Leave `grafana` empty.
 3. **Environment variables** (Coolify lists them from the compose file):
    - `TURF_CORE_API_URL`
    - `TURF_WEBSITE_URL`
@@ -39,7 +39,7 @@ Grafana's built-in `admin` account can't be used either: with the login form and
 
 - Opening the domain without signing in goes to Turf's admin dashboard, then back into Grafana.
 - A customer, even a workspace owner, gets "Grafana is for Turf's staff".
-- `curl -H "X-WEBAUTH-USER: anyone" https://grafana.turf.example/api/user` returns 401. The proxy drops the header, and there's no session.
+- `curl -H "X-WEBAUTH-USER: anyone" https://grafana.turf.softfix.dev/api/user` returns 401. The proxy drops the header, and there's no session.
 - Grafana can't be reached at any other address. It has no domain, and `docker ps` shows no published port for it.
 - Removing a system administrator in the admin dashboard locks them out of Grafana within `RECHECK_EVERY`.
 
