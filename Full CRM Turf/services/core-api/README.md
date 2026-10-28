@@ -104,6 +104,9 @@ Customer records are never shown. A suspended workspace refuses everything until
 
 **Who gets in.** Only people given access: an account at auth opens nothing here by itself. Staff open a customer's workspace and send its owner the link (`POST /api/v1/platform/customers`); the owner invites everyone else, with an end date if they like. Members whose access ends, or is removed, lose the workspace at once, and the desktop app erases that workspace's offline copy at its next check. `TURF_PUBLIC_SIGNUP=true` lets new accounts open their own trial again (off by default).
 
+
+**Grafana.** With `TURF_GRAFANA_URL` set to the Grafana login proxy (`services/grafana-proxy`), the dashboard shows an **Open Grafana** button, and `GET /api/v1/auth/service` returns the address as `grafana`. `#/admin/grafana` posts the signed-in person's token to the proxy in a form, so it never goes in a URL. The website's `form-action` then allows that one address too. The proxy checks the token with `GET /api/v1/platform/whoami`, which answers only for staff who passed the authenticator step. Plan: [docs/plans/grafana-access.md](../../docs/plans/grafana-access.md).
+
 ## How a change flows
 
 Every CRM write is an operation (`POST /api/v1/ops`, or many at once through `/sync/push`) with a client-chosen id, so a replay gets the first answer back. In one transaction, an operation checks the person's capability and record scope, applies its change, and writes four things: an audit event, a change-log row for `/sync/pull`, an outbox event for workers and rules, and a `NOTIFY` that becomes a WebSocket message.

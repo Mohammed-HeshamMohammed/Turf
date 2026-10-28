@@ -1049,7 +1049,17 @@ async function adminMine() {
 
 function adminFrame(tab, you, nodes, done = null, failed = null) {
   return [
-    h("div", { class: "row spread" }, h("h1", {}, "Admin"), h("span", { class: "badge " + (you === "owner" ? "peach" : "good") }, you === "owner" ? "Platform owner" : "System administrator")),
+    h(
+      "div",
+      { class: "row spread" },
+      h("h1", {}, "Admin"),
+      h(
+        "div",
+        { class: "row" },
+        service.grafana ? h("a", { class: "button", href: "#/admin/grafana" }, "Open Grafana") : null,
+        h("span", { class: "badge " + (you === "owner" ? "peach" : "good") }, you === "owner" ? "Platform owner" : "System administrator"),
+      ),
+    ),
     h("nav", { class: "tabs", "aria-label": "Admin sections" }, ADMIN_TABS.map(([key, label]) => h("a", { href: "#/admin?tab=" + key, class: key === tab ? "active" : null, "aria-current": key === tab ? "page" : null }, label))),
     done ? notice(done, "good") : null,
     failed ? notice(failed, "error") : null,
@@ -1067,6 +1077,33 @@ async function admin(tab = "overview", done = null, failed = null) {
   show(...adminFrame(tab, you, await build(), done, failed));
 }
 
+/**
+ * Hands a member of staff over to Grafana: posts their token to the Grafana login proxy, which asks this server
+ * whether they are staff and opens its own session (docs/plans/grafana-access.md). A form post, so the token is never
+ * in a URL. The proxy sends people here when they have no session, with the page to go back to in `return`.
+ */
+async function grafana(back) {
+  if (!service.grafana) return show(notice("Grafana is not set up on this server.", "error"));
+  if (!(await refreshMe())) return (location.hash = "#/signin");
+  if (me.mfa.required && !me.mfa.passed) return (location.hash = "#/mfa");
+  if (!me.platform_role) return show(notice("Grafana is for Turf's own staff.", "error"));
+  const token = await auth.accessToken();
+  if (!token) return (location.hash = "#/signin");
+  const handoff = h(
+    "form",
+    { method: "post", action: service.grafana + "/_turf/session" },
+    h("input", { type: "hidden", name: "token", value: token }),
+    h("input", { type: "hidden", name: "return", value: back.startsWith("/") ? back : "/" }),
+  );
+  show(h("section", { class: "card narrow" }, h("h2", {}, "Opening Grafana"), h("p", { class: "muted" }, "Checking your access…"), handoff));
+  // Back from Grafana lands on the dashboard, not here again.
+  history.replaceState(null, "", location.pathname + "#/admin");
+  // The proxy takes a sign-in only from this site's origin. Under this site's Referrer-Policy (same-origin) a post to
+  // another site says its origin is "null", so this page, which is leaving, says its origin (and nothing more).
+  document.head.append(h("meta", { name: "referrer", content: "strict-origin" }));
+  handoff.submit();
+}
+
 // --- Routing ---------------------------------------------------------------------------------------------------------
 
 async function route() {
@@ -1077,6 +1114,7 @@ async function route() {
     if (path === "/signin") return signin();
     if (path === "/mfa") return await mfa();
     if (path === "/account") return await account();
+    if (path === "/admin/grafana") return await grafana(params.get("return") || "/");
     if (path === "/admin" || path === "/platform") return await admin(params.get("tab") || "overview");
     if (path === "/verify") return await verifyEmail(params.get("token") || "");
     if (path === "/join") return await joinTeam(params.get("token") || "");

@@ -105,6 +105,7 @@ pub fn config(redis: bool) -> Option<Config> {
         firebase_auth_domain: String::new(),
         firebase_app_id: String::new(),
         firebase_providers: vec![],
+        grafana_url: String::new(),
     })
 }
 
