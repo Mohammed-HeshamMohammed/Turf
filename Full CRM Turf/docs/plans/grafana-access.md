@@ -37,9 +37,10 @@ browser ──► grafana-proxy (public, TLS) ──► Grafana (private network
 2. **New service `services/grafana-proxy` (Go, same style as the gateway).**
    - Without a valid session it sends the browser to the website's admin dashboard: `/#/admin/grafana?return=<path>`.
    - The website is already signed in and has the token. It POSTs the token once to the proxy's `/_turf/session` (same-site form post, so the token never goes in a URL).
-   - The proxy calls `whoami` with that token. On 200 it sets **its own** cookie: HttpOnly, Secure, SameSite=Strict, signed with a proxy secret, lasting 15 minutes. It never stores the Turf token.
+   - The proxy calls `whoami` with that token. On 200 it sets **its own** cookie, `turf_grafana`: a random 256-bit session id, HttpOnly, Secure, SameSite=Lax (Strict would drop it on the redirect that follows the website's post). The Turf token stays in the proxy's memory only, never in the cookie, and is used for the re-checks. A session lasts at most `SESSION_MAX_AGE` (8 hours), and in practice ends sooner, when the token expires.
+   - A token without the authenticator step gets a "sign in again" page, not a redirect: the website would post the same token again, in a loop.
    - It sends each request on to Grafana with `X-WEBAUTH-USER` (the Turf user id), `X-WEBAUTH-EMAIL`, `X-WEBAUTH-NAME` and `X-WEBAUTH-ROLE`. It removes any of those headers the browser sent.
-   - **Re-check:** within the 15 minutes the proxy re-asks `whoami` at most once a minute, using a token the website refreshes in the background. If the answer is 403, it drops the session at once. So a demoted admin is out within a minute, and a staff member whose access was turned off is out at once on the next check.
+   - **Re-check:** the proxy re-asks `whoami` at most once a `RECHECK_EVERY` (60 seconds), with the token it keeps. If the answer is 403, it drops the session at once, so a removed or turned-off admin is out within a minute. If the answer is 401 (the token expired), the person goes back to the website, which posts a fresh token and returns them. If the core API can't be reached, nobody gets through.
    - `/_turf/logout` clears the cookie.
 3. **Grafana settings**, set as environment variables in Coolify:
    - `GF_AUTH_PROXY_ENABLED=true`, `GF_AUTH_PROXY_HEADER_NAME=X-WEBAUTH-USER`, `GF_AUTH_PROXY_HEADER_PROPERTY=username`, `GF_AUTH_PROXY_AUTO_SIGN_UP=true`, `GF_AUTH_PROXY_HEADERS=Email:X-WEBAUTH-EMAIL Name:X-WEBAUTH-NAME Role:X-WEBAUTH-ROLE`, and `GF_AUTH_PROXY_WHITELIST=<the proxy's fixed IP>`.
@@ -78,7 +79,6 @@ Coolify rules for this resource:
 - **Don't use Coolify's one-click Grafana template.** It gives Grafana a domain and a login form. Use our compose file instead.
 - In Coolify, set a domain only on the `grafana-proxy` service. Leave `grafana` blank, and put no `ports:` entry on it.
 - Keep secrets in the resource's environment variables in Coolify, never in the repo:
-  - the proxy's cookie-signing key
   - Grafana's admin password (`GF_SECURITY_ADMIN_PASSWORD`)
   - the core API's address (`TURF_CORE_API_URL`)
 - Give Grafana's data folder (`/var/lib/grafana`) a persistent volume so dashboards survive redeploys.
@@ -90,7 +90,7 @@ Coolify rules for this resource:
 Mark each step when it is merged and checked.
 
 - [x] **1. `whoami` endpoint** (done 2026-10-28) in the core API, with tests in `tests/platform.rs`: owner returns 200 owner, admin returns 200 admin, staff without MFA are refused, a customer workspace owner gets 403, no token gets 401. Add it to `contracts/api-v1.yaml`.
-- [ ] **2. `services/grafana-proxy`**: session post, signed cookie, header stripping, re-check, logout. Go tests against a fake core API and a fake Grafana. The fakes cover expired cookie, forged cookie, forged `X-WEBAUTH-*` headers, a 403 on re-check, and a core API that's down (fail closed).
+- [x] **2. `services/grafana-proxy`** (done 2026-10-28): session post, signed cookie, header stripping, re-check, logout. Go tests against a fake core API and a fake Grafana. The fakes cover expired cookie, forged cookie, forged `X-WEBAUTH-*` headers, a 403 on re-check, and a core API that's down (fail closed).
 - [ ] **3. Website handoff**: the `/#/admin/grafana` route in `services/core-api/website/app.js` (posts the token, then follows `return`), plus a "Grafana" link in the admin dashboard for staff only. Add the proxy's origin to the website's `form-action` CSP.
 - [ ] **4. Compose file and local check**: write `deploy/grafana/compose.yml` (Grafana and the proxy, fixed subnet, Grafana not published). It's the same file Coolify will use. Run it locally against the local core API and check by hand:
   - the owner gets in as Admin
@@ -123,3 +123,4 @@ Mark each step when it is merged and checked.
 - 2026-10-28: Plan written. Findings gathered: Grafana isn't in the repo yet; `staff()` with MFA exists and is tested; `/me` exposes the platform role but doesn't require MFA; sign-in is moving to Firebase, which is why the proxy asks the core API instead of checking tokens itself.
 - 2026-10-28: Deployment is Coolify, with Grafana in its own container. The plan now uses one Coolify Docker Compose resource for Grafana and the proxy. Only the proxy has a domain, Grafana trusts only the proxy's fixed IP, and step 5 is Coolify instead of Kubernetes.
 - 2026-10-28: Step 1 done. `GET /api/v1/platform/whoami` reuses `staff()` and answers `{ id, email, name, role }`. Test `whoami_answers_only_for_staff` covers owner, admin, no organization, customer owner (403), no token (401), staff without MFA (`mfa_required`), a turned-off admin, and a removed admin (403). Along the way, the contract test was found to skip `billing.rs` and `platform.rs`; it now scans both, and their 17 routes are in `contracts/api-v1.yaml`.
+- 2026-10-28: Step 2 done. `services/grafana-proxy` (Go, standard library only) has 15 tests against a fake core API and a fake Grafana, and `go vet` is clean. Changes from the first design: the cookie is a random session id rather than a signed one, so there's no signing key to keep, and the token stays in the proxy's memory for re-checks. SameSite is Lax, not Strict. A sign-in without the authenticator step shows a page instead of looping through the website. The container has a `/service health` command for Coolify, since the image has no curl. It isn't in `tools/stack.json`, because the scaffolder would put it behind the gateway. Go 1.27.3 was installed in `D:\tools\go` to run the tests (it's on the PATH from `D:\tools\env.sh`).
