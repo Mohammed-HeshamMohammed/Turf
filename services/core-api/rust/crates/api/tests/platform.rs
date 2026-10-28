@@ -191,6 +191,38 @@ async fn staff_always_need_the_authenticator_code() {
 }
 
 #[tokio::test]
+async fn whoami_answers_only_for_staff() {
+    let Some(h) = start_without_mfa().await else { return };
+    let (owner, _) = platform_owner(&h).await;
+    let (helper, _) = customer(&h, "helper@turf.example", "Support Person").await;
+    let (boss, _) = customer(&h, "boss@shop.example", "Shop Boss").await;
+    owner.post("/api/v1/platform/staff", json!({ "email": "helper@turf.example", "role": "admin" })).await.ok();
+
+    // No organization is needed: the login proxy only knows the person.
+    owner.clear_org();
+    let me = owner.get("/api/v1/platform/whoami").await.ok();
+    assert_eq!(me, json!({ "id": owner.id, "email": "owner@turf.example", "name": "App Owner", "role": "owner" }));
+    assert_eq!(helper.get("/api/v1/platform/whoami").await.ok()["role"], "admin");
+
+    // A business owner is not staff, and nobody without a token is anyone.
+    assert_eq!(boss.get("/api/v1/platform/whoami").await.status, 403);
+    assert_eq!(h.anonymous().get("/api/v1/platform/whoami").await.status, 401);
+
+    // Staff without the authenticator step are refused, even on a server that asks nobody else for it.
+    helper.reissue(false, true);
+    assert_eq!(helper.get("/api/v1/platform/whoami").await.body["error"]["code"], "mfa_required");
+    helper.reissue(true, true);
+
+    // Turned off, or no longer staff: refused at once.
+    owner.post(&format!("/api/v1/platform/people/{}/access", helper.id), json!({ "disabled": true })).await.ok();
+    assert!(helper.get("/api/v1/platform/whoami").await.status >= 401);
+    owner.post(&format!("/api/v1/platform/people/{}/access", helper.id), json!({ "disabled": false })).await.ok();
+    assert_eq!(helper.get("/api/v1/platform/whoami").await.status, 200);
+    owner.post("/api/v1/platform/staff", json!({ "email": "helper@turf.example", "role": null })).await.ok();
+    assert_eq!(helper.get("/api/v1/platform/whoami").await.status, 403);
+}
+
+#[tokio::test]
 async fn a_members_access_can_have_an_end_date() {
     let Some(h) = start().await else { return };
     let w = world(&h).await;

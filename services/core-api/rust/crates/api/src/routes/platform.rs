@@ -25,6 +25,7 @@ use uuid::Uuid;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
+        .route("/platform/whoami", get(whoami))
         .route("/platform/organizations", get(organizations))
         .route("/platform/organizations/{id}/suspend", post(suspend))
         .route("/platform/organizations/{id}/subscription", post(subscription))
@@ -56,6 +57,19 @@ async fn staff(state: &AppState, ctx: &Ctx) -> ApiResult<Staff> {
         return Err(ApiError::MfaRequired);
     }
     Ok(role)
+}
+
+/// Who is asking, if they are staff: for services in front of Turf's own tools (the Grafana login proxy) that let in
+/// only the platform owner and system administrators. Same rule as the rest of the dashboard, so a person without the
+/// authenticator step, a customer or a disabled account is refused. Needs no organization.
+async fn whoami(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
+    let role = match staff(&state, &ctx).await? {
+        Staff::Owner => "owner",
+        Staff::Admin => "admin",
+    };
+    let (email, name): (String, String) =
+        sqlx::query_as("SELECT email::text, display_name FROM users WHERE id = $1").bind(ctx.user_id).fetch_one(&state.db).await?;
+    Ok(Json(json!({ "id": ctx.user_id, "email": email, "name": name, "role": role })))
 }
 
 async fn owner(state: &AppState, ctx: &Ctx) -> ApiResult<()> {

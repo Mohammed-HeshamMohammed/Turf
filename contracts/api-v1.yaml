@@ -101,6 +101,23 @@ paths:
   /api/v1/exports/leads.csv: { get: { summary: Visible leads as CSV (export permission; do-not-call numbers left out) } }
   /api/v1/artifacts: { post: { summary: "Stream a file; query name, lead_id, visibility" } }
   /api/v1/artifacts/{sha256}: { get: { summary: Download a file you may see } }
+  /api/v1/plans: { get: { summary: Plans and their prices } }
+  /api/v1/billing: { get: { summary: "This organization's plan, seats, usage and payments" } }
+  /api/v1/billing/checkout: { post: { summary: Start a checkout for a plan } }
+  /api/v1/billing/webhook: { post: { summary: "Payment provider events; signature checked against the raw body, each counted once" } }
+  /api/v1/calls/start: { post: { summary: "Start a call; the server times it against the plan's minutes" } }
+  /api/v1/calls/{id}/end: { post: { summary: End a call and count its minutes } }
+  /api/v1/platform/whoami: { get: { summary: "The caller, if Turf staff (platform owner or system administrator) with the authenticator step; 403 otherwise. No organization needed. Used by the Grafana login proxy" } }
+  /api/v1/platform/organizations: { get: { summary: "Staff: every customer workspace with plan, usage and seats" } }
+  /api/v1/platform/organizations/{id}/suspend: { post: { summary: "Staff: suspend or resume a workspace" } }
+  /api/v1/platform/organizations/{id}/subscription: { post: { summary: "Staff extend a plan; the owner sets one or removes its limits" } }
+  /api/v1/platform/people: { get: { summary: "Staff: people on the server, searchable" } }
+  /api/v1/platform/people/{id}/access: { post: { summary: "Staff: turn a person's access off or on" } }
+  /api/v1/platform/staff: { get: { summary: "Staff: Turf's staff" }, post: { summary: "Owner: name or remove a system administrator" } }
+  /api/v1/platform/payments: { get: { summary: "Staff: every payment" } }
+  /api/v1/platform/activity: { get: { summary: "Staff: what staff changed" } }
+  /api/v1/platform/workspace: { post: { summary: "Staff: open a staff workspace with no plan limits" } }
+  /api/v1/platform/customers: { post: { summary: "Staff: open a trial workspace for a customer, with an invitation that makes them its owner" } }
   /api/v1/ops:
     post:
       summary: Apply one operation

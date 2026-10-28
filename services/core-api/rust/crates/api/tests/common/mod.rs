@@ -105,6 +105,7 @@ pub fn config(redis: bool) -> Option<Config> {
         firebase_auth_domain: String::new(),
         firebase_app_id: String::new(),
         firebase_providers: vec![],
+        grafana_url: String::new(),
     })
 }
 
@@ -232,6 +233,10 @@ impl Client {
 
     pub fn set_org(&self, org: &str) {
         *self.org.lock().unwrap() = Some(org.to_string());
+    }
+
+    pub fn clear_org(&self) {
+        *self.org.lock().unwrap() = None;
     }
 
     pub fn token(&self) -> Option<String> {

@@ -30,6 +30,8 @@ fn router_paths() -> BTreeSet<String> {
         ("records.rs", "/api/v1"),
         ("reports.rs", "/api/v1"),
         ("artifacts.rs", "/api/v1"),
+        ("billing.rs", "/api/v1"),
+        ("platform.rs", "/api/v1"),
         ("internal.rs", "/internal"),
         ("worker_data.rs", "/internal"),
     ] {

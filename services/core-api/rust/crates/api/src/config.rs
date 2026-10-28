@@ -48,6 +48,9 @@ pub struct Config {
     pub firebase_app_id: String,
     /// Providers turned on in the Firebase console besides email and password (comma separated: google, apple).
     pub firebase_providers: Vec<String>,
+    /// Where staff open Grafana: the Grafana login proxy's address (services/grafana-proxy). Empty: no Grafana link,
+    /// and the website may post a sign-in nowhere but here.
+    pub grafana_url: String,
 }
 
 impl Config {
@@ -100,6 +103,7 @@ impl Config {
                 given => given.to_string(),
             },
             firebase_app_id: var("TURF_FIREBASE_APP_ID", "").trim().to_string(),
+            grafana_url: var("TURF_GRAFANA_URL", "").trim().trim_end_matches('/').to_string(),
             firebase_providers: var("TURF_FIREBASE_PROVIDERS", "google").split(',').map(|p| p.trim().to_string()).filter(|p| !p.is_empty()).collect(),
             auth_public_url: var("TURF_AUTH_PUBLIC_URL", "http://localhost:8101").trim_end_matches('/').to_string(),
         })
