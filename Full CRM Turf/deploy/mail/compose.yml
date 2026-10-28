@@ -1,0 +1,122 @@
+# Our own mail server (docs/plans/mail-server.md): docker-mailserver for softfix.dev, Turf and auto-linky.com.
+# One Coolify resource of type Docker Compose, with this file as its compose file. Give it NO domain in Coolify:
+# mail is not web traffic. It publishes only the two submission ports; apps and Thunderbird log in on them.
+#
+# Three containers start in order:
+#   1. certbot      gets (and keeps renewing) the certificate for smtp.softfix.dev through Cloudflare's DNS
+#   2. mail-setup   makes the DKIM keys and the mailboxes once, from the environment, and prints the DNS records
+#   3. mail         the server
+#
+# Sending only: incoming mail still goes to Cloudflare Email Routing (the MX records), so port 25 is not published.
+name: turf-mail
+services:
+  certbot:
+    image: certbot/dns-cloudflare:v5.8.0
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        umask 077
+        printf 'dns_cloudflare_api_token = %s\n' "$$CLOUDFLARE_API_TOKEN" > /tmp/cloudflare.ini
+        certbot certonly --non-interactive --agree-tos --email "$$LETSENCRYPT_EMAIL" \
+          --dns-cloudflare --dns-cloudflare-credentials /tmp/cloudflare.ini --dns-cloudflare-propagation-seconds 40 \
+          --keep-until-expiring -d "$$MAIL_HOSTNAME"
+        while true; do
+          sleep 12h
+          certbot renew --non-interactive || echo "renewal failed, trying again in 12 hours"
+        done
+    environment:
+      CLOUDFLARE_API_TOKEN: "${CLOUDFLARE_API_TOKEN:?set CLOUDFLARE_API_TOKEN: a token that can edit DNS on softfix.dev only}"
+      LETSENCRYPT_EMAIL: "${LETSENCRYPT_EMAIL:?set LETSENCRYPT_EMAIL, where Let's Encrypt writes about expiring certificates}"
+      MAIL_HOSTNAME: "${MAIL_HOSTNAME:-smtp.softfix.dev}"
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /etc/letsencrypt/live/$$MAIL_HOSTNAME/fullchain.pem"]
+      interval: 15s
+      timeout: 5s
+      retries: 40
+      start_period: 30s
+    restart: unless-stopped
+
+  mail-setup:
+    image: mailserver/docker-mailserver:16.0.1
+    exclude_from_hc: true
+    restart: "no"
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -eu
+        cfg=/tmp/docker-mailserver
+        # One DKIM key per domain, selector "mail", made once. Publish what is printed below as TXT records.
+        if [ ! -f "$$cfg/rspamd/dkim/rsa-2048-mail-softfix.dev.private.txt" ]; then
+          setup config dkim keysize 2048 selector mail domain 'softfix.dev,auto-linky.com'
+        fi
+        for f in "$$cfg"/rspamd/dkim/*.public.dns.txt; do echo "=== DKIM record: $$f"; cat "$$f"; echo; done
+        # Mailboxes are made once. One that exists keeps its password: change it with "setup email update".
+        add() {
+          if [ -z "$$2" ]; then echo "skipped $$1: no password set"; return 0; fi
+          if grep -q "^$$1|" "$$cfg/postfix-accounts.cf" 2>/dev/null; then echo "exists $$1"; else setup email add "$$1" "$$2"; echo "made $$1"; fi
+        }
+        add "no-reply@softfix.dev" "$$PASSWORD_SOFTFIX_NOREPLY"
+        add "no-reply@auto-linky.com" "$$PASSWORD_AUTOLINKY_NOREPLY"
+        if [ -n "$$MAILBOX_ME" ]; then add "$$MAILBOX_ME" "$$PASSWORD_ME"; fi
+    environment:
+      PASSWORD_SOFTFIX_NOREPLY: "${PASSWORD_SOFTFIX_NOREPLY:-}"
+      PASSWORD_AUTOLINKY_NOREPLY: "${PASSWORD_AUTOLINKY_NOREPLY:-}"
+      MAILBOX_ME: "${MAILBOX_ME:-}"
+      PASSWORD_ME: "${PASSWORD_ME:-}"
+    volumes:
+      - mail-config:/tmp/docker-mailserver
+
+  mail:
+    image: mailserver/docker-mailserver:16.0.1
+    hostname: "${MAIL_HOSTNAME:-smtp.softfix.dev}"
+    depends_on:
+      certbot:
+        condition: service_healthy
+      mail-setup:
+        condition: service_completed_successfully
+    ports:
+      - "587:587"
+      - "465:465"
+    environment:
+      POSTMASTER_ADDRESS: "${POSTMASTER_ADDRESS:-postmaster@softfix.dev}"
+      LOG_LEVEL: info
+      ONE_DIR: "1"
+      SSL_TYPE: letsencrypt
+      # Rspamd signs outgoing mail with the DKIM keys; the rest of the filters only matter for incoming mail.
+      ENABLE_RSPAMD: "1"
+      ENABLE_RSPAMD_REDIS: "1"
+      ENABLE_OPENDKIM: "0"
+      ENABLE_OPENDMARC: "0"
+      ENABLE_POLICYD_SPF: "0"
+      ENABLE_AMAVIS: "0"
+      ENABLE_SPAMASSASSIN: "0"
+      ENABLE_CLAMAV: "0"
+      ENABLE_POSTGREY: "0"
+      ENABLE_FAIL2BAN: "1"
+      # A login may only send as its own address.
+      SPOOF_PROTECTION: "1"
+      PERMIT_DOCKER: none
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - mail-data:/var/mail
+      - mail-state:/var/mail-state
+      - mail-logs:/var/log/mail
+      - mail-config:/tmp/docker-mailserver
+      - letsencrypt:/etc/letsencrypt:ro
+    healthcheck:
+      test: ["CMD-SHELL", "ss --listening --tcp | grep -P 'LISTEN.+:smtp' || exit 1"]
+      timeout: 3s
+      retries: 0
+    stop_grace_period: 1m
+    restart: unless-stopped
+
+volumes:
+  letsencrypt:
+  mail-config:
+  mail-data:
+  mail-state:
+  mail-logs:

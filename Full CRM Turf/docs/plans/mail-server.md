@@ -33,8 +33,8 @@ Thunderbird on your PC ─────────────► mail server, p
 
 1. **Software:** docker-mailserver, as one Coolify Docker Compose resource (`deploy/mail/compose.yml`). The settings live in the compose file and one volume. It signs each domain with its own DKIM key, and handles several domains.
 2. **Sending first, receiving stays on Cloudflare.** MX stays on Cloudflare Email Routing, so incoming mail keeps reaching Gmail as it does now. The server only sends. Moving MX to the server is a later decision, and means removing the Cloudflare routing records for that domain.
-3. **Apps send over the private network** (`mail:587` with a login), so no mail port needs to face the internet for them. Thunderbird needs 587 or 465 (and 993 if you want to read mail on the server) open to the internet.
-4. **Certificates:** the server needs one for `smtp.softfix.dev`. Coolify's proxy owns ports 80 and 443, so the server can't ask Let's Encrypt for one itself the usual way. Plan: a small certbot container does a DNS challenge through the Cloudflare API, with an API token limited to editing DNS on `softfix.dev` and `auto-linky.com`. You create that token and paste it into Coolify.
+3. **Apps log in on `smtp.softfix.dev:587`**, the public name, even from the same server, so the certificate matches. The server publishes 587 and 465, nothing else: no 25 (it only sends) and no 993 (nothing is delivered to its mailboxes). Mailboxes are made from environment variables by a one-shot container, so nobody needs a shell on the server.
+4. **Certificates:** the server needs one for `smtp.softfix.dev`. Coolify's proxy owns ports 80 and 443, so the server can't ask Let's Encrypt for one itself the usual way. A small certbot container does a DNS challenge through the Cloudflare API, with an API token that can only edit DNS on `softfix.dev`. You create that token and paste it into Coolify. Apps and Thunderbird all connect to `smtp.softfix.dev`, whatever domain they send for, so one certificate is enough.
 5. **Domains and addresses:**
 
    | Domain | Sender addresses | DNS to change |
@@ -53,7 +53,7 @@ Thunderbird on your PC ─────────────► mail server, p
 ## Steps and progress
 
 - [ ] **1. Decisions** (below) and the three provider checks above.
-- [ ] **2. `deploy/mail/compose.yml`, README and `.env.example`**, with a `mail-production` branch like `grafana-production`.
+- [x] **2. `deploy/mail/compose.yml`, README and `.env.example`** (2026-10-28), with a `mail-production` branch like `grafana-production`. Docker isn't on this machine, so the compose file is checked only by parsing and by `bash -n` on its scripts; its first real run is step 3.
 - [ ] **3. Run it in Coolify**: the resource, the private network, volumes, the certificate container.
 - [ ] **4. DNS:** the new DKIM keys, SPF and DMARC for `auto-linky.com`, then check with a test mail to a Gmail address and read the headers (SPF, DKIM and DMARC all pass).
 - [ ] **5. Thunderbird** on your PC: server `smtp.softfix.dev`, port 587 (STARTTLS) or 465 (SSL), your mailbox login.
@@ -70,3 +70,4 @@ Thunderbird on your PC ─────────────► mail server, p
 ## Log
 
 - 2026-10-28: Plan written from the DNS records, the Coolify projects and port checks. The old Dokploy install and its mail server are gone, and the old DKIM private key with them.
+- 2026-10-28: Step 2 done. `deploy/mail` has docker-mailserver 16.0.1 (Debian 13 base, so a fresh install, no old config to migrate), certbot 5.8.0 with the Cloudflare plugin, and a one-shot `mail-setup` that makes the DKIM keys for softfix.dev and auto-linky.com and the mailboxes. Rspamd signs the mail; ClamAV, SpamAssassin, Amavis, OpenDKIM, OpenDMARC and Postgrey are off, since they only matter for incoming mail. Fail2ban is on. A login can only send as its own address.
