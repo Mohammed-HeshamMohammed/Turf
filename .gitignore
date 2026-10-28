@@ -22,3 +22,4 @@ env/*
 # The auth service's development database (SQLite).
 services/auth/*.db
 services/auth/*.db-*
+!deploy/grafana/.env.example
