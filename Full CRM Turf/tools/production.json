@@ -13,6 +13,7 @@
       "build": "cd services/core-api/rust && cargo test --workspace   (needs PostgreSQL: services/core-api/README.md)"
     },
     { "name": "desktop-app-production", "title": "Desktop app: the frontend, the window container (Tauri) and the feature modules", "paths": ["desktop", "services/auth/clients", "env/desktop.env.example", "env/README.md"], "rust": true, "build": "npm install && npm run build in desktop/frontend/react; cargo test --workspace at the root (the feature modules); cargo build in desktop/container/rust. Their tests start the Skip Tracing engine from skip-engine-production: set TURF_SERVICE_ROOT to its checkout" },
+    { "name": "grafana-production", "title": "Grafana for Turf's staff, behind the login proxy (Coolify)", "paths": ["deploy/grafana", "services/grafana-proxy", "docs/plans/grafana-access.md"], "build": "go test ./... in services/grafana-proxy; in Coolify: a Docker Compose resource from this branch with deploy/grafana/compose.yml (deploy/grafana/README.md)" },
     { "name": "skip-engine-production", "title": "Skip Tracing engine (Python)", "base": "service", "paths": ["."], "build": "pip install -r requirements.txt pytest && python -m pytest" }
   ]
 }

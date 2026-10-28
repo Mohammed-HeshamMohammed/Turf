@@ -15,7 +15,7 @@ Grafana trusts the `X-WEBAUTH-*` headers only from `172.30.10.10`. Its login for
 
 ## Setting it up in Coolify
 
-1. **New resource → Docker Compose**, from this repository. Set the compose file to `deploy/grafana/compose.yml` (with "Full CRM Turf" as the base directory).
+1. **New resource → Docker Compose**, from this repository's `grafana-production` branch. It holds only Grafana's files, at the same paths, so the base directory is `/` and the compose file is `deploy/grafana/compose.yml`. From `main` instead, use the base directory `/Full CRM Turf`.
    - Don't use Coolify's one-click Grafana service. It gives Grafana a domain and a login form.
 2. **Domains:** set one on `grafana-proxy` only, for example `https://grafana.turf.example` (port 8120). Leave `grafana` empty.
 3. **Environment variables** (Coolify lists them from the compose file):
