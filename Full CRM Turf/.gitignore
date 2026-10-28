@@ -23,4 +23,3 @@ env/*
 services/auth/*.db
 services/auth/*.db-*
 !deploy/grafana/.env.example
-!deploy/mail/.env.example

@@ -12,7 +12,6 @@ One branch per part of Turf, each holding **only that part's code**, so a part c
 | `core-api-backend-production` | The core API: the CRM server and the website it serves, with the auth verifier crate and the contract it checks |
 | `desktop-app-production` | The whole desktop app: the frontend (`desktop/frontend/react`, also the CRM in a browser), the window container (Tauri) and the feature modules (`desktop/backend`) |
 | `grafana-production` | Grafana for Turf's staff and its login proxy (`deploy/grafana`, `services/grafana-proxy`), deployed on Coolify as one Docker Compose resource |
-| `mail-production` | The mail server (`deploy/mail`), deployed on Coolify as one Docker Compose resource |
 | `skip-engine-production` | The Skip Tracing engine (`service/`, Python) that the desktop app runs |
 
 A part gets a branch when it runs as its own container on the VPS. The billing service and the eight server-side feature services are scaffolds that are not deployed yet, so they have none; the compose file and the original `Turf/` app have none either. When one needs its own, add it to `tools/production.json` and run the script.
