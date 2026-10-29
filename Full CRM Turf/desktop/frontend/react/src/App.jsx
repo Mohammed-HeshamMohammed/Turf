@@ -391,7 +391,7 @@ export function App() {
     return (
       <div className="gate-window">
         {/* The desktop window has no system title bar, so the sign-in screen keeps the app's own controls. */}
-        <WindowStrip title="Turf" />
+        <WindowStrip title="Caller Whale" />
         <Suspense fallback={null}>
           <RemoteGate onReady={connect} onLeave={REQUIRE_SIGN_IN ? undefined : useSample} />
         </Suspense>
@@ -403,7 +403,7 @@ export function App() {
         <a className="skip-link" href="#main-content" onClick={event => (event.preventDefault(), main.current?.focus())}>
           Skip to content
         </a>
-        <WindowStrip title="Turf · Full CRM mode" />
+        <WindowStrip title="Caller Whale" />
         <header className="app-header" {...windowDrag}>
           <div className="brand">
             <button className="mobile-menu round-button" aria-label="Toggle navigation" onClick={() => setMobileNav(!mobileNav)}>
@@ -417,7 +417,7 @@ export function App() {
               demoNotes={demoNotes}
               onDemoNotes={setDemoNotes}
             />
-            <strong>Turf</strong>
+            <strong>Caller Whale</strong>
             <div className="header-workspace" title={state.settings.workspace}>
               <HouseLine size={18} weight="light" />
               <div>
@@ -593,7 +593,7 @@ export function App() {
         {reset && (
           <Modal title="Start fresh with the sample workspace?" onClose={() => setReset(false)}>
             <p className="body-copy">
-              This clears this prototype's saved edits, imported preview rows, drafts, and pending changes. The main Turf application is not affected.
+              This clears this prototype's saved edits, imported preview rows, drafts, and pending changes. The main Caller Whale application is not affected.
             </p>
             <div className="row">
               <Button onClick={() => setReset(false)}>Keep my preview</Button>

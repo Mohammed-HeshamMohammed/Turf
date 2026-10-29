@@ -49,7 +49,7 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen, demoNote
       <button
         ref={trigger}
         className="brand-mark"
-        aria-label="Turf menu"
+        aria-label="Caller Whale menu"
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls="turf-menu-panel"
@@ -166,7 +166,7 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen, demoNote
                 </button>
                 <button onClick={() => run(connect)}>
                   <Plugs size={19} />
-                  <span>Connect to a Turf server</span>
+                  <span>Connect to a Caller Whale server</span>
                 </button>
               </div>
             </>

@@ -515,6 +515,11 @@ export function reducer(state, action) {
       const options = message.poll.options.map((option, i) => ({ ...option, votes: option.votes.filter(name => name !== me).concat(i === action.option ? [me] : []) }));
       return { ...state, threads: state.threads.map(item => (item.id === thread.id ? { ...item, messages: item.messages.map((m, i) => (i === action.index ? { ...m, poll: { ...m.poll, options } } : m)) } : item)) };
     }
+    case "ARCHIVE": {
+      // Archived conversations leave the list for the Archived section, like a messenger; nothing is deleted.
+      if (!visibleThreads(state).some(item => item.id === action.id)) return state;
+      return { ...state, threads: state.threads.map(item => (item.id === action.id ? { ...item, archived: Boolean(action.archived) } : item)) };
+    }
     case "MARK_READ":
       return { ...state, threads: state.threads.map(item => (item.id === action.id ? { ...item, unread: false } : item)) };
     case "CONFLICT": {

@@ -20,7 +20,7 @@ export class AuthError extends Error {
 const HINT_KEY = "turf.auth.firebase";
 
 const WRONG = [401, "wrong_credentials", "That email and password do not match."];
-const SETUP = [503, "misconfigured", "Sign-in is not set up correctly yet. Tell Turf's support."];
+const SETUP = [503, "misconfigured", "Sign-in is not set up correctly yet. Tell Caller Whale's support."];
 const REFUSALS = {
   // The server's Firebase settings, or the project in the Firebase console, are not right.
   "auth/api-key-not-valid.-please-pass-a-valid-api-key.": SETUP,
@@ -198,7 +198,7 @@ export function createFirebaseAuth({ sdk, storage = globalThis.localStorage, pro
       run(async () => {
         const user = await signedInUser();
         secret = await sdk.TotpMultiFactorGenerator.generateSecret(await sdk.multiFactor(user).getSession());
-        return { secret: secret.secretKey, otpauth_url: secret.generateQrCodeUrl(user.email, "Turf") };
+        return { secret: secret.secretKey, otpauth_url: secret.generateQrCodeUrl(user.email, "Caller Whale") };
       }),
     /**
      * Turns the authenticator on. There are no recovery codes. When Firebase's token does not yet say a code was

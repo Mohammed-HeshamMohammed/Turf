@@ -19,6 +19,9 @@ import {
   ChatCircle,
   PaperPlaneTilt,
   UsersThree,
+  Archive,
+  ArrowLeft,
+  ArrowUUpLeft,
   ClosedCaptioning,
   PencilSimple,
   X,
@@ -1337,6 +1340,7 @@ export function Inbox() {
   const { state, dispatch, navigate, notify, route } = useCrm();
   const [channel, setChannel] = useState("All");
   const [query, setQuery] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const [selected, setSelected] = useState("");
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState(null);
@@ -1350,8 +1354,14 @@ export function Inbox() {
   const [newNumber, setNewNumber] = useState("");
   const leads = visibleLeads(state);
 
-  const threads = visibleThreads(state).filter(thread => {
-    if (channel !== "All" && thread.channel !== channel) return false;
+  const all = visibleThreads(state);
+  const archivedCount = all.filter(thread => thread.archived).length;
+  // The list shows either the active conversations or the Archived section, never both, like a messenger.
+  const inView = all.filter(thread => Boolean(thread.archived) === showArchived);
+  const chips = state.role === "client" ? ["All", "Unread", "Partner"] : ["All", "Unread", "SMS", "Email", "Team", "Group", "Partner"];
+  const matchesChip = (thread, chip) => chip === "All" || (chip === "Unread" ? thread.unread : thread.channel === chip);
+  const threads = inView.filter(thread => {
+    if (!matchesChip(thread, channel)) return false;
     const person = leads.find(item => item.id === thread.leadId);
     const words = [thread.title, person?.name, person?.address, thread.phone, thread.preview, ...thread.messages.map(message => message.text)].join(" ").toLowerCase();
     return words.includes(query.trim().toLowerCase());
@@ -1396,22 +1406,47 @@ export function Inbox() {
       <div className="inbox-layout">
         <Card className="thread-list">
           <Search value={query} onChange={setQuery} placeholder="Search conversations" />
-          <Segmented
-            label="Conversation channel"
-            value={channel}
-            onChange={value => {
-              setChannel(value);
-              setSelected("");
-            }}
-            options={state.role === "client" ? ["All", "Partner"] : ["All", "SMS", "Email", "Team", "Group", "Partner"]}
-          />
+          <div className="thread-chips" role="group" aria-label="Show conversations">
+            {chips.map(chip => {
+              const unread = inView.filter(thread => thread.unread && matchesChip(thread, chip)).length;
+              return (
+                <button
+                  key={chip}
+                  type="button"
+                  aria-pressed={channel === chip}
+                  onClick={() => {
+                    setChannel(chip);
+                    setSelected("");
+                  }}
+                >
+                  {chip === "Group" ? "Groups" : chip}
+                  {unread > 0 && chip !== "Unread" && <span className="chip-count">{unread}</span>}
+                </button>
+              );
+            })}
+          </div>
+          {showArchived ? (
+            <button type="button" className="archive-entry back" onClick={() => setShowArchived(false)}>
+              <ArrowLeft size={17} />
+              <strong>Archived</strong>
+              <small>Conversations you set aside</small>
+            </button>
+          ) : (
+            archivedCount > 0 && (
+              <button type="button" className="archive-entry" onClick={() => setShowArchived(true)}>
+                <Archive size={17} />
+                <strong>Archived</strong>
+                <span className="chip-count quiet">{archivedCount}</span>
+              </button>
+            )
+          )}
           <div className="thread-items">
             {threads.map(item => {
             const person = leads.find(lead => lead.id === item.leadId);
             const Icon = item.channel === "Email" ? Envelope : item.channel === "Group" ? UsersThree : ChatCircle;
             return (
+              <div className="thread-row" key={item.id}>
               <button
-                key={item.id}
                 className={"thread" + (thread?.id === item.id ? " selected" : "") + (item.unread ? " unread" : "")}
                 aria-current={thread?.id === item.id ? "true" : undefined}
                 onClick={() => {
@@ -1435,9 +1470,26 @@ export function Inbox() {
                 </span>
                 {item.unread && <span className="unread-dot" aria-label="Unread" />}
               </button>
+              <button
+                type="button"
+                className="thread-archive"
+                aria-label={(item.archived ? "Unarchive " : "Archive ") + (item.title || person?.name || item.phone)}
+                title={item.archived ? "Unarchive" : "Archive"}
+                onClick={() => dispatch({ type: "ARCHIVE", id: item.id, archived: !item.archived })}
+              >
+                {item.archived ? <ArrowUUpLeft size={16} /> : <Archive size={16} />}
+              </button>
+              </div>
             );
           })}
-            {!threads.length && (query ? <Empty title="Nothing matches">Try another name, address or word.</Empty> : <Empty title="No conversations here">Start a conversation with a lead or phone number.</Empty>)}
+            {!threads.length &&
+              (query ? (
+                <Empty title="Nothing matches">Try another name, address or word.</Empty>
+              ) : showArchived ? (
+                <Empty title="Nothing archived">Archive a conversation to keep it out of the way without deleting it.</Empty>
+              ) : (
+                <Empty title="No conversations here">Start a conversation with a lead or phone number.</Empty>
+              ))}
           </div>
         </Card>
         <Card className="conversation">
@@ -1452,7 +1504,14 @@ export function Inbox() {
                     <span>{thread.channel === "Group" ? thread.members.join(", ") : lead?.address || "Phone number"}</span>
                   </small>
                 </div>
-                {lead && <RoundButton label="Open conversation lead" onClick={() => navigate("work/leads/" + lead.id)} />}
+                <div className="conversation-actions">
+                  <RoundButton
+                    icon={thread.archived ? ArrowUUpLeft : Archive}
+                    label={thread.archived ? "Unarchive conversation" : "Archive conversation"}
+                    onClick={() => dispatch({ type: "ARCHIVE", id: thread.id, archived: !thread.archived })}
+                  />
+                  {lead && <RoundButton label="Open conversation lead" onClick={() => navigate("work/leads/" + lead.id)} />}
+                </div>
               </header>
               <div className="message-history">
                 {thread.messages.map((message, index) => (

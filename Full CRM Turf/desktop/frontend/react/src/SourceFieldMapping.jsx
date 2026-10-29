@@ -47,7 +47,7 @@ export function SourceFieldMapping({ columns, rows, mappings, onChange, hideEmpt
   return (
     <div className="source-field-mapping">
       <p className="mapping-summary" role="status">
-        Turf recognised <strong>{recognised.toLocaleString()}</strong> of {columns.length.toLocaleString()} columns.
+        Caller Whale recognised <strong>{recognised.toLocaleString()}</strong> of {columns.length.toLocaleString()} columns.
       </p>
       <div className="skip-field-grid">{identity.map(id => renderField(mappedFields.find(field => field.id === id)))}</div>
       {furtherOwners.length > 0 && (
@@ -71,7 +71,7 @@ export function SourceFieldMapping({ columns, rows, mappings, onChange, hideEmpt
         </p>
       </details>
       <p className="muted">
-        Turf reads each column's header and its values. Correct anything it got wrong and save: it remembers that header for your next lists.{" "}
+        Caller Whale reads each column's header and its values. Correct anything it got wrong and save: it remembers that header for your next lists.{" "}
         {(columns.length - recognised).toLocaleString()} other source columns retained without a mapping. Every source column remains in the preview and
         original data.
       </p>

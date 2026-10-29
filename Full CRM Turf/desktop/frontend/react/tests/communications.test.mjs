@@ -124,3 +124,15 @@ test("group chats are for their members, and carry GIFs, polls, replies and reac
   const sms = visibleThreads(state).find(item => item.channel === "SMS" && item.leadId);
   assert.equal(reducer(state, { type: "MESSAGE", id: sms.id, attach: { kind: "poll", poll: { question: "?", options: ["a", "b"] } } }), state);
 });
+
+test("archiving moves a conversation aside and back, only for people who can see it", () => {
+  let state = seedState();
+  const id = visibleThreads(state)[0].id;
+  state = reducer(state, { type: "ARCHIVE", id, archived: true });
+  assert.equal(visibleThreads(state).find(item => item.id === id).archived, true);
+  state = reducer(state, { type: "ARCHIVE", id, archived: false });
+  assert.equal(visibleThreads(state).find(item => item.id === id).archived, false);
+  const client = { ...seedState(), role: "client" };
+  const hidden = client.threads.find(item => !visibleThreads(client).some(seen => seen.id === item.id));
+  assert.equal(reducer(client, { type: "ARCHIVE", id: hidden.id, archived: true }), client);
+});

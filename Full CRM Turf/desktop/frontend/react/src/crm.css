@@ -163,7 +163,8 @@ svg {
   flex: none;
   padding: 14px 24px;
   display: grid;
-  grid-template-columns: 330px minmax(0, 1fr) auto;
+  /* Room for the whale mark, "Caller Whale" and the workspace name. */
+  grid-template-columns: 400px minmax(0, 1fr) auto;
   gap: 20px;
   align-items: center;
   background: var(--page);
@@ -3551,7 +3552,7 @@ textarea {
     width: 195px;
   }
   .app-header {
-    grid-template-columns: 295px minmax(0, 1fr) auto;
+    grid-template-columns: 365px minmax(0, 1fr) auto;
     gap: 14px;
   }
   .call-layout {
@@ -3618,7 +3619,7 @@ textarea {
 }
 @media (max-width: 900px) {
   .app-header {
-    grid-template-columns: 280px 1fr auto;
+    grid-template-columns: 340px 1fr auto;
     padding: 12px 17px;
     gap: 10px;
   }
@@ -6952,4 +6953,120 @@ button.message-card:not(:disabled):hover {
     right: 0;
     width: auto;
   }
+}
+
+/* Inbox filters: separate chips that wrap instead of clipping; unread counts ride on each. */
+.thread-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 4px;
+}
+.thread-chips button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 31px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--well);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 140ms, color 140ms;
+}
+.thread-chips button:hover:not([aria-pressed="true"]) {
+  background: var(--line);
+}
+.thread-chips button[aria-pressed="true"] {
+  background: var(--ink);
+  color: white;
+}
+.chip-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+}
+.chip-count.quiet {
+  margin-left: auto;
+  background: var(--well);
+}
+/* "Archived" sits above the list like a messenger's; inside it, the same row leads back. */
+.archive-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 -4px;
+  padding: 10px 12px 10px 20px;
+  border-radius: 14px;
+  text-align: left;
+  font-size: 13px;
+}
+.archive-entry:hover {
+  background: var(--well);
+}
+.archive-entry strong {
+  font-weight: 500;
+}
+.archive-entry small {
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.thread-row {
+  position: relative;
+}
+.thread-archive {
+  position: absolute;
+  right: 8px;
+  bottom: 10px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 1px 4px #0001;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.thread-row:hover .thread-archive,
+.thread-row:focus-within .thread-archive {
+  opacity: 1;
+}
+@media (hover: none) {
+  .thread-archive {
+    opacity: 1;
+  }
+}
+.conversation-actions {
+  display: flex;
+  gap: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .thread-chips button,
+  .thread-archive {
+    transition: none;
+  }
+}
+/* "Caller Whale" stays on one line beside the whale mark; the workspace name gives way first. */
+.brand > strong {
+  font-size: 21px;
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .brand > strong {
+    font-size: 18px;
+  }
+}
+/* The address line leaves room for the archive button that appears at its end. */
+.thread-row .thread-meta {
+  padding-right: 34px;
 }
