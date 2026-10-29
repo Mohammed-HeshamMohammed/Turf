@@ -7425,3 +7425,72 @@ button.message-card:not(:disabled):hover {
 .new-email > .button {
   justify-self: start;
 }
+
+/* Bubbles drawn the way messengers draw them: tight padding, 14px text, the time small at the bottom right,
+   no name on your own messages, and a slim tinted quote whose accent strip is part of its rounded edge. */
+.message {
+  max-width: min(72%, 560px);
+  padding: 7px 12px 5px;
+  border-radius: 16px 16px 16px 6px;
+}
+.message.outgoing {
+  border-radius: 16px 16px 6px 16px;
+}
+.message p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.message > .message-from {
+  display: block;
+  margin: 0 0 2px;
+  color: var(--accent-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.message > .message-time {
+  display: block;
+  margin: 2px 0 0 16px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+}
+.message-history {
+  gap: 6px;
+}
+.message-quote {
+  position: relative;
+  display: grid;
+  gap: 0;
+  margin: 3px 0 5px;
+  padding: 4px 10px 5px 12px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #0000000a;
+  box-shadow: none;
+}
+.message-quote::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent-ink);
+}
+.message.outgoing .message-quote {
+  background: #80501512;
+  box-shadow: none;
+}
+.message-quote:hover,
+.message.outgoing .message-quote:hover {
+  background: #8050151f;
+}
+.message-quote strong {
+  font-size: 12px;
+}
+.message-quote span {
+  font-size: 13px;
+  opacity: 0.75;
+}
+.archive-entry .chip-count {
+  margin-left: auto;
+}

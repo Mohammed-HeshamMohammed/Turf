@@ -21,6 +21,7 @@ import {
   UsersThree,
   Archive,
   ArrowLeft,
+  ChatCircleDots,
   ArrowUUpLeft,
   ClosedCaptioning,
   PencilSimple,
@@ -1340,7 +1341,8 @@ export function Inbox() {
   const { state, dispatch, navigate, notify, route } = useCrm();
   const [channel, setChannel] = useState("All");
   const [query, setQuery] = useState("");
-  const [showArchived, setShowArchived] = useState(false);
+  // "all", or the Unread or Archived section opened from its row above the list.
+  const [section, setSection] = useState("all");
   const composerInput = useRef(null);
   const [selected, setSelected] = useState("");
   const [draft, setDraft] = useState("");
@@ -1358,10 +1360,11 @@ export function Inbox() {
   // Email lives in Mail; Inbox holds the chats.
   const all = visibleThreads(state).filter(thread => thread.channel !== "Email");
   const archivedCount = all.filter(thread => thread.archived).length;
-  // The list shows either the active conversations or the Archived section, never both, like a messenger.
-  const inView = all.filter(thread => Boolean(thread.archived) === showArchived);
-  const chips = state.role === "client" ? ["All", "Unread", "Partner"] : ["All", "Unread", "SMS", "Team", "Group", "Partner"];
-  const matchesChip = (thread, chip) => chip === "All" || (chip === "Unread" ? thread.unread : thread.channel === chip);
+  const unreadCount = all.filter(thread => thread.unread && !thread.archived).length;
+  // The list shows the active conversations, or the Unread or the Archived section, like a messenger.
+  const inView = all.filter(thread => (section === "archived" ? thread.archived : !thread.archived && (section !== "unread" || thread.unread)));
+  const chips = state.role === "client" ? ["All", "Partner"] : ["All", "SMS", "Team", "Group", "Partner"];
+  const matchesChip = (thread, chip) => chip === "All" || thread.channel === chip;
   const threads = inView.filter(thread => {
     if (!matchesChip(thread, channel)) return false;
     const person = leads.find(item => item.id === thread.leadId);
@@ -1422,25 +1425,34 @@ export function Inbox() {
                   }}
                 >
                   {chip === "Group" ? "Groups" : chip}
-                  {unread > 0 && chip !== "Unread" && <span className="chip-count">{unread}</span>}
+                  {unread > 0 && <span className="chip-count">{unread}</span>}
                 </button>
               );
             })}
           </div>
-          {showArchived ? (
-            <button type="button" className="archive-entry back" onClick={() => setShowArchived(false)}>
+          {section !== "all" ? (
+            <button type="button" className="archive-entry back" onClick={() => setSection("all")}>
               <ArrowLeft size={17} />
-              <strong>Archived</strong>
-              <small>Conversations you set aside</small>
+              <strong>{section === "unread" ? "Unread" : "Archived"}</strong>
+              <small>{section === "unread" ? "Conversations waiting on you" : "Conversations you set aside"}</small>
             </button>
           ) : (
-            archivedCount > 0 && (
-              <button type="button" className="archive-entry" onClick={() => setShowArchived(true)}>
-                <Archive size={17} />
-                <strong>Archived</strong>
-                <span className="chip-count quiet">{archivedCount}</span>
-              </button>
-            )
+            <>
+              {unreadCount > 0 && (
+                <button type="button" className="archive-entry" onClick={() => setSection("unread")}>
+                  <ChatCircleDots size={17} />
+                  <strong>Unread</strong>
+                  <span className="chip-count">{unreadCount}</span>
+                </button>
+              )}
+              {archivedCount > 0 && (
+                <button type="button" className="archive-entry" onClick={() => setSection("archived")}>
+                  <Archive size={17} />
+                  <strong>Archived</strong>
+                  <span className="chip-count quiet">{archivedCount}</span>
+                </button>
+              )}
+            </>
           )}
           <div className="thread-items">
             {threads.map(item => {
@@ -1487,7 +1499,9 @@ export function Inbox() {
             {!threads.length &&
               (query ? (
                 <Empty title="Nothing matches">Try another name, address or word.</Empty>
-              ) : showArchived ? (
+              ) : section === "unread" ? (
+                <Empty title="All caught up">Nothing is waiting on a reply.</Empty>
+              ) : section === "archived" ? (
                 <Empty title="Nothing archived">Archive a conversation to keep it out of the way without deleting it.</Empty>
               ) : (
                 <Empty title="No conversations here">Start a conversation with a lead or phone number.</Empty>
@@ -1507,6 +1521,16 @@ export function Inbox() {
                   </small>
                 </div>
                 <div className="conversation-actions">
+                  {!thread.unread && (
+                    <RoundButton
+                      icon={ChatCircleDots}
+                      label="Mark as unread"
+                      onClick={() => {
+                        dispatch({ type: "MARK_READ", id: thread.id, unread: true });
+                        notify("Marked as unread");
+                      }}
+                    />
+                  )}
                   <RoundButton
                     icon={thread.archived ? ArrowUUpLeft : Archive}
                     label={thread.archived ? "Unarchive conversation" : "Archive conversation"}

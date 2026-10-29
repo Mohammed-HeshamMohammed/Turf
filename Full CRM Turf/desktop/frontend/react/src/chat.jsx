@@ -298,9 +298,11 @@ export function ChatMessage({ message, index, thread, me, canAct, onReply, onRea
   const [reacting, setReacting] = useState(false);
   const quoted = Number.isInteger(message.replyTo) ? thread.messages[message.replyTo] : null;
   const votes = message.kind === "poll" ? message.poll.options.reduce((sum, option) => sum + option.votes.length, 0) : 0;
+  // Like any messenger: your own messages carry no name; others' do only where several people talk.
+  const showName = message.incoming && ["Team", "Group", "Partner"].includes(thread.channel);
   return (
     <div id={"message-" + thread.id + "-" + index} className={"message " + (message.incoming ? "incoming" : "outgoing") + (message.kind ? " kind-" + message.kind : "")}>
-      <small>{message.from}</small>
+      {showName && <small className="message-from">{message.from}</small>}
       {quoted && (
         <button type="button" className="message-quote" title="Show the message this answers" onClick={() => onJump(message.replyTo)}>
           <strong>{quoted.from}</strong>
@@ -365,8 +367,8 @@ export function ChatMessage({ message, index, thread, me, canAct, onReply, onRea
           ))}
         </div>
       )}
-      <span>
-        {message.at}
+      <span className="message-time">
+        {String(message.at).replace(/ · Demo$/, "")}
         {message.draft && " · Not sent"}
       </span>
       {canAct && (

@@ -560,7 +560,8 @@ export function reducer(state, action) {
       return { ...state, threads: state.threads.map(item => (item.id === action.id ? { ...item, archived: Boolean(action.archived) } : item)) };
     }
     case "MARK_READ":
-      return { ...state, threads: state.threads.map(item => (item.id === action.id ? { ...item, unread: false } : item)) };
+      // unread: true marks it unread again, as messengers allow, so it waits in Unread.
+      return { ...state, threads: state.threads.map(item => (item.id === action.id ? { ...item, unread: action.unread === true } : item)) };
     case "CONFLICT": {
       const pending = state.queue.find(item => item.actor === ROLES[state.role].person && item.kind !== "Communication draft");
       return {
