@@ -64,13 +64,16 @@ export function setApiBase(url) {
   remember("turf.api.url", url ? url.replace(/\/$/, "") : "");
 }
 
+/** A build setting with any spaces or line breaks a copy and paste left around it trimmed off. */
+const setting = value => String(value ?? "").trim();
+
 /** The Firebase web app this build signs in with (VITE_FIREBASE_*, docs/plans/firebase-auth.md), or none. */
-const FIREBASE = import.meta.env?.VITE_FIREBASE_API_KEY
+const FIREBASE = setting(import.meta.env?.VITE_FIREBASE_API_KEY)
   ? {
-      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
-      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-      appId: import.meta.env.VITE_FIREBASE_APP_ID,
+      apiKey: setting(import.meta.env?.VITE_FIREBASE_API_KEY),
+      authDomain: setting(import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN) || `${setting(import.meta.env?.VITE_FIREBASE_PROJECT_ID)}.firebaseapp.com`,
+      projectId: setting(import.meta.env?.VITE_FIREBASE_PROJECT_ID),
+      appId: setting(import.meta.env?.VITE_FIREBASE_APP_ID),
     }
   : null;
 
@@ -87,8 +90,8 @@ async function desktopSignIn() {
     stopWaiting = () => reject(Object.assign(new Error("Sign-in was cancelled."), { code: "cancelled" }));
   });
   const signedIn = invoke("google_sign_in", {
-    clientId: import.meta.env.VITE_GOOGLE_DESKTOP_CLIENT_ID || "",
-    clientSecret: import.meta.env.VITE_GOOGLE_DESKTOP_CLIENT_SECRET || "",
+    clientId: setting(import.meta.env?.VITE_GOOGLE_DESKTOP_CLIENT_ID),
+    clientSecret: setting(import.meta.env?.VITE_GOOGLE_DESKTOP_CLIENT_SECRET),
   });
   return Promise.race([signedIn, stopped]);
 }

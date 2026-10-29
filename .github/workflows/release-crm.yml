@@ -59,6 +59,13 @@ jobs:
       - name: The app's settings are set
         shell: bash
         run: |
+          # A value pasted into GitHub can carry a line break or spaces; they would end up inside the app (Google
+          # then refuses the client id). Every setting is used trimmed.
+          for name in VITE_TURF_API_URL VITE_FIREBASE_API_KEY VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_APP_ID VITE_FIREBASE_AUTH_DOMAIN VITE_GOOGLE_DESKTOP_CLIENT_ID VITE_GOOGLE_DESKTOP_CLIENT_SECRET; do
+            value=$(printf '%s' "${!name}" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+            printf -v "$name" '%s' "$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
           missing=""
           for name in VITE_TURF_API_URL VITE_FIREBASE_API_KEY VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_APP_ID; do
             [ -n "${!name}" ] || missing="$missing ${name#VITE_}"
