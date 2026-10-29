@@ -23,7 +23,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { CALL_OUTCOMES, DEAL_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
-import { callbackLabel, canEditLead, capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
+import { callbackLabel, canEditLead, dayLabel, capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { CallAssistant } from "./CallAssistant.jsx";
 import { CallTimer } from "./CallTimer.jsx";
@@ -775,7 +775,7 @@ export function Deals({ id }) {
                   <div>
                     <strong>{task.title}</strong>
                     <small>
-                      {task.date} · {task.time}
+                      {dayLabel(task.date)} · {task.time}
                     </small>
                   </div>
                 </div>
@@ -886,7 +886,7 @@ export function Deals({ id }) {
                       </button>
                       <div className="deal-card-amount">{money(deal.amount)}</div>
                       <small>
-                        <CalendarBlank size={13} /> {deal.closeDate}
+                        <CalendarBlank size={13} /> {dayLabel(deal.closeDate)}
                       </small>
                       <Person name={lead.assignee} />
                       <Select
@@ -1105,7 +1105,7 @@ export function Tasks({ create = false }) {
                 </div>
                 <Badge>{task.type}</Badge>
                 <span className="task-due">
-                  {task.date === TODAY ? "Today" : task.date}
+                  {dayLabel(task.date)}
                   <small>{task.time}</small>
                 </span>
                 <Status value={task.priority} />
@@ -1309,7 +1309,7 @@ export function Calendar() {
             </div>
           </div>
         </Card>
-        <Card className="agenda-card" title={selected === TODAY ? "Today, October 15" : selected} subtitle="The next steps on this day.">
+        <Card className="agenda-card" title={selected === TODAY ? "Today, October 15" : new Date(selected + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })} subtitle="The next steps on this day.">
           <div className="agenda-list">
             {tasks
               .filter(task => task.date === selected)

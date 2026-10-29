@@ -102,6 +102,11 @@ export function nextCall(lead, outcome, callbackAt) {
   if (!outcome.recallDays) return "";
   return addDays(TODAY, outcome.recallDays) + "T" + (lead.callback || "10:00");
 }
+/** "Today" or "Oct 16": a day the way every page shows it, never "2026-10-16". */
+export function dayLabel(date) {
+  if (!date || date === TODAY) return "Today";
+  return new Date(date + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
 /** "Today, 10:30", "Oct 16, 10:30", or "" when nothing is scheduled. */
 export function callbackLabel(date, time) {
   if (!time) return "";

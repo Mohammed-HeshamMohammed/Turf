@@ -1,7 +1,7 @@
 import { ArrowUpRight, ChatCircle, Phone, CheckCircle, Clock, Users, Handshake, ShieldCheck, Database, HardDrives, GearSix, Plus } from "@phosphor-icons/react";
 import { Suspense, lazy } from "react";
 import { ROLES, TODAY } from "./data.js";
-import { callbackLabel, capability, personalProfile, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
+import { callbackLabel, capability, dayLabel, personalProfile, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { Badge, Button, Card, Empty, LeadLink, RoundButton, Status, money, PageHeader, propertyFacts } from "./ui.jsx";
 
@@ -250,7 +250,7 @@ export function Dashboard() {
                   <div>
                     <strong>{task.title}</strong>
                     <small>
-                      {task.date}
+                      {dayLabel(task.date)}
                       {task.time ? " · " + task.time : ""}
                       {leadById[task.leadId] ? " · " + leadById[task.leadId].name : ""}
                     </small>
