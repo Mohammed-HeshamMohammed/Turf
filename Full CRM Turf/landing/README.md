@@ -5,7 +5,7 @@ The public site that sells Turf (Phase 1 of `docs/plans/service-architecture.md`
 | Folder | What | Stack |
 | --- | --- | --- |
 | `web/` | The site: Home, Features, Pricing, Why Turf, Security, Contact, Privacy, Terms | React + Vite, the app's design tokens. No secrets. |
-| `api/` | `POST /api/waitlist`, `POST /api/contact`, `GET /api/download` (no longer used by the site: the download is on invited people's dashboards), `GET /healthz` | Node 24+, no dependencies, its own SQLite file (`api/data/landing.db`, git-ignored) |
+| `api/` | `POST /api/waitlist`, `POST /api/contact`, `GET /healthz` | Node 24+, no dependencies, its own SQLite file (`api/data/landing.db`, git-ignored) |
 
 ## Accounts
 

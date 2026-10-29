@@ -24,6 +24,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 const (
@@ -354,7 +355,8 @@ func (p *proxy) clearCookie(w http.ResponseWriter) {
 
 // safeReturn keeps the place to go back to on this proxy: a path, never another site.
 func safeReturn(to string) string {
-	if !strings.HasPrefix(to, "/") || strings.HasPrefix(to, "//") || strings.HasPrefix(to, "/\\") || strings.HasPrefix(to, "/_turf/") {
+	// Browsers drop tabs and line breaks inside a URL, so a tab between two slashes would become "//evil.example".
+	if strings.IndexFunc(to, unicode.IsControl) >= 0 || strings.Contains(to, "\\") || !strings.HasPrefix(to, "/") || strings.HasPrefix(to, "//") || strings.HasPrefix(to, "/_turf/") {
 		return "/"
 	}
 	return to
