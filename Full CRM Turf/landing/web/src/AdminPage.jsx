@@ -161,8 +161,10 @@ function Person({ row, onChanged }) {
           </button>
         </td>
         <td data-label="Status">
-          <span className={`pill ${row.status}`}>{STATUS_TEXT[row.status]}</span>
-          {row.sign_in === "google" && <span className="signin-mark" title="Signs in with Google"><GoogleMark size={14} /></span>}
+          <span className="status-line">
+            <span className={`pill ${row.status}`}>{STATUS_TEXT[row.status]}</span>
+            {row.sign_in === "google" && <span className="signin-mark" title="Signs in with Google"><GoogleMark size={14} /></span>}
+          </span>
         </td>
         <td className="usage-cell" data-label="This month">
           <div>
@@ -245,7 +247,7 @@ function Invitations({ account }) {
       <div className="panel">
         <div className="table-head">
           <h2>People</h2>
-          <input type="search" placeholder="Search by name or email" aria-label="Search people" value={filter} onChange={e => setFilter(e.target.value)} />
+          <input type="search" placeholder="Search people" aria-label="Search people" value={filter} onChange={e => setFilter(e.target.value)} />
           <button type="button" className="button ghost small" onClick={load} aria-label="Refresh"><ArrowClockwise size={16} weight="bold" aria-hidden="true" /></button>
         </div>
         {rows.length === 0 ? (

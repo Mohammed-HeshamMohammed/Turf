@@ -125,6 +125,9 @@ export function Header({ route }) {
 }
 
 export function Footer() {
+  // Signed in, the footer's "Sign in" becomes the way back to the person's own page.
+  const signedIn = useSession().status === "signed_in";
+  const columns = footerLinks.map(col => ({ ...col, links: col.links.map(link => (signedIn && link[1] === "/signin" ? ["Your dashboard", "/dashboard"] : link)) }));
   return (
     <footer className="foot">
       <div className="foot-main">
@@ -132,7 +135,7 @@ export function Footer() {
           <a className="brand" href="/"><Logo />Caller Whale</a>
           <p>The CRM and dialer for property outreach. Works offline, on your desktop.</p>
         </div>
-        {footerLinks.map(col => (
+        {columns.map(col => (
           <nav key={col.title} aria-label={col.title}>
             <h3>{col.title}</h3>
             <ul>
