@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Buildings, Lock, ShieldCheck, SignIn, WifiSlash } from "@phosphor-icons/react";
+import { Lock, ShieldCheck, SignIn, UserCircleMinus, WifiSlash } from "@phosphor-icons/react";
 import { GoogleMark } from "./SignInMarks.jsx";
-import { api, apiBase, auth, invitationToken, organization, SERVER, setApiBase, setOrganization, stopDesktopSignIn } from "./remote/api.js";
+import { api, apiBase, auth, organization, SERVER, setApiBase, setOrganization, stopDesktopSignIn } from "./remote/api.js";
 import { MemoryVault, Vault } from "./remote/vault.js";
 import { inDesktopApp } from "./popout.js";
 import { Button, Card, Field } from "./ui.jsx";
@@ -9,8 +9,9 @@ import { Button, Card, Field } from "./ui.jsx";
 /**
  * Signs in with the auth service, opens the person's workspace on Turf's server, and unlocks this device's offline
  * copy, then hands the session to the app.
- * Steps: email and password (or Google) → a two-step code when auth asks → the workspace (a new trial, or an
- * invitation) → a two-step code when the role needs one → the offline passphrase.
+ * Steps: email and password (or Google) → a two-step code when auth asks → the workspace (only for the owner, admins and
+ * the people they invited; anyone else is told they are not invited) → a two-step code when the role needs one → the
+ * offline passphrase.
  */
 export function RemoteGate({ onReady, onLeave }) {
   const [step, setStep] = useState("checking");
@@ -18,11 +19,9 @@ export function RemoteGate({ onReady, onLeave }) {
   const [error, setError] = useState(() => new URLSearchParams(window.location.search).get("oauth_error") || "");
   const [busy, setBusy] = useState(false);
   const [me, setMe] = useState(null);
-  // Closed until the server says otherwise: then only an invitation opens a workspace.
-  const [signupOpen, setSignupOpen] = useState(false);
   const [enrolment, setEnrolment] = useState(null);
   const [recovery, setRecovery] = useState(null);
-  const [form, setForm] = useState({ email: "", password: "", code: "", passphrase: "", workspace: "", invitation: "" });
+  const [form, setForm] = useState({ email: "", password: "", code: "", passphrase: "" });
   const field = name => event => setForm({ ...form, [name]: event.target.value });
   const kind = inDesktopApp() ? "desktop" : "browser";
 
@@ -43,9 +42,10 @@ export function RemoteGate({ onReady, onLeave }) {
         setOrganization("");
       }
       if (!organizations.length) {
-        setSignupOpen(await api.signupOpen().catch(() => false));
         setMe(identity);
-        return setStep("workspace");
+        // Only Turf's owner and admins, and people they invited, get a workspace (the server decides): anyone else
+        // is told so, and nothing else is offered.
+        return setStep("notinvited");
       }
       // The organization this device used last, if the person is still in it; otherwise their first.
       const chosen = organizations.find(item => item.id === organization())?.id || organizations[0].id;
@@ -188,23 +188,6 @@ export function RemoteGate({ onReady, onLeave }) {
       else await check();
     });
   };
-  const startTrial = event => {
-    event.preventDefault();
-    attempt(async () => {
-      const opened = await api.startTrial(form.workspace.trim(), Intl.DateTimeFormat().resolvedOptions().timeZone);
-      setOrganization(opened.organization_id);
-      await check();
-    });
-  };
-  const join = event => {
-    event.preventDefault();
-    attempt(async () => {
-      const joined = await api.joinInvitation(invitationToken(form.invitation));
-      setOrganization(joined.organization_id);
-      setForm(current => ({ ...current, invitation: "" }));
-      await check();
-    });
-  };
   const switchAccount = () =>
     attempt(async () => {
       await auth.signOut();
@@ -233,14 +216,12 @@ export function RemoteGate({ onReady, onLeave }) {
   return (
     <div className="remote-gate">
       <Card
-        title={step === "unlock" ? "Keep an offline copy on this device?" : step === "workspace" ? "Open your workspace" : "Sign in to your Turf workspace"}
+        title={step === "unlock" ? "Keep an offline copy on this device?" : step === "notinvited" ? "You are not invited" : "Sign in to your Turf workspace"}
         subtitle={
           step === "unlock"
             ? "Records and pending changes are encrypted with a passphrase only you know."
-            : step === "workspace"
-              ? signupOpen
-                ? "Start a free trial, or join the team that invited you."
-                : "Turf is by invitation. This account has none: sign in with the email your invitation was sent to, or paste a workspace invitation link."
+            : step === "notinvited"
+              ? "Only the owner, admins and people they invite can use Turf."
               : "Your records stay on your organization's server."
         }
       >
@@ -333,27 +314,20 @@ export function RemoteGate({ onReady, onLeave }) {
             {signedInAs}
           </div>
         )}
-        {step === "workspace" && (
-          <div className="remote-step">
-            {signupOpen && (
-              <form onSubmit={startTrial}>
-                <Field label="Workspace name" help="Optional. You can change it later.">
-                  <input value={form.workspace} onChange={field("workspace")} placeholder={me?.user ? `${me.user.name}'s workspace` : ""} />
-                </Field>
-                <Button type="submit" variant="primary" icon={Buildings} disabled={busy}>
-                  Start my free trial
-                </Button>
-              </form>
-            )}
-            <form onSubmit={join}>
-              <Field label={signupOpen ? "Or join with an invitation" : "Your invitation"} help="Paste the invitation link from your email. No invitation? Ask your workspace owner.">
-                <input value={form.invitation} onChange={field("invitation")} required />
-              </Field>
-              <Button type="submit" disabled={busy}>
-                Join the team
+        {step === "notinvited" && (
+          <div className="remote-step" role="alert">
+            <p className="body-copy">
+              <UserCircleMinus size={18} /> <strong>{me?.user?.email}</strong> has not been invited. Ask your admin to invite this email address, then
+              sign in again. If you were invited with another address, sign in with that one.
+            </p>
+            <div className="row">
+              <Button variant="primary" disabled={busy} onClick={() => attempt(check)}>
+                Check again
               </Button>
-            </form>
-            {signedInAs}
+              <Button disabled={busy} onClick={switchAccount}>
+                Use another account
+              </Button>
+            </div>
           </div>
         )}
         {step === "enroll" && !recovery && (
