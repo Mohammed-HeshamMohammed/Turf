@@ -3,12 +3,12 @@ import { accountPages, pageMeta } from "./content.js";
 import { Footer, Header, InviteOnly, Waitlist } from "./components.jsx";
 import { Compare, Contact, Features, Home, Legal, NotFound, Pricing, Security, legalPages } from "./pages.jsx";
 import { Dashboard, SignIn, SignUp } from "./AccountPages.jsx";
-import { Admin } from "./AdminPage.jsx";
+import { Admin, GrafanaHandoff } from "./AdminPage.jsx";
 import { SessionProvider } from "./session.jsx";
 
 export const PAGE_PATHS = {
   "/": "home", "/features": "features", "/pricing": "pricing", "/compare": "compare", "/security": "security", "/contact": "contact", "/privacy": "privacy",
-  "/terms": "terms", "/signin": "signin", "/signup": "signup", "/dashboard": "dashboard", "/admin": "admin",
+  "/terms": "terms", "/signin": "signin", "/signup": "signup", "/dashboard": "dashboard", "/admin": "admin", "/admin/grafana": "grafana",
 };
 
 /** "/pricing/" and "/pricing" are the same page; an unknown path is the not-found page. */
@@ -92,6 +92,7 @@ export function App({ path = typeof window === "undefined" ? "/" : window.locati
     signup: <SignUp />,
     dashboard: <Dashboard />,
     admin: <Admin />,
+    grafana: <GrafanaHandoff />,
   }[page];
   const marketing = !legalPages.includes(page) && !accountPages.includes(page) && page !== "notfound";
   return (

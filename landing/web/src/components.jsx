@@ -78,7 +78,7 @@ export function Shot({ file, alt, eager, tilt }) {
   return (
     <figure className={`shot ${tilt ? "tilt" : ""}`}>
       <div className="bar" aria-hidden="true"><i /><i /><i /></div>
-      <img src={`/screens/${file}.webp`} width="1440" height="900" alt={alt} decoding="async" />
+      <img src={`/screens/${file}.webp`} width="1440" height="900" alt={alt} decoding="async" loading={eager ? "eager" : "lazy"} fetchPriority={eager ? "high" : undefined} />
     </figure>
   );
 }

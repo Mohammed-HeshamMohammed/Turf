@@ -415,7 +415,7 @@ export function Contact() {
   return (
     <>
       <PageHead eyebrow="Contact" title="Questions? Ask us." lead="We read every message and reply by email." />
-      <section className="section">
+      <section className="section contact">
         <ContactForm />
       </section>
       <Faq />

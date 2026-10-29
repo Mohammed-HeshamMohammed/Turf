@@ -392,3 +392,26 @@ code.key {
     flex: 1;
   }
 }
+
+/* People: the whole row opens the person, with a hover and an open state. The row's own layout is unchanged. */
+.people tbody tr:not(.detail) {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.people tbody tr:not(.detail):hover,
+.people tbody tr.open {
+  background: var(--card);
+}
+.people .figure,
+.stat strong {
+  font-variant-numeric: tabular-nums;
+}
+.people .person:focus-visible {
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .people tbody tr:not(.detail) {
+    transition: none;
+  }
+}

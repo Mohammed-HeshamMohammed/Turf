@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { ArrowClockwise, PaperPlaneTilt, ShieldCheck, UserPlus } from "@phosphor-icons/react";
 import { DayChart, DownloadButton, Gate, GoogleMark, Meter, Problem, RecentUsage, dateText, go, number, timeText } from "./AccountPages.jsx";
-import { loadAuth, request } from "./session.jsx";
+import { NotFound } from "./pages.jsx";
+import { grafanaUrl, hinted, loadAuth, request, useSession } from "./session.jsx";
 
 // Caller Whale's staff: invite people to the desktop app with a monthly credit limit, see who registered and what they used,
 // change limits, suspend and reactivate. Everything comes from Caller Whale's server, which refuses anyone who is not staff,
@@ -152,9 +153,9 @@ function Person({ row, onChanged }) {
   };
   return (
     <>
-      <tr className={row.status}>
+      <tr className={`${row.status}${open ? " open" : ""}`} onClick={toggle}>
         <td>
-          <button type="button" className="text-button person" onClick={toggle} aria-expanded={open}>
+          <button type="button" className="text-button person" aria-expanded={open}>
             <strong>{row.name || row.email}</strong>
             {row.name && <span>{row.email}</span>}
           </button>
@@ -271,31 +272,97 @@ function Invitations({ account }) {
   );
 }
 
+/**
+ * The admin pages do not exist for anyone but staff: a visitor, a signed-out person or a customer sees the same
+ * "not found" page as for any other address. Staff sign in at /signin and arrive here.
+ */
 export function Admin() {
+  const session = useSession();
+  if (session.status === "unknown") return null;
+  if (session.status === "signed_in" && !session.account.staff) return <NotFound />;
+  if (session.status === "signed_out") return <NotFound />;
+  // The server not answering must not give the page away to someone who never signed in on this device.
+  if (session.status === "error" && !hinted()) return <NotFound />;
   return (
     <Gate>
-      {session => {
-        if (!session.account.staff) {
-          return (
-            <section className="section account">
-              <div className="panel">
-                <h1>Staff only</h1>
-                <p className="sub">This page is for Caller Whale's staff.</p>
-                <a className="button" href="/dashboard">Go to your dashboard</a>
-              </div>
-            </section>
-          );
-        }
+      {({ account }) => {
+        if (!account.staff) return <NotFound />;
         return (
           <section className="section account wide">
             <div className="account-head">
               <h1>Admin</h1>
-              <p className="sub">Signed in as {session.account.person.email} ({session.account.staff.role === "owner" ? "platform owner" : "system administrator"}).</p>
+              <p className="sub">Signed in as {account.person.email} ({account.staff.role === "owner" ? "platform owner" : "system administrator"}).</p>
+              <div className="actions">
+                <a className="button" href="/admin/grafana?return=%2F">Open Grafana</a>
+              </div>
             </div>
-            <Invitations account={session.account} />
+            <Invitations account={account} />
           </section>
         );
       }}
     </Gate>
+  );
+}
+
+/**
+ * Hands a member of staff over to Grafana: posts their token to the Grafana login proxy, which asks Turf's server
+ * whether they are staff and opens its own session (docs/plans/grafana-access.md). A form post, so the token is never
+ * in a URL. The proxy sends people here when they have no session, with the page to go back to in `return`.
+ */
+export function GrafanaHandoff() {
+  const session = useSession();
+  const [form, setForm] = useState(null);
+  const [error, setError] = useState("");
+  const staff = session.status === "signed_in" && session.account.staff;
+
+  useEffect(() => {
+    if (session.status === "signed_out") {
+      go(`/signin?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+      return;
+    }
+    if (!staff) return;
+    let live = true;
+    loadAuth()
+      .then(async auth => {
+        if (!grafanaUrl) throw new Error("Grafana is not set up on this server.");
+        const token = await auth.accessToken();
+        if (!token) throw new Error("Sign in again to open Grafana.");
+        const back = new URLSearchParams(window.location.search).get("return") || "/";
+        if (live) setForm({ action: `${grafanaUrl}/_turf/session`, token, back: back.startsWith("/") && !back.startsWith("//") ? back : "/" });
+      })
+      .catch(reason => live && setError(reason.message));
+    return () => {
+      live = false;
+    };
+  }, [session.status, staff]);
+
+  const formRef = useCallback(node => {
+    if (!node) return;
+    // The proxy takes a sign-in only from this site's origin, and a cross-site post would say its origin is "null"
+    // under this site's referrer policy, so this page says its origin (and nothing more) just before it leaves.
+    const meta = document.createElement("meta");
+    meta.name = "referrer";
+    meta.content = "strict-origin";
+    document.head.append(meta);
+    // Back from Grafana lands on the admin page, not on this one again.
+    window.history.replaceState({}, "", "/admin");
+    node.submit();
+  }, []);
+
+  if (session.status === "signed_in" && !staff) return <NotFound />;
+  if (error) return <section className="section account"><div className="panel"><p className="notice bad" role="alert">{error}</p><a className="button" href="/admin">Back to admin</a></div></section>;
+  return (
+    <section className="section account">
+      <div className="panel">
+        <h1>Opening Grafana</h1>
+        <p className="sub">Checking your access…</p>
+        {form && (
+          <form ref={formRef} method="post" action={form.action}>
+            <input type="hidden" name="token" value={form.token} />
+            <input type="hidden" name="return" value={form.back} />
+          </form>
+        )}
+      </div>
+    </section>
   );
 }
