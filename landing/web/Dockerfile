@@ -6,13 +6,17 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
-# Read by the build: SITE_URL turns on canonical links and sitemap.xml (scripts/prerender.mjs), VITE_TURF_SIGNUP_URL
-# shows the header's "Sign in" link. Coolify passes its build-time settings as build arguments.
+# Read by the build: SITE_URL turns on canonical links and sitemap.xml (scripts/prerender.mjs); VITE_TURF_API_URL is
+# Turf's server (the core API), where people sign in and the dashboards get their data. Coolify passes its build-time
+# settings as build arguments.
 ARG SITE_URL=""
-ARG VITE_TURF_SIGNUP_URL=""
-RUN SITE_URL="$SITE_URL" VITE_TURF_SIGNUP_URL="$VITE_TURF_SIGNUP_URL" npm run build
+ARG VITE_TURF_API_URL="https://app.callerwhale.com"
+RUN SITE_URL="$SITE_URL" VITE_TURF_API_URL="$VITE_TURF_API_URL" npm run build
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# The image fills the template in when it starts: the Firebase project's sign-in host, and Turf's server's origin for
+# the content security policy. Override them in the container's environment.
+ENV FIREBASE_AUTH_HOST="project-34ff1df6-b240-40d4-be2.firebaseapp.com" API_ORIGIN="https://app.callerwhale.com" NGINX_ENVSUBST_FILTER="^(FIREBASE_AUTH_HOST|API_ORIGIN)$"
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080

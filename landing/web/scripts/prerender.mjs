@@ -17,7 +17,10 @@ const template = readFileSync(join(dist, "index.html"), "utf8");
 const PAGES = [
   ["/", "home"], ["/features", "features"], ["/pricing", "pricing"], ["/compare", "compare"],
   ["/security", "security"], ["/contact", "contact"], ["/privacy", "privacy"], ["/terms", "terms"],
+  ["/signin", "signin"], ["/signup", "signup"], ["/dashboard", "dashboard"], ["/admin", "admin"],
 ];
+// A signed-in person's pages: never indexed, never in the sitemap.
+const PRIVATE = ["signin", "signup", "dashboard", "admin"];
 const esc = s => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
 function page(path, key) {
@@ -27,8 +30,8 @@ function page(path, key) {
     .replace(/(<meta\s+name="description"\s+content=")[^"]*(")/s, `$1${esc(description)}$2`)
     .replace(/(<meta\s+property="og:title"\s+content=")[^"]*(")/s, `$1${esc(title)}$2`)
     .replace('<div id="root"></div>', `<div id="root">${render(path)}</div>`);
-  if (key === "notfound") html = html.replace("</head>", '    <meta name="robots" content="noindex" />\n  </head>');
-  if (site && key !== "notfound") {
+  if (key === "notfound" || PRIVATE.includes(key)) html = html.replace("</head>", '    <meta name="robots" content="noindex" />\n  </head>');
+  if (site && key !== "notfound" && !PRIVATE.includes(key)) {
     const url = site + (path === "/" ? "/" : path);
     html = html.replace("</head>", `    <link rel="canonical" href="${url}" />\n    <meta property="og:url" content="${url}" />\n  </head>`);
   }
@@ -45,7 +48,7 @@ for (const [path, key] of PAGES) write(path, page(path, key));
 writeFileSync(join(dist, "404.html"), page("/404", "notfound"));
 
 if (site) {
-  const urls = PAGES.filter(([, key]) => key !== "privacy" && key !== "terms")
+  const urls = PAGES.filter(([, key]) => key !== "privacy" && key !== "terms" && !PRIVATE.includes(key))
     .map(([path]) => `  <url><loc>${site}${path}</loc></url>`)
     .join("\n");
   writeFileSync(join(dist, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
