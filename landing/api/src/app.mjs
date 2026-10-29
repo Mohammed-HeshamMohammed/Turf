@@ -73,7 +73,6 @@ export function createApp({ store, release, origins = [], now = Date.now }) {
         return res.end();
       }
       if (req.method === "GET" && url.pathname === "/healthz") return send(res, 200, { ok: true }, req);
-      if (req.method === "GET" && url.pathname === "/api/download") return send(res, 200, await release(), req);
 
       if (req.method === "POST" && (url.pathname === "/api/waitlist" || url.pathname === "/api/contact")) {
         if (!allowWrite(req.socket.remoteAddress || "unknown")) {

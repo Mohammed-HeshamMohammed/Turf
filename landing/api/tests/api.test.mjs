@@ -47,11 +47,6 @@ test("a contact message needs text", async () => {
   assert.equal((await post("/api/contact", { email: "a@example.com", message: "Call me back please" })).status, 200);
 });
 
-test("download answers with the release the function gives", async () => {
-  release = async () => ({ available: true, version: "0.1.0" });
-  assert.deepEqual(await (await fetch(base + "/api/download")).json(), { available: true, version: "0.1.0" });
-});
-
 test("only listed origins get CORS", async () => {
   const ok = await fetch(base + "/healthz", { headers: { origin: "http://localhost:5200" } });
   assert.equal(ok.headers.get("access-control-allow-origin"), "http://localhost:5200");
