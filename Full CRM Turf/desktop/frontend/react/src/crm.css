@@ -2417,7 +2417,7 @@ textarea {
 }
 .inbox-layout {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: clamp(340px, 29vw, 380px) minmax(0, 1fr);
   gap: 16px;
 }
 /* The list: search, channel filter, then conversations, each one line of who and when, a preview and where. */
@@ -7493,4 +7493,22 @@ button.message-card:not(:disabled):hover {
 }
 .archive-entry .chip-count {
   margin-left: auto;
+}
+/* The channel chips stay on one row; the list is wide enough for all of them with their unread counts. */
+.thread-chips {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.thread-chips button {
+  flex: none;
+}
+@media (max-width: 720px) {
+  .thread-chips {
+    gap: 4px;
+  }
+  .thread-chips button {
+    gap: 4px;
+    padding: 0 9px;
+  }
 }
