@@ -136,3 +136,12 @@ test("archiving moves a conversation aside and back, only for people who can see
   const hidden = client.threads.find(item => !visibleThreads(client).some(seen => seen.id === item.id));
   assert.equal(reducer(client, { type: "ARCHIVE", id: hidden.id, archived: true }), client);
 });
+
+test("an email reply keeps its To, Cc and Subject, and a bad address is refused", () => {
+  let state = seedState();
+  const email = visibleThreads(state).find(item => item.channel === "Email");
+  const fields = { to: "patricia.flores@example.com", cc: "alex.rivera@oakpalm.example; ", subject: "Re: Your property on Baywood Drive" };
+  state = reducer(state, { type: "MESSAGE", id: email.id, text: "Early November works for us.", email: fields });
+  assert.deepEqual(visibleThreads(state).find(item => item.id === email.id).messages.at(-1).email, { to: ["patricia.flores@example.com"], cc: ["alex.rivera@oakpalm.example"], subject: "Re: Your property on Baywood Drive" });
+  assert.equal(reducer(state, { type: "MESSAGE", id: email.id, text: "Hi", email: { ...fields, to: "not an address" } }), state);
+});

@@ -7070,3 +7070,324 @@ button.message-card:not(:disabled):hover {
 .thread-row .thread-meta {
   padding-right: 34px;
 }
+
+/* Replies, Telegram-style: the quote is a rounded inset with an accent bar and the sender's name in the accent ink,
+   and opens the answered message; while replying, the bar is the top of the message box itself. */
+.message-quote {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  margin: 2px 0 8px;
+  padding: 7px 10px 7px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #0000000d;
+  box-shadow: inset 3px 0 0 var(--accent);
+  text-align: left;
+  font-size: 12px;
+  cursor: pointer;
+}
+.message.outgoing .message-quote {
+  background: #ffffff8c;
+  box-shadow: inset 3px 0 0 var(--accent-ink);
+}
+.message-quote:hover {
+  background: #00000014;
+}
+.message.outgoing .message-quote:hover {
+  background: #ffffffbf;
+}
+.message-quote strong {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.message-quote span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  opacity: 0.8;
+}
+.message.flash {
+  animation: message-flash 1.2s ease-out;
+}
+@keyframes message-flash {
+  0%,
+  35% {
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+.composer > .reply-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 10px 6px 16px;
+  border: 0;
+  border-radius: 24px 24px 0 0;
+  background: var(--well);
+  font-size: 12px;
+  animation: page-in 140ms var(--ease-out);
+}
+.composer > .reply-bar > svg {
+  flex: none;
+  color: var(--accent-ink);
+}
+.composer > .reply-bar > span {
+  display: grid;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+  padding-left: 10px;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.composer > .reply-bar strong {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.composer > .reply-bar + .composer-row {
+  border-radius: 0 0 24px 24px;
+  padding-top: 2px;
+}
+.composer > .reply-bar > button {
+  flex: none;
+}
+.composer > .reply-bar > button:hover {
+  background: var(--card);
+}
+
+/* Email threads: a subject, one card per message, older ones folded to a line, and a compose card. */
+.email-thread {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 12px;
+  padding-top: 8px;
+}
+.email-subject {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.email-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.email-card {
+  border-radius: 18px;
+  background: var(--well);
+}
+.email-card.open {
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.email-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  text-align: left;
+  cursor: pointer;
+}
+.email-initials {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.email-who {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.email-who strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.email-who small {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 10px;
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.email-who small.email-snippet {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.email-card-head time {
+  flex: none;
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.email-caret {
+  flex: none;
+  color: var(--muted, #6b6b6b);
+  transition: transform 160ms;
+}
+.email-card.open .email-caret {
+  transform: rotate(180deg);
+}
+.email-body {
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 16px 62px;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.email-body p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.email-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--well);
+  font-size: 12px;
+}
+.email-draft {
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.email-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 4px;
+}
+.email-compose {
+  display: grid;
+  gap: 0;
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line), 0 6px 18px #0000000f;
+  overflow: hidden;
+  animation: page-in 160ms var(--ease-out);
+}
+.email-compose label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+.email-compose label > span {
+  flex: none;
+  width: 56px;
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.email-compose label input {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+}
+.email-compose label input:focus-visible,
+.email-compose textarea:focus-visible {
+  outline: none;
+}
+.email-compose:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--accent), 0 6px 18px #0000000f;
+}
+.email-compose textarea {
+  min-height: 150px;
+  max-height: 320px;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  resize: vertical;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.email-compose-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 12px 16px;
+}
+.email-compose-actions small {
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.email-discard {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-left: auto;
+  border-radius: 50%;
+  color: var(--muted, #6b6b6b);
+}
+.email-discard:hover {
+  background: var(--well);
+  color: var(--ink);
+}
+@media (max-width: 720px) {
+  .email-body {
+    padding-left: 16px;
+  }
+  .email-compose-actions small {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .message.flash,
+  .composer > .reply-bar,
+  .email-compose {
+    animation: none;
+  }
+  .email-caret {
+    transition: none;
+  }
+}
+/* The compose card keeps its height and its Send button in view; the messages above it scroll. */
+.email-list {
+  flex: 1;
+}
+.email-compose {
+  flex: none;
+}
+.email-compose textarea {
+  min-height: 96px;
+  max-height: 220px;
+}
+@media (max-width: 720px) {
+  /* Each address on its own line, shortened with "…" rather than broken mid-word. */
+  .email-who small {
+    display: grid;
+  }
+  .email-who small > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .email-card-head {
+    align-items: flex-start;
+    padding: 12px;
+  }
+}

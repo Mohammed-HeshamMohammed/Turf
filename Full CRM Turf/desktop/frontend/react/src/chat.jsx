@@ -294,18 +294,18 @@ export function MentionPicker({ draft, onPick }) {
 }
 
 /** One message: who, the reply it answers, what it carries, its reactions, and its reply and react actions. */
-export function ChatMessage({ message, index, thread, me, canAct, onReply, onReact, onVote, onOpenLead }) {
+export function ChatMessage({ message, index, thread, me, canAct, onReply, onReact, onVote, onOpenLead, onJump }) {
   const [reacting, setReacting] = useState(false);
   const quoted = Number.isInteger(message.replyTo) ? thread.messages[message.replyTo] : null;
   const votes = message.kind === "poll" ? message.poll.options.reduce((sum, option) => sum + option.votes.length, 0) : 0;
   return (
-    <div className={"message " + (message.incoming ? "incoming" : "outgoing") + (message.kind ? " kind-" + message.kind : "")}>
+    <div id={"message-" + thread.id + "-" + index} className={"message " + (message.incoming ? "incoming" : "outgoing") + (message.kind ? " kind-" + message.kind : "")}>
       <small>{message.from}</small>
       {quoted && (
-        <blockquote className="message-quote">
+        <button type="button" className="message-quote" title="Show the message this answers" onClick={() => onJump(message.replyTo)}>
           <strong>{quoted.from}</strong>
           <span>{messagePreview(quoted)}</span>
-        </blockquote>
+        </button>
       )}
       {message.kind === "gif" && <img className="message-gif" src={message.gif.url} alt={message.gif.title} loading="lazy" width={message.gif.width || undefined} height={message.gif.height || undefined} />}
       {message.kind === "photo" && message.file.src && <img className="message-photo" src={message.file.src} alt={message.file.name} loading="lazy" />}
@@ -403,10 +403,10 @@ export function ChatMessage({ message, index, thread, me, canAct, onReply, onRea
 /** The line above the composer while answering a message. */
 export function ReplyBar({ message, onCancel }) {
   return (
-    <div className="reply-bar">
-      <ArrowBendUpLeft size={16} />
+    <div className="reply-bar" role="status">
+      <ArrowBendUpLeft size={18} />
       <span>
-        <strong>Replying to {message.from}</strong>
+        <strong>Reply to {message.from}</strong>
         <small>{messagePreview(message)}</small>
       </span>
       <button type="button" aria-label="Cancel reply" onClick={onCancel}>

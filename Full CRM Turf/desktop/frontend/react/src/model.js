@@ -109,6 +109,16 @@ export function attachmentFor(thread, attach) {
       return null;
   }
 }
+const ADDRESS = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
+const addresses = value => String(value || "").split(/[,;]/).map(item => item.trim()).filter(Boolean);
+/** To, Cc and Subject of an email reply or forward: every address must look like one, To needs at least one. */
+export function emailFields(fields) {
+  if (!fields) return null;
+  const to = addresses(fields.to);
+  const cc = addresses(fields.cc);
+  if (!to.length || ![...to, ...cc].every(item => ADDRESS.test(item)) || to.length + cc.length > 20) return null;
+  return { to, cc, subject: text(fields.subject, 200) };
+}
 /** The one line a conversation shows in the list for its latest message. */
 export function messagePreview(message) {
   const label = { gif: "GIF", photo: "Photo", file: "File: " + message.file?.name, location: "Location", contact: "Contact: " + message.contact?.name, poll: "Poll: " + message.poll?.question }[message.kind];
@@ -452,6 +462,8 @@ export function reducer(state, action) {
         return state;
       if (state.role === "client" && !thread.shared) return state;
       const replyTo = Number.isInteger(action.replyTo) && thread.messages[action.replyTo] ? action.replyTo : undefined;
+      const email = thread.channel === "Email" ? emailFields(action.email) : null;
+      if (thread.channel === "Email" && action.email && !email) return state;
       const message = {
         from: ROLES[state.role].person,
         text: String(action.text || "").trim(),
@@ -460,11 +472,21 @@ export function reducer(state, action) {
         draft: !state.online,
         ...(attach || {}),
         ...(replyTo === undefined ? {} : { replyTo }),
+        ...(email ? { email } : {}),
       };
       return {
         ...state,
         threads: state.threads.map(item =>
-          item.id === thread.id ? { ...item, unread: false, preview: messagePreview(message), messages: [...item.messages, message] } : item,
+          item.id === thread.id
+            ? {
+                ...item,
+                unread: false,
+                preview: messagePreview(message),
+                messages: [...item.messages, message],
+                // An email thread keeps one subject; the first reply supplies it when the thread had none.
+                ...(email?.subject && !item.subject ? { subject: email.subject.replace(/^(re|fwd?):\s*/i, "") } : {}),
+              }
+            : item,
         ),
         queue: queued(state, thread.leadId, "Draft message for " + (state.leads.find(item => item.id === thread.leadId)?.name || thread.phone), "Communication draft"),
       };

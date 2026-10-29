@@ -326,6 +326,7 @@ export function seedState() {
         id: "m02",
         leadId: "l03",
         channel: "Email",
+        subject: "Your property on Baywood Drive",
         preview: "Re: Your property on Baywood Drive",
         unread: false,
         messages: [

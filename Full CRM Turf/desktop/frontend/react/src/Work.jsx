@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { PropertyMap } from "./PropertyMap.jsx";
+import { EmailThread, subjectOf } from "./email.jsx";
 import { AttachMenu, ChatMessage, ExpressionPanel, MentionPicker, PollDialog, ReplyBar } from "./chat.jsx";
 import {
   Phone,
@@ -1341,6 +1342,7 @@ export function Inbox() {
   const [channel, setChannel] = useState("All");
   const [query, setQuery] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  const composerInput = useRef(null);
   const [selected, setSelected] = useState("");
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState(null);
@@ -1463,7 +1465,7 @@ export function Inbox() {
                     <strong>{item.title || person?.name || item.phone}</strong>
                     <time>{item.messages.at(-1)?.at}</time>
                   </span>
-                  <span className="thread-preview">{item.preview}</span>
+                  <span className="thread-preview">{item.channel === "Email" ? subjectOf(item) : item.preview}</span>
                   <span className="thread-meta">
                     {item.channel} · {item.channel === "Group" ? item.members.length + " members" : person?.address || "Phone number"}
                   </span>
@@ -1501,6 +1503,7 @@ export function Inbox() {
                   <small>
                     <Badge>{thread.channel}</Badge>
                     {thread.channel === "SMS" && (lead?.phone || thread.phone) ? <span>{lead?.phone || thread.phone}</span> : null}
+                    {thread.channel === "Email" && lead?.email ? <span>{lead.email}</span> : null}
                     <span>{thread.channel === "Group" ? thread.members.join(", ") : lead?.address || "Phone number"}</span>
                   </small>
                 </div>
@@ -1513,6 +1516,20 @@ export function Inbox() {
                   {lead && <RoundButton label="Open conversation lead" onClick={() => navigate("work/leads/" + lead.id)} />}
                 </div>
               </header>
+              {thread.channel === "Email" ? (
+                <EmailThread
+                  thread={thread}
+                  lead={lead}
+                  me={me}
+                  canMessage={canMessage}
+                  online={state.online}
+                  onSend={({ text, email }) => {
+                    dispatch({ type: "MESSAGE", id: thread.id, text, email });
+                    notify(state.online ? "Demo email added — nothing was sent externally" : "Email draft saved offline");
+                  }}
+                />
+              ) : (
+              <>
               <div className="message-history">
                 {thread.messages.map((message, index) => (
                   <ChatMessage
@@ -1522,7 +1539,18 @@ export function Inbox() {
                     thread={thread}
                     me={me}
                     canAct={canMessage}
-                    onReply={setReplyTo}
+                    onReply={i => {
+                      setReplyTo(i);
+                      composerInput.current?.focus();
+                    }}
+                    onJump={i => {
+                      // Bring the answered message into view and mark it for a moment.
+                      const target = document.getElementById("message-" + thread.id + "-" + i);
+                      target?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+                      target?.classList.remove("flash");
+                      void target?.offsetWidth;
+                      target?.classList.add("flash");
+                    }}
                     onReact={emoji => dispatch({ type: "REACT", id: thread.id, index, emoji })}
                     onVote={option => dispatch({ type: "VOTE", id: thread.id, index, option })}
                     onOpenLead={leadId => navigate("work/leads/" + leadId)}
@@ -1537,11 +1565,12 @@ export function Inbox() {
                     send();
                   }}
                 >
-                  {replyTo !== null && thread.messages[replyTo] && <ReplyBar message={thread.messages[replyTo]} onCancel={() => setReplyTo(null)} />}
                   {["Team", "Group"].includes(thread.channel) && <MentionPicker draft={draft} onPick={setDraft} />}
+                  {replyTo !== null && thread.messages[replyTo] && <ReplyBar message={thread.messages[replyTo]} onCancel={() => setReplyTo(null)} />}
                   <div className="composer-row">
                     <AttachMenu thread={thread} lead={lead} leads={leads} onAttach={attach => send(attach)} onPoll={() => setPolling(true)} />
                     <textarea
+                      ref={composerInput}
                       aria-label="Message text"
                       value={draft}
                       rows={1}
@@ -1562,6 +1591,8 @@ export function Inbox() {
                 </form>
               )}
               {polling && <PollDialog onSend={attach => send(attach)} onClose={() => setPolling(false)} />}
+              </>
+              )}
             </>
           ) : (
             <Empty title="A conversation belongs here">Choose a thread or start a new one.</Empty>
