@@ -5,6 +5,7 @@ import { App } from "./App.jsx";
 import "./landing.css";
 import "./pages.css";
 import "./builder.css";
+import "./account.css";
 
 // Scroll reveals hide their content only once scripts run, so the prerendered page is readable without them.
 document.documentElement.classList.add("js");

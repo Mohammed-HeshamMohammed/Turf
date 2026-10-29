@@ -106,6 +106,16 @@ pub fn config(redis: bool) -> Option<Config> {
         firebase_app_id: String::new(),
         firebase_providers: vec![],
         grafana_url: String::new(),
+        staff_mfa: true,
+        website_url: "https://turf.example".into(),
+        smtp_host: String::new(),
+        smtp_port: 587,
+        smtp_user: String::new(),
+        smtp_password: String::new(),
+        mail_from: "Turf <no-reply@turf.example>".into(),
+        release_repo: String::new(),
+        release_tag_prefix: "crm-v".into(),
+        github_token: String::new(),
     })
 }
 
@@ -270,6 +280,10 @@ impl Client {
 
     pub async fn patch(&self, path: &str, body: Value) -> Reply {
         Self::reply(self.with_auth(self.http.patch(format!("{}{path}", self.base))).json(&body).send().await.unwrap()).await
+    }
+
+    pub async fn delete(&self, path: &str) -> Reply {
+        Self::reply(self.with_auth(self.http.delete(format!("{}{path}", self.base))).send().await.unwrap()).await
     }
 
     pub async fn get(&self, path: &str) -> Reply {

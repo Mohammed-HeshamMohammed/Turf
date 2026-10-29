@@ -8,6 +8,7 @@ pub mod config;
 pub mod db;
 pub mod error;
 pub mod events;
+pub mod mail;
 pub mod ops;
 pub mod outcomes;
 pub mod record;

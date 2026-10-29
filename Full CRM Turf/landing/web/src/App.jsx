@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { pageMeta } from "./content.js";
-import { Download, Footer, Header, Waitlist } from "./components.jsx";
+import { accountPages, pageMeta } from "./content.js";
+import { Footer, Header, InviteOnly, Waitlist } from "./components.jsx";
 import { Compare, Contact, Features, Home, Legal, NotFound, Pricing, Security, legalPages } from "./pages.jsx";
+import { Dashboard, SignIn, SignUp } from "./AccountPages.jsx";
+import { Admin } from "./AdminPage.jsx";
+import { SessionProvider } from "./session.jsx";
 
-export const PAGE_PATHS = { "/": "home", "/features": "features", "/pricing": "pricing", "/compare": "compare", "/security": "security", "/contact": "contact", "/privacy": "privacy", "/terms": "terms" };
+export const PAGE_PATHS = {
+  "/": "home", "/features": "features", "/pricing": "pricing", "/compare": "compare", "/security": "security", "/contact": "contact", "/privacy": "privacy",
+  "/terms": "terms", "/signin": "signin", "/signup": "signup", "/dashboard": "dashboard", "/admin": "admin",
+};
 
 /** "/pricing/" and "/pricing" are the same page; an unknown path is the not-found page. */
 export const pageFor = pathname => PAGE_PATHS[pathname.replace(/(.)\/+$/, "$1")] || "notfound";
@@ -82,17 +88,22 @@ export function App({ path = typeof window === "undefined" ? "/" : window.locati
     privacy: <Legal page="privacy" />,
     terms: <Legal page="terms" />,
     notfound: <NotFound />,
+    signin: <SignIn />,
+    signup: <SignUp />,
+    dashboard: <Dashboard />,
+    admin: <Admin />,
   }[page];
+  const marketing = !legalPages.includes(page) && !accountPages.includes(page) && page !== "notfound";
   return (
-    <>
+    <SessionProvider>
       <a className="skip-link" href="#main">Skip to content</a>
       <Header route={page} />
       <main id="main" tabIndex={-1}>
         {body}
-        {!legalPages.includes(page) && page !== "notfound" && <Download />}
-        {!legalPages.includes(page) && page !== "notfound" && <Waitlist tier={choice.tier} plan={choice.plan} setTier={onPick} />}
+        {marketing && <InviteOnly />}
+        {marketing && <Waitlist tier={choice.tier} plan={choice.plan} setTier={onPick} />}
       </main>
       <Footer />
-    </>
+    </SessionProvider>
   );
 }

@@ -4,7 +4,8 @@ import {
   ListChecks, LockKey, MagnifyingGlass, MapTrifold, Phone, ShieldCheck, Sparkle, UploadSimple, Users, WifiSlash,
 } from "@phosphor-icons/react";
 import { STATUS, faqs, footerLinks, tiers } from "./content.js";
-import { getDownload, joinWaitlist, sendMessage } from "./api.js";
+import { joinWaitlist, sendMessage } from "./api.js";
+import { useSession } from "./session.jsx";
 
 /** Google's own mark in its own colours, where the site talks about signing in with Google. */
 const GoogleLogo = ({ size }) => (
@@ -25,8 +26,6 @@ export const Icon = ({ name, size = 22 }) => {
   const Component = ICONS[name] || Circle;
   return <Component size={size} weight="duotone" aria-hidden="true" />;
 };
-
-const SIGN_IN_URL = import.meta.env.VITE_TURF_SIGNUP_URL || "";
 
 /** Fades a block in once as it scrolls into view. Without motion preference, or without IntersectionObserver, it just shows. */
 export function Reveal({ children, as: Tag = "div", className = "", ...rest }) {
@@ -70,10 +69,17 @@ export function Shot({ file, alt, eager, tilt }) {
   );
 }
 
+/**
+ * The site's header. Signed out: Sign in and Sign up. Signed in: Dashboard for people Turf invited, Admin for its staff,
+ * and Sign out. What a person may open is the server's decision (/account); the header only shows it.
+ */
 export function Header({ route }) {
   const [open, setOpen] = useState(false);
+  const session = useSession();
   useEffect(() => setOpen(false), [route]);
   const links = [["features", "Features"], ["pricing", "Pricing"], ["compare", "Why Turf"], ["security", "Security"]];
+  const account = session.status === "signed_in" ? session.account : null;
+  const invited = Boolean(account?.access);
   return (
     <header className="top">
       <a className="brand" href="/" aria-label="Turf home">
@@ -87,8 +93,18 @@ export function Header({ route }) {
         {links.map(([id, label]) => (
           <a key={id} href={`/${id}`} aria-current={route === id ? "page" : undefined}>{label}</a>
         ))}
-        {SIGN_IN_URL && <a href={SIGN_IN_URL}>Sign in</a>}
-        <a className="button small" href="/#waitlist">Join the waitlist</a>
+        {session.status === "signed_in" || session.status === "error" ? (
+          <>
+            {account?.staff && <a href="/admin" aria-current={route === "admin" ? "page" : undefined}>Admin</a>}
+            {(invited || account?.staff) && <a href="/dashboard" aria-current={route === "dashboard" ? "page" : undefined}>Dashboard</a>}
+            <button type="button" className="button small ghost" onClick={session.signOut}>Sign out</button>
+          </>
+        ) : (
+          <>
+            <a href="/signin" aria-current={route === "signin" ? "page" : undefined}>Sign in</a>
+            <a className="button small" href="/signup">Sign up</a>
+          </>
+        )}
       </nav>
     </header>
   );
@@ -157,31 +173,16 @@ export function FinalCta() {
   );
 }
 
-export function Download() {
-  const [release, setRelease] = useState(null);
-  useEffect(() => {
-    let live = true;
-    getDownload()
-      .then(r => live && setRelease(r))
-      .catch(() => live && setRelease({ available: false }));
-    return () => {
-      live = false;
-    };
-  }, []);
-  const mb = release?.size ? ` · ${(release.size / 1048576).toFixed(0)} MB` : "";
+/** Turf is by invitation: the download is on the invited person's dashboard, not here. */
+export function InviteOnly() {
   return (
     <section id="download" className="section band center">
-      <h2>Download for Windows</h2>
-      {release?.available ? (
-        <>
-          <p className="sub">Version {release.version}{mb}</p>
-          <a className="button" href={release.url}>Download Turf</a>
-        </>
-      ) : (
-        <p className="sub">
-          {release ? "The first release is coming soon. Join the waitlist and we will tell you." : "Checking for the latest version…"}
-        </p>
-      )}
+      <h2>Turf is by invitation</h2>
+      <p className="sub">Invited? Create your account with the email your invitation went to, and download the desktop app from your dashboard.</p>
+      <div className="actions center-actions">
+        <a className="button" href="/signup">Accept an invitation</a>
+        <a className="button ghost" href="/signin">Sign in</a>
+      </div>
     </section>
   );
 }

@@ -261,7 +261,8 @@ pub async fn load_from_auth(state: &AppState, claims: &turf_auth_verify::Claims,
         mfa_passed: claims.mfa,
         mfa_enrolled: claims.mfa || totp_secret.is_some(),
         mfa_enforced: state.config.require_mfa,
-        staff,
+        // Staff need the authenticator code everywhere, unless the server has turned that off (TURF_STAFF_MFA).
+        staff: staff && state.config.staff_mfa,
         subscription: None,
         suspended: false,
     };

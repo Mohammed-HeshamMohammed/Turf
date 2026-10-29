@@ -239,7 +239,7 @@ export const securityPoints = [
 export const faqs = [
   { q: "Does Turf work without an internet connection?", a: "Yes. Opening a list, skip tracing it and exporting run on your computer. Signing in, syncing with your team, calling and messaging need a connection." },
   { q: "Where are my records kept?", a: "On your computer, and on your organization's server when you sync. Records are never shared between organizations." },
-  { q: "Which computers does it run on?", a: "Windows first. The download button serves the newest release." },
+  { q: "Which computers does it run on?", a: "Windows first. Turf is by invitation for now: once you are invited, your dashboard has the download." },
   { q: "How many people can use one account?", a: "Solo is one person and Duo is exactly two. Team starts at three and gives each person a role. Clients and partners you share properties with are free seats." },
   { q: "What does it cost?", a: "Each feature is priced on its own, so you build the plan: switch off what you do not need, add extras where you need more. The ready-made plans are only starting points. The prices on the Pricing page are drafts until launch, and people on the waitlist hear first." },
   { q: "Can I take my data with me?", a: "Yes. Exports are included in every plan, and a recycle bin and project backups protect against mistakes." },
@@ -248,7 +248,7 @@ export const faqs = [
 ];
 
 export const footerLinks = [
-  { title: "Product", links: [["Features", "/features"], ["Pricing", "/pricing"], ["Why Turf", "/compare"], ["Security", "/security"], ["Download", "/#download"]] },
+  { title: "Product", links: [["Features", "/features"], ["Pricing", "/pricing"], ["Why Turf", "/compare"], ["Security", "/security"], ["Sign in", "/signin"]] },
   { title: "Company", links: [["Join the waitlist", "/#waitlist"], ["Contact", "/contact"]] },
   { title: "Legal", links: [["Privacy", "/privacy"], ["Terms", "/terms"]] },
 ];
@@ -263,4 +263,11 @@ export const pageMeta = {
   privacy: ["Privacy · Turf", "How the Turf website uses the details you give it."],
   terms: ["Terms · Turf", "Terms for the Turf website."],
   notfound: ["Page not found · Turf", "That page does not exist."],
+  signin: ["Sign in · Turf", "Sign in to your Turf account."],
+  signup: ["Create your account · Turf", "Turf is by invitation. Create your account with the email your invitation was sent to."],
+  dashboard: ["Your dashboard · Turf", "Your credits, usage and the desktop app."],
+  admin: ["Admin · Turf", "Invite people, set their limits and watch their usage."],
 };
+
+/** Pages that belong to a signed-in person: not indexed, not in the sitemap, rendered by the browser. */
+export const accountPages = ["signin", "signup", "dashboard", "admin"];

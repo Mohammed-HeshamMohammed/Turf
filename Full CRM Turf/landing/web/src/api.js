@@ -15,4 +15,3 @@ const post = (path, data) =>
 
 export const joinWaitlist = data => post("/api/waitlist", data);
 export const sendMessage = data => post("/api/contact", data);
-export const getDownload = () => send("/api/download");
