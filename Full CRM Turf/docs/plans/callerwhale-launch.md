@@ -60,11 +60,18 @@ The web app is "Caller Whale Site" (app id `1:265438901851:web:5550eeb277b7135c5
 
 ### The first admin
 
-After deploying, sign up on callerwhale.com with the owner's email, then make that account the platform owner on the server, once (core-api's Terminal in Coolify, with the owner database login):
+After deploying, sign up on callerwhale.com with the owner's email (sign in once, so the server knows the account). The core-api image has no Python, so make that account the platform owner with SQL, once, in Coolify → database → turf-postgres → Terminal:
 
 ```bash
-python services/core-api/scripts/create_platform_owner.py <email>
+psql -U postgres -d turf
 ```
+
+```sql
+UPDATE users SET platform_role = 'owner', disabled_at = NULL, email_verified_at = coalesce(email_verified_at, now())
+WHERE email = '<email>' AND NOT EXISTS (SELECT 1 FROM users WHERE platform_role = 'owner') RETURNING email, platform_role;
+```
+
+(`services/core-api/scripts/create_platform_owner.py` does the same from a machine with Python and the owner database URL.)
 
 The owner can then name system administrators from the existing staff page.
 
