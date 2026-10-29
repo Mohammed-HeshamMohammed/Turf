@@ -5078,6 +5078,34 @@ html.captions-window #root {
   align-items: center;
   gap: 4px;
 }
+.desktop-updates {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin-left: auto;
+  margin-right: 16px;
+  font-size: 12px;
+}
+.desktop-update-message {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.desktop-updates button {
+  flex: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.desktop-updates button:hover {
+  background: var(--peach);
+}
+.desktop-updates button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
 .win-btn {
   display: grid;
   place-items: center;

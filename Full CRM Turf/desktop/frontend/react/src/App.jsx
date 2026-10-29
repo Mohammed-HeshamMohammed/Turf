@@ -12,7 +12,7 @@ import { CrmContext } from "./context.jsx";
 import { Button, CountBadge, Empty, Modal, PageTransition, Search, money, useHeld, usePresence } from "./ui.jsx";
 import { LiveCaptions } from "./LiveCaptions.jsx";
 import { PhoneDialer } from "./PhoneDialer.jsx";
-import { subscribeCallLog } from "./callSession.js";
+import { getCallSession, subscribeCallLog } from "./callSession.js";
 import { Sidebar } from "./Sidebar.jsx";
 import { WindowStrip, windowDrag } from "./WindowStrip.jsx";
 import { TurfMenu } from "./TurfMenu.jsx";
@@ -389,6 +389,13 @@ export function App() {
         return <Empty title="Choose a workspace page" action={<Button onClick={() => navigate("dashboard")}>Open overview</Button>} />;
     }
   }, [accessible, current, navigate]);
+  async function beforeUpdate() {
+    const call = getCallSession();
+    if (call.active || call.awaitingOutcome) throw new Error("Finish the call and save its outcome before installing the update.");
+    const sync = engine.current;
+    if (sync && (sync.running || sync.ops.length)) throw new Error("Sync pending changes before installing the update.");
+    if (!latest.current.remote && !(await saveWorkspace(latest.current))) throw new Error("Your workspace could not be saved. Try again before installing the update.");
+  }
   // A moment while the saved workspace is read, so the sample data never flashes in its place.
   if (connection === "local" && !restored) return null;
   if (connection === "gate")
@@ -407,7 +414,7 @@ export function App() {
         <a className="skip-link" href="#main-content" onClick={event => (event.preventDefault(), main.current?.focus())}>
           Skip to content
         </a>
-        <WindowStrip title="Caller Whale" />
+        <WindowStrip title="Caller Whale" beforeUpdate={beforeUpdate} />
         <header className="app-header" {...windowDrag}>
           <div className="brand">
             <button className="mobile-menu round-button" aria-label="Toggle navigation" onClick={() => setMobileNav(!mobileNav)}>

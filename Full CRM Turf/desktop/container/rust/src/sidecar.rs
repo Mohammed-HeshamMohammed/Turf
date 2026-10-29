@@ -43,6 +43,7 @@ pub struct Sidecar {
 impl Sidecar {
     pub fn kill(&mut self) {
         let _ = self.child.kill();
+        let _ = self.child.wait();
     }
 }
 
