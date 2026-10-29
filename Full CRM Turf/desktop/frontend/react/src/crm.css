@@ -933,7 +933,7 @@ svg {
   gap: 18px;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 h1 {
   font-size: 24px;
@@ -993,7 +993,7 @@ h1 {
 .card {
   min-width: 0;
   background: var(--card);
-  padding: 21px;
+  padding: 20px;
   border-radius: var(--radius);
   margin-bottom: 16px;
 }
@@ -1049,15 +1049,15 @@ h1 {
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 .metric {
   margin: 0;
   text-align: left;
   display: grid;
   gap: 6px;
-  padding: 18px 20px;
+  padding: 20px;
 }
 .metric-label {
   display: flex;
@@ -1308,7 +1308,7 @@ meter::-moz-meter-bar {
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-  margin-bottom: 17px;
+  margin-bottom: 16px;
 }
 .filter-bar .search {
   min-width: 200px;
@@ -1491,7 +1491,8 @@ input[type="checkbox"] {
 }
 .kanban-card {
   background: var(--card);
-  border-radius: 16px;
+  /* Concentric with its column: column radius 20 minus the column's 12 padding. */
+  border-radius: 8px;
   padding: 15px;
   margin-bottom: 10px;
   display: grid;
@@ -2259,8 +2260,8 @@ textarea {
   flex-wrap: wrap;
   align-items: center;
   gap: 28px;
-  margin: 24px 0;
-  padding-bottom: 23px;
+  margin: 16px 0;
+  padding-bottom: 16px;
   border-bottom: 1px solid #d4d4d4;
 }
 .pipeline-summary strong {
@@ -2335,7 +2336,7 @@ textarea {
   align-items: start;
 }
 .calendar-card {
-  padding: 22px 17px;
+  padding: 20px;
 }
 .calendar-week {
   display: grid;
@@ -2543,7 +2544,7 @@ textarea {
 .dataset-card {
   display: flex;
   flex-direction: column;
-  padding: 22px;
+  padding: 20px;
   margin: 0;
 }
 .dataset-top {
@@ -2561,7 +2562,7 @@ textarea {
   border-radius: 13px;
 }
 .dataset-card h2 {
-  font-size: 19px;
+  font-size: 18px;
 }
 .dataset-card > p {
   font-size: 12px;
@@ -5325,6 +5326,7 @@ html.demo-quiet .demo-note {
 .top-nav button {
   display: inline-flex;
   align-items: center;
+  min-height: 38px;
   gap: 7px;
   padding: 10px 16px;
   border-radius: 999px;
