@@ -88,3 +88,76 @@ test("quick call outcomes retain real timing without requiring a separate hangup
     assert.equal(callDuration(state.leads[0].calls[0]), "", "legacy history must not invent a duration");
   } finally { clearCallOutcome(); }
 });
+
+test("group chats are for their members, and carry GIFs, polls, replies and reactions", () => {
+  let state = { ...seedState(), role: "manager" };
+  const me = ROLES.manager.person;
+  const group = { id: "g1", channel: "Group", title: "Tampa closers", members: ["Alex Rivera"], preview: "New group", unread: false, messages: [] };
+  assert.equal(reducer(state, { type: "NEW_THREAD", thread: { ...group, members: [] } }), state, "a group needs another member");
+  state = reducer(state, { type: "NEW_THREAD", thread: group });
+  assert.deepEqual(visibleThreads(state).find(item => item.id === "g1").members, [me, "Alex Rivera"]);
+  // Someone outside the group never sees it.
+  const outsider = Object.keys(ROLES).find(role => role !== "client" && ![me, "Alex Rivera"].includes(ROLES[role].person));
+  assert.equal(visibleThreads({ ...state, role: outsider }).some(item => item.id === "g1"), false);
+
+  state = reducer(state, { type: "MESSAGE", id: "g1", attach: { kind: "gif", gif: { url: "https://media2.giphy.com/media/abc/200.gif", title: "Deal closed" } } });
+  assert.equal(reducer(state, { type: "MESSAGE", id: "g1", attach: { kind: "gif", gif: { url: "https://evil.example/x.gif" } } }), state, "GIFs only come from GIPHY");
+  state = reducer(state, { type: "MESSAGE", id: "g1", attach: { kind: "poll", poll: { question: "Call time?", options: ["10 am", "2 pm", "2 pm"] } } });
+  let messages = visibleThreads(state).find(item => item.id === "g1").messages;
+  assert.equal(messages[0].kind, "gif");
+  assert.deepEqual(messages[1].poll.options.map(option => option.text), ["10 am", "2 pm"]);
+  assert.equal(visibleThreads(state).find(item => item.id === "g1").preview, "Poll: Call time?");
+
+  state = reducer(state, { type: "VOTE", id: "g1", index: 1, option: 0 });
+  state = reducer(state, { type: "VOTE", id: "g1", index: 1, option: 1 });
+  messages = visibleThreads(state).find(item => item.id === "g1").messages;
+  assert.deepEqual(messages[1].poll.options.map(option => option.votes), [[], [me]], "voting again moves the vote");
+
+  state = reducer(state, { type: "REACT", id: "g1", index: 0, emoji: "🎉" });
+  assert.deepEqual(visibleThreads(state).find(item => item.id === "g1").messages[0].reactions, { "🎉": [me] });
+  state = reducer(state, { type: "REACT", id: "g1", index: 0, emoji: "🎉" });
+  assert.equal(visibleThreads(state).find(item => item.id === "g1").messages[0].reactions["🎉"], undefined, "a second tap takes it back");
+
+  state = reducer(state, { type: "MESSAGE", id: "g1", text: "Agreed", replyTo: 1 });
+  assert.equal(visibleThreads(state).find(item => item.id === "g1").messages[2].replyTo, 1);
+  // Polls are for team and group chats only.
+  const sms = visibleThreads(state).find(item => item.channel === "SMS" && item.leadId);
+  assert.equal(reducer(state, { type: "MESSAGE", id: sms.id, attach: { kind: "poll", poll: { question: "?", options: ["a", "b"] } } }), state);
+});
+
+test("archiving moves a conversation aside and back, only for people who can see it", () => {
+  let state = seedState();
+  const id = visibleThreads(state)[0].id;
+  state = reducer(state, { type: "ARCHIVE", id, archived: true });
+  assert.equal(visibleThreads(state).find(item => item.id === id).archived, true);
+  state = reducer(state, { type: "ARCHIVE", id, archived: false });
+  assert.equal(visibleThreads(state).find(item => item.id === id).archived, false);
+  const client = { ...seedState(), role: "client" };
+  const hidden = client.threads.find(item => !visibleThreads(client).some(seen => seen.id === item.id));
+  assert.equal(reducer(client, { type: "ARCHIVE", id: hidden.id, archived: true }), client);
+});
+
+test("an email reply keeps its To, Cc and Subject, and a bad address is refused", () => {
+  let state = seedState();
+  const email = visibleThreads(state).find(item => item.channel === "Email");
+  const fields = { to: "patricia.flores@example.com", cc: "alex.rivera@oakpalm.example; ", subject: "Re: Your property on Baywood Drive" };
+  state = reducer(state, { type: "MESSAGE", id: email.id, text: "Early November works for us.", email: fields });
+  assert.deepEqual(visibleThreads(state).find(item => item.id === email.id).messages.at(-1).email, { to: ["patricia.flores@example.com"], cc: ["alex.rivera@oakpalm.example"], subject: "Re: Your property on Baywood Drive" });
+  assert.equal(reducer(state, { type: "MESSAGE", id: email.id, text: "Hi", email: { ...fields, to: "not an address" } }), state);
+});
+
+test("mail keeps its own unread count and drafts, apart from the chat inbox", async () => {
+  const { navCounts, conversationPath } = await import("../src/model.js");
+  let state = { ...seedState(), role: "owner" };
+  const threads = visibleThreads(state);
+  const emailUnread = threads.filter(item => item.unread && item.channel === "Email").length;
+  const chatUnread = threads.filter(item => item.unread && item.channel !== "Email").length;
+  assert.deepEqual([navCounts(state, ROLES.owner).mail, navCounts(state, ROLES.owner).inbox], [emailUnread, chatUnread]);
+  const email = threads.find(item => item.channel === "Email");
+  assert.equal(conversationPath(email), "work/mail?thread=" + email.id);
+  state = reducer(state, { type: "EMAIL_DRAFT", id: email.id, draft: { mode: "reply", to: "a@example.com", subject: "Re: x", text: "Half written" } });
+  assert.equal(visibleThreads(state).find(item => item.id === email.id).emailDraft.text, "Half written");
+  state = reducer(state, { type: "MESSAGE", id: email.id, text: "Sent now", email: { to: "a@example.com", subject: "Re: x" } });
+  assert.equal(visibleThreads(state).find(item => item.id === email.id).emailDraft, undefined, "sending ends the draft");
+  assert.equal("mail" in navCounts({ ...seedState(), role: "client" }, ROLES.client), false, "clients have no Mail");
+});

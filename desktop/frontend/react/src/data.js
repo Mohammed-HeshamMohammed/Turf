@@ -24,7 +24,7 @@ export const ROLES = {
     title: "Tampa acquisitions",
     scope: "Team records",
     team: "Tampa",
-    pages: ["dashboard", "leads", "calls", "deals", "handoffs", "tasks", "calendar", "inbox", "lists", "team", "reports", "settings"],
+    pages: ["dashboard", "leads", "calls", "deals", "handoffs", "tasks", "calendar", "inbox", "mail", "lists", "team", "reports", "settings"],
     capabilities: ["edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "rules"],
   },
   owner: {
@@ -32,7 +32,7 @@ export const ROLES = {
     person: "Jordan Ellis",
     title: "Oak & Palm Partners",
     scope: "Organization records",
-    pages: ["dashboard", "leads", "calls", "deals", "handoffs", "tasks", "calendar", "inbox", "lists", "skip", "team", "reports", "settings"],
+    pages: ["dashboard", "leads", "calls", "deals", "handoffs", "tasks", "calendar", "inbox", "mail", "lists", "skip", "team", "reports", "settings"],
     capabilities: ["edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "admin"],
   },
   caller: {
@@ -41,7 +41,7 @@ export const ROLES = {
     title: "Outreach team",
     scope: "My assigned leads",
     team: "Tampa",
-    pages: ["dashboard", "leads", "calls", "handoffs", "tasks", "calendar", "inbox"],
+    pages: ["dashboard", "leads", "calls", "handoffs", "tasks", "calendar", "inbox", "mail"],
     capabilities: ["edit", "handoff", "call", "message"],
   },
   closer: {
@@ -50,7 +50,7 @@ export const ROLES = {
     title: "Acquisitions team",
     scope: "My deals & handoffs",
     team: "Tampa",
-    pages: ["dashboard", "leads", "calls", "deals", "handoffs", "tasks", "calendar", "inbox", "reports"],
+    pages: ["dashboard", "leads", "calls", "deals", "handoffs", "tasks", "calendar", "inbox", "mail", "reports"],
     capabilities: ["edit", "accept", "call", "message", "finance"],
   },
   researcher: {
@@ -83,7 +83,7 @@ export const ROLES = {
     person: "Maya Chen",
     title: "My workspace",
     scope: "All project records",
-    pages: ["dashboard", "leads", "calls", "deals", "handoffs", "tasks", "calendar", "inbox", "lists", "skip", "reports", "settings"],
+    pages: ["dashboard", "leads", "calls", "deals", "handoffs", "tasks", "calendar", "inbox", "mail", "lists", "skip", "reports", "settings"],
     capabilities: ["edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "admin"],
   },
 };
@@ -326,6 +326,7 @@ export function seedState() {
         id: "m02",
         leadId: "l03",
         channel: "Email",
+        subject: "Your property on Baywood Drive",
         preview: "Re: Your property on Baywood Drive",
         unread: false,
         messages: [
@@ -334,6 +335,39 @@ export function seedState() {
             text: "Thanks for sending the offer. Could we discuss a closing date in early November?",
             at: "Yesterday",
             incoming: true,
+          },
+        ],
+      },
+      {
+        id: "m05",
+        leadId: "l02",
+        channel: "Email",
+        subject: "Inspection report for 620 Willow Street",
+        preview: "Inspection report for 620 Willow Street",
+        unread: true,
+        messages: [
+          {
+            from: "Michael Bennett",
+            text: "Hi Maya,\n\nHere is the inspection report you asked for. The roof was replaced in 2019 and the AC is two years old.\n\nBest,\nMichael",
+            at: "8:12 am",
+            incoming: true,
+          },
+        ],
+      },
+      {
+        id: "m06",
+        leadId: "l05",
+        channel: "Email",
+        subject: "Appointment confirmation: Friday 10 am",
+        preview: "Appointment confirmation: Friday 10 am",
+        unread: false,
+        messages: [
+          {
+            from: "Alex Rivera",
+            text: "Hi Angela,\n\nThis confirms our visit to 48 Oak Hollow Road on Friday at 10 am. Reply here if the time no longer works.\n\nAlex",
+            at: "Mon",
+            incoming: false,
+            email: { to: ["angela.lewis@example.com"], cc: [], subject: "Appointment confirmation: Friday 10 am" },
           },
         ],
       },

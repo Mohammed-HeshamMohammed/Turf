@@ -1,4 +1,4 @@
-import { CALL_OUTCOMES, ROLES, TODAY, seedState } from "./data.js";
+import { CALL_OUTCOMES, PEOPLE, ROLES, TODAY, seedState } from "./data.js";
 import { detectSourceFields, headerKey, leadFromSource, SOURCE_FIELDS } from "./skiptrace-fields.js";
 import { phoneNumberKey, validPhoneNumber } from "./phone.js";
 
@@ -64,16 +64,79 @@ export function navCounts(state, role) {
   const counts = {
     tasks: visibleTasks(state).filter(task => !task.done).length,
     handoffs: state.handoffs.filter(handoff => handoff.status === "Requested" && leadIds.has(handoff.leadId)).length,
-    inbox: role.pages.includes("inbox") ? visibleThreads(state).filter(thread => thread.unread).length : 0,
+    inbox: role.pages.includes("inbox") ? visibleThreads(state).filter(thread => thread.unread && thread.channel !== "Email").length : 0,
+    mail: role.pages.includes("mail") ? visibleThreads(state).filter(thread => thread.unread && thread.channel === "Email").length : 0,
   };
   return Object.fromEntries(Object.entries(counts).filter(([page]) => role.pages.includes(page)));
+}
+/** Where a conversation opens: email in Mail, every other channel in Inbox. */
+export const conversationPath = thread => (thread.channel === "Email" ? "work/mail?thread=" : "work/inbox?thread=") + thread.id;
+/** The quick reactions a message can carry. */
+export const REACTIONS = ["👍", "❤️", "😂", "🎉", "😮", "🙏"];
+const text = (value, max) => String(value ?? "").trim().slice(0, max);
+/**
+ * What a message carries besides its text, checked before it is stored: a GIF from GIPHY's image hosts, a small
+ * photo kept as a data URL (larger ones keep only their name), a file name, the thread lead's address, a contact
+ * card, or a poll (team and group chats only). Anything else is refused (null).
+ */
+export function attachmentFor(thread, attach) {
+  if (!attach || !thread) return null;
+  switch (attach.kind) {
+    case "gif": {
+      const url = String(attach.gif?.url || "");
+      if (!/^https:\/\/media\d*\.giphy\.com\//.test(url)) return null;
+      return { kind: "gif", gif: { url, title: text(attach.gif.title, 120) || "GIF", width: Number(attach.gif.width) || 0, height: Number(attach.gif.height) || 0 } };
+    }
+    case "photo":
+    case "file": {
+      const name = text(attach.file?.name, 160);
+      if (!name) return null;
+      const src = attach.kind === "photo" && /^data:image\/(png|jpeg|gif|webp);base64,/.test(attach.file.src || "") && attach.file.src.length < 700000 ? attach.file.src : undefined;
+      return { kind: attach.kind, file: { name, size: Number(attach.file.size) || 0, ...(src ? { src } : {}) } };
+    }
+    case "location": {
+      const address = text(attach.location?.address, 200);
+      return address ? { kind: "location", location: { address } } : null;
+    }
+    case "contact": {
+      const name = text(attach.contact?.name, 120);
+      return name ? { kind: "contact", contact: { leadId: attach.contact.leadId || null, name, phone: text(attach.contact.phone, 40) } } : null;
+    }
+    case "poll": {
+      if (!["Team", "Group"].includes(thread.channel)) return null;
+      const question = text(attach.poll?.question, 200);
+      const options = [...new Set((attach.poll?.options || []).map(option => text(option, 80)).filter(Boolean))].slice(0, 10);
+      return question && options.length >= 2 ? { kind: "poll", poll: { question, options: options.map(option => ({ text: option, votes: [] })) } } : null;
+    }
+    default:
+      return null;
+  }
+}
+const ADDRESS = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
+const addresses = value => String(value || "").split(/[,;]/).map(item => item.trim()).filter(Boolean);
+/** To, Cc and Subject of an email reply or forward: every address must look like one, To needs at least one. */
+export function emailFields(fields) {
+  if (!fields) return null;
+  const to = addresses(fields.to);
+  const cc = addresses(fields.cc);
+  if (!to.length || ![...to, ...cc].every(item => ADDRESS.test(item)) || to.length + cc.length > 20) return null;
+  return { to, cc, subject: text(fields.subject, 200) };
+}
+const atTop = (id, threads) => [...threads.filter(item => item.id === id), ...threads.filter(item => item.id !== id)];
+/** The one line a conversation shows in the list for its latest message. */
+export function messagePreview(message) {
+  const label = { gif: "GIF", photo: "Photo", file: "File: " + message.file?.name, location: "Location", contact: "Contact: " + message.contact?.name, poll: "Poll: " + message.poll?.question }[message.kind];
+  return message.text || label || "";
 }
 export function visibleThreads(state) {
   if (state.remote) return state.threads;
   const leadIds = new Set(visibleLeads(state).map(lead => lead.id));
-  return state.threads.filter(thread => thread.leadId
-    ? leadIds.has(thread.leadId) && (state.role !== "client" || thread.shared === true)
-    : thread.channel === "SMS" && capability(state, "message") && thread.owner === ROLES[state.role].person);
+  const me = ROLES[state.role].person;
+  return state.threads.filter(thread => thread.channel === "Group"
+    ? state.role !== "client" && Array.isArray(thread.members) && thread.members.includes(me)
+    : thread.leadId
+      ? leadIds.has(thread.leadId) && (state.role !== "client" || thread.shared === true)
+      : thread.channel === "SMS" && capability(state, "message") && thread.owner === me);
 }
 export function canEditLead(state, id) {
   if (state.remote) return capability(state, "edit") && scope(state).byId.has(id);
@@ -101,6 +164,11 @@ export function nextCall(lead, outcome, callbackAt) {
   if (outcome.label === "Callback") return callbackAt && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(callbackAt) ? callbackAt : "";
   if (!outcome.recallDays) return "";
   return addDays(TODAY, outcome.recallDays) + "T" + (lead.callback || "10:00");
+}
+/** "Today" or "Oct 16": a day the way every page shows it, never "2026-10-16". */
+export function dayLabel(date) {
+  if (!date || date === TODAY) return "Today";
+  return new Date(date + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 /** "Today, 10:30", "Oct 16, 10:30", or "" when nothing is scheduled. */
 export function callbackLabel(date, time) {
@@ -387,37 +455,65 @@ export function reducer(state, action) {
     }
     case "MESSAGE": {
       const thread = state.threads.find(item => item.id === action.id);
+      const attach = attachmentFor(thread, action.attach);
       if (
         !thread ||
         !visibleThreads(state).some(item => item.id === thread.id) ||
         (!capability(state, "message") && !capability(state, "publicComment")) ||
-        !action.text.trim()
+        (!String(action.text || "").trim() && !attach) ||
+        (action.attach && !attach)
       )
         return state;
       if (state.role === "client" && !thread.shared) return state;
+      const replyTo = Number.isInteger(action.replyTo) && thread.messages[action.replyTo] ? action.replyTo : undefined;
+      const email = thread.channel === "Email" ? emailFields(action.email) : null;
+      if (thread.channel === "Email" && action.email && !email) return state;
       const message = {
         from: ROLES[state.role].person,
-        text: action.text.trim(),
+        text: String(action.text || "").trim(),
         at: state.online ? "Just now · Demo" : "Offline draft",
         incoming: false,
         draft: !state.online,
+        ...(attach || {}),
+        ...(replyTo === undefined ? {} : { replyTo }),
+        ...(email ? { email } : {}),
       };
       return {
         ...state,
-        threads: state.threads.map(item =>
-          item.id === thread.id ? { ...item, unread: false, preview: message.text, messages: [...item.messages, message] } : item,
-        ),
+        // The conversation with the newest message moves to the top of its list, like any messenger or mail app.
+        threads: atTop(thread.id, state.threads.map(item =>
+          item.id === thread.id
+            ? {
+                ...item,
+                unread: false,
+                preview: messagePreview(message),
+                messages: [...item.messages, message],
+                // Sending an email ends its draft.
+                ...(email ? { emailDraft: undefined } : {}),
+                // An email thread keeps one subject; the first reply supplies it when the thread had none.
+                ...(email?.subject && !item.subject ? { subject: email.subject.replace(/^(re|fwd?):\s*/i, "") } : {}),
+              }
+            : item,
+        )),
         queue: queued(state, thread.leadId, "Draft message for " + (state.leads.find(item => item.id === thread.leadId)?.name || thread.phone), "Communication draft"),
       };
     }
     case "NEW_THREAD": {
+      if (action.thread.channel === "Group") {
+        // A group is a chat between teammates: a name, at least two members, and always the person who starts it.
+        const me = ROLES[state.role].person;
+        const members = [...new Set([me, ...(action.thread.members || [])])].filter(name => PEOPLE.includes(name));
+        const title = String(action.thread.title || "").trim().slice(0, 60);
+        if (state.role === "client" || state.remote || !capability(state, "message") || !title || members.length < 2) return state;
+        return { ...state, threads: [{ ...action.thread, leadId: null, title, members, owner: me, shared: false }, ...state.threads] };
+      }
       if (!action.thread.leadId) {
         const thread = action.thread;
         if (state.remote || thread.channel !== "SMS" || !capability(state, "message") || !validPhoneNumber(thread.phone)) return state;
         const key = phoneNumberKey(thread.phone);
         // Known numbers must use the lead path so entering a number cannot evade scope.
         if (state.leads.some(lead => phoneNumberKey(lead.phone) === key) || visibleThreads(state).some(item => !item.leadId && phoneNumberKey(item.phone) === key)) return state;
-        return { ...state, threads: [...state.threads, { ...thread, phone: thread.phone.trim(), owner: ROLES[state.role].person, shared: false }] };
+        return { ...state, threads: [{ ...thread, phone: thread.phone.trim(), owner: ROLES[state.role].person, shared: false }, ...state.threads] };
       }
       if (
         (!capability(state, "message") && !capability(state, "publicComment")) ||
@@ -425,10 +521,47 @@ export function reducer(state, action) {
         (state.role === "client" && (!action.thread.shared || action.thread.channel !== "Partner"))
       )
         return state;
-      return { ...state, threads: [...state.threads, action.thread] };
+      return { ...state, threads: [action.thread, ...state.threads] };
+    }
+    case "REACT": {
+      // One reaction per emoji per person: a second tap takes it back.
+      const thread = visibleThreads(state).find(item => item.id === action.id);
+      const message = thread?.messages[action.index];
+      if (!message || !REACTIONS.includes(action.emoji)) return state;
+      const me = ROLES[state.role].person;
+      const people = message.reactions?.[action.emoji] || [];
+      const next = people.includes(me) ? people.filter(name => name !== me) : [...people, me];
+      const reactions = { ...(message.reactions || {}), [action.emoji]: next };
+      if (!next.length) delete reactions[action.emoji];
+      return { ...state, threads: state.threads.map(item => (item.id === thread.id ? { ...item, messages: item.messages.map((m, i) => (i === action.index ? { ...m, reactions } : m)) } : item)) };
+    }
+    case "VOTE": {
+      // One vote per person per poll; voting again moves it.
+      const thread = visibleThreads(state).find(item => item.id === action.id);
+      const message = thread?.messages[action.index];
+      if (message?.kind !== "poll" || !message.poll.options[action.option]) return state;
+      const me = ROLES[state.role].person;
+      const options = message.poll.options.map((option, i) => ({ ...option, votes: option.votes.filter(name => name !== me).concat(i === action.option ? [me] : []) }));
+      return { ...state, threads: state.threads.map(item => (item.id === thread.id ? { ...item, messages: item.messages.map((m, i) => (i === action.index ? { ...m, poll: { ...m.poll, options } } : m)) } : item)) };
+    }
+    case "EMAIL_DRAFT": {
+      // The reply or forward being written, kept on its thread until it is sent or discarded (null).
+      const thread = visibleThreads(state).find(item => item.id === action.id && item.channel === "Email");
+      if (!thread || !capability(state, "message")) return state;
+      const draft = action.draft;
+      const emailDraft = draft
+        ? { mode: draft.mode === "forward" ? "forward" : "reply", to: text(draft.to, 500), cc: text(draft.cc, 500), subject: text(draft.subject, 200), text: String(draft.text || "").slice(0, 20000) }
+        : undefined;
+      return { ...state, threads: state.threads.map(item => (item.id === thread.id ? { ...item, emailDraft } : item)) };
+    }
+    case "ARCHIVE": {
+      // Archived conversations leave the list for the Archived section, like a messenger; nothing is deleted.
+      if (!visibleThreads(state).some(item => item.id === action.id)) return state;
+      return { ...state, threads: state.threads.map(item => (item.id === action.id ? { ...item, archived: Boolean(action.archived) } : item)) };
     }
     case "MARK_READ":
-      return { ...state, threads: state.threads.map(item => (item.id === action.id ? { ...item, unread: false } : item)) };
+      // unread: true marks it unread again, as messengers allow, so it waits in Unread.
+      return { ...state, threads: state.threads.map(item => (item.id === action.id ? { ...item, unread: action.unread === true } : item)) };
     case "CONFLICT": {
       const pending = state.queue.find(item => item.actor === ROLES[state.role].person && item.kind !== "Communication draft");
       return {

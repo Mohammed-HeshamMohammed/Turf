@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { PropertyMap } from "./PropertyMap.jsx";
+import { AttachMenu, ChatMessage, ExpressionPanel, MentionPicker, PollDialog, ReplyBar } from "./chat.jsx";
 import {
   Phone,
   PhoneDisconnect,
@@ -17,13 +18,17 @@ import {
   Envelope,
   ChatCircle,
   PaperPlaneTilt,
-  Paperclip,
+  UsersThree,
+  Archive,
+  ArrowLeft,
+  ChatCircleDots,
+  ArrowUUpLeft,
   ClosedCaptioning,
   PencilSimple,
   X,
 } from "@phosphor-icons/react";
 import { CALL_OUTCOMES, DEAL_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
-import { callbackLabel, canEditLead, capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
+import { callbackLabel, canEditLead, dayLabel, capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { useCrm } from "./context.jsx";
 import { CallAssistant } from "./CallAssistant.jsx";
 import { CallTimer } from "./CallTimer.jsx";
@@ -32,6 +37,8 @@ import { smsRecipient } from "./sms.js";
 import { beginDemoCall, clearCallOutcome, endDemoCall, getCallSession, setCallSession, useCallSession } from "./callSession.js";
 import {
   Badge,
+  BoardColumn,
+  useBoardColumns,
   Select,
   Button,
   Card,
@@ -664,6 +671,7 @@ export function Deals({ id }) {
   const leads = visibleLeads(state);
   const ids = new Set(leads.map(item => item.id));
   const deals = state.deals.filter(item => ids.has(item.leadId));
+  const board = useBoardColumns(DEAL_STAGES, Object.fromEntries(DEAL_STAGES.map(stage => [stage, deals.filter(item => item.stage === stage).length])));
   const table = useTableView(
     deals.map(deal => ({ deal, lead: leads.find(item => item.id === deal.leadId) })),
     {
@@ -775,7 +783,7 @@ export function Deals({ id }) {
                   <div>
                     <strong>{task.title}</strong>
                     <small>
-                      {task.date} · {task.time}
+                      {dayLabel(task.date)} · {task.time}
                     </small>
                   </div>
                 </div>
@@ -859,13 +867,9 @@ export function Deals({ id }) {
         <Segmented label="Deal view" value={view} options={["Pipeline", "List"]} onChange={setView} />
       </div>
       {view === "Pipeline" ? (
-        <div className="kanban deal-board view-in">
-          {DEAL_STAGES.map(stage => (
-            <section key={stage} className={"kanban-column" + (drag?.over === stage ? " drop-target" : "")} data-stage={stage}>
-              <header>
-                <span>{stage}</span>
-                <Badge>{deals.filter(item => item.stage === stage).length}</Badge>
-              </header>
+        <div className="kanban deal-board view-in" ref={board.ref}>
+          {board.arrange(DEAL_STAGES).map(stage => (
+            <BoardColumn key={stage} board={board} id={stage} count={deals.filter(item => item.stage === stage).length} unit="deals" over={drag?.over === stage}>
               {deals
                 .filter(item => item.stage === stage)
                 .map(deal => {
@@ -886,7 +890,7 @@ export function Deals({ id }) {
                       </button>
                       <div className="deal-card-amount">{money(deal.amount)}</div>
                       <small>
-                        <CalendarBlank size={13} /> {deal.closeDate}
+                        <CalendarBlank size={13} /> {dayLabel(deal.closeDate)}
                       </small>
                       <Person name={lead.assignee} />
                       <Select
@@ -902,7 +906,7 @@ export function Deals({ id }) {
                   );
                 })}
               {!deals.some(item => item.stage === stage) && <p className="column-empty">No deals here</p>}
-            </section>
+            </BoardColumn>
           ))}
           {drag && (
             <div className="kanban-ghost" style={{ width: drag.width, transform: `translate(${drag.x}px, ${drag.y}px)` }}>
@@ -1105,7 +1109,7 @@ export function Tasks({ create = false }) {
                 </div>
                 <Badge>{task.type}</Badge>
                 <span className="task-due">
-                  {task.date === TODAY ? "Today" : task.date}
+                  {dayLabel(task.date)}
                   <small>{task.time}</small>
                 </span>
                 <Status value={task.priority} />
@@ -1309,7 +1313,7 @@ export function Calendar() {
             </div>
           </div>
         </Card>
-        <Card className="agenda-card" title={selected === TODAY ? "Today, October 15" : selected} subtitle="The next steps on this day.">
+        <Card className="agenda-card" title={selected === TODAY ? "Today, October 15" : new Date(selected + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })} subtitle="The next steps on this day.">
           <div className="agenda-list">
             {tasks
               .filter(task => task.date === selected)
@@ -1336,9 +1340,16 @@ export function Calendar() {
 export function Inbox() {
   const { state, dispatch, navigate, notify, route } = useCrm();
   const [channel, setChannel] = useState("All");
+  const [query, setQuery] = useState("");
+  // "all", or the Unread or Archived section opened from its row above the list.
+  const [section, setSection] = useState("all");
+  const composerInput = useRef(null);
   const [selected, setSelected] = useState("");
   const [draft, setDraft] = useState("");
-  const [attachment, setAttachment] = useState("");
+  const [replyTo, setReplyTo] = useState(null);
+  const [polling, setPolling] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [groupMembers, setGroupMembers] = useState([]);
   const [newConversation, setNewConversation] = useState(false);
   const [newLeadId, setNewLeadId] = useState("");
   const [newChannel, setNewChannel] = useState("SMS");
@@ -1346,13 +1357,35 @@ export function Inbox() {
   const [newNumber, setNewNumber] = useState("");
   const leads = visibleLeads(state);
 
-  const threads = visibleThreads(state).filter(thread => channel === "All" || thread.channel === channel);
+  // Email lives in Mail; Inbox holds the chats.
+  const all = visibleThreads(state).filter(thread => thread.channel !== "Email");
+  const archivedCount = all.filter(thread => thread.archived).length;
+  const unreadCount = all.filter(thread => thread.unread && !thread.archived).length;
+  // The list shows the active conversations, or the Unread or the Archived section, like a messenger.
+  const inView = all.filter(thread => (section === "archived" ? thread.archived : !thread.archived && (section !== "unread" || thread.unread)));
+  const chips = state.role === "client" ? ["All", "Partner"] : ["All", "SMS", "Team", "Group", "Partner"];
+  const matchesChip = (thread, chip) => chip === "All" || thread.channel === chip;
+  const threads = inView.filter(thread => {
+    if (!matchesChip(thread, channel)) return false;
+    const person = leads.find(item => item.id === thread.leadId);
+    const words = [thread.title, person?.name, person?.address, thread.phone, thread.preview, ...thread.messages.map(message => message.text)].join(" ").toLowerCase();
+    return words.includes(query.trim().toLowerCase());
+  });
   const requested = new URLSearchParams(route.split("?")[1]).get("lead");
   const requestedThread = new URLSearchParams(route.split("?")[1]).get("thread");
   const thread = threads.find(item => item.id === selected) || (requestedThread && threads.find(item => item.id === requestedThread)) || (requested && threads.find(item => item.leadId === requested)) || threads[0];
   const lead = leads.find(item => item.id === thread?.leadId);
   const canMessage = capability(state, "message") || capability(state, "publicComment");
   const byNumber = newChannel === "SMS" && recipientMode === "Phone number" && state.role !== "client" && !state.remote;
+  const me = ROLES[state.role].person;
+  // Text, an attachment (with the draft as its caption), or both; a reply keeps the message it answers.
+  const send = attach => {
+    if (!thread || (!attach && !draft.trim())) return;
+    dispatch({ type: "MESSAGE", id: thread.id, text: draft, attach, replyTo: replyTo ?? undefined });
+    setDraft("");
+    setReplyTo(null);
+    notify(state.online ? "Demo message added — nothing was sent externally" : "Communication draft saved offline");
+  };
   const recipient = byNumber ? smsRecipient(state, newNumber) : null;
   return (
     <>
@@ -1366,6 +1399,8 @@ export function Inbox() {
               setNewChannel(state.role === "client" ? "Partner" : "SMS");
               setRecipientMode("Phone number");
               setNewNumber("");
+              setGroupName("");
+              setGroupMembers([]);
               setNewConversation(true);
             }}
           >
@@ -1375,63 +1410,160 @@ export function Inbox() {
       </PageHeader>
       <div className="inbox-layout">
         <Card className="thread-list">
-          <Segmented
-            label="Conversation channel"
-            value={channel}
-            onChange={value => {
-              setChannel(value);
-              setSelected("");
-            }}
-            options={state.role === "client" ? ["All", "Partner"] : ["All", "SMS", "Email", "Team", "Partner"]}
-          />
-          {threads.map(item => {
+          <Search value={query} onChange={setQuery} placeholder="Search conversations" />
+          <div className="thread-chips" role="group" aria-label="Show conversations">
+            {chips.map(chip => {
+              const unread = inView.filter(thread => thread.unread && matchesChip(thread, chip)).length;
+              return (
+                <button
+                  key={chip}
+                  type="button"
+                  aria-pressed={channel === chip}
+                  onClick={() => {
+                    setChannel(chip);
+                    setSelected("");
+                  }}
+                >
+                  {chip === "Group" ? "Groups" : chip}
+                  {unread > 0 && <span className="chip-count">{unread}</span>}
+                </button>
+              );
+            })}
+          </div>
+          {section !== "all" ? (
+            <button type="button" className="archive-entry back" onClick={() => setSection("all")}>
+              <ArrowLeft size={17} />
+              <strong>{section === "unread" ? "Unread" : "Archived"}</strong>
+              <small>{section === "unread" ? "Conversations waiting on you" : "Conversations you set aside"}</small>
+            </button>
+          ) : (
+            <>
+              {unreadCount > 0 && (
+                <button type="button" className="archive-entry" onClick={() => setSection("unread")}>
+                  <ChatCircleDots size={17} />
+                  <strong>Unread</strong>
+                  <span className="chip-count">{unreadCount}</span>
+                </button>
+              )}
+              {archivedCount > 0 && (
+                <button type="button" className="archive-entry" onClick={() => setSection("archived")}>
+                  <Archive size={17} />
+                  <strong>Archived</strong>
+                  <span className="chip-count quiet">{archivedCount}</span>
+                </button>
+              )}
+            </>
+          )}
+          <div className="thread-items">
+            {threads.map(item => {
             const person = leads.find(lead => lead.id === item.leadId);
-            const Icon = item.channel === "Email" ? Envelope : ChatCircle;
+            const Icon = item.channel === "Email" ? Envelope : item.channel === "Group" ? UsersThree : ChatCircle;
             return (
+              <div className="thread-row" key={item.id}>
               <button
-                key={item.id}
-                className={"thread " + (thread?.id === item.id ? "selected" : "")}
+                className={"thread" + (thread?.id === item.id ? " selected" : "") + (item.unread ? " unread" : "")}
+                aria-current={thread?.id === item.id ? "true" : undefined}
                 onClick={() => {
                   setSelected(item.id);
+                  setReplyTo(null);
                   dispatch({ type: "MARK_READ", id: item.id });
                 }}
               >
-                <div>
-                  <Icon size={19} />
-                  <strong>{person?.name || item.phone}</strong>
-                  {item.unread && <Badge tone="peach">New</Badge>}
-                </div>
-                <p>{item.preview}</p>
-                <small>
-                  {item.channel} · {person?.address || item.phone}
-                </small>
+                <span className="thread-icon" aria-hidden="true">
+                  <Icon size={17} />
+                </span>
+                <span className="thread-body">
+                  <span className="thread-top">
+                    <strong>{item.title || person?.name || item.phone}</strong>
+                    <time>{item.messages.at(-1)?.at}</time>
+                  </span>
+                  <span className="thread-preview">{item.preview}</span>
+                  <span className="thread-meta">
+                    {item.channel} · {item.channel === "Group" ? item.members.length + " members" : person?.address || "Phone number"}
+                  </span>
+                </span>
+                {item.unread && <span className="unread-dot" aria-label="Unread" />}
               </button>
+              <button
+                type="button"
+                className="thread-archive"
+                aria-label={(item.archived ? "Unarchive " : "Archive ") + (item.title || person?.name || item.phone)}
+                title={item.archived ? "Unarchive" : "Archive"}
+                onClick={() => dispatch({ type: "ARCHIVE", id: item.id, archived: !item.archived })}
+              >
+                {item.archived ? <ArrowUUpLeft size={16} /> : <Archive size={16} />}
+              </button>
+              </div>
             );
           })}
-          {!threads.length && <Empty title="No conversations here">Start a conversation with a lead or phone number.</Empty>}
+            {!threads.length &&
+              (query ? (
+                <Empty title="Nothing matches">Try another name, address or word.</Empty>
+              ) : section === "unread" ? (
+                <Empty title="All caught up">Nothing is waiting on a reply.</Empty>
+              ) : section === "archived" ? (
+                <Empty title="Nothing archived">Archive a conversation to keep it out of the way without deleting it.</Empty>
+              ) : (
+                <Empty title="No conversations here">Start a conversation with a lead or phone number.</Empty>
+              ))}
+          </div>
         </Card>
         <Card className="conversation">
-          {thread && (lead || thread.phone) ? (
+          {thread && (lead || thread.phone || thread.channel === "Group") ? (
             <>
               <header>
                 <div>
-                  <h2>{lead?.name || thread.phone}</h2>
+                  <h2>{thread.title || lead?.name || thread.phone}</h2>
                   <small>
-                    {thread.channel} · {lead?.address || "Phone number"}
+                    <Badge>{thread.channel}</Badge>
+                    {thread.channel === "SMS" && (lead?.phone || thread.phone) ? <span>{lead?.phone || thread.phone}</span> : null}
+                    <span>{thread.channel === "Group" ? thread.members.join(", ") : lead?.address || "Phone number"}</span>
                   </small>
                 </div>
-                {lead && <RoundButton label="Open conversation lead" onClick={() => navigate("work/leads/" + lead.id)} />}
+                <div className="conversation-actions">
+                  {!thread.unread && (
+                    <RoundButton
+                      icon={ChatCircleDots}
+                      label="Mark as unread"
+                      onClick={() => {
+                        dispatch({ type: "MARK_READ", id: thread.id, unread: true });
+                        notify("Marked as unread");
+                      }}
+                    />
+                  )}
+                  <RoundButton
+                    icon={thread.archived ? ArrowUUpLeft : Archive}
+                    label={thread.archived ? "Unarchive conversation" : "Archive conversation"}
+                    onClick={() => dispatch({ type: "ARCHIVE", id: thread.id, archived: !thread.archived })}
+                  />
+                  {lead && <RoundButton label="Open conversation lead" onClick={() => navigate("work/leads/" + lead.id)} />}
+                </div>
               </header>
               <div className="message-history">
                 {thread.messages.map((message, index) => (
-                  <div key={index} className={"message " + (message.incoming ? "incoming" : "outgoing")}>
-                    <small>{message.from}</small>
-                    <p>{message.text}</p>
-                    <span>
-                      {message.at}
-                      {message.draft && " · Not sent"}
-                    </span>
-                  </div>
+                  <ChatMessage
+                    key={index}
+                    message={message}
+                    index={index}
+                    thread={thread}
+                    me={me}
+                    canAct={canMessage}
+                    onReply={i => {
+                      setReplyTo(i);
+                      composerInput.current?.focus();
+                    }}
+                    onJump={i => {
+                      // Bring the answered message into view and mark it for a moment.
+                      const target = document.getElementById("message-" + thread.id + "-" + i);
+                      target?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+                      target?.classList.remove("flash");
+                      void target?.offsetWidth;
+                      target?.classList.add("flash");
+                    }}
+                    onReact={emoji => dispatch({ type: "REACT", id: thread.id, index, emoji })}
+                    onVote={option => dispatch({ type: "VOTE", id: thread.id, index, option })}
+                    onOpenLead={leadId => navigate("work/leads/" + leadId)}
+                  />
                 ))}
               </div>
               {canMessage && (
@@ -1439,39 +1571,35 @@ export function Inbox() {
                   className="composer"
                   onSubmit={event => {
                     event.preventDefault();
-                    dispatch({ type: "MESSAGE", id: thread.id, text: draft + (attachment ? "\nAttachment preview: " + attachment : "") });
-                    setDraft("");
-                    setAttachment("");
-                    notify(state.online ? "Demo message added — nothing was sent externally" : "Communication draft saved offline");
+                    send();
                   }}
                 >
-                  <textarea
-                    aria-label="Message text"
-                    value={draft}
-                    onChange={event => setDraft(event.target.value)}
-                    placeholder={state.online ? "Write a message…" : "Write an offline draft…"}
-                    required
-                  />
-                  <div>
-                    <label className="attachment-button">
-                      <Paperclip size={18} />
-                      <span>{attachment || "Attach file"}</span>
-                      <input
-                        type="file"
-                        onChange={event => {
-                          const file = event.target.files?.[0];
-                          if (file) setAttachment(file.name);
-                        }}
-                      />
-                    </label>
-                    <button className="button primary" type="submit" disabled={!draft.trim()}>
-                      <PaperPlaneTilt size={17} />
-                      {state.online ? "Send demo message" : "Save draft"}
+                  {["Team", "Group"].includes(thread.channel) && <MentionPicker draft={draft} onPick={setDraft} />}
+                  {replyTo !== null && thread.messages[replyTo] && <ReplyBar message={thread.messages[replyTo]} onCancel={() => setReplyTo(null)} />}
+                  <div className="composer-row">
+                    <AttachMenu thread={thread} lead={lead} leads={leads} onAttach={attach => send(attach)} onPoll={() => setPolling(true)} />
+                    <textarea
+                      ref={composerInput}
+                      aria-label="Message text"
+                      value={draft}
+                      rows={1}
+                      onChange={event => setDraft(event.target.value)}
+                      onKeyDown={event => {
+                        // Ctrl+Enter (Cmd+Enter on a Mac) sends; Enter alone keeps writing on a new line.
+                        if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && draft.trim()) event.currentTarget.form.requestSubmit();
+                      }}
+                      placeholder={state.online ? "Write a message…" : "Write an offline draft…"}
+                    />
+                    <ExpressionPanel online={state.online} onEmoji={emoji => setDraft(text => text + emoji)} onGif={gif => send({ kind: "gif", gif })} />
+                    <button className="button primary composer-send" type="submit" disabled={!draft.trim()} aria-label={state.online ? "Send demo message" : "Save draft"} title={state.online ? "Send demo message" : "Save draft"}>
+                      <PaperPlaneTilt size={18} />
                     </button>
                   </div>
+                  <span className="composer-hint">Ctrl + Enter to send</span>
                   <small className="demo-note">Prototype conversation · no real email or SMS is sent</small>
                 </form>
               )}
+              {polling && <PollDialog onSend={attach => send(attach)} onClose={() => setPolling(false)} />}
             </>
           ) : (
             <Empty title="A conversation belongs here">Choose a thread or start a new one.</Empty>
@@ -1484,6 +1612,14 @@ export function Inbox() {
             className="sms-conversation-form"
             onSubmit={event => {
               event.preventDefault();
+              if (newChannel === "Group") {
+                const id = uid();
+                dispatch({ type: "NEW_THREAD", thread: { id, channel: "Group", title: groupName, members: groupMembers, preview: "New group", unread: false, messages: [] } });
+                setSelected(id);
+                setChannel("All");
+                setNewConversation(false);
+                return;
+              }
               if (byNumber && recipient.error) return;
               const leadId = byNumber ? recipient.lead?.id || null : newLeadId;
               const conversationChannel = state.role === "client" ? "Partner" : newChannel;
@@ -1507,11 +1643,24 @@ export function Inbox() {
               setNewConversation(false);
               dispatch({ type: "MARK_READ", id });
               setDraft("");
-              setAttachment("");
+              setReplyTo(null);
             }}
           >
-            {newChannel === "SMS" && state.role !== "client" && !state.remote && <Segmented label="SMS recipient" value={recipientMode} options={["Phone number", "Existing lead"]} onChange={setRecipientMode} />}
-            {byNumber ? <Field label="Phone number" help={newNumber ? recipient.error || (recipient.lead ? "Linked to " + recipient.lead.name : recipient.thread ? "Existing SMS conversation" : "Start an SMS conversation without creating a lead.") : "Include the country code for international numbers."}>
+            {newChannel === "Group" && (
+              <>
+                <Field label="Group name">
+                  <input value={groupName} maxLength={60} onChange={event => setGroupName(event.target.value)} placeholder="Tampa closers" required />
+                </Field>
+                <fieldset className="group-members">
+                  <legend>Members</legend>
+                  {PEOPLE.filter(name => name !== me).map(name => (
+                    <Checkbox key={name} label={name} checked={groupMembers.includes(name)} onChange={event => setGroupMembers(event.target.checked ? [...groupMembers, name] : groupMembers.filter(item => item !== name))} />
+                  ))}
+                </fieldset>
+              </>
+            )}
+            {newChannel !== "Group" && newChannel === "SMS" && state.role !== "client" && !state.remote && <Segmented label="SMS recipient" value={recipientMode} options={["Phone number", "Existing lead"]} onChange={setRecipientMode} />}
+            {newChannel === "Group" ? null : byNumber ? <Field label="Phone number" help={newNumber ? recipient.error || (recipient.lead ? "Linked to " + recipient.lead.name : recipient.thread ? "Existing SMS conversation" : "Start an SMS conversation without creating a lead.") : "Include the country code for international numbers."}>
               <input type="tel" autoComplete="off" placeholder="e.g. +1 (813) 555-0101" value={newNumber} maxLength={28} onChange={event => setNewNumber(event.target.value)} required />
             </Field> : <Field label="Related lead">
               <Select value={newLeadId} onChange={event => setNewLeadId(event.target.value)}>
@@ -1527,15 +1676,15 @@ export function Inbox() {
                 {state.role !== "client" && (
                   <>
                     <option>SMS</option>
-                    <option>Email</option>
                     <option>Team</option>
+                    {!state.remote && <option>Group</option>}
                   </>
                 )}
                 <option>Partner</option>
               </Select>
             </Field>
-            <button type="submit" className="button primary" disabled={byNumber ? Boolean(recipient.error) : !newLeadId}>
-              Open conversation
+            <button type="submit" className="button primary" disabled={newChannel === "Group" ? !groupName.trim() || !groupMembers.length : byNumber ? Boolean(recipient.error) : !newLeadId}>
+              {newChannel === "Group" ? "Create group" : "Open conversation"}
             </button>
           </form>
         </Modal>
@@ -1550,3 +1699,4 @@ function shortDate(iso) {
   const name = new Date(year, month - 1, day).toLocaleDateString("en-US", { month: "short" });
   return day + " " + name + " ’" + String(year).slice(-2);
 }
+export { Mail } from "./mail.jsx";

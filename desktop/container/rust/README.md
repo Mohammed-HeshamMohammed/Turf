@@ -25,4 +25,12 @@ The Tauri CLI finds `tauri.conf.json` in this folder by itself. Two paths in it 
 
 The container keeps its own `Cargo.lock` and is left out of the root Cargo workspace, because it pulls in a large dependency tree.
 
-Releases of the installer are built by the release workflow (planned, `crm/release-pipeline`).
+## Releases and updates
+
+The root `.github/workflows/release-crm.yml` builds the Windows NSIS installer when a `crm-v<version>` tag is pushed, or when dispatched with a version. Every release also includes the installer's `.sig` and `latest.json`. It uploads all assets to a draft before publishing and marking that release latest, so the update feed never points to an unfinished release. Published versions cannot be overwritten: bump the version instead.
+
+The main window checks the GitHub `releases/latest/download/latest.json` feed at startup, every 30 minutes, and when returning to the app or reconnecting (at most once every five minutes). **Check for updates** is also available at sign-in. **Install and restart** downloads the update, verifies its signature, checks that calls are finished and changes synced, then installs. The local sample workspace is saved before installation; signed-in records stay in their encrypted vault. Windows closes the app and its bundled engine and starts the new version through the installer. Browser previews do not check or install updates.
+
+The public verification key is in `tauri.conf.json`. Its matching private key is the repository Actions secret `TAURI_SIGNING_PRIVATE_KEY`; keep that secret across releases. `tauri.package.conf.json` enables signed updater artifacts. A release without the signing key fails before building. Never generate a different key for an ordinary release: existing installations trust the current key.
+
+Versions 0.1.3 and earlier have no updater. Those users need to install 0.1.4 once; subsequent stable releases are offered in the app. The identifier `local.turf.fullcrm` and current-user install mode remain unchanged, so installing a new version preserves app data. Updates currently target Windows x64, matching the release workflow.

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { closeMainWindow, dragThisWindow, inDesktopApp, minimizeWindow, toggleMaximizeWindow, watchMaximized } from "./popout.js";
+import { DesktopUpdates } from "./DesktopUpdates.jsx";
 
 /** Elements that must keep working as controls and so never start a window drag. */
 export const NO_DRAG = "button, input, a, select, textarea, label, [role=button], [role=combobox], [role=switch], .global-search";
@@ -18,7 +19,7 @@ export const windowDrag = {
  * The desktop window's own title bar: the app's name, free space that drags the window, and minimise, maximise and close.
  * In a browser tab there is no window to control, so nothing is drawn.
  */
-export function WindowStrip({ title }) {
+export function WindowStrip({ title, beforeUpdate }) {
   const [maximized, setMaximized] = useState(false);
   useEffect(() => {
     // In a browser tab there is no window to watch.
@@ -37,6 +38,7 @@ export function WindowStrip({ title }) {
   return (
     <div className="window-strip" {...windowDrag}>
       <span className="window-strip-title">{title}</span>
+      <DesktopUpdates beforeInstall={beforeUpdate} />
       <div className="window-controls">
         <button type="button" className="win-btn" title="Minimize" aria-label="Minimize" onClick={() => minimizeWindow()}>
           <svg viewBox="0 0 12 12" aria-hidden="true">

@@ -268,7 +268,7 @@ export function LeadsMap({ leads }) {
         </p>
       )}
       {engine === false && (
-        <p className="notice subtle">Placing leads by their address needs Turf's engine (the desktop app). Leads with coordinates are shown.</p>
+        <p className="notice subtle">Placing leads by their address needs Caller Whale's engine (the desktop app). Leads with coordinates are shown.</p>
       )}
       <div className="leads-map-layout">
         <div className="leads-map-surface">

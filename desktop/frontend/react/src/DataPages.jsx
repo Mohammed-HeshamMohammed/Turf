@@ -497,7 +497,7 @@ export function SkipTracing() {
       if (state.remote) {
         setProgress({ label: "Checking your credits", value: 0, max: 1 });
         await api.useCredits("skip_trace", rows.length, crypto.randomUUID(), dataset.name).catch(reason => {
-          if (reason.code === "offline") throw new Error("Skip Tracing needs a connection to Turf's server to count your credits. Try again when you are online.");
+          if (reason.code === "offline") throw new Error("Skip Tracing needs a connection to Caller Whale's server to count your credits. Try again when you are online.");
           throw reason;
         });
         if (controller.signal.aborted) return;
@@ -572,7 +572,7 @@ export function SkipTracing() {
             {mode === "Local" ? "Your source stays on this device until you choose to publish it." : "Your team can follow the job and review its results."}
           </p>
         </div>
-        <Badge tone={engine ? "good" : ""}>{engine === null ? "Connecting…" : engine ? "Turf engine" : "Demo check"}</Badge>
+        <Badge tone={engine ? "good" : ""}>{engine === null ? "Connecting…" : engine ? "Caller Whale engine" : "Demo check"}</Badge>
       </div>
       <nav ref={stepNavigation} className="wizard-steps" aria-label="Skip Tracing steps">
         {stages.map(
@@ -777,7 +777,7 @@ export function SkipTracing() {
                           {skipped
                             ? "Skipped · no populated phone field. Existing blocked records stay blocked."
                             : fixed
-                              ? description + " Always on in the Turf engine."
+                              ? description + " Always on in the Caller Whale engine."
                               : description}
                         </p>
                       </div>
@@ -798,7 +798,7 @@ export function SkipTracing() {
                   <h3>{progress.label}</h3>
                   <progress value={progress.value} max={progress.max} />
                   <p>
-                    {engine ? "Turf engine" : "Simulated " + mode.toLowerCase() + " check"} · {rows.length} rows
+                    {engine ? "Caller Whale engine" : "Simulated " + mode.toLowerCase() + " check"} · {rows.length} rows
                   </p>
                   <Button onClick={cancel}>Cancel check</Button>
                 </div>
@@ -873,7 +873,7 @@ export function SkipTracing() {
                   </div>
                   {checked.noPhones && (
                     <p className="notice subtle">
-                      This list has no phone numbers, so there is nothing to call yet. Turf found each property&apos;s owner (the same name at the same mailing
+                      This list has no phone numbers, so there is nothing to call yet. Caller Whale found each property&apos;s owner (the same name at the same mailing
                       address, in any ZIP code), the properties each owner holds here, and scored them: vacant +3, absentee +2, owns several +2, mails out of
                       state +1, investor +1, owned 25+ years +1. A repeat is the same property listed twice; one owner with several properties is not a
                       repeat. Add phone numbers (a skip-tracing data source) and run the check again to see which are ready to call.
@@ -898,7 +898,7 @@ export function SkipTracing() {
                   </div>
                   {!checked.engine && (
                     <p className="notice subtle">
-                      These are illustrative results from the sample records. The Turf engine runs in the desktop app and on the dev server.
+                      These are illustrative results from the sample records. The Caller Whale engine runs in the desktop app and on the dev server.
                     </p>
                   )}
                   <Button variant="primary" onClick={() => setStep(4)}>
@@ -992,7 +992,7 @@ export function SkipTracing() {
                 <small>Execution</small>
                 <strong>
                   {mode === "Local" ? "This device" : "Shared cloud job"}
-                  {engine ? " · Turf engine" : ""}
+                  {engine ? " · Caller Whale engine" : ""}
                 </strong>
               </div>
               <div>

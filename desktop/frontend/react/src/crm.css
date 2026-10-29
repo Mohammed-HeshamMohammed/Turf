@@ -163,7 +163,8 @@ svg {
   flex: none;
   padding: 14px 24px;
   display: grid;
-  grid-template-columns: 330px minmax(0, 1fr) auto;
+  /* Room for the whale mark, "Caller Whale" and the workspace name. */
+  grid-template-columns: 400px minmax(0, 1fr) auto;
   gap: 20px;
   align-items: center;
   background: var(--page);
@@ -933,7 +934,7 @@ svg {
   gap: 18px;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 h1 {
   font-size: 24px;
@@ -993,7 +994,7 @@ h1 {
 .card {
   min-width: 0;
   background: var(--card);
-  padding: 21px;
+  padding: 20px;
   border-radius: var(--radius);
   margin-bottom: 16px;
 }
@@ -1049,15 +1050,15 @@ h1 {
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 .metric {
   margin: 0;
   text-align: left;
   display: grid;
   gap: 6px;
-  padding: 18px 20px;
+  padding: 20px;
 }
 .metric-label {
   display: flex;
@@ -1308,7 +1309,7 @@ meter::-moz-meter-bar {
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-  margin-bottom: 17px;
+  margin-bottom: 16px;
 }
 .filter-bar .search {
   min-width: 200px;
@@ -1491,7 +1492,8 @@ input[type="checkbox"] {
 }
 .kanban-card {
   background: var(--card);
-  border-radius: 16px;
+  /* Concentric with its column: column radius 20 minus the column's 12 padding. */
+  border-radius: 8px;
   padding: 15px;
   margin-bottom: 10px;
   display: grid;
@@ -2259,8 +2261,8 @@ textarea {
   flex-wrap: wrap;
   align-items: center;
   gap: 28px;
-  margin: 24px 0;
-  padding-bottom: 23px;
+  margin: 16px 0;
+  padding-bottom: 16px;
   border-bottom: 1px solid #d4d4d4;
 }
 .pipeline-summary strong {
@@ -2335,7 +2337,7 @@ textarea {
   align-items: start;
 }
 .calendar-card {
-  padding: 22px 17px;
+  padding: 20px;
 }
 .calendar-week {
   display: grid;
@@ -2415,26 +2417,46 @@ textarea {
 }
 .inbox-layout {
   display: grid;
-  grid-template-columns: 306px minmax(0, 1fr);
-  gap: 17px;
+  grid-template-columns: clamp(340px, 29vw, 380px) minmax(0, 1fr);
+  gap: 16px;
 }
+/* The list: search, channel filter, then conversations, each one line of who and when, a preview and where. */
 .thread-list {
-  padding: 17px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 12px;
+  min-height: 0;
+}
+.thread-list > .search {
+  margin: 0 4px;
 }
 .thread-list > .segmented {
-  margin-bottom: 16px;
+  align-self: flex-start;
+  max-width: 100%;
+  margin: 0 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 .thread-list .segmented button {
   font-size: 12px;
-  padding: 6px 12px;
+  padding: 6px 11px;
+  white-space: nowrap;
+}
+.thread-items {
+  display: grid;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
 }
 .thread {
-  display: block;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
   width: 100%;
-  padding: 17px 13px;
+  padding: 12px;
   text-align: left;
-  border-radius: 15px;
-  margin-bottom: 5px;
+  border-radius: 16px;
 }
 .thread.selected {
   background: var(--accent-soft);
@@ -2442,36 +2464,87 @@ textarea {
 .thread:hover:not(.selected) {
   background: var(--well);
 }
-.thread > div {
-  display: flex;
-  gap: 7px;
-  align-items: center;
+.thread-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--well);
 }
-.thread strong {
-  font-size: 12px;
+.thread.selected .thread-icon {
+  background: var(--card);
+}
+.thread-body {
+  display: grid;
+  gap: 3px;
   flex: 1;
+  min-width: 0;
 }
-.thread p {
-  margin: 9px 0;
-  font-size: 12px;
+.thread-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.thread-top strong {
+  font-size: 13px;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.thread small {
+.thread-top time {
+  flex: none;
+  color: var(--muted, #6b6b6b);
   font-size: 12px;
+}
+.thread-preview,
+.thread-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.thread-meta {
+  color: var(--muted, #6b6b6b);
+}
+.thread.unread .thread-preview,
+.thread.unread .thread-top strong {
+  font-weight: 600;
+}
+.unread-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 .conversation {
   display: flex;
   flex-direction: column;
   min-height: 530px;
 }
+.conversation > header small {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 4px;
+}
+.conversation > header small > span + span::before {
+  content: "· ";
+}
 .message-history {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 17px;
-  padding: 14px 0 25px;
+  gap: 16px;
+  padding: 14px 0 24px;
+  min-height: 0;
+  overflow-y: auto;
 }
 .message {
   max-width: 82%;
@@ -2512,7 +2585,7 @@ textarea {
 .composer > div {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
   margin: 10px 0;
 }
@@ -2543,7 +2616,7 @@ textarea {
 .dataset-card {
   display: flex;
   flex-direction: column;
-  padding: 22px;
+  padding: 20px;
   margin: 0;
 }
 .dataset-top {
@@ -2561,7 +2634,7 @@ textarea {
   border-radius: 13px;
 }
 .dataset-card h2 {
-  font-size: 19px;
+  font-size: 18px;
 }
 .dataset-card > p {
   font-size: 12px;
@@ -3479,7 +3552,7 @@ textarea {
     width: 195px;
   }
   .app-header {
-    grid-template-columns: 295px minmax(0, 1fr) auto;
+    grid-template-columns: 365px minmax(0, 1fr) auto;
     gap: 14px;
   }
   .call-layout {
@@ -3546,7 +3619,7 @@ textarea {
 }
 @media (max-width: 900px) {
   .app-header {
-    grid-template-columns: 280px 1fr auto;
+    grid-template-columns: 340px 1fr auto;
     padding: 12px 17px;
     gap: 10px;
   }
@@ -3702,7 +3775,9 @@ textarea {
     font-size: 12px;
   }
   .metric > strong {
-    font-size: 34px;
+    /* A long figure such as "$1,135,000" shrinks to fit its half-width card rather than breaking in two. */
+    font-size: clamp(22px, 7vw, 34px);
+    white-space: nowrap;
   }
   .dashboard-right {
     grid-template-columns: 1fr 1fr;
@@ -3729,7 +3804,8 @@ textarea {
     grid-template-columns: 1fr;
   }
   .queue-card {
-    max-height: 250px;
+    /* Tall enough to show a few leads whole on a phone, still short enough to keep the lead card in reach. */
+    max-height: min(60vh, 460px);
   }
   .call-layout > aside {
     grid-template-columns: 1fr;
@@ -5002,6 +5078,34 @@ html.captions-window #root {
   align-items: center;
   gap: 4px;
 }
+.desktop-updates {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin-left: auto;
+  margin-right: 16px;
+  font-size: 12px;
+}
+.desktop-update-message {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.desktop-updates button {
+  flex: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.desktop-updates button:hover {
+  background: var(--peach);
+}
+.desktop-updates button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
 .win-btn {
   display: grid;
   place-items: center;
@@ -5322,6 +5426,7 @@ html.demo-quiet .demo-note {
 .top-nav button {
   display: inline-flex;
   align-items: center;
+  min-height: 38px;
   gap: 7px;
   padding: 10px 16px;
   border-radius: 999px;
@@ -5396,47 +5501,6 @@ html.demo-quiet .demo-note {
   }
 }
 
-/* Deals: five stages on top; Closed won, Negotiation and Closed lost beneath, each a third wide with cards flowing into as many columns as fit. */
-@media (min-width: 721px) {
-  .deal-board {
-    display: grid;
-    grid-template-columns: repeat(30, minmax(0, 1fr));
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 13px;
-  }
-  .deal-board .kanban-column {
-    min-width: 0;
-    grid-column: span 6;
-  }
-  .deal-board .kanban-column[data-stage="Closed won"],
-  .deal-board .kanban-column[data-stage="Negotiation"],
-  .deal-board .kanban-column[data-stage="Closed lost"] {
-    grid-row: 2;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-    grid-auto-rows: max-content;
-    align-content: start;
-    gap: 10px;
-  }
-  .deal-board .kanban-column[data-stage="Closed won"] {
-    grid-column: 1 / span 10;
-  }
-  .deal-board .kanban-column[data-stage="Negotiation"] {
-    grid-column: 11 / span 10;
-  }
-  .deal-board .kanban-column[data-stage="Closed lost"] {
-    grid-column: 21 / span 10;
-  }
-  .deal-board .kanban-column > header,
-  .deal-board .kanban-column .column-empty {
-    grid-column: 1 / -1;
-  }
-  .deal-board .kanban-column[data-stage="Closed won"] .kanban-card,
-  .deal-board .kanban-column[data-stage="Negotiation"] .kanban-card,
-  .deal-board .kanban-column[data-stage="Closed lost"] .kanban-card {
-    margin-bottom: 0;
-  }
-}
 @media (min-width: 721px) {
   .deal-board .kanban-card {
     padding: 11px 13px;
@@ -5448,11 +5512,6 @@ html.demo-quiet .demo-note {
 }
 .deal-board .kanban-card:last-of-type {
   margin-bottom: 0;
-}
-.deal-board .kanban-column[data-stage="Closed won"] > header,
-.deal-board .kanban-column[data-stage="Negotiation"] > header,
-.deal-board .kanban-column[data-stage="Closed lost"] > header {
-  margin-bottom: 4px;
 }
 
 /* Each stage has its own colour: a pill on the column header, in the same style as the status badges. The columns stay neutral. */
@@ -6363,4 +6422,1121 @@ html.demo-quiet .demo-note {
   background: #fff;
   color: var(--ink, #121212);
   box-shadow: inset 0 0 0 1px var(--line, #dcdcdc);
+}
+
+/* The page's width stays the same whether or not it scrolls, so content never jumps sideways between pages. */
+.main-content {
+  scrollbar-gutter: stable;
+  /* Room below the last card for the phone button, so it never sits on top of the final row's controls. */
+  padding-bottom: 104px;
+}
+
+/* Board columns still scroll on their own, but their scrollbar shows only while the pointer is over the column. */
+.kanban-column {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.kanban-column:hover,
+.kanban-column:focus-within {
+  scrollbar-color: var(--line, #d5d5d5) transparent;
+}
+/* Board pages fill the window and scroll inside their columns, so they keep their original bottom spacing. */
+.main-content:has(.page-content > .kanban) {
+  padding-bottom: 32px;
+}
+
+/* Boards: every stage in one row. Stages with cards share the width; empty or folded stages are slim rails that open on click. */
+.kanban-column.collapsed {
+  flex: none;
+  width: 52px;
+  min-width: 0;
+  padding: 8px 0;
+}
+.column-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  padding: 4px 0;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+}
+.column-rail:hover {
+  background: var(--well);
+}
+.column-rail > span:last-child {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+}
+.kanban-column:not(.collapsed) {
+  min-width: 230px;
+}
+.kanban-column > header {
+  gap: 8px;
+  min-width: 0;
+}
+.kanban-column > header > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.column-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.column-fold {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: var(--muted, #6b6b6b);
+  cursor: pointer;
+}
+.column-fold:hover {
+  background: var(--well);
+  color: var(--ink);
+}
+/* A card's stage menu never pushes past the card. */
+.kanban-card .select-trigger {
+  min-width: 0;
+}
+.kanban-card > * {
+  min-width: 0;
+}
+
+/* Inbox fills the window like the boards: the list and the messages scroll inside, the composer stays at the bottom. */
+@media (min-width: 901px) and (min-height: 600px) {
+  .page-content:has(> .inbox-layout) {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .page-content > .inbox-layout {
+    flex: 1;
+    min-height: 0;
+  }
+  .inbox-layout > .card {
+    min-height: 0;
+    margin-bottom: 0;
+  }
+}
+.main-content:has(.page-content > .inbox-layout) {
+  padding-bottom: 32px;
+}
+.composer > div > .attachment-button {
+  margin-right: auto;
+}
+.composer-hint {
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+@media (max-width: 720px) {
+  .composer-hint {
+    display: none;
+  }
+}
+
+/* Chat composer: + attach, the message, emoji and GIFs, send, all on one row like a messenger. */
+.composer {
+  position: relative;
+}
+.composer > .composer-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 6px;
+  border-radius: 24px;
+  background: var(--well);
+}
+.composer-row textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  max-height: 160px;
+  padding: 10px 6px;
+  border: 0;
+  background: transparent;
+  resize: none;
+  field-sizing: content;
+}
+.composer-row textarea:focus-visible {
+  outline: none;
+}
+.composer-row:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.composer-send {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 50%;
+}
+.composer > .composer-hint {
+  display: block;
+  margin: 6px 4px 0;
+  text-align: right;
+}
+.chat-tool {
+  position: relative;
+  flex: none;
+}
+.chat-tool-button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chat-tool-button:hover,
+.chat-tool-button[aria-expanded="true"] {
+  background: var(--card);
+}
+.chat-popover {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  z-index: 40;
+  padding: 8px;
+  border-radius: 20px;
+  background: var(--card);
+  box-shadow: 0 12px 32px #0002, 0 0 0 1px #0000000d;
+  animation: page-in 140ms var(--ease-out);
+}
+.attach-menu {
+  left: 0;
+  display: grid;
+  min-width: 220px;
+}
+.attach-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  text-align: left;
+  font-size: 13px;
+}
+.attach-menu button:hover,
+.attach-menu button:focus-visible {
+  background: var(--well);
+}
+.attach-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+}
+.contact-pick {
+  display: grid;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.contact-pick button {
+  display: grid;
+  gap: 2px;
+}
+.contact-pick small {
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.expression-panel {
+  right: 0;
+  width: min(340px, calc(100vw - 48px));
+  display: grid;
+  gap: 8px;
+}
+.expression-tabs {
+  display: flex;
+  gap: 4px;
+}
+.expression-tabs button {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+.expression-tabs button[aria-selected="true"] {
+  background: var(--ink);
+  color: white;
+}
+.emoji-groups {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.emoji-groups small {
+  display: block;
+  margin: 0 4px 4px;
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+}
+.emoji-grid button {
+  height: 36px;
+  border-radius: 10px;
+  font-size: 20px;
+}
+.emoji-grid button:hover,
+.emoji-grid button:focus-visible {
+  background: var(--well);
+}
+.gif-search {
+  width: 100%;
+}
+.gif-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.gif-grid button {
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--well);
+}
+.gif-grid img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.gif-note,
+.giphy-credit {
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.giphy-credit {
+  text-align: right;
+}
+
+/* Messages: what they carry, the reply they answer, reactions, and reply / react on hover or focus. */
+.message {
+  position: relative;
+}
+.message-gif,
+.message-photo {
+  display: block;
+  max-width: min(280px, 100%);
+  height: auto;
+  margin: 4px 0;
+  border-radius: 12px;
+}
+.message-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--card);
+  text-align: left;
+}
+.message-card span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.message-card small {
+  color: var(--muted, #6b6b6b);
+  overflow-wrap: anywhere;
+}
+button.message-card:not(:disabled):hover {
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.message-quote {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 6px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0;
+  background: #ffffff80;
+  font-size: 12px;
+}
+.message-quote span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.message-poll {
+  display: grid;
+  gap: 6px;
+  min-width: 240px;
+  margin: 4px 0;
+}
+.poll-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--card);
+  text-align: left;
+  font-size: 13px;
+}
+.poll-option > span:not(.poll-bar),
+.poll-option > small {
+  position: relative;
+}
+.poll-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent-soft);
+  transition: width 200ms var(--ease-out);
+}
+.poll-option.mine {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.message-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.message-reactions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--card);
+  font-size: 13px;
+}
+.message-reactions button.mine {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.message-actions {
+  position: absolute;
+  top: -14px;
+  right: 8px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: 0 2px 8px #0002;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.message:hover .message-actions,
+.message:focus-within .message-actions {
+  opacity: 1;
+}
+.message-actions > button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+.message-actions > button:hover {
+  background: var(--well);
+}
+.reaction-bar {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: 0 6px 18px #0002;
+}
+.reaction-bar button {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 18px;
+}
+.reaction-bar button:hover {
+  background: var(--well);
+}
+.mention {
+  padding: 0 3px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  font-weight: 500;
+}
+.mention.me {
+  background: var(--accent);
+}
+.mention-picker,
+.reply-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.mention-picker button {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  font-size: 12px;
+}
+.reply-bar {
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--well);
+  font-size: 12px;
+}
+.reply-bar > span {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.reply-bar small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted, #6b6b6b);
+}
+.reply-bar > button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+.group-members {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.group-members legend {
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.poll-form {
+  display: grid;
+  gap: 12px;
+}
+.poll-form-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-popover,
+  .poll-bar,
+  .message-actions {
+    animation: none;
+    transition: none;
+  }
+}
+@media (hover: none) {
+  .message-actions {
+    opacity: 1;
+  }
+}
+/* Six channel filters fit the list's width without clipping. */
+.thread-list .segmented button {
+  padding: 6px 8px;
+}
+/* The hint sits under the message, clear of the phone button in the corner. */
+.composer > .composer-hint {
+  text-align: left;
+  margin-left: 52px;
+}
+/* The vote share reads on both the grey and the peach bubbles. */
+.poll-bar {
+  background: var(--accent);
+  opacity: 0.45;
+}
+/* Phones: the + menu and the emoji / GIF panel span the composer instead of hanging off their button. */
+@media (max-width: 720px) {
+  .composer .chat-tool {
+    position: static;
+  }
+  .composer .chat-popover {
+    left: 0;
+    right: 0;
+    width: auto;
+  }
+}
+
+/* Inbox filters: separate chips that wrap instead of clipping; unread counts ride on each. */
+.thread-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 4px;
+}
+.thread-chips button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 31px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--well);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 140ms, color 140ms;
+}
+.thread-chips button:hover:not([aria-pressed="true"]) {
+  background: var(--line);
+}
+.thread-chips button[aria-pressed="true"] {
+  background: var(--ink);
+  color: white;
+}
+.chip-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+}
+.chip-count.quiet {
+  margin-left: auto;
+  background: var(--well);
+}
+/* "Archived" sits above the list like a messenger's; inside it, the same row leads back. */
+.archive-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 -4px;
+  padding: 10px 12px 10px 20px;
+  border-radius: 14px;
+  text-align: left;
+  font-size: 13px;
+}
+.archive-entry:hover {
+  background: var(--well);
+}
+.archive-entry strong {
+  font-weight: 500;
+}
+.archive-entry small {
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.thread-row {
+  position: relative;
+}
+.thread-archive {
+  position: absolute;
+  right: 8px;
+  bottom: 10px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 1px 4px #0001;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.thread-row:hover .thread-archive,
+.thread-row:focus-within .thread-archive {
+  opacity: 1;
+}
+@media (hover: none) {
+  .thread-archive {
+    opacity: 1;
+  }
+}
+.conversation-actions {
+  display: flex;
+  gap: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .thread-chips button,
+  .thread-archive {
+    transition: none;
+  }
+}
+/* "Caller Whale" stays on one line beside the whale mark; the workspace name gives way first. */
+.brand > strong {
+  font-size: 21px;
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .brand > strong {
+    font-size: 18px;
+  }
+}
+/* The address line leaves room for the archive button that appears at its end. */
+.thread-row .thread-meta {
+  padding-right: 34px;
+}
+
+/* Replies, Telegram-style: the quote is a rounded inset with an accent bar and the sender's name in the accent ink,
+   and opens the answered message; while replying, the bar is the top of the message box itself. */
+.message-quote {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  margin: 2px 0 8px;
+  padding: 7px 10px 7px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #0000000d;
+  box-shadow: inset 3px 0 0 var(--accent);
+  text-align: left;
+  font-size: 12px;
+  cursor: pointer;
+}
+.message.outgoing .message-quote {
+  background: #ffffff8c;
+  box-shadow: inset 3px 0 0 var(--accent-ink);
+}
+.message-quote:hover {
+  background: #00000014;
+}
+.message.outgoing .message-quote:hover {
+  background: #ffffffbf;
+}
+.message-quote strong {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.message-quote span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  opacity: 0.8;
+}
+.message.flash {
+  animation: message-flash 1.2s ease-out;
+}
+@keyframes message-flash {
+  0%,
+  35% {
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+.composer > .reply-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 10px 6px 16px;
+  border: 0;
+  border-radius: 24px 24px 0 0;
+  background: var(--well);
+  font-size: 12px;
+  animation: page-in 140ms var(--ease-out);
+}
+.composer > .reply-bar > svg {
+  flex: none;
+  color: var(--accent-ink);
+}
+.composer > .reply-bar > span {
+  display: grid;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+  padding-left: 10px;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.composer > .reply-bar strong {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.composer > .reply-bar + .composer-row {
+  border-radius: 0 0 24px 24px;
+  padding-top: 2px;
+}
+.composer > .reply-bar > button {
+  flex: none;
+}
+.composer > .reply-bar > button:hover {
+  background: var(--card);
+}
+
+/* Email threads: a subject, one card per message, older ones folded to a line, and a compose card. */
+.email-thread {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 12px;
+  padding-top: 8px;
+}
+.email-subject {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.email-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.email-card {
+  border-radius: 18px;
+  background: var(--well);
+}
+.email-card.open {
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.email-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  text-align: left;
+  cursor: pointer;
+}
+.email-initials {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.email-who {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.email-who strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.email-who small {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 10px;
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.email-who small.email-snippet {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.email-card-head time {
+  flex: none;
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.email-caret {
+  flex: none;
+  color: var(--muted, #6b6b6b);
+  transition: transform 160ms;
+}
+.email-card.open .email-caret {
+  transform: rotate(180deg);
+}
+.email-body {
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 16px 62px;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.email-body p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.email-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--well);
+  font-size: 12px;
+}
+.email-draft {
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.email-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 4px;
+}
+.email-compose {
+  display: grid;
+  gap: 0;
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line), 0 6px 18px #0000000f;
+  overflow: hidden;
+  animation: page-in 160ms var(--ease-out);
+}
+.email-compose label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+.email-compose label > span {
+  flex: none;
+  width: 56px;
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.email-compose label input {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+}
+.email-compose label input:focus-visible,
+.email-compose textarea:focus-visible {
+  outline: none;
+}
+.email-compose:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--accent), 0 6px 18px #0000000f;
+}
+.email-compose textarea {
+  min-height: 150px;
+  max-height: 320px;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  resize: vertical;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.email-compose-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 12px 16px;
+}
+.email-compose-actions small {
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.email-discard {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-left: auto;
+  border-radius: 50%;
+  color: var(--muted, #6b6b6b);
+}
+.email-discard:hover {
+  background: var(--well);
+  color: var(--ink);
+}
+@media (max-width: 720px) {
+  .email-body {
+    padding-left: 16px;
+  }
+  .email-compose-actions small {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .message.flash,
+  .composer > .reply-bar,
+  .email-compose {
+    animation: none;
+  }
+  .email-caret {
+    transition: none;
+  }
+}
+/* The compose card keeps its height and its Send button in view; the messages above it scroll. */
+.email-list {
+  flex: 1;
+}
+.email-compose {
+  flex: none;
+}
+.email-compose textarea {
+  min-height: 96px;
+  max-height: 220px;
+}
+@media (max-width: 720px) {
+  /* Each address on its own line, shortened with "…" rather than broken mid-word. */
+  .email-who small {
+    display: grid;
+  }
+  .email-who small > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .email-card-head {
+    align-items: flex-start;
+    padding: 12px;
+  }
+}
+
+/* Mail rows read like a mail client: who and when, the subject, then a line of the latest text. */
+.mail-row {
+  padding-left: 16px;
+}
+.mail-subject {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.mail-subject em {
+  flex: none;
+  color: var(--danger-ink);
+  font-style: normal;
+  font-weight: 600;
+}
+.thread.unread .mail-subject {
+  font-weight: 600;
+}
+.new-email {
+  display: grid;
+  gap: 12px;
+}
+.new-email textarea {
+  min-height: 160px;
+  resize: vertical;
+}
+.new-email > .button {
+  justify-self: start;
+}
+
+/* Bubbles drawn the way messengers draw them: tight padding, 14px text, the time small at the bottom right,
+   no name on your own messages, and a slim tinted quote whose accent strip is part of its rounded edge. */
+.message {
+  max-width: min(72%, 560px);
+  padding: 7px 12px 5px;
+  border-radius: 16px 16px 16px 6px;
+}
+.message.outgoing {
+  border-radius: 16px 16px 6px 16px;
+}
+.message p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.message > .message-from {
+  display: block;
+  margin: 0 0 2px;
+  color: var(--accent-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.message > .message-time {
+  display: block;
+  margin: 2px 0 0 16px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+}
+.message-history {
+  gap: 6px;
+}
+.message-quote {
+  position: relative;
+  display: grid;
+  gap: 0;
+  margin: 3px 0 5px;
+  padding: 4px 10px 5px 12px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #0000000a;
+  box-shadow: none;
+}
+.message-quote::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent-ink);
+}
+.message.outgoing .message-quote {
+  background: #80501512;
+  box-shadow: none;
+}
+.message-quote:hover,
+.message.outgoing .message-quote:hover {
+  background: #8050151f;
+}
+.message-quote strong {
+  font-size: 12px;
+}
+.message-quote span {
+  font-size: 13px;
+  opacity: 0.75;
+}
+.archive-entry .chip-count {
+  margin-left: auto;
+}
+/* The channel chips stay on one row; the list is wide enough for all of them with their unread counts. */
+.thread-chips {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.thread-chips button {
+  flex: none;
+}
+@media (max-width: 720px) {
+  .thread-chips {
+    gap: 4px;
+  }
+  .thread-chips button {
+    gap: 4px;
+    padding: 0 9px;
+  }
 }

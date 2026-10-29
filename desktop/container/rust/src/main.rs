@@ -7,8 +7,22 @@ mod signin;
 
 use tauri::{Manager, RunEvent};
 
+/// Windows replaces the bundled engine too: release its executable before launching the installer.
+#[tauri::command]
+fn prepare_update(window: tauri::WebviewWindow, bridge: tauri::State<'_, sidecar::ServiceBridge>) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("Updates can only be installed from the main window".into());
+    }
+    if let Some(mut process) = bridge.process.lock().map_err(|_| "The engine is busy")?.take() {
+        process.kill();
+    }
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(sidecar::ServiceBridge::default())
         .setup(|app| {
             // Packaged builds resolve the service from the bundle, never a source checkout.
@@ -19,7 +33,7 @@ fn main() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![sidecar::service_call, signin::google_sign_in_listen, signin::google_sign_in, signin::open_in_browser, downloads::save_download])
+        .invoke_handler(tauri::generate_handler![sidecar::service_call, signin::google_sign_in_listen, signin::google_sign_in, signin::open_in_browser, downloads::save_download, prepare_update])
         .build(tauri::generate_context!())
         .expect("error while building Turf Full CRM mode")
         .run(|app, event| {

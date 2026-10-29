@@ -3,7 +3,7 @@ import { Bell, CalendarBlank, ChatCircle, CheckCircle, HouseLine, List, Magnifyi
 import { ROLES } from "./data.js";
 import { loadWorkspace, saveWorkspace } from "./workspace-store.js";
 import { setLearnedHeaders } from "./skiptrace-fields.js";
-import { capability, loadState, navCounts, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
+import { capability, conversationPath, loadState, navCounts, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { api, apiBase, auth, setApiBase, setOrganization } from "./remote/api.js";
 import { SyncEngine } from "./remote/engine.js";
 import { LOCAL_ONLY, remoteReducer, syncAction } from "./remote/session.js";
@@ -12,7 +12,7 @@ import { CrmContext } from "./context.jsx";
 import { Button, CountBadge, Empty, Modal, PageTransition, Search, money, useHeld, usePresence } from "./ui.jsx";
 import { LiveCaptions } from "./LiveCaptions.jsx";
 import { PhoneDialer } from "./PhoneDialer.jsx";
-import { subscribeCallLog } from "./callSession.js";
+import { getCallSession, subscribeCallLog } from "./callSession.js";
 import { Sidebar } from "./Sidebar.jsx";
 import { WindowStrip, windowDrag } from "./WindowStrip.jsx";
 import { TurfMenu } from "./TurfMenu.jsx";
@@ -35,6 +35,7 @@ const Calls = lazyPage(loadWork, "Calls");
 const Deals = lazyPage(loadWork, "Deals");
 const Handoffs = lazyPage(loadWork, "Handoffs");
 const Inbox = lazyPage(loadWork, "Inbox");
+const Mail = lazyPage(loadWork, "Mail");
 const Tasks = lazyPage(loadWork, "Tasks");
 const Lists = lazyPage(loadData, "Lists");
 const SkipTracing = lazyPage(loadData, "SkipTracing");
@@ -193,6 +194,7 @@ export function App() {
       ["tasks", "Tasks", "work/tasks"],
       ["calendar", "Calendar", "work/calendar"],
       ["inbox", "Inbox", "work/inbox"],
+      ["mail", "Mail", "work/mail"],
       ["lists", "Source lists", "lists"],
       ["skip", "Skip Tracing", "skip"],
       ["team", "Team", "team"],
@@ -367,6 +369,8 @@ export function App() {
         return <Calendar />;
       case "inbox":
         return <Inbox />;
+      case "mail":
+        return <Mail />;
       case "lists":
         return <Lists id={parts[1]} />;
       case "skip":
@@ -385,13 +389,20 @@ export function App() {
         return <Empty title="Choose a workspace page" action={<Button onClick={() => navigate("dashboard")}>Open overview</Button>} />;
     }
   }, [accessible, current, navigate]);
+  async function beforeUpdate() {
+    const call = getCallSession();
+    if (call.active || call.awaitingOutcome) throw new Error("Finish the call and save its outcome before installing the update.");
+    const sync = engine.current;
+    if (sync && (sync.running || sync.ops.length)) throw new Error("Sync pending changes before installing the update.");
+    if (!latest.current.remote && !(await saveWorkspace(latest.current))) throw new Error("Your workspace could not be saved. Try again before installing the update.");
+  }
   // A moment while the saved workspace is read, so the sample data never flashes in its place.
   if (connection === "local" && !restored) return null;
   if (connection === "gate")
     return (
       <div className="gate-window">
         {/* The desktop window has no system title bar, so the sign-in screen keeps the app's own controls. */}
-        <WindowStrip title="Turf" />
+        <WindowStrip title="Caller Whale" />
         <Suspense fallback={null}>
           <RemoteGate onReady={connect} onLeave={REQUIRE_SIGN_IN ? undefined : useSample} />
         </Suspense>
@@ -403,7 +414,7 @@ export function App() {
         <a className="skip-link" href="#main-content" onClick={event => (event.preventDefault(), main.current?.focus())}>
           Skip to content
         </a>
-        <WindowStrip title="Turf · Full CRM mode" />
+        <WindowStrip title="Caller Whale" beforeUpdate={beforeUpdate} />
         <header className="app-header" {...windowDrag}>
           <div className="brand">
             <button className="mobile-menu round-button" aria-label="Toggle navigation" onClick={() => setMobileNav(!mobileNav)}>
@@ -417,7 +428,7 @@ export function App() {
               demoNotes={demoNotes}
               onDemoNotes={setDemoNotes}
             />
-            <strong>Turf</strong>
+            <strong>Caller Whale</strong>
             <div className="header-workspace" title={state.settings.workspace}>
               <HouseLine size={18} weight="light" />
               <div>
@@ -492,7 +503,7 @@ export function App() {
                     <button
                       key={thread.id}
                       onClick={() => {
-                        navigate("work/inbox?thread=" + thread.id);
+                        navigate(conversationPath(thread));
                         setNotifications(false);
                       }}
                     >
@@ -593,7 +604,7 @@ export function App() {
         {reset && (
           <Modal title="Start fresh with the sample workspace?" onClose={() => setReset(false)}>
             <p className="body-copy">
-              This clears this prototype's saved edits, imported preview rows, drafts, and pending changes. The main Turf application is not affected.
+              This clears this prototype's saved edits, imported preview rows, drafts, and pending changes. The main Caller Whale application is not affected.
             </p>
             <div className="row">
               <Button onClick={() => setReset(false)}>Keep my preview</Button>

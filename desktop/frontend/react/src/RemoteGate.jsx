@@ -216,26 +216,26 @@ export function RemoteGate({ onReady, onLeave }) {
   return (
     <div className="remote-gate">
       <Card
-        title={step === "unlock" ? "Keep an offline copy on this device?" : step === "notinvited" ? "You are not invited" : "Sign in to your Turf workspace"}
+        title={step === "unlock" ? "Keep an offline copy on this device?" : step === "notinvited" ? "You are not invited" : "Sign in to your Caller Whale workspace"}
         subtitle={
           step === "unlock"
             ? "Records and pending changes are encrypted with a passphrase only you know."
             : step === "notinvited"
-              ? "Only the owner, admins and people they invite can use Turf."
+              ? "Only the owner, admins and people they invite can use Caller Whale."
               : "Your records stay on your organization's server."
         }
       >
         {step === "checking" && <p className="muted">Checking your session…</p>}
         {step === "browser" && (
           <div className="remote-step" role="status">
-            <p className="body-copy">Finish signing in with Google in your browser. Turf continues here by itself when you're done.</p>
+            <p className="body-copy">Finish signing in with Google in your browser. Caller Whale continues here by itself when you're done.</p>
             <Button onClick={stopWaiting}>Cancel</Button>
           </div>
         )}
         {step === "offline" && (
           <div className="remote-step">
             <p className="notice">
-              <WifiSlash size={18} /> Turf's server cannot be reached. Check your internet connection.
+              <WifiSlash size={18} /> Caller Whale's server cannot be reached. Check your internet connection.
             </p>
             <div className="row">
               <Button variant="primary" onClick={() => attempt(check)}>
@@ -276,7 +276,7 @@ export function RemoteGate({ onReady, onLeave }) {
               {busy ? "Signing in…" : step === "code" ? "Confirm" : "Sign in"}
             </Button>
             {step === "signin" && (
-              <p className="muted">New here? Turf is by invitation. Accept yours on Turf's website first, then sign in here with the same account.</p>
+              <p className="muted">New here? Caller Whale is by invitation. Accept yours on Caller Whale's website first, then sign in here with the same account.</p>
             )}
           </form>
         )}
@@ -332,7 +332,7 @@ export function RemoteGate({ onReady, onLeave }) {
         )}
         {step === "enroll" && !recovery && (
           <div className="remote-step">
-            <p className="body-copy">Your role needs a second sign-in step. Add Turf to an authenticator app, then enter the code it shows.</p>
+            <p className="body-copy">Your role needs a second sign-in step. Add Caller Whale to an authenticator app, then enter the code it shows.</p>
             {!enrolment ? (
               <Button variant="primary" icon={ShieldCheck} disabled={busy} onClick={startEnrolment}>
                 Set up an authenticator

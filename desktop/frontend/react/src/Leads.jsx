@@ -9,6 +9,8 @@ import { CallHistory, NewDealModal } from "./Work.jsx";
 import { useCrm } from "./context.jsx";
 import {
   Badge,
+  BoardColumn,
+  useBoardColumns,
   Select,
   Button,
   Card,
@@ -60,6 +62,7 @@ export function Leads() {
       [lead.name, lead.address, lead.city, ...(client ? [] : [lead.phone, lead.email])].join(" ").toLowerCase().includes(search.toLowerCase()),
   );
   const editable = capability(state, "edit");
+  const board = useBoardColumns(LEAD_STAGES, Object.fromEntries(LEAD_STAGES.map(column => [column, leads.filter(lead => lead.stage === column).length])));
   const assigned = lead => lead.assignee && lead.assignee !== "Unassigned";
   const hasColumn = {
     verdict: !hideEmpty || leads.some(lead => lead.verdict),
@@ -191,13 +194,9 @@ export function Leads() {
           <LeadsMap leads={leads} />
         )
       ) : view === "Board" && !client ? (
-        <div className="kanban lead-board view-in">
-          {LEAD_STAGES.map(column => (
-            <section className={"kanban-column" + (drag?.over === column ? " drop-target" : "")} data-stage={column} key={column}>
-              <header>
-                <span>{column}</span>
-                <Badge>{leads.filter(lead => lead.stage === column).length.toLocaleString()}</Badge>
-              </header>
+        <div className="kanban lead-board view-in" ref={board.ref}>
+          {board.arrange(LEAD_STAGES).map(column => (
+            <BoardColumn key={column} board={board} id={column} count={leads.filter(lead => lead.stage === column).length} unit="leads" over={drag?.over === column}>
               {leads
                 .filter(lead => lead.stage === column)
                 .slice(0, boardShown[column] || BOARD_STEP)
@@ -239,7 +238,7 @@ export function Leads() {
                   Show more ({(leads.filter(lead => lead.stage === column).length - (boardShown[column] || BOARD_STEP)).toLocaleString()} left)
                 </Button>
               )}
-            </section>
+            </BoardColumn>
           ))}
           {drag && (
             <div className="kanban-ghost" style={{ width: drag.width, transform: `translate(${drag.x}px, ${drag.y}px)` }}>
@@ -902,7 +901,7 @@ export function LeadDetail({ id }) {
               <div className="contact-line">
                 <Envelope size={18} />
                 {capability(state, "message") && lead.email ? (
-                  <button type="button" className="text-link" onClick={() => navigate("work/inbox?lead=" + id)} title="Open the conversation">
+                  <button type="button" className="text-link" onClick={() => navigate("work/mail?lead=" + id)} title="Email this lead">
                     {lead.email}
                   </button>
                 ) : (
