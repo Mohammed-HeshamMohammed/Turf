@@ -1063,3 +1063,78 @@ export function DateTimePicker({ value, onChange, min, disabled, "aria-label": a
     </div>
   );
 }
+
+/**
+ * Board columns share the board's width by priority. An empty stage starts as a slim rail; every stage with cards gets
+ * a full column while they fit. When they do not, the lowest-priority full columns fold into rails: a column the
+ * person opened most recently comes first, then the one with more cards, then the earlier stage. Opening a rail makes
+ * it the highest priority, so the column that matters least folds to make room.
+ */
+export function useBoardColumns(ids, counts, { min = 230, rail = 52, gap = 13 } = {}) {
+  // A callback ref, so the width is measured whenever the board appears (it is absent while a list view shows).
+  const [el, setEl] = useState(null);
+  const [width, setWidth] = useState(0);
+  const [opened, setOpened] = useState([]);
+  const [closed, setClosed] = useState([]);
+  useLayoutEffect(() => {
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [el]);
+  const wanted = ids.filter(id => !closed.includes(id) && (counts[id] > 0 || opened.includes(id)));
+  const rank = id => {
+    const recent = opened.indexOf(id);
+    return [recent === -1 ? Infinity : recent, -(counts[id] || 0), ids.indexOf(id)];
+  };
+  const byPriority = [...wanted].sort((a, b) => {
+    const [x, y] = [rank(a), rank(b)];
+    return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
+  });
+  // Full columns that fit beside the rails: e·min + (e−1)·gap + (n−e)·(rail+gap) ≤ width.
+  const fit = width ? Math.max(1, Math.floor((width + gap - ids.length * (rail + gap)) / (min - rail))) : ids.length;
+  const expanded = new Set(byPriority.slice(0, fit));
+  return {
+    ref: setEl,
+    isOpen: id => expanded.has(id),
+    toggle: id => {
+      if (expanded.has(id)) {
+        setClosed(list => [...list.filter(item => item !== id), id]);
+        setOpened(list => list.filter(item => item !== id));
+      } else {
+        setOpened(list => [id, ...list.filter(item => item !== id)]);
+        setClosed(list => list.filter(item => item !== id));
+      }
+    },
+  };
+}
+
+/** One stage of a board: a full column, or a slim rail with its name and count that opens the column. */
+export function BoardColumn({ board, id, count, unit, over, children }) {
+  const open = board.isOpen(id);
+  const className = "kanban-column" + (open ? "" : " collapsed") + (over ? " drop-target" : "");
+  if (!open) {
+    return (
+      <section className={className} data-stage={id}>
+        <button type="button" className="column-rail" aria-expanded="false" aria-label={`Show ${id}, ${count} ${unit}`} title={`Show ${id}`} onClick={() => board.toggle(id)}>
+          <Badge>{count.toLocaleString()}</Badge>
+          <span>{id}</span>
+        </button>
+      </section>
+    );
+  }
+  return (
+    <section className={className} data-stage={id}>
+      <header>
+        <span>{id}</span>
+        <span className="column-tools">
+          <Badge>{count.toLocaleString()}</Badge>
+          <button type="button" className="column-fold" aria-expanded="true" aria-label={`Fold ${id}`} title={`Fold ${id}`} onClick={() => board.toggle(id)}>
+            <CaretLeft size={13} />
+          </button>
+        </span>
+      </header>
+      {children}
+    </section>
+  );
+}

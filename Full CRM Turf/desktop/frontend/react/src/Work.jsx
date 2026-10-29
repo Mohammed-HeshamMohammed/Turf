@@ -32,6 +32,8 @@ import { smsRecipient } from "./sms.js";
 import { beginDemoCall, clearCallOutcome, endDemoCall, getCallSession, setCallSession, useCallSession } from "./callSession.js";
 import {
   Badge,
+  BoardColumn,
+  useBoardColumns,
   Select,
   Button,
   Card,
@@ -664,6 +666,7 @@ export function Deals({ id }) {
   const leads = visibleLeads(state);
   const ids = new Set(leads.map(item => item.id));
   const deals = state.deals.filter(item => ids.has(item.leadId));
+  const board = useBoardColumns(DEAL_STAGES, Object.fromEntries(DEAL_STAGES.map(stage => [stage, deals.filter(item => item.stage === stage).length])));
   const table = useTableView(
     deals.map(deal => ({ deal, lead: leads.find(item => item.id === deal.leadId) })),
     {
@@ -859,13 +862,9 @@ export function Deals({ id }) {
         <Segmented label="Deal view" value={view} options={["Pipeline", "List"]} onChange={setView} />
       </div>
       {view === "Pipeline" ? (
-        <div className="kanban deal-board view-in">
+        <div className="kanban deal-board view-in" ref={board.ref}>
           {DEAL_STAGES.map(stage => (
-            <section key={stage} className={"kanban-column" + (drag?.over === stage ? " drop-target" : "")} data-stage={stage}>
-              <header>
-                <span>{stage}</span>
-                <Badge>{deals.filter(item => item.stage === stage).length}</Badge>
-              </header>
+            <BoardColumn key={stage} board={board} id={stage} count={deals.filter(item => item.stage === stage).length} unit="deals" over={drag?.over === stage}>
               {deals
                 .filter(item => item.stage === stage)
                 .map(deal => {
@@ -902,7 +901,7 @@ export function Deals({ id }) {
                   );
                 })}
               {!deals.some(item => item.stage === stage) && <p className="column-empty">No deals here</p>}
-            </section>
+            </BoardColumn>
           ))}
           {drag && (
             <div className="kanban-ghost" style={{ width: drag.width, transform: `translate(${drag.x}px, ${drag.y}px)` }}>

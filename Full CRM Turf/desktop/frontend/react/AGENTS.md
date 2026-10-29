@@ -51,8 +51,7 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 
 - The sidebar rail is only as tall as its items and sits at the vertical centre of the window (not stretched top to bottom).
 - Board pages (Deals, Leads pipeline) fill the window height; each column scrolls on its own and the page itself does not scroll.
-- Deals board: six open stages in the top row, Closed won and Closed lost in a shorter row beneath.
-- Deals board: five stages on top; Closed won, Negotiation and Closed lost in an equal-height bottom row, each a third wide with cards flowing into as many columns as fit.
+- Boards (Deals, Leads) keep every stage in one row. Stages with cards share the width; empty stages start as slim rails (name and count) that open on click. When the full columns do not fit, the lowest-priority ones fold into rails: the stage the person opened most recently first, then the one with more cards, then the earlier stage. Every open column can be folded from its header. Below that, the board scrolls sideways. (Replaces the earlier two-row Deals board, October 2026.)
 - Switching a view (Pipeline/List, Board) slides the white pill in the segmented control and eases the new view in over 200ms; reduced motion turns it off.
 - Every table's column titles sort when pressed (ascending, descending, off; an arrow shows the order) and can be dragged (or moved with Alt + arrow keys) into a new order, which is remembered per table. Build tables with `DataTable` and `useTableView` from ui.jsx.
 - No native browser pickers: dates, times and date-times use `DatePicker`, `TimePicker` and `DateTimePicker` from ui.jsx (drawn by the app, like `Select`). Calendar day tiles are rounded, not a bordered grid.
