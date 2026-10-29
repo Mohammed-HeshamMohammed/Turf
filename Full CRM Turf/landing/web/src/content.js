@@ -266,8 +266,9 @@ export const pageMeta = {
   signin: ["Sign in · Caller Whale", "Sign in to your Caller Whale account."],
   signup: ["Create your account · Caller Whale", "Caller Whale is by invitation. Create your account with the email your invitation was sent to."],
   dashboard: ["Your dashboard · Caller Whale", "Your credits, usage and the desktop app."],
-  admin: ["Admin · Caller Whale", "Invite people, set their limits and watch their usage."],
+  admin: ["Caller Whale", ""],
+  grafana: ["Caller Whale", ""],
 };
 
 /** Pages that belong to a signed-in person: not indexed, not in the sitemap, rendered by the browser. */
-export const accountPages = ["signin", "signup", "dashboard", "admin"];
+export const accountPages = ["signin", "signup", "dashboard", "admin", "grafana"];

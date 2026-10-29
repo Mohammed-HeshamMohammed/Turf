@@ -157,7 +157,7 @@ func TestHealthAnswersWithoutSignIn(t *testing.T) {
 func TestWithoutASessionPagesGoToTheWebsiteAndCallsGet401(t *testing.T) {
 	w := newWorld(t)
 	rec := w.page("/d/abc?orgId=1", nil)
-	if rec.Code != http.StatusSeeOther || rec.Header().Get("location") != website+"/#/admin/grafana?return="+url.QueryEscape("/d/abc?orgId=1") {
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("location") != website+"/admin/grafana?return="+url.QueryEscape("/d/abc?orgId=1") {
 		t.Fatalf("got %d %q", rec.Code, rec.Header().Get("location"))
 	}
 	call := httptest.NewRequest(http.MethodGet, "/api/dashboards/home", nil)
@@ -343,7 +343,7 @@ func TestLogoutEndsTheSession(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/_turf/logout", nil)
 	r.AddCookie(c)
 	rec := w.do(r)
-	if rec.Code != http.StatusSeeOther || rec.Header().Get("location") != website+"/#/admin" {
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("location") != website+"/admin" {
 		t.Fatalf("got %d %q", rec.Code, rec.Header().Get("location"))
 	}
 	if rec := w.page("/", c); rec.Code != http.StatusSeeOther {

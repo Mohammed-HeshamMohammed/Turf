@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { DownloadSimple, EnvelopeSimple, LockKey, ShieldCheck, WarningCircle } from "@phosphor-icons/react";
-import { API, homeFor, loadAuth, request, useSession } from "./session.jsx";
+import { API, destination, loadAuth, request, useSession } from "./session.jsx";
 
 // Sign in, sign up, and the dashboard of a person Caller Whale invited. The page decides nothing about access: Caller Whale's server
 // answers /account with what this person may see, and refuses everything else.
@@ -64,12 +64,12 @@ function AuthForm({ mode }) {
 
   // Already signed in: nothing to do here.
   useEffect(() => {
-    if (session.status === "signed_in") go(homeFor(session.account));
+    if (session.status === "signed_in") go(destination(session.account));
   }, [session.status, session.account]);
 
   async function arrive() {
     const account = await session.reload();
-    go(homeFor(account));
+    go(destination(account));
   }
 
   async function attempt(work) {

@@ -18,6 +18,8 @@ export class ApiError extends Error {
 }
 
 let loading = null;
+/** The Grafana login proxy's address, once the server has said (null: Grafana is not set up). */
+export let grafanaUrl = null;
 
 /** The sign-in client, made once: the server's Firebase web config, then the SDK (a separate, lazily loaded file). */
 export function loadAuth() {
@@ -33,6 +35,7 @@ export function loadAuth() {
       loading = null;
       throw new ApiError(503, "misconfigured", "Sign-in is not set up on Caller Whale's server yet.");
     }
+    grafanaUrl = service.grafana || null;
     const { createFirebaseAuth, firebaseSdk } = await import("./auth/sdk.js");
     const sdk = firebaseSdk(service.firebase);
     const auth = createFirebaseAuth({ sdk, providers: service.firebase.providers || [] });
@@ -130,3 +133,10 @@ export const useSession = () => useContext(SessionContext) || { status: "unknown
 
 /** Where a signed-in person belongs: staff to the admin pages, everyone else to their dashboard. */
 export const homeFor = account => (account?.staff ? "/admin" : "/dashboard");
+
+/** Pages a sign-in may send a person back to (`?next=`): never another site, and the admin pages only for staff. */
+export function destination(account) {
+  const next = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("next") || "";
+  if (next === "/dashboard" || (account?.staff && (next === "/admin" || /^\/admin\/grafana(\?|$)/.test(next)))) return next;
+  return homeFor(account);
+}

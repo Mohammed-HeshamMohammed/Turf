@@ -35,7 +35,7 @@ browser ──► grafana-proxy (public, TLS) ──► Grafana (private network
 
 1. **New endpoint in the core API: `GET /api/v1/platform/whoami`.** It runs `staff()` and returns `{ id, email, name, role }` with 200. Someone who isn't staff gets 403. Staff who haven't passed MFA get the usual MFA-required error. It needs no `x-turf-org` header. One line of logic, and the rule stays in one place.
 2. **New service `services/grafana-proxy` (Go, same style as the gateway).**
-   - Without a valid session it sends the browser to the website's admin dashboard: `/#/admin/grafana?return=<path>`.
+   - Without a valid session it sends the browser to the website's `/admin/grafana?return=<path>` (the landing site).
    - The website is already signed in and has the token. It POSTs the token once to the proxy's `/_turf/session` (same-site form post, so the token never goes in a URL).
    - The proxy calls `whoami` with that token. On 200 it sets **its own** cookie, `turf_grafana`: a random 256-bit session id, HttpOnly, Secure, SameSite=Lax (Strict would drop it on the redirect that follows the website's post). The Turf token stays in the proxy's memory only, never in the cookie, and is used for the re-checks. A session lasts at most `SESSION_MAX_AGE` (8 hours), and in practice ends sooner, when the token expires.
    - A token without the authenticator step gets a "sign in again" page, not a redirect: the website would post the same token again, in a loop.
