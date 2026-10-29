@@ -164,7 +164,7 @@ function Person({ row, onChanged }) {
           {row.sign_in === "google" && <span className="signin-mark" title="Signs in with Google"><GoogleMark size={14} /></span>}
         </td>
         <td className="usage-cell">
-          <span className="num">{number(row.used_this_month)} / {number(row.monthly_credits)}</span>
+          <span className="figure">{number(row.used_this_month)} / {number(row.monthly_credits)}</span>
           <Meter used={row.used_this_month} limit={row.monthly_credits} />
         </td>
         <td>{row.last_used_at ? timeText(row.last_used_at) : row.accepted_at ? "Not yet" : "—"}</td>
