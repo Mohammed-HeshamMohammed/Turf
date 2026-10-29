@@ -1335,6 +1335,7 @@ export function Calendar() {
 export function Inbox() {
   const { state, dispatch, navigate, notify, route } = useCrm();
   const [channel, setChannel] = useState("All");
+  const [query, setQuery] = useState("");
   const [selected, setSelected] = useState("");
   const [draft, setDraft] = useState("");
   const [attachment, setAttachment] = useState("");
@@ -1345,7 +1346,12 @@ export function Inbox() {
   const [newNumber, setNewNumber] = useState("");
   const leads = visibleLeads(state);
 
-  const threads = visibleThreads(state).filter(thread => channel === "All" || thread.channel === channel);
+  const threads = visibleThreads(state).filter(thread => {
+    if (channel !== "All" && thread.channel !== channel) return false;
+    const person = leads.find(item => item.id === thread.leadId);
+    const words = [person?.name, person?.address, thread.phone, thread.preview, ...thread.messages.map(message => message.text)].join(" ").toLowerCase();
+    return words.includes(query.trim().toLowerCase());
+  });
   const requested = new URLSearchParams(route.split("?")[1]).get("lead");
   const requestedThread = new URLSearchParams(route.split("?")[1]).get("thread");
   const thread = threads.find(item => item.id === selected) || (requestedThread && threads.find(item => item.id === requestedThread)) || (requested && threads.find(item => item.leadId === requested)) || threads[0];
@@ -1374,6 +1380,7 @@ export function Inbox() {
       </PageHeader>
       <div className="inbox-layout">
         <Card className="thread-list">
+          <Search value={query} onChange={setQuery} placeholder="Search conversations" />
           <Segmented
             label="Conversation channel"
             value={channel}
@@ -1383,31 +1390,39 @@ export function Inbox() {
             }}
             options={state.role === "client" ? ["All", "Partner"] : ["All", "SMS", "Email", "Team", "Partner"]}
           />
-          {threads.map(item => {
+          <div className="thread-items">
+            {threads.map(item => {
             const person = leads.find(lead => lead.id === item.leadId);
             const Icon = item.channel === "Email" ? Envelope : ChatCircle;
             return (
               <button
                 key={item.id}
-                className={"thread " + (thread?.id === item.id ? "selected" : "")}
+                className={"thread" + (thread?.id === item.id ? " selected" : "") + (item.unread ? " unread" : "")}
+                aria-current={thread?.id === item.id ? "true" : undefined}
                 onClick={() => {
                   setSelected(item.id);
                   dispatch({ type: "MARK_READ", id: item.id });
                 }}
               >
-                <div>
-                  <Icon size={19} />
-                  <strong>{person?.name || item.phone}</strong>
-                  {item.unread && <Badge tone="peach">New</Badge>}
-                </div>
-                <p>{item.preview}</p>
-                <small>
-                  {item.channel} · {person?.address || item.phone}
-                </small>
+                <span className="thread-icon" aria-hidden="true">
+                  <Icon size={17} />
+                </span>
+                <span className="thread-body">
+                  <span className="thread-top">
+                    <strong>{person?.name || item.phone}</strong>
+                    <time>{item.messages.at(-1)?.at}</time>
+                  </span>
+                  <span className="thread-preview">{item.preview}</span>
+                  <span className="thread-meta">
+                    {item.channel} · {person?.address || "Phone number"}
+                  </span>
+                </span>
+                {item.unread && <span className="unread-dot" aria-label="Unread" />}
               </button>
             );
           })}
-          {!threads.length && <Empty title="No conversations here">Start a conversation with a lead or phone number.</Empty>}
+            {!threads.length && (query ? <Empty title="Nothing matches">Try another name, address or word.</Empty> : <Empty title="No conversations here">Start a conversation with a lead or phone number.</Empty>)}
+          </div>
         </Card>
         <Card className="conversation">
           {thread && (lead || thread.phone) ? (
@@ -1416,7 +1431,9 @@ export function Inbox() {
                 <div>
                   <h2>{lead?.name || thread.phone}</h2>
                   <small>
-                    {thread.channel} · {lead?.address || "Phone number"}
+                    <Badge>{thread.channel}</Badge>
+                    {thread.channel === "SMS" && (lead?.phone || thread.phone) ? <span>{lead?.phone || thread.phone}</span> : null}
+                    <span>{lead?.address || "Phone number"}</span>
                   </small>
                 </div>
                 {lead && <RoundButton label="Open conversation lead" onClick={() => navigate("work/leads/" + lead.id)} />}
@@ -1448,6 +1465,10 @@ export function Inbox() {
                     aria-label="Message text"
                     value={draft}
                     onChange={event => setDraft(event.target.value)}
+                    onKeyDown={event => {
+                      // Ctrl+Enter (Cmd+Enter on a Mac) sends; Enter alone keeps writing on a new line.
+                      if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && draft.trim()) event.currentTarget.form.requestSubmit();
+                    }}
                     placeholder={state.online ? "Write a message…" : "Write an offline draft…"}
                     required
                   />
@@ -1463,6 +1484,7 @@ export function Inbox() {
                         }}
                       />
                     </label>
+                    <span className="composer-hint">Ctrl + Enter to send</span>
                     <button className="button primary" type="submit" disabled={!draft.trim()}>
                       <PaperPlaneTilt size={17} />
                       {state.online ? "Send demo message" : "Save draft"}

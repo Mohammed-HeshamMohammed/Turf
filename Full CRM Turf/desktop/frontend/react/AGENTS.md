@@ -61,3 +61,4 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Days read "Today" or "Oct 16" everywhere (`dayLabel` in `model.js`), never "2026-10-16".
 - The main pane reserves its scrollbar's width, so the content's right edge is the same on pages that scroll and pages that do not. Pages that scroll leave room under the last card for the phone button; board pages keep their fill-the-window spacing.
 - Board columns show their scrollbar only while hovered or focused.
+- Inbox fills the window like the boards: the conversation list and the messages scroll inside their cards, and the composer stays at the bottom. The list opens with a search, then the channel filter; each row is the person and the last message's time, then the preview, then channel and address. Unread rows are bold with a dot, not a "New" badge. Ctrl+Enter (Cmd+Enter) sends.
