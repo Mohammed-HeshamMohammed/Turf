@@ -64,10 +64,13 @@ export function navCounts(state, role) {
   const counts = {
     tasks: visibleTasks(state).filter(task => !task.done).length,
     handoffs: state.handoffs.filter(handoff => handoff.status === "Requested" && leadIds.has(handoff.leadId)).length,
-    inbox: role.pages.includes("inbox") ? visibleThreads(state).filter(thread => thread.unread).length : 0,
+    inbox: role.pages.includes("inbox") ? visibleThreads(state).filter(thread => thread.unread && thread.channel !== "Email").length : 0,
+    mail: role.pages.includes("mail") ? visibleThreads(state).filter(thread => thread.unread && thread.channel === "Email").length : 0,
   };
   return Object.fromEntries(Object.entries(counts).filter(([page]) => role.pages.includes(page)));
 }
+/** Where a conversation opens: email in Mail, every other channel in Inbox. */
+export const conversationPath = thread => (thread.channel === "Email" ? "work/mail?thread=" : "work/inbox?thread=") + thread.id;
 /** The quick reactions a message can carry. */
 export const REACTIONS = ["👍", "❤️", "😂", "🎉", "😮", "🙏"];
 const text = (value, max) => String(value ?? "").trim().slice(0, max);
@@ -119,6 +122,7 @@ export function emailFields(fields) {
   if (!to.length || ![...to, ...cc].every(item => ADDRESS.test(item)) || to.length + cc.length > 20) return null;
   return { to, cc, subject: text(fields.subject, 200) };
 }
+const atTop = (id, threads) => [...threads.filter(item => item.id === id), ...threads.filter(item => item.id !== id)];
 /** The one line a conversation shows in the list for its latest message. */
 export function messagePreview(message) {
   const label = { gif: "GIF", photo: "Photo", file: "File: " + message.file?.name, location: "Location", contact: "Contact: " + message.contact?.name, poll: "Poll: " + message.poll?.question }[message.kind];
@@ -476,18 +480,21 @@ export function reducer(state, action) {
       };
       return {
         ...state,
-        threads: state.threads.map(item =>
+        // The conversation with the newest message moves to the top of its list, like any messenger or mail app.
+        threads: atTop(thread.id, state.threads.map(item =>
           item.id === thread.id
             ? {
                 ...item,
                 unread: false,
                 preview: messagePreview(message),
                 messages: [...item.messages, message],
+                // Sending an email ends its draft.
+                ...(email ? { emailDraft: undefined } : {}),
                 // An email thread keeps one subject; the first reply supplies it when the thread had none.
                 ...(email?.subject && !item.subject ? { subject: email.subject.replace(/^(re|fwd?):\s*/i, "") } : {}),
               }
             : item,
-        ),
+        )),
         queue: queued(state, thread.leadId, "Draft message for " + (state.leads.find(item => item.id === thread.leadId)?.name || thread.phone), "Communication draft"),
       };
     }
@@ -498,7 +505,7 @@ export function reducer(state, action) {
         const members = [...new Set([me, ...(action.thread.members || [])])].filter(name => PEOPLE.includes(name));
         const title = String(action.thread.title || "").trim().slice(0, 60);
         if (state.role === "client" || state.remote || !capability(state, "message") || !title || members.length < 2) return state;
-        return { ...state, threads: [...state.threads, { ...action.thread, leadId: null, title, members, owner: me, shared: false }] };
+        return { ...state, threads: [{ ...action.thread, leadId: null, title, members, owner: me, shared: false }, ...state.threads] };
       }
       if (!action.thread.leadId) {
         const thread = action.thread;
@@ -506,7 +513,7 @@ export function reducer(state, action) {
         const key = phoneNumberKey(thread.phone);
         // Known numbers must use the lead path so entering a number cannot evade scope.
         if (state.leads.some(lead => phoneNumberKey(lead.phone) === key) || visibleThreads(state).some(item => !item.leadId && phoneNumberKey(item.phone) === key)) return state;
-        return { ...state, threads: [...state.threads, { ...thread, phone: thread.phone.trim(), owner: ROLES[state.role].person, shared: false }] };
+        return { ...state, threads: [{ ...thread, phone: thread.phone.trim(), owner: ROLES[state.role].person, shared: false }, ...state.threads] };
       }
       if (
         (!capability(state, "message") && !capability(state, "publicComment")) ||
@@ -514,7 +521,7 @@ export function reducer(state, action) {
         (state.role === "client" && (!action.thread.shared || action.thread.channel !== "Partner"))
       )
         return state;
-      return { ...state, threads: [...state.threads, action.thread] };
+      return { ...state, threads: [action.thread, ...state.threads] };
     }
     case "REACT": {
       // One reaction per emoji per person: a second tap takes it back.
@@ -536,6 +543,16 @@ export function reducer(state, action) {
       const me = ROLES[state.role].person;
       const options = message.poll.options.map((option, i) => ({ ...option, votes: option.votes.filter(name => name !== me).concat(i === action.option ? [me] : []) }));
       return { ...state, threads: state.threads.map(item => (item.id === thread.id ? { ...item, messages: item.messages.map((m, i) => (i === action.index ? { ...m, poll: { ...m.poll, options } } : m)) } : item)) };
+    }
+    case "EMAIL_DRAFT": {
+      // The reply or forward being written, kept on its thread until it is sent or discarded (null).
+      const thread = visibleThreads(state).find(item => item.id === action.id && item.channel === "Email");
+      if (!thread || !capability(state, "message")) return state;
+      const draft = action.draft;
+      const emailDraft = draft
+        ? { mode: draft.mode === "forward" ? "forward" : "reply", to: text(draft.to, 500), cc: text(draft.cc, 500), subject: text(draft.subject, 200), text: String(draft.text || "").slice(0, 20000) }
+        : undefined;
+      return { ...state, threads: state.threads.map(item => (item.id === thread.id ? { ...item, emailDraft } : item)) };
     }
     case "ARCHIVE": {
       // Archived conversations leave the list for the Archived section, like a messenger; nothing is deleted.

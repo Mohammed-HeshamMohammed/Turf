@@ -3,7 +3,7 @@ import { Bell, CalendarBlank, ChatCircle, CheckCircle, HouseLine, List, Magnifyi
 import { ROLES } from "./data.js";
 import { loadWorkspace, saveWorkspace } from "./workspace-store.js";
 import { setLearnedHeaders } from "./skiptrace-fields.js";
-import { capability, loadState, navCounts, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
+import { capability, conversationPath, loadState, navCounts, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
 import { api, apiBase, auth, setApiBase, setOrganization } from "./remote/api.js";
 import { SyncEngine } from "./remote/engine.js";
 import { LOCAL_ONLY, remoteReducer, syncAction } from "./remote/session.js";
@@ -35,6 +35,7 @@ const Calls = lazyPage(loadWork, "Calls");
 const Deals = lazyPage(loadWork, "Deals");
 const Handoffs = lazyPage(loadWork, "Handoffs");
 const Inbox = lazyPage(loadWork, "Inbox");
+const Mail = lazyPage(loadWork, "Mail");
 const Tasks = lazyPage(loadWork, "Tasks");
 const Lists = lazyPage(loadData, "Lists");
 const SkipTracing = lazyPage(loadData, "SkipTracing");
@@ -193,6 +194,7 @@ export function App() {
       ["tasks", "Tasks", "work/tasks"],
       ["calendar", "Calendar", "work/calendar"],
       ["inbox", "Inbox", "work/inbox"],
+      ["mail", "Mail", "work/mail"],
       ["lists", "Source lists", "lists"],
       ["skip", "Skip Tracing", "skip"],
       ["team", "Team", "team"],
@@ -367,6 +369,8 @@ export function App() {
         return <Calendar />;
       case "inbox":
         return <Inbox />;
+      case "mail":
+        return <Mail />;
       case "lists":
         return <Lists id={parts[1]} />;
       case "skip":
@@ -492,7 +496,7 @@ export function App() {
                     <button
                       key={thread.id}
                       onClick={() => {
-                        navigate("work/inbox?thread=" + thread.id);
+                        navigate(conversationPath(thread));
                         setNotifications(false);
                       }}
                     >

@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { PropertyMap } from "./PropertyMap.jsx";
-import { EmailThread, subjectOf } from "./email.jsx";
 import { AttachMenu, ChatMessage, ExpressionPanel, MentionPicker, PollDialog, ReplyBar } from "./chat.jsx";
 import {
   Phone,
@@ -1356,11 +1355,12 @@ export function Inbox() {
   const [newNumber, setNewNumber] = useState("");
   const leads = visibleLeads(state);
 
-  const all = visibleThreads(state);
+  // Email lives in Mail; Inbox holds the chats.
+  const all = visibleThreads(state).filter(thread => thread.channel !== "Email");
   const archivedCount = all.filter(thread => thread.archived).length;
   // The list shows either the active conversations or the Archived section, never both, like a messenger.
   const inView = all.filter(thread => Boolean(thread.archived) === showArchived);
-  const chips = state.role === "client" ? ["All", "Unread", "Partner"] : ["All", "Unread", "SMS", "Email", "Team", "Group", "Partner"];
+  const chips = state.role === "client" ? ["All", "Unread", "Partner"] : ["All", "Unread", "SMS", "Team", "Group", "Partner"];
   const matchesChip = (thread, chip) => chip === "All" || (chip === "Unread" ? thread.unread : thread.channel === chip);
   const threads = inView.filter(thread => {
     if (!matchesChip(thread, channel)) return false;
@@ -1465,7 +1465,7 @@ export function Inbox() {
                     <strong>{item.title || person?.name || item.phone}</strong>
                     <time>{item.messages.at(-1)?.at}</time>
                   </span>
-                  <span className="thread-preview">{item.channel === "Email" ? subjectOf(item) : item.preview}</span>
+                  <span className="thread-preview">{item.preview}</span>
                   <span className="thread-meta">
                     {item.channel} · {item.channel === "Group" ? item.members.length + " members" : person?.address || "Phone number"}
                   </span>
@@ -1503,7 +1503,6 @@ export function Inbox() {
                   <small>
                     <Badge>{thread.channel}</Badge>
                     {thread.channel === "SMS" && (lead?.phone || thread.phone) ? <span>{lead?.phone || thread.phone}</span> : null}
-                    {thread.channel === "Email" && lead?.email ? <span>{lead.email}</span> : null}
                     <span>{thread.channel === "Group" ? thread.members.join(", ") : lead?.address || "Phone number"}</span>
                   </small>
                 </div>
@@ -1516,20 +1515,6 @@ export function Inbox() {
                   {lead && <RoundButton label="Open conversation lead" onClick={() => navigate("work/leads/" + lead.id)} />}
                 </div>
               </header>
-              {thread.channel === "Email" ? (
-                <EmailThread
-                  thread={thread}
-                  lead={lead}
-                  me={me}
-                  canMessage={canMessage}
-                  online={state.online}
-                  onSend={({ text, email }) => {
-                    dispatch({ type: "MESSAGE", id: thread.id, text, email });
-                    notify(state.online ? "Demo email added — nothing was sent externally" : "Email draft saved offline");
-                  }}
-                />
-              ) : (
-              <>
               <div className="message-history">
                 {thread.messages.map((message, index) => (
                   <ChatMessage
@@ -1591,8 +1576,6 @@ export function Inbox() {
                 </form>
               )}
               {polling && <PollDialog onSend={attach => send(attach)} onClose={() => setPolling(false)} />}
-              </>
-              )}
             </>
           ) : (
             <Empty title="A conversation belongs here">Choose a thread or start a new one.</Empty>
@@ -1669,7 +1652,6 @@ export function Inbox() {
                 {state.role !== "client" && (
                   <>
                     <option>SMS</option>
-                    <option>Email</option>
                     <option>Team</option>
                     {!state.remote && <option>Group</option>}
                   </>
@@ -1693,3 +1675,4 @@ function shortDate(iso) {
   const name = new Date(year, month - 1, day).toLocaleDateString("en-US", { month: "short" });
   return day + " " + name + " ’" + String(year).slice(-2);
 }
+export { Mail } from "./mail.jsx";

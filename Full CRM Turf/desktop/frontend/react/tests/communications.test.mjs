@@ -145,3 +145,19 @@ test("an email reply keeps its To, Cc and Subject, and a bad address is refused"
   assert.deepEqual(visibleThreads(state).find(item => item.id === email.id).messages.at(-1).email, { to: ["patricia.flores@example.com"], cc: ["alex.rivera@oakpalm.example"], subject: "Re: Your property on Baywood Drive" });
   assert.equal(reducer(state, { type: "MESSAGE", id: email.id, text: "Hi", email: { ...fields, to: "not an address" } }), state);
 });
+
+test("mail keeps its own unread count and drafts, apart from the chat inbox", async () => {
+  const { navCounts, conversationPath } = await import("../src/model.js");
+  let state = { ...seedState(), role: "owner" };
+  const threads = visibleThreads(state);
+  const emailUnread = threads.filter(item => item.unread && item.channel === "Email").length;
+  const chatUnread = threads.filter(item => item.unread && item.channel !== "Email").length;
+  assert.deepEqual([navCounts(state, ROLES.owner).mail, navCounts(state, ROLES.owner).inbox], [emailUnread, chatUnread]);
+  const email = threads.find(item => item.channel === "Email");
+  assert.equal(conversationPath(email), "work/mail?thread=" + email.id);
+  state = reducer(state, { type: "EMAIL_DRAFT", id: email.id, draft: { mode: "reply", to: "a@example.com", subject: "Re: x", text: "Half written" } });
+  assert.equal(visibleThreads(state).find(item => item.id === email.id).emailDraft.text, "Half written");
+  state = reducer(state, { type: "MESSAGE", id: email.id, text: "Sent now", email: { to: "a@example.com", subject: "Re: x" } });
+  assert.equal(visibleThreads(state).find(item => item.id === email.id).emailDraft, undefined, "sending ends the draft");
+  assert.equal("mail" in navCounts({ ...seedState(), role: "client" }, ROLES.client), false, "clients have no Mail");
+});

@@ -901,7 +901,7 @@ export function LeadDetail({ id }) {
               <div className="contact-line">
                 <Envelope size={18} />
                 {capability(state, "message") && lead.email ? (
-                  <button type="button" className="text-link" onClick={() => navigate("work/inbox?lead=" + id)} title="Open the conversation">
+                  <button type="button" className="text-link" onClick={() => navigate("work/mail?lead=" + id)} title="Email this lead">
                     {lead.email}
                   </button>
                 ) : (

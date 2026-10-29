@@ -7391,3 +7391,37 @@ button.message-card:not(:disabled):hover {
     padding: 12px;
   }
 }
+
+/* Mail rows read like a mail client: who and when, the subject, then a line of the latest text. */
+.mail-row {
+  padding-left: 16px;
+}
+.mail-subject {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.mail-subject em {
+  flex: none;
+  color: var(--danger-ink);
+  font-style: normal;
+  font-weight: 600;
+}
+.thread.unread .mail-subject {
+  font-weight: 600;
+}
+.new-email {
+  display: grid;
+  gap: 12px;
+}
+.new-email textarea {
+  min-height: 160px;
+  resize: vertical;
+}
+.new-email > .button {
+  justify-self: start;
+}

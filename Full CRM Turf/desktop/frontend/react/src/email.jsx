@@ -80,16 +80,27 @@ function MailCard({ message, open, onToggle, lead, me, last, onReply, onForward 
 }
 
 /** One email thread: the subject, the messages (the latest open), and a compose card for a reply or forward. */
-export function EmailThread({ thread, lead, me, canMessage, online, onSend }) {
+export function EmailThread({ thread, lead, me, canMessage, online, onSend, onDraft }) {
   const last = thread.messages.length - 1;
   const [open, setOpen] = useState(() => new Set([last]));
-  const [compose, setCompose] = useState(null);
+  const [compose, setCompose] = useState(() => thread.emailDraft || null);
   const body = useRef(null);
   const subject = subjectOf(thread);
+  // Another thread brings back its own unsent draft; a newly arrived message opens and folds the rest.
+  useEffect(() => {
+    setCompose(thread.emailDraft || null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thread.id]);
   useEffect(() => {
     setOpen(new Set([thread.messages.length - 1]));
-    setCompose(null);
   }, [thread.id, thread.messages.length]);
+  // What is being written is kept as the thread's draft, a moment after the last keystroke.
+  useEffect(() => {
+    if (!compose || !onDraft) return undefined;
+    const timer = setTimeout(() => onDraft(compose), 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compose]);
   const mode = compose?.mode;
   useEffect(() => {
     if (mode) body.current?.focus();
@@ -112,6 +123,10 @@ export function EmailThread({ thread, lead, me, canMessage, online, onSend }) {
     if (!compose.text.trim() || !compose.to.trim()) return;
     onSend({ text: compose.text, email: { to: compose.to, cc: compose.cc, subject: compose.subject } });
     setCompose(null);
+  };
+  const discard = () => {
+    setCompose(null);
+    onDraft?.(null);
   };
   return (
     <div className="email-thread">
@@ -180,7 +195,7 @@ export function EmailThread({ thread, lead, me, canMessage, online, onSend }) {
               <PaperPlaneTilt size={16} /> {online ? "Send demo email" : "Save draft"}
             </button>
             <small>Ctrl + Enter to send</small>
-            <button type="button" className="email-discard" aria-label="Discard" title="Discard" onClick={() => setCompose(null)}>
+            <button type="button" className="email-discard" aria-label="Discard" title="Discard" onClick={discard}>
               <Trash size={17} />
             </button>
           </div>
