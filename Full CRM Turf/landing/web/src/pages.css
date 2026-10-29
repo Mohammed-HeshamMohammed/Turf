@@ -474,3 +474,8 @@ main:focus {
 .ticks.small li {
   padding-left: 24px;
 }
+
+/* Contact: the form lines up with the page's left edge, like the heading above it, instead of floating in the middle. */
+.contact .panel {
+  margin-left: 0;
+}
