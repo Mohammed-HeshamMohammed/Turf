@@ -3,8 +3,8 @@ import { ArrowClockwise, PaperPlaneTilt, ShieldCheck, UserPlus } from "@phosphor
 import { DayChart, DownloadButton, Gate, GoogleMark, Meter, Problem, RecentUsage, dateText, go, number, timeText } from "./AccountPages.jsx";
 import { loadAuth, request } from "./session.jsx";
 
-// Turf's staff: invite people to the desktop app with a monthly credit limit, see who registered and what they used,
-// change limits, suspend and reactivate. Everything comes from Turf's server, which refuses anyone who is not staff,
+// Caller Whale's staff: invite people to the desktop app with a monthly credit limit, see who registered and what they used,
+// change limits, suspend and reactivate. Everything comes from Caller Whale's server, which refuses anyone who is not staff,
 // and staff who have not confirmed their authenticator code.
 
 const STATUS_TEXT = { invited: "Invited", active: "Active", suspended: "Suspended" };
@@ -239,7 +239,7 @@ function Invitations({ account }) {
         <div className="stat"><span>Suspended</span><strong>{number(data.totals.suspended)}</strong></div>
         <div className="stat"><span>Credits used this month</span><strong>{number(data.totals.used_this_month)}</strong></div>
       </div>
-      {!data.mail && <Problem>No mail server is set up on Turf's server, so invitations are saved but not emailed. Set TURF_SMTP_HOST and its login.</Problem>}
+      {!data.mail && <Problem>No mail server is set up on Caller Whale's server, so invitations are saved but not emailed. Set TURF_SMTP_HOST and its login.</Problem>}
       <InviteForm onInvited={load} />
       <div className="panel">
         <div className="table-head">
@@ -280,7 +280,7 @@ export function Admin() {
             <section className="section account">
               <div className="panel">
                 <h1>Staff only</h1>
-                <p className="sub">This page is for Turf's staff.</p>
+                <p className="sub">This page is for Caller Whale's staff.</p>
                 <a className="button" href="/dashboard">Go to your dashboard</a>
               </div>
             </section>

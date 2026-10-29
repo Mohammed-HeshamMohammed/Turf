@@ -27,6 +27,20 @@ export const Icon = ({ name, size = 22 }) => {
   return <Component size={size} weight="duotone" aria-hidden="true" />;
 };
 
+/** Caller Whale's mark: a whale with its spout, in the site's dark and peach (the same drawing as public/favicon.svg). */
+export const Logo = ({ size = 32 }) => (
+  <svg className="logo" width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+    <rect width="64" height="64" rx="18" fill="#191919" />
+    <path d="M31 15.5v-4M31 11.5l-3.6-3M31 11.5l3.6-3" fill="none" stroke="#ecc394" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+    <path
+      d="M9 35.5C9 26.6 16.6 20 27.4 20c9.3 0 15.8 4.9 17.9 11.6l7.2-7c1.4-1.4 3.8-.4 3.5 1.6l-.9 6.2 5.3 2.7c1.7.8 1.2 3.3-.7 3.6l-7.9 1.2C48.6 46.9 40.4 51 30 51 17.7 51 9 44.7 9 35.5z"
+      fill="#fff"
+    />
+    <path d="M12.6 40.2c5.4 3.7 14.6 4.6 21.8 2.2" fill="none" stroke="#ecc394" strokeWidth="3" strokeLinecap="round" />
+    <circle cx="19.5" cy="32.5" r="2.4" fill="#191919" />
+  </svg>
+);
+
 /** Fades a block in once as it scrolls into view. Without motion preference, or without IntersectionObserver, it just shows. */
 export function Reveal({ children, as: Tag = "div", className = "", ...rest }) {
   const ref = useRef(null);
@@ -70,21 +84,21 @@ export function Shot({ file, alt, eager, tilt }) {
 }
 
 /**
- * The site's header. Signed out: Sign in and Sign up. Signed in: Dashboard for people Turf invited, Admin for its staff,
+ * The site's header. Signed out: Sign in and Sign up. Signed in: Dashboard for people Caller Whale invited, Admin for its staff,
  * and Sign out. What a person may open is the server's decision (/account); the header only shows it.
  */
 export function Header({ route }) {
   const [open, setOpen] = useState(false);
   const session = useSession();
   useEffect(() => setOpen(false), [route]);
-  const links = [["features", "Features"], ["pricing", "Pricing"], ["compare", "Why Turf"], ["security", "Security"]];
+  const links = [["features", "Features"], ["pricing", "Pricing"], ["compare", "Why Caller Whale"], ["security", "Security"]];
   const account = session.status === "signed_in" ? session.account : null;
   const invited = Boolean(account?.access);
   return (
     <header className="top">
-      <a className="brand" href="/" aria-label="Turf home">
-        <span className="logo" aria-hidden="true">T</span>
-        Turf
+      <a className="brand" href="/" aria-label="Caller Whale home">
+        <Logo />
+        Caller Whale
       </a>
       <button className="menu-toggle" aria-expanded={open} aria-controls="site-nav" onClick={() => setOpen(!open)}>
         {open ? "Close" : "Menu"}
@@ -115,7 +129,7 @@ export function Footer() {
     <footer className="foot">
       <div className="foot-main">
         <div className="foot-brand">
-          <a className="brand" href="/"><span className="logo" aria-hidden="true">T</span>Turf</a>
+          <a className="brand" href="/"><Logo />Caller Whale</a>
           <p>The CRM and dialer for property outreach. Works offline, on your desktop.</p>
         </div>
         {footerLinks.map(col => (
@@ -130,7 +144,7 @@ export function Footer() {
         ))}
       </div>
       <div className="foot-base">
-        <span>© {new Date().getFullYear()} Turf. All rights reserved.</span>
+        <span>© {new Date().getFullYear()} Caller Whale. All rights reserved.</span>
         <span>Records stay on your machine and your organization's server.</span>
       </div>
     </footer>
@@ -166,18 +180,18 @@ export function Faq() {
 export function FinalCta() {
   return (
     <Reveal as="section" className="cta">
-      <h2>Ready to work your next list in Turf?</h2>
+      <h2>Ready to work your next list in Caller Whale?</h2>
       <p>Join the waitlist and be first in when the doors open.</p>
       <a className="button light" href="/#waitlist">Join the waitlist</a>
     </Reveal>
   );
 }
 
-/** Turf is by invitation: the download is on the invited person's dashboard, not here. */
+/** Caller Whale is by invitation: the download is on the invited person's dashboard, not here. */
 export function InviteOnly() {
   return (
     <section id="download" className="section band center">
-      <h2>Turf is by invitation</h2>
+      <h2>Caller Whale is by invitation</h2>
       <p className="sub">Invited? Create your account with the email your invitation went to, and download the desktop app from your dashboard.</p>
       <div className="actions center-actions">
         <a className="button" href="/signup">Accept an invitation</a>
@@ -212,7 +226,7 @@ export function Waitlist({ tier, plan, setTier }) {
     <section id="waitlist" className="section">
       <div className="panel">
         <h2>Join the waitlist</h2>
-        <p className="sub">Be first to use Turf, and tell us which plan fits.</p>
+        <p className="sub">Be first to use Caller Whale, and tell us which plan fits.</p>
         {tier === "custom" && plan && <p className="notice good" role="status">Your plan: {plan}</p>}
         {state.status === "done" ? (
           <p className="notice good" role="status">{state.message}</p>

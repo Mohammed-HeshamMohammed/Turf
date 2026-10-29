@@ -389,7 +389,8 @@ main:focus {
     gap: 48px;
   }
 }
-@media (max-width: 720px) {
+/* The header folds into the Menu button before its links would wrap ("Why Caller Whale" is long). */
+@media (max-width: 960px) {
   .menu-toggle {
     display: inline-block;
   }
@@ -415,6 +416,8 @@ main:focus {
   .top nav .button {
     margin-top: 8px;
   }
+}
+@media (max-width: 720px) {
   .old-new {
     padding: 24px;
   }

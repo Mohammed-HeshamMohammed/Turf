@@ -16,7 +16,7 @@ export function Home({ onPick }) {
         <p className="eyebrow">CRM and dialer for property outreach</p>
         <h1>From a raw list to a closed deal, in one app.</h1>
         <p className="lead">
-          Import lists, skip trace the owners, call and text them, and track every deal. Turf is a desktop CRM that keeps
+          Import lists, skip trace the owners, call and text them, and track every deal. Caller Whale is a desktop CRM that keeps
           working when your connection does not.
         </p>
         <div className="actions">
@@ -31,13 +31,13 @@ export function Home({ onPick }) {
         <Shot file="calls" alt="The Calls page: a call queue, the lead being called with the phone number and Start call button, and the call assistant." eager />
       </section>
 
-      <section className="section strip" aria-label="The old way and Turf">
+      <section className="section strip" aria-label="The old way and Caller Whale">
         <Reveal className="old-new">
           <div>
             <h2>Five subscriptions, or one app.</h2>
             <p className="sub">A list tool, a skip-tracing service, a dialer, a texting tool and a CRM, with you copying results between them.</p>
           </div>
-          <ul className="chips" aria-label="What Turf replaces">
+          <ul className="chips" aria-label="What Caller Whale replaces">
             {["Lists", "Skip tracing", "Dialer", "Texting", "CRM"].map(c => (
               <li key={c}>{c}</li>
             ))}
@@ -331,9 +331,9 @@ export function Compare() {
   return (
     <>
       <PageHead
-        eyebrow="Why Turf"
+        eyebrow="Why Caller Whale"
         title="One app instead of five."
-        lead="Most property teams stitch together a list tool, a skip-tracing service, a dialer, a texting tool and a CRM. Turf does the work of all five in one place."
+        lead="Most property teams stitch together a list tool, a skip-tracing service, a dialer, a texting tool and a CRM. Caller Whale does the work of all five in one place."
       />
       <section className="section">
         <div className="table-wrap">
@@ -342,7 +342,7 @@ export function Compare() {
               <tr>
                 <th scope="col">What you need</th>
                 <th scope="col">The usual way</th>
-                <th scope="col" className="turf-col">With Turf</th>
+                <th scope="col" className="turf-col">With Caller Whale</th>
               </tr>
             </thead>
             <tbody>
@@ -350,7 +350,7 @@ export function Compare() {
                 <tr key={r.need}>
                   <th scope="row">{r.need}</th>
                   <td data-label="The usual way">{r.usual}</td>
-                  <td data-label="With Turf" className="turf-col">{r.turf}</td>
+                  <td data-label="With Caller Whale" className="turf-col">{r.turf}</td>
                 </tr>
               ))}
             </tbody>
@@ -358,15 +358,15 @@ export function Compare() {
         </div>
       </section>
       <section className="section band">
-        <h2>Where Turf is honest about its limits</h2>
+        <h2>Where Caller Whale is honest about its limits</h2>
         <ul className="grid three">
           <li className="card">
             <h3>It does not find new numbers yet</h3>
-            <p>Turf cleans and ranks the numbers your list has. Looking up new ones is planned as a separate service.</p>
+            <p>Caller Whale cleans and ranks the numbers your list has. Looking up new ones is planned as a separate service.</p>
           </li>
           <li className="card">
             <h3>It is not live at scale yet</h3>
-            <p>Established dialers have years of proven calling at call-center size. Turf is new, and live calling is a launch feature.</p>
+            <p>Established dialers have years of proven calling at call-center size. Caller Whale is new, and live calling is a launch feature.</p>
           </li>
           <li className="card">
             <h3>Windows first</h3>
