@@ -3,7 +3,7 @@
 // Grafana in its auth-proxy headers. Grafana trusts those headers only from this proxy's address.
 // Plan: docs/plans/grafana-access.md.
 //
-// Sign-in: a visit without a session goes to the website's /#/admin/grafana, which posts the person's Turf token to
+// Sign-in: a visit without a session goes to the website's /admin/grafana, which posts the person's Turf token to
 // /_turf/session. The token stays in this process's memory, never in the cookie (a random session id) or a URL, and is
 // used to ask again at most once a RECHECK_EVERY. A refusal ends the session at once; a core API that can't be reached
 // lets nobody through. Sessions live in memory, so run one copy; a restart only means signing in again.
@@ -24,6 +24,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 const (
@@ -248,7 +249,7 @@ func (p *proxy) logout(w http.ResponseWriter, r *http.Request) {
 		p.drop(c.Value)
 	}
 	p.clearCookie(w)
-	http.Redirect(w, r, p.cfg.website+"/#/admin", http.StatusSeeOther)
+	http.Redirect(w, r, p.cfg.website+"/admin", http.StatusSeeOther)
 }
 
 // forward sends a signed-in staff member's request on to Grafana, saying who they are.
@@ -336,7 +337,7 @@ func (p *proxy) deny(w http.ResponseWriter, r *http.Request, v verdict) {
 func (p *proxy) toSignIn(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet && strings.Contains(r.Header.Get("accept"), "text/html") {
 		back := url.QueryEscape(safeReturn(r.URL.RequestURI()))
-		http.Redirect(w, r, p.cfg.website+"/#/admin/grafana?return="+back, http.StatusSeeOther)
+		http.Redirect(w, r, p.cfg.website+"/admin/grafana?return="+back, http.StatusSeeOther)
 		return
 	}
 	writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "Sign in to Turf first."})
@@ -354,7 +355,8 @@ func (p *proxy) clearCookie(w http.ResponseWriter) {
 
 // safeReturn keeps the place to go back to on this proxy: a path, never another site.
 func safeReturn(to string) string {
-	if !strings.HasPrefix(to, "/") || strings.HasPrefix(to, "//") || strings.HasPrefix(to, "/\\") || strings.HasPrefix(to, "/_turf/") {
+	// Browsers drop tabs and line breaks inside a URL, so a tab between two slashes would become "//evil.example".
+	if strings.IndexFunc(to, unicode.IsControl) >= 0 || strings.Contains(to, "\\") || !strings.HasPrefix(to, "/") || strings.HasPrefix(to, "//") || strings.HasPrefix(to, "/_turf/") {
 		return "/"
 	}
 	return to
