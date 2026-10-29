@@ -39,21 +39,22 @@ pub fn routes() -> Router<AppState> {
 }
 
 #[derive(Clone, Copy, PartialEq)]
-enum Staff {
+pub(crate) enum Staff {
     Owner,
     Admin,
 }
 
 /// The person's platform role, or a refusal. Turf's staff always need the second sign-in step (the authenticator
-/// code), whatever the server's MFA setting: a token that has not passed it opens nothing here.
-async fn staff(state: &AppState, ctx: &Ctx) -> ApiResult<Staff> {
+/// code), whatever the server's MFA setting: a token that has not passed it opens nothing here. Only TURF_STAFF_MFA=false
+/// lifts that, for a Firebase project without authenticator codes.
+pub(crate) async fn staff(state: &AppState, ctx: &Ctx) -> ApiResult<Staff> {
     let role: Option<String> = sqlx::query_scalar("SELECT platform_role FROM users WHERE id = $1").bind(ctx.user_id).fetch_one(&state.db).await?;
     let role = match role.as_deref() {
         Some("owner") => Staff::Owner,
         Some("admin") => Staff::Admin,
         _ => return Err(ApiError::forbidden("Only Turf's platform administrators can see this")),
     };
-    if !ctx.mfa_passed {
+    if state.config.staff_mfa && !ctx.mfa_passed {
         return Err(ApiError::MfaRequired);
     }
     Ok(role)
@@ -79,7 +80,7 @@ async fn owner(state: &AppState, ctx: &Ctx) -> ApiResult<()> {
     Ok(())
 }
 
-async fn event(tx: &mut sqlx::PgConnection, ctx: &Ctx, action: &str, kind: &str, target: Option<Uuid>, detail: Value) -> ApiResult<()> {
+pub(crate) async fn event(tx: &mut sqlx::PgConnection, ctx: &Ctx, action: &str, kind: &str, target: Option<Uuid>, detail: Value) -> ApiResult<()> {
     sqlx::query("INSERT INTO platform_events (actor_id, action, target_kind, target_id, detail) VALUES ($1, $2, $3, $4, $5)")
         .bind(ctx.user_id)
         .bind(action)

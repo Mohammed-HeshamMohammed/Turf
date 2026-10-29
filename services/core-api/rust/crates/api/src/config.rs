@@ -51,6 +51,25 @@ pub struct Config {
     /// Where staff open Grafana: the Grafana login proxy's address (services/grafana-proxy). Empty: no Grafana link,
     /// and the website may post a sign-in nowhere but here.
     pub grafana_url: String,
+    /// Turf's staff must confirm an authenticator code to open the admin dashboard (TURF_STAFF_MFA, default true).
+    /// Turn it off only while the Firebase project has no authenticator codes (Identity Platform) set up.
+    pub staff_mfa: bool,
+    /// The public website people are invited to (links in invitation emails), e.g. https://callerwhale.com.
+    pub website_url: String,
+    /// The mail server invitations go out through (STARTTLS on 587, TLS on 465). Empty host: no email is sent, and the
+    /// dashboard says so.
+    pub smtp_host: String,
+    pub smtp_port: u16,
+    pub smtp_user: String,
+    pub smtp_password: String,
+    /// The sender, as "Name <address>". The mail server lets a login send only as its own address.
+    pub mail_from: String,
+    /// `owner/repo` whose GitHub releases hold the desktop installer. Empty: no download yet.
+    pub release_repo: String,
+    /// Only releases whose tag starts with this are the desktop app's (the repository releases other things too).
+    pub release_tag_prefix: String,
+    /// A GitHub token that can read the releases, for a private repository. Empty: public releases only.
+    pub github_token: String,
 }
 
 impl Config {
@@ -106,6 +125,16 @@ impl Config {
             grafana_url: var("TURF_GRAFANA_URL", "").trim().trim_end_matches('/').to_string(),
             firebase_providers: var("TURF_FIREBASE_PROVIDERS", "google").split(',').map(|p| p.trim().to_string()).filter(|p| !p.is_empty()).collect(),
             auth_public_url: var("TURF_AUTH_PUBLIC_URL", "http://localhost:8101").trim_end_matches('/').to_string(),
+            staff_mfa: var("TURF_STAFF_MFA", "true") != "false",
+            website_url: var("TURF_WEBSITE_URL", "http://localhost:5200").trim().trim_end_matches('/').to_string(),
+            smtp_host: var("TURF_SMTP_HOST", "").trim().to_string(),
+            smtp_port: var("TURF_SMTP_PORT", "587").trim().parse().context("TURF_SMTP_PORT")?,
+            smtp_user: var("TURF_SMTP_USER", "").trim().to_string(),
+            smtp_password: var("TURF_SMTP_PASSWORD", ""),
+            mail_from: var("TURF_MAIL_FROM", "Turf <no-reply@softfix.dev>").trim().to_string(),
+            release_repo: var("TURF_RELEASE_REPO", "").trim().to_string(),
+            release_tag_prefix: var("TURF_RELEASE_TAG_PREFIX", "crm-v").trim().to_string(),
+            github_token: var("TURF_GITHUB_TOKEN", "").trim().to_string(),
         })
     }
 }
