@@ -379,7 +379,7 @@ export function Dashboard() {
               <div className="stat"><span>Used this month</span><strong>{number(access.used_this_month)}</strong></div>
               <div className="stat"><span>Monthly limit</span><strong>{number(access.monthly_credits)}</strong></div>
               <div className="stat"><span>Left</span><strong>{number(access.remaining)}</strong></div>
-              <div className="stat"><span>Renews</span><strong>{dateText(access.period.end)}</strong></div>
+              <div className="stat"><span>Renews</span><strong>{new Date(access.period.end).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</strong></div>
             </div>
             <div className="panel">
               <Meter used={access.used_this_month} limit={access.monthly_credits} />
