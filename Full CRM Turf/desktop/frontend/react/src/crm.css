@@ -6516,3 +6516,440 @@ html.demo-quiet .demo-note {
     display: none;
   }
 }
+
+/* Chat composer: + attach, the message, emoji and GIFs, send, all on one row like a messenger. */
+.composer {
+  position: relative;
+}
+.composer > .composer-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 6px;
+  border-radius: 24px;
+  background: var(--well);
+}
+.composer-row textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  max-height: 160px;
+  padding: 10px 6px;
+  border: 0;
+  background: transparent;
+  resize: none;
+  field-sizing: content;
+}
+.composer-row textarea:focus-visible {
+  outline: none;
+}
+.composer-row:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.composer-send {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 50%;
+}
+.composer > .composer-hint {
+  display: block;
+  margin: 6px 4px 0;
+  text-align: right;
+}
+.chat-tool {
+  position: relative;
+  flex: none;
+}
+.chat-tool-button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chat-tool-button:hover,
+.chat-tool-button[aria-expanded="true"] {
+  background: var(--card);
+}
+.chat-popover {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  z-index: 40;
+  padding: 8px;
+  border-radius: 20px;
+  background: var(--card);
+  box-shadow: 0 12px 32px #0002, 0 0 0 1px #0000000d;
+  animation: page-in 140ms var(--ease-out);
+}
+.attach-menu {
+  left: 0;
+  display: grid;
+  min-width: 220px;
+}
+.attach-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  text-align: left;
+  font-size: 13px;
+}
+.attach-menu button:hover,
+.attach-menu button:focus-visible {
+  background: var(--well);
+}
+.attach-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+}
+.contact-pick {
+  display: grid;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.contact-pick button {
+  display: grid;
+  gap: 2px;
+}
+.contact-pick small {
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.expression-panel {
+  right: 0;
+  width: min(340px, calc(100vw - 48px));
+  display: grid;
+  gap: 8px;
+}
+.expression-tabs {
+  display: flex;
+  gap: 4px;
+}
+.expression-tabs button {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+.expression-tabs button[aria-selected="true"] {
+  background: var(--ink);
+  color: white;
+}
+.emoji-groups {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.emoji-groups small {
+  display: block;
+  margin: 0 4px 4px;
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+}
+.emoji-grid button {
+  height: 36px;
+  border-radius: 10px;
+  font-size: 20px;
+}
+.emoji-grid button:hover,
+.emoji-grid button:focus-visible {
+  background: var(--well);
+}
+.gif-search {
+  width: 100%;
+}
+.gif-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.gif-grid button {
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--well);
+}
+.gif-grid img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.gif-note,
+.giphy-credit {
+  color: var(--muted, #6b6b6b);
+  font-size: 12px;
+}
+.giphy-credit {
+  text-align: right;
+}
+
+/* Messages: what they carry, the reply they answer, reactions, and reply / react on hover or focus. */
+.message {
+  position: relative;
+}
+.message-gif,
+.message-photo {
+  display: block;
+  max-width: min(280px, 100%);
+  height: auto;
+  margin: 4px 0;
+  border-radius: 12px;
+}
+.message-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--card);
+  text-align: left;
+}
+.message-card span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.message-card small {
+  color: var(--muted, #6b6b6b);
+  overflow-wrap: anywhere;
+}
+button.message-card:not(:disabled):hover {
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.message-quote {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 6px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0;
+  background: #ffffff80;
+  font-size: 12px;
+}
+.message-quote span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.message-poll {
+  display: grid;
+  gap: 6px;
+  min-width: 240px;
+  margin: 4px 0;
+}
+.poll-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--card);
+  text-align: left;
+  font-size: 13px;
+}
+.poll-option > span:not(.poll-bar),
+.poll-option > small {
+  position: relative;
+}
+.poll-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent-soft);
+  transition: width 200ms var(--ease-out);
+}
+.poll-option.mine {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.message-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.message-reactions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--card);
+  font-size: 13px;
+}
+.message-reactions button.mine {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.message-actions {
+  position: absolute;
+  top: -14px;
+  right: 8px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: 0 2px 8px #0002;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.message:hover .message-actions,
+.message:focus-within .message-actions {
+  opacity: 1;
+}
+.message-actions > button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+.message-actions > button:hover {
+  background: var(--well);
+}
+.reaction-bar {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: 0 6px 18px #0002;
+}
+.reaction-bar button {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 18px;
+}
+.reaction-bar button:hover {
+  background: var(--well);
+}
+.mention {
+  padding: 0 3px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  font-weight: 500;
+}
+.mention.me {
+  background: var(--accent);
+}
+.mention-picker,
+.reply-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.mention-picker button {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  font-size: 12px;
+}
+.reply-bar {
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--well);
+  font-size: 12px;
+}
+.reply-bar > span {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.reply-bar small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted, #6b6b6b);
+}
+.reply-bar > button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+.group-members {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.group-members legend {
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.poll-form {
+  display: grid;
+  gap: 12px;
+}
+.poll-form-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-popover,
+  .poll-bar,
+  .message-actions {
+    animation: none;
+    transition: none;
+  }
+}
+@media (hover: none) {
+  .message-actions {
+    opacity: 1;
+  }
+}
+/* Six channel filters fit the list's width without clipping. */
+.thread-list .segmented button {
+  padding: 6px 8px;
+}
+/* The hint sits under the message, clear of the phone button in the corner. */
+.composer > .composer-hint {
+  text-align: left;
+  margin-left: 52px;
+}
+/* The vote share reads on both the grey and the peach bubbles. */
+.poll-bar {
+  background: var(--accent);
+  opacity: 0.45;
+}
+/* Phones: the + menu and the emoji / GIF panel span the composer instead of hanging off their button. */
+@media (max-width: 720px) {
+  .composer .chat-tool {
+    position: static;
+  }
+  .composer .chat-popover {
+    left: 0;
+    right: 0;
+    width: auto;
+  }
+}

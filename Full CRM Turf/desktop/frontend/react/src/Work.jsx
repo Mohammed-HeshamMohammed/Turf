@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { PropertyMap } from "./PropertyMap.jsx";
+import { AttachMenu, ChatMessage, ExpressionPanel, MentionPicker, PollDialog, ReplyBar } from "./chat.jsx";
 import {
   Phone,
   PhoneDisconnect,
@@ -17,7 +18,7 @@ import {
   Envelope,
   ChatCircle,
   PaperPlaneTilt,
-  Paperclip,
+  UsersThree,
   ClosedCaptioning,
   PencilSimple,
   X,
@@ -1338,7 +1339,10 @@ export function Inbox() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState("");
   const [draft, setDraft] = useState("");
-  const [attachment, setAttachment] = useState("");
+  const [replyTo, setReplyTo] = useState(null);
+  const [polling, setPolling] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [groupMembers, setGroupMembers] = useState([]);
   const [newConversation, setNewConversation] = useState(false);
   const [newLeadId, setNewLeadId] = useState("");
   const [newChannel, setNewChannel] = useState("SMS");
@@ -1349,7 +1353,7 @@ export function Inbox() {
   const threads = visibleThreads(state).filter(thread => {
     if (channel !== "All" && thread.channel !== channel) return false;
     const person = leads.find(item => item.id === thread.leadId);
-    const words = [person?.name, person?.address, thread.phone, thread.preview, ...thread.messages.map(message => message.text)].join(" ").toLowerCase();
+    const words = [thread.title, person?.name, person?.address, thread.phone, thread.preview, ...thread.messages.map(message => message.text)].join(" ").toLowerCase();
     return words.includes(query.trim().toLowerCase());
   });
   const requested = new URLSearchParams(route.split("?")[1]).get("lead");
@@ -1358,6 +1362,15 @@ export function Inbox() {
   const lead = leads.find(item => item.id === thread?.leadId);
   const canMessage = capability(state, "message") || capability(state, "publicComment");
   const byNumber = newChannel === "SMS" && recipientMode === "Phone number" && state.role !== "client" && !state.remote;
+  const me = ROLES[state.role].person;
+  // Text, an attachment (with the draft as its caption), or both; a reply keeps the message it answers.
+  const send = attach => {
+    if (!thread || (!attach && !draft.trim())) return;
+    dispatch({ type: "MESSAGE", id: thread.id, text: draft, attach, replyTo: replyTo ?? undefined });
+    setDraft("");
+    setReplyTo(null);
+    notify(state.online ? "Demo message added — nothing was sent externally" : "Communication draft saved offline");
+  };
   const recipient = byNumber ? smsRecipient(state, newNumber) : null;
   return (
     <>
@@ -1371,6 +1384,8 @@ export function Inbox() {
               setNewChannel(state.role === "client" ? "Partner" : "SMS");
               setRecipientMode("Phone number");
               setNewNumber("");
+              setGroupName("");
+              setGroupMembers([]);
               setNewConversation(true);
             }}
           >
@@ -1388,12 +1403,12 @@ export function Inbox() {
               setChannel(value);
               setSelected("");
             }}
-            options={state.role === "client" ? ["All", "Partner"] : ["All", "SMS", "Email", "Team", "Partner"]}
+            options={state.role === "client" ? ["All", "Partner"] : ["All", "SMS", "Email", "Team", "Group", "Partner"]}
           />
           <div className="thread-items">
             {threads.map(item => {
             const person = leads.find(lead => lead.id === item.leadId);
-            const Icon = item.channel === "Email" ? Envelope : ChatCircle;
+            const Icon = item.channel === "Email" ? Envelope : item.channel === "Group" ? UsersThree : ChatCircle;
             return (
               <button
                 key={item.id}
@@ -1401,6 +1416,7 @@ export function Inbox() {
                 aria-current={thread?.id === item.id ? "true" : undefined}
                 onClick={() => {
                   setSelected(item.id);
+                  setReplyTo(null);
                   dispatch({ type: "MARK_READ", id: item.id });
                 }}
               >
@@ -1409,12 +1425,12 @@ export function Inbox() {
                 </span>
                 <span className="thread-body">
                   <span className="thread-top">
-                    <strong>{person?.name || item.phone}</strong>
+                    <strong>{item.title || person?.name || item.phone}</strong>
                     <time>{item.messages.at(-1)?.at}</time>
                   </span>
                   <span className="thread-preview">{item.preview}</span>
                   <span className="thread-meta">
-                    {item.channel} · {person?.address || "Phone number"}
+                    {item.channel} · {item.channel === "Group" ? item.members.length + " members" : person?.address || "Phone number"}
                   </span>
                 </span>
                 {item.unread && <span className="unread-dot" aria-label="Unread" />}
@@ -1425,29 +1441,33 @@ export function Inbox() {
           </div>
         </Card>
         <Card className="conversation">
-          {thread && (lead || thread.phone) ? (
+          {thread && (lead || thread.phone || thread.channel === "Group") ? (
             <>
               <header>
                 <div>
-                  <h2>{lead?.name || thread.phone}</h2>
+                  <h2>{thread.title || lead?.name || thread.phone}</h2>
                   <small>
                     <Badge>{thread.channel}</Badge>
                     {thread.channel === "SMS" && (lead?.phone || thread.phone) ? <span>{lead?.phone || thread.phone}</span> : null}
-                    <span>{lead?.address || "Phone number"}</span>
+                    <span>{thread.channel === "Group" ? thread.members.join(", ") : lead?.address || "Phone number"}</span>
                   </small>
                 </div>
                 {lead && <RoundButton label="Open conversation lead" onClick={() => navigate("work/leads/" + lead.id)} />}
               </header>
               <div className="message-history">
                 {thread.messages.map((message, index) => (
-                  <div key={index} className={"message " + (message.incoming ? "incoming" : "outgoing")}>
-                    <small>{message.from}</small>
-                    <p>{message.text}</p>
-                    <span>
-                      {message.at}
-                      {message.draft && " · Not sent"}
-                    </span>
-                  </div>
+                  <ChatMessage
+                    key={index}
+                    message={message}
+                    index={index}
+                    thread={thread}
+                    me={me}
+                    canAct={canMessage}
+                    onReply={setReplyTo}
+                    onReact={emoji => dispatch({ type: "REACT", id: thread.id, index, emoji })}
+                    onVote={option => dispatch({ type: "VOTE", id: thread.id, index, option })}
+                    onOpenLead={leadId => navigate("work/leads/" + leadId)}
+                  />
                 ))}
               </div>
               {canMessage && (
@@ -1455,44 +1475,34 @@ export function Inbox() {
                   className="composer"
                   onSubmit={event => {
                     event.preventDefault();
-                    dispatch({ type: "MESSAGE", id: thread.id, text: draft + (attachment ? "\nAttachment preview: " + attachment : "") });
-                    setDraft("");
-                    setAttachment("");
-                    notify(state.online ? "Demo message added — nothing was sent externally" : "Communication draft saved offline");
+                    send();
                   }}
                 >
-                  <textarea
-                    aria-label="Message text"
-                    value={draft}
-                    onChange={event => setDraft(event.target.value)}
-                    onKeyDown={event => {
-                      // Ctrl+Enter (Cmd+Enter on a Mac) sends; Enter alone keeps writing on a new line.
-                      if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && draft.trim()) event.currentTarget.form.requestSubmit();
-                    }}
-                    placeholder={state.online ? "Write a message…" : "Write an offline draft…"}
-                    required
-                  />
-                  <div>
-                    <label className="attachment-button">
-                      <Paperclip size={18} />
-                      <span>{attachment || "Attach file"}</span>
-                      <input
-                        type="file"
-                        onChange={event => {
-                          const file = event.target.files?.[0];
-                          if (file) setAttachment(file.name);
-                        }}
-                      />
-                    </label>
-                    <span className="composer-hint">Ctrl + Enter to send</span>
-                    <button className="button primary" type="submit" disabled={!draft.trim()}>
-                      <PaperPlaneTilt size={17} />
-                      {state.online ? "Send demo message" : "Save draft"}
+                  {replyTo !== null && thread.messages[replyTo] && <ReplyBar message={thread.messages[replyTo]} onCancel={() => setReplyTo(null)} />}
+                  {["Team", "Group"].includes(thread.channel) && <MentionPicker draft={draft} onPick={setDraft} />}
+                  <div className="composer-row">
+                    <AttachMenu thread={thread} lead={lead} leads={leads} onAttach={attach => send(attach)} onPoll={() => setPolling(true)} />
+                    <textarea
+                      aria-label="Message text"
+                      value={draft}
+                      rows={1}
+                      onChange={event => setDraft(event.target.value)}
+                      onKeyDown={event => {
+                        // Ctrl+Enter (Cmd+Enter on a Mac) sends; Enter alone keeps writing on a new line.
+                        if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && draft.trim()) event.currentTarget.form.requestSubmit();
+                      }}
+                      placeholder={state.online ? "Write a message…" : "Write an offline draft…"}
+                    />
+                    <ExpressionPanel online={state.online} onEmoji={emoji => setDraft(text => text + emoji)} onGif={gif => send({ kind: "gif", gif })} />
+                    <button className="button primary composer-send" type="submit" disabled={!draft.trim()} aria-label={state.online ? "Send demo message" : "Save draft"} title={state.online ? "Send demo message" : "Save draft"}>
+                      <PaperPlaneTilt size={18} />
                     </button>
                   </div>
+                  <span className="composer-hint">Ctrl + Enter to send</span>
                   <small className="demo-note">Prototype conversation · no real email or SMS is sent</small>
                 </form>
               )}
+              {polling && <PollDialog onSend={attach => send(attach)} onClose={() => setPolling(false)} />}
             </>
           ) : (
             <Empty title="A conversation belongs here">Choose a thread or start a new one.</Empty>
@@ -1505,6 +1515,14 @@ export function Inbox() {
             className="sms-conversation-form"
             onSubmit={event => {
               event.preventDefault();
+              if (newChannel === "Group") {
+                const id = uid();
+                dispatch({ type: "NEW_THREAD", thread: { id, channel: "Group", title: groupName, members: groupMembers, preview: "New group", unread: false, messages: [] } });
+                setSelected(id);
+                setChannel("All");
+                setNewConversation(false);
+                return;
+              }
               if (byNumber && recipient.error) return;
               const leadId = byNumber ? recipient.lead?.id || null : newLeadId;
               const conversationChannel = state.role === "client" ? "Partner" : newChannel;
@@ -1528,11 +1546,24 @@ export function Inbox() {
               setNewConversation(false);
               dispatch({ type: "MARK_READ", id });
               setDraft("");
-              setAttachment("");
+              setReplyTo(null);
             }}
           >
-            {newChannel === "SMS" && state.role !== "client" && !state.remote && <Segmented label="SMS recipient" value={recipientMode} options={["Phone number", "Existing lead"]} onChange={setRecipientMode} />}
-            {byNumber ? <Field label="Phone number" help={newNumber ? recipient.error || (recipient.lead ? "Linked to " + recipient.lead.name : recipient.thread ? "Existing SMS conversation" : "Start an SMS conversation without creating a lead.") : "Include the country code for international numbers."}>
+            {newChannel === "Group" && (
+              <>
+                <Field label="Group name">
+                  <input value={groupName} maxLength={60} onChange={event => setGroupName(event.target.value)} placeholder="Tampa closers" required />
+                </Field>
+                <fieldset className="group-members">
+                  <legend>Members</legend>
+                  {PEOPLE.filter(name => name !== me).map(name => (
+                    <Checkbox key={name} label={name} checked={groupMembers.includes(name)} onChange={event => setGroupMembers(event.target.checked ? [...groupMembers, name] : groupMembers.filter(item => item !== name))} />
+                  ))}
+                </fieldset>
+              </>
+            )}
+            {newChannel !== "Group" && newChannel === "SMS" && state.role !== "client" && !state.remote && <Segmented label="SMS recipient" value={recipientMode} options={["Phone number", "Existing lead"]} onChange={setRecipientMode} />}
+            {newChannel === "Group" ? null : byNumber ? <Field label="Phone number" help={newNumber ? recipient.error || (recipient.lead ? "Linked to " + recipient.lead.name : recipient.thread ? "Existing SMS conversation" : "Start an SMS conversation without creating a lead.") : "Include the country code for international numbers."}>
               <input type="tel" autoComplete="off" placeholder="e.g. +1 (813) 555-0101" value={newNumber} maxLength={28} onChange={event => setNewNumber(event.target.value)} required />
             </Field> : <Field label="Related lead">
               <Select value={newLeadId} onChange={event => setNewLeadId(event.target.value)}>
@@ -1550,13 +1581,14 @@ export function Inbox() {
                     <option>SMS</option>
                     <option>Email</option>
                     <option>Team</option>
+                    {!state.remote && <option>Group</option>}
                   </>
                 )}
                 <option>Partner</option>
               </Select>
             </Field>
-            <button type="submit" className="button primary" disabled={byNumber ? Boolean(recipient.error) : !newLeadId}>
-              Open conversation
+            <button type="submit" className="button primary" disabled={newChannel === "Group" ? !groupName.trim() || !groupMembers.length : byNumber ? Boolean(recipient.error) : !newLeadId}>
+              {newChannel === "Group" ? "Create group" : "Open conversation"}
             </button>
           </form>
         </Modal>

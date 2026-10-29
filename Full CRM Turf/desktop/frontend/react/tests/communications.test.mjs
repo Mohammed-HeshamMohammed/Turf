@@ -88,3 +88,39 @@ test("quick call outcomes retain real timing without requiring a separate hangup
     assert.equal(callDuration(state.leads[0].calls[0]), "", "legacy history must not invent a duration");
   } finally { clearCallOutcome(); }
 });
+
+test("group chats are for their members, and carry GIFs, polls, replies and reactions", () => {
+  let state = { ...seedState(), role: "manager" };
+  const me = ROLES.manager.person;
+  const group = { id: "g1", channel: "Group", title: "Tampa closers", members: ["Alex Rivera"], preview: "New group", unread: false, messages: [] };
+  assert.equal(reducer(state, { type: "NEW_THREAD", thread: { ...group, members: [] } }), state, "a group needs another member");
+  state = reducer(state, { type: "NEW_THREAD", thread: group });
+  assert.deepEqual(visibleThreads(state).find(item => item.id === "g1").members, [me, "Alex Rivera"]);
+  // Someone outside the group never sees it.
+  const outsider = Object.keys(ROLES).find(role => role !== "client" && ![me, "Alex Rivera"].includes(ROLES[role].person));
+  assert.equal(visibleThreads({ ...state, role: outsider }).some(item => item.id === "g1"), false);
+
+  state = reducer(state, { type: "MESSAGE", id: "g1", attach: { kind: "gif", gif: { url: "https://media2.giphy.com/media/abc/200.gif", title: "Deal closed" } } });
+  assert.equal(reducer(state, { type: "MESSAGE", id: "g1", attach: { kind: "gif", gif: { url: "https://evil.example/x.gif" } } }), state, "GIFs only come from GIPHY");
+  state = reducer(state, { type: "MESSAGE", id: "g1", attach: { kind: "poll", poll: { question: "Call time?", options: ["10 am", "2 pm", "2 pm"] } } });
+  let messages = visibleThreads(state).find(item => item.id === "g1").messages;
+  assert.equal(messages[0].kind, "gif");
+  assert.deepEqual(messages[1].poll.options.map(option => option.text), ["10 am", "2 pm"]);
+  assert.equal(visibleThreads(state).find(item => item.id === "g1").preview, "Poll: Call time?");
+
+  state = reducer(state, { type: "VOTE", id: "g1", index: 1, option: 0 });
+  state = reducer(state, { type: "VOTE", id: "g1", index: 1, option: 1 });
+  messages = visibleThreads(state).find(item => item.id === "g1").messages;
+  assert.deepEqual(messages[1].poll.options.map(option => option.votes), [[], [me]], "voting again moves the vote");
+
+  state = reducer(state, { type: "REACT", id: "g1", index: 0, emoji: "🎉" });
+  assert.deepEqual(visibleThreads(state).find(item => item.id === "g1").messages[0].reactions, { "🎉": [me] });
+  state = reducer(state, { type: "REACT", id: "g1", index: 0, emoji: "🎉" });
+  assert.equal(visibleThreads(state).find(item => item.id === "g1").messages[0].reactions["🎉"], undefined, "a second tap takes it back");
+
+  state = reducer(state, { type: "MESSAGE", id: "g1", text: "Agreed", replyTo: 1 });
+  assert.equal(visibleThreads(state).find(item => item.id === "g1").messages[2].replyTo, 1);
+  // Polls are for team and group chats only.
+  const sms = visibleThreads(state).find(item => item.channel === "SMS" && item.leadId);
+  assert.equal(reducer(state, { type: "MESSAGE", id: sms.id, attach: { kind: "poll", poll: { question: "?", options: ["a", "b"] } } }), state);
+});
