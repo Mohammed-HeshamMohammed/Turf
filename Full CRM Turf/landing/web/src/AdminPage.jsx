@@ -159,16 +159,18 @@ function Person({ row, onChanged }) {
             {row.name && <span>{row.email}</span>}
           </button>
         </td>
-        <td>
+        <td data-label="Status">
           <span className={`pill ${row.status}`}>{STATUS_TEXT[row.status]}</span>
           {row.sign_in === "google" && <span className="signin-mark" title="Signs in with Google"><GoogleMark size={14} /></span>}
         </td>
-        <td className="usage-cell">
-          <span className="figure">{number(row.used_this_month)} / {number(row.monthly_credits)}</span>
-          <Meter used={row.used_this_month} limit={row.monthly_credits} />
+        <td className="usage-cell" data-label="This month">
+          <div>
+            <span className="figure">{number(row.used_this_month)} / {number(row.monthly_credits)}</span>
+            <Meter used={row.used_this_month} limit={row.monthly_credits} />
+          </div>
         </td>
-        <td>{row.last_used_at ? timeText(row.last_used_at) : row.accepted_at ? "Not yet" : "—"}</td>
-        <td>{row.accepted_at ? `Joined ${dateText(row.accepted_at)}` : row.emailed_at ? `Emailed ${dateText(row.emailed_at)}` : "Not emailed"}</td>
+        <td data-label="Last used">{row.last_used_at ? timeText(row.last_used_at) : row.accepted_at ? "Not yet" : "—"}</td>
+        <td data-label="Invitation">{row.accepted_at ? `Joined ${dateText(row.accepted_at)}` : row.emailed_at ? `Emailed ${dateText(row.emailed_at)}` : "Not emailed"}</td>
       </tr>
       {open && (
         <tr className="detail">

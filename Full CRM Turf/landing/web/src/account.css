@@ -63,7 +63,7 @@
   font-size: 15px;
 }
 .text-button {
-  padding: 0;
+  padding: 6px 0;
   border: 0;
   background: none;
   color: var(--ink);
@@ -97,7 +97,6 @@
 }
 .stat strong {
   font-size: 28px;
-  font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
 
@@ -145,8 +144,15 @@
 
 .split {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 20px;
+}
+.split {
+  margin-bottom: 20px;
+}
+.split > .panel {
+  max-width: none;
+  margin: 0;
 }
 .download .sub {
   margin-top: 12px;
@@ -175,7 +181,6 @@
 }
 .table .figure {
   text-align: right;
-  font-variant-numeric: tabular-nums;
 }
 .table-head {
   display: flex;
@@ -187,7 +192,8 @@
   flex: 1;
 }
 .table-head input {
-  width: 260px;
+  flex: 0 1 260px;
+  min-width: 0;
   min-height: 38px;
 }
 .people .person {
@@ -243,6 +249,7 @@
 }
 .detail-body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   padding: 8px 4px 12px;
 }
@@ -298,11 +305,90 @@ code.key {
     grid-template-columns: 1fr;
   }
 }
+@media (max-width: 720px) {
+  /* The people table becomes one card per person, so a person's controls never sit off to the side. */
+  .table-wrap {
+    overflow-x: visible;
+  }
+  .people thead {
+    display: none;
+  }
+  .people,
+  .people tbody,
+  .people tr,
+  .people td {
+    display: block;
+    width: 100%;
+  }
+  .people tr {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .people td {
+    box-sizing: border-box;
+    padding: 4px 0;
+    border: 0;
+  }
+  .people .usage-cell .figure {
+    text-align: left;
+  }
+  .people td[data-label] {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+  }
+  .people td[data-label] > * {
+    justify-self: start;
+  }
+  .people td.usage-cell > div {
+    justify-self: stretch;
+  }
+  .people td[data-label]::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .people tr.detail {
+    padding: 0 0 14px;
+  }
+  .people tr.detail td {
+    padding: 12px;
+    border-radius: 16px;
+  }
+  .usage-cell {
+    min-width: 0;
+  }
+  .controls,
+  .controls label,
+  .inline {
+    width: 100%;
+    min-width: 0;
+  }
+  .controls label {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .inline input {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+}
 @media (max-width: 520px) {
   .stats {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .stat {
+    padding: 16px;
+  }
+  .stat strong {
+    font-size: 24px;
+  }
+  .table-head h2 {
+    flex-basis: 100%;
   }
   .table-head input {
-    width: 100%;
+    flex: 1;
   }
 }
