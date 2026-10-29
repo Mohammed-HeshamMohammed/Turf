@@ -86,10 +86,11 @@ jobs:
 
       - run: npm ci
         working-directory: Full CRM Turf/desktop/frontend/react
-      - run: npm test
-        working-directory: Full CRM Turf/desktop/frontend/react
       - name: Build the installer
         run: node scripts/tauri.mjs build --config tauri.package.conf.json --config version.json
+        working-directory: Full CRM Turf/desktop/frontend/react
+      # After the build: one test checks the built files (dist/client).
+      - run: npm test
         working-directory: Full CRM Turf/desktop/frontend/react
 
       - name: Publish the release
