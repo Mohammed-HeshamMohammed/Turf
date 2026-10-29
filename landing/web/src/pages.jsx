@@ -463,10 +463,11 @@ export function Legal({ page }) {
 
 export function NotFound() {
   return (
-    <section className="section legal">
-      <h1>That page does not exist.</h1>
-      <p>The link may be old or mistyped.</p>
-      <p><a className="button" href="/">Go to the home page</a></p>
-    </section>
+    <>
+      <PageHead title="That page does not exist." lead="The link may be old or mistyped." />
+      <section className="section missing">
+        <a className="button" href="/">Go to the home page</a>
+      </section>
+    </>
   );
 }

@@ -194,7 +194,7 @@ export function DownloadButton({ release }) {
   return (
     <div className="download">
       <button type="button" className="button" onClick={download} disabled={state.busy}>
-        <DownloadSimple size={20} weight="bold" aria-hidden="true" /> {state.busy ? "Preparing…" : "Download Caller Whale for Windows"}
+        <DownloadSimple size={20} weight="bold" aria-hidden="true" /> {state.busy ? "Preparing…" : "Download for Windows"}
       </button>
       <p className="sub">Version {release.version}{mb}. Sign in to the app with this same account.</p>
       {state.error && <p className="notice bad" role="alert">{state.error}</p>}
@@ -225,13 +225,24 @@ export function DayChart({ days, period }) {
     const day = new Date(start.getTime() + i * 86400000).toISOString().slice(0, 10);
     return { day, credits: byDay[day] || 0 };
   });
+  const short = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
   return (
-    <div className="days" role="list" aria-label="Credits used by day">
-      {cells.map(c => (
-        <span key={c.day} role="listitem" title={`${dateText(c.day + "T12:00:00Z")}: ${number(c.credits)} credits`} aria-label={`${c.day}: ${c.credits} credits`}>
-          <i style={{ height: `${c.credits ? Math.max(6, (c.credits / max) * 100) : 0}%` }} />
-        </span>
-      ))}
+    <div className="day-chart">
+      <div className="day-chart-head">
+        <span>Credits by day</span>
+        <span>Busiest day: {number(max)}</span>
+      </div>
+      <div className="days" role="list" aria-label="Credits used by day">
+        {cells.map(c => (
+          <span key={c.day} role="listitem" title={`${dateText(c.day + "T12:00:00Z")}: ${number(c.credits)} credits`} aria-label={`${c.day}: ${c.credits} credits`}>
+            <i style={{ height: `${c.credits ? Math.max(6, (c.credits / max) * 100) : 0}%` }} />
+          </span>
+        ))}
+      </div>
+      <div className="day-chart-axis" aria-hidden="true">
+        <span>{short(start)}</span>
+        <span>{short(new Date(end.getTime() - 86400000))}</span>
+      </div>
     </div>
   );
 }
@@ -274,7 +285,13 @@ function NeedSignIn() {
 
 export function Gate({ children }) {
   const session = useSession();
-  if (session.status === "unknown") return <Shell title="One moment…" />;
+  if (session.status === "unknown") {
+    return (
+      <section className="section account" role="status" aria-label="Opening your account">
+        <div className="loading" aria-hidden="true"><i className="title" /><i /><i className="block" /></div>
+      </section>
+    );
+  }
   if (session.status === "signed_out") return <NeedSignIn />;
   if (session.status === "error") {
     return (
@@ -383,7 +400,7 @@ export function Dashboard() {
             </div>
             <div className="panel">
               <Meter used={access.used_this_month} limit={access.monthly_credits} />
-              <p className="sub small">One credit is one row checked by Skip Tracing. When the month's credits are used up, the app waits for the next month or a higher limit from Caller Whale.</p>
+              <p className="sub small"><strong>{Math.min(100, Math.round((access.used_this_month / Math.max(1, access.monthly_credits)) * 100))}% used.</strong> One credit is one row checked by Skip Tracing. When the month's credits are used up, the app waits for the next month or a higher limit from Caller Whale.</p>
               <DayChart days={usage.days} period={usage.period} />
             </div>
             <div className="split">

@@ -88,7 +88,7 @@
   display: grid;
   gap: 6px;
   padding: 20px 22px;
-  border-radius: 22px;
+  border-radius: 20px;
   background: var(--raised);
 }
 .stat span {
@@ -402,10 +402,6 @@ code.key {
 .people tbody tr.open {
   background: var(--card);
 }
-.people .figure,
-.stat strong {
-  font-variant-numeric: tabular-nums;
-}
 .people .person:focus-visible {
   outline-offset: 4px;
   border-radius: 8px;
@@ -414,4 +410,77 @@ code.key {
   .people tbody tr:not(.detail) {
     transition: none;
   }
+}
+
+/* Invite form: a hint such as "(optional)" stays on its label's line, so the four fields line up. */
+.invite label {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 6px;
+}
+.invite label > input {
+  grid-column: 1 / -1;
+}
+
+/* Status pill and the Google mark stay together, also in the phone card layout. */
+.status-line {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Daily usage: a title and the busiest day above, the month's first and last day below. */
+.day-chart-head,
+.day-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.day-chart-head {
+  margin-bottom: 8px;
+}
+.day-chart-head span:first-child {
+  color: var(--ink);
+  font-weight: 600;
+}
+.day-chart-axis {
+  margin-top: 6px;
+}
+
+/* While the account loads: quiet placeholder blocks instead of a bare heading. */
+.loading {
+  display: grid;
+  gap: 14px;
+  max-width: 560px;
+}
+.loading i {
+  display: block;
+  height: 16px;
+  width: 60%;
+  border-radius: 999px;
+  background: var(--well);
+  animation: loading-pulse 1.2s ease-in-out infinite alternate;
+}
+.loading i.title {
+  height: 40px;
+  width: 45%;
+}
+.loading i.block {
+  height: 160px;
+  width: 100%;
+  border-radius: var(--radius);
+}
+@keyframes loading-pulse {
+  to {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading i {
+    animation: none;
+  }
+}
+.day-chart {
+  margin-top: 20px;
 }

@@ -420,7 +420,7 @@ textarea {
 .cta h2 {
   max-width: 20ch;
   margin: 0 auto;
-  font-size: clamp(28px, 4vw, 44px);
+  font-size: clamp(28px, 4vw, 40px);
   letter-spacing: -0.02em;
 }
 .cta p {
@@ -490,7 +490,7 @@ textarea {
 }
 .legal h1 {
   margin: 24px 0 8px;
-  font-size: 40px;
+  font-size: 44px;
   letter-spacing: -0.02em;
 }
 .legal p {
@@ -528,4 +528,14 @@ textarea {
   .account a:not(.button) {
     padding-block: 12px;
   }
+}
+
+/* The footer sits at the bottom of the window even on short pages. */
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+#root > main {
+  flex: 1;
 }

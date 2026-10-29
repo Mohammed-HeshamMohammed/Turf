@@ -24,6 +24,10 @@ export let grafanaUrl = null;
 /** The sign-in client, made once: the server's Firebase web config, then the SDK (a separate, lazily loaded file). */
 export function loadAuth() {
   loading ||= (async () => {
+    if (import.meta.env?.DEV) {
+      const mock = await import("./dev-mock.js");
+      if (mock.mockRole()) return mock.mockAuth;
+    }
     let service;
     try {
       service = await fetch(`${API}/api/v1/auth/service`).then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))));
@@ -48,6 +52,7 @@ export function loadAuth() {
 
 export const hinted = () => {
   try {
+    if (import.meta.env?.DEV && sessionStorage.getItem("turf.mock")) return true;
     return localStorage.getItem(HINT_KEY) === "1";
   } catch {
     return false;
@@ -57,6 +62,9 @@ export const hinted = () => {
 /** A request to Caller Whale's server as the signed-in person. A refused token is refreshed once and tried again. */
 export async function request(method, path, body) {
   const auth = await loadAuth();
+  if (import.meta.env?.DEV && (await import("./dev-mock.js")).mockRole()) {
+    return (await import("./dev-mock.js")).mockRequest(method, path, body);
+  }
   const once = async token => {
     let res;
     try {
