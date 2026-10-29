@@ -173,7 +173,7 @@
   font-size: 13px;
   font-weight: 600;
 }
-.table .num {
+.table .figure {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -206,7 +206,7 @@
 .usage-cell {
   min-width: 170px;
 }
-.usage-cell .num {
+.usage-cell .figure {
   display: block;
   margin-bottom: 6px;
   font-size: 14px;
@@ -273,8 +273,10 @@
 }
 .invite .fields {
   display: grid;
-  grid-template-columns: 2fr 2fr 1fr 2fr;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr) minmax(0, 2fr);
   gap: 14px;
+  /* A label with a hint on its own line ("(optional)") is taller: keep the inputs on one line. */
+  align-items: end;
 }
 .invite > .button {
   justify-self: start;

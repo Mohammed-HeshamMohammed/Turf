@@ -243,14 +243,14 @@ export function RecentUsage({ rows }) {
   return (
     <table className="table">
       <thead>
-        <tr><th>When</th><th>What</th><th className="num">Credits</th></tr>
+        <tr><th>When</th><th>What</th><th className="figure">Credits</th></tr>
       </thead>
       <tbody>
         {rows.map((r, i) => (
           <tr key={i}>
             <td>{timeText(r.at)}</td>
             <td>{KIND_LABELS[r.kind] || r.kind}{r.detail ? ` · ${r.detail}` : ""}</td>
-            <td className="num">{number(r.credits)}</td>
+            <td className="figure">{number(r.credits)}</td>
           </tr>
         ))}
       </tbody>
