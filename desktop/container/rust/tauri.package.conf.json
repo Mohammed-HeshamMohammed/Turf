@@ -1,0 +1,18 @@
+{
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/icon.ico"],
+    "publisher": "Turf",
+    "shortDescription": "Turf: lists, Skip Tracing, calls and the CRM",
+    "resources": {
+      "../../../../service/dist/turf-service.exe": "service/turf-service.exe",
+      "../../../../service/migrations/": "migrations/"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
+}

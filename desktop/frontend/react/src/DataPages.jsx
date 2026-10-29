@@ -9,6 +9,7 @@ import { SourceFieldMapping } from "./SourceFieldMapping.jsx";
 import { PropertyMap } from "./PropertyMap.jsx";
 import { LeadsMap } from "./LeadsMap.jsx";
 import { cancelJob, check, checkRepeats, engineAvailable, engineConfig, prepare, saveCopy } from "./engine.js";
+import { api } from "./remote/api.js";
 import {
   Badge,
   Select,
@@ -492,6 +493,16 @@ export function SkipTracing() {
         !controller.signal.aborted && setProgress({ label: STAGE_LABELS[event.stage] || "Checking", value: event.completed ?? 0, max: event.total || 1 }),
     };
     try {
+      // Signed in to Turf's server: the check spends a credit per row, and is refused when the month's are used up.
+      if (state.remote) {
+        setProgress({ label: "Checking your credits", value: 0, max: 1 });
+        await api.useCredits("skip_trace", rows.length, crypto.randomUUID(), dataset.name).catch(reason => {
+          if (reason.code === "offline") throw new Error("Skip Tracing needs a connection to Turf's server to count your credits. Try again when you are online.");
+          throw reason;
+        });
+        if (controller.signal.aborted) return;
+        setProgress({ label: "Preparing the list", value: 0, max: 1 });
+      }
       const prepared = await prepare({ name: dataset.name, columns, rows });
       if (!hasPhones) {
         // No phone numbers to check: the engine still finds the leads this list repeats, from names and addresses.

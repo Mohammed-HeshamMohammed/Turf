@@ -1,5 +1,5 @@
-// Copies auth-client.js to the website and the CRM, and firebase-auth-client.js to the CRM (the website gets it in
-// its bundle, firebase-web-entry.js), since they cannot import across the repository at run time.
+// Copies auth-client.js to the website and the CRM, and firebase-auth-client.js to the CRM and the landing site (the
+// website gets it in its bundle, firebase-web-entry.js), since they cannot import across the repository at run time.
 //   node services/auth/clients/sync.mjs           copy it
 //   node services/auth/clients/sync.mjs --check   fail if a copy differs (run by the tests)
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -11,7 +11,7 @@ const root = join(here, "..", "..", "..");
 const remote = join(root, "desktop", "frontend", "react", "src", "remote");
 const files = {
   "auth-client.js": [join(root, "services", "core-api", "website", "auth-client.js"), join(remote, "auth-client.js")],
-  "firebase-auth-client.js": [join(remote, "firebase-auth-client.js")],
+  "firebase-auth-client.js": [join(remote, "firebase-auth-client.js"), join(root, "landing", "web", "src", "auth", "firebase-auth-client.js")],
 };
 
 const check = process.argv.includes("--check");

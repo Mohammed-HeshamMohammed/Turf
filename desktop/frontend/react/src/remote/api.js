@@ -152,6 +152,13 @@ export async function request(method, path, body, { base = apiBase(), timeout = 
 
 export const api = {
   me: () => request("GET", "/api/v1/me"),
+  /** The person's invitation from Turf (activated on the first visit with a confirmed email), credits and download. */
+  account: () => request("GET", "/api/v1/account"),
+  /**
+   * Spends credits before a metered action; refused (402) when the month's are used up. `requestId` makes a retry
+   * count once. People Turf did not invite this way have no credit limit ({ limited: false }).
+   */
+  useCredits: (kind, credits, requestId, detail = "") => request("POST", "/api/v1/credits/use", { kind, credits, request_id: requestId, detail }),
   /** A new trial workspace for the signed-in person (one per person). */
   startTrial: (organizationName, timezone) => request("POST", "/api/v1/organizations/trial", { organization: organizationName || "", timezone: timezone || "" }),
   /** Whether a new account may open its own trial on this server, or must be given access by an owner or Turf. */

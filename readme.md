@@ -2,10 +2,10 @@
 
 This branch is a **production snapshot of one part of Turf**: only the files this part needs, at the same paths as in `Full CRM Turf/` on `main`.
 
-- Last changed from `main` at `5e6147d` (2026-10-28)
-- Content id: `8b5ec92c17061330397975e0c856c1c60103bd2d` (the branch is only refreshed when this changes)
+- Last changed from `main` at `53f4e05` (2026-10-29)
+- Content id: `2b2e55c72ba7674ccc47c0838fddbd9361f2a695` (the branch is only refreshed when this changes)
 - Holds: `desktop`, `services/auth/clients`, `env/desktop.env.example`, `env/README.md`, and the Cargo workspace file and lock for it
-- 163 files
+- 164 files
 - Build and test: npm install && npm run build in desktop/frontend/react; cargo test --workspace at the root (the feature modules); cargo build in desktop/container/rust. Their tests start the Skip Tracing engine from skip-engine-production: set TURF_SERVICE_ROOT to its checkout
 
 Do not edit it here. Change the code on `main`, then refresh the branch from a checkout of `main`:

@@ -29,6 +29,12 @@ export function RemoteGate({ onReady, onLeave }) {
   async function check() {
     try {
       if (!auth.signedIn()) return setStep("signin");
+      // An invitation from Turf opens the person's workspace the first time they arrive with its email confirmed.
+      const account = await api.account();
+      if (account.access?.status === "unverified") {
+        setMe({ user: account.person });
+        return setStep("verify");
+      }
       let identity = await api.me();
       const organizations = identity.organizations || [];
       // Access to the workspace this device last used was removed or has ended: its offline copy goes too.
@@ -234,7 +240,7 @@ export function RemoteGate({ onReady, onLeave }) {
             : step === "workspace"
               ? signupOpen
                 ? "Start a free trial, or join the team that invited you."
-                : "Only people given access by a workspace owner or by Turf can use Turf."
+                : "Turf is by invitation. This account has none: sign in with the email your invitation was sent to, or paste a workspace invitation link."
               : "Your records stay on your organization's server."
         }
       >
@@ -289,7 +295,7 @@ export function RemoteGate({ onReady, onLeave }) {
               {busy ? "Signing in…" : step === "code" ? "Confirm" : "Sign in"}
             </Button>
             {step === "signin" && (
-              <p className="muted">New here? You need an invitation from your workspace owner or from Turf.</p>
+              <p className="muted">New here? Turf is by invitation. Accept yours on Turf's website first, then sign in here with the same account.</p>
             )}
           </form>
         )}
@@ -304,6 +310,28 @@ export function RemoteGate({ onReady, onLeave }) {
             </Button>
             {signedInAs}
           </form>
+        )}
+        {step === "verify" && (
+          <div className="remote-step">
+            <p className="body-copy">
+              You have an invitation. Confirm your email address first: open the link we sent to <strong>{me?.user?.email}</strong>, then check again.
+            </p>
+            <div className="row">
+              <Button
+                variant="primary"
+                disabled={busy}
+                onClick={() =>
+                  attempt(async () => {
+                    await auth.refresh().catch(() => null);
+                    await check();
+                  })
+                }
+              >
+                I confirmed it, check again
+              </Button>
+            </div>
+            {signedInAs}
+          </div>
         )}
         {step === "workspace" && (
           <div className="remote-step">
