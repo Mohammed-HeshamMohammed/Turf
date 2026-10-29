@@ -1,11 +1,14 @@
 /* Sign in, sign up, the invited person's dashboard and the admin pages. Same tokens as the rest of the site. */
 
-.account {
+/* The section's side padding already centres a 1120px column; the content inside it is narrowed, not the section
+   (its padding is a share of the page's width, so a narrower section would squeeze it). */
+.account > * {
   max-width: 640px;
-  margin: 0 auto;
+  margin-left: auto;
+  margin-right: auto;
 }
-.account.wide {
-  max-width: 1120px;
+.account.wide > * {
+  max-width: none;
 }
 .account-head {
   margin-bottom: 28px;
@@ -16,8 +19,8 @@
   letter-spacing: -0.02em;
 }
 .account .panel {
-  max-width: none;
-  margin: 0 0 20px;
+  margin-top: 0;
+  margin-bottom: 20px;
 }
 .account .panel h2 {
   display: flex;
