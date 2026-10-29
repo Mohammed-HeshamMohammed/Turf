@@ -325,9 +325,33 @@ async fn activate(state: &AppState, ctx: &Ctx) -> ApiResult<Option<(Uuid, String
     Ok(Some((id, "active".into())))
 }
 
+/// Turf's staff are never invited, so the first time one signs in they get a workspace of their own, with no plan and
+/// so no limits, as the admin dashboard's "My workspace" gives them: the desktop app opens it like anyone else's.
+/// Nothing is made when they are already in a workspace.
+async fn staff_workspace(state: &AppState, ctx: &Ctx) -> ApiResult<()> {
+    let mut tx = state.db.begin().await?;
+    // Two first requests at once (the website and the app) make one workspace, not two.
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext('staff-workspace:' || $1::text))").bind(ctx.user_id).execute(&mut *tx).await?;
+    let has: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM memberships WHERE user_id = $1)").bind(ctx.user_id).fetch_one(&mut *tx).await?;
+    if has {
+        return Ok(());
+    }
+    let label = if ctx.label.trim().is_empty() { ctx.email.clone() } else { ctx.label.trim().to_string() };
+    let name: String = format!("{label}'s workspace").chars().take(200).collect();
+    let org: Uuid = sqlx::query_scalar("INSERT INTO organizations (name, account_kind) VALUES ($1, 'business') RETURNING id").bind(&name).fetch_one(&mut *tx).await?;
+    crate::routes::identity::seed_organization(&mut tx, org).await?;
+    sqlx::query("INSERT INTO memberships (org_id, user_id, roles) VALUES ($1, $2, ARRAY['owner'])").bind(org).bind(ctx.user_id).execute(&mut *tx).await?;
+    event(&mut tx, ctx, "workspace.created", "organization", Some(org), json!({ "name": name, "staff": true })).await?;
+    tx.commit().await?;
+    Ok(())
+}
+
 async fn account(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
     let (platform_role, verified): (Option<String>, bool) =
         sqlx::query_as("SELECT platform_role, email_verified_at IS NOT NULL FROM users WHERE id = $1").bind(ctx.user_id).fetch_one(&state.db).await?;
+    if platform_role.is_some() {
+        staff_workspace(&state, &ctx).await?;
+    }
     let person = json!({ "id": ctx.user_id, "email": ctx.email, "name": ctx.label, "email_verified": verified });
     let staff_info = platform_role.as_ref().map(|role| json!({ "role": role, "mfa_required": state.config.staff_mfa, "mfa_passed": ctx.mfa_passed }));
     let access = match activate(&state, &ctx).await? {

@@ -178,3 +178,24 @@ async fn staff_need_the_authenticator_code() {
     assert_eq!(account["staff"]["role"], "owner");
     assert_eq!(account["staff"]["mfa_passed"], false);
 }
+
+#[tokio::test]
+async fn staff_get_a_workspace_of_their_own_the_first_time_they_sign_in() {
+    let Some(h) = start_closed().await else { return };
+    let owner = platform_owner(&h).await;
+    // Staff are never invited: their first visit opens a workspace with no plan, which the desktop app then opens.
+    owner.get("/api/v1/account").await.ok();
+    let me = owner.get("/api/v1/me").await.ok();
+    let orgs = me["organizations"].as_array().unwrap();
+    assert_eq!(orgs.len(), 1);
+    assert_eq!(orgs[0]["name"], "App Owner's workspace");
+    // Coming back (the website, then the app) never makes a second one.
+    owner.get("/api/v1/account").await.ok();
+    assert_eq!(owner.get("/api/v1/me").await.ok()["organizations"].as_array().unwrap().len(), 1);
+    owner.set_org(orgs[0]["id"].as_str().unwrap());
+    assert_eq!(owner.get("/api/v1/leads").await.status, 200);
+    // Someone who is not staff and not invited still gets nothing.
+    let stranger = h.firebase_client("nobody-uid", "nobody@example.com", None, false, true);
+    stranger.get("/api/v1/account").await.ok();
+    assert_eq!(stranger.get("/api/v1/me").await.ok()["organizations"], json!([]));
+}
