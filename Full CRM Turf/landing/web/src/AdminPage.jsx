@@ -153,9 +153,9 @@ function Person({ row, onChanged }) {
   };
   return (
     <>
-      <tr className={row.status}>
+      <tr className={`${row.status}${open ? " open" : ""}`} onClick={toggle}>
         <td>
-          <button type="button" className="text-button person" onClick={toggle} aria-expanded={open}>
+          <button type="button" className="text-button person" aria-expanded={open}>
             <strong>{row.name || row.email}</strong>
             {row.name && <span>{row.email}</span>}
           </button>
