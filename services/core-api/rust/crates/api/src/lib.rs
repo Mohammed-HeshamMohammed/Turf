@@ -158,6 +158,16 @@ pub fn content_security_policy(auth_origin: &str, firebase_auth_domain: Option<&
     format!("default-src 'self'; img-src 'self' data:; style-src 'self'; script-src {script}; connect-src {connect};{frame} frame-ancestors 'none'; base-uri 'none'; form-action {forms}")
 }
 
+/// Workers reach `/internal` straight over the private network. The edge proxy adds `X-Forwarded-For` to everything that
+/// comes from the internet, so a proxied request never gets to the worker routes, whatever token it carries.
+async fn private_only(req: axum::extract::Request, next: axum::middleware::Next) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    if req.uri().path().starts_with("/internal") && req.headers().contains_key("x-forwarded-for") {
+        return axum::http::StatusCode::NOT_FOUND.into_response();
+    }
+    next.run(req).await
+}
+
 pub fn app(state: AppState) -> Router {
     let request_id = HeaderName::from_static("x-request-id");
     let origins: Vec<HeaderValue> = state.config.allowed_origins.iter().filter_map(|o| o.parse().ok()).collect();
@@ -185,6 +195,7 @@ pub fn app(state: AppState) -> Router {
         router = router.fallback_service(no_cache.layer(ServeDir::new(site)));
     }
     router
+        .layer(axum::middleware::from_fn(private_only))
         .layer(SetResponseHeaderLayer::overriding(
             header::CONTENT_SECURITY_POLICY,
             HeaderValue::from_str(&content_security_policy(&auth_origin, firebase_domain.as_deref(), &grafana_origin)).unwrap_or_else(|_| HeaderValue::from_static("default-src 'self'")),
