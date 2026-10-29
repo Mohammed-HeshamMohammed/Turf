@@ -35,3 +35,7 @@ __pycache__/
 # The packaged service (service/tools/build_service.py)
 service/build
 service/dist
+
+# Rust build output and local dev accounts
+target/
+**/scripts/.dev-accounts.json
