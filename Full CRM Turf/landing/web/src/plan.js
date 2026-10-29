@@ -25,7 +25,7 @@ export const BUILDER_FEATURES = priceRows
 // Extras from the "Add-ons" tables in docs/features. Quantities are whole units.
 export const ADDONS = [
   { id: "texts", name: "Extra texts", unit: "1,000 texts", price: 15 },
-  { id: "numbers", name: "Extra phone number", unit: "number / month", price: 1 }, // about what a number costs Turf, passed on
+  { id: "numbers", name: "Extra phone number", unit: "number / month", price: 1 }, // about what a number costs Caller Whale, passed on
   { id: "lookups", name: "Extra number lookups", unit: "1,000 lookups", price: 10 },
   { id: "leads", name: "Extra active leads", unit: "500,000 leads", price: 10 },
   { id: "emails", name: "Extra campaign emails", unit: "1,000 emails", price: 2 },
@@ -46,7 +46,7 @@ export const FLEX = {
 export const ALL_IN = { solo: 179, duo: 288, team: 146, pro: 300 };
 
 /**
- * What the metered parts of each feature cost Turf when fully used, per person (docs/features, "Cost to Turf, fully
+ * What the metered parts of each feature cost Caller Whale when fully used, per person (docs/features, "Cost to Caller Whale, fully
  * used"): calls, texts and numbers; lookups; storage; geocoding; AI and sending. These are real bills, so the all-in
  * price is never allowed to take a feature below its cost plus USAGE_MARKUP. Only the software margin above that is
  * discounted. Extras (texts, emails, numbers, lookups) are outside the cap and always full price.

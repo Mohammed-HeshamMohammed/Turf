@@ -207,7 +207,7 @@ async fn change(State(state): State<AppState>, ctx: Ctx, Path(id): Path<Uuid>, J
             if let Some(user) = user {
                 let role: Option<String> = sqlx::query_scalar("SELECT platform_role FROM users WHERE id = $1").bind(user).fetch_one(&mut *tx).await?;
                 if role.is_some() {
-                    return Err(ApiError::forbidden("This person is on Turf's staff. Change their access from the Staff page"));
+                    return Err(ApiError::forbidden("This person is on Caller Whale's staff. Change their access from the Staff page"));
                 }
                 if user == ctx.user_id {
                     return Err(ApiError::bad("You cannot suspend yourself"));
@@ -381,7 +381,7 @@ async fn use_credits(State(state): State<AppState>, ctx: Ctx, Json(body): Json<U
         return Ok(Json(json!({ "limited": false })));
     };
     if status != "active" {
-        return Err(ApiError::forbidden("Your access to Turf is suspended. Contact Turf support."));
+        return Err(ApiError::forbidden("Your access to Caller Whale is suspended. Contact Caller Whale support."));
     }
     let already: Option<i64> = sqlx::query_scalar("SELECT credits FROM credit_usage WHERE request_id = $1 AND user_id = $2").bind(body.request_id).bind(ctx.user_id).fetch_optional(&mut *tx).await?;
     if already.is_none() {
@@ -389,7 +389,7 @@ async fn use_credits(State(state): State<AppState>, ctx: Ctx, Json(body): Json<U
         if spent + body.credits > limit {
             let left = (limit - spent).max(0);
             return Err(ApiError::PaymentRequired(format!(
-                "Not enough credits left this month: {} left, and this needs {}. Ask Turf to raise your limit.",
+                "Not enough credits left this month: {} left, and this needs {}. Ask Caller Whale to raise your limit.",
                 mail::format_number(left),
                 mail::format_number(body.credits)
             )));
@@ -519,7 +519,7 @@ async fn may_download(state: &AppState, user: Uuid) -> ApiResult<bool> {
 async fn download_link(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
     activate(&state, &ctx).await?;
     if !may_download(&state, ctx.user_id).await? {
-        return Err(ApiError::forbidden("Only people invited to Turf can download the desktop app"));
+        return Err(ApiError::forbidden("Only people invited to Caller Whale can download the desktop app"));
     }
     let release = latest_release(&state).await.ok_or_else(|| ApiError::NotFound("No desktop release is published yet".into()))?;
     let expires = Utc::now().timestamp() + 600;
@@ -529,7 +529,7 @@ async fn download_link(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Jso
 async fn download(State(state): State<AppState>, Path(token): Path<String>) -> ApiResult<Response> {
     let user = check_download_token(&token, Utc::now().timestamp()).ok_or_else(|| ApiError::forbidden("This download link has expired. Open your dashboard and download again"))?;
     if !may_download(&state, user).await? {
-        return Err(ApiError::forbidden("Only people invited to Turf can download the desktop app"));
+        return Err(ApiError::forbidden("Only people invited to Caller Whale can download the desktop app"));
     }
     let release = latest_release(&state).await.ok_or_else(|| ApiError::NotFound("No desktop release is published yet".into()))?;
     let upstream = github(&state, &release.api_url)

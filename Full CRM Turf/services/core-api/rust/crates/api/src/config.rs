@@ -131,7 +131,7 @@ impl Config {
             smtp_port: var("TURF_SMTP_PORT", "587").trim().parse().context("TURF_SMTP_PORT")?,
             smtp_user: var("TURF_SMTP_USER", "").trim().to_string(),
             smtp_password: var("TURF_SMTP_PASSWORD", ""),
-            mail_from: var("TURF_MAIL_FROM", "Turf <no-reply@softfix.dev>").trim().to_string(),
+            mail_from: var("TURF_MAIL_FROM", "Caller Whale <no-reply@softfix.dev>").trim().to_string(),
             release_repo: var("TURF_RELEASE_REPO", "").trim().to_string(),
             release_tag_prefix: var("TURF_RELEASE_TAG_PREFIX", "crm-v").trim().to_string(),
             github_token: var("TURF_GITHUB_TOKEN", "").trim().to_string(),

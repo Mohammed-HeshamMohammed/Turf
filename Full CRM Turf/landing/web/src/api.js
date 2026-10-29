@@ -3,7 +3,7 @@ async function send(path, options) {
   try {
     res = await fetch(path, options);
   } catch {
-    throw new Error("Could not reach Turf. Check your connection and try again.");
+    throw new Error("Could not reach Caller Whale. Check your connection and try again.");
   }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || "Something went wrong. Try again.");

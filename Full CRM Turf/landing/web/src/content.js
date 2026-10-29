@@ -14,10 +14,10 @@ export const features = [
     id: "lists",
     icon: "UploadSimple",
     title: "Import lists",
-    short: "Bring a spreadsheet from any source. Turf reads the columns it recognises and asks about the rest.",
+    short: "Bring a spreadsheet from any source. Caller Whale reads the columns it recognises and asks about the rest.",
     status: "now",
     pitch: "Any list, any source, and the original is never touched.",
-    text: "County exports, PropStream, any CSV up to 50 MB. Turf maps the columns, keeps every row and tells you what it found. Lists live on your computer, so they open instantly and work offline.",
+    text: "County exports, PropStream, any CSV up to 50 MB. Caller Whale maps the columns, keeps every row and tells you what it found. Lists live on your computer, so they open instantly and work offline.",
     points: [
       "Smart column mapping, remembered for the next list from the same source",
       "Households, LLCs, trusts and owners with many properties told apart",
@@ -34,7 +34,7 @@ export const features = [
     short: "Clean and rank the phone numbers a list already has, on your own computer, offline.",
     status: "now",
     pitch: "Know which number to call first, and why.",
-    text: "Turf looks at the evidence in your own list, ranks the phone numbers, and keeps every original value. You can correct any answer, and Turf remembers your decision.",
+    text: "Caller Whale looks at the evidence in your own list, ranks the phone numbers, and keeps every original value. You can correct any answer, and Caller Whale remembers your decision.",
     points: [
       "Starts with the strongest evidence: phone, then address, email and owner name",
       "The strongest number first, with the reason",
@@ -44,7 +44,7 @@ export const features = [
     soon: [
       "Do Not Call blocking by area code",
       "Right-person check on whether a number belongs to the owner",
-      "Hints learned from calls across all Turf customers",
+      "Hints learned from calls across all Caller Whale customers",
     ],
     shot: "skip",
     alt: "The Skip Tracing page showing detected source fields, the evidence order and the check context.",
@@ -64,7 +64,7 @@ export const features = [
       "A dial pad that works from every page",
     ],
     soon: [
-      "Live calling inside Turf, with a 'call me first' option for older computers",
+      "Live calling inside Caller Whale, with a 'call me first' option for older computers",
       "Power dialing, then multi-line with automatic abandonment tracking",
       "Voicemail detection and drop; texting for replies and follow-ups",
     ],
@@ -79,7 +79,7 @@ export const features = [
     short: "See every property on a map and open a lead from its pin.",
     status: "now",
     pitch: "Your leads, where they actually are.",
-    text: "Every lead appears at once at its ZIP area. Press one button and Turf finds exact locations from the street address, sending only the address, never names or phone numbers.",
+    text: "Every lead appears at once at its ZIP area. Press one button and Caller Whale finds exact locations from the street address, sending only the address, never names or phone numbers.",
     points: [
       "Price pins, grouped into count bubbles when you zoom out",
       "Property cards beside the map for what is in view",
@@ -137,7 +137,7 @@ export const features = [
     short: "Take your data to any other tool as CSV, any time, at no extra cost.",
     status: "now",
     pitch: "Your data goes wherever you need it.",
-    text: "Turf makes the file the next tool expects, not just a dump.",
+    text: "Caller Whale makes the file the next tool expects, not just a dump.",
     points: [
       "Call list for any outside dialer: each lead once, best number first, other numbers, stage, callback and latest note",
       "Mail list for a mail house: each owner once at their mailing address, with absentee-only and no-PO-box filters",
@@ -168,7 +168,7 @@ export const features = [
 
 export const steps = [
   { title: "Import", text: "Drop in a list. It is on your machine in seconds." },
-  { title: "Skip trace", text: "Turf ranks the numbers worth calling and keeps every original value." },
+  { title: "Skip trace", text: "Caller Whale ranks the numbers worth calling and keeps every original value." },
   { title: "Reach out", text: "Call and text from one screen, with the lead beside you." },
   { title: "Close", text: "Follow-ups, handoffs and reports keep the deal moving." },
 ];
@@ -231,42 +231,42 @@ export const securityPoints = [
   { icon: "GoogleLogo", title: "Google sign-in", text: "On the website and in the desktop app. In the app, sign-in happens in your own browser, never inside the app window.", status: "now" },
   { icon: "DeviceMobile", title: "Two-step sign-in", text: "Authenticator code plus recovery codes, required for owners and administrators. Built; switched on before launch.", status: "preview" },
   { icon: "HardDrives", title: "Encrypted offline copy", text: "Changes made offline wait in an encrypted copy on your machine, unlocked by your passphrase, and sync when you reconnect.", status: "now" },
-  { icon: "CreditCard", title: "No card numbers", text: "Checkout goes to the payment provider, and only the provider's signed notice marks a payment paid. Turf never stores card numbers.", status: "now" },
+  { icon: "CreditCard", title: "No card numbers", text: "Checkout goes to the payment provider, and only the provider's signed notice marks a payment paid. Caller Whale never stores card numbers.", status: "now" },
   { icon: "ListChecks", title: "Audit log and devices", text: "Who did what and when, and every signed-in device you can sign out.", status: "soon" },
   { icon: "IdentificationBadge", title: "Single sign-on", text: "Sign in through Google Workspace or Microsoft 365 for larger teams.", status: "soon" },
 ];
 
 export const faqs = [
-  { q: "Does Turf work without an internet connection?", a: "Yes. Opening a list, skip tracing it and exporting run on your computer. Signing in, syncing with your team, calling and messaging need a connection." },
+  { q: "Does Caller Whale work without an internet connection?", a: "Yes. Opening a list, skip tracing it and exporting run on your computer. Signing in, syncing with your team, calling and messaging need a connection." },
   { q: "Where are my records kept?", a: "On your computer, and on your organization's server when you sync. Records are never shared between organizations." },
-  { q: "Which computers does it run on?", a: "Windows first. Turf is by invitation for now: once you are invited, your dashboard has the download." },
+  { q: "Which computers does it run on?", a: "Windows first. Caller Whale is by invitation for now: once you are invited, your dashboard has the download." },
   { q: "How many people can use one account?", a: "Solo is one person and Duo is exactly two. Team starts at three and gives each person a role. Clients and partners you share properties with are free seats." },
   { q: "What does it cost?", a: "Each feature is priced on its own, so you build the plan: switch off what you do not need, add extras where you need more. The ready-made plans are only starting points. The prices on the Pricing page are drafts until launch, and people on the waitlist hear first." },
   { q: "Can I take my data with me?", a: "Yes. Exports are included in every plan, and a recycle bin and project backups protect against mistakes." },
-  { q: "Does Turf find new phone numbers?", a: "Not yet. Turf cleans and ranks the numbers your list already has. Looking up new numbers is planned as a separate service." },
+  { q: "Does Caller Whale find new phone numbers?", a: "Not yet. Caller Whale cleans and ranks the numbers your list already has. Looking up new numbers is planned as a separate service." },
   { q: "Is calling live today?", a: "Not yet. The call screens, outcomes and logs work with sample data. Live calling is a launch feature." },
 ];
 
 export const footerLinks = [
-  { title: "Product", links: [["Features", "/features"], ["Pricing", "/pricing"], ["Why Turf", "/compare"], ["Security", "/security"], ["Sign in", "/signin"]] },
+  { title: "Product", links: [["Features", "/features"], ["Pricing", "/pricing"], ["Why Caller Whale", "/compare"], ["Security", "/security"], ["Sign in", "/signin"]] },
   { title: "Company", links: [["Join the waitlist", "/#waitlist"], ["Contact", "/contact"]] },
   { title: "Legal", links: [["Privacy", "/privacy"], ["Terms", "/terms"]] },
 ];
 
 export const pageMeta = {
-  home: ["Turf · The CRM and dialer for property outreach", "Import lists, skip trace them, call and text owners, and track every deal in one desktop CRM that keeps working offline."],
-  features: ["Features · Turf", "Lists, skip tracing, dialer, leads map, CRM, AI campaigns, exports and backup. Everything a property lead goes through."],
-  pricing: ["Pricing · Turf", "Draft launch pricing for Solo, Duo, Team and Pro. Each feature is priced alone and a plan is their sum."],
-  compare: ["Why Turf · One app instead of five", "See how one app replaces a list tool, a skip-tracing service, a dialer, a texting tool and a CRM."],
-  security: ["Security · Turf", "How Turf protects your accounts and records, what is built today and what is coming."],
-  contact: ["Contact · Turf", "Questions about Turf? Send a message."],
-  privacy: ["Privacy · Turf", "How the Turf website uses the details you give it."],
-  terms: ["Terms · Turf", "Terms for the Turf website."],
-  notfound: ["Page not found · Turf", "That page does not exist."],
-  signin: ["Sign in · Turf", "Sign in to your Turf account."],
-  signup: ["Create your account · Turf", "Turf is by invitation. Create your account with the email your invitation was sent to."],
-  dashboard: ["Your dashboard · Turf", "Your credits, usage and the desktop app."],
-  admin: ["Admin · Turf", "Invite people, set their limits and watch their usage."],
+  home: ["Caller Whale · The CRM and dialer for property outreach", "Import lists, skip trace them, call and text owners, and track every deal in one desktop CRM that keeps working offline."],
+  features: ["Features · Caller Whale", "Lists, skip tracing, dialer, leads map, CRM, AI campaigns, exports and backup. Everything a property lead goes through."],
+  pricing: ["Pricing · Caller Whale", "Draft launch pricing for Solo, Duo, Team and Pro. Each feature is priced alone and a plan is their sum."],
+  compare: ["Why Caller Whale · One app instead of five", "See how one app replaces a list tool, a skip-tracing service, a dialer, a texting tool and a CRM."],
+  security: ["Security · Caller Whale", "How Caller Whale protects your accounts and records, what is built today and what is coming."],
+  contact: ["Contact · Caller Whale", "Questions about Caller Whale? Send a message."],
+  privacy: ["Privacy · Caller Whale", "How the Caller Whale website uses the details you give it."],
+  terms: ["Terms · Caller Whale", "Terms for the Caller Whale website."],
+  notfound: ["Page not found · Caller Whale", "That page does not exist."],
+  signin: ["Sign in · Caller Whale", "Sign in to your Caller Whale account."],
+  signup: ["Create your account · Caller Whale", "Caller Whale is by invitation. Create your account with the email your invitation was sent to."],
+  dashboard: ["Your dashboard · Caller Whale", "Your credits, usage and the desktop app."],
+  admin: ["Admin · Caller Whale", "Invite people, set their limits and watch their usage."],
 };
 
 /** Pages that belong to a signed-in person: not indexed, not in the sitemap, rendered by the browser. */

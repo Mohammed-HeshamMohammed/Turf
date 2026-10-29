@@ -58,17 +58,17 @@ pub fn invitation(config: &Config, to: &str, name: &str, inviter: &str, monthly_
     let greeting = if name.trim().is_empty() { "Hello,".to_string() } else { format!("Hello {},", name.trim()) };
     let credits = format_number(monthly_credits);
     let text = format!(
-        "{greeting}\n\n{inviter} has invited you to Turf, the desktop app for your lists, Skip Tracing and calls.\n\n\
+        "{greeting}\n\n{inviter} has invited you to Caller Whale, the desktop app for your lists, Skip Tracing and calls.\n\n\
          Your account comes with {credits} credits a month.\n\n\
          1. Create your account at {link} with this email address ({to}), or sign in with Google if it is a Google account.\n\
          2. Open your dashboard and download the desktop app.\n\
          3. Sign in to the app with the same account.\n\n\
-         Only this email address can use the invitation.\n\n— Turf"
+         Only this email address can use the invitation.\n\n— Caller Whale"
     );
     let html = format!(
         "<div style=\"font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:520px\">\
          <p>{greeting}</p>\
-         <p><strong>{inviter}</strong> has invited you to Turf, the desktop app for your lists, Skip Tracing and calls.</p>\
+         <p><strong>{inviter}</strong> has invited you to Caller Whale, the desktop app for your lists, Skip Tracing and calls.</p>\
          <p>Your account comes with <strong>{credits} credits a month</strong>.</p>\
          <ol><li>Create your account with this email address ({to}), or sign in with Google if it is a Google account.</li>\
          <li>Open your dashboard and download the desktop app.</li><li>Sign in to the app with the same account.</li></ol>\
@@ -79,7 +79,7 @@ pub fn invitation(config: &Config, to: &str, name: &str, inviter: &str, monthly_
         to = escape(to),
         link = escape(&link),
     );
-    Mail { to: to.to_string(), subject: format!("{inviter} invited you to Turf"), text, html }
+    Mail { to: to.to_string(), subject: format!("{inviter} invited you to Caller Whale"), text, html }
 }
 
 /// 12500 as "12,500".

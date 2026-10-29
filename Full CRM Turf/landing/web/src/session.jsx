@@ -1,11 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
-// Signing in on the site, and the person's account on Turf's server (the core API). Firebase does the signing in; the
-// server decides what the person may see: only people Turf invited get a dashboard and the download, and only Turf's
+// Signing in on the site, and the person's account on Caller Whale's server (the core API). Firebase does the signing in; the
+// server decides what the person may see: only people Caller Whale invited get a dashboard and the download, and only Caller Whale's
 // staff get the admin pages. Nothing here is trusted by the server: every request carries the Firebase ID token and
 // the server checks it.
 
-/** Turf's server. Set at build (VITE_TURF_API_URL); in development the core API on its own port. */
+/** Caller Whale's server. Set at build (VITE_TURF_API_URL); in development the core API on its own port. */
 export const API = (import.meta.env?.VITE_TURF_API_URL || "http://localhost:8088").replace(/\/$/, "");
 const HINT_KEY = "turf.auth.firebase";
 
@@ -27,11 +27,11 @@ export function loadAuth() {
       service = await fetch(`${API}/api/v1/auth/service`).then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))));
     } catch {
       loading = null;
-      throw new ApiError(0, "offline", "Turf's server cannot be reached. Check your connection and try again.");
+      throw new ApiError(0, "offline", "Caller Whale's server cannot be reached. Check your connection and try again.");
     }
     if (!service.firebase) {
       loading = null;
-      throw new ApiError(503, "misconfigured", "Sign-in is not set up on Turf's server yet.");
+      throw new ApiError(503, "misconfigured", "Sign-in is not set up on Caller Whale's server yet.");
     }
     const { createFirebaseAuth, firebaseSdk } = await import("./auth/sdk.js");
     const sdk = firebaseSdk(service.firebase);
@@ -51,7 +51,7 @@ const hinted = () => {
   }
 };
 
-/** A request to Turf's server as the signed-in person. A refused token is refreshed once and tried again. */
+/** A request to Caller Whale's server as the signed-in person. A refused token is refreshed once and tried again. */
 export async function request(method, path, body) {
   const auth = await loadAuth();
   const once = async token => {
@@ -63,7 +63,7 @@ export async function request(method, path, body) {
         body: body === undefined ? undefined : JSON.stringify(body),
       });
     } catch {
-      throw new ApiError(0, "offline", "Turf's server cannot be reached. Check your connection and try again.");
+      throw new ApiError(0, "offline", "Caller Whale's server cannot be reached. Check your connection and try again.");
     }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new ApiError(res.status, data?.error?.code || "error", data?.error?.message || "Something went wrong. Try again.");

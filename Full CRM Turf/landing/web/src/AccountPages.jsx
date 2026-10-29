@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { DownloadSimple, EnvelopeSimple, LockKey, ShieldCheck, WarningCircle } from "@phosphor-icons/react";
 import { API, homeFor, loadAuth, request, useSession } from "./session.jsx";
 
-// Sign in, sign up, and the dashboard of a person Turf invited. The page decides nothing about access: Turf's server
+// Sign in, sign up, and the dashboard of a person Caller Whale invited. The page decides nothing about access: Caller Whale's server
 // answers /account with what this person may see, and refuses everything else.
 
 /** Google's own mark in its own colours. */
@@ -115,8 +115,8 @@ function AuthForm({ mode }) {
 
   return (
     <Shell
-      title={signup ? "Create your account" : "Sign in to Turf"}
-      lead={signup ? "Turf is by invitation. Use the email address your invitation was sent to." : "Use the account your invitation was sent to."}
+      title={signup ? "Create your account" : "Sign in to Caller Whale"}
+      lead={signup ? "Caller Whale is by invitation. Use the email address your invitation was sent to." : "Use the account your invitation was sent to."}
     >
       <div className="panel auth-panel">
         {state.google && !state.needCode && (
@@ -194,7 +194,7 @@ export function DownloadButton({ release }) {
   return (
     <div className="download">
       <button type="button" className="button" onClick={download} disabled={state.busy}>
-        <DownloadSimple size={20} weight="bold" aria-hidden="true" /> {state.busy ? "Preparing…" : "Download Turf for Windows"}
+        <DownloadSimple size={20} weight="bold" aria-hidden="true" /> {state.busy ? "Preparing…" : "Download Caller Whale for Windows"}
       </button>
       <p className="sub">Version {release.version}{mb}. Sign in to the app with this same account.</p>
       {state.error && <p className="notice bad" role="alert">{state.error}</p>}
@@ -281,7 +281,7 @@ export function Gate({ children }) {
       <Shell title="We could not open your account">
         <div className="panel">
           <p className="notice bad" role="alert">
-            {session.error?.status === 401 ? "Turf's server did not accept your sign-in. If your access was suspended, contact Turf." : session.error?.message}
+            {session.error?.status === 401 ? "Caller Whale's server did not accept your sign-in. If your access was suspended, contact Caller Whale." : session.error?.message}
           </p>
           <div className="actions">
             <button type="button" className="button" onClick={() => session.reload().catch(() => {})}>Try again</button>
@@ -338,7 +338,7 @@ export function Dashboard() {
         const name = account.person.name || account.person.email;
         if (!access && account.staff) {
           return (
-            <Shell title={`Welcome, ${name}`} lead="You are on Turf's staff.">
+            <Shell title={`Welcome, ${name}`} lead="You are on Caller Whale's staff.">
               <div className="panel">
                 <p className="sub">Invite people, set their limits and watch their usage on the admin pages.</p>
                 <div className="actions"><a className="button" href="/admin">Open admin</a></div>
@@ -352,7 +352,7 @@ export function Dashboard() {
           return (
             <Shell title="You are signed in" lead={account.person.email}>
               <div className="panel">
-                <h2><LockKey size={22} weight="duotone" aria-hidden="true" /> Turf is by invitation</h2>
+                <h2><LockKey size={22} weight="duotone" aria-hidden="true" /> Caller Whale is by invitation</h2>
                 <p className="sub">
                   This account has no invitation, so there is no dashboard or download for it. If you were invited, sign in with the email address the
                   invitation was sent to. Otherwise, join the waitlist and we will let you know.
@@ -383,7 +383,7 @@ export function Dashboard() {
             </div>
             <div className="panel">
               <Meter used={access.used_this_month} limit={access.monthly_credits} />
-              <p className="sub small">One credit is one row checked by Skip Tracing. When the month's credits are used up, the app waits for the next month or a higher limit from Turf.</p>
+              <p className="sub small">One credit is one row checked by Skip Tracing. When the month's credits are used up, the app waits for the next month or a higher limit from Caller Whale.</p>
               <DayChart days={usage.days} period={usage.period} />
             </div>
             <div className="split">
