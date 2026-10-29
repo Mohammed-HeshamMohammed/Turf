@@ -863,7 +863,7 @@ export function Deals({ id }) {
       </div>
       {view === "Pipeline" ? (
         <div className="kanban deal-board view-in" ref={board.ref}>
-          {DEAL_STAGES.map(stage => (
+          {board.arrange(DEAL_STAGES).map(stage => (
             <BoardColumn key={stage} board={board} id={stage} count={deals.filter(item => item.stage === stage).length} unit="deals" over={drag?.over === stage}>
               {deals
                 .filter(item => item.stage === stage)

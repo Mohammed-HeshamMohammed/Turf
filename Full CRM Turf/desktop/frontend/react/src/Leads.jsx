@@ -195,7 +195,7 @@ export function Leads() {
         )
       ) : view === "Board" && !client ? (
         <div className="kanban lead-board view-in" ref={board.ref}>
-          {LEAD_STAGES.map(column => (
+          {board.arrange(LEAD_STAGES).map(column => (
             <BoardColumn key={column} board={board} id={column} count={leads.filter(lead => lead.stage === column).length} unit="leads" over={drag?.over === column}>
               {leads
                 .filter(lead => lead.stage === column)

@@ -1097,6 +1097,12 @@ export function useBoardColumns(ids, counts, { min = 230, rail = 52, gap = 13 } 
   return {
     ref: setEl,
     isOpen: id => expanded.has(id),
+    /** Stage order on screen: folded stages gather at the nearer edge (first half left, second half right), keeping their order, so open columns sit together. */
+    arrange: list => {
+      const half = list.length / 2;
+      const folded = (id, i) => !expanded.has(id) && (i < half ? "start" : "end");
+      return [...list.filter((id, i) => folded(id, i) === "start"), ...list.filter(id => expanded.has(id)), ...list.filter((id, i) => folded(id, i) === "end")];
+    },
     toggle: id => {
       if (expanded.has(id)) {
         setClosed(list => [...list.filter(item => item !== id), id]);
