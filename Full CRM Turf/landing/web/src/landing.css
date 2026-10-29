@@ -519,3 +519,13 @@ textarea {
     padding: 44px 22px;
   }
 }
+
+/* Touch screens: links inside text (and the "Back to the site" link) get a finger-sized hit area without moving the text. */
+@media (pointer: coarse) {
+  main p a,
+  main li a,
+  .legal > a,
+  .account a:not(.button) {
+    padding-block: 12px;
+  }
+}

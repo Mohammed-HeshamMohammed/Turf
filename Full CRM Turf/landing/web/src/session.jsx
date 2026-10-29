@@ -46,7 +46,7 @@ export function loadAuth() {
   return loading;
 }
 
-const hinted = () => {
+export const hinted = () => {
   try {
     return localStorage.getItem(HINT_KEY) === "1";
   } catch {

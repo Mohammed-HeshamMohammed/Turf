@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowClockwise, PaperPlaneTilt, ShieldCheck, UserPlus } from "@phosphor-icons/react";
 import { DayChart, DownloadButton, Gate, GoogleMark, Meter, Problem, RecentUsage, dateText, go, number, timeText } from "./AccountPages.jsx";
 import { NotFound } from "./pages.jsx";
-import { grafanaUrl, loadAuth, request, useSession } from "./session.jsx";
+import { grafanaUrl, hinted, loadAuth, request, useSession } from "./session.jsx";
 
 // Caller Whale's staff: invite people to the desktop app with a monthly credit limit, see who registered and what they used,
 // change limits, suspend and reactivate. Everything comes from Caller Whale's server, which refuses anyone who is not staff,
@@ -281,6 +281,8 @@ export function Admin() {
   if (session.status === "unknown") return null;
   if (session.status === "signed_in" && !session.account.staff) return <NotFound />;
   if (session.status === "signed_out") return <NotFound />;
+  // The server not answering must not give the page away to someone who never signed in on this device.
+  if (session.status === "error" && !hinted()) return <NotFound />;
   return (
     <Gate>
       {({ account }) => {
