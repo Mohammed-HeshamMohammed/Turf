@@ -127,13 +127,15 @@ export function SecondStep({ auth, challenge, methods, onDone, onBack }) {
   );
 }
 
-/** Sign-in requests waiting for this device to approve; shown while this device itself passed a second step. */
+/**
+ * Sign-in requests waiting for this device to approve; shown while this device itself passed a second step. The desktop app
+ * asks every few seconds even when its window is in the background, since the request only lasts five minutes.
+ */
 export function Approvals({ auth }) {
   const [waiting, setWaiting] = useState([]);
   useEffect(() => {
     let live = true;
     const poll = async () => {
-      if (document.hidden) return;
       try {
         const rows = await auth.approvals();
         if (live) setWaiting(rows);
@@ -142,7 +144,7 @@ export function Approvals({ auth }) {
       }
     };
     poll();
-    const timer = setInterval(poll, 4000);
+    const timer = setInterval(poll, 3000);
     return () => {
       live = false;
       clearInterval(timer);

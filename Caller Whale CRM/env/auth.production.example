@@ -23,9 +23,10 @@ AUTH_GOOGLE_CLIENT_SECRET=<client secret>
 # not offer it. Authenticator apps and approvals on another device need nothing.
 AUTH_SMTP_HOST=smtp.softfix.dev
 AUTH_SMTP_PORT=587
-AUTH_SMTP_USER=<the mailbox, e.g. no-reply@softfix.dev>
+AUTH_SMTP_USER=<the same mailbox login as the core API's CALLERWHALE_SMTP_USER>
 AUTH_SMTP_PASSWORD=<mailbox password>
-AUTH_MAIL_FROM=Caller Whale <no-reply@softfix.dev>
+# The mail server lets a login send only as its own address, so this is the mailbox's address with the display name Caller Whale.
+AUTH_MAIL_FROM=Caller Whale <the mailbox address>
 AUTH_TELEGRAM_BOT_TOKEN=<BotFather token, or empty>
 AUTH_TELEGRAM_BOT_NAME=<@bot_name, or empty>
 AUTH_TELEGRAM_WEBHOOK_SECRET=<a long random string, or empty>
