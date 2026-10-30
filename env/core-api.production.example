@@ -1,0 +1,25 @@
+# The core API on Coolify (application "core-api", port 8088, reached through the gateway at https://app.callerwhale.com).
+# Paste into Environment Variables -> Developer View. Fill every <...>.
+DATABASE_URL=<postgres://callerwhale_api:password@host:5432/callerwhale>
+MIGRATION_DATABASE_URL=<postgres://callerwhale_owner:password@host:5432/callerwhale>
+REDIS_URL=
+CALLERWHALE_BIND=0.0.0.0:8088
+CALLERWHALE_WORKER_TOKENS=<name=token, 24+ characters; the worker uses the same token>
+CALLERWHALE_BILLING_WEBHOOK_SECRET=<24+ characters>
+CALLERWHALE_CHECKOUT_URL=
+CALLERWHALE_ALLOWED_ORIGINS=https://callerwhale.com,https://app.callerwhale.com,tauri://localhost,http://tauri.localhost
+CALLERWHALE_PUBLIC_SIGNUP=false
+CALLERWHALE_REQUIRE_MFA=false
+CALLERWHALE_STAFF_MFA=true
+CALLERWHALE_WEBSITE_URL=https://callerwhale.com
+# Sign-in is the auth service only: this server checks its tokens with its public keys. No Firebase settings here.
+CALLERWHALE_AUTH_JWKS_URL=https://auth.callerwhale.com/.well-known/jwks.json
+CALLERWHALE_AUTH_PUBLIC_URL=https://auth.callerwhale.com
+CALLERWHALE_GRAFANA_URL=https://grafana.callerwhale.com
+CALLERWHALE_SMTP_HOST=<mail server>
+CALLERWHALE_SMTP_PORT=587
+CALLERWHALE_SMTP_USER=no-reply@softfix.dev
+CALLERWHALE_SMTP_PASSWORD=<mailbox password>
+CALLERWHALE_MAIL_FROM=Caller Whale <no-reply@softfix.dev>
+CALLERWHALE_RELEASE_REPO=Mohammed-HeshamMohammed/Turf
+CALLERWHALE_RELEASE_TAG_PREFIX=crm-v

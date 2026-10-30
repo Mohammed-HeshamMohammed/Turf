@@ -15,6 +15,8 @@ It never overwrites a file. Run it again after an example gains a setting, and i
 | `auth.env` | `services/auth/scripts/run-auth.sh` | `AUTH_SIGNING_KEY` (generated), `AUTH_GOOGLE_CLIENT_SECRET`, `AUTH_APPLE_PRIVATE_KEY` |
 | `desktop.env` | the desktop app and the CRM (`vite.config.mjs`), when built or served | None that are server secrets: everything here ships inside the app |
 | `compose.env` | `docker compose --env-file env/compose.env -f deploy/compose.yml` | `POSTGRES_PASSWORD`, `AUTH_SIGNING_KEY` (generated) |
+| `gateway.env` | the gateway (`services/gateway`), when run locally | None |
+| `*.production.example` | Coolify: the values to paste into each application's Environment Variables, Developer View (`auth`, `core-api`, `worker`, `gateway`, `landing-web`, `landing-api`, `grafana`). Fill every `<...>`; keep secrets in Coolify, never in the repository | Marked `<...>` |
 | `firebase.env` | `tools/firebase/configure-auth.mjs` (one-time Firebase project setup for the auth service) | `FIREBASE_SERVICE_ACCOUNT`: the key's JSON itself, not the path of a downloaded key file |
 
 A setting already in the environment wins over the file, so a deploy can set any of them its own way.
