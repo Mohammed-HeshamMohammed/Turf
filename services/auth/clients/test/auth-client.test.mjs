@@ -31,7 +31,7 @@ test("signing in keeps the access token in memory and the refresh token in stora
   assert.deepEqual(calls[0].body, { email: "sami@example.com", password: "pw", kind: "desktop" });
   assert.equal(calls[0].init.headers["Content-Type"], "application/json");
   assert.equal(await auth.accessToken(), "A1");
-  assert.equal(storage.map.get("turf.auth.refresh"), "R1");
+  assert.equal(storage.map.get("callerwhale.auth.refresh"), "R1");
   assert.equal(calls.length, 1, "a current token needs no request");
   assert.equal(auth.signedIn(), true);
 });
@@ -54,12 +54,12 @@ test("a token about to expire is refreshed, once for many callers", async () => 
   const [a, b, c] = await Promise.all([auth.accessToken(), auth.accessToken(), auth.accessToken()]);
   assert.deepEqual([a, b, c], ["A2", "A2", "A2"]);
   assert.equal(refreshes, 1);
-  assert.equal(storage.map.get("turf.auth.refresh"), "R2");
+  assert.equal(storage.map.get("callerwhale.auth.refresh"), "R2");
 });
 
 test("after a reload the stored refresh token signs back in", async () => {
   const storage = memoryStorage();
-  storage.setItem("turf.auth.refresh", "R9");
+  storage.setItem("callerwhale.auth.refresh", "R9");
   const { fetchImpl } = fakeService({ "/v1/sessions/refresh": tokens("A9", "R10") });
   const auth = createAuth({ base: "http://auth.example", storage, fetchImpl });
   assert.equal(auth.signedIn(), true);
@@ -68,13 +68,13 @@ test("after a reload the stored refresh token signs back in", async () => {
 
 test("a session that ended elsewhere signs this device out", async () => {
   const storage = memoryStorage();
-  storage.setItem("turf.auth.refresh", "R1");
+  storage.setItem("callerwhale.auth.refresh", "R1");
   let changes = 0;
   const { fetchImpl } = fakeService({ "/v1/sessions/refresh": { status: 401, body: { error: "Sign in first.", code: "unauthenticated" } } });
   const auth = createAuth({ base: "http://auth.example", storage, fetchImpl, onChange: () => changes++ });
   await assert.rejects(auth.accessToken(), error => error instanceof AuthError && error.status === 401);
   assert.equal(auth.signedIn(), false);
-  assert.equal(storage.map.has("turf.auth.refresh"), false);
+  assert.equal(storage.map.has("callerwhale.auth.refresh"), false);
   assert.equal(changes, 1);
   assert.equal(await auth.accessToken(), null);
 });
@@ -113,15 +113,15 @@ test("calls that need the person carry the bearer token; a step-up keeps the ref
   await auth.verifyMfa("123456");
   assert.equal(calls[1].init.headers.Authorization, "Bearer A1");
   assert.equal(await auth.accessToken(), "A-mfa");
-  assert.equal(storage.map.get("turf.auth.refresh"), "R1");
+  assert.equal(storage.map.get("callerwhale.auth.refresh"), "R1");
   await auth.me();
   assert.equal(calls[2].init.headers.Authorization, "Bearer A-mfa");
 });
 
 test("provider sign-in addresses", () => {
-  const auth = createAuth({ base: "https://auth.turf.example/", storage: memoryStorage(), fetchImpl: async () => ({}) });
-  assert.equal(auth.startUrl("google", "app"), "https://auth.turf.example/v1/oauth/google/start?target=app");
-  assert.equal(auth.startUrl("apple", "desktop", 48123), "https://auth.turf.example/v1/oauth/apple/start?target=desktop&port=48123");
+  const auth = createAuth({ base: "https://auth.callerwhale.example/", storage: memoryStorage(), fetchImpl: async () => ({}) });
+  assert.equal(auth.startUrl("google", "app"), "https://auth.callerwhale.example/v1/oauth/google/start?target=app");
+  assert.equal(auth.startUrl("apple", "desktop", 48123), "https://auth.callerwhale.example/v1/oauth/apple/start?target=desktop&port=48123");
 });
 
 test("storage that refuses to work still signs in for the life of the page", async () => {
@@ -130,4 +130,34 @@ test("storage that refuses to work still signs in for the life of the page", asy
   const auth = createAuth({ base: "http://auth.example", storage: broken, fetchImpl });
   await auth.signIn("s@example.com", "pw");
   assert.equal(await auth.accessToken(), "A1");
+});
+
+test("a forgotten password is reset with the emailed code", async () => {
+  const { calls, fetchImpl } = fakeService({ "/v1/password/forgot": { body: { ok: true } }, "/v1/password/reset": { body: { ok: true } } });
+  const auth = createAuth({ base: "http://auth.example", storage: memoryStorage(), fetchImpl });
+  await auth.forgotPassword("sami@example.com");
+  await auth.resetPassword("CODE", "a brand new password");
+  assert.deepEqual(calls[0].body, { email: "sami@example.com" });
+  assert.deepEqual(calls[1].body, { token: "CODE", new: "a brand new password" });
+});
+
+test("coming back from a provider with an error says why, and with a code signs in", async () => {
+  const location = { search: "?oauth_error=Sign-in+was+cancelled.", pathname: "/signin", hash: "" };
+  const history = { replaceState: () => {} };
+  const was = { location: globalThis.location, history: globalThis.history };
+  Object.defineProperty(globalThis, "location", { value: location, configurable: true });
+  Object.defineProperty(globalThis, "history", { value: history, configurable: true });
+  try {
+    const { fetchImpl } = fakeService({ "/v1/oauth/exchange": tokens("A1", "R1") });
+    const auth = createAuth({ base: "http://auth.example", storage: memoryStorage(), fetchImpl });
+    await assert.rejects(auth.finishProvider(), error => error instanceof AuthError && error.code === "oauth_error" && /cancelled/.test(error.message));
+    location.search = "?callerwhale_code=ONE";
+    assert.equal(await auth.finishProvider(), true);
+    assert.equal(await auth.accessToken(), "A1");
+    location.search = "";
+    assert.equal(await auth.finishProvider(), false);
+  } finally {
+    Object.defineProperty(globalThis, "location", { value: was.location, configurable: true });
+    Object.defineProperty(globalThis, "history", { value: was.history, configurable: true });
+  }
 });

@@ -4,6 +4,7 @@
 #![allow(dead_code)]
 
 pub mod keys;
+pub mod firebase;
 pub mod provider;
 
 use axum::{
@@ -15,7 +16,7 @@ use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tower::ServiceExt;
-use turf_auth::{app, config::Config, connect, keys::Keys, migrate, AppState};
+use callerwhale_auth::{app, config::Config, connect, keys::Keys, migrate, AppState};
 
 pub const PASSWORD: &str = "correct horse battery";
 
@@ -91,7 +92,7 @@ pub fn current_code(secret: &str, email: &str) -> String {
 }
 
 /// The claims inside a token, checked with the service's own public keys, as any other service would.
-pub async fn claims(app: &Router, access: &str) -> turf_auth_verify::Claims {
+pub async fn claims(app: &Router, access: &str) -> callerwhale_auth_verify::Claims {
     let (_, jwks) = call(app, "GET", "/.well-known/jwks.json", None, None).await;
-    turf_auth_verify::Verifier::from_jwks_json(&jwks.to_string()).unwrap().verify(access).unwrap()
+    callerwhale_auth_verify::Verifier::from_jwks_json(&jwks.to_string()).unwrap().verify(access).unwrap()
 }

@@ -4,8 +4,8 @@
 # recovery codes, confirmed emails and Google/Apple links use the same formats in both, so nobody has to reset
 # anything or sign up again.
 #
-#   CORE_DATABASE_URL=postgres://turf_owner:...@host/turf \
-#   AUTH_DATABASE_URL=postgres://turf_auth:...@host/turf_auth \
+#   CORE_DATABASE_URL=postgres://callerwhale_owner:...@host/callerwhale \
+#   AUTH_DATABASE_URL=postgres://callerwhale_auth:...@host/callerwhale_auth \
 #   bash services/auth/scripts/import-from-core-api.sh
 #
 # Safe to run again: rows already in auth are kept (a confirmed email is filled in if auth did not have it). Run it

@@ -6,7 +6,7 @@ mod common;
 use axum::{http::StatusCode, Router};
 use common::*;
 use serde_json::{json, Value};
-use turf_auth::config::{Config, Provider};
+use callerwhale_auth::config::{Config, Provider};
 
 fn providers(base: &str) -> (Provider, Provider) {
     let endpoints = |client: &str| Provider {
@@ -71,9 +71,9 @@ async fn google_sign_up_then_sign_in_again_as_the_same_person() {
     assert_eq!(param(&to, "redirect_uri").as_deref(), Some("http://auth.example/v1/oauth/google/callback"));
 
     let landed = sign_in_with(&app, "google", "", mona(), None).await;
-    assert!(landed.starts_with("http://website.example/?turf_code="), "{landed}");
+    assert!(landed.starts_with("http://website.example/?callerwhale_code="), "{landed}");
     assert!(landed.ends_with("#/account"));
-    let code = param(&landed, "turf_code").unwrap();
+    let code = param(&landed, "callerwhale_code").unwrap();
     let (status, first) = exchange(&app, &code).await;
     assert_eq!(status, StatusCode::OK, "{first}");
     assert_eq!(first["user"]["email"], "mona@example.com");
@@ -85,8 +85,8 @@ async fn google_sign_up_then_sign_in_again_as_the_same_person() {
 
     // Signing in again is the same account, even if the email Google reports changed.
     let again = sign_in_with(&app, "google", "target=app", json!({ "sub": "g-100", "email": "mona.new@example.com", "email_verified": true, "nonce": true }), None).await;
-    assert!(again.starts_with("http://app.example/?turf_code="), "{again}");
-    let (_, second) = exchange(&app, &param(&again, "turf_code").unwrap()).await;
+    assert!(again.starts_with("http://app.example/?callerwhale_code="), "{again}");
+    let (_, second) = exchange(&app, &param(&again, "callerwhale_code").unwrap()).await;
     assert_eq!(second["user"]["id"], first["user"]["id"]);
     // A password does not work for an account made with Google.
     let (status, _) = call(&app, "POST", "/v1/sessions", Some(json!({ "email": "mona@example.com", "password": "!external-sign-in" })), None).await;
@@ -100,7 +100,7 @@ async fn google_links_an_existing_password_account_and_confirms_its_email() {
     assert!(!claims(&app, token(&made)).await.email_verified);
 
     let landed = sign_in_with(&app, "google", "", mona(), None).await;
-    let (_, linked) = exchange(&app, &param(&landed, "turf_code").unwrap()).await;
+    let (_, linked) = exchange(&app, &param(&landed, "callerwhale_code").unwrap()).await;
     assert_eq!(linked["user"]["id"], made["user"]["id"]);
     assert!(claims(&app, token(&linked)).await.email_verified);
     // The password still works too.
@@ -151,7 +151,7 @@ async fn apple_posts_back_with_a_name_the_first_time() {
     // Apple sends the email as "true" (a string), and the name only once, in a form field.
     let claims_in = json!({ "sub": "a-7", "email": "sami@example.com", "email_verified": "true", "nonce": true });
     let landed = sign_in_with(&app, "apple", "", claims_in, Some(r#"{"name":{"firstName":"Sami","lastName":"Lee"}}"#)).await;
-    let (status, body) = exchange(&app, &param(&landed, "turf_code").unwrap()).await;
+    let (status, body) = exchange(&app, &param(&landed, "callerwhale_code").unwrap()).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["user"]["name"], "Sami Lee");
     assert_eq!(claims(&app, token(&body)).await.provider, "apple");
@@ -165,14 +165,14 @@ async fn the_desktop_app_collects_its_sign_in_on_this_computer_only() {
     assert_eq!(call(&app, "GET", "/v1/oauth/google/start?target=desktop&port=80", None, None).await.0, StatusCode::BAD_REQUEST);
 
     let landed = sign_in_with(&app, "google", "target=desktop&port=48123", mona(), None).await;
-    assert!(landed.starts_with("http://127.0.0.1:48123/turf-sign-in?code="), "{landed}");
+    assert!(landed.starts_with("http://127.0.0.1:48123/callerwhale-sign-in?code="), "{landed}");
     let (status, tokens) = exchange(&app, &param(&landed, "code").unwrap()).await;
     assert_eq!(status, StatusCode::OK);
     let (_, list) = call(&app, "GET", "/v1/sessions", None, Some(token(&tokens))).await;
     assert_eq!(list["sessions"][0]["kind"], "desktop");
 
     let failed = sign_in_with(&app, "google", "target=desktop&port=48123", json!({ "sub": "g-9", "email": "x@example.com", "email_verified": false, "nonce": true }), None).await;
-    assert!(failed.starts_with("http://127.0.0.1:48123/turf-sign-in?error="), "{failed}");
+    assert!(failed.starts_with("http://127.0.0.1:48123/callerwhale-sign-in?error="), "{failed}");
 }
 
 #[tokio::test]
@@ -222,7 +222,7 @@ async fn a_provider_sign_in_steps_up_with_a_two_step_code() {
 
     // Signing in with Google does not ask for the code, and the token says so.
     let landed = sign_in_with(&app, "google", "target=app", mona(), None).await;
-    let (_, google) = exchange(&app, &param(&landed, "turf_code").unwrap()).await;
+    let (_, google) = exchange(&app, &param(&landed, "callerwhale_code").unwrap()).await;
     assert!(!claims(&app, token(&google)).await.mfa);
     assert_eq!(claims(&app, token(&made)).await.provider, "password", "each token says how its session began");
     assert_eq!(claims(&app, token(&google)).await.provider, "google");

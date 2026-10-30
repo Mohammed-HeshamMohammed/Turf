@@ -5,4 +5,4 @@ here="$(cd "$(dirname "$0")" && pwd)"
 # Settings and the signing key come from env/auth.env (env/README.md); a variable already set wins.
 . "$here/../../../tools/load-env.sh" "$here/../../../env/auth.env"
 cd "$here/.."
-exec cargo run -q -p turf-auth
+exec cargo run -q -p callerwhale-auth

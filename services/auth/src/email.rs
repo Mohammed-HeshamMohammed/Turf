@@ -64,6 +64,12 @@ struct Verify {
 
 async fn verify(State(state): State<AppState>, Json(body): Json<Verify>) -> AuthResult<Json<Value>> {
     let t = now() as i64;
+    if let Some(fb) = state.config.firebase.clone() {
+        // Firebase sent the link and knows the code; this service only records that the address is confirmed.
+        let email = fb.confirm_email(body.token.trim()).await.map_err(AuthError::from)?;
+        sqlx::query("UPDATE users SET email_verified_at = $1 WHERE email = $2 AND email_verified_at IS NULL").bind(t).bind(&email).execute(&state.db).await?;
+        return Ok(Json(json!({ "email_verified": true })));
+    }
     let mut tx = state.db.begin().await?;
     let row = sqlx::query("SELECT user_id FROM email_verifications WHERE token_hash = $1 AND used_at IS NULL AND expires_at > $2")
         .bind(sha256(body.token.trim()))
@@ -83,6 +89,11 @@ async fn resend(State(state): State<AppState>, Person(claims): Person) -> AuthRe
     let user = user_by(&state, "id", &claims.sub).await?.ok_or(AuthError::Unauthenticated)?;
     if user.email_verified {
         return Ok(Json(json!({ "email_verified": true })));
+    }
+    if let Some(fb) = state.config.firebase.clone() {
+        let id = crate::routes::session_id_token(&state, &fb, &claims.sid).await?;
+        fb.send_verification(&id).await.map_err(AuthError::from)?;
+        return Ok(Json(json!({ "email_verified": false, "sent": true })));
     }
     let latest: Option<i64> = sqlx::query("SELECT MAX(created_at) AS at FROM email_verifications WHERE user_id = $1").bind(&user.id).fetch_one(&state.db).await?.try_get("at")?;
     if latest.is_some_and(|at| now() as i64 - at < RESEND_SECONDS) {

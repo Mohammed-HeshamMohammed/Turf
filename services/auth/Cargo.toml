@@ -1,5 +1,5 @@
 [package]
-name = "turf-auth"
+name = "callerwhale-auth"
 version = "0.1.0"
 edition = "2021"
 description = "The one source of truth for who someone is: accounts, passwords, two-step codes, sessions and signed access tokens."
@@ -25,7 +25,7 @@ tower-http = { version = "0.6", features = ["cors"] }
 totp-rs = { version = "5", features = ["gen_secret", "otpauth"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-turf-auth-verify = { path = "verify" }
+callerwhale-auth-verify = { path = "verify" }
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]

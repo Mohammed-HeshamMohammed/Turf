@@ -5,8 +5,8 @@ mod common;
 use axum::http::StatusCode;
 use common::*;
 use serde_json::json;
-use turf_auth::{config::Config, keys::Keys};
-use turf_auth_verify::Verifier;
+use callerwhale_auth::{config::Config, keys::Keys};
+use callerwhale_auth_verify::Verifier;
 
 #[tokio::test]
 async fn health_and_version() {
@@ -188,8 +188,8 @@ async fn a_signing_key_survives_a_restart() {
     let a = Keys::from_base64(&secret).unwrap();
     let b = Keys::from_base64(&secret).unwrap();
     assert_eq!(a.kid, b.kid);
-    let person = turf_auth::keys::Person { id: "u".into(), email: "e@example.com".into(), name: "N".into(), email_verified: false };
-    let (token, _) = a.sign(&person, "s", false, "password", turf_auth::now(), 15).unwrap();
+    let person = callerwhale_auth::keys::Person { id: "u".into(), email: "e@example.com".into(), name: "N".into(), email_verified: false };
+    let (token, _) = a.sign(&person, "s", false, "password", callerwhale_auth::now(), callerwhale_auth::now(), 15).unwrap();
     assert!(b.verifier.verify(&token).is_ok());
     assert!(Keys::from_base64("not a key").is_err());
 }

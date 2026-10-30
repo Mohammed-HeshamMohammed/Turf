@@ -3,12 +3,13 @@
 //! It owns accounts, passwords (Argon2id), two-step codes and recovery codes, and sessions. A session hands out
 //! short-lived EdDSA access tokens and a refresh token that changes every time it is used. Other services never call
 //! this service to check a token: they verify it with the public keys at `/.well-known/jwks.json`
-//! (the `turf-auth-verify` crate).
+//! (the `callerwhale-auth-verify` crate).
 
 pub mod config;
 pub mod error;
 pub mod keys;
 pub mod email;
+pub mod firebase;
 pub mod oauth;
 pub mod routes;
 
@@ -35,6 +36,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (1, include_str!("../migrations/0001_auth.sql")),
     (2, include_str!("../migrations/0002_sign_in.sql")),
     (3, include_str!("../migrations/0003_session_provider.sql")),
+    (4, include_str!("../migrations/0004_firebase.sql")),
 ];
 
 /// Brings the database up to date. Safe to run on every start.

@@ -23,8 +23,8 @@
 
 1. The app signs in here (`POST /v1/sessions`) and gets an **access token** (15 minutes) and a **refresh token** (30 days).
 2. It sends `Authorization: Bearer <access token>` to any service.
-3. That service checks the token with auth's **public keys**: the signature (EdDSA, Ed25519), the issuer `turf-auth`, the audience `turf` and the expiry. It never calls auth to do this, so people keep working while auth restarts.
-   - Rust services use the `turf-auth-verify` crate (`verify/`).
+3. That service checks the token with auth's **public keys**: the signature (EdDSA, Ed25519), the issuer `callerwhale-auth`, the audience `callerwhale` and the expiry. It never calls auth to do this, so people keep working while auth restarts.
+   - Rust services use the `callerwhale-auth-verify` crate (`verify/`).
    - TypeScript and Python services get the same small check when they need it.
 4. Before the access token expires, the app swaps the refresh token for a new pair (`POST /v1/sessions/refresh`).
 
@@ -61,17 +61,17 @@ Every new account writes a `user.signed_up` event to the `outbox` table in the s
 
 The checks are the core API's, moved here: a single-use state, a nonce and PKCE (Google), the ID token checked against the provider's own keys, issuer, audience and expiry, and a confirmed email required. A provider sign-in signs in the linked account, links the account that already has that confirmed email, or opens a new one.
 
-Auth uses tokens, not cookies, so every way back gets a **one-time code** instead of a session: the website gets `?turf_code=` on `AUTH_WEBSITE_URL`, the CRM in a browser tab on `AUTH_APP_URL`, and the desktop app on `http://127.0.0.1:<port>/turf-sign-in?code=`. Each trades the code at `POST /v1/oauth/exchange`. Failures come back as `oauth_error` (desktop: `error`). A provider sign-in does not count as two-step sign-in.
+Auth uses tokens, not cookies, so every way back gets a **one-time code** instead of a session: the website gets `?callerwhale_code=` on `AUTH_WEBSITE_URL`, the CRM in a browser tab on `AUTH_APP_URL`, and the desktop app on `http://127.0.0.1:<port>/callerwhale-sign-in?code=`. Each trades the code at `POST /v1/oauth/exchange`. Failures come back as `oauth_error` (desktop: `error`). A provider sign-in does not count as two-step sign-in.
 
 Auth opens **no workspace**. After signing up (with a password or a provider), the app asks the core API for one with `POST /api/v1/organizations/trial`, or joins an organization with `POST /api/v1/invitations/join` and the invitation's token.
 
 ## Run and test
 
 ```bash
-cargo test -p turf-auth -p turf-auth-verify          # from Full CRM Turf/, on SQLite
-AUTH_TEST_DATABASE_URL=postgres://turf_auth:turf_auth@127.0.0.1:55432/turf_auth_test \
-  cargo test -p turf-auth -- --test-threads=1         # the same tests on PostgreSQL
-cargo run -p turf-auth -- new-key                     # prints a signing key for AUTH_SIGNING_KEY
+cargo test -p callerwhale-auth -p callerwhale-auth-verify          # from Caller Whale CRM/, on SQLite
+AUTH_TEST_DATABASE_URL=postgres://callerwhale_auth:callerwhale_auth@127.0.0.1:55432/callerwhale_auth_test \
+  cargo test -p callerwhale-auth -- --test-threads=1         # the same tests on PostgreSQL
+cargo run -p callerwhale-auth -- new-key                     # prints a signing key for AUTH_SIGNING_KEY
 bash services/auth/scripts/run-auth.sh                # http://localhost:8101, SQLite file services/auth/auth.db
 ```
 
@@ -94,7 +94,7 @@ bash services/auth/scripts/run-auth.sh                # http://localhost:8101, S
 
 ## Moving people over from the core API
 
-The core API (`services/core-api`) still has its own accounts and sessions, and still works exactly as before. It now also accepts auth's tokens, checked with the keys in `CALLERWHALE_AUTH_JWKS` (or fetched from `CALLERWHALE_AUTH_JWKS_URL`), with the organization in the `x-turf-org` header.
+The core API (`services/core-api`) still has its own accounts and sessions, and still works exactly as before. It now also accepts auth's tokens, checked with the keys in `CALLERWHALE_AUTH_JWKS` (or fetched from `CALLERWHALE_AUTH_JWKS_URL`), with the organization in the `x-callerwhale-org` header.
 
 The switch, in order:
 
@@ -110,4 +110,4 @@ Organizations, memberships and roles stay with the CRM: auth says **who** someon
 
 `clients/auth-client.js` is the one piece of sign-in code the website and the CRM share: sign up, sign in (with a code when auth asks), Google or Apple through a one-time code, two-step set-up and step-up, email confirmation, refresh and sign-out. The access token stays in memory and is refreshed a minute before it expires, one refresh at a time; the refresh token is kept in the browser's storage so a reload stays signed in, which is why those pages load no scripts from other sites. The website and the CRM each keep a copy, because neither can import across the repository at run time: `node services/auth/clients/sync.mjs` copies it, and the CRM's tests fail if a copy differs. Its own tests: `node --test services/auth/clients/test/*.test.mjs`.
 
-`clients/firebase-auth-client.js` has the same functions over Firebase Authentication (`docs/plans/firebase-auth.md`), plus `startProvider` and `finishProvider`, which both clients have for Google and Apple (Firebase comes back through its own redirect, not a one-time code). It takes the Firebase SDK's functions as `sdk`, so it imports nothing and its tests use a fake. Differences: no recovery codes (staff reset a lost authenticator), a sign-in waiting for its code is kept in memory, and Google in the desktop window comes with phase 3. The CRM keeps a copy (`sync.mjs`) and turns it on when built with `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID` (and optionally `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROVIDERS`). The website loads it from `website/firebase-auth.js`, a bundle with the SDK built by `node tools/firebase/build-website.mjs`, when the core API hands it a Firebase config.
+**Firebase mode** (`AUTH_FIREBASE_API_KEY`): this service is the only part that talks to Firebase. The routes are the same; behind them, passwords, email links, authenticator codes and Google go through Firebase's server API (`src/firebase.rs`), each person has a UUID row here with Firebase's uid beside it, and each session keeps its Firebase refresh token server side. Extra routes: `POST /v1/password/forgot` and `POST /v1/password/reset` (the link Firebase emails). Differences: no recovery codes, no Apple, and `target=landing` returns a Google sign-in to the public site's `/signin`. Tests run against a fake Firebase (`tests/common/firebase.rs`). Plan: `docs/plans/firebase-auth.md`.

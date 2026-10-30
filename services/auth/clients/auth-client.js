@@ -14,7 +14,7 @@ export class AuthError extends Error {
   }
 }
 
-const REFRESH_KEY = "turf.auth.refresh";
+const REFRESH_KEY = "callerwhale.auth.refresh";
 const EARLY_MS = 60_000;
 
 export function createAuth({ base, storage = globalThis.localStorage, fetchImpl = (...args) => fetch(...args), now = () => Date.now(), onChange = () => {} }) {
@@ -109,20 +109,27 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
     signUp: (name, email, password, kind = "browser") => call("POST", "/v1/accounts", { name, email, password, kind }).then(keep),
     /** With two-step sign-in on, the first try answers code "mfa_required"; try again with `code`. */
     signIn: (email, password, code, kind = "browser") => call("POST", "/v1/sessions", { email, password, ...(code ? { code } : {}), kind }).then(keep),
+    /** Emails a password reset link. The answer is the same for any address. */
+    forgotPassword: email => call("POST", "/v1/password/forgot", { email }),
+    /** A new password with the code from the reset link; every session of that person ends. */
+    resetPassword: (token, password) => call("POST", "/v1/password/reset", { token, new: password }),
     /** Trades the one-time code a Google or Apple sign-in came back with. */
     exchange: code => call("POST", "/v1/oauth/exchange", { code }).then(keep),
     providers: () => call("GET", "/v1/providers"),
-    /** Where to send the browser to sign in with a provider. `target` is website, app or desktop (with `port`). */
+    /** Where to send the browser to sign in with a provider. `target` is website, app, landing (the public site) or desktop (with `port`). */
     startUrl: (provider, target, port) => `${base}/v1/oauth/${encodeURIComponent(provider)}/start?target=${target}${port ? `&port=${port}` : ""}`,
-    /** This page goes to the provider (through auth) and comes back with `?turf_code=`; `finishProvider` trades it. */
+    /** This page goes to the provider (through auth) and comes back with `?callerwhale_code=`; `finishProvider` trades it. */
     startProvider: async (provider, target) => {
       globalThis.location.href = `${base}/v1/oauth/${encodeURIComponent(provider)}/start?target=${target}`;
     },
     /** True when this page came back from a provider and is now signed in. Reads the code before anything awaits. */
     finishProvider: async () => {
-      const code = new URLSearchParams(globalThis.location?.search || "").get("turf_code");
-      if (!code) return false;
+      const query = new URLSearchParams(globalThis.location?.search || "");
+      const code = query.get("callerwhale_code");
+      const refused = query.get("oauth_error");
+      if (!code && !refused) return false;
       globalThis.history?.replaceState(null, "", globalThis.location.pathname + globalThis.location.hash);
+      if (!code) throw new AuthError(400, "oauth_error", refused);
       await call("POST", "/v1/oauth/exchange", { code }).then(keep);
       return true;
     },

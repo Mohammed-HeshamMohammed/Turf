@@ -4,7 +4,7 @@ use base64::{engine::general_purpose::STANDARD, engine::general_purpose::URL_SAF
 use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use ring::signature::{Ed25519KeyPair, KeyPair};
 use sha2::{Digest, Sha256};
-use turf_auth_verify::{Claims, Verifier, AUDIENCE, ISSUER};
+use callerwhale_auth_verify::{Claims, Verifier, AUDIENCE, ISSUER};
 
 /// What a token says about the person it is for.
 pub struct Person {
@@ -54,7 +54,7 @@ impl Keys {
     }
 
     /// A signed access token for a person and their session.
-    pub fn sign(&self, person: &Person, sid: &str, mfa: bool, provider: &str, now: u64, minutes: u64) -> anyhow::Result<(String, u64)> {
+    pub fn sign(&self, person: &Person, sid: &str, mfa: bool, provider: &str, auth_time: u64, now: u64, minutes: u64) -> anyhow::Result<(String, u64)> {
         let exp = now + minutes * 60;
         let claims = Claims {
             sub: person.id.clone(),
@@ -64,6 +64,7 @@ impl Keys {
             mfa,
             email_verified: person.email_verified,
             provider: provider.into(),
+            auth_time,
             iss: ISSUER.into(),
             aud: AUDIENCE.into(),
             iat: now,
