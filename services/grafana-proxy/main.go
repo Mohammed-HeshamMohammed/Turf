@@ -21,6 +21,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -34,14 +35,16 @@ const (
 )
 
 type config struct {
-	grafana   *url.URL
-	coreAPI   string // the core API's base URL, no trailing slash
-	website   string // the website's base URL, no trailing slash
-	origin    string // the website's origin: the only page allowed to post a sign-in
-	recheck   time.Duration
-	maxAge    time.Duration
-	adminRole string // Grafana role for system administrators; the owner is always Admin
-	secure    bool   // Secure cookies; off only for local http
+	grafana    *url.URL
+	coreAPI    string // the core API's base URL, no trailing slash
+	website    string // the website's base URL, no trailing slash
+	origin     string // the website's origin: the only page allowed to post a sign-in
+	recheck    time.Duration
+	maxAge     time.Duration
+	idle       time.Duration // a session ends after this long with no request
+	authWithin time.Duration // a sign-in older than this (authenticator code included) opens no session
+	adminRole  string        // Grafana role for system administrators; the owner is always Admin
+	secure     bool          // Secure cookies; off only for local http
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -85,7 +88,13 @@ func loadConfig(getenv func(string) string) (config, error) {
 	if c.recheck, err = duration("RECHECK_EVERY", time.Minute); err != nil {
 		return c, err
 	}
-	if c.maxAge, err = duration("SESSION_MAX_AGE", 8*time.Hour); err != nil {
+	if c.maxAge, err = duration("SESSION_MAX_AGE", time.Hour); err != nil {
+		return c, err
+	}
+	if c.idle, err = duration("IDLE_TIMEOUT", 10*time.Minute); err != nil {
+		return c, err
+	}
+	if c.authWithin, err = duration("AUTH_WITHIN", 15*time.Minute); err != nil {
 		return c, err
 	}
 	switch c.adminRole = getenv("ADMIN_GRAFANA_ROLE"); c.adminRole {
@@ -121,6 +130,8 @@ type session struct {
 	person  person
 	token   string
 	checked time.Time
+	seen    time.Time // the last request
+	key     string    // the sign-in that opened it: who, and when they signed in
 	expires time.Time
 }
 
@@ -132,15 +143,20 @@ type proxy struct {
 
 	mu       sync.Mutex
 	sessions map[string]*session
+	used     map[string]time.Time // sign-ins that have opened a session, by key, with when they signed in
 }
 
 func newProxy(cfg config) *proxy {
-	p := &proxy{cfg: cfg, client: &http.Client{Timeout: 10 * time.Second}, now: time.Now, sessions: map[string]*session{}}
+	p := &proxy{cfg: cfg, client: &http.Client{Timeout: 10 * time.Second}, now: time.Now, sessions: map[string]*session{}, used: map[string]time.Time{}}
 	p.upstream = &httputil.ReverseProxy{
 		Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetURL(cfg.grafana)
 			r.Out.Host = r.In.Host // Grafana's root_url is this proxy's domain
 			r.SetXForwarded()
+		},
+		ModifyResponse: func(res *http.Response) error {
+			res.Header.Del("x-frame-options") // framing is limited to the website by frame-ancestors instead
+			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			log.Printf("grafana: %v", err)
@@ -181,6 +197,13 @@ func (p *proxy) whoami(token string) (person, verdict) {
 }
 
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Grafana opens only inside the admin page's frame: no other site may frame it, and a browser visiting its address
+	// directly (a page of its own, not a frame) is turned away before anything else is checked.
+	w.Header().Set("content-security-policy", "frame-ancestors "+p.cfg.origin)
+	if r.URL.Path != "/_turf/health" && r.Header.Get("sec-fetch-dest") == "document" {
+		page(w, http.StatusForbidden, "Open Grafana from the admin dashboard", "Grafana has no page of its own. Sign in to Caller Whale as staff, finish the authenticator step, and open it from the admin dashboard.")
+		return
+	}
 	switch r.URL.Path {
 	case "/_turf/health":
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": service, "version": version})
@@ -210,6 +233,13 @@ func (p *proxy) signIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := r.PostForm.Get("token")
+	// Admin mode starts from a recent sign-in: an old token (or one without a sign-in time) is not enough, even when the
+	// core API still accepts it. The core API has already checked the token's signature by the time this is trusted.
+	at := signedInAt(token)
+	if p.now().Sub(at) > p.cfg.authWithin {
+		page(w, http.StatusUnauthorized, "Sign in again", "Admin mode needs a recent sign-in with your authenticator code. Sign in to Caller Whale again, then start admin mode.")
+		return
+	}
 	who, v := p.whoami(token)
 	if v == signInAgain {
 		// Not back to the website: it would post the same token again, round and round.
@@ -226,8 +256,23 @@ func (p *proxy) signIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := p.now()
-	s := &session{person: who, token: token, checked: now, expires: now.Add(p.cfg.maxAge)}
+	key := who.ID + ":" + strconv.FormatInt(at.Unix(), 10)
+	s := &session{person: who, token: token, checked: now, seen: now, key: key, expires: now.Add(p.cfg.maxAge)}
 	p.mu.Lock()
+	// One sign-in opens one stretch of admin mode: once that session has ended (idle, expired, signed out), going in
+	// again needs a new sign-in with the authenticator code. While it is still open, the same sign-in may open the
+	// frame again (the panel closed and reopened).
+	if _, used := p.used[key]; used && !p.liveLocked(key, now) {
+		p.mu.Unlock()
+		page(w, http.StatusUnauthorized, "Sign in again", "Admin mode ended. To go back in, sign in to Caller Whale again with your authenticator code, then start admin mode.")
+		return
+	}
+	for k, t := range p.used {
+		if now.Sub(t) > p.cfg.authWithin {
+			delete(p.used, k)
+		}
+	}
+	p.used[key] = at
 	for k, old := range p.sessions {
 		if now.After(old.expires) {
 			delete(p.sessions, k)
@@ -244,12 +289,26 @@ func (p *proxy) signIn(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, safeReturn(r.PostForm.Get("return")), http.StatusSeeOther)
 }
 
+// liveLocked says whether a session opened by this sign-in is still open. The caller holds p.mu.
+func (p *proxy) liveLocked(key string, now time.Time) bool {
+	for _, s := range p.sessions {
+		s.mu.Lock()
+		live := s.key == key && !now.After(s.expires) && now.Sub(s.seen) <= p.cfg.idle
+		s.mu.Unlock()
+		if live {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *proxy) logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(cookieName); err == nil {
 		p.drop(c.Value)
 	}
 	p.clearCookie(w)
-	http.Redirect(w, r, p.cfg.website+"/admin", http.StatusSeeOther)
+	// Shown in the admin page's frame, which can't load the website itself, so no redirect.
+	page(w, http.StatusOK, "Signed out of Grafana", "Open Grafana again from the admin dashboard when you need it.")
 }
 
 // forward sends a signed-in staff member's request on to Grafana, saying who they are.
@@ -269,7 +328,7 @@ func (p *proxy) forward(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Lock()
 	now := p.now()
-	if now.After(s.expires) {
+	if now.After(s.expires) || now.Sub(s.seen) > p.cfg.idle {
 		s.mu.Unlock()
 		p.drop(c.Value)
 		p.clearCookie(w)
@@ -295,6 +354,7 @@ func (p *proxy) forward(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	s.seen = now
 	who := s.person
 	s.mu.Unlock()
 
@@ -335,9 +395,17 @@ func (p *proxy) deny(w http.ResponseWriter, r *http.Request, v verdict) {
 // toSignIn sends a page visit to the website to sign in and come back; anything else (Grafana's own API calls) gets a
 // 401, and Grafana reloads the page.
 func (p *proxy) toSignIn(w http.ResponseWriter, r *http.Request) {
+	// In the admin page's frame the website can't load (it allows no framing), so the frame asks the page around it
+	// to post a fresh sign-in.
+	if r.Header.Get("sec-fetch-dest") == "iframe" && strings.Contains(r.Header.Get("accept"), "text/html") {
+		w.Header().Set("content-type", "text/html; charset=utf-8")
+		w.Header().Set("cache-control", "no-store")
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprintf(w, `<!doctype html><meta charset=utf-8><title>Checking your access</title><p>Checking your access…</p><script>parent.postMessage("turf-grafana-signin",%q)</script>`, p.cfg.origin)
+		return
+	}
 	if r.Method == http.MethodGet && strings.Contains(r.Header.Get("accept"), "text/html") {
-		back := url.QueryEscape(safeReturn(r.URL.RequestURI()))
-		http.Redirect(w, r, p.cfg.website+"/admin/grafana?return="+back, http.StatusSeeOther)
+		page(w, http.StatusUnauthorized, "Open Grafana from admin mode", "Sign in to Caller Whale as staff and start admin mode from your dashboard.")
 		return
 	}
 	writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "Sign in to Turf first."})
@@ -370,6 +438,25 @@ func removeCookie(r *http.Request, name string) {
 			r.AddCookie(c)
 		}
 	}
+}
+
+// signedInAt is when the person signed in, from the token's `auth_time` (zero, so "long ago", when it has none).
+func signedInAt(token string) time.Time {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return time.Time{}
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(parts[1], "="))
+	if err != nil {
+		return time.Time{}
+	}
+	var claims struct {
+		AuthTime int64 `json:"auth_time"`
+	}
+	if json.Unmarshal(raw, &claims) != nil || claims.AuthTime <= 0 {
+		return time.Time{}
+	}
+	return time.Unix(claims.AuthTime, 0)
 }
 
 func randomID() (string, error) {

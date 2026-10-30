@@ -1,4 +1,4 @@
-# Grafana for Turf's staff, behind the Turf login proxy (docs/plans/grafana-access.md). One Coolify resource of type
+# Grafana for Caller Whale's staff, behind the Caller Whale login proxy (docs/plans/grafana-access.md). One Coolify resource of type
 # Docker Compose, with this file as its compose file. In Coolify, give a domain ONLY to grafana-proxy; leave grafana's
 # domain empty. Grafana publishes no port.
 #
@@ -24,7 +24,9 @@ services:
       TURF_WEBSITE_URL: "${TURF_WEBSITE_URL:?set TURF_WEBSITE_URL, the website with the admin dashboard}"
       ADMIN_GRAFANA_ROLE: "${ADMIN_GRAFANA_ROLE:-Editor}"
       RECHECK_EVERY: "${RECHECK_EVERY:-60s}"
-      SESSION_MAX_AGE: "${SESSION_MAX_AGE:-8h}"
+      SESSION_MAX_AGE: "${SESSION_MAX_AGE:-1h}"
+      IDLE_TIMEOUT: "${IDLE_TIMEOUT:-10m}"
+      AUTH_WITHIN: "${AUTH_WITHIN:-15m}"
       COOKIE_SECURE: "${COOKIE_SECURE:-true}"
     networks:
       grafana:
@@ -48,6 +50,8 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD}"
       GF_SECURITY_COOKIE_SECURE: "${COOKIE_SECURE:-true}"
       GF_SECURITY_COOKIE_SAMESITE: lax
+      # Shown only in the admin page's frame; the proxy limits who may frame it (frame-ancestors).
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
       # People are who the proxy says they are, and only when the proxy says it.
       GF_AUTH_PROXY_ENABLED: "true"
       GF_AUTH_PROXY_HEADER_NAME: X-WEBAUTH-USER
