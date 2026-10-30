@@ -1,3 +1,3 @@
-module turf/notifications
+module callerwhale/notifications
 
 go 1.23
