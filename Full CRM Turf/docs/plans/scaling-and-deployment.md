@@ -22,19 +22,19 @@ All answer `GET /healthz`. Settings and secrets are environment variables named 
 
 Turf runs on Coolify at `187.7.72.171`, in the project "Turf". The environments are "production" (the applications), "database" (PostgreSQL and Redis for auth and the core API) and "monitoring" (Grafana). Each application builds its `*-production` branch with the Dockerfile and port from the table above.
 
-**Domains** (since 2026-10-28; Turf has no domain of its own yet, so it lives under `softfix.dev`):
+**Domains** (callerwhale.com since 2026-10-29; the old `turf.softfix.dev` names are retired, remove them from each application in Coolify once the new ones answer):
 
 | Address | Application | Port |
 | --- | --- | --- |
-| `https://turf.softfix.dev` (and `www.`) | landing-web | 8080 |
-| `https://turf.softfix.dev/api` | landing-api, with **Advanced → Path prefixes: Keep paths as-is** (it serves `/api/...` itself) | 8095 |
-| `https://app.turf.softfix.dev` | core-api: the CRM's website and API | 8088 |
-| `https://auth.turf.softfix.dev` | auth | 8101 |
-| `https://api.turf.softfix.dev` | gateway | 8100 |
-| `https://grafana.turf.softfix.dev` | grafana-proxy (`deploy/grafana`), not set up yet | 8120 |
+| `https://callerwhale.com` | landing-web (`www.callerwhale.com` redirects here, see `landing/web/nginx.conf`) | 8080 |
+| `https://callerwhale.com/api` | landing-api, with **Advanced → Path prefixes: Keep paths as-is** (it serves `/api/...` itself) | 8095 |
+| `https://app.callerwhale.com` | core-api: the CRM's API (sign-in checks, invitations, credits, the download) | 8088 |
+| `https://grafana.callerwhale.com` | grafana-proxy (`deploy/grafana`), not set up yet | 8120 |
 
-- **DNS** is in Cloudflare (`softfix.dev` zone): an A record for `turf` and one for `*.turf`, both pointing at the server, both **DNS only** (grey cloud). Coolify's Traefik gets Let's Encrypt certificates itself. Cloudflare's proxy would break these names, because its free certificate covers only one level below `softfix.dev`, and `app.turf.softfix.dev` is two.
-- **No `www.` on the two-level names.** Coolify adds a `www.` copy of every domain. Remove it from auth, core-api and gateway: `www.app.turf.softfix.dev` has no DNS, and one failing name holds up the certificate for the rest. `www.turf.softfix.dev` is fine, since the wildcard covers it.
+The authentication service (retired: sign-in is Firebase) and the gateway (answers only its health check) have no public name. If either is deployed again, give it `auth.callerwhale.com` or `api.callerwhale.com` and add the DNS record below.
+
+- **DNS** is in Cloudflare (`callerwhale.com` zone): A records `@`, `www`, `app` and `grafana`, all to `187.7.72.171`, all **DNS only** (grey cloud). Coolify's Traefik gets Let's Encrypt certificates itself; a proxied (orange) record answers 503 because Cloudflare cannot reach a certificate for the name. Mail is separate: it goes through `smtp.softfix.dev` (see [mail-server.md](mail-server.md)), so `callerwhale.com` itself needs no MX record yet.
+- **No `www.` copy on `app` or `grafana`.** Coolify adds a `www.` copy of every domain. Remove it from core-api and grafana-proxy: `www.app.callerwhale.com` has no DNS, and one failing name holds up the certificate for the rest. `www.callerwhale.com` is wanted (it redirects to the apex).
 - A domain change takes effect on the next **Redeploy** of that application.
 - **Settings and secrets:** each application's settings come from its `env/<part>.env.example`. The secrets come from your local `env/` files (`node tools/env-init.mjs` writes them), and you enter them in Coolify yourself. The database logins are made once by running `env/turf-auth-db.sql` and `env/turf-db.sql` in each database's Terminal (`psql -U postgres`).
 

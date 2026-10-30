@@ -1,5 +1,5 @@
-//! Who may use the desktop app, and how much (migration 0014). Turf's staff invite a person by email with a monthly
-//! credit limit; the invitation is emailed through Turf's mail server. The person signs in on the website with that
+//! Who may use the desktop app, and how much (migration 0014). Caller Whale's staff invite a person by email with a monthly
+//! credit limit; the invitation is emailed through Caller Whale's mail server. The person signs in on the website with that
 //! email, confirmed (password or Google), which activates it: they get a workspace of their own, their dashboard and
 //! the download. Nobody else gets either: an account alone opens nothing.
 //!
@@ -325,7 +325,7 @@ async fn activate(state: &AppState, ctx: &Ctx) -> ApiResult<Option<(Uuid, String
     Ok(Some((id, "active".into())))
 }
 
-/// Turf's staff are never invited, so the first time one signs in they get a workspace of their own, with no plan and
+/// Caller Whale's staff are never invited, so the first time one signs in they get a workspace of their own, with no plan and
 /// so no limits, as the admin dashboard's "My workspace" gives them: the desktop app opens it like anyone else's.
 /// Nothing is made when they are already in a workspace.
 async fn staff_workspace(state: &AppState, ctx: &Ctx) -> ApiResult<()> {
@@ -388,7 +388,7 @@ struct Use {
 }
 
 /// Spends credits for a metered action, or refuses it when the month's are used up. People who were not invited this
-/// way (Turf's staff, members a workspace owner invited) have no credit limit here.
+/// way (Caller Whale's staff, members a workspace owner invited) have no credit limit here.
 async fn use_credits(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Use>) -> ApiResult<Json<Value>> {
     if !KINDS.iter().any(|(k, _)| *k == body.kind) {
         return Err(ApiError::bad("Unknown kind of usage"));
@@ -528,7 +528,7 @@ pub fn check_download_token(token: &str, now: i64) -> Option<Uuid> {
     Some(user)
 }
 
-/// Whether this person may download the app now: Turf's staff, or someone whose invitation is active.
+/// Whether this person may download the app now: Caller Whale's staff, or someone whose invitation is active.
 async fn may_download(state: &AppState, user: Uuid) -> ApiResult<bool> {
     let allowed: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM users u WHERE u.id = $1 AND u.disabled_at IS NULL AND (u.platform_role IS NOT NULL \

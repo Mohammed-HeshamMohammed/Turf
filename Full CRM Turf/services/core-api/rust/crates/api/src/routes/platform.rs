@@ -1,5 +1,5 @@
-//! The admin dashboard's API, for the people who run Turf the service: every customer workspace with its plan, usage,
-//! seats and payments (never their CRM records), the people on the server, Turf's own staff, and what staff did.
+//! The admin dashboard's API, for the people who run Caller Whale the service: every customer workspace with its plan, usage,
+//! seats and payments (never their CRM records), the people on the server, Caller Whale's own staff, and what staff did.
 //!
 //! There are two platform roles (users.platform_role). The **platform owner** is the owner of the app: set once on the
 //! server (services/core-api/scripts/create_platform_owner.py), never through the API. **System administrators** are
@@ -44,7 +44,7 @@ pub(crate) enum Staff {
     Admin,
 }
 
-/// The person's platform role, or a refusal. Turf's staff always need the second sign-in step (the authenticator
+/// The person's platform role, or a refusal. Caller Whale's staff always need the second sign-in step (the authenticator
 /// code), whatever the server's MFA setting: a token that has not passed it opens nothing here. Only TURF_STAFF_MFA=false
 /// lifts that, for a Firebase project without authenticator codes.
 pub(crate) async fn staff(state: &AppState, ctx: &Ctx) -> ApiResult<Staff> {
@@ -52,7 +52,7 @@ pub(crate) async fn staff(state: &AppState, ctx: &Ctx) -> ApiResult<Staff> {
     let role = match role.as_deref() {
         Some("owner") => Staff::Owner,
         Some("admin") => Staff::Admin,
-        _ => return Err(ApiError::forbidden("Only Turf's platform administrators can see this")),
+        _ => return Err(ApiError::forbidden("Only Caller Whale's platform administrators can see this")),
     };
     if state.config.staff_mfa && !ctx.mfa_passed {
         return Err(ApiError::MfaRequired);
@@ -60,7 +60,7 @@ pub(crate) async fn staff(state: &AppState, ctx: &Ctx) -> ApiResult<Staff> {
     Ok(role)
 }
 
-/// Who is asking, if they are staff: for services in front of Turf's own tools (the Grafana login proxy) that let in
+/// Who is asking, if they are staff: for services in front of Caller Whale's own tools (the Grafana login proxy) that let in
 /// only the platform owner and system administrators. Same rule as the rest of the dashboard, so a person without the
 /// authenticator step, a customer or a disabled account is refused. Needs no organization.
 async fn whoami(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
@@ -170,7 +170,7 @@ enum PlanChange {
     Extend { days: i64 },
     /// Put the workspace on a plan, without a payment. The owner only.
     Set { plan: String, seats: i32, days: i64 },
-    /// No plan at all, so no limits: for Turf's own workspaces and special customers. The owner only.
+    /// No plan at all, so no limits: for Caller Whale's own workspaces and special customers. The owner only.
     Unlimited,
 }
 
@@ -269,7 +269,7 @@ struct Access {
     disabled: bool,
 }
 
-/// Turns someone's access to Turf off (or back on). Staff can do this to customers; only the owner to other staff;
+/// Turns someone's access to Caller Whale off (or back on). Staff can do this to customers; only the owner to other staff;
 /// nobody to the owner or to themselves.
 async fn access(State(state): State<AppState>, ctx: Ctx, Path(user): Path<Uuid>, Json(body): Json<Access>) -> ApiResult<Json<Value>> {
     let role = staff(&state, &ctx).await?;
@@ -308,7 +308,7 @@ struct StaffChange {
     role: Option<String>,
 }
 
-/// The owner names or removes a system administrator. The person must have signed in to Turf once (with the auth
+/// The owner names or removes a system administrator. The person must have signed in to Caller Whale once (with the auth
 /// service), so this server knows them. The owner role itself can never be given.
 async fn set_staff(State(state): State<AppState>, ctx: Ctx, Json(body): Json<StaffChange>) -> ApiResult<Json<Value>> {
     owner(&state, &ctx).await?;
@@ -317,7 +317,7 @@ async fn set_staff(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Sta
     }
     let email = body.email.trim().to_lowercase();
     let user: Option<Uuid> = sqlx::query_scalar("SELECT id FROM users WHERE email = $1").bind(&email).fetch_optional(&state.db).await?;
-    let user = user.ok_or_else(|| ApiError::not_found("Nobody with this email has signed in to Turf yet. Ask them to sign in once"))?;
+    let user = user.ok_or_else(|| ApiError::not_found("Nobody with this email has signed in to Caller Whale yet. Ask them to sign in once"))?;
     if user == ctx.user_id {
         return Err(ApiError::bad("You are the platform owner"));
     }
@@ -343,7 +343,7 @@ type PaymentRow = (
     Option<String>,
 );
 
-/// Every payment on the server, newest first, with what is paid, waiting and refunded. Card details never reach Turf:
+/// Every payment on the server, newest first, with what is paid, waiting and refunded. Card details never reach Caller Whale:
 /// only the provider's reference and the amounts.
 async fn payments(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
     staff(&state, &ctx).await?;
@@ -380,7 +380,7 @@ struct Workspace {
     organization: String,
 }
 
-/// A workspace of Turf's own for a member of staff, with no plan and so no limits: as many callers and CRM users as
+/// A workspace of Caller Whale's own for a member of staff, with no plan and so no limits: as many callers and CRM users as
 /// they invite. One per person.
 async fn workspace(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Workspace>) -> ApiResult<Json<Value>> {
     staff(&state, &ctx).await?;
@@ -414,7 +414,7 @@ struct Customer {
 }
 
 /// A trial workspace for a customer, with an invitation that makes them its owner. New sign-ups cannot open a
-/// workspace themselves (Config::public_signup), so this is how a business gets into Turf: staff open it, the owner
+/// workspace themselves (Config::public_signup), so this is how a business gets into Caller Whale: staff open it, the owner
 /// accepts, and the owner invites everyone else.
 async fn customer(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Customer>) -> ApiResult<Json<Value>> {
     staff(&state, &ctx).await?;

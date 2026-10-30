@@ -1,13 +1,13 @@
 # callerwhale.com: sign-in, invitations, credits and the desktop download
 
 **Status:** Built and tested locally (2026-10-29). Deploying needs the settings below.
-**Replaces:** `turf.softfix.dev` as the public address.
+**Replaces:** `turf.softfix.dev` as the public address. DNS state checked 2026-10-30: `callerwhale.com`, `www` and `app` answer with `187.7.72.171`; `grafana` has no record yet.
 
 ## What it does
 
-1. **Sign in and sign up on the website** (`landing/web`): the header has **Sign in** and **Sign up**. Email and password (12+ characters, confirmed by email) or Google, through the Firebase project `callerwhale`. Signed in, the header shows **Dashboard** (invited people), **Admin** (Turf's staff) and **Sign out**.
-2. **Admin** (`/admin`, staff only, enforced by the core API): invite a person by email with a monthly credit limit; the invitation is emailed through Turf's mail server (`smtp.softfix.dev`, `no-reply@softfix.dev`). The list shows everyone invited, whether they registered, how they sign in, this month's credits used against the limit, the last use and a daily chart. Staff change a limit, suspend or reactivate someone (their account is refused at once, everywhere), resend the email, or withdraw an invitation not yet accepted. Every change is in the platform activity log.
-3. **Dashboard** (`/dashboard`): an invited person who signs in with the invited email (confirmed) gets their limit, usage this month by day, latest usage and the **download**. Anyone else signed in sees "Turf is by invitation" and no download.
+1. **Sign in and sign up on the website** (`landing/web`): the header has **Sign in** and **Sign up**. Email and password (12+ characters, confirmed by email) or Google, through the Firebase project `callerwhale`. Signed in, the header shows **Dashboard** (invited people), **Admin** (Caller Whale's staff) and **Sign out**.
+2. **Admin** (`/admin`, staff only, enforced by the core API): invite a person by email with a monthly credit limit; the invitation is emailed through the mail server (`smtp.softfix.dev`, `no-reply@softfix.dev`). The list shows everyone invited, whether they registered, how they sign in, this month's credits used against the limit, the last use and a daily chart. Staff change a limit, suspend or reactivate someone (their account is refused at once, everywhere), resend the email, or withdraw an invitation not yet accepted. Every change is in the platform activity log.
+3. **Dashboard** (`/dashboard`): an invited person who signs in with the invited email (confirmed) gets their limit, usage this month by day, latest usage and the **download**. Anyone else signed in sees "Caller Whale is by invitation" and no download.
 4. **The download** is the newest GitHub release tagged `crm-v*`, streamed by the core API through a link that is good for 10 minutes and only for people allowed to download. The public site no longer offers a download.
 5. **The desktop app** (Full CRM, `desktop/`) cannot be used without signing in, and only an invited account gets a workspace: the first sign-in with a confirmed invited email opens that person's own workspace. Skip Tracing spends one credit per row checked, asked of the server before the check runs; when the month's credits are used up the check is refused.
 
@@ -20,8 +20,9 @@ Everything (invitations, people, credits, usage) is stored in the core API's Pos
 | `https://callerwhale.com` (and `www.`) | landing-web | Build args `SITE_URL=https://callerwhale.com`, `VITE_TURF_API_URL=https://app.callerwhale.com`. Runtime env `FIREBASE_AUTH_HOST=project-34ff1df6-b240-40d4-be2.firebaseapp.com` (the Dockerfile's default), `API_ORIGIN=https://app.callerwhale.com` |
 | `https://callerwhale.com/api` | landing-api | Waitlist and contact; Path prefixes: keep as-is. `TURF_LANDING_ORIGINS=https://callerwhale.com,https://www.callerwhale.com` |
 | `https://app.callerwhale.com` | core-api | Sign-in checks, invitations, credits, download. Needs PostgreSQL (project "database") |
+| `https://grafana.callerwhale.com` | grafana-proxy | Staff only, reached from the admin page (Open Grafana). Set `GRAFANA_ORIGIN` on landing-web and `TURF_GRAFANA_URL` on core-api to this address. See `deploy/grafana/README.md` |
 
-DNS (Cloudflare, zone `callerwhale.com`): A records `@`, `www` and `app` to `187.7.72.171`, **DNS only** (grey cloud) so Coolify's Let's Encrypt works, as for softfix.dev. A proxied (orange) record answers 503 today because Cloudflare cannot reach a certificate for the name.
+DNS (Cloudflare, zone `callerwhale.com`): A records `@`, `www`, `app` and `grafana` to `187.7.72.171`, **DNS only** (grey cloud) so Coolify's Let's Encrypt works, as for softfix.dev. A proxied (orange) record answers 503 today because Cloudflare cannot reach a certificate for the name.
 
 ## Settings
 
@@ -33,12 +34,12 @@ DNS (Cloudflare, zone `callerwhale.com`): A records `@`, `www` and `app` to `187
 | `TURF_FIREBASE_API_KEY`, `TURF_FIREBASE_APP_ID` | from Firebase → Project settings → Your apps → Web app (public values) |
 | `TURF_FIREBASE_AUTH_DOMAIN` | `callerwhale.com` (the site serves Firebase's sign-in helper itself, see below) |
 | `TURF_FIREBASE_PROVIDERS` | `google` |
-| `TURF_ALLOWED_ORIGINS` | `https://callerwhale.com,https://www.callerwhale.com` (and `tauri://localhost,http://tauri.localhost` for the desktop app) |
+| `TURF_ALLOWED_ORIGINS` | `https://callerwhale.com` (the site redirects `www` to it) (and `tauri://localhost,http://tauri.localhost` for the desktop app) |
 | `TURF_PUBLIC_SIGNUP` | `false` |
 | `TURF_WEBSITE_URL` | `https://callerwhale.com` |
 | `TURF_SMTP_HOST`, `TURF_SMTP_PORT` | `smtp.softfix.dev`, `587` |
 | `TURF_SMTP_USER`, `TURF_SMTP_PASSWORD` | `no-reply@softfix.dev` and its password (**secret**: enter it yourself) |
-| `TURF_MAIL_FROM` | `Turf <no-reply@softfix.dev>` (the mail server only lets a login send as itself) |
+| `TURF_MAIL_FROM` | `Caller Whale <no-reply@softfix.dev>` (the mail server only lets a login send as itself) |
 | `TURF_RELEASE_REPO`, `TURF_RELEASE_TAG_PREFIX` | `Mohammed-HeshamMohammed/Turf`, `crm-v` |
 | `TURF_AUTH_JWKS_URL`, `TURF_AUTH_PUBLIC_URL` | **remove** (or empty): the old auth service is not running, and the API refuses to start when it cannot fetch its keys |
 | `TURF_STAFF_MFA` | `true`. Staff need an authenticator code, which needs Identity Platform TOTP on the Firebase project (`tools/firebase/configure-auth.mjs`). Set `false` only until that is on |

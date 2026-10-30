@@ -1,7 +1,7 @@
 name: Release the desktop app
 
 # Builds the Full CRM desktop app (Full CRM Turf/desktop) into a Windows installer and publishes it as a GitHub
-# release. Turf's server offers the newest release whose tag starts with "crm-v" to invited people only, on their
+# release. Caller Whale's server offers the newest release whose tag starts with "crm-v" to invited people only, on their
 # dashboard (TURF_RELEASE_REPO, TURF_RELEASE_TAG_PREFIX).
 #
 # Start it by pushing a tag:   git tag crm-v0.2.0 && git push origin crm-v0.2.0
@@ -9,7 +9,7 @@ name: Release the desktop app
 #
 # The app's server and sign-in settings are the repository's Actions variables (Settings -> Secrets and variables ->
 # Actions -> Variables). They end up inside the app, so none of them is a server secret:
-#   TURF_API_URL                     Turf's server, e.g. https://app.callerwhale.com
+#   TURF_API_URL                     Caller Whale's server, e.g. https://app.callerwhale.com
 #   FIREBASE_API_KEY, FIREBASE_PROJECT_ID, FIREBASE_APP_ID, FIREBASE_AUTH_DOMAIN
 #   GOOGLE_DESKTOP_CLIENT_ID, GOOGLE_DESKTOP_CLIENT_SECRET   the "Desktop app" OAuth client (Google sign-in)
 

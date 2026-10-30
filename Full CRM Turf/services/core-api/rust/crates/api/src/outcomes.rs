@@ -1,5 +1,5 @@
 //! Call outcomes: the ReadyMode set the CRM records, and what each does to the lead.
-//! Meanings follow Turf's status reader (service/turf_matching/status_meaning.py).
+//! Meanings follow Caller Whale's status reader (service/turf_matching/status_meaning.py).
 
 pub struct Outcome {
     pub label: &'static str,

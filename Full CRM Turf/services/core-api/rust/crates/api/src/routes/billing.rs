@@ -1,4 +1,4 @@
-//! Turf as a paid service: the trial workspace, plans, checkout, the payment provider's webhook, and the call-minute
+//! Caller Whale as a paid service: the trial workspace, plans, checkout, the payment provider's webhook, and the call-minute
 //! ledger. Accounts and email confirmation are the auth service's. Seats and minutes are enforced here and in admin invitations.
 //!
 //! Money never moves through this API. Checkout records a pending payment and hands the browser to the provider; only
@@ -94,7 +94,7 @@ async fn plan(conn: &mut sqlx::PgConnection, key: &str) -> ApiResult<Plan> {
         .bind(key)
         .fetch_optional(conn)
         .await?
-        .ok_or_else(|| ApiError::bad("Choose one of Turf's plans"))
+        .ok_or_else(|| ApiError::bad("Choose one of Caller Whale's plans"))
 }
 
 async fn plans(State(state): State<AppState>) -> ApiResult<Json<Value>> {
@@ -178,7 +178,7 @@ pub const NO_PASSWORD: &str = "!external-sign-in";
 
 /// A new organization on the free trial for someone who already has an account: its roles and team, the person as
 /// owner, the trial subscription, and the audit entry.
-/// A trial organization. `owner` becomes its owner at once; without one (Turf's staff opening it for a customer) it
+/// A trial organization. `owner` becomes its owner at once; without one (Caller Whale's staff opening it for a customer) it
 /// waits for the owner invitation to be accepted.
 pub async fn open_trial_organization(tx: &mut db::Tx, owner: Option<Uuid>, actor: Uuid, name: &str, tz: &str, organization: Option<&str>) -> ApiResult<Uuid> {
     let organization = organization.map(str::to_string).unwrap_or_else(|| format!("{name}'s workspace"));
@@ -221,7 +221,7 @@ pub struct StartTrial {
 /// trial, with them as owner. One trial per person.
 pub async fn start_trial(State(state): State<AppState>, ctx: Ctx, Json(body): Json<StartTrial>) -> ApiResult<Json<Value>> {
     if !state.config.public_signup {
-        return Err(ApiError::forbidden("Turf is by invitation only. Ask your workspace owner, or Turf, for an invitation"));
+        return Err(ApiError::forbidden("Caller Whale is by invitation only. Ask your workspace owner, or Caller Whale, for an invitation"));
     }
     let organization = match body.organization.trim() {
         "" => format!("{}'s workspace", ctx.label),

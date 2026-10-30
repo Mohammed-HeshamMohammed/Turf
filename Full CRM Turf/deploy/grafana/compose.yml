@@ -1,4 +1,4 @@
-# Grafana for Turf's staff, behind the Turf login proxy (docs/plans/grafana-access.md). One Coolify resource of type
+# Grafana for Caller Whale's staff, behind the Caller Whale login proxy (docs/plans/grafana-access.md). One Coolify resource of type
 # Docker Compose, with this file as its compose file. In Coolify, give a domain ONLY to grafana-proxy; leave grafana's
 # domain empty. Grafana publishes no port.
 #

@@ -1,22 +1,22 @@
-# Turf
+# Caller Whale
 
 The place to manage your lists and the areas they cover.
 
-Start with [PLAN.md](docs/PLAN.md). The mockup that started the idea is in `docs/reference/` (only its look is a reference: revenue, appointments, messages and agent names are not part of Turf).
+Start with [PLAN.md](docs/PLAN.md). The mockup that started the idea is in `docs/reference/` (only its look is a reference: revenue, appointments, messages and agent names are not part of Caller Whale).
 
 **Layout.** `Turf/` is the desktop app described below (paths like `src/` and `src-tauri/` are inside it, so run its `npm` commands from `Turf/`). `Full CRM Turf/` is the full CRM app; its structure and rules are in [FULL_CRM_TURF_STRUCTURE.md](FULL_CRM_TURF_STRUCTURE.md). `service/` (Python engine), `backend/`, `website/`, `contracts/` and `docs/` are shared and stay at the root.
 
 ## How it is built
 
-The same stack as DataForge. Everything Turf runs is in this repository; it does not call into the DataForge folder.
+The same stack as DataForge. Everything Caller Whale runs is in this repository; it does not call into the DataForge folder.
 
 | Part | Technology | What it does |
 | --- | --- | --- |
 | Window | React + TypeScript (`src/`) | The four tabs: Dashboard, Lists, Skip Tracing, Calls. It never touches files or the database itself. |
-| Host | Rust + Tauri 2 (`src-tauri/`) | The desktop window with its own title bar. Starts the service, forwards commands to it (restarting it if it does not answer within 3 minutes), and keeps what Turf itself saves. The window has a content security policy: scripts and styles from the app only, pictures from anywhere, connections only to the host and its map cache. |
+| Host | Rust + Tauri 2 (`src-tauri/`) | The desktop window with its own title bar. Starts the service, forwards commands to it (restarting it if it does not answer within 3 minutes), and keeps what Caller Whale itself saves. The window has a content security policy: scripts and styles from the app only, pictures from anywhere, connections only to the host and its map cache. |
 | Service | Python (`service/`) | Projects, lists and Skip Tracing, in a project folder (SQLite). Copied from DataForge; see [service/SOURCE.md](service/SOURCE.md). |
 
-A project is the same folder format as DataForge's, so a DataForge project opens in Turf.
+A project is the same folder format as DataForge's, so a DataForge project opens in Caller Whale.
 
 The frontend service client lives in `src/lib/service/`: `transport.ts` handles browser/native calls, `jobs.ts` watches jobs, and the other modules group project, dataset, Skip Tracing, local-state and enrichment operations. `src/lib/service.ts` remains the shared public entry point. Internal service modules import the transport directly to avoid cycles.
 
@@ -60,7 +60,7 @@ pip install pyinstaller
 npm run package
 ```
 
-This builds the service into one executable (`service/dist/turf-service.exe`, by `service/tools/build_service.py`), then the Windows installer with it and the migrations inside (`src-tauri/tauri.package.conf.json`). The installer is written under `src-tauri/target/release/bundle/nsis/`. A packaged Turf starts that executable and needs no Python; run from source, it still uses Python as before.
+This builds the service into one executable (`service/dist/turf-service.exe`, by `service/tools/build_service.py`), then the Windows installer with it and the migrations inside (`src-tauri/tauri.package.conf.json`). The installer is written under `src-tauri/target/release/bundle/nsis/`. A packaged Caller Whale starts that executable and needs no Python; run from source, it still uses Python as before.
 
 The build needs a few gigabytes free. On a drive without room, send the working files elsewhere: `python service/tools/build_service.py --work D:\build`, and set `CARGO_TARGET_DIR` for the host's build.
 
@@ -74,13 +74,13 @@ What needs every row of every list at once is left out for a long list: owners a
 
 Drop a list's file anywhere on the window to add it to the open project; several files are added one after another. While a file is held over the window, the whole window says where it will go. **Import** in Lists and in the menu do the same for one file.
 
-A file whose rows are already in the project is not added again, whatever it is called now. Turf reads each row as the values it holds, not as its columns' names or their order, so the same list is known again as another file, in another format (a spreadsheet where it was a CSV), with its columns renamed or moved, or with different capitals and spacing (`service/turf_service/sameness.py`). It is refused when it is the same file, the same rows, or a part of a list that is here; the message names the list, and **Add it all the same** adds it if that is what you want. A file that holds a list and more is added, and says how much of it is new; one that shares some rows with a list says how many, so you can combine the two.
+A file whose rows are already in the project is not added again, whatever it is called now. Caller Whale reads each row as the values it holds, not as its columns' names or their order, so the same list is known again as another file, in another format (a spreadsheet where it was a CSV), with its columns renamed or moved, or with different capitals and spacing (`service/turf_service/sameness.py`). It is refused when it is the same file, the same rows, or a part of a list that is here; the message names the list, and **Add it all the same** adds it if that is what you want. A file that holds a list and more is added, and says how much of it is new; one that shares some rows with a list says how many, so you can combine the two.
 
 Each list's rows are kept as a small sketch in the project, so adding a file never reads every other list again. Up to 4,096 rows the answer is exact; for a longer list it is an estimate within a percent or two. A file with some of a list's columns left out is not recognised as that list.
 
 ## Combining lists
 
-**Combine** in Lists makes one list out of several. Pick the lists and Turf compares their rows with the same rules as [repeated leads](#repeated-leads), so a lead that is in two lists under different spellings is one lead, and one owner with several properties stays several rows. The lists need not have the same columns: each is read with its own Skip Tracing setup, and a list that was never set up (a county roll with "Owner" and "Site Address", with no phones at all) is read from its columns' names.
+**Combine** in Lists makes one list out of several. Pick the lists and Caller Whale compares their rows with the same rules as [repeated leads](#repeated-leads), so a lead that is in two lists under different spellings is one lead, and one owner with several properties stays several rows. The lists need not have the same columns: each is read with its own Skip Tracing setup, and a list that was never set up (a county roll with "Owner" and "Site Address", with no phones at all) is read from its columns' names.
 
 Before anything is saved you see what the lists share: how many leads each has, how many are only there, how many are in another list too, the leads found in more than one list, and the pairs that might be the same lead. You can overrule any of them there. Then choose what the new list holds: every lead once, only the leads in more than one list or in all of them, or only the leads one list has and the others do not (what is new in this month's list, say).
 
@@ -90,7 +90,7 @@ Each lead is one row: the row with the best number to call, else one with a phon
 
 **Calls** works a checked list one lead at a time. Each lead is there once (repeated rows are left out), with the number worth calling first and its other usable numbers below.
 
-**Intended desktop calling experience:** clicking a number starts a call inside Turf using its built-in dialer. Call controls, the call log, and outcome recording stay in the app. Turf also shows the recipient's local time and 8 am–9 pm calling-window guidance. The current Full CRM demo simulates this in-app flow; live calling still needs a connected calling provider. The regular desktop implementation's existing system-dialer handoff is legacy behavior to be replaced.
+**Intended desktop calling experience:** clicking a number starts a call inside Caller Whale using its built-in dialer. Call controls, the call log, and outcome recording stay in the app. Caller Whale also shows the recipient's local time and 8 am–9 pm calling-window guidance. The current Full CRM demo simulates this in-app flow; live calling still needs a connected calling provider. The regular desktop implementation's existing system-dialer handoff is legacy behavior to be replaced.
 
 The existing time guidance uses the number's area code. Some states are stricter and a moved number keeps its old area code, so the time is a warning to look at, not a permission; a number in several zones is inside the window only when it is in every one of them.
 
@@ -126,7 +126,7 @@ In Lists, beside the downloads:
 
 ## Owners, contacts and areas
 
-Beyond phones, Turf reads what the lists themselves say, for free:
+Beyond phones, Caller Whale reads what the lists themselves say, for free:
 
 - **Owners.** Each owner name is read as a person, household, company or LLC, trust, estate (the owner may have died), government or bank, by wording rules (`src/lib/owners.ts`). The mailing address shows absentee, out-of-state and PO box owners, and row details can ask the free US Census geocoder whether it finds the mailing address.
 - **Contacts from your other lists.** The same owner at the same property, or at the same mailing address (two name words in common, in any order), is found in every other list in the project; its phones and emails are offered in row details with where they came from, and with any do-not-call or bad-number result recorded there. Another list that names a different owner for the same property (a county roll, say) is flagged. A county export in tab- or pipe-delimited text imports like any list.
@@ -151,7 +151,7 @@ Photos load without telling their host which page asked. Any list with pictures 
 All five steps remain: phone columns, call outcomes, warning signs, results, and saving a checked copy. The check also finds rows that repeat the same lead ([how](#repeated-leads)).
 
 - Column samples help confirm the proposed mappings. Call statuses are searchable and paginated; every distinct status is available, including those beyond the former 80-status limit. Explicitly ignored meanings stay ignored.
-- Call statuses are settled for you where Turf can be sure, and the rest are listed first with the reason ([how](#how-call-statuses-are-read)). What you confirm or ignore is remembered for every list in the project.
+- Call statuses are settled for you where Caller Whale can be sure, and the rest are listed first with the reason ([how](#how-call-statuses-are-read)). What you confirm or ignore is remembered for every list in the project.
 - Drafts, completed reports, running job references, and editable setup templates are kept on this computer, keyed by project and list. Templates validate the columns before applying. Storage failures are shown; drafts and templates are not project-file backups.
 - Checks save the setup, but never change original rows. Results include all existing reports, an action summary, and paginated row review. Progress and safe cancellation are available; a running job can be reconnected after a screen reload while the service remains alive.
 - New manual marks belong to the project, retain source/date/history, and feed the next phone check. DNC has an optional inclusive end date. Called alone does not count as reaching a person. Wrong/reached conflicts remain suspicious; active DNC still blocks a number.
@@ -175,7 +175,7 @@ No row is removed. The checked copy gets four columns: `Duplicate group`, `Dupli
 
 No group of rows is left out for being large. Rows are compared when they share something (a phone, an email, a street number and street, a name in one ZIP), and inside a group of up to 60 such rows every pair is compared. A larger group (a common name in a big ZIP, a tower of flats at one address) is gone through by a second thing its rows share, and each row with its five nearest by name and address, so the work grows with the number of rows and not with its square. The same row written many times is settled once. On a 200,000-row test list this step took about 45 seconds.
 
-**You can overrule any answer.** In the review of a check, a row marked as a duplicate has *Not the same lead*, and a possible one has *Same lead* as well. Your answer is kept with the project (in the `match_constraints` table DataForge's review uses), dates the check so that it asks to be made again, and is followed from then on whatever the rules would say; the results list your answers and each can be taken back. A check saved before Turf looked for repeated leads offers to be made again.
+**You can overrule any answer.** In the review of a check, a row marked as a duplicate has *Not the same lead*, and a possible one has *Same lead* as well. Your answer is kept with the project (in the `match_constraints` table DataForge's review uses), dates the check so that it asks to be made again, and is followed from then on whatever the rules would say; the results list your answers and each can be taken back. A check saved before Caller Whale looked for repeated leads offers to be made again.
 
 ### How call statuses are read
 
@@ -187,7 +187,7 @@ Three readers look at each status, most trusted first (`service/turf_matching/st
 
 Do not call is never dropped on a guess. A status like "DNC: interested" or "DNC until 10/07/2025: Not interested" keeps Do not call but always needs you: "DNC" there may be the dialer's bucket for "stop dialing" with the real reason after it, and only you know whether the person asked not to be called. A wrong-person meaning needs a mapped name column.
 
-The model (Model2Vec `potion-base-8M`, MIT, about 31 MB, CPU and numpy only) sets itself up: the first time Skip Tracing opens a list, it is downloaded once in the background from Hugging Face at a fixed revision, checked against known SHA-256 checksums, and kept in Turf's app data. Until then, or offline, statuses are read without it, and the table updates by itself when it is ready. It needs the `model2vec` package from `service/requirements.txt`.
+The model (Model2Vec `potion-base-8M`, MIT, about 31 MB, CPU and numpy only) sets itself up: the first time Skip Tracing opens a list, it is downloaded once in the background from Hugging Face at a fixed revision, checked against known SHA-256 checksums, and kept in Caller Whale's app data. Until then, or offline, statuses are read without it, and the table updates by itself when it is ready. It needs the `model2vec` package from `service/requirements.txt`.
 
 Lists set up with the earlier version take the new readings by themselves: a saved meaning (or draft) equal to the old version's suggestion is replaced, and one you changed is kept and remembered for the project.
 
@@ -195,11 +195,11 @@ Lists set up with the earlier version take the new readings by themselves: a sav
 
 ### National Do Not Call Registry
 
-Telemarketers get their first five area codes free at telemarketing.donotcall.gov (register, and renew each year). Download them there and use **Load a file** in Skip Tracing's *Ready to check*. Turf reads ten-digit numbers from the file (flat text, CSV, XML or zipped), keeps them on this computer for every project, and blocks any number on it in a phone check, giving the file's date as the reason. A file replaces the numbers of the area codes it holds, so loading a fresh download refreshes them; numbers in other area codes are not checked. A file older than 31 days still blocks, and the screen asks for a fresh one.
+Telemarketers get their first five area codes free at telemarketing.donotcall.gov (register, and renew each year). Download them there and use **Load a file** in Skip Tracing's *Ready to check*. Caller Whale reads ten-digit numbers from the file (flat text, CSV, XML or zipped), keeps them on this computer for every project, and blocks any number on it in a phone check, giving the file's date as the reason. A file replaces the numbers of the area codes it holds, so loading a fresh download refreshes them; numbers in other area codes are not checked. A file older than 31 days still blocks, and the screen asks for a fresh one.
 
 ### NANPA number blocks and FEMA flood zones
 
-Skip Tracing's **Ready to check** also accepts NANPA's regional or all-state utilized-code downloads (ZIP or tab-delimited text; CSV, TSV and DAT are supported). Download the text report from [Central Office Code Assignment Records](https://nanpa.com/reports/co-code-reports/cocodes_assign). Turf keeps it on this computer for every project. Missing blocks in a utilized-code file, and explicitly available blocks, add a suspicious reason; assigned blocks do not prove a number is active. Unknown area codes are not judged. Available-only files flag only listed free blocks. NANPA's UA status means unavailable for assignment and is retained, not treated as vacant. Loading another file invalidates reviewed scans; recheck before saving. After 90 days the screen asks for a newer download.
+Skip Tracing's **Ready to check** also accepts NANPA's regional or all-state utilized-code downloads (ZIP or tab-delimited text; CSV, TSV and DAT are supported). Download the text report from [Central Office Code Assignment Records](https://nanpa.com/reports/co-code-reports/cocodes_assign). Caller Whale keeps it on this computer for every project. Missing blocks in a utilized-code file, and explicitly available blocks, add a suspicious reason; assigned blocks do not prove a number is active. Unknown area codes are not judged. Available-only files flag only listed free blocks. NANPA's UA status means unavailable for assignment and is retained, not treated as vacant. Loading another file invalidates reviewed scans; recheck before saving. After 90 days the screen asks for a newer download.
 
 Expand a row in **Lists** to see its FEMA flood zone when property coordinates are available. Only coordinates go to FEMA; successful responses are cached on this computer. Pending requests finish in the background. Connection errors provide **Try again**, with a US VPN suggestion when the connection is refused or reset. No returned data means unknown flood risk, not no risk; see [FEMA's Flood Map Service Center](https://msc.fema.gov/portal/home) for map coverage.
 
@@ -238,18 +238,18 @@ Successful results for the same products are reused within the configured cache 
 | `src/components/DropImport.tsx`, `CombineLists.tsx` | Dropping files on the window, and combining lists into one. |
 | `service/turf_service/sameness.py`, `combine.py` | Knowing a list's rows again whatever the file is called; combining lists, and what the person decided about rows being the same lead. |
 | `service/turf_matching/` | Phone reading and the Skip Tracing rules, including how call statuses are read (`status_meaning.py`) and how repeated leads are found and lists combined (`duplicates.py` and `combine.py`, on DataForge's `engine.py`, `normalize.py` and `likelihood.py`). |
-| `service/turf_service/geo.py` | Where rows go on the map: the centre of their ZIP (a file shipped with Turf, checked against the row's state), or their exact address once it has been looked up. The lookup starts by itself the first time a list with a street and a ZIP (or city and state) is shown in Lists, says so under the map, and can be stopped; what was found is kept in the project and not asked for again. It sends street, city, state and ZIP to the US Census Bureau's geocoder; nothing else leaves the computer. |
+| `service/turf_service/geo.py` | Where rows go on the map: the centre of their ZIP (a file shipped with Caller Whale, checked against the row's state), or their exact address once it has been looked up. The lookup starts by itself the first time a list with a street and a ZIP (or city and state) is shown in Lists, says so under the map, and can be stopped; what was found is kept in the project and not asked for again. It sends street, city, state and ZIP to the US Census Bureau's geocoder; nothing else leaves the computer. |
 | `service/migrations/` | The project database's schema. |
-| `vite.config.ts` | For a browser tab only: serves `/rpc` over the same bridge, to Turf's own page and no other. |
+| `vite.config.ts` | For a browser tab only: serves `/rpc` over the same bridge, to Caller Whale's own page and no other. |
 | `service/tools/build_service.py`, `src-tauri/tauri.package.conf.json` | Packaging: the service as one executable, and the installer that carries it. |
 
 ## Not done yet
 
-- **Calling hours are the federal window only.** State rules (stricter hours, Sundays and holidays) are not known to Turf.
+- **Calling hours are the federal window only.** State rules (stricter hours, Sundays and holidays) are not known to Caller Whale.
 - **Dropping a file on the desktop window** uses the window's own drop event, which has not been tried by hand; dropping on a browser tab has.
 
 - **The installer is not signed, and is for Windows only.** Windows will warn about an unknown publisher until it is signed. The installed app has been started and seen to launch its own service; its screens have not been gone through one by one in that form.
 - **Calls reads a long list whole.** Lists and the Dashboard show a list of more than 50,000 rows through the service (below), but Calls still reads the list into the window to order its queue: on 60,000 rows it opens in about 3 seconds and holds about 140 MB.
-- **Listings come from DataForge.** Turf has no collector; a collected run shows in Turf when its project is opened here.
-- **Turf and DataForge open at once on one project** has not been tested. Opening a project recovers interrupted jobs, so do not open a project in Turf while DataForge is running a job on it.
+- **Listings come from DataForge.** Caller Whale has no collector; a collected run shows in Caller Whale when its project is opened here.
+- **Caller Whale and DataForge open at once on one project** has not been tested. Opening a project recovers interrupted jobs, so do not open a project in Caller Whale while DataForge is running a job on it.
 - **The street map needs the internet the first time.** Its background comes from OpenFreeMap (OpenStreetMap data, free, no key) and ZIP outlines from the US Census Bureau; only map addresses and ZIP codes are asked for, never a row. The desktop host keeps every piece on disk (`src-tauri/src/mapcache.rs`, and the service's outline folder), so what was looked at before draws without a connection. Parts never looked at do not, and the cache has no size limit yet.

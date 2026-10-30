@@ -7,9 +7,9 @@ COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
 # Read by the build: SITE_URL turns on canonical links and sitemap.xml (scripts/prerender.mjs); VITE_TURF_API_URL is
-# Turf's server (the core API), where people sign in and the dashboards get their data. Coolify passes its build-time
+# Caller Whale's server (the core API), where people sign in and the dashboards get their data. Coolify passes its build-time
 # settings as build arguments.
-ARG SITE_URL=""
+ARG SITE_URL="https://callerwhale.com"
 ARG VITE_TURF_API_URL="https://app.callerwhale.com"
 RUN SITE_URL="$SITE_URL" VITE_TURF_API_URL="$VITE_TURF_API_URL" npm run build
 

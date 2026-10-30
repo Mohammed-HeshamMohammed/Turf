@@ -1,4 +1,4 @@
-//! Who the person is here, and the workspace side of joining Turf (plan 2.4).
+//! Who the person is here, and the workspace side of joining Caller Whale (plan 2.4).
 //!
 //! Accounts, passwords, two-step sign-in and sessions belong to the auth service (services/auth): every request
 //! carries its access token, checked in `auth::Ctx`, and the organization it acts in (`x-turf-org`). This server keeps
@@ -37,7 +37,7 @@ struct Bootstrap {
 }
 
 /// The first organization on a fresh self-hosted server, owned by the signed-in person. It has no plan, so no limits.
-/// Refused once any organization exists; later people join by invitation (or open a trial on Turf's own service).
+/// Refused once any organization exists; later people join by invitation (or open a trial on Caller Whale's own service).
 async fn bootstrap(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Bootstrap>) -> ApiResult<Json<Value>> {
     let name = body.organization.trim();
     if name.is_empty() || name.chars().count() > 200 {
