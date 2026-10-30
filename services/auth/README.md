@@ -81,7 +81,7 @@ The paste-ready settings for Coolify are in [`env/auth.production.example`](../.
 | --- | --- | --- |
 | `DATABASE_URL` | `sqlite://auth.db?mode=rwc` | `postgres://...` in production |
 | `PORT` | 8101 | |
-| `AUTH_SIGNING_KEY` | (none) | Base64 Ed25519 key from `new-key`. **Without it a temporary key is used, and every token stops working when the process stops.** Keep it in the deployment's secret store |
+| `AUTH_SIGNING_KEY` | (none) | Base64 Ed25519 key from `new-key`, or base64 of any 32 random bytes (PowerShell: `$b = New-Object byte[] 32; (New-Object Security.Cryptography.RNGCryptoServiceProvider).GetBytes($b); [Convert]::ToBase64String($b)`). **Without it a temporary key is used, and every token stops working when the process stops.** Keep it in the deployment's secret store |
 | `AUTH_ACCESS_MINUTES` | 15 | |
 | `AUTH_REFRESH_DAYS` | 30 | |
 | `AUTH_PUBLIC_SIGNUP` | true | |

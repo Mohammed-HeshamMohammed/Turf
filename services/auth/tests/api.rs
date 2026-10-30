@@ -183,6 +183,19 @@ async fn sign_up_can_be_closed() {
 }
 
 #[tokio::test]
+async fn a_plain_32_byte_secret_works_as_the_signing_key() {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    let secret = STANDARD.encode([7u8; 32]);
+    let a = Keys::from_base64(&secret).unwrap();
+    let b = Keys::from_base64(&secret).unwrap();
+    assert_eq!(a.kid, b.kid, "the same secret is the same key");
+    let person = callerwhale_auth::keys::Person { id: "u".into(), email: "e@example.com".into(), name: "E".into(), email_verified: true };
+    let (token, _) = a.sign(&person, "s", false, "password", callerwhale_auth::now(), callerwhale_auth::now(), 15).unwrap();
+    assert_eq!(b.verifier.verify(&token).unwrap().sub, "u");
+    assert!(Keys::from_base64(&STANDARD.encode([7u8; 31])).is_err());
+}
+
+#[tokio::test]
 async fn a_signing_key_survives_a_restart() {
     let secret = Keys::new_secret().unwrap();
     let a = Keys::from_base64(&secret).unwrap();

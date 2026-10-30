@@ -23,9 +23,20 @@ pub struct Keys {
 }
 
 impl Keys {
-    /// From base64 of an Ed25519 PKCS#8 key.
+    /// From base64 of an Ed25519 PKCS#8 key (what `new-key` prints), or of a plain random 32-byte secret, which anyone can make
+    /// with a shell (see the README) and which is turned into the same kind of key.
     pub fn from_base64(text: &str) -> anyhow::Result<Self> {
-        Self::from_pkcs8(&STANDARD.decode(text.trim())?)
+        let bytes = STANDARD.decode(text.trim())?;
+        if bytes.len() == 32 {
+            let pair = Ed25519KeyPair::from_seed_unchecked(&bytes).map_err(|_| anyhow::anyhow!("AUTH_SIGNING_KEY is not a usable 32-byte secret"))?;
+            // PKCS#8 v2 around the seed and its public key: the form ring and the token signer read.
+            let mut pkcs8 = hex::decode("3053020101300506032b657004220420")?;
+            pkcs8.extend_from_slice(&bytes);
+            pkcs8.extend_from_slice(&hex::decode("a123032100")?);
+            pkcs8.extend_from_slice(pair.public_key().as_ref());
+            return Self::from_pkcs8(&pkcs8);
+        }
+        Self::from_pkcs8(&bytes)
     }
 
     /// A new key. Tokens it signs stop working when the process ends.
