@@ -1,0 +1,8 @@
+# The public site on Coolify (application "landing-web", port 8080, domain https://callerwhale.com). Paste into Developer View.
+# Build settings:
+SITE_URL=https://callerwhale.com
+VITE_CALLERWHALE_API_URL=https://app.callerwhale.com
+# Runtime settings (the web container's security policy):
+AUTH_ORIGIN=https://auth.callerwhale.com
+API_ORIGIN=https://app.callerwhale.com
+GRAFANA_ORIGIN=https://grafana.callerwhale.com
