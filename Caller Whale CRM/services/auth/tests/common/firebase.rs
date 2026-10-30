@@ -29,6 +29,7 @@ pub struct World {
     ids: HashMap<String, String>,
     refreshes: HashMap<String, String>,
     pub sent_verifications: Vec<String>,
+    pub sent_resets: Vec<String>,
     pub calls: Vec<String>,
     counter: u32,
 }
@@ -52,6 +53,7 @@ pub async fn start() -> Fake {
         .route("/v1/accounts:lookup", post(lookup))
         .route("/v1/accounts:update", post(update))
         .route("/v1/accounts:sendOobCode", post(send_oob))
+        .route("/v1/accounts:resetPassword", post(reset_password))
         .route("/v2/accounts/mfaEnrollment:start", post(enroll_start))
         .route("/v2/accounts/mfaEnrollment:finalize", post(enroll_finalize))
         .route("/v1/token", post(token))
@@ -102,6 +104,12 @@ impl World {
 
     pub fn password_of(&self, email: &str) -> Option<String> {
         self.accounts.iter().find(|a| a.email == email).map(|a| a.password.clone())
+    }
+
+    pub fn verify_now(&mut self, email: &str) {
+        if let Some(a) = self.accounts.iter_mut().find(|a| a.email == email) {
+            a.verified = true;
+        }
     }
 
     pub fn asked(&self, what: &str) -> usize {
@@ -212,10 +220,30 @@ async fn update(State(w): State<Shared>, Json(body): Json<Value>) -> Reply {
 async fn send_oob(State(w): State<Shared>, Json(body): Json<Value>) -> Reply {
     let mut w = w.lock().unwrap();
     w.calls.push("sendOobCode".into());
+    if body["requestType"] == "PASSWORD_RESET" {
+        let email = text(&body, "email").to_lowercase();
+        if !w.has_account(&email) {
+            return refuse("EMAIL_NOT_FOUND");
+        }
+        w.sent_resets.push(email);
+        return ok(json!({}));
+    }
     let Some(uid) = w.uid_of(&text(&body, "idToken")) else { return refuse("INVALID_ID_TOKEN") };
     let email = w.account(&uid).unwrap().email.clone();
     w.sent_verifications.push(email);
     ok(json!({}))
+}
+
+async fn reset_password(State(w): State<Shared>, Json(body): Json<Value>) -> Reply {
+    let mut w = w.lock().unwrap();
+    w.calls.push("resetPassword".into());
+    let Some(email) = text(&body, "oobCode").strip_prefix("reset-").map(str::to_string) else { return refuse("INVALID_OOB_CODE") };
+    let password = text(&body, "newPassword");
+    match w.accounts.iter_mut().find(|a| a.email == email) {
+        Some(a) => a.password = password,
+        None => return refuse("INVALID_OOB_CODE"),
+    }
+    ok(json!({ "email": email }))
 }
 
 async fn enroll_start(State(w): State<Shared>, Json(body): Json<Value>) -> Reply {

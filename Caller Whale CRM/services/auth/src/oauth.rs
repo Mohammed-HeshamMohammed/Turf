@@ -96,6 +96,7 @@ async fn start(State(state): State<AppState>, Path(name): Path<String>, Query(qu
     }
     let target = match query.target.as_str() {
         "app" => "app",
+        "landing" => "landing",
         "desktop" => "desktop",
         _ => "website",
     };
@@ -183,6 +184,8 @@ fn back(state: &AppState, target: &str, port: Option<i64>, code: Option<&str>, e
             Redirect::to(&format!("http://127.0.0.1:{}/callerwhale-sign-in?{pairs}", port.unwrap_or(0)))
         }
         "app" => Redirect::to(&format!("{}/?{found}", state.config.app_url)),
+        // The public site: back to its sign-in page, which finishes the sign-in with the code.
+        "landing" => Redirect::to(&format!("{}/signin?{found}", state.config.landing_url)),
         _ => {
             let page = if code.is_some() && error.is_none() { "account" } else { "signin" };
             Redirect::to(&format!("{}/?{found}#/{page}", state.config.website_url))

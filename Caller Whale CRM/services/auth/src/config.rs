@@ -15,6 +15,8 @@ pub struct Config {
     pub public_url: String,
     /// Where a sign-in started from the website returns.
     pub website_url: String,
+    /// Where a sign-in started from the public site (callerwhale.com) returns.
+    pub landing_url: String,
     /// Where a sign-in started from the CRM in a browser tab returns.
     pub app_url: String,
     /// Development only: return email confirmation tokens in responses, since no email is sent yet.
@@ -85,6 +87,7 @@ impl Config {
             public_url: var("AUTH_PUBLIC_URL", "http://localhost:8101").trim_end_matches('/').to_string(),
             website_url: var("AUTH_WEBSITE_URL", "http://localhost:8088").trim_end_matches('/').to_string(),
             app_url: var("AUTH_APP_URL", "http://localhost:5190").trim_end_matches('/').to_string(),
+            landing_url: var("AUTH_LANDING_URL", "http://localhost:5200").trim_end_matches('/').to_string(),
             dev_tokens: var("AUTH_DEV_TOKENS", "false") == "true",
             allowed_origins: var("AUTH_ALLOWED_ORIGINS", "http://localhost:5190,http://localhost:8088,tauri://localhost,http://tauri.localhost")
                 .split(',')
@@ -126,6 +129,7 @@ impl Config {
             public_url: "http://auth.example".into(),
             website_url: "http://website.example".into(),
             app_url: "http://app.example".into(),
+            landing_url: "http://landing.example".into(),
             dev_tokens: true,
             allowed_origins: vec!["http://app.example".into()],
             google: Provider::default(),

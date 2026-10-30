@@ -43,6 +43,8 @@ pub fn router() -> Router<AppState> {
         .route("/v1/sessions/revoke", post(revoke))
         .route("/v1/me", get(me))
         .route("/v1/password", post(change_password))
+        .route("/v1/password/forgot", post(forgot_password))
+        .route("/v1/password/reset", post(reset_password))
         .route("/v1/mfa/setup", post(mfa_setup))
         .route("/v1/mfa/confirm", post(mfa_confirm))
         .route("/v1/mfa/verify", post(mfa_verify))
@@ -469,7 +471,17 @@ async fn refresh(State(state): State<AppState>, Json(body): Json<Refresh>) -> Au
     let mfa: i64 = row.try_get("mfa_passed")?;
     let provider: String = row.try_get("provider")?;
     let started: i64 = row.try_get("created_at")?;
-    let user = user_by(&state, "id", &user_id).await?.filter(|u| !u.disabled).ok_or(AuthError::Unauthenticated)?;
+    let mut user = user_by(&state, "id", &user_id).await?.filter(|u| !u.disabled).ok_or(AuthError::Unauthenticated)?;
+    // Firebase sent the confirmation email and hosts its link, so ask it whether the address is confirmed now.
+    if let (Some(fb), false) = (state.config.firebase.clone(), user.email_verified) {
+        if let Ok(id) = session_id_token(&state, &fb, &sid).await {
+            if let Ok(profile) = fb.profile(&id).await {
+                if let Ok(updated) = upsert_firebase_user(&state, &profile).await {
+                    user = updated;
+                }
+            }
+        }
+    }
     let (next, next_hash) = new_secret();
     sqlx::query("UPDATE sessions SET refresh_hash = $1, prev_refresh_hash = $2, last_seen_at = $3 WHERE id = $4")
         .bind(&next_hash)
@@ -578,6 +590,38 @@ async fn change_password(State(state): State<AppState>, Person(claims): Person, 
     let t = now() as i64;
     sqlx::query("UPDATE users SET password_hash = $1 WHERE id = $2").bind(&hash).bind(&user.id).execute(&state.db).await?;
     sqlx::query("UPDATE sessions SET revoked_at = $1 WHERE user_id = $2 AND id <> $3 AND revoked_at IS NULL").bind(t).bind(&user.id).bind(&claims.sid).execute(&state.db).await?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+#[derive(Deserialize)]
+struct Forgot {
+    email: String,
+}
+
+/// Emails a password reset link (Firebase sends it). The answer is the same for any address.
+async fn forgot_password(State(state): State<AppState>, Json(body): Json<Forgot>) -> AuthResult<Json<Value>> {
+    let Some(fb) = state.config.firebase.clone() else {
+        return Err(AuthError::Bad("Password reset is not available on this server.".into()));
+    };
+    let email = normal_email(&body.email)?;
+    fb.send_password_reset(&email).await.map_err(AuthError::from)?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+#[derive(Deserialize)]
+struct Reset {
+    token: String,
+    new: String,
+}
+
+/// Sets a new password with the code from the reset link, and ends every session of that person.
+async fn reset_password(State(state): State<AppState>, Json(body): Json<Reset>) -> AuthResult<Json<Value>> {
+    let Some(fb) = state.config.firebase.clone() else {
+        return Err(AuthError::Bad("Password reset is not available on this server.".into()));
+    };
+    too_short(&body.new)?;
+    let email = fb.reset_password(body.token.trim(), &body.new).await.map_err(AuthError::from)?;
+    sqlx::query("UPDATE sessions SET revoked_at = $1 WHERE revoked_at IS NULL AND user_id IN (SELECT id FROM users WHERE email = $2)").bind(now() as i64).bind(&email).execute(&state.db).await?;
     Ok(Json(json!({ "ok": true })))
 }
 

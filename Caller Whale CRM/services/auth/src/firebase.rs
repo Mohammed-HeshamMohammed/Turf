@@ -278,6 +278,20 @@ impl Firebase {
         self.call("/v1/accounts:sendOobCode", json!({ "requestType": "VERIFY_EMAIL", "idToken": id_token })).await.map(|_| ())
     }
 
+    /// Firebase emails a password reset link itself. It answers the same whether or not the address has an account.
+    pub async fn send_password_reset(&self, email: &str) -> Result<(), Refusal> {
+        match self.call("/v1/accounts:sendOobCode", json!({ "requestType": "PASSWORD_RESET", "email": email })).await {
+            Err(Refusal::WrongPassword) => Ok(()), // EMAIL_NOT_FOUND: say nothing about who has an account
+            other => other.map(|_| ()),
+        }
+    }
+
+    /// A new password with the code from the reset link.
+    pub async fn reset_password(&self, oob_code: &str, password: &str) -> Result<String, Refusal> {
+        let reply = self.call("/v1/accounts:resetPassword", json!({ "oobCode": oob_code, "newPassword": password })).await?;
+        Ok(reply.email.to_lowercase())
+    }
+
     /// The code from the confirmation link. Returns the address it confirmed.
     pub async fn confirm_email(&self, oob_code: &str) -> Result<String, Refusal> {
         let reply = self.call("/v1/accounts:update", json!({ "oobCode": oob_code })).await?;

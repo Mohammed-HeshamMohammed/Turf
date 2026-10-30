@@ -216,3 +216,51 @@ async fn without_a_firebase_key_the_service_keeps_its_own_accounts() {
     assert!(token(&made).contains('.'));
     assert_eq!(claims(&app, token(&made)).await.provider, "password");
 }
+
+#[tokio::test]
+async fn a_forgotten_password_is_reset_with_firebases_link_and_every_session_ends() {
+    let (app, fake) = with_firebase().await;
+    let made = sign_up(&app, "sami@example.com").await;
+    // Asking for a link answers the same for anyone, and Firebase only sends one for a real account.
+    for email in ["sami@example.com", "nobody@example.com"] {
+        let (status, body) = call(&app, "POST", "/v1/password/forgot", Some(json!({ "email": email })), None).await;
+        assert_eq!((status, body), (StatusCode::OK, json!({ "ok": true })));
+    }
+    assert_eq!(fake.world.lock().unwrap().sent_resets, ["sami@example.com"]);
+    let (status, _) = call(&app, "POST", "/v1/password/reset", Some(json!({ "token": "nonsense", "new": "a brand new password" })), None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, _) = call(&app, "POST", "/v1/password/reset", Some(json!({ "token": "reset-sami@example.com", "new": "short" })), None).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, body) = call(&app, "POST", "/v1/password/reset", Some(json!({ "token": "reset-sami@example.com", "new": "a brand new password" })), None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(fake.world.lock().unwrap().password_of("sami@example.com").as_deref(), Some("a brand new password"));
+    assert_eq!(call(&app, "GET", "/v1/me", None, Some(token(&made))).await.0, StatusCode::UNAUTHORIZED, "the old session is closed");
+}
+
+#[tokio::test]
+async fn password_reset_is_only_offered_with_firebase() {
+    let app = service().await;
+    let (status, _) = call(&app, "POST", "/v1/password/forgot", Some(json!({ "email": "a@example.com" })), None).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn a_link_confirmed_on_firebases_own_page_shows_up_when_the_session_refreshes() {
+    let (app, fake) = with_firebase().await;
+    let made = sign_up(&app, "sami@example.com").await;
+    assert_eq!(call(&app, "GET", "/v1/me", None, Some(token(&made))).await.1["email_verified"], false);
+    fake.world.lock().unwrap().verify_now("sami@example.com");
+    let (status, refreshed) = call(&app, "POST", "/v1/sessions/refresh", Some(json!({ "refresh_token": made["refresh_token"] })), None).await;
+    assert_eq!(status, StatusCode::OK, "{refreshed}");
+    assert!(claims(&app, token(&refreshed)).await.email_verified);
+}
+
+#[tokio::test]
+async fn the_public_site_gets_its_google_sign_in_back_on_its_sign_in_page() {
+    let (app, _) = google_app().await;
+    let (_, to) = follow(&app, get("/v1/oauth/google/start?target=landing")).await;
+    let (state, nonce) = (param(&to, "state").unwrap(), param(&to, "nonce").unwrap());
+    let claims = json!({ "sub": "g-1", "email": "mona@example.com", "email_verified": true, "name": "Mona", "nonce": nonce });
+    let (_, back) = follow(&app, get(&format!("/v1/oauth/google/callback?code={}&state={state}", provider::code(claims)))).await;
+    assert!(back.starts_with("http://landing.example/signin?callerwhale_code="), "{back}");
+}
