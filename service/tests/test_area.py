@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from turf_service import area
+from callerwhale_service import area
 
 TRACT = {"result": {"geographies": {"Census Tracts": [{"GEOID": "48201410401", "STATE": "48", "COUNTY": "201", "TRACT": "410401", "NAME": "Census Tract 4104.01"}]}}}
 ACS = [["B19013_001E", "B25003_001E", "B25003_002E", "B25077_001E", "B25002_001E", "B25002_003E", "state", "county", "tract"],

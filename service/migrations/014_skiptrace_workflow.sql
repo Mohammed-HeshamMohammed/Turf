@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS manual_marks (
     mark TEXT NOT NULL,
     at TEXT NOT NULL,
     until_date TEXT,
-    source TEXT NOT NULL DEFAULT 'Turf'
+    source TEXT NOT NULL DEFAULT 'Caller Whale'
 );
 CREATE TABLE IF NOT EXISTS manual_mark_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

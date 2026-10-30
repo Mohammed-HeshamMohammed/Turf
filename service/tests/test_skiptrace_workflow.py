@@ -8,7 +8,7 @@ import pytest
 
 from helpers import call, ok, wait
 from test_service_skiptrace import FILE_A, FILE_B, confirmed, make_dataset, run, service  # noqa: F401
-from turf_service import skiptrace
+from callerwhale_service import skiptrace
 
 
 def test_every_status_can_be_mapped_and_ignored_meanings_stay_ignored(service, tmp_path):
@@ -44,7 +44,7 @@ def test_manual_wrong_and_dnc_propagate_but_called_is_not_reached(service, tmp_p
     assert report["verdicts"] == {"wrong": 2, "suspicious": 0, "unverified": 1, "corroborated": 0}
     assert report["row_counts"]["known_wrong"] == 1 and report["row_counts"]["dnc"] == 1
     text = " ".join(example["text"] for reason in report["reasons"] for example in reason["examples"])
-    assert "Turf manual mark" in text and datetime.now(timezone.utc).date().isoformat() in text, "marks are stamped in UTC"
+    assert "Caller Whale manual mark" in text and datetime.now(timezone.utc).date().isoformat() in text, "marks are stamped in UTC"
 
 
 def test_manual_interest_and_wrong_conflict_keeps_sources_and_dnc_still_blocks(service, tmp_path):
@@ -57,7 +57,7 @@ def test_manual_interest_and_wrong_conflict_keeps_sources_and_dnc_still_blocks(s
     report = run(service, "skiptrace.scan", dataset_id=dataset, config=config)["report"]
     assert report["verdicts"]["suspicious"] == 1
     reason = next(item for item in report["reasons"] if item["code"] == "conflicting_outcomes")
-    assert "Turf manual mark" in reason["examples"][0]["text"] and "this file" in reason["examples"][0]["text"]
+    assert "Caller Whale manual mark" in reason["examples"][0]["text"] and "this file" in reason["examples"][0]["text"]
     ok(service, "marks.set", number=number, mark="do_not_call")
     assert run(service, "skiptrace.scan", dataset_id=dataset, config=config)["report"]["verdicts"]["wrong"] == 1
 
@@ -226,7 +226,7 @@ def test_explicitly_choosing_no_outcomes_is_preserved(service, tmp_path):
 
 
 def test_checked_copy_preserves_column_mapping_and_mapping_failure_is_atomic(service, tmp_path, monkeypatch):
-    from turf_service.datasets import confirm_mapping, latest_mapping
+    from callerwhale_service.datasets import confirm_mapping, latest_mapping
     dataset = make_dataset(service, tmp_path, "Mapped", FILE_A)
     config = confirmed(service, dataset)
     confirm_mapping(service.store, dataset, {"Phone": "phone", "First Name": "first_name"})

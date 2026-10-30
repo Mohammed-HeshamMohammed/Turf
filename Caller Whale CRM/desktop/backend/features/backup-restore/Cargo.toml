@@ -1,0 +1,6 @@
+[package]
+name = "callerwhale-desktop-backup-restore"
+version = "0.1.0"
+edition = "2021"
+description = "Feature 8 on the person's computer: the recycle bin and the project backup zip."
+publish = false

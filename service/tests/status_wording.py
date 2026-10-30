@@ -1,7 +1,7 @@
 """Call statuses as dialers and CRMs write them, with the meaning a person would choose.
 
 Used to measure how call statuses are read (tests/test_status_meaning.py). Written separately from the model's
-examples in turf_matching/status_meaning.py, so the model is measured on wording it has not been given. ``None`` marks
+examples in callerwhale_matching/status_meaning.py, so the model is measured on wording it has not been given. ``None`` marks
 a status only the person can settle: it must never be confirmed automatically.
 """
 

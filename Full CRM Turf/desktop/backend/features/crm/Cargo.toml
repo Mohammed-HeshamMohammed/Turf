@@ -1,6 +1,0 @@
-[package]
-name = "turf-desktop-crm"
-version = "0.1.0"
-edition = "2021"
-description = "Feature 5 on the person's computer: the local workspace, the encrypted offline copy and the sync queue."
-publish = false

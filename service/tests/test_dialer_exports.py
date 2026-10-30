@@ -22,7 +22,7 @@ def choices(report, row=0):
 
 
 def test_dialer_wrong_person_matches_named_lead_without_export_zip_and_preserves_timestamp(service, tmp_path, monkeypatch):
-    from turf_service import phone_lookup
+    from callerwhale_service import phone_lookup
     monkeypatch.setattr(phone_lookup, 'fetch_number', lambda *args: pytest.fail('Dialer exports need no lookup requests'))
     lead = make_dataset(service, tmp_path, 'Leads', [FILE_A[0], ['Bo', 'Reyes', '7135553142', '', '77009', 'TX', 'Not yet reached']])
     config = confirmed(service, lead)
@@ -34,8 +34,8 @@ def test_dialer_wrong_person_matches_named_lead_without_export_zip_and_preserves
     assert report['row_counts']['known_wrong'] == 1
     assert choices(report, 1)[0]['quality'] != 'wrong'
     # The lead's last result can be later global activity; inspect the export's actual wrong-person event directly.
-    from turf_service.skiptrace import _knowledge, _dataset
-    from turf_service.cleaning import _rows
+    from callerwhale_service.skiptrace import _knowledge, _dataset
+    from callerwhale_service.cleaning import _rows
     source_config = ok(service, 'skiptrace.suggest', dataset_id=exported)['config']
     _, rows = _rows(service.store, exported)
     knowledge, _ = _knowledge(service.store, service.project['id'], _dataset(service.store, exported), source_config, rows)

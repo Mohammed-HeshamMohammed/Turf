@@ -34,7 +34,7 @@ def add(svc, tmp_path: Path, name: str, table: list[list[str]]) -> str:
 def setup(svc, dataset: str, **columns) -> None:
     config = {**ok(svc, "skiptrace.suggest", dataset_id=dataset)["config"], **columns}
     if not config["phone_columns"]:
-        # A list with no phones has no Skip Tracing setup to save; combining uses what Turf suggests for it.
+        # A list with no phones has no Skip Tracing setup to save; combining uses what Caller Whale suggests for it.
         return
     ok(svc, "skiptrace.save_settings", dataset_id=dataset, config=config)
 

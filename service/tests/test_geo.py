@@ -10,8 +10,8 @@ from pathlib import Path
 import pytest
 
 from helpers import call, ok, wait
-from turf_service import geo
-from turf_service.api import Service
+from callerwhale_service import geo
+from callerwhale_service.api import Service
 
 COLUMNS = {"street": "Address", "city": "City", "state": "State", "zip": "Zip"}
 
@@ -93,7 +93,7 @@ def test_addresses_are_looked_up_once_and_kept_only_when_state_and_zip_agree(tmp
     # Nothing is asked twice, and the answers are in the project folder.
     again = wait(svc, ok(svc, "geo.locate", dataset_id=dataset_id, columns=COLUMNS)["job_id"])
     assert again["result"]["looked_up"] == 0 and len(sent) == 1
-    kept = json.loads((tmp_path / "project" / "turf" / "geocodes.json").read_text(encoding="utf-8"))
+    kept = json.loads((tmp_path / "project" / "callerwhale" / "geocodes.json").read_text(encoding="utf-8"))
     assert kept["1 nowhere rd|houston|tx|77009"] is None and kept["1718 everett st|houston|tx|77009"] == [29.7801, -95.3601]
 
 

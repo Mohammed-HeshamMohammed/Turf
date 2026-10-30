@@ -7,7 +7,7 @@ on:
 
 jobs:
   check:
-    # The same checks as `npm run check`, on the system Turf is built for.
+    # The same checks as `npm run check`, on the system Caller Whale is built for.
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: Turf/package-lock.json
+          cache-dependency-path: Caller Whale App/package-lock.json
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -23,17 +23,17 @@ jobs:
           cache-dependency-path: service/requirements.txt
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: Turf/src-tauri
+          workspaces: Caller Whale App/src-tauri
       - run: npm ci
-        working-directory: Turf
+        working-directory: Caller Whale App
       - run: pip install -r service/requirements.txt pytest
       - run: npm run lint
-        working-directory: Turf
+        working-directory: Caller Whale App
       - run: npm run format:check
-        working-directory: Turf
+        working-directory: Caller Whale App
       - run: npm run build
-        working-directory: Turf
+        working-directory: Caller Whale App
       - run: npm test
-        working-directory: Turf
+        working-directory: Caller Whale App
       - run: python -m pytest service/tests -q
-      - run: cargo test --manifest-path Turf/src-tauri/Cargo.toml
+      - run: cargo test --manifest-path "Caller Whale App/src-tauri/Cargo.toml"

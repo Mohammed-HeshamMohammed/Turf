@@ -1,4 +1,0 @@
--- Run in turf-auth-postgres as postgres. Coolify creates the turf_auth database at first start.
--- Auth uses its own login and never uses the postgres superuser.
-CREATE ROLE turf_auth LOGIN PASSWORD '__DB_AUTH_PASSWORD__';
-ALTER DATABASE turf_auth OWNER TO turf_auth;

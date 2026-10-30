@@ -1,0 +1,19 @@
+{
+  "bundle": {
+    "active": true,
+    "createUpdaterArtifacts": true,
+    "targets": ["nsis"],
+    "icon": ["icons/icon.ico"],
+    "publisher": "Caller Whale",
+    "shortDescription": "Caller Whale: lists, Skip Tracing, calls and the CRM",
+    "resources": {
+      "../../../../service/dist/callerwhale-service.exe": "service/callerwhale-service.exe",
+      "../../../../service/migrations/": "migrations/"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+[package]
+name = "callerwhale-grouping"
+description = "Deterministic grouping of matched records, shared by the API and offline Skip Tracing"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]

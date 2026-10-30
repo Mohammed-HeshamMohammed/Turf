@@ -1,19 +1,19 @@
-# Turf: plan
+# Caller Whale: plan
 
-Turf is the place to manage your lists and the areas they cover. The data comes from DataForge: listings collected through the browser extension, public records, and the phone checks from DataForge's Skip Tracing.
+Caller Whale is the place to manage your lists and the areas they cover. The data comes from DataForge: listings collected through the browser extension, public records, and the phone checks from DataForge's Skip Tracing.
 
 Status: the first version is built (Dashboard, Lists with automatic and manual marks, Skip Tracing). See [README.md](README.md) for how it is built and what is not done. This plan was written 8 October 2026 from the conversation that started it; the open questions below show what was decided since.
 
-## What Turf is for
+## What Caller Whale is for
 
-You work with lists: files of rows, such as a skip-traced export or a run of Zillow listings. Turf is where you:
+You work with lists: files of rows, such as a skip-traced export or a run of Zillow listings. Caller Whale is where you:
 
 - see all your lists;
 - pick one and see its rows, each with marks (is this number wrong, do-not-call, worth calling);
 - see which areas the list covers (state, city, ZIP) and how many rows are in each;
 - filter the rows by area, mark, or any column.
 
-## What Turf is not
+## What Caller Whale is not
 
 The first design idea was a brokerage dashboard (reference image in `docs/reference/`). These parts are **dropped** because the data does not exist or is not wanted:
 
@@ -40,16 +40,16 @@ The first design idea was a brokerage dashboard (reference image in `docs/refere
 4. **Areas.** A summary of where the list reaches, by state, city and ZIP, with counts. Clicking an area filters the rows. A small map shows the same areas as dots (latitude and longitude are collected for listings).
 5. **Filters and search** on the rows, using the columns the list really has.
 
-If a list has no state, ZIP or city column, Turf says so and lets you map one. It does not guess.
+If a list has no state, ZIP or city column, Caller Whale says so and lets you map one. It does not guess.
 
 ## Marks: automatic and manual (to confirm)
 
 - **Automatic marks** come from DataForge's Skip Tracing and need nothing from you.
-- **Manual marks** would let you mark a row yourself: called, wrong number, do-not-call, interested. Those are saved as call outcomes, which is exactly the data Skip Tracing uses to flag the same number in every other row and file. This closes the loop: mark a row in Turf and the number is flagged everywhere.
+- **Manual marks** would let you mark a row yourself: called, wrong number, do-not-call, interested. Those are saved as call outcomes, which is exactly the data Skip Tracing uses to flag the same number in every other row and file. This closes the loop: mark a row in Caller Whale and the number is flagged everywhere.
 
 Manual marks are the second step. They need a place to store them and a way to feed them back as outcomes.
 
-## What Turf reads from DataForge
+## What Caller Whale reads from DataForge
 
 | Need | Where it comes from in DataForge |
 | --- | --- |
@@ -60,15 +60,15 @@ Manual marks are the second step. They need a place to store them and a way to f
 | Listings (price, beds, baths, area, photos, latitude, longitude) | the Zillow collector's dataset |
 | Areas | the state, ZIP and city columns of each list, found through the column mapping |
 
-DataForge is the engine. Turf only shows and manages what DataForge has.
+DataForge is the engine. Caller Whale only shows and manages what DataForge has.
 
-## What Turf can show that a generic dashboard cannot
+## What Caller Whale can show that a generic dashboard cannot
 
 DataForge holds listings, owner and public records, and checked phone numbers. Clean & Combine already matches rows by address. A combined record could show one property with its listing, its owner, the best phone and whether that number is wrong or on a do-not-call list. That is a later step, after Lists.
 
 ## Open questions
 
-Decided so far: (1) a separate app with its own copy of the service; (2) the mockup's layout; (3) manual marks from the start, kept by Turf; (6) dots on a plain plot for now. Still open: 4, 5, 7 and the street map.
+Decided so far: (1) a separate app with its own copy of the service; (2) the mockup's layout; (3) manual marks from the start, kept by Caller Whale; (6) dots on a plain plot for now. Still open: 4, 5, 7 and the street map.
 
 1. **A tab inside DataForge, a second window of it, or a separate app?** The data lives in a DataForge project, so a tab or window needs no copying. A separate app needs a local API or an export, and is only worth it if people who should not have the collection tools will use it.
 2. **Layout.** The mockup uses a top row of pill tabs on a light background. DataForge's own layout is contained sidebar panels with gaps and a status bar. Inside DataForge the second applies; a separate app could follow the mockup.

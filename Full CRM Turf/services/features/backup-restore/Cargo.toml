@@ -1,6 +1,0 @@
-[package]
-name = "turf-backup-restore"
-version = "0.1.0"
-edition = "2021"
-description = "Feature 8: the recycle bin, point-in-time restore and workspace downloads."
-publish = false

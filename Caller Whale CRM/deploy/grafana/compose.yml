@@ -1,0 +1,96 @@
+# Grafana for Caller Whale's staff, behind the Caller Whale login proxy (docs/plans/grafana-access.md). One Coolify resource of type
+# Docker Compose, with this file as its compose file. In Coolify, give a domain ONLY to grafana-proxy; leave grafana's
+# domain empty. Grafana publishes no port.
+#
+# Locally (from the repository folder "Caller Whale CRM"):
+#   docker compose --env-file deploy/grafana/.env -f deploy/grafana/compose.yml up --build
+#
+# Two locks keep Grafana closed to everyone but the proxy:
+# 1. Grafana has no domain and no published port, so only containers on this resource's networks reach it.
+# 2. Grafana believes the X-WEBAUTH-* headers only from the proxy's fixed address (GF_AUTH_PROXY_WHITELIST). Anything
+#    else that reaches it, Coolify's Traefik included, gets the login page with its login form turned off: nobody in.
+# The proxy calls Grafana by its fixed address on the "grafana" network, so the request always comes from the
+# whitelisted address, whatever other networks Coolify adds. If 172.30.10.0/24 is taken on the server, change the
+# subnet and the three addresses below together.
+name: callerwhale-grafana
+services:
+  grafana-proxy:
+    build:
+      context: ../../services/grafana-proxy
+    environment:
+      PORT: "8120"
+      GRAFANA_URL: http://172.30.10.20:3000
+      CALLERWHALE_CORE_API_URL: "${CALLERWHALE_CORE_API_URL:?set CALLERWHALE_CORE_API_URL, the core API's address}"
+      CALLERWHALE_WEBSITE_URL: "${CALLERWHALE_WEBSITE_URL:?set CALLERWHALE_WEBSITE_URL, the website with the admin dashboard}"
+      ADMIN_GRAFANA_ROLE: "${ADMIN_GRAFANA_ROLE:-Editor}"
+      RECHECK_EVERY: "${RECHECK_EVERY:-60s}"
+      SESSION_MAX_AGE: "${SESSION_MAX_AGE:-1h}"
+      IDLE_TIMEOUT: "${IDLE_TIMEOUT:-10m}"
+      AUTH_WITHIN: "${AUTH_WITHIN:-15m}"
+      COOKIE_SECURE: "${COOKIE_SECURE:-true}"
+    networks:
+      grafana:
+        ipv4_address: 172.30.10.10
+    healthcheck:
+      test: ["CMD", "/service", "health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - grafana
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana-oss:13.2.5
+    environment:
+      # Where people reach Grafana: the proxy's domain.
+      GF_SERVER_ROOT_URL: "${GRAFANA_PUBLIC_URL:?set GRAFANA_PUBLIC_URL, the proxy's https address}"
+      # Grafana's own "admin" account. Nobody can sign in with it (no login form, no basic auth, and the proxy only
+      # ever names people by their Caller Whale id); it is set only so Grafana doesn't keep its default password.
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD}"
+      GF_SECURITY_COOKIE_SECURE: "${COOKIE_SECURE:-true}"
+      GF_SECURITY_COOKIE_SAMESITE: lax
+      # Shown only in the admin page's frame; the proxy limits who may frame it (frame-ancestors).
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      # People are who the proxy says they are, and only when the proxy says it.
+      GF_AUTH_PROXY_ENABLED: "true"
+      GF_AUTH_PROXY_HEADER_NAME: X-WEBAUTH-USER
+      GF_AUTH_PROXY_HEADER_PROPERTY: username
+      GF_AUTH_PROXY_HEADERS: "Email:X-WEBAUTH-EMAIL Name:X-WEBAUTH-NAME Role:X-WEBAUTH-ROLE"
+      GF_AUTH_PROXY_AUTO_SIGN_UP: "true"
+      GF_AUTH_PROXY_WHITELIST: 172.30.10.10
+      GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN: "false"
+      # No other way in.
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_AUTH_BASIC_ENABLED: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
+      # Signing out of Grafana signs out of the proxy.
+      GF_AUTH_SIGNOUT_REDIRECT_URL: "${GRAFANA_PUBLIC_URL}/_callerwhale/logout"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      # Plugins are installed here, by name (comma separated), since nobody is a Grafana server admin.
+      GF_PLUGINS_PREINSTALL: "${GRAFANA_PLUGINS:-}"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      grafana:
+        ipv4_address: 172.30.10.20
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+networks:
+  grafana:
+    ipam:
+      config:
+        - subnet: 172.30.10.0/24
+
+volumes:
+  grafana-data:

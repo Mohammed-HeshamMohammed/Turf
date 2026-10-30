@@ -4,7 +4,7 @@ The place to manage your lists and the areas they cover.
 
 Start with [PLAN.md](docs/PLAN.md). The mockup that started the idea is in `docs/reference/` (only its look is a reference: revenue, appointments, messages and agent names are not part of Caller Whale).
 
-**Layout.** `Turf/` is the desktop app described below (paths like `src/` and `src-tauri/` are inside it, so run its `npm` commands from `Turf/`). `Full CRM Turf/` is the full CRM app; its structure and rules are in [FULL_CRM_CALLERWHALE_STRUCTURE.md](FULL_CRM_CALLERWHALE_STRUCTURE.md). `service/` (Python engine), `backend/`, `website/`, `contracts/` and `docs/` are shared and stay at the root.
+**Layout.** `Caller Whale App/` is the desktop app described below (paths like `src/` and `src-tauri/` are inside it, so run its `npm` commands from `Caller Whale App/`). `Caller Whale CRM/` is the full CRM app; its structure and rules are in [FULL_CRM_CALLERWHALE_STRUCTURE.md](FULL_CRM_CALLERWHALE_STRUCTURE.md). `service/` (Python engine), `backend/`, `website/`, `contracts/` and `docs/` are shared and stay at the root.
 
 ## How it is built
 
@@ -60,13 +60,13 @@ pip install pyinstaller
 npm run package
 ```
 
-This builds the service into one executable (`service/dist/turf-service.exe`, by `service/tools/build_service.py`), then the Windows installer with it and the migrations inside (`src-tauri/tauri.package.conf.json`). The installer is written under `src-tauri/target/release/bundle/nsis/`. A packaged Caller Whale starts that executable and needs no Python; run from source, it still uses Python as before.
+This builds the service into one executable (`service/dist/callerwhale-service.exe`, by `service/tools/build_service.py`), then the Windows installer with it and the migrations inside (`src-tauri/tauri.package.conf.json`). The installer is written under `src-tauri/target/release/bundle/nsis/`. A packaged Caller Whale starts that executable and needs no Python; run from source, it still uses Python as before.
 
 The build needs a few gigabytes free. On a drive without room, send the working files elsewhere: `python service/tools/build_service.py --work D:\build`, and set `CARGO_TARGET_DIR` for the host's build.
 
 ## Long lists
 
-A list of up to 50,000 rows is read whole into the window, which counts, filters and maps it by itself. A longer one is counted and paged by the service instead (`service/turf_service/views.py`): Lists shows it a page at a time, filtered by the service (verdict, flag, a column, search, area), and the Dashboard takes its counts (verdicts, how rows can be reached, areas, where its rows are) from the service. The service applies the window's own rules, and on a 60,000-row list both give the same counts. On that list the Dashboard opened in about 5 seconds with the window holding 26 MB.
+A list of up to 50,000 rows is read whole into the window, which counts, filters and maps it by itself. A longer one is counted and paged by the service instead (`service/callerwhale_service/views.py`): Lists shows it a page at a time, filtered by the service (verdict, flag, a column, search, area), and the Dashboard takes its counts (verdicts, how rows can be reached, areas, where its rows are) from the service. The service applies the window's own rules, and on a 60,000-row list both give the same counts. On that list the Dashboard opened in about 5 seconds with the window holding 26 MB.
 
 What needs every row of every list at once is left out for a long list: owners and contacts found in other lists, pictures borrowed from them, and each property on its own address on the map (a long list is drawn by ZIP). An email in a long list counts as a way to reach someone without its domain being looked up.
 
@@ -74,7 +74,7 @@ What needs every row of every list at once is left out for a long list: owners a
 
 Drop a list's file anywhere on the window to add it to the open project; several files are added one after another. While a file is held over the window, the whole window says where it will go. **Import** in Lists and in the menu do the same for one file.
 
-A file whose rows are already in the project is not added again, whatever it is called now. Caller Whale reads each row as the values it holds, not as its columns' names or their order, so the same list is known again as another file, in another format (a spreadsheet where it was a CSV), with its columns renamed or moved, or with different capitals and spacing (`service/turf_service/sameness.py`). It is refused when it is the same file, the same rows, or a part of a list that is here; the message names the list, and **Add it all the same** adds it if that is what you want. A file that holds a list and more is added, and says how much of it is new; one that shares some rows with a list says how many, so you can combine the two.
+A file whose rows are already in the project is not added again, whatever it is called now. Caller Whale reads each row as the values it holds, not as its columns' names or their order, so the same list is known again as another file, in another format (a spreadsheet where it was a CSV), with its columns renamed or moved, or with different capitals and spacing (`service/callerwhale_service/sameness.py`). It is refused when it is the same file, the same rows, or a part of a list that is here; the message names the list, and **Add it all the same** adds it if that is what you want. A file that holds a list and more is added, and says how much of it is new; one that shares some rows with a list says how many, so you can combine the two.
 
 Each list's rows are kept as a small sketch in the project, so adding a file never reads every other list again. Up to 4,096 rows the answer is exact; for a longer list it is an estimate within a percent or two. A file with some of a list's columns left out is not recognised as that list.
 
@@ -163,7 +163,7 @@ All five steps remain: phone columns, call outcomes, warning signs, results, and
 
 ### Repeated leads
 
-A phone check also looks for rows that repeat the same lead, and says so in its results. It uses DataForge's matching engine (candidate groups, field-by-field evidence, guards that keep different people and different properties apart, and a likelihood estimated from the list itself), with the columns of the Skip Tracing setup; there is no second setup. On top of the engine, for lists of leads (`service/turf_matching/duplicates.py`):
+A phone check also looks for rows that repeat the same lead, and says so in its results. It uses DataForge's matching engine (candidate groups, field-by-field evidence, guards that keep different people and different properties apart, and a likelihood estimated from the list itself), with the columns of the Skip Tracing setup; there is no second setup. On top of the engine, for lists of leads (`service/callerwhale_matching/duplicates.py`):
 
 - **One owner with several properties is not a duplicate.** Those rows are told apart and reported as the same owner, so one call can cover them all.
 - **Names as lists write them.** "SMITH JOHN A" and "John Smith" are one name; a company is compared without "LLC" or "Inc."; "SMITH JOHN & MARY" is a household, not one person. People of one household with different first names are never merged.
@@ -179,7 +179,7 @@ No group of rows is left out for being large. Rows are compared when they share 
 
 ### How call statuses are read
 
-Three readers look at each status, most trusted first (`service/turf_matching/status_meaning.py`):
+Three readers look at each status, most trusted first (`service/callerwhale_matching/status_meaning.py`):
 
 1. **Your earlier decisions** for the same wording on any list of the project (punctuation, spacing and dates inside the status don't matter). They always win.
 2. **Phrase rules** for common dialer wording, with abbreviations spelled out (LVM, NI, RCB, Disco, WN…). A status is settled only when every word in it is understood and nothing contradicts; one unknown word leaves it for you.
@@ -232,13 +232,13 @@ Successful results for the same products are reused within the configured cache 
 | `src/lib/service.ts` | The window's side of the service: one function per command. |
 | `src/lib/marks.ts` | Reads marks and areas from a list's columns. |
 | `src-tauri/src/sidecar.rs` | The bridge to the service: a child process speaking JSON lines, as in DataForge's host. |
-| `src-tauri/src/store.rs` | Area mappings and earlier computer-wide marks in `turf.json`. New manual marks and their history are saved in the project database. Earlier marks can be explicitly imported into a project without deleting the old store. |
-| `service/turf_service/` | The service: the command router, projects, lists, jobs and the Skip Tracing commands. An import leaves out empty rows and columns; lists already in a project get the same when it is opened (`tidy.py`). |
-| `src/components/CrmCards.tsx`, `FollowUpRules.tsx`, `service/turf_service/crm.py` | Activity, call statistics, callback reminders, search everywhere and the follow-up rules. |
+| `src-tauri/src/store.rs` | Area mappings and earlier computer-wide marks in `callerwhale.json`. New manual marks and their history are saved in the project database. Earlier marks can be explicitly imported into a project without deleting the old store. |
+| `service/callerwhale_service/` | The service: the command router, projects, lists, jobs and the Skip Tracing commands. An import leaves out empty rows and columns; lists already in a project get the same when it is opened (`tidy.py`). |
+| `src/components/CrmCards.tsx`, `FollowUpRules.tsx`, `service/callerwhale_service/crm.py` | Activity, call statistics, callback reminders, search everywhere and the follow-up rules. |
 | `src/components/DropImport.tsx`, `CombineLists.tsx` | Dropping files on the window, and combining lists into one. |
-| `service/turf_service/sameness.py`, `combine.py` | Knowing a list's rows again whatever the file is called; combining lists, and what the person decided about rows being the same lead. |
-| `service/turf_matching/` | Phone reading and the Skip Tracing rules, including how call statuses are read (`status_meaning.py`) and how repeated leads are found and lists combined (`duplicates.py` and `combine.py`, on DataForge's `engine.py`, `normalize.py` and `likelihood.py`). |
-| `service/turf_service/geo.py` | Where rows go on the map: the centre of their ZIP (a file shipped with Caller Whale, checked against the row's state), or their exact address once it has been looked up. The lookup starts by itself the first time a list with a street and a ZIP (or city and state) is shown in Lists, says so under the map, and can be stopped; what was found is kept in the project and not asked for again. It sends street, city, state and ZIP to the US Census Bureau's geocoder; nothing else leaves the computer. |
+| `service/callerwhale_service/sameness.py`, `combine.py` | Knowing a list's rows again whatever the file is called; combining lists, and what the person decided about rows being the same lead. |
+| `service/callerwhale_matching/` | Phone reading and the Skip Tracing rules, including how call statuses are read (`status_meaning.py`) and how repeated leads are found and lists combined (`duplicates.py` and `combine.py`, on DataForge's `engine.py`, `normalize.py` and `likelihood.py`). |
+| `service/callerwhale_service/geo.py` | Where rows go on the map: the centre of their ZIP (a file shipped with Caller Whale, checked against the row's state), or their exact address once it has been looked up. The lookup starts by itself the first time a list with a street and a ZIP (or city and state) is shown in Lists, says so under the map, and can be stopped; what was found is kept in the project and not asked for again. It sends street, city, state and ZIP to the US Census Bureau's geocoder; nothing else leaves the computer. |
 | `service/migrations/` | The project database's schema. |
 | `vite.config.ts` | For a browser tab only: serves `/rpc` over the same bridge, to Caller Whale's own page and no other. |
 | `service/tools/build_service.py`, `src-tauri/tauri.package.conf.json` | Packaging: the service as one executable, and the installer that carries it. |

@@ -1,0 +1,147 @@
+openapi: 3.1.0
+info:
+  title: Caller Whale CRM API
+  version: 1.0.0
+  description: |
+    Versioned public contract (plan 2.3). Errors are always `{"error": {"code", "message"}}` with codes
+    bad_request, unauthenticated, mfa_required, forbidden, not_found, conflict, rate_limited, internal.
+    People sign in with the auth service (services/auth), never with this API: every request sends
+    `Authorization: Bearer <auth access token>` and the organization it acts in as `X-CallerWhale-Org: <id>`.
+    Every write carries an operation id.
+    services/core-api/rust/crates/api/tests/contract.rs checks that this file and the router list the same routes.
+servers:
+  - url: /
+components:
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties: { code: { type: string }, message: { type: string } }
+    Op:
+      type: object
+      required: [id, kind]
+      properties:
+        id: { type: string, format: uuid, description: Chosen by the client; a replay returns the first answer. }
+        kind:
+          type: string
+          enum: [lead.create, lead.update, lead.assign, lead.delete, lead.archive, lead.restore, lead.share, note.add, note.edit, note.delete,
+                 call.record, task.create, task.update,
+                 task.complete, task.delete, handoff.request, handoff.decide, deal.create, deal.update, deal.delete, message.draft, follow,
+                 notification.read]
+        payload: { type: object, description: "Versioned edits: {id, changes: {field: value}, base: {field: value the client edited from}}" }
+        claimed_at: { type: string, format: date-time, description: The device's time; kept, never used for ordering. }
+        queued_offline: { type: boolean, description: lead.assign, lead.delete, lead.share, handoff.decide, task.delete, deal.delete and note.delete are refused when true. }
+        device_id: { type: string }
+    OpResult:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [applied, duplicate, rejected, conflict] }
+        original_status: { type: string, description: For a duplicate, the first answer's status. }
+        result: { description: "The resulting record; for a conflict {fields: {field: {local, server, base}}}." }
+        message: { type: string }
+    Change:
+      type: object
+      properties:
+        entity: { type: string, enum: [lead, task, note, call, deal, handoff, message] }
+        id: { type: string, format: uuid }
+        op: { type: string, enum: [upsert, remove], description: remove means deleted or no longer visible to this person. }
+        record: { type: object }
+paths:
+  /healthz: { get: { summary: Liveness } }
+  /readyz: { get: { summary: Readiness (database and cache) } }
+  /api/v1/auth/bootstrap: { post: { summary: First organization on a fresh server, owned by the signed-in person; refused afterwards } }
+  /api/v1/auth/service: { get: { summary: Where the auth service is (the website and the app sign in there) } }
+  /api/v1/invitations/join: { post: { summary: Join the organization of an invitation for this person's email, as the signed-in person } }
+  /api/v1/organizations/trial: { post: { summary: Open a trial organization for the signed-in person, with them as owner (one per person) } }
+  /api/v1/me: { get: { summary: Identity, roles, capabilities, scopes, access revision, MFA state } }
+  /api/v1/admin/members: { get: { summary: Members and open invitations }, post: { summary: Invite (returns a one-time token) } }
+  /api/v1/admin/members/{user_id}: { patch: { summary: Roles, restrictions, teams, projects }, delete: { summary: Remove; revokes sessions } }
+  /api/v1/admin/teams: { get: { summary: Teams }, post: { summary: Create a team } }
+  /api/v1/admin/roles: { get: { summary: Role presets and capabilities } }
+  /api/v1/admin/roles/{key}: { put: { summary: Create or change a role } }
+  /api/v1/admin/audit: { get: { summary: Identity and configuration history } }
+  /api/v1/admin/operations: { get: { summary: This person's rejected and conflicting operations } }
+  /api/v1/admin/operations/{id}/resolve: { post: { summary: Mark a reviewed operation resolved } }
+  /api/v1/projects: { get: { summary: Visible projects }, post: { summary: Create a project } }
+  /api/v1/projects/{id}: { patch: { summary: Name and required qualification fields } }
+  /api/v1/settings: { get: { summary: Current configuration } }
+  /api/v1/settings/{key}: { get: { summary: One setting }, put: { summary: New version of a setting } }
+  /api/v1/settings/{key}/history: { get: { summary: Versions of a setting } }
+  /api/v1/templates: { get: { summary: Email/SMS/script templates }, post: { summary: Create a template } }
+  /api/v1/templates/{id}: { put: { summary: Change a template; changed words need approval again } }
+  /api/v1/integrations: { get: { summary: Provider status ("not configured" until connected) } }
+  /api/v1/directory: { get: { summary: People in the organization (empty for external clients) } }
+  /api/v1/leads: { get: { summary: "Scoped leads; q, stage, assignee (me|unassigned|id), team, project, dataset, due, after, limit" } }
+  /api/v1/leads/{id}: { get: { summary: Lead with property, owner, sources, calls, notes, tasks, deal, handoffs, history, restrictions } }
+  /api/v1/tasks: { get: { summary: "Tasks; due (today|overdue|week), mine, done" } }
+  /api/v1/calendar: { get: { summary: Tasks in a time range of up to three months } }
+  /api/v1/deals: { get: { summary: Deals (finance permission) } }
+  /api/v1/handoffs: { get: { summary: Handoffs, with overdue status } }
+  /api/v1/conversations: { get: { summary: Conversations } }
+  /api/v1/conversations/{id}: { get: { summary: Messages in a conversation } }
+  /api/v1/notifications: { get: { summary: This person's notifications } }
+  /api/v1/dashboard: { get: { summary: Role dashboard, cached 30 s } }
+  /api/v1/search: { get: { summary: Search leads and tasks } }
+  /api/v1/reports/{kind}: { get: { summary: "outcomes, sources, handoffs, missed, aging, workload, revenue; format=csv needs export" } }
+  /api/v1/saved-reports: { get: { summary: Saved reports }, post: { summary: Save (optionally scheduled) } }
+  /api/v1/saved-reports/{id}: { put: { summary: Change }, delete: { summary: Delete } }
+  /api/v1/rules: { get: { summary: Rules, triggers, actions, operators }, post: { summary: Create a rule } }
+  /api/v1/rules/{id}: { put: { summary: New version of a rule } }
+  /api/v1/rules/{id}/runs: { get: { summary: Execution history } }
+  /api/v1/rules/{id}/dry-run: { post: { summary: Evaluate against a lead without acting } }
+  /api/v1/jobs: { get: { summary: My jobs }, post: { summary: Start a job } }
+  /api/v1/jobs/{id}: { get: { summary: Job state } }
+  /api/v1/jobs/{id}/cancel: { post: { summary: Request cancellation } }
+  /api/v1/exports/leads.csv: { get: { summary: Visible leads as CSV (export permission; do-not-call numbers left out) } }
+  /api/v1/artifacts: { post: { summary: "Stream a file; query name, lead_id, visibility" } }
+  /api/v1/artifacts/{sha256}: { get: { summary: Download a file you may see } }
+  /api/v1/plans: { get: { summary: Plans and their prices } }
+  /api/v1/billing: { get: { summary: "This organization's plan, seats, usage and payments" } }
+  /api/v1/billing/checkout: { post: { summary: Start a checkout for a plan } }
+  /api/v1/billing/webhook: { post: { summary: "Payment provider events; signature checked against the raw body, each counted once" } }
+  /api/v1/calls/start: { post: { summary: "Start a call; the server times it against the plan's minutes" } }
+  /api/v1/calls/{id}/end: { post: { summary: End a call and count its minutes } }
+  /api/v1/platform/whoami: { get: { summary: "The caller, if Caller Whale staff (platform owner or system administrator) with the authenticator step; 403 otherwise. No organization needed. Used by the Grafana login proxy" } }
+  /api/v1/platform/organizations: { get: { summary: "Staff: every customer workspace with plan, usage and seats" } }
+  /api/v1/platform/organizations/{id}/suspend: { post: { summary: "Staff: suspend or resume a workspace" } }
+  /api/v1/platform/organizations/{id}/subscription: { post: { summary: "Staff extend a plan; the owner sets one or removes its limits" } }
+  /api/v1/platform/people: { get: { summary: "Staff: people on the server, searchable" } }
+  /api/v1/platform/people/{id}/access: { post: { summary: "Staff: turn a person's access off or on" } }
+  /api/v1/platform/staff: { get: { summary: "Staff: Caller Whale's staff" }, post: { summary: "Owner: name or remove a system administrator" } }
+  /api/v1/platform/payments: { get: { summary: "Staff: every payment" } }
+  /api/v1/platform/activity: { get: { summary: "Staff: what staff changed" } }
+  /api/v1/platform/workspace: { post: { summary: "Staff: open a staff workspace with no plan limits" } }
+  /api/v1/platform/customers: { post: { summary: "Staff: open a trial workspace for a customer, with an invitation that makes them its owner" } }
+  /api/v1/ops:
+    post:
+      summary: Apply one operation
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Op" } } } }
+      responses: { "200": { content: { application/json: { schema: { $ref: "#/components/schemas/OpResult" } } } } }
+  /sync/push: { post: { summary: "Up to 500 operations in dependency order; answered individually" } }
+  /sync/pull: { get: { summary: "Changes after cursor; reset=true when access_revision moved" } }
+  /sync/snapshot: { get: { summary: Everything visible, with cursor and a 24-hour offline lease } }
+  /events: { get: { summary: "WebSocket: committed changes you may see; access.changed closes the socket" } }
+  /internal/jobs/claim: { post: { summary: "Worker: claim a job from queues (lease)" } }
+  /internal/jobs/{id}/renew: { post: { summary: "Worker: extend the lease; returns cancel_requested" } }
+  /internal/jobs/{id}/progress: { post: { summary: "Worker: report progress" } }
+  /internal/jobs/{id}/complete: { post: { summary: "Worker: finish with output" } }
+  /internal/jobs/{id}/fail: { post: { summary: "Worker: fail, optionally retry with backoff" } }
+  /internal/events/claim: { post: { summary: "Worker: claim outbox events" } }
+  /internal/events/{id}/process: { post: { summary: "Worker: run matching rules once and mark processed" } }
+  /internal/scheduler/tick: { post: { summary: "Worker: overdue tasks/handoffs and scheduled reports" } }
+  /internal/legacy/import: { post: { summary: "Worker: import a desktop project idempotently (dry_run supported)" } }
+  /internal/whoami: { post: { summary: "Worker: token check" } }
+  /internal/reports/run: { post: { summary: "Worker: a saved report's rows, in its owner's scope" } }
+  /internal/datasets: { post: { summary: "Worker: register an imported list" } }
+  /internal/datasets/{id}/rows: { post: { summary: "Worker: add immutable source rows (up to 2000)" } }
+  /internal/datasets/{id}/rows/read: { post: { summary: "Worker: read source rows after a row number" } }
+  /internal/datasets/{id}/leads: { post: { summary: "Worker: one lead per row, idempotent" } }
+  /internal/datasets/{id}/verdicts: { post: { summary: "Worker: Skip Tracing verdicts; do-not-call only added" } }
+  /internal/jobs/{id}/artifact: { post: { summary: "Worker: stream a job's output file; its owner is notified" } }
+  /internal/artifacts/read: { post: { summary: "Worker: read a stored file (an import's upload)" } }

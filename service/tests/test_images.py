@@ -9,7 +9,7 @@ import pytest
 
 from helpers import call, ok
 from test_service_skiptrace import make_dataset, service  # noqa: F401
-from turf_service import images
+from callerwhale_service import images
 
 # The smallest real PNG: one pixel.
 PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")

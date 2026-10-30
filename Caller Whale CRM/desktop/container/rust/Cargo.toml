@@ -1,0 +1,23 @@
+[package]
+name = "callerwhale-crm"
+version = "0.1.4"
+description = "Caller Whale CRM, as a desktop app"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+serde_json = "1"
+# Google sign-in for Firebase: PKCE, and trading Google's code for its ID token (src/signin.rs).
+base64 = "0.22"
+ring = "0.17"
+ureq = { version = "2", features = ["json"] }
+
+[profile.dev]
+# Dependencies are compiled once and rarely change, so keep them fast while the app's own code builds quickly.
+[profile.dev.package."*"]
+opt-level = 2

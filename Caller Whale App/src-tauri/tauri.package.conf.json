@@ -1,0 +1,11 @@
+{
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/icon.ico"],
+    "resources": {
+      "../../service/dist/callerwhale-service.exe": "service/callerwhale-service.exe",
+      "../../service/migrations/": "migrations/"
+    }
+  }
+}

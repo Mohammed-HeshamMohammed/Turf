@@ -76,8 +76,8 @@ Retain source, date, project scope, and history of each mark. Define expiry and 
 - `src/tabs/SkipTracing.tsx`: five-step workflow, outcome mapping, scan/save actions, report sections, manual marks.
 - `src/lib/service.ts`: job progress callbacks and Skip Tracing commands.
 - `src/lib/hooks.ts`: visited-screen retention and checked-copy selection.
-- `service/turf_service/skiptrace.py`: saved settings, project knowledge, checking, new checked-copy registration.
-- `service/turf_matching/skiptrace.py`: status limit, status normalization, verdicts, expiry, signal measurement.
+- `service/callerwhale_service/skiptrace.py`: saved settings, project knowledge, checking, new checked-copy registration.
+- `service/callerwhale_matching/skiptrace.py`: status limit, status normalization, verdicts, expiry, signal measurement.
 
 ## Implementation validation
 

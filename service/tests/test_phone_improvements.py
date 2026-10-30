@@ -8,7 +8,7 @@ import pytest
 
 from helpers import call, ok, wait
 from test_service_skiptrace import FILE_A, confirmed, make_dataset, run, service  # noqa: F401
-from turf_service import phone_lookup
+from callerwhale_service import phone_lookup
 
 
 def scan(service, dataset, config):

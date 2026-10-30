@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from turf_service.api import Service
+from callerwhale_service.api import Service
 
 from helpers import call, ok, wait
 

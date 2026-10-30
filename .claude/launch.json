@@ -2,11 +2,11 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "turf",
+      "name": "callerwhale",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "--prefix",
-        "Turf",
+        "Caller Whale App",
         "run",
         "dev"
       ],
@@ -17,7 +17,7 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "--prefix",
-        "Full CRM Turf/desktop/frontend/react",
+        "Caller Whale CRM/desktop/frontend/react",
         "run",
         "dev",
         "--",
@@ -28,26 +28,26 @@
       "port": 5190
     },
     {
-      "name": "turf-auth",
+      "name": "callerwhale-auth",
       "runtimeExecutable": "C:/Program Files/Git/bin/bash.exe",
       "runtimeArgs": [
-        "Full CRM Turf/services/auth/scripts/run-auth.sh"
+        "Caller Whale CRM/services/auth/scripts/run-auth.sh"
       ],
       "port": 8101
     },
     {
-      "name": "turf-api",
+      "name": "callerwhale-api",
       "runtimeExecutable": "C:/Program Files/Git/bin/bash.exe",
       "runtimeArgs": [
-        "Full CRM Turf/services/core-api/scripts/run-api.sh"
+        "Caller Whale CRM/services/core-api/scripts/run-api.sh"
       ],
       "port": 8088
     },
     {
-      "name": "turf-worker",
+      "name": "callerwhale-worker",
       "runtimeExecutable": "C:/Program Files/Git/bin/bash.exe",
       "runtimeArgs": [
-        "Full CRM Turf/services/core-api/scripts/run-worker.sh"
+        "Caller Whale CRM/services/core-api/scripts/run-worker.sh"
       ],
       "port": 8090
     },
@@ -56,7 +56,7 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "--prefix",
-        "Full CRM Turf/landing/api",
+        "Caller Whale CRM/landing/api",
         "start"
       ],
       "port": 8095
@@ -66,7 +66,7 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "--prefix",
-        "Full CRM Turf/landing/web",
+        "Caller Whale CRM/landing/web",
         "run",
         "dev"
       ],

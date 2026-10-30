@@ -1,0 +1,12 @@
+{
+  "name": "callerwhale-ai-campaigns",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Feature 6: email and text campaigns, AI writing, reply sorting and sending limits.",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node src/server.ts",
+    "test": "node --test test/*.test.ts"
+  }
+}
