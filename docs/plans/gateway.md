@@ -34,7 +34,7 @@ Tokens are checked for signature (Google's RS256 keys, cached by their `max-age`
 1. **New application** from the `gateway-backend-production` branch: build type Dockerfile, `services/gateway/Dockerfile`, port 8100. Environment from `env/gateway.env.example`. `ROUTES` upstreams are the other applications' network aliases (see below).
 2. Check it answers `/healthz` and routes, with a temporary domain or from the server.
 3. **Move the domains.** Remove `app.callerwhale.com` from core-api and `grafana.callerwhale.com` from grafana-proxy; add both to the gateway, port 8100. Redeploy the three. No `www.` copies.
-4. Set core-api's `TURF_BIND` to listen on all interfaces on the private network (as now); it keeps no public domain.
+4. Set core-api's `CALLERWHALE_BIND` to listen on all interfaces on the private network (as now); it keeps no public domain.
 5. Check from outside: `https://app.callerwhale.com/internal/jobs/claim` is 404; `/api/v1/leads` without a token is 401; `/api/v1/platform/people` with a token without the authenticator step is 403; the CRM signs in and syncs.
 
 ## Not done yet
