@@ -216,13 +216,13 @@ export const priceRows = [
 ];
 
 export const compareRows = [
-  { need: "Stacking and cleaning lists", usual: "A list tool with a record limit", turf: "On your computer, with no record limit" },
-  { need: "Ranking phone numbers", usual: "A separate skip-tracing or scrubbing service", turf: "One check, with the best number first and the reason" },
-  { need: "Calling", usual: "A dialer, billed per user", turf: "In the same app as the lead" },
-  { need: "Texting", usual: "Another subscription", turf: "On the lead's own thread in the Inbox" },
-  { need: "Tracking deals", usual: "A CRM you copy results into", turf: "Built in, fed by every call outcome" },
-  { need: "Sending data on", usual: "Copy and paste", turf: "Call list and mail list files made for the next tool" },
-  { need: "No connection", usual: "Stops working", turf: "Lists, skip tracing and exports keep working" },
+  { need: "Stacking and cleaning lists", usual: "A list tool with a record limit", callerwhale: "On your computer, with no record limit" },
+  { need: "Ranking phone numbers", usual: "A separate skip-tracing or scrubbing service", callerwhale: "One check, with the best number first and the reason" },
+  { need: "Calling", usual: "A dialer, billed per user", callerwhale: "In the same app as the lead" },
+  { need: "Texting", usual: "Another subscription", callerwhale: "On the lead's own thread in the Inbox" },
+  { need: "Tracking deals", usual: "A CRM you copy results into", callerwhale: "Built in, fed by every call outcome" },
+  { need: "Sending data on", usual: "Copy and paste", callerwhale: "Call list and mail list files made for the next tool" },
+  { need: "No connection", usual: "Stops working", callerwhale: "Lists, skip tracing and exports keep working" },
 ];
 
 export const securityPoints = [

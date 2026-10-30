@@ -1,7 +1,7 @@
 // Writes every page of the site as plain HTML, so search engines, link previews and people without scripts see
 // the content, and the page hydrates once scripts load. Run by `npm run build` after the client and server builds.
 //
-// SITE_URL (for example https://turf.example) turns on canonical links, og:url, sitemap.xml and the Sitemap line in robots.txt.
+// SITE_URL (for example https://callerwhale.example) turns on canonical links, og:url, sitemap.xml and the Sitemap line in robots.txt.
 import { mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";

@@ -349,11 +349,11 @@
 .pricing-table .total strong {
   font-size: 22px;
 }
-.turf-col {
+.callerwhale-col {
   background: color-mix(in srgb, var(--good) 35%, transparent);
   font-weight: 600;
 }
-.compare-table thead .turf-col {
+.compare-table thead .callerwhale-col {
   background: var(--good);
   color: var(--good-ink);
 }
@@ -456,7 +456,7 @@ main:focus {
   }
   .pricing-table .total th,
   .pricing-table .total td,
-  .compare-table .turf-col {
+  .compare-table .callerwhale-col {
     background: none;
   }
 }

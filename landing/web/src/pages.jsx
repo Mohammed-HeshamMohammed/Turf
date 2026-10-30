@@ -342,7 +342,7 @@ export function Compare() {
               <tr>
                 <th scope="col">What you need</th>
                 <th scope="col">The usual way</th>
-                <th scope="col" className="turf-col">With Caller Whale</th>
+                <th scope="col" className="callerwhale-col">With Caller Whale</th>
               </tr>
             </thead>
             <tbody>
@@ -350,7 +350,7 @@ export function Compare() {
                 <tr key={r.need}>
                   <th scope="row">{r.need}</th>
                   <td data-label="The usual way">{r.usual}</td>
-                  <td data-label="With Caller Whale" className="turf-col">{r.turf}</td>
+                  <td data-label="With Caller Whale" className="callerwhale-col">{r.callerwhale}</td>
                 </tr>
               ))}
             </tbody>

@@ -100,7 +100,7 @@ function AuthForm({ mode }) {
     setState(s => ({ ...s, busy: true, error: "" }));
     // The page goes to Google and comes back here.
     loadAuth()
-      .then(auth => auth.startProvider("google"))
+      .then(auth => auth.startProvider("google", "landing"))
       .catch(error => setState(s => ({ ...s, busy: false, error: error.message })));
   };
 

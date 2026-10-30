@@ -56,7 +56,7 @@ for (const s of shots.filter(x => !only.length || only.includes(x.name))) {
   if (s.role) {
     await cdp("Page.navigate", { url: `${base}/favicon.svg` });
     await sleep(800);
-    await js(`(async () => { try { const m = await import("/src/model.js"); const st = m.loadState({ getItem: () => null }); st.role = "${s.role}"; localStorage.setItem("turf.full-crm.prototype.v1", JSON.stringify(st)); for (const d of await indexedDB.databases()) indexedDB.deleteDatabase(d.name); } catch (e) { return String(e); } })()`);
+    await js(`(async () => { try { const m = await import("/src/model.js"); const st = m.loadState({ getItem: () => null }); st.role = "${s.role}"; localStorage.setItem("callerwhale.full-crm.prototype.v1", JSON.stringify(st)); for (const d of await indexedDB.databases()) indexedDB.deleteDatabase(d.name); } catch (e) { return String(e); } })()`);
     await sleep(800);
   }
   await cdp("Page.navigate", { url: `${base}/#/${s.hash}` });

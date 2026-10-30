@@ -414,7 +414,7 @@ export function GrafanaPanel() {
       last.current = Date.now();
       const form = document.createElement("form");
       form.method = "post";
-      form.action = `${grafanaUrl}/_turf/session`;
+      form.action = `${grafanaUrl}/_callerwhale/session`;
       form.target = "grafana-frame";
       form.hidden = true;
       for (const [name, value] of [["token", token], ["return", "/"]]) {
@@ -448,7 +448,7 @@ export function GrafanaPanel() {
     if (!open) return undefined;
     const ask = event => {
       // Only Grafana's own frame, at most once every 15 seconds, so a refusal can't loop.
-      if (grafanaUrl && event.origin === new URL(grafanaUrl).origin && event.data === "turf-grafana-signin" && Date.now() - last.current > 15000) signIn();
+      if (grafanaUrl && event.origin === new URL(grafanaUrl).origin && event.data === "callerwhale-grafana-signin" && Date.now() - last.current > 15000) signIn();
     };
     window.addEventListener("message", ask);
     return () => window.removeEventListener("message", ask);
