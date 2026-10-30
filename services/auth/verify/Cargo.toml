@@ -2,7 +2,7 @@
 name = "turf-auth-verify"
 version = "0.1.0"
 edition = "2021"
-description = "Checks a Turf access token against the auth service's public keys. Every Rust service uses this; none of them call auth to do it."
+description = "Checks a Caller Whale access token against the auth service's public keys. Every Rust service uses this; none of them call auth to do it."
 publish = false
 
 [dependencies]

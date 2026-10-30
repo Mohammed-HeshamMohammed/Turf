@@ -1,4 +1,4 @@
-//! Turf's authentication service: the one source of truth for who someone is, for every app and service.
+//! Caller Whale's authentication service: the one source of truth for who someone is, for every app and service.
 //!
 //! It owns accounts, passwords (Argon2id), two-step codes and recovery codes, and sessions. A session hands out
 //! short-lived EdDSA access tokens and a refresh token that changes every time it is used. Other services never call

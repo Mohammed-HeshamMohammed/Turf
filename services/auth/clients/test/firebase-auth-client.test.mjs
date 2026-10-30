@@ -166,7 +166,7 @@ test("an authenticator is set up with a key and a first code, and gives no recov
   assert.equal((await client.me()).mfa_enrolled, false);
   await assert.rejects(client.confirmMfa("123456"), { code: "no_setup" });
   const setup = await client.setupMfa();
-  assert.deepEqual(setup, { secret: "SECRETKEY", otpauth_url: "otpauth://totp/Turf:ann@example.com" });
+  assert.deepEqual(setup, { secret: "SECRETKEY", otpauth_url: "otpauth://totp/Caller Whale:ann@example.com" });
   await assert.rejects(client.confirmMfa("000000"), { code: "wrong_code" });
   assert.deepEqual(await client.confirmMfa("123456"), { recovery_codes: [] });
   assert.equal((await client.me()).mfa_enrolled, true);
