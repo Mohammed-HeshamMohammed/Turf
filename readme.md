@@ -1,9 +1,9 @@
-# Grafana for Turf's staff, behind the login proxy (Coolify)
+# Grafana for Caller Whale's staff, behind the login proxy (Coolify)
 
-This branch is a **production snapshot of one part of Turf**: only the files this part needs, at the same paths as in `Full CRM Turf/` on `main`.
+This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in `Full CRM Turf/` on `main`.
 
-- Last changed from `main` at `9005249` (2026-10-30)
-- Content id: `6f1d10da03f1ef54325399eb16e5fba901f5ec8b` (the branch is only refreshed when this changes)
+- Last changed from `main` at `0491000` (2026-10-30)
+- Content id: `e88427044221ccc08ee5699ed372f4fefbf55db8` (the branch is only refreshed when this changes)
 - Holds: `deploy/grafana`, `services/grafana-proxy`, `docs/plans/grafana-access.md`
 - 11 files
 - Build and test: go test ./... in services/grafana-proxy; in Coolify: a Docker Compose resource from this branch with deploy/grafana/compose.yml (deploy/grafana/README.md)

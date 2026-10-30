@@ -1,15 +1,15 @@
-# Grafana behind Turf's platform roles
+# Grafana behind Caller Whale's platform roles
 
 **Status:** Draft, not started (2026-10-28). Grafana stays private (no domain in Coolify) until steps 1 to 6 below pass.
 **Owner of the decision:** the platform owner.
 
 ## The issue
 
-Grafana should open only for Turf's own staff: the platform **owner** and the **system administrators** (`users.platform_role` = `owner` or `admin` in the core API). Grafana can't use those roles by itself:
+Grafana should open only for Caller Whale's own staff: the platform **owner** and the **system administrators** (`users.platform_role` = `owner` or `admin` in the core API). Grafana can't use those roles by itself:
 
-- Turf has no OAuth/OpenID provider that Grafana could sign in with. Auth issues tokens to Turf's own apps, and sign-in is moving to Firebase ([firebase-auth.md](firebase-auth.md)). Neither tells Grafana anyone's platform role.
+- Caller Whale has no OAuth/OpenID provider that Grafana could sign in with. Auth issues tokens to Caller Whale's own apps, and sign-in is moving to Firebase ([firebase-auth.md](firebase-auth.md)). Neither tells Grafana anyone's platform role.
 - The platform role lives only in the core API's database, not in the token.
-- Turf's apps keep the token in the page and send it as `Authorization: Bearer`. There's no cookie a browser would carry to another site.
+- Caller Whale's apps keep the token in the page and send it as `Authorization: Bearer`. There's no cookie a browser would carry to another site.
 
 Grafana does support **proxy authentication** (`[auth.proxy]`): a trusted proxy in front of it says who the person is in a header, and Grafana believes it. So the plan is a small login proxy that asks the core API whether the person is staff, and only then lets them through.
 
@@ -18,7 +18,7 @@ Grafana does support **proxy authentication** (`[auth.proxy]`): a trusted proxy 
 | Finding | Where | What it means for this plan |
 | --- | --- | --- |
 | Grafana isn't in the repo: not in `deploy/compose.yml`, not in `infra/k8s`, no config | repository search | We add Grafana and its proxy from scratch. Nothing to migrate. |
-| `staff()` allows only `owner` or `admin`, **and** requires the authenticator step (`mfa_passed`) whatever `TURF_REQUIRE_MFA` says | `services/core-api/rust/crates/api/src/routes/platform.rs` | The rule we need already exists and is tested (`tests/platform.rs`). The proxy should reuse it, not copy it. |
+| `staff()` allows only `owner` or `admin`, **and** requires the authenticator step (`mfa_passed`) whatever `CALLERWHALE_REQUIRE_MFA` says | `services/core-api/rust/crates/api/src/routes/platform.rs` | The rule we need already exists and is tested (`tests/platform.rs`). The proxy should reuse it, not copy it. |
 | `GET /api/v1/me` returns `platform_role` and `platform_admin` | `routes/identity.rs` | Close, but it answers people who skipped MFA too. Not enough alone. |
 | Only the owning database role can set a platform role, and there's only one owner | migration `0010_platform_roles.sql` | Nobody can make themselves Grafana admin through the API. |
 | Changes made by staff are logged in `platform_events` | `routes/platform.rs` | Grafana sign-ins can be logged the same way. |
@@ -37,9 +37,9 @@ browser ──► grafana-proxy (public, TLS) ──► Grafana (private network
 2. **New service `services/grafana-proxy` (Go, same style as the gateway).**
    - Without a valid session it sends the browser to the website's `/admin/grafana?return=<path>` (the landing site).
    - The website is already signed in and has the token. It POSTs the token once to the proxy's `/_turf/session` (same-site form post, so the token never goes in a URL).
-   - The proxy calls `whoami` with that token. On 200 it sets **its own** cookie, `turf_grafana`: a random 256-bit session id, HttpOnly, Secure, SameSite=Lax (Strict would drop it on the redirect that follows the website's post). The Turf token stays in the proxy's memory only, never in the cookie, and is used for the re-checks. A session lasts at most `SESSION_MAX_AGE` (8 hours), and in practice ends sooner, when the token expires.
+   - The proxy calls `whoami` with that token. On 200 it sets **its own** cookie, `turf_grafana`: a random 256-bit session id, HttpOnly, Secure, SameSite=Lax (Strict would drop it on the redirect that follows the website's post). The Caller Whale token stays in the proxy's memory only, never in the cookie, and is used for the re-checks. A session lasts at most `SESSION_MAX_AGE` (8 hours), and in practice ends sooner, when the token expires.
    - A token without the authenticator step gets a "sign in again" page, not a redirect: the website would post the same token again, in a loop.
-   - It sends each request on to Grafana with `X-WEBAUTH-USER` (the Turf user id), `X-WEBAUTH-EMAIL`, `X-WEBAUTH-NAME` and `X-WEBAUTH-ROLE`. It removes any of those headers the browser sent.
+   - It sends each request on to Grafana with `X-WEBAUTH-USER` (the Caller Whale user id), `X-WEBAUTH-EMAIL`, `X-WEBAUTH-NAME` and `X-WEBAUTH-ROLE`. It removes any of those headers the browser sent.
    - **Re-check:** the proxy re-asks `whoami` at most once a `RECHECK_EVERY` (60 seconds), with the token it keeps. If the answer is 403, it drops the session at once, so a removed or turned-off admin is out within a minute. If the answer is 401 (the token expired), the person goes back to the website, which posts a fresh token and returns them. If the core API can't be reached, nobody gets through.
    - `/_turf/logout` clears the cookie.
 3. **Grafana settings**, set as environment variables in Coolify:
@@ -49,15 +49,15 @@ browser ──► grafana-proxy (public, TLS) ──► Grafana (private network
    - Grafana has no domain in Coolify. Only the proxy can reach it (see "Running it on Coolify").
 4. **Role mapping** (to confirm, see Decisions):
 
-   | Turf platform role | Grafana role |
+   | Caller Whale platform role | Grafana role |
    | --- | --- |
-   | `owner` | `Admin` of Turf's Grafana organization. Nobody is a Grafana server admin; plugins come from `GRAFANA_PLUGINS` in the compose file |
+   | `owner` | `Admin` of Caller Whale's Grafana organization. Nobody is a Grafana server admin; plugins come from `GRAFANA_PLUGINS` in the compose file |
    | `admin` | `Editor` |
    | anyone else | no entry: the proxy refuses before Grafana is reached |
 
 ## Running it on Coolify
 
-Turf is deployed with Coolify. Grafana runs in its own container, next to the proxy's container.
+Caller Whale is deployed with Coolify. Grafana runs in its own container, next to the proxy's container.
 
 **One Coolify resource of type Docker Compose holds both containers**, from `deploy/grafana/compose.yml`:
 
@@ -80,7 +80,7 @@ Coolify rules for this resource:
 - In Coolify, set a domain only on the `grafana-proxy` service. Leave `grafana` blank, and put no `ports:` entry on it.
 - Keep secrets in the resource's environment variables in Coolify, never in the repo:
   - Grafana's admin password (`GF_SECURITY_ADMIN_PASSWORD`)
-  - the core API's address (`TURF_CORE_API_URL`)
+  - the core API's address (`CALLERWHALE_CORE_API_URL`)
 - Give Grafana's data folder (`/var/lib/grafana`) a persistent volume so dashboards survive redeploys.
 - The proxy reaches the core API at its public address (or at its container name, if the core API is put on the same network later).
 - Health checks: the proxy answers `GET /_turf/health`, and Grafana answers `GET /api/health` (checked from inside the network only).
@@ -103,7 +103,7 @@ Mark each step when it is merged and checked.
   - Sending a forged `X-WEBAUTH-USER` to the proxy's domain changes nothing.
   - The owner and an admin get in, with their right roles.
 
-  (`infra/k8s` is used only if Turf moves off Coolify.)
+  (`infra/k8s` is used only if Caller Whale moves off Coolify.)
 - [ ] **6. Audit**: log each Grafana sign-in in `platform_events` (`grafana.sign_in`), so it shows up in the Activity tab.
 - [ ] **7. Open Grafana's address** only after 1 to 6 are done.
 
@@ -115,8 +115,8 @@ Mark each step when it is merged and checked.
 
 ## Out of scope
 
-- Customer-facing dashboards. Workspace owners keep the reports inside Turf. Grafana is for Turf's staff only.
-- Giving Turf a full OpenID provider. If more internal tools need staff sign-in later, that's the time to revisit it, and the proxy can then be retired.
+- Customer-facing dashboards. Workspace owners keep the reports inside Caller Whale. Grafana is for Caller Whale's staff only.
+- Giving Caller Whale a full OpenID provider. If more internal tools need staff sign-in later, that's the time to revisit it, and the proxy can then be retired.
 
 ## Log
 
@@ -124,12 +124,12 @@ Mark each step when it is merged and checked.
 - 2026-10-28: Deployment is Coolify, with Grafana in its own container. The plan now uses one Coolify Docker Compose resource for Grafana and the proxy. Only the proxy has a domain, Grafana trusts only the proxy's fixed IP, and step 5 is Coolify instead of Kubernetes.
 - 2026-10-28: Step 1 done. `GET /api/v1/platform/whoami` reuses `staff()` and answers `{ id, email, name, role }`. Test `whoami_answers_only_for_staff` covers owner, admin, no organization, customer owner (403), no token (401), staff without MFA (`mfa_required`), a turned-off admin, and a removed admin (403). Along the way, the contract test was found to skip `billing.rs` and `platform.rs`; it now scans both, and their 17 routes are in `contracts/api-v1.yaml`.
 - 2026-10-28: Step 2 done. `services/grafana-proxy` (Go, standard library only) has 15 tests against a fake core API and a fake Grafana, and `go vet` is clean. Changes from the first design: the cookie is a random session id rather than a signed one, so there's no signing key to keep, and the token stays in the proxy's memory for re-checks. SameSite is Lax, not Strict. A sign-in without the authenticator step shows a page instead of looping through the website. The container has a `/service health` command for Coolify, since the image has no curl. It isn't in `tools/stack.json`, because the scaffolder would put it behind the gateway. Go 1.27.3 was installed in `D:\tools\go` to run the tests (it's on the PATH from `D:\tools\env.sh`).
-- 2026-10-28: Step 3 done. The core API reads `TURF_GRAFANA_URL` (the proxy's address), returns it as `grafana` from `GET /api/v1/auth/service`, and adds its origin to the website's `form-action`. The admin dashboard shows **Open Grafana** when it's set. `#/admin/grafana` posts the token to the proxy and replaces itself in history, so Back from Grafana lands on the dashboard. Checked in a browser on a scratch stack (auth, core API with website, proxy, and a stand-in Grafana that echoes the headers it gets). The owner signed in with password and authenticator code, and Open Grafana reached Grafana as `Admin` with id, email and name. The proxy's own cookie wasn't passed on. A Grafana deep link without a session went to the website and came back to the same path. Bug found by the browser check: the website's `Referrer-Policy: same-origin` makes a cross-site form post send `Origin: null`, so the proxy refused it. The hand-off page now sets `strict-origin` for itself just before posting, which sends the website's origin and nothing else.
+- 2026-10-28: Step 3 done. The core API reads `CALLERWHALE_GRAFANA_URL` (the proxy's address), returns it as `grafana` from `GET /api/v1/auth/service`, and adds its origin to the website's `form-action`. The admin dashboard shows **Open Grafana** when it's set. `#/admin/grafana` posts the token to the proxy and replaces itself in history, so Back from Grafana lands on the dashboard. Checked in a browser on a scratch stack (auth, core API with website, proxy, and a stand-in Grafana that echoes the headers it gets). The owner signed in with password and authenticator code, and Open Grafana reached Grafana as `Admin` with id, email and name. The proxy's own cookie wasn't passed on. A Grafana deep link without a session went to the website and came back to the same path. Bug found by the browser check: the website's `Referrer-Policy: same-origin` makes a cross-site form post send `Origin: null`, so the proxy refused it. The hand-off page now sets `strict-origin` for itself just before posting, which sends the website's origin and nothing else.
 - 2026-10-28: Step 4 done. `deploy/grafana/compose.yml` has Grafana 13.2.5 (`grafana/grafana-oss`) and the proxy on a fixed subnet. Grafana has no ports and trusts only `172.30.10.10`, and the proxy calls Grafana by address so its requests always come from there. `.env.example` and a Coolify README sit next to it. Docker isn't on this machine, so the compose file itself hasn't run yet; its first real run is step 5. Instead, the official Grafana 13.2.5 Windows build was run with exactly the compose file's `GF_*` settings (only addresses, ports and folders changed), against the scratch stack. Results:
   - With Grafana trusting another address, a forged `X-WEBAUTH-USER`/`ROLE: Admin` got 401 ("request ip is not in the configured accept list"). Basic auth as the built-in `admin` got 401, and the login form got 400 ("not configured").
-  - Trusting the proxy: the owner clicked Open Grafana in the admin dashboard and landed in real Grafana as their Turf id, with name, email and org role `Admin`.
+  - Trusting the proxy: the owner clicked Open Grafana in the admin dashboard and landed in real Grafana as their Caller Whale id, with name, email and org role `Admin`.
   - Role headers apply and update: `Editor`, and a later `Viewer`, took effect on the next request.
-  - Signing out of Grafana ends the proxy session and lands on Turf's admin dashboard.
+  - Signing out of Grafana ends the proxy session and lands on Caller Whale's admin dashboard.
   - Decided: nobody is a Grafana server admin. The built-in `admin` has no way in, plugins come from `GRAFANA_PLUGINS`, and there is only one organization. The news feed (which calls grafana.com) is off.
 - 2026-10-30: Grafana moved inside the admin page. The admin page (landing site) has a Grafana panel with an iframe; the token is posted to the proxy by a form aimed at that frame. The proxy now (1) turns away a browser visiting its address as a page of its own (`Sec-Fetch-Dest: document`), (2) sends `Content-Security-Policy: frame-ancestors <website origin>` and drops Grafana's `X-Frame-Options`, so only the website may frame it, (3) asks the page around a frame to sign in again (`postMessage`) instead of redirecting into the website, which can't be framed, and (4) answers `/_turf/logout` with a page rather than a redirect. Grafana runs with `GF_SECURITY_ALLOW_EMBEDDING=true`. The landing CSP's `frame-src` includes `GRAFANA_ORIGIN`. Staff still need the authenticator step: `whoami` refuses tokens without it. `/admin/grafana` now just goes to `/admin`. The proxy still needs a DNS name (the browser has to reach it), but it shows nothing to anyone outside the frame.
 - 2026-10-30 (later): `/admin` and `/admin/grafana` are gone from the landing site (routes, prerendered pages, nginx location, header link, sign-in `next`); they answer with the site's 404. Staff sign in to `/dashboard`, where **Admin mode** holds the invitations and the Grafana frame. Admin mode lives only in the page's memory (no address, nothing stored): a reload or closed tab ends it, and ten idle minutes ends it (activity in the page, or focus inside the Grafana frame, counts). It starts only from a sign-in at most 15 minutes old (the token's `auth_time`; the authenticator code is part of that sign-in), otherwise the page asks the person to sign in again. The proxy enforces the same on its side: `AUTH_WITHIN` (15m) refuses an older or time-less token, `IDLE_TIMEOUT` (10m) ends a session with no requests, and `SESSION_MAX_AGE` drops from 8h to 1h. Visits without a session now get a 401 page instead of a redirect to the website. The old website at `app.callerwhale.com` lost its Open Grafana button and hand-off route.
