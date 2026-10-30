@@ -21,6 +21,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -130,6 +131,7 @@ type session struct {
 	token   string
 	checked time.Time
 	seen    time.Time // the last request
+	key     string    // the sign-in that opened it: who, and when they signed in
 	expires time.Time
 }
 
@@ -141,10 +143,11 @@ type proxy struct {
 
 	mu       sync.Mutex
 	sessions map[string]*session
+	used     map[string]time.Time // sign-ins that have opened a session, by key, with when they signed in
 }
 
 func newProxy(cfg config) *proxy {
-	p := &proxy{cfg: cfg, client: &http.Client{Timeout: 10 * time.Second}, now: time.Now, sessions: map[string]*session{}}
+	p := &proxy{cfg: cfg, client: &http.Client{Timeout: 10 * time.Second}, now: time.Now, sessions: map[string]*session{}, used: map[string]time.Time{}}
 	p.upstream = &httputil.ReverseProxy{
 		Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetURL(cfg.grafana)
@@ -232,7 +235,8 @@ func (p *proxy) signIn(w http.ResponseWriter, r *http.Request) {
 	token := r.PostForm.Get("token")
 	// Admin mode starts from a recent sign-in: an old token (or one without a sign-in time) is not enough, even when the
 	// core API still accepts it. The core API has already checked the token's signature by the time this is trusted.
-	if p.now().Sub(signedInAt(token)) > p.cfg.authWithin {
+	at := signedInAt(token)
+	if p.now().Sub(at) > p.cfg.authWithin {
 		page(w, http.StatusUnauthorized, "Sign in again", "Admin mode needs a recent sign-in with your authenticator code. Sign in to Caller Whale again, then start admin mode.")
 		return
 	}
@@ -252,8 +256,23 @@ func (p *proxy) signIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := p.now()
-	s := &session{person: who, token: token, checked: now, seen: now, expires: now.Add(p.cfg.maxAge)}
+	key := who.ID + ":" + strconv.FormatInt(at.Unix(), 10)
+	s := &session{person: who, token: token, checked: now, seen: now, key: key, expires: now.Add(p.cfg.maxAge)}
 	p.mu.Lock()
+	// One sign-in opens one stretch of admin mode: once that session has ended (idle, expired, signed out), going in
+	// again needs a new sign-in with the authenticator code. While it is still open, the same sign-in may open the
+	// frame again (the panel closed and reopened).
+	if _, used := p.used[key]; used && !p.liveLocked(key, now) {
+		p.mu.Unlock()
+		page(w, http.StatusUnauthorized, "Sign in again", "Admin mode ended. To go back in, sign in to Caller Whale again with your authenticator code, then start admin mode.")
+		return
+	}
+	for k, t := range p.used {
+		if now.Sub(t) > p.cfg.authWithin {
+			delete(p.used, k)
+		}
+	}
+	p.used[key] = at
 	for k, old := range p.sessions {
 		if now.After(old.expires) {
 			delete(p.sessions, k)
@@ -268,6 +287,19 @@ func (p *proxy) signIn(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode, MaxAge: int(p.cfg.maxAge / time.Second),
 	})
 	http.Redirect(w, r, safeReturn(r.PostForm.Get("return")), http.StatusSeeOther)
+}
+
+// liveLocked says whether a session opened by this sign-in is still open. The caller holds p.mu.
+func (p *proxy) liveLocked(key string, now time.Time) bool {
+	for _, s := range p.sessions {
+		s.mu.Lock()
+		live := s.key == key && !now.After(s.expires) && now.Sub(s.seen) <= p.cfg.idle
+		s.mu.Unlock()
+		if live {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *proxy) logout(w http.ResponseWriter, r *http.Request) {

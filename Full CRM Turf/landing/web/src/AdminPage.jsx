@@ -287,10 +287,20 @@ function signedInAt(token) {
   }
 }
 
+const USED = "cw.admin.entered"; // the sign-in (its time) that last started admin mode, so it can't start it twice
+
+const lastEntered = () => {
+  try {
+    return Number(localStorage.getItem(USED)) || 0;
+  } catch {
+    return 0;
+  }
+};
+
 /**
  * Admin mode, for staff, inside their dashboard. It has no address of its own and lives only in this page's memory: a
- * reload, a closed tab or ten idle minutes ends it, and starting it again needs a recent sign-in with the authenticator
- * code. Invitations and Grafana are inside it. The server asks for the authenticator step on every staff request
+ * reload, a closed tab, leaving it or ten idle minutes ends it, and going back in needs a new sign-in with the
+ * authenticator code: one sign-in starts admin mode once. Invitations and Grafana are inside it. The server asks for the authenticator step on every staff request
  * whatever this page shows (docs/plans/grafana-access.md).
  */
 export function AdminMode({ account, signOut }) {
@@ -308,10 +318,16 @@ export function AdminMode({ account, signOut }) {
       const auth = await loadAuth();
       const token = await auth.accessToken();
       if (!token) throw new Error("Sign in again to start admin mode.");
-      if (Date.now() - signedInAt(token) > ENTER_WITHIN) {
+      const at = signedInAt(token);
+      if (Date.now() - at > ENTER_WITHIN || at <= lastEntered()) {
         setStale(true);
-        setNote("Admin mode needs a fresh sign-in with your authenticator code. Sign in again, then start it.");
+        setNote("Admin mode needs a new sign-in with your authenticator code each time. Sign in again, then start it.");
       } else {
+        try {
+          localStorage.setItem(USED, String(at));
+        } catch {
+          // Without storage the proxy still refuses a sign-in it has already used.
+        }
         active.current = Date.now();
         setOn(true);
       }
@@ -349,8 +365,8 @@ export function AdminMode({ account, signOut }) {
       <div className="panel admin-mode">
         <h2><ShieldCheck size={22} weight="duotone" aria-hidden="true" /> Admin mode</h2>
         <p className="sub">
-          Invitations, usage and Grafana, for {account.staff.role === "owner" ? "the platform owner" : "system administrators"}. It starts from a recent
-          sign-in with your authenticator code and ends after ten idle minutes.
+          Invitations, usage and Grafana, for {account.staff.role === "owner" ? "the platform owner" : "system administrators"}. Every time you go in it needs a new
+          sign-in with your authenticator code, and it ends after ten idle minutes.
         </p>
         {note && <p className={"notice " + (stale ? "bad" : "good")} role="status">{note}</p>}
         <div className="actions">

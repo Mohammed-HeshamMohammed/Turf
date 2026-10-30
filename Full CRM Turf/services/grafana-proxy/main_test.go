@@ -365,6 +365,29 @@ func TestASignInOlderThanTheWindowOpensNothing(t *testing.T) {
 	}
 }
 
+func TestEachStretchOfAdminModeNeedsItsOwnSignIn(t *testing.T) {
+	w := newWorld(t)
+	at := w.clock.Add(-time.Minute)
+	c := sessionCookie(t, w.signInAt("owner-token", "/", at))
+	// While that session is open, the same sign-in may open the frame again.
+	if rec := w.signInAt("owner-token", "/", at); rec.Code != http.StatusSeeOther {
+		t.Fatalf("reopen: %d", rec.Code)
+	}
+	// Once it has gone idle, the same sign-in is spent, even inside the 15 minutes.
+	w.clock = w.clock.Add(11 * time.Minute)
+	if rec := w.page("/", c); rec.Code == 200 {
+		t.Fatal("still open")
+	}
+	rec := w.signInAt("owner-token", "/", at)
+	if rec.Code != http.StatusUnauthorized || hasSessionCookie(rec) {
+		t.Fatalf("reused sign-in: %d", rec.Code)
+	}
+	// A new sign-in opens it again.
+	if rec := w.signInAt("owner-token", "/", w.clock.Add(-time.Minute)); rec.Code != http.StatusSeeOther {
+		t.Fatalf("fresh sign-in: %d", rec.Code)
+	}
+}
+
 func TestASessionEndsAfterTenIdleMinutes(t *testing.T) {
 	w := newWorld(t)
 	c := sessionCookie(t, w.signIn("owner-token", "/"))
