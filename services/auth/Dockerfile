@@ -11,4 +11,5 @@ COPY --from=build /src/target/release/callerwhale-auth /usr/local/bin/service
 ENV PORT=8101
 EXPOSE 8101
 USER nobody
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD ["service", "health"]
 CMD ["service"]
