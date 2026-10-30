@@ -1,0 +1,3 @@
+# Grafana's proxy on Coolify: see deploy/grafana/.env.example (Docker Compose resource; domain on grafana-proxy only,
+# or behind the gateway). Values: CALLERWHALE_CORE_API_URL=https://app.callerwhale.com, CALLERWHALE_WEBSITE_URL=https://callerwhale.com,
+# GRAFANA_PUBLIC_URL=https://grafana.callerwhale.com.
