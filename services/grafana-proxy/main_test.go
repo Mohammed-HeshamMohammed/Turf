@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const website = "https://app.turf.example"
+const website = "https://app.callerwhale.example"
 
 // A fake core API: each token has an answer to whoami, and every call is counted.
 type fakeCore struct {
@@ -58,8 +58,8 @@ type world struct {
 }
 
 var (
-	owner = person{ID: "11111111-1111-1111-1111-111111111111", Email: "owner@turf.example", Name: "App Owner", Role: "owner"}
-	admin = person{ID: "22222222-2222-2222-2222-222222222222", Email: "helper@turf.example", Name: "Support Person", Role: "admin"}
+	owner = person{ID: "11111111-1111-1111-1111-111111111111", Email: "owner@callerwhale.example", Name: "App Owner", Role: "owner"}
+	admin = person{ID: "22222222-2222-2222-2222-222222222222", Email: "helper@callerwhale.example", Name: "Support Person", Role: "admin"}
 )
 
 // newWorld starts a fake core API and a fake Grafana that answers with the headers it was sent.
@@ -109,7 +109,7 @@ func (w *world) signInAt(token, back string, at time.Time) *httptest.ResponseRec
 		token = jwt(token, at)
 	}
 	form := url.Values{"token": {token}, "return": {back}}
-	r := httptest.NewRequest(http.MethodPost, "https://grafana.turf.example/_turf/session", strings.NewReader(form.Encode()))
+	r := httptest.NewRequest(http.MethodPost, "https://grafana.callerwhale.example/_callerwhale/session", strings.NewReader(form.Encode()))
 	r.Header.Set("content-type", "application/x-www-form-urlencoded")
 	r.Header.Set("origin", website)
 	return w.do(r)
@@ -137,7 +137,7 @@ func hasSessionCookie(rec *httptest.ResponseRecorder) bool {
 
 // page asks for a Grafana page with the session cookie, as a browser would.
 func (w *world) page(path string, c *http.Cookie) *httptest.ResponseRecorder {
-	r := httptest.NewRequest(http.MethodGet, "https://grafana.turf.example"+path, nil)
+	r := httptest.NewRequest(http.MethodGet, "https://grafana.callerwhale.example"+path, nil)
 	r.Header.Set("accept", "text/html")
 	if c != nil {
 		r.AddCookie(c)
@@ -163,7 +163,7 @@ func seen(t *testing.T, rec *httptest.ResponseRecorder) (string, http.Header) {
 
 func TestHealthAnswersWithoutSignIn(t *testing.T) {
 	w := newWorld(t)
-	rec := w.do(httptest.NewRequest(http.MethodGet, "/_turf/health", nil))
+	rec := w.do(httptest.NewRequest(http.MethodGet, "/_callerwhale/health", nil))
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"service":"grafana-proxy"`) {
 		t.Fatalf("got %d %s", rec.Code, rec.Body.String())
 	}
@@ -196,7 +196,7 @@ func TestTheOwnerGetsInAsAdminAndTheBrowserCannotSpeakForThem(t *testing.T) {
 		t.Fatalf("cookie %+v", c)
 	}
 
-	r := httptest.NewRequest(http.MethodGet, "https://grafana.turf.example/d/abc", nil)
+	r := httptest.NewRequest(http.MethodGet, "https://grafana.callerwhale.example/d/abc", nil)
 	r.AddCookie(c)
 	r.AddCookie(&http.Cookie{Name: "grafana_session", Value: "keep"})
 	r.Header.Set("X-WEBAUTH-USER", "someone-else")
@@ -219,7 +219,7 @@ func TestTheOwnerGetsInAsAdminAndTheBrowserCannotSpeakForThem(t *testing.T) {
 	if cookie := h.Get("cookie"); strings.Contains(cookie, cookieName) || !strings.Contains(cookie, "grafana_session=keep") {
 		t.Fatalf("cookie header %q", cookie)
 	}
-	if h.Get("x-forwarded-host") != "grafana.turf.example" {
+	if h.Get("x-forwarded-host") != "grafana.callerwhale.example" {
 		t.Fatalf("forwarded host %q", h.Get("x-forwarded-host"))
 	}
 }
@@ -254,9 +254,9 @@ func TestCustomersAndStaffWithoutTheAuthenticatorStepGetNoSession(t *testing.T) 
 
 func TestOnlyTheWebsiteMayPostASignIn(t *testing.T) {
 	w := newWorld(t)
-	for _, origin := range []string{"", "https://evil.example", "https://app.turf.example.evil.example", "http://app.turf.example"} {
+	for _, origin := range []string{"", "https://evil.example", "https://app.callerwhale.example.evil.example", "http://app.callerwhale.example"} {
 		form := url.Values{"token": {"owner-token"}}
-		r := httptest.NewRequest(http.MethodPost, "/_turf/session", strings.NewReader(form.Encode()))
+		r := httptest.NewRequest(http.MethodPost, "/_callerwhale/session", strings.NewReader(form.Encode()))
 		r.Header.Set("content-type", "application/x-www-form-urlencoded")
 		if origin != "" {
 			r.Header.Set("origin", origin)
@@ -265,7 +265,7 @@ func TestOnlyTheWebsiteMayPostASignIn(t *testing.T) {
 			t.Fatalf("origin %q: %d", origin, rec.Code)
 		}
 	}
-	if rec := w.do(httptest.NewRequest(http.MethodGet, "/_turf/session?token=owner-token", nil)); rec.Code != 405 {
+	if rec := w.do(httptest.NewRequest(http.MethodGet, "/_callerwhale/session?token=owner-token", nil)); rec.Code != 405 {
 		t.Fatalf("GET: %d", rec.Code)
 	}
 	if w.core.calls.Load() != 0 {
@@ -405,7 +405,7 @@ func TestASessionEndsAfterTenIdleMinutes(t *testing.T) {
 func TestLogoutEndsTheSession(t *testing.T) {
 	w := newWorld(t)
 	c := sessionCookie(t, w.signIn("owner-token", "/"))
-	r := httptest.NewRequest(http.MethodPost, "/_turf/logout", nil)
+	r := httptest.NewRequest(http.MethodPost, "/_callerwhale/logout", nil)
 	r.AddCookie(c)
 	rec := w.do(r)
 	if rec.Code != http.StatusOK {
@@ -420,7 +420,7 @@ func TestGrafanaOpensOnlyInsideTheAdminPagesFrame(t *testing.T) {
 	w := newWorld(t)
 	c := sessionCookie(t, w.signIn("owner-token", "/"))
 	// A browser visiting the address directly gets turned away, even with a valid session.
-	direct := httptest.NewRequest(http.MethodGet, "https://grafana.turf.example/", nil)
+	direct := httptest.NewRequest(http.MethodGet, "https://grafana.callerwhale.example/", nil)
 	direct.Header.Set("accept", "text/html")
 	direct.Header.Set("sec-fetch-dest", "document")
 	direct.AddCookie(c)
@@ -428,7 +428,7 @@ func TestGrafanaOpensOnlyInsideTheAdminPagesFrame(t *testing.T) {
 		t.Fatalf("direct visit got %d", rec.Code)
 	}
 	// In a frame it opens, and only the website may frame it.
-	framed := httptest.NewRequest(http.MethodGet, "https://grafana.turf.example/", nil)
+	framed := httptest.NewRequest(http.MethodGet, "https://grafana.callerwhale.example/", nil)
 	framed.Header.Set("accept", "text/html")
 	framed.Header.Set("sec-fetch-dest", "iframe")
 	framed.AddCookie(c)
@@ -438,7 +438,7 @@ func TestGrafanaOpensOnlyInsideTheAdminPagesFrame(t *testing.T) {
 		t.Fatalf("frame policy %q", got)
 	}
 	// A frame with no session asks the page around it to sign in, instead of loading the website.
-	bare := httptest.NewRequest(http.MethodGet, "https://grafana.turf.example/", nil)
+	bare := httptest.NewRequest(http.MethodGet, "https://grafana.callerwhale.example/", nil)
 	bare.Header.Set("accept", "text/html")
 	bare.Header.Set("sec-fetch-dest", "iframe")
 	rec = w.do(bare)
@@ -454,7 +454,7 @@ func TestTheReturnPathStaysOnThisSite(t *testing.T) {
 		"https://evil.example": "/",
 		"//evil.example/x":     "/",
 		"/\\evil.example":      "/",
-		"/_turf/logout":        "/",
+		"/_callerwhale/logout":        "/",
 	} {
 		if got := safeReturn(in); got != want {
 			t.Errorf("%q: got %q, want %q", in, got, want)
@@ -463,7 +463,7 @@ func TestTheReturnPathStaysOnThisSite(t *testing.T) {
 }
 
 func TestConfigNeedsItsAddressesAndChecksTheRest(t *testing.T) {
-	base := map[string]string{"GRAFANA_URL": "http://grafana:3000", "CALLERWHALE_CORE_API_URL": "http://core-api:8080", "CALLERWHALE_WEBSITE_URL": "https://app.turf.example"}
+	base := map[string]string{"GRAFANA_URL": "http://grafana:3000", "CALLERWHALE_CORE_API_URL": "http://core-api:8080", "CALLERWHALE_WEBSITE_URL": "https://app.callerwhale.example"}
 	load := func(change map[string]string) (config, error) {
 		env := map[string]string{}
 		for k, v := range base {
@@ -475,7 +475,7 @@ func TestConfigNeedsItsAddressesAndChecksTheRest(t *testing.T) {
 		return loadConfig(func(k string) string { return env[k] })
 	}
 	c, err := load(nil)
-	if err != nil || c.recheck != time.Minute || c.adminRole != "Editor" || !c.secure || c.origin != "https://app.turf.example" {
+	if err != nil || c.recheck != time.Minute || c.adminRole != "Editor" || !c.secure || c.origin != "https://app.callerwhale.example" {
 		t.Fatalf("defaults: %+v %v", c, err)
 	}
 	for _, bad := range []map[string]string{

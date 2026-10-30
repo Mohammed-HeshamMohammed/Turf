@@ -4,7 +4,7 @@
 // Plan: docs/plans/grafana-access.md.
 //
 // Sign-in: a visit without a session goes to the website's /admin/grafana, which posts the person's Caller Whale token to
-// /_turf/session. The token stays in this process's memory, never in the cookie (a random session id) or a URL, and is
+// /_callerwhale/session. The token stays in this process's memory, never in the cookie (a random session id) or a URL, and is
 // used to ask again at most once a RECHECK_EVERY. A refusal ends the session at once; a core API that can't be reached
 // lets nobody through. Sessions live in memory, so run one copy; a restart only means signing in again.
 package main
@@ -31,7 +31,7 @@ import (
 const (
 	service    = "grafana-proxy"
 	version    = "0.1.0"
-	cookieName = "turf_grafana"
+	cookieName = "callerwhale_grafana"
 )
 
 type config struct {
@@ -200,16 +200,16 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Grafana opens only inside the admin page's frame: no other site may frame it, and a browser visiting its address
 	// directly (a page of its own, not a frame) is turned away before anything else is checked.
 	w.Header().Set("content-security-policy", "frame-ancestors "+p.cfg.origin)
-	if r.URL.Path != "/_turf/health" && r.Header.Get("sec-fetch-dest") == "document" {
+	if r.URL.Path != "/_callerwhale/health" && r.Header.Get("sec-fetch-dest") == "document" {
 		page(w, http.StatusForbidden, "Open Grafana from the admin dashboard", "Grafana has no page of its own. Sign in to Caller Whale as staff, finish the authenticator step, and open it from the admin dashboard.")
 		return
 	}
 	switch r.URL.Path {
-	case "/_turf/health":
+	case "/_callerwhale/health":
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": service, "version": version})
-	case "/_turf/session":
+	case "/_callerwhale/session":
 		p.signIn(w, r)
-	case "/_turf/logout":
+	case "/_callerwhale/logout":
 		p.logout(w, r)
 	default:
 		p.forward(w, r)
@@ -401,7 +401,7 @@ func (p *proxy) toSignIn(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("content-type", "text/html; charset=utf-8")
 		w.Header().Set("cache-control", "no-store")
 		w.WriteHeader(http.StatusUnauthorized)
-		fmt.Fprintf(w, `<!doctype html><meta charset=utf-8><title>Checking your access</title><p>Checking your access…</p><script>parent.postMessage("turf-grafana-signin",%q)</script>`, p.cfg.origin)
+		fmt.Fprintf(w, `<!doctype html><meta charset=utf-8><title>Checking your access</title><p>Checking your access…</p><script>parent.postMessage("callerwhale-grafana-signin",%q)</script>`, p.cfg.origin)
 		return
 	}
 	if r.Method == http.MethodGet && strings.Contains(r.Header.Get("accept"), "text/html") {
@@ -424,7 +424,7 @@ func (p *proxy) clearCookie(w http.ResponseWriter) {
 // safeReturn keeps the place to go back to on this proxy: a path, never another site.
 func safeReturn(to string) string {
 	// Browsers drop tabs and line breaks inside a URL, so a tab between two slashes would become "//evil.example".
-	if strings.IndexFunc(to, unicode.IsControl) >= 0 || strings.Contains(to, "\\") || !strings.HasPrefix(to, "/") || strings.HasPrefix(to, "//") || strings.HasPrefix(to, "/_turf/") {
+	if strings.IndexFunc(to, unicode.IsControl) >= 0 || strings.Contains(to, "\\") || !strings.HasPrefix(to, "/") || strings.HasPrefix(to, "//") || strings.HasPrefix(to, "/_callerwhale/") {
 		return "/"
 	}
 	return to
@@ -488,19 +488,13 @@ func main() {
 	}
 	// "service health" is the container's health check: the image has no shell or curl.
 	if len(os.Args) > 1 && os.Args[1] == "health" {
-		res, err := (&http.Client{Timeout: 3 * time.Second}).Get("http://127.0.0.1:" + port + "/_turf/health")
+		res, err := (&http.Client{Timeout: 3 * time.Second}).Get("http://127.0.0.1:" + port + "/_callerwhale/health")
 		if err != nil || res.StatusCode != http.StatusOK {
 			os.Exit(1)
 		}
 		os.Exit(0)
 	}
-	cfg, err := loadConfig(func(name string) string {
-		// CALLERWHALE_* settings; a deployment still using the old TURF_* names keeps working.
-		if v := os.Getenv(name); v != "" {
-			return v
-		}
-		return os.Getenv(strings.Replace(name, "CALLERWHALE_", "TURF_", 1))
-	})
+	cfg, err := loadConfig(os.Getenv)
 	if err != nil {
 		log.Fatal(err)
 	}

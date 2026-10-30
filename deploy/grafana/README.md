@@ -15,7 +15,7 @@ Grafana trusts the `X-WEBAUTH-*` headers only from `172.30.10.10`. Its login for
 
 ## Setting it up in Coolify
 
-1. **New resource → Docker Compose**, from this repository's `grafana-production` branch. It holds only Grafana's files, at the same paths, so the base directory is `/` and the compose file is `deploy/grafana/compose.yml`. From `main` instead, use the base directory `/Full CRM Turf`.
+1. **New resource → Docker Compose**, from this repository's `grafana-production` branch. It holds only Grafana's files, at the same paths, so the base directory is `/` and the compose file is `deploy/grafana/compose.yml`. From `main` instead, use the base directory `/Caller Whale CRM`.
    - Don't use Coolify's one-click Grafana service. It gives Grafana a domain and a login form.
 2. **Domains:** set one on `grafana-proxy` only, `https://grafana.callerwhale.com` (port 8120). It needs its own DNS record: in Cloudflare, zone `callerwhale.com`, an A record `grafana` to `187.7.72.171`, DNS only (grey cloud), like `app`. Remove the `www.` copy Coolify adds. Leave `grafana` empty.
 3. **Environment variables** (Coolify lists them from the compose file):

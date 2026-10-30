@@ -7,7 +7,7 @@
 
 Grafana should open only for Caller Whale's own staff: the platform **owner** and the **system administrators** (`users.platform_role` = `owner` or `admin` in the core API). Grafana can't use those roles by itself:
 
-- Caller Whale has no OAuth/OpenID provider that Grafana could sign in with. Auth issues tokens to Caller Whale's own apps, and sign-in is moving to Firebase ([firebase-auth.md](firebase-auth.md)). Neither tells Grafana anyone's platform role.
+- Caller Whale has no OAuth/OpenID provider that Grafana could sign in with. Auth issues tokens to Caller Whale's own apps, and the auth service signs people in with Firebase behind it ([firebase-auth.md](firebase-auth.md)). Neither tells Grafana anyone's platform role.
 - The platform role lives only in the core API's database, not in the token.
 - Caller Whale's apps keep the token in the page and send it as `Authorization: Bearer`. There's no cookie a browser would carry to another site.
 
@@ -23,7 +23,7 @@ Grafana does support **proxy authentication** (`[auth.proxy]`): a trusted proxy 
 | Only the owning database role can set a platform role, and there's only one owner | migration `0010_platform_roles.sql` | Nobody can make themselves Grafana admin through the API. |
 | Changes made by staff are logged in `platform_events` | `routes/platform.rs` | Grafana sign-ins can be logged the same way. |
 | The public gateway is Go (`services/gateway`) and only routes to named upstreams | `services/gateway/main.go`, `deploy/compose.yml` | Grafana must **not** be added to the gateway's `UPSTREAMS`. The proxy is its own way in. |
-| Sign-in is moving from `services/auth` (Ed25519) to Firebase (RS256); the core API accepts both while the move runs | `docs/plans/firebase-auth.md` | If the proxy asks the core API instead of reading tokens itself, it keeps working through the move with no change. |
+| Every token comes from the auth service (Ed25519); Firebase is behind it and nothing else sees it | `docs/plans/firebase-auth.md` | If the proxy asks the core API instead of reading tokens itself, it keeps working through the move with no change. |
 
 ## The design
 
@@ -33,15 +33,15 @@ browser ──► grafana-proxy (public, TLS) ──► Grafana (private network
                └──► core API  GET /api/v1/platform/whoami   (Bearer token)
 ```
 
-1. **New endpoint in the core API: `GET /api/v1/platform/whoami`.** It runs `staff()` and returns `{ id, email, name, role }` with 200. Someone who isn't staff gets 403. Staff who haven't passed MFA get the usual MFA-required error. It needs no `x-turf-org` header. One line of logic, and the rule stays in one place.
+1. **New endpoint in the core API: `GET /api/v1/platform/whoami`.** It runs `staff()` and returns `{ id, email, name, role }` with 200. Someone who isn't staff gets 403. Staff who haven't passed MFA get the usual MFA-required error. It needs no `x-callerwhale-org` header. One line of logic, and the rule stays in one place.
 2. **New service `services/grafana-proxy` (Go, same style as the gateway).**
    - Without a valid session it sends the browser to the website's `/admin/grafana?return=<path>` (the landing site).
-   - The website is already signed in and has the token. It POSTs the token once to the proxy's `/_turf/session` (same-site form post, so the token never goes in a URL).
-   - The proxy calls `whoami` with that token. On 200 it sets **its own** cookie, `turf_grafana`: a random 256-bit session id, HttpOnly, Secure, SameSite=Lax (Strict would drop it on the redirect that follows the website's post). The Caller Whale token stays in the proxy's memory only, never in the cookie, and is used for the re-checks. A session lasts at most `SESSION_MAX_AGE` (8 hours), and in practice ends sooner, when the token expires.
+   - The website is already signed in and has the token. It POSTs the token once to the proxy's `/_callerwhale/session` (same-site form post, so the token never goes in a URL).
+   - The proxy calls `whoami` with that token. On 200 it sets **its own** cookie, `callerwhale_grafana`: a random 256-bit session id, HttpOnly, Secure, SameSite=Lax (Strict would drop it on the redirect that follows the website's post). The Caller Whale token stays in the proxy's memory only, never in the cookie, and is used for the re-checks. A session lasts at most `SESSION_MAX_AGE` (8 hours), and in practice ends sooner, when the token expires.
    - A token without the authenticator step gets a "sign in again" page, not a redirect: the website would post the same token again, in a loop.
    - It sends each request on to Grafana with `X-WEBAUTH-USER` (the Caller Whale user id), `X-WEBAUTH-EMAIL`, `X-WEBAUTH-NAME` and `X-WEBAUTH-ROLE`. It removes any of those headers the browser sent.
    - **Re-check:** the proxy re-asks `whoami` at most once a `RECHECK_EVERY` (60 seconds), with the token it keeps. If the answer is 403, it drops the session at once, so a removed or turned-off admin is out within a minute. If the answer is 401 (the token expired), the person goes back to the website, which posts a fresh token and returns them. If the core API can't be reached, nobody gets through.
-   - `/_turf/logout` clears the cookie.
+   - `/_callerwhale/logout` clears the cookie.
 3. **Grafana settings**, set as environment variables in Coolify:
    - `GF_AUTH_PROXY_ENABLED=true`, `GF_AUTH_PROXY_HEADER_NAME=X-WEBAUTH-USER`, `GF_AUTH_PROXY_HEADER_PROPERTY=username`, `GF_AUTH_PROXY_AUTO_SIGN_UP=true`, `GF_AUTH_PROXY_HEADERS=Email:X-WEBAUTH-EMAIL Name:X-WEBAUTH-NAME Role:X-WEBAUTH-ROLE`, and `GF_AUTH_PROXY_WHITELIST=<the proxy's fixed IP>`.
    - `GF_AUTH_DISABLE_LOGIN_FORM=true`, `GF_AUTH_BASIC_ENABLED=false`, `GF_AUTH_ANONYMOUS_ENABLED=false`, `GF_USERS_ALLOW_SIGN_UP=false`.
@@ -83,7 +83,7 @@ Coolify rules for this resource:
   - the core API's address (`CALLERWHALE_CORE_API_URL`)
 - Give Grafana's data folder (`/var/lib/grafana`) a persistent volume so dashboards survive redeploys.
 - The proxy reaches the core API at its public address (or at its container name, if the core API is put on the same network later).
-- Health checks: the proxy answers `GET /_turf/health`, and Grafana answers `GET /api/health` (checked from inside the network only).
+- Health checks: the proxy answers `GET /_callerwhale/health`, and Grafana answers `GET /api/health` (checked from inside the network only).
 
 ## Steps and progress
 
@@ -131,6 +131,6 @@ Mark each step when it is merged and checked.
   - Role headers apply and update: `Editor`, and a later `Viewer`, took effect on the next request.
   - Signing out of Grafana ends the proxy session and lands on Caller Whale's admin dashboard.
   - Decided: nobody is a Grafana server admin. The built-in `admin` has no way in, plugins come from `GRAFANA_PLUGINS`, and there is only one organization. The news feed (which calls grafana.com) is off.
-- 2026-10-30: Grafana moved inside the admin page. The admin page (landing site) has a Grafana panel with an iframe; the token is posted to the proxy by a form aimed at that frame. The proxy now (1) turns away a browser visiting its address as a page of its own (`Sec-Fetch-Dest: document`), (2) sends `Content-Security-Policy: frame-ancestors <website origin>` and drops Grafana's `X-Frame-Options`, so only the website may frame it, (3) asks the page around a frame to sign in again (`postMessage`) instead of redirecting into the website, which can't be framed, and (4) answers `/_turf/logout` with a page rather than a redirect. Grafana runs with `GF_SECURITY_ALLOW_EMBEDDING=true`. The landing CSP's `frame-src` includes `GRAFANA_ORIGIN`. Staff still need the authenticator step: `whoami` refuses tokens without it. `/admin/grafana` now just goes to `/admin`. The proxy still needs a DNS name (the browser has to reach it), but it shows nothing to anyone outside the frame.
+- 2026-10-30: Grafana moved inside the admin page. The admin page (landing site) has a Grafana panel with an iframe; the token is posted to the proxy by a form aimed at that frame. The proxy now (1) turns away a browser visiting its address as a page of its own (`Sec-Fetch-Dest: document`), (2) sends `Content-Security-Policy: frame-ancestors <website origin>` and drops Grafana's `X-Frame-Options`, so only the website may frame it, (3) asks the page around a frame to sign in again (`postMessage`) instead of redirecting into the website, which can't be framed, and (4) answers `/_callerwhale/logout` with a page rather than a redirect. Grafana runs with `GF_SECURITY_ALLOW_EMBEDDING=true`. The landing CSP's `frame-src` includes `GRAFANA_ORIGIN`. Staff still need the authenticator step: `whoami` refuses tokens without it. `/admin/grafana` now just goes to `/admin`. The proxy still needs a DNS name (the browser has to reach it), but it shows nothing to anyone outside the frame.
 - 2026-10-30 (later): `/admin` and `/admin/grafana` are gone from the landing site (routes, prerendered pages, nginx location, header link, sign-in `next`); they answer with the site's 404. Staff sign in to `/dashboard`, where **Admin mode** holds the invitations and the Grafana frame. Admin mode lives only in the page's memory (no address, nothing stored): a reload or closed tab ends it, and ten idle minutes ends it (activity in the page, or focus inside the Grafana frame, counts). It starts only from a sign-in at most 15 minutes old (the token's `auth_time`; the authenticator code is part of that sign-in), otherwise the page asks the person to sign in again. The proxy enforces the same on its side: `AUTH_WITHIN` (15m) refuses an older or time-less token, `IDLE_TIMEOUT` (10m) ends a session with no requests, and `SESSION_MAX_AGE` drops from 8h to 1h. Visits without a session now get a 401 page instead of a redirect to the website. The old website at `app.callerwhale.com` lost its Open Grafana button and hand-off route.
 - 2026-10-30 (re-entry): each stretch of admin mode now needs its own sign-in. The page remembers the sign-in time that last started admin mode (`cw.admin.entered`) and, for a second start, asks the person to sign in again (authenticator code) instead. The proxy enforces it for Grafana: a sign-in (user plus `auth_time`) that has already opened a session can open another only while that session is still live (the panel closed and reopened); once it has gone idle, expired or signed out, the same sign-in is refused. The invitations part is guarded by the page only, so the server-side lock for it remains the usual staff check with the authenticator step.

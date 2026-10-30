@@ -2,7 +2,7 @@
 # Docker Compose, with this file as its compose file. In Coolify, give a domain ONLY to grafana-proxy; leave grafana's
 # domain empty. Grafana publishes no port.
 #
-# Locally (from the repository folder "Full CRM Turf"):
+# Locally (from the repository folder "Caller Whale CRM"):
 #   docker compose --env-file deploy/grafana/.env -f deploy/grafana/compose.yml up --build
 #
 # Two locks keep Grafana closed to everyone but the proxy:
@@ -12,7 +12,7 @@
 # The proxy calls Grafana by its fixed address on the "grafana" network, so the request always comes from the
 # whitelisted address, whatever other networks Coolify adds. If 172.30.10.0/24 is taken on the server, change the
 # subnet and the three addresses below together.
-name: turf-grafana
+name: callerwhale-grafana
 services:
   grafana-proxy:
     build:
@@ -67,7 +67,7 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_USERS_ALLOW_ORG_CREATE: "false"
       # Signing out of Grafana signs out of the proxy.
-      GF_AUTH_SIGNOUT_REDIRECT_URL: "${GRAFANA_PUBLIC_URL}/_turf/logout"
+      GF_AUTH_SIGNOUT_REDIRECT_URL: "${GRAFANA_PUBLIC_URL}/_callerwhale/logout"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"

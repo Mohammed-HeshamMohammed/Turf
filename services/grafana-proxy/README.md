@@ -7,8 +7,8 @@ Not behind the gateway: it is its own way in, with its own domain (in Coolify, t
 ## How sign-in works
 
 1. A visit without a session, inside the admin page's frame, asks that page to post a sign-in; a direct visit is refused.
-2. The website, already signed in, posts the person's Caller Whale token to `/_turf/session` (a form post, so the token is never in a URL). Only the website's origin may post it.
-3. The proxy asks `whoami`. If the person is staff, it sets the `turf_grafana` cookie (a random session id, HttpOnly, Secure, SameSite=Lax) and sends them back to the path.
+2. The website, already signed in, posts the person's Caller Whale token to `/_callerwhale/session` (a form post, so the token is never in a URL). Only the website's origin may post it.
+3. The proxy asks `whoami`. If the person is staff, it sets the `callerwhale_grafana` cookie (a random session id, HttpOnly, Secure, SameSite=Lax) and sends them back to the path.
 4. Every request carries their id, email, name and Grafana role to Grafana. Headers the browser sent with those names, `Authorization` and the proxy's own cookie are removed first.
 5. At most once a `RECHECK_EVERY` it asks `whoami` again with the token it keeps in memory. If staff access is gone, the session ends at once. An expired token means signing in again. If the core API can't be reached, nobody gets through until it answers.
 
@@ -19,7 +19,7 @@ The owner is Grafana's `Admin`, and system administrators get `ADMIN_GRAFANA_ROL
 | Variable | Default | What |
 | --- | --- | --- |
 | `GRAFANA_URL` | required | Grafana on the private network, e.g. `http://grafana:3000` |
-| `CALLERWHALE_CORE_API_URL` | required | The core API, e.g. `https://api.turf.example` |
+| `CALLERWHALE_CORE_API_URL` | required | The core API, e.g. `https://api.callerwhale.example` |
 | `CALLERWHALE_WEBSITE_URL` | required | The website with the admin dashboard; its origin is the only one allowed to post a sign-in |
 | `ADMIN_GRAFANA_ROLE` | `Editor` | `Viewer`, `Editor` or `Admin` for system administrators |
 | `RECHECK_EVERY` | `60s` | How often access is asked again |
@@ -29,7 +29,7 @@ The owner is Grafana's `Admin`, and system administrators get `ADMIN_GRAFANA_ROL
 | `COOKIE_SECURE` | on | `false` only for local http |
 | `PORT` | `8120` | |
 
-Health: `GET /_turf/health`, or `/service health` inside the container (exit code 0 when healthy).
+Health: `GET /_callerwhale/health`, or `/service health` inside the container (exit code 0 when healthy).
 
 ## Test
 
