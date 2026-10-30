@@ -1,0 +1,19 @@
+# The auth service on Coolify (application "auth", port 8101, domain https://auth.callerwhale.com).
+# Paste into Environment Variables -> Developer View. Fill every <...>; the rest is as it should be.
+PORT=8101
+# A PostgreSQL login for the auth service's own database.
+DATABASE_URL=<postgres://user:password@host:5432/callerwhale_auth>
+# Secret. Run `callerwhale-auth new-key` (or `cargo run -p callerwhale-auth -- new-key`). Changing it signs everyone out.
+AUTH_SIGNING_KEY=<new-key output>
+AUTH_PUBLIC_URL=https://auth.callerwhale.com
+AUTH_WEBSITE_URL=https://app.callerwhale.com
+AUTH_APP_URL=https://app.callerwhale.com
+AUTH_LANDING_URL=https://callerwhale.com
+AUTH_PUBLIC_SIGNUP=false
+AUTH_DEV_TOKENS=false
+AUTH_ALLOWED_ORIGINS=https://app.callerwhale.com,https://callerwhale.com,tauri://localhost,http://tauri.localhost
+# Firebase: only this service uses it (docs/plans/firebase-auth.md). Firebase console -> Project settings -> General -> Web API key.
+AUTH_FIREBASE_API_KEY=<Web API key>
+# Google sign-in: the Web client Firebase made (Google Cloud -> Credentials). Redirect URI: https://auth.callerwhale.com/v1/oauth/google/callback
+AUTH_GOOGLE_CLIENT_ID=<client id>
+AUTH_GOOGLE_CLIENT_SECRET=<client secret>

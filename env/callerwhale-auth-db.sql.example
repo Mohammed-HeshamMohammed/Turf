@@ -1,0 +1,4 @@
+-- Run in callerwhale-auth-postgres as postgres. Coolify creates the callerwhale_auth database at first start.
+-- Auth uses its own login and never uses the postgres superuser.
+CREATE ROLE callerwhale_auth LOGIN PASSWORD '__DB_AUTH_PASSWORD__';
+ALTER DATABASE callerwhale_auth OWNER TO callerwhale_auth;
