@@ -5,7 +5,7 @@
     { "name": "landing-backend-production", "title": "Landing site: backend", "paths": ["infra/k8s/landing-api", "landing/api"], "build": "npm start   (Node 24+, no dependencies)" },
     { "name": "auth-backend-production", "title": "Authentication service", "paths": ["infra/k8s/auth", "services/auth"], "rust": true, "build": "docker build -f services/auth/Dockerfile -t turf-auth .   or   cargo test -p turf-auth -p turf-auth-verify" },
     { "name": "notifications-backend-production", "title": "Notification service", "paths": ["infra/k8s/notifications", "services/notifications"], "build": "go test ./... in services/notifications; docker build -f Dockerfile services/notifications" },
-    { "name": "gateway-backend-production", "title": "Gateway", "paths": ["infra/k8s/gateway", "services/gateway"], "build": "go test ./... in services/gateway; docker build services/gateway" },
+    { "name": "gateway-backend-production", "title": "Gateway", "paths": ["infra/k8s/gateway", "services/gateway", "env/gateway.env.example", "docs/plans/gateway.md"], "build": "go test ./... in services/gateway; docker build services/gateway" },
     {
       "name": "core-api-backend-production",
       "title": "Core API (the CRM server, and the website it serves)",

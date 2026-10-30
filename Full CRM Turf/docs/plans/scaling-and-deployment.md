@@ -28,8 +28,8 @@ Turf runs on Coolify at `187.7.72.171`, in the project "Turf". The environments 
 | --- | --- | --- |
 | `https://callerwhale.com` | landing-web (`www.callerwhale.com` redirects here, see `landing/web/nginx.conf`) | 8080 |
 | `https://callerwhale.com/api` | landing-api, with **Advanced → Path prefixes: Keep paths as-is** (it serves `/api/...` itself) | 8095 |
-| `https://app.callerwhale.com` | core-api: the CRM's API (sign-in checks, invitations, credits, the download) | 8088 |
-| `https://grafana.callerwhale.com` | grafana-proxy (`deploy/grafana`), not set up yet | 8120 |
+| `https://app.callerwhale.com` | gateway, which routes to core-api (the CRM's API: sign-in checks, invitations, credits, the download; docs/plans/gateway.md) | 8100 |
+| `https://grafana.callerwhale.com` | gateway, which routes to grafana-proxy (`deploy/grafana`) | 8100 |
 
 The authentication service (retired: sign-in is Firebase) and the gateway (answers only its health check) have no public name. If either is deployed again, give it `auth.callerwhale.com` or `api.callerwhale.com` and add the DNS record below.
 

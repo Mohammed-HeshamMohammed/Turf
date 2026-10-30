@@ -9,4 +9,5 @@ COPY --from=build /out/service /service
 ENV PORT=8100
 EXPOSE 8100
 USER nonroot
+HEALTHCHECK --interval=30s --timeout=5s CMD ["/service", "health"]
 ENTRYPOINT ["/service"]
