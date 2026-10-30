@@ -1,4 +1,4 @@
-//! Turf CRM API (plan 2.2, 2.3): authentication, permission enforcement, authoritative transactions,
+//! Caller Whale CRM API (plan 2.2, 2.3): authentication, permission enforcement, authoritative transactions,
 //! synchronization and WebSocket events. Workers reach the database only through the /internal routes.
 
 pub mod access;
@@ -217,7 +217,7 @@ pub async fn serve(config: config::Config) -> anyhow::Result<()> {
     let state = state(config).await?;
     events::spawn_listener(state.clone());
     let listener = tokio::net::TcpListener::bind(&bind).await?;
-    tracing::info!(%bind, "Turf API listening");
+    tracing::info!(%bind, "Caller Whale API listening");
     axum::serve(listener, app(state)).with_graceful_shutdown(shutdown()).await?;
     Ok(())
 }

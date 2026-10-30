@@ -16,7 +16,7 @@ pub struct Config {
     pub artifact_dir: String,
     pub max_body_bytes: usize,
     /// Anyone signed in with auth may open a trial organization (POST /organizations/trial). Only with
-    /// TURF_PUBLIC_SIGNUP=true; otherwise only Turf's staff open workspaces, and everyone else joins by invitation.
+    /// TURF_PUBLIC_SIGNUP=true; otherwise only Caller Whale's staff open workspaces, and everyone else joins by invitation.
     pub public_signup: bool,
     /// Shared secret the payment provider signs webhooks with (HMAC-SHA256). Shorter than 24 characters: webhooks off.
     pub billing_webhook_secret: String,
@@ -51,7 +51,7 @@ pub struct Config {
     /// Where staff open Grafana: the Grafana login proxy's address (services/grafana-proxy). Empty: no Grafana link,
     /// and the website may post a sign-in nowhere but here.
     pub grafana_url: String,
-    /// Turf's staff must confirm an authenticator code to open the admin dashboard (TURF_STAFF_MFA, default true).
+    /// Caller Whale's staff must confirm an authenticator code to open the admin dashboard (TURF_STAFF_MFA, default true).
     /// Turn it off only while the Firebase project has no authenticator codes (Identity Platform) set up.
     pub staff_mfa: bool,
     /// The public website people are invited to (links in invitation emails), e.g. https://callerwhale.com.

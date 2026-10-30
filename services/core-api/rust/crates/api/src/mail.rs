@@ -1,4 +1,4 @@
-//! Email this server sends itself: invitations to the desktop app. It goes through Turf's mail server (the Mail-Server
+//! Email this server sends itself: invitations to the desktop app. It goes through Caller Whale's mail server (the Mail-Server
 //! repository: smtp.softfix.dev, a login per sender address), with STARTTLS on 587 or TLS on 465, never in the clear.
 
 use crate::config::Config;

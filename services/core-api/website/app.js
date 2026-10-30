@@ -1,9 +1,9 @@
-// Turf's public website: plans, sign-up onto the trial, sign-in with MFA, email confirmation, the account (plan,
+// Caller Whale's public website: plans, sign-up onto the trial, sign-in with MFA, email confirmation, the account (plan,
 // minutes, seats, payments), checkout and team invitations. Everything is enforced by the API; this page only asks.
 // User data is only ever written as text (never as HTML), and nothing runs inline, so the server's CSP holds.
 //
 // Signing in is the auth service's job (./auth-client.js, the same file the CRM uses): this page signs up, signs in
-// and confirms email there, then brings its token to Turf's server, which keeps the workspace (organization, plan,
+// and confirms email there, then brings its token to Caller Whale's server, which keeps the workspace (organization, plan,
 // team). Where auth is comes from the server, so one build works anywhere.
 
 import { createAuth } from "./auth-client.js";
@@ -35,13 +35,13 @@ const SIGNUP_OPEN = service.signup === true;
 /** Said wherever a closed server would otherwise offer a trial. */
 /** What a sign-in code can be: Firebase has no recovery codes, the auth service does. */
 const CODE_HELP = service.firebase ? "From your authenticator app." : "From your authenticator app, or one of your recovery codes.";
-const INVITE_ONLY = "Turf is by invitation only: your workspace owner, or Turf, sends you a link.";
+const INVITE_ONLY = "Caller Whale is by invitation only: your workspace owner, or Caller Whale, sends you a link.";
 // A server that uses Firebase hands its web config here; the bundle with Firebase's SDK is loaded only then.
 const auth = service.firebase
   ? await import("./firebase-auth.js").then(m => m.createFirebaseAuth({ sdk: m.firebaseSdk(service.firebase), providers: service.firebase.providers || [] }))
   : createAuth({ base: service.url || "http://localhost:8101" });
 
-/** The organization this browser works in; Turf's server reads it from x-turf-org. */
+/** The organization this browser works in; Caller Whale's server reads it from x-turf-org. */
 const organization = () => localStorage.getItem("turf.org") || "";
 const setOrganization = id => (id ? localStorage.setItem("turf.org", id) : localStorage.removeItem("turf.org"));
 
@@ -243,7 +243,7 @@ async function home() {
   };
   show(
     h("h1", {}, "The CRM and dialer for property outreach."),
-    h("p", { class: "lead" }, "Import your lists, check every number with Turf's Skip Tracing, call owners, hand qualified sellers to your closers, and track every deal."),
+    h("p", { class: "lead" }, "Import your lists, check every number with Caller Whale's Skip Tracing, call owners, hand qualified sellers to your closers, and track every deal."),
     SIGNUP_OPEN
       ? h("div", { class: "row" }, h("a", { class: "button primary", href: "#/signup" }, "Start the free trial"), h("a", { class: "button", href: "#/signin" }, "Sign in"))
       : h("div", { class: "stack" }, h("p", { class: "muted" }, INVITE_ONLY), h("div", { class: "row" }, h("a", { class: "button primary", href: "#/signin" }, "Sign in"))),
@@ -372,7 +372,7 @@ async function mfa() {
       "section",
       { class: "card narrow" },
       h("h2", {}, "Protect your account"),
-      h("p", {}, "Add Turf to an authenticator app (Google Authenticator, 1Password, Authy) with this key, then enter the code it shows."),
+      h("p", {}, "Add Caller Whale to an authenticator app (Google Authenticator, 1Password, Authy) with this key, then enter the code it shows."),
       h("span", { class: "code", "aria-label": "Setup key" }, setup.secret),
       h("p", { class: "muted" }, "Or open this link on your phone: ", h("a", { href: setup.otpauth_url }, "add to authenticator")),
       form([input("6-digit code", "code", { inputmode: "numeric", autocomplete: "one-time-code", maxlength: 8 })], "Confirm", async values => {
@@ -398,7 +398,7 @@ async function verifyEmail(token) {
   try {
     await auth.verifyEmail(token);
     sessionStorage.removeItem("turf.verify");
-    // The next token says the email is confirmed, and Turf's server records it.
+    // The next token says the email is confirmed, and Caller Whale's server records it.
     if (auth.signedIn()) await auth.refresh().catch(() => null);
     show(h("section", { class: "card narrow" }, h("h2", {}, "Email confirmed"), h("a", { class: "button primary", href: "#/account" }, "Go to your account")));
   } catch (reason) {
@@ -413,7 +413,7 @@ async function joinTeam(token) {
       h(
         "section",
         { class: "card narrow" },
-        h("h2", {}, "Join your team on Turf"),
+        h("h2", {}, "Join your team on Caller Whale"),
         h("p", {}, "You're signed in as " + me.user.email + ". The invitation must be for this address."),
         form([], "Join the team", async () => afterSignIn()),
         h("p", { class: "muted" }, "Not you? ", h("button", { class: "text", onclick: signOut }, "Sign out"), " and open the link again."),
@@ -424,7 +424,7 @@ async function joinTeam(token) {
     h(
       "section",
       { class: "card narrow" },
-      h("h2", {}, "Join your team on Turf"),
+      h("h2", {}, "Join your team on Caller Whale"),
       h("p", { class: "muted" }, "Use the email address the invitation was sent to."),
       providerButtons(),
       form(
@@ -440,7 +440,7 @@ async function joinTeam(token) {
           await afterSignIn();
         },
       ),
-      h("p", { class: "muted" }, "Already have a Turf account? ", h("a", { href: "#/signin" }, "Sign in"), " and the invitation is accepted after."),
+      h("p", { class: "muted" }, "Already have a Caller Whale account? ", h("a", { href: "#/signin" }, "Sign in"), " and the invitation is accepted after."),
     ),
   );
 }
@@ -455,7 +455,7 @@ async function workspace() {
         "section",
         { class: "card narrow" },
         h("h2", {}, "You need an invitation"),
-        h("p", {}, "Turf is by invitation only. Your workspace owner, or Turf, sends you a link; open it while signed in as " + me.user.email + "."),
+        h("p", {}, "Caller Whale is by invitation only. Your workspace owner, or Caller Whale, sends you a link; open it while signed in as " + me.user.email + "."),
         me.platform_role ? h("p", {}, h("a", { href: "#/admin" }, "Open the admin dashboard")) : null,
       ),
     );
@@ -573,8 +573,8 @@ function crmLink() {
   return h(
     "section",
     { class: "card" },
-    h("h2", {}, "Open Turf"),
-    h("p", { class: "muted" }, "Use the Turf CRM in the desktop app, or in your browser. Sign in there with this account."),
+    h("h2", {}, "Open Caller Whale"),
+    h("p", { class: "muted" }, "Use the Caller Whale CRM in the desktop app, or in your browser. Sign in there with this account."),
     h("a", { class: "button primary", href: CRM_URL }, "Open the CRM"),
   );
 }
@@ -689,7 +689,7 @@ async function team(billing) {
 
 // --- Admin dashboard ---------------------------------------------------------------------------------------------------
 //
-// For Turf's own people only: the platform owner (the owner of the app) and the system administrators the owner names.
+// For Caller Whale's own people only: the platform owner (the owner of the app) and the system administrators the owner names.
 // Nobody gets there by signing up or by an invitation; the API checks every action again, so this page only asks.
 
 const ADMIN_TABS = [
@@ -888,7 +888,7 @@ async function adminPeople(you, query = "") {
         h(
           "table",
           {},
-          h("thead", {}, h("tr", {}, ["Name", "Email", "Workspaces", "Turf role", "Access", ""].map(title => h("th", {}, title)))),
+          h("thead", {}, h("tr", {}, ["Name", "Email", "Workspaces", "Caller Whale role", "Access", ""].map(title => h("th", {}, title)))),
           h(
             "tbody",
             {},
@@ -906,8 +906,8 @@ async function adminPeople(you, query = "") {
                   {},
                   canChange(person)
                     ? person.disabled
-                      ? small("Turn on", () => act(() => api(`/platform/people/${person.id}/access`, { disabled: false }), "people", `${person.email} can use Turf again.`))
-                      : small("Turn off", () => confirm(`Turn off ${person.email}'s access to Turf?`) && act(() => api(`/platform/people/${person.id}/access`, { disabled: true }), "people", `${person.email} can no longer use Turf.`), "danger")
+                      ? small("Turn on", () => act(() => api(`/platform/people/${person.id}/access`, { disabled: false }), "people", `${person.email} can use Caller Whale again.`))
+                      : small("Turn off", () => confirm(`Turn off ${person.email}'s access to Caller Whale?`) && act(() => api(`/platform/people/${person.id}/access`, { disabled: true }), "people", `${person.email} can no longer use Turf.`), "danger")
                     : null,
                 ),
               ),
@@ -956,7 +956,7 @@ async function adminPayments() {
               ),
             ),
           )
-        : h("p", { class: "muted" }, "No payments yet. Card details never reach Turf: only the provider's reference and the amount."),
+        : h("p", { class: "muted" }, "No payments yet. Card details never reach Caller Whale: only the provider's reference and the amount."),
     ),
   ];
 }
@@ -969,7 +969,7 @@ async function adminStaff(you) {
           "section",
           { class: "card stack" },
           h("h2", {}, "Name a system administrator"),
-          h("p", { class: "muted" }, "They must have signed in to Turf once. System administrators see every workspace and can suspend, extend and turn access off, but cannot name staff, set plans or touch your account."),
+          h("p", { class: "muted" }, "They must have signed in to Caller Whale once. System administrators see every workspace and can suspend, extend and turn access off, but cannot name staff, set plans or touch your account."),
           form([input("Email", "email", { type: "email" })], "Make system administrator", values =>
             act(() => api("/platform/staff", { email: values.email, role: "admin" }), "staff", `${values.email} is a system administrator now.`),
           ),
@@ -1015,7 +1015,7 @@ async function adminStaff(you) {
 
 async function adminActivity() {
   const { events } = await api("/platform/activity");
-  return [h("section", { class: "card stack" }, h("p", { class: "muted" }, "Everything Turf's staff changed from this dashboard, newest first."), activityList(events))];
+  return [h("section", { class: "card stack" }, h("p", { class: "muted" }, "Everything Caller Whale's staff changed from this dashboard, newest first."), activityList(events))];
 }
 
 async function adminMine() {
@@ -1036,8 +1036,8 @@ async function adminMine() {
       "section",
       { class: "card stack" },
       h("h2", {}, "Open your workspace"),
-      h("p", { class: "muted" }, "A workspace of Turf's own, with no seat, minute or time limits, for your callers and anyone you give CRM access."),
-      form([input("Workspace name", "organization", { value: "Turf HQ" })], "Open workspace", async values => {
+      h("p", { class: "muted" }, "A workspace of Caller Whale's own, with no seat, minute or time limits, for your callers and anyone you give CRM access."),
+      form([input("Workspace name", "organization", { value: "Caller Whale HQ" })], "Open workspace", async values => {
         const { organization_id } = await api("/platform/workspace", { organization: values.organization });
         setOrganization(organization_id);
         await refreshMe();
@@ -1056,7 +1056,6 @@ function adminFrame(tab, you, nodes, done = null, failed = null) {
       h(
         "div",
         { class: "row" },
-        service.grafana ? h("a", { class: "button", href: "#/admin/grafana" }, "Open Grafana") : null,
         h("span", { class: "badge " + (you === "owner" ? "peach" : "good") }, you === "owner" ? "Platform owner" : "System administrator"),
       ),
     ),
@@ -1070,38 +1069,11 @@ function adminFrame(tab, you, nodes, done = null, failed = null) {
 async function admin(tab = "overview", done = null, failed = null) {
   if (!(await refreshMe())) return (location.hash = "#/signin");
   if (me.mfa.required && !me.mfa.passed) return (location.hash = "#/mfa");
-  if (!me.platform_role) return show(notice("This page is for Turf's own staff.", "error"));
+  if (!me.platform_role) return show(notice("This page is for Caller Whale's own staff.", "error"));
   const you = me.platform_role;
   if (!ADMIN_TABS.some(([key]) => key === tab)) tab = "overview";
   const build = { overview: adminOverview, workspaces: () => adminWorkspaces(you), people: () => adminPeople(you), payments: adminPayments, staff: () => adminStaff(you), activity: adminActivity, mine: adminMine }[tab];
   show(...adminFrame(tab, you, await build(), done, failed));
-}
-
-/**
- * Hands a member of staff over to Grafana: posts their token to the Grafana login proxy, which asks this server
- * whether they are staff and opens its own session (docs/plans/grafana-access.md). A form post, so the token is never
- * in a URL. The proxy sends people here when they have no session, with the page to go back to in `return`.
- */
-async function grafana(back) {
-  if (!service.grafana) return show(notice("Grafana is not set up on this server.", "error"));
-  if (!(await refreshMe())) return (location.hash = "#/signin");
-  if (me.mfa.required && !me.mfa.passed) return (location.hash = "#/mfa");
-  if (!me.platform_role) return show(notice("Grafana is for Turf's own staff.", "error"));
-  const token = await auth.accessToken();
-  if (!token) return (location.hash = "#/signin");
-  const handoff = h(
-    "form",
-    { method: "post", action: service.grafana + "/_turf/session" },
-    h("input", { type: "hidden", name: "token", value: token }),
-    h("input", { type: "hidden", name: "return", value: back.startsWith("/") ? back : "/" }),
-  );
-  show(h("section", { class: "card narrow" }, h("h2", {}, "Opening Grafana"), h("p", { class: "muted" }, "Checking your access…"), handoff));
-  // Back from Grafana lands on the dashboard, not here again.
-  history.replaceState(null, "", location.pathname + "#/admin");
-  // The proxy takes a sign-in only from this site's origin. Under this site's Referrer-Policy (same-origin) a post to
-  // another site says its origin is "null", so this page, which is leaving, says its origin (and nothing more).
-  document.head.append(h("meta", { name: "referrer", content: "strict-origin" }));
-  handoff.submit();
 }
 
 // --- Routing ---------------------------------------------------------------------------------------------------------
@@ -1114,7 +1086,6 @@ async function route() {
     if (path === "/signin") return signin();
     if (path === "/mfa") return await mfa();
     if (path === "/account") return await account();
-    if (path === "/admin/grafana") return await grafana(params.get("return") || "/");
     if (path === "/admin" || path === "/platform") return await admin(params.get("tab") || "overview");
     if (path === "/verify") return await verifyEmail(params.get("token") || "");
     if (path === "/join") return await joinTeam(params.get("token") || "");

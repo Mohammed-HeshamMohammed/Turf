@@ -65,12 +65,12 @@ pub struct Ctx {
     pub mfa_enrolled: bool,
     /// The server requires MFA for the roles that call for it (Config::require_mfa).
     pub mfa_enforced: bool,
-    /// Turf's own staff (platform owner or system administrator): they always need the authenticator code, whatever
+    /// Caller Whale's own staff (platform owner or system administrator): they always need the authenticator code, whatever
     /// the server's setting.
     pub staff: bool,
     /// The organization's subscription; `None` on a self-hosted organization, which has no limits.
     pub subscription: Option<Subscription>,
-    /// Turf has suspended this workspace from the admin dashboard.
+    /// Caller Whale has suspended this workspace from the admin dashboard.
     pub suspended: bool,
 }
 
@@ -90,7 +90,7 @@ impl Subscription {
             ("trialing", true) | ("active", true) => None,
             ("trialing", false) => Some("Your free trial has ended. Choose a plan to keep using Turf."),
             ("past_due", _) => Some("Your last payment did not go through. Update your plan to keep using Turf."),
-            ("canceled", _) => Some("This subscription was cancelled. Choose a plan to use Turf again."),
+            ("canceled", _) => Some("This subscription was cancelled. Choose a plan to use Caller Whale again."),
             _ => Some("Your plan has ended. Renew it to keep using Turf."),
         }
     }
@@ -114,7 +114,7 @@ impl Ctx {
     pub fn member_scope(&self) -> ApiResult<Scope> {
         let org_id = self.org_id.ok_or_else(|| ApiError::bad("Choose an organization first"))?;
         if self.suspended {
-            return Err(ApiError::forbidden("This workspace is suspended. Contact Turf support."));
+            return Err(ApiError::forbidden("This workspace is suspended. Contact Caller Whale support."));
         }
         if self.mfa_required() && !self.mfa_passed {
             return Err(ApiError::MfaRequired);
