@@ -1,3 +1,3 @@
-module turf/gateway
+module callerwhale/gateway
 
 go 1.23

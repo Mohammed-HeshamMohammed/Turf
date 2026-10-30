@@ -1,13 +1,10 @@
 package main
 
 import (
-	"crypto"
+	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/rsa"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,14 +14,13 @@ import (
 )
 
 const (
-	project  = "turf-test"
-	appHost  = "app.turf.example"
-	grafHost = "grafana.turf.example"
+	appHost  = "app.callerwhale.example"
+	grafHost = "grafana.callerwhale.example"
 )
 
 type world struct {
 	g       *gateway
-	key     *rsa.PrivateKey
+	key     ed25519.PrivateKey
 	core    *httptest.Server
 	graf    *httptest.Server
 	fetch   atomic.Int32
@@ -34,17 +30,17 @@ type world struct {
 func newWorld(t *testing.T, extra map[string]string) *world {
 	t.Helper()
 	w := &world{}
-	var err error
-	if w.key, err = rsa.GenerateKey(rand.Reader, 2048); err != nil {
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
 		t.Fatal(err)
 	}
+	w.key = priv
 	jwks := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		w.fetch.Add(1)
-		rw.Header().Set("cache-control", "public, max-age=3600")
+		rw.Header().Set("cache-control", "public, max-age=300")
 		_ = json.NewEncoder(rw).Encode(map[string]any{"keys": []map[string]string{{
-			"kty": "RSA", "kid": "k1", "alg": "RS256", "use": "sig",
-			"n": base64.RawURLEncoding.EncodeToString(w.key.N.Bytes()),
-			"e": base64.RawURLEncoding.EncodeToString(big.NewInt(int64(w.key.E)).Bytes()),
+			"kty": "OKP", "crv": "Ed25519", "alg": "EdDSA", "use": "sig", "kid": "k1",
+			"x": base64.RawURLEncoding.EncodeToString(w.key.Public().(ed25519.PublicKey)),
 		}}})
 	}))
 	t.Cleanup(jwks.Close)
@@ -61,10 +57,9 @@ func newWorld(t *testing.T, extra map[string]string) *world {
 	t.Cleanup(w.core.Close)
 	t.Cleanup(w.graf.Close)
 	env := map[string]string{
-		"ROUTES":              appHost + "=" + w.core.URL + "," + grafHost + "=" + w.graf.URL,
-		"CORE_HOST":           appHost,
-		"FIREBASE_PROJECT_ID": project,
-		"FIREBASE_JWKS_URL":   jwks.URL,
+		"ROUTES":        appHost + "=" + w.core.URL + "," + grafHost + "=" + w.graf.URL,
+		"CORE_HOST":     appHost,
+		"AUTH_JWKS_URL": jwks.URL,
 	}
 	for k, v := range extra {
 		env[k] = v
@@ -77,29 +72,23 @@ func newWorld(t *testing.T, extra map[string]string) *world {
 	return w
 }
 
-// token signs a Firebase-style ID token; change adjusts the claims.
+// token signs a token like the auth service does; change adjusts the claims.
 func (w *world) token(change func(map[string]any)) string {
 	now := time.Now().Unix()
 	claims := map[string]any{
-		"iss": "https://securetoken.google.com/" + project, "aud": project, "sub": "user-1",
-		"iat": now - 5, "auth_time": now - 5, "exp": now + 3600,
-		"firebase": map[string]any{"sign_in_provider": "password"},
+		"iss": "callerwhale-auth", "aud": "callerwhale", "sub": "user-1", "email": "a@example.com", "name": "A",
+		"sid": "s-1", "mfa": false, "iat": now - 5, "auth_time": now - 5, "exp": now + 900,
 	}
 	if change != nil {
 		change(claims)
 	}
 	enc := func(v any) string { b, _ := json.Marshal(v); return base64.RawURLEncoding.EncodeToString(b) }
-	input := enc(map[string]string{"alg": "RS256", "kid": "k1", "typ": "JWT"}) + "." + enc(claims)
-	sum := sha256.Sum256([]byte(input))
-	sig, err := rsa.SignPKCS1v15(rand.Reader, w.key, crypto.SHA256, sum[:])
-	if err != nil {
-		panic(err)
-	}
-	return input + "." + base64.RawURLEncoding.EncodeToString(sig)
+	input := enc(map[string]string{"alg": "EdDSA", "kid": "k1", "typ": "JWT"}) + "." + enc(claims)
+	return input + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(w.key, []byte(input)))
 }
 
 func (w *world) staffToken() string {
-	return w.token(func(c map[string]any) { c["firebase"] = map[string]any{"sign_in_second_factor": "totp"} })
+	return w.token(func(c map[string]any) { c["mfa"] = true })
 }
 
 func (w *world) do(host, method, path, token string, mod ...func(*http.Request)) *httptest.ResponseRecorder {
@@ -157,12 +146,12 @@ func TestSignedInPathsNeedAValidToken(t *testing.T) {
 	bad := map[string]string{
 		"garbage":      "not.a.token",
 		"wrong aud":    w.token(func(c map[string]any) { c["aud"] = "another" }),
-		"wrong issuer": w.token(func(c map[string]any) { c["iss"] = "https://securetoken.google.com/another" }),
-		"expired":      w.token(func(c map[string]any) { c["exp"] = time.Now().Unix() - 10 }),
+		"wrong issuer": w.token(func(c map[string]any) { c["iss"] = "someone-else" }),
+		"expired":      w.token(func(c map[string]any) { c["exp"] = time.Now().Unix() - 120 }),
 		"no subject":   w.token(func(c map[string]any) { c["sub"] = "" }),
 		"future":       w.token(func(c map[string]any) { c["iat"] = time.Now().Unix() + 3600 }),
 	}
-	other, _ := rsa.GenerateKey(rand.Reader, 2048)
+	_, other, _ := ed25519.GenerateKey(rand.Reader)
 	forged := &world{key: other}
 	bad["wrong key"] = forged.token(nil)
 	for name, token := range bad {
@@ -181,7 +170,7 @@ func TestSignedInPathsNeedAValidToken(t *testing.T) {
 func TestAnAlgorithmSwapIsRefused(t *testing.T) {
 	w := newWorld(t, nil)
 	enc := func(v any) string { b, _ := json.Marshal(v); return base64.RawURLEncoding.EncodeToString(b) }
-	none := enc(map[string]string{"alg": "none", "kid": "k1"}) + "." + enc(map[string]any{"iss": "https://securetoken.google.com/" + project, "aud": project, "sub": "x", "exp": time.Now().Unix() + 60}) + "."
+	none := enc(map[string]string{"alg": "none", "kid": "k1"}) + "." + enc(map[string]any{"iss": "callerwhale-auth", "aud": "callerwhale", "sub": "x", "exp": time.Now().Unix() + 60}) + "."
 	if rec := w.do(appHost, "GET", "/api/v1/me", none); rec.Code != 401 {
 		t.Fatalf("got %d", rec.Code)
 	}
@@ -324,12 +313,12 @@ func TestTheCallersAddressComesFromTheProxyInFront(t *testing.T) {
 func TestAWebSocketCarriesItsTokenInTheSubprotocolList(t *testing.T) {
 	w := newWorld(t, nil)
 	rec := w.do(appHost, "GET", "/events", "", func(r *http.Request) {
-		r.Header.Set("Sec-WebSocket-Protocol", "turf.v1, bearer."+w.token(nil)+", org.abc")
+		r.Header.Set("Sec-WebSocket-Protocol", "callerwhale.v1, bearer."+w.token(nil)+", org.abc")
 	})
 	if rec.Code != 200 {
 		t.Fatalf("got %d", rec.Code)
 	}
-	rec = w.do(appHost, "GET", "/events", "", func(r *http.Request) { r.Header.Set("Sec-WebSocket-Protocol", "turf.v1, bearer.nope") })
+	rec = w.do(appHost, "GET", "/events", "", func(r *http.Request) { r.Header.Set("Sec-WebSocket-Protocol", "callerwhale.v1, bearer.nope") })
 	if rec.Code != 401 {
 		t.Fatalf("got %d", rec.Code)
 	}
@@ -355,7 +344,7 @@ func TestUpstreamsThatDoNotAnswerGet502(t *testing.T) {
 }
 
 func TestConfigNeedsItsRoutesAndChecksTheRest(t *testing.T) {
-	base := map[string]string{"ROUTES": "app.x.example=http://core:8088", "CORE_HOST": "app.x.example", "FIREBASE_PROJECT_ID": "p"}
+	base := map[string]string{"ROUTES": "app.x.example=http://core:8088", "CORE_HOST": "app.x.example", "AUTH_JWKS_URL": "http://auth:8101/.well-known/jwks.json"}
 	try := func(change map[string]string) error {
 		env := map[string]string{}
 		for k, v := range base {
@@ -375,7 +364,7 @@ func TestConfigNeedsItsRoutesAndChecksTheRest(t *testing.T) {
 		"bad route":       {"ROUTES": "app.x.example"},
 		"bad scheme":      {"ROUTES": "app.x.example=ftp://core"},
 		"core not routed": {"CORE_HOST": "other.example"},
-		"no project":      {"FIREBASE_PROJECT_ID": ""},
+		"no keys":         {"AUTH_JWKS_URL": ""},
 		"bad limit":       {"IP_PER_MINUTE": "zero"},
 	} {
 		if try(change) == nil {
