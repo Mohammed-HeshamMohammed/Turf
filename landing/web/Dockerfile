@@ -20,3 +20,4 @@ ENV AUTH_ORIGIN="https://auth.callerwhale.com" API_ORIGIN="https://app.callerwha
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1
