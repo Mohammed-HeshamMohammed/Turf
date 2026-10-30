@@ -27,6 +27,12 @@ pub struct Config {
     pub apple: Provider,
     /// Firebase Authentication as the account store (`AUTH_FIREBASE_API_KEY`). None: this service keeps its own accounts.
     pub firebase: Option<crate::firebase::Firebase>,
+    /// Sends the email codes of the second step (`AUTH_SMTP_HOST`). None: email codes are not offered.
+    pub mailer: Option<std::sync::Arc<dyn crate::mail::Mailer>>,
+    /// The Telegram bot that sends the Telegram codes (`AUTH_TELEGRAM_BOT_TOKEN`). None: Telegram is not offered.
+    pub telegram: Option<crate::telegram::Telegram>,
+    /// The secret in the Telegram webhook's address; Telegram posts there when a person opens their link.
+    pub telegram_webhook_secret: String,
 }
 
 /// One outside sign-in (OpenID Connect). Not set up until it has a client id and a secret (or, for Apple, a key).
@@ -107,6 +113,19 @@ impl Config {
                 private_key: var("AUTH_APPLE_PRIVATE_KEY", "").replace("\\n", "\n"),
                 ..Provider::apple_defaults()
             },
+            mailer: Some(var("AUTH_SMTP_HOST", "")).filter(|host| !host.trim().is_empty()).map(|host| {
+                std::sync::Arc::new(crate::mail::Smtp {
+                    host: host.trim().to_string(),
+                    port: var("AUTH_SMTP_PORT", "587").trim().parse().unwrap_or(587),
+                    user: var("AUTH_SMTP_USER", "").trim().to_string(),
+                    password: var("AUTH_SMTP_PASSWORD", ""),
+                    from: var("AUTH_MAIL_FROM", "Caller Whale <no-reply@softfix.dev>").trim().to_string(),
+                }) as std::sync::Arc<dyn crate::mail::Mailer>
+            }),
+            telegram: Some(var("AUTH_TELEGRAM_BOT_TOKEN", "")).filter(|token| !token.trim().is_empty()).map(|token| {
+                crate::telegram::Telegram::new(token.trim(), &var("AUTH_TELEGRAM_BOT_NAME", ""), &var("AUTH_TELEGRAM_API_URL", "https://api.telegram.org"))
+            }),
+            telegram_webhook_secret: var("AUTH_TELEGRAM_WEBHOOK_SECRET", "").trim().to_string(),
             firebase: Some(var("AUTH_FIREBASE_API_KEY", "")).filter(|key| !key.trim().is_empty()).map(|key| {
                 crate::firebase::Firebase::new(
                     key.trim(),
@@ -135,6 +154,9 @@ impl Config {
             google: Provider::default(),
             apple: Provider::default(),
             firebase: None,
+            mailer: None,
+            telegram: None,
+            telegram_webhook_secret: String::new(),
         }
     }
 }

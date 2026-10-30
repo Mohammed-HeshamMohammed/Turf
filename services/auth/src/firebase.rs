@@ -12,9 +12,6 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::time::Duration;
 
-/// Stored in `users.totp_secret` for a person whose authenticator lives in Firebase. Not a secret, only a marker.
-pub const FIREBASE_TOTP: &str = "firebase";
-
 #[derive(Clone, Debug)]
 pub struct Firebase {
     api_key: String,
@@ -33,35 +30,10 @@ pub struct Login {
     pub uid: String,
 }
 
-/// A sign-in waiting for its authenticator code.
-#[derive(Debug, Clone)]
-pub struct Pending {
-    pub credential: String,
-    pub enrollment_id: String,
-}
-
-/// What a session keeps of its Firebase sign-in: the refresh token, or a code it is still waiting for.
+/// What a session keeps of its Firebase sign-in: the refresh token, kept server side to ask Firebase for the person later.
 #[derive(Debug, Clone, Default)]
 pub struct FbSession {
     pub refresh: String,
-    pub pending: Option<Pending>,
-}
-
-impl Pending {
-    pub fn to_json(&self) -> String {
-        json!({ "credential": self.credential, "enrollment_id": self.enrollment_id }).to_string()
-    }
-
-    pub fn from_json(text: &str) -> Option<Pending> {
-        let value: Value = serde_json::from_str(text).ok()?;
-        Some(Pending { credential: value["credential"].as_str()?.to_string(), enrollment_id: value["enrollment_id"].as_str().unwrap_or_default().to_string() })
-    }
-}
-
-#[derive(Debug)]
-pub enum Outcome {
-    Done(Login),
-    NeedsCode(Pending),
 }
 
 /// A person as Firebase describes them.
@@ -71,7 +43,6 @@ pub struct Profile {
     pub email: String,
     pub name: String,
     pub email_verified: bool,
-    pub mfa_enrolled: bool,
     pub disabled: bool,
 }
 
@@ -84,6 +55,8 @@ pub enum Refusal {
     WrongCode,
     TooMany,
     Disabled,
+    /// Firebase wants an authenticator code of its own: Caller Whale's second step replaced that, so an administrator resets it.
+    FirebaseAuthenticator,
     RecentLogin,
     BadLink,
     Setup(String),
@@ -100,6 +73,7 @@ impl From<Refusal> for AuthError {
             Refusal::TooMany => AuthError::TooMany,
             Refusal::RecentLogin => AuthError::Unauthenticated,
             Refusal::BadLink => AuthError::Forbidden("This link is not valid or has expired.".into()),
+            Refusal::FirebaseAuthenticator => AuthError::Forbidden("This account has an old authenticator in Firebase. Ask Caller Whale to reset it, then sign in again.".into()),
             Refusal::Setup(message) | Refusal::Other(message) => AuthError::Internal(anyhow::anyhow!("firebase: {message}")),
         }
     }
@@ -128,11 +102,9 @@ struct Reply {
     refresh_token: String,
     local_id: String,
     mfa_pending_credential: String,
-    mfa_info: Vec<MfaInfo>,
     email: String,
     email_verified: bool,
     display_name: String,
-    totp_session_info: Option<TotpSession>,
     // securetoken.googleapis.com answers in snake_case.
     #[serde(rename = "user_id")]
     user_id: String,
@@ -140,20 +112,6 @@ struct Reply {
     id_token_snake: String,
     #[serde(rename = "refresh_token")]
     refresh_token_snake: String,
-}
-
-#[derive(Deserialize, Default)]
-#[serde(rename_all = "camelCase", default)]
-struct MfaInfo {
-    mfa_enrollment_id: String,
-    totp_info: Option<Value>,
-}
-
-#[derive(Deserialize, Default)]
-#[serde(rename_all = "camelCase", default)]
-pub struct TotpSession {
-    pub shared_secret_key: String,
-    pub session_info: String,
 }
 
 impl Firebase {
@@ -186,16 +144,15 @@ impl Firebase {
         Login { id_token: reply.id_token.clone(), refresh_token: reply.refresh_token.clone(), uid: reply.local_id.clone() }
     }
 
-    /// A sign-in or sign-up result: signed in, or waiting for the authenticator code.
-    fn outcome(reply: Reply) -> Result<Outcome, Refusal> {
+    /// A sign-in result: signed in, or (for an account that still has an authenticator in Firebase) refused.
+    fn outcome(reply: Reply) -> Result<Login, Refusal> {
         if !reply.mfa_pending_credential.is_empty() {
-            let factor = reply.mfa_info.iter().find(|f| f.totp_info.is_some()).or(reply.mfa_info.first());
-            return Ok(Outcome::NeedsCode(Pending { credential: reply.mfa_pending_credential.clone(), enrollment_id: factor.map(|f| f.mfa_enrollment_id.clone()).unwrap_or_default() }));
+            return Err(Refusal::FirebaseAuthenticator);
         }
         if reply.id_token.is_empty() {
             return Err(Refusal::Other("no token in the answer".into()));
         }
-        Ok(Outcome::Done(Self::login(&reply)))
+        Ok(Self::login(&reply))
     }
 
     pub async fn sign_up(&self, email: &str, password: &str) -> Result<Login, Refusal> {
@@ -203,13 +160,13 @@ impl Firebase {
         Ok(Self::login(&reply))
     }
 
-    pub async fn sign_in(&self, email: &str, password: &str) -> Result<Outcome, Refusal> {
+    pub async fn sign_in(&self, email: &str, password: &str) -> Result<Login, Refusal> {
         let reply = self.call("/v1/accounts:signInWithPassword", json!({ "email": email, "password": password, "returnSecureToken": true })).await?;
         Self::outcome(reply)
     }
 
     /// Google: the ID token this service already checked, handed to Firebase to find or open the person.
-    pub async fn sign_in_google(&self, google_id_token: &str) -> Result<Outcome, Refusal> {
+    pub async fn sign_in_google(&self, google_id_token: &str) -> Result<Login, Refusal> {
         let body = json!({
             "postBody": format!("id_token={google_id_token}&providerId=google.com"),
             "requestUri": "http://localhost",
@@ -217,20 +174,6 @@ impl Firebase {
             "returnIdpCredential": false,
         });
         Self::outcome(self.call("/v1/accounts:signInWithIdp", body).await?)
-    }
-
-    /// Finishes a sign-in that was waiting for its authenticator code.
-    pub async fn finish_with_code(&self, pending: &Pending, code: &str) -> Result<Login, Refusal> {
-        let body = json!({
-            "mfaPendingCredential": pending.credential,
-            "mfaEnrollmentId": pending.enrollment_id,
-            "totpVerificationInfo": { "verificationCode": code },
-        });
-        let reply = self.call("/v2/accounts/mfaSignIn:finalize", body).await?;
-        if reply.id_token.is_empty() {
-            return Err(Refusal::WrongCode);
-        }
-        Ok(Login { id_token: reply.id_token.clone(), refresh_token: reply.refresh_token.clone(), uid: String::new() })
     }
 
     /// A fresh ID token from a refresh token (Firebase may rotate the refresh token too).
@@ -260,7 +203,6 @@ impl Firebase {
             email: user["email"].as_str().unwrap_or_default().to_lowercase(),
             name: user["displayName"].as_str().unwrap_or_default().to_string(),
             email_verified: user["emailVerified"].as_bool().unwrap_or(false),
-            mfa_enrolled: user["mfaInfo"].as_array().is_some_and(|a| !a.is_empty()),
             disabled: user["disabled"].as_bool().unwrap_or(false),
         })
     }
@@ -298,18 +240,6 @@ impl Firebase {
         Ok(reply.email.to_lowercase())
     }
 
-    /// Starts setting up an authenticator: the secret to show, and the session its first code must come with.
-    pub async fn start_totp(&self, id_token: &str) -> Result<TotpSession, Refusal> {
-        let reply = self.call("/v2/accounts/mfaEnrollment:start", json!({ "idToken": id_token, "totpEnrollmentInfo": {} })).await?;
-        reply.totp_session_info.filter(|s| !s.shared_secret_key.is_empty()).ok_or_else(|| Refusal::Other("no authenticator secret in the answer".into()))
-    }
-
-    /// Turns the authenticator on with its first code. The new tokens say a second factor was used.
-    pub async fn finish_totp(&self, id_token: &str, session_info: &str, code: &str) -> Result<Login, Refusal> {
-        let body = json!({ "idToken": id_token, "displayName": "Authenticator app", "totpVerificationInfo": { "sessionInfo": session_info, "verificationCode": code } });
-        let reply = self.call("/v2/accounts/mfaEnrollment:finalize", body).await?;
-        Ok(Login { id_token: reply.id_token.clone(), refresh_token: reply.refresh_token.clone(), uid: String::new() })
-    }
 }
 
 /// The `otpauth://` address an authenticator app scans.

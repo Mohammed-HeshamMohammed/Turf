@@ -10,6 +10,9 @@ pub mod error;
 pub mod keys;
 pub mod email;
 pub mod firebase;
+pub mod mail;
+pub mod mfa;
+pub mod telegram;
 pub mod oauth;
 pub mod routes;
 
@@ -37,6 +40,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (2, include_str!("../migrations/0002_sign_in.sql")),
     (3, include_str!("../migrations/0003_session_provider.sql")),
     (4, include_str!("../migrations/0004_firebase.sql")),
+    (5, include_str!("../migrations/0005_second_factor.sql")),
 ];
 
 /// Brings the database up to date. Safe to run on every start.
@@ -66,7 +70,7 @@ pub fn app(state: AppState) -> axum::Router {
     let origins: Vec<HeaderValue> = state.config.allowed_origins.iter().filter_map(|o| o.parse().ok()).collect();
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::list(origins))
-        .allow_methods([Method::GET, Method::POST])
+        .allow_methods([Method::GET, Method::POST, Method::DELETE])
         .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
     routes::router().with_state(state).layer(cors)
 }

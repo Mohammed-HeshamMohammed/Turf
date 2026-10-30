@@ -14,8 +14,9 @@ pub enum AuthError {
     Unauthenticated,
     #[error("Wrong email or password.")]
     WrongCredentials,
-    #[error("Enter the code from your authenticator app.")]
-    MfaRequired,
+    /// The password was right and a second step is needed: the one-time challenge to answer, and the ways to answer it.
+    #[error("Confirm it is you with a second step.")]
+    MfaChallenge { challenge: String, methods: Vec<&'static str> },
     #[error("That code is not right.")]
     WrongCode,
     #[error("{0}")]
@@ -34,7 +35,7 @@ impl AuthError {
             AuthError::Bad(_) => (StatusCode::BAD_REQUEST, "bad_request"),
             AuthError::Unauthenticated => (StatusCode::UNAUTHORIZED, "unauthenticated"),
             AuthError::WrongCredentials => (StatusCode::UNAUTHORIZED, "wrong_credentials"),
-            AuthError::MfaRequired => (StatusCode::UNAUTHORIZED, "mfa_required"),
+            AuthError::MfaChallenge { .. } => (StatusCode::UNAUTHORIZED, "mfa_required"),
             AuthError::WrongCode => (StatusCode::UNAUTHORIZED, "wrong_code"),
             AuthError::Forbidden(_) => (StatusCode::FORBIDDEN, "forbidden"),
             AuthError::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
@@ -56,7 +57,12 @@ impl IntoResponse for AuthError {
             tracing::error!("{error:#}");
         }
         let (status, code) = self.status_and_code();
-        (status, Json(json!({ "error": self.to_string(), "code": code }))).into_response()
+        let mut body = json!({ "error": self.to_string(), "code": code });
+        if let AuthError::MfaChallenge { challenge, methods } = &self {
+            body["challenge"] = json!(challenge);
+            body["methods"] = json!(methods);
+        }
+        (status, Json(body)).into_response()
     }
 }
 

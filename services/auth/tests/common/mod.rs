@@ -26,7 +26,7 @@ pub async fn database() -> sqlx::AnyPool {
     let db = connect(&url).await.unwrap();
     migrate(&db).await.unwrap();
     migrate(&db).await.unwrap(); // running the migrations again is harmless
-    for table in ["outbox", "failed_sign_ins", "recovery_codes", "oauth_handoffs", "oauth_states", "email_verifications", "user_identities", "sessions", "users"] {
+    for table in ["outbox", "failed_sign_ins", "mfa_challenges", "mfa_factors", "telegram_links", "recovery_codes", "oauth_handoffs", "oauth_states", "email_verifications", "user_identities", "sessions", "users"] {
         sqlx::query(&format!("DELETE FROM {table}")).execute(&db).await.unwrap();
     }
     db
