@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"strconv"
 	"syscall"
 	"time"
@@ -27,6 +28,16 @@ func env(name, fallback string) string {
 }
 
 func main() {
+	// "/worker health" is the container's health check: the image has no shell or curl.
+	if len(os.Args) > 1 && os.Args[1] == "health" {
+		addr := env("CALLERWHALE_WORKER_BIND", "127.0.0.1:8090")
+		port := addr[strings.LastIndex(addr, ":")+1:]
+		res, err := (&http.Client{Timeout: 3 * time.Second}).Get("http://127.0.0.1:" + port + "/healthz")
+		if err != nil || res.StatusCode != http.StatusOK {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	token := os.Getenv("CALLERWHALE_WORKER_TOKEN")
 	if len(token) < 24 {
