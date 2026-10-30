@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { DownloadSimple, EnvelopeSimple, LockKey, ShieldCheck, WarningCircle } from "@phosphor-icons/react";
 import { API, destination, loadAuth, request, useSession } from "./session.jsx";
 import { AdminMode } from "./AdminPage.jsx";
+import { Approvals, Security, SecondStep } from "./Security.jsx";
 
 // Sign in, sign up, and the dashboard of a person Caller Whale invited. The page decides nothing about access: Caller Whale's server
 // answers /account with what this person may see, and refuses everything else.
@@ -43,7 +44,7 @@ function Shell({ title, lead, children, wide }) {
 function AuthForm({ mode }) {
   const session = useSession();
   const [form, setForm] = useState({ name: "", email: "", password: "", code: "" });
-  const [state, setState] = useState({ busy: false, error: "", note: "", needCode: false, google: false });
+  const [state, setState] = useState({ busy: false, error: "", note: "", needCode: false, google: false, second: null });
   const set = key => e => setForm({ ...form, [key]: e.target.value });
   const signup = mode === "signup";
 
@@ -79,7 +80,9 @@ function AuthForm({ mode }) {
       await work(await loadAuth());
       await arrive();
     } catch (error) {
-      if (error.code === "mfa_required") setState(s => ({ ...s, busy: false, needCode: true, error: s.needCode ? error.message : "" }));
+      // The password was right and a second step is needed: the server hands over the challenge and the ways to answer it.
+      if (error.code === "mfa_required" && error.data?.challenge) setState(s => ({ ...s, busy: false, second: { challenge: error.data.challenge, methods: error.data.methods } }));
+      else if (error.code === "mfa_required") setState(s => ({ ...s, busy: false, needCode: true, error: s.needCode ? error.message : "" }));
       else setState(s => ({ ...s, busy: false, error: error.message }));
       return;
     }
@@ -120,7 +123,8 @@ function AuthForm({ mode }) {
       lead={signup ? "Caller Whale is by invitation. Use the email address your invitation was sent to." : "Use the account your invitation was sent to."}
     >
       <div className="panel auth-panel">
-        {state.google && !state.needCode && (
+        {state.second && <SecondStep challenge={state.second.challenge} methods={state.second.methods} onDone={arrive} />}
+        {state.google && !state.needCode && !state.second && (
           <>
             <button type="button" className="button ghost google" onClick={google} disabled={state.busy}>
               <GoogleMark /> {signup ? "Sign up with Google" : "Sign in with Google"}
@@ -128,6 +132,7 @@ function AuthForm({ mode }) {
             <p className="or"><span>or with your email</span></p>
           </>
         )}
+        {!state.second && (
         <form onSubmit={onSubmit} noValidate>
           {state.needCode ? (
             <label>
@@ -158,6 +163,7 @@ function AuthForm({ mode }) {
             {state.busy ? "One moment…" : state.needCode ? "Confirm code" : signup ? "Create account" : "Sign in"}
           </button>
         </form>
+        )}
         <p className="switch">
           {signup ? (
             <>Already have an account? <a href="/signin">Sign in</a></>
@@ -357,7 +363,9 @@ export function Dashboard() {
         if (!access && account.staff) {
           return (
             <Shell title={`Welcome, ${name}`} lead="You are on Caller Whale's staff." wide>
+              <Approvals />
               <AdminMode account={account} signOut={session.signOut} />
+              <Security />
               <div className="panel">
                 <h2>Desktop app</h2>
                 <DownloadButton release={account.release} />
@@ -392,7 +400,9 @@ export function Dashboard() {
         const usage = access.usage;
         return (
           <Shell title={`Welcome, ${name}`} lead={`Your credits for ${new Date(access.period.start).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}.`} wide>
+            <Approvals />
             {account.staff && <AdminMode account={account} signOut={session.signOut} />}
+            <Security />
             <div className="stats">
               <div className="stat"><span>Used this month</span><strong>{number(access.used_this_month)}</strong></div>
               <div className="stat"><span>Monthly limit</span><strong>{number(access.monthly_credits)}</strong></div>

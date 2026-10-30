@@ -506,3 +506,60 @@ code.key {
   border-radius: 12px;
   background: #fff;
 }
+
+/* The second step at sign-in, and the security panel (Security.jsx). */
+.second-step h2,
+.security h2,
+.approvals h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 22px;
+}
+.second-methods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.second-methods .button[aria-pressed="true"] {
+  background: var(--ink, #111);
+  color: var(--paper, #fff);
+}
+.security h3 {
+  margin: 22px 0 8px;
+  font-size: 16px;
+}
+.factor-list {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.factor-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+}
+.factor-list small {
+  color: var(--muted, #595959);
+}
+.setup-key {
+  display: block;
+  margin: 8px 0;
+  padding: 10px 14px;
+  overflow-wrap: anywhere;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+}
+.approvals {
+  border: 2px solid var(--ink, #111);
+}
