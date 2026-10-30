@@ -1,5 +1,5 @@
 # The landing site's backend (waitlist, contact messages, the latest download). Build with this folder as the context:
-#   docker build -t turf-landing-api landing/api
+#   docker build -t callerwhale-landing-api landing/api
 # It keeps its data in a SQLite file, so run ONE copy and give it a volume at /data.
 FROM node:24-slim
 WORKDIR /app

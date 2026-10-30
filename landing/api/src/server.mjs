@@ -1,4 +1,3 @@
-import "./legacy-env.mjs";
 import { createApp } from "./app.mjs";
 import { latestRelease } from "./release.mjs";
 import { openStore } from "./store.mjs";

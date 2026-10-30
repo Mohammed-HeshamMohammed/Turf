@@ -12,7 +12,7 @@ export function latestRelease({ repo, fetchImpl = fetch, now = Date.now }) {
     let value = { available: false };
     try {
       const res = await fetchImpl(`https://api.github.com/repos/${repo}/releases/latest`, {
-        headers: { accept: "application/vnd.github+json", "user-agent": "turf-landing-api" },
+        headers: { accept: "application/vnd.github+json", "user-agent": "callerwhale-landing-api" },
       });
       if (res.ok) {
         const release = await res.json();

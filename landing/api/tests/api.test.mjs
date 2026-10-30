@@ -65,7 +65,7 @@ test("latestRelease reads GitHub once and caches it", async () => {
         published_at: "2026-10-26T00:00:00Z",
         assets: [
           { name: "latest.json", size: 1, browser_download_url: "u0" },
-          { name: "Turf_0.4.0_x64.msi", size: 99, browser_download_url: "u1" },
+          { name: "CallerWhale_0.4.0_x64.msi", size: 99, browser_download_url: "u1" },
         ],
       }),
     };
