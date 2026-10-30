@@ -1,4 +1,4 @@
-// Signing in with Turf's auth service, for the website and the CRM (in a browser tab and in the desktop window).
+// Signing in with Caller Whale's auth service, for the website and the CRM (in a browser tab and in the desktop window).
 // Plain JavaScript with no dependencies, so the same file serves both. This is the original; the copies in
 // services/core-api/website/ and desktop/frontend/react/src/remote/ must stay identical (a test checks).
 //

@@ -5,7 +5,7 @@ metadata:
   name: core-api
   labels:
     app.kubernetes.io/name: core-api
-    app.kubernetes.io/part-of: turf
+    app.kubernetes.io/part-of: callerwhale
 spec:
   revisionHistoryLimit: 3
   strategy:
@@ -18,7 +18,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: core-api
-        app.kubernetes.io/part-of: turf
+        app.kubernetes.io/part-of: callerwhale
     spec:
       terminationGracePeriodSeconds: 30
       securityContext:
@@ -44,7 +44,7 @@ spec:
               app.kubernetes.io/name: core-api
       containers:
       - name: core-api
-        image: turf-core-api
+        image: callerwhale-core-api
         ports:
           - { name: http, containerPort: 8088 }
         envFrom:

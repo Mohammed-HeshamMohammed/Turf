@@ -907,7 +907,7 @@ async function adminPeople(you, query = "") {
                   canChange(person)
                     ? person.disabled
                       ? small("Turn on", () => act(() => api(`/platform/people/${person.id}/access`, { disabled: false }), "people", `${person.email} can use Caller Whale again.`))
-                      : small("Turn off", () => confirm(`Turn off ${person.email}'s access to Caller Whale?`) && act(() => api(`/platform/people/${person.id}/access`, { disabled: true }), "people", `${person.email} can no longer use Turf.`), "danger")
+                      : small("Turn off", () => confirm(`Turn off ${person.email}'s access to Caller Whale?`) && act(() => api(`/platform/people/${person.id}/access`, { disabled: true }), "people", `${person.email} can no longer use Caller Whale.`), "danger")
                     : null,
                 ),
               ),

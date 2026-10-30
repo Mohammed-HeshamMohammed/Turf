@@ -1,4 +1,4 @@
-//! Turf as a paid service, end to end against real PostgreSQL: sign-up onto the trial, the trial's minute limit,
+//! Caller Whale as a paid service, end to end against real PostgreSQL: sign-up onto the trial, the trial's minute limit,
 //! paying for Solo or Business through the signed webhook, seats on invitations, and what an expired plan may still do.
 
 mod common;

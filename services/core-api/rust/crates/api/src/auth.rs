@@ -88,10 +88,10 @@ impl Subscription {
     pub fn refusal(&self) -> Option<&'static str> {
         match (self.status.as_str(), self.current) {
             ("trialing", true) | ("active", true) => None,
-            ("trialing", false) => Some("Your free trial has ended. Choose a plan to keep using Turf."),
-            ("past_due", _) => Some("Your last payment did not go through. Update your plan to keep using Turf."),
+            ("trialing", false) => Some("Your free trial has ended. Choose a plan to keep using Caller Whale."),
+            ("past_due", _) => Some("Your last payment did not go through. Update your plan to keep using Caller Whale."),
             ("canceled", _) => Some("This subscription was cancelled. Choose a plan to use Caller Whale again."),
-            _ => Some("Your plan has ended. Renew it to keep using Turf."),
+            _ => Some("Your plan has ended. Renew it to keep using Caller Whale."),
         }
     }
 }
@@ -261,7 +261,7 @@ pub async fn load_from_auth(state: &AppState, claims: &turf_auth_verify::Claims,
         mfa_passed: claims.mfa,
         mfa_enrolled: claims.mfa || totp_secret.is_some(),
         mfa_enforced: state.config.require_mfa,
-        // Staff need the authenticator code everywhere, unless the server has turned that off (TURF_STAFF_MFA).
+        // Staff need the authenticator code everywhere, unless the server has turned that off (CALLERWHALE_STAFF_MFA).
         staff: staff && state.config.staff_mfa,
         subscription: None,
         suspended: false,

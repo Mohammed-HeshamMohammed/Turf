@@ -1,5 +1,5 @@
 """Development only: plays the payment provider and confirms (or fails) a checkout, signing the webhook exactly as a
-real provider integration must: HMAC-SHA256 of the raw body with TURF_BILLING_WEBHOOK_SECRET.
+real provider integration must: HMAC-SHA256 of the raw body with CALLERWHALE_BILLING_WEBHOOK_SECRET.
 
     python services/core-api/scripts/dev_pay.py <payment_id> <amount_cents> [failed] [http://127.0.0.1:8088]
 
@@ -34,14 +34,14 @@ def setting(name: str) -> str:
     sys.exit(f"Set {name}, or run node tools/env-init.mjs (see env/README.md)")
 
 
-secret = setting("TURF_BILLING_WEBHOOK_SECRET")
+secret = setting("CALLERWHALE_BILLING_WEBHOOK_SECRET")
 
 event = {"event_id": "dev-" + uuid.uuid4().hex, "type": "payment.failed" if failed else "payment.succeeded", "payment_id": payment,
          "amount_cents": amount, "provider_ref": "dev-" + uuid.uuid4().hex[:12]}
 body = json.dumps(event).encode()
 signature = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
 request = urllib.request.Request(base + "/api/v1/billing/webhook", data=body, method="POST",
-                                 headers={"Content-Type": "application/json", "X-Turf-Signature": signature})
+                                 headers={"Content-Type": "application/json", "X-Caller Whale-Signature": signature})
 try:
     with urllib.request.urlopen(request) as response:
         print(response.read().decode())

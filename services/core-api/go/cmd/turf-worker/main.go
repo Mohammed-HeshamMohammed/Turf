@@ -1,7 +1,7 @@
-// turf-worker: scheduling, workflow processing and cache invalidation for the Turf CRM API.
+// turf-worker: scheduling, workflow processing and cache invalidation for the Caller Whale CRM API.
 //
-// Environment: TURF_API_URL (http://api:8088), TURF_WORKER_TOKEN, REDIS_ADDR (optional host:port),
-// REDIS_PASSWORD, TURF_WORKER_BIND (health endpoint, default 127.0.0.1:8090), TURF_WORKER_CONCURRENCY (4).
+// Environment: CALLERWHALE_API_URL (http://api:8088), CALLERWHALE_WORKER_TOKEN, REDIS_ADDR (optional host:port),
+// REDIS_PASSWORD, CALLERWHALE_WORKER_BIND (health endpoint, default 127.0.0.1:8090), CALLERWHALE_WORKER_CONCURRENCY (4).
 package main
 
 import (
@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"os/signal"
 	"strconv"
 	"syscall"
@@ -19,8 +20,16 @@ import (
 	"turf/backend/go/internal/worker"
 )
 
-func env(name, fallback string) string {
+// getenv reads a CALLERWHALE_* setting; a server still configured with the old TURF_* name keeps working.
+func getenv(name string) string {
 	if value := os.Getenv(name); value != "" {
+		return value
+	}
+	return os.Getenv(strings.Replace(name, "CALLERWHALE_", "TURF_", 1))
+}
+
+func env(name, fallback string) string {
+	if value := getenv(name); value != "" {
 		return value
 	}
 	return fallback
@@ -28,14 +37,14 @@ func env(name, fallback string) string {
 
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	token := os.Getenv("TURF_WORKER_TOKEN")
+	token := getenv("CALLERWHALE_WORKER_TOKEN")
 	if len(token) < 24 {
-		log.Error("TURF_WORKER_TOKEN must be set to the token the API knows (24+ characters)")
+		log.Error("CALLERWHALE_WORKER_TOKEN must be set to the token the API knows (24+ characters)")
 		os.Exit(2)
 	}
-	concurrency, _ := strconv.Atoi(env("TURF_WORKER_CONCURRENCY", "4"))
+	concurrency, _ := strconv.Atoi(env("CALLERWHALE_WORKER_CONCURRENCY", "4"))
 	w := &worker.Worker{
-		API: &worker.Client{Base: env("TURF_API_URL", "http://127.0.0.1:8088"), Token: token, HTTP: &http.Client{Timeout: 30 * time.Second}},
+		API: &worker.Client{Base: env("CALLERWHALE_API_URL", "http://127.0.0.1:8088"), Token: token, HTTP: &http.Client{Timeout: 30 * time.Second}},
 		Config: worker.Config{
 			Batch: 50, Concurrency: concurrency, Idle: time.Second, TickEvery: time.Minute, LeaseSeconds: 60, InvalidateKey: "turf:invalidate",
 		},
@@ -55,7 +64,7 @@ func main() {
 			"ok": true, "processed": w.Stats.Processed.Load(), "failed": w.Stats.Failed.Load(), "ticks": w.Stats.Ticks.Load(), "last_error": last,
 		})
 	})
-	server := &http.Server{Addr: env("TURF_WORKER_BIND", "127.0.0.1:8090"), Handler: health, ReadHeaderTimeout: 5 * time.Second}
+	server := &http.Server{Addr: env("CALLERWHALE_WORKER_BIND", "127.0.0.1:8090"), Handler: health, ReadHeaderTimeout: 5 * time.Second}
 	go func() {
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Error("health endpoint stopped", "error", err)

@@ -1,4 +1,4 @@
-//! Who can run Turf, and the admin dashboard's API. Nobody becomes the platform owner or a system administrator by
+//! Who can run Caller Whale, and the admin dashboard's API. Nobody becomes the platform owner or a system administrator by
 //! signing up, by an invitation or through the API; the highest a customer can be is the business owner of the
 //! workspace they opened. The owner names staff; staff manage customers. Runs against real PostgreSQL.
 
@@ -82,7 +82,7 @@ async fn the_owner_names_staff_and_staff_cannot_name_more() {
     assert_eq!(owner.get("/api/v1/platform/organizations").await.ok()["you"], "owner");
     assert_eq!(owner.post("/api/v1/platform/staff", json!({ "email": "nobody@example.com", "role": "admin" })).await.status, 404);
     assert_eq!(owner.post("/api/v1/platform/staff", json!({ "email": "helper@turf.example", "role": "owner" })).await.status, 403, "the owner role is never given");
-    owner.post("/api/v1/platform/staff", json!({ "email": "Helper@Turf.example", "role": "admin" })).await.ok();
+    owner.post("/api/v1/platform/staff", json!({ "email": "Helper@Caller Whale.example", "role": "admin" })).await.ok();
     assert_eq!(helper.get("/api/v1/me").await.ok()["platform_role"], "admin");
     assert_eq!(helper.get("/api/v1/platform/organizations").await.ok()["you"], "admin");
 
@@ -151,11 +151,11 @@ async fn staff_manage_customer_workspaces_and_people() {
 async fn staff_get_a_workspace_without_limits() {
     let Some(h) = start().await else { return };
     let (owner, _) = platform_owner(&h).await;
-    let staffer = h.client("team@turf.example", "Turf Team", true, true);
+    let staffer = h.client("team@turf.example", "Caller Whale Team", true, true);
     staffer.get("/api/v1/me").await.ok();
     owner.post("/api/v1/platform/staff", json!({ "email": "team@turf.example", "role": "admin" })).await.ok();
 
-    let org = staffer.post("/api/v1/platform/workspace", json!({ "organization": "Turf Calling Floor" })).await.ok()["organization_id"].as_str().unwrap().to_string();
+    let org = staffer.post("/api/v1/platform/workspace", json!({ "organization": "Caller Whale Calling Floor" })).await.ok()["organization_id"].as_str().unwrap().to_string();
     staffer.set_org(&org);
     assert_eq!(staffer.post("/api/v1/platform/workspace", json!({ "organization": "Again" })).await.status, 409);
     let billing = staffer.get("/api/v1/billing").await.ok();
@@ -300,7 +300,7 @@ async fn only_people_given_access_get_in() {
     assert_eq!(stranger.get("/api/v1/auth/service").await.ok()["signup"], false);
 
     // Staff open a workspace for a customer; it has no members until its owner accepts.
-    let staff = h.client("staff@turf.example", "Turf Staff", true, true);
+    let staff = h.client("staff@turf.example", "Caller Whale Staff", true, true);
     staff.get("/api/v1/me").await.ok();
     sqlx::query("UPDATE users SET platform_role = 'admin' WHERE email = 'staff@turf.example'").execute(&h.owner).await.unwrap();
     assert_eq!(stranger.post("/api/v1/platform/customers", json!({ "organization": "X", "email": "stranger@example.com" })).await.status, 403);

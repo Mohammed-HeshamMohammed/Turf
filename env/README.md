@@ -1,6 +1,6 @@
 # Settings and secrets
 
-Every part of Turf reads its settings, secrets included, from one file here. The real files are never committed (git ignores everything in this folder except this README and the `*.example` files), and no script or source file holds a secret of its own.
+Every part of Caller Whale reads its settings, secrets included, from one file here. The real files are never committed (git ignores everything in this folder except this README and the `*.example` files), and no script or source file holds a secret of its own.
 
 ```bash
 node tools/env-init.mjs     # from Full CRM Turf/: creates each missing file from its example, with new random secrets
@@ -10,8 +10,8 @@ It never overwrites a file. Run it again after an example gains a setting, and i
 
 | File | Read by | Secrets in it |
 | --- | --- | --- |
-| `core-api.env` | `services/core-api/scripts/run-api.sh` | `TURF_WORKER_TOKENS`, `TURF_BILLING_WEBHOOK_SECRET` (generated) |
-| `worker.env` | `services/core-api/scripts/run-worker.sh` | `TURF_WORKER_TOKEN` (the same token as the API's) |
+| `core-api.env` | `services/core-api/scripts/run-api.sh` | `CALLERWHALE_WORKER_TOKENS`, `CALLERWHALE_BILLING_WEBHOOK_SECRET` (generated) |
+| `worker.env` | `services/core-api/scripts/run-worker.sh` | `CALLERWHALE_WORKER_TOKEN` (the same token as the API's) |
 | `auth.env` | `services/auth/scripts/run-auth.sh` | `AUTH_SIGNING_KEY` (generated), `AUTH_GOOGLE_CLIENT_SECRET`, `AUTH_APPLE_PRIVATE_KEY` |
 | `desktop.env` | the desktop app and the CRM (`vite.config.mjs`), when built or served | None that are server secrets: everything here ships inside the app |
 | `compose.env` | `docker compose --env-file env/compose.env -f deploy/compose.yml` | `POSTGRES_PASSWORD`, `AUTH_SIGNING_KEY` (generated) |

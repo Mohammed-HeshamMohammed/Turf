@@ -1,11 +1,11 @@
-"""Sets the platform owner of this Turf server: the owner of the app, who appoints system administrators and manages
+"""Sets the platform owner of this Caller Whale server: the owner of the app, who appoints system administrators and manages
 every customer workspace from the admin dashboard. There is only ever one, and this script is the only way to set it.
 
     python services/core-api/scripts/create_platform_owner.py <email>
 
 Run it on the server, once. It uses the owning database role (MIGRATION_DATABASE_URL, by default the local development
 one); the API itself can never give a platform role. Accounts live only in the auth service, so the person signs up
-there first (the website or the app) and opens Turf once, which gives this server its copy of them. Their own
+there first (the website or the app) and opens Caller Whale once, which gives this server its copy of them. Their own
 workspaces lose their plan limits. When the server requires MFA they need two-step sign-in on at auth for the dashboard.
 
 Refused when there is already a platform owner. Handing the app over to someone else is done by hand in the database,
@@ -33,7 +33,7 @@ with psycopg.connect(database) as db:
         (email,),
     ).fetchone()
     if row is None:
-        sys.exit(f"{email} has not used this server yet. Sign up with the auth service and open Turf once, then run this again.")
+        sys.exit(f"{email} has not used this server yet. Sign up with the auth service and open Caller Whale once, then run this again.")
     user = row[0]
     # Their own workspaces carry no plan: no trial clock, seat or minute limit.
     orgs = db.execute("SELECT org_id FROM memberships WHERE user_id = %s AND 'owner' = ANY(roles)", (user,)).fetchall()

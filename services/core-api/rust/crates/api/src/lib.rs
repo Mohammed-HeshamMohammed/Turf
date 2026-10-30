@@ -40,7 +40,7 @@ pub async fn state(config: config::Config) -> anyhow::Result<AppState> {
     let auth = auth_verifier(&config.auth_jwks, &config.auth_jwks_url).await?.map(Arc::new);
     let firebase = firebase_verifier(&config.firebase_project, &config.firebase_jwks, &config.firebase_jwks_url).await?.map(|v| Arc::new(std::sync::RwLock::new(Arc::new(v))));
     if auth.is_none() && firebase.is_none() {
-        anyhow::bail!("Set TURF_FIREBASE_PROJECT, or TURF_AUTH_JWKS or TURF_AUTH_JWKS_URL: people sign in with Firebase or the auth service");
+        anyhow::bail!("Set CALLERWHALE_FIREBASE_PROJECT, or CALLERWHALE_AUTH_JWKS or CALLERWHALE_AUTH_JWKS_URL: people sign in with Firebase or the auth service");
     }
     if let (Some(shared), true) = (&firebase, config.firebase_jwks.trim().is_empty()) {
         refresh_firebase_keys(shared.clone(), config.firebase_project.clone(), config.firebase_jwks_url.clone());
@@ -48,7 +48,7 @@ pub async fn state(config: config::Config) -> anyhow::Result<AppState> {
     Ok(AppState { db, cache, events, config: Arc::new(config), auth, firebase })
 }
 
-/// Firebase's verifier for TURF_FIREBASE_PROJECT, from TURF_FIREBASE_JWKS or fetched from TURF_FIREBASE_JWKS_URL. A
+/// Firebase's verifier for CALLERWHALE_FIREBASE_PROJECT, from CALLERWHALE_FIREBASE_JWKS or fetched from CALLERWHALE_FIREBASE_JWKS_URL. A
 /// project with keys that cannot be read stops the start.
 pub async fn firebase_verifier(project: &str, jwks: &str, jwks_url: &str) -> anyhow::Result<Option<turf_auth_verify::FirebaseVerifier>> {
     if project.is_empty() {
@@ -75,7 +75,7 @@ fn refresh_firebase_keys(shared: Arc<std::sync::RwLock<Arc<turf_auth_verify::Fir
     });
 }
 
-/// The auth service's public keys, from TURF_AUTH_JWKS or fetched once from TURF_AUTH_JWKS_URL. A bad key set stops the
+/// The auth service's public keys, from CALLERWHALE_AUTH_JWKS or fetched once from CALLERWHALE_AUTH_JWKS_URL. A bad key set stops the
 /// server from starting rather than letting it run without the check it was told to make.
 pub async fn auth_verifier(jwks: &str, jwks_url: &str) -> anyhow::Result<Option<turf_auth_verify::Verifier>> {
     let json = if !jwks.trim().is_empty() {

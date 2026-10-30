@@ -1,4 +1,4 @@
-//! Verifies Turf access tokens. The auth service is the one source of truth for who someone is: it signs short-lived
+//! Verifies Caller Whale access tokens. The auth service is the one source of truth for who someone is: it signs short-lived
 //! EdDSA (Ed25519) tokens and publishes its public keys at `/.well-known/jwks.json`. Every other service builds a
 //! [`Verifier`] from those keys once and checks tokens locally, so a signed-in person keeps working while auth restarts.
 //! [`FirebaseVerifier`] checks Firebase Authentication's ID tokens the same way, while sign-in moves there
@@ -8,7 +8,7 @@ use jsonwebtoken::{decode, decode_header, jwk::JwkSet, Algorithm, DecodingKey, V
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Who issues Turf access tokens, and who they are for.
+/// Who issues Caller Whale access tokens, and who they are for.
 pub const ISSUER: &str = "turf-auth";
 pub const AUDIENCE: &str = "turf";
 
@@ -89,7 +89,7 @@ pub fn firebase_issuer(project_id: &str) -> String {
     format!("https://securetoken.google.com/{project_id}")
 }
 
-/// True for claims that came from Firebase: `sub` is then a Firebase uid, not a Turf user id.
+/// True for claims that came from Firebase: `sub` is then a Firebase uid, not a Caller Whale user id.
 pub fn is_firebase(claims: &Claims) -> bool {
     claims.iss.starts_with("https://securetoken.google.com/")
 }
@@ -110,7 +110,7 @@ struct FirebaseToken {
     firebase: FirebaseDetail,
 }
 
-/// Firebase's `sign_in_provider` in Turf's words: "google.com" is "google", "password" stays.
+/// Firebase's `sign_in_provider` in Caller Whale's words: "google.com" is "google", "password" stays.
 pub fn provider_name(firebase: &str) -> String {
     firebase.strip_suffix(".com").unwrap_or(firebase).to_string()
 }
@@ -145,7 +145,7 @@ impl FirebaseVerifier {
         Ok(FirebaseVerifier { keys, validation })
     }
 
-    /// The person behind a Firebase ID token, in the same [`Claims`] a Turf token gives. Firebase has no session id, so
+    /// The person behind a Firebase ID token, in the same [`Claims`] a Caller Whale token gives. Firebase has no session id, so
     /// `sid` is the uid and the moment they signed in. `mfa` is true only for an authenticator code. A token without an
     /// email, or claiming a sign-in in the future, is refused.
     pub fn verify(&self, token: &str) -> Result<Claims, VerifyError> {
@@ -331,7 +331,7 @@ mod tests {
         let mut old = firebase_claims();
         old["exp"] = (now() - 120).into();
         assert_eq!(v.verify(&firebase_token(old)), Err(VerifyError::Expired));
-        // A Turf token is not a Firebase token, and the other way round.
+        // A Caller Whale token is not a Firebase token, and the other way round.
         let k = key("k1");
         assert_eq!(v.verify(&sign(&k, "k1", &claims(now() + 600))), Err(VerifyError::Invalid));
         assert_eq!(Verifier::from_jwks_json(&k.jwks).unwrap().verify(&firebase_token(firebase_claims())), Err(VerifyError::Invalid));

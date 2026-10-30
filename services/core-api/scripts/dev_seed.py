@@ -40,7 +40,7 @@ def call(base: str, method: str, path: str, body: object | None = None, token: s
     if token:
         headers["Authorization"] = f"Bearer {token}"
     if org:
-        headers["X-Turf-Org"] = org
+        headers["X-Caller Whale-Org"] = org
     request = urllib.request.Request(base + path, data=data, method=method, headers=headers)
     with urllib.request.urlopen(request, timeout=30) as response:
         text = response.read().decode()
