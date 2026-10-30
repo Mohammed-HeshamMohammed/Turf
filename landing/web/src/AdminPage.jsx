@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowClockwise, PaperPlaneTilt, ShieldCheck, UserPlus } from "@phosphor-icons/react";
 import { DayChart, DownloadButton, Gate, GoogleMark, Meter, Problem, RecentUsage, dateText, go, number, timeText } from "./AccountPages.jsx";
 import { NotFound } from "./pages.jsx";
@@ -274,97 +274,207 @@ function Invitations({ account }) {
   );
 }
 
+const ENTER_WITHIN = 15 * 60 * 1000; // admin mode starts only from a sign-in this recent (authenticator code included)
+const IDLE_LIMIT = 10 * 60 * 1000; // and ends after this long without the person doing anything in it
+
+/** When the person last signed in, from their token's `auth_time` (the server checks the token; this only decides what to offer). */
+function signedInAt(token) {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return Number(payload.auth_time) * 1000 || 0;
+  } catch {
+    return 0;
+  }
+}
+
+const USED = "cw.admin.entered"; // the sign-in (its time) that last started admin mode, so it can't start it twice
+
+const lastEntered = () => {
+  try {
+    return Number(localStorage.getItem(USED)) || 0;
+  } catch {
+    return 0;
+  }
+};
+
 /**
- * The admin pages do not exist for anyone but staff: a visitor, a signed-out person or a customer sees the same
- * "not found" page as for any other address. Staff sign in at /signin and arrive here.
+ * Admin mode, for staff, inside their dashboard. It has no address of its own and lives only in this page's memory: a
+ * reload, a closed tab, leaving it or ten idle minutes ends it, and going back in needs a new sign-in with the
+ * authenticator code: one sign-in starts admin mode once. Invitations and Grafana are inside it. The server asks for the authenticator step on every staff request
+ * whatever this page shows (docs/plans/grafana-access.md).
  */
-export function Admin() {
-  const session = useSession();
-  if (session.status === "unknown") return null;
-  if (session.status === "signed_in" && !session.account.staff) return <NotFound />;
-  if (session.status === "signed_out") return <NotFound />;
-  // The server not answering must not give the page away to someone who never signed in on this device.
-  if (session.status === "error" && !hinted()) return <NotFound />;
+export function AdminMode({ account, signOut }) {
+  const [on, setOn] = useState(false);
+  const [note, setNote] = useState("");
+  const [stale, setStale] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const active = useRef(Date.now());
+
+  const enter = async () => {
+    setBusy(true);
+    setNote("");
+    setStale(false);
+    try {
+      const auth = await loadAuth();
+      const token = await auth.accessToken();
+      if (!token) throw new Error("Sign in again to start admin mode.");
+      const at = signedInAt(token);
+      if (Date.now() - at > ENTER_WITHIN || at <= lastEntered()) {
+        setStale(true);
+        setNote("Admin mode needs a new sign-in with your authenticator code each time. Sign in again, then start it.");
+      } else {
+        try {
+          localStorage.setItem(USED, String(at));
+        } catch {
+          // Without storage the proxy still refuses a sign-in it has already used.
+        }
+        active.current = Date.now();
+        setOn(true);
+      }
+    } catch (reason) {
+      setNote(reason.message);
+    }
+    setBusy(false);
+  };
+
+  const leave = useCallback((why = "") => {
+    setOn(false);
+    setNote(why);
+  }, []);
+
+  useEffect(() => {
+    if (!on) return undefined;
+    const touch = () => {
+      active.current = Date.now();
+    };
+    const events = ["pointerdown", "pointermove", "keydown", "scroll", "focus"];
+    events.forEach(name => window.addEventListener(name, touch, { passive: true }));
+    // Using Grafana is activity too, but its frame keeps its events to itself: the focus sitting in it counts as presence.
+    const watch = setInterval(() => {
+      if (document.activeElement?.classList?.contains("grafana-frame") && !document.hidden) active.current = Date.now();
+      if (Date.now() - active.current > IDLE_LIMIT) leave("Admin mode ended after ten minutes without activity. Start it again when you need it.");
+    }, 15000);
+    return () => {
+      events.forEach(name => window.removeEventListener(name, touch));
+      clearInterval(watch);
+    };
+  }, [on, leave]);
+
+  if (!on) {
+    return (
+      <div className="panel admin-mode">
+        <h2><ShieldCheck size={22} weight="duotone" aria-hidden="true" /> Admin mode</h2>
+        <p className="sub">
+          Invitations, usage and Grafana, for {account.staff.role === "owner" ? "the platform owner" : "system administrators"}. Every time you go in it needs a new
+          sign-in with your authenticator code, and it ends after ten idle minutes.
+        </p>
+        {note && <p className={"notice " + (stale ? "bad" : "good")} role="status">{note}</p>}
+        <div className="actions">
+          {stale ? (
+            <button type="button" className="button" onClick={signOut}>Sign in again</button>
+          ) : (
+            <button type="button" className="button" onClick={enter} disabled={busy}>Start admin mode</button>
+          )}
+        </div>
+      </div>
+    );
+  }
   return (
-    <Gate>
-      {({ account }) => {
-        if (!account.staff) return <NotFound />;
-        return (
-          <section className="section account wide">
-            <div className="account-head">
-              <h1>Admin</h1>
-              <p className="sub">Signed in as {account.person.email} ({account.staff.role === "owner" ? "platform owner" : "system administrator"}).</p>
-              <div className="actions">
-                <a className="button" href="/admin/grafana?return=%2F">Open Grafana</a>
-              </div>
-            </div>
-            <Invitations account={account} />
-          </section>
-        );
-      }}
-    </Gate>
+    <div className="admin-mode on">
+      <div className="panel admin-bar">
+        <div>
+          <h2><ShieldCheck size={22} weight="fill" aria-hidden="true" /> Admin mode</h2>
+          <p className="sub">Signed in as {account.person.email}. Ends after ten idle minutes.</p>
+        </div>
+        <button type="button" className="button ghost" onClick={() => leave()}>Leave admin mode</button>
+      </div>
+      <GrafanaPanel />
+      <Invitations account={account} />
+    </div>
   );
 }
 
 /**
- * Hands a member of staff over to Grafana: posts their token to the Grafana login proxy, which asks Turf's server
- * whether they are staff and opens its own session (docs/plans/grafana-access.md). A form post, so the token is never
- * in a URL. The proxy sends people here when they have no session, with the page to go back to in `return`.
+ * Grafana, inside the admin page. It has no page of its own: the login proxy turns away anyone who visits its address
+ * directly and lets only this site frame it, and it admits only staff who passed the authenticator step
+ * (docs/plans/grafana-access.md). The token goes to the proxy in a form post aimed at the frame, so it is never in a
+ * URL, and a frame that loses its session asks this page for a fresh one.
  */
-export function GrafanaHandoff() {
-  const session = useSession();
-  const [form, setForm] = useState(null);
+export function GrafanaPanel() {
+  const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
-  const staff = session.status === "signed_in" && session.account.staff;
+  const last = useRef(0);
 
-  useEffect(() => {
-    if (session.status === "signed_out") {
-      go(`/signin?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
-      return;
+  const signIn = useCallback(async () => {
+    try {
+      const auth = await loadAuth();
+      if (!grafanaUrl) throw new Error("Grafana is not set up on this server.");
+      const token = await auth.accessToken();
+      if (!token) throw new Error("Sign in again to open Grafana.");
+      last.current = Date.now();
+      const form = document.createElement("form");
+      form.method = "post";
+      form.action = `${grafanaUrl}/_turf/session`;
+      form.target = "grafana-frame";
+      form.hidden = true;
+      for (const [name, value] of [["token", token], ["return", "/"]]) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = name;
+        input.value = value;
+        form.append(input);
+      }
+      // The proxy takes a sign-in only from this site's origin, and a cross-site post says "null" under this site's
+      // referrer policy, so the page says its origin (and nothing more) for the moment of the post.
+      const meta = document.createElement("meta");
+      meta.name = "referrer";
+      meta.content = "strict-origin";
+      document.head.append(meta);
+      document.body.append(form);
+      form.submit();
+      form.remove();
+      meta.remove();
+    } catch (reason) {
+      setError(reason.message);
+      setOpen(false);
     }
-    if (!staff) return;
-    let live = true;
-    loadAuth()
-      .then(async auth => {
-        if (!grafanaUrl) throw new Error("Grafana is not set up on this server.");
-        const token = await auth.accessToken();
-        if (!token) throw new Error("Sign in again to open Grafana.");
-        const back = new URLSearchParams(window.location.search).get("return") || "/";
-        if (live) setForm({ action: `${grafanaUrl}/_turf/session`, token, back: back.startsWith("/") && !back.startsWith("//") ? back : "/" });
-      })
-      .catch(reason => live && setError(reason.message));
-    return () => {
-      live = false;
-    };
-  }, [session.status, staff]);
-
-  const formRef = useCallback(node => {
-    if (!node) return;
-    // The proxy takes a sign-in only from this site's origin, and a cross-site post would say its origin is "null"
-    // under this site's referrer policy, so this page says its origin (and nothing more) just before it leaves.
-    const meta = document.createElement("meta");
-    meta.name = "referrer";
-    meta.content = "strict-origin";
-    document.head.append(meta);
-    // Back from Grafana lands on the admin page, not on this one again.
-    window.history.replaceState({}, "", "/admin");
-    node.submit();
   }, []);
 
-  if (session.status === "signed_in" && !staff) return <NotFound />;
-  if (error) return <section className="section account"><div className="panel"><p className="notice bad" role="alert">{error}</p><a className="button" href="/admin">Back to admin</a></div></section>;
+  useEffect(() => {
+    if (open) signIn();
+  }, [open, signIn]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const ask = event => {
+      // Only Grafana's own frame, at most once every 15 seconds, so a refusal can't loop.
+      if (grafanaUrl && event.origin === new URL(grafanaUrl).origin && event.data === "turf-grafana-signin" && Date.now() - last.current > 15000) signIn();
+    };
+    window.addEventListener("message", ask);
+    return () => window.removeEventListener("message", ask);
+  }, [open, signIn]);
+
   return (
-    <section className="section account">
-      <div className="panel">
-        <h1>Opening Grafana</h1>
-        <p className="sub">Checking your access…</p>
-        {form && (
-          <form ref={formRef} method="post" action={form.action}>
-            <input type="hidden" name="token" value={form.token} />
-            <input type="hidden" name="return" value={form.back} />
-          </form>
-        )}
+    <div className="panel grafana-panel">
+      <div className="grafana-head">
+        <div>
+          <h2>Grafana</h2>
+          <p className="sub">Opens here only, for staff who finished the authenticator step. It has no public page.</p>
+        </div>
+        <button type="button" className="button" onClick={() => (open ? setOpen(false) : (setError(""), setOpen(true)))}>
+          <ShieldCheck size={17} /> {open ? "Close Grafana" : "Open Grafana"}
+        </button>
       </div>
-    </section>
+      {error && <p className="notice bad" role="alert">{error}</p>}
+      {open && (
+        <iframe
+          name="grafana-frame"
+          title="Grafana"
+          className="grafana-frame"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"
+          referrerPolicy="no-referrer"
+        />
+      )}
+    </div>
   );
 }

@@ -109,7 +109,6 @@ export function Header({ route }) {
         ))}
         {session.status === "signed_in" || session.status === "error" ? (
           <>
-            {account?.staff && <a href="/admin" aria-current={route === "admin" ? "page" : undefined}>Admin</a>}
             {(invited || account?.staff) && <a href="/dashboard" aria-current={route === "dashboard" ? "page" : undefined}>Dashboard</a>}
             <button type="button" className="button small ghost" onClick={session.signOut}>Sign out</button>
           </>

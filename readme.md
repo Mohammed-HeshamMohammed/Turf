@@ -2,8 +2,8 @@
 
 This branch is a **production snapshot of one part of Turf**: only the files this part needs, at the same paths as in `Full CRM Turf/` on `main`.
 
-- Last changed from `main` at `8328117` (2026-10-30)
-- Content id: `e4f12926621e0ead6205d71a51d7d10acaff3228` (the branch is only refreshed when this changes)
+- Last changed from `main` at `9005249` (2026-10-30)
+- Content id: `529f6311045fe9faa439f64d6a46713c5e12278c` (the branch is only refreshed when this changes)
 - Holds: `infra/k8s/landing-web`, `landing/web`
 - 53 files
 - Build and test: npm install && npm run build   (static files in dist/)
