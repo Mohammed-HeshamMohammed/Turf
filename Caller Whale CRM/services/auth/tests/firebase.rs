@@ -81,27 +81,28 @@ async fn sign_up_again(app: &Router) -> Value {
 }
 
 #[tokio::test]
-async fn an_authenticator_is_set_up_and_used_through_firebase() {
+async fn the_second_step_is_this_services_own_not_firebases() {
     let (app, fake) = with_firebase().await;
     let made = sign_up(&app, "sami@example.com").await;
-
     let (status, setup) = call(&app, "POST", "/v1/mfa/setup", None, Some(token(&made))).await;
     assert_eq!(status, StatusCode::OK, "{setup}");
-    assert_eq!(setup["secret"], "JBSWY3DPEHPK3PXP");
-    assert!(setup["otpauth_url"].as_str().unwrap().starts_with("otpauth://totp/Caller%20Whale:sami%40example.com"));
-
+    let secret = setup["secret"].as_str().unwrap().to_string();
+    assert!(setup["otpauth_url"].as_str().unwrap().starts_with("otpauth://totp/"));
     assert_eq!(call(&app, "POST", "/v1/mfa/confirm", Some(json!({ "code": "000000" })), Some(token(&made))).await.0, StatusCode::UNAUTHORIZED);
-    let (status, done) = call(&app, "POST", "/v1/mfa/confirm", Some(json!({ "code": firebase::GOOD_CODE })), Some(token(&made))).await;
+    let (status, done) = call(&app, "POST", "/v1/mfa/confirm", Some(json!({ "code": current_code(&secret, "sami@example.com") })), Some(token(&made))).await;
     assert_eq!(status, StatusCode::OK, "{done}");
     assert_eq!(done["recovery_codes"], json!([]), "Firebase has no recovery codes");
-    assert!(fake.world.lock().unwrap().has_mfa("sami@example.com"));
+    let w = fake.world.lock().unwrap();
+    assert_eq!((w.asked("mfaEnrollment:start"), w.asked("mfaEnrollment:finalize"), w.has_mfa("sami@example.com")), (0, 0, false), "nothing about it went to Firebase");
+    drop(w);
 
-    // Signing in now asks for the code, and the token says it was given.
+    // Signing in now asks for the second step, and the token says it was given.
     let (status, body) = sign_in(&app, "sami@example.com", None).await;
     assert_eq!((status, body["code"].as_str()), (StatusCode::UNAUTHORIZED, Some("mfa_required")));
+    assert_eq!(body["methods"], json!(["totp", "push"]), "the session that set it up can approve a sign-in");
     let (status, body) = sign_in(&app, "sami@example.com", Some("111111")).await;
     assert_eq!((status, body["code"].as_str()), (StatusCode::UNAUTHORIZED, Some("wrong_code")));
-    let (status, body) = sign_in(&app, "sami@example.com", Some(firebase::GOOD_CODE)).await;
+    let (status, body) = sign_in(&app, "sami@example.com", Some(&current_code(&secret, "sami@example.com"))).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(claims(&app, token(&body)).await.mfa);
     let (_, me) = call(&app, "GET", "/v1/me", None, Some(token(&body))).await;
@@ -181,19 +182,19 @@ async fn google_goes_through_firebase_and_comes_back_as_this_services_session() 
 }
 
 #[tokio::test]
-async fn a_google_sign_in_steps_up_with_the_authenticator_code_from_firebase() {
-    let (app, fake) = google_app().await;
+async fn a_google_sign_in_steps_up_with_the_authenticator_code() {
+    let (app, _) = google_app().await;
     // Mona has a password account with an authenticator, made through this service.
     let made = sign_up(&app, "mona@example.com").await;
-    call(&app, "POST", "/v1/mfa/setup", None, Some(token(&made))).await;
-    call(&app, "POST", "/v1/mfa/confirm", Some(json!({ "code": firebase::GOOD_CODE })), Some(token(&made))).await;
-    assert!(fake.world.lock().unwrap().has_mfa("mona@example.com"));
+    let (_, setup) = call(&app, "POST", "/v1/mfa/setup", None, Some(token(&made))).await;
+    let secret = setup["secret"].as_str().unwrap().to_string();
+    call(&app, "POST", "/v1/mfa/confirm", Some(json!({ "code": current_code(&secret, "mona@example.com") })), Some(token(&made))).await;
 
     let (status, g) = google(&app).await;
     assert_eq!(status, StatusCode::OK, "{g}");
     assert!(!claims(&app, token(&g)).await.mfa, "Google does not pass the second step");
     assert_eq!(call(&app, "POST", "/v1/mfa/verify", Some(json!({ "code": "000000" })), Some(token(&g))).await.0, StatusCode::UNAUTHORIZED);
-    let (status, stepped) = call(&app, "POST", "/v1/mfa/verify", Some(json!({ "code": firebase::GOOD_CODE })), Some(token(&g))).await;
+    let (status, stepped) = call(&app, "POST", "/v1/mfa/verify", Some(json!({ "code": current_code(&secret, "mona@example.com") })), Some(token(&g))).await;
     assert_eq!(status, StatusCode::OK, "{stepped}");
     assert!(claims(&app, stepped["access_token"].as_str().unwrap()).await.mfa);
 }

@@ -154,8 +154,9 @@ async fn two_step_sign_in_with_a_code_or_a_recovery_code() {
     let (status, _) = call(&app, "POST", "/v1/sessions", Some(json!({ "email": "sami@example.com", "password": PASSWORD, "code": recovery[0] })), None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 
+    // More devices may be added; the limit is three (tests/mfa.rs).
     let (status, _) = call(&app, "POST", "/v1/mfa/setup", None, Some(token(&signed))).await;
-    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(status, StatusCode::OK);
 }
 
 #[tokio::test]
