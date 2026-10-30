@@ -199,44 +199,46 @@ fn kind_of(kind: Option<&str>) -> AuthResult<&'static str> {
 
 // ---- Firebase as the account store (src/firebase.rs) ----
 
-/// The person's row here, made or updated from what Firebase says. The row's id is Firebase's uid.
+/// The person's row here, made or updated from what Firebase says. The row's id is its own UUID; Firebase's uid is kept beside it.
 pub(crate) async fn upsert_firebase_user(state: &AppState, profile: &Profile) -> AuthResult<User> {
     let t = now() as i64;
     let email = normal_email(&profile.email)?;
     let marker = if profile.mfa_enrolled { Some(FIREBASE_TOTP) } else { None };
     let verified = if profile.email_verified { Some(t) } else { None };
-    let existing = user_by(state, "id", &profile.uid).await?;
-    if existing.is_some() {
+    let existing = user_by(state, "firebase_uid", &profile.uid).await?;
+    if let Some(found) = existing {
         sqlx::query("UPDATE users SET email = $1, totp_secret = $2, email_verified_at = COALESCE(email_verified_at, $3) WHERE id = $4")
             .bind(&email)
             .bind(marker)
             .bind(verified)
-            .bind(&profile.uid)
+            .bind(&found.id)
             .execute(&state.db)
             .await?;
         if !profile.name.trim().is_empty() {
-            sqlx::query("UPDATE users SET display_name = $1 WHERE id = $2").bind(profile.name.trim()).bind(&profile.uid).execute(&state.db).await?;
+            sqlx::query("UPDATE users SET display_name = $1 WHERE id = $2").bind(profile.name.trim()).bind(&found.id).execute(&state.db).await?;
         }
     } else {
         if user_by(state, "email", &email).await?.is_some() {
             return Err(AuthError::Conflict("An account with this email already exists. Sign in instead.".into()));
         }
         let name = if profile.name.trim().is_empty() { email.split('@').next().unwrap_or("Caller Whale user").to_string() } else { profile.name.trim().to_string() };
+        let id = Uuid::new_v4().to_string();
         let mut tx = state.db.begin().await?;
-        sqlx::query("INSERT INTO users (id, email, display_name, password_hash, totp_secret, created_at, email_verified_at) VALUES ($1, $2, $3, $4, $5, $6, $7)")
-            .bind(&profile.uid)
+        sqlx::query("INSERT INTO users (id, email, display_name, password_hash, totp_secret, created_at, email_verified_at, firebase_uid) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)")
+            .bind(&id)
             .bind(&email)
             .bind(&name)
             .bind(oauth::NO_PASSWORD)
             .bind(marker)
             .bind(t)
             .bind(verified)
+            .bind(&profile.uid)
             .execute(&mut *tx)
             .await?;
-        email::outbox(&mut tx, "user.signed_up", json!({ "user_id": profile.uid, "version": 1 })).await?;
+        email::outbox(&mut tx, "user.signed_up", json!({ "user_id": id, "version": 1 })).await?;
         tx.commit().await?;
     }
-    user_by(state, "id", &profile.uid).await?.ok_or(AuthError::Unauthenticated)
+    user_by(state, "firebase_uid", &profile.uid).await?.ok_or(AuthError::Unauthenticated)
 }
 
 /// A current Firebase ID token for a session, from the refresh token the session keeps.

@@ -1,7 +1,7 @@
 use crate::{cache::Cache, config::Config};
 use serde::Serialize;
 use sqlx::PgPool;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
@@ -26,6 +26,4 @@ pub struct AppState {
     pub config: Arc<Config>,
     /// Checks access tokens from the auth service, the one source of truth for who someone is.
     pub auth: Option<Arc<callerwhale_auth_verify::Verifier>>,
-    /// Checks Firebase ID tokens; its keys are swapped in place when Google rotates them.
-    pub firebase: Option<Arc<RwLock<Arc<callerwhale_auth_verify::FirebaseVerifier>>>>,
 }

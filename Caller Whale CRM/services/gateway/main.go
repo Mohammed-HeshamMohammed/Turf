@@ -1,7 +1,7 @@
 // Gateway: the one public entry point for Caller Whale's servers. It routes by the host name to the service behind it
 // (the core API, the Grafana login proxy), and checks every request before it gets there: a path that must stay
-// private is not found, a request that needs a signed-in person must carry a valid Firebase token (signature, issuer,
-// audience and expiry, checked with Google's public keys), staff paths also need the authenticator step, and each
+// private is not found, a request that needs a signed-in person must carry a valid Caller Whale token (signature, issuer,
+// audience and expiry, checked with the auth service's public keys), staff paths also need the authenticator step, and each
 // address and each person has a rate limit. The services behind it check again for themselves: the gateway narrows
 // what reaches them, it does not replace their checks. Plan: docs/plans/gateway.md.
 package main
@@ -36,9 +36,8 @@ type route struct {
 
 type config struct {
 	routes        map[string]*route
-	project       string // the Firebase project: tokens must be issued for it
-	jwksURL       string
-	staffSecond   bool // staff paths need the authenticator step in the token
+	authJWKS      string // the auth service's public keys: the only thing the gateway knows about sign-in
+	staffSecond   bool   // staff paths need the authenticator step in the token
 	ipPerMinute   int
 	userPerMinute int
 	maxBody       int64
@@ -46,7 +45,7 @@ type config struct {
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
-	c := config{routes: map[string]*route{}, jwksURL: "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"}
+	c := config{routes: map[string]*route{}}
 	number := func(name string, fallback int) (int, error) {
 		v := strings.TrimSpace(getenv(name))
 		if v == "" {
@@ -79,12 +78,9 @@ func loadConfig(getenv func(string) string) (config, error) {
 		return c, errors.New("CORE_HOST is not one of the ROUTES hosts")
 	}
 	if core != "" {
-		if c.project = strings.TrimSpace(getenv("FIREBASE_PROJECT_ID")); c.project == "" {
-			return c, errors.New("set FIREBASE_PROJECT_ID: the core API's tokens are checked against it")
+		if c.authJWKS = strings.TrimSpace(getenv("AUTH_JWKS_URL")); c.authJWKS == "" {
+			return c, errors.New("set AUTH_JWKS_URL, the auth service's /.well-known/jwks.json: the core API's tokens are checked with it")
 		}
-	}
-	if v := strings.TrimSpace(getenv("FIREBASE_JWKS_URL")); v != "" {
-		c.jwksURL = v
 	}
 	c.staffSecond = getenv("STAFF_REQUIRE_SECOND_FACTOR") != "false"
 	var err error
@@ -110,7 +106,7 @@ type need int
 
 const (
 	open     need = iota // nothing: the website's files, public information
-	signedIn             // a valid token
+	signedIn             // a valid Caller Whale token
 	staff                // a valid token with the authenticator step
 	private              // never reachable from outside: answered as not found
 )
@@ -145,8 +141,8 @@ type gateway struct {
 
 func newGateway(cfg config) *gateway {
 	g := &gateway{cfg: cfg, ips: newLimiter(cfg.ipPerMinute), people: newLimiter(cfg.userPerMinute), now: time.Now}
-	if cfg.project != "" {
-		g.keys = newKeyset(cfg.jwksURL)
+	if cfg.authJWKS != "" {
+		g.keys = newKeyset(cfg.authJWKS)
 	}
 	for _, r := range cfg.routes {
 		r := r
@@ -273,7 +269,7 @@ func (g *gateway) identify(r *http.Request) (claims, error) {
 	if token == "" || g.keys == nil {
 		return claims{}, errors.New("no token")
 	}
-	return g.keys.verify(token, g.cfg.project, g.now())
+	return g.keys.verify(token, g.now())
 }
 
 func tooMany(w http.ResponseWriter) {

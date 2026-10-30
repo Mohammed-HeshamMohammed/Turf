@@ -46,7 +46,7 @@ pub(crate) enum Staff {
 
 /// The person's platform role, or a refusal. Caller Whale's staff always need the second sign-in step (the authenticator
 /// code), whatever the server's MFA setting: a token that has not passed it opens nothing here. Only CALLERWHALE_STAFF_MFA=false
-/// lifts that, for a Firebase project without authenticator codes.
+/// lifts that, for a server whose staff have no authenticator yet.
 pub(crate) async fn staff(state: &AppState, ctx: &Ctx) -> ApiResult<Staff> {
     let role: Option<String> = sqlx::query_scalar("SELECT platform_role FROM users WHERE id = $1").bind(ctx.user_id).fetch_one(&state.db).await?;
     let role = match role.as_deref() {

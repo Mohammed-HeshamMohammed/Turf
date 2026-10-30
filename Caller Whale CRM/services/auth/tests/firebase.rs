@@ -37,6 +37,7 @@ async fn sign_up_makes_the_account_in_firebase_and_hands_out_this_services_token
     assert!(!c.mfa && c.auth_time > 0);
     assert!(!token(&body).starts_with("id-"), "a Firebase token reached the client");
     assert!(!body["refresh_token"].as_str().unwrap().starts_with("rt-"));
+    assert!(uuid::Uuid::parse_str(body["user"]["id"].as_str().unwrap()).is_ok(), "the person's id is a UUID, not Firebase's uid");
     let w = fake.world.lock().unwrap();
     assert!(w.has_account("sami@example.com"));
     assert_eq!(w.sent_verifications, ["sami@example.com"], "Firebase sends the confirmation email");
