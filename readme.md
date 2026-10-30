@@ -1,9 +1,9 @@
 # Skip Tracing engine (Python)
 
-This branch is a **production snapshot of one part of Turf**: only the files this part needs, at the same paths as in `service/` on `main`.
+This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in `service/` on `main`.
 
-- Last changed from `main` at `573c142` (2026-10-27)
-- Content id: `082ba8e2de479b3575d7d432d9200951f4453ae4` (the branch is only refreshed when this changes)
+- Last changed from `main` at `0491000` (2026-10-30)
+- Content id: `a91ba8e74c09e68c8d1c3bddb7627d7d8a2de532` (the branch is only refreshed when this changes)
 - Holds: `.`
 - 98 files
 - Build and test: pip install -r requirements.txt pytest && python -m pytest

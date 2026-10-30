@@ -16,7 +16,7 @@ HEADER = ["First Name", "Last Name", "Phone", "Alt. Phone", "Zip", "State", "Sta
 
 @pytest.fixture()
 def service(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Service:
-    monkeypatch.setenv("TURF_APP_DATA", str(tmp_path / "appdata"))
+    monkeypatch.setenv("CALLERWHALE_APP_DATA", str(tmp_path / "appdata"))
     svc = Service()
     ok(svc, "project.create", path=str(tmp_path / "project"), name="Fixture")
     return svc

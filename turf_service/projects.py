@@ -13,7 +13,7 @@ DATABASE_NAME = "dataforge.sqlite3"
 
 
 def app_data_dir() -> Path:
-    base = os.environ.get("TURF_APP_DATA") or os.environ.get("LOCALAPPDATA") or str(Path.home() / ".local" / "share")
+    base = os.environ.get("CALLERWHALE_APP_DATA") or os.environ.get("LOCALAPPDATA") or str(Path.home() / ".local" / "share")
     path = Path(base) / "Turf"
     path.mkdir(parents=True, exist_ok=True)
     return path

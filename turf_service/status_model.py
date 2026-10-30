@@ -39,8 +39,8 @@ _fetch = {"state": "idle", "done": 0, "error": "", "failed_at": 0.0}
 
 
 def model_dir() -> Path:
-    """Where the model's files are: TURF_STATUS_MODEL, or the models folder in Turf's app data."""
-    return Path(os.environ.get("TURF_STATUS_MODEL") or app_data_dir() / "models" / "potion-base-8M")
+    """Where the model's files are: CALLERWHALE_STATUS_MODEL, or the models folder in Turf's app data."""
+    return Path(os.environ.get("CALLERWHALE_STATUS_MODEL") or app_data_dir() / "models" / "potion-base-8M")
 
 
 def _present(folder: Path) -> bool:
@@ -72,7 +72,7 @@ def state() -> dict:
 def ensure() -> None:
     """Starts fetching the model in the background when it is missing. Returns at once."""
     folder = model_dir()
-    if _present(folder) or os.environ.get("TURF_STATUS_MODEL_DOWNLOAD") == "0" or not _package():
+    if _present(folder) or os.environ.get("CALLERWHALE_STATUS_MODEL_DOWNLOAD") == "0" or not _package():
         return
     with _lock:
         if _fetch["state"] == "downloading" or (_fetch["state"] == "failed" and time.time() - _fetch["failed_at"] < RETRY_AFTER):
