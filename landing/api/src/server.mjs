@@ -8,5 +8,5 @@ const release = latestRelease({ repo: process.env.TURF_RELEASE_REPO });
 const origins = (process.env.TURF_LANDING_ORIGINS || "http://localhost:5200").split(",").filter(Boolean);
 
 createApp({ store, release, origins }).listen(port, () => {
-  console.log(`Turf landing API on http://localhost:${port}`);
+  console.log(`Caller Whale landing API on http://localhost:${port}`);
 });
