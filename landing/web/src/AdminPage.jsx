@@ -242,7 +242,7 @@ function Invitations({ account }) {
         <div className="stat"><span>Suspended</span><strong>{number(data.totals.suspended)}</strong></div>
         <div className="stat"><span>Credits used this month</span><strong>{number(data.totals.used_this_month)}</strong></div>
       </div>
-      {!data.mail && <Problem>No mail server is set up on Caller Whale's server, so invitations are saved but not emailed. Set TURF_SMTP_HOST and its login.</Problem>}
+      {!data.mail && <Problem>No mail server is set up on Caller Whale's server, so invitations are saved but not emailed. Set CALLERWHALE_SMTP_HOST and its login.</Problem>}
       <InviteForm onInvited={load} />
       <div className="panel">
         <div className="table-head">

@@ -1,9 +1,9 @@
 # Landing site: frontend
 
-This branch is a **production snapshot of one part of Turf**: only the files this part needs, at the same paths as in `Full CRM Turf/` on `main`.
+This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in `Full CRM Turf/` on `main`.
 
-- Last changed from `main` at `9005249` (2026-10-30)
-- Content id: `529f6311045fe9faa439f64d6a46713c5e12278c` (the branch is only refreshed when this changes)
+- Last changed from `main` at `0491000` (2026-10-30)
+- Content id: `568c1599cf1b09ea2bca10abb7b2edf903c3f7ac` (the branch is only refreshed when this changes)
 - Holds: `infra/k8s/landing-web`, `landing/web`
 - 53 files
 - Build and test: npm install && npm run build   (static files in dist/)
