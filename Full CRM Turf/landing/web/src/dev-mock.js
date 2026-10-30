@@ -56,7 +56,7 @@ const accounts = {
 
 export const mockAuth = {
   providerList: ["google"],
-  accessToken: async () => "mock-token",
+  accessToken: async () => `x.${btoa(JSON.stringify({ auth_time: Math.floor(Date.now() / 1000) }))}.y`,
   refresh: async () => "mock-token",
   finishProvider: async () => false,
   signIn: async () => {},

@@ -274,33 +274,107 @@ function Invitations({ account }) {
   );
 }
 
+const ENTER_WITHIN = 15 * 60 * 1000; // admin mode starts only from a sign-in this recent (authenticator code included)
+const IDLE_LIMIT = 10 * 60 * 1000; // and ends after this long without the person doing anything in it
+
+/** When the person last signed in, from their token's `auth_time` (the server checks the token; this only decides what to offer). */
+function signedInAt(token) {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return Number(payload.auth_time) * 1000 || 0;
+  } catch {
+    return 0;
+  }
+}
+
 /**
- * The admin pages do not exist for anyone but staff: a visitor, a signed-out person or a customer sees the same
- * "not found" page as for any other address. Staff sign in at /signin and arrive here.
+ * Admin mode, for staff, inside their dashboard. It has no address of its own and lives only in this page's memory: a
+ * reload, a closed tab or ten idle minutes ends it, and starting it again needs a recent sign-in with the authenticator
+ * code. Invitations and Grafana are inside it. The server asks for the authenticator step on every staff request
+ * whatever this page shows (docs/plans/grafana-access.md).
  */
-export function Admin() {
-  const session = useSession();
-  if (session.status === "unknown") return null;
-  if (session.status === "signed_in" && !session.account.staff) return <NotFound />;
-  if (session.status === "signed_out") return <NotFound />;
-  // The server not answering must not give the page away to someone who never signed in on this device.
-  if (session.status === "error" && !hinted()) return <NotFound />;
+export function AdminMode({ account, signOut }) {
+  const [on, setOn] = useState(false);
+  const [note, setNote] = useState("");
+  const [stale, setStale] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const active = useRef(Date.now());
+
+  const enter = async () => {
+    setBusy(true);
+    setNote("");
+    setStale(false);
+    try {
+      const auth = await loadAuth();
+      const token = await auth.accessToken();
+      if (!token) throw new Error("Sign in again to start admin mode.");
+      if (Date.now() - signedInAt(token) > ENTER_WITHIN) {
+        setStale(true);
+        setNote("Admin mode needs a fresh sign-in with your authenticator code. Sign in again, then start it.");
+      } else {
+        active.current = Date.now();
+        setOn(true);
+      }
+    } catch (reason) {
+      setNote(reason.message);
+    }
+    setBusy(false);
+  };
+
+  const leave = useCallback((why = "") => {
+    setOn(false);
+    setNote(why);
+  }, []);
+
+  useEffect(() => {
+    if (!on) return undefined;
+    const touch = () => {
+      active.current = Date.now();
+    };
+    const events = ["pointerdown", "pointermove", "keydown", "scroll", "focus"];
+    events.forEach(name => window.addEventListener(name, touch, { passive: true }));
+    // Using Grafana is activity too, but its frame keeps its events to itself: the focus sitting in it counts as presence.
+    const watch = setInterval(() => {
+      if (document.activeElement?.classList?.contains("grafana-frame") && !document.hidden) active.current = Date.now();
+      if (Date.now() - active.current > IDLE_LIMIT) leave("Admin mode ended after ten minutes without activity. Start it again when you need it.");
+    }, 15000);
+    return () => {
+      events.forEach(name => window.removeEventListener(name, touch));
+      clearInterval(watch);
+    };
+  }, [on, leave]);
+
+  if (!on) {
+    return (
+      <div className="panel admin-mode">
+        <h2><ShieldCheck size={22} weight="duotone" aria-hidden="true" /> Admin mode</h2>
+        <p className="sub">
+          Invitations, usage and Grafana, for {account.staff.role === "owner" ? "the platform owner" : "system administrators"}. It starts from a recent
+          sign-in with your authenticator code and ends after ten idle minutes.
+        </p>
+        {note && <p className={"notice " + (stale ? "bad" : "good")} role="status">{note}</p>}
+        <div className="actions">
+          {stale ? (
+            <button type="button" className="button" onClick={signOut}>Sign in again</button>
+          ) : (
+            <button type="button" className="button" onClick={enter} disabled={busy}>Start admin mode</button>
+          )}
+        </div>
+      </div>
+    );
+  }
   return (
-    <Gate>
-      {({ account }) => {
-        if (!account.staff) return <NotFound />;
-        return (
-          <section className="section account wide">
-            <div className="account-head">
-              <h1>Admin</h1>
-              <p className="sub">Signed in as {account.person.email} ({account.staff.role === "owner" ? "platform owner" : "system administrator"}).</p>
-            </div>
-            <GrafanaPanel />
-            <Invitations account={account} />
-          </section>
-        );
-      }}
-    </Gate>
+    <div className="admin-mode on">
+      <div className="panel admin-bar">
+        <div>
+          <h2><ShieldCheck size={22} weight="fill" aria-hidden="true" /> Admin mode</h2>
+          <p className="sub">Signed in as {account.person.email}. Ends after ten idle minutes.</p>
+        </div>
+        <button type="button" className="button ghost" onClick={() => leave()}>Leave admin mode</button>
+      </div>
+      <GrafanaPanel />
+      <Invitations account={account} />
+    </div>
   );
 }
 
@@ -387,12 +461,4 @@ export function GrafanaPanel() {
       )}
     </div>
   );
-}
-
-/** The old address the login proxy used to send people to: Grafana now lives in the admin page. */
-export function GrafanaHandoff() {
-  useEffect(() => {
-    go("/admin");
-  }, []);
-  return null;
 }

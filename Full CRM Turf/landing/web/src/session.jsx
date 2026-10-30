@@ -126,7 +126,7 @@ export function SessionProvider({ children }) {
   useEffect(() => {
     live.current = true;
     // Only someone who signed in on this device loads the SDK on every page.
-    if (!hinted() && !/^\/(signin|signup|dashboard|admin)/.test(window.location.pathname)) setState(s => ({ ...s, status: "signed_out" }));
+    if (!hinted() && !/^\/(signin|signup|dashboard)/.test(window.location.pathname)) setState(s => ({ ...s, status: "signed_out" }));
     else reload().catch(() => {});
     return () => {
       live.current = false;
@@ -139,12 +139,12 @@ export function SessionProvider({ children }) {
 
 export const useSession = () => useContext(SessionContext) || { status: "unknown", account: null, error: null, reload: async () => null, signOut: async () => {} };
 
-/** Where a signed-in person belongs: staff to the admin pages, everyone else to their dashboard. */
-export const homeFor = account => (account?.staff ? "/admin" : "/dashboard");
+/** Where a signed-in person belongs: their dashboard. Staff reach admin mode from there; it has no address. */
+export const homeFor = () => "/dashboard";
 
-/** Pages a sign-in may send a person back to (`?next=`): never another site, and the admin pages only for staff. */
+/** Pages a sign-in may send a person back to (`?next=`): never another site, and nothing else. */
 export function destination(account) {
   const next = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("next") || "";
-  if (next === "/dashboard" || (account?.staff && (next === "/admin" || /^\/admin\/grafana(\?|$)/.test(next)))) return next;
+  if (next === "/dashboard") return next;
   return homeFor(account);
 }

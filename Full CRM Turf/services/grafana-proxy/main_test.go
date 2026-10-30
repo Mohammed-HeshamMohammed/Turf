@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -35,6 +36,7 @@ func (f *fakeCore) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := strings.TrimPrefix(r.Header.Get("authorization"), "Bearer ")
+	token = token[strings.LastIndex(token, ".")+1:] // tests name a token after its last part
 	f.mu.Lock()
 	status, ok := f.answers[token]
 	who := f.people[token]
@@ -93,6 +95,19 @@ func (w *world) do(r *http.Request) *httptest.ResponseRecorder {
 
 // signIn posts a token as the website does, and returns the response.
 func (w *world) signIn(token, back string) *httptest.ResponseRecorder {
+	return w.signInAt(token, back, w.clock.Add(-time.Minute))
+}
+
+// jwt is a token signed in at the given time; the last part is the name the fake core API knows it by.
+func jwt(name string, at time.Time) string {
+	claims, _ := json.Marshal(map[string]int64{"auth_time": at.Unix()})
+	return "h." + base64.RawURLEncoding.EncodeToString(claims) + "." + name
+}
+
+func (w *world) signInAt(token, back string, at time.Time) *httptest.ResponseRecorder {
+	if token != "" {
+		token = jwt(token, at)
+	}
 	form := url.Values{"token": {token}, "return": {back}}
 	r := httptest.NewRequest(http.MethodPost, "https://grafana.turf.example/_turf/session", strings.NewReader(form.Encode()))
 	r.Header.Set("content-type", "application/x-www-form-urlencoded")
@@ -157,7 +172,7 @@ func TestHealthAnswersWithoutSignIn(t *testing.T) {
 func TestWithoutASessionPagesGoToTheWebsiteAndCallsGet401(t *testing.T) {
 	w := newWorld(t)
 	rec := w.page("/d/abc?orgId=1", nil)
-	if rec.Code != http.StatusSeeOther || rec.Header().Get("location") != website+"/admin/grafana?return="+url.QueryEscape("/d/abc?orgId=1") {
+	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("got %d %q", rec.Code, rec.Header().Get("location"))
 	}
 	call := httptest.NewRequest(http.MethodGet, "/api/dashboards/home", nil)
@@ -262,7 +277,7 @@ func TestAForgedOrUnknownCookieOpensNothing(t *testing.T) {
 	w := newWorld(t)
 	sessionCookie(t, w.signIn("owner-token", "/"))
 	rec := w.page("/", &http.Cookie{Name: cookieName, Value: "made-up"})
-	if rec.Code != http.StatusSeeOther || !strings.HasPrefix(rec.Header().Get("location"), website) {
+	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("got %d", rec.Code)
 	}
 }
@@ -291,7 +306,7 @@ func TestAccessIsCheckedAgainOnceAMinute(t *testing.T) {
 		t.Fatalf("removed admin: %d", rec.Code)
 	}
 	w.core.set("admin-token", 200, admin)
-	if rec := w.page("/", c); rec.Code != http.StatusSeeOther {
+	if rec := w.page("/", c); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("the old session came back: %d", rec.Code)
 	}
 }
@@ -302,7 +317,7 @@ func TestAnExpiredTokenSendsThemToSignInAgain(t *testing.T) {
 	w.core.set("owner-token", 401, person{})
 	w.clock = w.clock.Add(2 * time.Minute)
 	rec := w.page("/d/abc", c)
-	if rec.Code != http.StatusSeeOther || !strings.Contains(rec.Header().Get("location"), url.QueryEscape("/d/abc")) {
+	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("got %d %q", rec.Code, rec.Header().Get("location"))
 	}
 }
@@ -310,8 +325,8 @@ func TestAnExpiredTokenSendsThemToSignInAgain(t *testing.T) {
 func TestTheSessionEndsAtItsMaximumAge(t *testing.T) {
 	w := newWorld(t)
 	c := sessionCookie(t, w.signIn("owner-token", "/"))
-	w.clock = w.clock.Add(8*time.Hour + time.Second)
-	if rec := w.page("/", c); rec.Code != http.StatusSeeOther {
+	w.clock = w.clock.Add(time.Hour + time.Second)
+	if rec := w.page("/", c); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("got %d", rec.Code)
 	}
 }
@@ -337,6 +352,33 @@ func TestAStrangeAnswerFromTheCoreAPIIsNotTrusted(t *testing.T) {
 	}
 }
 
+func TestASignInOlderThanTheWindowOpensNothing(t *testing.T) {
+	w := newWorld(t)
+	for name, at := range map[string]time.Time{"stale": w.clock.Add(-16 * time.Minute), "none": {}} {
+		rec := w.signInAt("owner-token", "/", at)
+		if rec.Code != http.StatusUnauthorized || hasSessionCookie(rec) {
+			t.Fatalf("%s: got %d", name, rec.Code)
+		}
+	}
+	if w.core.calls.Load() != 0 {
+		t.Fatal("asked the core API about a stale sign-in")
+	}
+}
+
+func TestASessionEndsAfterTenIdleMinutes(t *testing.T) {
+	w := newWorld(t)
+	c := sessionCookie(t, w.signIn("owner-token", "/"))
+	// Activity keeps it open past ten minutes in total.
+	for i := 0; i < 3; i++ {
+		w.clock = w.clock.Add(6 * time.Minute)
+		seen(t, w.page("/", c))
+	}
+	w.clock = w.clock.Add(11 * time.Minute)
+	if rec := w.page("/", c); rec.Code == 200 {
+		t.Fatal("still open after an idle spell")
+	}
+}
+
 func TestLogoutEndsTheSession(t *testing.T) {
 	w := newWorld(t)
 	c := sessionCookie(t, w.signIn("owner-token", "/"))
@@ -346,7 +388,7 @@ func TestLogoutEndsTheSession(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("got %d", rec.Code)
 	}
-	if rec := w.page("/", c); rec.Code != http.StatusSeeOther {
+	if rec := w.page("/", c); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("still signed in: %d", rec.Code)
 	}
 }

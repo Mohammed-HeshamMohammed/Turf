@@ -23,7 +23,9 @@ The owner is Grafana's `Admin`, and system administrators get `ADMIN_GRAFANA_ROL
 | `TURF_WEBSITE_URL` | required | The website with the admin dashboard; its origin is the only one allowed to post a sign-in |
 | `ADMIN_GRAFANA_ROLE` | `Editor` | `Viewer`, `Editor` or `Admin` for system administrators |
 | `RECHECK_EVERY` | `60s` | How often access is asked again |
-| `SESSION_MAX_AGE` | `8h` | Longest a session lasts |
+| `SESSION_MAX_AGE` | `1h` | Longest a session lasts |
+| `IDLE_TIMEOUT` | `10m` | A session ends after this long with no request |
+| `AUTH_WITHIN` | `15m` | Longest since the person signed in (authenticator code included) for a new session to open |
 | `COOKIE_SECURE` | on | `false` only for local http |
 | `PORT` | `8120` | |
 

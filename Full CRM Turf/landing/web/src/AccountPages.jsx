@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { DownloadSimple, EnvelopeSimple, LockKey, ShieldCheck, WarningCircle } from "@phosphor-icons/react";
 import { API, destination, loadAuth, request, useSession } from "./session.jsx";
+import { AdminMode } from "./AdminPage.jsx";
 
 // Sign in, sign up, and the dashboard of a person Caller Whale invited. The page decides nothing about access: Caller Whale's server
 // answers /account with what this person may see, and refuses everything else.
@@ -355,10 +356,9 @@ export function Dashboard() {
         const name = account.person.name || account.person.email;
         if (!access && account.staff) {
           return (
-            <Shell title={`Welcome, ${name}`} lead="You are on Caller Whale's staff.">
+            <Shell title={`Welcome, ${name}`} lead="You are on Caller Whale's staff." wide>
+              <AdminMode account={account} signOut={session.signOut} />
               <div className="panel">
-                <p className="sub">Invite people, set their limits and watch their usage on the admin pages.</p>
-                <div className="actions"><a className="button" href="/admin">Open admin</a></div>
                 <h2>Desktop app</h2>
                 <DownloadButton release={account.release} />
               </div>
@@ -392,6 +392,7 @@ export function Dashboard() {
         const usage = access.usage;
         return (
           <Shell title={`Welcome, ${name}`} lead={`Your credits for ${new Date(access.period.start).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}.`} wide>
+            {account.staff && <AdminMode account={account} signOut={session.signOut} />}
             <div className="stats">
               <div className="stat"><span>Used this month</span><strong>{number(access.used_this_month)}</strong></div>
               <div className="stat"><span>Monthly limit</span><strong>{number(access.monthly_credits)}</strong></div>
