@@ -40,7 +40,7 @@ DNS (Cloudflare, zone `callerwhale.com`): A records `@`, `www`, `app` and `grafa
 | `CALLERWHALE_SMTP_HOST`, `CALLERWHALE_SMTP_PORT` | `smtp.softfix.dev`, `587` |
 | `CALLERWHALE_SMTP_USER`, `CALLERWHALE_SMTP_PASSWORD` | `no-reply@softfix.dev` and its password (**secret**: enter it yourself) |
 | `CALLERWHALE_MAIL_FROM` | `Caller Whale <no-reply@softfix.dev>` (the mail server only lets a login send as itself) |
-| `CALLERWHALE_RELEASE_REPO`, `CALLERWHALE_RELEASE_TAG_PREFIX` | `Mohammed-HeshamMohammed/Caller Whale`, `crm-v` |
+| `CALLERWHALE_RELEASE_REPO`, `CALLERWHALE_RELEASE_TAG_PREFIX` | `Mohammed-HeshamMohammed/Turf`, `crm-v` |
 | `CALLERWHALE_AUTH_JWKS_URL`, `CALLERWHALE_AUTH_PUBLIC_URL` | **remove** (or empty): the old auth service is not running, and the API refuses to start when it cannot fetch its keys |
 | `CALLERWHALE_STAFF_MFA` | `true`. Staff need an authenticator code, which needs Identity Platform TOTP on the Firebase project (`tools/firebase/configure-auth.mjs`). Set `false` only until that is on |
 | `DATABASE_URL`, `MIGRATION_DATABASE_URL` | from `env/database.env` |
