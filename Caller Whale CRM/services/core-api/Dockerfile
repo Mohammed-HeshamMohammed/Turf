@@ -19,4 +19,5 @@ ENV CALLERWHALE_BIND=0.0.0.0:8088 \
 RUN mkdir -p /var/lib/callerwhale/artifacts && chown -R 65534:65534 /var/lib/callerwhale
 EXPOSE 8088
 USER 65534:65534
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s CMD ["callerwhale-api", "health"]
 CMD ["callerwhale-api"]

@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 const (
@@ -38,6 +39,14 @@ func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8102"
+	}
+	// "service health" is the container's health check: the image has no shell or curl.
+	if len(os.Args) > 1 && os.Args[1] == "health" {
+		res, err := (&http.Client{Timeout: 3 * time.Second}).Get("http://127.0.0.1:" + port + "/healthz")
+		if err != nil || res.StatusCode != http.StatusOK {
+			os.Exit(1)
+		}
+		os.Exit(0)
 	}
 	log.Printf("%s listening on http://localhost:%s", service, port)
 	log.Fatal(http.ListenAndServe(":"+port, newMux()))

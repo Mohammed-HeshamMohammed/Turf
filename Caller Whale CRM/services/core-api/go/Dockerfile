@@ -13,4 +13,5 @@ COPY --from=build /out/worker /worker
 ENV CALLERWHALE_WORKER_BIND=0.0.0.0:8090
 EXPOSE 8090
 USER nonroot
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s CMD ["/worker", "health"]
 ENTRYPOINT ["/worker"]
