@@ -44,6 +44,7 @@ const Settings = lazyPage(loadManagement, "Settings");
 const Sync = lazyPage(loadManagement, "Sync");
 const Team = lazyPage(loadTeam, "Team");
 const RemoteGate = lazyPage(() => import("./RemoteGate.jsx"), "RemoteGate");
+const Approvals = lazyPage(() => import("./SecondStep.jsx"), "Approvals");
 const preloadPages = () => [loadLeads, loadWork, loadData, loadManagement, loadTeam, loadDashboard].forEach(load => load());
 
 // The product (the desktop app, or a build made with VITE_CALLERWHALE_REQUIRE_SIGN_IN=true) cannot be used without signing in
@@ -411,6 +412,11 @@ export function App() {
   return (
     <CrmContext.Provider value={context}>
       <div className="crm-window">
+        {state.remote && (
+          <Suspense fallback={null}>
+            <Approvals auth={auth} />
+          </Suspense>
+        )}
         <a className="skip-link" href="#main-content" onClick={event => (event.preventDefault(), main.current?.focus())}>
           Skip to content
         </a>

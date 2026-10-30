@@ -7,10 +7,12 @@
 // pages that use this must not load scripts from other sites.
 
 export class AuthError extends Error {
-  constructor(status, code, message) {
+  constructor(status, code, message, data = null) {
     super(message);
     this.status = status;
     this.code = code;
+    /** What else the server said: for "mfa_required", the `challenge` and the `methods` it may be answered with. */
+    this.data = data;
   }
 }
 
@@ -56,7 +58,7 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
     } catch {
       data = null;
     }
-    if (!response.ok) throw new AuthError(response.status, data?.code || "error", data?.error || "Sign-in was refused.");
+    if (!response.ok) throw new AuthError(response.status, data?.code || "error", data?.error || "Sign-in was refused.", data);
     return data;
   }
 
@@ -134,14 +136,34 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
       return true;
     },
     me: () => withToken("GET", "/v1/me"),
-    setupMfa: () => withToken("POST", "/v1/mfa/setup"),
-    /** Turns two-step sign-in on; the session counts as confirmed, and the next token says so. */
-    confirmMfa: async code => {
-      const answer = await withToken("POST", "/v1/mfa/confirm", { code });
+    // ---- the second step (docs/plans/second-factor.md) ----
+    /**
+     * After the password, a person who set up a second step gets `mfa_required` with `error.data = { challenge, methods }`
+     * (methods: "totp", "email", "telegram", "push"). `sendCode` asks for an email or Telegram code, or an approval on a
+     * device that is already signed in; `answer` finishes the sign-in with the code (or the approval) and keeps the tokens.
+     */
+    sendCode: (challenge, method, device) => call("POST", "/v1/mfa/challenge/send", { challenge, method, ...(device ? { device } : {}) }),
+    answer: (challenge, method, code) => call("POST", "/v1/mfa/challenge/answer", { challenge, method, ...(code ? { code } : {}) }).then(keep),
+    /** Where an approval request stands: "pending", "approved", "denied" or "expired". */
+    approvalState: challenge => call("POST", "/v1/mfa/challenge/status", { challenge }).then(reply => reply.push),
+    /** A step-up on this signed-in session (after Google, or for staff who set nothing up): a challenge and its methods. */
+    startStepUp: () => withToken("POST", "/v1/mfa/challenge/start"),
+    /** Requests waiting for this signed-in device to approve (it must have passed a second step itself). */
+    approvals: () => withToken("GET", "/v1/mfa/approvals").then(reply => reply.approvals),
+    decide: (id, approve) => withToken("POST", `/v1/mfa/approvals/${encodeURIComponent(id)}`, { approve }),
+    /** What the person has set up, what could be set up, and how many authenticator devices may be on. */
+    factors: () => withToken("GET", "/v1/mfa/factors"),
+    removeFactor: id => withToken("DELETE", `/v1/mfa/factors/${encodeURIComponent(id)}`),
+    setupMfa: () => withToken("POST", "/v1/mfa/totp/setup"),
+    /** Adds an authenticator device; a fourth removes the oldest (`removed` names them). The session counts as confirmed. */
+    confirmMfa: async (code, label) => {
+      const answer = await withToken("POST", "/v1/mfa/totp/confirm", { code, ...(label ? { label } : {}) });
       await refresh();
       return answer;
     },
-    /** Confirms a two-step code for this session (after a Google or Apple sign-in). */
+    /** A one-time link that opens the bot in Telegram and links that chat. */
+    linkTelegram: () => withToken("POST", "/v1/mfa/telegram/link"),
+    /** Confirms a code from an authenticator device for this session (the older step-up). */
     verifyMfa: async code => keep(await withToken("POST", "/v1/mfa/verify", { code })),
     verifyEmail: token => call("POST", "/v1/email/verify", { token }),
     /** A new confirmation link; then a fresh token says whether the email is confirmed. */
