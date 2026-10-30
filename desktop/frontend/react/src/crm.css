@@ -5133,7 +5133,7 @@ html.captions-window #root {
   height: 76px;
   padding-top: 4px;
 }
-/* ---- Demo notes: one switch in the Turf menu shows or hides every note that only explains the sample workspace ---- */
+/* ---- Demo notes: one switch in the Caller Whale menu shows or hides every note that only explains the sample workspace ---- */
 html.demo-quiet .demo-note {
   display: none !important;
 }

@@ -7,7 +7,7 @@ import { inDesktopApp } from "./popout.js";
 import { Button, Card, Field } from "./ui.jsx";
 
 /**
- * Signs in with the auth service, opens the person's workspace on Turf's server, and unlocks this device's offline
+ * Signs in with the auth service, opens the person's workspace on Caller Whale's server, and unlocks this device's offline
  * copy, then hands the session to the app.
  * Steps: email and password (or Google) → a two-step code when auth asks → the workspace (only for the owner, admins and
  * the people they invited; anyone else is told they are not invited) → a two-step code when the role needs one → the
@@ -28,7 +28,7 @@ export function RemoteGate({ onReady, onLeave }) {
   async function check() {
     try {
       if (!auth.signedIn()) return setStep("signin");
-      // An invitation from Turf opens the person's workspace the first time they arrive with its email confirmed.
+      // An invitation from Caller Whale opens the person's workspace the first time they arrive with its email confirmed.
       const account = await api.account();
       if (account.access?.status === "unverified") {
         setMe({ user: account.person });
@@ -43,7 +43,7 @@ export function RemoteGate({ onReady, onLeave }) {
       }
       if (!organizations.length) {
         setMe(identity);
-        // Only Turf's owner and admins, and people they invited, get a workspace (the server decides): anyone else
+        // Only Caller Whale's owner and admins, and people they invited, get a workspace (the server decides): anyone else
         // is told so, and nothing else is offered.
         return setStep("notinvited");
       }
@@ -55,7 +55,7 @@ export function RemoteGate({ onReady, onLeave }) {
       }
       setMe(identity);
       if (identity.mfa.required && !identity.mfa.passed) {
-        // Auth knows whether two-step sign-in is on; Turf's server only knows whether this session passed it.
+        // Auth knows whether two-step sign-in is on; Caller Whale's server only knows whether this session passed it.
         const person = await auth.me();
         return setStep(person.mfa_enrolled ? "stepup" : "enroll");
       }

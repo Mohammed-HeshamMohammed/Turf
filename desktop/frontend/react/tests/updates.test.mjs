@@ -123,14 +123,14 @@ test("the feed identifies a signed, versioned Windows installer with escaped fil
   const args = {
     version: "0.1.4",
     repository: "owner/repo",
-    installer: "Turf Full CRM_0.1.4_x64-setup.exe",
+    installer: "Caller Whale_0.1.4_x64-setup.exe",
     signature: " signed\n",
     date: "2026-10-30T00:00:00Z",
   };
   const manifest = releaseManifest(args);
   assert.equal(manifest.version, "0.1.4");
   assert.equal(manifest.platforms["windows-x86_64"].signature, "signed");
-  assert.equal(manifest.platforms["windows-x86_64"].url, "https://github.com/owner/repo/releases/download/crm-v0.1.4/Turf%20Full%20CRM_0.1.4_x64-setup.exe");
+  assert.equal(manifest.platforms["windows-x86_64"].url, "https://github.com/owner/repo/releases/download/crm-v0.1.4/Caller%20Whale_0.1.4_x64-setup.exe");
   assert.throws(() => releaseManifest({ ...args, signature: "" }), /signed/);
   assert.throws(() => releaseManifest({ ...args, version: "0.1.4-beta" }), /stable/);
 });
@@ -138,8 +138,8 @@ test("the feed identifies a signed, versioned Windows installer with escaped fil
 test("release preparation preserves signed bytes and uses filenames GitHub will keep unchanged", () => {
   const folder = mkdtempSync(join(tmpdir(), "callerwhale-release-"));
   try {
-    writeFileSync(join(folder, "Turf Full CRM_0.1.4_x64-setup.exe"), "signed installer bytes");
-    writeFileSync(join(folder, "Turf Full CRM_0.1.4_x64-setup.exe.sig"), "signature");
+    writeFileSync(join(folder, "Caller Whale_0.1.4_x64-setup.exe"), "signed installer bytes");
+    writeFileSync(join(folder, "Caller Whale_0.1.4_x64-setup.exe.sig"), "signature");
     const manifest = prepareRelease(pathToFileURL(folder + "/"), { version: "0.1.4", repository: "owner/repo" });
     const name = "CallerWhale_0.1.4_x64-setup.exe";
     assert.equal(manifest.platforms["windows-x86_64"].url, `https://github.com/owner/repo/releases/download/crm-v0.1.4/${name}`);

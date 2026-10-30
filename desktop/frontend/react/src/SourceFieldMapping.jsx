@@ -1,7 +1,7 @@
 import { numberedOwnerColumns, SOURCE_FIELDS, sourceEvidence } from "./skiptrace-fields.js";
 import { Field, Select } from "./ui.jsx";
 
-/** How Turf found a field's column, shown under it. */
+/** How Caller Whale found a field's column, shown under it. */
 const HOW = {
   learned: "Remembered from your earlier choice",
   header: "Matched by its header",

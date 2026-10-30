@@ -61,7 +61,7 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen, demoNote
         <img src="/favicon.svg" alt="" />
       </button>
       {panel.mounted && (
-        <div id="turf-menu-panel" className={"turf-menu-panel" + (panel.leaving ? " leaving" : "")} role="dialog" aria-label="Turf workspace menu">
+        <div id="turf-menu-panel" className={"turf-menu-panel" + (panel.leaving ? " leaving" : "")} role="dialog" aria-label="Caller Whale workspace menu">
           <div className="turf-menu-workspace">
             <small>Current workspace</small>
             <strong>{state.settings.workspace}</strong>

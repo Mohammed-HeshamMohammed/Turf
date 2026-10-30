@@ -6,7 +6,7 @@ const placeOf = lead => (lead.geo && Number.isFinite(lead.geo.lat) && Number.isF
 
 /**
  * Places leads on every map the same way. Leads with a ZIP but no place go on the map at once at their ZIP centre (a
- * file shipped with Turf, offline). `locate()` looks up the exact addresses still to find, when the person asks.
+ * file shipped with Caller Whale, offline). `locate()` looks up the exact addresses still to find, when the person asks.
  * Places are kept on the leads (the LOCATE action), so each address is found once for every map.
  */
 export function useLeadPlaces(leads) {

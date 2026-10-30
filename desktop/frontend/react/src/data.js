@@ -1,7 +1,7 @@
 export const TODAY = "2026-10-15";
 export const LEAD_STAGES = ["New", "Contacted", "Interested", "Qualified", "Closed"];
 // The call results a ReadyMode dialer logs ("Log Type", with its abbreviation), and what each means for the lead.
-// meaning follows Turf's status reader; recallDays is when the dialer schedules the next try, null for no next try.
+// meaning follows Caller Whale's status reader; recallDays is when the dialer schedules the next try, null for no next try.
 export const CALL_OUTCOMES = [
   { label: "Transfer", code: "Trans", meaning: "reached", recallDays: null, help: "Live transfer to Appointments" },
   { label: "Callback", code: "CB", meaning: "reached", recallDays: null, help: "Asked to be called at a set time" },

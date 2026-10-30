@@ -46,12 +46,12 @@ const Team = lazyPage(loadTeam, "Team");
 const RemoteGate = lazyPage(() => import("./RemoteGate.jsx"), "RemoteGate");
 const preloadPages = () => [loadLeads, loadWork, loadData, loadManagement, loadTeam, loadDashboard].forEach(load => load());
 
-// The product (the desktop app, or a build made with VITE_TURF_REQUIRE_SIGN_IN=true) cannot be used without signing in
-// to a Turf server. Only the public demo build keeps the sample workspace. Developers can run the desktop app on the
-// sample workspace with VITE_TURF_SAMPLE=true (npm run desktop:sample).
+// The product (the desktop app, or a build made with VITE_CALLERWHALE_REQUIRE_SIGN_IN=true) cannot be used without signing in
+// to a Caller Whale server. Only the public demo build keeps the sample workspace. Developers can run the desktop app on the
+// sample workspace with VITE_CALLERWHALE_SAMPLE=true (npm run desktop:sample).
 const REQUIRE_SIGN_IN =
-  import.meta.env?.VITE_TURF_SAMPLE !== "true" &&
-  (import.meta.env?.VITE_TURF_REQUIRE_SIGN_IN === "true" || (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window));
+  import.meta.env?.VITE_CALLERWHALE_SAMPLE !== "true" &&
+  (import.meta.env?.VITE_CALLERWHALE_REQUIRE_SIGN_IN === "true" || (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window));
 
 const readRoute = () => window.location.hash.slice(1).replace(/^\//, "") || "dashboard";
 

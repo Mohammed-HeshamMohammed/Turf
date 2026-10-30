@@ -1,5 +1,5 @@
-//! Turf's Skip Tracing service (service/ at the repository root, Python) as a managed child process speaking JSON lines on stdin/stdout,
-//! the same bridge as Turf's own desktop host (Turf's own src-tauri/src/sidecar.rs), cut down to the commands the CRM sends.
+//! Caller Whale's Skip Tracing service (service/ at the repository root, Python) as a managed child process speaking JSON lines on stdin/stdout,
+//! the same bridge as Caller Whale's own desktop host (Caller Whale's own src-tauri/src/sidecar.rs), cut down to the commands the CRM sends.
 
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
@@ -54,9 +54,9 @@ pub struct ServiceBridge {
     pub resources: Mutex<Option<PathBuf>>,
 }
 
-/// The service folder in development: `TURF_SERVICE_ROOT`, else `service/` at the repository root.
+/// The service folder in development: `CALLERWHALE_SERVICE_ROOT`, else `service/` at the repository root.
 fn service_root() -> PathBuf {
-    std::env::var_os("TURF_SERVICE_ROOT")
+    std::env::var_os("CALLERWHALE_SERVICE_ROOT")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../../service")))
 }
@@ -73,8 +73,8 @@ pub fn spawn(resources: Option<&Path>) -> Result<Sidecar, String> {
             command
         }
         None => {
-            let root = service_root().canonicalize().map_err(|e| format!("Turf's Skip Tracing service was not found: {e}"))?;
-            let python = std::env::var("TURF_PYTHON").unwrap_or_else(|_| "python".into());
+            let root = service_root().canonicalize().map_err(|e| format!("Caller Whale's Skip Tracing service was not found: {e}"))?;
+            let python = std::env::var("CALLERWHALE_PYTHON").unwrap_or_else(|_| "python".into());
             let mut command = Command::new(python);
             command.args(["-m", "turf_service.server", "--resources"]).arg(&root).env("PYTHONPATH", &root).current_dir(&root);
             command
@@ -87,7 +87,7 @@ pub fn spawn(resources: Option<&Path>) -> Result<Sidecar, String> {
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         command.creation_flags(CREATE_NO_WINDOW);
     }
-    let mut child = command.spawn().map_err(|e| format!("Could not start the Skip Tracing engine: {e}. Install Python 3.11+ or set TURF_PYTHON."))?;
+    let mut child = command.spawn().map_err(|e| format!("Could not start the Skip Tracing engine: {e}. Install Python 3.11+ or set CALLERWHALE_PYTHON."))?;
     let stdin = child.stdin.take().ok_or("service stdin unavailable")?;
     let stdout = BufReader::new(child.stdout.take().ok_or("service stdout unavailable")?);
     let (sender, lines) = mpsc::channel();

@@ -1,12 +1,12 @@
 # Desktop app: the frontend, the window container (Tauri) and the feature modules
 
-This branch is a **production snapshot of one part of Turf**: only the files this part needs, at the same paths as in `Full CRM Turf/` on `main`.
+This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in `Full CRM Turf/` on `main`.
 
-- Last changed from `main` at `9005249` (2026-10-30)
-- Content id: `8c10f1b000a1f9fa8d262eb7363a1bdba6164e3d` (the branch is only refreshed when this changes)
+- Last changed from `main` at `0491000` (2026-10-30)
+- Content id: `659a7532c3a187e6ae39739de38f9084435b6b1d` (the branch is only refreshed when this changes)
 - Holds: `desktop`, `services/auth/clients`, `env/desktop.env.example`, `env/README.md`, and the Cargo workspace file and lock for it
 - 172 files
-- Build and test: npm install && npm run build in desktop/frontend/react; cargo test --workspace at the root (the feature modules); cargo build in desktop/container/rust. Their tests start the Skip Tracing engine from skip-engine-production: set TURF_SERVICE_ROOT to its checkout
+- Build and test: npm install && npm run build in desktop/frontend/react; cargo test --workspace at the root (the feature modules); cargo build in desktop/container/rust. Their tests start the Skip Tracing engine from skip-engine-production: set CALLERWHALE_SERVICE_ROOT to its checkout
 
 Do not edit it here. Change the code on `main`, then refresh the branch from a checkout of `main`:
 

@@ -35,7 +35,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![sidecar::service_call, signin::google_sign_in_listen, signin::google_sign_in, signin::open_in_browser, downloads::save_download, prepare_update])
         .build(tauri::generate_context!())
-        .expect("error while building Turf Full CRM mode")
+        .expect("error while building Caller Whale")
         .run(|app, event| {
             if let RunEvent::Exit = event {
                 if let Ok(mut guard) = app.state::<sidecar::ServiceBridge>().process.lock() {

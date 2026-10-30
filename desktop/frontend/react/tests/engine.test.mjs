@@ -1,4 +1,4 @@
-// The Skip Tracing page's engine client against the real Turf engine (service/ at the repository root, Python): the same commands the page
+// The Skip Tracing page's engine client against the real Caller Whale engine (service/ at the repository root, Python): the same commands the page
 // sends, through a fetch that speaks to the service process the way the dev server's /rpc bridge does.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -10,14 +10,14 @@ import { after, before, test } from "node:test";
 import { check, checkRepeats, crmVerdict, engineAvailable, engineConfig, locatable, prepare, saveCopy, sourceCsv, stateCode, zipPlaces } from "../src/engine.js";
 import { ALLOWED_COMMANDS, refusal } from "../scripts/service-bridge.mjs";
 
-// TURF_SERVICE_ROOT: where the engine is when this part is checked out alone (skip-engine-production).
-const root = process.env.TURF_SERVICE_ROOT ? resolve(process.env.TURF_SERVICE_ROOT) : resolve(import.meta.dirname, "../../../../../service");
+// CALLERWHALE_SERVICE_ROOT: where the engine is when this part is checked out alone (skip-engine-production).
+const root = process.env.CALLERWHALE_SERVICE_ROOT ? resolve(process.env.CALLERWHALE_SERVICE_ROOT) : resolve(import.meta.dirname, "../../../../../service");
 let child;
 
 before(() => {
-  child = spawn(process.env.TURF_PYTHON ?? "python", ["-m", "turf_service.server", "--resources", root], {
+  child = spawn(process.env.CALLERWHALE_PYTHON ?? "python", ["-m", "turf_service.server", "--resources", root], {
     cwd: root,
-    env: { ...process.env, PYTHONUTF8: "1", PYTHONPATH: root, TURF_APP_DATA: mkdtempSync(join(tmpdir(), "turf-crm-engine-")) },
+    env: { ...process.env, PYTHONUTF8: "1", PYTHONPATH: root, CALLERWHALE_APP_DATA: mkdtempSync(join(tmpdir(), "turf-crm-engine-")) },
   });
   const lines = createInterface({ input: child.stdout })[Symbol.asyncIterator]();
   let id = 0;
