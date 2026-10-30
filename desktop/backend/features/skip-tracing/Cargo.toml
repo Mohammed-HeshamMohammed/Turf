@@ -1,5 +1,5 @@
 [package]
-name = "turf-desktop-skip-tracing"
+name = "callerwhale-desktop-skip-tracing"
 version = "0.1.0"
 edition = "2021"
 description = "Feature 2 on the person's computer: the offline checks, run by the Python engine in service/."

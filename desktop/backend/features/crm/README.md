@@ -12,7 +12,7 @@ Feature 5 on the person's computer: the local workspace, the encrypted offline c
 ## Run and test
 
 ```bash
-cargo test -p turf-desktop-crm
+cargo test -p callerwhale-desktop-crm
 ```
 
 ## What it must do

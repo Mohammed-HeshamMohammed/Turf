@@ -22,7 +22,7 @@ export class SyncEngine {
     this.error = "";
     this.running = null;
     this.again = false;
-    this.channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("turf-sync") : null;
+    this.channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("callerwhale-sync") : null;
     if (this.channel) this.channel.onmessage = () => this.reload();
   }
 
@@ -93,7 +93,7 @@ export class SyncEngine {
         await this.once();
       } while (this.again);
     };
-    const locked = typeof navigator !== "undefined" && navigator.locks ? () => navigator.locks.request("turf-sync", work) : work;
+    const locked = typeof navigator !== "undefined" && navigator.locks ? () => navigator.locks.request("callerwhale-sync", work) : work;
     this.running = locked().finally(() => {
       this.running = null;
     });

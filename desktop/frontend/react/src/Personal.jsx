@@ -64,7 +64,7 @@ export function PersonalMenu({ onOpen }) {
       {panel.mounted && (
         <div
           id="personal-menu-panel"
-          className={"personal-menu-panel turf-menu-panel" + (panel.leaving ? " leaving" : "")}
+          className={"personal-menu-panel callerwhale-menu-panel" + (panel.leaving ? " leaving" : "")}
           role="dialog"
           aria-label="Personal menu"
         >
@@ -75,7 +75,7 @@ export function PersonalMenu({ onOpen }) {
               <small>{profile.email}</small>
             </div>
           </div>
-          <div className="turf-menu-actions">
+          <div className="callerwhale-menu-actions">
             <button onClick={() => go("personal/profile")}>
               <UserCircle size={19} />
               <span>My profile</span>

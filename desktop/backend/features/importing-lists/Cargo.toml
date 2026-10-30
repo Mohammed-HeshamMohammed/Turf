@@ -1,5 +1,5 @@
 [package]
-name = "turf-desktop-importing-lists"
+name = "callerwhale-desktop-importing-lists"
 version = "0.1.0"
 edition = "2021"
 description = "Feature 1 on the person's computer: local list import, column mapping and merging."

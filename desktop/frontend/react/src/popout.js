@@ -3,7 +3,7 @@
 
 export const inDesktopApp = () => typeof window !== "undefined" && Boolean(window.__TAURI_INTERNALS__);
 
-export const CAPTIONS_CHANNEL = "turf-captions";
+export const CAPTIONS_CHANNEL = "callerwhale-captions";
 export const CAPTIONS_ROUTE = "#/captions-window";
 
 const CAPTIONS_LABEL = "captions";

@@ -3,16 +3,10 @@
 //!
 //! 1. `google_sign_in_listen` opens a listener on 127.0.0.1 (this computer only) at a free port.
 //! 2. `open_in_browser` opens the auth service (services/auth), which sends the browser to Google.
-//! 3. When Google is done, auth sends the browser to `http://127.0.0.1:<port>/turf-sign-in?code=…` (or
+//! 3. When Google is done, auth sends the browser to `http://127.0.0.1:<port>/callerwhale-sign-in?code=…` (or
 //!    `?error=…`). The listener answers with a "return to Caller Whale" page and hands the one-time code to the window as the
-//!    `turf-sign-in` event; the window trades it for tokens at auth's /v1/oauth/exchange.
-//!
-//! With Firebase (docs/plans/firebase-auth.md, phase 3) the app talks to Google itself, since Firebase's own redirect
-//! cannot run in the window: `google_sign_in` opens Google in the browser with PKCE and a random `state`, receives
-//! the code on 127.0.0.1, trades it for Google's ID token and returns that; the window signs in to Firebase with it.
+//!    `callerwhale-sign-in` event; the window trades it for tokens at auth's /v1/oauth/exchange.
 
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use ring::rand::SecureRandom;
 use serde_json::json;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
@@ -51,7 +45,7 @@ pub struct Back {
     pub state: Option<String>,
 }
 
-/// `code`, `error` and `state` from a request line like `GET /turf-sign-in?code=abc HTTP/1.1`, for requests to
+/// `code`, `error` and `state` from a request line like `GET /callerwhale-sign-in?code=abc HTTP/1.1`, for requests to
 /// `expected` only (None for /favicon.ico and the like).
 pub fn parse(request_line: &str, expected: &str) -> Option<Back> {
     let target = request_line.split_whitespace().nth(1)?;
@@ -126,80 +120,13 @@ pub fn google_sign_in_listen(app: AppHandle) -> Result<u16, String> {
     let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| format!("Could not get ready for sign-in: {e}"))?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
     std::thread::spawn(move || {
-        let answer = match wait(listener, "/turf-sign-in") {
+        let answer = match wait(listener, "/callerwhale-sign-in") {
             Some(back) => json!({ "code": back.code, "error": back.error }),
             None => json!({ "code": null, "error": "Sign-in took too long. Try again." }),
         };
-        let _ = app.emit("turf-sign-in", answer);
+        let _ = app.emit("callerwhale-sign-in", answer);
     });
     Ok(port)
-}
-
-fn random(bytes: usize) -> Result<String, String> {
-    let mut buffer = vec![0u8; bytes];
-    ring::rand::SystemRandom::new().fill(&mut buffer).map_err(|_| "Could not get ready for sign-in".to_string())?;
-    Ok(URL_SAFE_NO_PAD.encode(buffer))
-}
-
-/// Percent-encodes a query value.
-fn encode(value: &str) -> String {
-    value.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-._~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect()
-}
-
-/// Google's sign-in page for this attempt: the Desktop OAuth client, back to this computer, with PKCE.
-pub fn google_url(client_id: &str, redirect: &str, challenge: &str, state: &str) -> String {
-    format!(
-        "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope=openid%20email%20profile\
-         &code_challenge={challenge}&code_challenge_method=S256&state={state}&prompt=select_account",
-        encode(client_id),
-        encode(redirect)
-    )
-}
-
-/// Google sign-in for Firebase: returns Google's ID token, for the window to sign in to Firebase with. `client_secret`
-/// is the Desktop client's, which Google does not treat as a secret (it ships inside every installed app); PKCE and
-/// the `state` check are what protect the code.
-#[tauri::command]
-pub async fn google_sign_in(client_id: String, client_secret: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || google(&client_id, &client_secret)).await.map_err(|e| e.to_string())?
-}
-
-fn google(client_id: &str, client_secret: &str) -> Result<String, String> {
-    if client_id.trim().is_empty() {
-        return Err("Google sign-in is not set up in this version of Caller Whale. Use your email for now.".into());
-    }
-    let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| format!("Could not get ready for sign-in: {e}"))?;
-    let redirect = format!("http://127.0.0.1:{}", listener.local_addr().map_err(|e| e.to_string())?.port());
-    let verifier = random(32)?;
-    let challenge = URL_SAFE_NO_PAD.encode(ring::digest::digest(&ring::digest::SHA256, verifier.as_bytes()));
-    let state = random(16)?;
-    open_in_browser(google_url(client_id, &redirect, &challenge, &state))?;
-    let back = wait(listener, "/").ok_or("Sign-in took too long. Try again.")?;
-    // Only the browser this attempt opened knows the state: anything else is refused.
-    if back.state.as_deref() != Some(state.as_str()) {
-        return Err("Sign-in did not come back from Google. Try again.".into());
-    }
-    if let Some(error) = back.error {
-        return Err(if error == "access_denied" { "Sign-in was cancelled.".into() } else { format!("Google refused the sign-in ({error}).") });
-    }
-    let code = back.code.ok_or("Sign-in did not finish. Try again.")?;
-    let reply = ureq::post("https://oauth2.googleapis.com/token").send_form(&[
-        ("code", code.as_str()),
-        ("client_id", client_id),
-        ("client_secret", client_secret),
-        ("code_verifier", verifier.as_str()),
-        ("redirect_uri", redirect.as_str()),
-        ("grant_type", "authorization_code"),
-    ]);
-    let body: serde_json::Value = match reply {
-        Ok(response) => response.into_json().map_err(|e| e.to_string())?,
-        Err(ureq::Error::Status(_, response)) => {
-            let body: serde_json::Value = response.into_json().unwrap_or_default();
-            return Err(format!("Google refused the sign-in: {}", body["error_description"].as_str().or(body["error"].as_str()).unwrap_or("no reason given")));
-        }
-        Err(_) => return Err("Google cannot be reached. Check your connection.".into()),
-    };
-    body["id_token"].as_str().map(str::to_string).ok_or_else(|| "Google did not say who you are. Try again.".into())
 }
 
 /// Opens an address in the person's default browser. Only web addresses.
@@ -224,30 +151,10 @@ mod tests {
     #[test]
     fn only_the_sign_in_path_counts() {
         let code = |c: &str| Back { code: Some(c.into()), ..Back::default() };
-        assert_eq!(parse("GET /turf-sign-in?code=a%2Bb HTTP/1.1", "/turf-sign-in"), Some(code("a+b")));
-        assert_eq!(parse("GET /turf-sign-in?error=Sign-in+was+cancelled. HTTP/1.1", "/turf-sign-in"), Some(Back { error: Some("Sign-in was cancelled.".into()), ..Back::default() }));
-        assert_eq!(parse("GET /favicon.ico HTTP/1.1", "/turf-sign-in"), None);
-        assert_eq!(parse("GET /turf-sign-in HTTP/1.1", "/turf-sign-in"), Some(Back::default()));
-        // Google comes back to the root, with the state it was given.
-        assert_eq!(parse("GET /?state=s1&code=4%2F0Ab&scope=email HTTP/1.1", "/"), Some(Back { code: Some("4/0Ab".into()), state: Some("s1".into()), error: None }));
-        assert_eq!(parse("GET /favicon.ico HTTP/1.1", "/"), None);
-    }
-
-    #[test]
-    fn google_is_asked_for_a_code_back_to_this_computer_with_pkce() {
-        let url = google_url("123-abc.apps.googleusercontent.com", "http://127.0.0.1:5123", "CHALLENGE", "STATE");
-        assert!(url.starts_with("https://accounts.google.com/o/oauth2/v2/auth?client_id=123-abc.apps.googleusercontent.com&redirect_uri=http%3A%2F%2F127.0.0.1%3A5123&"));
-        for part in ["response_type=code", "scope=openid%20email%20profile", "code_challenge=CHALLENGE", "code_challenge_method=S256", "state=STATE"] {
-            assert!(url.contains(part), "{part}");
-        }
-        assert!(!url.contains(' '));
-        assert_ne!(random(16).unwrap(), random(16).unwrap());
-        assert_eq!(random(32).unwrap().len(), 43);
-    }
-
-    #[test]
-    fn without_a_client_id_google_sign_in_says_so() {
-        assert!(google("", "").unwrap_err().contains("not set up"));
+        assert_eq!(parse("GET /callerwhale-sign-in?code=a%2Bb HTTP/1.1", "/callerwhale-sign-in"), Some(code("a+b")));
+        assert_eq!(parse("GET /callerwhale-sign-in?error=Sign-in+was+cancelled. HTTP/1.1", "/callerwhale-sign-in"), Some(Back { error: Some("Sign-in was cancelled.".into()), ..Back::default() }));
+        assert_eq!(parse("GET /favicon.ico HTTP/1.1", "/callerwhale-sign-in"), None);
+        assert_eq!(parse("GET /callerwhale-sign-in HTTP/1.1", "/callerwhale-sign-in"), Some(Back::default()));
     }
 
     #[test]

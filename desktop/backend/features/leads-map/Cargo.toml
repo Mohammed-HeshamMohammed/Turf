@@ -1,5 +1,5 @@
 [package]
-name = "turf-desktop-leads-map"
+name = "callerwhale-desktop-leads-map"
 version = "0.1.0"
 edition = "2021"
 description = "Feature 4 on the person's computer: ZIP-centre placement and offline map files."

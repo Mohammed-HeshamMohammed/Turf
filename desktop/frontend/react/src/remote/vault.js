@@ -4,7 +4,7 @@
 
 import Dexie from "dexie";
 
-const db = new Dexie("turf-crm-offline");
+const db = new Dexie("callerwhale-crm-offline");
 db.version(1).stores({ meta: "key", sealed: "key", queue: "id, seq" });
 
 const encoder = new TextEncoder();
@@ -55,7 +55,7 @@ export class Vault {
         throw new Error("That passphrase does not unlock this device's offline copy");
       }
     } else {
-      await db.meta.put({ key: "check", value: await seal(key, "turf") });
+      await db.meta.put({ key: "check", value: await seal(key, "callerwhale") });
     }
     return new Vault(key, owner);
   }

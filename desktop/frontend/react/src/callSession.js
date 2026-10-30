@@ -3,8 +3,8 @@ import { useSyncExternalStore } from "react";
 // What a running call shares with the rest of the app: whether captions are on, whether a call is live, who it is with,
 // and what has been said so far. It lives outside any page so the call, its caption bar and the assistant carry on
 // while you move around the app (and so a pop-out window can mirror it).
-const CAPTIONS_KEY = "turf.full-crm.captions";
-const SOURCE_KEY = "turf.full-crm.captions-source";
+const CAPTIONS_KEY = "callerwhale.full-crm.captions";
+const SOURCE_KEY = "callerwhale.full-crm.captions-source";
 
 function read(key, fallback) {
   try {

@@ -12,7 +12,7 @@ Feature 3 on the person's computer: call state, queue and outcomes; the micropho
 ## Run and test
 
 ```bash
-cargo test -p turf-desktop-dialer-sms
+cargo test -p callerwhale-desktop-dialer-sms
 ```
 
 ## What it must do

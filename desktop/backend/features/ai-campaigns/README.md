@@ -12,7 +12,7 @@ Feature 6 on the person's computer: drafts and approvals; sending happens on the
 ## Run and test
 
 ```bash
-cargo test -p turf-desktop-ai-campaigns
+cargo test -p callerwhale-desktop-ai-campaigns
 ```
 
 ## What it must do

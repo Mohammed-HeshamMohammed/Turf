@@ -4,7 +4,7 @@ import { Card, Select, Field } from "./ui.jsx";
 import { cuesFor } from "./cues.js";
 import { useCallSession } from "./callSession.js";
 
-const STORAGE_KEY = "turf.full-crm.ai-assist";
+const STORAGE_KEY = "callerwhale.full-crm.ai-assist";
 const INTERVAL = 6000;
 const MAX_SHOWN = 5;
 

@@ -139,7 +139,7 @@ export function Segmented({ value, options, onChange, label }) {
 }
 const readOrder = id => {
   try {
-    const saved = JSON.parse(window.localStorage.getItem("turf.columns." + id));
+    const saved = JSON.parse(window.localStorage.getItem("callerwhale.columns." + id));
     return Array.isArray(saved) ? saved : [];
   } catch {
     return [];
@@ -155,7 +155,7 @@ export function useTableView(rows, columns, tableId) {
   function setOrder(next) {
     setOrderState(next);
     try {
-      window.localStorage.setItem("turf.columns." + tableId, JSON.stringify(next));
+      window.localStorage.setItem("callerwhale.columns." + tableId, JSON.stringify(next));
     } catch {
       // The order still holds for this session.
     }
@@ -594,12 +594,12 @@ export function MoreMenu({ items, label = "More" }) {
 }
 /**
  * Saves rows as a CSV file. In a browser it downloads; the desktop window has no download bar, so the file goes to
- * the Downloads folder and is shown in the file manager. Either way a "turf-saved" event says where it went.
+ * the Downloads folder and is shown in the file manager. Either way a "callerwhale-saved" event says where it went.
  */
 export function downloadCsv(filename, rows) {
   const escape = value => '"' + String(value ?? "").replaceAll('"', '""') + '"';
   const csv = rows.map(row => row.map(escape).join(",")).join("\r\n");
-  const saved = detail => window.dispatchEvent(new CustomEvent("turf-saved", { detail }));
+  const saved = detail => window.dispatchEvent(new CustomEvent("callerwhale-saved", { detail }));
   if (window.__TAURI_INTERNALS__) {
     import("@tauri-apps/api/core")
       .then(({ invoke }) => invoke("save_download", { filename, contents: "﻿" + csv }))
@@ -667,7 +667,7 @@ export function Select({ children, value, defaultValue, onChange, name, id, disa
   const listId = useId();
   const presence = usePresence(open);
   const hostRef = useRef(null);
-  if (open) hostRef.current = trigger.current?.closest("dialog, .turf-menu, .personal-menu") || document.body;
+  if (open) hostRef.current = trigger.current?.closest("dialog, .callerwhale-menu, .personal-menu") || document.body;
   const host = presence.mounted ? hostRef.current : null;
 
   function choose(option) {
@@ -844,7 +844,7 @@ export function DatePicker({ value, defaultValue, onChange, name, min, max, disa
   const panel = useRef(null);
   const presence = usePresence(open);
   const hostRef = useRef(null);
-  if (open) hostRef.current = trigger.current?.closest("dialog, .turf-menu, .personal-menu") || document.body;
+  if (open) hostRef.current = trigger.current?.closest("dialog, .callerwhale-menu, .personal-menu") || document.body;
   const host = presence.mounted ? hostRef.current : null;
   const blocked = day => (min && day < min) || (max && day > max);
 

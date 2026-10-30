@@ -15,7 +15,7 @@ import { PhoneDialer } from "./PhoneDialer.jsx";
 import { getCallSession, subscribeCallLog } from "./callSession.js";
 import { Sidebar } from "./Sidebar.jsx";
 import { WindowStrip, windowDrag } from "./WindowStrip.jsx";
-import { TurfMenu } from "./TurfMenu.jsx";
+import { CallerWhaleMenu } from "./CallerWhaleMenu.jsx";
 import { PersonalMenu, PersonalPage } from "./Personal.jsx";
 
 // Pages load on demand, so the first screen only carries what it shows; the rest are fetched quietly once the app is idle.
@@ -84,7 +84,7 @@ export function App() {
   const [mobileNav, setMobileNav] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
-      return window.localStorage.getItem("turf.full-crm.sidebar-minimized") === "true";
+      return window.localStorage.getItem("callerwhale.full-crm.sidebar-minimized") === "true";
     } catch {
       return false;
     }
@@ -95,7 +95,7 @@ export function App() {
   // One switch for every note that only exists to explain the demo ("sample photo", "no number is dialled" and so on).
   const [demoNotes, setDemoNotesState] = useState(() => {
     try {
-      return window.localStorage.getItem("turf.full-crm.demo-notes") === "on";
+      return window.localStorage.getItem("callerwhale.full-crm.demo-notes") === "on";
     } catch {
       return false;
     }
@@ -103,7 +103,7 @@ export function App() {
   const setDemoNotes = useCallback(next => {
     setDemoNotesState(next);
     try {
-      window.localStorage.setItem("turf.full-crm.demo-notes", next ? "on" : "off");
+      window.localStorage.setItem("callerwhale.full-crm.demo-notes", next ? "on" : "off");
     } catch {
       /* Still applies for this session. */
     }
@@ -220,8 +220,8 @@ export function App() {
       if (error) notify("The file could not be saved: " + error);
       else if (!browser) notify("Saved to " + path);
     };
-    window.addEventListener("turf-saved", saved);
-    return () => window.removeEventListener("turf-saved", saved);
+    window.addEventListener("callerwhale-saved", saved);
+    return () => window.removeEventListener("callerwhale-saved", saved);
   }, [notify]);
   // Connected: changes apply on screen at once and queue as operations for the server, which has the last word.
   const dispatch = useCallback(
@@ -317,7 +317,7 @@ export function App() {
     setSidebarCollapsed(current => {
       const next = !current;
       try {
-        window.localStorage.setItem("turf.full-crm.sidebar-minimized", String(next));
+        window.localStorage.setItem("callerwhale.full-crm.sidebar-minimized", String(next));
       } catch {
         /* This session still supports the preference. */
       }
@@ -420,7 +420,7 @@ export function App() {
             <button className="mobile-menu round-button" aria-label="Toggle navigation" onClick={() => setMobileNav(!mobileNav)}>
               <List size={22} />
             </button>
-            <TurfMenu
+            <CallerWhaleMenu
               collapsed={sidebarCollapsed}
               onToggleSidebar={toggleSidebar}
               onReset={() => setReset(true)}

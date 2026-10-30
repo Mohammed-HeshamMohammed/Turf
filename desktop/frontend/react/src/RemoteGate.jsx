@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Lock, ShieldCheck, SignIn, UserCircleMinus, WifiSlash } from "@phosphor-icons/react";
 import { GoogleMark } from "./SignInMarks.jsx";
-import { api, apiBase, auth, organization, SERVER, setApiBase, setOrganization, stopDesktopSignIn } from "./remote/api.js";
+import { api, apiBase, auth, organization, SERVER, setApiBase, setOrganization } from "./remote/api.js";
 import { MemoryVault, Vault } from "./remote/vault.js";
 import { inDesktopApp } from "./popout.js";
 import { Button, Card, Field } from "./ui.jsx";
@@ -101,27 +101,11 @@ export function RemoteGate({ onReady, onLeave }) {
       const available = await auth.providers().catch(() => ({}));
       if (!available[provider]) throw new Error(`${label} sign-in isn't connected yet. Use your email for now.`);
       if (!inDesktopApp()) return auth.startProvider(provider, "app");
-      if (!auth.startUrl) {
-        // Firebase: the app opens Google in the browser itself, and signs in here when the browser is done.
-        waiting.current = stopDesktopSignIn;
-        setStep("browser");
-        try {
-          await auth.startProvider(provider, "desktop");
-        } catch (reason) {
-          if (reason.code === "mfa_required") return setStep("stepup");
-          setStep("signin");
-          if (reason.code === "cancelled") return;
-          throw reason;
-        } finally {
-          waiting.current = null;
-        }
-        return check();
-      }
       const { invoke } = await import("@tauri-apps/api/core");
       const { listen } = await import("@tauri-apps/api/event");
       waiting.current?.();
       const port = await invoke("google_sign_in_listen");
-      const stop = await listen("turf-sign-in", ({ payload }) => {
+      const stop = await listen("callerwhale-sign-in", ({ payload }) => {
         stop();
         waiting.current = null;
         attempt(async () => {
@@ -183,7 +167,6 @@ export function RemoteGate({ onReady, onLeave }) {
     event.preventDefault();
     attempt(async () => {
       const result = await auth.confirmMfa(form.code.trim());
-      // Firebase gives no recovery codes: staff reset a lost authenticator.
       if (result.recovery_codes?.length) setRecovery(result.recovery_codes);
       else await check();
     });

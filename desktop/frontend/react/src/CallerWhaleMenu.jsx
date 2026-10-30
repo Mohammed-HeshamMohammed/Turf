@@ -6,7 +6,7 @@ import { useCrm } from "./context.jsx";
 import { Badge, Select, usePresence } from "./ui.jsx";
 import { SignInMark } from "./SignInMarks.jsx";
 
-export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen, demoNotes, onDemoNotes }) {
+export function CallerWhaleMenu({ collapsed, onToggleSidebar, onReset, onOpen, demoNotes, onDemoNotes }) {
   const { state, dispatch, navigate, notify, connect, signOut } = useCrm();
   const [open, setOpen] = useState(false);
   const panel = usePresence(open);
@@ -30,7 +30,7 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen, demoNote
     document.addEventListener("keydown", escape);
     const element = root.current;
     element.addEventListener("focusout", focusOut);
-    element.querySelector(".turf-menu-panel button")?.focus();
+    element.querySelector(".callerwhale-menu-panel button")?.focus();
     return () => {
       document.removeEventListener("pointerdown", outside);
       document.removeEventListener("keydown", escape);
@@ -45,14 +45,14 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen, demoNote
   const role = ROLES[state.role];
   const pending = state.queue.filter(item => item.actor === role.person).length;
   return (
-    <div className="turf-menu" ref={root}>
+    <div className="callerwhale-menu" ref={root}>
       <button
         ref={trigger}
         className="brand-mark"
         aria-label="Caller Whale menu"
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-controls="turf-menu-panel"
+        aria-controls="callerwhale-menu-panel"
         onClick={() => {
           if (!open) onOpen?.();
           setOpen(!open);
@@ -61,15 +61,15 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen, demoNote
         <img src="/favicon.svg" alt="" />
       </button>
       {panel.mounted && (
-        <div id="turf-menu-panel" className={"turf-menu-panel" + (panel.leaving ? " leaving" : "")} role="dialog" aria-label="Caller Whale workspace menu">
-          <div className="turf-menu-workspace">
+        <div id="callerwhale-menu-panel" className={"callerwhale-menu-panel" + (panel.leaving ? " leaving" : "")} role="dialog" aria-label="Caller Whale workspace menu">
+          <div className="callerwhale-menu-workspace">
             <small>Current workspace</small>
             <strong>{state.settings.workspace}</strong>
             <span>
               {personalProfile(state).name} · {role.name}
             </span>
           </div>
-          <div className="turf-menu-actions">
+          <div className="callerwhale-menu-actions">
             <button onClick={() => run(() => navigate("dashboard"))}>
               <SquaresFour size={19} />
               <span>Workspace overview</span>
@@ -85,7 +85,7 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen, demoNote
               <span>{collapsed ? "Expand sidebar" : "Minimize sidebar"}</span>
             </button>
           </div>
-          <div className="turf-menu-actions turf-menu-tools">
+          <div className="callerwhale-menu-actions callerwhale-menu-tools">
             <button
               className={"menu-connection " + (!state.online ? "offline" : "")}
               onClick={() => run(() => dispatch({ type: "CONNECT", online: !state.online }))}
@@ -111,8 +111,8 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen, demoNote
             </button>
           </div>
           {state.remote ? (
-            <div className="turf-menu-actions">
-              <div className="turf-menu-workspace">
+            <div className="callerwhale-menu-actions">
+              <div className="callerwhale-menu-workspace">
                 <small>Signed in</small>
                 <strong className="named">
                   <SignInMark method={state.remote.user.sign_in} />
@@ -127,7 +127,7 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen, demoNote
             </div>
           ) : (
             <>
-              <div className="turf-menu-demo-head">
+              <div className="callerwhale-menu-demo-head">
                 <small>Sample workspace</small>
               </div>
               <div className="role-switcher">
@@ -154,7 +154,7 @@ export function TurfMenu({ collapsed, onToggleSidebar, onReset, onOpen, demoNote
                 </Select>
                 <small>{role.scope} · UI preview</small>
               </div>
-              <div className="turf-menu-actions">
+              <div className="callerwhale-menu-actions">
                 <button type="button" className="menu-switch" role="switch" aria-checked={Boolean(demoNotes)} onClick={() => onDemoNotes(!demoNotes)}>
                   <Info size={19} />
                   <span>Show demo notes</span>

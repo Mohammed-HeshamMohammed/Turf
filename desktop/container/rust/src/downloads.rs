@@ -18,7 +18,7 @@ pub fn safe_name(name: &str) -> String {
         _ => (trimmed.clone(), "csv".to_string()),
     };
     if stem.is_empty() {
-        return "turf-export.csv".into();
+        return "callerwhale-export.csv".into();
     }
     const MOST: usize = 100;
     let chars: Vec<char> = stem.chars().collect();
@@ -69,14 +69,14 @@ mod tests {
     #[test]
     fn names_are_safe_and_never_overwrite() {
         assert_eq!(safe_name("..\\..\\evil:name?.csv"), "_.._evil_name_.csv");
-        assert_eq!(safe_name("   "), "turf-export.csv");
+        assert_eq!(safe_name("   "), "callerwhale-export.csv");
         assert_eq!(safe_name("list"), "list.csv");
         // A long list name is shortened in the middle: the extension and "(checked)" stay.
         let long = format!("2024-11-06_0am_Results_for_{} (checked).csv", "infoakcallers_com-Tucson2_670044fce345b".repeat(4));
         let short = safe_name(&long);
         assert!(short.ends_with(" (checked).csv") && short.starts_with("2024-11-06_0am_Results_for_"), "{short}");
         assert!(short.chars().count() <= 105, "{short}");
-        let folder = std::env::temp_dir().join(format!("turf-downloads-{}", std::process::id()));
+        let folder = std::env::temp_dir().join(format!("callerwhale-downloads-{}", std::process::id()));
         std::fs::create_dir_all(&folder).unwrap();
         let first = free_path(&folder, "check.csv");
         std::fs::write(&first, "a").unwrap();

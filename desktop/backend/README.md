@@ -8,4 +8,4 @@ Rules:
 2. No window, no webview. A module is callable from a Tauri command and from a plain test.
 3. One module per feature. Shared code goes in a `shared/` crate when two modules need the same thing, not in either module.
 
-Run the tests of every module: `cargo test --workspace` from the `Full CRM Turf` folder.
+Run the tests of every module: `cargo test --workspace` from the `Caller Whale CRM` folder.

@@ -4,8 +4,8 @@
 // signed in, they stay in the encrypted offline copy (remote/vault.js).
 import Dexie from "dexie";
 
-const LEGACY_KEY = "turf.full-crm.prototype.v1";
-const db = new Dexie("turf-crm-workspace");
+const LEGACY_KEY = "callerwhale.full-crm.prototype.v1";
+const db = new Dexie("callerwhale-crm-workspace");
 db.version(1).stores({ workspace: "" });
 
 /** The saved workspace, or null. Never throws: an unavailable store starts from what the caller already has. */

@@ -9,7 +9,7 @@ import { usePresence } from "./ui.jsx";
 
 const WORD_MS = 230;
 const TURN_PAUSE = 1100;
-const POSITION_KEY = "turf.full-crm.captions-position";
+const POSITION_KEY = "callerwhale.full-crm.captions-position";
 const MARGIN = 8;
 
 /** A believable two-sided conversation drawn from the lead record, played back word by word like live captions. */

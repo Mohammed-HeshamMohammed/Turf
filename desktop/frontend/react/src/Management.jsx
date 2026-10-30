@@ -91,7 +91,7 @@ export function Reports() {
             <Button
               icon={DownloadSimple}
               onClick={() => {
-                downloadCsv("turf-report.csv", [
+                downloadCsv("callerwhale-report.csv", [
                   [client ? "Location" : "Source", "Visible leads", "Ready", "Qualified", ...(finance ? ["Deals"] : [])],
                   ...rows.map(row => [row.source, row.count, row.ready, row.qualified, ...(finance ? [row.deals] : [])]),
                 ]);

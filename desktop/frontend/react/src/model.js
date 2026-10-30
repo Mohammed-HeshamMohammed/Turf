@@ -699,7 +699,7 @@ export function restoreState(saved) {
 /** The workspace an earlier version left in localStorage; the IndexedDB copy (workspace-store.js) replaces it. */
 export function loadState(storage) {
   try {
-    return restoreState(JSON.parse(storage.getItem("turf.full-crm.prototype.v1"))) ?? seedState();
+    return restoreState(JSON.parse(storage.getItem("callerwhale.full-crm.prototype.v1"))) ?? seedState();
   } catch {
     /* An unavailable cache starts a fresh sample workspace. */
   }

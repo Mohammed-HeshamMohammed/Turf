@@ -657,11 +657,11 @@ svg {
   font-size: 12px;
 }
 
-.turf-menu {
+.callerwhale-menu {
   position: relative;
   flex: none;
 }
-.turf-menu-panel {
+.callerwhale-menu-panel {
   position: absolute;
   z-index: 65;
   top: calc(100% + 10px);
@@ -676,25 +676,25 @@ svg {
     0 22px 48px -14px #0005,
     0 0 0 1px #0001;
 }
-.turf-menu-workspace {
+.callerwhale-menu-workspace {
   display: grid;
   gap: 4px;
   padding: 11px 12px 14px;
 }
-.turf-menu-workspace strong {
+.callerwhale-menu-workspace strong {
   font-size: 17px;
 }
-.turf-menu-workspace span {
+.callerwhale-menu-workspace span {
   font-size: 12px;
   color: var(--muted);
 }
-.turf-menu-actions {
+.callerwhale-menu-actions {
   display: grid;
   gap: 2px;
   border-top: 1px solid var(--line);
   padding-top: 6px;
 }
-.turf-menu-actions button {
+.callerwhale-menu-actions button {
   display: flex;
   align-items: center;
   gap: 11px;
@@ -703,35 +703,35 @@ svg {
   border-radius: 13px;
   font-size: 12px;
 }
-.turf-menu-actions button:hover {
+.callerwhale-menu-actions button:hover {
   background: var(--shell);
 }
-.turf-menu-tools .menu-connection > svg {
+.callerwhale-menu-tools .menu-connection > svg {
   color: var(--good-ink);
 }
-.turf-menu-tools .menu-connection.offline > svg {
+.callerwhale-menu-tools .menu-connection.offline > svg {
   color: var(--accent-ink);
 }
-.turf-menu-tools .menu-connection > div {
+.callerwhale-menu-tools .menu-connection > div {
   display: grid;
   gap: 2px;
 }
-.turf-menu-tools .menu-connection small {
+.callerwhale-menu-tools .menu-connection small {
   font-size: 12px;
 }
-.turf-menu-tools .badge {
+.callerwhale-menu-tools .badge {
   margin-left: auto;
 }
-.turf-menu-panel .role-switcher {
+.callerwhale-menu-panel .role-switcher {
   margin: 7px 0;
   padding: 13px;
   background: var(--page);
 }
-.turf-menu-panel .role-switcher label {
+.callerwhale-menu-panel .role-switcher label {
   font-size: 12px;
   margin-bottom: 5px;
 }
-.turf-menu-panel .role-switcher .select-trigger {
+.callerwhale-menu-panel .role-switcher .select-trigger {
   padding: 5px 4px;
   font-size: 13px;
   min-height: 32px;
@@ -3695,10 +3695,10 @@ textarea {
   .sidebar-toggle,
   .sidebar-bend,
   .dock-tooltip,
-  .turf-menu-actions .desktop-menu-action {
+  .callerwhale-menu-actions .desktop-menu-action {
     display: none;
   }
-  .turf-menu-panel {
+  .callerwhale-menu-panel {
     width: min(300px, calc(100vw - 70px));
   }
   .sidebar .dock-icon,
@@ -4329,7 +4329,7 @@ textarea {
 }
 
 /* Menus and panels: pop in, pop out. */
-.turf-menu-panel,
+.callerwhale-menu-panel,
 .notification-panel,
 .search-results {
   transform-origin: top left;
@@ -4339,7 +4339,7 @@ textarea {
 .search-results {
   transform-origin: top right;
 }
-.turf-menu-panel.leaving,
+.callerwhale-menu-panel.leaving,
 .notification-panel.leaving,
 .search-results.leaving {
   animation: pop-out var(--exit) var(--ease-in) forwards;
@@ -5137,11 +5137,11 @@ html.captions-window #root {
 html.demo-quiet .demo-note {
   display: none !important;
 }
-.turf-menu-demo-head {
+.callerwhale-menu-demo-head {
   padding: 12px 12px 2px;
   border-top: 1px solid var(--line);
 }
-.turf-menu-demo-head small {
+.callerwhale-menu-demo-head small {
   font-size: 12px;
   color: var(--muted);
 }

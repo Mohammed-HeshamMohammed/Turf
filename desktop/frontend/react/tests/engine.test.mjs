@@ -15,9 +15,9 @@ const root = process.env.CALLERWHALE_SERVICE_ROOT ? resolve(process.env.CALLERWH
 let child;
 
 before(() => {
-  child = spawn(process.env.CALLERWHALE_PYTHON ?? "python", ["-m", "turf_service.server", "--resources", root], {
+  child = spawn(process.env.CALLERWHALE_PYTHON ?? "python", ["-m", "callerwhale_service.server", "--resources", root], {
     cwd: root,
-    env: { ...process.env, PYTHONUTF8: "1", PYTHONPATH: root, CALLERWHALE_APP_DATA: mkdtempSync(join(tmpdir(), "turf-crm-engine-")) },
+    env: { ...process.env, PYTHONUTF8: "1", PYTHONPATH: root, CALLERWHALE_APP_DATA: mkdtempSync(join(tmpdir(), "callerwhale-crm-engine-")) },
   });
   const lines = createInterface({ input: child.stdout })[Symbol.asyncIterator]();
   let id = 0;

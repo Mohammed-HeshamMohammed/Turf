@@ -71,7 +71,7 @@ export async function watchJob(jobId, { onEvent, signal } = {}) {
 
 export const cancelJob = jobId => call("job.cancel", { job_id: jobId });
 
-const WORKSPACE = "turf-crm";
+const WORKSPACE = "callerwhale-crm";
 
 function csvCell(value) {
   const text = String(value ?? "");
@@ -249,7 +249,7 @@ export async function checkRepeats({ datasetId, config, onStage, onStart, signal
 }
 
 // ---- Placing leads on the map ----------------------------------------------------------------------------------
-// Two steps, both from the US Census Bureau through Caller Whale's engine (service/turf_service/geo.py):
+// Two steps, both from the US Census Bureau through Caller Whale's engine (service/callerwhale_service/geo.py):
 //   1. the centre of each lead's ZIP code, from a file shipped with Caller Whale: instant and offline, an approximate place;
 //   2. the exact address, from the Bureau's public geocoder: street, city, state and ZIP are sent (never names or
 //      phone numbers), only when the person asks, and every answer is remembered so nothing is looked up twice.

@@ -1,30 +1,7 @@
-// The Caller Whale API over fetch. Signing in is Firebase's job (./firebase-auth-client.js) when the app is built with a
-// Firebase project, and the auth service's (./auth-client.js) otherwise: every request here carries that access
-// token, and the organization the person is working in. No cookies: the token is the session.
+// The Caller Whale API over fetch. Signing in is the auth service's job (./auth-client.js): every request here carries its
+// access token, and the organization the person is working in. No cookies: the token is the session.
 
-import { initializeApp } from "firebase/app";
-import {
-  applyActionCode,
-  browserLocalPersistence,
-  createUserWithEmailAndPassword,
-  getAuth,
-  getMultiFactorResolver,
-  getRedirectResult,
-  GoogleAuthProvider,
-  indexedDBLocalPersistence,
-  initializeAuth,
-  multiFactor,
-  OAuthProvider,
-  sendEmailVerification,
-  signInWithCredential,
-  signInWithEmailAndPassword,
-  signInWithRedirect,
-  signOut,
-  TotpMultiFactorGenerator,
-  updateProfile,
-} from "firebase/auth";
 import { createAuth } from "./auth-client.js";
-import { createFirebaseAuth } from "./firebase-auth-client.js";
 
 export class ApiError extends Error {
   constructor(status, code, message) {
@@ -51,7 +28,7 @@ const remember = (key, value) => {
 };
 
 export function apiBase() {
-  return (remembered("turf.api.url") || import.meta.env?.VITE_CALLERWHALE_API_URL || "").replace(/\/$/, "");
+  return (remembered("callerwhale.api.url") || import.meta.env?.VITE_CALLERWHALE_API_URL || "").replace(/\/$/, "");
 }
 
 /** Caller Whale's server. People never type it: it is fixed when the app is built (VITE_CALLERWHALE_API_URL). */
@@ -61,58 +38,15 @@ export const SERVER = (import.meta.env?.VITE_CALLERWHALE_API_URL || "http://loca
 export const AUTH_SERVER = (import.meta.env?.VITE_CALLERWHALE_AUTH_URL || "http://localhost:8101").replace(/\/$/, "");
 
 export function setApiBase(url) {
-  remember("turf.api.url", url ? url.replace(/\/$/, "") : "");
+  remember("callerwhale.api.url", url ? url.replace(/\/$/, "") : "");
 }
 
-/** A build setting with any spaces or line breaks a copy and paste left around it trimmed off. */
-const setting = value => String(value ?? "").trim();
+/** The signed-in person, through the auth service. */
+export const auth = createAuth({ base: remembered("callerwhale.auth.url") || AUTH_SERVER });
 
-/** The Firebase web app this build signs in with (VITE_FIREBASE_*, docs/plans/firebase-auth.md), or none. */
-const FIREBASE = setting(import.meta.env?.VITE_FIREBASE_API_KEY)
-  ? {
-      apiKey: setting(import.meta.env?.VITE_FIREBASE_API_KEY),
-      authDomain: setting(import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN) || `${setting(import.meta.env?.VITE_FIREBASE_PROJECT_ID)}.firebaseapp.com`,
-      projectId: setting(import.meta.env?.VITE_FIREBASE_PROJECT_ID),
-      appId: setting(import.meta.env?.VITE_FIREBASE_APP_ID),
-    }
-  : null;
-
-const inDesktopWindow = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-
-/** A Google sign-in in the browser that the gate stopped waiting for: its answer is dropped. */
-let stopWaiting = () => {};
-export const stopDesktopSignIn = () => stopWaiting();
-
-/** The container's Google sign-in (desktop/container/rust/src/signin.rs): resolves with Google's ID token. */
-async function desktopSignIn() {
-  const { invoke } = await import("@tauri-apps/api/core");
-  const stopped = new Promise((_, reject) => {
-    stopWaiting = () => reject(Object.assign(new Error("Sign-in was cancelled."), { code: "cancelled" }));
-  });
-  const signedIn = invoke("google_sign_in", {
-    clientId: setting(import.meta.env?.VITE_GOOGLE_DESKTOP_CLIENT_ID),
-    clientSecret: setting(import.meta.env?.VITE_GOOGLE_DESKTOP_CLIENT_SECRET),
-  });
-  return Promise.race([signedIn, stopped]);
-}
-
-function firebaseAuth(config) {
-  const app = initializeApp(config);
-  const common = { applyActionCode, createUserWithEmailAndPassword, getMultiFactorResolver, GoogleAuthProvider, multiFactor, OAuthProvider, sendEmailVerification, signInWithCredential, signInWithEmailAndPassword, signOut, TotpMultiFactorGenerator, updateProfile };
-  const providers = (import.meta.env.VITE_FIREBASE_PROVIDERS || "google").split(",").map(name => name.trim()).filter(Boolean);
-  if (!inDesktopWindow) return createFirebaseAuth({ sdk: { ...common, getRedirectResult, signInWithRedirect, auth: getAuth(app) }, providers });
-  // The window loads no scripts from other sites, so Firebase starts without its redirect helper (which loads
-  // Google's), and Google sign-in goes through the person's browser instead.
-  const auth = initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence] });
-  return createFirebaseAuth({ sdk: { ...common, auth }, providers, desktopSignIn });
-}
-
-/** The signed-in person: from Firebase, or from the auth service. */
-export const auth = FIREBASE ? firebaseAuth(FIREBASE) : createAuth({ base: remembered("turf.auth.url") || AUTH_SERVER });
-
-/** The organization this device works in; sent with every request as x-turf-org. */
-export const organization = () => remembered("turf.org");
-export const setOrganization = id => remember("turf.org", id || "");
+/** The organization this device works in; sent with every request as x-callerwhale-org. */
+export const organization = () => remembered("callerwhale.org");
+export const setOrganization = id => remember("callerwhale.org", id || "");
 
 export async function request(method, path, body, { base = apiBase(), timeout = 15000, retried = false } = {}) {
   const token = await auth.accessToken().catch(() => null);
@@ -126,7 +60,7 @@ export async function request(method, path, body, { base = apiBase(), timeout = 
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(token && org ? { "x-turf-org": org } : {}),
+        ...(token && org ? { "x-callerwhale-org": org } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
@@ -192,7 +126,7 @@ export function eventsUrl(base = apiBase()) {
  * the server reads (and, unlike the address, does not log).
  */
 export function socketProtocols(token, org = organization()) {
-  return ["turf.v1", ...(token ? [`bearer.${token}`] : []), ...(org ? [`org.${org}`] : [])];
+  return ["callerwhale.v1", ...(token ? [`bearer.${token}`] : []), ...(org ? [`org.${org}`] : [])];
 }
 
 /** The token from an invitation link (…#/join?token=…), or the token itself when that is what was pasted. */

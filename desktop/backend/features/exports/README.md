@@ -12,7 +12,7 @@ Feature 7 on the person's computer: writing call lists, mail lists and reports t
 ## Run and test
 
 ```bash
-cargo test -p turf-desktop-exports
+cargo test -p callerwhale-desktop-exports
 ```
 
 ## What it must do

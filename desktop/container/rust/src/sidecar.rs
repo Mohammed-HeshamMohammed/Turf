@@ -62,7 +62,7 @@ fn service_root() -> PathBuf {
 }
 
 fn service_executable(resources: &Path) -> PathBuf {
-    resources.join("service").join(if cfg!(windows) { "turf-service.exe" } else { "turf-service" })
+    resources.join("service").join(if cfg!(windows) { "callerwhale-service.exe" } else { "callerwhale-service" })
 }
 
 pub fn spawn(resources: Option<&Path>) -> Result<Sidecar, String> {
@@ -76,7 +76,7 @@ pub fn spawn(resources: Option<&Path>) -> Result<Sidecar, String> {
             let root = service_root().canonicalize().map_err(|e| format!("Caller Whale's Skip Tracing service was not found: {e}"))?;
             let python = std::env::var("CALLERWHALE_PYTHON").unwrap_or_else(|_| "python".into());
             let mut command = Command::new(python);
-            command.args(["-m", "turf_service.server", "--resources"]).arg(&root).env("PYTHONPATH", &root).current_dir(&root);
+            command.args(["-m", "callerwhale_service.server", "--resources"]).arg(&root).env("PYTHONPATH", &root).current_dir(&root);
             command
         }
     };

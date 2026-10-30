@@ -354,7 +354,7 @@ function ownerRows(columns, rows, results) {
     .map(({ lead, result }) => [...columns.map(column => sourceValue(lead, column)), ...ownerCells(result)]);
 }
 
-const exportName = (list, what) => `${String(list || "turf list").replace(/\.[a-z0-9]{2,4}$/i, "")} (${what}).csv`;
+const exportName = (list, what) => `${String(list || "callerwhale list").replace(/\.[a-z0-9]{2,4}$/i, "")} (${what}).csv`;
 
 export function SkipTracing() {
   const { state, dispatch, navigate, notify, route } = useCrm();

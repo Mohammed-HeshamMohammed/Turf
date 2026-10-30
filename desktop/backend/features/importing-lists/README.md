@@ -12,7 +12,7 @@ Feature 1 on the person's computer: local list import, column mapping and mergin
 ## Run and test
 
 ```bash
-cargo test -p turf-desktop-importing-lists
+cargo test -p callerwhale-desktop-importing-lists
 ```
 
 ## What it must do

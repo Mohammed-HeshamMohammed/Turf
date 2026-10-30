@@ -113,7 +113,7 @@ export function Leads() {
     window.addEventListener("pointercancel", finish);
   }
   function exportRows() {
-    downloadCsv("turf-visible-leads.csv", [
+    downloadCsv("callerwhale-visible-leads.csv", [
       ["Owner", "Property", "City", "Stage", "Assigned to"],
       ...leads.map(lead => [lead.name, lead.address, lead.city, lead.stage, lead.assignee]),
     ]);

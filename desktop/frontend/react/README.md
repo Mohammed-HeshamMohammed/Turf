@@ -1,6 +1,6 @@
 # Desktop frontend (React)
 
-Every screen the person sees, moved here from the root of `Full CRM Turf` (history kept). Run everything from this folder:
+Every screen the person sees, moved here from the root of `Caller Whale CRM` (history kept). Run everything from this folder:
 
 ```bash
 npm ci
@@ -16,7 +16,7 @@ npm run build            # dist/client, plus the Sites build files for the demo
 
 ## Signing in
 
-The CRM signs in with the auth service (`services/auth`) through `src/remote/auth-client.js`, a copy of `services/auth/clients/auth-client.js`, and sends its token, and the chosen organization in `x-turf-org`, with every request to Caller Whale's server (`src/remote/api.js`). Set `VITE_CALLERWHALE_API_URL` (default `http://localhost:8088`) and `VITE_CALLERWHALE_AUTH_URL` (default `http://localhost:8101`) when building. A person with no workspace yet starts a trial or joins an invitation from the sign-in card.
+The CRM signs in with the auth service (`services/auth`) through `src/remote/auth-client.js`, a copy of `services/auth/clients/auth-client.js`, and sends its token, and the chosen organization in `x-callerwhale-org`, with every request to Caller Whale's server (`src/remote/api.js`). Set `VITE_CALLERWHALE_API_URL` (default `http://localhost:8088`) and `VITE_CALLERWHALE_AUTH_URL` (default `http://localhost:8101`) when building. A person with no workspace yet starts a trial or joins an invitation from the sign-in card.
 
 ## What is in this folder
 
@@ -31,7 +31,7 @@ The CRM signs in with the auth service (`services/auth`) through `src/remote/aut
 
 The public demo (Vercel, and the Sites hosting build) is built from this same folder, so `vercel.json`, `.vercelignore`, `worker/`, `.openai/`, `scripts/prepare-sites-build.mjs` and `tests/sites-worker.test.mjs` moved with it. Moving them to `demo/` is a separate step.
 
-**If the demo is deployed on Vercel, set the project's Root Directory to `Full CRM Turf/desktop/frontend/react`.** That setting is in the Vercel dashboard, not in this repository, so it cannot be changed from here and the demo will not build until it is.
+**If the demo is deployed on Vercel, set the project's Root Directory to `Caller Whale CRM/desktop/frontend/react`.** That setting is in the Vercel dashboard, not in this repository, so it cannot be changed from here and the demo will not build until it is.
 
 ## Paths that depend on where this folder is
 

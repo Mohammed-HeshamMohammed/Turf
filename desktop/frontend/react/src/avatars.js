@@ -71,7 +71,7 @@ export function avatarSources(choice, name) {
   if (typeof choice === "string" && choice.startsWith("data:image/")) return [choice];
   const preset = typeof choice === "string" && choice.startsWith("preset:") ? Number(choice.slice(7)) : 0;
   const number = preset || TEAM_PORTRAITS[name] || (hash(String(name || "?")) % AVATAR_PRESETS.length) + 1;
-  const drawn = "data:image/svg+xml;utf8," + encodeURIComponent(drawFace(hash(preset ? choice + "-turf" : String(name || "?"))));
+  const drawn = "data:image/svg+xml;utf8," + encodeURIComponent(drawFace(hash(preset ? choice + "-callerwhale" : String(name || "?"))));
   return [...PORTRAIT_FORMATS.map(format => `/avatars/${number}.${format}`), drawn];
 }
 

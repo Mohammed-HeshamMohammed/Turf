@@ -12,7 +12,7 @@ Feature 4 on the person's computer: ZIP-centre placement and offline map files.
 ## Run and test
 
 ```bash
-cargo test -p turf-desktop-leads-map
+cargo test -p callerwhale-desktop-leads-map
 ```
 
 ## What it must do

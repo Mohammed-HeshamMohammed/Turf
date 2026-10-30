@@ -1,11 +1,11 @@
 # Desktop
 
-The part of Full CRM Turf that runs on the person's computer. Three folders, matching [the plan](../docs/plans/service-architecture.md):
+The part of Caller Whale CRM that runs on the person's computer. Three folders, matching [the plan](../docs/plans/service-architecture.md):
 
 | Folder | What | Where the code is today |
 | --- | --- | --- |
 | `container/rust/` | The Tauri shell only: window, menus, permissions, updater, packaging | **Moved here** from `src-tauri/` (branch `crm/desktop-container`) |
-| `frontend/react/` | Every screen the person sees | **Moved here** from the root of `Full CRM Turf` (branch `crm/desktop-frontend`), with the demo files that are built from it |
+| `frontend/react/` | Every screen the person sees | **Moved here** from the root of `Caller Whale CRM` (branch `crm/desktop-frontend`), with the demo files that are built from it |
 | `backend/` | The Rust library the container links in, one module per feature, working offline | The Tauri commands in `src-tauri/src/` (not moved yet); the new modules in `backend/features/` are scaffolds |
 
 ## Moving the existing code in

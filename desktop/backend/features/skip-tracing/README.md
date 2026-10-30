@@ -12,7 +12,7 @@ Feature 2 on the person's computer: the offline checks, run by the Python engine
 ## Run and test
 
 ```bash
-cargo test -p turf-desktop-skip-tracing
+cargo test -p callerwhale-desktop-skip-tracing
 ```
 
 ## What it must do

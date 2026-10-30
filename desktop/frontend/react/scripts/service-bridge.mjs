@@ -41,7 +41,7 @@ export function refusal({ method, remoteAddress, origin, host, contentType }) {
 
 export function serviceBridge() {
   return {
-    name: "turf-crm-service-bridge",
+    name: "callerwhale-crm-service-bridge",
     apply: "serve",
     configureServer(server) {
       const root = resolve(process.env.CALLERWHALE_SERVICE_ROOT ?? "../../../../service");
@@ -51,8 +51,8 @@ export function serviceBridge() {
       let queue = Promise.resolve();
 
       function start() {
-        if (!existsSync(join(root, "turf_service"))) throw new Error(`Caller Whale's Skip Tracing service was not found at ${root}.`);
-        const started = spawn(process.env.CALLERWHALE_PYTHON ?? "python", ["-m", "turf_service.server", "--resources", root], {
+        if (!existsSync(join(root, "callerwhale_service"))) throw new Error(`Caller Whale's Skip Tracing service was not found at ${root}.`);
+        const started = spawn(process.env.CALLERWHALE_PYTHON ?? "python", ["-m", "callerwhale_service.server", "--resources", root], {
           cwd: root,
           env: { ...process.env, PYTHONUTF8: "1", PYTHONPATH: root },
         });

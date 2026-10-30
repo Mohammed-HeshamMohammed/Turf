@@ -12,7 +12,7 @@ Feature 8 on the person's computer: the recycle bin and the project backup zip.
 ## Run and test
 
 ```bash
-cargo test -p turf-desktop-backup-restore
+cargo test -p callerwhale-desktop-backup-restore
 ```
 
 ## What it must do
