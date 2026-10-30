@@ -5,7 +5,7 @@ metadata:
   name: notifications
   labels:
     app.kubernetes.io/name: notifications
-    app.kubernetes.io/part-of: turf
+    app.kubernetes.io/part-of: callerwhale
 spec:
   revisionHistoryLimit: 3
   strategy:
@@ -18,7 +18,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: notifications
-        app.kubernetes.io/part-of: turf
+        app.kubernetes.io/part-of: callerwhale
     spec:
       terminationGracePeriodSeconds: 30
       securityContext:
@@ -44,7 +44,7 @@ spec:
               app.kubernetes.io/name: notifications
       containers:
       - name: notifications
-        image: turf-notifications
+        image: callerwhale-notifications
         ports:
           - { name: http, containerPort: 8102 }
         env:

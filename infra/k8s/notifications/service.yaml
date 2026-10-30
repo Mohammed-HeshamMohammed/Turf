@@ -5,7 +5,7 @@ metadata:
   name: notifications
   labels:
     app.kubernetes.io/name: notifications
-    app.kubernetes.io/part-of: turf
+    app.kubernetes.io/part-of: callerwhale
 spec:
   selector:
     app.kubernetes.io/name: notifications
