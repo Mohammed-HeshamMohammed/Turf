@@ -484,3 +484,25 @@ code.key {
 .day-chart {
   margin-top: 20px;
 }
+.grafana-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.grafana-head h2 {
+  margin-bottom: 4px;
+}
+.grafana-head .sub {
+  margin: 0;
+}
+.grafana-frame {
+  display: block;
+  width: 100%;
+  height: min(78vh, 820px);
+  margin-top: 20px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}

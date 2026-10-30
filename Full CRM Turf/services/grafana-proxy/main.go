@@ -142,6 +142,10 @@ func newProxy(cfg config) *proxy {
 			r.Out.Host = r.In.Host // Grafana's root_url is this proxy's domain
 			r.SetXForwarded()
 		},
+		ModifyResponse: func(res *http.Response) error {
+			res.Header.Del("x-frame-options") // framing is limited to the website by frame-ancestors instead
+			return nil
+		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			log.Printf("grafana: %v", err)
 			page(w, http.StatusBadGateway, "Grafana is not answering", "Try again in a minute.")
@@ -181,6 +185,13 @@ func (p *proxy) whoami(token string) (person, verdict) {
 }
 
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Grafana opens only inside the admin page's frame: no other site may frame it, and a browser visiting its address
+	// directly (a page of its own, not a frame) is turned away before anything else is checked.
+	w.Header().Set("content-security-policy", "frame-ancestors "+p.cfg.origin)
+	if r.URL.Path != "/_turf/health" && r.Header.Get("sec-fetch-dest") == "document" {
+		page(w, http.StatusForbidden, "Open Grafana from the admin dashboard", "Grafana has no page of its own. Sign in to Caller Whale as staff, finish the authenticator step, and open it from the admin dashboard.")
+		return
+	}
 	switch r.URL.Path {
 	case "/_turf/health":
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": service, "version": version})
@@ -249,7 +260,8 @@ func (p *proxy) logout(w http.ResponseWriter, r *http.Request) {
 		p.drop(c.Value)
 	}
 	p.clearCookie(w)
-	http.Redirect(w, r, p.cfg.website+"/admin", http.StatusSeeOther)
+	// Shown in the admin page's frame, which can't load the website itself, so no redirect.
+	page(w, http.StatusOK, "Signed out of Grafana", "Open Grafana again from the admin dashboard when you need it.")
 }
 
 // forward sends a signed-in staff member's request on to Grafana, saying who they are.
@@ -335,6 +347,15 @@ func (p *proxy) deny(w http.ResponseWriter, r *http.Request, v verdict) {
 // toSignIn sends a page visit to the website to sign in and come back; anything else (Grafana's own API calls) gets a
 // 401, and Grafana reloads the page.
 func (p *proxy) toSignIn(w http.ResponseWriter, r *http.Request) {
+	// In the admin page's frame the website can't load (it allows no framing), so the frame asks the page around it
+	// to post a fresh sign-in.
+	if r.Header.Get("sec-fetch-dest") == "iframe" && strings.Contains(r.Header.Get("accept"), "text/html") {
+		w.Header().Set("content-type", "text/html; charset=utf-8")
+		w.Header().Set("cache-control", "no-store")
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprintf(w, `<!doctype html><meta charset=utf-8><title>Checking your access</title><p>Checking your access…</p><script>parent.postMessage("turf-grafana-signin",%q)</script>`, p.cfg.origin)
+		return
+	}
 	if r.Method == http.MethodGet && strings.Contains(r.Header.Get("accept"), "text/html") {
 		back := url.QueryEscape(safeReturn(r.URL.RequestURI()))
 		http.Redirect(w, r, p.cfg.website+"/admin/grafana?return="+back, http.StatusSeeOther)

@@ -26,7 +26,7 @@ Grafana trusts the `X-WEBAUTH-*` headers only from `172.30.10.10`. Its login for
    - optionally `ADMIN_GRAFANA_ROLE` (`Editor` by default)
 
    See [.env.example](.env.example).
-4. **On the core API**, set `TURF_GRAFANA_URL` to the same domain and redeploy it. On the website (landing-web), set the runtime variable `GRAFANA_ORIGIN` to the same address and redeploy it. The admin page then shows **Open Grafana**, and the website may post a sign-in to that address.
+4. **On the core API**, set `TURF_GRAFANA_URL` to the same domain and redeploy it. On the website (landing-web), set the runtime variable `GRAFANA_ORIGIN` to the same address and redeploy it. The admin page then has a Grafana panel that shows it in a frame, and the website may frame that address and post a sign-in to it. Visiting the address directly shows only "Open Grafana from the admin dashboard".
 5. **Deploy.** The volume `grafana-data` keeps dashboards across deploys.
 
 **Nobody is a Grafana server admin, by design.** The platform owner is `Admin` of Caller Whale's Grafana organization: dashboards, data sources, alerting and the organization's users. The server-wide jobs are done in this file instead:

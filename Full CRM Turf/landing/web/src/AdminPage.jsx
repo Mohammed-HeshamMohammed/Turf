@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowClockwise, PaperPlaneTilt, ShieldCheck, UserPlus } from "@phosphor-icons/react";
 import { DayChart, DownloadButton, Gate, GoogleMark, Meter, Problem, RecentUsage, dateText, go, number, timeText } from "./AccountPages.jsx";
 import { NotFound } from "./pages.jsx";
@@ -294,10 +294,8 @@ export function Admin() {
             <div className="account-head">
               <h1>Admin</h1>
               <p className="sub">Signed in as {account.person.email} ({account.staff.role === "owner" ? "platform owner" : "system administrator"}).</p>
-              <div className="actions">
-                <a className="button" href="/admin/grafana?return=%2F">Open Grafana</a>
-              </div>
             </div>
+            <GrafanaPanel />
             <Invitations account={account} />
           </section>
         );
@@ -307,64 +305,94 @@ export function Admin() {
 }
 
 /**
- * Hands a member of staff over to Grafana: posts their token to the Grafana login proxy, which asks Turf's server
- * whether they are staff and opens its own session (docs/plans/grafana-access.md). A form post, so the token is never
- * in a URL. The proxy sends people here when they have no session, with the page to go back to in `return`.
+ * Grafana, inside the admin page. It has no page of its own: the login proxy turns away anyone who visits its address
+ * directly and lets only this site frame it, and it admits only staff who passed the authenticator step
+ * (docs/plans/grafana-access.md). The token goes to the proxy in a form post aimed at the frame, so it is never in a
+ * URL, and a frame that loses its session asks this page for a fresh one.
  */
-export function GrafanaHandoff() {
-  const session = useSession();
-  const [form, setForm] = useState(null);
+export function GrafanaPanel() {
+  const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
-  const staff = session.status === "signed_in" && session.account.staff;
+  const last = useRef(0);
 
-  useEffect(() => {
-    if (session.status === "signed_out") {
-      go(`/signin?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
-      return;
+  const signIn = useCallback(async () => {
+    try {
+      const auth = await loadAuth();
+      if (!grafanaUrl) throw new Error("Grafana is not set up on this server.");
+      const token = await auth.accessToken();
+      if (!token) throw new Error("Sign in again to open Grafana.");
+      last.current = Date.now();
+      const form = document.createElement("form");
+      form.method = "post";
+      form.action = `${grafanaUrl}/_turf/session`;
+      form.target = "grafana-frame";
+      form.hidden = true;
+      for (const [name, value] of [["token", token], ["return", "/"]]) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = name;
+        input.value = value;
+        form.append(input);
+      }
+      // The proxy takes a sign-in only from this site's origin, and a cross-site post says "null" under this site's
+      // referrer policy, so the page says its origin (and nothing more) for the moment of the post.
+      const meta = document.createElement("meta");
+      meta.name = "referrer";
+      meta.content = "strict-origin";
+      document.head.append(meta);
+      document.body.append(form);
+      form.submit();
+      form.remove();
+      meta.remove();
+    } catch (reason) {
+      setError(reason.message);
+      setOpen(false);
     }
-    if (!staff) return;
-    let live = true;
-    loadAuth()
-      .then(async auth => {
-        if (!grafanaUrl) throw new Error("Grafana is not set up on this server.");
-        const token = await auth.accessToken();
-        if (!token) throw new Error("Sign in again to open Grafana.");
-        const back = new URLSearchParams(window.location.search).get("return") || "/";
-        if (live) setForm({ action: `${grafanaUrl}/_turf/session`, token, back: back.startsWith("/") && !back.startsWith("//") ? back : "/" });
-      })
-      .catch(reason => live && setError(reason.message));
-    return () => {
-      live = false;
-    };
-  }, [session.status, staff]);
-
-  const formRef = useCallback(node => {
-    if (!node) return;
-    // The proxy takes a sign-in only from this site's origin, and a cross-site post would say its origin is "null"
-    // under this site's referrer policy, so this page says its origin (and nothing more) just before it leaves.
-    const meta = document.createElement("meta");
-    meta.name = "referrer";
-    meta.content = "strict-origin";
-    document.head.append(meta);
-    // Back from Grafana lands on the admin page, not on this one again.
-    window.history.replaceState({}, "", "/admin");
-    node.submit();
   }, []);
 
-  if (session.status === "signed_in" && !staff) return <NotFound />;
-  if (error) return <section className="section account"><div className="panel"><p className="notice bad" role="alert">{error}</p><a className="button" href="/admin">Back to admin</a></div></section>;
+  useEffect(() => {
+    if (open) signIn();
+  }, [open, signIn]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const ask = event => {
+      // Only Grafana's own frame, at most once every 15 seconds, so a refusal can't loop.
+      if (grafanaUrl && event.origin === new URL(grafanaUrl).origin && event.data === "turf-grafana-signin" && Date.now() - last.current > 15000) signIn();
+    };
+    window.addEventListener("message", ask);
+    return () => window.removeEventListener("message", ask);
+  }, [open, signIn]);
+
   return (
-    <section className="section account">
-      <div className="panel">
-        <h1>Opening Grafana</h1>
-        <p className="sub">Checking your access…</p>
-        {form && (
-          <form ref={formRef} method="post" action={form.action}>
-            <input type="hidden" name="token" value={form.token} />
-            <input type="hidden" name="return" value={form.back} />
-          </form>
-        )}
+    <div className="panel grafana-panel">
+      <div className="grafana-head">
+        <div>
+          <h2>Grafana</h2>
+          <p className="sub">Opens here only, for staff who finished the authenticator step. It has no public page.</p>
+        </div>
+        <button type="button" className="button" onClick={() => (open ? setOpen(false) : (setError(""), setOpen(true)))}>
+          <ShieldCheck size={17} /> {open ? "Close Grafana" : "Open Grafana"}
+        </button>
       </div>
-    </section>
+      {error && <p className="notice bad" role="alert">{error}</p>}
+      {open && (
+        <iframe
+          name="grafana-frame"
+          title="Grafana"
+          className="grafana-frame"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"
+          referrerPolicy="no-referrer"
+        />
+      )}
+    </div>
   );
+}
+
+/** The old address the login proxy used to send people to: Grafana now lives in the admin page. */
+export function GrafanaHandoff() {
+  useEffect(() => {
+    go("/admin");
+  }, []);
+  return null;
 }

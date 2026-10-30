@@ -343,11 +343,42 @@ func TestLogoutEndsTheSession(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/_turf/logout", nil)
 	r.AddCookie(c)
 	rec := w.do(r)
-	if rec.Code != http.StatusSeeOther || rec.Header().Get("location") != website+"/admin" {
-		t.Fatalf("got %d %q", rec.Code, rec.Header().Get("location"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d", rec.Code)
 	}
 	if rec := w.page("/", c); rec.Code != http.StatusSeeOther {
 		t.Fatalf("still signed in: %d", rec.Code)
+	}
+}
+
+func TestGrafanaOpensOnlyInsideTheAdminPagesFrame(t *testing.T) {
+	w := newWorld(t)
+	c := sessionCookie(t, w.signIn("owner-token", "/"))
+	// A browser visiting the address directly gets turned away, even with a valid session.
+	direct := httptest.NewRequest(http.MethodGet, "https://grafana.turf.example/", nil)
+	direct.Header.Set("accept", "text/html")
+	direct.Header.Set("sec-fetch-dest", "document")
+	direct.AddCookie(c)
+	if rec := w.do(direct); rec.Code != http.StatusForbidden {
+		t.Fatalf("direct visit got %d", rec.Code)
+	}
+	// In a frame it opens, and only the website may frame it.
+	framed := httptest.NewRequest(http.MethodGet, "https://grafana.turf.example/", nil)
+	framed.Header.Set("accept", "text/html")
+	framed.Header.Set("sec-fetch-dest", "iframe")
+	framed.AddCookie(c)
+	rec := w.do(framed)
+	seen(t, rec)
+	if got := rec.Header().Get("content-security-policy"); got != "frame-ancestors "+website {
+		t.Fatalf("frame policy %q", got)
+	}
+	// A frame with no session asks the page around it to sign in, instead of loading the website.
+	bare := httptest.NewRequest(http.MethodGet, "https://grafana.turf.example/", nil)
+	bare.Header.Set("accept", "text/html")
+	bare.Header.Set("sec-fetch-dest", "iframe")
+	rec = w.do(bare)
+	if rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), "postMessage") {
+		t.Fatalf("got %d %s", rec.Code, rec.Body.String())
 	}
 }
 

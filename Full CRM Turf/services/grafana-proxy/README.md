@@ -6,7 +6,7 @@ Not behind the gateway: it is its own way in, with its own domain (in Coolify, t
 
 ## How sign-in works
 
-1. A visit without a session goes to the website's `/#/admin/grafana?return=<path>`.
+1. A visit without a session, inside the admin page's frame, asks that page to post a sign-in; a direct visit is refused.
 2. The website, already signed in, posts the person's Turf token to `/_turf/session` (a form post, so the token is never in a URL). Only the website's origin may post it.
 3. The proxy asks `whoami`. If the person is staff, it sets the `turf_grafana` cookie (a random session id, HttpOnly, Secure, SameSite=Lax) and sends them back to the path.
 4. Every request carries their id, email, name and Grafana role to Grafana. Headers the browser sent with those names, `Authorization` and the proxy's own cookie are removed first.
