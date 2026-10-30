@@ -29,6 +29,9 @@ pub struct Claims {
     /// How they signed in: "password", "google" or "apple". Absent in older tokens: empty.
     #[serde(default)]
     pub provider: String,
+    /// When the person signed in (Unix seconds): the session's start, not the token's. Absent in older tokens: 0.
+    #[serde(default)]
+    pub auth_time: u64,
     pub iss: String,
     pub aud: String,
     pub iat: u64,
@@ -172,6 +175,7 @@ impl FirebaseVerifier {
             mfa: t.firebase.sign_in_second_factor.as_deref() == Some("totp"),
             provider: provider_name(&t.firebase.sign_in_provider),
             email_verified: t.email_verified,
+            auth_time: t.auth_time,
             iss: t.iss,
             aud: t.aud,
             iat: t.iat,
@@ -223,7 +227,7 @@ mod tests {
     }
 
     fn claims(exp: u64) -> Claims {
-        Claims { sub: "u-1".into(), email: "a@example.com".into(), name: "A".into(), sid: "s-1".into(), mfa: true, email_verified: true, provider: "password".into(), iss: ISSUER.into(), aud: AUDIENCE.into(), iat: now(), exp }
+        Claims { sub: "u-1".into(), email: "a@example.com".into(), name: "A".into(), sid: "s-1".into(), mfa: true, email_verified: true, provider: "password".into(), auth_time: 0, iss: ISSUER.into(), aud: AUDIENCE.into(), iat: now(), exp }
     }
 
     fn sign(key: &Key, kid: &str, claims: &Claims) -> String {

@@ -15,7 +15,8 @@ use crate::{
     email,
     error::{AuthError, AuthResult},
     now,
-    routes::{new_secret, open_session, sha256, user_by, User},
+    firebase::{FbSession, Firebase, Outcome, Pending},
+    routes::{new_secret, open_session_fb, sha256, upsert_firebase_user, user_by, User},
     AppState,
 };
 use axum::{
@@ -73,7 +74,8 @@ fn random() -> String {
 }
 
 async fn providers(State(state): State<AppState>) -> Json<Value> {
-    Json(json!({ "google": state.config.google.configured(), "apple": state.config.apple.configured() }))
+    // Apple is not wired through Firebase's server API yet.
+    Json(json!({ "google": state.config.google.configured(), "apple": state.config.apple.configured() && state.config.firebase.is_none() }))
 }
 
 #[derive(Deserialize)]
@@ -220,7 +222,7 @@ async fn finish(state: AppState, name: String, returned: Returned) -> Response {
     }
     let kind = if target == "desktop" { "desktop" } else { "browser" };
     let outcome = match sign_in(&state, &stored_provider, &returned, &nonce, verifier.as_deref()).await {
-        Ok(user) => handoff(&state, &user, kind, &stored_provider).await,
+        Ok((user, fb)) => handoff(&state, &user, kind, &stored_provider, fb.as_ref()).await,
         Err(error) => Err(error),
     };
     match outcome {
@@ -239,15 +241,17 @@ async fn finish(state: AppState, name: String, returned: Returned) -> Response {
 }
 
 /// A finished sign-in to collect, once, within two minutes.
-async fn handoff(state: &AppState, user: &str, kind: &str, provider: &str) -> AuthResult<String> {
+async fn handoff(state: &AppState, user: &str, kind: &str, provider: &str, fb: Option<&FbSession>) -> AuthResult<String> {
     let (code, hash) = new_secret();
     let t = now() as i64;
-    sqlx::query("INSERT INTO oauth_handoffs (code_hash, user_id, kind, expires_at, provider) VALUES ($1, $2, $3, $4, $5)")
+    sqlx::query("INSERT INTO oauth_handoffs (code_hash, user_id, kind, expires_at, provider, fb_refresh, fb_pending) VALUES ($1, $2, $3, $4, $5, $6, $7)")
         .bind(&hash)
         .bind(user)
         .bind(kind)
         .bind(t + HANDOFF_SECONDS)
         .bind(provider)
+        .bind(fb.map(|f| f.refresh.clone()).filter(|r| !r.is_empty()))
+        .bind(fb.and_then(|f| f.pending.as_ref()).map(Pending::to_json))
         .execute(&state.db)
         .await?;
     sqlx::query("DELETE FROM oauth_handoffs WHERE expires_at < $1").bind(t).execute(&state.db).await?;
@@ -263,7 +267,7 @@ struct Exchange {
 async fn exchange(State(state): State<AppState>, Json(body): Json<Exchange>) -> AuthResult<Json<Value>> {
     let hash = sha256(body.code.trim());
     let mut tx = state.db.begin().await?;
-    let row = sqlx::query("SELECT user_id, kind, provider FROM oauth_handoffs WHERE code_hash = $1 AND expires_at > $2")
+    let row = sqlx::query("SELECT user_id, kind, provider, fb_refresh, fb_pending FROM oauth_handoffs WHERE code_hash = $1 AND expires_at > $2")
         .bind(&hash)
         .bind(now() as i64)
         .fetch_optional(&mut *tx)
@@ -272,6 +276,8 @@ async fn exchange(State(state): State<AppState>, Json(body): Json<Exchange>) -> 
     let user_id: String = row.try_get("user_id")?;
     let kind: String = row.try_get("kind")?;
     let provider: String = row.try_get("provider")?;
+    let fb_refresh: Option<String> = row.try_get("fb_refresh")?;
+    let fb_pending: Option<String> = row.try_get("fb_pending")?;
     let used = sqlx::query("DELETE FROM oauth_handoffs WHERE code_hash = $1").bind(&hash).execute(&mut *tx).await?;
     tx.commit().await?;
     if used.rows_affected() != 1 {
@@ -279,7 +285,8 @@ async fn exchange(State(state): State<AppState>, Json(body): Json<Exchange>) -> 
     }
     let user = user_by(&state, "id", &user_id).await?.filter(|u| !u.disabled).ok_or_else(|| AuthError::Forbidden("This account is disabled.".into()))?;
     // A provider sign-in does not pass two-step sign-in: the token says so, and services that need it will ask.
-    Ok(Json(open_session(&state, &user, &kind, false, &provider).await?))
+    let fb = (fb_refresh.is_some() || fb_pending.is_some()).then(|| FbSession { refresh: fb_refresh.unwrap_or_default(), pending: fb_pending.as_deref().and_then(Pending::from_json) });
+    Ok(Json(open_session_fb(&state, &user, &kind, false, &provider, fb.as_ref()).await?))
 }
 
 #[derive(Deserialize)]
@@ -372,7 +379,7 @@ pub async fn verify_id_token(config: &Provider, token: &str, nonce: &str) -> Aut
 }
 
 /// Exchanges the provider's code, checks who it says the person is, and returns their account's id.
-async fn sign_in(state: &AppState, name: &str, returned: &Returned, nonce: &str, verifier: Option<&str>) -> AuthResult<String> {
+async fn sign_in(state: &AppState, name: &str, returned: &Returned, nonce: &str, verifier: Option<&str>) -> AuthResult<(String, Option<FbSession>)> {
     let config = provider(state, name)?;
     let secret = if name == "apple" { apple_client_secret(config)? } else { config.client_secret.clone() };
     let redirect = redirect_uri(state, name);
@@ -404,6 +411,10 @@ async fn sign_in(state: &AppState, name: &str, returned: &Returned, nonce: &str,
         .filter(|n| !n.trim().is_empty())
         .or_else(|| apple_name(&returned.user))
         .unwrap_or_else(|| email.split('@').next().unwrap_or("Caller Whale user").to_string());
+
+    if let Some(fb) = state.config.firebase.clone() {
+        return firebase_google(state, &fb, &answer.id_token, &email, &display).await;
+    }
 
     let t = now() as i64;
     let mut tx = state.db.begin().await?;
@@ -450,8 +461,30 @@ async fn sign_in(state: &AppState, name: &str, returned: &Returned, nonce: &str,
     tx.commit().await?;
     let user: Option<User> = user_by(state, "id", &user_id).await?;
     match user {
-        Some(u) if !u.disabled => Ok(u.id),
+        Some(u) if !u.disabled => Ok((u.id, None)),
         _ => Err(AuthError::Forbidden("This account is disabled.".into())),
+    }
+}
+
+/// Google through Firebase: the ID token this service just checked goes to Firebase, which finds or opens the person.
+/// An account with an authenticator comes back waiting for its code; the session that collects this sign-in asks for it.
+async fn firebase_google(state: &AppState, fb: &Firebase, google_id_token: &str, email: &str, display: &str) -> AuthResult<(String, Option<FbSession>)> {
+    match fb.sign_in_google(google_id_token).await.map_err(AuthError::from)? {
+        Outcome::Done(login) => {
+            let mut profile = fb.profile(&login.id_token).await.map_err(AuthError::from)?;
+            if profile.name.trim().is_empty() {
+                profile.name = display.to_string();
+            }
+            let user = upsert_firebase_user(state, &profile).await?;
+            if user.disabled {
+                return Err(AuthError::Forbidden("This account is disabled.".into()));
+            }
+            Ok((user.id, Some(FbSession { refresh: login.refresh_token, pending: None })))
+        }
+        Outcome::NeedsCode(pending) => {
+            let user = user_by(state, "email", email).await?.filter(|u| !u.disabled).ok_or_else(|| AuthError::Forbidden("Sign in once with your email and password, then use Google.".into()))?;
+            Ok((user.id, Some(FbSession { refresh: String::new(), pending: Some(pending) })))
+        }
     }
 }
 

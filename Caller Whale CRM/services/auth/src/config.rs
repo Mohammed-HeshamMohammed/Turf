@@ -23,6 +23,8 @@ pub struct Config {
     pub allowed_origins: Vec<String>,
     pub google: Provider,
     pub apple: Provider,
+    /// Firebase Authentication as the account store (`AUTH_FIREBASE_API_KEY`). None: this service keeps its own accounts.
+    pub firebase: Option<crate::firebase::Firebase>,
 }
 
 /// One outside sign-in (OpenID Connect). Not set up until it has a client id and a secret (or, for Apple, a key).
@@ -102,6 +104,13 @@ impl Config {
                 private_key: var("AUTH_APPLE_PRIVATE_KEY", "").replace("\\n", "\n"),
                 ..Provider::apple_defaults()
             },
+            firebase: Some(var("AUTH_FIREBASE_API_KEY", "")).filter(|key| !key.trim().is_empty()).map(|key| {
+                crate::firebase::Firebase::new(
+                    key.trim(),
+                    &var("AUTH_FIREBASE_IDENTITY_URL", "https://identitytoolkit.googleapis.com"),
+                    &var("AUTH_FIREBASE_TOKEN_URL", "https://securetoken.googleapis.com"),
+                )
+            }),
         })
     }
 
@@ -121,6 +130,7 @@ impl Config {
             allowed_origins: vec!["http://app.example".into()],
             google: Provider::default(),
             apple: Provider::default(),
+            firebase: None,
         }
     }
 }

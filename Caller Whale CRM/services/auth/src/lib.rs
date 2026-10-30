@@ -9,6 +9,7 @@ pub mod config;
 pub mod error;
 pub mod keys;
 pub mod email;
+pub mod firebase;
 pub mod oauth;
 pub mod routes;
 
@@ -35,6 +36,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (1, include_str!("../migrations/0001_auth.sql")),
     (2, include_str!("../migrations/0002_sign_in.sql")),
     (3, include_str!("../migrations/0003_session_provider.sql")),
+    (4, include_str!("../migrations/0004_firebase.sql")),
 ];
 
 /// Brings the database up to date. Safe to run on every start.

@@ -3,6 +3,7 @@
 use crate::{
     email,
     error::{AuthError, AuthResult},
+    firebase::{self, FbSession, Firebase, Outcome, Pending, Profile, Refusal, FIREBASE_TOTP},
     keys::Person as TokenPerson,
     now, oauth, AppState,
 };
@@ -139,11 +140,17 @@ pub(crate) async fn user_by(state: &AppState, column: &str, value: &str) -> Auth
 
 /// Opens a session and returns the tokens for it. `provider`: how it began ("password", "google", "apple").
 pub(crate) async fn open_session(state: &AppState, user: &User, kind: &str, mfa_passed: bool, provider: &str) -> AuthResult<Value> {
+    open_session_fb(state, user, kind, mfa_passed, provider, None).await
+}
+
+/// The same, for a person whose account is in Firebase: the session keeps their Firebase refresh token (or the code a
+/// Google sign-in is still waiting for), so this service can ask Firebase for them later.
+pub(crate) async fn open_session_fb(state: &AppState, user: &User, kind: &str, mfa_passed: bool, provider: &str, fb: Option<&FbSession>) -> AuthResult<Value> {
     let t = now() as i64;
     let id = Uuid::new_v4().to_string();
     let (refresh, refresh_hash) = new_secret();
     let expires = t + state.config.refresh_days as i64 * 86_400;
-    sqlx::query("INSERT INTO sessions (id, user_id, refresh_hash, kind, mfa_passed, created_at, last_seen_at, expires_at, provider) VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8)")
+    sqlx::query("INSERT INTO sessions (id, user_id, refresh_hash, kind, mfa_passed, created_at, last_seen_at, expires_at, provider, fb_refresh, fb_pending) VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9, $10)")
         .bind(&id)
         .bind(&user.id)
         .bind(&refresh_hash)
@@ -152,14 +159,16 @@ pub(crate) async fn open_session(state: &AppState, user: &User, kind: &str, mfa_
         .bind(t)
         .bind(expires)
         .bind(provider)
+        .bind(fb.map(|f| f.refresh.clone()).filter(|r| !r.is_empty()))
+        .bind(fb.and_then(|f| f.pending.as_ref()).map(Pending::to_json))
         .execute(&state.db)
         .await?;
-    tokens(state, user, &id, mfa_passed, provider, refresh)
+    tokens(state, user, &id, mfa_passed, provider, t as u64, refresh)
 }
 
-fn tokens(state: &AppState, user: &User, sid: &str, mfa: bool, provider: &str, refresh: String) -> AuthResult<Value> {
+fn tokens(state: &AppState, user: &User, sid: &str, mfa: bool, provider: &str, auth_time: u64, refresh: String) -> AuthResult<Value> {
     let person = TokenPerson { id: user.id.clone(), email: user.email.clone(), name: user.name.clone(), email_verified: user.email_verified };
-    let (access, expires_in) = state.keys.sign(&person, sid, mfa, provider, now(), state.config.access_minutes)?;
+    let (access, expires_in) = state.keys.sign(&person, sid, mfa, provider, auth_time, now(), state.config.access_minutes)?;
     Ok(json!({
         "access_token": access,
         "token_type": "Bearer",
@@ -185,6 +194,121 @@ fn kind_of(kind: Option<&str>) -> AuthResult<&'static str> {
         "desktop" => Ok("desktop"),
         _ => Err(AuthError::Bad("kind is browser or desktop.".into())),
     }
+}
+
+
+// ---- Firebase as the account store (src/firebase.rs) ----
+
+/// The person's row here, made or updated from what Firebase says. The row's id is Firebase's uid.
+pub(crate) async fn upsert_firebase_user(state: &AppState, profile: &Profile) -> AuthResult<User> {
+    let t = now() as i64;
+    let email = normal_email(&profile.email)?;
+    let marker = if profile.mfa_enrolled { Some(FIREBASE_TOTP) } else { None };
+    let verified = if profile.email_verified { Some(t) } else { None };
+    let existing = user_by(state, "id", &profile.uid).await?;
+    if existing.is_some() {
+        sqlx::query("UPDATE users SET email = $1, totp_secret = $2, email_verified_at = COALESCE(email_verified_at, $3) WHERE id = $4")
+            .bind(&email)
+            .bind(marker)
+            .bind(verified)
+            .bind(&profile.uid)
+            .execute(&state.db)
+            .await?;
+        if !profile.name.trim().is_empty() {
+            sqlx::query("UPDATE users SET display_name = $1 WHERE id = $2").bind(profile.name.trim()).bind(&profile.uid).execute(&state.db).await?;
+        }
+    } else {
+        if user_by(state, "email", &email).await?.is_some() {
+            return Err(AuthError::Conflict("An account with this email already exists. Sign in instead.".into()));
+        }
+        let name = if profile.name.trim().is_empty() { email.split('@').next().unwrap_or("Caller Whale user").to_string() } else { profile.name.trim().to_string() };
+        let mut tx = state.db.begin().await?;
+        sqlx::query("INSERT INTO users (id, email, display_name, password_hash, totp_secret, created_at, email_verified_at) VALUES ($1, $2, $3, $4, $5, $6, $7)")
+            .bind(&profile.uid)
+            .bind(&email)
+            .bind(&name)
+            .bind(oauth::NO_PASSWORD)
+            .bind(marker)
+            .bind(t)
+            .bind(verified)
+            .execute(&mut *tx)
+            .await?;
+        email::outbox(&mut tx, "user.signed_up", json!({ "user_id": profile.uid, "version": 1 })).await?;
+        tx.commit().await?;
+    }
+    user_by(state, "id", &profile.uid).await?.ok_or(AuthError::Unauthenticated)
+}
+
+/// A current Firebase ID token for a session, from the refresh token the session keeps.
+pub(crate) async fn session_id_token(state: &AppState, fb: &Firebase, sid: &str) -> AuthResult<String> {
+    let row = sqlx::query("SELECT fb_refresh FROM sessions WHERE id = $1 AND revoked_at IS NULL").bind(sid).fetch_optional(&state.db).await?.ok_or(AuthError::Unauthenticated)?;
+    let refresh: Option<String> = row.try_get("fb_refresh")?;
+    let refresh = refresh.filter(|r| !r.is_empty()).ok_or(AuthError::Unauthenticated)?;
+    let login = fb.refresh(&refresh).await.map_err(AuthError::from)?;
+    if !login.refresh_token.is_empty() && login.refresh_token != refresh {
+        sqlx::query("UPDATE sessions SET fb_refresh = $1 WHERE id = $2").bind(&login.refresh_token).bind(sid).execute(&state.db).await?;
+    }
+    Ok(login.id_token)
+}
+
+async fn keep_firebase_login(state: &AppState, sid: &str, refresh: &str) -> AuthResult<()> {
+    if !refresh.is_empty() {
+        sqlx::query("UPDATE sessions SET fb_refresh = $1, fb_pending = NULL WHERE id = $2").bind(refresh).bind(sid).execute(&state.db).await?;
+    }
+    Ok(())
+}
+
+fn too_short(password: &str) -> AuthResult<()> {
+    if password.chars().count() < 12 {
+        return Err(AuthError::Bad("Use a password of at least 12 characters.".into()));
+    }
+    Ok(())
+}
+
+async fn firebase_sign_up(state: &AppState, fb: &Firebase, email: String, name: String, password: &str, kind: &'static str) -> AuthResult<(StatusCode, Json<Value>)> {
+    too_short(password)?;
+    let login = fb.sign_up(&email, password).await.map_err(AuthError::from)?;
+    // The name and the confirmation email are nice to have; the account exists either way.
+    let _ = fb.set_name(&login.id_token, &name).await;
+    let _ = fb.send_verification(&login.id_token).await;
+    let mut profile = fb.profile(&login.id_token).await.map_err(AuthError::from)?;
+    profile.name = name;
+    let user = upsert_firebase_user(state, &profile).await?;
+    let session = FbSession { refresh: login.refresh_token, pending: None };
+    Ok((StatusCode::CREATED, Json(open_session_fb(state, &user, kind, false, "password", Some(&session)).await?)))
+}
+
+async fn firebase_sign_in(state: &AppState, fb: &Firebase, email: &str, body: &SignIn, kind: &'static str) -> AuthResult<Json<Value>> {
+    let outcome = match fb.sign_in(email, &body.password).await {
+        Ok(outcome) => outcome,
+        Err(Refusal::WrongPassword | Refusal::Disabled) => {
+            record_failure(state, email).await?;
+            return Err(AuthError::WrongCredentials);
+        }
+        Err(other) => return Err(other.into()),
+    };
+    let (login, mfa_passed) = match outcome {
+        Outcome::Done(login) => (login, false),
+        Outcome::NeedsCode(pending) => {
+            let code = body.code.as_deref().map(str::trim).filter(|c| !c.is_empty()).ok_or(AuthError::MfaRequired)?;
+            match fb.finish_with_code(&pending, code).await {
+                Ok(login) => (login, true),
+                Err(Refusal::WrongCode) => {
+                    record_failure(state, email).await?;
+                    return Err(AuthError::WrongCode);
+                }
+                Err(other) => return Err(other.into()),
+            }
+        }
+    };
+    let profile = fb.profile(&login.id_token).await.map_err(AuthError::from)?;
+    let user = upsert_firebase_user(state, &profile).await?;
+    if user.disabled {
+        return Err(AuthError::WrongCredentials);
+    }
+    sqlx::query("DELETE FROM failed_sign_ins WHERE email = $1").bind(email).execute(&state.db).await?;
+    let session = FbSession { refresh: login.refresh_token, pending: None };
+    Ok(Json(open_session_fb(state, &user, kind, mfa_passed, "password", Some(&session)).await?))
 }
 
 // ---- the signed-in person ----
@@ -241,6 +365,9 @@ async fn sign_up(State(state): State<AppState>, Json(body): Json<SignUp>) -> Aut
         return Err(AuthError::Bad("Enter your name.".into()));
     }
     let kind = kind_of(body.kind.as_deref())?;
+    if let Some(fb) = state.config.firebase.clone() {
+        return firebase_sign_up(&state, &fb, email, name, &body.password, kind).await;
+    }
     let hash = hash_password(&body.password)?;
     if user_by(&state, "email", &email).await?.is_some() {
         return Err(AuthError::Conflict("An account with this email already exists. Sign in instead.".into()));
@@ -278,6 +405,9 @@ async fn sign_in(State(state): State<AppState>, Json(body): Json<SignIn>) -> Aut
     let kind = kind_of(body.kind.as_deref())?;
     if recent_failures(&state, &email).await? >= LOCKOUT_FAILURES {
         return Err(AuthError::TooMany);
+    }
+    if let Some(fb) = state.config.firebase.clone() {
+        return firebase_sign_in(&state, &fb, &email, &body, kind).await;
     }
     let user = match user_by(&state, "email", &email).await? {
         Some(u) if !u.disabled && password_matches(&body.password, &u.password_hash) => u,
@@ -322,7 +452,7 @@ struct Refresh {
 async fn refresh(State(state): State<AppState>, Json(body): Json<Refresh>) -> AuthResult<Json<Value>> {
     let presented = sha256(body.refresh_token.trim());
     let t = now() as i64;
-    let row = sqlx::query("SELECT id, user_id, mfa_passed, provider FROM sessions WHERE refresh_hash = $1 AND revoked_at IS NULL AND expires_at > $2")
+    let row = sqlx::query("SELECT id, user_id, mfa_passed, provider, created_at FROM sessions WHERE refresh_hash = $1 AND revoked_at IS NULL AND expires_at > $2")
         .bind(&presented)
         .bind(t)
         .fetch_optional(&state.db)
@@ -336,6 +466,7 @@ async fn refresh(State(state): State<AppState>, Json(body): Json<Refresh>) -> Au
     let user_id: String = row.try_get("user_id")?;
     let mfa: i64 = row.try_get("mfa_passed")?;
     let provider: String = row.try_get("provider")?;
+    let started: i64 = row.try_get("created_at")?;
     let user = user_by(&state, "id", &user_id).await?.filter(|u| !u.disabled).ok_or(AuthError::Unauthenticated)?;
     let (next, next_hash) = new_secret();
     sqlx::query("UPDATE sessions SET refresh_hash = $1, prev_refresh_hash = $2, last_seen_at = $3 WHERE id = $4")
@@ -345,7 +476,7 @@ async fn refresh(State(state): State<AppState>, Json(body): Json<Refresh>) -> Au
         .bind(&sid)
         .execute(&state.db)
         .await?;
-    Ok(Json(tokens(&state, &user, &sid, mfa == 1, &provider, next)?))
+    Ok(Json(tokens(&state, &user, &sid, mfa == 1, &provider, started as u64, next)?))
 }
 
 #[derive(Deserialize, Default)]
@@ -427,6 +558,17 @@ struct PasswordChange {
 /// Changes the password and closes every other session.
 async fn change_password(State(state): State<AppState>, Person(claims): Person, Json(body): Json<PasswordChange>) -> AuthResult<Json<Value>> {
     let user = user_by(&state, "id", &claims.sub).await?.ok_or(AuthError::Unauthenticated)?;
+    if let Some(fb) = state.config.firebase.clone() {
+        too_short(&body.new)?;
+        // Firebase checks the current password; an account with an authenticator answers "needs a code", which also means the password was right.
+        if fb.sign_in(&user.email, &body.current).await.is_err() {
+            return Err(AuthError::WrongCredentials);
+        }
+        let id = session_id_token(&state, &fb, &claims.sid).await?;
+        fb.set_password(&id, &body.new).await.map_err(AuthError::from)?;
+        sqlx::query("UPDATE sessions SET revoked_at = $1 WHERE user_id = $2 AND id <> $3 AND revoked_at IS NULL").bind(now() as i64).bind(&user.id).bind(&claims.sid).execute(&state.db).await?;
+        return Ok(Json(json!({ "ok": true })));
+    }
     if !password_matches(&body.current, &user.password_hash) {
         return Err(AuthError::WrongCredentials);
     }
@@ -441,6 +583,12 @@ async fn mfa_setup(State(state): State<AppState>, Person(claims): Person) -> Aut
     let user = user_by(&state, "id", &claims.sub).await?.ok_or(AuthError::Unauthenticated)?;
     if user.totp_secret.is_some() {
         return Err(AuthError::Conflict("Two-step sign-in is already on.".into()));
+    }
+    if let Some(fb) = state.config.firebase.clone() {
+        let id = session_id_token(&state, &fb, &claims.sid).await?;
+        let started = fb.start_totp(&id).await.map_err(AuthError::from)?;
+        sqlx::query("UPDATE users SET totp_pending = $1 WHERE id = $2").bind(&started.session_info).bind(&user.id).execute(&state.db).await?;
+        return Ok(Json(json!({ "secret": started.shared_secret_key, "otpauth_url": firebase::otpauth_url(&user.email, &started.shared_secret_key) })));
     }
     let secret = match totp_rs::Secret::generate_secret().to_encoded() {
         totp_rs::Secret::Encoded(s) => s,
@@ -462,6 +610,16 @@ async fn mfa_confirm(State(state): State<AppState>, Person(claims): Person, Json
     let email: String = row.try_get("email")?;
     let pending: Option<String> = row.try_get("totp_pending")?;
     let pending = pending.ok_or_else(|| AuthError::Bad("Start two-step setup first.".into()))?;
+    if let Some(fb) = state.config.firebase.clone() {
+        let id = session_id_token(&state, &fb, &claims.sid).await?;
+        let digits: String = body.code.chars().filter(|c| c.is_ascii_digit()).collect();
+        let login = fb.finish_totp(&id, &pending, &digits).await.map_err(AuthError::from)?;
+        sqlx::query("UPDATE users SET totp_secret = $1, totp_pending = NULL WHERE id = $2").bind(FIREBASE_TOTP).bind(&claims.sub).execute(&state.db).await?;
+        sqlx::query("UPDATE sessions SET mfa_passed = 1 WHERE id = $1").bind(&claims.sid).execute(&state.db).await?;
+        keep_firebase_login(&state, &claims.sid, &login.refresh_token).await?;
+        // Firebase has no recovery codes: staff reset a lost authenticator.
+        return Ok(Json(json!({ "recovery_codes": Vec::<String>::new() })));
+    }
     if !code_matches(&pending, &email, &body.code) {
         return Err(AuthError::WrongCode);
     }
@@ -486,13 +644,26 @@ async fn mfa_verify(State(state): State<AppState>, Person(claims): Person, Json(
         return Err(AuthError::TooMany);
     }
     let code = body.code.trim();
-    if !(code_matches(&secret, &user.email, code) || use_recovery_code(&state, &user.id, code).await?) {
+    if let Some(fb) = state.config.firebase.clone() {
+        let row = sqlx::query("SELECT fb_pending FROM sessions WHERE id = $1").bind(&claims.sid).fetch_one(&state.db).await?;
+        let pending: Option<String> = row.try_get("fb_pending")?;
+        let pending = pending.as_deref().and_then(Pending::from_json).ok_or_else(|| AuthError::Bad("This sign-in is not waiting for a code.".into()))?;
+        match fb.finish_with_code(&pending, code).await {
+            Ok(login) => keep_firebase_login(&state, &claims.sid, &login.refresh_token).await?,
+            Err(Refusal::WrongCode) => {
+                record_failure(&state, &user.email).await?;
+                return Err(AuthError::WrongCode);
+            }
+            Err(other) => return Err(other.into()),
+        }
+    } else if !(code_matches(&secret, &user.email, code) || use_recovery_code(&state, &user.id, code).await?) {
         record_failure(&state, &user.email).await?;
         return Err(AuthError::WrongCode);
     }
     sqlx::query("UPDATE sessions SET mfa_passed = 1 WHERE id = $1").bind(&claims.sid).execute(&state.db).await?;
+    let started: i64 = sqlx::query("SELECT created_at FROM sessions WHERE id = $1").bind(&claims.sid).fetch_one(&state.db).await?.try_get("created_at")?;
     let person = TokenPerson { id: user.id.clone(), email: user.email.clone(), name: user.name.clone(), email_verified: user.email_verified };
-    let (access, expires_in) = state.keys.sign(&person, &claims.sid, true, &claims.provider, now(), state.config.access_minutes)?;
+    let (access, expires_in) = state.keys.sign(&person, &claims.sid, true, &claims.provider, started as u64, now(), state.config.access_minutes)?;
     Ok(Json(json!({ "access_token": access, "token_type": "Bearer", "expires_in": expires_in })))
 }
 

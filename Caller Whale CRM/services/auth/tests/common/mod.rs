@@ -4,6 +4,7 @@
 #![allow(dead_code)]
 
 pub mod keys;
+pub mod firebase;
 pub mod provider;
 
 use axum::{
