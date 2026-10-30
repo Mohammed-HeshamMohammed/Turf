@@ -1,4 +1,4 @@
--- The people who run Turf the service, and sign-in with Google or Apple.
+-- The people who run Caller Whale the service, and sign-in with Google or Apple.
 
 -- A platform administrator sees every customer organization's plan, usage and payments (never their CRM records).
 ALTER TABLE users ADD COLUMN platform_admin boolean NOT NULL DEFAULT false;
@@ -24,11 +24,11 @@ CREATE TABLE oauth_states (
   expires_at timestamptz NOT NULL
 );
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON user_identities, oauth_states TO turf_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON user_identities, oauth_states TO callerwhale_app;
 
 -- Every organization at a glance, for platform administrators only. It reads across organizations, so it runs as the
 -- owner and checks the caller itself: anyone else gets an error, not an empty list.
-CREATE OR REPLACE FUNCTION turf_platform_overview(p_user uuid)
+CREATE OR REPLACE FUNCTION callerwhale_platform_overview(p_user uuid)
 RETURNS TABLE (
   id uuid, name text, account_kind text, created_at timestamptz, plan_key text, status text, seats int,
   minutes_included int, minutes_used bigint, period_end timestamptz, members bigint, owner_email text, paid_cents bigint
@@ -48,5 +48,5 @@ BEGIN
   FROM organizations o LEFT JOIN subscriptions s ON s.org_id = o.id
   ORDER BY o.created_at DESC;
 END $$;
-REVOKE ALL ON FUNCTION turf_platform_overview(uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION turf_platform_overview(uuid) TO turf_app;
+REVOKE ALL ON FUNCTION callerwhale_platform_overview(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION callerwhale_platform_overview(uuid) TO callerwhale_app;

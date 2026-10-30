@@ -80,7 +80,7 @@ fn lease() -> i32 {
 async fn claim_job(State(state): State<AppState>, Worker(worker): Worker, Json(body): Json<Claim>) -> ApiResult<Json<Value>> {
     let lease = body.lease_seconds.clamp(10, 900);
     let claimed: Option<(Uuid, Uuid)> =
-        sqlx::query_as("SELECT id, org_id FROM turf_claim_job($1, $2, $3)").bind(&body.queues).bind(&worker).bind(lease).fetch_optional(&state.db).await?;
+        sqlx::query_as("SELECT id, org_id FROM callerwhale_claim_job($1, $2, $3)").bind(&body.queues).bind(&worker).bind(lease).fetch_optional(&state.db).await?;
     let Some((id, org)) = claimed else { return Ok(Json(json!({ "job": null }))) };
     let mut tx = db::begin(&state.db, &Scope::system(org)).await?;
     let job: Value = sqlx::query_scalar("SELECT to_jsonb(j) FROM jobs j WHERE id = $1").bind(id).fetch_one(&mut *tx).await?;
@@ -199,7 +199,7 @@ fn batch() -> i32 {
 }
 
 async fn claim_events(State(state): State<AppState>, Worker(worker): Worker, Json(body): Json<EventClaim>) -> ApiResult<Json<Value>> {
-    let claimed: Vec<(i64, Uuid)> = sqlx::query_as("SELECT id, org_id FROM turf_claim_events($1, $2, $3)")
+    let claimed: Vec<(i64, Uuid)> = sqlx::query_as("SELECT id, org_id FROM callerwhale_claim_events($1, $2, $3)")
         .bind(&worker)
         .bind(body.limit.clamp(1, 500))
         .bind(body.lease_seconds.clamp(10, 900))
@@ -272,7 +272,7 @@ async fn process_event(State(state): State<AppState>, Worker(worker): Worker, Pa
         }
         let mut tx = db::begin(&state.db, &system).await?;
         sqlx::query(
-            "INSERT INTO rule_runs (org_id, rule_id, rule_version, event_id, matched, actions, error) VALUES (turf_org(), $1, $2, $3, $4, $5, $6) \
+            "INSERT INTO rule_runs (org_id, rule_id, rule_version, event_id, matched, actions, error) VALUES (callerwhale_org(), $1, $2, $3, $4, $5, $6) \
              ON CONFLICT (rule_id, rule_version, event_id, dry_run) DO NOTHING",
         )
         .bind(rule_id)
@@ -333,13 +333,13 @@ async fn act(state: &AppState, system: &Scope, rule: &Value, action: &Value, lea
             let mut tx = db::begin(&state.db, system).await?;
             let op = action_id(rule_id, version, event, index);
             let fresh: Option<Uuid> = sqlx::query_scalar(
-                "INSERT INTO operations (id, org_id, kind, payload, status) VALUES ($1, turf_org(), 'notify', '{}', 'applied') ON CONFLICT DO NOTHING RETURNING id",
+                "INSERT INTO operations (id, org_id, kind, payload, status) VALUES ($1, callerwhale_org(), 'notify', '{}', 'applied') ON CONFLICT DO NOTHING RETURNING id",
             )
             .bind(op)
             .fetch_optional(&mut *tx)
             .await?;
             if fresh.is_some() {
-                sqlx::query("INSERT INTO notifications (org_id, user_id, kind, text, entity, entity_id) VALUES (turf_org(), $1, 'rule', $2, 'lead', $3)")
+                sqlx::query("INSERT INTO notifications (org_id, user_id, kind, text, entity, entity_id) VALUES (callerwhale_org(), $1, 'rule', $2, 'lead', $3)")
                     .bind(to)
                     .bind(action["text"].as_str().unwrap_or("A rule needs your attention"))
                     .bind(lead["id"].as_str().and_then(|s| Uuid::parse_str(s).ok()))
@@ -381,7 +381,7 @@ async fn pick_assignee(state: &AppState, system: &Scope, action: &Value) -> ApiR
     let people: Vec<(Uuid, i64)> = sqlx::query_as(
         "SELECT m.user_id, (SELECT count(*) FROM leads l WHERE l.assignee_id = m.user_id AND l.deleted_at IS NULL AND l.stage <> 'Closed') \
          FROM memberships m JOIN roles r ON r.org_id = m.org_id AND r.key = ANY(m.roles) \
-         WHERE m.org_id = turf_org() AND 'call' = ANY(r.capabilities) AND NOT ('call' = ANY(m.restrictions)) AND ($1::uuid IS NULL OR $1 = ANY(m.team_ids)) \
+         WHERE m.org_id = callerwhale_org() AND 'call' = ANY(r.capabilities) AND NOT ('call' = ANY(m.restrictions)) AND ($1::uuid IS NULL OR $1 = ANY(m.team_ids)) \
          GROUP BY m.user_id ORDER BY m.user_id",
     )
     .bind(team)
@@ -399,7 +399,7 @@ async fn pick_assignee(state: &AppState, system: &Scope, action: &Value) -> ApiR
             Some(i) => people[(i + 1) % people.len()].0,
             None => people[0].0,
         };
-        sqlx::query("INSERT INTO assignment_cursors (org_id, key, last_user) VALUES (turf_org(), $1, $2) ON CONFLICT (org_id, key) DO UPDATE SET last_user = $2")
+        sqlx::query("INSERT INTO assignment_cursors (org_id, key, last_user) VALUES (callerwhale_org(), $1, $2) ON CONFLICT (org_id, key) DO UPDATE SET last_user = $2")
             .bind(&key)
             .bind(next)
             .execute(&mut *tx)
@@ -452,7 +452,7 @@ fn loose_eq(a: &Value, b: &Value) -> bool {
 /// Called by the Go scheduler every minute: emits task.overdue and handoff overdue events once, and queues
 /// scheduled reports that are due.
 async fn tick(State(state): State<AppState>, Worker(_): Worker) -> ApiResult<Json<Value>> {
-    let orgs: Vec<Uuid> = sqlx::query_scalar("SELECT turf_orgs_with_due_work()").fetch_all(&state.db).await?;
+    let orgs: Vec<Uuid> = sqlx::query_scalar("SELECT callerwhale_orgs_with_due_work()").fetch_all(&state.db).await?;
     let (mut overdue_tasks, mut overdue_handoffs, mut reports) = (0, 0, 0);
     for org in orgs {
         let mut tx = db::begin(&state.db, &Scope::system(org)).await?;
@@ -475,7 +475,7 @@ async fn tick(State(state): State<AppState>, Worker(_): Worker) -> ApiResult<Jso
         .await?;
         for (id, lead, from, to) in &handoffs {
             for user in [from, to] {
-                sqlx::query("INSERT INTO notifications (org_id, user_id, kind, text, entity, entity_id) VALUES (turf_org(), $1, 'handoff', 'A handoff is overdue', 'handoff', $2)")
+                sqlx::query("INSERT INTO notifications (org_id, user_id, kind, text, entity, entity_id) VALUES (callerwhale_org(), $1, 'handoff', 'A handoff is overdue', 'handoff', $2)")
                     .bind(user)
                     .bind(id)
                     .execute(&mut *tx)
@@ -493,7 +493,7 @@ async fn tick(State(state): State<AppState>, Worker(_): Worker) -> ApiResult<Jso
         .fetch_all(&mut *tx)
         .await?;
         for (report, owner) in &due {
-            sqlx::query("INSERT INTO jobs (org_id, kind, queue, input, created_by) VALUES (turf_org(), 'report', 'python', $1, $2)")
+            sqlx::query("INSERT INTO jobs (org_id, kind, queue, input, created_by) VALUES (callerwhale_org(), 'report', 'python', $1, $2)")
                 .bind(json!({ "saved_report_id": report }))
                 .bind(owner)
                 .execute(&mut *tx)

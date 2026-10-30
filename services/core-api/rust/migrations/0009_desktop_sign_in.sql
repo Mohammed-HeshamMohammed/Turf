@@ -12,4 +12,4 @@ CREATE TABLE oauth_handoffs (
   org_id uuid REFERENCES organizations(id) ON DELETE CASCADE,
   expires_at timestamptz NOT NULL
 );
-GRANT SELECT, INSERT, DELETE ON oauth_handoffs TO turf_app;
+GRANT SELECT, INSERT, DELETE ON oauth_handoffs TO callerwhale_app;

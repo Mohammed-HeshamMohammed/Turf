@@ -42,13 +42,13 @@ pub fn routes() -> Router<AppState> {
 pub async fn scope_for(state: &AppState, org: Uuid, user: Uuid) -> ApiResult<Scope> {
     let mut tx = db::begin(&state.db, &Scope::system(org)).await?;
     let membership: Option<(Vec<String>, Vec<String>, Vec<Uuid>, Vec<Uuid>)> =
-        sqlx::query_as("SELECT roles, restrictions, team_ids, project_ids FROM memberships WHERE org_id = turf_org() AND user_id = $1")
+        sqlx::query_as("SELECT roles, restrictions, team_ids, project_ids FROM memberships WHERE org_id = callerwhale_org() AND user_id = $1")
             .bind(user)
             .fetch_optional(&mut *tx)
             .await?;
     let (roles, restrictions, team_ids, project_ids) = membership.ok_or_else(|| ApiError::forbidden("That person is no longer a member"))?;
     let grants: Vec<(Vec<String>, String)> =
-        sqlx::query_as("SELECT capabilities, scope FROM roles WHERE org_id = turf_org() AND key = ANY($1)").bind(&roles).fetch_all(&mut *tx).await?;
+        sqlx::query_as("SELECT capabilities, scope FROM roles WHERE org_id = callerwhale_org() AND key = ANY($1)").bind(&roles).fetch_all(&mut *tx).await?;
     tx.commit().await?;
     let access = Access::combine(grants.iter().map(|(c, s)| (&c[..], s.as_str())), &restrictions);
     Ok(Scope { org_id: org, user_id: Some(user), access, team_ids, project_ids })
@@ -101,7 +101,7 @@ struct NewDataset {
 async fn create_dataset(State(state): State<AppState>, Worker(_): Worker, Json(body): Json<NewDataset>) -> ApiResult<Json<Value>> {
     let mut tx = db::begin(&state.db, &Scope::system(body.org_id)).await?;
     let id: Uuid = sqlx::query_scalar(
-        "INSERT INTO datasets (org_id, project_id, name, artifact_sha256, mapping, row_count) VALUES (turf_org(), $1, $2, $3, $4, $5) RETURNING id",
+        "INSERT INTO datasets (org_id, project_id, name, artifact_sha256, mapping, row_count) VALUES (callerwhale_org(), $1, $2, $3, $4, $5) RETURNING id",
     )
     .bind(body.project_id)
     .bind(body.name.trim())
@@ -134,7 +134,7 @@ async fn add_rows(State(state): State<AppState>, Worker(_): Worker, Path(id): Pa
     let mut tx = db::begin(&state.db, &Scope::system(body.org_id)).await?;
     let mut added = 0;
     for row in &body.rows {
-        added += sqlx::query("INSERT INTO source_rows (org_id, dataset_id, row_number, raw) VALUES (turf_org(), $1, $2, $3) ON CONFLICT DO NOTHING")
+        added += sqlx::query("INSERT INTO source_rows (org_id, dataset_id, row_number, raw) VALUES (callerwhale_org(), $1, $2, $3) ON CONFLICT DO NOTHING")
             .bind(id)
             .bind(row.row_number)
             .bind(&row.raw)
@@ -229,7 +229,7 @@ async fn add_leads(State(state): State<AppState>, Worker(_): Worker, Path(datase
     let mut tx = db::begin(&state.db, &Scope::system(body.org_id)).await?;
     let project: Option<Uuid> = sqlx::query_scalar("SELECT project_id FROM datasets WHERE id = $1").bind(dataset).fetch_optional(&mut *tx).await?.flatten();
     let team: Option<Uuid> = match body.created_by {
-        Some(user) => sqlx::query_scalar("SELECT team_ids[1] FROM memberships WHERE org_id = turf_org() AND user_id = $1").bind(user).fetch_optional(&mut *tx).await?.flatten(),
+        Some(user) => sqlx::query_scalar("SELECT team_ids[1] FROM memberships WHERE org_id = callerwhale_org() AND user_id = $1").bind(user).fetch_optional(&mut *tx).await?.flatten(),
         None => None,
     };
     let assignee = if body.assign_to_creator { body.created_by } else { None };
@@ -245,7 +245,7 @@ async fn add_leads(State(state): State<AppState>, Worker(_): Worker, Path(datase
         let property = row_uuid(dataset, lead.row_number, "property");
         sqlx::query(
             "INSERT INTO properties (id, org_id, address, unit, city, region, postal_code, country, parcel, latitude, longitude, location_source) \
-             VALUES ($1, turf_org(), $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $9 IS NULL THEN 'none' ELSE 'supplied' END) ON CONFLICT (id) DO NOTHING",
+             VALUES ($1, callerwhale_org(), $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $9 IS NULL THEN 'none' ELSE 'supplied' END) ON CONFLICT (id) DO NOTHING",
         )
         .bind(property)
         .bind(&lead.address)
@@ -263,7 +263,7 @@ async fn add_leads(State(state): State<AppState>, Worker(_): Worker, Path(datase
         let name = if lead.name.trim().is_empty() { lead.address.trim().to_string() } else { lead.name.trim().to_string() };
         let fresh = sqlx::query(
             "INSERT INTO leads (id, org_id, project_id, team_id, property_id, assignee_id, name, phone, email, source, value_amount, verdict) \
-             VALUES ($1, turf_org(), $2, $3, $4, $5, $6, $7, $8, (SELECT name FROM datasets WHERE id = $9), $10, coalesce($11, 'Unverified')) ON CONFLICT (id) DO NOTHING",
+             VALUES ($1, callerwhale_org(), $2, $3, $4, $5, $6, $7, $8, (SELECT name FROM datasets WHERE id = $9), $10, coalesce($11, 'Unverified')) ON CONFLICT (id) DO NOTHING",
         )
         .bind(id)
         .bind(project)
@@ -280,7 +280,7 @@ async fn add_leads(State(state): State<AppState>, Worker(_): Worker, Path(datase
         .await?
         .rows_affected();
         if fresh == 1 {
-            sqlx::query("INSERT INTO lead_sources (org_id, lead_id, dataset_id, row_number) VALUES (turf_org(), $1, $2, $3) ON CONFLICT DO NOTHING")
+            sqlx::query("INSERT INTO lead_sources (org_id, lead_id, dataset_id, row_number) VALUES (callerwhale_org(), $1, $2, $3) ON CONFLICT DO NOTHING")
                 .bind(id)
                 .bind(dataset)
                 .bind(lead.row_number)
@@ -416,7 +416,7 @@ async fn job_artifact(
     }
     let mut tx = db::begin(&state.db, &Scope::system(query.org_id)).await?;
     sqlx::query(
-        "INSERT INTO artifacts (sha256, org_id, name, media_type, size, uploaded_by, complete) VALUES ($1, turf_org(), $2, $3, $4, $5, true) \
+        "INSERT INTO artifacts (sha256, org_id, name, media_type, size, uploaded_by, complete) VALUES ($1, callerwhale_org(), $2, $3, $4, $5, true) \
          ON CONFLICT (org_id, sha256) DO UPDATE SET complete = true",
     )
     .bind(&sha)
@@ -427,7 +427,7 @@ async fn job_artifact(
     .execute(&mut *tx)
     .await?;
     if let Some(user) = owner {
-        sqlx::query("INSERT INTO notifications (org_id, user_id, kind, text, entity, entity_id) VALUES (turf_org(), $1, 'job', $2, 'job', $3)")
+        sqlx::query("INSERT INTO notifications (org_id, user_id, kind, text, entity, entity_id) VALUES (callerwhale_org(), $1, 'job', $2, 'job', $3)")
             .bind(user)
             .bind(format!("{} is ready", query.name))
             .bind(job)

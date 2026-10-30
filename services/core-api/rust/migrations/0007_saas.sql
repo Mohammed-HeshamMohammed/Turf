@@ -1,4 +1,4 @@
--- Turf as a paid service: plans, one subscription per organization, a minute ledger, payments and email verification.
+-- Caller Whale as a paid service: plans, one subscription per organization, a minute ledger, payments and email verification.
 -- An organization made by /auth/bootstrap (a self-hosted server) has no subscription row and is not limited; every
 -- organization made by public sign-up starts on the trial.
 
@@ -91,18 +91,18 @@ BEGIN
   FOREACH t IN ARRAY ARRAY['subscriptions', 'usage_events', 'payments']
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
-    EXECUTE format('CREATE POLICY org_isolation ON %I USING (org_id = turf_org()) WITH CHECK (org_id = turf_org())', t);
+    EXECUTE format('CREATE POLICY org_isolation ON %I USING (org_id = callerwhale_org()) WITH CHECK (org_id = callerwhale_org())', t);
   END LOOP;
 END $$;
-GRANT SELECT ON plans TO turf_app;
-GRANT SELECT, INSERT, UPDATE ON subscriptions, payments TO turf_app;
+GRANT SELECT ON plans TO callerwhale_app;
+GRANT SELECT, INSERT, UPDATE ON subscriptions, payments TO callerwhale_app;
 -- The ledger is append-only for the API.
-GRANT SELECT, INSERT ON usage_events TO turf_app;
-GRANT SELECT, INSERT, UPDATE ON email_verifications TO turf_app;
-GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO turf_app;
+GRANT SELECT, INSERT ON usage_events TO callerwhale_app;
+GRANT SELECT, INSERT, UPDATE ON email_verifications TO callerwhale_app;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO callerwhale_app;
 
 -- Payment webhooks arrive before any organization is known; this finds the payment's organization and nothing else.
-CREATE OR REPLACE FUNCTION turf_payment_org(p_payment uuid) RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
+CREATE OR REPLACE FUNCTION callerwhale_payment_org(p_payment uuid) RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
 $$ SELECT org_id FROM payments WHERE id = p_payment $$;
-REVOKE ALL ON FUNCTION turf_payment_org(uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION turf_payment_org(uuid) TO turf_app;
+REVOKE ALL ON FUNCTION callerwhale_payment_org(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION callerwhale_payment_org(uuid) TO callerwhale_app;

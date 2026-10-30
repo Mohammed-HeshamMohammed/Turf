@@ -11,14 +11,14 @@ CREATE TABLE assignment_cursors (
   PRIMARY KEY (org_id, key)
 );
 ALTER TABLE assignment_cursors ENABLE ROW LEVEL SECURITY;
-CREATE POLICY org_isolation ON assignment_cursors USING (org_id = turf_org()) WITH CHECK (org_id = turf_org());
-GRANT SELECT, INSERT, UPDATE, DELETE ON assignment_cursors TO turf_app;
+CREATE POLICY org_isolation ON assignment_cursors USING (org_id = callerwhale_org()) WITH CHECK (org_id = callerwhale_org());
+GRANT SELECT, INSERT, UPDATE, DELETE ON assignment_cursors TO callerwhale_app;
 
 -- The scheduler finds organizations with due work before acting inside each one.
-CREATE OR REPLACE FUNCTION turf_orgs_with_due_work() RETURNS SETOF uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+CREATE OR REPLACE FUNCTION callerwhale_orgs_with_due_work() RETURNS SETOF uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT DISTINCT org_id FROM tasks WHERE done_at IS NULL AND overdue_emitted_at IS NULL AND due_at < now()
   UNION SELECT DISTINCT org_id FROM handoffs WHERE status = 'Requested' AND overdue_emitted_at IS NULL AND due_at < now()
   UNION SELECT DISTINCT org_id FROM saved_reports WHERE schedule IS NOT NULL
 $$;
-REVOKE ALL ON FUNCTION turf_orgs_with_due_work() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION turf_orgs_with_due_work() TO turf_app;
+REVOKE ALL ON FUNCTION callerwhale_orgs_with_due_work() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION callerwhale_orgs_with_due_work() TO callerwhale_app;

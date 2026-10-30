@@ -40,7 +40,7 @@ def call(base: str, method: str, path: str, body: object | None = None, token: s
     if token:
         headers["Authorization"] = f"Bearer {token}"
     if org:
-        headers["X-Caller Whale-Org"] = org
+        headers["X-CallerWhale-Org"] = org
     request = urllib.request.Request(base + path, data=data, method=method, headers=headers)
     with urllib.request.urlopen(request, timeout=30) as response:
         text = response.read().decode()
@@ -81,7 +81,7 @@ def totp(secret: str) -> str:
 
 
 def main() -> None:
-    owner = Person("owner@turf.localhost", "Jordan Ellis")
+    owner = Person("owner@callerwhale.localhost", "Jordan Ellis")
     # Two-step sign-in is turned on at auth; signing in again with a code gives a token that says it was passed.
     secret = owner.auth("POST", "/v1/mfa/setup", {})["secret"]
     codes = owner.auth("POST", "/v1/mfa/confirm", {"code": totp(secret)})["recovery_codes"]
@@ -91,8 +91,8 @@ def main() -> None:
     owner.api("POST", "/api/v1/projects", {"name": "Tampa absentee owners", "qualification_fields": []})
     ids = {}
     for role, name in PEOPLE:
-        invite = owner.api("POST", "/api/v1/admin/members", {"email": f"{role}@turf.localhost", "roles": [role], "team_ids": [team]})
-        person = Person(f"{role}@turf.localhost", name)
+        invite = owner.api("POST", "/api/v1/admin/members", {"email": f"{role}@callerwhale.localhost", "roles": [role], "team_ids": [team]})
+        person = Person(f"{role}@callerwhale.localhost", name)
         person.api("POST", "/api/v1/invitations/join", {"token": invite["token"]})
         ids[role] = person.id
     for index, (name, address, city, phone) in enumerate(LEADS):
@@ -101,11 +101,11 @@ def main() -> None:
                                                              "assignee_id": ids["caller"] if index < 3 else ids["closer"]}})
         assert lead["status"] == "applied", lead
     accounts = {"base": BASE, "auth": AUTH, "password": PASSWORD, "organization_id": owner.org,
-                "owner": {"email": "owner@turf.localhost", "totp_secret": secret, "recovery_codes": codes},
-                "people": {role: f"{role}@turf.localhost" for role, _ in PEOPLE}}
+                "owner": {"email": "owner@callerwhale.localhost", "totp_secret": secret, "recovery_codes": codes},
+                "people": {role: f"{role}@callerwhale.localhost" for role, _ in PEOPLE}}
     target = Path(__file__).with_name(".dev-accounts.json")
     target.write_text(json.dumps(accounts, indent=2))
-    print(f"Seeded {BASE} (accounts at {AUTH}; password in {target.name}): owner@turf.localhost (MFA) and " + ", ".join(accounts["people"].values()))
+    print(f"Seeded {BASE} (accounts at {AUTH}; password in {target.name}): owner@callerwhale.localhost (MFA) and " + ", ".join(accounts["people"].values()))
 
 
 if __name__ == "__main__":

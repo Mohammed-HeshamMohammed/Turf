@@ -1,5 +1,5 @@
 [package]
-name = "turf-api"
+name = "callerwhale-api"
 description = "Caller Whale CRM API: authentication, permissions, CRM transactions, synchronization and events"
 edition.workspace = true
 version.workspace = true
@@ -28,8 +28,8 @@ tower-layer = "0.3"
 tower-http = { version = "0.6", features = ["trace", "cors", "limit", "request-id", "propagate-header", "fs", "set-header"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-turf-auth-verify = { path = "../../../../auth/verify" }
-turf-grouping = { path = "../grouping" }
+callerwhale-auth-verify = { path = "../../../../auth/verify" }
+callerwhale-grouping = { path = "../grouping" }
 uuid = { version = "1", features = ["v4", "serde"] }
 
 [dev-dependencies]

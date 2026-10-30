@@ -2,7 +2,7 @@ use anyhow::Context;
 
 #[derive(Clone, Debug)]
 pub struct Config {
-    /// The API's own connection: a login role that is a member of turf_app and never bypasses row security.
+    /// The API's own connection: a login role that is a member of callerwhale_app and never bypasses row security.
     pub database_url: String,
     /// The owning role, used only to run migrations. Empty: migrations are not run by this process.
     pub migration_database_url: String,
@@ -27,32 +27,18 @@ pub struct Config {
     /// Owners and administrators must confirm an authenticator code (CALLERWHALE_REQUIRE_MFA=true). Off for now; people can
     /// still set one up from the API, and it is checked when they have.
     pub require_mfa: bool,
-    /// The auth service's public keys (the JSON of its /.well-known/jwks.json), here or as CALLERWHALE_AUTH_JWKS_URL. This or
-    /// a Firebase project is required: every request carries an access token.
+    /// The auth service's public keys (the JSON of its /.well-known/jwks.json), here or as CALLERWHALE_AUTH_JWKS_URL. One of
+    /// the two is required: every request carries an access token the auth service made.
     pub auth_jwks: String,
     /// Where to fetch those keys at start, when CALLERWHALE_AUTH_JWKS is not given directly.
     pub auth_jwks_url: String,
     /// Where browsers reach the auth service, for the website and the app to find it.
     pub auth_public_url: String,
-    /// The Firebase project whose ID tokens are accepted too (docs/plans/firebase-auth.md). Empty: none.
-    pub firebase_project: String,
-    /// Firebase's public keys given directly (tests, or a server without internet). Empty: fetched from
-    /// `firebase_jwks_url` at start and every hour after, since Google rotates them.
-    pub firebase_jwks: String,
-    pub firebase_jwks_url: String,
-    /// The web app's Firebase config, handed to the website and the CRM so they sign in with Firebase. These are
-    /// public by design. Without an API key the pages keep signing in with the auth service.
-    pub firebase_api_key: String,
-    /// Default `<project>.firebaseapp.com`.
-    pub firebase_auth_domain: String,
-    pub firebase_app_id: String,
-    /// Providers turned on in the Firebase console besides email and password (comma separated: google, apple).
-    pub firebase_providers: Vec<String>,
     /// Where staff open Grafana: the Grafana login proxy's address (services/grafana-proxy). Empty: no Grafana link,
     /// and the website may post a sign-in nowhere but here.
     pub grafana_url: String,
     /// Caller Whale's staff must confirm an authenticator code to open the admin dashboard (CALLERWHALE_STAFF_MFA, default true).
-    /// Turn it off only while the Firebase project has no authenticator codes (Identity Platform) set up.
+    /// Turn it off only while no staff member has an authenticator set up yet.
     pub staff_mfa: bool,
     /// The public website people are invited to (links in invitation emails), e.g. https://callerwhale.com.
     pub website_url: String,
@@ -73,29 +59,8 @@ pub struct Config {
 }
 
 impl Config {
-    /// The config the website's Firebase SDK starts with, or None when the pages should use the auth service.
-    pub fn firebase_web(&self) -> Option<serde_json::Value> {
-        if self.firebase_project.is_empty() || self.firebase_api_key.is_empty() {
-            return None;
-        }
-        Some(serde_json::json!({
-            "apiKey": self.firebase_api_key,
-            "authDomain": self.firebase_auth_domain,
-            "projectId": self.firebase_project,
-            "appId": self.firebase_app_id,
-            "providers": self.firebase_providers,
-        }))
-    }
-}
-
-impl Config {
     pub fn from_env() -> anyhow::Result<Self> {
-        // CALLERWHALE_* settings; a server still configured with the old TURF_* names keeps working.
-        let var = |name: &str, default: &str| {
-            std::env::var(name)
-                .or_else(|_| std::env::var(name.replacen("CALLERWHALE_", "TURF_", 1)))
-                .unwrap_or_else(|_| default.to_string())
-        };
+        let var = |name: &str, default: &str| std::env::var(name).unwrap_or_else(|_| default.to_string());
         let worker_tokens = var("CALLERWHALE_WORKER_TOKENS", "")
             .split(',')
             .filter_map(|pair| pair.split_once('='))
@@ -118,17 +83,7 @@ impl Config {
             require_mfa: var("CALLERWHALE_REQUIRE_MFA", "false") == "true",
             auth_jwks: var("CALLERWHALE_AUTH_JWKS", ""),
             auth_jwks_url: var("CALLERWHALE_AUTH_JWKS_URL", ""),
-            firebase_project: var("CALLERWHALE_FIREBASE_PROJECT", "").trim().to_string(),
-            firebase_jwks: var("CALLERWHALE_FIREBASE_JWKS", ""),
-            firebase_jwks_url: var("CALLERWHALE_FIREBASE_JWKS_URL", turf_auth_verify::FIREBASE_JWKS_URL),
-            firebase_api_key: var("CALLERWHALE_FIREBASE_API_KEY", "").trim().to_string(),
-            firebase_auth_domain: match var("CALLERWHALE_FIREBASE_AUTH_DOMAIN", "").trim() {
-                "" => format!("{}.firebaseapp.com", var("CALLERWHALE_FIREBASE_PROJECT", "").trim()),
-                given => given.to_string(),
-            },
-            firebase_app_id: var("CALLERWHALE_FIREBASE_APP_ID", "").trim().to_string(),
             grafana_url: var("CALLERWHALE_GRAFANA_URL", "").trim().trim_end_matches('/').to_string(),
-            firebase_providers: var("CALLERWHALE_FIREBASE_PROVIDERS", "google").split(',').map(|p| p.trim().to_string()).filter(|p| !p.is_empty()).collect(),
             auth_public_url: var("CALLERWHALE_AUTH_PUBLIC_URL", "http://localhost:8101").trim_end_matches('/').to_string(),
             staff_mfa: var("CALLERWHALE_STAFF_MFA", "true") != "false",
             website_url: var("CALLERWHALE_WEBSITE_URL", "http://localhost:5200").trim().trim_end_matches('/').to_string(),

@@ -52,7 +52,7 @@ async fn upload(State(state): State<AppState>, ctx: Ctx, Query(query): Query<Upl
     let media_type = request.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("application/octet-stream").to_string();
     if let Some(lead) = query.lead_id {
         let mut tx = db::begin(&state.db, &scope).await?;
-        let visible: bool = sqlx::query_scalar("SELECT turf_visible_lead($1)").bind(lead).fetch_one(&mut *tx).await?;
+        let visible: bool = sqlx::query_scalar("SELECT callerwhale_visible_lead($1)").bind(lead).fetch_one(&mut *tx).await?;
         if !visible {
             return Err(ApiError::not_found("The lead"));
         }
@@ -97,7 +97,7 @@ async fn upload(State(state): State<AppState>, ctx: Ctx, Query(query): Query<Upl
     let visibility = if external || query.visibility == "shared" { "shared" } else { "internal" };
     let mut tx = db::begin(&state.db, &scope).await?;
     let artifact: Value = sqlx::query_scalar(
-        "INSERT INTO artifacts (sha256, org_id, name, media_type, size, lead_id, visibility, uploaded_by, complete) VALUES ($1, turf_org(), $2, $3, $4, $5, $6, $7, true) \
+        "INSERT INTO artifacts (sha256, org_id, name, media_type, size, lead_id, visibility, uploaded_by, complete) VALUES ($1, callerwhale_org(), $2, $3, $4, $5, $6, $7, true) \
          ON CONFLICT (org_id, sha256) DO UPDATE SET complete = true RETURNING to_jsonb(artifacts.*) - 'org_id'",
     )
     .bind(&sha)
@@ -127,8 +127,8 @@ async fn download(State(state): State<AppState>, ctx: Ctx, Path(sha): Path<Strin
     let mut tx = db::begin(&state.db, &scope).await?;
     let found: Option<(String, String)> = sqlx::query_as(
         "SELECT name, media_type FROM artifacts a WHERE sha256 = $1 AND complete \
-           AND (a.lead_id IS NULL AND (a.uploaded_by = $2 OR 'organization' = ANY(string_to_array(current_setting('turf.scopes', true), ','))) OR turf_visible_lead(a.lead_id)) \
-           AND (NOT turf_external() OR a.visibility = 'shared')",
+           AND (a.lead_id IS NULL AND (a.uploaded_by = $2 OR 'organization' = ANY(string_to_array(current_setting('callerwhale.scopes', true), ','))) OR callerwhale_visible_lead(a.lead_id)) \
+           AND (NOT callerwhale_external() OR a.visibility = 'shared')",
     )
     .bind(&sha)
     .bind(ctx.user_id)
@@ -294,7 +294,7 @@ pub async fn legacy_import(State(state): State<AppState>, Worker(_): Worker, Jso
     let system = Scope::system(body.org_id);
     let mut tx = db::begin(&state.db, &system).await?;
     let project_id = legacy_uuid("project", &body.project.legacy_id);
-    sqlx::query("INSERT INTO projects (id, org_id, name) VALUES ($1, turf_org(), $2) ON CONFLICT (id) DO NOTHING")
+    sqlx::query("INSERT INTO projects (id, org_id, name) VALUES ($1, callerwhale_org(), $2) ON CONFLICT (id) DO NOTHING")
         .bind(project_id)
         .bind(&body.project.name)
         .execute(&mut *tx)
@@ -306,7 +306,7 @@ pub async fn legacy_import(State(state): State<AppState>, Worker(_): Worker, Jso
         dataset_ids.insert(dataset.legacy_id.clone(), id);
         let fresh = sqlx::query(
             "INSERT INTO datasets (id, org_id, project_id, name, artifact_sha256, legacy_id, row_count, mapping, status) \
-             VALUES ($1, turf_org(), $2, $3, $4, $5, $6, $7, 'Published') ON CONFLICT (id) DO NOTHING",
+             VALUES ($1, callerwhale_org(), $2, $3, $4, $5, $6, $7, 'Published') ON CONFLICT (id) DO NOTHING",
         )
         .bind(id)
         .bind(project_id)
@@ -320,7 +320,7 @@ pub async fn legacy_import(State(state): State<AppState>, Worker(_): Worker, Jso
         .rows_affected();
         counts["datasets"] = json!(counts["datasets"].as_i64().unwrap_or(0) + fresh as i64);
         for row in &dataset.rows {
-            let added = sqlx::query("INSERT INTO source_rows (org_id, dataset_id, row_number, raw) VALUES (turf_org(), $1, $2, $3) ON CONFLICT DO NOTHING")
+            let added = sqlx::query("INSERT INTO source_rows (org_id, dataset_id, row_number, raw) VALUES (callerwhale_org(), $1, $2, $3) ON CONFLICT DO NOTHING")
                 .bind(id)
                 .bind(row.row_number)
                 .bind(&row.raw)
@@ -340,7 +340,7 @@ pub async fn legacy_import(State(state): State<AppState>, Worker(_): Worker, Jso
             None
         } else {
             let id = legacy_uuid("property", &lead.legacy_key);
-            sqlx::query("INSERT INTO properties (id, org_id, address, city, region, postal_code) VALUES ($1, turf_org(), $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING")
+            sqlx::query("INSERT INTO properties (id, org_id, address, city, region, postal_code) VALUES ($1, callerwhale_org(), $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING")
                 .bind(id)
                 .bind(&lead.address)
                 .bind(&lead.city)
@@ -353,7 +353,7 @@ pub async fn legacy_import(State(state): State<AppState>, Worker(_): Worker, Jso
         let callback = lead.callback_on.as_deref().and_then(|d| chrono::NaiveDate::parse_from_str(&d[..d.len().min(10)], "%Y-%m-%d").ok()).map(|d| d.and_hms_opt(9, 0, 0).unwrap().and_utc());
         let added = sqlx::query(
             "INSERT INTO leads (id, org_id, project_id, property_id, name, phone, email, stage, source, next_action, next_action_at) \
-             VALUES ($1, turf_org(), $2, $3, $4, $5, $6, $7, 'Legacy import', $8, $9) ON CONFLICT (id) DO NOTHING",
+             VALUES ($1, callerwhale_org(), $2, $3, $4, $5, $6, $7, 'Legacy import', $8, $9) ON CONFLICT (id) DO NOTHING",
         )
         .bind(lead_id)
         .bind(project_id)
@@ -374,7 +374,7 @@ pub async fn legacy_import(State(state): State<AppState>, Worker(_): Worker, Jso
             c.lead_id = Some(lead_id);
             record(&mut tx, c).await?;
             if let Some(at) = callback {
-                sqlx::query("INSERT INTO tasks (org_id, lead_id, title, type, due_at) VALUES (turf_org(), $1, $2, 'Callback', $3)")
+                sqlx::query("INSERT INTO tasks (org_id, lead_id, title, type, due_at) VALUES (callerwhale_org(), $1, $2, 'Callback', $3)")
                     .bind(lead_id)
                     .bind(format!("Callback: {}", lead.name.trim()))
                     .bind(at)
@@ -385,7 +385,7 @@ pub async fn legacy_import(State(state): State<AppState>, Worker(_): Worker, Jso
         for (index, source) in lead.sources.iter().enumerate() {
             let dataset = dataset_ids.get(&source.dataset).copied();
             // The legacy key is kept once, as the lead's alias; other sources are plain lineage.
-            sqlx::query("INSERT INTO lead_sources (org_id, lead_id, dataset_id, row_number, legacy_key) VALUES (turf_org(), $1, $2, $3, $4) ON CONFLICT DO NOTHING")
+            sqlx::query("INSERT INTO lead_sources (org_id, lead_id, dataset_id, row_number, legacy_key) VALUES (callerwhale_org(), $1, $2, $3, $4) ON CONFLICT DO NOTHING")
                 .bind(lead_id)
                 .bind(dataset)
                 .bind(source.row_number)
@@ -395,7 +395,7 @@ pub async fn legacy_import(State(state): State<AppState>, Worker(_): Worker, Jso
         }
         for note in &lead.notes {
             let added = sqlx::query(
-                "INSERT INTO notes (org_id, lead_id, author_label, body, occurred_at, operation_id) VALUES (turf_org(), $1, 'Legacy import', $2, $3, $4) ON CONFLICT (operation_id) DO NOTHING",
+                "INSERT INTO notes (org_id, lead_id, author_label, body, occurred_at, operation_id) VALUES (callerwhale_org(), $1, 'Legacy import', $2, $3, $4) ON CONFLICT (operation_id) DO NOTHING",
             )
             .bind(lead_id)
             .bind(&note.body)
@@ -413,7 +413,7 @@ pub async fn legacy_import(State(state): State<AppState>, Worker(_): Worker, Jso
             };
             let added = sqlx::query(
                 "INSERT INTO call_events (org_id, lead_id, agent_label, phone, outcome, meaning, source, occurred_at, operation_id) \
-                 VALUES (turf_org(), $1, 'Legacy import', $2, $3, $4, 'legacy', $5, $6) ON CONFLICT (operation_id) DO NOTHING",
+                 VALUES (callerwhale_org(), $1, 'Legacy import', $2, $3, $4, 'legacy', $5, $6) ON CONFLICT (operation_id) DO NOTHING",
             )
             .bind(lead_id)
             .bind(&call.phone)
@@ -434,7 +434,7 @@ pub async fn legacy_import(State(state): State<AppState>, Worker(_): Worker, Jso
             _ => None,
         };
         if let Some(reason) = channel_reason {
-            sqlx::query("INSERT INTO suppressions (org_id, channel, address, reason, until) VALUES (turf_org(), 'all', $1, $2, $3) ON CONFLICT DO NOTHING")
+            sqlx::query("INSERT INTO suppressions (org_id, channel, address, reason, until) VALUES (callerwhale_org(), 'all', $1, $2, $3) ON CONFLICT DO NOTHING")
                 .bind(&mark.number)
                 .bind(reason)
                 .bind(mark.until)

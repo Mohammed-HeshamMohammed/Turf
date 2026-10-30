@@ -130,29 +130,29 @@ pub fn group(count: usize, matches: &[Pair], keep_apart: &[(u32, u32)], filled: 
 
 // ------------------------------------------------------------------------------------------------ native ABI
 //
-// Version 1 of the ABI in contracts/native/turf_grouping.h. The caller owns every input buffer; output buffers are
-// allocated here and released with turf_grouping_free.
+// Version 1 of the ABI in contracts/native/callerwhale_grouping.h. The caller owns every input buffer; output buffers are
+// allocated here and released with callerwhale_grouping_free.
 
 pub const ABI_VERSION: u32 = 1;
 
 #[repr(C)]
-pub struct TurfPair {
+pub struct CallerWhalePair {
     pub a: u32,
     pub b: u32,
     pub score: f32,
 }
 
 #[repr(C)]
-pub struct TurfGrouping {
+pub struct CallerWhaleGrouping {
     /// For each record, the index of its group's survivor; a record outside any group points at itself.
     pub survivor_of: *mut u32,
     pub count: usize,
-    pub rejected: *mut TurfPair,
+    pub rejected: *mut CallerWhalePair,
     pub rejected_count: usize,
 }
 
 #[no_mangle]
-pub extern "C" fn turf_grouping_abi_version() -> u32 {
+pub extern "C" fn callerwhale_grouping_abi_version() -> u32 {
     ABI_VERSION
 }
 
@@ -160,14 +160,14 @@ pub extern "C" fn turf_grouping_abi_version() -> u32 {
 /// `matches` must point at `match_count` pairs, `apart` at `apart_count * 2` indexes, `filled` at `count` values
 /// (or be null). `out` must be valid for writes. Returns 0 on success, 1 on an invalid argument.
 #[no_mangle]
-pub unsafe extern "C" fn turf_grouping_run(
+pub unsafe extern "C" fn callerwhale_grouping_run(
     count: usize,
-    matches: *const TurfPair,
+    matches: *const CallerWhalePair,
     match_count: usize,
     apart: *const u32,
     apart_count: usize,
     filled: *const u32,
-    out: *mut TurfGrouping,
+    out: *mut CallerWhaleGrouping,
 ) -> i32 {
     if out.is_null() || (match_count > 0 && matches.is_null()) || (apart_count > 0 && apart.is_null()) || count > u32::MAX as usize {
         return 1;
@@ -187,21 +187,21 @@ pub unsafe extern "C" fn turf_grouping_run(
             survivor_of[m as usize] = g.survivor;
         }
     }
-    let mut rejected: Vec<TurfPair> = result.rejected.iter().map(|p| TurfPair { a: p.a, b: p.b, score: p.score }).collect();
+    let mut rejected: Vec<CallerWhalePair> = result.rejected.iter().map(|p| CallerWhalePair { a: p.a, b: p.b, score: p.score }).collect();
     survivor_of.shrink_to_fit();
     rejected.shrink_to_fit();
     let (s_ptr, s_len) = (survivor_of.as_mut_ptr(), survivor_of.len());
     let (r_ptr, r_len) = (rejected.as_mut_ptr(), rejected.len());
     std::mem::forget(survivor_of);
     std::mem::forget(rejected);
-    *out = TurfGrouping { survivor_of: s_ptr, count: s_len, rejected: r_ptr, rejected_count: r_len };
+    *out = CallerWhaleGrouping { survivor_of: s_ptr, count: s_len, rejected: r_ptr, rejected_count: r_len };
     0
 }
 
 /// # Safety
-/// `out` must have been filled by `turf_grouping_run` and not freed before.
+/// `out` must have been filled by `callerwhale_grouping_run` and not freed before.
 #[no_mangle]
-pub unsafe extern "C" fn turf_grouping_free(out: *mut TurfGrouping) {
+pub unsafe extern "C" fn callerwhale_grouping_free(out: *mut CallerWhaleGrouping) {
     if out.is_null() {
         return;
     }
@@ -212,7 +212,7 @@ pub unsafe extern "C" fn turf_grouping_free(out: *mut TurfGrouping) {
     if !g.rejected.is_null() {
         drop(Vec::from_raw_parts(g.rejected, g.rejected_count, g.rejected_count));
     }
-    *g = TurfGrouping { survivor_of: std::ptr::null_mut(), count: 0, rejected: std::ptr::null_mut(), rejected_count: 0 };
+    *g = CallerWhaleGrouping { survivor_of: std::ptr::null_mut(), count: 0, rejected: std::ptr::null_mut(), rejected_count: 0 };
 }
 
 #[cfg(test)]
@@ -262,16 +262,16 @@ mod tests {
 
     #[test]
     fn native_abi_round_trip() {
-        let pairs = [TurfPair { a: 0, b: 1, score: 0.9 }, TurfPair { a: 1, b: 2, score: 0.5 }];
+        let pairs = [CallerWhalePair { a: 0, b: 1, score: 0.9 }, CallerWhalePair { a: 1, b: 2, score: 0.5 }];
         let apart = [0u32, 2];
-        let mut out = TurfGrouping { survivor_of: std::ptr::null_mut(), count: 0, rejected: std::ptr::null_mut(), rejected_count: 0 };
-        let code = unsafe { turf_grouping_run(3, pairs.as_ptr(), 2, apart.as_ptr(), 1, std::ptr::null(), &mut out) };
+        let mut out = CallerWhaleGrouping { survivor_of: std::ptr::null_mut(), count: 0, rejected: std::ptr::null_mut(), rejected_count: 0 };
+        let code = unsafe { callerwhale_grouping_run(3, pairs.as_ptr(), 2, apart.as_ptr(), 1, std::ptr::null(), &mut out) };
         assert_eq!(code, 0);
         let survivors = unsafe { std::slice::from_raw_parts(out.survivor_of, out.count) }.to_vec();
         assert_eq!(survivors, vec![0, 0, 2]);
         assert_eq!(out.rejected_count, 1);
-        unsafe { turf_grouping_free(&mut out) };
+        unsafe { callerwhale_grouping_free(&mut out) };
         assert!(out.survivor_of.is_null());
-        assert_eq!(unsafe { turf_grouping_run(1, std::ptr::null(), 1, std::ptr::null(), 0, std::ptr::null(), &mut out) }, 1);
+        assert_eq!(unsafe { callerwhale_grouping_run(1, std::ptr::null(), 1, std::ptr::null(), 0, std::ptr::null(), &mut out) }, 1);
     }
 }

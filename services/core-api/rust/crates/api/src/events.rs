@@ -20,7 +20,7 @@ pub fn spawn_listener(state: AppState) {
         loop {
             match PgListener::connect_with(&state.db).await {
                 Ok(mut listener) => {
-                    if let Err(error) = listener.listen("turf_events").await {
+                    if let Err(error) = listener.listen("callerwhale_events").await {
                         tracing::warn!(%error, "event listener could not subscribe");
                     } else {
                         while let Ok(notification) = listener.recv().await {
@@ -93,7 +93,7 @@ async fn may_see(state: &AppState, scope: &crate::db::Scope, event: &Event) -> b
         return scope.access.sees_all();
     };
     let Ok(mut tx) = crate::db::begin(&state.db, scope).await else { return false };
-    let visible: bool = sqlx::query_scalar("SELECT turf_visible_lead($1)").bind(lead).fetch_one(&mut *tx).await.unwrap_or(false);
+    let visible: bool = sqlx::query_scalar("SELECT callerwhale_visible_lead($1)").bind(lead).fetch_one(&mut *tx).await.unwrap_or(false);
     let _ = tx.rollback().await;
     visible
 }

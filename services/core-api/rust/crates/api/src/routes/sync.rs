@@ -111,14 +111,14 @@ fn syncable(entity: &str) -> bool {
 async fn current(tx: &mut db::Tx, scope: &db::Scope, entity: &str, id: Uuid, lead_id: Option<Uuid>) -> ApiResult<Option<Value>> {
     let external = scope.access.scopes.iter().all(|s| s == "shared");
     let sql = match entity {
-        "lead" => "SELECT to_jsonb(l) FROM leads l WHERE l.id = $1 AND turf_visible_lead(l.id)",
-        "task" => "SELECT to_jsonb(t) FROM tasks t WHERE t.id = $1 AND (t.lead_id IS NULL OR turf_visible_lead(t.lead_id)) AND (NOT turf_external() OR t.shared_external)",
-        "note" => "SELECT to_jsonb(n) FROM notes n WHERE n.id = $1 AND turf_visible_lead(n.lead_id) AND (NOT turf_external() OR n.visibility = 'shared')",
-        "call" => "SELECT to_jsonb(c) FROM call_events c WHERE c.id = $1 AND turf_visible_lead(c.lead_id) AND NOT turf_external()",
-        "deal" => "SELECT to_jsonb(d) FROM deals d WHERE d.id = $1 AND turf_visible_lead(d.lead_id) AND NOT turf_external()",
-        "handoff" => "SELECT to_jsonb(h) FROM handoffs h WHERE h.id = $1 AND turf_visible_lead(h.lead_id) AND NOT turf_external()",
+        "lead" => "SELECT to_jsonb(l) FROM leads l WHERE l.id = $1 AND callerwhale_visible_lead(l.id)",
+        "task" => "SELECT to_jsonb(t) FROM tasks t WHERE t.id = $1 AND (t.lead_id IS NULL OR callerwhale_visible_lead(t.lead_id)) AND (NOT callerwhale_external() OR t.shared_external)",
+        "note" => "SELECT to_jsonb(n) FROM notes n WHERE n.id = $1 AND callerwhale_visible_lead(n.lead_id) AND (NOT callerwhale_external() OR n.visibility = 'shared')",
+        "call" => "SELECT to_jsonb(c) FROM call_events c WHERE c.id = $1 AND callerwhale_visible_lead(c.lead_id) AND NOT callerwhale_external()",
+        "deal" => "SELECT to_jsonb(d) FROM deals d WHERE d.id = $1 AND callerwhale_visible_lead(d.lead_id) AND NOT callerwhale_external()",
+        "handoff" => "SELECT to_jsonb(h) FROM handoffs h WHERE h.id = $1 AND callerwhale_visible_lead(h.lead_id) AND NOT callerwhale_external()",
         "message" => "SELECT to_jsonb(m) FROM messages m JOIN conversations c ON c.id = m.conversation_id WHERE m.id = $1 \
-                      AND (c.lead_id IS NULL OR turf_visible_lead(c.lead_id)) AND (NOT turf_external() OR c.shared_external)",
+                      AND (c.lead_id IS NULL OR callerwhale_visible_lead(c.lead_id)) AND (NOT callerwhale_external() OR c.shared_external)",
         _ => return Ok(None),
     };
     let _ = (lead_id, external);
@@ -139,20 +139,20 @@ pub async fn snapshot(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json
     // The cursor is read first: anything committed after it arrives through the next pull.
     let cursor: i64 = sqlx::query_scalar("SELECT coalesce(max(seq), 0) FROM change_log").fetch_one(&mut *tx).await?;
     let all = |sql: &'static str| sqlx::query_scalar::<_, Value>(sql);
-    let leads: Vec<Value> = all("SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) FROM leads l LEFT JOIN properties p ON p.id = l.property_id WHERE turf_visible_lead(l.id)")
+    let leads: Vec<Value> = all("SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) FROM leads l LEFT JOIN properties p ON p.id = l.property_id WHERE callerwhale_visible_lead(l.id)")
         .fetch_all(&mut *tx)
         .await?
         .into_iter()
         .map(|l| redact_lead(l, &scope))
         .collect();
-    let tasks = all("SELECT to_jsonb(t) FROM tasks t WHERE (t.lead_id IS NULL AND t.assignee_id = nullif(current_setting('turf.user_id', true), '')::uuid OR turf_visible_lead(t.lead_id)) AND (NOT turf_external() OR t.shared_external)")
+    let tasks = all("SELECT to_jsonb(t) FROM tasks t WHERE (t.lead_id IS NULL AND t.assignee_id = nullif(current_setting('callerwhale.user_id', true), '')::uuid OR callerwhale_visible_lead(t.lead_id)) AND (NOT callerwhale_external() OR t.shared_external)")
         .fetch_all(&mut *tx)
         .await?;
-    let notes = all("SELECT to_jsonb(n) FROM notes n WHERE turf_visible_lead(n.lead_id) AND (NOT turf_external() OR n.visibility = 'shared')").fetch_all(&mut *tx).await?;
-    let calls = all("SELECT to_jsonb(c) FROM call_events c WHERE turf_visible_lead(c.lead_id) AND NOT turf_external()").fetch_all(&mut *tx).await?;
-    let handoffs = all("SELECT to_jsonb(h) FROM handoffs h WHERE turf_visible_lead(h.lead_id) AND NOT turf_external()").fetch_all(&mut *tx).await?;
+    let notes = all("SELECT to_jsonb(n) FROM notes n WHERE callerwhale_visible_lead(n.lead_id) AND (NOT callerwhale_external() OR n.visibility = 'shared')").fetch_all(&mut *tx).await?;
+    let calls = all("SELECT to_jsonb(c) FROM call_events c WHERE callerwhale_visible_lead(c.lead_id) AND NOT callerwhale_external()").fetch_all(&mut *tx).await?;
+    let handoffs = all("SELECT to_jsonb(h) FROM handoffs h WHERE callerwhale_visible_lead(h.lead_id) AND NOT callerwhale_external()").fetch_all(&mut *tx).await?;
     let deals = if scope.access.can("finance") {
-        all("SELECT to_jsonb(d) FROM deals d WHERE turf_visible_lead(d.lead_id) AND NOT turf_external()").fetch_all(&mut *tx).await?
+        all("SELECT to_jsonb(d) FROM deals d WHERE callerwhale_visible_lead(d.lead_id) AND NOT callerwhale_external()").fetch_all(&mut *tx).await?
     } else {
         vec![]
     };

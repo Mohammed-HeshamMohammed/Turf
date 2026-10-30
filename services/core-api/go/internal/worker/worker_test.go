@@ -164,10 +164,10 @@ func TestRedisPublishSpeaksRESP(t *testing.T) {
 		got <- strings.Join(lines, "|")
 	}()
 	r := &Redis{Addr: listener.Addr().String()}
-	if err := r.Publish(context.Background(), "turf:invalidate", "org lead x"); err != nil {
+	if err := r.Publish(context.Background(), "callerwhale:invalidate", "org lead x"); err != nil {
 		t.Fatal(err)
 	}
-	if line := <-got; line != "*3|$7|PUBLISH|$15|turf:invalidate|$10|org lead x" {
+	if line := <-got; line != "*3|$7|PUBLISH|$15|callerwhale:invalidate|$10|org lead x" {
 		t.Fatalf("wire format %q", line)
 	}
 }

@@ -20,7 +20,7 @@ pub async fn migrate(config: &Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Who a transaction acts for. Row security reads turf.org_id; turf_visible_lead() reads the rest.
+/// Who a transaction acts for. Row security reads callerwhale.org_id; callerwhale_visible_lead() reads the rest.
 #[derive(Clone, Debug)]
 pub struct Scope {
     pub org_id: Uuid,
@@ -46,8 +46,8 @@ pub async fn begin(pool: &PgPool, scope: &Scope) -> Result<Tx, sqlx::Error> {
     let mut tx = pool.begin().await?;
     let uuids = |ids: &[Uuid]| format!("{{{}}}", ids.iter().map(Uuid::to_string).collect::<Vec<_>>().join(","));
     sqlx::query(
-        "SELECT set_config('turf.org_id', $1, true), set_config('turf.user_id', $2, true), set_config('turf.scopes', $3, true), \
-         set_config('turf.team_ids', $4, true), set_config('turf.project_ids', $5, true)",
+        "SELECT set_config('callerwhale.org_id', $1, true), set_config('callerwhale.user_id', $2, true), set_config('callerwhale.scopes', $3, true), \
+         set_config('callerwhale.team_ids', $4, true), set_config('callerwhale.project_ids', $5, true)",
     )
     .bind(scope.org_id.to_string())
     .bind(scope.user_id.map(|id| id.to_string()).unwrap_or_default())

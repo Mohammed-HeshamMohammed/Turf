@@ -56,5 +56,5 @@ impl Cache {
 
 /// Keys carry organization, access revision and data revision, so a role change or edit makes old entries unreachable.
 pub fn key(org: uuid::Uuid, access_revision: i64, data_revision: i64, rest: &str) -> String {
-    format!("turf:{org}:a{access_revision}:d{data_revision}:{rest}")
+    format!("callerwhale:{org}:a{access_revision}:d{data_revision}:{rest}")
 }

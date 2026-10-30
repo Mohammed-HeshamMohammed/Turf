@@ -1,9 +1,9 @@
--- Who runs Turf the service, and the highest anyone else can be.
+-- Who runs Caller Whale the service, and the highest anyone else can be.
 --
--- Turf's own people have a platform role: one platform owner (the owner of the app) and the system administrators the
+-- Caller Whale's own people have a platform role: one platform owner (the owner of the app) and the system administrators the
 -- owner appoints. Nobody gets either by signing up, by an invitation or through any customer page. The owner is set
 -- once, on the server, with the owning role (scripts/create_platform_owner.py); system administrators are named and
--- removed only by the owner, through turf_platform_set_role. The API's own login can never change a platform role.
+-- removed only by the owner, through callerwhale_platform_set_role. The API's own login can never change a platform role.
 --
 -- Inside a customer's workspace the highest role is the business owner: the person who opened it. There is no
 -- "System administrator" role in customers' workspaces any more, and the owner role cannot be handed to anyone.
@@ -14,7 +14,7 @@ CREATE UNIQUE INDEX users_one_platform_owner ON users ((true)) WHERE platform_ro
 
 -- Whoever is not the owner of the users table (the API's login) cannot give or change a platform role, and cannot
 -- disable the platform owner. The owning role and its SECURITY DEFINER functions can.
-CREATE OR REPLACE FUNCTION turf_guard_platform_role() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION callerwhale_guard_platform_role() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF pg_has_role(current_user, (SELECT relowner FROM pg_class WHERE oid = 'users'::regclass), 'USAGE') THEN
     RETURN NEW;
@@ -26,11 +26,11 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$;
-CREATE TRIGGER users_platform_role BEFORE INSERT OR UPDATE ON users FOR EACH ROW EXECUTE FUNCTION turf_guard_platform_role();
+CREATE TRIGGER users_platform_role BEFORE INSERT OR UPDATE ON users FOR EACH ROW EXECUTE FUNCTION callerwhale_guard_platform_role();
 
 -- The only way the API can name or remove a system administrator: the actor must be the platform owner, and the
 -- owner role itself can never be given this way.
-CREATE OR REPLACE FUNCTION turf_platform_set_role(p_actor uuid, p_target uuid, p_role text)
+CREATE OR REPLACE FUNCTION callerwhale_platform_set_role(p_actor uuid, p_target uuid, p_role text)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM users u WHERE u.id = p_actor AND u.platform_role = 'owner' AND u.disabled_at IS NULL) THEN
@@ -44,16 +44,16 @@ BEGIN
     RAISE EXCEPTION 'no such person, or the platform owner' USING ERRCODE = 'P0002';
   END IF;
 END $$;
-REVOKE ALL ON FUNCTION turf_platform_set_role(uuid, uuid, text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION turf_platform_set_role(uuid, uuid, text) TO turf_app;
+REVOKE ALL ON FUNCTION callerwhale_platform_set_role(uuid, uuid, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION callerwhale_platform_set_role(uuid, uuid, text) TO callerwhale_app;
 
 -- The owner can take a workspace off its plan entirely (no limits) from the dashboard.
-GRANT DELETE ON subscriptions TO turf_app;
+GRANT DELETE ON subscriptions TO callerwhale_app;
 
--- A workspace Turf has suspended opens nothing until it is reactivated.
+-- A workspace Caller Whale has suspended opens nothing until it is reactivated.
 ALTER TABLE organizations ADD COLUMN suspended_at timestamptz;
 
--- What Turf's people did from the admin dashboard. Not tied to one organization, so outside row security.
+-- What Caller Whale's people did from the admin dashboard. Not tied to one organization, so outside row security.
 CREATE TABLE platform_events (
   id bigserial PRIMARY KEY,
   actor_id uuid NOT NULL REFERENCES users(id),
@@ -64,12 +64,12 @@ CREATE TABLE platform_events (
   at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX platform_events_at ON platform_events (at DESC);
-GRANT SELECT, INSERT ON platform_events TO turf_app;
-GRANT USAGE ON SEQUENCE platform_events_id_seq TO turf_app;
+GRANT SELECT, INSERT ON platform_events TO callerwhale_app;
+GRANT USAGE ON SEQUENCE platform_events_id_seq TO callerwhale_app;
 
 -- The overview now reads the platform role and shows suspension.
-DROP FUNCTION turf_platform_overview(uuid);
-CREATE FUNCTION turf_platform_overview(p_user uuid)
+DROP FUNCTION callerwhale_platform_overview(uuid);
+CREATE FUNCTION callerwhale_platform_overview(p_user uuid)
 RETURNS TABLE (
   id uuid, name text, account_kind text, created_at timestamptz, plan_key text, status text, seats int,
   minutes_included int, minutes_used bigint, period_end timestamptz, members bigint, owner_email text, paid_cents bigint,
@@ -91,8 +91,8 @@ BEGIN
   FROM organizations o LEFT JOIN subscriptions s ON s.org_id = o.id
   ORDER BY o.created_at DESC;
 END $$;
-REVOKE ALL ON FUNCTION turf_platform_overview(uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION turf_platform_overview(uuid) TO turf_app;
+REVOKE ALL ON FUNCTION callerwhale_platform_overview(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION callerwhale_platform_overview(uuid) TO callerwhale_app;
 
 ALTER TABLE users DROP COLUMN platform_admin;
 

@@ -1,5 +1,5 @@
 //! Test harness: runs the API in-process against a real PostgreSQL (plan 5.1: mocked storage does not establish SQL
-//! correctness). Needs TEST_DATABASE_URL (the turf_api login) and TEST_MIGRATION_DATABASE_URL (the owner); see
+//! correctness). Needs TEST_DATABASE_URL (the callerwhale_api login) and TEST_MIGRATION_DATABASE_URL (the owner); see
 //! services/core-api/scripts/dev-services.sh. Tests share one database, so they take a lock and start from empty tables.
 //!
 //! People sign in with the auth service, never with this API, so the harness plays auth's part: it holds a signing
@@ -12,42 +12,13 @@ use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use ring::signature::{Ed25519KeyPair, KeyPair};
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex, MutexGuard};
-use turf_api::config::Config;
-use turf_auth_verify::{Claims, AUDIENCE, ISSUER};
+use callerwhale_api::config::Config;
+use callerwhale_auth_verify::{Claims, AUDIENCE, ISSUER};
 use uuid::Uuid;
 
 static LOCK: Mutex<()> = Mutex::new(());
 pub const WORKER: &str = "test-worker-token-0123456789abcdef";
 pub const WEBHOOK_SECRET: &str = "test-webhook-secret-0123456789abcdef";
-/// The Firebase project the API trusts in tests, and the throwaway key pair its ID tokens are signed with.
-pub const FIREBASE_PROJECT: &str = "turf-test";
-const FIREBASE_PEM: &str = include_str!("../../../../../../auth/verify/testdata/firebase-test-key.pem");
-const FIREBASE_JWKS: &str = include_str!("../../../../../../auth/verify/testdata/firebase-test-jwks.json");
-
-/// A Firebase ID token as Firebase would sign it. `totp`: they confirmed an authenticator code at sign-in.
-pub fn firebase_token(uid: &str, email: &str, name: Option<&str>, totp: bool, email_verified: bool) -> String {
-    firebase_token_via("password", uid, email, name, totp, email_verified)
-}
-
-/// The same, signed in with `provider` as Firebase names it ("google.com", "apple.com", "password").
-pub fn firebase_token_via(provider: &str, uid: &str, email: &str, name: Option<&str>, totp: bool, email_verified: bool) -> String {
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-    let mut detail = json!({ "sign_in_provider": provider });
-    if totp {
-        detail["sign_in_second_factor"] = "totp".into();
-    }
-    let mut claims = json!({
-        "iss": format!("https://securetoken.google.com/{FIREBASE_PROJECT}"), "aud": FIREBASE_PROJECT, "sub": uid, "email": email,
-        "email_verified": email_verified, "auth_time": now - 5, "iat": now - 5, "exp": now + 3600, "firebase": detail,
-    });
-    if let Some(name) = name {
-        claims["name"] = name.into();
-    }
-    let mut header = Header::new(Algorithm::RS256);
-    header.kid = Some("firebase-test".into());
-    encode(&header, &claims, &EncodingKey::from_rsa_pem(FIREBASE_PEM.as_bytes()).unwrap()).unwrap()
-}
-
 /// A signing key as the auth service holds one, and the public key set it publishes.
 pub struct AuthKey {
     pkcs8: Vec<u8>,
@@ -65,7 +36,7 @@ impl AuthKey {
     /// An access token as the auth service would sign it.
     pub fn sign(&self, sub: &str, email: &str, name: &str, mfa: bool, email_verified: bool) -> String {
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-        let claims = Claims { sub: sub.into(), email: email.into(), name: name.into(), sid: "s-1".into(), mfa, email_verified, provider: "password".into(), iss: ISSUER.into(), aud: AUDIENCE.into(), iat: now, exp: now + 600 };
+        let claims = Claims { sub: sub.into(), email: email.into(), name: name.into(), sid: "s-1".into(), mfa, email_verified, auth_time: now - 5, provider: "password".into(), iss: ISSUER.into(), aud: AUDIENCE.into(), iat: now, exp: now + 600 };
         let mut header = Header::new(Algorithm::EdDSA);
         header.kid = Some("test".into());
         encode(&header, &claims, &EncodingKey::from_ed_der(&self.pkcs8)).unwrap()
@@ -88,7 +59,7 @@ pub fn config(redis: bool) -> Option<Config> {
         bind: "127.0.0.1:0".into(),
         allowed_origins: vec![],
         worker_tokens: vec![("tests".into(), WORKER.into())],
-        artifact_dir: std::env::temp_dir().join("turf-test-artifacts").to_string_lossy().into_owned(),
+        artifact_dir: std::env::temp_dir().join("callerwhale-test-artifacts").to_string_lossy().into_owned(),
         max_body_bytes: 10 * 1024 * 1024,
         public_signup: true,
         billing_webhook_secret: WEBHOOK_SECRET.into(),
@@ -98,21 +69,14 @@ pub fn config(redis: bool) -> Option<Config> {
         auth_jwks: String::new(),
         auth_jwks_url: String::new(),
         auth_public_url: "http://auth.example".into(),
-        firebase_project: String::new(),
-        firebase_jwks: String::new(),
-        firebase_jwks_url: String::new(),
-        firebase_api_key: String::new(),
-        firebase_auth_domain: String::new(),
-        firebase_app_id: String::new(),
-        firebase_providers: vec![],
         grafana_url: String::new(),
         staff_mfa: true,
-        website_url: "https://turf.example".into(),
+        website_url: "https://callerwhale.example".into(),
         smtp_host: String::new(),
         smtp_port: 587,
         smtp_user: String::new(),
         smtp_password: String::new(),
-        mail_from: "Caller Whale <no-reply@turf.example>".into(),
+        mail_from: "Caller Whale <no-reply@callerwhale.example>".into(),
         release_repo: String::new(),
         release_tag_prefix: "crm-v".into(),
         github_token: String::new(),
@@ -148,20 +112,18 @@ async fn start_configured(redis: bool, require_mfa: bool, public_signup: bool) -
     config.require_mfa = require_mfa;
     config.public_signup = public_signup;
     config.auth_jwks = key.jwks.clone();
-    config.firebase_project = FIREBASE_PROJECT.into();
-    config.firebase_jwks = FIREBASE_JWKS.into();
-    turf_api::db::migrate(&config).await.expect("migrations");
+    callerwhale_api::db::migrate(&config).await.expect("migrations");
     let owner = sqlx::PgPool::connect(&config.migration_database_url).await.expect("owner connection");
     let tables: Vec<String> = sqlx::query_scalar("SELECT tablename::text FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN ('_sqlx_migrations', 'plans')")
         .fetch_all(&owner)
         .await
         .unwrap();
     sqlx::query(&format!("TRUNCATE {} RESTART IDENTITY CASCADE", tables.join(", "))).execute(&owner).await.unwrap();
-    let state = turf_api::state(config).await.expect("state");
-    turf_api::events::spawn_listener(state.clone());
+    let state = callerwhale_api::state(config).await.expect("state");
+    callerwhale_api::events::spawn_listener(state.clone());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
-    tokio::spawn(async move { axum::serve(listener, turf_api::app(state)).await.unwrap() });
+    tokio::spawn(async move { axum::serve(listener, callerwhale_api::app(state)).await.unwrap() });
     Some(Harness { base, owner, key, _guard: guard })
 }
 
@@ -171,18 +133,16 @@ impl Harness {
         Client::signed_in(&self.base, self.key.clone(), &Uuid::new_v4().to_string(), email, name, mfa, verified)
     }
 
-    /// Someone signed in with Firebase: their token carries a Firebase uid, not an id of this server.
-    pub fn firebase_client(&self, uid: &str, email: &str, name: Option<&str>, totp: bool, verified: bool) -> Client {
-        Client {
-            http: reqwest::Client::new(),
-            base: self.base.clone(),
-            id: String::new(),
-            email: email.into(),
-            name: name.unwrap_or_default().into(),
-            key: None,
-            token: Mutex::new(Some(firebase_token(uid, email, name, totp, verified))),
-            org: Mutex::new(None),
-        }
+    /// A person with a stable id made from `key`, so a test can sign the same person in more than once.
+    pub fn client_with_key(&self, key: &str, email: &str, name: Option<&str>, mfa: bool, verified: bool) -> Client {
+        use std::hash::{Hash, Hasher};
+        let half = |salt: u8| {
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            (salt, key).hash(&mut hasher);
+            hasher.finish() as u128
+        };
+        let id = Uuid::from_u128((half(1) << 64) | half(2)).to_string();
+        Client::signed_in(&self.base, self.key.clone(), &id, email, name.unwrap_or_default(), mfa, verified)
     }
 
     /// A request with no token at all.
@@ -195,7 +155,7 @@ impl Harness {
     }
 }
 
-/// A person talking to the API: their auth access token and the organization they act in (x-turf-org).
+/// A person talking to the API: their auth access token and the organization they act in (x-callerwhale-org).
 pub struct Client {
     pub http: reqwest::Client,
     pub base: String,
@@ -259,7 +219,7 @@ impl Client {
             request = request.bearer_auth(token);
         }
         if let Some(org) = self.org.lock().unwrap().clone() {
-            request = request.header("x-turf-org", org);
+            request = request.header("x-callerwhale-org", org);
         }
         request
     }

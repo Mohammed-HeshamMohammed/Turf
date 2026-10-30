@@ -1,4 +1,4 @@
-//! Scoped reads (plan 2.3, 3.2–3.4). Every query goes through turf_visible_lead(), so lists, searches, counts and
+//! Scoped reads (plan 2.3, 3.2–3.4). Every query goes through callerwhale_visible_lead(), so lists, searches, counts and
 //! dashboards show only what the person may see.
 
 use crate::{
@@ -75,7 +75,7 @@ async fn leads(State(state): State<AppState>, ctx: Ctx, Query(query): Query<Lead
            'calls', (SELECT count(*) FROM call_events c WHERE c.lead_id = l.id), \
            'last_call', (SELECT jsonb_build_object('outcome', c.outcome, 'code', c.code, 'occurred_at', c.occurred_at) FROM call_events c WHERE c.lead_id = l.id ORDER BY c.occurred_at DESC LIMIT 1)) \
          FROM leads l LEFT JOIN properties p ON p.id = l.property_id \
-         WHERE turf_visible_lead(l.id) \
+         WHERE callerwhale_visible_lead(l.id) \
            AND ($1 = '' OR l.name ILIKE '%' || $1 || '%' OR l.phone LIKE '%' || $1 || '%' OR l.email ILIKE '%' || $1 || '%' OR p.address ILIKE '%' || $1 || '%') \
            AND ($2 = '' OR l.stage = $2) \
            AND ($3 = '' OR ($3 = 'unassigned' AND l.assignee_id IS NULL) OR l.assignee_id = $4) \
@@ -107,7 +107,7 @@ async fn leads(State(state): State<AppState>, ctx: Ctx, Query(query): Query<Lead
 async fn lead(State(state): State<AppState>, ctx: Ctx, Path(id): Path<Uuid>) -> ApiResult<Json<Value>> {
     let scope = ctx.scope()?;
     let mut tx = db::begin(&state.db, &scope).await?;
-    let lead: Value = sqlx::query_scalar("SELECT to_jsonb(l) FROM leads l WHERE l.id = $1 AND turf_visible_lead(l.id)")
+    let lead: Value = sqlx::query_scalar("SELECT to_jsonb(l) FROM leads l WHERE l.id = $1 AND callerwhale_visible_lead(l.id)")
         .bind(id)
         .fetch_optional(&mut *tx)
         .await?
@@ -168,8 +168,8 @@ async fn tasks(State(state): State<AppState>, ctx: Ctx, Query(query): Query<Task
     let mut tx = db::begin(&state.db, &scope).await?;
     let rows: Vec<Value> = sqlx::query_scalar(
         "SELECT to_jsonb(t) || jsonb_build_object('lead_name', l.name, 'overdue', t.done_at IS NULL AND t.due_at < now()) FROM tasks t LEFT JOIN leads l ON l.id = t.lead_id \
-         WHERE ((t.lead_id IS NULL AND (t.assignee_id = $1 OR 'organization' = ANY(string_to_array(current_setting('turf.scopes', true), ',')))) OR turf_visible_lead(t.lead_id)) \
-           AND (NOT turf_external() OR t.shared_external) \
+         WHERE ((t.lead_id IS NULL AND (t.assignee_id = $1 OR 'organization' = ANY(string_to_array(current_setting('callerwhale.scopes', true), ',')))) OR callerwhale_visible_lead(t.lead_id)) \
+           AND (NOT callerwhale_external() OR t.shared_external) \
            AND (NOT $2 OR t.assignee_id = $1) AND ($3 OR t.done_at IS NULL) \
            AND ($4 = '' OR ($4 = 'today' AND t.due_at < date_trunc('day', now()) + interval '1 day') OR ($4 = 'overdue' AND t.due_at < now()) \
                 OR ($4 = 'week' AND t.due_at < now() + interval '7 days')) \
@@ -200,7 +200,7 @@ async fn calendar(State(state): State<AppState>, ctx: Ctx, Query(range): Query<R
     let rows: Vec<Value> = sqlx::query_scalar(
         "SELECT jsonb_build_object('id', t.id, 'title', t.title, 'type', t.type, 'due_at', t.due_at, 'timezone', t.timezone, 'lead_id', t.lead_id, \
            'assignee_id', t.assignee_id, 'done', t.done_at IS NOT NULL) FROM tasks t \
-         WHERE t.due_at >= $1 AND t.due_at < $2 AND ((t.lead_id IS NULL AND t.assignee_id = $3) OR turf_visible_lead(t.lead_id)) AND (NOT turf_external() OR t.shared_external) \
+         WHERE t.due_at >= $1 AND t.due_at < $2 AND ((t.lead_id IS NULL AND t.assignee_id = $3) OR callerwhale_visible_lead(t.lead_id)) AND (NOT callerwhale_external() OR t.shared_external) \
          ORDER BY t.due_at",
     )
     .bind(range.from)
@@ -217,7 +217,7 @@ async fn deals(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>
     let rows: Vec<Value> = sqlx::query_scalar(
         "SELECT to_jsonb(d) || jsonb_build_object('lead_name', l.name, 'assignee_id', l.assignee_id, 'days_in_stage', \
            extract(day FROM now() - coalesce((SELECT max(a.at) FROM audit_events a WHERE a.entity_id = d.id AND a.action = 'deal.stage_changed'), d.created_at))) \
-         FROM deals d JOIN leads l ON l.id = d.lead_id WHERE turf_visible_lead(d.lead_id) ORDER BY d.created_at",
+         FROM deals d JOIN leads l ON l.id = d.lead_id WHERE callerwhale_visible_lead(d.lead_id) ORDER BY d.created_at",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -233,7 +233,7 @@ async fn handoffs(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Val
     // Requested handoffs past their due time are reported as overdue.
     let rows: Vec<Value> = sqlx::query_scalar(
         "SELECT to_jsonb(h) || jsonb_build_object('lead_name', l.name, 'status', CASE WHEN h.status = 'Requested' AND h.due_at < now() THEN 'Overdue' ELSE h.status END) \
-         FROM handoffs h JOIN leads l ON l.id = h.lead_id WHERE turf_visible_lead(h.lead_id) ORDER BY h.created_at DESC LIMIT 500",
+         FROM handoffs h JOIN leads l ON l.id = h.lead_id WHERE callerwhale_visible_lead(h.lead_id) ORDER BY h.created_at DESC LIMIT 500",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -246,7 +246,7 @@ async fn conversations(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Jso
     let rows: Vec<Value> = sqlx::query_scalar(
         "SELECT to_jsonb(c) || jsonb_build_object('lead_name', l.name, 'preview', (SELECT left(m.body, 140) FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1)) \
          FROM conversations c LEFT JOIN leads l ON l.id = c.lead_id \
-         WHERE (c.lead_id IS NULL OR turf_visible_lead(c.lead_id)) AND (NOT turf_external() OR c.shared_external) ORDER BY c.updated_at DESC LIMIT 500",
+         WHERE (c.lead_id IS NULL OR callerwhale_visible_lead(c.lead_id)) AND (NOT callerwhale_external() OR c.shared_external) ORDER BY c.updated_at DESC LIMIT 500",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -257,7 +257,7 @@ async fn conversation(State(state): State<AppState>, ctx: Ctx, Path(id): Path<Uu
     let scope = ctx.scope()?;
     let mut tx = db::begin(&state.db, &scope).await?;
     let conversation: Value = sqlx::query_scalar(
-        "SELECT to_jsonb(c) FROM conversations c WHERE c.id = $1 AND (c.lead_id IS NULL OR turf_visible_lead(c.lead_id)) AND (NOT turf_external() OR c.shared_external)",
+        "SELECT to_jsonb(c) FROM conversations c WHERE c.id = $1 AND (c.lead_id IS NULL OR callerwhale_visible_lead(c.lead_id)) AND (NOT callerwhale_external() OR c.shared_external)",
     )
     .bind(id)
     .fetch_optional(&mut *tx)
@@ -271,7 +271,7 @@ async fn notifications(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Jso
     let scope = ctx.scope()?;
     let mut tx = db::begin(&state.db, &scope).await?;
     let rows: Vec<Value> = sqlx::query_scalar(
-        "SELECT to_jsonb(n) FROM notifications n WHERE n.user_id = $1 AND (n.entity <> 'lead' OR n.entity_id IS NULL OR turf_visible_lead(n.entity_id)) ORDER BY n.created_at DESC LIMIT 200",
+        "SELECT to_jsonb(n) FROM notifications n WHERE n.user_id = $1 AND (n.entity <> 'lead' OR n.entity_id IS NULL OR callerwhale_visible_lead(n.entity_id)) ORDER BY n.created_at DESC LIMIT 200",
     )
     .bind(ctx.user_id)
     .fetch_all(&mut *tx)
@@ -292,18 +292,18 @@ async fn dashboard(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Va
     let me = ctx.user_id;
     let summary: Value = sqlx::query_scalar(
         "SELECT jsonb_build_object( \
-           'my_leads', (SELECT count(*) FROM leads l WHERE l.assignee_id = $1 AND turf_visible_lead(l.id) AND l.stage <> 'Closed'), \
-           'visible_leads', (SELECT count(*) FROM leads l WHERE turf_visible_lead(l.id)), \
-           'unassigned', (SELECT count(*) FROM leads l WHERE l.assignee_id IS NULL AND turf_visible_lead(l.id)), \
+           'my_leads', (SELECT count(*) FROM leads l WHERE l.assignee_id = $1 AND callerwhale_visible_lead(l.id) AND l.stage <> 'Closed'), \
+           'visible_leads', (SELECT count(*) FROM leads l WHERE callerwhale_visible_lead(l.id)), \
+           'unassigned', (SELECT count(*) FROM leads l WHERE l.assignee_id IS NULL AND callerwhale_visible_lead(l.id)), \
            'due_callbacks', (SELECT count(*) FROM tasks t WHERE t.assignee_id = $1 AND t.type = 'Callback' AND t.done_at IS NULL AND t.due_at < date_trunc('day', now()) + interval '1 day'), \
-           'overdue_tasks', (SELECT count(*) FROM tasks t WHERE t.done_at IS NULL AND t.due_at < now() AND (t.lead_id IS NULL OR turf_visible_lead(t.lead_id)) AND (t.assignee_id = $1 OR $2)), \
-           'pending_handoffs', (SELECT count(*) FROM handoffs h WHERE h.status = 'Requested' AND turf_visible_lead(h.lead_id)), \
+           'overdue_tasks', (SELECT count(*) FROM tasks t WHERE t.done_at IS NULL AND t.due_at < now() AND (t.lead_id IS NULL OR callerwhale_visible_lead(t.lead_id)) AND (t.assignee_id = $1 OR $2)), \
+           'pending_handoffs', (SELECT count(*) FROM handoffs h WHERE h.status = 'Requested' AND callerwhale_visible_lead(h.lead_id)), \
            'handoffs_for_me', (SELECT count(*) FROM handoffs h WHERE h.status = 'Requested' AND h.to_user = $1), \
            'calls_today', (SELECT count(*) FROM call_events c WHERE c.agent_id = $1 AND c.occurred_at >= date_trunc('day', now())), \
            'my_outcomes', (SELECT coalesce(jsonb_object_agg(outcome, n), '{}') FROM (SELECT outcome, count(*) n FROM call_events c WHERE c.agent_id = $1 AND c.occurred_at >= now() - interval '7 days' GROUP BY outcome) o), \
-           'stages', (SELECT coalesce(jsonb_object_agg(stage, n), '{}') FROM (SELECT stage, count(*) n FROM leads l WHERE turf_visible_lead(l.id) GROUP BY stage) s), \
+           'stages', (SELECT coalesce(jsonb_object_agg(stage, n), '{}') FROM (SELECT stage, count(*) n FROM leads l WHERE callerwhale_visible_lead(l.id) GROUP BY stage) s), \
            'workload', CASE WHEN $2 THEN (SELECT coalesce(jsonb_agg(jsonb_build_object('user_id', w.assignee_id, 'open', w.n)), '[]') FROM \
-              (SELECT assignee_id, count(*) n FROM leads l WHERE turf_visible_lead(l.id) AND l.assignee_id IS NOT NULL AND l.stage <> 'Closed' GROUP BY assignee_id) w) ELSE '[]'::jsonb END, \
+              (SELECT assignee_id, count(*) n FROM leads l WHERE callerwhale_visible_lead(l.id) AND l.assignee_id IS NOT NULL AND l.stage <> 'Closed' GROUP BY assignee_id) w) ELSE '[]'::jsonb END, \
            'unreviewed_imports', (SELECT count(*) FROM datasets d WHERE d.status = 'Imported'), \
            'failed_jobs', (SELECT count(*) FROM jobs j WHERE j.status = 'failed' AND j.created_at > now() - interval '7 days'), \
            'appointments', (SELECT count(*) FROM tasks t WHERE t.type = 'Appointment' AND t.done_at IS NULL AND t.assignee_id = $1))",
@@ -316,8 +316,8 @@ async fn dashboard(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Va
     if scope.access.can("finance") {
         let money: Value = sqlx::query_scalar(
             "SELECT jsonb_build_object('pipeline', (SELECT coalesce(jsonb_object_agg(stage, jsonb_build_object('count', n, 'amount', a)), '{}') FROM \
-               (SELECT d.stage, count(*) n, coalesce(sum(d.amount), 0) a FROM deals d WHERE turf_visible_lead(d.lead_id) GROUP BY d.stage) p), \
-             'recorded_revenue', (SELECT coalesce(sum(d.fee), 0) FROM deals d WHERE d.stage = 'Closed won' AND turf_visible_lead(d.lead_id)))",
+               (SELECT d.stage, count(*) n, coalesce(sum(d.amount), 0) a FROM deals d WHERE callerwhale_visible_lead(d.lead_id) GROUP BY d.stage) p), \
+             'recorded_revenue', (SELECT coalesce(sum(d.fee), 0) FROM deals d WHERE d.stage = 'Closed won' AND callerwhale_visible_lead(d.lead_id)))",
         )
         .fetch_one(&mut *tx)
         .await?;
@@ -343,14 +343,14 @@ async fn search(State(state): State<AppState>, ctx: Ctx, Query(query): Query<Sea
     let mut tx = db::begin(&state.db, &scope).await?;
     let leads: Vec<Value> = sqlx::query_scalar(
         "SELECT jsonb_build_object('id', l.id, 'name', l.name, 'stage', l.stage, 'address', p.address) FROM leads l LEFT JOIN properties p ON p.id = l.property_id \
-         WHERE turf_visible_lead(l.id) AND (l.name ILIKE '%' || $1 || '%' OR l.phone LIKE '%' || $1 || '%' OR l.email ILIKE '%' || $1 || '%' OR p.address ILIKE '%' || $1 || '%') LIMIT 30",
+         WHERE callerwhale_visible_lead(l.id) AND (l.name ILIKE '%' || $1 || '%' OR l.phone LIKE '%' || $1 || '%' OR l.email ILIKE '%' || $1 || '%' OR p.address ILIKE '%' || $1 || '%') LIMIT 30",
     )
     .bind(q)
     .fetch_all(&mut *tx)
     .await?;
     let tasks: Vec<Value> = sqlx::query_scalar(
         "SELECT jsonb_build_object('id', t.id, 'title', t.title, 'due_at', t.due_at) FROM tasks t \
-         WHERE t.title ILIKE '%' || $1 || '%' AND ((t.lead_id IS NULL AND t.assignee_id = $2) OR turf_visible_lead(t.lead_id)) AND (NOT turf_external() OR t.shared_external) LIMIT 30",
+         WHERE t.title ILIKE '%' || $1 || '%' AND ((t.lead_id IS NULL AND t.assignee_id = $2) OR callerwhale_visible_lead(t.lead_id)) AND (NOT callerwhale_external() OR t.shared_external) LIMIT 30",
     )
     .bind(q)
     .bind(ctx.user_id)

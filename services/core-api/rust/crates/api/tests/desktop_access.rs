@@ -8,9 +8,9 @@ use serde_json::json;
 
 /// The platform owner, set the only way there is: on the server, with the owning database role.
 async fn platform_owner(h: &Harness) -> Client {
-    let owner = h.firebase_client("owner-uid", "owner@turf.example", Some("App Owner"), true, true);
+    let owner = h.client_with_key("owner-uid", "owner@callerwhale.example", Some("App Owner"), true, true);
     owner.get("/api/v1/me").await.ok();
-    sqlx::query("UPDATE users SET platform_role = 'owner' WHERE email = 'owner@turf.example'").execute(&h.owner).await.unwrap();
+    sqlx::query("UPDATE users SET platform_role = 'owner' WHERE email = 'owner@callerwhale.example'").execute(&h.owner).await.unwrap();
     owner
 }
 
@@ -27,7 +27,7 @@ async fn only_invited_people_get_a_dashboard_and_a_workspace() {
     let owner = platform_owner(&h).await;
 
     // Someone who just signed up, with nobody's invitation: an account, and nothing else.
-    let stranger = h.firebase_client("stranger-uid", "stranger@example.com", Some("Stranger"), false, true);
+    let stranger = h.client_with_key("stranger-uid", "stranger@example.com", Some("Stranger"), false, true);
     let account = stranger.get("/api/v1/account").await.ok();
     assert_eq!(account["access"], json!(null));
     assert_eq!(account["can_download"], false);
@@ -51,14 +51,14 @@ async fn only_invited_people_get_a_dashboard_and_a_workspace() {
     assert_eq!(owner.post("/api/v1/platform/invitations", json!({ "email": "x@example.com", "monthly_credits": -1 })).await.status, 400);
 
     // Someone made a password account with Sam's address but never confirmed it: the invitation waits.
-    let squatter = h.firebase_client("sam-unconfirmed", "sam@example.com", Some("Not Sam"), false, false);
+    let squatter = h.client_with_key("sam-unconfirmed", "sam@example.com", Some("Not Sam"), false, false);
     let waiting = squatter.get("/api/v1/account").await.ok();
     assert_eq!(waiting["access"]["status"], "unverified");
     assert_eq!(waiting["can_download"], false);
     assert_eq!(squatter.get("/api/v1/me").await.ok()["organizations"], json!([]));
 
     // Once the address is confirmed (a fresh token says so), the invitation opens Sam's own workspace.
-    let sam = h.firebase_client("sam-unconfirmed", "sam@example.com", Some("Sam Lee"), false, true);
+    let sam = h.client_with_key("sam-unconfirmed", "sam@example.com", Some("Sam Lee"), false, true);
     let account = sam.get("/api/v1/account").await.ok();
     assert_eq!(account["access"]["status"], "active");
     assert_eq!(account["access"]["monthly_credits"], 100);
@@ -72,7 +72,7 @@ async fn only_invited_people_get_a_dashboard_and_a_workspace() {
     sam.get("/api/v1/account").await.ok();
     assert_eq!(sam.get("/api/v1/me").await.ok()["organizations"].as_array().unwrap().len(), 1);
     // The workspace works: Sam can use the CRM in it (this server asks owners for their authenticator code).
-    let sam = h.firebase_client("sam-unconfirmed", "sam@example.com", Some("Sam Lee"), true, true);
+    let sam = h.client_with_key("sam-unconfirmed", "sam@example.com", Some("Sam Lee"), true, true);
     sam.set_org(orgs[0]["id"].as_str().unwrap());
     assert_eq!(sam.get("/api/v1/leads").await.status, 200);
 
@@ -88,7 +88,7 @@ async fn credits_are_spent_once_and_never_beyond_the_limit() {
     let Some(h) = start_closed().await else { return };
     let owner = platform_owner(&h).await;
     let id = invite(&owner, "caller@example.com", 100).await;
-    let person = h.firebase_client("caller-uid", "caller@example.com", Some("Caller"), false, true);
+    let person = h.client_with_key("caller-uid", "caller@example.com", Some("Caller"), false, true);
     person.get("/api/v1/account").await.ok();
 
     let request = uuid::Uuid::new_v4();
@@ -133,7 +133,7 @@ async fn suspending_someone_shuts_them_out_at_once() {
     let id = invite(&owner, "temp@example.com", 10).await;
     // Not accepted yet: it can only be withdrawn.
     assert_eq!(owner.patch(&format!("/api/v1/platform/invitations/{id}"), json!({ "status": "active" })).await.status, 400);
-    let person = h.firebase_client("temp-uid", "temp@example.com", None, false, true);
+    let person = h.client_with_key("temp-uid", "temp@example.com", None, false, true);
     person.get("/api/v1/account").await.ok();
 
     let suspended = owner.patch(&format!("/api/v1/platform/invitations/{id}"), json!({ "status": "suspended" })).await.ok();
@@ -161,7 +161,7 @@ async fn an_invitation_not_yet_accepted_can_be_withdrawn() {
     let id = invite(&owner, "maybe@example.com", 10).await;
     owner.delete(&format!("/api/v1/platform/invitations/{id}")).await.ok();
     // They sign up later: nothing is waiting for them.
-    let person = h.firebase_client("maybe-uid", "maybe@example.com", None, false, true);
+    let person = h.client_with_key("maybe-uid", "maybe@example.com", None, false, true);
     assert_eq!(person.get("/api/v1/account").await.ok()["access"], json!(null));
 }
 
@@ -170,7 +170,7 @@ async fn staff_need_the_authenticator_code() {
     let Some(h) = start_closed().await else { return };
     platform_owner(&h).await;
     // The owner, signed in again without the authenticator step.
-    let owner = h.firebase_client("owner-uid", "owner@turf.example", Some("App Owner"), false, true);
+    let owner = h.client_with_key("owner-uid", "owner@callerwhale.example", Some("App Owner"), false, true);
     let refused = owner.get("/api/v1/platform/invitations").await;
     assert_eq!((refused.status, refused.body["error"]["code"].as_str()), (401, Some("mfa_required")));
     // Their dashboard says they are staff, and that the code is still needed.
@@ -195,7 +195,7 @@ async fn staff_get_a_workspace_of_their_own_the_first_time_they_sign_in() {
     owner.set_org(orgs[0]["id"].as_str().unwrap());
     assert_eq!(owner.get("/api/v1/leads").await.status, 200);
     // Someone who is not staff and not invited still gets nothing.
-    let stranger = h.firebase_client("nobody-uid", "nobody@example.com", None, false, true);
+    let stranger = h.client_with_key("nobody-uid", "nobody@example.com", None, false, true);
     stranger.get("/api/v1/account").await.ok();
     assert_eq!(stranger.get("/api/v1/me").await.ok()["organizations"], json!([]));
 }

@@ -14,7 +14,7 @@ from typing import Callable
 
 from .client import ApiError, Client
 
-log = logging.getLogger("turf_worker")
+log = logging.getLogger("callerwhale_worker")
 
 
 class Cancelled(Exception):

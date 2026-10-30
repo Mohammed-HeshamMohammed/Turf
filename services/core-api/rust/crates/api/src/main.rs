@@ -1,4 +1,4 @@
-use turf_api::{config::Config, serve};
+use callerwhale_api::{config::Config, serve};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -8,7 +8,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
     let config = Config::from_env()?;
     if std::env::args().any(|arg| arg == "migrate") {
-        turf_api::db::migrate(&config).await?;
+        callerwhale_api::db::migrate(&config).await?;
         return Ok(());
     }
     serve(config).await

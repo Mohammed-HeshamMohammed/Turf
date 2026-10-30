@@ -33,17 +33,14 @@ const service = await fetch("/api/v1/auth/service").then(r => r.json(), () => ({
 /** Whether a new account may open its own trial here; otherwise only an invitation opens a workspace. */
 const SIGNUP_OPEN = service.signup === true;
 /** Said wherever a closed server would otherwise offer a trial. */
-/** What a sign-in code can be: Firebase has no recovery codes, the auth service does. */
-const CODE_HELP = service.firebase ? "From your authenticator app." : "From your authenticator app, or one of your recovery codes.";
+/** What a sign-in code can be. */
+const CODE_HELP = "From your authenticator app, or one of your recovery codes.";
 const INVITE_ONLY = "Caller Whale is by invitation only: your workspace owner, or Caller Whale, sends you a link.";
-// A server that uses Firebase hands its web config here; the bundle with Firebase's SDK is loaded only then.
-const auth = service.firebase
-  ? await import("./firebase-auth.js").then(m => m.createFirebaseAuth({ sdk: m.firebaseSdk(service.firebase), providers: service.firebase.providers || [] }))
-  : createAuth({ base: service.url || "http://localhost:8101" });
+const auth = createAuth({ base: service.url || "http://localhost:8101" });
 
-/** The organization this browser works in; Caller Whale's server reads it from x-turf-org. */
-const organization = () => localStorage.getItem("turf.org") || "";
-const setOrganization = id => (id ? localStorage.setItem("turf.org", id) : localStorage.removeItem("turf.org"));
+/** The organization this browser works in; Caller Whale's server reads it from x-callerwhale-org. */
+const organization = () => localStorage.getItem("callerwhale.org") || "";
+const setOrganization = id => (id ? localStorage.setItem("callerwhale.org", id) : localStorage.removeItem("callerwhale.org"));
 
 async function api(path, body, retried = false, method = body === undefined ? "GET" : "POST") {
   const token = await auth.accessToken().catch(() => null);
@@ -53,7 +50,7 @@ async function api(path, body, retried = false, method = body === undefined ? "G
     headers: {
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: "Bearer " + token } : {}),
-      ...(token && org ? { "x-turf-org": org } : {}),
+      ...(token && org ? { "x-callerwhale-org": org } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -140,7 +137,7 @@ async function signOut() {
 }
 
 /** An invitation waiting for the person to sign up or sign in (including with Google, which leaves the page). */
-const PENDING_JOIN = "turf.join";
+const PENDING_JOIN = "callerwhale.join";
 
 /** After signing in: join a waiting invitation, or open the person's trial if they have no workspace yet. */
 async function afterSignIn({ newAccount = false, organizationName = "" } = {}) {
@@ -300,7 +297,7 @@ function signup() {
         "Create account",
         async values => {
           const answer = await auth.signUp(values.display_name, values.email, values.password);
-          sessionStorage.setItem("turf.verify", answer.verification_token || "");
+          sessionStorage.setItem("callerwhale.verify", answer.verification_token || "");
           await afterSignIn({ newAccount: true, organizationName: values.organization });
         },
       ),
@@ -377,7 +374,7 @@ async function mfa() {
       h("p", { class: "muted" }, "Or open this link on your phone: ", h("a", { href: setup.otpauth_url }, "add to authenticator")),
       form([input("6-digit code", "code", { inputmode: "numeric", autocomplete: "one-time-code", maxlength: 8 })], "Confirm", async values => {
         const { recovery_codes } = await auth.confirmMfa(values.code.trim());
-        // Firebase gives no recovery codes: staff reset a lost authenticator.
+        // An account whose authenticator lives in Firebase has no recovery codes: staff reset a lost one.
         if (!recovery_codes?.length) return (location.hash = "#/account");
         show(
           h(
@@ -397,7 +394,7 @@ async function mfa() {
 async function verifyEmail(token) {
   try {
     await auth.verifyEmail(token);
-    sessionStorage.removeItem("turf.verify");
+    sessionStorage.removeItem("callerwhale.verify");
     // The next token says the email is confirmed, and Caller Whale's server records it.
     if (auth.signedIn()) await auth.refresh().catch(() => null);
     show(h("section", { class: "card narrow" }, h("h2", {}, "Email confirmed"), h("a", { class: "button primary", href: "#/account" }, "Go to your account")));
@@ -436,7 +433,7 @@ async function joinTeam(token) {
         "Create account and join",
         async values => {
           const answer = await auth.signUp(values.display_name, values.email, values.password);
-          sessionStorage.setItem("turf.verify", answer.verification_token || "");
+          sessionStorage.setItem("callerwhale.verify", answer.verification_token || "");
           await afterSignIn();
         },
       ),
@@ -484,7 +481,7 @@ async function account() {
   const sections = [h("h1", {}, org?.name || "Your account"), h("p", { class: "muted named" }, signInMark(me.user.sign_in), me.user.name + " · " + me.user.email)];
 
   if (admin && !billing.email_verified) {
-    const devToken = sessionStorage.getItem("turf.verify");
+    const devToken = sessionStorage.getItem("callerwhale.verify");
     sections.push(
       h(
         "div",
@@ -498,7 +495,7 @@ async function account() {
                 class: "button",
                 onclick: async event => {
                   const answer = await auth.resendEmail().catch(reason => ({ error: reason.message }));
-                  if (answer.verification_token) sessionStorage.setItem("turf.verify", answer.verification_token);
+                  if (answer.verification_token) sessionStorage.setItem("callerwhale.verify", answer.verification_token);
                   event.target.replaceWith(answer.error || "Email sent.");
                   if (answer.verification_token) account();
                 },

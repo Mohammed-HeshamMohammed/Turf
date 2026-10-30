@@ -45,13 +45,13 @@ pub struct ReportQuery {
     team: Option<Uuid>,
 }
 
-/// The SQL for each report. Every one is scoped by turf_visible_lead().
+/// The SQL for each report. Every one is scoped by callerwhale_visible_lead().
 fn report_sql(kind: &str) -> Option<&'static str> {
     Some(match kind {
         // Contact rate and outcomes per agent.
         "outcomes" => "SELECT coalesce(c.agent_label, '') AS agent, c.outcome, count(*) AS calls, \
             round(100.0 * count(*) FILTER (WHERE c.meaning = 'reached') / nullif(count(*), 0), 1) AS reached_pct \
-            FROM call_events c JOIN leads l ON l.id = c.lead_id WHERE turf_visible_lead(c.lead_id) AND c.occurred_at >= $1 AND c.occurred_at < $2 \
+            FROM call_events c JOIN leads l ON l.id = c.lead_id WHERE callerwhale_visible_lead(c.lead_id) AND c.occurred_at >= $1 AND c.occurred_at < $2 \
             AND ($3::uuid IS NULL OR l.team_id = $3) GROUP BY 1, 2 ORDER BY 1, 3 DESC",
         // Source performance: how each list converts.
         "sources" => "SELECT coalesce(d.name, l.source) AS source, count(DISTINCT l.id) AS leads, \
@@ -59,27 +59,27 @@ fn report_sql(kind: &str) -> Option<&'static str> {
             count(DISTINCT l.id) FILTER (WHERE l.stage IN ('Qualified', 'Closed')) AS qualified, \
             count(DISTINCT dl.id) FILTER (WHERE dl.stage = 'Closed won') AS won \
             FROM leads l LEFT JOIN lead_sources s ON s.lead_id = l.id LEFT JOIN datasets d ON d.id = s.dataset_id LEFT JOIN deals dl ON dl.lead_id = l.id \
-            WHERE turf_visible_lead(l.id) AND l.created_at < $2 AND ($3::uuid IS NULL OR l.team_id = $3) AND $1 IS NOT NULL GROUP BY 1 ORDER BY 2 DESC",
+            WHERE callerwhale_visible_lead(l.id) AND l.created_at < $2 AND ($3::uuid IS NULL OR l.team_id = $3) AND $1 IS NOT NULL GROUP BY 1 ORDER BY 2 DESC",
         // Qualification and accepted handoffs.
         "handoffs" => "SELECT h.status, count(*) AS handoffs, round(avg(extract(epoch FROM h.decided_at - h.created_at) / 3600)::numeric, 1) AS hours_to_decide \
-            FROM handoffs h JOIN leads l ON l.id = h.lead_id WHERE turf_visible_lead(h.lead_id) AND h.created_at >= $1 AND h.created_at < $2 \
+            FROM handoffs h JOIN leads l ON l.id = h.lead_id WHERE callerwhale_visible_lead(h.lead_id) AND h.created_at >= $1 AND h.created_at < $2 \
             AND ($3::uuid IS NULL OR l.team_id = $3) GROUP BY 1 ORDER BY 2 DESC",
         // Missed follow-ups: callbacks and tasks past due and still open.
         "missed" => "SELECT coalesce(u.display_name, 'Unassigned') AS person, t.type, count(*) AS missed \
             FROM tasks t LEFT JOIN users u ON u.id = t.assignee_id LEFT JOIN leads l ON l.id = t.lead_id \
-            WHERE t.done_at IS NULL AND t.due_at < now() AND t.due_at >= $1 AND t.due_at < $2 AND (t.lead_id IS NULL OR turf_visible_lead(t.lead_id)) \
+            WHERE t.done_at IS NULL AND t.due_at < now() AND t.due_at >= $1 AND t.due_at < $2 AND (t.lead_id IS NULL OR callerwhale_visible_lead(t.lead_id)) \
             AND ($3::uuid IS NULL OR l.team_id = $3) GROUP BY 1, 2 ORDER BY 3 DESC",
         // Stage aging for leads.
         "aging" => "SELECT l.stage, count(*) AS leads, round(avg(extract(epoch FROM now() - l.updated_at) / 86400)::numeric, 1) AS avg_days_since_change \
-            FROM leads l WHERE turf_visible_lead(l.id) AND l.created_at < $2 AND $1 IS NOT NULL AND ($3::uuid IS NULL OR l.team_id = $3) GROUP BY 1 ORDER BY 2 DESC",
+            FROM leads l WHERE callerwhale_visible_lead(l.id) AND l.created_at < $2 AND $1 IS NOT NULL AND ($3::uuid IS NULL OR l.team_id = $3) GROUP BY 1 ORDER BY 2 DESC",
         // Workload per person.
         "workload" => "SELECT coalesce(u.display_name, 'Unassigned') AS person, count(*) FILTER (WHERE l.stage <> 'Closed') AS open_leads, \
             (SELECT count(*) FROM tasks t WHERE t.assignee_id = l.assignee_id AND t.done_at IS NULL) AS open_tasks \
-            FROM leads l LEFT JOIN users u ON u.id = l.assignee_id WHERE turf_visible_lead(l.id) AND $1 IS NOT NULL AND $2 IS NOT NULL \
+            FROM leads l LEFT JOIN users u ON u.id = l.assignee_id WHERE callerwhale_visible_lead(l.id) AND $1 IS NOT NULL AND $2 IS NOT NULL \
             AND ($3::uuid IS NULL OR l.team_id = $3) GROUP BY u.display_name, l.assignee_id ORDER BY 2 DESC",
         // Deal outcomes and recorded revenue: needs the finance permission.
         "revenue" => "SELECT d.stage, count(*) AS deals, coalesce(sum(d.amount), 0) AS amount, coalesce(sum(d.fee), 0) AS recorded_revenue, d.currency \
-            FROM deals d JOIN leads l ON l.id = d.lead_id WHERE turf_visible_lead(d.lead_id) AND d.created_at >= $1 AND d.created_at < $2 \
+            FROM deals d JOIN leads l ON l.id = d.lead_id WHERE callerwhale_visible_lead(d.lead_id) AND d.created_at >= $1 AND d.created_at < $2 \
             AND ($3::uuid IS NULL OR l.team_id = $3) GROUP BY d.stage, d.currency ORDER BY 2 DESC",
         _ => return None,
     })
@@ -135,7 +135,7 @@ async fn export_leads(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Resp
         "SELECT jsonb_build_object('name', l.name, 'phone', CASE WHEN l.do_not_call THEN '' ELSE l.phone END, 'email', l.email, 'stage', l.stage, \
            'verdict', l.verdict, 'do_not_call', l.do_not_call, 'address', p.address, 'city', p.city, 'region', p.region, 'postal_code', p.postal_code, \
            'assignee', u.display_name, 'next_action_at', l.next_action_at) \
-         FROM leads l LEFT JOIN properties p ON p.id = l.property_id LEFT JOIN users u ON u.id = l.assignee_id WHERE turf_visible_lead(l.id) ORDER BY l.name",
+         FROM leads l LEFT JOIN properties p ON p.id = l.property_id LEFT JOIN users u ON u.id = l.assignee_id WHERE callerwhale_visible_lead(l.id) ORDER BY l.name",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -191,7 +191,7 @@ async fn save_report(State(state): State<AppState>, ctx: Ctx, Json(body): Json<S
     }
     let mut tx = db::begin(&state.db, &scope).await?;
     let row: Value = sqlx::query_scalar(
-        "INSERT INTO saved_reports (org_id, owner_id, name, kind, filters, schedule, format) VALUES (turf_org(), $1, $2, $3, $4, $5, $6) RETURNING to_jsonb(saved_reports.*)",
+        "INSERT INTO saved_reports (org_id, owner_id, name, kind, filters, schedule, format) VALUES (callerwhale_org(), $1, $2, $3, $4, $5, $6) RETURNING to_jsonb(saved_reports.*)",
     )
     .bind(ctx.user_id)
     .bind(body.name.trim())
@@ -300,7 +300,7 @@ async fn create_rule(State(state): State<AppState>, ctx: Ctx, Json(body): Json<R
     validate_rule(&body)?;
     let mut tx = db::begin(&state.db, &scope).await?;
     let rule: Value = sqlx::query_scalar(
-        "INSERT INTO rules (org_id, name, trigger, conditions, actions, enabled, created_by) VALUES (turf_org(), $1, $2, $3, $4, $5, $6) RETURNING to_jsonb(rules.*)",
+        "INSERT INTO rules (org_id, name, trigger, conditions, actions, enabled, created_by) VALUES (callerwhale_org(), $1, $2, $3, $4, $5, $6) RETURNING to_jsonb(rules.*)",
     )
     .bind(body.name.trim())
     .bind(&body.trigger)
@@ -365,7 +365,7 @@ async fn dry_run(State(state): State<AppState>, ctx: Ctx, Path(id): Path<Uuid>, 
     let scope = ctx.require("rules")?;
     let mut tx = db::begin(&state.db, &scope).await?;
     let rule: Value = sqlx::query_scalar("SELECT to_jsonb(r) FROM rules r WHERE id = $1").bind(id).fetch_optional(&mut *tx).await?.ok_or_else(|| ApiError::not_found("The rule"))?;
-    let lead: Value = sqlx::query_scalar("SELECT to_jsonb(l) FROM leads l WHERE l.id = $1 AND turf_visible_lead(l.id)")
+    let lead: Value = sqlx::query_scalar("SELECT to_jsonb(l) FROM leads l WHERE l.id = $1 AND callerwhale_visible_lead(l.id)")
         .bind(body.lead_id)
         .fetch_optional(&mut *tx)
         .await?
@@ -397,7 +397,7 @@ async fn enqueue(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Enque
     let (_, queue, capability) = JOB_KINDS.iter().find(|(k, _, _)| *k == body.kind).ok_or_else(|| ApiError::bad(format!("{} is not a job", body.kind)))?;
     let scope = ctx.require(capability)?;
     let mut tx = db::begin(&state.db, &scope).await?;
-    let job: Value = sqlx::query_scalar("INSERT INTO jobs (org_id, kind, queue, input, created_by) VALUES (turf_org(), $1, $2, $3, $4) RETURNING to_jsonb(jobs.*)")
+    let job: Value = sqlx::query_scalar("INSERT INTO jobs (org_id, kind, queue, input, created_by) VALUES (callerwhale_org(), $1, $2, $3, $4) RETURNING to_jsonb(jobs.*)")
         .bind(&body.kind)
         .bind(queue)
         .bind(&body.input)

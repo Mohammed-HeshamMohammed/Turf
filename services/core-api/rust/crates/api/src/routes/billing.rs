@@ -125,14 +125,14 @@ impl Standing {
 /// cannot both take the last minute or seat.
 pub async fn standing(tx: &mut db::Tx, lock: bool) -> ApiResult<Option<Standing>> {
     let row: Option<(String, String, i32, i32, chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>)> = sqlx::query_as(&format!(
-        "SELECT plan_key, status, seats, minutes_included, period_start, period_end FROM subscriptions WHERE org_id = turf_org(){}",
+        "SELECT plan_key, status, seats, minutes_included, period_start, period_end FROM subscriptions WHERE org_id = callerwhale_org(){}",
         if lock { " FOR UPDATE" } else { "" }
     ))
     .fetch_optional(&mut **tx)
     .await?;
     let Some((plan_key, status, seats, minutes_included, period_start, period_end)) = row else { return Ok(None) };
     let plan = plan(&mut **tx, &plan_key).await?;
-    let minutes_used: i64 = sqlx::query_scalar("SELECT coalesce(sum(billed_minutes), 0)::bigint FROM usage_events WHERE org_id = turf_org() AND period_start = $1")
+    let minutes_used: i64 = sqlx::query_scalar("SELECT coalesce(sum(billed_minutes), 0)::bigint FROM usage_events WHERE org_id = callerwhale_org() AND period_start = $1")
         .bind(period_start)
         .fetch_one(&mut **tx)
         .await?;
@@ -142,8 +142,8 @@ pub async fn standing(tx: &mut db::Tx, lock: bool) -> ApiResult<Option<Standing>
 /// Members plus invitations still open: every one of them holds a seat.
 pub async fn seats_taken(tx: &mut db::Tx) -> ApiResult<i64> {
     Ok(sqlx::query_scalar(
-        "SELECT (SELECT count(*) FROM memberships WHERE org_id = turf_org()) \
-              + (SELECT count(*) FROM invitations WHERE org_id = turf_org() AND accepted_at IS NULL AND expires_at > now())",
+        "SELECT (SELECT count(*) FROM memberships WHERE org_id = callerwhale_org()) \
+              + (SELECT count(*) FROM invitations WHERE org_id = callerwhale_org() AND accepted_at IS NULL AND expires_at > now())",
     )
     .fetch_one(&mut **tx)
     .await?)
@@ -165,7 +165,7 @@ pub async fn check_invite(tx: &mut db::Tx) -> ApiResult<()> {
 /// Refuses joining an organization that is already full (an invitation can outlive a reduction in seats).
 pub async fn check_join(tx: &mut db::Tx) -> ApiResult<()> {
     let Some(standing) = standing(tx, true).await? else { return Ok(()) };
-    let members: i64 = sqlx::query_scalar("SELECT count(*) FROM memberships WHERE org_id = turf_org()").fetch_one(&mut **tx).await?;
+    let members: i64 = sqlx::query_scalar("SELECT count(*) FROM memberships WHERE org_id = callerwhale_org()").fetch_one(&mut **tx).await?;
     if members >= standing.seats as i64 {
         return Err(ApiError::PaymentRequired("This organization has no free seat. Ask its owner to add one.".into()));
     }
@@ -255,7 +255,7 @@ pub async fn start_trial(State(state): State<AppState>, ctx: Ctx, Json(body): Js
 async fn account(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
     let scope = ctx.member_scope()?;
     let mut tx = db::begin(&state.db, &scope).await?;
-    let kind: String = sqlx::query_scalar("SELECT account_kind FROM organizations WHERE id = turf_org()").fetch_one(&mut *tx).await?;
+    let kind: String = sqlx::query_scalar("SELECT account_kind FROM organizations WHERE id = callerwhale_org()").fetch_one(&mut *tx).await?;
     let verified: bool = sqlx::query_scalar("SELECT email_verified_at IS NOT NULL FROM users WHERE id = $1").bind(ctx.user_id).fetch_one(&mut *tx).await?;
     let taken = seats_taken(&mut tx).await?;
     let Some(standing) = standing(&mut tx, false).await? else {
@@ -265,7 +265,7 @@ async fn account(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Valu
     let payments: Vec<Value> = if ctx.access.can("admin") {
         sqlx::query_scalar(
             "SELECT json_build_object('id', id, 'plan', plan_key, 'seats', seats, 'amount_cents', amount_cents, 'currency', currency, \
-               'status', status, 'created_at', created_at, 'paid_at', paid_at)::jsonb FROM payments WHERE org_id = turf_org() ORDER BY created_at DESC LIMIT 24",
+               'status', status, 'created_at', created_at, 'paid_at', paid_at)::jsonb FROM payments WHERE org_id = callerwhale_org() ORDER BY created_at DESC LIMIT 24",
         )
         .fetch_all(&mut *tx)
         .await?
@@ -324,13 +324,13 @@ async fn checkout(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Chec
     if body.seats < chosen.min_seats || body.seats > chosen.max_seats {
         return Err(ApiError::bad(format!("{} takes {} to {} seats", chosen.name, chosen.min_seats, chosen.max_seats)));
     }
-    let members: i64 = sqlx::query_scalar("SELECT count(*) FROM memberships WHERE org_id = turf_org()").fetch_one(&mut *tx).await?;
+    let members: i64 = sqlx::query_scalar("SELECT count(*) FROM memberships WHERE org_id = callerwhale_org()").fetch_one(&mut *tx).await?;
     if (body.seats as i64) < members {
         return Err(ApiError::bad(format!("Your organization has {members} members; choose at least that many seats or remove someone first")));
     }
     let amount = chosen.amount_cents(body.seats);
     let payment: Uuid = sqlx::query_scalar(
-        "INSERT INTO payments (org_id, plan_key, seats, amount_cents, provider, created_by) VALUES (turf_org(), $1, $2, $3, 'checkout', $4) RETURNING id",
+        "INSERT INTO payments (org_id, plan_key, seats, amount_cents, provider, created_by) VALUES (callerwhale_org(), $1, $2, $3, 'checkout', $4) RETURNING id",
     )
     .bind(&chosen.key)
     .bind(body.seats)
@@ -364,7 +364,7 @@ struct ProviderEvent {
     customer_id: Option<String>,
 }
 
-/// `X-Caller Whale-Signature: sha256=<hex HMAC-SHA256 of the raw body>`, compared in constant time.
+/// `X-CallerWhale-Signature: sha256=<hex HMAC-SHA256 of the raw body>`, compared in constant time.
 pub fn signature_valid(secret: &str, body: &[u8], header: Option<&str>) -> bool {
     let Some(hex_sig) = header.and_then(|value| value.trim().strip_prefix("sha256=")) else { return false };
     let Ok(given) = hex::decode(hex_sig) else { return false };
@@ -378,11 +378,11 @@ async fn webhook(State(state): State<AppState>, headers: HeaderMap, body: Bytes)
     if secret.len() < 24 {
         return Err(ApiError::NotFound("Payments are not configured on this server".into()));
     }
-    if !signature_valid(secret, &body, headers.get("x-turf-signature").and_then(|v| v.to_str().ok())) {
+    if !signature_valid(secret, &body, headers.get("x-callerwhale-signature").and_then(|v| v.to_str().ok())) {
         return Err(ApiError::forbidden("The signature does not match"));
     }
     let event: ProviderEvent = serde_json::from_slice(&body).map_err(|_| ApiError::bad("The event is not in the expected form"))?;
-    let org: Option<Uuid> = sqlx::query_scalar("SELECT turf_payment_org($1)").bind(event.payment_id).fetch_one(&state.db).await?;
+    let org: Option<Uuid> = sqlx::query_scalar("SELECT callerwhale_payment_org($1)").bind(event.payment_id).fetch_one(&state.db).await?;
     let org = org.ok_or_else(|| ApiError::not_found("The payment"))?;
     let mut tx = db::begin(&state.db, &Scope::system(org)).await?;
     // A provider retries; each event acts once.
@@ -416,7 +416,7 @@ async fn webhook(State(state): State<AppState>, headers: HeaderMap, body: Bytes)
             // A new period starts with the plan's full minutes.
             sqlx::query(
                 "INSERT INTO subscriptions (org_id, plan_key, status, seats, minutes_included, period_start, period_end, provider, provider_customer_id) \
-                 VALUES (turf_org(), $1, 'active', $2, $3, now(), now() + make_interval(days => $4), 'checkout', $5) \
+                 VALUES (callerwhale_org(), $1, 'active', $2, $3, now(), now() + make_interval(days => $4), 'checkout', $5) \
                  ON CONFLICT (org_id) DO UPDATE SET plan_key = EXCLUDED.plan_key, status = 'active', seats = EXCLUDED.seats, \
                    minutes_included = EXCLUDED.minutes_included, period_start = EXCLUDED.period_start, period_end = EXCLUDED.period_end, \
                    provider = EXCLUDED.provider, provider_customer_id = coalesce(EXCLUDED.provider_customer_id, subscriptions.provider_customer_id), \
@@ -429,7 +429,7 @@ async fn webhook(State(state): State<AppState>, headers: HeaderMap, body: Bytes)
             .bind(&event.customer_id)
             .execute(&mut *tx)
             .await?;
-            sqlx::query("UPDATE organizations SET account_kind = $1 WHERE id = turf_org()").bind(&chosen.key).execute(&mut *tx).await?;
+            sqlx::query("UPDATE organizations SET account_kind = $1 WHERE id = callerwhale_org()").bind(&chosen.key).execute(&mut *tx).await?;
             "paid"
         }
         "payment.failed" => {
@@ -460,7 +460,7 @@ async fn start_call(State(state): State<AppState>, ctx: Ctx, Json(body): Json<St
     let scope = ctx.require("call")?;
     let mut tx = db::begin(&state.db, &scope).await?;
     if let Some(lead) = body.lead_id {
-        let visible: bool = sqlx::query_scalar("SELECT turf_visible_lead($1)").bind(lead).fetch_one(&mut *tx).await?;
+        let visible: bool = sqlx::query_scalar("SELECT callerwhale_visible_lead($1)").bind(lead).fetch_one(&mut *tx).await?;
         if !visible {
             return Err(ApiError::not_found("The lead"));
         }
@@ -482,7 +482,7 @@ async fn start_call(State(state): State<AppState>, ctx: Ctx, Json(body): Json<St
     };
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO call_sessions (org_id, lead_id, agent_id, direction, provider, status, max_seconds) \
-         VALUES (turf_org(), $1, $2, 'outbound', 'turf', 'in_progress', $3) RETURNING id",
+         VALUES (callerwhale_org(), $1, $2, 'outbound', 'callerwhale', 'in_progress', $3) RETURNING id",
     )
     .bind(body.lead_id)
     .bind(ctx.user_id)
@@ -516,7 +516,7 @@ async fn end_call(State(state): State<AppState>, ctx: Ctx, Path(id): Path<Uuid>)
     let billed = (seconds + 59) / 60;
     sqlx::query("UPDATE call_sessions SET ended_at = now(), seconds = $2, status = 'completed' WHERE id = $1").bind(id).bind(seconds).execute(&mut *tx).await?;
     if let Some(standing) = standing(&mut tx, true).await? {
-        sqlx::query("INSERT INTO usage_events (org_id, user_id, call_session_id, seconds, billed_minutes, period_start) VALUES (turf_org(), $1, $2, $3, $4, $5)")
+        sqlx::query("INSERT INTO usage_events (org_id, user_id, call_session_id, seconds, billed_minutes, period_start) VALUES (callerwhale_org(), $1, $2, $3, $4, $5)")
             .bind(ctx.user_id)
             .bind(id)
             .bind(seconds)

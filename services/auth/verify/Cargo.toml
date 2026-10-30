@@ -1,5 +1,5 @@
 [package]
-name = "turf-auth-verify"
+name = "callerwhale-auth-verify"
 version = "0.1.0"
 edition = "2021"
 description = "Checks a Caller Whale access token against the auth service's public keys. Every Rust service uses this; none of them call auth to do it."

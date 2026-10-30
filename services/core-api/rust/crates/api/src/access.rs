@@ -59,7 +59,7 @@ impl Access {
         self.scopes.contains("organization")
     }
 
-    /// The scope list as the comma-separated value turf_visible() reads.
+    /// The scope list as the comma-separated value callerwhale_visible() reads.
     pub fn scope_setting(&self) -> String {
         self.scopes.iter().cloned().collect::<Vec<_>>().join(",")
     }

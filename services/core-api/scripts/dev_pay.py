@@ -41,7 +41,7 @@ event = {"event_id": "dev-" + uuid.uuid4().hex, "type": "payment.failed" if fail
 body = json.dumps(event).encode()
 signature = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
 request = urllib.request.Request(base + "/api/v1/billing/webhook", data=body, method="POST",
-                                 headers={"Content-Type": "application/json", "X-Caller Whale-Signature": signature})
+                                 headers={"Content-Type": "application/json", "X-CallerWhale-Signature": signature})
 try:
     with urllib.request.urlopen(request) as response:
         print(response.read().decode())

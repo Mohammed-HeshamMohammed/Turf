@@ -39,7 +39,7 @@ async fn webhook(h: &Harness, event: Value) -> Reply {
     let response = reqwest::Client::new()
         .post(format!("{}/api/v1/billing/webhook", h.base))
         .header("content-type", "application/json")
-        .header("x-turf-signature", signature)
+        .header("x-callerwhale-signature", signature)
         .body(body)
         .send()
         .await
@@ -229,7 +229,7 @@ async fn webhooks_must_be_signed_matching_and_count_once() {
     assert_eq!(unsigned.status().as_u16(), 403);
     let forged = reqwest::Client::new()
         .post(format!("{}/api/v1/billing/webhook", h.base))
-        .header("x-turf-signature", "sha256=00ff")
+        .header("x-callerwhale-signature", "sha256=00ff")
         .json(&event)
         .send()
         .await

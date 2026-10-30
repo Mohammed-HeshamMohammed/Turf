@@ -6,9 +6,9 @@
 ALTER TABLE memberships ADD COLUMN expires_at timestamptz;
 ALTER TABLE invitations ADD COLUMN access_days int CHECK (access_days BETWEEN 1 AND 3650);
 
--- Every payment across workspaces, for Turf's staff only. It reads across organizations, so it runs as the owner and
+-- Every payment across workspaces, for Caller Whale's staff only. It reads across organizations, so it runs as the owner and
 -- checks the caller itself (an error, not an empty list, for anyone else).
-CREATE FUNCTION turf_platform_payments(p_user uuid)
+CREATE FUNCTION callerwhale_platform_payments(p_user uuid)
 RETURNS TABLE (
   id uuid, org_id uuid, org_name text, plan_key text, seats int, amount_cents int, currency text, status text,
   provider text, created_at timestamptz, paid_at timestamptz, payer_email text
@@ -22,5 +22,5 @@ BEGIN
   FROM payments p JOIN organizations o ON o.id = p.org_id LEFT JOIN users u ON u.id = p.created_by
   ORDER BY p.created_at DESC LIMIT 500;
 END $$;
-REVOKE ALL ON FUNCTION turf_platform_payments(uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION turf_platform_payments(uuid) TO turf_app;
+REVOKE ALL ON FUNCTION callerwhale_platform_payments(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION callerwhale_platform_payments(uuid) TO callerwhale_app;

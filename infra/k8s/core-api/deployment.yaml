@@ -70,7 +70,7 @@ spec:
           allowPrivilegeEscalation: false
           capabilities: { drop: [ALL] }
         volumeMounts:
-          - { name: artifacts, mountPath: /var/lib/turf/artifacts }
+          - { name: artifacts, mountPath: /var/lib/callerwhale/artifacts }
       volumes:
         - name: artifacts
           persistentVolumeClaim:

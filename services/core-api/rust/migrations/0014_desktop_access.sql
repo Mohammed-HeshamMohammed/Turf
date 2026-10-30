@@ -1,4 +1,4 @@
--- Desktop access by invitation from Turf's staff, with a monthly credit limit per person.
+-- Desktop access by invitation from Caller Whale's staff, with a monthly credit limit per person.
 --
 -- Staff invite a person by email from the admin dashboard and set how many credits they may use each month. The
 -- person signs in on the website with that email (password or Google; the email must be confirmed), which activates
@@ -39,6 +39,6 @@ CREATE TABLE credit_usage (
 );
 CREATE INDEX credit_usage_month ON credit_usage (invitation_id, at);
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON access_invitations TO turf_app;
-GRANT SELECT, INSERT ON credit_usage TO turf_app;
-GRANT USAGE ON SEQUENCE credit_usage_id_seq TO turf_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON access_invitations TO callerwhale_app;
+GRANT SELECT, INSERT ON credit_usage TO callerwhale_app;
+GRANT USAGE ON SEQUENCE credit_usage_id_seq TO callerwhale_app;

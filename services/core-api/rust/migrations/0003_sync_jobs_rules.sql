@@ -216,7 +216,7 @@ CREATE TABLE integrations (                   -- encrypted provider credentials;
 
 -- Row security: one policy per business table, organization isolation only. Team, assignment and sharing checks are
 -- application checks (plan 2.4). The owning role is not subject to it (no FORCE), so the claim functions below and
--- migrations work; turf_app, the API's role, always is.
+-- migrations work; callerwhale_app, the API's role, always is.
 DO $$
 DECLARE t text;
 BEGIN
@@ -226,16 +226,16 @@ BEGIN
     'saved_reports', 'artifacts', 'conversations', 'messages', 'suppressions', 'call_sessions', 'integrations']
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
-    EXECUTE format('CREATE POLICY org_isolation ON %I USING (org_id = turf_org()) WITH CHECK (org_id = turf_org())', t);
-    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON %I TO turf_app', t);
+    EXECUTE format('CREATE POLICY org_isolation ON %I USING (org_id = callerwhale_org()) WITH CHECK (org_id = callerwhale_org())', t);
+    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON %I TO callerwhale_app', t);
   END LOOP;
 END $$;
-GRANT SELECT, INSERT ON provider_events TO turf_app;
-GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO turf_app;
+GRANT SELECT, INSERT ON provider_events TO callerwhale_app;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO callerwhale_app;
 
 -- Workers claim across organizations through the API's internal routes, which set the organization per job. The
 -- claim functions run as the owner so a claim can find work before an organization is known.
-CREATE OR REPLACE FUNCTION turf_claim_job(p_queues text[], p_worker text, p_lease_seconds int)
+CREATE OR REPLACE FUNCTION callerwhale_claim_job(p_queues text[], p_worker text, p_lease_seconds int)
 RETURNS TABLE (id uuid, org_id uuid) LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
   UPDATE jobs SET status = 'running', lease_owner = p_worker, lease_until = now() + make_interval(secs => p_lease_seconds),
                   attempts = attempts + 1
@@ -247,7 +247,7 @@ RETURNS TABLE (id uuid, org_id uuid) LANGUAGE sql SECURITY DEFINER SET search_pa
   RETURNING jobs.id, jobs.org_id
 $$;
 
-CREATE OR REPLACE FUNCTION turf_claim_events(p_worker text, p_limit int, p_lease_seconds int)
+CREATE OR REPLACE FUNCTION callerwhale_claim_events(p_worker text, p_limit int, p_lease_seconds int)
 RETURNS TABLE (id bigint, org_id uuid) LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
   UPDATE outbox_events SET claimed_by = p_worker, claimed_until = now() + make_interval(secs => p_lease_seconds)
   WHERE outbox_events.id IN (
@@ -257,5 +257,5 @@ RETURNS TABLE (id bigint, org_id uuid) LANGUAGE sql SECURITY DEFINER SET search_
   RETURNING outbox_events.id, outbox_events.org_id
 $$;
 
-REVOKE ALL ON FUNCTION turf_claim_job(text[], text, int), turf_claim_events(text, int, int) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION turf_claim_job(text[], text, int), turf_claim_events(text, int, int) TO turf_app;
+REVOKE ALL ON FUNCTION callerwhale_claim_job(text[], text, int), callerwhale_claim_events(text, int, int) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION callerwhale_claim_job(text[], text, int), callerwhale_claim_events(text, int, int) TO callerwhale_app;

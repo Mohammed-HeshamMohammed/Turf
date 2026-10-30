@@ -1,18 +1,18 @@
 -- Identity, organizations, roles and grants. Rust owns these migrations (plan 2.2).
--- Run as the owning role; the API connects as turf_app, which never bypasses row security (plan 2.4).
+-- Run as the owning role; the API connects as callerwhale_app, which never bypasses row security (plan 2.4).
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS citext;
 
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'turf_app') THEN
-    CREATE ROLE turf_app NOLOGIN NOBYPASSRLS;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'callerwhale_app') THEN
+    CREATE ROLE callerwhale_app NOLOGIN NOBYPASSRLS;
   END IF;
 END $$;
 
 -- The organization the current request acts in. Empty outside a request, which matches no row.
-CREATE OR REPLACE FUNCTION turf_org() RETURNS uuid LANGUAGE sql STABLE AS
-$$ SELECT nullif(current_setting('turf.org_id', true), '')::uuid $$;
+CREATE OR REPLACE FUNCTION callerwhale_org() RETURNS uuid LANGUAGE sql STABLE AS
+$$ SELECT nullif(current_setting('callerwhale.org_id', true), '')::uuid $$;
 
 CREATE TABLE organizations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -99,4 +99,4 @@ CREATE INDEX sessions_user ON sessions(user_id) WHERE revoked_at IS NULL;
 
 -- Identity tables are read only by authentication code, before an organization is chosen; they carry no org rows to
 -- isolate. Every business table below carries org_id and row security.
-GRANT SELECT, INSERT, UPDATE, DELETE ON organizations, users, recovery_codes, teams, roles, memberships, invitations, sessions TO turf_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON organizations, users, recovery_codes, teams, roles, memberships, invitations, sessions TO callerwhale_app;

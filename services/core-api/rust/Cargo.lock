@@ -234,6 +234,56 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
+name = "callerwhale-api"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.22.1",
+ "callerwhale-auth-verify",
+ "callerwhale-grouping",
+ "chrono",
+ "futures",
+ "futures-util",
+ "hex",
+ "hmac",
+ "jsonwebtoken",
+ "lettre",
+ "rand 0.8.8",
+ "redis",
+ "reqwest",
+ "ring",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "thiserror",
+ "time",
+ "tokio",
+ "tokio-tungstenite",
+ "tower-http",
+ "tower-layer",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "callerwhale-auth-verify"
+version = "0.1.0"
+dependencies = [
+ "jsonwebtoken",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "callerwhale-grouping"
+version = "0.1.0"
+
+[[package]]
 name = "cc"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2567,56 +2617,6 @@ dependencies = [
  "sha1",
  "thiserror",
 ]
-
-[[package]]
-name = "turf-api"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "base64 0.22.1",
- "chrono",
- "futures",
- "futures-util",
- "hex",
- "hmac",
- "jsonwebtoken",
- "lettre",
- "rand 0.8.8",
- "redis",
- "reqwest",
- "ring",
- "rust_decimal",
- "serde",
- "serde_json",
- "sha2",
- "sqlx",
- "thiserror",
- "time",
- "tokio",
- "tokio-tungstenite",
- "tower-http",
- "tower-layer",
- "tracing",
- "tracing-subscriber",
- "turf-auth-verify",
- "turf-grouping",
- "uuid",
-]
-
-[[package]]
-name = "turf-auth-verify"
-version = "0.1.0"
-dependencies = [
- "jsonwebtoken",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "turf-grouping"
-version = "0.1.0"
 
 [[package]]
 name = "typenum"

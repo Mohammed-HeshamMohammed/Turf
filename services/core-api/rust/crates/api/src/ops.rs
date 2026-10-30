@@ -85,7 +85,7 @@ pub async fn apply(pool: &PgPool, actor: &Actor, op: Op) -> ApiResult<OpResult> 
     let user_id = actor.scope.user_id;
     let inserted: Option<Uuid> = sqlx::query_scalar(
         "INSERT INTO operations (id, org_id, user_id, device_id, kind, payload, status, claimed_at) \
-         VALUES ($1, turf_org(), $2, $3, $4, $5, 'applied', $6) ON CONFLICT (id) DO NOTHING RETURNING id",
+         VALUES ($1, callerwhale_org(), $2, $3, $4, $5, 'applied', $6) ON CONFLICT (id) DO NOTHING RETURNING id",
     )
     .bind(op.id)
     .bind(user_id)
@@ -224,7 +224,7 @@ fn opt_time(p: &Value, name: &str) -> Result<Option<DateTime<Utc>>, Failure> {
 /// A lead's record as the actor may see it, locked for update when asked. None: missing or outside their scope.
 pub async fn lead_json(tx: &mut PgConnection, id: Uuid, lock: bool) -> Result<Option<Value>, sqlx::Error> {
     let sql = format!(
-        "SELECT to_jsonb(l) FROM leads l WHERE l.id = $1 AND turf_visible_lead(l.id){}",
+        "SELECT to_jsonb(l) FROM leads l WHERE l.id = $1 AND callerwhale_visible_lead(l.id){}",
         if lock { " FOR UPDATE" } else { "" }
     );
     sqlx::query_scalar(&sql).bind(id).fetch_optional(&mut *tx).await
@@ -264,7 +264,7 @@ fn change<'a>(actor: &'a Actor, op: &Op, entity: &'a str, id: Uuid, lead: Option
 async fn is_member_with(tx: &mut PgConnection, user: Uuid, capability: &str) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM memberships m JOIN roles r ON r.org_id = m.org_id AND r.key = ANY(m.roles) \
-         WHERE m.org_id = turf_org() AND m.user_id = $1 AND $2 = ANY(r.capabilities) AND NOT ($2 = ANY(m.restrictions)))",
+         WHERE m.org_id = callerwhale_org() AND m.user_id = $1 AND $2 = ANY(r.capabilities) AND NOT ($2 = ANY(m.restrictions)))",
     )
     .bind(user)
     .bind(capability)
@@ -322,7 +322,7 @@ const LEAD_EDITABLE: &[&str] = &[
 
 async fn stages(tx: &mut PgConnection, key: &str, fallback: &[&str]) -> Result<Vec<String>, sqlx::Error> {
     let saved: Option<Value> =
-        sqlx::query_scalar("SELECT value FROM settings_versions WHERE org_id = turf_org() AND key = $1 ORDER BY id DESC LIMIT 1")
+        sqlx::query_scalar("SELECT value FROM settings_versions WHERE org_id = callerwhale_org() AND key = $1 ORDER BY id DESC LIMIT 1")
             .bind(key)
             .fetch_optional(&mut *tx)
             .await?;
@@ -349,7 +349,7 @@ async fn lead_create(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -
     }
     // The lead joins its assignee's team, so that team's managers see it.
     let assignee_team: Option<Uuid> = match assignee {
-        Some(user) => sqlx::query_scalar("SELECT team_ids[1] FROM memberships WHERE org_id = turf_org() AND user_id = $1")
+        Some(user) => sqlx::query_scalar("SELECT team_ids[1] FROM memberships WHERE org_id = callerwhale_org() AND user_id = $1")
             .bind(user)
             .fetch_optional(&mut *tx)
             .await?
@@ -371,7 +371,7 @@ async fn lead_create(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -
         Some(
             sqlx::query_scalar(
                 "INSERT INTO properties (org_id, address, unit, city, region, postal_code, country, latitude, longitude, location_source) \
-                 VALUES (turf_org(), $1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $7 IS NULL THEN 'none' ELSE 'supplied' END) RETURNING id",
+                 VALUES (callerwhale_org(), $1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $7 IS NULL THEN 'none' ELSE 'supplied' END) RETURNING id",
             )
             .bind(text(p, "address"))
             .bind(text(p, "unit"))
@@ -390,7 +390,7 @@ async fn lead_create(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -
     let next_at = opt_time(p, "next_action_at")?;
     sqlx::query(
         "INSERT INTO leads (id, org_id, project_id, team_id, property_id, assignee_id, name, phone, email, stage, source, next_action_at, priority) \
-         VALUES ($1, turf_org(), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, coalesce(nullif($12, ''), 'Normal'))",
+         VALUES ($1, callerwhale_org(), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, coalesce(nullif($12, ''), 'Normal'))",
     )
     .bind(id)
     .bind(opt_uuid(p, "project_id")?)
@@ -490,7 +490,7 @@ async fn lead_assign(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -
     }
     let to = opt_uuid(p, "assignee_id")?;
     if let Some(user) = to {
-        let member: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM memberships WHERE org_id = turf_org() AND user_id = $1)")
+        let member: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM memberships WHERE org_id = callerwhale_org() AND user_id = $1)")
             .bind(user)
             .fetch_one(&mut *tx)
             .await?;
@@ -510,7 +510,7 @@ async fn lead_assign(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -
             .execute(&mut *tx)
             .await?;
         let from: Option<Uuid> = before.get("assignee_id").and_then(Value::as_str).and_then(|s| Uuid::parse_str(s).ok());
-        sqlx::query("INSERT INTO assignments (org_id, lead_id, from_user, to_user, reason, actor_id) VALUES (turf_org(), $1, $2, $3, $4, $5)")
+        sqlx::query("INSERT INTO assignments (org_id, lead_id, from_user, to_user, reason, actor_id) VALUES (callerwhale_org(), $1, $2, $3, $4, $5)")
             .bind(id)
             .bind(from)
             .bind(to)
@@ -581,7 +581,7 @@ async fn lead_share(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) ->
     let share = p.get("shared").and_then(Value::as_bool).unwrap_or(true);
     visible_lead(tx, id, true).await?;
     if share {
-        sqlx::query("INSERT INTO lead_shares (org_id, lead_id, user_id) VALUES (turf_org(), $1, $2) ON CONFLICT DO NOTHING")
+        sqlx::query("INSERT INTO lead_shares (org_id, lead_id, user_id) VALUES (callerwhale_org(), $1, $2) ON CONFLICT DO NOTHING")
             .bind(id)
             .bind(user)
             .execute(&mut *tx)
@@ -601,7 +601,7 @@ async fn lead_share(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) ->
 }
 
 async fn notify(tx: &mut PgConnection, user: Uuid, kind: &str, text: &str, entity: &str, id: Uuid) -> Result<(), sqlx::Error> {
-    sqlx::query("INSERT INTO notifications (org_id, user_id, kind, text, entity, entity_id) VALUES (turf_org(), $1, $2, $3, $4, $5)")
+    sqlx::query("INSERT INTO notifications (org_id, user_id, kind, text, entity, entity_id) VALUES (callerwhale_org(), $1, $2, $3, $4, $5)")
         .bind(user)
         .bind(kind)
         .bind(text)
@@ -618,7 +618,7 @@ async fn notify(tx: &mut PgConnection, user: Uuid, kind: &str, text: &str, entit
 /// The audit trail keeps the note as it was, so the history is complete either way.
 async fn note_change(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value, remove: bool) -> OpOutcome {
     let id = uuid_field(p, "id")?;
-    let before: Value = sqlx::query_scalar("SELECT to_jsonb(n) FROM notes n WHERE n.id = $1 AND turf_visible_lead(n.lead_id) FOR UPDATE")
+    let before: Value = sqlx::query_scalar("SELECT to_jsonb(n) FROM notes n WHERE n.id = $1 AND callerwhale_visible_lead(n.lead_id) FOR UPDATE")
         .bind(id)
         .fetch_optional(&mut *tx)
         .await?
@@ -676,7 +676,7 @@ async fn note_add(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -> O
         .unwrap_or_default();
     let note: Value = sqlx::query_scalar(
         "INSERT INTO notes (id, org_id, lead_id, author_id, author_label, body, visibility, mentions, occurred_at, operation_id) \
-         VALUES (coalesce($9, gen_random_uuid()), turf_org(), $1, $2, $3, $4, $5, $6, coalesce($7, now()), $8) RETURNING to_jsonb(notes.*)",
+         VALUES (coalesce($9, gen_random_uuid()), callerwhale_org(), $1, $2, $3, $4, $5, $6, coalesce($7, now()), $8) RETURNING to_jsonb(notes.*)",
     )
     .bind(lead_id)
     .bind(actor.scope.user_id)
@@ -724,7 +724,7 @@ async fn call_record(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -
     };
     let event: Value = sqlx::query_scalar(
         "INSERT INTO call_events (org_id, lead_id, agent_id, agent_label, phone, outcome, code, meaning, scheduled_at, source, occurred_at, operation_id) \
-         VALUES (turf_org(), $1, $2, $3, $4, $5, $6, $7, $8, coalesce(nullif($9, ''), 'manual'), $10, $11) RETURNING to_jsonb(call_events.*)",
+         VALUES (callerwhale_org(), $1, $2, $3, $4, $5, $6, $7, $8, coalesce(nullif($9, ''), 'manual'), $10, $11) RETURNING to_jsonb(call_events.*)",
     )
     .bind(lead_id)
     .bind(actor.scope.user_id)
@@ -768,7 +768,7 @@ async fn call_record(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -
     .execute(&mut *tx)
     .await?;
     if outcome.meaning == "do_not_call" && !phone.is_empty() {
-        sqlx::query("INSERT INTO suppressions (org_id, channel, address, reason) VALUES (turf_org(), 'all', $1, 'Do not call (call outcome)') ON CONFLICT DO NOTHING")
+        sqlx::query("INSERT INTO suppressions (org_id, channel, address, reason) VALUES (callerwhale_org(), 'all', $1, 'Do not call (call outcome)') ON CONFLICT DO NOTHING")
             .bind(&phone)
             .execute(&mut *tx)
             .await?;
@@ -783,7 +783,7 @@ async fn call_record(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -
     if let Some(at) = scheduled {
         let title = format!("{}{name}", if outcome.label == "Callback" { "Callback: " } else { "Try again: " });
         let task_id: Uuid = sqlx::query_scalar(
-            "INSERT INTO tasks (org_id, lead_id, assignee_id, title, type, due_at, timezone) VALUES (turf_org(), $1, $2, $3, 'Callback', $4, $5) RETURNING id",
+            "INSERT INTO tasks (org_id, lead_id, assignee_id, title, type, due_at, timezone) VALUES (callerwhale_org(), $1, $2, $3, 'Callback', $4, $5) RETURNING id",
         )
         .bind(lead_id)
         .bind(assignee)
@@ -796,7 +796,7 @@ async fn call_record(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -
     }
     if outcome.label == "Transfer" {
         let task_id: Uuid = sqlx::query_scalar(
-            "INSERT INTO tasks (org_id, lead_id, assignee_id, title, type, priority, due_at) VALUES (turf_org(), $1, $2, $3, 'Appointment', 'High', now()) RETURNING id",
+            "INSERT INTO tasks (org_id, lead_id, assignee_id, title, type, priority, due_at) VALUES (callerwhale_org(), $1, $2, $3, 'Appointment', 'High', now()) RETURNING id",
         )
         .bind(lead_id)
         .bind(assignee)
@@ -823,9 +823,9 @@ const TASK_EDITABLE: &[&str] = &["title", "type", "priority", "due_at", "timezon
 
 async fn task_visible(tx: &mut PgConnection, id: Uuid, lock: bool) -> Result<Value, Failure> {
     let sql = format!(
-        "SELECT to_jsonb(t) FROM tasks t WHERE t.id = $1 AND (t.lead_id IS NULL AND (t.assignee_id = nullif(current_setting('turf.user_id', true), '')::uuid \
-           OR 'organization' = ANY(string_to_array(current_setting('turf.scopes', true), ','))) OR turf_visible_lead(t.lead_id)) \
-           AND (NOT turf_external() OR t.shared_external){}",
+        "SELECT to_jsonb(t) FROM tasks t WHERE t.id = $1 AND (t.lead_id IS NULL AND (t.assignee_id = nullif(current_setting('callerwhale.user_id', true), '')::uuid \
+           OR 'organization' = ANY(string_to_array(current_setting('callerwhale.scopes', true), ','))) OR callerwhale_visible_lead(t.lead_id)) \
+           AND (NOT callerwhale_external() OR t.shared_external){}",
         if lock { " FOR UPDATE" } else { "" }
     );
     sqlx::query_scalar(&sql).bind(id).fetch_optional(&mut *tx).await?.ok_or_else(|| Failure::Rejected("The task was not found or is outside your access".into()))
@@ -890,7 +890,7 @@ async fn task_create(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -
     let id = opt_uuid(p, "id")?.unwrap_or_else(Uuid::new_v4);
     let task: Value = sqlx::query_scalar(
         "INSERT INTO tasks (id, org_id, lead_id, assignee_id, title, type, priority, due_at, timezone, recurrence, shared_external) \
-         VALUES ($1, turf_org(), $2, $3, $4, coalesce(nullif($5, ''), 'Task'), coalesce(nullif($6, ''), 'Normal'), $7, nullif($8, ''), nullif($9, ''), $10) \
+         VALUES ($1, callerwhale_org(), $2, $3, $4, coalesce(nullif($5, ''), 'Task'), coalesce(nullif($6, ''), 'Normal'), $7, nullif($8, ''), nullif($9, ''), $10) \
          RETURNING to_jsonb(tasks.*)",
     )
     .bind(id)
@@ -1024,7 +1024,7 @@ async fn handoff_request(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Valu
         }
     }
     let handoff: Option<Value> = sqlx::query_scalar(
-        "INSERT INTO handoffs (org_id, lead_id, from_user, to_user, note, due_at) VALUES (turf_org(), $1, $2, $3, $4, now() + interval '2 days') \
+        "INSERT INTO handoffs (org_id, lead_id, from_user, to_user, note, due_at) VALUES (callerwhale_org(), $1, $2, $3, $4, now() + interval '2 days') \
          ON CONFLICT (lead_id) WHERE status = 'Requested' DO NOTHING RETURNING to_jsonb(handoffs.*)",
     )
     .bind(lead_id)
@@ -1045,7 +1045,7 @@ async fn handoff_request(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Valu
 async fn handoff_decide(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -> OpOutcome {
     let id = uuid_field(p, "id")?;
     let decision = text(p, "decision");
-    let handoff: Value = sqlx::query_scalar("SELECT to_jsonb(h) FROM handoffs h WHERE h.id = $1 AND turf_visible_lead(h.lead_id) FOR UPDATE")
+    let handoff: Value = sqlx::query_scalar("SELECT to_jsonb(h) FROM handoffs h WHERE h.id = $1 AND callerwhale_visible_lead(h.lead_id) FOR UPDATE")
         .bind(id)
         .fetch_optional(&mut *tx)
         .await?
@@ -1092,7 +1092,7 @@ async fn handoff_decide(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value
             .bind(to)
             .execute(&mut *tx)
             .await?;
-        sqlx::query("INSERT INTO assignments (org_id, lead_id, from_user, to_user, reason, actor_id) VALUES (turf_org(), $1, $2, $3, 'Handoff accepted', $4)")
+        sqlx::query("INSERT INTO assignments (org_id, lead_id, from_user, to_user, reason, actor_id) VALUES (callerwhale_org(), $1, $2, $3, 'Handoff accepted', $4)")
             .bind(lead_id)
             .bind(from)
             .bind(to)
@@ -1199,7 +1199,7 @@ async fn deal_update(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -
     if let Some(field) = changes.keys().find(|f| !DEAL_EDITABLE.contains(&f.as_str())) {
         return Err(Failure::Rejected(format!("{field} cannot be changed this way")));
     }
-    let before: Value = sqlx::query_scalar("SELECT to_jsonb(d) FROM deals d WHERE d.id = $1 AND turf_visible_lead(d.lead_id) FOR UPDATE")
+    let before: Value = sqlx::query_scalar("SELECT to_jsonb(d) FROM deals d WHERE d.id = $1 AND callerwhale_visible_lead(d.lead_id) FOR UPDATE")
         .bind(id)
         .fetch_optional(&mut *tx)
         .await?
@@ -1241,7 +1241,7 @@ async fn deal_update(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -
 async fn deal_delete(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value) -> OpOutcome {
     need(actor, "finance")?;
     let id = uuid_field(p, "id")?;
-    let before: Value = sqlx::query_scalar("SELECT to_jsonb(d) FROM deals d WHERE d.id = $1 AND turf_visible_lead(d.lead_id) FOR UPDATE")
+    let before: Value = sqlx::query_scalar("SELECT to_jsonb(d) FROM deals d WHERE d.id = $1 AND callerwhale_visible_lead(d.lead_id) FOR UPDATE")
         .bind(id)
         .fetch_optional(&mut *tx)
         .await?
@@ -1275,7 +1275,7 @@ async fn message_draft(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value)
     let conversation = match opt_uuid(p, "conversation_id")? {
         Some(id) => {
             let ok: bool = sqlx::query_scalar(
-                "SELECT EXISTS (SELECT 1 FROM conversations c WHERE c.id = $1 AND (c.lead_id IS NULL OR turf_visible_lead(c.lead_id)) AND (NOT turf_external() OR c.shared_external))",
+                "SELECT EXISTS (SELECT 1 FROM conversations c WHERE c.id = $1 AND (c.lead_id IS NULL OR callerwhale_visible_lead(c.lead_id)) AND (NOT callerwhale_external() OR c.shared_external))",
             )
             .bind(id)
             .fetch_one(&mut *tx)
@@ -1293,7 +1293,7 @@ async fn message_draft(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value)
                 "internal" => "internal",
                 _ => "email",
             };
-            sqlx::query_scalar("INSERT INTO conversations (org_id, lead_id, channel, subject, shared_external) VALUES (turf_org(), $1, $2, $3, $4) RETURNING id")
+            sqlx::query_scalar("INSERT INTO conversations (org_id, lead_id, channel, subject, shared_external) VALUES (callerwhale_org(), $1, $2, $3, $4) RETURNING id")
                 .bind(lead_id)
                 .bind(channel)
                 .bind(text(p, "subject"))
@@ -1305,7 +1305,7 @@ async fn message_draft(tx: &mut PgConnection, actor: &Actor, op: &Op, p: &Value)
     // Outreach stays a draft; sending is an online action that rechecks permission and suppression (plan 2.7, 3.5).
     let message: Value = sqlx::query_scalar(
         "INSERT INTO messages (org_id, conversation_id, direction, author_id, author_label, body, status, operation_id) \
-         VALUES (turf_org(), $1, 'outbound', $2, $3, $4, 'draft', $5) RETURNING to_jsonb(messages.*)",
+         VALUES (callerwhale_org(), $1, 'outbound', $2, $3, $4, 'draft', $5) RETURNING to_jsonb(messages.*)",
     )
     .bind(conversation)
     .bind(actor.scope.user_id)
@@ -1328,7 +1328,7 @@ async fn follow(tx: &mut PgConnection, actor: &Actor, p: &Value) -> OpOutcome {
     let user = actor.scope.user_id.ok_or_else(|| Failure::Rejected("Only people follow leads".into()))?;
     visible_lead(tx, lead_id, false).await?;
     if p.get("follow").and_then(Value::as_bool).unwrap_or(true) {
-        sqlx::query("INSERT INTO followers (org_id, lead_id, user_id) VALUES (turf_org(), $1, $2) ON CONFLICT DO NOTHING")
+        sqlx::query("INSERT INTO followers (org_id, lead_id, user_id) VALUES (callerwhale_org(), $1, $2) ON CONFLICT DO NOTHING")
             .bind(lead_id)
             .bind(user)
             .execute(&mut *tx)

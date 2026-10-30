@@ -1,7 +1,7 @@
 //! Who the person is here, and the workspace side of joining Caller Whale (plan 2.4).
 //!
 //! Accounts, passwords, two-step sign-in and sessions belong to the auth service (services/auth): every request
-//! carries its access token, checked in `auth::Ctx`, and the organization it acts in (`x-turf-org`). This server keeps
+//! carries its access token, checked in `auth::Ctx`, and the organization it acts in (`x-callerwhale-org`). This server keeps
 //! a copy of each person for its own records, and decides which organizations they are in and what they may do there.
 
 use crate::{
@@ -59,7 +59,7 @@ async fn bootstrap(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Boo
 
 /// Role presets and a default team for a new organization.
 pub async fn seed_organization(tx: &mut sqlx::Transaction<'_, sqlx::Postgres>, org: Uuid) -> Result<(), sqlx::Error> {
-    sqlx::query("SELECT set_config('turf.org_id', $1, true)").bind(org.to_string()).execute(&mut **tx).await?;
+    sqlx::query("SELECT set_config('callerwhale.org_id', $1, true)").bind(org.to_string()).execute(&mut **tx).await?;
     for (key, name, capabilities, scope, _) in PRESETS {
         sqlx::query("INSERT INTO roles (org_id, key, name, capabilities, scope) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING")
             .bind(org)
@@ -94,7 +94,7 @@ async fn join_invitation(State(state): State<AppState>, ctx: Ctx, Json(body): Js
         return Err(ApiError::forbidden("This invitation is for another email address. Sign in with that address to join"));
     }
     sqlx::query("UPDATE invitations SET accepted_at = now() WHERE token_hash = $1").bind(auth::token_hash(body.token.trim())).execute(&mut *tx).await?;
-    sqlx::query("SELECT set_config('turf.org_id', $1, true)").bind(org.to_string()).execute(&mut *tx).await?;
+    sqlx::query("SELECT set_config('callerwhale.org_id', $1, true)").bind(org.to_string()).execute(&mut *tx).await?;
     // Seats can have been reduced since the invitation was sent; this invitation's seat is now a member's.
     crate::routes::billing::check_join(&mut tx).await?;
     sqlx::query("INSERT INTO memberships (org_id, user_id, roles, team_ids, expires_at) VALUES ($1, $2, $3, $4, CASE WHEN $5::int IS NULL THEN NULL ELSE now() + make_interval(days => $5) END) \n         ON CONFLICT (org_id, user_id) DO UPDATE SET roles = EXCLUDED.roles, team_ids = EXCLUDED.team_ids, expires_at = EXCLUDED.expires_at")
@@ -113,10 +113,9 @@ async fn join_invitation(State(state): State<AppState>, ctx: Ctx, Json(body): Js
 /// Where the auth service is, for the website and the app: they sign in there and bring its token here.
 async fn auth_service(State(state): State<AppState>) -> Json<Value> {
     // `signup`: whether a new account may open its own trial here, or must be invited.
-    // `firebase`: the web config to sign in with Firebase instead, when this server uses it.
     // `grafana`: the Grafana login proxy, where the admin dashboard hands staff over (null: none).
     let grafana = Some(&state.config.grafana_url).filter(|u| !u.is_empty());
-    Json(json!({ "url": state.config.auth_public_url, "signup": state.config.public_signup, "firebase": state.config.firebase_web(), "grafana": grafana }))
+    Json(json!({ "url": state.config.auth_public_url, "signup": state.config.public_signup, "grafana": grafana }))
 }
 
 async fn me(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {

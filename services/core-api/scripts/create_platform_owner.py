@@ -22,7 +22,7 @@ import psycopg
 if len(sys.argv) < 2:
     sys.exit(__doc__)
 email = sys.argv[1].strip().lower()
-database = os.environ.get("MIGRATION_DATABASE_URL", "postgres://turf_owner:turf_owner@127.0.0.1:55432/turf")
+database = os.environ.get("MIGRATION_DATABASE_URL", "postgres://callerwhale_owner:callerwhale_owner@127.0.0.1:55432/callerwhale")
 
 with psycopg.connect(database) as db:
     current = db.execute("SELECT email::text FROM users WHERE platform_role = 'owner'").fetchone()

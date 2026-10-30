@@ -23,7 +23,7 @@ async fn send(base: &str, method: &str, path: &str, bearer: &str, org: Option<&s
     let mut req = if method == "POST" { client.post(url).json(&body.unwrap_or_else(|| json!({}))) } else { client.get(url) };
     req = req.bearer_auth(bearer);
     if let Some(org) = org {
-        req = req.header("x-turf-org", org);
+        req = req.header("x-callerwhale-org", org);
     }
     let res = req.send().await.unwrap();
     (res.status().as_u16(), res.json().await.unwrap_or_default())
@@ -46,7 +46,7 @@ async fn an_auth_token_opens_the_api_for_the_same_person() {
     assert_eq!(me["user"]["id"], caller.as_str());
     assert!(me["organization_id"].is_null());
 
-    // With x-turf-org, their roles in that organization apply, and only there.
+    // With x-callerwhale-org, their roles in that organization apply, and only there.
     let (status, me) = get(&h.base, "/api/v1/me", &t, Some(&w.org)).await;
     assert_eq!(status, 200, "{me}");
     assert_eq!(me["organization_id"], w.org.as_str());
@@ -156,27 +156,27 @@ async fn the_live_events_socket_takes_the_token_in_its_protocols() {
     let url = h.base.replace("http://", "ws://") + "/events";
 
     let mut request = url.as_str().into_client_request().unwrap();
-    let protocols = format!("turf.v1, bearer.{t}, org.{}", w.org);
+    let protocols = format!("callerwhale.v1, bearer.{t}, org.{}", w.org);
     request.headers_mut().insert("sec-websocket-protocol", HeaderValue::from_str(&protocols).unwrap());
     let (mut socket, response) = tokio_tungstenite::connect_async(request).await.expect("the socket opens");
-    assert_eq!(response.headers().get("sec-websocket-protocol").unwrap(), "turf.v1");
+    assert_eq!(response.headers().get("sec-websocket-protocol").unwrap(), "callerwhale.v1");
     let hello = socket.next().await.unwrap().unwrap().into_text().unwrap();
     assert!(hello.contains("\"hello\""), "{hello}");
 
     // Without a valid token there is no socket.
     let mut refused = url.as_str().into_client_request().unwrap();
-    refused.headers_mut().insert("sec-websocket-protocol", HeaderValue::from_static("turf.v1, bearer.a.b.c"));
+    refused.headers_mut().insert("sec-websocket-protocol", HeaderValue::from_static("callerwhale.v1, bearer.a.b.c"));
     assert!(tokio_tungstenite::connect_async(refused).await.is_err());
 
     // The website finds the auth service here.
     let (status, service) = get(&h.base, "/api/v1/auth/service", &t, None).await;
-    assert_eq!((status, service), (200, json!({ "url": "http://auth.example", "signup": true, "firebase": null, "grafana": null })));
+    assert_eq!((status, service), (200, json!({ "url": "http://auth.example", "signup": true, "grafana": null })));
 }
 
 #[tokio::test]
 async fn platform_administrators_see_every_customer_and_nobody_else_does() {
     let Some(h) = start().await else { return };
-    let owner = h.client("boss@turf.example", "Platform Owner", true, true);
+    let owner = h.client("boss@callerwhale.example", "Platform Owner", true, true);
     let answer = owner.post("/api/v1/organizations/trial", json!({ "organization": "Caller Whale HQ" })).await.ok();
     let customer = h.client("client@shop.example", "A Customer", true, true);
     customer.post("/api/v1/organizations/trial", json!({ "organization": "A Shop" })).await.ok();
@@ -184,13 +184,13 @@ async fn platform_administrators_see_every_customer_and_nobody_else_does() {
     // Not yet a platform administrator: refused, like every customer.
     assert_eq!(owner.get("/api/v1/platform/organizations").await.status, 403);
     assert_eq!(customer.get("/api/v1/platform/organizations").await.status, 403);
-    sqlx::query("UPDATE users SET platform_role = 'admin' WHERE email = 'boss@turf.example'").execute(&h.owner).await.unwrap();
+    sqlx::query("UPDATE users SET platform_role = 'admin' WHERE email = 'boss@callerwhale.example'").execute(&h.owner).await.unwrap();
     assert_eq!(owner.get("/api/v1/me").await.ok()["platform_admin"], true);
     let overview = owner.get("/api/v1/platform/organizations").await.ok();
     assert_eq!(overview["totals"]["organizations"], 2);
     assert_eq!(overview["totals"]["trials"], 2);
     let emails: Vec<&str> = overview["organizations"].as_array().unwrap().iter().map(|o| o["owner_email"].as_str().unwrap()).collect();
-    assert!(emails.contains(&"client@shop.example") && emails.contains(&"boss@turf.example"));
+    assert!(emails.contains(&"client@shop.example") && emails.contains(&"boss@callerwhale.example"));
     // A trial whose time is up shows as expired, not as still trialing.
     sqlx::query("UPDATE subscriptions SET period_start = now() - interval '8 days', period_end = now() - interval '1 day' WHERE org_id = $1::uuid")
         .bind(answer["organization_id"].as_str().unwrap())
@@ -199,12 +199,12 @@ async fn platform_administrators_see_every_customer_and_nobody_else_does() {
         .unwrap();
     let overview = owner.get("/api/v1/platform/organizations").await.ok();
     assert_eq!(overview["totals"]["trials"], 1);
-    let mine = overview["organizations"].as_array().unwrap().iter().find(|o| o["owner_email"] == "boss@turf.example").unwrap().clone();
+    let mine = overview["organizations"].as_array().unwrap().iter().find(|o| o["owner_email"] == "boss@callerwhale.example").unwrap().clone();
     assert_eq!(mine["status"], "expired");
 
     // The database refuses the overview to anyone else, even if the API were asked directly.
     let api = sqlx::PgPool::connect(&std::env::var("TEST_DATABASE_URL").unwrap()).await.unwrap();
-    let direct = sqlx::query("SELECT * FROM turf_platform_overview($1::uuid)").bind(&customer.id).fetch_all(&api).await;
+    let direct = sqlx::query("SELECT * FROM callerwhale_platform_overview($1::uuid)").bind(&customer.id).fetch_all(&api).await;
     assert!(direct.is_err());
 
     // A platform administrator still needs the second sign-in step: a token that has not passed it is refused.

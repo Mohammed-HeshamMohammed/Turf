@@ -46,7 +46,7 @@ pub(crate) enum Staff {
 
 /// The person's platform role, or a refusal. Caller Whale's staff always need the second sign-in step (the authenticator
 /// code), whatever the server's MFA setting: a token that has not passed it opens nothing here. Only CALLERWHALE_STAFF_MFA=false
-/// lifts that, for a Firebase project without authenticator codes.
+/// lifts that, for a server whose staff have no authenticator yet.
 pub(crate) async fn staff(state: &AppState, ctx: &Ctx) -> ApiResult<Staff> {
     let role: Option<String> = sqlx::query_scalar("SELECT platform_role FROM users WHERE id = $1").bind(ctx.user_id).fetch_one(&state.db).await?;
     let role = match role.as_deref() {
@@ -95,7 +95,7 @@ pub(crate) async fn event(tx: &mut sqlx::PgConnection, ctx: &Ctx, action: &str, 
 /// A transaction acting in one customer workspace, so its row security lets the change through.
 async fn in_org(state: &AppState, org: Uuid) -> ApiResult<sqlx::Transaction<'static, sqlx::Postgres>> {
     let mut tx = state.db.begin().await?;
-    sqlx::query("SELECT set_config('turf.org_id', $1, true)").bind(org.to_string()).execute(&mut *tx).await?;
+    sqlx::query("SELECT set_config('callerwhale.org_id', $1, true)").bind(org.to_string()).execute(&mut *tx).await?;
     let exists: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM organizations WHERE id = $1)").bind(org).fetch_one(&mut *tx).await?;
     if !exists {
         return Err(ApiError::not_found("The workspace"));
@@ -122,7 +122,7 @@ type Row = (
 
 async fn organizations(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
     let role = staff(&state, &ctx).await?;
-    let rows: Vec<Row> = sqlx::query_as("SELECT * FROM turf_platform_overview($1)").bind(ctx.user_id).fetch_all(&state.db).await?;
+    let rows: Vec<Row> = sqlx::query_as("SELECT * FROM callerwhale_platform_overview($1)").bind(ctx.user_id).fetch_all(&state.db).await?;
     let list: Vec<Value> = rows
         .iter()
         .map(|(id, name, kind, created, plan, status, seats, included, used, period_end, members, owner, paid, suspended)| {
@@ -322,7 +322,7 @@ async fn set_staff(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Sta
         return Err(ApiError::bad("You are the platform owner"));
     }
     let mut tx = state.db.begin().await?;
-    sqlx::query("SELECT turf_platform_set_role($1, $2, $3)").bind(ctx.user_id).bind(user).bind(&body.role).execute(&mut *tx).await?;
+    sqlx::query("SELECT callerwhale_platform_set_role($1, $2, $3)").bind(ctx.user_id).bind(user).bind(&body.role).execute(&mut *tx).await?;
     event(&mut tx, &ctx, if body.role.is_some() { "staff.added" } else { "staff.removed" }, "user", Some(user), json!({ "email": email })).await?;
     tx.commit().await?;
     Ok(Json(json!({ "user_id": user, "platform_role": body.role })))
@@ -347,7 +347,7 @@ type PaymentRow = (
 /// only the provider's reference and the amounts.
 async fn payments(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
     staff(&state, &ctx).await?;
-    let rows: Vec<PaymentRow> = sqlx::query_as("SELECT * FROM turf_platform_payments($1)").bind(ctx.user_id).fetch_all(&state.db).await?;
+    let rows: Vec<PaymentRow> = sqlx::query_as("SELECT * FROM callerwhale_platform_payments($1)").bind(ctx.user_id).fetch_all(&state.db).await?;
     let sum = |status: &str| rows.iter().filter(|r| r.7 == status).map(|r| r.5 as i64).sum::<i64>();
     let list: Vec<Value> = rows
         .iter()
@@ -428,7 +428,7 @@ async fn customer(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Cust
     }
     let mut tx = state.db.begin().await?;
     let org = crate::routes::billing::open_trial_organization(&mut tx, None, ctx.user_id, &ctx.label, "UTC", Some(name)).await?;
-    sqlx::query("SELECT set_config('turf.org_id', $1, true)").bind(org.to_string()).execute(&mut *tx).await?;
+    sqlx::query("SELECT set_config('callerwhale.org_id', $1, true)").bind(org.to_string()).execute(&mut *tx).await?;
     let (token, hash) = auth::new_token();
     sqlx::query(
         "INSERT INTO invitations (token_hash, org_id, email, roles, team_ids, invited_by, expires_at) VALUES ($1, $2, $3, ARRAY['owner'], '{}', $4, now() + interval '7 days')",

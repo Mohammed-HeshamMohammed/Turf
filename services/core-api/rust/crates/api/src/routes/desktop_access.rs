@@ -452,7 +452,7 @@ fn release_cache() -> &'static tokio::sync::Mutex<Option<(std::time::Instant, Op
 }
 
 fn github(state: &AppState, url: &str) -> reqwest::RequestBuilder {
-    let request = reqwest::Client::new().get(url).header("user-agent", "turf-core-api").header("x-github-api-version", "2022-11-28");
+    let request = reqwest::Client::new().get(url).header("user-agent", "callerwhale-core-api").header("x-github-api-version", "2022-11-28");
     if state.config.github_token.is_empty() {
         request
     } else {

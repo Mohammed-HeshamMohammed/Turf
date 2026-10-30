@@ -52,13 +52,13 @@ async fn members(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Valu
     let rows: Vec<Value> = sqlx::query_scalar(
         "SELECT json_build_object('user_id', u.id, 'email', u.email, 'name', u.display_name, 'roles', m.roles, 'restrictions', m.restrictions, \
            'team_ids', m.team_ids, 'project_ids', m.project_ids, 'mfa', u.totp_secret IS NOT NULL, 'disabled', u.disabled_at IS NOT NULL, 'sign_in', u.sign_in_provider, \n           'expires_at', m.expires_at, 'expired', m.expires_at IS NOT NULL AND m.expires_at <= now())::jsonb \
-         FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.org_id = turf_org() ORDER BY u.display_name",
+         FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.org_id = callerwhale_org() ORDER BY u.display_name",
     )
     .fetch_all(&mut *tx)
     .await?;
     let invites: Vec<Value> = sqlx::query_scalar(
         "SELECT json_build_object('email', email, 'roles', roles, 'expires_at', expires_at, 'access_days', access_days)::jsonb FROM invitations \
-         WHERE org_id = turf_org() AND accepted_at IS NULL AND expires_at > now() ORDER BY expires_at",
+         WHERE org_id = callerwhale_org() AND accepted_at IS NULL AND expires_at > now() ORDER BY expires_at",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -69,7 +69,7 @@ async fn valid_roles(tx: &mut db::Tx, roles: &[String]) -> ApiResult<()> {
     if roles.is_empty() {
         return Err(ApiError::bad("Choose at least one role"));
     }
-    let known: Vec<String> = sqlx::query_scalar("SELECT key FROM roles WHERE org_id = turf_org()").fetch_all(&mut **tx).await?;
+    let known: Vec<String> = sqlx::query_scalar("SELECT key FROM roles WHERE org_id = callerwhale_org()").fetch_all(&mut **tx).await?;
     if let Some(role) = roles.iter().find(|r| !known.contains(r)) {
         return Err(ApiError::bad(format!("{role} is not a role here")));
     }
@@ -81,7 +81,7 @@ async fn valid_roles(tx: &mut db::Tx, roles: &[String]) -> ApiResult<()> {
 
 /// Whether this member is the workspace's owner, whose role and membership nobody else can change.
 async fn is_owner(tx: &mut db::Tx, user: Uuid) -> ApiResult<bool> {
-    Ok(sqlx::query_scalar("SELECT roles && $2 FROM memberships WHERE org_id = turf_org() AND user_id = $1")
+    Ok(sqlx::query_scalar("SELECT roles && $2 FROM memberships WHERE org_id = callerwhale_org() AND user_id = $1")
         .bind(user)
         .bind(HELD_ROLES.iter().map(|r| r.to_string()).collect::<Vec<_>>())
         .fetch_optional(&mut **tx)
@@ -116,7 +116,7 @@ async fn invite(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Invite
     crate::routes::billing::check_invite(&mut tx).await?;
     let (token, hash) = auth::new_token();
     sqlx::query(
-        "INSERT INTO invitations (token_hash, org_id, email, roles, team_ids, invited_by, expires_at, access_days) VALUES ($1, turf_org(), $2, $3, $4, $5, now() + interval '7 days', $6)",
+        "INSERT INTO invitations (token_hash, org_id, email, roles, team_ids, invited_by, expires_at, access_days) VALUES ($1, callerwhale_org(), $2, $3, $4, $5, now() + interval '7 days', $6)",
     )
     .bind(&hash)
     .bind(&email)
@@ -146,7 +146,7 @@ struct MemberChange {
 async fn update_member(State(state): State<AppState>, ctx: Ctx, Path(user): Path<Uuid>, Json(body): Json<MemberChange>) -> ApiResult<Json<Value>> {
     let scope = ctx.require("admin")?;
     let mut tx = db::begin(&state.db, &scope).await?;
-    let before: Value = sqlx::query_scalar("SELECT to_jsonb(m) FROM memberships m WHERE org_id = turf_org() AND user_id = $1 FOR UPDATE")
+    let before: Value = sqlx::query_scalar("SELECT to_jsonb(m) FROM memberships m WHERE org_id = callerwhale_org() AND user_id = $1 FOR UPDATE")
         .bind(user)
         .fetch_optional(&mut *tx)
         .await?
@@ -172,7 +172,7 @@ async fn update_member(State(state): State<AppState>, ctx: Ctx, Path(user): Path
     }
     let after: Value = sqlx::query_scalar(
         "UPDATE memberships SET roles = coalesce($2, roles), restrictions = coalesce($3, restrictions), team_ids = coalesce($4, team_ids), \
-           project_ids = coalesce($5, project_ids), \n           expires_at = CASE WHEN $6::int IS NULL THEN expires_at WHEN $6 = 0 THEN NULL ELSE now() + make_interval(days => $6) END \n         WHERE org_id = turf_org() AND user_id = $1 RETURNING to_jsonb(memberships.*)",
+           project_ids = coalesce($5, project_ids), \n           expires_at = CASE WHEN $6::int IS NULL THEN expires_at WHEN $6 = 0 THEN NULL ELSE now() + make_interval(days => $6) END \n         WHERE org_id = callerwhale_org() AND user_id = $1 RETURNING to_jsonb(memberships.*)",
     )
     .bind(user)
     .bind(&body.roles)
@@ -200,7 +200,7 @@ async fn remove_member(State(state): State<AppState>, ctx: Ctx, Path(user): Path
     if is_owner(&mut tx, user).await? {
         return Err(ApiError::forbidden("The workspace's owner cannot be removed"));
     }
-    let removed = sqlx::query("DELETE FROM memberships WHERE org_id = turf_org() AND user_id = $1").bind(user).execute(&mut *tx).await?;
+    let removed = sqlx::query("DELETE FROM memberships WHERE org_id = callerwhale_org() AND user_id = $1").bind(user).execute(&mut *tx).await?;
     if removed.rows_affected() == 0 {
         return Err(ApiError::not_found("The member"));
     }
@@ -231,7 +231,7 @@ struct Named {
 async fn create_team(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Named>) -> ApiResult<Json<Value>> {
     let scope = ctx.require("admin")?;
     let mut tx = db::begin(&state.db, &scope).await?;
-    let team: Value = sqlx::query_scalar("INSERT INTO teams (org_id, name) VALUES (turf_org(), $1) RETURNING to_jsonb(teams.*)")
+    let team: Value = sqlx::query_scalar("INSERT INTO teams (org_id, name) VALUES (callerwhale_org(), $1) RETURNING to_jsonb(teams.*)")
         .bind(body.name.trim())
         .fetch_one(&mut *tx)
         .await?;
@@ -270,7 +270,7 @@ async fn update_role(State(state): State<AppState>, ctx: Ctx, Path(key): Path<St
     }
     let mut tx = db::begin(&state.db, &scope).await?;
     let role: Value = sqlx::query_scalar(
-        "INSERT INTO roles (org_id, key, name, capabilities, scope) VALUES (turf_org(), $1, coalesce($2, $1), coalesce($3, '{}'), coalesce($4, 'own')) \
+        "INSERT INTO roles (org_id, key, name, capabilities, scope) VALUES (callerwhale_org(), $1, coalesce($2, $1), coalesce($3, '{}'), coalesce($4, 'own')) \
          ON CONFLICT (org_id, key) DO UPDATE SET name = coalesce($2, roles.name), capabilities = coalesce($3, roles.capabilities), scope = coalesce($4, roles.scope) \
          RETURNING to_jsonb(roles.*)",
     )
@@ -289,8 +289,8 @@ async fn projects(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Val
     let scope = ctx.scope()?;
     let mut tx = db::begin(&state.db, &scope).await?;
     let rows: Vec<Value> = sqlx::query_scalar(
-        "SELECT to_jsonb(p) FROM projects p WHERE 'organization' = ANY(string_to_array(current_setting('turf.scopes', true), ',')) \
-           OR p.id = ANY(turf_setting_uuids('turf.project_ids')) OR EXISTS (SELECT 1 FROM leads l WHERE l.project_id = p.id AND turf_visible_lead(l.id)) ORDER BY name",
+        "SELECT to_jsonb(p) FROM projects p WHERE 'organization' = ANY(string_to_array(current_setting('callerwhale.scopes', true), ',')) \
+           OR p.id = ANY(callerwhale_setting_uuids('callerwhale.project_ids')) OR EXISTS (SELECT 1 FROM leads l WHERE l.project_id = p.id AND callerwhale_visible_lead(l.id)) ORDER BY name",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -300,7 +300,7 @@ async fn projects(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Val
 async fn create_project(State(state): State<AppState>, ctx: Ctx, Json(body): Json<Named>) -> ApiResult<Json<Value>> {
     let scope = ctx.require("import")?;
     let mut tx = db::begin(&state.db, &scope).await?;
-    let project: Value = sqlx::query_scalar("INSERT INTO projects (org_id, name, qualification_fields) VALUES (turf_org(), $1, $2) RETURNING to_jsonb(projects.*)")
+    let project: Value = sqlx::query_scalar("INSERT INTO projects (org_id, name, qualification_fields) VALUES (callerwhale_org(), $1, $2) RETURNING to_jsonb(projects.*)")
         .bind(body.name.trim())
         .bind(&body.qualification_fields)
         .fetch_one(&mut *tx)
@@ -346,7 +346,7 @@ fn validate_setting(key: &str, value: &Value) -> ApiResult<()> {
 }
 
 pub async fn latest_setting(tx: &mut db::Tx, key: &str) -> Result<Option<Value>, sqlx::Error> {
-    sqlx::query_scalar("SELECT value FROM settings_versions WHERE org_id = turf_org() AND key = $1 ORDER BY id DESC LIMIT 1")
+    sqlx::query_scalar("SELECT value FROM settings_versions WHERE org_id = callerwhale_org() AND key = $1 ORDER BY id DESC LIMIT 1")
         .bind(key)
         .fetch_optional(&mut **tx)
         .await
@@ -376,7 +376,7 @@ async fn put_setting(State(state): State<AppState>, ctx: Ctx, Path(key): Path<St
     let scope = ctx.require("rules")?;
     validate_setting(&key, &value)?;
     let mut tx = db::begin(&state.db, &scope).await?;
-    let id: i64 = sqlx::query_scalar("INSERT INTO settings_versions (org_id, key, value, actor_id) VALUES (turf_org(), $1, $2, $3) RETURNING id")
+    let id: i64 = sqlx::query_scalar("INSERT INTO settings_versions (org_id, key, value, actor_id) VALUES (callerwhale_org(), $1, $2, $3) RETURNING id")
         .bind(&key)
         .bind(&value)
         .bind(ctx.user_id)
@@ -423,7 +423,7 @@ async fn create_template(State(state): State<AppState>, ctx: Ctx, Json(body): Js
     let scope = ctx.require("rules")?;
     let mut tx = db::begin(&state.db, &scope).await?;
     let template: Value = sqlx::query_scalar(
-        "INSERT INTO templates (org_id, channel, name, subject, body, approved) VALUES (turf_org(), $1, $2, $3, $4, $5) RETURNING to_jsonb(templates.*)",
+        "INSERT INTO templates (org_id, channel, name, subject, body, approved) VALUES (callerwhale_org(), $1, $2, $3, $4, $5) RETURNING to_jsonb(templates.*)",
     )
     .bind(&body.channel)
     .bind(body.name.trim())
@@ -477,7 +477,7 @@ async fn directory(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Va
     let mut tx = db::begin(&state.db, &scope).await?;
     let rows: Vec<Value> = sqlx::query_scalar(
         "SELECT json_build_object('id', u.id, 'name', u.display_name, 'roles', m.roles, 'team_ids', m.team_ids, 'sign_in', u.sign_in_provider)::jsonb \
-         FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.org_id = turf_org() AND u.disabled_at IS NULL ORDER BY u.display_name",
+         FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.org_id = callerwhale_org() AND u.disabled_at IS NULL ORDER BY u.display_name",
     )
     .fetch_all(&mut *tx)
     .await?;

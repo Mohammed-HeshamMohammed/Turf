@@ -30,8 +30,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const password = () => randomBytes(24).toString("hex");
   const shared = { __WORKER_TOKEN__: token(), __DB_OWNER_PASSWORD__: password(), __DB_API_PASSWORD__: password(), __DB_AUTH_PASSWORD__: password() };
   // Where the apps reach each private database inside Coolify's network.
-  shared.__CORE_DB_HOST__ = process.env.CALLERWHALE_CORE_DB_HOST || "turf-postgres";
-  shared.__AUTH_DB_HOST__ = process.env.CALLERWHALE_AUTH_DB_HOST || "turf-auth-postgres";
+  shared.__CORE_DB_HOST__ = process.env.CALLERWHALE_CORE_DB_HOST || "callerwhale-postgres";
+  shared.__AUTH_DB_HOST__ = process.env.CALLERWHALE_AUTH_DB_HOST || "callerwhale-auth-postgres";
   // A newly added SQL template must reuse passwords from an existing database.env.
   const databaseEnv = join(env, "database.env");
   if (existsSync(databaseEnv)) {
