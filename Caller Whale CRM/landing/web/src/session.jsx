@@ -1,13 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
-// Signing in on the site, and the person's account on Caller Whale's server (the core API). Firebase does the signing in; the
-// server decides what the person may see: only people Caller Whale invited get a dashboard and the download, and only Caller Whale's
-// staff get the admin pages. Nothing here is trusted by the server: every request carries the Firebase ID token and
-// the server checks it.
+// Signing in on the site, and the person's account on Caller Whale's server (the core API). The auth service does the signing
+// in; the server decides what the person may see: only people Caller Whale invited get a dashboard and the download,
+// and only Caller Whale's staff get admin mode. Nothing here is trusted by the server: every request carries the auth
+// service's access token and the server checks it.
 
 /** Caller Whale's server. Set at build (VITE_CALLERWHALE_API_URL); in development the core API on its own port. */
 export const API = (import.meta.env?.VITE_CALLERWHALE_API_URL || "http://localhost:8088").replace(/\/$/, "");
-const HINT_KEY = "callerwhale.auth.firebase";
+const HINT_KEY = "callerwhale.auth.refresh";
 
 export class ApiError extends Error {
   constructor(status, code, message) {
@@ -21,7 +21,7 @@ let loading = null;
 /** The Grafana login proxy's address, once the server has said (null: Grafana is not set up). */
 export let grafanaUrl = null;
 
-/** The sign-in client, made once: the server's Firebase web config, then the SDK (a separate, lazily loaded file). */
+/** The sign-in client, made once: it talks to the auth service, whose address the server gives. */
 export function loadAuth() {
   loading ||= (async () => {
     if (import.meta.env?.DEV) {
@@ -35,16 +35,16 @@ export function loadAuth() {
       loading = null;
       throw new ApiError(0, "offline", "Caller Whale's server cannot be reached. Check your connection and try again.");
     }
-    if (!service.firebase) {
+    if (!service.url) {
       loading = null;
       throw new ApiError(503, "misconfigured", "Sign-in is not set up on Caller Whale's server yet.");
     }
     grafanaUrl = service.grafana || null;
-    const { createFirebaseAuth, firebaseSdk } = await import("./auth/sdk.js");
-    const sdk = firebaseSdk(service.firebase);
-    const auth = createFirebaseAuth({ sdk, providers: service.firebase.providers || [] });
-    auth.resetPassword = email => sdk.resetPassword(email);
-    auth.providerList = service.firebase.providers || [];
+    const { createAuth } = await import("./auth/auth-client.js");
+    const auth = createAuth({ base: service.url });
+    const offered = await auth.providers().catch(() => ({}));
+    auth.providerList = Object.keys(offered).filter(name => offered[name]);
+    auth.resetPassword = email => auth.forgotPassword(email);
     return auth;
   })();
   return loading;
@@ -53,7 +53,7 @@ export function loadAuth() {
 export const hinted = () => {
   try {
     if (import.meta.env?.DEV && sessionStorage.getItem("callerwhale.mock")) return true;
-    return localStorage.getItem(HINT_KEY) === "1";
+    return Boolean(localStorage.getItem(HINT_KEY));
   } catch {
     return false;
   }

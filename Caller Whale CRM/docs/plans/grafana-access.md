@@ -7,7 +7,7 @@
 
 Grafana should open only for Caller Whale's own staff: the platform **owner** and the **system administrators** (`users.platform_role` = `owner` or `admin` in the core API). Grafana can't use those roles by itself:
 
-- Caller Whale has no OAuth/OpenID provider that Grafana could sign in with. Auth issues tokens to Caller Whale's own apps, and sign-in is moving to Firebase ([firebase-auth.md](firebase-auth.md)). Neither tells Grafana anyone's platform role.
+- Caller Whale has no OAuth/OpenID provider that Grafana could sign in with. Auth issues tokens to Caller Whale's own apps, and the auth service signs people in with Firebase behind it ([firebase-auth.md](firebase-auth.md)). Neither tells Grafana anyone's platform role.
 - The platform role lives only in the core API's database, not in the token.
 - Caller Whale's apps keep the token in the page and send it as `Authorization: Bearer`. There's no cookie a browser would carry to another site.
 
@@ -23,7 +23,7 @@ Grafana does support **proxy authentication** (`[auth.proxy]`): a trusted proxy 
 | Only the owning database role can set a platform role, and there's only one owner | migration `0010_platform_roles.sql` | Nobody can make themselves Grafana admin through the API. |
 | Changes made by staff are logged in `platform_events` | `routes/platform.rs` | Grafana sign-ins can be logged the same way. |
 | The public gateway is Go (`services/gateway`) and only routes to named upstreams | `services/gateway/main.go`, `deploy/compose.yml` | Grafana must **not** be added to the gateway's `UPSTREAMS`. The proxy is its own way in. |
-| Sign-in is moving from `services/auth` (Ed25519) to Firebase (RS256); the core API accepts both while the move runs | `docs/plans/firebase-auth.md` | If the proxy asks the core API instead of reading tokens itself, it keeps working through the move with no change. |
+| Every token comes from the auth service (Ed25519); Firebase is behind it and nothing else sees it | `docs/plans/firebase-auth.md` | If the proxy asks the core API instead of reading tokens itself, it keeps working through the move with no change. |
 
 ## The design
 

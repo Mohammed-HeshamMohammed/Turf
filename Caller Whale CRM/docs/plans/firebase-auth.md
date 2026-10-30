@@ -1,3 +1,41 @@
+# Sign-in: the auth service, with Firebase behind it
+
+**Current design (2026-10-30): the auth service is the only part of Caller Whale that knows Firebase.**
+
+```
+website / CRM / desktop app ──► auth service ──► Firebase (server API: passwords, email links, authenticator, Google)
+        │                           │
+        │                           └─ issues Caller Whale's own tokens (EdDSA) and a refresh token
+        ▼
+   gateway ──► core API        both check only the auth service's tokens, with its public keys (/.well-known/jwks.json)
+```
+
+- **Auth service** (`services/auth`, `AUTH_FIREBASE_API_KEY`): sign-up, sign-in, email confirmation, password change and reset, authenticator setup and sign-in, and Google all go to Firebase's server API (`src/firebase.rs`). It keeps a row per person (a UUID, the same in every service, with Firebase's uid beside it) and a row per session (with the Firebase refresh token, server side only). Without the key it keeps its own accounts as before. It makes the tokens: they carry `mfa` (the authenticator code was given), `auth_time` (when this session began) and `provider`.
+- **Gateway, core API, Grafana proxy, landing site, desktop app**: no Firebase code, no Firebase settings, no Firebase address in their security policies. They sign in through the auth service and verify its tokens. A Firebase token is refused everywhere.
+- **Firebase** is told nothing about Caller Whale's roles. Who may do what is the core API's decision.
+- **Not carried over**: Apple sign-in (offered only without Firebase), recovery codes (Firebase has none: staff reset a lost authenticator).
+
+## Firebase console, once
+
+1. Authentication → Sign-in method: **Email/Password** on, **Google** on.
+2. Authentication → Settings → upgrade to **Identity Platform**, then turn authenticator (TOTP) codes on with `node tools/firebase/configure-auth.mjs` (needs `env/firebase.env`).
+3. Project settings → General: copy the **Web API key** into the auth service's `AUTH_FIREBASE_API_KEY`.
+4. Google sign-in goes through the auth service's own Google login: Google Cloud → Credentials → the Web client Firebase made: add the redirect URI `https://auth.callerwhale.com/v1/oauth/google/callback`, and put its client id and secret in `AUTH_GOOGLE_CLIENT_ID` and `AUTH_GOOGLE_CLIENT_SECRET`.
+5. The confirmation and password reset emails link to Firebase's own pages by default. That works; to send people to Caller Whale pages instead, set the action URL in Authentication → Templates, and the pages post the code to `POST /v1/email/verify` or `POST /v1/password/reset`.
+
+## Where the settings live
+
+| Setting | Where |
+| --- | --- |
+| `AUTH_FIREBASE_API_KEY` (and `AUTH_FIREBASE_IDENTITY_URL`, `AUTH_FIREBASE_TOKEN_URL` for tests) | auth service only |
+| `AUTH_JWKS_URL` | gateway; `CALLERWHALE_AUTH_JWKS_URL` for the core API |
+| `VITE_CALLERWHALE_AUTH_URL` | the desktop build |
+| `AUTH_ORIGIN` | the landing container's security policy |
+
+The sections below are the original plan, from when the clients were meant to sign in with Firebase directly. They are kept for the decisions behind Firebase; where they disagree with the above, the above is current.
+
+---
+
 # Sign-in on Firebase Authentication
 
 **Status:** Approved. Phases 1 to 3 done (the core API accepts Firebase tokens; the website, the CRM and the desktop app sign in with Firebase when given a project; Google in the desktop app goes through the browser); phase 0 waits for the Firebase project

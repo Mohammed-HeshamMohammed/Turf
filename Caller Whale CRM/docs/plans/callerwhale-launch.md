@@ -5,7 +5,7 @@
 
 ## What it does
 
-1. **Sign in and sign up on the website** (`landing/web`): the header has **Sign in** and **Sign up**. Email and password (12+ characters, confirmed by email) or Google, through the Firebase project `callerwhale`. Signed in, the header shows **Dashboard** (invited people), **Admin** (Caller Whale's staff) and **Sign out**.
+1. **Sign in and sign up on the website** (`landing/web`): the header has **Sign in** and **Sign up**. Email and password (12+ characters, confirmed by email) or Google, through the auth service (`auth.callerwhale.com`).
 2. **Admin** (`/admin`, staff only, enforced by the core API): invite a person by email with a monthly credit limit; the invitation is emailed through the mail server (`smtp.softfix.dev`, `no-reply@softfix.dev`). The list shows everyone invited, whether they registered, how they sign in, this month's credits used against the limit, the last use and a daily chart. Staff change a limit, suspend or reactivate someone (their account is refused at once, everywhere), resend the email, or withdraw an invitation not yet accepted. Every change is in the platform activity log.
 3. **Dashboard** (`/dashboard`): an invited person who signs in with the invited email (confirmed) gets their limit, usage this month by day, latest usage and the **download**. Anyone else signed in sees "Caller Whale is by invitation" and no download.
 4. **The download** is the newest GitHub release tagged `crm-v*`, streamed by the core API through a link that is good for 10 minutes and only for people allowed to download. The public site no longer offers a download.
@@ -17,7 +17,7 @@ Everything (invitations, people, credits, usage) is stored in the core API's Pos
 
 | Address | Application (Coolify) | Notes |
 | --- | --- | --- |
-| `https://callerwhale.com` (and `www.`) | landing-web | Build args `SITE_URL=https://callerwhale.com`, `VITE_CALLERWHALE_API_URL=https://app.callerwhale.com`. Runtime env `FIREBASE_AUTH_HOST=project-34ff1df6-b240-40d4-be2.firebaseapp.com` (the Dockerfile's default), `API_ORIGIN=https://app.callerwhale.com` |
+| `https://callerwhale.com` (and `www.`) | landing-web | Build args `SITE_URL=https://callerwhale.com`, `VITE_CALLERWHALE_API_URL=https://app.callerwhale.com`. Runtime env `AUTH_ORIGIN=https://auth.callerwhale.com` (the Dockerfile's default), `API_ORIGIN=https://app.callerwhale.com` |
 | `https://callerwhale.com/api` | landing-api | Waitlist and contact; Path prefixes: keep as-is. `CALLERWHALE_LANDING_ORIGINS=https://callerwhale.com,https://www.callerwhale.com` |
 | `https://app.callerwhale.com` | core-api | Sign-in checks, invitations, credits, download. Needs PostgreSQL (project "database") |
 | `https://grafana.callerwhale.com` | grafana-proxy | Staff only, reached from the admin page (Open Grafana). Set `GRAFANA_ORIGIN` on landing-web and `CALLERWHALE_GRAFANA_URL` on core-api to this address. See `deploy/grafana/README.md` |
@@ -30,10 +30,8 @@ DNS (Cloudflare, zone `callerwhale.com`): A records `@`, `www`, `app` and `grafa
 
 | Setting | Value |
 | --- | --- |
-| `CALLERWHALE_FIREBASE_PROJECT` | `project-34ff1df6-b240-40d4-be2` |
-| `CALLERWHALE_FIREBASE_API_KEY`, `CALLERWHALE_FIREBASE_APP_ID` | from Firebase → Project settings → Your apps → Web app (public values) |
-| `CALLERWHALE_FIREBASE_AUTH_DOMAIN` | `callerwhale.com` (the site serves Firebase's sign-in helper itself, see below) |
-| `CALLERWHALE_FIREBASE_PROVIDERS` | `google` |
+| `CALLERWHALE_AUTH_JWKS_URL` | `https://auth.callerwhale.com/.well-known/jwks.json` (the only sign-in setting: the core API knows no Firebase) |
+| `CALLERWHALE_AUTH_PUBLIC_URL` | `https://auth.callerwhale.com` |
 | `CALLERWHALE_ALLOWED_ORIGINS` | `https://callerwhale.com` (the site redirects `www` to it) (and `tauri://localhost,http://tauri.localhost` for the desktop app) |
 | `CALLERWHALE_PUBLIC_SIGNUP` | `false` |
 | `CALLERWHALE_WEBSITE_URL` | `https://callerwhale.com` |
@@ -41,23 +39,16 @@ DNS (Cloudflare, zone `callerwhale.com`): A records `@`, `www`, `app` and `grafa
 | `CALLERWHALE_SMTP_USER`, `CALLERWHALE_SMTP_PASSWORD` | `no-reply@softfix.dev` and its password (**secret**: enter it yourself) |
 | `CALLERWHALE_MAIL_FROM` | `Caller Whale <no-reply@softfix.dev>` (the mail server only lets a login send as itself) |
 | `CALLERWHALE_RELEASE_REPO`, `CALLERWHALE_RELEASE_TAG_PREFIX` | `Mohammed-HeshamMohammed/Turf`, `crm-v` |
-| `CALLERWHALE_AUTH_JWKS_URL`, `CALLERWHALE_AUTH_PUBLIC_URL` | **remove** (or empty): the old auth service is not running, and the API refuses to start when it cannot fetch its keys |
 | `CALLERWHALE_STAFF_MFA` | `true`. Staff need an authenticator code, which needs Identity Platform TOTP on the Firebase project (`tools/firebase/configure-auth.mjs`). Set `false` only until that is on |
 | `DATABASE_URL`, `MIGRATION_DATABASE_URL` | from `env/database.env` |
 
-### Firebase console (project "Caller Whale", id `project-34ff1df6-b240-40d4-be2`, owned by mgamed2002@gmail.com)
+### Firebase console
 
-The web app is "Caller Whale Site" (app id `1:265438901851:web:5550eeb277b7135c5e717e`); its API key is on Project settings → General.
-
-1. ~~Authentication → Sign-in method: **Email/Password** on, **Google** on.~~ Done 2026-10-29.
-2. ~~Authentication → Settings → Authorized domains: add `callerwhale.com`, `www.callerwhale.com`.~~ Done 2026-10-29.
-3. Google Cloud → APIs & Services → Credentials → the Web client Firebase made: add the redirect URI `https://callerwhale.com/__/auth/handler`. The site proxies `/__/auth/` to `<project>.firebaseapp.com`, so Google's redirect comes back to callerwhale.com itself and works in browsers that block other sites' storage.
-4. Staff authenticator codes: Authentication → Settings → upgrade to **Identity Platform**, then put the service account key in `env/firebase.env` and run `tools/firebase/configure-auth.mjs` to turn TOTP on (`CALLERWHALE_STAFF_MFA=true` needs it).
-5. For the desktop app's Google sign-in: create an OAuth client of type **Desktop app**, and add its client id under Google → Safelist client IDs.
+Only the auth service uses it. The one-time setup and where each setting goes are in `docs/plans/firebase-auth.md`: Email/Password and Google on, Identity Platform with authenticator codes, the Web API key into `AUTH_FIREBASE_API_KEY`, and the Google redirect `https://auth.callerwhale.com/v1/oauth/google/callback`.
 
 ### GitHub (Settings → Secrets and variables → Actions → Variables), for the installer
 
-`CALLERWHALE_API_URL=https://app.callerwhale.com`, `FIREBASE_API_KEY`, `FIREBASE_PROJECT_ID`, `FIREBASE_APP_ID`, `FIREBASE_AUTH_DOMAIN` (`<project>.firebaseapp.com`: the desktop app does not use the website's proxy), `GOOGLE_DESKTOP_CLIENT_ID`, `GOOGLE_DESKTOP_CLIENT_SECRET`. Then push a tag `crm-v0.1.0` (or run **Release the desktop app** from the Actions tab). The workflow builds the Skip Tracing engine, the app and the NSIS installer on Windows, and publishes the release.
+`CALLERWHALE_API_URL=https://app.callerwhale.com` and `CALLERWHALE_AUTH_URL=https://auth.callerwhale.com`. Nothing else: the installer holds no sign-in provider settings.
 
 ### The first admin
 

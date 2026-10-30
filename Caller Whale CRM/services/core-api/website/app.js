@@ -33,13 +33,10 @@ const service = await fetch("/api/v1/auth/service").then(r => r.json(), () => ({
 /** Whether a new account may open its own trial here; otherwise only an invitation opens a workspace. */
 const SIGNUP_OPEN = service.signup === true;
 /** Said wherever a closed server would otherwise offer a trial. */
-/** What a sign-in code can be: Firebase has no recovery codes, the auth service does. */
-const CODE_HELP = service.firebase ? "From your authenticator app." : "From your authenticator app, or one of your recovery codes.";
+/** What a sign-in code can be. */
+const CODE_HELP = "From your authenticator app, or one of your recovery codes.";
 const INVITE_ONLY = "Caller Whale is by invitation only: your workspace owner, or Caller Whale, sends you a link.";
-// A server that uses Firebase hands its web config here; the bundle with Firebase's SDK is loaded only then.
-const auth = service.firebase
-  ? await import("./firebase-auth.js").then(m => m.createFirebaseAuth({ sdk: m.firebaseSdk(service.firebase), providers: service.firebase.providers || [] }))
-  : createAuth({ base: service.url || "http://localhost:8101" });
+const auth = createAuth({ base: service.url || "http://localhost:8101" });
 
 /** The organization this browser works in; Caller Whale's server reads it from x-callerwhale-org. */
 const organization = () => localStorage.getItem("callerwhale.org") || "";
@@ -377,7 +374,7 @@ async function mfa() {
       h("p", { class: "muted" }, "Or open this link on your phone: ", h("a", { href: setup.otpauth_url }, "add to authenticator")),
       form([input("6-digit code", "code", { inputmode: "numeric", autocomplete: "one-time-code", maxlength: 8 })], "Confirm", async values => {
         const { recovery_codes } = await auth.confirmMfa(values.code.trim());
-        // Firebase gives no recovery codes: staff reset a lost authenticator.
+        // An account whose authenticator lives in Firebase has no recovery codes: staff reset a lost one.
         if (!recovery_codes?.length) return (location.hash = "#/account");
         show(
           h(

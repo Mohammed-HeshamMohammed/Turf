@@ -131,3 +131,33 @@ test("storage that refuses to work still signs in for the life of the page", asy
   await auth.signIn("s@example.com", "pw");
   assert.equal(await auth.accessToken(), "A1");
 });
+
+test("a forgotten password is reset with the emailed code", async () => {
+  const { calls, fetchImpl } = fakeService({ "/v1/password/forgot": { body: { ok: true } }, "/v1/password/reset": { body: { ok: true } } });
+  const auth = createAuth({ base: "http://auth.example", storage: memoryStorage(), fetchImpl });
+  await auth.forgotPassword("sami@example.com");
+  await auth.resetPassword("CODE", "a brand new password");
+  assert.deepEqual(calls[0].body, { email: "sami@example.com" });
+  assert.deepEqual(calls[1].body, { token: "CODE", new: "a brand new password" });
+});
+
+test("coming back from a provider with an error says why, and with a code signs in", async () => {
+  const location = { search: "?oauth_error=Sign-in+was+cancelled.", pathname: "/signin", hash: "" };
+  const history = { replaceState: () => {} };
+  const was = { location: globalThis.location, history: globalThis.history };
+  Object.defineProperty(globalThis, "location", { value: location, configurable: true });
+  Object.defineProperty(globalThis, "history", { value: history, configurable: true });
+  try {
+    const { fetchImpl } = fakeService({ "/v1/oauth/exchange": tokens("A1", "R1") });
+    const auth = createAuth({ base: "http://auth.example", storage: memoryStorage(), fetchImpl });
+    await assert.rejects(auth.finishProvider(), error => error instanceof AuthError && error.code === "oauth_error" && /cancelled/.test(error.message));
+    location.search = "?callerwhale_code=ONE";
+    assert.equal(await auth.finishProvider(), true);
+    assert.equal(await auth.accessToken(), "A1");
+    location.search = "";
+    assert.equal(await auth.finishProvider(), false);
+  } finally {
+    Object.defineProperty(globalThis, "location", { value: was.location, configurable: true });
+    Object.defineProperty(globalThis, "history", { value: was.history, configurable: true });
+  }
+});

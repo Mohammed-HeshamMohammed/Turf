@@ -1,4 +1,4 @@
-// Development only: sample accounts for looking at the signed-in pages without Caller Whale's server or Firebase.
+// Development only: sample accounts for looking at the signed-in pages without Caller Whale's server or the auth service.
 // Open any page with ?mock=staff, ?mock=customer, ?mock=invited or ?mock=stranger (?mock=off to stop). session.jsx
 // reaches this file only under `import.meta.env.DEV`, so a production build never contains it.
 

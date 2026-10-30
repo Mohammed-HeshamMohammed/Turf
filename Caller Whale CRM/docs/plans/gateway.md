@@ -10,7 +10,8 @@ Each server used to sit on its own public name and do its own checks. The gatewa
 
 ```
 Cloudflare DNS ──► Coolify Traefik (TLS) ──► gateway ──► core-api         (app.callerwhale.com)
-                                                    └──► grafana-proxy ──► Grafana   (grafana.callerwhale.com)
+                                                    ├──► grafana-proxy ──► Grafana   (grafana.callerwhale.com)
+                                                    └──► auth          (auth.callerwhale.com, no token check: it is where tokens are made)
 callerwhale.com ──► landing-web, landing-api   (marketing site: no tokens, stays as it is)
 ```
 
@@ -24,10 +25,10 @@ callerwhale.com ──► landing-web, landing-api   (marketing site: no tokens,
 | `/healthz`, the website's own files | nothing |
 | `GET /api/v1/auth/service`, `GET /api/v1/plans`, `GET /api/v1/download/*`, `POST /api/v1/billing/webhook` | nothing (the webhook is signed; the download link is signed) |
 | `/internal/*`, `/readyz` | never: not found from outside |
-| `/api/v1/platform/*` | a valid Firebase token **with the authenticator step** |
-| everything else under `/api/v1`, `/sync/*`, `/events` | a valid Firebase token |
+| `/api/v1/platform/*` | a valid Caller Whale token **with the authenticator step** (`mfa`) |
+| everything else under `/api/v1`, `/sync/*`, `/events` | a valid Caller Whale token |
 
-Tokens are checked for signature (Google's RS256 keys, cached by their `max-age`, refetched on an unknown key at most every 30 s), issuer, audience, expiry and sign-in time. The person's role, organization and revocation are still the core API's call.
+Tokens are the auth service's: checked for signature (its Ed25519 keys from `AUTH_JWKS_URL`, cached by their `max-age`, refetched on an unknown key at most every 30 s), issuer, audience and expiry. The gateway knows nothing about how people sign in; Firebase is the auth service's business alone. The person's role, organization and revocation are still the core API's call.
 
 ## Coolify steps
 
@@ -40,10 +41,9 @@ Tokens are checked for signature (Google's RS256 keys, cached by their `max-age`
 ## Not done yet
 
 - Limits are per copy and in memory.
-- The retired auth service's tokens are refused at the gateway (the core API would still accept them directly).
 - The landing site and its API (`callerwhale.com`) are not behind it: they are static and public. Its `/api` has its own limits.
 - Admin mode's invitations call the core API through the gateway like any other staff call.
 
 ## Log
 
-- 2026-10-30: Gateway built: host routing, path hygiene, per-address and per-person limits, Firebase token check, staff step, private paths, header hygiene, WebSocket pass-through. 18 tests (token forgery cases included).
+- 2026-10-30: Gateway built: host routing, path hygiene, per-address and per-person limits, token check, staff step, private paths, header hygiene, WebSocket pass-through. 18 tests (token forgery cases included).

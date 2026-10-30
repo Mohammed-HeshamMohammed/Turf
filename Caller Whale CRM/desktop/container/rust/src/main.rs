@@ -33,7 +33,7 @@ fn main() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![sidecar::service_call, signin::google_sign_in_listen, signin::google_sign_in, signin::open_in_browser, downloads::save_download, prepare_update])
+        .invoke_handler(tauri::generate_handler![sidecar::service_call, signin::google_sign_in_listen, signin::open_in_browser, downloads::save_download, prepare_update])
         .build(tauri::generate_context!())
         .expect("error while building Caller Whale")
         .run(|app, event| {

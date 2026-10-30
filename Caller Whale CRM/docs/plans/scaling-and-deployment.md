@@ -31,7 +31,7 @@ Caller Whale runs on Coolify at `187.7.72.171`, in the project "Caller Whale". T
 | `https://app.callerwhale.com` | gateway, which routes to core-api (the CRM's API: sign-in checks, invitations, credits, the download; docs/plans/gateway.md) | 8100 |
 | `https://grafana.callerwhale.com` | gateway, which routes to grafana-proxy (`deploy/grafana`) | 8100 |
 
-The authentication service (retired: sign-in is Firebase) and the gateway (answers only its health check) have no public name. If either is deployed again, give it `auth.callerwhale.com` or `api.callerwhale.com` and add the DNS record below.
+The authentication service is where everyone signs in and the only part that talks to Firebase (docs/plans/firebase-auth.md): it is reached at `https://auth.callerwhale.com`, through the gateway.
 
 - **DNS** is in Cloudflare (`callerwhale.com` zone): A records `@`, `www`, `app` and `grafana`, all to `187.7.72.171`, all **DNS only** (grey cloud). Coolify's Traefik gets Let's Encrypt certificates itself; a proxied (orange) record answers 503 because Cloudflare cannot reach a certificate for the name. Mail is separate: it goes through `smtp.softfix.dev` (see [mail-server.md](mail-server.md)), so `callerwhale.com` itself needs no MX record yet.
 - **No `www.` copy on `app` or `grafana`.** Coolify adds a `www.` copy of every domain. Remove it from core-api and grafana-proxy: `www.app.callerwhale.com` has no DNS, and one failing name holds up the certificate for the rest. `www.callerwhale.com` is wanted (it redirects to the apex).

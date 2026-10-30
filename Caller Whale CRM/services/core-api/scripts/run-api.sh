@@ -7,8 +7,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 if command -v pg_ctl >/dev/null; then bash "$here/dev-services.sh" >/dev/null; fi
 # Settings and secrets come from env/core-api.env (env/README.md); a variable already set wins.
 . "$here/../../../tools/load-env.sh" "$here/../../../env/core-api.env"
-# People sign in with the auth service (services/auth, port 8101; start it first, its public keys are fetched at start)
-# or with Firebase (CALLERWHALE_FIREBASE_PROJECT). The website is served from here.
+# People sign in with the auth service (services/auth, port 8101; start it first, its public keys are fetched at start).
+# The website is served from here.
 export CALLERWHALE_SITE_DIR="${CALLERWHALE_SITE_DIR:-$here/../website}"
 export CALLERWHALE_ARTIFACT_DIR="${CALLERWHALE_ARTIFACT_DIR:-${CALLERWHALE_DATA:-/x/callerwhale-data}/artifacts}"
 cd "$here/../rust"
