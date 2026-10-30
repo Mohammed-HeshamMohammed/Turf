@@ -5,7 +5,7 @@ metadata:
   name: landing-api
   labels:
     app.kubernetes.io/name: landing-api
-    app.kubernetes.io/part-of: turf
+    app.kubernetes.io/part-of: callerwhale
 spec:
   replicas: 1
   revisionHistoryLimit: 3
@@ -18,7 +18,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: landing-api
-        app.kubernetes.io/part-of: turf
+        app.kubernetes.io/part-of: callerwhale
     spec:
       terminationGracePeriodSeconds: 30
       securityContext:
@@ -44,7 +44,7 @@ spec:
               app.kubernetes.io/name: landing-api
       containers:
       - name: landing-api
-        image: turf-landing-api
+        image: callerwhale-landing-api
         ports:
           - { name: http, containerPort: 8095 }
         envFrom:
