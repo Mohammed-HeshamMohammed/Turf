@@ -7,7 +7,7 @@ import zipfile
 
 from helpers import call, ok
 from test_service_skiptrace import FILE_A, confirmed, make_dataset, run, service  # noqa: F401
-from turf_service import dnc_registry
+from callerwhale_service import dnc_registry
 
 
 def test_numbers_are_read_whatever_the_punctuation():

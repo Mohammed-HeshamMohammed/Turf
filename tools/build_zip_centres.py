@@ -1,4 +1,4 @@
-"""Builds turf_service/data/zip_centres.csv from two public US Census Bureau files.
+"""Builds callerwhale_service/data/zip_centres.csv from two public US Census Bureau files.
 
     python tools/build_zip_centres.py <gazetteer.txt> <zcta-to-county.txt>
 
@@ -9,7 +9,7 @@ Sources (public domain, no key needed):
     https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_county20_natl.txt
 
 Each output line is: zip,latitude,longitude,states  (states joined by "|" where a ZIP crosses a state line).
-Run again when the Census Bureau publishes new files; nothing else in Turf needs to change.
+Run again when the Census Bureau publishes new files; nothing else in Caller Whale needs to change.
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ def main(gazetteer: Path, relationship: Path) -> None:
                 continue  # a centre with no known state cannot be checked against a row's state, so it is not used
             lines.append(f"{zip_code},{float(row[lat_at]):.5f},{float(row[lon_at]):.5f},{'|'.join(sorted(states[zip_code]))}")
 
-    output = Path(__file__).resolve().parents[1] / "turf_service" / "data" / "zip_centres.csv"
+    output = Path(__file__).resolve().parents[1] / "callerwhale_service" / "data" / "zip_centres.csv"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"{len(lines)} ZIP codes written to {output}")

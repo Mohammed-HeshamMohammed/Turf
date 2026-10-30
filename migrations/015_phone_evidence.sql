@@ -9,7 +9,7 @@ CREATE TABLE phone_outcomes (
     row_number INTEGER,
     person_key TEXT,
     notes TEXT NOT NULL DEFAULT '',
-    source TEXT NOT NULL DEFAULT 'Turf call log',
+    source TEXT NOT NULL DEFAULT 'Caller Whale call log',
     retired_at TEXT
 );
 CREATE INDEX phone_outcomes_number ON phone_outcomes(number, occurred_at);

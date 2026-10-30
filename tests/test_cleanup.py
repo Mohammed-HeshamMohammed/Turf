@@ -1,7 +1,7 @@
 """Value cleanup: standardizing, flagging, junk rows, variant spellings, and applying a person's choices."""
 
-from turf_matching import cleanup
-from turf_matching.cleanup import company_key, fingerprint, standardize
+from callerwhale_matching import cleanup
+from callerwhale_matching.cleanup import company_key, fingerprint, standardize
 
 ROLES = {"Name": "name", "Phone": "phone", "Email": "email", "Zip": "postal_code", "State": "region", "Company": "other", "Address": "address"}
 ROWS = [

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from turf_matching import duplicates
+from callerwhale_matching import duplicates
 
 CONFIG = {
     "phone_columns": ["Phone"], "region": "US", "name_column": "Owner", "address_column": "Address", "city_column": "City",

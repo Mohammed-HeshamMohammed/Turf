@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from turf_matching import skiptrace as engine, assessment
-from turf_service.skiptrace import clean_config
+from callerwhale_matching import skiptrace as engine, assessment
+from callerwhale_service.skiptrace import clean_config
 from helpers import ok, wait
 from test_service_skiptrace import service, run  # noqa: F401
 

@@ -15,9 +15,9 @@ np = pytest.importorskip("numpy")
 from helpers import call, ok
 from status_wording import LABELLED, UNFAMILIAR
 from test_service_skiptrace import FILE_A, make_dataset, service  # noqa: F401
-from turf_matching import status_meaning as sm
-from turf_matching.skiptrace import normalize_status
-from turf_service import skiptrace, status_model
+from callerwhale_matching import status_meaning as sm
+from callerwhale_matching.skiptrace import normalize_status
+from callerwhale_service import skiptrace, status_model
 
 
 def keys_and_gold(data):
@@ -101,7 +101,7 @@ def test_the_model_guesses_only_from_the_persons_own_decisions():
 
 @pytest.fixture()
 def real_model(monkeypatch):
-    folder = Path(os.environ.get("LOCALAPPDATA", "")) / "Turf" / "models" / "potion-base-8M"
+    folder = Path(os.environ.get("LOCALAPPDATA", "")) / "Caller Whale" / "models" / "potion-base-8M"
     monkeypatch.setenv("CALLERWHALE_STATUS_MODEL", str(folder))
     embed = status_model.embedder()
     if embed is None:
@@ -169,7 +169,7 @@ def test_the_earlier_versions_suggestions_are_known_exactly():
 
 
 def old_setup(service, dataset, mapping):
-    """A setup as the earlier version of Turf saved it, before this project was opened with this one."""
+    """A setup as the earlier version of Caller Whale saved it, before this project was opened with this one."""
     config = ok(service, "skiptrace.suggest", dataset_id=dataset)["config"]
     config["outcome"] = {"column": "Status", "called_column": "Phone", "map": mapping}
     with service.store._connection:

@@ -1,4 +1,4 @@
-"""Turf CRM's Skip Tracing page: the exact command sequence it sends, from opening its workspace to saving a copy."""
+"""Caller Whale CRM's Skip Tracing page: the exact command sequence it sends, from opening its workspace to saving a copy."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from turf_service.api import Service
+from callerwhale_service.api import Service
 
 from helpers import call, ok, wait
 
@@ -44,16 +44,16 @@ def run(svc: Service, command: str, **payload) -> dict:
 
 
 def test_workspace_opens_the_same_project_every_time(service: Service, tmp_path: Path):
-    first = ok(service, "project.open_workspace", name="Turf CRM")
-    assert Path(first["root_path"]) == (tmp_path / "appdata" / "Turf" / "workspaces" / "turfcrm").resolve()
-    assert ok(service, "project.open_workspace", name="Turf CRM")["id"] == first["id"]
+    first = ok(service, "project.open_workspace", name="Caller Whale CRM")
+    assert Path(first["root_path"]) == (tmp_path / "appdata" / "Caller Whale" / "workspaces" / "callerwhalecrm").resolve()
+    assert ok(service, "project.open_workspace", name="Caller Whale CRM")["id"] == first["id"]
     # A new process finds the project the first one made.
-    assert ok(Service(), "project.open_workspace", name="Turf CRM")["id"] == first["id"]
+    assert ok(Service(), "project.open_workspace", name="Caller Whale CRM")["id"] == first["id"]
 
 
 def test_workspace_names_cannot_leave_the_workspaces_folder(service: Service, tmp_path: Path):
     project = ok(service, "project.open_workspace", name="../../escape")
-    assert Path(project["root_path"]).parent == (tmp_path / "appdata" / "Turf" / "workspaces").resolve()
+    assert Path(project["root_path"]).parent == (tmp_path / "appdata" / "Caller Whale" / "workspaces").resolve()
 
 
 def test_the_crm_sequence_checks_every_row_and_keeps_the_original(service: Service):

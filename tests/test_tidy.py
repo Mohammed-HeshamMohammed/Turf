@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 
 from helpers import call, ok, wait
-from turf_service import datasets, tidy
-from turf_service.api import Service
+from callerwhale_service import datasets, tidy
+from callerwhale_service.api import Service
 
 HEADERS = ["Name", "", "Phone", "Fax"]
 ROWS = [
@@ -96,7 +96,7 @@ def test_a_list_with_nothing_to_take_out_is_untouched(tmp_path: Path) -> None:
     path.write_text("Name,Phone\nAda,7135550001\n", encoding="utf-8")
     job = wait(svc, ok(svc, "dataset.import", path=str(path))["job_id"])
     dataset_id = job["result"]["dataset_id"]
-    # A list Turf imported is already clean and is remembered as such.
+    # A list Caller Whale imported is already clean and is remembered as such.
     assert dataset_id in tidy._checked(svc.store)
     before = svc.store._connection.execute("SELECT raw_values_json FROM source_rows WHERE dataset_id = ?", (dataset_id,)).fetchall()
     svc.store.close()

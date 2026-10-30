@@ -9,7 +9,7 @@ import pytest
 
 from helpers import ok
 from test_service_skiptrace import FILE_A, confirmed, make_dataset, run, service  # noqa: F401
-from turf_service import flood, nanpa_blocks
+from callerwhale_service import flood, nanpa_blocks
 
 UTILIZED = "State\tNPA-NXX\tOcn\tCompany\tRateCenter\tEffectiveDate\tUse\tAssignDate\tInitial/Growth\n" \
            "TX\t713-555\t6214\tSOUTHWESTERN BELL\tHOUSTON\t\tAS\t\tI\n" \

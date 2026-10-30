@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from helpers import call, ok, wait
-from turf_service.api import Service
+from callerwhale_service.api import Service
 
 TAB = chr(9)
 E_ACUTE = bytes([0xC9])  # "É" in Windows-1252, which is not valid UTF-8 on its own
@@ -59,8 +59,8 @@ def test_deleting_a_list_removes_its_stored_file_unless_something_still_needs_it
 
 def test_a_long_list_is_not_read_through_for_every_column() -> None:
     """The setup suggestion reads only status-like columns to the end, and samples stop once each column has three."""
-    from turf_matching import skiptrace as engine
-    from turf_service.skiptrace import _samples
+    from callerwhale_matching import skiptrace as engine
+    from callerwhale_service.skiptrace import _samples
 
     rows = [{"Name": f"Person {index}", "State": "TX", "Phone": f"713555{index:04d}", "Call Status": ("LVM", "Wrong number", "")[index % 3]} for index in range(500)]
     found = engine.suggest(rows, {})
@@ -121,7 +121,7 @@ def test_a_part_of_a_list_is_not_added_but_a_longer_or_different_one_is(tmp_path
 
 
 def test_a_long_list_is_known_again_from_its_sketch(tmp_path: Path) -> None:
-    from turf_service import sameness
+    from callerwhale_service import sameness
 
     def rows(start: int, count: int):
         return [{"Owner": f"Person {index}", "Phone": f"{7130000000 + index}"} for index in range(start, start + count)]
@@ -135,7 +135,7 @@ def test_a_long_list_is_known_again_from_its_sketch(tmp_path: Path) -> None:
 def test_a_dropped_file_arrives_as_its_content_and_leaves_nothing_behind(tmp_path: Path, monkeypatch) -> None:
     import base64
 
-    from turf_service import projects
+    from callerwhale_service import projects
 
     svc = project(tmp_path)
     data = base64.b64encode(write(tmp_path / "march.csv", LEADS).read_bytes()).decode("ascii")

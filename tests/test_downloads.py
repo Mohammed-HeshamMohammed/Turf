@@ -71,7 +71,7 @@ def test_old_checked_copies_use_retained_snapshot_without_retracing(service, tmp
     derivation.pop("original_file")
     with service.store._connection:
         service.store._connection.execute("UPDATE datasets SET derivation_json=? WHERE id=?", (json.dumps(derivation), copy))
-    from turf_service import skiptrace
+    from callerwhale_service import skiptrace
     monkeypatch.setattr(skiptrace, "_evaluate", lambda *args, **kwargs: pytest.fail("Downloads must not retrace"))
     assert download(service, copy, "checked")[1] != b""
     parsed = lambda content: list(csv.DictReader(io.StringIO(content.decode("utf-8-sig"))))

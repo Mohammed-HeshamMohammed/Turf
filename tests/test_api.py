@@ -1,4 +1,4 @@
-"""The command router Turf has: projects, lists and jobs. Skip Tracing is covered in test_service_skiptrace.py."""
+"""The command router Caller Whale has: projects, lists and jobs. Skip Tracing is covered in test_service_skiptrace.py."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 
 from helpers import call, ok, wait
-from turf_service import api
-from turf_service.api import Service
+from callerwhale_service import api
+from callerwhale_service.api import Service
 
 
 def write_csv(path: Path, rows: int) -> Path:
@@ -28,7 +28,7 @@ def test_nothing_works_before_a_project_is_open() -> None:
     assert call(svc, "dataset.list")["error"]["code"] == "no_project"
 
 
-def test_commands_turf_does_not_have_are_refused() -> None:
+def test_commands_callerwhale_does_not_have_are_refused() -> None:
     svc = Service()
     for command in ("scrape.create_job", "match.create_job", "collector.install", "project.create_sample", "dataset.cleanup_apply"):
         assert call(svc, command)["error"]["code"] == "unknown_command", command
@@ -41,7 +41,7 @@ def test_a_project_is_created_reopened_and_remembered(tmp_path: Path) -> None:
     assert [project["name"] for project in ok(svc, "project.recent")] == ["Lists"]
     assert call(svc, "project.create", path=str(tmp_path / "project"), name="Again")["error"]["code"] == "invalid_request"
 
-    # A new service process reopens the most recent project, as Turf does on start.
+    # A new service process reopens the most recent project, as Caller Whale does on start.
     restarted = Service()
     restarted.open_recent()
     assert ok(restarted, "project.current")["id"] == created["id"]
@@ -155,7 +155,7 @@ def test_a_list_is_renamed_and_deleted(tmp_path: Path) -> None:
 
 
 def test_delimited_text_such_as_a_county_export_is_imported(tmp_path):
-    from turf_service.datasets import _rows_from_bytes
+    from callerwhale_service.datasets import _rows_from_bytes
     headers, rows = _rows_from_bytes("real_acct.txt", "acct\tmailto\tsite_addr_1\n001\tSMITH JOHN & MARY\t1200 EXAMPLE ST\n".encode("cp1252"))
     assert headers == ["acct", "mailto", "site_addr_1"] and rows[0]["mailto"] == "SMITH JOHN & MARY"
     _, piped = _rows_from_bytes("owners.tsv", "Owner|Zip\nCAF\xc9 LLC|77009\n".encode("cp1252"))

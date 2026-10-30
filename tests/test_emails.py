@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from helpers import ok
 from test_service_skiptrace import service  # noqa: F401
-from turf_service import emails
+from callerwhale_service import emails
 
 
 def fake_dns(domain):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 
-from turf_service.api import Service
+from callerwhale_service.api import Service
 
 
 def call(svc: Service, command: str, **payload):
