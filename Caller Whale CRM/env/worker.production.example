@@ -1,0 +1,4 @@
+# The core API's worker on Coolify (application "core-api-worker", port 8090). Paste into Developer View.
+CALLERWHALE_API_URL=http://core-api:8088
+CALLERWHALE_WORKER_TOKEN=<the same token as in core-api's CALLERWHALE_WORKER_TOKENS>
+REDIS_ADDR=

@@ -75,7 +75,7 @@ cargo run -p callerwhale-auth -- new-key                     # prints a signing 
 bash services/auth/scripts/run-auth.sh                # http://localhost:8101, SQLite file services/auth/auth.db
 ```
 
-`run-auth.sh` reads its settings and signing key from `env/auth.env` (`node tools/env-init.mjs` creates it with a new key; see `env/README.md`).
+The paste-ready settings for Coolify are in [`env/auth.production.example`](../../env/auth.production.example) (fill the `<...>` values); for a local run `run-auth.sh` reads its settings and signing key from `env/auth.env` (`node tools/env-init.mjs` creates it with a new key; see `env/README.md`).
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -86,7 +86,9 @@ bash services/auth/scripts/run-auth.sh                # http://localhost:8101, S
 | `AUTH_REFRESH_DAYS` | 30 | |
 | `AUTH_PUBLIC_SIGNUP` | true | |
 | `AUTH_PUBLIC_URL` | `http://localhost:8101` | Where browsers reach this service; Google and Apple return to `<this>/v1/oauth/<provider>/callback`, so register that address with them |
-| `AUTH_WEBSITE_URL`, `AUTH_APP_URL` | `http://localhost:8088`, `http://localhost:5190` | Where a provider sign-in returns |
+| `AUTH_WEBSITE_URL`, `AUTH_APP_URL`, `AUTH_LANDING_URL` | `http://localhost:8088`, `http://localhost:5190`, `http://localhost:5200` | Where a provider sign-in returns: the old website, the CRM in a browser tab, the public site (`target=landing`, back to its `/signin`) |
+| `AUTH_FIREBASE_API_KEY` | | Turns Firebase mode on (docs/plans/firebase-auth.md): the project's Web API key. Only this service has it |
+| `AUTH_FIREBASE_IDENTITY_URL`, `AUTH_FIREBASE_TOKEN_URL` | Google's addresses | Only for tests, to point at a fake Firebase |
 | `AUTH_DEV_TOKENS` | false | Development only: return confirmation tokens in responses |
 | `AUTH_ALLOWED_ORIGINS` | `http://localhost:5190,http://localhost:8088,tauri://localhost,http://tauri.localhost` | Browser origins that may call auth: the CRM, the website and the desktop window. Set the real ones in production |
 | `AUTH_GOOGLE_CLIENT_ID`, `AUTH_GOOGLE_CLIENT_SECRET` | | Google sign-in |
