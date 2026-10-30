@@ -16,7 +16,7 @@ function serviceBridge(): Plugin {
     apply: "serve",
     configureServer(server) {
       if (process.env.TAURI_ENV_PLATFORM) return;
-      const root = resolve(process.env.TURF_SERVICE_ROOT ?? "../service");
+      const root = resolve(process.env.CALLERWHALE_SERVICE_ROOT ?? "../service");
       let child: ChildProcessWithoutNullStreams | null = null;
       let answers: AsyncIterator<string> | null = null;
       let nextId = 0;
@@ -24,7 +24,7 @@ function serviceBridge(): Plugin {
 
       function start() {
         if (!existsSync(join(root, "turf_service"))) throw new Error(`Turf's service was not found at ${root}.`);
-        const started = spawn(process.env.TURF_PYTHON ?? "python", ["-m", "turf_service.server", "--resources", root], {
+        const started = spawn(process.env.CALLERWHALE_PYTHON ?? "python", ["-m", "turf_service.server", "--resources", root], {
           cwd: root,
           env: {
             ...process.env,
@@ -49,7 +49,7 @@ function serviceBridge(): Plugin {
         const id = ++nextId;
         child!.stdin.write(`${JSON.stringify({ id, schema_version: 1, command, payload: payload ?? {} })}\n`);
         const line = await answers!.next();
-        if (line.done) throw new Error("Turf's service stopped unexpectedly. Is Python 3.11+ installed with service/requirements.txt, or TURF_PYTHON set?");
+        if (line.done) throw new Error("Turf's service stopped unexpectedly. Is Python 3.11+ installed with service/requirements.txt, or CALLERWHALE_PYTHON set?");
         const answer = JSON.parse(line.value) as { id?: number };
         if (answer.id !== id) throw new Error("Service response did not match the request");
         return line.value;

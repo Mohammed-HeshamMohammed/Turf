@@ -598,7 +598,7 @@ export function reducer(state, action) {
           source.columns.includes(action.mappings[field.id]) ? action.mappings[field.id] : "",
         ]),
       );
-      // What Turf would have chosen by itself; only the differences are lessons. A header mapped elsewhere by hand
+      // What Caller Whale would have chosen by itself; only the differences are lessons. A header mapped elsewhere by hand
       // stops being a lesson for its old field; a field set to "Not mapped" unlearns its old header.
       const detected = detectSourceFields(
         source.columns,
@@ -646,7 +646,7 @@ export function reducer(state, action) {
       if (!capability(state, "review") && !capability(state, "import")) return state;
       const original = state.datasets.find(item => item.id === action.id);
       if (!original) return state;
-      // A real check (Turf engine) gives each visible lead of the list its verdict. Leads outside the person's view, or
+      // A real check (Caller Whale engine) gives each visible lead of the list its verdict. Leads outside the person's view, or
       // of another list, are never touched; a do-not-call verdict already on a lead is kept whatever the check says.
       const visible = new Set(visibleLeads(state).map(item => item.id));
       const verdicts = action.verdicts && typeof action.verdicts === "object" ? action.verdicts : null;

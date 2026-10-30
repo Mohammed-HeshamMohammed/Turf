@@ -1,6 +1,6 @@
-# Turf features: value, cost and plans
+# Caller Whale features: value, cost and plans
 
-One file per feature, agreed one at a time. Each file says what the feature does, where its data lives, what it costs Turf to run, and how it compares with competitors. It ends with **the amount of the feature in each tier, what that costs Turf, and the price the feature sells for**.
+One file per feature, agreed one at a time. Each file says what the feature does, where its data lives, what it costs Caller Whale to run, and how it compares with competitors. It ends with **the amount of the feature in each tier, what that costs Caller Whale, and the price the feature sells for**.
 
 Features are priced on their own. Plan prices are not fixed yet: they come later from adding up the features in each tier, in [the plans doc](../plans/README.md).
 
@@ -30,6 +30,6 @@ Every feature file uses the same five tiers:
 | 8 | [Backup and restore](08-backup-and-restore.md) | Written for review |
 | 9 | [Accounts, security and billing](09-accounts-security-billing.md) | Written for review |
 | — | AI call assistant and live captions (already in the CRM demo) | Open |
-| — | Property and area insights: Census tract data, FEMA flood zones (already in the Turf desktop app) | Open |
-| — | Listings: newest listings with photos and prices (already in the Turf desktop app, from DataForge) | Open; overlaps 1b |
-| 1b | Requesting leads through Turf's supplier | Open: needs the supplier's price per lead, what a lead contains, and whether resale is allowed |
+| — | Property and area insights: Census tract data, FEMA flood zones (already in the Caller Whale desktop app) | Open |
+| — | Listings: newest listings with photos and prices (already in the Caller Whale desktop app, from DataForge) | Open; overlaps 1b |
+| 1b | Requesting leads through Caller Whale's supplier | Open: needs the supplier's price per lead, what a lead contains, and whether resale is allowed |

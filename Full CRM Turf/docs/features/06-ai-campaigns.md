@@ -2,7 +2,7 @@
 
 **Status:** Agreed (2026-10-25)
 
-The customer picks leads from their lists, Turf's AI writes a message for each lead, sends it in steps over time, reads the replies and updates the CRM. **Everything runs on Turf's server**, so the device doesn't matter: any computer or phone can build, approve and follow a campaign.
+The customer picks leads from their lists, Caller Whale's AI writes a message for each lead, sends it in steps over time, reads the replies and updates the CRM. **Everything runs on Caller Whale's server**, so the device doesn't matter: any computer or phone can build, approve and follow a campaign.
 
 ## How it works
 
@@ -20,7 +20,7 @@ The customer picks leads from their lists, Turf's AI writes a message for each l
 
 ## Channels and their rules
 
-| Channel | Who it can go to | Rules Turf enforces |
+| Channel | Who it can go to | Rules Caller Whale enforces |
 | --- | --- | --- |
 | **Email** | **Cold email is allowed** under the federal email law (CAN-SPAM), which is about identification and opt-out, not consent | Honest subject line, the sender's physical address in every email, a working unsubscribe honoured at once, no fake headers |
 | **SMS** | **Only people who agreed or engaged first:** replied, opted in, or came in as an inbound lead. Marketing texts need prior written consent, and the Do Not Call registry covers texts. | A registered texting campaign (Feature 3), STOP honoured at once, consent recorded on the lead |
@@ -30,11 +30,11 @@ The customer picks leads from their lists, Turf's AI writes a message for each l
 
 ## Getting email into inboxes
 
-Gmail and Yahoo require anyone sending more than 5,000 emails a day to have **SPF, DKIM and DMARC** on the sending domain, **one-click unsubscribe**, and a **spam-complaint rate under 0.3%** (ideally under 0.1%). Turf handles this:
+Gmail and Yahoo require anyone sending more than 5,000 emails a day to have **SPF, DKIM and DMARC** on the sending domain, **one-click unsubscribe**, and a **spam-complaint rate under 0.3%** (ideally under 0.1%). Caller Whale handles this:
 
 | How | Why |
 | --- | --- |
-| **Each customer sends from their own domain** (e.g. `mail.oakpalm.com`), never from Turf's | One bad customer can't harm every other customer's delivery |
+| **Each customer sends from their own domain** (e.g. `mail.oakpalm.com`), never from Caller Whale's | One bad customer can't harm every other customer's delivery |
 | **A setup wizard** walks the customer through the DNS records and checks them | Most customers won't know what DKIM is |
 | **Warm-up:** a new domain starts with a few dozen emails a day and grows over weeks | Sudden volume from a new domain goes straight to spam |
 | **Small sequences can go from the customer's own Gmail / Outlook** (connected in Feature 5) | Best delivery for 1-to-1 follow-ups; low daily limits |
@@ -64,10 +64,10 @@ Gmail and Yahoo require anyone sending more than 5,000 emails a day to have **SP
 | Every send and its result (delivered, bounced, opened, clicked, replied) | Server; shown in the lead's activity |
 | AI drafts and the reply sorting | Server; kept so a person can see why the AI decided |
 | **Unsubscribes and opt-outs** | Server, per workspace (legally each sender's own list) |
-| **Hard bounces** (the address doesn't exist) | Server, **shared across Turf** like Feature 2's network: an address that bounced for one customer is flagged for all |
+| **Hard bounces** (the address doesn't exist) | Server, **shared across Caller Whale** like Feature 2's network: an address that bounced for one customer is flagged for all |
 | Sending domain records and warm-up state | Server, per workspace |
 
-## What it costs Turf
+## What it costs Caller Whale
 
 **AI (Claude list prices per million tokens):** Haiku 5.5 is $0.10 in / $0.50 out; Sonnet 5.5 is $2 in / $10 out.
 
@@ -102,9 +102,9 @@ AI is cheap enough that sending costs more than writing, and both are tiny.
 | HubSpot Marketing Hub | General marketing | Starter $15–20 / seat (1,000 contacts, no automation); automation needs Professional at ~$890 / month |
 | Smarter Contact | Real-estate texting | $199–499 / month + $0.02–0.03 per text |
 
-**Where Turf wins:** the AI writes from the lead's own property data and Skip Tracing results, not a generic template; replies update the CRM by themselves (stage, callback task, the right person notified), where cold-email tools stop at the inbox; wrong-person replies feed Feature 2's right-person check and bounces feed the Turf network; compliance is built in (no cold SMS, opt-outs across channels, DNC and quiet hours, auto-pause before a domain is burned); list cleaning (Feature 2) runs before sending.
+**Where Caller Whale wins:** the AI writes from the lead's own property data and Skip Tracing results, not a generic template; replies update the CRM by themselves (stage, callback task, the right person notified), where cold-email tools stop at the inbox; wrong-person replies feed Feature 2's right-person check and bounces feed the Caller Whale network; compliance is built in (no cold SMS, opt-outs across channels, DNC and quiet hours, auto-pause before a domain is burned); list cleaning (Feature 2) runs before sending.
 
-**Where they win:** sending at big scale (Smartlead and Instantly juggle dozens of mailboxes and warm-up networks); huge lead databases (Instantly), which for Turf would come from the supplier (Feature 1b); marketing websites and landing pages (Carrot, HubSpot).
+**Where they win:** sending at big scale (Smartlead and Instantly juggle dozens of mailboxes and warm-up networks); huge lead databases (Instantly), which for Caller Whale would come from the supplier (Feature 1b); marketing websites and landing pages (Carrot, HubSpot).
 
 Sources: [Claude model pricing](https://platform.claude.com/docs/en/about-claude/pricing) · [Amazon SES pricing](https://aws.amazon.com/ses/pricing/) · [Lob pricing](https://lob.com/pricing) · [Lob pricing details](https://help.lob.com/print-and-mail/ready-to-get-started/pricing-details) · [Google and Yahoo sender requirements (PowerDMARC)](https://powerdmarc.com/google-and-yahoo-updated-email-authentication-requirements-for-2024/) · [Bulk sender requirements (Close)](https://help.close.com/technical-support/email-deliverability/requirements-for-bulk-email-senders) · [TCPA in 2026 (Vida)](https://vida.io/blog/tcpa-2026-what-changed) · [TCPA 2026 changes (Kixie)](https://www.kixie.com/sales-blog/tcpa-2026-changes/) · [Marketing laws overview (CAN-SPAM, TCPA)](https://open-exam-prep.com/study-guides/cipp-us/education-telecom-marketing/marketing-statutes) · [Instantly vs Smartlead vs Lemlist 2026 (SmartReach)](https://smartreach.io/blog/instantly-vs-smartlead-vs-lemlist/) · [Instantly vs Smartlead vs Lemlist (Valley)](https://www.joinvalley.co/blog/instantly-vs-smartlead-vs-lemlist) · [Smartlead pricing (Landbase)](https://www.landbase.com/blog/smartlead-pricing) · [Carrot CRM pricing](https://carrot.com/crm-pricing/) · [CarrotCRM plans](https://carrot.com/investorfuse-pricing/) · [REsimpli (SaaSworthy)](https://www.saasworthy.com/product/resimpli) · [HubSpot pricing 2026 (Automation Atlas)](https://automationatlas.io/answers/hubspot-pricing-explained-2026/) · [Smarter Contact pricing](https://www.pitchprfct.com/blog/smarter-contact-alternatives/)
 
@@ -121,13 +121,13 @@ This prices **the feature**, not the plans. The tier names are labels only. Text
 | **Active campaigns at once** | 1 | 3 | 5 | 10 | Unlimited |
 | Send from own Gmail / Outlook | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Own sending domain + warm-up | ❌ | ✅ | ✅ | ✅ | ✅ |
-| **Cost to Turf, fully used** | ~$0.15 | ~$5 | ~$10 | ~$5 per seat | ~$20 per seat |
+| **Cost to Caller Whale, fully used** | ~$0.15 | ~$5 | ~$10 | ~$5 per seat | ~$20 per seat |
 | **Selling price of this feature** | Free | **$49 / month** | **$79 / month** for both | **$39 per seat / month** | **$79 per seat / month** |
 | **Margin, fully used** | — | ~90% | ~87% | ~87% | ~75% |
 
 ### Add-ons
 
-| Add-on | Price | Cost to Turf | Margin |
+| Add-on | Price | Cost to Caller Whale | Margin |
 | --- | --- | --- | --- |
 | +5,000 campaign emails | **$10** | ~$2.50 | ~75% |
 | +1,000 AI reply drafts | **$10** | ~$5 | ~50% |

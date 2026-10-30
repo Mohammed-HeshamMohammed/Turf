@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Backend of the Turf landing site: waitlist, contact messages and the latest download.",
+  "description": "Backend of the Caller Whale landing site: waitlist, contact messages and the latest download.",
   "engines": { "node": ">=24" },
   "scripts": {
     "start": "node src/server.mjs",

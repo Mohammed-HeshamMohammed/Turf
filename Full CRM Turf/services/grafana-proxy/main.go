@@ -1,9 +1,9 @@
-// Grafana login proxy. Lets only Turf's staff (the platform owner and system administrators, who passed the
+// Grafana login proxy. Lets only Caller Whale's staff (the platform owner and system administrators, who passed the
 // authenticator step) into Grafana: it asks the core API who the person is (GET /api/v1/platform/whoami) and tells
 // Grafana in its auth-proxy headers. Grafana trusts those headers only from this proxy's address.
 // Plan: docs/plans/grafana-access.md.
 //
-// Sign-in: a visit without a session goes to the website's /admin/grafana, which posts the person's Turf token to
+// Sign-in: a visit without a session goes to the website's /admin/grafana, which posts the person's Caller Whale token to
 // /_turf/session. The token stays in this process's memory, never in the cookie (a random session id) or a URL, and is
 // used to ask again at most once a RECHECK_EVERY. A refusal ends the session at once; a core API that can't be reached
 // lets nobody through. Sessions live in memory, so run one copy; a restart only means signing in again.
@@ -63,15 +63,15 @@ func loadConfig(getenv func(string) string) (config, error) {
 	if c.grafana, err = url.Parse(g); err != nil || c.grafana.Host == "" {
 		return c, errors.New("GRAFANA_URL is not a URL")
 	}
-	if c.coreAPI, err = need("TURF_CORE_API_URL"); err != nil {
+	if c.coreAPI, err = need("CALLERWHALE_CORE_API_URL"); err != nil {
 		return c, err
 	}
-	if c.website, err = need("TURF_WEBSITE_URL"); err != nil {
+	if c.website, err = need("CALLERWHALE_WEBSITE_URL"); err != nil {
 		return c, err
 	}
 	w, err := url.Parse(c.website)
 	if err != nil || w.Host == "" {
-		return c, errors.New("TURF_WEBSITE_URL is not a URL")
+		return c, errors.New("CALLERWHALE_WEBSITE_URL is not a URL")
 	}
 	c.origin = w.Scheme + "://" + w.Host
 	duration := func(name string, fallback time.Duration) (time.Duration, error) {
@@ -166,7 +166,7 @@ func newProxy(cfg config) *proxy {
 	return p
 }
 
-// whoami asks the core API whether the token belongs to Turf staff.
+// whoami asks the core API whether the token belongs to Caller Whale staff.
 func (p *proxy) whoami(token string) (person, verdict) {
 	req, err := http.NewRequest(http.MethodGet, p.cfg.coreAPI+"/api/v1/platform/whoami", nil)
 	if err != nil {
@@ -219,17 +219,17 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // signIn takes the token the website posts, and opens a session if the core API says the person is staff.
 func (p *proxy) signIn(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		page(w, http.StatusMethodNotAllowed, "Not here", "Open Grafana from Turf's admin dashboard.")
+		page(w, http.StatusMethodNotAllowed, "Not here", "Open Grafana from Caller Whale's admin dashboard.")
 		return
 	}
 	// Only the website may post a sign-in, so no other page can sign someone in as somebody else.
 	if r.Header.Get("origin") != p.cfg.origin {
-		page(w, http.StatusForbidden, "Not allowed", "Open Grafana from Turf's admin dashboard.")
+		page(w, http.StatusForbidden, "Not allowed", "Open Grafana from Caller Whale's admin dashboard.")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	if err := r.ParseForm(); err != nil || r.PostForm.Get("token") == "" {
-		page(w, http.StatusBadRequest, "Sign-in missing", "Open Grafana from Turf's admin dashboard.")
+		page(w, http.StatusBadRequest, "Sign-in missing", "Open Grafana from Caller Whale's admin dashboard.")
 		return
 	}
 	token := r.PostForm.Get("token")
@@ -243,7 +243,7 @@ func (p *proxy) signIn(w http.ResponseWriter, r *http.Request) {
 	who, v := p.whoami(token)
 	if v == signInAgain {
 		// Not back to the website: it would post the same token again, round and round.
-		page(w, http.StatusUnauthorized, "Sign in to Turf again", "Grafana needs a fresh sign-in with your authenticator code. Sign in to Turf again, then open Grafana from the admin dashboard.")
+		page(w, http.StatusUnauthorized, "Sign in to Caller Whale again", "Grafana needs a fresh sign-in with your authenticator code. Sign in to Caller Whale again, then open Grafana from the admin dashboard.")
 		return
 	}
 	if v != allowed {
@@ -343,7 +343,7 @@ func (p *proxy) forward(w http.ResponseWriter, r *http.Request) {
 		case unavailable:
 			// Fail closed, but keep the session: it works again once the core API answers.
 			s.mu.Unlock()
-			page(w, http.StatusServiceUnavailable, "Can't check your access", "Turf's API is not answering. Try again in a minute.")
+			page(w, http.StatusServiceUnavailable, "Can't check your access", "Caller Whale's API is not answering. Try again in a minute.")
 			return
 		default:
 			s.mu.Unlock()
@@ -384,11 +384,11 @@ func (p *proxy) grafanaRole(role string) string {
 func (p *proxy) deny(w http.ResponseWriter, r *http.Request, v verdict) {
 	switch v {
 	case refused:
-		page(w, http.StatusForbidden, "Grafana is for Turf's staff", "Only the platform owner and system administrators can open it.")
+		page(w, http.StatusForbidden, "Grafana is for Caller Whale's staff", "Only the platform owner and system administrators can open it.")
 	case signInAgain:
 		p.toSignIn(w, r)
 	default:
-		page(w, http.StatusServiceUnavailable, "Can't check your access", "Turf's API is not answering. Try again in a minute.")
+		page(w, http.StatusServiceUnavailable, "Can't check your access", "Caller Whale's API is not answering. Try again in a minute.")
 	}
 }
 
@@ -408,7 +408,7 @@ func (p *proxy) toSignIn(w http.ResponseWriter, r *http.Request) {
 		page(w, http.StatusUnauthorized, "Open Grafana from admin mode", "Sign in to Caller Whale as staff and start admin mode from your dashboard.")
 		return
 	}
-	writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "Sign in to Turf first."})
+	writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "Sign in to Caller Whale first."})
 }
 
 func (p *proxy) drop(id string) {
@@ -494,7 +494,13 @@ func main() {
 		}
 		os.Exit(0)
 	}
-	cfg, err := loadConfig(os.Getenv)
+	cfg, err := loadConfig(func(name string) string {
+		// CALLERWHALE_* settings; a deployment still using the old TURF_* names keeps working.
+		if v := os.Getenv(name); v != "" {
+			return v
+		}
+		return os.Getenv(strings.Replace(name, "CALLERWHALE_", "TURF_", 1))
+	})
 	if err != nil {
 		log.Fatal(err)
 	}

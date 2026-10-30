@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Turf The CRM
+  title: Caller Whale The CRM
   version: 0.1.0
   description: Feature 5: leads, deals, tasks, handoffs, roles and reports. Owns offline sync for records the desktop edits.
 paths:

@@ -5,7 +5,7 @@
 
 ## What we are aiming for
 
-Turf is not the best tool in this market and the site should not say it is. The aim is narrower: **a little cheaper than the nearest alternatives, with more included, and a clear line between what we discount and what we do not.**
+Caller Whale is not the best tool in this market and the site should not say it is. The aim is narrower: **a little cheaper than the nearest alternatives, with more included, and a clear line between what we discount and what we do not.**
 
 ## What competitors charge (checked 2026-10-27)
 
@@ -21,9 +21,9 @@ Prices come from vendor blogs and review sites, which disagree with each other. 
 
 Dialer plus skip tracing plus recording from Mojo alone is about $180 a month for one person, and that still has no CRM, list handling or map.
 
-## Where Turf's draft prices land
+## Where Caller Whale's draft prices land
 
-| Tier | Turf all-in price | Nearest comparison | Position |
+| Tier | Caller Whale all-in price | Nearest comparison | Position |
 | --- | --- | --- | --- |
 | Solo (1 person) | **$179** a month | ReadyMode Starter $199; Mojo plus skip tracing and recording about $180; REsimpli Basic about $149 with small allowances | A little under the dialer-focused tools, and above REsimpli's entry plan because calling is unlimited (subject to fair use) and Skip tracing and the map are included |
 | Duo (2 people) | **$288** for both | Two ReadyMode Starter seats $398 | About 28% under |
@@ -45,7 +45,7 @@ Unlimited calling is the exception that has no bill attached yet. It is only saf
 
 ## Tone for the site
 
-- Say what Turf does and what is not built yet. No "best", "number one", "unmatched" or "only".
+- Say what Caller Whale does and what is not built yet. No "best", "number one", "unmatched" or "only".
 - Compare by category ("one app in place of several"), not by vendor. No competitor names or prices in public copy.
-- Keep the honest-limits section on the Why Turf page (no new phone numbers yet, calling is not live, Windows first).
+- Keep the honest-limits section on the Why Caller Whale page (no new phone numbers yet, calling is not live, Windows first).
 - Avoid absolutes about security and data. Say what is built and how, not that something can "never" happen.

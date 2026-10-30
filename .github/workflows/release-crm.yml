@@ -2,14 +2,14 @@ name: Release the desktop app
 
 # Builds the Full CRM desktop app (Full CRM Turf/desktop) into a Windows installer and publishes it as a GitHub
 # release. Caller Whale's server offers the newest release whose tag starts with "crm-v" to invited people only, on their
-# dashboard (TURF_RELEASE_REPO, TURF_RELEASE_TAG_PREFIX).
+# dashboard (CALLERWHALE_RELEASE_REPO, CALLERWHALE_RELEASE_TAG_PREFIX).
 #
 # Start it by pushing a tag:   git tag crm-v0.2.0 && git push origin crm-v0.2.0
 # or from the Actions tab (Run workflow), giving the version.
 #
 # The app's server and sign-in settings are the repository's Actions variables (Settings -> Secrets and variables ->
 # Actions -> Variables). They end up inside the app, so none of them is a server secret:
-#   TURF_API_URL                     Caller Whale's server, e.g. https://app.callerwhale.com
+#   CALLERWHALE_API_URL                     Caller Whale's server, e.g. https://app.callerwhale.com
 #   FIREBASE_API_KEY, FIREBASE_PROJECT_ID, FIREBASE_APP_ID, FIREBASE_AUTH_DOMAIN
 #   GOOGLE_DESKTOP_CLIENT_ID, GOOGLE_DESKTOP_CLIENT_SECRET   the "Desktop app" OAuth client (Google sign-in)
 
@@ -33,7 +33,7 @@ jobs:
   windows:
     runs-on: windows-latest
     env:
-      VITE_TURF_API_URL: ${{ vars.TURF_API_URL }}
+      VITE_CALLERWHALE_API_URL: ${{ vars.CALLERWHALE_API_URL || vars.TURF_API_URL }}
       VITE_FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
       VITE_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
       VITE_FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
@@ -42,7 +42,7 @@ jobs:
       VITE_GOOGLE_DESKTOP_CLIENT_ID: ${{ vars.GOOGLE_DESKTOP_CLIENT_ID }}
       VITE_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ vars.GOOGLE_DESKTOP_CLIENT_SECRET }}
       # The product never opens the sample workspace: every start asks for sign-in.
-      VITE_TURF_REQUIRE_SIGN_IN: "true"
+      VITE_CALLERWHALE_REQUIRE_SIGN_IN: "true"
     steps:
       - uses: actions/checkout@v4
 
@@ -70,13 +70,13 @@ jobs:
         run: |
           # A value pasted into GitHub can carry a line break or spaces; they would end up inside the app (Google
           # then refuses the client id). Every setting is used trimmed.
-          for name in VITE_TURF_API_URL VITE_FIREBASE_API_KEY VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_APP_ID VITE_FIREBASE_AUTH_DOMAIN VITE_GOOGLE_DESKTOP_CLIENT_ID VITE_GOOGLE_DESKTOP_CLIENT_SECRET; do
+          for name in VITE_CALLERWHALE_API_URL VITE_FIREBASE_API_KEY VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_APP_ID VITE_FIREBASE_AUTH_DOMAIN VITE_GOOGLE_DESKTOP_CLIENT_ID VITE_GOOGLE_DESKTOP_CLIENT_SECRET; do
             value=$(printf '%s' "${!name}" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
             printf -v "$name" '%s' "$value"
             echo "$name=$value" >> "$GITHUB_ENV"
           done
           missing=""
-          for name in VITE_TURF_API_URL VITE_FIREBASE_API_KEY VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_APP_ID; do
+          for name in VITE_CALLERWHALE_API_URL VITE_FIREBASE_API_KEY VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_APP_ID; do
             [ -n "${!name}" ] || missing="$missing ${name#VITE_}"
           done
           if [ -n "$missing" ]; then echo "::error::Set these repository Actions variables first:$missing"; exit 1; fi

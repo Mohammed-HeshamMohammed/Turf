@@ -1,6 +1,6 @@
 # Page 15 – Settings (`#/settings/:section`)
 
-Source: `src/Management.jsx` (`Settings`). Roles with the page: owner, manager, admin, solo. Sections depend on capabilities: **Workspace** (everyone with the page), **Follow-up rules** (`rules`), and with `admin`: **People & permissions**, **Communication**, **Services & storage**. The Turf logo menu also links here.
+Source: `src/Management.jsx` (`Settings`). Roles with the page: owner, manager, admin, solo. Sections depend on capabilities: **Workspace** (everyone with the page), **Follow-up rules** (`rules`), and with `admin`: **People & permissions**, **Communication**, **Services & storage**. The Caller Whale logo menu also links here.
 
 ## ER diagram
 

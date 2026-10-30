@@ -252,5 +252,5 @@ erDiagram
 | Top-bar sections | `ROLE.pages`, counts of open `TASK`, `HANDOFF` (Requested), unread `THREAD` | – |
 | Global search | visible `LEAD`, `DEAL`, `TASK`, `DATASET` + page names | – |
 | Bell / notifications | open `TASK` (if `taskReminders`), unread `THREAD` (if `replyReminders`) | – |
-| Turf logo menu | Explore as (`ROLE`), connection, sync, workspace settings, reset | `state.role`, `RESET` |
+| Caller Whale logo menu | Explore as (`ROLE`), connection, sync, workspace settings, reset | `state.role`, `RESET` |
 | Footer | `SYNC_QUEUE_ITEM` count, online flag, remote status | – |

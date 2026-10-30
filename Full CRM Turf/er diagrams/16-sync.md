@@ -1,6 +1,6 @@
 # Page 16 – Sync and pending changes (`#/sync`)
 
-Source: `src/Management.jsx` (`Sync`), `src/remote/session.js`, `src/remote/engine.js`, `src/remote/translate.js`. Reached from the Turf logo menu ("Sync & pending changes"); not in the sidebar. Every role can open it.
+Source: `src/Management.jsx` (`Sync`), `src/remote/session.js`, `src/remote/engine.js`, `src/remote/translate.js`. Reached from the Caller Whale logo menu ("Sync & pending changes"); not in the sidebar. Every role can open it.
 
 In sample mode the queue is a simulation: offline edits become `SYNC_QUEUE_ITEM` rows and "Sync" clears them. In connected mode each row mirrors a real operation sent to the server.
 

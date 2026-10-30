@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Turf Full CRM",
+  "productName": "Caller Whale",
   "version": "0.1.4",
-  "identifier": "local.turf.fullcrm",
+  "identifier": "com.callerwhale.crm",
   "build": {
     "beforeDevCommand": {
       "script": "node scripts/dev-server.mjs",

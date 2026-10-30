@@ -63,9 +63,9 @@ pub struct ServiceBridge {
     pub resources: Mutex<Option<PathBuf>>,
 }
 
-/// The service folder in development: `TURF_SERVICE_ROOT`, else `service/` in this repository.
+/// The service folder in development: `CALLERWHALE_SERVICE_ROOT`, else `service/` in this repository.
 fn service_root() -> PathBuf {
-    std::env::var_os("TURF_SERVICE_ROOT")
+    std::env::var_os("CALLERWHALE_SERVICE_ROOT")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../service")))
 }
@@ -85,7 +85,7 @@ pub fn spawn(resources: Option<&Path>) -> Result<Sidecar, String> {
         }
         None => {
             let root = service_root().canonicalize().map_err(|e| format!("Turf's service folder was not found: {e}"))?;
-            let python = std::env::var("TURF_PYTHON").unwrap_or_else(|_| "python".into());
+            let python = std::env::var("CALLERWHALE_PYTHON").unwrap_or_else(|_| "python".into());
             let mut command = Command::new(python);
             command
                 .args(["-m", "turf_service.server", "--resources"])
@@ -105,7 +105,7 @@ pub fn spawn(resources: Option<&Path>) -> Result<Sidecar, String> {
     }
     let mut child = command
         .spawn()
-        .map_err(|e| format!("Could not start Turf's service: {e}. Install Python 3.11+ or set TURF_PYTHON."))?;
+        .map_err(|e| format!("Could not start Turf's service: {e}. Install Python 3.11+ or set CALLERWHALE_PYTHON."))?;
     let stdin = child.stdin.take().ok_or("service stdin unavailable")?;
     let stdout = BufReader::new(child.stdout.take().ok_or("service stdout unavailable")?);
     let (sender, lines) = mpsc::channel();

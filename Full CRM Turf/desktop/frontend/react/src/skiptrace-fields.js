@@ -159,7 +159,7 @@ function supplied(value) {
 //
 // Lists name their columns in every way: "Owner Name", "Customer", "Client Full Name", "Seller", a first and last name
 // in two columns, or a header that says nothing ("Column 7"). Each column is scored for each field from three things:
-//   1. what you taught Turf: a header you mapped by hand before maps the same way again (learned);
+//   1. what you taught Caller Whale: a header you mapped by hand before maps the same way again (learned);
 //   2. the header's words against the field's vocabulary (field-vocabulary.js);
 //   3. the values: phone numbers, email addresses, ZIP codes, street addresses, people's names, years and prices
 //      look like what they are, which confirms a header, overrules a misleading one, or names an unlabelled column.

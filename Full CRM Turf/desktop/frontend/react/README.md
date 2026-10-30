@@ -5,7 +5,7 @@ Every screen the person sees, moved here from the root of `Full CRM Turf` (histo
 ```bash
 npm ci
 npm run dev              # Vite on http://localhost:5190
-npm run desktop          # the Tauri window, signed-in mode (needs a Turf server)
+npm run desktop          # the Tauri window, signed-in mode (needs a Caller Whale server)
 npm run desktop:sample   # the Tauri window on the sample workspace
 npm test                 # node --test tests/*.test.mjs
 npm run lint
@@ -16,7 +16,7 @@ npm run build            # dist/client, plus the Sites build files for the demo
 
 ## Signing in
 
-The CRM signs in with the auth service (`services/auth`) through `src/remote/auth-client.js`, a copy of `services/auth/clients/auth-client.js`, and sends its token, and the chosen organization in `x-turf-org`, with every request to Turf's server (`src/remote/api.js`). Set `VITE_TURF_API_URL` (default `http://localhost:8088`) and `VITE_TURF_AUTH_URL` (default `http://localhost:8101`) when building. A person with no workspace yet starts a trial or joins an invitation from the sign-in card.
+The CRM signs in with the auth service (`services/auth`) through `src/remote/auth-client.js`, a copy of `services/auth/clients/auth-client.js`, and sends its token, and the chosen organization in `x-turf-org`, with every request to Caller Whale's server (`src/remote/api.js`). Set `VITE_CALLERWHALE_API_URL` (default `http://localhost:8088`) and `VITE_CALLERWHALE_AUTH_URL` (default `http://localhost:8101`) when building. A person with no workspace yet starts a trial or joins an invitation from the sign-in card.
 
 ## What is in this folder
 
@@ -35,5 +35,5 @@ The public demo (Vercel, and the Sites hosting build) is built from this same fo
 
 ## Paths that depend on where this folder is
 
-- The Python engine is found at `../../../../service` (the repository root's `service/`) by `scripts/service-bridge.mjs` and `tests/engine.test.mjs`, or at `TURF_SERVICE_ROOT`.
+- The Python engine is found at `../../../../service` (the repository root's `service/`) by `scripts/service-bridge.mjs` and `tests/engine.test.mjs`, or at `CALLERWHALE_SERVICE_ROOT`.
 - `desktop/container/rust/tauri.conf.json` points back here: `beforeDevCommand` and `beforeBuildCommand` run in `../../frontend/react`, and `frontendDist` is `../../frontend/react/dist/client`.

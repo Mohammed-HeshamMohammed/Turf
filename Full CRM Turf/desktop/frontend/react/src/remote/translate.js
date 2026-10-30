@@ -1,4 +1,4 @@
-// Translation between the Turf API's records and this prototype's state, and from prototype actions to API
+// Translation between the Caller Whale API's records and this prototype's state, and from prototype actions to API
 // operations. Pure functions: the sync engine and the tests use them the same way.
 
 import { ROLES } from "../data.js";

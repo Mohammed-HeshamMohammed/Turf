@@ -1,4 +1,4 @@
-// Turf's Skip Tracing engine (../service, Python) as the CRM uses it. The desktop window reaches it through the Tauri
+// Caller Whale's Skip Tracing engine (../service, Python) as the CRM uses it. The desktop window reaches it through the Tauri
 // host (src-tauri/src/sidecar.rs); a browser tab on the dev server through /rpc (scripts/service-bridge.mjs). Where
 // neither exists, for instance the hosted demo, `engineAvailable` answers false and the page keeps its demo check.
 import { phoneColumns, sourceValue } from "./skiptrace-fields.js";
@@ -249,8 +249,8 @@ export async function checkRepeats({ datasetId, config, onStage, onStart, signal
 }
 
 // ---- Placing leads on the map ----------------------------------------------------------------------------------
-// Two steps, both from the US Census Bureau through Turf's engine (service/turf_service/geo.py):
-//   1. the centre of each lead's ZIP code, from a file shipped with Turf: instant and offline, an approximate place;
+// Two steps, both from the US Census Bureau through Caller Whale's engine (service/turf_service/geo.py):
+//   1. the centre of each lead's ZIP code, from a file shipped with Caller Whale: instant and offline, an approximate place;
 //   2. the exact address, from the Bureau's public geocoder: street, city, state and ZIP are sent (never names or
 //      phone numbers), only when the person asks, and every answer is remembered so nothing is looked up twice.
 

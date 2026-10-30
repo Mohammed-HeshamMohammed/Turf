@@ -5,8 +5,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 // staff get the admin pages. Nothing here is trusted by the server: every request carries the Firebase ID token and
 // the server checks it.
 
-/** Caller Whale's server. Set at build (VITE_TURF_API_URL); in development the core API on its own port. */
-export const API = (import.meta.env?.VITE_TURF_API_URL || "http://localhost:8088").replace(/\/$/, "");
+/** Caller Whale's server. Set at build (VITE_CALLERWHALE_API_URL); in development the core API on its own port. */
+export const API = (import.meta.env?.VITE_CALLERWHALE_API_URL || "http://localhost:8088").replace(/\/$/, "");
 const HINT_KEY = "turf.auth.firebase";
 
 export class ApiError extends Error {

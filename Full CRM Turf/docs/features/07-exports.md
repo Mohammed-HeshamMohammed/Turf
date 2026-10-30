@@ -4,7 +4,7 @@
 
 ## What exists today
 
-In the Turf desktop app, Lists has two downloads beside the before / after CSVs (Feature 1):
+In the Caller Whale desktop app, Lists has two downloads beside the before / after CSVs (Feature 1):
 
 - **Call list:** a CSV for a dialer, made from the list's Skip Tracing check. Each lead once, its best number in `Phone` and its other usable numbers in `Other phones`, with its stage, callback day and latest note. Leads with no number to call, repeats, and (unless asked for) leads that are not interested or dead are left out, and the message says how many.
 - **Mail list:** a CSV for letters. Each owner once at where their mail goes (the same address however it is spelled), with the property it is about. It can be only absentee owners, only rows with no phone, and without PO boxes.
@@ -20,13 +20,13 @@ The CRM also exports the visible leads and reports as CSV, and reports as PDF (F
 | **Mail list** | A mail house or letter service | One row per owner at the mailing address; filters for absentee, no phone, no PO boxes |
 | **Leads view** | Spreadsheets, other CRMs | The leads and columns on screen, with the filters applied |
 | **Reports** | Partners, accountants | CSV and PDF (Feature 5) |
-| **Whole workspace** | Leaving Turf, or keeping a copy | Everything: see Feature 8 |
+| **Whole workspace** | Leaving Caller Whale, or keeping a copy | Everything: see Feature 8 |
 
 Later, as pushes instead of files: **send to a dialer** (ReadyMode, CallTools and others with an API) and **send to a mail house** (Lob, which Feature 6 already uses for postcards).
 
 ### Rules
 
-- **The customer's own data is never held hostage.** Exports are unlimited on paid tiers: Turf does not charge to get the customer's data out. This is also what privacy laws expect.
+- **The customer's own data is never held hostage.** Exports are unlimited on paid tiers: Caller Whale does not charge to get the customer's data out. This is also what privacy laws expect.
 - **Who may export follows the role** (Feature 1, teams): owners and managers export everything; researchers their lists; callers nothing; closers only their own deals. Every export is logged: who, what, when.
 - **The free trial caps each export at 1,000 rows**, so the trial can't be used to clean big lists for free and leave.
 - Exports leave out anything blocked: DNC and never-call numbers are dropped from call lists, opted-out addresses from mail lists, with the count shown.
@@ -43,7 +43,7 @@ Later, as pushes instead of files: **send to a dialer** (ReadyMode, CallTools an
 
 Exports are **made on demand and never stored**, except a finished background export, which waits on the server for 7 days and is then deleted. The export log (who, what, when) stays with the workspace's audit log.
 
-## What it costs Turf
+## What it costs Caller Whale
 
 | Item | Cost |
 | --- | --- |
@@ -60,7 +60,7 @@ Exports are **made on demand and never stored**, except a finished background ex
 | PropStream | **25,000 / 50,000 saves and exports a month** ($99 / $199) |
 | REsimpli, Carrot, HubSpot, Pipedrive | CSV export of CRM records; limits vary by plan |
 
-PropStream and DealMachine meter exports because the records are **their data**. Turf's exports are the **customer's own leads**, so they stay unlimited. That is a selling point: "Turf never charges you to take your own leads to another tool."
+PropStream and DealMachine meter exports because the records are **their data**. Caller Whale's exports are the **customer's own leads**, so they stay unlimited. That is a selling point: "Caller Whale never charges you to take your own leads to another tool."
 
 Sources: [DealMachine export limits](https://help.next.dealmachine.com/en/articles/15902388-how-export-limits-work) · [DealMachine API exporting](https://api.docs.dealmachine.com/concepts/exporting) · [DealMachine current vs classic pricing](https://dealmachine.com/guides/current-vs-classic-pricing) · [PropStream pricing](https://www.propstream.com/news/how-much-does-propstream-cost)
 
@@ -72,7 +72,7 @@ Sources: [DealMachine export limits](https://help.next.dealmachine.com/en/articl
 | **Rows per export** | 1,000 | Unlimited | Unlimited | Unlimited | Unlimited |
 | Export log | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Send to a dialer / mail house (later) | ❌ | ✅ | ✅ | ✅ | ✅ |
-| **Cost to Turf** | ~$0 | ~$0 | ~$0 | ~$0 | ~$0 |
+| **Cost to Caller Whale** | ~$0 | ~$0 | ~$0 | ~$0 | ~$0 |
 | **Selling price of this feature** | Free | **Included ($0)** | **Included ($0)** | **Included ($0)** | **Included ($0)** |
 
-**Why $0:** charging to export the customer's own data would cost more in trust than it earns, and the costs are nothing. The value shows up as a reason to choose Turf over PropStream and DealMachine.
+**Why $0:** charging to export the customer's own data would cost more in trust than it earns, and the costs are nothing. The value shows up as a reason to choose Caller Whale over PropStream and DealMachine.

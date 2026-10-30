@@ -1,6 +1,6 @@
 [package]
 name = "turf-api"
-description = "Turf CRM API: authentication, permissions, CRM transactions, synchronization and events"
+description = "Caller Whale CRM API: authentication, permissions, CRM transactions, synchronization and events"
 edition.workspace = true
 version.workspace = true
 license.workspace = true

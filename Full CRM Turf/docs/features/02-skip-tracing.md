@@ -4,22 +4,22 @@
 
 ## What the customer gets
 
-Turf's Skip Tracing **cleans and ranks the phone numbers a list already has**. It does not look up new numbers (that is Feature 1b, the supplier). One check does all of this:
+Caller Whale's Skip Tracing **cleans and ranks the phone numbers a list already has**. It does not look up new numbers (that is Feature 1b, the supplier). One check does all of this:
 
 - **Phone verdicts:** each number's quality (good, suspicious, bad) and, separately, its calling restrictions. Several numbers in one cell are ranked one by one, extensions are kept, and **the best number to call comes first, with the reason**.
-- **Call-outcome evidence:** results from Turf's own calls and from **other dialers' exports** (ReadyMode's call log is recognised as exported). Wrong numbers, disconnected numbers and do-not-call carry across every list.
+- **Call-outcome evidence:** results from Caller Whale's own calls and from **other dialers' exports** (ReadyMode's call log is recognised as exported). Wrong numbers, disconnected numbers and do-not-call carry across every list.
 - **Reading call statuses:** the customer's earlier decisions first, then phrase rules for dialer wording (LVM, NI, Disco…), then an AI model. A do-not-call status is never dropped on a guess.
-- **Do Not Call:** numbers on the National Do Not Call Registry for the customer's area codes are blocked, plus Turf's own never-call list.
+- **Do Not Call:** numbers on the National Do Not Call Registry for the customer's area codes are blocked, plus Caller Whale's own never-call list.
 - **NANPA number blocks:** numbers in unassigned or available blocks are marked suspicious.
 - **Repeated leads:** households, LLCs, trusts and one owner with many properties are told apart, office lines are ignored, and the row with the best phone is kept.
-- **Right-person check:** yes / no / unknown on whether a number belongs to the name on the customer's list, learned from confirmed calls across Turf.
-- **Turf network hints:** "likely disconnected", "wrong number", "reached a person", learned from every Turf customer's calls.
+- **Right-person check:** yes / no / unknown on whether a number belongs to the name on the customer's list, learned from confirmed calls across Caller Whale.
+- **Caller Whale network hints:** "likely disconnected", "wrong number", "reached a person", learned from every Caller Whale customer's calls.
 - **Number lookups:** line type and carrier, as credits. No API keys for the customer.
 - **Review and overrule:** any answer can be overruled, and the decision is remembered. Original rows are never changed; checked copies stay downloadable before and after (Feature 1).
 
 ## Where it runs
 
-Turf picks automatically before each check, from the list's size and the device (cores, memory, a one-second speed test). The screen never freezes: work runs in the background, and a server check can be left running with the tab closed, with a notification when it is done.
+Caller Whale picks automatically before each check, from the list's size and the device (cores, memory, a one-second speed test). The screen never freezes: work runs in the background, and a server check can be left running with the tab closed, with a notification when it is done.
 
 | Device | Desktop app | Where checks run |
 | --- | --- | --- |
@@ -41,44 +41,44 @@ The browser engine exists once the engine is ported to Rust (see the language pl
 | The check engine | ✅ | ✅ worker | ✅ WebAssembly (later) |
 | **Reading call statuses (AI)** | Rules only when offline | ✅ **always**, for every device | ❌ |
 | **DNC registry** | ❌ | ✅ **one global copy**, filtered by each customer's SAN | ❌ (asks the server) |
-| **Turf never-call list** | Cached | ✅ global | ❌ (asks the server) |
+| **Caller Whale never-call list** | Cached | ✅ global | ❌ (asks the server) |
 | NANPA number blocks | ✅ | ✅ one shared copy (public data) | Small cached copy |
 | The customer's call-outcome evidence | ✅ | ✅ source of truth | Their leads only |
-| **Turf network evidence** | ❌ | ✅ global | ❌ (asks the server) |
+| **Caller Whale network evidence** | ❌ | ✅ global | ❌ (asks the server) |
 | **Right-person data** | ❌ | ✅ global, names stored scrambled | ❌ (asks the server) |
-| **Number lookups** | ❌ | ✅ Turf's Telnyx account, results cached ~90 days for everyone | ❌ |
+| **Number lookups** | ❌ | ✅ Caller Whale's Telnyx account, results cached ~90 days for everyone | ❌ |
 | Status decisions, overrules | ✅ | ✅ source of truth | Cached |
 
 ### Do Not Call: global, filtered by SAN
 
 Every business that calls must have **its own registry subscription and account number (SAN)**, paid for the area codes it calls. A provider may not buy the list once and share it with clients who have not paid. So:
 
-- Turf keeps **one global copy** of the registry on the server and refreshes it regularly. Customers no longer upload files.
-- Each customer enters **their own SAN**, and Turf blocks only against **the area codes that SAN has paid for**. The customer pays the FTC: the first 5 area codes are free, then $85 per area code a year (from October 2026).
-- Turf accesses the registry on each customer's behalf through their SAN. It downloads only the area codes its customers cover until the nationwide list ($23,425 a year) is worth buying.
-- **Turf's never-call list** (people who told any Turf customer to stop) needs no SAN and applies to everyone.
+- Caller Whale keeps **one global copy** of the registry on the server and refreshes it regularly. Customers no longer upload files.
+- Each customer enters **their own SAN**, and Caller Whale blocks only against **the area codes that SAN has paid for**. The customer pays the FTC: the first 5 area codes are free, then $85 per area code a year (from October 2026).
+- Caller Whale accesses the registry on each customer's behalf through their SAN. It downloads only the area codes its customers cover until the nationwide list ($23,425 a year) is worth buying.
+- **Caller Whale's never-call list** (people who told any Caller Whale customer to stop) needs no SAN and applies to everyone.
 
 ### Network evidence: two layers
 
 | Layer | Holds | Who sees it |
 | --- | --- | --- |
 | **The customer's own evidence** | Everything: reached, wrong person with the name, notes, dates | Only that customer. **Always wins.** |
-| **Turf network evidence** | Only facts about numbers: disconnected, wrong number, reached a person, with counts and the last date. **No names, notes, or which customer said it.** | Every customer, as a hint |
+| **Caller Whale network evidence** | Only facts about numbers: disconnected, wrong number, reached a person, with counts and the last date. **No names, notes, or which customer said it.** | Every customer, as a hint |
 
 Network hints **fade with time**, since numbers get reassigned. "Wrong person" is never shared as a network fact, because it is tied to a name.
 
 ### Right-person check: learn, never reveal
 
 - Learned **only from confirmed calls**: "Reached, right person" is evidence for a name and number; "Wrong person" is evidence against.
-- **Names are stored scrambled (hashed).** Turf can compare "SMITH JOHN A" with "John Smith" but cannot read names back out.
+- **Names are stored scrambled (hashed).** Caller Whale can compare "SMITH JOHN A" with "John Smith" but cannot read names back out.
 - The customer only ever sees **yes / no / unknown** for names already on their own list. No name from another customer is ever shown.
 - Confirmations fade with time.
 
-Showing names to customers would make Turf a data broker (state registration, deletion requests) and could break customers' data licences. That stays out of this feature; a name-revealing product would be licensed data, as in Feature 1b.
+Showing names to customers would make Caller Whale a data broker (state registration, deletion requests) and could break customers' data licences. That stays out of this feature; a name-revealing product would be licensed data, as in Feature 1b.
 
-**Required before launch:** the terms of service and privacy policy say Turf learns from call outcomes across its network without names or notes, with an opt-out for customers who refuse. Have a privacy lawyer confirm Turf stays a service provider.
+**Required before launch:** the terms of service and privacy policy say Caller Whale learns from call outcomes across its network without names or notes, with an opt-out for customers who refuse. Have a privacy lawyer confirm Caller Whale stays a service provider.
 
-## What it costs Turf
+## What it costs Caller Whale
 
 | Part | Unit cost |
 | --- | --- |
@@ -104,7 +104,7 @@ Showing names to customers would make Turf a data broker (state registration, de
 | Right-person check | Trestle Real Contact / ActiveProspect | $0.03 / $0.025 per number |
 | Litigator check | Trestle add-on | +$0.005 per number; others quote only |
 
-**Where Turf wins:** the right-person check is included (Trestle charges $0.03 a number, $300 for 10,000); DNC is handled with no file uploads; network hints from every Turf customer's calls, which nobody else has; status reading, best-number ranking, smart repeats and overrules in one check; unlimited checks on the desktop and in the browser.
+**Where Caller Whale wins:** the right-person check is included (Trestle charges $0.03 a number, $300 for 10,000); DNC is handled with no file uploads; network hints from every Caller Whale customer's calls, which nobody else has; status reading, best-number ranking, smart repeats and overrules in one check; unlimited checks on the desktop and in the browser.
 
 **Where they win:** they find new numbers. Feature 1b (the supplier) could close this.
 
@@ -121,10 +121,10 @@ This prices **the feature**, not the plans. The tier names are labels only.
 | Status AI, DNC, never-call list, network hints | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Right-person check | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Number lookups included per month** | 100 | 1,000 | 2,000 shared | 1,000 per seat, shared | 3,000 per seat, shared |
-| **Cost to Turf, fully used** (no cache hits) | ~$0.40 | ~$4 | ~$8 | ~$4 per seat | ~$12 per seat |
+| **Cost to Caller Whale, fully used** (no cache hits) | ~$0.40 | ~$4 | ~$8 | ~$4 per seat | ~$12 per seat |
 | **Selling price of this feature** | Free | **$79 / month** | **$119 / month** for both | **$59 per seat / month** | **$89 per seat / month** |
 | **Margin when fully used** | — | ~95% | ~93% | ~93% | ~86% |
 
-**Extra number lookups:** **$10 per 1,000**. Cost to Turf: $1.50–4, falling as the cache grows.
+**Extra number lookups:** **$10 per 1,000**. Cost to Caller Whale: $1.50–4, falling as the cache grows.
 
-**Why these selling prices:** DNC scrubbing alone is $100 / month at Lead Sherpa, and right-person checks on 3,000 numbers would cost $90 at Trestle. Turf does both and more for $79. It is priced above Feature 1 ($49) because it is what directly raises the contact rate.
+**Why these selling prices:** DNC scrubbing alone is $100 / month at Lead Sherpa, and right-person checks on 3,000 numbers would cost $90 at Trestle. Caller Whale does both and more for $79. It is priced above Feature 1 ($49) because it is what directly raises the contact rate.

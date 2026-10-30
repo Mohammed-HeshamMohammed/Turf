@@ -1,6 +1,6 @@
 # Page 18 – Server sign-in gate (full-screen, replaces the workspace)
 
-Source: `src/RemoteGate.jsx`, `src/remote/api.js`, `src/remote/vault.js`, `src/remote/engine.js`, `src/remote/translate.js`. Shown when connection mode is `gate`: either a saved server address exists or the person chooses "Connection preview" in the Turf logo menu. "Use the sample workspace" leaves it. Once signed in, the same pages are shown with server data (`connection = remote`).
+Source: `src/RemoteGate.jsx`, `src/remote/api.js`, `src/remote/vault.js`, `src/remote/engine.js`, `src/remote/translate.js`. Shown when connection mode is `gate`: either a saved server address exists or the person chooses "Connection preview" in the Caller Whale logo menu. "Use the sample workspace" leaves it. Once signed in, the same pages are shown with server data (`connection = remote`).
 
 ## ER diagram
 

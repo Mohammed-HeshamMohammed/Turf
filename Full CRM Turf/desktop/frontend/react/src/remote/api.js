@@ -1,4 +1,4 @@
-// The Turf API over fetch. Signing in is Firebase's job (./firebase-auth-client.js) when the app is built with a
+// The Caller Whale API over fetch. Signing in is Firebase's job (./firebase-auth-client.js) when the app is built with a
 // Firebase project, and the auth service's (./auth-client.js) otherwise: every request here carries that access
 // token, and the organization the person is working in. No cookies: the token is the session.
 
@@ -51,14 +51,14 @@ const remember = (key, value) => {
 };
 
 export function apiBase() {
-  return (remembered("turf.api.url") || import.meta.env?.VITE_TURF_API_URL || "").replace(/\/$/, "");
+  return (remembered("turf.api.url") || import.meta.env?.VITE_CALLERWHALE_API_URL || "").replace(/\/$/, "");
 }
 
-/** Turf's server. People never type it: it is fixed when the app is built (VITE_TURF_API_URL). */
-export const SERVER = (import.meta.env?.VITE_TURF_API_URL || "http://localhost:8088").replace(/\/$/, "");
+/** Caller Whale's server. People never type it: it is fixed when the app is built (VITE_CALLERWHALE_API_URL). */
+export const SERVER = (import.meta.env?.VITE_CALLERWHALE_API_URL || "http://localhost:8088").replace(/\/$/, "");
 
-/** The auth service, where people sign in (VITE_TURF_AUTH_URL). */
-export const AUTH_SERVER = (import.meta.env?.VITE_TURF_AUTH_URL || "http://localhost:8101").replace(/\/$/, "");
+/** The auth service, where people sign in (VITE_CALLERWHALE_AUTH_URL). */
+export const AUTH_SERVER = (import.meta.env?.VITE_CALLERWHALE_AUTH_URL || "http://localhost:8101").replace(/\/$/, "");
 
 export function setApiBase(url) {
   remember("turf.api.url", url ? url.replace(/\/$/, "") : "");
@@ -155,16 +155,16 @@ export async function request(method, path, body, { base = apiBase(), timeout = 
 
 export const api = {
   me: () => request("GET", "/api/v1/me"),
-  /** The person's invitation from Turf (activated on the first visit with a confirmed email), credits and download. */
+  /** The person's invitation from Caller Whale (activated on the first visit with a confirmed email), credits and download. */
   account: () => request("GET", "/api/v1/account"),
   /**
    * Spends credits before a metered action; refused (402) when the month's are used up. `requestId` makes a retry
-   * count once. People Turf did not invite this way have no credit limit ({ limited: false }).
+   * count once. People Caller Whale did not invite this way have no credit limit ({ limited: false }).
    */
   useCredits: (kind, credits, requestId, detail = "") => request("POST", "/api/v1/credits/use", { kind, credits, request_id: requestId, detail }),
   /** A new trial workspace for the signed-in person (one per person). */
   startTrial: (organizationName, timezone) => request("POST", "/api/v1/organizations/trial", { organization: organizationName || "", timezone: timezone || "" }),
-  /** Whether a new account may open its own trial on this server, or must be given access by an owner or Turf. */
+  /** Whether a new account may open its own trial on this server, or must be given access by an owner or Caller Whale. */
   signupOpen: () => request("GET", "/api/v1/auth/service").then(data => data?.signup === true),
   /** Joins the organization of an invitation for this person's email. */
   joinInvitation: token => request("POST", "/api/v1/invitations/join", { token }),

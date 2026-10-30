@@ -1,7 +1,7 @@
 # Every service on one machine (decision 1 of docs/plans/service-architecture.md). Only the gateway is published.
 # Build from the repository folder "Full CRM Turf":  docker compose --env-file env/compose.env -f deploy/compose.yml up --build
 # The secrets come from env/compose.env (node tools/env-init.mjs creates it; env/README.md).
-name: turf
+name: callerwhale
 services:
   postgres:
     image: postgres:17

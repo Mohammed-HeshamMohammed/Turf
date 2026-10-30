@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Turf AI campaigns
+  title: Caller Whale AI campaigns
   version: 0.1.0
   description: Feature 6: email and text campaigns, AI writing, reply sorting and sending limits.
 paths:

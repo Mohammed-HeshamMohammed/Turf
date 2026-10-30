@@ -57,7 +57,7 @@ Lists, Skip Tracing, calling and the map are Features 1–4. This feature is **e
 | Email threads | ✅ synced from Gmail / Outlook | Their own threads, cached |
 | Permissions, roles, audit log | ✅ only | ❌ |
 
-## What it costs Turf
+## What it costs Caller Whale
 
 | Item | Option | Cost |
 | --- | --- | --- |
@@ -82,7 +82,7 @@ Lists, Skip Tracing, calling and the map are Features 1–4. This feature is **e
 | Pipedrive | General sales CRM | $14–79 per seat (annual); extra packs $50 |
 | HubSpot Sales Hub | General CRM | $20 / $90 / $150 per seat, plus $1,500 / $3,500 onboarding; view-only seats free |
 
-**Where Turf wins:**
+**Where Caller Whale wins:**
 
 - Built around property outreach: caller → closer handoffs that move ownership only on acceptance, acquisition deal stages, and 8 roles that match real teams.
 - Follow-up rules driven by call outcomes (Feature 3), where general CRMs need setup and add-ons.
@@ -110,10 +110,10 @@ This prices **the feature**, not the plans. The tier names are labels only.
 | Email sync (Gmail / Outlook) | ❌ | ✅ | ✅ | ✅ | ✅ |
 | **Offline (desktop)** | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **API access** | ❌ | ❌ | ❌ | ❌ | ✅ |
-| **Cost to Turf, fully used** | ~$0.05 | ~$0.70 | ~$1.20 | ~$0.70 per seat | ~$2 per seat |
+| **Cost to Caller Whale, fully used** | ~$0.05 | ~$0.70 | ~$1.20 | ~$0.70 per seat | ~$2 per seat |
 | **Selling price of this feature** | Free | **$49 / month** | **$79 / month** for both | **$45 per seat / month** | **$59 per seat / month** |
 | **Margin** | — | ~99% | ~98% | ~98% | ~97% |
 
 **More documents:** +100 GB for **$5 a month** (cost $1.50), the same as REsimpli's extra-storage price for double the space.
 
-**Why these selling prices:** general CRMs run $14–90 per seat, and the real-estate ones charge $58–99 per user (Follow Up Boss $58–69, REsimpli $99 per extra user). $45–59 puts Turf's CRM in the middle while it is built for property outreach, which Pipedrive and HubSpot are not. Margins are high because the costs are tiny; the price also pays for support time, which is the real cost of a CRM.
+**Why these selling prices:** general CRMs run $14–90 per seat, and the real-estate ones charge $58–99 per user (Follow Up Boss $58–69, REsimpli $99 per extra user). $45–59 puts Caller Whale's CRM in the middle while it is built for property outreach, which Pipedrive and HubSpot are not. Margins are high because the costs are tiny; the price also pays for support time, which is the real cost of a CRM.

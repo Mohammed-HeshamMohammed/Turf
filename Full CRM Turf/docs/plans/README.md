@@ -1,4 +1,4 @@
-# Turf plans
+# Caller Whale plans
 
 **Status:** Draft (2026-10-25). The tiers and seat rules below are agreed. Prices are not fixed: each plan's price is worked out from the features in it, which are priced one at a time in [the features folder](../features/README.md).
 
@@ -10,7 +10,7 @@ The tiers follow **how people work together**, not only how many there are.
 
 | Tier | Who | How they work |
 | --- | --- | --- |
-| **Free trial** | Anyone | Trying Turf for 7 days |
+| **Free trial** | Anyone | Trying Caller Whale for 7 days |
 | **Solo** | 1 person | Does everything: lists, Skip Tracing, calls, deals |
 | **Duo** | Exactly 2 people | Usually two partners, or one caller and one closer. Both see everything; there are no managers or permissions to set up. |
 | **Team** | 3 or more people | Real roles: owner, team lead, callers, closers, researchers, administrators. Each sees only their part, with assignments, handoffs and reports by person. |
@@ -28,7 +28,7 @@ Moving up is always one step: Solo → Duo → Team → Pro. Nothing is lost whe
 | Closer / acquisitions | ✅ | Works leads |
 | Researcher | ✅ | Works lists and Skip Tracing |
 | System administrator | ✅ | Full access to settings |
-| **Client / partner** | ❌ **free** | Only sees the properties shared with them and never calls anyone, so they cost Turf almost nothing |
+| **Client / partner** | ❌ **free** | Only sees the properties shared with them and never calls anyone, so they cost Caller Whale almost nothing |
 
 Rules:
 

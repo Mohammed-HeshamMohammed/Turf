@@ -5,7 +5,7 @@ metadata:
   name: landing-web
   labels:
     app.kubernetes.io/name: landing-web
-    app.kubernetes.io/part-of: turf
+    app.kubernetes.io/part-of: callerwhale
 spec:
   selector:
     app.kubernetes.io/name: landing-web

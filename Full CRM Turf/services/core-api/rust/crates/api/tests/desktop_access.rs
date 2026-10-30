@@ -1,4 +1,4 @@
-//! Desktop access by invitation (migration 0014): only people Turf's staff invited get a dashboard, the download and a
+//! Desktop access by invitation (migration 0014): only people Caller Whale's staff invited get a dashboard, the download and a
 //! workspace, and their metered usage stays within the monthly credits staff set. Runs against real PostgreSQL.
 
 mod common;
@@ -17,7 +17,7 @@ async fn platform_owner(h: &Harness) -> Client {
 async fn invite(owner: &Client, email: &str, credits: i64) -> String {
     let made = owner.post("/api/v1/platform/invitations", json!({ "email": email, "name": "Sam Lee", "monthly_credits": credits })).await.ok();
     assert_eq!(made["emailed"], false, "no mail server in tests");
-    assert!(made["email_error"].as_str().unwrap().contains("TURF_SMTP_HOST"));
+    assert!(made["email_error"].as_str().unwrap().contains("CALLERWHALE_SMTP_HOST"));
     made["invitation"]["id"].as_str().unwrap().to_string()
 }
 
@@ -122,7 +122,7 @@ async fn credits_are_spent_once_and_never_beyond_the_limit() {
     let more = person.post("/api/v1/credits/use", json!({ "kind": "skip_trace", "credits": 50, "request_id": uuid::Uuid::new_v4() })).await.ok();
     assert_eq!(more["remaining"], 0);
 
-    // Someone who was not invited this way has no credit limit here (Turf's staff).
+    // Someone who was not invited this way has no credit limit here (Caller Whale's staff).
     assert_eq!(owner.post("/api/v1/credits/use", json!({ "kind": "skip_trace", "credits": 5, "request_id": uuid::Uuid::new_v4() })).await.ok()["limited"], false);
 }
 

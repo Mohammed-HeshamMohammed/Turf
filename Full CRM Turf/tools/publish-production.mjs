@@ -7,7 +7,7 @@
 //   node tools/publish-production.mjs                        update every branch (locally)
 //   node tools/publish-production.mjs landing-web-production update one
 //   node tools/publish-production.mjs --push                 also push what changed to origin
-//   TURF_COMMIT_TRAILER="Co-Authored-By: ..." adds a line to the end of each commit message
+//   CALLERWHALE_COMMIT_TRAILER="Co-Authored-By: ..." adds a line to the end of each commit message
 import { execFileSync } from "node:child_process";
 import { readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -64,7 +64,7 @@ const NOTE = "readme.md";
 function note(component, { ref, short, date, files, content }) {
   return `# ${component.title}
 
-This branch is a **production snapshot of one part of Turf**: only the files this part needs, at the same paths as in \`${component.base ?? "Full CRM Turf"}/\` on \`main\`.
+This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in \`${component.base ?? "Full CRM Turf"}/\` on \`main\`.
 
 - Last changed from \`${ref}\` at \`${short}\` (${date})
 - Content id: \`${content}\` (the branch is only refreshed when this changes)
@@ -92,7 +92,7 @@ function run() {
   const short = sha.slice(0, 7);
   const date = git(["show", "-s", "--format=%cs", sha]).trim();
   const indexFile = join(git(["rev-parse", "--absolute-git-dir"]).trim(), "turf-production.index");
-  const trailer = process.env.TURF_COMMIT_TRAILER ? `\n\n${process.env.TURF_COMMIT_TRAILER}` : "";
+  const trailer = process.env.CALLERWHALE_COMMIT_TRAILER ? `\n\n${process.env.CALLERWHALE_COMMIT_TRAILER}` : "";
   const changed = [];
 
   for (const component of chosen) {

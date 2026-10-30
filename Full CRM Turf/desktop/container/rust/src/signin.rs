@@ -4,7 +4,7 @@
 //! 1. `google_sign_in_listen` opens a listener on 127.0.0.1 (this computer only) at a free port.
 //! 2. `open_in_browser` opens the auth service (services/auth), which sends the browser to Google.
 //! 3. When Google is done, auth sends the browser to `http://127.0.0.1:<port>/turf-sign-in?code=…` (or
-//!    `?error=…`). The listener answers with a "return to Turf" page and hands the one-time code to the window as the
+//!    `?error=…`). The listener answers with a "return to Caller Whale" page and hands the one-time code to the window as the
 //!    `turf-sign-in` event; the window trades it for tokens at auth's /v1/oauth/exchange.
 //!
 //! With Firebase (docs/plans/firebase-auth.md, phase 3) the app talks to Google itself, since Firebase's own redirect
@@ -96,9 +96,9 @@ fn wait(listener: TcpListener, path: &str) -> Option<Back> {
             continue;
         };
         let body = if back.code.is_some() {
-            page("You're signed in", "Return to the Turf app. You can close this tab.")
+            page("You're signed in", "Return to the Caller Whale app. You can close this tab.")
         } else {
-            page("Sign-in did not finish", "Return to the Turf app and try again.")
+            page("Sign-in did not finish", "Return to the Caller Whale app and try again.")
         };
         let _ = write!(
             stream,
@@ -111,7 +111,7 @@ fn wait(listener: TcpListener, path: &str) -> Option<Back> {
     None
 }
 
-const PAGE: &str = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Turf</title>\
+const PAGE: &str = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Caller Whale</title>\
 <style>body{font-family:'Segoe UI',system-ui,sans-serif;background:#f1f1ef;color:#151515;display:grid;place-items:center;min-height:100vh;margin:0}\
 main{background:#fff;border-radius:22px;padding:32px 36px;max-width:420px;text-align:center;box-shadow:0 1px 3px #0001}\
 h1{font-size:22px;margin:0 0 8px}p{color:#595959;margin:0}</style></head><body><main><h1>TITLE</h1><p>TEXT</p></main></body></html>";
@@ -166,7 +166,7 @@ pub async fn google_sign_in(client_id: String, client_secret: String) -> Result<
 
 fn google(client_id: &str, client_secret: &str) -> Result<String, String> {
     if client_id.trim().is_empty() {
-        return Err("Google sign-in is not set up in this version of Turf. Use your email for now.".into());
+        return Err("Google sign-in is not set up in this version of Caller Whale. Use your email for now.".into());
     }
     let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| format!("Could not get ready for sign-in: {e}"))?;
     let redirect = format!("http://127.0.0.1:{}", listener.local_addr().map_err(|e| e.to_string())?.port());

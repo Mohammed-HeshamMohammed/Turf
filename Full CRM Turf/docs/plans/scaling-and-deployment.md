@@ -20,7 +20,7 @@ All answer `GET /healthz`. Settings and secrets are environment variables named 
 
 ### Coolify (what you run now)
 
-Turf runs on Coolify at `187.7.72.171`, in the project "Turf". The environments are "production" (the applications), "database" (PostgreSQL and Redis for auth and the core API) and "monitoring" (Grafana). Each application builds its `*-production` branch with the Dockerfile and port from the table above.
+Caller Whale runs on Coolify at `187.7.72.171`, in the project "Caller Whale". The environments are "production" (the applications), "database" (PostgreSQL and Redis for auth and the core API) and "monitoring" (Grafana). Each application builds its `*-production` branch with the Dockerfile and port from the table above.
 
 **Domains** (callerwhale.com since 2026-10-29; the old `turf.softfix.dev` names are retired, remove them from each application in Coolify once the new ones answer):
 
@@ -83,7 +83,7 @@ What was checked in the code:
 
 | Blocker | Where | Why it matters | Fix | Done |
 | --- | --- | --- | --- | --- |
-| Uploaded files live on the local disk | `TURF_ARTIFACT_DIR` (`routes/artifacts.rs`, `routes/worker_data.rs`) | A file uploaded to copy A does not exist on copy B | Object storage (any S3-compatible: R2, MinIO, B2). Until then a shared `ReadWriteMany` volume | No |
+| Uploaded files live on the local disk | `CALLERWHALE_ARTIFACT_DIR` (`routes/artifacts.rs`, `routes/worker_data.rs`) | A file uploaded to copy A does not exist on copy B | Object storage (any S3-compatible: R2, MinIO, B2). Until then a shared `ReadWriteMany` volume | No |
 | Sign-up rate limit is in memory | `SIGNUPS` in `routes/billing.rs` | Each copy counts on its own, so the limit multiplies by the number of copies | A Redis counter | No |
 | Landing API keeps a SQLite file | `landing/api/src/store.mjs` | One writer only | Move it to PostgreSQL if the site ever needs two copies | No (runs as exactly one) |
 | The gateway does not route yet | `services/gateway/main.go` | It only answers `/healthz` and `/version`; the apps talk to the services directly | Build routing and rate limits | No |
@@ -103,7 +103,7 @@ These are four different tools for four different problems. In order of when you
 
 ### Order of work
 
-1. **Now** (one VPS, Dokploy): one copy of each part; PostgreSQL backed up (base backups and WAL archiving, tested by restoring); `TURF_PUBLIC_SIGNUP=false`.
+1. **Now** (one VPS, Dokploy): one copy of each part; PostgreSQL backed up (base backups and WAL archiving, tested by restoring); `CALLERWHALE_PUBLIC_SIGNUP=false`.
 2. **Before a second copy of the core API**: files to object storage; sign-up limiter to Redis; give every part a real load test and tune the resource numbers.
 3. **First real customers**: PostgreSQL on an HA cluster with PgBouncer; 2+ copies of each stateless part (Dokploy replicas, or Kubernetes if there is more than one machine); the gateway doing its job.
 4. **Data growing**: partition the large tables; read replicas for reports and exports with a read/write split in the API.

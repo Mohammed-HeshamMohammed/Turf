@@ -3,7 +3,7 @@
 > **Where things are now (2026-10-27).** The app moved into the new layout. Run every command in the sections below from **`desktop/frontend/react`**, not from this folder: that is where `package.json`, `src/` and `tests/` are. The Tauri container is `desktop/container/rust`. "Deploy this folder" means `desktop/frontend/react`. The server code moved from `backend/` and `website/` to `services/core-api/`; `contracts/` stays here. See [desktop/README.md](desktop/README.md) and [services/README.md](services/README.md).
 
 
-A separate interactive frontend prototype of [Caller Whale's CRM and performance plan](../docs/TURF_CRM_AND_PERFORMANCE_PLAN.md). It extends the design of the original Turf app (the `Turf/` folder): Schibsted Grotesk, gray surfaces, rounded cards, black pill navigation, and peach accents.
+A separate interactive frontend prototype of [Caller Whale's CRM and performance plan](../docs/CALLERWHALE_CRM_AND_PERFORMANCE_PLAN.md). It extends the design of the original Caller Whale app (the `Turf/` folder): Schibsted Grotesk, gray surfaces, rounded cards, black pill navigation, and peach accents.
 
 **Client demo:** [turf-crm-demo.vercel.app](https://turf-crm-demo.vercel.app/). No Vercel login is needed. Open the Caller Whale logo menu and choose **Explore as** to review different roles.
 

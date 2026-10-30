@@ -229,7 +229,7 @@ The Python Skip Tracing engine is `service/` at the repository root. Both the Tu
 
 The CRM's planned features (calling, SMS and email, live captions, call transcription, Skip Tracing, matching, maps, reports) pull in many languages. Most of them arrive as **libraries we use**, not code we write. The rule: **a language gets its own folder only when we write and maintain code in it.** A library written in C or C++ is a dependency, not a folder.
 
-**Status:** *Today* = already in the repo. *Planned* = already in [the CRM plan](docs/TURF_CRM_AND_PERFORMANCE_PLAN.md). *New* = found by the research below. *Optional* = only if that feature is approved.
+**Status:** *Today* = already in the repo. *Planned* = already in [the CRM plan](docs/CALLERWHALE_CRM_AND_PERFORMANCE_PLAN.md). *New* = found by the research below. *Optional* = only if that feature is approved.
 
 #### 1. The Rust container: `container/`
 

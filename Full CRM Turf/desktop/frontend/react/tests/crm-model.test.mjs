@@ -272,14 +272,14 @@ test("a workspace read back from storage replaces the sample one, and anything e
   const old = reducer(sample, { type: "HYDRATE", state: { ...sample, schema: 1, leads: [{ ...sample.leads[0], calls: undefined, callback: "09:00" }] } });
   assert.equal(old.schema, 2);
 });
-test("correcting a mapping teaches Turf that header for later lists", () => {
+test("correcting a mapping teaches Caller Whale that header for later lists", () => {
   const owner = as("owner");
   const dataset = { id: "dx", name: "Odd list", columns: ["Owner", "Development", "Digits"], team: "Tampa" };
   const lead = { ...owner.leads[0], id: "lx", datasetId: "dx", sourceValues: { Owner: "Mona Adel", Development: "Palm Grove", Digits: "(813) 274-6610" } };
   const imported = reducer(owner, { type: "IMPORT", dataset, leads: [lead] });
   const saved = reducer(imported, { type: "SOURCE_MAPPING", id: "dx", mappings: { name: "Owner", phone: "Digits", subdivision: "Development" } });
   assert.equal(saved.settings.learnedHeaders.development, "subdivision");
-  assert.equal(saved.settings.learnedHeaders.digits, undefined, "Turf found Digits by itself, so there was nothing to learn");
+  assert.equal(saved.settings.learnedHeaders.digits, undefined, "Caller Whale found Digits by itself, so there was nothing to learn");
   assert.equal(saved.leads.find(item => item.id === "lx").subdivision, "Palm Grove");
 });
 test("a lead's place is kept; an exact address is never replaced by a ZIP centre", () => {

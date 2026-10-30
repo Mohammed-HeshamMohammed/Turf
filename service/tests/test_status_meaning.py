@@ -102,7 +102,7 @@ def test_the_model_guesses_only_from_the_persons_own_decisions():
 @pytest.fixture()
 def real_model(monkeypatch):
     folder = Path(os.environ.get("LOCALAPPDATA", "")) / "Turf" / "models" / "potion-base-8M"
-    monkeypatch.setenv("TURF_STATUS_MODEL", str(folder))
+    monkeypatch.setenv("CALLERWHALE_STATUS_MODEL", str(folder))
     embed = status_model.embedder()
     if embed is None:
         pytest.skip("the status model is not fetched (python tools/fetch_status_model.py)")
@@ -215,11 +215,11 @@ def test_the_model_is_fetched_once_checked_and_never_used_damaged(tmp_path, monk
     with pytest.raises(ValueError, match="checksum"):
         status_model.download(tmp_path / "bad", opener=lambda url, timeout: io.BytesIO(b"something else"))
     assert not any((tmp_path / "bad").iterdir()), "a file that does not match is not kept"
-    monkeypatch.setenv("TURF_STATUS_MODEL", str(tmp_path / "missing"))
+    monkeypatch.setenv("CALLERWHALE_STATUS_MODEL", str(tmp_path / "missing"))
     started = []
     monkeypatch.setattr(status_model.threading, "Thread", lambda **kwargs: started.append(kwargs) or type("T", (), {"start": lambda self: None})())
     assert status_model.embedder() is None and started == [], "tests and offline setups can turn fetching off"
-    monkeypatch.setenv("TURF_STATUS_MODEL_DOWNLOAD", "1")
+    monkeypatch.setenv("CALLERWHALE_STATUS_MODEL_DOWNLOAD", "1")
     assert status_model.embedder() is None and len(started) == 1 and status_model.state()["state"] == "downloading"
     status_model._fetch.update(state="idle")
 

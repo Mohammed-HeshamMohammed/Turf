@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Turf authentication service
+  title: Caller Whale authentication service
   version: 0.1.0
   description: The one source of truth for who someone is. Other services verify its access tokens with the public keys at /.well-known/jwks.json and never call it to do so.
 components:

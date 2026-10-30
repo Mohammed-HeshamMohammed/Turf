@@ -1,4 +1,4 @@
-/* Turf grouping ABI, version 1 (backend/rust/crates/grouping). Plan 2.3 "Native matching ABI".
+/* Caller Whale grouping ABI, version 1 (backend/rust/crates/grouping). Plan 2.3 "Native matching ABI".
  * Memory: the caller owns every input buffer. turf_grouping_run allocates the output buffers;
  * release them with turf_grouping_free exactly once. Functions never retain caller pointers. */
 #ifndef TURF_GROUPING_H

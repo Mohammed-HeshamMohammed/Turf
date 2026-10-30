@@ -87,7 +87,7 @@ pub fn token(body: &Value) -> &str {
 
 pub fn current_code(secret: &str, email: &str) -> String {
     let bytes = totp_rs::Secret::Encoded(secret.into()).to_bytes().unwrap();
-    totp_rs::TOTP::new(totp_rs::Algorithm::SHA1, 6, 1, 30, bytes, Some("Turf".into()), email.into()).unwrap().generate_current().unwrap()
+    totp_rs::TOTP::new(totp_rs::Algorithm::SHA1, 6, 1, 30, bytes, Some("Caller Whale".into()), email.into()).unwrap().generate_current().unwrap()
 }
 
 /// The claims inside a token, checked with the service's own public keys, as any other service would.

@@ -4,7 +4,7 @@
 
 ## What exists today
 
-In the Turf desktop app:
+In the Caller Whale desktop app:
 
 - **Deleting a list sets it aside for 30 days.** *Deleted lists* puts it back with everything it had (rows, setup, checks and the stored file), or deletes it for good. A list deleted more than 30 days ago is let go the next time the project is opened.
 - **Back up this project** writes one zip with the project's database and every stored file. Unpacked into an empty folder, it opens as the project.
@@ -18,10 +18,10 @@ In the CRM, reversible removals (archive a lead, delete a task or note) happen a
 | **Undo and recycle bin** | Deleted lists, leads, deals, tasks and notes wait in a bin and can be put back, for 30 days (90 on Pro) |
 | **Download everything** | One zip of the whole workspace: every record as CSV and JSON, every document, the call logs and the settings. Available at any time, including after cancelling (for 30 days). |
 | **Desktop backups** | The project zip (as today), plus **automatic local backups** each day, keeping the last 7 |
-| **Turf's server backups** | Turf backs up every workspace continuously; the customer never has to think about it |
+| **Caller Whale's server backups** | Caller Whale backs up every workspace continuously; the customer never has to think about it |
 | **Restore to a point in time** | If something goes badly wrong (a bad import, a team member deleting in bulk), support restores the workspace to how it was at a chosen moment |
 
-### How Turf backs up the server
+### How Caller Whale backs up the server
 
 | What | How | Kept |
 | --- | --- | --- |
@@ -49,7 +49,7 @@ Restoring one workspace without touching others is done by restoring into a sepa
 | Download-everything zip | Made on demand; the link works for 7 days |
 | Desktop backups | The customer's own computer |
 
-## What it costs Turf
+## What it costs Caller Whale
 
 | Item | Cost |
 | --- | --- |
@@ -66,7 +66,7 @@ Restoring one workspace without touching others is done by restoring into a sepa
 | Salesforce | Backup and restore is sold as a separate paid add-on, and many customers buy third-party backup tools |
 | Real-estate CRMs | Full point-in-time restore is not advertised |
 
-**Where Turf wins:** a recycle bin for lists, leads, deals, tasks and notes; one-click "download everything"; automatic local backups on the desktop; point-in-time restore included rather than sold as an add-on; data available for 30 days after cancelling.
+**Where Caller Whale wins:** a recycle bin for lists, leads, deals, tasks and notes; one-click "download everything"; automatic local backups on the desktop; point-in-time restore included rather than sold as an add-on; data available for 30 days after cancelling.
 
 Sources: [Cloudflare R2 pricing 2026](https://filebase.com/blog/cloudflare-r2-pricing-costs-savings-and-alternatives-in-2026/). Competitor recycle-bin windows were not checked against each vendor's pages and should be confirmed before quoting them.
 
@@ -77,10 +77,10 @@ Sources: [Cloudflare R2 pricing 2026](https://filebase.com/blog/cloudflare-r2-pr
 | Undo + recycle bin | 7 days | 30 days | 30 days | 30 days | 90 days |
 | Download everything | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Desktop automatic backups | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Turf's server backups | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Caller Whale's server backups | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Point-in-time restore by support** | ❌ | Last 14 days | Last 14 days | Last 30 days | Last 30 days, priority |
 | Document versions kept | 7 days | 30 days | 30 days | 30 days | 90 days |
-| **Cost to Turf** | ~$0 | ~$0.15 | ~$0.25 | ~$0.15 per seat | ~$0.30 per seat |
+| **Cost to Caller Whale** | ~$0 | ~$0.15 | ~$0.25 | ~$0.15 per seat | ~$0.30 per seat |
 | **Selling price of this feature** | Free | **Included ($0)** | **Included ($0)** | **Included ($0)** | **Included ($0)** |
 
 **Why $0:** backups are part of being trustworthy with someone's business, and they cost cents. Pro's longer windows and priority restores are a reason to upgrade, not a separate charge.

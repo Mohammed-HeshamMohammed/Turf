@@ -1,6 +1,6 @@
-# Turf as a paid service (SaaS)
+# Caller Whale as a paid service (SaaS)
 
-Turf is a CRM and a dialer for property outreach, sold as a service: people sign up on the website, try it on a short
+Caller Whale is a CRM and a dialer for property outreach, sold as a service: people sign up on the website, try it on a short
 trial, then pay for **Solo** (one person) or **Business** (a team with seats and roles). Nobody uses the app without
 signing in, and the server enforces every limit.
 
@@ -166,11 +166,11 @@ are unchanged.
 | POST | `/calls/start` | members with the `call` capability | Opens a call; refused when no minutes are left; answers `max_seconds` |
 | POST | `/calls/{id}/end` | the caller (or an administrator) | Closes the call and records its minutes from the server clock |
 | POST | `/admin/members` | administrators | Invite; refused on Solo or when seats are full |
-| GET/POST | `/platform/*` | Turf's staff with MFA (the platform owner and system administrators) | The admin dashboard: every workspace, people, staff and activity (see `services/core-api/README.md`) |
+| GET/POST | `/platform/*` | Caller Whale's staff with MFA (the platform owner and system administrators) | The admin dashboard: every workspace, people, staff and activity (see `services/core-api/README.md`) |
 
 `/me` now also says whether the organization's plan is usable, so the CRM can tell people why it is locked.
 
-Accounts, sign-in, two-step codes, Google and Apple, email confirmation and sessions are the auth service's (`services/auth/README.md`); every route here needs its access token and the organization in `X-Turf-Org`.
+Accounts, sign-in, two-step codes, Google and Apple, email confirmation and sessions are the auth service's (`services/auth/README.md`); every route here needs its access token and the organization in `X-Caller Whale-Org`.
 
 ## Security
 
@@ -197,8 +197,8 @@ Accounts, sign-in, two-step codes, Google and Apple, email confirmation and sess
 
 Google and Apple sign-in belong to the auth service now (`AUTH_GOOGLE_CLIENT_ID`, `AUTH_GOOGLE_CLIENT_SECRET`,
 `AUTH_APPLE_*`; see `services/auth/README.md`). Register `{AUTH_PUBLIC_URL}/v1/oauth/google/callback` as the
-authorized redirect URI. The Google Cloud project is **Turf** (`turf-512607`) on softfix.dev@gmail.com, OAuth client
-**Turf Web**, still in Google's *Testing* mode, so only its listed test users can sign in. Publish it on the Audience
+authorized redirect URI. The Google Cloud project is **Caller Whale** (`turf-512607`) on softfix.dev@gmail.com, OAuth client
+**Caller Whale Web**, still in Google's *Testing* mode, so only its listed test users can sign in. Publish it on the Audience
 page before real customers use it.
 
 ## Deploying on a Hostinger VPS
@@ -206,11 +206,11 @@ page before real customers use it.
 1. Ubuntu VPS with PostgreSQL 16+ and nginx. Create the roles as in `backend/scripts/dev-services.sh`, with strong
    passwords.
 2. Build `cargo build --release -p turf-api` and run it under systemd with `DATABASE_URL`, `MIGRATION_DATABASE_URL`,
-   `TURF_SITE_DIR=/srv/turf/website`, `TURF_BILLING_WEBHOOK_SECRET` (32+ random characters), `TURF_CHECKOUT_URL`,
-   `TURF_ALLOWED_ORIGINS`, and `TURF_AUTH_JWKS_URL` / `TURF_AUTH_PUBLIC_URL` pointing at the auth service.
+   `CALLERWHALE_SITE_DIR=/srv/turf/website`, `CALLERWHALE_BILLING_WEBHOOK_SECRET` (32+ random characters), `CALLERWHALE_CHECKOUT_URL`,
+   `CALLERWHALE_ALLOWED_ORIGINS`, and `CALLERWHALE_AUTH_JWKS_URL` / `CALLERWHALE_AUTH_PUBLIC_URL` pointing at the auth service.
 3. nginx terminates HTTPS (Let's Encrypt), proxies to `127.0.0.1:8088`, and rate-limits the auth service's `/v1/sessions` and `/v1/accounts`.
 4. Connect a payment provider (Stripe, or Paymob for Egypt). Its webhook adapter must sign the body with the shared
-   secret, or a small adapter translates the provider's own signed event into Turf's `payment.succeeded` /
+   secret, or a small adapter translates the provider's own signed event into Caller Whale's `payment.succeeded` /
    `payment.failed`.
 5. Connect an email provider for verification links and invitations. Until then, links are logged as issued, without
    the token.
@@ -226,8 +226,8 @@ page before real customers use it.
 | PhoneBurner | $140–$183 per user / month (annual) | Per seat | — |
 | Kixie | Quote only; reported $95–$215 per user / month | Per seat, add-ons $20–50 each | — |
 
-Turf's edge: Skip Tracing is built in (others sell lead data and skip tracing separately), and the CRM is property-first
-(owners, properties, handoffs, deals). Plans are priced under ReadyMode and BatchDialer per seat. Turf meters minutes
+Caller Whale's edge: Skip Tracing is built in (others sell lead data and skip tracing separately), and the CRM is property-first
+(owners, properties, handoffs, deals). Plans are priced under ReadyMode and BatchDialer per seat. Caller Whale meters minutes
 where they offer "unlimited under fair use": that keeps carrier costs predictable on a small VPS business, and a solo
 plan with no seat minimum undercuts them for one-person operators.
 

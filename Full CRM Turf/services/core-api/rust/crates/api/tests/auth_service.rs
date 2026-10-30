@@ -177,7 +177,7 @@ async fn the_live_events_socket_takes_the_token_in_its_protocols() {
 async fn platform_administrators_see_every_customer_and_nobody_else_does() {
     let Some(h) = start().await else { return };
     let owner = h.client("boss@turf.example", "Platform Owner", true, true);
-    let answer = owner.post("/api/v1/organizations/trial", json!({ "organization": "Turf HQ" })).await.ok();
+    let answer = owner.post("/api/v1/organizations/trial", json!({ "organization": "Caller Whale HQ" })).await.ok();
     let customer = h.client("client@shop.example", "A Customer", true, true);
     customer.post("/api/v1/organizations/trial", json!({ "organization": "A Shop" })).await.ok();
 
@@ -221,7 +221,7 @@ async fn without_required_mfa_owners_go_straight_in() {
     assert_eq!(owner.get("/api/v1/me").await.ok()["mfa"]["required"], false);
     assert_eq!(owner.get("/api/v1/billing").await.ok()["plan"]["key"], "trial", "no code needed");
     assert_eq!(owner.get("/api/v1/leads").await.status, 200);
-    // Turf's own staff are different: they always need the authenticator code, even when the server does not ask it
+    // Caller Whale's own staff are different: they always need the authenticator code, even when the server does not ask it
     // of anyone else.
     sqlx::query("UPDATE users SET platform_role = 'admin' WHERE email = 'quick@example.com'").execute(&h.owner).await.unwrap();
     assert_eq!(owner.get("/api/v1/platform/organizations").await.body["error"]["code"], "mfa_required");

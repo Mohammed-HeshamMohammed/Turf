@@ -15,9 +15,9 @@ From [the SaaS notes](../saas/README.md):
 - **Lockout:** five failed sign-ins in 15 minutes pauses that account.
 - **Passwords** stored only as Argon2id hashes; sessions in HttpOnly cookies.
 - **Row security** in PostgreSQL, so one organization can never read another's rows.
-- **Platform administrators** (Turf's own staff, with MFA) see every customer organization.
+- **Platform administrators** (Caller Whale's own staff, with MFA) see every customer organization.
 - **Plans, seats and minutes** live in the `plans` table; the server enforces every limit.
-- **Checkout** sends the browser to the payment provider; **only the provider's signed webhook** marks a payment paid. No card numbers are stored by Turf.
+- **Checkout** sends the browser to the payment provider; **only the provider's signed webhook** marks a payment paid. No card numbers are stored by Caller Whale.
 
 **Not built yet:** the Paddle and Stripe connections (both chosen, see below), a `provider` column on subscriptions and payments, invoices and receipts, sales tax, failed-payment retries, plan changes mid-month, cancellation and the 30-day data window (Feature 8), single sign-on (SSO), an audit-log screen, and a "signed-in devices" screen.
 
@@ -44,7 +44,7 @@ Everything runs on the server. The desktop and web apps show the screens; sign-i
 | --- | --- |
 | Accounts, password hashes, MFA secrets, recovery codes | Server only (as built) |
 | Sessions | Server; an HttpOnly cookie on the device |
-| **Card numbers and bank details** | **Only at the payment provider**, never at Turf |
+| **Card numbers and bank details** | **Only at the payment provider**, never at Caller Whale |
 | Payments, invoices, plan, seats | Server, with the provider's reference |
 | Audit log | Server, per workspace; kept 1 year (Pro: 2 years) |
 
@@ -56,18 +56,18 @@ Everything runs on the server. The desktop and web apps show the screens; sign-i
 | --- | --- | --- | --- |
 | Used for | **Default checkout**: monthly and annual card payments on every tier | **Bank debit (ACH)** and invoices for annual plans and big teams | Large or enterprise deals paid by bank transfer |
 | Fees | **5% + $0.50 per payment, all-in** | Cards 2.9% + $0.30 (+0.7% Billing, +0.5% Tax); **ACH 0.8%, capped at $5**; failed ACH $4; disputes $15; inbound wire $8 | Bank fees only |
-| **Who owes the sales tax** | **Paddle** (seller of record: US sales tax and foreign VAT) | **Turf** | **Turf** |
+| **Who owes the sales tax** | **Paddle** (seller of record: US sales tax and foreign VAT) | **Caller Whale** | **Caller Whale** |
 | Payment methods | Cards; Paddle also offers wallets such as PayPal (check Paddle's current list) | Cards, ACH bank debit, wire | Bank transfer |
 | How a payment is confirmed | Paddle's signed webhook | Stripe's signed webhook | A platform administrator (with MFA) marks it paid; the action is audit-logged |
 
 **Why both:** Paddle keeps everyday sales simple, with no sales-tax filing. Stripe's bank debit makes big annual deals far cheaper: a $10,000 annual invoice costs **$5 by ACH** against about $290 by card.
 
-### Sales tax when Turf bills directly (Stripe and manual invoices)
+### Sales tax when Caller Whale bills directly (Stripe and manual invoices)
 
 - Software subscriptions are taxable in some form in **about 26 US states**, and California is reported to start taxing software in January 2027.
-- A state's tax duty starts once Turf's sales into it pass that state's **economic nexus threshold**: most states use **$100,000 a year**, some also count transactions, and California, Texas and New York use $500,000. Several states have dropped the 200-transaction test.
-- Sales through Paddle are Paddle's, so they do not count toward Turf's own thresholds as a seller.
-- So: run Stripe Tax (0.5%) on Stripe sales to track each state, register in a state only when Turf's direct sales there approach its threshold, and have an accountant confirm. Exempt sales can still count toward a threshold.
+- A state's tax duty starts once Caller Whale's sales into it pass that state's **economic nexus threshold**: most states use **$100,000 a year**, some also count transactions, and California, Texas and New York use $500,000. Several states have dropped the 200-transaction test.
+- Sales through Paddle are Paddle's, so they do not count toward Caller Whale's own thresholds as a seller.
+- So: run Stripe Tax (0.5%) on Stripe sales to track each state, register in a state only when Caller Whale's direct sales there approach its threshold, and have an accountant confirm. Exempt sales can still count toward a threshold.
 
 **Annual billing** cuts the fixed $0.30–0.50 per payment to once a year and is worth offering at a discount.
 
@@ -77,7 +77,7 @@ Which methods customers can use in the US, Canada, Latin America, Europe and Afr
 
 ## Company setup
 
-Turf is run from Egypt. Stripe is not open to businesses registered in Egypt, and US texting registration, Telnyx and US contracts all go more smoothly for a US company, so:
+Caller Whale is run from Egypt. Stripe is not open to businesses registered in Egypt, and US texting registration, Telnyx and US contracts all go more smoothly for a US company, so:
 
 | Piece | Choice | Check before launch |
 | --- | --- | --- |
@@ -89,7 +89,7 @@ Turf is run from Egypt. Stripe is not open to businesses registered in Egypt, an
 
 Non-Egyptian bank accounts don't change the Egyptian management rule; plan for it rather than around it.
 
-## What it costs Turf
+## What it costs Caller Whale
 
 | Item | Cost |
 | --- | --- |
@@ -117,7 +117,7 @@ These fees are a cost of every plan, so the final plan prices must cover them.
 | HubSpot | SSO (SAML) and audit logs only on Enterprise (~$150 per seat, 10-seat minimum in one source) |
 | Most real-estate CRMs | Email + password, sometimes Google; two-step sign-in varies; SSO rarely offered |
 
-**Where Turf wins:** two-step sign-in for every role; SSO included on Pro rather than behind a $150-a-seat enterprise tier; a visible audit log; data never deleted for a late payment.
+**Where Caller Whale wins:** two-step sign-in for every role; SSO included on Pro rather than behind a $150-a-seat enterprise tier; a visible audit log; data never deleted for a late payment.
 
 Sources: [Egypt corporate residence (PwC)](https://taxsummaries.pwc.com/egypt/corporate/corporate-residence) · [Egypt income tax executive regulation (WIPO)](https://www.wipo.int/wipolex/es/text/577252) · [Egypt international corporate tax (Moore Global)](https://www.moore-global.com/services/tax/international-corporate-tax/egypt/) · [Form 5472 penalty (Taxes for Expats)](https://cdn.taxesforexpats.com/articles/foreign-business/form-5472-penalty.html) · [Form 5472 for foreign-owned businesses (SDO CPA)](https://www.sdocpa.com/form-5472-foreign-owned-business-filing/) · [Mercury eligibility (private.law wiki)](https://wiki.private.law/en/mercury) · [Stripe for Egyptian businesses (Osome)](https://osome.com/uk/blog/stripe-verified-business-egypt) · [Legality of cryptocurrency in Egypt (Andersen)](https://eg.andersen.com/legality-cryptocurrency-in-egypt/) · [10DLC brands for non-US companies (Infobip)](https://www.infobip.com/docs/10dlc/brands) · [Stripe ACH fees (Dodo Payments)](https://dodopayments.com/blogs/stripe-ach-fees/) · [Stripe fees explained 2026](https://transferfees.io/guides/stripe-fees-explained/) · [SaaS sales tax statistics (Anrok)](https://www.anrok.com/resources/sales-tax-statistics) · [Economic nexus by state (Taxually)](https://www.taxually.com/blog/economic-nexus-by-state) · [Sales tax nexus for SaaS (Dodo Payments)](https://dodopayments.com/blogs/sales-tax-nexus-saas-when-to-collect) · [SaaS sales tax by state 2026 (Numeral)](https://numeral.com/blog/sales-tax-on-saas) · [Stripe pricing 2026 (Flexprice)](https://flexprice.io/blog/stripe-pricing-breakdown-2026) · [Stripe costs (EightX)](https://eightx.co/blog/compare/how-much-does-stripe-cost) · [Stripe's real cost for software (Freemius)](https://freemius.com/blog/stripe-transaction-fees-real-cost/) · [Paddle vs Lemon Squeezy (Dodo Payments)](https://dodopayments.com/blogs/paddle-vs-lemon-squeezy/) · [Paddle vs Lemon Squeezy 2026 (Rework)](https://resources.rework.com/tools/billing-revenue/paddle-vs-lemon-squeezy) · [HubSpot SSO and audit logs (Docsie)](https://www.docsie.io/solutions/vs/hubspot_kb-vs-slab-enterprise/) · [Amazon SES pricing](https://aws.amazon.com/ses/pricing/)
 
@@ -131,7 +131,7 @@ Sources: [Egypt corporate residence (PwC)](https://taxsummaries.pwc.com/egypt/co
 | **Audit log** | ❌ | 30 days | 30 days | 1 year | 2 years + export |
 | **Single sign-on (SSO)** | ❌ | ❌ | ❌ | ❌ | ✅ |
 | Invoices, prorated seats, failed-payment retries | — | ✅ | ✅ | ✅ | ✅ |
-| **Cost to Turf** (excluding payment fees) | ~$0 | ~$0 | ~$0 | ~$0 | ~$0 |
+| **Cost to Caller Whale** (excluding payment fees) | ~$0 | ~$0 | ~$0 | ~$0 | ~$0 |
 | **Payment fees** | — | See the table above | See the table above | See the table above | See the table above |
 | **Selling price of this feature** | Free | **Included ($0)** | **Included ($0)** | **Included ($0)** | **Included ($0)** |
 

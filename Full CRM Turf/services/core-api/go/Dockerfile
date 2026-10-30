@@ -10,7 +10,7 @@ RUN CGO_ENABLED=0 go build -o /out/worker ./cmd/turf-worker
 FROM gcr.io/distroless/static-debian12
 COPY --from=build /out/worker /worker
 # The health endpoint listens on all interfaces so the platform can probe it.
-ENV TURF_WORKER_BIND=0.0.0.0:8090
+ENV CALLERWHALE_WORKER_BIND=0.0.0.0:8090
 EXPOSE 8090
 USER nonroot
 ENTRYPOINT ["/worker"]

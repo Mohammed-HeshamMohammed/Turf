@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Turf Billing service
+  title: Caller Whale Billing service
   version: 0.1.0
   description: Plans, features, seats, add-ons and the payment provider. Stores a subscription as entitlements. Checkout is off until a provider is chosen.
 paths:

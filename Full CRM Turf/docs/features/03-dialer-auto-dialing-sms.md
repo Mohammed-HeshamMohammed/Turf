@@ -4,7 +4,7 @@
 
 ## What exists today
 
-- **Turf desktop app:** the call button is a `tel:` link, so Windows hands the call to another app. There is no calling inside Turf.
+- **Caller Whale desktop app:** the call button is a `tel:` link, so Windows hands the call to another app. There is no calling inside Caller Whale.
 - **CRM demo:** a dial pad, call queue, start/end, outcomes and an SMS box, all **simulated**.
 - **Server:** the tables are ready (`call_sessions`, `messages`, minutes billed per call) but not connected to a carrier.
 
@@ -14,18 +14,18 @@ All of it becomes real calling through **Telnyx**, inside the app, with nothing 
 
 ### 1. Dial pad (manual calls)
 
-- The caller dials or clicks a number and **the call runs inside Turf**, through the browser's built-in calling (WebRTC).
-- The audio goes between the caller's headset and Telnyx. Turf's server only issues a short-lived call token and logs the call. The Telnyx account key never reaches the browser.
-- **"Call me first"** for weak PCs, bad internet or no headset: Turf rings **the caller's own cell phone**, then connects it to the lead. The computer only shows the screen, so even a very old PC works.
+- The caller dials or clicks a number and **the call runs inside Caller Whale**, through the browser's built-in calling (WebRTC).
+- The audio goes between the caller's headset and Telnyx. Caller Whale's server only issues a short-lived call token and logs the call. The Telnyx account key never reaches the browser.
+- **"Call me first"** for weak PCs, bad internet or no headset: Caller Whale rings **the caller's own cell phone**, then connects it to the lead. The computer only shows the screen, so even a very old PC works.
 
 ### 2. Auto dialing (lists)
 
-**It runs on Turf's server**, not on the caller's device. The server dials, listens, and connects the caller's audio only when a person answers, so a weak PC never carries more than one call.
+**It runs on Caller Whale's server**, not on the caller's device. The server dials, listens, and connects the caller's audio only when a person answers, so a weak PC never carries more than one call.
 
 | Mode | How it works | Legal |
 | --- | --- | --- |
 | **Power (1 line)** | Dials the next lead the moment the caller is free | Zero abandoned calls. The default. |
-| **Multi-line (2–3 lines)** | Dials several at once; the first person to answer gets the caller | Federal rule: **under 3% of answered calls abandoned** per campaign over 30 days. A person must be connected **within 2 seconds** of their greeting, or a recorded message plays with the caller's name and a callback number. Turf tracks this live and slows down automatically. |
+| **Multi-line (2–3 lines)** | Dials several at once; the first person to answer gets the caller | Federal rule: **under 3% of answered calls abandoned** per campaign over 30 days. A person must be connected **within 2 seconds** of their greeting, or a recorded message plays with the caller's name and a callback number. Caller Whale tracks this live and slows down automatically. |
 
 Every auto-dialed call gets:
 
@@ -34,9 +34,9 @@ Every auto-dialed call gets:
 
 ### 3. SMS
 
-- Sent and received **through Turf's server**, shown in the **Inbox** on the lead's thread.
-- **Every customer must be registered for business texting (10DLC):** their business and each campaign type. Unregistered texts have been **blocked by US carriers** since February 2025. Turf registers each customer as their software provider.
-- **STOP / opt-out** comes from the carrier and is mirrored into Turf. Turf never texts an opted-out number again.
+- Sent and received **through Caller Whale's server**, shown in the **Inbox** on the lead's thread.
+- **Every customer must be registered for business texting (10DLC):** their business and each campaign type. Unregistered texts have been **blocked by US carriers** since February 2025. Caller Whale registers each customer as their software provider.
+- **STOP / opt-out** comes from the carrier and is mirrored into Caller Whale. Caller Whale never texts an opted-out number again.
 - **Cold texting property owners is the riskiest part.** Marketing texts to cell phones generally need the person's prior written consent, and carriers often reject cold-outreach campaigns. SMS launches for **replies and follow-ups with people who have engaged**. Cold texting waits for a lawyer's sign-off.
 
 ### 4. Call logs
@@ -48,15 +48,15 @@ Every call and text is logged:
 - Outcome (reached, voicemail, no answer, wrong number…) and notes.
 - Recording, if on, and later a transcript (AI feature).
 
-Each outcome **feeds Feature 2 automatically**: the customer's own evidence and the Turf network hints.
+Each outcome **feeds Feature 2 automatically**: the customer's own evidence and the Caller Whale network hints.
 
-**Recording law:** Florida and several other states require **everyone on the call to agree** to recording. Turf plays a short notice ("this call may be recorded") or lets the customer turn recording off per state.
+**Recording law:** Florida and several other states require **everyone on the call to agree** to recording. Caller Whale plays a short notice ("this call may be recorded") or lets the customer turn recording off per state.
 
 ### 5. Phone numbers and reputation
 
-- Customers rent numbers through Turf, local to the lead's area code if they want.
+- Customers rent numbers through Caller Whale, local to the lead's area code if they want.
 - Telnyx owns the numbers, so calls carry the **top caller-ID trust rating (A attestation)**, which carriers use when deciding whether to label a call "Spam Likely".
-- **Number health:** Turf watches answer rates per number and flags a number that looks labelled. **Rotation** rests flagged numbers and spreads calls across several.
+- **Number health:** Caller Whale watches answer rates per number and flags a number that looks labelled. **Rotation** rests flagged numbers and spreads calls across several.
 
 ## Where it runs
 
@@ -75,12 +75,12 @@ Each outcome **feeds Feature 2 automatically**: the customer's own evidence and 
 | Call tokens, the Telnyx account | ✅ only | ❌ |
 | Auto-dial queue, pacing, abandonment tracking | ✅ only | ❌ (shows the queue) |
 | Call logs | ✅ source of truth | ✅ their own calls, cached |
-| Recordings | ✅ (Telnyx stores them; Turf keeps the link) | ❌ streamed when played |
+| Recordings | ✅ (Telnyx stores them; Caller Whale keeps the link) | ❌ streamed when played |
 | SMS threads | ✅ source of truth | ✅ their leads, cached |
 | Opt-outs, DNC, calling hours | ✅ checked before every call and text | ❌ |
 | Voicemail drop recordings | ✅ | ❌ |
 
-## What it costs Turf
+## What it costs Caller Whale
 
 Telnyx list prices, before volume discounts and taxes.
 
@@ -114,7 +114,7 @@ Telnyx list prices, before volume discounts and taxes.
 | Salesforce Sales Dialer | $25 outbound + $5 inbound + $15 per 1,000 min | Click-to-dial only | ❌ | ❌ | Needs Salesforce | Annual contract |
 | Smarter Contact (texting only) | $199 / $399 / $499 (billed quarterly) | — | — | +$0.02–0.03 per text | — | Elite Plus $799–1,799 with bundled texts |
 
-**Where Turf wins:**
+**Where Caller Whale wins:**
 
 - Dialer, CRM, list cleaning (Features 1–2), SMS and call logs in one app. Most competitors are dialer-only; only REsimpli is all-in-one.
 - Calls are blocked automatically by DNC, the never-call list, network hints and the lead's calling hours before every dial.
@@ -141,8 +141,8 @@ This prices **the feature**, not the plans. The tier names are labels only.
 | **Texts per month** | ❌ (needs registration) | 500 | 1,000 shared | 500 per seat, shared | 2,000 per seat, shared |
 | **Numbers included** | 1 shared demo number | 1 | 2 | 1 per seat | 3 per seat |
 | Number health / rotation | — | Health | Health | Health | Health + rotation |
-| **Cost to Turf, fully used** | ~$0.30 | ~$43 | ~$81 | ~$40 per seat | ~$135 per seat |
-| **Cost to Turf, typical use** (~50%) | ~$0.15 | ~$22 | ~$41 | ~$20 per seat | ~$70 per seat |
+| **Cost to Caller Whale, fully used** | ~$0.30 | ~$43 | ~$81 | ~$40 per seat | ~$135 per seat |
+| **Cost to Caller Whale, typical use** (~50%) | ~$0.15 | ~$22 | ~$41 | ~$20 per seat | ~$70 per seat |
 | **Selling price of this feature** | Free | **$99 / month** | **$179 / month** for both | **$89 per seat / month** | **$239 per seat / month** |
 | **Margin, fully used** | — | ~57% | ~55% | ~55% | ~44% |
 | **Margin, typical use** | — | ~78% | ~77% | ~78% | ~71% |
@@ -153,7 +153,7 @@ How the fully used cost adds up: Solo is 3,000 min × $0.011 = $33, a number ~$1
 
 ### Add-ons
 
-| Add-on | Price | Cost to Turf | Margin |
+| Add-on | Price | Cost to Caller Whale | Margin |
 | --- | --- | --- | --- |
 | +1,000 minutes | **$20** | ~$11 | ~45% |
 | +1,000 texts | **$15** | ~$7 | ~53% |
@@ -163,6 +163,6 @@ How the fully used cost adds up: Solo is 3,000 min × $0.011 = $33, a number ~$1
 
 ### Risks
 
-1. Heavy auto dialers are the only users who can push Pro below ~40% margin. The minute cap protects Turf.
-2. ReadyMode and BatchDialer advertise unlimited calling. Turf's answer is that its price includes the CRM, skip tracing and texting.
+1. Heavy auto dialers are the only users who can push Pro below ~40% margin. The minute cap protects Caller Whale.
+2. ReadyMode and BatchDialer advertise unlimited calling. Caller Whale's answer is that its price includes the CRM, skip tracing and texting.
 3. Texting registration takes days to weeks, so texting is not in the trial.

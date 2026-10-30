@@ -1,4 +1,4 @@
-// Package worker runs Turf's scheduling and workflow processing (plan 2.1, Go): it claims outbox events and asks the
+// Package worker runs Caller Whale's scheduling and workflow processing (plan 2.1, Go): it claims outbox events and asks the
 // API to run the rules for each, ticks the scheduler, and publishes cache invalidations. It holds no database
 // credentials; every change goes through the API's internal routes, which apply the same checks as for people.
 package worker

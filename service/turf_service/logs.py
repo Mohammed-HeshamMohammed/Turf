@@ -1,7 +1,7 @@
 """Structured JSON logs with sensitive-value redaction.
 
 Records go to stderr (stdout is reserved for the IPC protocol) and to a rotating file,
-<app data>/Turf/logs/service.log (5 MB x 3), unless TURF_LOG_FILE=0.
+<app data>/Turf/logs/service.log (5 MB x 3), unless CALLERWHALE_LOG_FILE=0.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ def redact(value: object, key: str = "") -> object:
 
 def _file() -> logging.Logger | None:
     global _file_logger
-    if os.environ.get("TURF_LOG_FILE", "1") == "0":
+    if os.environ.get("CALLERWHALE_LOG_FILE", "1") == "0":
         return None
     with _file_lock:
         if _file_logger is None:
@@ -57,7 +57,7 @@ def _file() -> logging.Logger | None:
 
 
 def log(level: str, event: str, **fields: object) -> None:
-    if _LEVELS[level] < _LEVELS.get(os.environ.get("TURF_LOG_LEVEL", "info"), 20):
+    if _LEVELS[level] < _LEVELS.get(os.environ.get("CALLERWHALE_LOG_LEVEL", "info"), 20):
         return
     line = json.dumps({"ts": datetime.now(timezone.utc).isoformat(), "level": level, "event": event, **redact(fields)}, default=str)
     print(line, file=sys.stderr, flush=True)

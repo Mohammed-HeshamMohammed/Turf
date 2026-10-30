@@ -202,7 +202,7 @@ export function createFirebaseAuth({ sdk, storage = globalThis.localStorage, pro
       }),
     /**
      * Turns the authenticator on. There are no recovery codes. When Firebase's token does not yet say a code was
-     * used, the person signs in once more with one, so Turf's server sees the second step.
+     * used, the person signs in once more with one, so Caller Whale's server sees the second step.
      */
     confirmMfa: code =>
       run(async () => {

@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Turf Skip tracing (server)
+  title: Caller Whale Skip tracing (server)
   version: 0.1.0
   description: Feature 2: server-side phone checks, Do Not Call, number lookups and network hints. Shares its rules with the shared service/ engine.
 paths:

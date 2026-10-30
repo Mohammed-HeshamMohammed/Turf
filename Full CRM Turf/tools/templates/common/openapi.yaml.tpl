@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Turf __TITLE__
+  title: Caller Whale __TITLE__
   version: 0.1.0
   description: __DESC__
 paths:

@@ -54,10 +54,10 @@ SITE_URL=https://your-domain npm --prefix landing/web run build    # landing/web
 | Variable | Where | Meaning |
 | --- | --- | --- |
 | `PORT` | api | Default 8095 |
-| `TURF_LANDING_DB` | api | SQLite file, default `data/landing.db` |
-| `TURF_RELEASE_REPO` | api | `owner/repo` whose latest published GitHub release feeds the Download button. Unset: "coming soon" |
-| `TURF_LANDING_ORIGINS` | api | Comma-separated sites allowed to call the API from a browser (default the dev site) |
-| `VITE_TURF_API_URL` | web, at build | Caller Whale's server (the core API) the site signs in against and gets dashboards from. Default `http://localhost:8088` in development; the Dockerfile defaults to `https://app.callerwhale.com` |
+| `CALLERWHALE_LANDING_DB` | api | SQLite file, default `data/landing.db` |
+| `CALLERWHALE_RELEASE_REPO` | api | `owner/repo` whose latest published GitHub release feeds the Download button. Unset: "coming soon" |
+| `CALLERWHALE_LANDING_ORIGINS` | api | Comma-separated sites allowed to call the API from a browser (default the dev site) |
+| `VITE_CALLERWHALE_API_URL` | web, at build | Caller Whale's server (the core API) the site signs in against and gets dashboards from. Default `http://localhost:8088` in development; the Dockerfile defaults to `https://app.callerwhale.com` |
 | `FIREBASE_AUTH_HOST` | web container | The Firebase project's `<id>.firebaseapp.com`. nginx serves its sign-in helper at `/__/auth/` on the site's own address |
 | `API_ORIGIN` | web container | The core API's origin, allowed by the site's content security policy |
 

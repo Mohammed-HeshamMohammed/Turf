@@ -1,4 +1,4 @@
-# Turf Full CRM prototype — design QA
+# Caller Whale CRM prototype — design QA
 
 **final result: passed**
 
@@ -6,12 +6,12 @@ Reviewed on October 15, 2026. This pass covers the separate frontend prototype, 
 
 ## Comparison target and evidence
 
-- Source visual truth: the current Turf dashboard at `http://127.0.0.1:5183/`, plus its existing font, palette, favicon, and card styles.
-- Source capture: `C:\Users\unwie\.codex\visualizations\2026\10\14\01a13c30-4896-71b0-aa29-3143514af819\full-crm-qa\turf-source-desktop.jpg`. Kept outside Git because the source represents the live Turf workspace.
+- Source visual truth: the current Caller Whale dashboard at `http://127.0.0.1:5183/`, plus its existing font, palette, favicon, and card styles.
+- Source capture: `C:\Users\unwie\.codex\visualizations\2026\10\14\01a13c30-4896-71b0-aa29-3143514af819\full-crm-qa\turf-source-desktop.jpg`. Kept outside Git because the source represents the live Caller Whale workspace.
 - Implementation: `http://127.0.0.1:5190/`, Team manager, clean fictional sample workspace, Dashboard active, connected preview, no toast/dialog open.
 - Implementation screenshot: [screenshots/dashboard-desktop.jpg](screenshots/dashboard-desktop.jpg).
 - Source and implementation pixels: **1280 × 720** each. CSS viewport: **1280 × 720**; effective capture density **1**. No scaling or density normalization required for the final desktop comparison.
-- Full-view comparison: both images were opened together in the same comparison tool input. This was a comparison of Turf's visual system applied to a CRM extension. The live source has aggregate list metrics and a map; the prototype intentionally has role navigation, CRM metrics, tasks, and a property card. Data and information architecture differ intentionally; pixel-identical screen reproduction was not the goal.
+- Full-view comparison: both images were opened together in the same comparison tool input. This was a comparison of Caller Whale's visual system applied to a CRM extension. The live source has aggregate list metrics and a map; the prototype intentionally has role navigation, CRM metrics, tasks, and a property card. Data and information architecture differ intentionally; pixel-identical screen reproduction was not the goal.
 - Focused comparison: the header, pill navigation, metric typography, card corners, and body text were inspected in the equal-size full captures. A separate implementation header capture is available at [screenshots/header-desktop.jpg](screenshots/header-desktop.jpg). These regions are readable at the supplied capture size; a separate source enlargement was unnecessary.
 - Mobile: **375 × 812** CSS/pixel capture, effective density **1**. [Dashboard](screenshots/dashboard-mobile.jpg), [lead table after correction](screenshots/leads-mobile.jpg).
 - Additional states: [deal pipeline](screenshots/deals-desktop.jpg) and [client partner conversation](screenshots/client-inbox.jpg). These flow captures reflect edited sample state, not the clean final dashboard.
@@ -20,10 +20,10 @@ Reviewed on October 15, 2026. This pass covers the separate frontend prototype, 
 
 | Surface                 | Finding and decision                                                                                                                                                                                                                                                                                                      |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Fonts / typography      | Bundled Inter Tight Variable loads locally and was confirmed in computed styles. Black headings, medium 500 weight, compact labels, and large light numeric values preserve Turf's hierarchy. Long headings wrap on mobile.                                                                                               |
-| Spacing / layout rhythm | Gray shell, 28px card radii, generous gutters, rounded controls, and an independently scrolling main pane match Turf's design language. The new 228px sidebar is an intentional CRM extension, with internal navigation scrolling at short desktop heights. Mobile uses a drawer and a two-column metric grid.            |
-| Colors / tokens         | Existing Turf page `#ececec`, cards `#f7f7f7`, ink `#121212`, peach `#ecc394` / `#fbdfc2`, and green status surfaces are retained. Secondary text is slightly darker for readability. Black active pills and white input surfaces remain consistent.                                                                      |
-| Image quality / assets  | Existing Turf favicon is reused. Phosphor supplies icons. The generated 1536 × 1024 fictional house is sharp at card size, crops correctly, and is explicitly labeled illustrative. No live property photograph or dataset was copied into the prototype. The source map is intentionally replaced with CRM work context. |
+| Fonts / typography      | Bundled Inter Tight Variable loads locally and was confirmed in computed styles. Black headings, medium 500 weight, compact labels, and large light numeric values preserve Caller Whale's hierarchy. Long headings wrap on mobile.                                                                                               |
+| Spacing / layout rhythm | Gray shell, 28px card radii, generous gutters, rounded controls, and an independently scrolling main pane match Caller Whale's design language. The new 228px sidebar is an intentional CRM extension, with internal navigation scrolling at short desktop heights. Mobile uses a drawer and a two-column metric grid.            |
+| Colors / tokens         | Existing Caller Whale page `#ececec`, cards `#f7f7f7`, ink `#121212`, peach `#ecc394` / `#fbdfc2`, and green status surfaces are retained. Secondary text is slightly darker for readability. Black active pills and white input surfaces remain consistent.                                                                      |
+| Image quality / assets  | Existing Caller Whale favicon is reused. Phosphor supplies icons. The generated 1536 × 1024 fictional house is sharp at card size, crops correctly, and is explicitly labeled illustrative. No live property photograph or dataset was copied into the prototype. The source map is intentionally replaced with CRM work context. |
 | Copy / content          | Product copy describes the next action. Sample data, demo calls/messages, simulated checks, provider previews, and planned services are labeled. Client views hide internal notes, source evidence, phone/email, financials, and seller/team threads. Report totals explicitly describe a current snapshot.               |
 
 ## Findings and correction history
@@ -53,14 +53,14 @@ No actionable P0/P1/P2 issue remains within the prototype scope. Intended backen
 ## Verification and limits
 
 - Prototype lint, build, and eight model/hosting tests pass.
-- Existing Turf root lint and frontend build pass. The root build retains its existing bundle-size warning.
+- Existing Caller Whale root lint and frontend build pass. The root build retains its existing bundle-size warning.
 - The prototype build separates chart code into its own chunk and completes without a chunk-size warning.
 - This QA does not validate real Tauri packaging, server authorization, provider delivery, native matching, multicore speedups, encryption, or server synchronization. Those components are not connected in this prototype.
 - Follow-up P3 polish: add a richer month agenda on very small screens and review sidebar density with users who work at short window heights.
 
 ## Completed checklist
 
-- [x] Current Turf source opened and visually compared with implementation.
+- [x] Current Caller Whale source opened and visually compared with implementation.
 - [x] Typography, spacing, palette, assets, and copy reviewed.
 - [x] Desktop and narrow mobile states captured and inspected.
 - [x] Core workflow and role transitions tested in the browser.
@@ -72,9 +72,9 @@ No actionable P0/P1/P2 issue remains within the prototype scope. Intended backen
 
 **final result: passed**
 
-The requested revision adds a persistent minimized sidebar, Mac Dock-style icon magnification with neighbor falloff, a soft outward bend, rounded selected edges, and Explore as inside the restored Turf logo menu. The later revision below refines that hover after user feedback.
+The requested revision adds a persistent minimized sidebar, Mac Dock-style icon magnification with neighbor falloff, a soft outward bend, rounded selected edges, and Explore as inside the restored Caller Whale logo menu. The later revision below refines that hover after user feedback.
 
-- Visual baseline: `screenshots/dashboard-desktop.jpg`, the previous Turf CRM layout. The baseline and [expanded sidebar](screenshots/sidebar-expanded.jpg) were opened together with the new [dock hover](screenshots/sidebar-dock-hover.jpg) and [Turf logo menu](screenshots/turf-logo-menu.jpg) in one comparison input.
+- Visual baseline: `screenshots/dashboard-desktop.jpg`, the previous Caller Whale CRM layout. The baseline and [expanded sidebar](screenshots/sidebar-expanded.jpg) were opened together with the new [dock hover](screenshots/sidebar-dock-hover.jpg) and [Caller Whale logo menu](screenshots/turf-logo-menu.jpg) in one comparison input.
 - Desktop comparison captures are **1280 × 720** pixels/CSS viewport at density **1**. Font, card geometry, palette, imagery, and business data remain consistent. Sidebar geometry, current-role control placement, and the wider content pane in minimized mode are intentional changes from the user's instructions.
 - Focused visual review covered the active white circular edge, enlarged icons and their neighbors, local rail bulge, tooltip legibility, and the menu's placement above the sidebar.
 - **[P2, corrected] Menu stacking:** the first menu render was partly obscured by the new rail. Raised the header stacking context above the sidebar. `screenshots/turf-logo-menu.jpg` is the post-fix capture; every menu action and Explore as is unobstructed.
@@ -92,8 +92,8 @@ The requested revision adds a persistent minimized sidebar, Mac Dock-style icon 
 
 Source truth is the user's three annotated CRM screenshots and subsequent feedback about first/last sidebar hover. The previous [expanded-sidebar capture](screenshots/sidebar-expanded.jpg) and new [header/personal-menu capture](screenshots/header-personal-menu.jpg) were opened together with the new chart screenshots in one comparison input. The comparable desktop header captures are **1280 × 720** pixels/CSS, density **1**; the focused [chart tooltip view](screenshots/call-interval-tooltip.jpg) is **1313 × 884**, matching the working browser's viewport. Mobile captures are **375 × 812**, density **1**. No pixel-match claim is made across the two different desktop viewport sizes.
 
-- Workspace identity now occupies the header next to Turf, replacing Full CRM. The duplicate sidebar identity is removed; record scope and minimize control stay in the rail.
-- The avatar opens a personal menu: My profile, Notification preferences, My tasks, and My calendar where the role permits it. It dismisses on Escape/outside click and returns focus appropriately. Workspace/role actions remain in the Turf logo menu. Opening either menu closes the notification panel to prevent overlapping panels.
+- Workspace identity now occupies the header next to Caller Whale, replacing Full CRM. The duplicate sidebar identity is removed; record scope and minimize control stay in the rail.
+- The avatar opens a personal menu: My profile, Notification preferences, My tasks, and My calendar where the role permits it. It dismisses on Escape/outside click and returns focus appropriately. Workspace/role actions remain in the Caller Whale logo menu. Opening either menu closes the notification panel to prevent overlapping panels.
 - Profile display name/email save locally per sample account and survive refresh. Temporary verification edits were restored to the original name. Canonical lead responsibility and activity actors are unchanged. The personal switches affect task/unread-conversation notices; both switches were restored after checking the paused panel. My tasks was checked both from another page and from an already-open task list.
 - The chart now uses **42 explicit sample intervals**, six per day, with 84 visible markers across the two series. Hovering between day labels displays date, two-hour interval, calls, reached count, and reach rate. A checked example was Friday Oct 9, **14:00–16:00**, **5 calls**, **2 reached**, **40%**. Arrow-key navigation exposed another interval, and the expandable table contains all 42 rows. Tests confirm the original seven sample daily totals are preserved. These are illustrative intervals, not generated claims about actual communications.
 - **[P2, corrected] Edge hover looked distorted.** Removed horizontal translation and changed from index-based enlargement to pointer-distance falloff. Maximum compact icon scale is **1.22**, with lower enlargement near the ends. The rail bend is smaller, constrained away from its rounded caps, and fades out at edge controls. The selected circular edge stays centered. The [bottom-hover capture](screenshots/sidebar-edge-hover.jpg) was recaptured after the correction: button transform **none**, bend opacity **0**, and bend bounds remain inside the rail's vertical bounds.
@@ -101,11 +101,11 @@ Source truth is the user's three annotated CRM screenshots and subsequent feedba
 - Required fidelity surfaces were rechecked: bundled Inter Tight and compact hierarchy; preserved gray/peach/black tokens; unchanged property asset and icon family; deliberate header spacing; clear personal menu labels and illustrative chart copy. The supplied screenshots and working page were visibly reviewed, not inferred only from source code.
 - Browser checks found no remaining actionable P0/P1/P2 issue. Existing sample records and the user's role were preserved. Build, lint, and **10 model/hosting tests** pass; console errors/warnings were checked after restoring the desktop preview.
 
-## Turf dropdown tools placement
+## Caller Whale dropdown tools placement
 
 **final result: passed**
 
-- Source truth: the supplied control-strip image `C:/Users/unwie/AppData/Local/Temp/codex-clipboard-2c2f5a8d-6553-4eb9-9bbc-99da00e20763.png` and the instruction to keep those three controls exclusively in the Turf dropdown.
+- Source truth: the supplied control-strip image `C:/Users/unwie/AppData/Local/Temp/codex-clipboard-2c2f5a8d-6553-4eb9-9bbc-99da00e20763.png` and the instruction to keep those three controls exclusively in the Caller Whale dropdown.
 - Implementation evidence: [desktop dropdown](screenshots/menu-only-tools.jpg) and [mobile dropdown](screenshots/menu-only-tools-mobile.jpg). The source strip and mobile implementation were visibly opened in the same comparison input. This is a control-placement comparison, not a pixel-identical crop comparison. Mobile viewport/pixels are **375 × 812**, density **1**.
 - Connection preview, Sync & pending changes, and Workspace settings appear together in that order inside the logo menu. The connection row retains the green icon and helpful state label; the menu uses the existing font, white surface, rounded corners, and spacing.
 - All three are absent from the expanded/minimized/mobile sidebar. The personal menu no longer repeats the connection label. Footer status is plain text, and the offline banner no longer duplicates the Sync navigation action.
@@ -121,7 +121,7 @@ Source truth is the user's three annotated CRM screenshots and subsequent feedba
 - **[P2, corrected] Curve clearance:** added a 10px desktop gutter so the larger bend clears the page content. Tooltips sit beyond the curve. Font, colors, imagery, data, and menu placement remain consistent with the source.
 - First/last hovered items retain the visible curve while its vertical bounds stay away from the rail caps. A checked last-item bend spans **565–677px** inside a rail spanning **94–846px**. No layout translation or cropped icon was found.
 - A **1280 × 720** short-window check confirmed all navigation content fits its scroll viewport (**534/534px**). Keyboard focus on Reports exposes the label and bend. Reduced-motion emulation hides the bend and sets icon transform to `none`; emulation was removed afterward.
-- Mobile retains a **254px** full-label drawer with the bend hidden and document width **375px**. All three workspace utility controls remain exclusively in the Turf dropdown. Restored the original expanded desktop preference and route without changing sample records.
+- Mobile retains a **254px** full-label drawer with the bend hidden and document width **375px**. All three workspace utility controls remain exclusively in the Caller Whale dropdown. Restored the original expanded desktop preference and route without changing sample records.
 - Prototype lint, all **10** model/hosting tests, and production build pass. Browser console contains no errors or warnings. No actionable P0/P1/P2 issue remains for this revision.
 
 ## Local hover entrance and selection motion
@@ -167,10 +167,10 @@ Source truth is the user's three annotated CRM screenshots and subsequent feedba
 
 **Status: deployed; public access and asset parity verified.**
 
-- Added a separate Vercel configuration in the prototype folder with Vite build output `dist/client`. Existing Sites packaging and the main Turf application remain intact. No server credentials or browser-storage contents are included in the upload.
+- Added a separate Vercel configuration in the prototype folder with Vite build output `dist/client`. Existing Sites packaging and the main Caller Whale application remain intact. No server credentials or browser-storage contents are included in the upload.
 - Configured `npm ci`, the direct Vite build, upload exclusions and `X-Robots-Tag: noindex, nofollow`. Hash routing needs no rewrite. Account/project linkage is ignored by Git.
 - Prototype lint, all **20** tests, and production/Sites packaging build pass. Vercel device sign-in completed, and the separate `mohammedheshams-projects/turf-crm-demo` project was created and linked. The deployment dry run confirmed **32 uploaded files**, excluding local credentials, screenshots, tests, dependencies, and Sites files.
 - Production: [turf-crm-demo.vercel.app](https://turf-crm-demo.vercel.app/). Immutable deployment: [build 45pFdmYEQgCL6AUKVGWsAkYveTiT](https://turf-crm-demo-8kal3moc2-mohammedheshams-projects.vercel.app). Vercel reported **READY** with the production alias assigned on October 15, 2026. This publishes only the frontend demo; no native service or production CRM backend was deployed.
-- An unauthenticated HTTP request without cookies or bypass headers returned **200**, the Turf title, and `X-Robots-Tag: noindex, nofollow`, with no login redirect. All **13** deployed JS/CSS/font/image/favicon files matched SHA-256 hashes of the locally tested build. Entry assets resolved correctly; a nonexistent JS asset returned **404**. Hash routes are resolved by the same previously browser-verified app code.
+- An unauthenticated HTTP request without cookies or bypass headers returned **200**, the Caller Whale title, and `X-Robots-Tag: noindex, nofollow`, with no login redirect. All **13** deployed JS/CSS/font/image/favicon files matched SHA-256 hashes of the locally tested build. Entry assets resolved correctly; a nonexistent JS asset returned **404**. Hash routes are resolved by the same previously browser-verified app code.
 - The current browser automation session exposed no browser surfaces, so a new hosted interactive browser run could not be performed. Earlier local browser interaction evidence still applies to the identical deployed assets; remote runtime behavior beyond the HTTP/asset checks is not claimed as newly tested. The hosted dashboard was queued for opening in the Codex panel.
 - Automatic Git deployments were not enabled. Update this existing project with the documented CLI command. If a future release fails the public/asset checks, do not share that release; redeploy the last known good prototype revision to the same alias.

@@ -4,7 +4,7 @@ The place to manage your lists and the areas they cover.
 
 Start with [PLAN.md](docs/PLAN.md). The mockup that started the idea is in `docs/reference/` (only its look is a reference: revenue, appointments, messages and agent names are not part of Caller Whale).
 
-**Layout.** `Turf/` is the desktop app described below (paths like `src/` and `src-tauri/` are inside it, so run its `npm` commands from `Turf/`). `Full CRM Turf/` is the full CRM app; its structure and rules are in [FULL_CRM_TURF_STRUCTURE.md](FULL_CRM_TURF_STRUCTURE.md). `service/` (Python engine), `backend/`, `website/`, `contracts/` and `docs/` are shared and stay at the root.
+**Layout.** `Turf/` is the desktop app described below (paths like `src/` and `src-tauri/` are inside it, so run its `npm` commands from `Turf/`). `Full CRM Turf/` is the full CRM app; its structure and rules are in [FULL_CRM_CALLERWHALE_STRUCTURE.md](FULL_CRM_CALLERWHALE_STRUCTURE.md). `service/` (Python engine), `backend/`, `website/`, `contracts/` and `docs/` are shared and stay at the root.
 
 ## How it is built
 
@@ -24,7 +24,7 @@ Lists composes `ListRowDetail`, `OwnerPanel`, `EmailWithVerdict` and `MapNote`; 
 
 ## Run it
 
-Needs Node.js, Rust, and Python 3.11+ (`TURF_PYTHON` picks which one) with the service's packages:
+Needs Node.js, Rust, and Python 3.11+ (`CALLERWHALE_PYTHON` picks which one) with the service's packages:
 
 ```bash
 pip install -r service/requirements.txt

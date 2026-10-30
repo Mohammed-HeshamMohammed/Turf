@@ -178,11 +178,11 @@ test("tier prices come from the same arithmetic as the builder", () => {
   assert.equal(tierPrice("trial").price, 0);
 });
 
-test("an extra phone number is sold at about what it costs Turf", () => {
+test("an extra phone number is sold at about what it costs Caller Whale", () => {
   assert.equal(ADDONS.find(a => a.id === "numbers").price, 1);
 });
 
-test("the all-in price never takes a feature below what its metered parts cost Turf plus the markup", () => {
+test("the all-in price never takes a feature below what its metered parts cost Caller Whale plus the markup", () => {
   assert.equal(USAGE_MARKUP, 1.25);
   const ids = BUILDER_FEATURES.map(f => f.id);
   for (const id of ids) assert.ok(COSTS[id], id);

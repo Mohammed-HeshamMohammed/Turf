@@ -112,7 +112,7 @@ pub fn config(redis: bool) -> Option<Config> {
         smtp_port: 587,
         smtp_user: String::new(),
         smtp_password: String::new(),
-        mail_from: "Turf <no-reply@turf.example>".into(),
+        mail_from: "Caller Whale <no-reply@turf.example>".into(),
         release_repo: String::new(),
         release_tag_prefix: "crm-v".into(),
         github_token: String::new(),
@@ -128,12 +128,12 @@ pub async fn start_with(redis: bool) -> Option<Harness> {
     start_configured(redis, true, true).await
 }
 
-/// A server that does not require MFA (the current default: TURF_REQUIRE_MFA unset).
+/// A server that does not require MFA (the current default: CALLERWHALE_REQUIRE_MFA unset).
 pub async fn start_without_mfa() -> Option<Harness> {
     start_configured(true, false, true).await
 }
 
-/// A server where new sign-ups cannot open a workspace themselves (the default: TURF_PUBLIC_SIGNUP unset).
+/// A server where new sign-ups cannot open a workspace themselves (the default: CALLERWHALE_PUBLIC_SIGNUP unset).
 pub async fn start_closed() -> Option<Harness> {
     start_configured(true, true, false).await
 }

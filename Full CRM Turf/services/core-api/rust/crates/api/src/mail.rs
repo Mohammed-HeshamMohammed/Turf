@@ -22,8 +22,8 @@ pub fn configured(config: &Config) -> bool {
 }
 
 pub async fn send(config: &Config, mail: Mail) -> anyhow::Result<()> {
-    anyhow::ensure!(configured(config), "No mail server is set (TURF_SMTP_HOST)");
-    let from: Mailbox = config.mail_from.parse().context("TURF_MAIL_FROM is not an address")?;
+    anyhow::ensure!(configured(config), "No mail server is set (CALLERWHALE_SMTP_HOST)");
+    let from: Mailbox = config.mail_from.parse().context("CALLERWHALE_MAIL_FROM is not an address")?;
     let to: Mailbox = mail.to.parse().context("The recipient is not an address")?;
     let message = Message::builder()
         .from(from)

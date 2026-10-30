@@ -493,7 +493,7 @@ export function SkipTracing() {
         !controller.signal.aborted && setProgress({ label: STAGE_LABELS[event.stage] || "Checking", value: event.completed ?? 0, max: event.total || 1 }),
     };
     try {
-      // Signed in to Turf's server: the check spends a credit per row, and is refused when the month's are used up.
+      // Signed in to Caller Whale's server: the check spends a credit per row, and is refused when the month's are used up.
       if (state.remote) {
         setProgress({ label: "Checking your credits", value: 0, max: 1 });
         await api.useCredits("skip_trace", rows.length, crypto.randomUUID(), dataset.name).catch(reason => {

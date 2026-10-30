@@ -287,7 +287,7 @@ struct TokenAnswer {
     id_token: String,
 }
 
-/// The ID token's claims Turf reads. Apple sends `email_verified` as a string.
+/// The ID token's claims Caller Whale reads. Apple sends `email_verified` as a string.
 #[derive(Deserialize)]
 pub struct IdClaims {
     pub sub: String,
@@ -403,7 +403,7 @@ async fn sign_in(state: &AppState, name: &str, returned: &Returned, nonce: &str,
         .clone()
         .filter(|n| !n.trim().is_empty())
         .or_else(|| apple_name(&returned.user))
-        .unwrap_or_else(|| email.split('@').next().unwrap_or("Turf user").to_string());
+        .unwrap_or_else(|| email.split('@').next().unwrap_or("Caller Whale user").to_string());
 
     let t = now() as i64;
     let mut tx = state.db.begin().await?;

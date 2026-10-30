@@ -1,7 +1,7 @@
 // What people call each field in the lists they bring, including the wording of common exports (PropStream,
 // BatchLeads, DealMachine, ListSource, county records, CRM exports, hand-made spreadsheets). Phrases are compared word by
 // word after case, punctuation and spacing are evened out, so "Owner Name", "OWNER_NAME" and "ownerName" read the same.
-// Adding a phrase here is all it takes to teach Turf a new header.
+// Adding a phrase here is all it takes to teach Caller Whale a new header.
 
 export const VOCABULARY = {
   name: [

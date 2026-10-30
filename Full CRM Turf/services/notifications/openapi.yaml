@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Turf Notification service
+  title: Caller Whale Notification service
   version: 0.1.0
   description: Email, SMS, push and in-app notifications, sent when another service publishes notification.requested. Nothing else.
 paths:

@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Turf Leads map
+  title: Caller Whale Leads map
   version: 0.1.0
   description: Feature 4: exact locations, reverse lookups and nearby search for leads.
 paths:

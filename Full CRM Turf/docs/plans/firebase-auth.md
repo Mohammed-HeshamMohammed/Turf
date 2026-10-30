@@ -34,7 +34,7 @@ Console steps and `tools/firebase/configure-auth.mjs` below. Two projects: `turf
 ### 1. Core API accepts Firebase tokens (done)
 - `turf-auth-verify` gets a Firebase mode: RS256, issuer `https://securetoken.google.com/<project>`, audience `<project>`, keys from `https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com` (cached, refreshed when a `kid` is unknown).
 - Claims map: `sub` → `firebase_uid`; `email`, `email_verified`, `name`; `mfa` = `firebase.sign_in_second_factor == "totp"`; `provider` = `firebase.sign_in_provider` without its ".com" ("password", "google", "apple").
-- Migration: `users.firebase_uid`. Config: `TURF_FIREBASE_PROJECT`. While both run, the core API accepts either issuer; the old one is removed in phase 5.
+- Migration: `users.firebase_uid`. Config: `CALLERWHALE_FIREBASE_PROJECT`. While both run, the core API accepts either issuer; the old one is removed in phase 5.
 - Tests: the harness signs RS256 test tokens shaped like Firebase's, against a test key set, as it does today with Ed25519.
 
 ### 2. One client file over the Firebase SDK (done)
@@ -51,7 +51,7 @@ Steps 1 and 2 run in the container (`google_sign_in` in `desktop/container/rust/
 
 The Google ID token's audience is the Desktop client. If Firebase refuses it, add that client id under **Authentication → Sign-in method → Google → Safelist client IDs**.
 
-Apple is not done: Apple only returns to registered `https` addresses, not to `127.0.0.1`. It needs a page on Turf's website that signs in with Apple and hands the result to the app; it comes once the Apple Developer account exists and can be tested.
+Apple is not done: Apple only returns to registered `https` addresses, not to `127.0.0.1`. It needs a page on Caller Whale's website that signs in with Apple and hands the result to the app; it comes once the Apple Developer account exists and can be tested.
 
 The desktop window's content security policy is on (`tauri.conf.json`): scripts only from the app itself, no frames.
 
@@ -72,17 +72,17 @@ Authenticator codes need **Google Cloud Identity Platform**, which needs the Bla
 
 ## Firebase project setup
 
-Done once per project (`turf-dev`, then `turf-prod`), signed in to the Firebase console as Turf's owner.
+Done once per project (`turf-dev`, then `turf-prod`), signed in to the Firebase console as Caller Whale's owner.
 
 1. **Create the project** at console.firebase.google.com. Google Analytics: off.
 2. **Billing**: switch the project to the Blaze plan (needed for Identity Platform).
 3. **Authentication → Get started**, then **Settings → Upgrade to Identity Platform**.
 4. **Sign-in method**: turn on Email/Password (not the passwordless link), and Google (set the support email). Apple: later, it needs the Apple Developer account.
 5. **Settings → Authorized domains**: keep `localhost`; add the production website's domain.
-6. **Project settings → General → Add app → Web**: name it `Turf`. Copy the config (`apiKey`, `authDomain`, `projectId`, `appId`) into the settings below. These values are public by design; the API key is not a secret.
+6. **Project settings → General → Add app → Web**: name it `Caller Whale`. Copy the config (`apiKey`, `authDomain`, `projectId`, `appId`) into the settings below. These values are public by design; the API key is not a secret.
 7. **Google Cloud console → APIs & Services → Credentials**:
    - Restrict the web API key to the Identity Toolkit API and the Token Service API.
-   - Create an OAuth client of type **Desktop app** named `Turf desktop` (phase 3).
+   - Create an OAuth client of type **Desktop app** named `Caller Whale desktop` (phase 3).
 8. **Project settings → Service accounts → Generate new private key**. Put the key's JSON itself, on one line in single quotes, in `env/firebase.env` as `FIREBASE_SERVICE_ACCOUNT` (with `FIREBASE_PROJECT_ID`), then delete the downloaded file. It is a secret: it can change every account. Nothing reads a key file.
 9. Run the configuration script (authenticator codes, password policy, email privacy):
 
@@ -99,6 +99,6 @@ All of them go in the part's file in `env/` (`env/README.md`); nothing is set in
 
 | Where | Setting |
 | --- | --- |
-| Core API | `TURF_FIREBASE_PROJECT` (the project id); `TURF_FIREBASE_SERVICE_ACCOUNT` (the key's JSON, phase 4) |
+| Core API | `CALLERWHALE_FIREBASE_PROJECT` (the project id); `CALLERWHALE_FIREBASE_SERVICE_ACCOUNT` (the key's JSON, phase 4) |
 | Desktop app, CRM | `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_PROVIDERS`; `VITE_GOOGLE_DESKTOP_CLIENT_ID`, `VITE_GOOGLE_DESKTOP_CLIENT_SECRET` |
-| Core API, for the website | `TURF_FIREBASE_API_KEY`, `TURF_FIREBASE_APP_ID`; optionally `TURF_FIREBASE_AUTH_DOMAIN`, `TURF_FIREBASE_PROVIDERS` |
+| Core API, for the website | `CALLERWHALE_FIREBASE_API_KEY`, `CALLERWHALE_FIREBASE_APP_ID`; optionally `CALLERWHALE_FIREBASE_AUTH_DOMAIN`, `CALLERWHALE_FIREBASE_PROVIDERS` |

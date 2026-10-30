@@ -1,6 +1,6 @@
 # Full CRM Turf: services, landing site and releases
 
-**Status:** Proposed (extends `FULL_CRM_TURF_STRUCTURE.md`, which it amends where noted)
+**Status:** Proposed (extends `FULL_CRM_CALLERWHALE_STRUCTURE.md`, which it amends where noted)
 **Date:** 2026-10-26
 
 ## What we are building

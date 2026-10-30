@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Starts a local PostgreSQL and Redis for development and tests, with data outside the repository.
-#   TURF_DATA (default /x/turf-data)   TURF_TOOLS env script (default /x/tools/env.sh)
+#   CALLERWHALE_DATA (default /x/turf-data)   CALLERWHALE_TOOLS env script (default /x/tools/env.sh)
 # Roles: turf_owner (owns the schema, runs migrations) and turf_api (the API's login, member of turf_app; row security applies).
 set -euo pipefail
-[ -f "${TURF_TOOLS:-/x/tools/env.sh}" ] && source "${TURF_TOOLS:-/x/tools/env.sh}"
-DATA="${TURF_DATA:-/x/turf-data}"
-PGPORT="${TURF_PG_PORT:-55432}"
-REDIS_PORT="${TURF_REDIS_PORT:-56379}"
+[ -f "${CALLERWHALE_TOOLS:-/x/tools/env.sh}" ] && source "${CALLERWHALE_TOOLS:-/x/tools/env.sh}"
+DATA="${CALLERWHALE_DATA:-/x/turf-data}"
+PGPORT="${CALLERWHALE_PG_PORT:-55432}"
+REDIS_PORT="${CALLERWHALE_REDIS_PORT:-56379}"
 mkdir -p "$DATA"
 if [ ! -f "$DATA/pg/PG_VERSION" ]; then
   initdb -D "$DATA/pg" -U postgres --auth=trust --encoding=UTF8 --locale=C >/dev/null

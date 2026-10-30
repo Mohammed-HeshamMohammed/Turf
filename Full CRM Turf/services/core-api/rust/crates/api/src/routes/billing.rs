@@ -364,7 +364,7 @@ struct ProviderEvent {
     customer_id: Option<String>,
 }
 
-/// `X-Turf-Signature: sha256=<hex HMAC-SHA256 of the raw body>`, compared in constant time.
+/// `X-Caller Whale-Signature: sha256=<hex HMAC-SHA256 of the raw body>`, compared in constant time.
 pub fn signature_valid(secret: &str, body: &[u8], header: Option<&str>) -> bool {
     let Some(hex_sig) = header.and_then(|value| value.trim().strip_prefix("sha256=")) else { return false };
     let Ok(given) = hex::decode(hex_sig) else { return false };

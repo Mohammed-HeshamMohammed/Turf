@@ -17,10 +17,10 @@ Everything (invitations, people, credits, usage) is stored in the core API's Pos
 
 | Address | Application (Coolify) | Notes |
 | --- | --- | --- |
-| `https://callerwhale.com` (and `www.`) | landing-web | Build args `SITE_URL=https://callerwhale.com`, `VITE_TURF_API_URL=https://app.callerwhale.com`. Runtime env `FIREBASE_AUTH_HOST=project-34ff1df6-b240-40d4-be2.firebaseapp.com` (the Dockerfile's default), `API_ORIGIN=https://app.callerwhale.com` |
-| `https://callerwhale.com/api` | landing-api | Waitlist and contact; Path prefixes: keep as-is. `TURF_LANDING_ORIGINS=https://callerwhale.com,https://www.callerwhale.com` |
+| `https://callerwhale.com` (and `www.`) | landing-web | Build args `SITE_URL=https://callerwhale.com`, `VITE_CALLERWHALE_API_URL=https://app.callerwhale.com`. Runtime env `FIREBASE_AUTH_HOST=project-34ff1df6-b240-40d4-be2.firebaseapp.com` (the Dockerfile's default), `API_ORIGIN=https://app.callerwhale.com` |
+| `https://callerwhale.com/api` | landing-api | Waitlist and contact; Path prefixes: keep as-is. `CALLERWHALE_LANDING_ORIGINS=https://callerwhale.com,https://www.callerwhale.com` |
 | `https://app.callerwhale.com` | core-api | Sign-in checks, invitations, credits, download. Needs PostgreSQL (project "database") |
-| `https://grafana.callerwhale.com` | grafana-proxy | Staff only, reached from the admin page (Open Grafana). Set `GRAFANA_ORIGIN` on landing-web and `TURF_GRAFANA_URL` on core-api to this address. See `deploy/grafana/README.md` |
+| `https://grafana.callerwhale.com` | grafana-proxy | Staff only, reached from the admin page (Open Grafana). Set `GRAFANA_ORIGIN` on landing-web and `CALLERWHALE_GRAFANA_URL` on core-api to this address. See `deploy/grafana/README.md` |
 
 DNS (Cloudflare, zone `callerwhale.com`): A records `@`, `www`, `app` and `grafana` to `187.7.72.171`, **DNS only** (grey cloud) so Coolify's Let's Encrypt works, as for softfix.dev. A proxied (orange) record answers 503 today because Cloudflare cannot reach a certificate for the name.
 
@@ -30,19 +30,19 @@ DNS (Cloudflare, zone `callerwhale.com`): A records `@`, `www`, `app` and `grafa
 
 | Setting | Value |
 | --- | --- |
-| `TURF_FIREBASE_PROJECT` | `project-34ff1df6-b240-40d4-be2` |
-| `TURF_FIREBASE_API_KEY`, `TURF_FIREBASE_APP_ID` | from Firebase → Project settings → Your apps → Web app (public values) |
-| `TURF_FIREBASE_AUTH_DOMAIN` | `callerwhale.com` (the site serves Firebase's sign-in helper itself, see below) |
-| `TURF_FIREBASE_PROVIDERS` | `google` |
-| `TURF_ALLOWED_ORIGINS` | `https://callerwhale.com` (the site redirects `www` to it) (and `tauri://localhost,http://tauri.localhost` for the desktop app) |
-| `TURF_PUBLIC_SIGNUP` | `false` |
-| `TURF_WEBSITE_URL` | `https://callerwhale.com` |
-| `TURF_SMTP_HOST`, `TURF_SMTP_PORT` | `smtp.softfix.dev`, `587` |
-| `TURF_SMTP_USER`, `TURF_SMTP_PASSWORD` | `no-reply@softfix.dev` and its password (**secret**: enter it yourself) |
-| `TURF_MAIL_FROM` | `Caller Whale <no-reply@softfix.dev>` (the mail server only lets a login send as itself) |
-| `TURF_RELEASE_REPO`, `TURF_RELEASE_TAG_PREFIX` | `Mohammed-HeshamMohammed/Turf`, `crm-v` |
-| `TURF_AUTH_JWKS_URL`, `TURF_AUTH_PUBLIC_URL` | **remove** (or empty): the old auth service is not running, and the API refuses to start when it cannot fetch its keys |
-| `TURF_STAFF_MFA` | `true`. Staff need an authenticator code, which needs Identity Platform TOTP on the Firebase project (`tools/firebase/configure-auth.mjs`). Set `false` only until that is on |
+| `CALLERWHALE_FIREBASE_PROJECT` | `project-34ff1df6-b240-40d4-be2` |
+| `CALLERWHALE_FIREBASE_API_KEY`, `CALLERWHALE_FIREBASE_APP_ID` | from Firebase → Project settings → Your apps → Web app (public values) |
+| `CALLERWHALE_FIREBASE_AUTH_DOMAIN` | `callerwhale.com` (the site serves Firebase's sign-in helper itself, see below) |
+| `CALLERWHALE_FIREBASE_PROVIDERS` | `google` |
+| `CALLERWHALE_ALLOWED_ORIGINS` | `https://callerwhale.com` (the site redirects `www` to it) (and `tauri://localhost,http://tauri.localhost` for the desktop app) |
+| `CALLERWHALE_PUBLIC_SIGNUP` | `false` |
+| `CALLERWHALE_WEBSITE_URL` | `https://callerwhale.com` |
+| `CALLERWHALE_SMTP_HOST`, `CALLERWHALE_SMTP_PORT` | `smtp.softfix.dev`, `587` |
+| `CALLERWHALE_SMTP_USER`, `CALLERWHALE_SMTP_PASSWORD` | `no-reply@softfix.dev` and its password (**secret**: enter it yourself) |
+| `CALLERWHALE_MAIL_FROM` | `Caller Whale <no-reply@softfix.dev>` (the mail server only lets a login send as itself) |
+| `CALLERWHALE_RELEASE_REPO`, `CALLERWHALE_RELEASE_TAG_PREFIX` | `Mohammed-HeshamMohammed/Caller Whale`, `crm-v` |
+| `CALLERWHALE_AUTH_JWKS_URL`, `CALLERWHALE_AUTH_PUBLIC_URL` | **remove** (or empty): the old auth service is not running, and the API refuses to start when it cannot fetch its keys |
+| `CALLERWHALE_STAFF_MFA` | `true`. Staff need an authenticator code, which needs Identity Platform TOTP on the Firebase project (`tools/firebase/configure-auth.mjs`). Set `false` only until that is on |
 | `DATABASE_URL`, `MIGRATION_DATABASE_URL` | from `env/database.env` |
 
 ### Firebase console (project "Caller Whale", id `project-34ff1df6-b240-40d4-be2`, owned by mgamed2002@gmail.com)
@@ -52,12 +52,12 @@ The web app is "Caller Whale Site" (app id `1:265438901851:web:5550eeb277b7135c5
 1. ~~Authentication → Sign-in method: **Email/Password** on, **Google** on.~~ Done 2026-10-29.
 2. ~~Authentication → Settings → Authorized domains: add `callerwhale.com`, `www.callerwhale.com`.~~ Done 2026-10-29.
 3. Google Cloud → APIs & Services → Credentials → the Web client Firebase made: add the redirect URI `https://callerwhale.com/__/auth/handler`. The site proxies `/__/auth/` to `<project>.firebaseapp.com`, so Google's redirect comes back to callerwhale.com itself and works in browsers that block other sites' storage.
-4. Staff authenticator codes: Authentication → Settings → upgrade to **Identity Platform**, then put the service account key in `env/firebase.env` and run `tools/firebase/configure-auth.mjs` to turn TOTP on (`TURF_STAFF_MFA=true` needs it).
+4. Staff authenticator codes: Authentication → Settings → upgrade to **Identity Platform**, then put the service account key in `env/firebase.env` and run `tools/firebase/configure-auth.mjs` to turn TOTP on (`CALLERWHALE_STAFF_MFA=true` needs it).
 5. For the desktop app's Google sign-in: create an OAuth client of type **Desktop app**, and add its client id under Google → Safelist client IDs.
 
 ### GitHub (Settings → Secrets and variables → Actions → Variables), for the installer
 
-`TURF_API_URL=https://app.callerwhale.com`, `FIREBASE_API_KEY`, `FIREBASE_PROJECT_ID`, `FIREBASE_APP_ID`, `FIREBASE_AUTH_DOMAIN` (`<project>.firebaseapp.com`: the desktop app does not use the website's proxy), `GOOGLE_DESKTOP_CLIENT_ID`, `GOOGLE_DESKTOP_CLIENT_SECRET`. Then push a tag `crm-v0.1.0` (or run **Release the desktop app** from the Actions tab). The workflow builds the Skip Tracing engine, the app and the NSIS installer on Windows, and publishes the release.
+`CALLERWHALE_API_URL=https://app.callerwhale.com`, `FIREBASE_API_KEY`, `FIREBASE_PROJECT_ID`, `FIREBASE_APP_ID`, `FIREBASE_AUTH_DOMAIN` (`<project>.firebaseapp.com`: the desktop app does not use the website's proxy), `GOOGLE_DESKTOP_CLIENT_ID`, `GOOGLE_DESKTOP_CLIENT_SECRET`. Then push a tag `crm-v0.1.0` (or run **Release the desktop app** from the Actions tab). The workflow builds the Skip Tracing engine, the app and the NSIS installer on Windows, and publishes the release.
 
 ### The first admin
 
@@ -78,7 +78,7 @@ The owner can then name system administrators from the existing staff page.
 
 ## Limits of this version, honestly
 
-- The repository is public, so GitHub's own release page lists the installer for anyone who looks there. The website only offers it to invited people, and the app itself is useless without an invited account. To hide the file too, publish releases to a private repository and set `TURF_GITHUB_TOKEN`.
+- The repository is public, so GitHub's own release page lists the installer for anyone who looks there. The website only offers it to invited people, and the app itself is useless without an invited account. To hide the file too, publish releases to a private repository and set `CALLERWHALE_GITHUB_TOKEN`.
 - Credits are counted by the server, but Skip Tracing runs on the person's own computer, so a modified app could skip asking. The server-side limit holds for the unmodified app.
 - Only Skip Tracing spends credits today (calls are still simulated in the app). New kinds are added in `KINDS` (`routes/desktop_access.rs`) and the migration's check.
 - Download links are signed with a key made when the core API starts: a restart ends the links in flight (they last 10 minutes anyway), and two copies of the API would need a shared key.

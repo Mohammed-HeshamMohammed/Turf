@@ -1,6 +1,6 @@
 # Production branches
 
-One branch per part of Turf, each holding **only that part's code**, so a part can be deployed, handed over or reviewed on its own. They are named `<part>-production`:
+One branch per part of Caller Whale, each holding **only that part's code**, so a part can be deployed, handed over or reviewed on its own. They are named `<part>-production`:
 
 | Branch | What it holds |
 | --- | --- |
@@ -11,7 +11,7 @@ One branch per part of Turf, each holding **only that part's code**, so a part c
 | `gateway-backend-production` | The gateway: the one public entry point (it only answers its health check so far) |
 | `core-api-backend-production` | The core API: the CRM server and the website it serves, with the auth verifier crate and the contract it checks |
 | `desktop-app-production` | The whole desktop app: the frontend (`desktop/frontend/react`, also the CRM in a browser), the window container (Tauri) and the feature modules (`desktop/backend`) |
-| `grafana-production` | Grafana for Turf's staff and its login proxy (`deploy/grafana`, `services/grafana-proxy`), deployed on Coolify as one Docker Compose resource |
+| `grafana-production` | Grafana for Caller Whale's staff and its login proxy (`deploy/grafana`, `services/grafana-proxy`), deployed on Coolify as one Docker Compose resource |
 | `skip-engine-production` | The Skip Tracing engine (`service/`, Python) that the desktop app runs |
 
 A part gets a branch when it runs as its own container on the VPS. The billing service and the eight server-side feature services are scaffolds that are not deployed yet, so they have none; the compose file and the original `Turf/` app have none either. When one needs its own, add it to `tools/production.json` and run the script.
@@ -41,4 +41,4 @@ node tools/publish-production.mjs --push                    # and push what chan
 
 ## Things a single-part branch cannot do alone
 
-- `desktop-app-production` starts the Skip Tracing engine at run time and in its tests: check out `skip-engine-production` beside it and set `TURF_SERVICE_ROOT` to it.
+- `desktop-app-production` starts the Skip Tracing engine at run time and in its tests: check out `skip-engine-production` beside it and set `CALLERWHALE_SERVICE_ROOT` to it.

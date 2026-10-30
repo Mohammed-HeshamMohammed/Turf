@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Turf Backup and restore
+  title: Caller Whale Backup and restore
   version: 0.1.0
   description: Feature 8: the recycle bin, point-in-time restore and workspace downloads.
 paths:

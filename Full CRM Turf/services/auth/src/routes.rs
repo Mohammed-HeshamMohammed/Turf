@@ -80,7 +80,7 @@ pub(crate) fn new_secret() -> (String, String) {
 
 fn totp(secret: &str, account: &str) -> AuthResult<totp_rs::TOTP> {
     let bytes = totp_rs::Secret::Encoded(secret.to_string()).to_bytes().map_err(|_| AuthError::Bad("The two-step secret is not valid.".into()))?;
-    totp_rs::TOTP::new(totp_rs::Algorithm::SHA1, 6, 1, 30, bytes, Some("Turf".into()), account.to_string())
+    totp_rs::TOTP::new(totp_rs::Algorithm::SHA1, 6, 1, 30, bytes, Some("Caller Whale".into()), account.to_string())
         .map_err(|e| AuthError::Internal(anyhow::anyhow!("totp: {e}")))
 }
 

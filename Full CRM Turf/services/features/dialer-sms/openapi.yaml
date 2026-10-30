@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Turf Dialer, auto dialing and SMS
+  title: Caller Whale Dialer, auto dialing and SMS
   version: 0.1.0
   description: Feature 3: calling, auto dialing, texting, number health, call logs and the carrier webhooks.
 paths:

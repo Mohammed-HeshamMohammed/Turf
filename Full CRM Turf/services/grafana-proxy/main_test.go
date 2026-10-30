@@ -76,7 +76,7 @@ func newWorld(t *testing.T) *world {
 		_ = json.NewEncoder(w).Encode(map[string]any{"path": r.URL.RequestURI(), "host": r.Host, "headers": r.Header})
 	}))
 	t.Cleanup(grafana.Close)
-	env := map[string]string{"GRAFANA_URL": grafana.URL, "TURF_CORE_API_URL": coreSrv.URL, "TURF_WEBSITE_URL": website + "/"}
+	env := map[string]string{"GRAFANA_URL": grafana.URL, "CALLERWHALE_CORE_API_URL": coreSrv.URL, "CALLERWHALE_WEBSITE_URL": website + "/"}
 	cfg, err := loadConfig(func(k string) string { return env[k] })
 	if err != nil {
 		t.Fatal(err)
@@ -463,7 +463,7 @@ func TestTheReturnPathStaysOnThisSite(t *testing.T) {
 }
 
 func TestConfigNeedsItsAddressesAndChecksTheRest(t *testing.T) {
-	base := map[string]string{"GRAFANA_URL": "http://grafana:3000", "TURF_CORE_API_URL": "http://core-api:8080", "TURF_WEBSITE_URL": "https://app.turf.example"}
+	base := map[string]string{"GRAFANA_URL": "http://grafana:3000", "CALLERWHALE_CORE_API_URL": "http://core-api:8080", "CALLERWHALE_WEBSITE_URL": "https://app.turf.example"}
 	load := func(change map[string]string) (config, error) {
 		env := map[string]string{}
 		for k, v := range base {
@@ -479,7 +479,7 @@ func TestConfigNeedsItsAddressesAndChecksTheRest(t *testing.T) {
 		t.Fatalf("defaults: %+v %v", c, err)
 	}
 	for _, bad := range []map[string]string{
-		{"GRAFANA_URL": ""}, {"TURF_CORE_API_URL": ""}, {"TURF_WEBSITE_URL": ""}, {"TURF_WEBSITE_URL": "not a url"},
+		{"GRAFANA_URL": ""}, {"CALLERWHALE_CORE_API_URL": ""}, {"CALLERWHALE_WEBSITE_URL": ""}, {"CALLERWHALE_WEBSITE_URL": "not a url"},
 		{"RECHECK_EVERY": "soon"}, {"RECHECK_EVERY": "-1s"}, {"ADMIN_GRAFANA_ROLE": "GrafanaAdmin"},
 	} {
 		if _, err := load(bad); err == nil {

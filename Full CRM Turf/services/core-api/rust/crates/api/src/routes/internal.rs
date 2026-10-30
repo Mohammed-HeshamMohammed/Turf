@@ -36,7 +36,7 @@ pub fn routes() -> Router<AppState> {
         .route("/whoami", post(whoami))
 }
 
-/// A worker identified by its token (TURF_WORKER_TOKENS=name=token,...).
+/// A worker identified by its token (CALLERWHALE_WORKER_TOKENS=name=token,...).
 pub struct Worker(pub String);
 
 impl FromRequestParts<AppState> for Worker {

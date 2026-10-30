@@ -118,7 +118,7 @@ struct Invite {
 /// Sends the invitation email and records when; the reason it failed otherwise, for the dashboard.
 async fn send_invitation(state: &AppState, ctx: &Ctx, id: Uuid, email: &str, name: &str, credits: i64) -> (bool, Option<String>) {
     if !mail::configured(&state.config) {
-        return (false, Some("No mail server is set up on this server (TURF_SMTP_HOST), so no email was sent.".into()));
+        return (false, Some("No mail server is set up on this server (CALLERWHALE_SMTP_HOST), so no email was sent.".into()));
     }
     let inviter = if ctx.label.trim().is_empty() { ctx.email.clone() } else { ctx.label.trim().to_string() };
     match mail::send(&state.config, mail::invitation(&state.config, email, name, &inviter, credits)).await {

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const labels = (name, indent) =>
-  [`app.kubernetes.io/name: ${name}`, "app.kubernetes.io/part-of: turf"].map(line => " ".repeat(indent) + line).join("\n");
+  [`app.kubernetes.io/name: ${name}`, "app.kubernetes.io/part-of: callerwhale"].map(line => " ".repeat(indent) + line).join("\n");
 
 /** Whether the part scales by itself: several copies allowed. */
 const scales = s => s.replicas.max > s.replicas.min;

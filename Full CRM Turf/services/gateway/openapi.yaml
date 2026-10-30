@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Turf Gateway
+  title: Caller Whale Gateway
   version: 0.1.0
   description: The one public entry point: HTTPS, token check, rate limits, and routing of /api/v1/<service>/* to the service behind it.
 paths:

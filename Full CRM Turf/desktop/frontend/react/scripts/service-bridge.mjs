@@ -1,7 +1,7 @@
-// Development only: serves /rpc by talking to Turf's Skip Tracing service (service/ at the repository root, Python) over JSON lines on
-// stdin/stdout, one request at a time, like Turf's own vite.config.ts. The desktop window uses the Tauri host instead.
+// Development only: serves /rpc by talking to Caller Whale's Skip Tracing service (service/ at the repository root, Python) over JSON lines on
+// stdin/stdout, one request at a time, like Caller Whale's own vite.config.ts. The desktop window uses the Tauri host instead.
 //
-// This dev server listens on every interface (vite.config.mjs), so the bridge is stricter than Turf's: only requests
+// This dev server listens on every interface (vite.config.mjs), so the bridge is stricter than Caller Whale's: only requests
 // from this computer, from the page's own origin, as JSON, and only the commands the Skip Tracing page sends.
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -34,7 +34,7 @@ export function refusal({ method, remoteAddress, origin, host, contentType }) {
   if (method !== "POST") return "Only POST is accepted";
   if (!LOOPBACK.has(remoteAddress)) return "Only this computer may use the Skip Tracing engine";
   const own = !origin || origin === `http://${host}` || origin === "tauri://localhost" || origin === "http://tauri.localhost";
-  if (!own) return "Only Turf's own page may use the Skip Tracing engine";
+  if (!own) return "Only Caller Whale's own page may use the Skip Tracing engine";
   if (!(contentType ?? "").startsWith("application/json")) return "Requests must be JSON";
   return null;
 }
@@ -44,15 +44,15 @@ export function serviceBridge() {
     name: "turf-crm-service-bridge",
     apply: "serve",
     configureServer(server) {
-      const root = resolve(process.env.TURF_SERVICE_ROOT ?? "../../../../service");
+      const root = resolve(process.env.CALLERWHALE_SERVICE_ROOT ?? "../../../../service");
       let child = null;
       let answers = null;
       let nextId = 0;
       let queue = Promise.resolve();
 
       function start() {
-        if (!existsSync(join(root, "turf_service"))) throw new Error(`Turf's Skip Tracing service was not found at ${root}.`);
-        const started = spawn(process.env.TURF_PYTHON ?? "python", ["-m", "turf_service.server", "--resources", root], {
+        if (!existsSync(join(root, "turf_service"))) throw new Error(`Caller Whale's Skip Tracing service was not found at ${root}.`);
+        const started = spawn(process.env.CALLERWHALE_PYTHON ?? "python", ["-m", "turf_service.server", "--resources", root], {
           cwd: root,
           env: { ...process.env, PYTHONUTF8: "1", PYTHONPATH: root },
         });
@@ -75,7 +75,7 @@ export function serviceBridge() {
         const id = ++nextId;
         child.stdin.write(`${JSON.stringify({ id, schema_version: 1, command, payload: payload ?? {} })}\n`);
         const line = await answers.next();
-        if (line.done) throw new Error("The Skip Tracing engine stopped. Is Python 3.11+ installed with service/requirements.txt, or TURF_PYTHON set?");
+        if (line.done) throw new Error("The Skip Tracing engine stopped. Is Python 3.11+ installed with service/requirements.txt, or CALLERWHALE_PYTHON set?");
         if (JSON.parse(line.value).id !== id) throw new Error("Service response did not match the request");
         return line.value;
       }

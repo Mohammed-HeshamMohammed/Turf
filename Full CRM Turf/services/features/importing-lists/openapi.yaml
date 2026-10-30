@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Turf Importing lists (server)
+  title: Caller Whale Importing lists (server)
   version: 0.1.0
   description: Feature 1: server-side list imports, column mapping and repeat merging for lists kept on the server.
 paths:
