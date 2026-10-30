@@ -161,3 +161,55 @@ test("coming back from a provider with an error says why, and with a code signs 
     Object.defineProperty(globalThis, "history", { value: was.history, configurable: true });
   }
 });
+
+test("a sign-in that needs a second step hands over the challenge and its methods, and answering keeps the tokens", async () => {
+  const storage = memoryStorage();
+  const { calls, fetchImpl } = fakeService({
+    "/v1/sessions": { status: 401, body: { error: "Confirm it is you with a second step.", code: "mfa_required", challenge: "CH1", methods: ["totp", "email", "push"] } },
+    "/v1/mfa/challenge/send": { body: { sent: true } },
+    "/v1/mfa/challenge/answer": tokens("A2", "R2"),
+    "/v1/mfa/challenge/status": { body: { push: "pending" } },
+  });
+  const auth = createAuth({ base: "http://auth.example", storage, fetchImpl });
+  const error = await auth.signIn("sami@example.com", "pw").catch(reason => reason);
+  assert.equal(error.code, "mfa_required");
+  assert.deepEqual(error.data, { error: "Confirm it is you with a second step.", code: "mfa_required", challenge: "CH1", methods: ["totp", "email", "push"] });
+  assert.equal(storage.map.get("callerwhale.auth.refresh"), undefined, "nothing is kept before the second step");
+
+  await auth.sendCode("CH1", "email");
+  await auth.sendCode("CH1", "push", "Chrome on Windows");
+  assert.deepEqual(calls[1].body, { challenge: "CH1", method: "email" });
+  assert.deepEqual(calls[2].body, { challenge: "CH1", method: "push", device: "Chrome on Windows" });
+  assert.equal(await auth.approvalState("CH1"), "pending");
+  await auth.answer("CH1", "email", "123456");
+  assert.deepEqual(calls[4].body, { challenge: "CH1", method: "email", code: "123456" });
+  assert.equal(await auth.accessToken(), "A2");
+  assert.equal(storage.map.get("callerwhale.auth.refresh"), "R2");
+});
+
+test("the security calls use the signed-in token, the right verbs and the labels given", async () => {
+  const { calls, fetchImpl } = fakeService({
+    "/v1/sessions": tokens("A1", "R1"),
+    "/v1/mfa/factors": { body: { factors: [], max_totp: 3 } },
+    "/v1/mfa/factors/f%201": { body: { ok: true } },
+    "/v1/mfa/totp/confirm": { body: { removed: ["Phone 1"], recovery_codes: [] } },
+    "/v1/sessions/refresh": tokens("A1b", "R1b"),
+    "/v1/mfa/approvals": { body: { approvals: [{ id: "x" }] } },
+    "/v1/mfa/approvals/x": { body: { ok: true } },
+    "/v1/mfa/challenge/start": { body: { challenge: "C", methods: ["email"] } },
+    "/v1/mfa/telegram/link": { body: { url: "https://t.me/bot?start=c" } },
+  });
+  const auth = createAuth({ base: "http://auth.example", storage: memoryStorage(), fetchImpl });
+  await auth.signIn("s@example.com", "pw");
+  await auth.factors();
+  await auth.removeFactor("f 1");
+  assert.equal(calls.at(-1).init.method, "DELETE");
+  assert.equal(calls.at(-1).init.headers.Authorization, "Bearer A1");
+  assert.deepEqual((await auth.confirmMfa("123456", "Phone 4")).removed, ["Phone 1"]);
+  assert.deepEqual(calls.find(c => c.path === "/v1/mfa/totp/confirm").body, { code: "123456", label: "Phone 4" });
+  assert.deepEqual(await auth.approvals(), [{ id: "x" }]);
+  await auth.decide("x", false);
+  assert.deepEqual(calls.at(-1).body, { approve: false });
+  assert.deepEqual(await auth.startStepUp(), { challenge: "C", methods: ["email"] });
+  assert.equal((await auth.linkTelegram()).url, "https://t.me/bot?start=c");
+});

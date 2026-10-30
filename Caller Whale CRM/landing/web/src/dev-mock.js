@@ -65,6 +65,13 @@ export const mockAuth = {
   startProvider: async () => {},
   resetPassword: async () => {},
   me: async () => ({ mfa_enrolled: true }),
+  factors: async () => ({ factors: [{ id: "f1", kind: "totp", label: "My phone", created_at: Math.floor(Date.now() / 1000) - 86400 * 20, last_used_at: Math.floor(Date.now() / 1000) - 3600 }], max_totp: 3, available: { email: true, telegram: true, push: false } }),
+  approvals: async () => [],
+  decide: async () => ({}),
+  removeFactor: async () => ({}),
+  setupMfa: async () => ({ secret: "JBSWY3DPEHPK3PXP", otpauth_url: "otpauth://totp/Caller%20Whale:owner%40callerwhale.test?secret=JBSWY3DPEHPK3PXP" }),
+  confirmMfa: async () => ({ removed: [], recovery_codes: [] }),
+  linkTelegram: async () => ({ url: "https://t.me/caller_whale_bot?start=demo" }),
 };
 
 const totals = () => ({

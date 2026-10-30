@@ -1,6 +1,6 @@
 # Second step at sign-in: four ways
 
-**Status:** planned and being built (2026-10-30). Owner of the decision: the platform owner.
+**Status:** built (2026-10-30): the auth service, the shared client, the website and the desktop app. Not yet tried against a real mail server or a real Telegram bot. Owner of the decision: the platform owner.
 
 ## What is wanted
 

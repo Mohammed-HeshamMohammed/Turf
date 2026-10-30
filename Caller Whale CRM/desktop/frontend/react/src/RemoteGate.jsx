@@ -5,6 +5,7 @@ import { api, apiBase, auth, organization, SERVER, setApiBase, setOrganization }
 import { MemoryVault, Vault } from "./remote/vault.js";
 import { inDesktopApp } from "./popout.js";
 import { Button, Card, Field } from "./ui.jsx";
+import { SecondStep } from "./SecondStep.jsx";
 
 /**
  * Signs in with the auth service, opens the person's workspace on Caller Whale's server, and unlocks this device's offline
@@ -21,6 +22,8 @@ export function RemoteGate({ onReady, onLeave }) {
   const [me, setMe] = useState(null);
   const [enrolment, setEnrolment] = useState(null);
   const [recovery, setRecovery] = useState(null);
+  // The second step: the challenge the server handed over, and the ways it may be answered.
+  const [second, setSecond] = useState(null);
   const [form, setForm] = useState({ email: "", password: "", code: "", passphrase: "" });
   const field = name => event => setForm({ ...form, [name]: event.target.value });
   const kind = inDesktopApp() ? "desktop" : "browser";
@@ -57,6 +60,12 @@ export function RemoteGate({ onReady, onLeave }) {
       if (identity.mfa.required && !identity.mfa.passed) {
         // Auth knows whether two-step sign-in is on; Caller Whale's server only knows whether this session passed it.
         const person = await auth.me();
+        // Ask the auth service which ways this person has (an authenticator, email, Telegram, an approval on another device).
+        const offered = await auth.startStepUp().catch(() => null);
+        if (offered?.methods?.length) {
+          setSecond(offered);
+          return setStep("second");
+        }
         return setStep(person.mfa_enrolled ? "stepup" : "enroll");
       }
       // The trial or plan has run out: the server refuses CRM records until it is renewed on the website.
@@ -146,7 +155,11 @@ export function RemoteGate({ onReady, onLeave }) {
       try {
         await auth.signIn(form.email.trim(), form.password, step === "code" ? form.code.trim() : undefined, kind);
       } catch (reason) {
-        // Two-step sign-in is on: ask for the code, keeping the password only until it is sent.
+        // Two-step sign-in is on: the server hands over a challenge and the ways to answer it.
+        if (reason.code === "mfa_required" && reason.data?.challenge) {
+          setSecond({ challenge: reason.data.challenge, methods: reason.data.methods });
+          return setStep("second");
+        }
         if (reason.code === "mfa_required") return setStep("code");
         throw reason;
       }
@@ -262,6 +275,22 @@ export function RemoteGate({ onReady, onLeave }) {
               <p className="muted">New here? Caller Whale is by invitation. Accept yours on Caller Whale's website first, then sign in here with the same account.</p>
             )}
           </form>
+        )}
+        {step === "second" && second && (
+          <SecondStep
+            auth={auth}
+            challenge={second.challenge}
+            methods={second.methods}
+            onDone={() => {
+              setSecond(null);
+              setForm(current => ({ ...current, password: "", code: "" }));
+              attempt(check);
+            }}
+            onBack={() => {
+              setSecond(null);
+              setStep("signin");
+            }}
+          />
         )}
         {step === "stepup" && (
           <form className="remote-step" onSubmit={stepUp}>

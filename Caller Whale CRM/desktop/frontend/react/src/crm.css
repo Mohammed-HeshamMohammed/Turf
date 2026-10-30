@@ -7540,3 +7540,16 @@ button.message-card:not(:disabled):hover {
     padding: 0 9px;
   }
 }
+
+/* A sign-in on another device waiting for this one to approve (SecondStep.jsx). */
+.approval-banner {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  padding: 10px 16px;
+  background: var(--surface-2, #fff);
+  border-bottom: 1px solid var(--border, #dcdcdc);
+}
+.second-step .row {
+  flex-wrap: wrap;
+}

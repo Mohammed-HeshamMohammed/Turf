@@ -19,3 +19,13 @@ AUTH_FIREBASE_API_KEY=<Web API key>
 # Google sign-in: the Web client Firebase made (Google Cloud -> Credentials). Redirect URI: https://auth.callerwhale.com/v1/oauth/google/callback
 AUTH_GOOGLE_CLIENT_ID=<client id>
 AUTH_GOOGLE_CLIENT_SECRET=<client secret>
+# Second step (docs/plans/second-factor.md). Email codes: the mail server (Mail-Server project). Telegram: optional, leave empty to
+# not offer it. Authenticator apps and approvals on another device need nothing.
+AUTH_SMTP_HOST=smtp.softfix.dev
+AUTH_SMTP_PORT=587
+AUTH_SMTP_USER=<the mailbox, e.g. no-reply@softfix.dev>
+AUTH_SMTP_PASSWORD=<mailbox password>
+AUTH_MAIL_FROM=Caller Whale <no-reply@softfix.dev>
+AUTH_TELEGRAM_BOT_TOKEN=<BotFather token, or empty>
+AUTH_TELEGRAM_BOT_NAME=<@bot_name, or empty>
+AUTH_TELEGRAM_WEBHOOK_SECRET=<a long random string, or empty>
