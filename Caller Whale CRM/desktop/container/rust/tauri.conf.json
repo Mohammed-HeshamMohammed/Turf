@@ -33,13 +33,13 @@
     "security": {
       "csp": {
         "default-src": "'self'",
-        "script-src": "'self'",
+        "script-src": "'self' https://challenges.cloudflare.com",
         "style-src": "'self' 'unsafe-inline'",
         "img-src": "'self' data: blob: https://tile.openstreetmap.org https://*.giphy.com",
         "font-src": "'self' data:",
         "connect-src": "'self' ipc: http://ipc.localhost https: wss: http://localhost:* ws://localhost:* http://127.0.0.1:*",
         "worker-src": "'self' blob:",
-        "frame-src": "'none'",
+        "frame-src": "https://challenges.cloudflare.com",
         "object-src": "'none'",
         "base-uri": "'none'",
         "form-action": "'none'"
@@ -52,7 +52,7 @@
         "font-src": "'self' data:",
         "connect-src": "'self' ipc: http://ipc.localhost https: wss: http://localhost:* ws://localhost:* http://127.0.0.1:*",
         "worker-src": "'self' blob:",
-        "frame-src": "'none'",
+        "frame-src": "https://challenges.cloudflare.com",
         "object-src": "'none'",
         "base-uri": "'none'",
         "form-action": "'none'"

@@ -108,9 +108,9 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
     signedIn: () => Boolean(access || readRefresh()),
     accessToken,
     refresh,
-    signUp: (name, email, password, kind = "browser") => call("POST", "/v1/accounts", { name, email, password, kind }).then(keep),
+    signUp: (name, email, password, kind = "browser", human_token = "") => call("POST", "/v1/accounts", { name, email, password, kind, ...(human_token ? { human_token } : {}) }).then(keep),
     /** With two-step sign-in on, the first try answers code "mfa_required"; try again with `code`. */
-    signIn: (email, password, code, kind = "browser") => call("POST", "/v1/sessions", { email, password, ...(code ? { code } : {}), kind }).then(keep),
+    signIn: (email, password, code, kind = "browser", human_token = "") => call("POST", "/v1/sessions", { email, password, ...(code ? { code } : {}), kind, ...(human_token ? { human_token } : {}) }).then(keep),
     /** Emails a password reset link. The answer is the same for any address. */
     forgotPassword: email => call("POST", "/v1/password/forgot", { email }),
     /** A new password with the code from the reset link; every session of that person ends. */
@@ -118,11 +118,14 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
     /** Trades the one-time code a Google or Apple sign-in came back with. */
     exchange: code => call("POST", "/v1/oauth/exchange", { code }).then(keep),
     providers: () => call("GET", "/v1/providers"),
+    security: () => call("GET", "/v1/security"),
+    providerUrl: (provider, target, port, human_token = "", action = "signin") => call("POST", `/v1/oauth/${encodeURIComponent(provider)}/start`, { target, ...(port ? { port } : {}), human_token, action }).then(answer => answer.url),
     /** Where to send the browser to sign in with a provider. `target` is website, app, landing (the public site) or desktop (with `port`). */
     startUrl: (provider, target, port) => `${base}/v1/oauth/${encodeURIComponent(provider)}/start?target=${target}${port ? `&port=${port}` : ""}`,
     /** This page goes to the provider (through auth) and comes back with `?callerwhale_code=`; `finishProvider` trades it. */
-    startProvider: async (provider, target) => {
-      globalThis.location.href = `${base}/v1/oauth/${encodeURIComponent(provider)}/start?target=${target}`;
+    startProvider: async (provider, target, human_token = "", action = "signin") => {
+      const answer = await call("POST", `/v1/oauth/${encodeURIComponent(provider)}/start`, { target, human_token, action });
+      globalThis.location.href = answer.url;
     },
     /** True when this page came back from a provider and is now signed in. Reads the code before anything awaits. */
     finishProvider: async () => {

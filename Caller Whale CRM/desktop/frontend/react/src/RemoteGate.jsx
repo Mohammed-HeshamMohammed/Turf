@@ -6,6 +6,7 @@ import { MemoryVault, Vault } from "./remote/vault.js";
 import { inDesktopApp } from "./popout.js";
 import { Button, Card, Field } from "./ui.jsx";
 import { SecondStep } from "./SecondStep.jsx";
+import { HumanCheck } from "./remote/human-check.jsx";
 
 /**
  * Signs in with the auth service, opens the person's workspace on Caller Whale's server, and unlocks this device's offline
@@ -19,6 +20,8 @@ export function RemoteGate({ onReady, onLeave }) {
   // A Google sign-in that did not work comes back with its reason in the address.
   const [error, setError] = useState(() => new URLSearchParams(window.location.search).get("oauth_error") || "");
   const [busy, setBusy] = useState(false);
+  const [humanToken, setHumanToken] = useState("");
+  const [humanReset, setHumanReset] = useState(0);
   const [me, setMe] = useState(null);
   const [enrolment, setEnrolment] = useState(null);
   const [recovery, setRecovery] = useState(null);
@@ -105,11 +108,9 @@ export function RemoteGate({ onReady, onLeave }) {
    * desktop window never leaves the app: Google opens in the person's own browser, which hands a one-time code back
    * to the app on this computer.
    */
-  const continueWith = (provider, label) =>
+  const continueWith = provider =>
     attempt(async () => {
-      const available = await auth.providers().catch(() => ({}));
-      if (!available[provider]) throw new Error(`${label} sign-in isn't connected yet. Use your email for now.`);
-      if (!inDesktopApp()) return auth.startProvider(provider, "app");
+      if (!inDesktopApp()) return auth.startProvider(provider, "app", humanToken);
       const { invoke } = await import("@tauri-apps/api/core");
       const { listen } = await import("@tauri-apps/api/event");
       waiting.current?.();
@@ -127,7 +128,7 @@ export function RemoteGate({ onReady, onLeave }) {
         });
       });
       waiting.current = stop;
-      await invoke("open_in_browser", { url: auth.startUrl(provider, "desktop", port) });
+      await invoke("open_in_browser", { url: await auth.providerUrl(provider, "desktop", port, humanToken) });
       setStep("browser");
     });
   const stopWaiting = () => {
@@ -142,6 +143,7 @@ export function RemoteGate({ onReady, onLeave }) {
     try {
       await work();
     } catch (reason) {
+      setHumanReset(value => value + 1);
       if (reason.code === "mfa_required" && reason.data?.challenge) {
         setSecond({ challenge: reason.data.challenge, methods: reason.data.methods });
         setStep("second");
@@ -157,7 +159,7 @@ export function RemoteGate({ onReady, onLeave }) {
     attempt(async () => {
       if (!apiBase()) setApiBase(SERVER);
       try {
-        await auth.signIn(form.email.trim(), form.password, step === "code" ? form.code.trim() : undefined, kind);
+        await auth.signIn(form.email.trim(), form.password, step === "code" ? form.code.trim() : undefined, kind, humanToken);
       } catch (reason) {
         // Two-step sign-in is on: the server hands over a challenge and the ways to answer it.
         if (reason.code === "mfa_required" && reason.data?.challenge) {
@@ -275,6 +277,7 @@ export function RemoteGate({ onReady, onLeave }) {
                 </Field>
               </>
             )}
+            <HumanCheck getAuth={() => auth} action="signin" resetKey={humanReset} onToken={setHumanToken} />
             <Button type="submit" variant="primary" icon={SignIn} disabled={busy}>
               {busy ? "Signing in…" : step === "code" ? "Confirm" : "Sign in"}
             </Button>

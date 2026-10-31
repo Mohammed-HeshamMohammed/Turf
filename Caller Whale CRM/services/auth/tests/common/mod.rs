@@ -18,7 +18,7 @@ use std::sync::Arc;
 use tower::ServiceExt;
 use callerwhale_auth::{app, config::Config, connect, keys::Keys, setup_database, AppState};
 
-pub const PASSWORD: &str = "correct horse battery";
+pub const PASSWORD: &str = "Correct horse battery1!";
 
 /// A fresh database: in memory, or the PostgreSQL test database emptied.
 pub async fn database() -> sqlx::AnyPool {

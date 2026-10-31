@@ -10,7 +10,7 @@
 use crate::error::AuthError;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::time::Duration;
+use std::{time::{Duration, Instant}, sync::{Arc, Mutex}, collections::HashMap};
 
 #[derive(Clone, Debug)]
 pub struct Firebase {
@@ -20,6 +20,7 @@ pub struct Firebase {
     /// Secure Token, `https://securetoken.googleapis.com`.
     token: String,
     http: reqwest::Client,
+    providers: Arc<Mutex<HashMap<String, (bool, Instant)>>>,
 }
 
 /// What a successful Firebase sign-in or sign-up hands back.
@@ -68,7 +69,7 @@ impl From<Refusal> for AuthError {
         match refusal {
             Refusal::WrongPassword | Refusal::Disabled => AuthError::WrongCredentials,
             Refusal::EmailTaken => AuthError::Conflict("An account with this email already exists. Sign in instead.".into()),
-            Refusal::WeakPassword => AuthError::Bad("Use a password of at least 12 characters.".into()),
+            Refusal::WeakPassword => AuthError::Bad("Use 8–4096 characters with an uppercase letter, a lowercase letter, a number and a special character. If signing in, use Forgot password to upgrade your password.".into()),
             Refusal::WrongCode => AuthError::WrongCode,
             Refusal::TooMany => AuthError::TooMany,
             Refusal::RecentLogin => AuthError::Unauthenticated,
@@ -117,6 +118,7 @@ struct Reply {
 impl Firebase {
     pub fn new(api_key: &str, identity: &str, token: &str) -> Self {
         Firebase {
+            providers: Arc::default(),
             api_key: api_key.to_string(),
             identity: identity.trim_end_matches('/').to_string(),
             token: token.trim_end_matches('/').to_string(),
@@ -182,6 +184,42 @@ impl Firebase {
             "returnIdpCredential": false,
         });
         Self::outcome(self.call("/v1/accounts:signInWithIdp", body).await?)
+    }
+
+    /// Firebase owns provider credentials; its session binds the callback to this initiation.
+    pub async fn oauth_uri(&self, provider: &str, callback: &str) -> Result<(String, String, String), Refusal> {
+        let value = self.post(format!("{}/v1/accounts:createAuthUri", self.identity), json!({
+            "providerId": format!("{provider}.com"), "authFlowType": "CODE_FLOW", "continueUri": callback
+        })).await?;
+        let uri = value["authUri"].as_str().unwrap_or_default();
+        let session = value["sessionId"].as_str().unwrap_or_default();
+        let url = reqwest::Url::parse(uri).map_err(|_| Refusal::Other("invalid authorization URL".into()))?;
+        let state = url.query_pairs().find(|(k, _)| k == "state").map(|(_, v)| v.into_owned()).unwrap_or_default();
+        if url.scheme() != "https" || state.is_empty() || session.is_empty() {
+            return Err(Refusal::Other("incomplete authorization response".into()));
+        }
+        Ok((uri.to_string(), session.to_string(), state))
+    }
+
+    pub async fn oauth_available(&self, provider: &str, callback: &str) -> bool {
+        let key = format!("{provider}:{callback}");
+        if let Some((available, at)) = self.providers.lock().unwrap().get(&key) {
+            if at.elapsed() < Duration::from_secs(60) { return *available; }
+        }
+        let available = matches!(tokio::time::timeout(Duration::from_secs(4), self.oauth_uri(provider, callback)).await, Ok(Ok(_)));
+        self.providers.lock().unwrap().insert(key, (available, Instant::now()));
+        available
+    }
+
+    pub async fn finish_oauth(&self, callback: &str, session: &str, provider: &str, code: &str, state: &str) -> Result<Login, Refusal> {
+        let mut uri = reqwest::Url::parse(callback).map_err(|_| Refusal::Other("invalid callback".into()))?;
+        uri.query_pairs_mut().append_pair("code", code).append_pair("state", state);
+        let mut form = reqwest::Url::parse("http://localhost").expect("static URL");
+        form.query_pairs_mut().append_pair("providerId", &format!("{provider}.com")).append_pair("code", code);
+        Self::outcome(self.call("/v1/accounts:signInWithIdp", json!({
+            "requestUri": uri.as_str(), "sessionId": session, "postBody": form.query().unwrap_or_default(),
+            "returnSecureToken": true, "returnIdpCredential": false
+        })).await?)
     }
 
     /// A fresh ID token from a refresh token (Firebase may rotate the refresh token too).

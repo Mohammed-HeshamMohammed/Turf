@@ -47,7 +47,7 @@ const HANDOFF_SECONDS: i64 = 2 * 60;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/v1/providers", get(providers))
-        .route("/v1/oauth/{provider}/start", get(start))
+        .route("/v1/oauth/{provider}/start", get(start).post(start_post))
         // Google returns with a GET; Apple posts a form back (response_mode=form_post) once it asked for a name.
         .route("/v1/oauth/{provider}/callback", get(callback_get).post(callback_post))
         .route("/v1/oauth/exchange", post(exchange))
@@ -74,7 +74,18 @@ fn random() -> String {
 }
 
 async fn providers(State(state): State<AppState>) -> Json<Value> {
-    Json(json!({ "google": state.config.google.configured(), "apple": state.config.apple.configured() }))
+    let available = |name: &'static str, direct: bool| {
+        let state = &state;
+        async move {
+            if direct { return true; }
+            match &state.config.firebase {
+                Some(fb) => fb.oauth_available(name, &redirect_uri(state, name)).await,
+                None => false,
+            }
+        }
+    };
+    let (google, apple) = tokio::join!(available("google", state.config.google.configured()), available("apple", state.config.apple.configured()));
+    Json(json!({ "google": google, "apple": apple }))
 }
 
 #[derive(Deserialize)]
@@ -89,10 +100,37 @@ struct Start {
 
 /// Sends the browser to the provider.
 async fn start(State(state): State<AppState>, Path(name): Path<String>, Query(query): Query<Start>) -> AuthResult<Response> {
-    let config = provider(&state, &name)?;
-    if !config.configured() {
-        return Err(AuthError::Bad(format!("{} sign-in is not set up on this server yet.", label(&name))));
+    if state.config.human.is_some() { return Err(AuthError::HumanRequired); }
+    start_inner(state, name, query).await
+}
+
+#[derive(Deserialize)]
+struct ProtectedStart {
+    #[serde(default)]
+    target: String,
+    #[serde(default)]
+    port: Option<i64>,
+    #[serde(default)]
+    human_token: String,
+    #[serde(default = "signin_action")]
+    action: String,
+}
+
+fn signin_action() -> String { "signin".into() }
+
+async fn start_post(State(state): State<AppState>, Path(name): Path<String>, Json(body): Json<ProtectedStart>) -> AuthResult<Json<Value>> {
+    if !matches!(body.action.as_str(), "signin" | "signup") {
+        return Err(AuthError::Bad("Choose sign-in or sign-up.".into()));
     }
+    if let Some(check) = &state.config.human { check.verify(&body.human_token, &body.action).await?; }
+    let response = start_inner(state, name, Start { target: body.target, port: body.port }).await?;
+    let url = response.headers().get("location").and_then(|v| v.to_str().ok())
+        .ok_or_else(|| AuthError::Internal(anyhow::anyhow!("missing authorization redirect")))?;
+    Ok(Json(json!({"url":url})))
+}
+
+async fn start_inner(state: AppState, name: String, query: Start) -> AuthResult<Response> {
+    let config = provider(&state, &name)?;
     let target = match query.target.as_str() {
         "app" => "app",
         "landing" => "landing",
@@ -105,6 +143,17 @@ async fn start(State(state): State<AppState>, Path(name): Path<String>, Query(qu
     } else {
         None
     };
+    if !config.configured() {
+        let fb = state.config.firebase.as_ref().ok_or_else(|| AuthError::Bad(format!("{} sign-in is not set up on this server yet.", label(&name))))?;
+        let (uri, session, token) = tokio::time::timeout(Duration::from_secs(5), fb.oauth_uri(&name, &redirect_uri(&state, &name)))
+            .await.ok().and_then(Result::ok)
+            .ok_or_else(|| AuthError::Bad(format!("{} sign-in is unavailable. Ask the administrator to enable its Firebase authorization code flow and configure its client and callback URL.", label(&name))))?;
+        sqlx::query("INSERT INTO oauth_states (state_hash, provider, nonce, code_verifier, target, return_port, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7)")
+            .bind(sha256(&token)).bind(&name).bind(session).bind("firebase").bind(target).bind(port).bind(now() as i64 + STATE_SECONDS)
+            .execute(&state.db).await?;
+        sqlx::query("DELETE FROM oauth_states WHERE expires_at < $1").bind(now() as i64).execute(&state.db).await?;
+        return Ok(Redirect::to(&uri).into_response());
+    }
     let state_token = random();
     let nonce = random();
     // PKCE for Google; Apple's flow does not take it (the client secret already proves this server).
@@ -204,8 +253,10 @@ async fn finish(state: AppState, name: String, returned: Returned) -> Response {
         Ok(row) => row,
         Err(error) => return AuthError::from(error).into_response(),
     };
-    if let Err(error) = sqlx::query("DELETE FROM oauth_states WHERE state_hash = $1").bind(sha256(&returned.state)).execute(&state.db).await {
-        return AuthError::from(error).into_response();
+    match sqlx::query("DELETE FROM oauth_states WHERE state_hash = $1").bind(sha256(&returned.state)).execute(&state.db).await {
+        Ok(used) if used.rows_affected() == 1 => {},
+        Ok(_) => return back(&state, "website", None, None, Some("That sign-in link has expired. Try again.")).into_response(),
+        Err(error) => return AuthError::from(error).into_response(),
     }
     let parsed = row.and_then(|r| {
         Some((
@@ -380,6 +431,11 @@ pub async fn verify_id_token(config: &Provider, token: &str, nonce: &str) -> Aut
 
 /// Exchanges the provider's code, checks who it says the person is, and returns their account's id.
 async fn sign_in(state: &AppState, name: &str, returned: &Returned, nonce: &str, verifier: Option<&str>) -> AuthResult<(String, Option<FbSession>)> {
+    if verifier == Some("firebase") {
+        let fb = state.config.firebase.as_ref().ok_or_else(|| AuthError::Bad("Sign-in configuration changed. Try again.".into()))?;
+        let login = fb.finish_oauth(&redirect_uri(state, name), nonce, name, &returned.code, &returned.state).await.map_err(AuthError::from)?;
+        return firebase_account(state, fb, login, "").await;
+    }
     let config = provider(state, name)?;
     let secret = if name == "apple" { apple_client_secret(config)? } else { config.client_secret.clone() };
     let redirect = redirect_uri(state, name);
@@ -469,7 +525,14 @@ async fn sign_in(state: &AppState, name: &str, returned: &Returned, nonce: &str,
 /// Google or Apple through Firebase: the ID token this service just checked goes to Firebase, which finds or opens the person.
 async fn firebase_provider(state: &AppState, fb: &Firebase, provider: &str, id_token: &str, nonce: &str, display: &str) -> AuthResult<(String, Option<FbSession>)> {
     let login = fb.sign_in_provider(provider, id_token, nonce).await.map_err(AuthError::from)?;
+    firebase_account(state, fb, login, display).await
+}
+
+async fn firebase_account(state: &AppState, fb: &Firebase, login: crate::firebase::Login, display: &str) -> AuthResult<(String, Option<FbSession>)> {
     let mut profile = fb.profile(&login.id_token).await.map_err(AuthError::from)?;
+    if profile.disabled || !profile.email_verified || profile.email.trim().is_empty() {
+        return Err(AuthError::Forbidden("Sign-in requires an enabled account with a confirmed email address.".into()));
+    }
     if profile.name.trim().is_empty() {
         profile.name = display.to_string();
     }

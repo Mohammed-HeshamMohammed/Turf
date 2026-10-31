@@ -27,3 +27,10 @@ AUTH_NOTIFY_TOKEN=<the auth token from NOTIFY_TOKENS>
 AUTH_TELEGRAM_BOT_TOKEN=<BotFather token, or empty>
 AUTH_TELEGRAM_BOT_NAME=<@bot_name, or empty>
 AUTH_TELEGRAM_WEBHOOK_SECRET=<a long random string, or empty>
+
+# Optional Turnstile. Leave off until real keys and the frontend widget are ready.
+AUTH_BOT_PROTECTION=false
+AUTH_TURNSTILE_SITE_KEY=
+AUTH_TURNSTILE_SECRET_KEY=
+# Optional comma-separated hostnames; defaults to configured origin hostnames.
+AUTH_TURNSTILE_HOSTNAMES=
