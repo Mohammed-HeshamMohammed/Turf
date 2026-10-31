@@ -16,7 +16,7 @@ use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tower::ServiceExt;
-use callerwhale_auth::{app, config::Config, connect, keys::Keys, migrate, AppState};
+use callerwhale_auth::{app, config::Config, connect, keys::Keys, setup_database, AppState};
 
 pub const PASSWORD: &str = "correct horse battery";
 
@@ -24,8 +24,8 @@ pub const PASSWORD: &str = "correct horse battery";
 pub async fn database() -> sqlx::AnyPool {
     let url = std::env::var("AUTH_TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".into());
     let db = connect(&url).await.unwrap();
-    migrate(&db).await.unwrap();
-    migrate(&db).await.unwrap(); // running the migrations again is harmless
+    setup_database(&db).await.unwrap();
+    setup_database(&db).await.unwrap(); // running the database updates again is harmless
     for table in ["outbox", "failed_sign_ins", "mfa_challenges", "mfa_factors", "telegram_links", "recovery_codes", "oauth_handoffs", "oauth_states", "email_verifications", "user_identities", "sessions", "users"] {
         sqlx::query(&format!("DELETE FROM {table}")).execute(&db).await.unwrap();
     }
