@@ -200,14 +200,25 @@ async fn a_google_sign_in_steps_up_with_the_authenticator_code() {
 }
 
 #[tokio::test]
-async fn apple_is_not_offered_while_firebase_is_the_account_store() {
+async fn apple_signs_in_through_firebase_with_a_verified_nonce() {
     let fake = firebase::start().await;
     let base = provider::start().await;
     let apple = Provider { team_id: "TEAMTEST01".into(), key_id: "KEYTEST001".into(), private_key: keys::EC_PRIVATE_PEM.into(), client_id: "apple-test-client".into(), token_url: format!("{base}/token"), jwks_url: format!("{base}/jwks"), issuer: base.clone(), auth_url: format!("{base}/authorize"), ..Default::default() };
     let config = Config { firebase: Some(callerwhale_auth::firebase::Firebase::new("test-key", &fake.base, &fake.base)), apple, google: google_providers(&base), ..Config::for_tests() };
     let app = service_with(config).await;
     let (_, providers) = call(&app, "GET", "/v1/providers", None, None).await;
-    assert_eq!(providers, json!({ "google": true, "apple": false }));
+    assert_eq!(providers, json!({ "google": true, "apple": true }));
+    let (_, to) = follow(&app, get("/v1/oauth/apple/start?target=app")).await;
+    let state = param(&to, "state").unwrap();
+    let nonce = param(&to, "nonce").unwrap();
+    let code = provider::code(json!({ "sub": "apple-100", "email": "apple@example.com", "email_verified": true, "nonce": nonce }));
+    let (_, back) = follow(&app, form_post("/v1/oauth/apple/callback", &[("code", code.as_str()), ("state", state.as_str())])).await;
+    let code = param(&back, "callerwhale_code").unwrap_or_else(|| panic!("no code in {back}"));
+    let (status, body) = call(&app, "POST", "/v1/oauth/exchange", Some(json!({ "code": code })), None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(claims(&app, token(&body)).await.provider, "apple");
+    assert_eq!(fake.world.lock().unwrap().asked("apple.com"), 1);
+    assert!(fake.world.lock().unwrap().has_account("apple@example.com"));
 }
 
 #[tokio::test]

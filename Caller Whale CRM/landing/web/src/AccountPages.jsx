@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { DownloadSimple, EnvelopeSimple, LockKey, ShieldCheck, WarningCircle } from "@phosphor-icons/react";
+import { AppleLogo, DownloadSimple, EnvelopeSimple, LockKey, ShieldCheck, WarningCircle } from "@phosphor-icons/react";
 import { API, destination, loadAuth, request, useSession } from "./session.jsx";
 import { AdminMode } from "./AdminPage.jsx";
 import { Approvals, Security, SecondStep } from "./Security.jsx";
@@ -44,7 +44,7 @@ function Shell({ title, lead, children, wide }) {
 function AuthForm({ mode }) {
   const session = useSession();
   const [form, setForm] = useState({ name: "", email: "", password: "", code: "" });
-  const [state, setState] = useState({ busy: false, error: "", note: "", needCode: false, google: false, second: null });
+  const [state, setState] = useState({ busy: false, error: "", note: "", needCode: false, second: null });
   const set = key => e => setForm({ ...form, [key]: e.target.value });
   const signup = mode === "signup";
 
@@ -53,11 +53,10 @@ function AuthForm({ mode }) {
     let live = true;
     loadAuth()
       .then(async auth => {
-        if (live) setState(s => ({ ...s, google: auth.providerList.includes("google") }));
         const back = await auth.finishProvider();
         if (back && live) await arrive();
       })
-      .catch(error => live && setState(s => ({ ...s, error: error.code === "mfa_required" ? "" : error.message, needCode: error.code === "mfa_required" })));
+      .catch(error => live && setState(s => ({ ...s, error: error.code === "mfa_required" ? "" : error.message, needCode: error.code === "mfa_required" && !error.data?.challenge, second: error.data?.challenge ? { challenge: error.data.challenge, methods: error.data.methods } : null })));
     return () => {
       live = false;
     };
@@ -99,11 +98,14 @@ function AuthForm({ mode }) {
     return attempt(auth => auth.signIn(form.email.trim(), form.password));
   };
 
-  const google = () => {
+  const provider = (name, label) => {
     setState(s => ({ ...s, busy: true, error: "" }));
     // The page goes to Google and comes back here.
     loadAuth()
-      .then(auth => auth.startProvider("google", "landing"))
+      .then(auth => {
+        if (!auth.providerList.includes(name)) throw new Error(`${label} sign-in isn't connected yet. Use your email for now.`);
+        return auth.startProvider(name, "landing");
+      })
       .catch(error => setState(s => ({ ...s, busy: false, error: error.message })));
   };
 
@@ -124,10 +126,13 @@ function AuthForm({ mode }) {
     >
       <div className="panel auth-panel">
         {state.second && <SecondStep challenge={state.second.challenge} methods={state.second.methods} onDone={arrive} />}
-        {state.google && !state.needCode && !state.second && (
+        {!state.needCode && !state.second && (
           <>
-            <button type="button" className="button ghost google" onClick={google} disabled={state.busy}>
+            <button type="button" className="button ghost google" onClick={() => provider("google", "Google")} disabled={state.busy}>
               <GoogleMark /> {signup ? "Sign up with Google" : "Sign in with Google"}
+            </button>
+            <button type="button" className="button ghost google" onClick={() => provider("apple", "Apple")} disabled={state.busy}>
+              <AppleLogo size={18} weight="fill" aria-hidden="true" /> {signup ? "Sign up with Apple" : "Sign in with Apple"}
             </button>
             <p className="or"><span>or with your email</span></p>
           </>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Lock, ShieldCheck, SignIn, UserCircleMinus, WifiSlash } from "@phosphor-icons/react";
-import { GoogleMark } from "./SignInMarks.jsx";
+import { AppleMark, GoogleMark } from "./SignInMarks.jsx";
 import { api, apiBase, auth, organization, SERVER, setApiBase, setOrganization } from "./remote/api.js";
 import { MemoryVault, Vault } from "./remote/vault.js";
 import { inDesktopApp } from "./popout.js";
@@ -89,7 +89,7 @@ export function RemoteGate({ onReady, onLeave }) {
         await back;
       } catch (reason) {
         // An authenticator is set up: the sign-in waits for its code.
-        if (reason.code === "mfa_required") return setStep("stepup");
+        if (reason.code === "mfa_required") throw reason;
         setStep("signin");
         throw reason;
       }
@@ -142,7 +142,11 @@ export function RemoteGate({ onReady, onLeave }) {
     try {
       await work();
     } catch (reason) {
-      setError(reason.message);
+      if (reason.code === "mfa_required" && reason.data?.challenge) {
+        setSecond({ challenge: reason.data.challenge, methods: reason.data.methods });
+        setStep("second");
+      } else if (reason.code === "mfa_required") setStep("stepup");
+      else setError(reason.message);
     } finally {
       setBusy(false);
     }
@@ -224,7 +228,7 @@ export function RemoteGate({ onReady, onLeave }) {
         {step === "checking" && <p className="muted">Checking your session…</p>}
         {step === "browser" && (
           <div className="remote-step" role="status">
-            <p className="body-copy">Finish signing in with Google in your browser. Caller Whale continues here by itself when you're done.</p>
+            <p className="body-copy">Finish signing in in your browser. Caller Whale continues here by itself when you're done.</p>
             <Button onClick={stopWaiting}>Cancel</Button>
           </div>
         )}
@@ -247,6 +251,9 @@ export function RemoteGate({ onReady, onLeave }) {
                 <div className="provider-buttons">
                   <Button icon={GoogleMark} disabled={busy} onClick={() => continueWith("google", "Google")}>
                     Continue with Google
+                  </Button>
+                  <Button icon={AppleMark} disabled={busy} onClick={() => continueWith("apple", "Apple")}>
+                    Continue with Apple
                   </Button>
                   <p className="provider-or muted" role="separator">
                     or with your email

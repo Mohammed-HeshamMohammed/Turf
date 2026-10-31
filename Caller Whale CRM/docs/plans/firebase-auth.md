@@ -89,7 +89,7 @@ Steps 1 and 2 run in the container (`google_sign_in` in `desktop/container/rust/
 
 The Google ID token's audience is the Desktop client. If Firebase refuses it, add that client id under **Authentication → Sign-in method → Google → Safelist client IDs**.
 
-Apple is not done: Apple only returns to registered `https` addresses, not to `127.0.0.1`. It needs a page on Caller Whale's website that signs in with Apple and hands the result to the app; it comes once the Apple Developer account exists and can be tested.
+Apple returns to auth's registered HTTPS callback, which verifies the ID token and hashed nonce, hands the token and raw nonce to Firebase, and issues a single-use code to the desktop loopback listener. This server flow is covered by fake-provider tests; live Apple sign-in still requires an Apple Developer configuration and a real-device check.
 
 The desktop window's content security policy is on (`tauri.conf.json`): scripts only from the app itself, no frames.
 
