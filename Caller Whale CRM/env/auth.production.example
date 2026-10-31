@@ -2,7 +2,7 @@
 # Paste into Environment Variables -> Developer View. Fill every <...>; the rest is as it should be.
 PORT=8101
 # A PostgreSQL login for the auth service's own database.
-DATABASE_URL=<postgres://user:password@host:5432/callerwhale_auth>
+DATABASE_URL=<postgres://callerwhale_auth:password@host:5432/callerwhale_auth>
 # Secret. Any 32 random bytes in base64 work, from any PC. In PowerShell:
 #   $b = New-Object byte[] 32; (New-Object Security.Cryptography.RNGCryptoServiceProvider).GetBytes($b); [Convert]::ToBase64String($b) | Set-Clipboard
 # (or `callerwhale-auth new-key`). Changing it signs everyone out.
@@ -23,8 +23,8 @@ AUTH_GOOGLE_CLIENT_SECRET=<client secret>
 # not offer it. Authenticator apps and approvals on another device need nothing.
 AUTH_SMTP_HOST=smtp.softfix.dev
 AUTH_SMTP_PORT=587
-AUTH_SMTP_USER=<the same mailbox login as the core API's CALLERWHALE_SMTP_USER>
-AUTH_SMTP_PASSWORD=<mailbox password>
+AUTH_SMTP_USER=<mailbox login>
+AUTH_SMTP_PASSWORD=<password for AUTH_SMTP_USER; required for email codes>
 # The mail server lets a login send only as its own address, so this is the mailbox's address with the display name Caller Whale.
 AUTH_MAIL_FROM=Caller Whale <the mailbox address>
 AUTH_TELEGRAM_BOT_TOKEN=<BotFather token, or empty>

@@ -1,4 +1,4 @@
--- Run in callerwhale-postgres as postgres. Creates the core API roles and database.
+-- Run in callerwhale-core-postgres as postgres. Creates the core API roles and database.
 -- Never use the "postgres" superuser from an app: it would bypass row security.
 CREATE ROLE callerwhale_owner LOGIN PASSWORD '__DB_OWNER_PASSWORD__' CREATEROLE;
 CREATE ROLE callerwhale_app NOLOGIN NOBYPASSRLS;
