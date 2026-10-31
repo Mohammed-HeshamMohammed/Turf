@@ -24,27 +24,27 @@ const post = (path, body) =>
   fetch(base + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 
 test("a waitlist sign-up is saved once", async () => {
-  const first = await (await post("/api/waitlist", { email: "A@Example.com", tier: "duo" })).json();
+  const first = await (await post("/waitlist", { email: "A@Example.com", tier: "duo" })).json();
   assert.deepEqual(first, { ok: true, joined: true });
-  const again = await (await post("/api/waitlist", { email: "a@example.com" })).json();
+  const again = await (await post("/waitlist", { email: "a@example.com" })).json();
   assert.equal(again.joined, false);
   assert.equal(store.waitlistCount(), 1);
 });
 
 test("a bad email is refused", async () => {
-  const res = await post("/api/waitlist", { email: "nope" });
+  const res = await post("/waitlist", { email: "nope" });
   assert.equal(res.status, 400);
 });
 
 test("the hidden field catches bots without saving", async () => {
-  const res = await post("/api/waitlist", { email: "bot@example.com", website: "x" });
+  const res = await post("/waitlist", { email: "bot@example.com", website: "x" });
   assert.equal(res.status, 200);
   assert.equal(store.waitlistCount(), 1);
 });
 
 test("a contact message needs text", async () => {
-  assert.equal((await post("/api/contact", { email: "a@example.com", message: "hi" })).status, 400);
-  assert.equal((await post("/api/contact", { email: "a@example.com", message: "Call me back please" })).status, 200);
+  assert.equal((await post("/contact", { email: "a@example.com", message: "hi" })).status, 400);
+  assert.equal((await post("/contact", { email: "a@example.com", message: "Call me back please" })).status, 200);
 });
 
 test("only listed origins get CORS", async () => {
@@ -82,6 +82,6 @@ test("latestRelease reads GitHub once and caches it", async () => {
 // Last on purpose: it uses up the per-address limit.
 test("writes are rate limited per address", async () => {
   let last;
-  for (let i = 0; i < 12; i++) last = await post("/api/waitlist", { email: `r${i}@example.com` });
+  for (let i = 0; i < 12; i++) last = await post("/waitlist", { email: `r${i}@example.com` });
   assert.equal(last.status, 429);
 });
