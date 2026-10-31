@@ -74,8 +74,7 @@ fn random() -> String {
 }
 
 async fn providers(State(state): State<AppState>) -> Json<Value> {
-    // Apple is not wired through Firebase's server API yet.
-    Json(json!({ "google": state.config.google.configured(), "apple": state.config.apple.configured() && state.config.firebase.is_none() }))
+    Json(json!({ "google": state.config.google.configured(), "apple": state.config.apple.configured() }))
 }
 
 #[derive(Deserialize)]
@@ -131,7 +130,7 @@ async fn start(State(state): State<AppState>, Path(name): Path<String>, Query(qu
             .append_pair("redirect_uri", &redirect_uri(&state, &name))
             .append_pair("response_type", "code")
             .append_pair("state", &state_token)
-            .append_pair("nonce", &nonce);
+            .append_pair("nonce", &if name == "apple" { sha256(&nonce) } else { nonce.clone() });
         if name == "apple" {
             params.append_pair("scope", "name email").append_pair("response_mode", "form_post");
         } else {
@@ -404,7 +403,7 @@ async fn sign_in(state: &AppState, name: &str, returned: &Returned, nonce: &str,
         .json()
         .await
         .map_err(|e| AuthError::Internal(anyhow::anyhow!("token answer: {e}")))?;
-    let claims = verify_id_token(config, &answer.id_token, nonce).await?;
+    let claims = verify_id_token(config, &answer.id_token, &if name == "apple" { sha256(nonce) } else { nonce.to_string() }).await?;
     let email = claims.verified_email().ok_or_else(|| AuthError::Forbidden(format!("Your {} account has no confirmed email address.", label(name))))?;
     let display = claims
         .name
@@ -414,7 +413,7 @@ async fn sign_in(state: &AppState, name: &str, returned: &Returned, nonce: &str,
         .unwrap_or_else(|| email.split('@').next().unwrap_or("Caller Whale user").to_string());
 
     if let Some(fb) = state.config.firebase.clone() {
-        return firebase_google(state, &fb, &answer.id_token, &email, &display).await;
+        return firebase_provider(state, &fb, name, &answer.id_token, nonce, &display).await;
     }
 
     let t = now() as i64;
@@ -467,9 +466,9 @@ async fn sign_in(state: &AppState, name: &str, returned: &Returned, nonce: &str,
     }
 }
 
-/// Google through Firebase: the ID token this service just checked goes to Firebase, which finds or opens the person.
-async fn firebase_google(state: &AppState, fb: &Firebase, google_id_token: &str, _email: &str, display: &str) -> AuthResult<(String, Option<FbSession>)> {
-    let login = fb.sign_in_google(google_id_token).await.map_err(AuthError::from)?;
+/// Google or Apple through Firebase: the ID token this service just checked goes to Firebase, which finds or opens the person.
+async fn firebase_provider(state: &AppState, fb: &Firebase, provider: &str, id_token: &str, nonce: &str, display: &str) -> AuthResult<(String, Option<FbSession>)> {
+    let login = fb.sign_in_provider(provider, id_token, nonce).await.map_err(AuthError::from)?;
     let mut profile = fb.profile(&login.id_token).await.map_err(AuthError::from)?;
     if profile.name.trim().is_empty() {
         profile.name = display.to_string();
