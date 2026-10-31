@@ -35,6 +35,7 @@ const (
 )
 
 type config struct {
+	basePath   string
 	grafana    *url.URL
 	coreAPI    string // the core API's base URL, no trailing slash
 	website    string // the website's base URL, no trailing slash
@@ -104,6 +105,10 @@ func loadConfig(getenv func(string) string) (config, error) {
 	default:
 		return c, errors.New("ADMIN_GRAFANA_ROLE is Viewer, Editor or Admin")
 	}
+	c.basePath = strings.TrimRight(getenv("GRAFANA_BASE_PATH"), "/")
+	if c.basePath != "" && c.basePath != "/staff/monitoring" {
+		return c, errors.New("GRAFANA_BASE_PATH must be /staff/monitoring or empty")
+	}
 	c.secure = getenv("COOKIE_SECURE") != "false"
 	return c, nil
 }
@@ -155,6 +160,8 @@ func newProxy(cfg config) *proxy {
 			r.SetXForwarded()
 		},
 		ModifyResponse: func(res *http.Response) error {
+			res.Header.Set("Cache-Control", "no-store")
+			res.Header.Set("X-Robots-Tag", "noindex, nofollow")
 			res.Header.Del("x-frame-options") // framing is limited to the website by frame-ancestors instead
 			return nil
 		},
@@ -204,7 +211,15 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		page(w, http.StatusForbidden, "Open Grafana from the admin dashboard", "Grafana has no page of its own. Sign in to Caller Whale as staff, finish the authenticator step, and open it from the admin dashboard.")
 		return
 	}
-	switch r.URL.Path {
+	path := r.URL.Path
+	if p.cfg.basePath != "" && path != "/_callerwhale/health" {
+		if !strings.HasPrefix(path, p.cfg.basePath+"/") && path != p.cfg.basePath {
+			http.NotFound(w, r)
+			return
+		}
+		path = strings.TrimPrefix(path, p.cfg.basePath)
+	}
+	switch path {
 	case "/_callerwhale/health":
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": service, "version": version})
 	case "/_callerwhale/session":
@@ -236,7 +251,7 @@ func (p *proxy) signIn(w http.ResponseWriter, r *http.Request) {
 	// Admin mode starts from a recent sign-in: an old token (or one without a sign-in time) is not enough, even when the
 	// core API still accepts it. The core API has already checked the token's signature by the time this is trusted.
 	at := signedInAt(token)
-	if p.now().Sub(at) > p.cfg.authWithin {
+	if at.After(p.now()) || p.now().Sub(at) > p.cfg.authWithin || !hasMFA(token) {
 		page(w, http.StatusUnauthorized, "Sign in again", "Admin mode needs a recent sign-in with your authenticator code. Sign in to Caller Whale again, then start admin mode.")
 		return
 	}
@@ -282,11 +297,11 @@ func (p *proxy) signIn(w http.ResponseWriter, r *http.Request) {
 	p.mu.Unlock()
 	log.Printf("sign-in: %s (%s) as %s", who.Email, who.ID, who.Role)
 	http.SetCookie(w, &http.Cookie{
-		Name: cookieName, Value: id, Path: "/", HttpOnly: true, Secure: p.cfg.secure,
+		Name: cookieName, Value: id, Path: p.cfg.basePath + "/", HttpOnly: true, Secure: p.cfg.secure,
 		// Lax, not Strict: the cookie is set on the post from the website and must come back on the redirect after it.
 		SameSite: http.SameSiteLaxMode, MaxAge: int(p.cfg.maxAge / time.Second),
 	})
-	http.Redirect(w, r, safeReturn(r.PostForm.Get("return")), http.StatusSeeOther)
+	http.Redirect(w, r, p.cfg.basePath+safeReturn(r.PostForm.Get("return")), http.StatusSeeOther)
 }
 
 // liveLocked says whether a session opened by this sign-in is still open. The caller holds p.mu.
@@ -335,7 +350,7 @@ func (p *proxy) forward(w http.ResponseWriter, r *http.Request) {
 		p.toSignIn(w, r)
 		return
 	}
-	if now.Sub(s.checked) >= p.cfg.recheck {
+	if p.cfg.basePath != "" || now.Sub(s.checked) >= p.cfg.recheck {
 		who, v := p.whoami(s.token)
 		switch v {
 		case allowed:
@@ -418,7 +433,7 @@ func (p *proxy) drop(id string) {
 }
 
 func (p *proxy) clearCookie(w http.ResponseWriter) {
-	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "", Path: "/", HttpOnly: true, Secure: p.cfg.secure, SameSite: http.SameSiteLaxMode, MaxAge: -1})
+	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "", Path: p.cfg.basePath + "/", HttpOnly: true, Secure: p.cfg.secure, SameSite: http.SameSiteLaxMode, MaxAge: -1})
 }
 
 // safeReturn keeps the place to go back to on this proxy: a path, never another site.
@@ -441,6 +456,21 @@ func removeCookie(r *http.Request, name string) {
 }
 
 // signedInAt is when the person signed in, from the token's `auth_time` (zero, so "long ago", when it has none).
+func hasMFA(token string) bool {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return false
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(parts[1], "="))
+	if err != nil {
+		return false
+	}
+	var claims struct {
+		MFA bool `json:"mfa"`
+	}
+	return json.Unmarshal(raw, &claims) == nil && claims.MFA
+}
+
 func signedInAt(token string) time.Time {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
