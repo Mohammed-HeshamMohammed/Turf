@@ -6,7 +6,7 @@ description = "Checks a Caller Whale access token against the auth service's pub
 publish = false
 
 [dependencies]
-jsonwebtoken = "9"
+jsonwebtoken = "10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
