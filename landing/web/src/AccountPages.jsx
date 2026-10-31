@@ -3,6 +3,7 @@ import { AppleLogo, DownloadSimple, EnvelopeSimple, LockKey, ShieldCheck, Warnin
 import { API, destination, loadAuth, request, useSession } from "./session.jsx";
 import { AdminMode } from "./AdminPage.jsx";
 import { Approvals, Security, SecondStep } from "./Security.jsx";
+import { HumanCheck } from "./auth/human-check.jsx";
 
 // Sign in, sign up, and the dashboard of a person Caller Whale invited. The page decides nothing about access: Caller Whale's server
 // answers /account with what this person may see, and refuses everything else.
@@ -40,9 +41,19 @@ function Shell({ title, lead, children, wide }) {
   );
 }
 
+const passwordRequirements = value => [
+  { label: "8–4096 characters", met: Array.from(value).length >= 8 && Array.from(value).length <= 4096 },
+  { label: "An uppercase letter (A–Z)", met: /[A-Z]/.test(value) },
+  { label: "A lowercase letter (a–z)", met: /[a-z]/.test(value) },
+  { label: "A number (0–9)", met: /[0-9]/.test(value) },
+  { label: "A special character, such as !, @ or #", met: Array.from(value).some(c => "^$*.[]{}()?\"!@#%&/\\,><':;|_~`=+-".includes(c)) },
+];
+
 /** Sign in and sign up share one form: email and password, Google, and the authenticator code when one is set up. */
 function AuthForm({ mode }) {
   const session = useSession();
+  const [humanToken, setHumanToken] = useState("");
+  const [humanReset, setHumanReset] = useState(0);
   const [form, setForm] = useState({ name: "", email: "", password: "", code: "" });
   const [state, setState] = useState({ busy: false, error: "", note: "", needCode: false, second: null });
   const set = key => e => setForm({ ...form, [key]: e.target.value });
@@ -79,6 +90,7 @@ function AuthForm({ mode }) {
       await work(await loadAuth());
       await arrive();
     } catch (error) {
+      setHumanReset(value => value + 1);
       // The password was right and a second step is needed: the server hands over the challenge and the ways to answer it.
       if (error.code === "mfa_required" && error.data?.challenge) setState(s => ({ ...s, busy: false, second: { challenge: error.data.challenge, methods: error.data.methods } }));
       else if (error.code === "mfa_required") setState(s => ({ ...s, busy: false, needCode: true, error: s.needCode ? error.message : "" }));
@@ -90,23 +102,22 @@ function AuthForm({ mode }) {
 
   const onSubmit = e => {
     e.preventDefault();
-    if (state.needCode) return attempt(auth => (form.password ? auth.signIn(form.email.trim(), form.password, form.code.trim()) : auth.verifyMfa(form.code.trim())));
+    if (state.needCode) return attempt(auth => (form.password ? auth.signIn(form.email.trim(), form.password, form.code.trim(), "browser", humanToken) : auth.verifyMfa(form.code.trim())));
     if (signup) {
-      if (form.password.length < 12) return setState(s => ({ ...s, error: "Use a password of at least 12 characters." }));
-      return attempt(auth => auth.signUp(form.name.trim(), form.email.trim(), form.password));
+      if (passwordRequirements(form.password).some(rule => !rule.met)) return setState(s => ({ ...s, error: "Meet all the password requirements below." }));
+      return attempt(auth => auth.signUp(form.name.trim(), form.email.trim(), form.password, "browser", humanToken));
     }
-    return attempt(auth => auth.signIn(form.email.trim(), form.password));
+    return attempt(auth => auth.signIn(form.email.trim(), form.password, undefined, "browser", humanToken));
   };
 
-  const provider = (name, label) => {
+  const provider = name => {
     setState(s => ({ ...s, busy: true, error: "" }));
     // The page goes to Google and comes back here.
     loadAuth()
       .then(auth => {
-        if (!auth.providerList.includes(name)) throw new Error(`${label} sign-in isn't connected yet. Use your email for now.`);
-        return auth.startProvider(name, "landing");
+        return auth.startProvider(name, "landing", humanToken, signup ? "signup" : "signin");
       })
-      .catch(error => setState(s => ({ ...s, busy: false, error: error.message })));
+      .catch(error => { setHumanReset(value => value + 1); setState(s => ({ ...s, busy: false, error: error.message })); });
   };
 
   const reset = async () => {
@@ -157,11 +168,13 @@ function AuthForm({ mode }) {
                 <input type="email" required autoComplete="email" value={form.email} onChange={set("email")} />
               </label>
               <label>
-                Password {signup && <span className="opt">(12 characters or more)</span>}
-                <input type="password" required minLength={signup ? 12 : undefined} autoComplete={signup ? "new-password" : "current-password"} value={form.password} onChange={set("password")} />
+                Password
+                <input type="password" required minLength={signup ? 8 : undefined} maxLength={signup ? 4096 : undefined} aria-describedby={signup ? "password-requirements" : undefined} autoComplete={signup ? "new-password" : "current-password"} value={form.password} onChange={set("password")} />
               </label>
+              {signup && <ul id="password-requirements" aria-label="Password requirements">{passwordRequirements(form.password).map(rule => <li key={rule.label}>{rule.met ? "✓" : "○"} {rule.label}</li>)}</ul>}
             </>
           )}
+          {!state.second && <HumanCheck getAuth={loadAuth} action={signup ? "signup" : "signin"} resetKey={humanReset} onToken={setHumanToken} />}
           {state.error && <p className="notice bad" role="alert">{state.error}</p>}
           {state.note && <p className="notice good" role="status">{state.note}</p>}
           <button className="button" type="submit" disabled={state.busy}>
