@@ -15,7 +15,7 @@ CALLERWHALE_WEBSITE_URL=https://callerwhale.com
 # Sign-in is the auth service only: this server checks its tokens with its public keys. No Firebase settings here.
 CALLERWHALE_AUTH_JWKS_URL=https://auth.callerwhale.com/.well-known/jwks.json
 CALLERWHALE_AUTH_PUBLIC_URL=https://auth.callerwhale.com
-CALLERWHALE_GRAFANA_URL=https://grafana.callerwhale.com
+CALLERWHALE_GRAFANA_URL=https://app.callerwhale.com/staff/monitoring
 CALLERWHALE_SMTP_HOST=<mail server>
 CALLERWHALE_SMTP_PORT=587
 CALLERWHALE_SMTP_USER=no-reply@softfix.dev
