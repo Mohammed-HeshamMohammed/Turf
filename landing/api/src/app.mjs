@@ -43,8 +43,8 @@ function readJson(req) {
 }
 
 /**
- * The landing API as an HTTP server, on its own address (appapi.callerwhale.com) with no path prefix: `/waitlist`,
- * `/contact`, `/healthz`. `origins` are the sites allowed to call it from a browser (the landing site, https://callerwhale.com).
+ * The landing API as an HTTP server, on its own address with no path prefix: `/waitlist`,
+ * `/contact`, `/healthz`. `origins` are the sites allowed to call it from a browser (the landing site; CALLERWHALE_LANDING_ORIGINS).
  */
 export function createApp({ store, release, origins = [], now = Date.now }) {
   const allowWrite = limiter(8, 60_000, now);

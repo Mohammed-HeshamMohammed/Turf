@@ -2,8 +2,8 @@
 
 This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in `Caller Whale CRM/` on `main`.
 
-- Last changed from `main` at `f1f411a` (2026-10-31)
-- Content id: `105f53053a8c7a0046f2f9803906831534ea4a2b` (the branch is only refreshed when this changes)
+- Last changed from `main` at `262684d` (2026-10-31)
+- Content id: `bb981be513a15ab66e0309d42082c5b51f80354f` (the branch is only refreshed when this changes)
 - Holds: `infra/k8s/landing-api`, `landing/api`, `env/landing-api.production.example`
 - 17 files
 - Build and test: npm start   (Node 24+, no dependencies)
