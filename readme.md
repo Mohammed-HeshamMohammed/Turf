@@ -2,8 +2,8 @@
 
 This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in `Caller Whale CRM/` on `main`.
 
-- Last changed from `main` at `262684d` (2026-10-31)
-- Content id: `f62b3f99c99924ba44f979e496d41c8f17c0af69` (the branch is only refreshed when this changes)
+- Last changed from `main` at `e2bbb09` (2026-10-31)
+- Content id: `a126e1600e9327e4da745e3abfe102016a3ebde0` (the branch is only refreshed when this changes)
 - Holds: `infra/k8s/landing-web`, `landing/web`, `env/landing-web.production.example`
 - 54 files
 - Build and test: npm install && npm run build   (static files in dist/)

@@ -42,6 +42,9 @@
   width: 100%;
   gap: 10px;
 }
+.auth-panel .google + .google {
+  margin-top: 10px;
+}
 .or {
   display: flex;
   align-items: center;
