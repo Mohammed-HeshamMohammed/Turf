@@ -157,8 +157,8 @@ pub fn app(state: AppState) -> Router {
 }
 
 pub async fn serve(config: config::Config) -> anyhow::Result<()> {
-    if !config.migration_database_url.is_empty() {
-        db::migrate(&config).await?;
+    if !config.database_setup_url.is_empty() {
+        db::setup_database(&config).await?;
     }
     let bind = config.bind.clone();
     let state = state(config).await?;

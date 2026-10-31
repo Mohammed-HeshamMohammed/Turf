@@ -14,8 +14,8 @@ async fn main() -> anyhow::Result<()> {
         .json()
         .init();
     let config = Config::from_env()?;
-    if std::env::args().any(|arg| arg == "migrate") {
-        callerwhale_api::db::migrate(&config).await?;
+    if std::env::args().any(|arg| arg == "setup-database") {
+        callerwhale_api::db::setup_database(&config).await?;
         return Ok(());
     }
     serve(config).await

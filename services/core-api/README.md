@@ -12,7 +12,7 @@ The server side of the full CRM (see `docs/CALLERWHALE_CRM_AND_PERFORMANCE_PLAN.
 
 | Folder | Language | What it does |
 | --- | --- | --- |
-| `rust/` | Rust (Axum, sqlx) | Public API, permissions (people sign in with `services/auth`), CRM transactions, sync, WebSocket events, rule execution, legacy import. Owns the PostgreSQL migrations. `crates/grouping` is the deterministic grouping library shared with offline Skip Tracing. |
+| `rust/` | Rust (Axum, sqlx) | Public API, permissions (people sign in with `services/auth`), CRM transactions, sync, WebSocket events, rule execution, legacy import. Owns the PostgreSQL database updates. `crates/grouping` is the deterministic grouping library shared with offline Skip Tracing. |
 | `go/` | Go (standard library) | `callerwhale-worker`: claims outbox events and has the API run their rules (one lead's events in order), ticks the scheduler every minute (overdue tasks and handoffs, scheduled reports), and publishes cache invalidations to Redis. Health on `:8090/healthz`. |
 
 Shared contracts (API, events, jobs, native ABIs) live in `contracts/`.
@@ -32,7 +32,7 @@ Do not pipe that command into `tail` or `head`: the server it starts keeps the p
 Run every test, including the end-to-end ones against the database:
 
 ```bash
-cd services/core-api/rust && TEST_DATABASE_URL=postgres://callerwhale_api:callerwhale_api@127.0.0.1:55432/callerwhale_test TEST_MIGRATION_DATABASE_URL=postgres://callerwhale_owner:callerwhale_owner@127.0.0.1:55432/callerwhale_test cargo test --workspace -- --test-threads=1
+cd services/core-api/rust && TEST_DATABASE_URL=postgres://callerwhale_api:callerwhale_api@127.0.0.1:55432/callerwhale_test TEST_DATABASE_SETUP_URL=postgres://callerwhale_owner:callerwhale_owner@127.0.0.1:55432/callerwhale_test cargo test --workspace -- --test-threads=1
 ```
 
 The auth service has its own login and databases on the same server: `callerwhale_auth` (password `callerwhale_auth`) owns `callerwhale_auth` and `callerwhale_auth_test`.
@@ -44,7 +44,7 @@ bash services/core-api/scripts/dev-services.sh
 
 This starts PostgreSQL and Redis with their data in `X:\callerwhale-data` (set `CALLERWHALE_DATA` to change it), creates the roles and prints the connection URLs. Two roles matter:
 
-- `callerwhale_owner` owns the schema and runs migrations.
+- `callerwhale_owner` owns the schema and runs database updates.
 - `callerwhale_api` is the API's login, a member of `callerwhale_app`. Row security always applies to it, so one organization can never read another's rows.
 
 Run the API:
@@ -59,12 +59,12 @@ Every setting and secret (database, worker tokens, webhook secret, auth) is in `
 Tests (unit, contract, and end to end against the real database):
 
 ```bash
-cd services/core-api/rust && TEST_DATABASE_URL=postgres://callerwhale_api:callerwhale_api@127.0.0.1:55432/callerwhale_test TEST_MIGRATION_DATABASE_URL=postgres://callerwhale_owner:callerwhale_owner@127.0.0.1:55432/callerwhale_test TEST_REDIS_URL=redis://127.0.0.1:56379 cargo test --workspace
+cd services/core-api/rust && TEST_DATABASE_URL=postgres://callerwhale_api:callerwhale_api@127.0.0.1:55432/callerwhale_test TEST_DATABASE_SETUP_URL=postgres://callerwhale_owner:callerwhale_owner@127.0.0.1:55432/callerwhale_test TEST_REDIS_URL=redis://127.0.0.1:56379 cargo test --workspace
 ```
 
 Without `TEST_DATABASE_URL` the end-to-end tests skip themselves. The tests play the auth service's part: the harness holds a test signing key, gives the API its public half, and signs tokens for the people each test needs.
 
-The old sign-in tables (`sessions`, `oauth_states`, `oauth_handoffs`, `email_verifications`, `user_identities`, `recovery_codes`, and the password and two-step columns of `users`) are no longer read or written. They stay, untouched, until the copy into auth (`services/auth/scripts/import-from-core-api.sh`) has been confirmed on the production server; a later migration drops them.
+The old sign-in tables (`sessions`, `oauth_states`, `oauth_handoffs`, `email_verifications`, `user_identities`, `recovery_codes`, and the password and two-step columns of `users`) are no longer read or written. They stay, untouched, until the copy into auth (`services/auth/scripts/import-from-core-api.sh`) has been confirmed on the production server; a later database update drops them.
 
 ### The whole stack, with the CRM interface
 
@@ -81,7 +81,7 @@ Records then come from the server. Changes apply on screen at once and queue as 
 
 ## Who runs Caller Whale: the admin dashboard
 
-Caller Whale's own people have a platform role (`users.platform_role`, migration `0010_platform_roles.sql`):
+Caller Whale's own people have a platform role (`users.platform_role`, database update `0010_platform_roles.sql`):
 
 - **Platform owner**: the owner of the app. There is exactly one, set once on the server with `python services/core-api/scripts/create_platform_owner.py <email>` after that person has signed in with auth and opened Caller Whale once. The script refuses a second owner.
 - **System administrators**: named and removed only by the owner, from the dashboard.
@@ -105,7 +105,7 @@ Customer records are never shown. A suspended workspace refuses everything until
 **Who gets in.** Only people given access: an account at auth opens nothing here by itself. Staff open a customer's workspace and send its owner the link (`POST /api/v1/platform/customers`); the owner invites everyone else, with an end date if they like. Members whose access ends, or is removed, lose the workspace at once, and the desktop app erases that workspace's offline copy at its next check. `CALLERWHALE_PUBLIC_SIGNUP=true` lets new accounts open their own trial again (off by default).
 
 
-**Desktop access by invitation** (`routes/desktop_access.rs`, migration `0014_desktop_access.sql`, plan [docs/plans/callerwhale-launch.md](../../docs/plans/callerwhale-launch.md)). Staff invite a person by email with a monthly credit limit (`/api/v1/platform/invitations`); the email goes out through Caller Whale's mail server (`CALLERWHALE_SMTP_*`). The person signs in on the website with that email, confirmed, and `GET /api/v1/account` activates the invitation: a workspace of their own, their credits and usage, and a 10-minute download link for the newest `crm-v*` release (`POST /api/v1/account/download`). The desktop app spends credits with `POST /api/v1/credits/use` before Skip Tracing, and is refused when the month's are used up. Staff change limits, suspend (the account is refused at once), reactivate, resend and withdraw; every change is in `platform_events`.
+**Desktop access by invitation** (`routes/desktop_access.rs`, database update `0014_desktop_access.sql`, plan [docs/plans/callerwhale-launch.md](../../docs/plans/callerwhale-launch.md)). Staff invite a person by email with a monthly credit limit (`/api/v1/platform/invitations`); the email goes out through Caller Whale's mail server (`CALLERWHALE_SMTP_*`). The person signs in on the website with that email, confirmed, and `GET /api/v1/account` activates the invitation: a workspace of their own, their credits and usage, and a 10-minute download link for the newest `crm-v*` release (`POST /api/v1/account/download`). The desktop app spends credits with `POST /api/v1/credits/use` before Skip Tracing, and is refused when the month's are used up. Staff change limits, suspend (the account is refused at once), reactivate, resend and withdraw; every change is in `platform_events`.
 
 **Grafana.** With `CALLERWHALE_GRAFANA_URL` set to the Grafana login proxy (`services/grafana-proxy`), the dashboard shows an **Open Grafana** button, and `GET /api/v1/auth/service` returns the address as `grafana`. `#/admin/grafana` posts the signed-in person's token to the proxy in a form, so it never goes in a URL. The website's `form-action` then allows that one address too. The proxy checks the token with `GET /api/v1/platform/whoami`, which answers only for staff who passed the authenticator step. Plan: [docs/plans/grafana-access.md](../../docs/plans/grafana-access.md).
 

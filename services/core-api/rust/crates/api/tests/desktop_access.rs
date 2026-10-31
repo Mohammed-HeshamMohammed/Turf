@@ -1,4 +1,4 @@
-//! Desktop access by invitation (migration 0014): only people Caller Whale's staff invited get a dashboard, the download and a
+//! Desktop access by invitation (database update 0014): only people Caller Whale's staff invited get a dashboard, the download and a
 //! workspace, and their metered usage stays within the monthly credits staff set. Runs against real PostgreSQL.
 
 mod common;
