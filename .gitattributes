@@ -1,3 +1,8 @@
 # Database setup checksums and shell scripts need exact LF content on every checkout.
 **/database_setup/*.sql text eol=lf
 *.sh text eol=lf
+
+# Preserve image bytes; text normalization corrupts PNG chunks and Windows icons.
+*.png binary
+*.ico binary
+*.icns binary
