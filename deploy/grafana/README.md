@@ -22,4 +22,4 @@ Coolify domain and DNS record. DNS removal alone does not remove a public host r
 
 Keep Grafana's existing data volume when migrating an existing installation. Do not
 replace or delete volumes to change routing. Test WebSocket `/api/live/` through the
-new prefix as well as assets and dashboards before considering migration complete.
+new prefix as well as assets and dashboards before considering the routing cutover complete.
