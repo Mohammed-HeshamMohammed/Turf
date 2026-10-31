@@ -1,7 +1,7 @@
 # The CRM server and the website it serves. Build with the branch (or the "Caller Whale CRM" folder) as the context:
 #   docker build -f services/core-api/Dockerfile -t callerwhale-core-api .
 # Runs any number of copies: it keeps no state in memory that matters, and a person's session is a signed token.
-# It needs PostgreSQL (DATABASE_URL, MIGRATION_DATABASE_URL) and its settings from env/core-api.env (env/README.md).
+# It needs PostgreSQL (DATABASE_URL, DATABASE_SETUP_URL) and its settings from env/core-api.env (env/README.md).
 FROM rust:1 AS build
 WORKDIR /src
 COPY services/auth/verify ./services/auth/verify

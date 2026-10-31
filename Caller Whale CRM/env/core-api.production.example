@@ -1,7 +1,7 @@
 # The core API on Coolify (application "core-api", port 8088, domain https://appapi.callerwhale.com; the site and the apps reach it through the gateway at https://gate.callerwhale.com).
 # Paste into Environment Variables -> Developer View. Fill every <...>.
 DATABASE_URL=<postgres://callerwhale_api:password@host:5432/callerwhale>
-MIGRATION_DATABASE_URL=<postgres://callerwhale_owner:password@host:5432/callerwhale>
+DATABASE_SETUP_URL=<postgres://callerwhale_owner:password@host:5432/callerwhale>
 REDIS_URL=
 CALLERWHALE_BIND=0.0.0.0:8088
 CALLERWHALE_WORKER_TOKENS=<name=token, 24+ characters; the worker uses the same token>

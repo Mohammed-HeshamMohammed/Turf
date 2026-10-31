@@ -11,7 +11,7 @@
 4. **The download** is the newest GitHub release tagged `crm-v*`, streamed by the core API through a link that is good for 10 minutes and only for people allowed to download. The public site no longer offers a download.
 5. **The desktop app** (Full CRM, `desktop/`) cannot be used without signing in, and only an invited account gets a workspace: the first sign-in with a confirmed invited email opens that person's own workspace. Skip Tracing spends one credit per row checked, asked of the server before the check runs; when the month's credits are used up the check is refused.
 
-Everything (invitations, people, credits, usage) is stored in the core API's PostgreSQL (migration `0014_desktop_access.sql`). Nothing is sample data.
+Everything (invitations, people, credits, usage) is stored in the core API's PostgreSQL (database update `0014_desktop_access.sql`). Nothing is sample data.
 
 ## Where things run
 
@@ -43,7 +43,7 @@ DNS (Cloudflare, zone `callerwhale.com`): exactly seven A records, `@`, `api`, `
 | `CALLERWHALE_MAIL_FROM` | `Caller Whale <no-reply@softfix.dev>` (the mail server only lets a login send as itself) |
 | `CALLERWHALE_RELEASE_REPO`, `CALLERWHALE_RELEASE_TAG_PREFIX` | `Mohammed-HeshamMohammed/Turf`, `crm-v` |
 | `CALLERWHALE_STAFF_MFA` | `true`. Staff need an authenticator code, which needs Identity Platform TOTP on the Firebase project (`tools/firebase/configure-auth.mjs`). Set `false` only until that is on |
-| `DATABASE_URL`, `MIGRATION_DATABASE_URL` | from `env/database.env` |
+| `DATABASE_URL`, `DATABASE_SETUP_URL` | from `env/database.env` |
 
 ### Firebase console
 
@@ -74,5 +74,5 @@ The owner can then name system administrators from the existing staff page.
 
 - The repository is public, so GitHub's own release page lists the installer for anyone who looks there. The website only offers it to invited people, and the app itself is useless without an invited account. To hide the file too, publish releases to a private repository and set `CALLERWHALE_GITHUB_TOKEN`.
 - Credits are counted by the server, but Skip Tracing runs on the person's own computer, so a modified app could skip asking. The server-side limit holds for the unmodified app.
-- Only Skip Tracing spends credits today (calls are still simulated in the app). New kinds are added in `KINDS` (`routes/desktop_access.rs`) and the migration's check.
+- Only Skip Tracing spends credits today (calls are still simulated in the app). New kinds are added in `KINDS` (`routes/desktop_access.rs`) and the database update's check.
 - Download links are signed with a key made when the core API starts: a restart ends the links in flight (they last 10 minutes anyway), and two copies of the API would need a shared key.

@@ -62,7 +62,7 @@ spec:
         startupProbe:
           httpGet: { path: /healthz, port: http }
           periodSeconds: 5
-          failureThreshold: 36   # up to 3 minutes: it migrates its database when it starts
+          failureThreshold: 36   # up to 3 minutes: it sets up and updates its database when it starts
         resources:
           requests: { cpu: 250m, memory: 256Mi }
           limits: { cpu: "1", memory: 768Mi }

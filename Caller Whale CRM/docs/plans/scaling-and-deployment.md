@@ -44,7 +44,7 @@ DNS (Cloudflare, zone `callerwhale.com`): exactly seven A records, `@`, `api`, `
 
 For each branch, create an **Application**: provider Git, the repository, **that branch**, build type **Dockerfile**, the Dockerfile path and context from the table, the port, a domain, and the environment from the matching `env/<part>.env.example` (secrets from `node tools/env-init.mjs`, or your own). Set the health check to `/healthz`. To run several copies, use the application's replicas setting (Dokploy runs on Docker Swarm). Redeploy when the branch changes: `node tools/publish-production.mjs --push` updates the branches from `main`. Menu names differ a little between Dokploy versions.
 
-Run PostgreSQL and Redis as Dokploy databases, or use a managed one (see "Data" below). Give the core API both `DATABASE_URL` (the application login) and `MIGRATION_DATABASE_URL` (the owner login); it migrates at start.
+Run PostgreSQL and Redis as Dokploy databases, or use a managed one (see "Data" below). Give the core API both `DATABASE_URL` (the application login) and `DATABASE_SETUP_URL` (the owner login); it sets up and updates its database at start.
 
 ### Kubernetes (when you outgrow one machine)
 
@@ -58,7 +58,7 @@ kubectl apply -k infra/k8s/auth                             # one part (what a p
 
 Set each image's registry and version in `infra/k8s/kustomization.yaml`, and the hosts in the `ingress.yaml` files (they say `example.com`). What each part gets:
 
-- a **Deployment** that never runs below its minimum (`maxUnavailable: 0` on updates), is spread over machines and zones, runs as a non-root user with no extra privileges, and has readiness, liveness and (for the two that migrate their database) startup probes;
+- a **Deployment** that never runs below its minimum (`maxUnavailable: 0` on updates), is spread over machines and zones, runs as a non-root user with no extra privileges, and has readiness, liveness and (for the two that set up their database) startup probes;
 - a **HorizontalPodAutoscaler** on CPU (70%), a **PodDisruptionBudget** so a node drain never takes the last copy, a **Service**, and an **Ingress** where the part is public (the core API's allows WebSockets and 25 MB uploads);
 - a volume claim where it keeps files: the core API's uploads (`ReadWriteMany`) and the landing API's database.
 
@@ -78,7 +78,7 @@ What was checked in the code:
 - **Tenant isolation is per transaction**: every request sets `callerwhale.org_id` with `set_config(..., true)` and row security does the rest, so connection poolers in transaction mode (PgBouncer) work.
 - **Live updates**: each copy `LISTEN`s to PostgreSQL and fans out to its own WebSocket clients, so a change made through one copy reaches people connected to another.
 - **Workers lease their work** from the API (`/internal/events/claim`, job leases), so several can run.
-- **Migrations**: every copy migrates when it starts; sqlx's migrator serialises concurrent runs with a PostgreSQL advisory lock, so copies started together are safe.
+- **Database setup and updates**: every copy sets up and updates when it starts; the setup runner serialises concurrent runs with a PostgreSQL advisory lock, so copies started together are safe.
 - **Redis is optional**: without it the API reads from PostgreSQL.
 
 ### What stops a second copy today
@@ -99,7 +99,7 @@ These are four different tools for four different problems. In order of when you
 
 **Clustering** (several machines acting as one service). For PostgreSQL that means a managed HA cluster or an operator that runs one (Patroni, CloudNativePG): a primary, standbys, automatic failover, backups and point-in-time recovery, with PgBouncer in front. For Redis, a primary with Sentinel (it is only a cache here). The auth service has its **own database**, so it scales and fails over on its own.
 
-**Partitioning** (splitting one big table into pieces *inside* one database). The tables that grow without limit are the candidates: `source_rows` (every imported list row, the biggest), `change_log`, `audit_events`, `call_events`, `provider_events`, `messages`, `outbox_events`, `usage_events`. Time ranges (month) suit the logs and let old partitions be detached or archived; a hash of `org_id` suits `source_rows`. It is easy to do while the tables are small and painful after: primary keys and foreign keys must include the partition column. **Do this before the data is large**, as a migration written and tested against realistic row counts.
+**Partitioning** (splitting one big table into pieces *inside* one database). The tables that grow without limit are the candidates: `source_rows` (every imported list row, the biggest), `change_log`, `audit_events`, `call_events`, `provider_events`, `messages`, `outbox_events`, `usage_events`. Time ranges (month) suit the logs and let old partitions be detached or archived; a hash of `org_id` suits `source_rows`. It is easy to do while the tables are small and painful after: primary keys and foreign keys must include the partition column. **Do this before the data is large**, as a database update written and tested against realistic row counts.
 
 **Sharding** (spreading tenants across *different* databases). Every tenant table already has `org_id`, row ids are UUIDs, and row security is keyed on the organization, so the natural shard key is the organization. The exceptions are a few logs numbered by a `bigserial` shared by every organization (`change_log.seq`, and the audit and outbox ids). The apps only use those numbers as a cursor *within* one organization, so they stay valid inside one cell; under a distributed database such as Citus they would need rework. Two routes: a distributed PostgreSQL (Citus) sharding on `org_id`, or **cells**: each cell is a complete copy of the stack (API, workers, database) serving a set of organizations, with the gateway looking up the cell for each request. Cells fit this design better, and a noisy customer can be moved to a cell of their own. The cross-organization views the owner dashboard uses (`/platform/*`) would have to ask every cell. **Do not shard yet**: it adds real cost and is only needed when one primary can no longer take the writes or the data no longer fits one machine, which is far away. What keeps the door open is already true: `org_id` on every row, no query that joins across organizations in the CRM itself, and no code that compares those log numbers across organizations. Keep it that way.
 

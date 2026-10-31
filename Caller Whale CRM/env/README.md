@@ -22,3 +22,20 @@ It never overwrites a file. Run it again after an example gains a setting, and i
 A setting already in the environment wins over the file, so a deploy can set any of them its own way.
 
 Production does not use these files: each server's secrets come from its host's secret store as environment variables with the same names.
+
+
+## Database setup and updates
+
+- `DATABASE_URL`: the application's restricted connection for ordinary reads and writes.
+- `DATABASE_SETUP_URL`: the schema owner's connection, used only to create or update database structure.
+- `CORE_API_DATABASE_SETUP_URL`: the same owner connection in local `database.env`, read by the configuration generator.
+- `TEST_DATABASE_SETUP_URL`: the owner connection to a dedicated test database.
+- `database_setup/`: the ordered SQL scripts shipped with a service or the desktop project store.
+- `database_setup_history`: records completed scripts so restarting does not run them again.
+- `callerwhale-api setup-database`: explicitly apply setup without starting the API server.
+
+Update the stored core-api variable in Coolify to `DATABASE_SETUP_URL` before deploying
+this version. Its value stays the same owner connection string. Existing databases
+keep their completed-script history: startup adopts the old history table automatically.
+Do not edit previously applied SQL files: their original checksums protect against drift.
+SQLx dependency API names retain upstream spelling; they are not operator settings.

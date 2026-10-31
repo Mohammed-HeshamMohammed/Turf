@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use callerwhale_auth::{app, config::Config, connect, keys::Keys, migrate, AppState};
+use callerwhale_auth::{app, config::Config, connect, keys::Keys, setup_database, AppState};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -26,7 +26,7 @@ async fn main() -> anyhow::Result<()> {
         Keys::from_base64(&config.signing_key)?
     };
     let db = connect(&config.database_url).await?;
-    migrate(&db).await?;
+    setup_database(&db).await?;
 
     let port = config.port;
     let state = AppState { db, keys: Arc::new(keys), config: Arc::new(config) };

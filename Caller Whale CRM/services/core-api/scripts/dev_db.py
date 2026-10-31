@@ -30,6 +30,6 @@ with psycopg.connect(ADMIN, autocommit=True) as conn:
                 db.execute(f"GRANT CONNECT ON DATABASE {name} TO callerwhale_app")
 
 print(f"DATABASE_URL=postgres://callerwhale_api:callerwhale_api@127.0.0.1:{PORT}/callerwhale")
-print(f"MIGRATION_DATABASE_URL=postgres://callerwhale_owner:callerwhale_owner@127.0.0.1:{PORT}/callerwhale")
+print(f"DATABASE_SETUP_URL=postgres://callerwhale_owner:callerwhale_owner@127.0.0.1:{PORT}/callerwhale")
 print(f"TEST_DATABASE_URL=postgres://callerwhale_api:callerwhale_api@127.0.0.1:{PORT}/callerwhale_test")
-print(f"TEST_MIGRATION_DATABASE_URL=postgres://callerwhale_owner:callerwhale_owner@127.0.0.1:{PORT}/callerwhale_test")
+print(f"TEST_DATABASE_SETUP_URL=postgres://callerwhale_owner:callerwhale_owner@127.0.0.1:{PORT}/callerwhale_test")

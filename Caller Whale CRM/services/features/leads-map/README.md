@@ -27,4 +27,4 @@ PORT=8114 cargo run -p callerwhale-leads-map
 
 ## Data
 
-This service owns its own PostgreSQL schema and its own database login. Migrations live in `migrations/` and only this service applies them. No other service may read or write these tables.
+This service owns its own PostgreSQL schema and its own database login. Database setup and updates live in `database_setup/` and only this service applies them. No other service may read or write these tables.

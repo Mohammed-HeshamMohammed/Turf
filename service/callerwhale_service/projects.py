@@ -51,7 +51,7 @@ def _remember(project: dict) -> None:
     _recent_file().write_text(json.dumps(entries[:10], indent=2), encoding="utf-8")
 
 
-def open_project(raw_path: str, migrations_dir: Path, name: str | None = None, create: bool = False) -> tuple[ProjectStore, dict]:
+def open_project(raw_path: str, database_setup_dir: Path, name: str | None = None, create: bool = False) -> tuple[ProjectStore, dict]:
     root = validate_project_path(raw_path)
     database = root / DATABASE_NAME
     if not database.exists() and not create:
@@ -60,13 +60,13 @@ def open_project(raw_path: str, migrations_dir: Path, name: str | None = None, c
         raise ValueError("A project already exists at that path; open it instead")
     existed = database.exists()
     store = ProjectStore(database)
-    pending = store.pending_migrations(migrations_dir)
+    pending = store.pending_database_updates(database_setup_dir)
     if existed and pending:
-        # Back up before changing the schema; a failed migration rolls back and this copy remains.
+        # Back up before changing the schema; a failed database update rolls back and this copy remains.
         stamp = utc_now().replace(":", "").replace("-", "").split(".")[0]
         store.backup(root / "backups" / f"callerwhale-before-{pending[0].removesuffix('.sql')}-{stamp}.sqlite3")
     try:
-        store.migrate(migrations_dir)
+        store.setup_database(database_setup_dir)
     except Exception:
         store.close()
         raise

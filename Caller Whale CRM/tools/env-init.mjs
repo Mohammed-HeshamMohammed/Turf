@@ -36,7 +36,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const databaseEnv = join(env, "database.env");
   if (existsSync(databaseEnv)) {
     const current = readFileSync(databaseEnv, "utf8");
-    for (const [placeholder, key] of [["__DB_OWNER_PASSWORD__", "CORE_API_MIGRATION_DATABASE_URL"], ["__DB_API_PASSWORD__", "CORE_API_DATABASE_URL"], ["__DB_AUTH_PASSWORD__", "AUTH_DATABASE_URL"]]) {
+    for (const [placeholder, key] of [["__DB_OWNER_PASSWORD__", "CORE_API_DATABASE_SETUP_URL"], ["__DB_API_PASSWORD__", "CORE_API_DATABASE_URL"], ["__DB_AUTH_PASSWORD__", "AUTH_DATABASE_URL"]]) {
       const line = current.split(/\r?\n/).find(line => line.startsWith(`${key}=`));
       if (line) shared[placeholder] = new URL(line.slice(key.length + 1)).password;
     }

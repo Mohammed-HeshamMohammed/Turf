@@ -4,7 +4,7 @@
 //! There are two platform roles (users.platform_role). The **platform owner** is the owner of the app: set once on the
 //! server (services/core-api/scripts/create_platform_owner.py), never through the API. **System administrators** are
 //! named and removed only by the owner, here. Nobody can get either by signing up or by an invitation, and the
-//! database refuses a platform role from anything but the owner's function (migration 0010).
+//! database refuses a platform role from anything but the owner's function (database update 0010).
 //!
 //! Staff may look at everything, extend a plan, suspend a workspace and turn a customer's access off. Only the owner
 //! names staff, sets a workspace's plan or makes one unlimited. Every change is kept in platform_events.

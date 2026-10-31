@@ -79,7 +79,7 @@ Caller Whale CRM/
 │   │   └── crates/{api,grouping}/
 │   ├── go/                          callerwhale-worker: outbox events, scheduler, Redis invalidations
 │   ├── python/                      callerwhale_worker: imports, server-side Skip Tracing jobs, report PDFs
-│   ├── sql/migrations/              PostgreSQL migrations (only server/rust applies them)
+│   ├── sql/database_setup/              PostgreSQL database updates (only server/rust applies them)
 │   ├── website/                     The public sign-up / sign-in / account site the API serves at /
 │   ├── scripts/                     Local dev: Postgres + Redis, run-api, run-worker, seed, admin
 │   └── deploy/                      VPS setup: nginx, systemd units, environment templates
@@ -115,7 +115,7 @@ flowchart TB
 
     subgraph VPS["The VPS"]
         API["server/rust<br/>API"]
-        DB[("PostgreSQL<br/>server/sql/migrations")]
+        DB[("PostgreSQL<br/>server/sql/database updates")]
         Redis[("Redis")]
         Go["server/go<br/>outbox + scheduler worker"]
         Py["server/python<br/>imports, jobs, PDFs"]
@@ -261,7 +261,7 @@ The CRM's planned features (calling, SMS and email, live captions, call transcri
 | Language | We write | Status |
 | --- | --- | --- |
 | Rust | Public API, auth, permissions, sync, events, billing | Today |
-| SQL + PL/pgSQL | Migrations and row security; the PostGIS TIGER geocoder for US addresses | Today + New |
+| SQL + PL/pgSQL | Database setup and updates and row security; the PostGIS TIGER geocoder for US addresses | Today + New |
 | Go | Outbox and scheduler worker, notification fan-out | Today |
 | Python | Imports, server Skip Tracing, report PDFs, **call transcription** (faster-whisper) | Today + New |
 | TypeScript (Node) | Twilio voice and SMS, email (SMTP/IMAP, Google, Microsoft), webhook signature checks, opt-out sync. Folder: `server/typescript` | Planned |
@@ -364,7 +364,7 @@ A is chosen because what hurts today is not the toolchains but not knowing where
 3. [ ] Split `src-tauri/` into `container/rust` (`main.rs`, config, capabilities, icons) and `local-backend/rust` (`sidecar.rs`, `signin.rs`, `downloads.rs` as a library crate). Add the Cargo workspace.
 4. [ ] Move the React app into `frontend/react/`, then sort `src/` into `app/`, `pages/`, `components/`, `styles/`, `state/`, `clients/` and `storage/`. Route every `invoke` and `fetch` through `clients/`.
 5. [ ] Break the 1,000+ line screens (`Work.jsx`, `Leads.jsx`, `ui.jsx`, `DataPages.jsx`) into one folder per page with small files, and move every colour, spacing and type value into `styles/` tokens. This is the step that fixes most of "doesn't look good".
-6. [ ] Move `backend/` to `server/`, `backend/rust/migrations` to `server/sql/migrations`, and `website/` to `server/website`. Update `run-api.sh`, `db.rs`'s `migrate!` path, the contract test and the Python worker's path to `service/`.
+6. [ ] Move `backend/` to `server/`, `backend/rust/database updates` to `server/sql/database updates`, and `website/` to `server/website`. Update `run-api.sh`, `db.rs`'s `migrate!` path, the contract test and the Python worker's path to `service/`.
 7. [ ] Write `contracts/local-commands.md` (today: `service_call`, `google_sign_in_listen`, `open_in_browser`, `save_download`) and a test that compares it with the commands the container registers.
 8. [ ] Add `server/deploy/` with the VPS setup now described in `docs/saas/README.md`.
 9. [ ] Update `Caller Whale CRM/README.md`, `server/README.md`, the root `README.md` and `.claude/launch.json` to the new paths. Run every part's tests: `npm test`, `cargo test --workspace`, `go test ./...`, pytest.

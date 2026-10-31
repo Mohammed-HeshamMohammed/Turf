@@ -1,5 +1,5 @@
 //! Test harness: runs the API in-process against a real PostgreSQL (plan 5.1: mocked storage does not establish SQL
-//! correctness). Needs TEST_DATABASE_URL (the callerwhale_api login) and TEST_MIGRATION_DATABASE_URL (the owner); see
+//! correctness). Needs TEST_DATABASE_URL (the callerwhale_api login) and TEST_DATABASE_SETUP_URL (the owner); see
 //! services/core-api/scripts/dev-services.sh. Tests share one database, so they take a lock and start from empty tables.
 //!
 //! People sign in with the auth service, never with this API, so the harness plays auth's part: it holds a signing
@@ -54,7 +54,7 @@ pub fn config(redis: bool) -> Option<Config> {
     let database_url = std::env::var("TEST_DATABASE_URL").ok()?;
     Some(Config {
         database_url,
-        migration_database_url: std::env::var("TEST_MIGRATION_DATABASE_URL").ok()?,
+        database_setup_url: std::env::var("TEST_DATABASE_SETUP_URL").ok()?,
         redis_url: if redis { std::env::var("TEST_REDIS_URL").unwrap_or_default() } else { String::new() },
         bind: "127.0.0.1:0".into(),
         allowed_origins: vec![],
@@ -112,9 +112,9 @@ async fn start_configured(redis: bool, require_mfa: bool, public_signup: bool) -
     config.require_mfa = require_mfa;
     config.public_signup = public_signup;
     config.auth_jwks = key.jwks.clone();
-    callerwhale_api::db::migrate(&config).await.expect("migrations");
-    let owner = sqlx::PgPool::connect(&config.migration_database_url).await.expect("owner connection");
-    let tables: Vec<String> = sqlx::query_scalar("SELECT tablename::text FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN ('_sqlx_migrations', 'plans')")
+    callerwhale_api::db::setup_database(&config).await.expect("database_setup");
+    let owner = sqlx::PgPool::connect(&config.database_setup_url).await.expect("owner connection");
+    let tables: Vec<String> = sqlx::query_scalar("SELECT tablename::text FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN ('database_setup_history', 'plans')")
         .fetch_all(&owner)
         .await
         .unwrap();

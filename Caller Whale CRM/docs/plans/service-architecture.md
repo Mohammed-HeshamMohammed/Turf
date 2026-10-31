@@ -21,7 +21,7 @@ Feature 9 in `docs/features` (accounts, security, billing) is not a feature serv
 
 ## Rules
 
-1. **A service owns its data.** Own PostgreSQL database (own login, own migrations). No other service connects to it. Today only `server/rust` touches PostgreSQL; this rule generalises that.
+1. **A service owns its data.** Own PostgreSQL database (own login, own database updates). No other service connects to it. Today only `server/rust` touches PostgreSQL; this rule generalises that.
 2. **Services talk two ways only:** a synchronous call through the gateway/internal HTTP, or an event on the bus (Redis Streams to start). Never a shared table.
 3. **Auth is verified, not called.** Auth signs short-lived tokens (EdDSA) and publishes its public keys at `/.well-known/jwks.json`. Every other service checks tokens locally, so auth being down does not stop a signed-in person from working.
 4. **Notifications are requested by event.** A service publishes `notification.requested` (who, template, data). It never talks to Twilio, SMTP or push itself. Channels and templates live only in the notification service.
@@ -74,7 +74,7 @@ Caller Whale CRM/
 └── docs/
 ```
 
-Every `services/<x>/` has the same files: `README.md`, `Dockerfile`, `migrations/`, `src/`, `tests/`, `openapi.yaml`, `health` endpoint on `/healthz`.
+Every `services/<x>/` has the same files: `README.md`, `Dockerfile`, `database_setup/`, `src/`, `tests/`, `openapi.yaml`, `health` endpoint on `/healthz`.
 
 ```mermaid
 flowchart TB
@@ -136,7 +136,7 @@ Phases 1 and 2 come before the restructure because they are what lets you sell a
 
 The folders and starting code from the target layout now exist beside the working app, without moving it:
 
-- `services/`: gateway, auth, notifications, billing and the eight feature services. Each starts, answers `/healthz` and `/version`, has tests, an `openapi.yaml`, a `Dockerfile` and, when it owns data, `migrations/`. Registry: `services/README.md`, `contracts/services.md`, event list: `contracts/events.md`.
+- `services/`: gateway, auth, notifications, billing and the eight feature services. Each starts, answers `/healthz` and `/version`, has tests, an `openapi.yaml`, a `Dockerfile` and, when it owns data, `database_setup/`. Registry: `services/README.md`, `contracts/services.md`, event list: `contracts/events.md`.
 - `desktop/`: the container, frontend and backend folders, with one Rust module per feature under `desktop/backend/features/`.
 - `deploy/compose.yml`: every service plus Postgres and Redis (not run yet: no Docker on the machine that wrote it).
 - `tools/`: `stack.json` (the list of services), `scaffold-stack.mjs` (creates what is missing, never overwrites) and `check-stack.mjs` (runs every test).

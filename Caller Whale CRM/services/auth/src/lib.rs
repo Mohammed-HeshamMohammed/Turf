@@ -34,20 +34,31 @@ pub async fn connect(url: &str) -> anyhow::Result<AnyPool> {
     Ok(AnyPoolOptions::new().max_connections(max).connect(url).await?)
 }
 
-/// The migrations, in order. Each runs once; `schema_migrations` remembers which ran.
-const MIGRATIONS: &[(i64, &str)] = &[
-    (1, include_str!("../migrations/0001_auth.sql")),
-    (2, include_str!("../migrations/0002_sign_in.sql")),
-    (3, include_str!("../migrations/0003_session_provider.sql")),
-    (4, include_str!("../migrations/0004_firebase.sql")),
-    (5, include_str!("../migrations/0005_second_factor.sql")),
+/// The database updates, in order. Each runs once; `database_setup_history` remembers which ran.
+const DATABASE_UPDATES: &[(i64, &str)] = &[
+    (1, include_str!("../database_setup/0001_auth.sql")),
+    (2, include_str!("../database_setup/0002_sign_in.sql")),
+    (3, include_str!("../database_setup/0003_session_provider.sql")),
+    (4, include_str!("../database_setup/0004_firebase.sql")),
+    (5, include_str!("../database_setup/0005_second_factor.sql")),
 ];
 
 /// Brings the database up to date. Safe to run on every start.
-pub async fn migrate(db: &AnyPool) -> anyhow::Result<()> {
-    sqlx::query("CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT PRIMARY KEY, applied_at BIGINT NOT NULL)").execute(db).await?;
-    for (version, sql) in MIGRATIONS {
-        let done = sqlx::query("SELECT 1 AS one FROM schema_migrations WHERE version = $1").bind(version).fetch_optional(db).await?.is_some();
+pub async fn setup_database(db: &AnyPool) -> anyhow::Result<()> {
+    // Preserve completed scripts from releases using the old history-table name.
+    let mut connection = db.acquire().await?;
+    let legacy_query = if connection.backend_name() == "SQLite" {
+        "SELECT 1 AS one FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'"
+    } else {
+        "SELECT 1 AS one FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'schema_migrations'"
+    };
+    if sqlx::query(legacy_query).fetch_optional(&mut *connection).await?.is_some() {
+        sqlx::query("ALTER TABLE schema_migrations RENAME TO database_setup_history").execute(&mut *connection).await?;
+    }
+    drop(connection);
+    sqlx::query("CREATE TABLE IF NOT EXISTS database_setup_history (version BIGINT PRIMARY KEY, applied_at BIGINT NOT NULL)").execute(db).await?;
+    for (version, sql) in DATABASE_UPDATES {
+        let done = sqlx::query("SELECT 1 AS one FROM database_setup_history WHERE version = $1").bind(version).fetch_optional(db).await?.is_some();
         if done {
             continue;
         }
@@ -57,7 +68,7 @@ pub async fn migrate(db: &AnyPool) -> anyhow::Result<()> {
         for statement in without_comments.split(';').map(str::trim).filter(|s| !s.is_empty()) {
             sqlx::query(statement).execute(&mut *tx).await?;
         }
-        sqlx::query("INSERT INTO schema_migrations (version, applied_at) VALUES ($1, $2)").bind(version).bind(now() as i64).execute(&mut *tx).await?;
+        sqlx::query("INSERT INTO database_setup_history (version, applied_at) VALUES ($1, $2)").bind(version).bind(now() as i64).execute(&mut *tx).await?;
         tx.commit().await?;
     }
     Ok(())

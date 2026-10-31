@@ -95,7 +95,7 @@ Maps use [Leaflet 1.9.4](https://leafletjs.com/reference.html) and standard [Ope
 - Calls, recordings, messages, integrations, workflow execution, report delivery, and contact checks are explicitly simulated. No external communication is sent.
 - Report periods illustrate the layout; totals represent the current visible snapshot, not historical date filtering. The dashboard trend is labeled illustrative. Display timezone is a saved preference; sample timestamps are fixed.
 - Action permission overrides do not change a preset's navigation or record scope. Production roles need the plan's server-side grants and cache revocation.
-- Source rows and entities are simplified. This does not implement the plan's complete people/property identity model, safe merge engine, document storage, or migration.
+- Source rows and entities are simplified. This does not implement the plan's complete people/property identity model, safe merge engine, document storage, or database update.
 
 ## Development and validation
 

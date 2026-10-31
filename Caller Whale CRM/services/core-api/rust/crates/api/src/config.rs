@@ -4,8 +4,8 @@ use anyhow::Context;
 pub struct Config {
     /// The API's own connection: a login role that is a member of callerwhale_app and never bypasses row security.
     pub database_url: String,
-    /// The owning role, used only to run migrations. Empty: migrations are not run by this process.
-    pub migration_database_url: String,
+    /// The owning role, used only to run database updates. Empty: database updates are not run by this process.
+    pub database_setup_url: String,
     /// Empty: no Redis; every cached read goes to PostgreSQL.
     pub redis_url: String,
     pub bind: String,
@@ -69,7 +69,7 @@ impl Config {
             .collect();
         Ok(Config {
             database_url: std::env::var("DATABASE_URL").context("DATABASE_URL is required")?,
-            migration_database_url: var("MIGRATION_DATABASE_URL", ""),
+            database_setup_url: var("DATABASE_SETUP_URL", ""),
             redis_url: var("REDIS_URL", ""),
             bind: var("CALLERWHALE_BIND", "127.0.0.1:8088"),
             allowed_origins: var("CALLERWHALE_ALLOWED_ORIGINS", "").split(',').map(str::trim).filter(|s| !s.is_empty()).map(String::from).collect(),

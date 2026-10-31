@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Starts a local PostgreSQL and Redis for development and tests, with data outside the repository.
 #   CALLERWHALE_DATA (default /x/callerwhale-data)   CALLERWHALE_TOOLS env script (default /x/tools/env.sh)
-# Roles: callerwhale_owner (owns the schema, runs migrations) and callerwhale_api (the API's login, member of callerwhale_app; row security applies).
+# Roles: callerwhale_owner (owns the schema, runs database updates) and callerwhale_api (the API's login, member of callerwhale_app; row security applies).
 set -euo pipefail
 [ -f "${CALLERWHALE_TOOLS:-/x/tools/env.sh}" ] && source "${CALLERWHALE_TOOLS:-/x/tools/env.sh}"
 DATA="${CALLERWHALE_DATA:-/x/callerwhale-data}"
@@ -26,8 +26,8 @@ if ! redis-cli -p "$REDIS_PORT" ping >/dev/null 2>&1; then
 fi
 cat <<OUT
 DATABASE_URL=postgres://callerwhale_api:callerwhale_api@127.0.0.1:$PGPORT/callerwhale
-MIGRATION_DATABASE_URL=postgres://callerwhale_owner:callerwhale_owner@127.0.0.1:$PGPORT/callerwhale
+DATABASE_SETUP_URL=postgres://callerwhale_owner:callerwhale_owner@127.0.0.1:$PGPORT/callerwhale
 TEST_DATABASE_URL=postgres://callerwhale_api:callerwhale_api@127.0.0.1:$PGPORT/callerwhale_test
-TEST_MIGRATION_DATABASE_URL=postgres://callerwhale_owner:callerwhale_owner@127.0.0.1:$PGPORT/callerwhale_test
+TEST_DATABASE_SETUP_URL=postgres://callerwhale_owner:callerwhale_owner@127.0.0.1:$PGPORT/callerwhale_test
 REDIS_URL=redis://127.0.0.1:$REDIS_PORT
 OUT

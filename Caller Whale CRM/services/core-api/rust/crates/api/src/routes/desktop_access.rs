@@ -1,4 +1,4 @@
-//! Who may use the desktop app, and how much (migration 0014). Caller Whale's staff invite a person by email with a monthly
+//! Who may use the desktop app, and how much (database update 0014). Caller Whale's staff invite a person by email with a monthly
 //! credit limit; the invitation is emailed through Caller Whale's mail server. The person signs in on the website with that
 //! email, confirmed (password or Google), which activates it: they get a workspace of their own, their dashboard and
 //! the download. Nobody else gets either: an account alone opens nothing.

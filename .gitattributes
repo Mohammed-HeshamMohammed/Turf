@@ -1,3 +1,3 @@
-# Migration checksums and shell scripts need exact LF content on every checkout.
-**/migrations/*.sql text eol=lf
+# Database setup checksums and shell scripts need exact LF content on every checkout.
+**/database_setup/*.sql text eol=lf
 *.sh text eol=lf

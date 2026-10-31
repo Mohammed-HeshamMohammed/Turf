@@ -34,7 +34,7 @@ means 12,000 minutes shared by the team.
    administrator or client. The role decides what that person can see and do. An open invitation holds a seat. When
    every seat is taken, inviting is refused until seats are added.
 
-## Database (new tables in `backend/rust/migrations/0007_saas.sql`)
+## Database (new tables in `backend/rust/database_setup/0007_saas.sql`)
 
 ```mermaid
 erDiagram
@@ -205,7 +205,7 @@ page before real customers use it.
 
 1. Ubuntu VPS with PostgreSQL 16+ and nginx. Create the roles as in `backend/scripts/dev-services.sh`, with strong
    passwords.
-2. Build `cargo build --release -p callerwhale-api` and run it under systemd with `DATABASE_URL`, `MIGRATION_DATABASE_URL`,
+2. Build `cargo build --release -p callerwhale-api` and run it under systemd with `DATABASE_URL`, `DATABASE_SETUP_URL`,
    `CALLERWHALE_SITE_DIR=/srv/callerwhale/website`, `CALLERWHALE_BILLING_WEBHOOK_SECRET` (32+ random characters), `CALLERWHALE_CHECKOUT_URL`,
    `CALLERWHALE_ALLOWED_ORIGINS`, and `CALLERWHALE_AUTH_JWKS_URL` / `CALLERWHALE_AUTH_PUBLIC_URL` pointing at the auth service.
 3. nginx terminates HTTPS (Let's Encrypt), proxies to `127.0.0.1:8088`, and rate-limits the auth service's `/v1/sessions` and `/v1/accounts`.

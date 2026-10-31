@@ -1,6 +1,6 @@
 # Services
 
-The server side of Caller Whale CRM: one folder per service, each with its own code, tests, `openapi.yaml`, `Dockerfile` and (when it owns data) `migrations/`. See [the plan](../docs/plans/service-architecture.md) for why, and [the registry](../contracts/services.md) for ports and events.
+The server side of Caller Whale CRM: one folder per service, each with its own code, tests, `openapi.yaml`, `Dockerfile` and (when it owns data) `database_setup/`. See [the plan](../docs/plans/service-architecture.md) for why, and [the registry](../contracts/services.md) for ports and events.
 
 | Service | Folder | Language | Port | Owns data | Job |
 | --- | --- | --- | --- | --- | --- |

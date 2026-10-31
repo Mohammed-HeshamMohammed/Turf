@@ -43,7 +43,7 @@ backend/
   javascript/    Email, SMS, voice, and external provider adapters
 contracts/       API schemas, events, worker contracts, native ABI definitions
 deploy/          Docker Compose, proxy configuration, operational scripts
-docs/            Architecture, migrations, administration, troubleshooting
+docs/            Architecture, database updates, administration, troubleshooting
 ```
 
 Each language folder receives its own dependency locks, tests, build commands, README, health checks, and Dockerfile. Container builds use the repository root as context when they need shared contracts.
@@ -72,7 +72,7 @@ Use:
 - **Caddy** for HTTPS, frontend delivery, and reverse proxying.
 - **Docker Compose** for the first self-hosted deployment.
 
-Rust owns authoritative database migrations and CRM mutations. Workers obtain scoped jobs and publish results through internal API contracts. They do not independently change lead ownership, permissions, or canonical business records.
+Rust owns authoritative database database updates and CRM mutations. Workers obtain scoped jobs and publish results through internal API contracts. They do not independently change lead ownership, permissions, or canonical business records.
 
 PostgreSQL holds durable jobs and transactional outbox events. Redis can be emptied or restarted without losing edits, jobs, or completed communication records.
 
@@ -142,7 +142,7 @@ Separate identity carefully:
 - A deal represents a specific transaction.
 - The same lead may appear in several source lists.
 
-Preserve legacy lead keys as aliases during migration. Keep original source rows and provenance immutable.
+Preserve legacy lead keys as aliases during legacy import. Keep original source rows and provenance immutable.
 
 Mutable records receive versions. Audit events capture actor, server time, relevant before/after values, and originating operation. Offline events retain their claimed occurrence time separately from the server's receipt time.
 
@@ -379,7 +379,7 @@ The external workspace exposes explicitly shared records and approved updates. I
 | --- | --- | --- |
 | **0 — Plan and baseline** | Save this Markdown plan, preserve historical `PLAN.md`, document current behavior, create representative datasets and performance baselines. | Plan committed; baseline results recorded without presenting historical timings as current measurements. |
 | **1 — Service boundaries** | Create six language folders, contracts, builds, containers, Rust API, PostgreSQL, Redis, artifact storage, and deployment skeleton. | Independently buildable containers; authenticated internal communication; CI contract checks. |
-| **2 — Identity and migration** | Implement accounts, roles, organizations, teams, stable entities, audit, and legacy project import. | Existing data migrates with preserved history and source lineage; isolation tests pass. |
+| **2 — Identity and legacy import** | Implement accounts, roles, organizations, teams, stable entities, audit, and legacy project import. | Existing data is imported with preserved history and source lineage; isolation tests pass. |
 | **3 — CRM workflows** | Lead pages, assignment, handoffs, deals, tasks, calendar, collaboration, dashboards. | Caller-to-closer workflow completes with correct ownership and visible history. |
 | **4 — Offline and caching** | Encrypted caches, pending edits, synchronization, conflict review, scoped invalidation, local Skip Tracing bundles. | Disconnect/restart/reconnect preserves work; rejected edits remain visible; caches do not leak records. |
 | **5 — Performance** | Concurrent transport, C++ comparisons, Rust grouping, resource budgets, large-list optimization. | Correctness parity and performance gates pass; slow jobs do not block quick reads. |
@@ -387,7 +387,7 @@ The external workspace exposes explicitly shared records and approved updates. I
 | **7 — Automation and reporting** | Rules, configurable fields/templates, scheduled reports, external workspace. | Rules execute idempotently; reports respect scope; external users see only approved information. |
 | **8 — Production readiness** | Package Windows application, complete VPS deployment tooling, backups, recovery, observability, operational documentation. | Fresh-machine installation and staging recovery tests pass; release evidence is recorded. |
 
-Use feature flags and reversible migrations while developing these milestones. Savepoint-based legacy imports remain hidden until validation completes.
+Use feature flags and reversible database updates while developing these milestones. Savepoint-based legacy imports remain hidden until validation completes.
 
 Legacy import must preserve notes, callbacks, manual marks, call evidence, matching overrides, datasets, and artifact hashes. Unknown historical actors are labelled "Legacy import"; unowned leads enter an unassigned queue.
 
@@ -413,7 +413,7 @@ Cover:
 
 Matching fixtures must cover different household members, multiple properties per owner, reordered names, Unicode, shared office numbers, contradictory identifiers, units, manual constraints, and bridge rejection.
 
-Use real PostgreSQL queries and migrations; mocked storage does not establish SQL correctness.
+Use real PostgreSQL queries and database updates; mocked storage does not establish SQL correctness.
 
 ### 5.2 Performance targets
 
@@ -457,7 +457,7 @@ Provide:
 - Logs without credentials or unnecessary contact values.
 - Container resource limits, health/readiness checks, and graceful shutdown.
 - Daily encrypted database/artifact backups and a tested restore procedure.
-- Deployment preflight, migration checks, rollback instructions, and schema compatibility checks.
+- Deployment preflight, database update checks, rollback instructions, and schema compatibility checks.
 
 Windows acceptance must use the real packaged Tauri application. Verify offline Skip Tracing, queue durability, secure storage, notifications, browser-companion calling, and reconnect behavior on a clean machine.
 

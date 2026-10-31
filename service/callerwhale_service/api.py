@@ -49,8 +49,8 @@ def _job_dict(row) -> dict:
 
 
 class Service:
-    def __init__(self, migrations_dir: Path | None = None) -> None:
-        self.migrations_dir = migrations_dir or SERVICE_ROOT / "migrations"
+    def __init__(self, database_setup_dir: Path | None = None) -> None:
+        self.database_setup_dir = database_setup_dir or SERVICE_ROOT / "database_setup"
         self.store: ProjectStore | None = None
         self.project: dict | None = None
         self.runner: JobRunner | None = None
@@ -188,7 +188,7 @@ class Service:
     def _open(self, path: str, name: str | None = None, create: bool = False) -> dict:
         if self.runner and any(self.runner._controls):
             raise CommandError("jobs_active", "Wait for active jobs to finish or cancel them before switching projects")
-        store, project = projects.open_project(path, self.migrations_dir, name, create)
+        store, project = projects.open_project(path, self.database_setup_dir, name, create)
         if self.store:
             self.store.close()
         self.store, self.project = store, project

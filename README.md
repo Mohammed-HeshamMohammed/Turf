@@ -60,7 +60,7 @@ pip install pyinstaller
 npm run package
 ```
 
-This builds the service into one executable (`service/dist/callerwhale-service.exe`, by `service/tools/build_service.py`), then the Windows installer with it and the migrations inside (`src-tauri/tauri.package.conf.json`). The installer is written under `src-tauri/target/release/bundle/nsis/`. A packaged Caller Whale starts that executable and needs no Python; run from source, it still uses Python as before.
+This builds the service into one executable (`service/dist/callerwhale-service.exe`, by `service/tools/build_service.py`), then the Windows installer with it and the database updates inside (`src-tauri/tauri.package.conf.json`). The installer is written under `src-tauri/target/release/bundle/nsis/`. A packaged Caller Whale starts that executable and needs no Python; run from source, it still uses Python as before.
 
 The build needs a few gigabytes free. On a drive without room, send the working files elsewhere: `python service/tools/build_service.py --work D:\build`, and set `CARGO_TARGET_DIR` for the host's build.
 
@@ -239,7 +239,7 @@ Successful results for the same products are reused within the configured cache 
 | `service/callerwhale_service/sameness.py`, `combine.py` | Knowing a list's rows again whatever the file is called; combining lists, and what the person decided about rows being the same lead. |
 | `service/callerwhale_matching/` | Phone reading and the Skip Tracing rules, including how call statuses are read (`status_meaning.py`) and how repeated leads are found and lists combined (`duplicates.py` and `combine.py`, on DataForge's `engine.py`, `normalize.py` and `likelihood.py`). |
 | `service/callerwhale_service/geo.py` | Where rows go on the map: the centre of their ZIP (a file shipped with Caller Whale, checked against the row's state), or their exact address once it has been looked up. The lookup starts by itself the first time a list with a street and a ZIP (or city and state) is shown in Lists, says so under the map, and can be stopped; what was found is kept in the project and not asked for again. It sends street, city, state and ZIP to the US Census Bureau's geocoder; nothing else leaves the computer. |
-| `service/migrations/` | The project database's schema. |
+| `service/database_setup/` | The project database's schema. |
 | `vite.config.ts` | For a browser tab only: serves `/rpc` over the same bridge, to Caller Whale's own page and no other. |
 | `service/tools/build_service.py`, `src-tauri/tauri.package.conf.json` | Packaging: the service as one executable, and the installer that carries it. |
 

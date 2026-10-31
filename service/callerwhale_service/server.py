@@ -1,6 +1,6 @@
 """Process entry point: JSON lines over stdin/stdout, for the desktop host and the dev server.
 
-    python -m callerwhale_service.server [--resources <folder holding migrations/>]
+    python -m callerwhale_service.server [--resources <folder holding database_setup/>]
 """
 
 from __future__ import annotations
@@ -37,9 +37,9 @@ def serve_stdio(service: Service) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--resources", type=Path, default=SERVICE_ROOT, help="directory containing migrations/")
+    parser.add_argument("--resources", type=Path, default=SERVICE_ROOT, help="directory containing database_setup/")
     args = parser.parse_args()
-    service = Service(args.resources / "migrations")
+    service = Service(args.resources / "database_setup")
     service.open_recent()
     log("info", "service.started", mode="stdio")
     serve_stdio(service)

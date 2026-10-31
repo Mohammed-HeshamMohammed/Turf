@@ -55,7 +55,7 @@ for (const s of stack.services) {
     LANG_NAME: lang.name, OWNS: s.owns ? "Yes, its own database schema (`" + s.name.replace(/-/g, "_") + "`)" : "No",
     RUN: lang.run({ ...s, slug: s.name }),
     DATA: s.owns
-      ? "This service owns its own PostgreSQL schema and its own database login. Migrations live in `migrations/` and only this service applies them. No other service may read or write these tables."
+      ? "This service owns its own PostgreSQL schema and its own database login. Database setup and updates live in `database_setup/` and only this service applies them. No other service may read or write these tables."
       : "This service keeps no data of its own.",
   };
   const dest = join(root, s.dir);
@@ -63,7 +63,7 @@ for (const s of stack.services) {
   put(join(dest, "README.md"), fill(readFileSync(join(templates, "common", "README.md.tpl"), "utf8"), vars), created);
   put(join(dest, "openapi.yaml"), fill(readFileSync(join(templates, "common", "openapi.yaml.tpl"), "utf8"), vars), created);
   if (s.owns) {
-    put(join(dest, "migrations", "README.md"), `# Migrations\n\nSQL migrations for the \`${s.name.replace(/-/g, "_")}\` schema, numbered \`0001_name.sql\`, \`0002_name.sql\`. Only the ${s.title.toLowerCase()} applies them.\n`, created);
+    put(join(dest, "database_setup", "README.md"), `# Database setup and updates\n\nSQL database updates for the \`${s.name.replace(/-/g, "_")}\` schema, numbered \`0001_name.sql\`, \`0002_name.sql\`. Only the ${s.title.toLowerCase()} applies them.\n`, created);
   }
 }
 
@@ -113,7 +113,7 @@ put(
   join(root, "services", "README.md"),
   `# Services
 
-The server side of Caller Whale CRM: one folder per service, each with its own code, tests, \`openapi.yaml\`, \`Dockerfile\` and (when it owns data) \`migrations/\`. See [the plan](../docs/plans/service-architecture.md) for why, and [the registry](../contracts/services.md) for ports and events.
+The server side of Caller Whale CRM: one folder per service, each with its own code, tests, \`openapi.yaml\`, \`Dockerfile\` and (when it owns data) \`database_setup/\`. See [the plan](../docs/plans/service-architecture.md) for why, and [the registry](../contracts/services.md) for ports and events.
 
 | Service | Folder | Language | Port | Owns data | Job |
 | --- | --- | --- | --- | --- | --- |
