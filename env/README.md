@@ -39,3 +39,11 @@ this version. Its value stays the same owner connection string. Existing databas
 keep their completed-script history: startup adopts the old history table automatically.
 Do not edit previously applied SQL files: their original checksums protect against drift.
 SQLx dependency API names retain upstream spelling; they are not operator settings.
+
+
+## Container health reporting in Coolify
+
+For `core-api`, use **Container command** `/usr/local/bin/callerwhale-api health`,
+with a 40-second startup grace period. The slim image has no curl or wget; a Coolify
+HTTP probe would override the image's working health check and mark it unhealthy.
+Auth and the worker also ship their own Dockerfile health commands.
