@@ -1,0 +1,14 @@
+# The notification service on Coolify (application "notifications", port 8102, domain https://notify.callerwhale.com).
+# Paste into Environment Variables -> Developer View. Fill every <...>. This is the only place the mail server login lives: the
+# auth service and the core API ask this service to send an email and never hold a mail setting themselves.
+PORT=8102
+# Who may ask for mail: name=token pairs, comma separated, each token at least 24 random characters (the caller sets the same
+# token: AUTH_NOTIFY_TOKEN on auth, CALLERWHALE_NOTIFY_TOKEN on core-api).
+NOTIFY_TOKENS=auth=<24+ random characters>,core-api=<24+ random characters>
+# The mail server (the Mail-Server project): STARTTLS on 587 or TLS on 465, never in the clear.
+NOTIFY_SMTP_HOST=<mail server>
+NOTIFY_SMTP_PORT=587
+NOTIFY_SMTP_USER=<mailbox login>
+NOTIFY_SMTP_PASSWORD=<mailbox password>
+# The mail server lets a login send only as its own address, so this is the mailbox's address with the display name Caller Whale.
+NOTIFY_MAIL_FROM=Caller Whale <the mailbox address>

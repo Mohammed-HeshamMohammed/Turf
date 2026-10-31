@@ -1,39 +1,43 @@
-//! Email this service sends itself: the six-digit codes of the second step. Through Caller Whale's mail server (STARTTLS on
-//! 587 or TLS on 465, never in the clear). A trait, so tests catch what would be sent instead of sending it.
+//! Email this service asks for: the six-digit codes of the second step. It never talks to a mail server and holds no mail
+//! login or template: it asks the notification service (POST /v1/mail with this service's token), which sends the message.
+//! A trait, so tests catch what would be sent instead of sending it.
 
 use anyhow::Context;
-use lettre::{
-    message::{header::ContentType, Mailbox},
-    transport::smtp::authentication::Credentials,
-    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
-};
 
 #[async_trait::async_trait]
 pub trait Mailer: Send + Sync + std::fmt::Debug {
-    async fn send(&self, to: &str, subject: &str, text: &str) -> anyhow::Result<()>;
+    /// Asks for the sign-in code to be emailed to this address.
+    async fn send_code(&self, to: &str, code: &str) -> anyhow::Result<()>;
 }
 
 #[derive(Debug, Clone)]
-pub struct Smtp {
-    pub host: String,
-    pub port: u16,
-    pub user: String,
-    pub password: String,
-    pub from: String,
+pub struct Notify {
+    /// The notification service's address (AUTH_NOTIFY_URL).
+    pub url: String,
+    /// This service's token there (AUTH_NOTIFY_TOKEN).
+    pub token: String,
+    client: reqwest::Client,
+}
+
+impl Notify {
+    pub fn new(url: &str, token: &str) -> Self {
+        let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).build().unwrap_or_default();
+        Self { url: url.trim().trim_end_matches('/').to_string(), token: token.trim().to_string(), client }
+    }
 }
 
 #[async_trait::async_trait]
-impl Mailer for Smtp {
-    async fn send(&self, to: &str, subject: &str, text: &str) -> anyhow::Result<()> {
-        let from: Mailbox = self.from.parse().context("AUTH_MAIL_FROM is not an address")?;
-        let to: Mailbox = to.parse().context("The recipient is not an address")?;
-        let message = Message::builder().from(from).to(to).subject(subject).header(ContentType::TEXT_PLAIN).body(text.to_string())?;
-        let builder = if self.port == 465 { AsyncSmtpTransport::<Tokio1Executor>::relay(&self.host)? } else { AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&self.host)? };
-        let mut builder = builder.port(self.port).timeout(Some(std::time::Duration::from_secs(20)));
-        if !self.user.is_empty() {
-            builder = builder.credentials(Credentials::new(self.user.clone(), self.password.clone()));
-        }
-        builder.build().send(message).await.context("The mail server refused the message")?;
+impl Mailer for Notify {
+    async fn send_code(&self, to: &str, code: &str) -> anyhow::Result<()> {
+        let res = self
+            .client
+            .post(format!("{}/v1/mail", self.url))
+            .bearer_auth(&self.token)
+            .json(&serde_json::json!({ "template": "mfa_code", "to": to, "data": { "code": code } }))
+            .send()
+            .await
+            .context("The notification service could not be reached")?;
+        anyhow::ensure!(res.status().is_success(), "The notification service refused the message ({})", res.status());
         Ok(())
     }
 }

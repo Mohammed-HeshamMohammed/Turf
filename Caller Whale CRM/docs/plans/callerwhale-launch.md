@@ -6,7 +6,7 @@
 ## What it does
 
 1. **Sign in and sign up on the website** (`landing/web`): the header has **Sign in** and **Sign up**. Email and password (12+ characters, confirmed by email) or Google, through the auth service (`auth.callerwhale.com`).
-2. **Admin** (`/admin`, staff only, enforced by the core API): invite a person by email with a monthly credit limit; the invitation is emailed through the mail server (`smtp.softfix.dev`, `no-reply@softfix.dev`). The list shows everyone invited, whether they registered, how they sign in, this month's credits used against the limit, the last use and a daily chart. Staff change a limit, suspend or reactivate someone (their account is refused at once, everywhere), resend the email, or withdraw an invitation not yet accepted. Every change is in the platform activity log.
+2. **Admin** (`/admin`, staff only, enforced by the core API): invite a person by email with a monthly credit limit; the invitation is emailed by the notification service. The list shows everyone invited, whether they registered, how they sign in, this month's credits used against the limit, the last use and a daily chart. Staff change a limit, suspend or reactivate someone (their account is refused at once, everywhere), resend the email, or withdraw an invitation not yet accepted. Every change is in the platform activity log.
 3. **Dashboard** (`/dashboard`): an invited person who signs in with the invited email (confirmed) gets their limit, usage this month by day, latest usage and the **download**. Anyone else signed in sees "Caller Whale is by invitation" and no download.
 4. **The download** is the newest GitHub release tagged `crm-v*`, streamed by the core API through a link that is good for 10 minutes and only for people allowed to download. The public site no longer offers a download.
 5. **The desktop app** (Full CRM, `desktop/`) cannot be used without signing in, and only an invited account gets a workspace: the first sign-in with a confirmed invited email opens that person's own workspace. Skip Tracing spends one credit per row checked, asked of the server before the check runs; when the month's credits are used up the check is refused.
@@ -38,9 +38,7 @@ DNS (Cloudflare, zone `callerwhale.com`): exactly seven A records, `@`, `api`, `
 | `CALLERWHALE_ALLOWED_ORIGINS` | `https://callerwhale.com` (the site redirects `www` to it) (and `tauri://localhost,http://tauri.localhost` for the desktop app) |
 | `CALLERWHALE_PUBLIC_SIGNUP` | `false` |
 | `CALLERWHALE_WEBSITE_URL` | `https://callerwhale.com` |
-| `CALLERWHALE_SMTP_HOST`, `CALLERWHALE_SMTP_PORT` | `smtp.softfix.dev`, `587` |
-| `CALLERWHALE_SMTP_USER`, `CALLERWHALE_SMTP_PASSWORD` | `no-reply@softfix.dev` and its password (**secret**: enter it yourself) |
-| `CALLERWHALE_MAIL_FROM` | `Caller Whale <no-reply@softfix.dev>` (the mail server only lets a login send as itself) |
+| `CALLERWHALE_NOTIFY_URL`, `CALLERWHALE_NOTIFY_TOKEN` | `https://notify.callerwhale.com` and the core-api token from the notification service's `NOTIFY_TOKENS` (**secret**) |
 | `CALLERWHALE_RELEASE_REPO`, `CALLERWHALE_RELEASE_TAG_PREFIX` | `Mohammed-HeshamMohammed/Turf`, `crm-v` |
 | `CALLERWHALE_STAFF_MFA` | `true`. Staff need an authenticator code, which needs Identity Platform TOTP on the Firebase project (`tools/firebase/configure-auth.mjs`). Set `false` only until that is on |
 | `DATABASE_URL`, `DATABASE_SETUP_URL` | from `env/database.env` |

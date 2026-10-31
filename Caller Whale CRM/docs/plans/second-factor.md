@@ -63,7 +63,7 @@ Secrets are never stored in the clear where a hash will do: challenge secrets an
 
 ## Settings (auth service)
 
-`AUTH_SMTP_HOST`, `AUTH_SMTP_PORT`, `AUTH_SMTP_USER`, `AUTH_SMTP_PASSWORD`, `AUTH_MAIL_FROM` (email codes); `AUTH_TELEGRAM_BOT_TOKEN`, `AUTH_TELEGRAM_BOT_NAME`, `AUTH_TELEGRAM_WEBHOOK_SECRET` (Telegram; the bot's webhook is set once to `https://auth.callerwhale.com/v1/mfa/telegram/webhook/<secret>`). Without SMTP, email codes are not offered; without the bot, Telegram is not.
+`AUTH_NOTIFY_URL`, `AUTH_NOTIFY_TOKEN` (email codes: the notification service sends them, auth holds no mail login); `AUTH_TELEGRAM_BOT_TOKEN`, `AUTH_TELEGRAM_BOT_NAME`, `AUTH_TELEGRAM_WEBHOOK_SECRET` (Telegram; the bot's webhook is set once to `https://auth.callerwhale.com/v1/mfa/telegram/webhook/<secret>`). Without SMTP, email codes are not offered; without the bot, Telegram is not.
 
 ## Build order
 

@@ -14,16 +14,15 @@ struct Sink(Mutex<Vec<(String, String)>>);
 
 #[async_trait::async_trait]
 impl Mailer for Sink {
-    async fn send(&self, to: &str, _subject: &str, text: &str) -> anyhow::Result<()> {
-        self.0.lock().unwrap().push((to.to_string(), text.to_string()));
+    async fn send_code(&self, to: &str, code: &str) -> anyhow::Result<()> {
+        self.0.lock().unwrap().push((to.to_string(), code.to_string()));
         Ok(())
     }
 }
 
 impl Sink {
     fn last_code(&self) -> String {
-        let text = self.0.lock().unwrap().last().expect("an email was sent").1.clone();
-        text.chars().take_while(|c| c.is_ascii_digit()).collect()
+        self.0.lock().unwrap().last().expect("an email was sent").1.clone()
     }
     fn count(&self) -> usize {
         self.0.lock().unwrap().len()

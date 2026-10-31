@@ -27,7 +27,7 @@ pub struct Config {
     pub apple: Provider,
     /// Firebase Authentication as the account store (`AUTH_FIREBASE_API_KEY`). None: this service keeps its own accounts.
     pub firebase: Option<crate::firebase::Firebase>,
-    /// Sends the email codes of the second step (`AUTH_SMTP_HOST`). None: email codes are not offered.
+    /// Asks the notification service to email the codes of the second step (`AUTH_NOTIFY_URL`, `AUTH_NOTIFY_TOKEN`). None: email codes are not offered.
     pub mailer: Option<std::sync::Arc<dyn crate::mail::Mailer>>,
     /// The Telegram bot that sends the Telegram codes (`AUTH_TELEGRAM_BOT_TOKEN`). None: Telegram is not offered.
     pub telegram: Option<crate::telegram::Telegram>,
@@ -113,16 +113,10 @@ impl Config {
                 private_key: var("AUTH_APPLE_PRIVATE_KEY", "").replace("\\n", "\n"),
                 ..Provider::apple_defaults()
             },
-            // Email codes are offered only when both the server and the sender address are set: no address is written in the code.
-            mailer: Some(var("AUTH_SMTP_HOST", "")).filter(|host| !host.trim().is_empty() && !var("AUTH_MAIL_FROM", "").trim().is_empty()).map(|host| {
-                std::sync::Arc::new(crate::mail::Smtp {
-                    host: host.trim().to_string(),
-                    port: var("AUTH_SMTP_PORT", "587").trim().parse().unwrap_or(587),
-                    user: var("AUTH_SMTP_USER", "").trim().to_string(),
-                    password: var("AUTH_SMTP_PASSWORD", ""),
-                    from: var("AUTH_MAIL_FROM", "").trim().to_string(),
-                }) as std::sync::Arc<dyn crate::mail::Mailer>
-            }),
+            // Email codes are offered only when the notification service is set (its address and this service's token there).
+            mailer: Some(var("AUTH_NOTIFY_URL", ""))
+                .filter(|url| !url.trim().is_empty() && !var("AUTH_NOTIFY_TOKEN", "").trim().is_empty())
+                .map(|url| std::sync::Arc::new(crate::mail::Notify::new(&url, &var("AUTH_NOTIFY_TOKEN", ""))) as std::sync::Arc<dyn crate::mail::Mailer>),
             telegram: Some(var("AUTH_TELEGRAM_BOT_TOKEN", "")).filter(|token| !token.trim().is_empty()).map(|token| {
                 crate::telegram::Telegram::new(token.trim(), &var("AUTH_TELEGRAM_BOT_NAME", ""), &var("AUTH_TELEGRAM_API_URL", "https://api.telegram.org"))
             }),

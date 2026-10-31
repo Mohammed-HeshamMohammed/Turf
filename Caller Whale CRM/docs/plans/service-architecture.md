@@ -24,7 +24,7 @@ Feature 9 in `docs/features` (accounts, security, billing) is not a feature serv
 1. **A service owns its data.** Own PostgreSQL database (own login, own database updates). No other service connects to it. Today only `server/rust` touches PostgreSQL; this rule generalises that.
 2. **Services talk two ways only:** a synchronous call through the gateway/internal HTTP, or an event on the bus (Redis Streams to start). Never a shared table.
 3. **Auth is verified, not called.** Auth signs short-lived tokens (EdDSA) and publishes its public keys at `/.well-known/jwks.json`. Every other service checks tokens locally, so auth being down does not stop a signed-in person from working.
-4. **Notifications are requested by event.** A service publishes `notification.requested` (who, template, data). It never talks to Twilio, SMTP or push itself. Channels and templates live only in the notification service.
+4. **Notifications are requested by event.** A service publishes `notification.requested` (who, template, data). It never talks to Twilio, SMTP or push itself (today the auth service and the core API call `POST /v1/mail` on the notification service with a service token). Channels and templates live only in the notification service.
 5. **Every feature has the same shape on both sides** (desktop module and server service), so adding a feature is copying a template, not designing a layout.
 6. **The desktop app works offline.** The desktop backend never needs the VPS to open a list, run Skip Tracing or export. Only sign-in, sync, calling and messaging need servers.
 7. **Contracts first.** Each service's HTTP API and events are in `contracts/` and checked by a contract test, as the existing API is.

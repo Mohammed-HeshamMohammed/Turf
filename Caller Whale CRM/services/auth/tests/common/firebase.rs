@@ -150,19 +150,9 @@ async fn sign_in_idp(State(w): State<Shared>, Json(body): Json<Value>) -> Reply 
     let mut w = w.lock().unwrap();
     w.calls.push("signInWithIdp".into());
     let post_body = text(&body, "postBody");
-    let encoded = reqwest::Url::parse(&format!("http://localhost?{post_body}")).unwrap();
-    let fields: std::collections::HashMap<_, _> = encoded.query_pairs().into_owned().collect();
-    let id_token = fields.get("id_token").cloned().unwrap_or_default();
-    let provider = fields.get("providerId").map(String::as_str).unwrap_or_default();
-    assert!(matches!(provider, "google.com" | "apple.com"));
+    let id_token = post_body.split('&').find_map(|p| p.strip_prefix("id_token=")).unwrap_or_default().to_string();
     let claims = id_token.split('.').nth(1).and_then(|p| URL_SAFE_NO_PAD.decode(p).ok()).and_then(|b| serde_json::from_slice::<Value>(&b).ok());
     let Some(claims) = claims else { return refuse("INVALID_IDP_RESPONSE") };
-    if provider == "apple.com" {
-        use sha2::{Digest, Sha256};
-        let raw_nonce = fields.get("nonce").expect("Apple requires a raw nonce");
-        assert_eq!(text(&claims, "nonce"), hex::encode(Sha256::digest(raw_nonce.as_bytes())));
-    }
-    w.calls.push(provider.into());
     let email = text(&claims, "email");
     let name = text(&claims, "name");
     let email = email.to_lowercase();

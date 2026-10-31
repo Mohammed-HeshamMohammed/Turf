@@ -16,10 +16,8 @@ CALLERWHALE_WEBSITE_URL=https://callerwhale.com
 CALLERWHALE_AUTH_JWKS_URL=https://auth.callerwhale.com/.well-known/jwks.json
 CALLERWHALE_AUTH_PUBLIC_URL=https://auth.callerwhale.com
 CALLERWHALE_GRAFANA_URL=https://gate.callerwhale.com/staff/monitoring
-CALLERWHALE_SMTP_HOST=<mail server>
-CALLERWHALE_SMTP_PORT=587
-CALLERWHALE_SMTP_USER=no-reply@softfix.dev
-CALLERWHALE_SMTP_PASSWORD=<mailbox password>
-CALLERWHALE_MAIL_FROM=Caller Whale <no-reply@softfix.dev>
+# Invitations are emailed by the notification service, which holds the mail login.
+CALLERWHALE_NOTIFY_URL=https://notify.callerwhale.com
+CALLERWHALE_NOTIFY_TOKEN=<the core-api token from NOTIFY_TOKENS>
 CALLERWHALE_RELEASE_REPO=Mohammed-HeshamMohammed/Turf
 CALLERWHALE_RELEASE_TAG_PREFIX=crm-v
