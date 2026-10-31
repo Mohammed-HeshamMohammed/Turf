@@ -165,18 +165,10 @@ impl Firebase {
         Self::outcome(reply)
     }
 
-    /// Only auth hands verified provider tokens (and Apple's raw nonce) to Firebase.
-    pub async fn sign_in_provider(&self, provider: &str, id_token: &str, nonce: &str) -> Result<Login, Refusal> {
-        let mut encoded = reqwest::Url::parse("http://localhost").expect("static URL");
-        {
-            let mut form = encoded.query_pairs_mut();
-            form.append_pair("id_token", id_token).append_pair("providerId", &format!("{provider}.com"));
-            if provider == "apple" {
-                form.append_pair("nonce", nonce);
-            }
-        }
+    /// Google: the ID token this service already checked, handed to Firebase to find or open the person.
+    pub async fn sign_in_google(&self, google_id_token: &str) -> Result<Login, Refusal> {
         let body = json!({
-            "postBody": encoded.query().unwrap_or_default(),
+            "postBody": format!("id_token={google_id_token}&providerId=google.com"),
             "requestUri": "http://localhost",
             "returnSecureToken": true,
             "returnIdpCredential": false,

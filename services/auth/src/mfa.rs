@@ -225,7 +225,7 @@ async fn challenge_send(State(state): State<AppState>, Json(body): Json<Send>) -
             let text = format!("{code} is your Caller Whale code. It works for 10 minutes. If you did not just try to sign in, ignore this and change your password.");
             if method == "email" {
                 let mailer = state.config.mailer.clone().ok_or_else(|| AuthError::Bad("Email codes are not set up.".into()))?;
-                mailer.send(&user.email, "Your Caller Whale code", &text).await.map_err(AuthError::Internal)?;
+                mailer.send_code(&user.email, &code).await.map_err(AuthError::Internal)?;
             } else {
                 let telegram = state.config.telegram.clone().ok_or_else(|| AuthError::Bad("Telegram is not set up.".into()))?;
                 let chat = telegram_chat(&state, &user.id).await?.ok_or_else(|| AuthError::Bad("Telegram is not linked.".into()))?;

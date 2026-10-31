@@ -87,7 +87,7 @@ The paste-ready settings for Coolify are in [`env/auth.production.example`](../.
 | `AUTH_PUBLIC_SIGNUP` | true | |
 | `AUTH_PUBLIC_URL` | `http://localhost:8101` | Where browsers reach this service; Google and Apple return to `<this>/v1/oauth/<provider>/callback`, so register that address with them |
 | `AUTH_WEBSITE_URL`, `AUTH_APP_URL`, `AUTH_LANDING_URL` | `http://localhost:8088`, `http://localhost:5190`, `http://localhost:5200` | Where a provider sign-in returns: the old website, the CRM in a browser tab, the public site (`target=landing`, back to its `/signin`) |
-| `AUTH_SMTP_HOST`, `AUTH_SMTP_PORT`, `AUTH_SMTP_USER`, `AUTH_SMTP_PASSWORD`, `AUTH_MAIL_FROM` | (none), 587 | The mail server the email codes of the second step go through. Without a host, email codes are not offered |
+| `AUTH_NOTIFY_URL`, `AUTH_NOTIFY_TOKEN` | (none) | The notification service that emails the codes of the second step, and this service's token there. This service has no mail login. Unset, email codes are not offered |
 | `AUTH_TELEGRAM_BOT_TOKEN`, `AUTH_TELEGRAM_BOT_NAME`, `AUTH_TELEGRAM_WEBHOOK_SECRET` | | The Telegram bot for Telegram codes (optional). Telegram posts to `/v1/mfa/telegram/webhook/<secret>`; set that webhook once with the Bot API's `setWebhook` |
 | `AUTH_FIREBASE_API_KEY` | | Turns Firebase mode on (docs/plans/firebase-auth.md): the project's Web API key. Only this service has it |
 | `AUTH_FIREBASE_IDENTITY_URL`, `AUTH_FIREBASE_TOKEN_URL` | Google's addresses | Only for tests, to point at a fake Firebase |
