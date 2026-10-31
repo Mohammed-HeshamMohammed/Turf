@@ -1,6 +1,6 @@
 # Current private monitoring route
 
-Use `/staff/monitoring/` on `app.callerwhale.com`; no dedicated Grafana domain.
+Use `/staff/monitoring/` on `gate.callerwhale.com`; no dedicated Grafana domain.
 The gateway forwards only that path to the private login proxy. Auth owns sign-in,
 MFA and its tokens. The proxy requires MFA and recent authentication and checks the
 core API staff verdict on every forwarded request. No session means no Grafana
