@@ -42,14 +42,11 @@ pub struct Config {
     pub staff_mfa: bool,
     /// The public website people are invited to (links in invitation emails), e.g. https://callerwhale.com.
     pub website_url: String,
-    /// The mail server invitations go out through (STARTTLS on 587, TLS on 465). Empty host: no email is sent, and the
+    /// The notification service invitations are emailed through (CALLERWHALE_NOTIFY_URL) and this server's token there
+    /// (CALLERWHALE_NOTIFY_TOKEN). This server holds no mail login and writes no email. Either empty: no email is sent, and the
     /// dashboard says so.
-    pub smtp_host: String,
-    pub smtp_port: u16,
-    pub smtp_user: String,
-    pub smtp_password: String,
-    /// The sender, as "Name <address>". The mail server lets a login send only as its own address.
-    pub mail_from: String,
+    pub notify_url: String,
+    pub notify_token: String,
     /// `owner/repo` whose GitHub releases hold the desktop installer. Empty: no download yet.
     pub release_repo: String,
     /// Only releases whose tag starts with this are the desktop app's (the repository releases other things too).
@@ -87,11 +84,8 @@ impl Config {
             auth_public_url: var("CALLERWHALE_AUTH_PUBLIC_URL", "http://localhost:8101").trim_end_matches('/').to_string(),
             staff_mfa: var("CALLERWHALE_STAFF_MFA", "true") != "false",
             website_url: var("CALLERWHALE_WEBSITE_URL", "http://localhost:5200").trim().trim_end_matches('/').to_string(),
-            smtp_host: var("CALLERWHALE_SMTP_HOST", "").trim().to_string(),
-            smtp_port: var("CALLERWHALE_SMTP_PORT", "587").trim().parse().context("CALLERWHALE_SMTP_PORT")?,
-            smtp_user: var("CALLERWHALE_SMTP_USER", "").trim().to_string(),
-            smtp_password: var("CALLERWHALE_SMTP_PASSWORD", ""),
-            mail_from: var("CALLERWHALE_MAIL_FROM", "").trim().to_string(),
+            notify_url: var("CALLERWHALE_NOTIFY_URL", "").trim().trim_end_matches('/').to_string(),
+            notify_token: var("CALLERWHALE_NOTIFY_TOKEN", "").trim().to_string(),
             release_repo: var("CALLERWHALE_RELEASE_REPO", "").trim().to_string(),
             release_tag_prefix: var("CALLERWHALE_RELEASE_TAG_PREFIX", "crm-v").trim().to_string(),
             github_token: var("CALLERWHALE_GITHUB_TOKEN", "").trim().to_string(),

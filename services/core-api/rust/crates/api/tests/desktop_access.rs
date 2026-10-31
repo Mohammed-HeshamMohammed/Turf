@@ -16,8 +16,8 @@ async fn platform_owner(h: &Harness) -> Client {
 
 async fn invite(owner: &Client, email: &str, credits: i64) -> String {
     let made = owner.post("/api/v1/platform/invitations", json!({ "email": email, "name": "Sam Lee", "monthly_credits": credits })).await.ok();
-    assert_eq!(made["emailed"], false, "no mail server in tests");
-    assert!(made["email_error"].as_str().unwrap().contains("CALLERWHALE_SMTP_HOST"));
+    assert_eq!(made["emailed"], false, "no notification service in tests");
+    assert!(made["email_error"].as_str().unwrap().contains("CALLERWHALE_NOTIFY_URL"));
     made["invitation"]["id"].as_str().unwrap().to_string()
 }
 

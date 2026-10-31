@@ -118,17 +118,17 @@ struct Invite {
 /// Sends the invitation email and records when; the reason it failed otherwise, for the dashboard.
 async fn send_invitation(state: &AppState, ctx: &Ctx, id: Uuid, email: &str, name: &str, credits: i64) -> (bool, Option<String>) {
     if !mail::configured(&state.config) {
-        return (false, Some("No mail server is set up on this server (CALLERWHALE_SMTP_HOST), so no email was sent.".into()));
+        return (false, Some("The notification service is not set up on this server (CALLERWHALE_NOTIFY_URL), so no email was sent.".into()));
     }
     let inviter = if ctx.label.trim().is_empty() { ctx.email.clone() } else { ctx.label.trim().to_string() };
-    match mail::send(&state.config, mail::invitation(&state.config, email, name, &inviter, credits)).await {
+    match mail::send_invitation(&state.config, email, name, &inviter, credits).await {
         Ok(()) => {
             let _ = sqlx::query("UPDATE access_invitations SET emailed_at = now() WHERE id = $1").bind(id).execute(&state.db).await;
             (true, None)
         }
         Err(error) => {
             tracing::warn!(error = %format!("{error:#}"), "invitation email not sent");
-            (false, Some("The mail server did not accept the email. Check the mail settings, then resend.".into()))
+            (false, Some("The notification service did not send the email. Check its mail settings, then resend.".into()))
         }
     }
 }

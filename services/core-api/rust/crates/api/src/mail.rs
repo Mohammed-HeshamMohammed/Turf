@@ -1,85 +1,32 @@
-//! Email this server sends itself: invitations to the desktop app. It goes through Caller Whale's mail server (the Mail-Server
-//! repository: smtp.softfix.dev, a login per sender address), with STARTTLS on 587 or TLS on 465, never in the clear.
+//! Email this server asks for: invitations to the desktop app. It never talks to a mail server: the notification service sends
+//! them (it holds the mail login and the wording).
 
 use crate::config::Config;
 use anyhow::Context;
-use lettre::{
-    message::{header::ContentType, Mailbox, MultiPart, SinglePart},
-    transport::smtp::authentication::Credentials,
-    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
-};
 
-pub struct Mail {
-    pub to: String,
-    pub subject: String,
-    pub text: String,
-    pub html: String,
-}
-
-/// Whether the server has a mail server and a sender address to send with (neither is written in the code).
+/// Whether the server knows the notification service and has its token there (neither is written in the code).
 pub fn configured(config: &Config) -> bool {
-    !config.smtp_host.is_empty() && !config.mail_from.trim().is_empty()
+    !config.notify_url.is_empty() && !config.notify_token.is_empty()
 }
 
-pub async fn send(config: &Config, mail: Mail) -> anyhow::Result<()> {
-    anyhow::ensure!(configured(config), "No mail server is set (CALLERWHALE_SMTP_HOST)");
-    let from: Mailbox = config.mail_from.parse().context("CALLERWHALE_MAIL_FROM is not an address")?;
-    let to: Mailbox = mail.to.parse().context("The recipient is not an address")?;
-    let message = Message::builder()
-        .from(from)
-        .to(to)
-        .subject(mail.subject)
-        .multipart(
-            MultiPart::alternative()
-                .singlepart(SinglePart::builder().header(ContentType::TEXT_PLAIN).body(mail.text))
-                .singlepart(SinglePart::builder().header(ContentType::TEXT_HTML).body(mail.html)),
-        )?;
-    let builder = if config.smtp_port == 465 {
-        AsyncSmtpTransport::<Tokio1Executor>::relay(&config.smtp_host)?
-    } else {
-        AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&config.smtp_host)?
-    };
-    let mut builder = builder.port(config.smtp_port).timeout(Some(std::time::Duration::from_secs(20)));
-    if !config.smtp_user.is_empty() {
-        builder = builder.credentials(Credentials::new(config.smtp_user.clone(), config.smtp_password.clone()));
-    }
-    builder.build().send(message).await.context("The mail server refused the message")?;
+/// Asks the notification service to email the invitation to the desktop app: who invited them, how many credits a month, and
+/// where to sign up. The service owns the mail server login and the wording; this only says what to send and to whom.
+pub async fn send_invitation(config: &Config, to: &str, name: &str, inviter: &str, monthly_credits: i64) -> anyhow::Result<()> {
+    anyhow::ensure!(configured(config), "The notification service is not set (CALLERWHALE_NOTIFY_URL and CALLERWHALE_NOTIFY_TOKEN)");
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).build()?;
+    let res = client
+        .post(format!("{}/v1/mail", config.notify_url))
+        .bearer_auth(&config.notify_token)
+        .json(&serde_json::json!({
+            "template": "invitation",
+            "to": to,
+            "data": { "name": name, "inviter": inviter, "monthly_credits": monthly_credits, "link": format!("{}/signup", config.website_url) },
+        }))
+        .send()
+        .await
+        .context("The notification service could not be reached")?;
+    anyhow::ensure!(res.status().is_success(), "The notification service refused the message ({})", res.status());
     Ok(())
-}
-
-/// Escapes text for the HTML part of an email.
-pub fn escape(text: &str) -> String {
-    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#39;")
-}
-
-/// The invitation to use the desktop app: who invited them, how many credits a month, and where to sign in.
-pub fn invitation(config: &Config, to: &str, name: &str, inviter: &str, monthly_credits: i64) -> Mail {
-    let link = format!("{}/signup", config.website_url);
-    let greeting = if name.trim().is_empty() { "Hello,".to_string() } else { format!("Hello {},", name.trim()) };
-    let credits = format_number(monthly_credits);
-    let text = format!(
-        "{greeting}\n\n{inviter} has invited you to Caller Whale, the desktop app for your lists, Skip Tracing and calls.\n\n\
-         Your account comes with {credits} credits a month.\n\n\
-         1. Create your account at {link} with this email address ({to}), or sign in with Google if it is a Google account.\n\
-         2. Open your dashboard and download the desktop app.\n\
-         3. Sign in to the app with the same account.\n\n\
-         Only this email address can use the invitation.\n\n— Caller Whale"
-    );
-    let html = format!(
-        "<div style=\"font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:520px\">\
-         <p>{greeting}</p>\
-         <p><strong>{inviter}</strong> has invited you to Caller Whale, the desktop app for your lists, Skip Tracing and calls.</p>\
-         <p>Your account comes with <strong>{credits} credits a month</strong>.</p>\
-         <ol><li>Create your account with this email address ({to}), or sign in with Google if it is a Google account.</li>\
-         <li>Open your dashboard and download the desktop app.</li><li>Sign in to the app with the same account.</li></ol>\
-         <p><a href=\"{link}\" style=\"display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none\">Accept the invitation</a></p>\
-         <p style=\"color:#666;font-size:13px\">Only this email address can use the invitation.</p></div>",
-        greeting = escape(&greeting),
-        inviter = escape(inviter),
-        to = escape(to),
-        link = escape(&link),
-    );
-    Mail { to: to.to_string(), subject: format!("{inviter} invited you to Caller Whale"), text, html }
 }
 
 /// 12500 as "12,500".
@@ -111,8 +58,4 @@ mod tests {
         assert_eq!(format_number(1000000), "1,000,000");
     }
 
-    #[test]
-    fn names_in_the_html_part_are_escaped() {
-        assert_eq!(escape("<b>\"Al\" & co</b>"), "&lt;b&gt;&quot;Al&quot; &amp; co&lt;/b&gt;");
-    }
 }
