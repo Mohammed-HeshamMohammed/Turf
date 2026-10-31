@@ -1,7 +1,7 @@
-# The gateway on Coolify (application "gateway", port 8100). Domains: app.callerwhale.com, grafana.callerwhale.com,
+# The gateway on Coolify (application "gateway", port 8100). Domains: app.callerwhale.com,
 # auth.callerwhale.com (all three on this application). Paste into Developer View. No secrets.
 PORT=8100
-ROUTES=app.callerwhale.com=http://core-api:8088,grafana.callerwhale.com=http://grafana-proxy:8120,auth.callerwhale.com=http://auth:8101
+ROUTES=app.callerwhale.com=http://core-api:8088,auth.callerwhale.com=http://auth:8101
 CORE_HOST=app.callerwhale.com
 AUTH_JWKS_URL=http://auth:8101/.well-known/jwks.json
 STAFF_REQUIRE_SECOND_FACTOR=true
@@ -9,3 +9,6 @@ IP_PER_MINUTE=600
 USER_PER_MINUTE=1800
 MAX_BODY_MB=64
 PROXY_HOPS=1
+
+# Only CORE_HOST /staff/monitoring/ reaches this private proxy.
+MONITORING_UPSTREAM=http://grafana-proxy:8120
