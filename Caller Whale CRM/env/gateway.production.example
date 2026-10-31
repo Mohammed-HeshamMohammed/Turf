@@ -1,8 +1,7 @@
-# The gateway on Coolify (application "gateway", port 8100). Domains: app.callerwhale.com,
-# auth.callerwhale.com (all three on this application). Paste into Developer View. No secrets.
+# The gateway on Coolify (application "gateway", port 8100). Domain: gate.callerwhale.com (the only one). Paste into Developer View. No secrets.
 PORT=8100
-ROUTES=app.callerwhale.com=http://core-api:8088,auth.callerwhale.com=http://auth:8101
-CORE_HOST=app.callerwhale.com
+ROUTES=gate.callerwhale.com=http://core-api:8088
+CORE_HOST=gate.callerwhale.com
 AUTH_JWKS_URL=http://auth:8101/.well-known/jwks.json
 STAFF_REQUIRE_SECOND_FACTOR=true
 IP_PER_MINUTE=600

@@ -9,13 +9,13 @@ Each server used to sit on its own public name and do its own checks. The gatewa
 ## Layout
 
 ```
-Cloudflare DNS ──► Coolify Traefik (TLS) ──► gateway ──► core-api         (app.callerwhale.com)
+Cloudflare DNS ──► Coolify Traefik (TLS) ──► gateway ──► core-api         (gate.callerwhale.com)
                                                     ├──► grafana-proxy ──► Grafana   (grafana.callerwhale.com)
                                                     └──► auth          (auth.callerwhale.com, no token check: it is where tokens are made)
 callerwhale.com ──► landing-web, landing-api   (marketing site: no tokens, stays as it is)
 ```
 
-- `app.callerwhale.com` and `grafana.callerwhale.com` both point at the gateway (port 8100). `core-api` and `grafana-proxy` have **no domain** and are reached on the private Docker network.
+- `gate.callerwhale.com` and `grafana.callerwhale.com` both point at the gateway (port 8100). `core-api` and `grafana-proxy` have **no domain** and are reached on the private Docker network.
 - `ROUTES` maps each host to its upstream. `CORE_HOST` marks the core API, whose paths get the policy.
 
 ## The policy on the core API host
@@ -34,9 +34,9 @@ Tokens are the auth service's: checked for signature (its Ed25519 keys from `AUT
 
 1. **New application** from the `gateway-backend-production` branch: build type Dockerfile, `services/gateway/Dockerfile`, port 8100. Environment from `env/gateway.env.example`. `ROUTES` upstreams are the other applications' network aliases (see below).
 2. Check it answers `/healthz` and routes, with a temporary domain or from the server.
-3. **Move the domains.** Remove `app.callerwhale.com` from core-api and `grafana.callerwhale.com` from grafana-proxy; add both to the gateway, port 8100. Redeploy the three. No `www.` copies.
+3. **Move the domains.** Remove `gate.callerwhale.com` from core-api and `grafana.callerwhale.com` from grafana-proxy; add both to the gateway, port 8100. Redeploy the three. No `www.` copies.
 4. Set core-api's `CALLERWHALE_BIND` to listen on all interfaces on the private network (as now); it keeps no public domain.
-5. Check from outside: `https://app.callerwhale.com/internal/jobs/claim` is 404; `/api/v1/leads` without a token is 401; `/api/v1/platform/people` with a token without the authenticator step is 403; the CRM signs in and syncs.
+5. Check from outside: `https://gate.callerwhale.com/internal/jobs/claim` is 404; `/api/v1/leads` without a token is 401; `/api/v1/platform/people` with a token without the authenticator step is 403; the CRM signs in and syncs.
 
 ## Not done yet
 

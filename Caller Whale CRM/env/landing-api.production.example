@@ -1,4 +1,4 @@
-# The site's API on Coolify (application "landing-api", port 8095, domain https://appapi.callerwhale.com, no path).
+# The site's API on Coolify (application "landing-api", port 8095, domain https://api.callerwhale.com, no path).
 PORT=8095
 CALLERWHALE_LANDING_DB=data/landing.db
 CALLERWHALE_RELEASE_REPO=Mohammed-HeshamMohammed/Turf

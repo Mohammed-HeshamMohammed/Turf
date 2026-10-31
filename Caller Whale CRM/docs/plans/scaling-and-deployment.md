@@ -24,17 +24,19 @@ Caller Whale runs on Coolify at `187.7.72.171`, in the project "Caller Whale". T
 
 **Domains** (callerwhale.com since 2026-10-29; the old `turf.softfix.dev` names are retired, remove them from each application in Coolify once the new ones answer):
 
-| Address | Application | Port |
-| --- | --- | --- |
-| `https://callerwhale.com` | landing-web (`www.callerwhale.com` redirects here, see `landing/web/nginx.conf`) | 8080 |
-| `https://appapi.callerwhale.com` | landing-api (serves `/waitlist` and `/contact` at the root, no path prefix) | 8095 |
-| `https://app.callerwhale.com` | gateway, which routes to core-api (the CRM's API: sign-in checks, invitations, credits, the download; docs/plans/gateway.md) | 8100 |
-| `https://grafana.callerwhale.com` | gateway, which routes to grafana-proxy (`deploy/grafana`) | 8100 |
+| Container (Coolify) | Address | Port | What it is |
+| --- | --- | --- | --- |
+| landing-web | `https://callerwhale.com` | 8080 | The public site (static). Build and runtime settings: `env/landing-web.production.example` |
+| landing-api | `https://api.callerwhale.com` | 8095 | Waitlist and contact (`/waitlist`, `/contact`), no path prefix |
+| gateway | `https://gate.callerwhale.com` | 8100 | The front door for the CRM's API and the staff monitoring page (`/staff/monitoring`); routes to core-api (docs/plans/gateway.md) |
+| core-api | `https://appapi.callerwhale.com` | 8088 | The CRM's API: sign-in checks, invitations, credits, the download. Needs PostgreSQL |
+| core-api-worker | `https://appapiw.callerwhale.com` | 8090 | The job worker; the address only serves its health page |
+| auth | `https://auth.callerwhale.com` | 8101 | Sign-in and the second step; the only part that talks to Firebase |
+| notifications | `https://notify.callerwhale.com` | 8102 | Notifications |
 
-The authentication service is where everyone signs in and the only part that talks to Firebase (docs/plans/firebase-auth.md): it is reached at `https://auth.callerwhale.com`, through the gateway.
+DNS (Cloudflare, zone `callerwhale.com`): exactly seven A records, `@`, `api`, `gate`, `appapi`, `appapiw`, `auth` and `notify`, all to `187.7.72.171`, **DNS only** (grey cloud) so Coolify's Let's Encrypt works. No address is written in any code or image: each one is a setting in the container's environment, and the examples are in `env/*.production.example`.
 
-- **DNS** is in Cloudflare (`callerwhale.com` zone): A records `@`, `www`, `app` and `grafana`, all to `187.7.72.171`, all **DNS only** (grey cloud). Coolify's Traefik gets Let's Encrypt certificates itself; a proxied (orange) record answers 503 because Cloudflare cannot reach a certificate for the name. Mail is separate: it goes through `smtp.softfix.dev` (see [mail-server.md](mail-server.md)), so `callerwhale.com` itself needs no MX record yet.
-- **No `www.` copy on `app` or `grafana`.** Coolify adds a `www.` copy of every domain. Remove it from core-api and grafana-proxy: `www.app.callerwhale.com` has no DNS, and one failing name holds up the certificate for the rest. `www.callerwhale.com` is wanted (it redirects to the apex).
+- **No `www.` copy.** Coolify adds a `www.` copy of every domain; remove it, since it has no DNS and one failing name holds up the certificate for the rest.
 - A domain change takes effect on the next **Redeploy** of that application.
 - **Settings and secrets:** each application's settings come from its `env/<part>.env.example`. The secrets come from your local `env/` files (`node tools/env-init.mjs` writes them), and you enter them in Coolify yourself. The database logins are made once by running `env/callerwhale-auth-db.sql` and `env/callerwhale-db.sql` in each database's Terminal (`psql -U postgres`).
 

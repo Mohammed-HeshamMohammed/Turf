@@ -15,14 +15,17 @@ Everything (invitations, people, credits, usage) is stored in the core API's Pos
 
 ## Where things run
 
-| Address | Application (Coolify) | Notes |
-| --- | --- | --- |
-| `https://callerwhale.com` (and `www.`) | landing-web | Build args `SITE_URL=https://callerwhale.com`, `VITE_CALLERWHALE_API_URL=https://app.callerwhale.com`, `VITE_CALLERWHALE_LANDING_API_URL=https://appapi.callerwhale.com`. Runtime env `AUTH_ORIGIN=https://auth.callerwhale.com` (the Dockerfile's default), `API_ORIGIN=https://app.callerwhale.com`, `APPAPI_ORIGIN=https://appapi.callerwhale.com` |
-| `https://appapi.callerwhale.com` | landing-api | Waitlist and contact (`/waitlist`, `/contact`), no path prefix. `CALLERWHALE_LANDING_ORIGINS=https://callerwhale.com` |
-| `https://app.callerwhale.com` | core-api | Sign-in checks, invitations, credits, download. Needs PostgreSQL (project "database") |
-| `https://grafana.callerwhale.com` | grafana-proxy | Staff only, reached from the admin page (Open Grafana). Set `GRAFANA_ORIGIN` on landing-web and `CALLERWHALE_GRAFANA_URL` on core-api to this address. See `deploy/grafana/README.md` |
+| Container (Coolify) | Address | Port | What it is |
+| --- | --- | --- | --- |
+| landing-web | `https://callerwhale.com` | 8080 | The public site (static). Build and runtime settings: `env/landing-web.production.example` |
+| landing-api | `https://api.callerwhale.com` | 8095 | Waitlist and contact (`/waitlist`, `/contact`), no path prefix |
+| gateway | `https://gate.callerwhale.com` | 8100 | The front door for the CRM's API and the staff monitoring page (`/staff/monitoring`); routes to core-api (docs/plans/gateway.md) |
+| core-api | `https://appapi.callerwhale.com` | 8088 | The CRM's API: sign-in checks, invitations, credits, the download. Needs PostgreSQL |
+| core-api-worker | `https://appapiw.callerwhale.com` | 8090 | The job worker; the address only serves its health page |
+| auth | `https://auth.callerwhale.com` | 8101 | Sign-in and the second step; the only part that talks to Firebase |
+| notifications | `https://notify.callerwhale.com` | 8102 | Notifications |
 
-DNS (Cloudflare, zone `callerwhale.com`): A records `@`, `www`, `app` and `grafana` to `187.7.72.171`, **DNS only** (grey cloud) so Coolify's Let's Encrypt works, as for softfix.dev. A proxied (orange) record answers 503 today because Cloudflare cannot reach a certificate for the name.
+DNS (Cloudflare, zone `callerwhale.com`): exactly seven A records, `@`, `api`, `gate`, `appapi`, `appapiw`, `auth` and `notify`, all to `187.7.72.171`, **DNS only** (grey cloud) so Coolify's Let's Encrypt works. No address is written in any code or image: each one is a setting in the container's environment, and the examples are in `env/*.production.example`.
 
 ## Settings
 
@@ -48,7 +51,7 @@ Only the auth service uses it. The one-time setup and where each setting goes ar
 
 ### GitHub (Settings → Secrets and variables → Actions → Variables), for the installer
 
-`CALLERWHALE_API_URL=https://app.callerwhale.com` and `CALLERWHALE_AUTH_URL=https://auth.callerwhale.com`. Nothing else: the installer holds no sign-in provider settings.
+`CALLERWHALE_API_URL=https://gate.callerwhale.com` and `CALLERWHALE_AUTH_URL=https://auth.callerwhale.com`. Nothing else: the installer holds no sign-in provider settings.
 
 ### The first admin
 

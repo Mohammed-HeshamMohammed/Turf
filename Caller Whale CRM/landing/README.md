@@ -5,7 +5,7 @@ The public site that sells Caller Whale (Phase 1 of `docs/plans/service-architec
 | Folder | What | Stack |
 | --- | --- | --- |
 | `web/` | The site: Home, Features, Pricing, Why Caller Whale, Security, Contact, Privacy, Terms | React + Vite, the app's design tokens. No secrets. |
-| `api/` | `POST /waitlist`, `POST /contact`, `GET /healthz` (on `appapi.callerwhale.com`) | Node 24+, no dependencies, its own SQLite file (`api/data/landing.db`, git-ignored) |
+| `api/` | `POST /waitlist`, `POST /contact`, `GET /healthz` (on `api.callerwhale.com`) | Node 24+, no dependencies, its own SQLite file (`api/data/landing.db`, git-ignored) |
 
 ## Accounts
 
@@ -57,9 +57,9 @@ SITE_URL=https://your-domain npm --prefix landing/web run build    # landing/web
 | `CALLERWHALE_LANDING_DB` | api | SQLite file, default `data/landing.db` |
 | `CALLERWHALE_RELEASE_REPO` | api | `owner/repo` whose latest published GitHub release feeds the Download button. Unset: "coming soon" |
 | `CALLERWHALE_LANDING_ORIGINS` | api | Comma-separated sites allowed to call the API from a browser (default the dev site) |
-| `VITE_CALLERWHALE_LANDING_API_URL` | web, at build | The landing API's address (waitlist and contact). Empty in development (same origin, forwarded by the dev server); the Dockerfile defaults to `https://appapi.callerwhale.com` |
-| `APPAPI_ORIGIN` | web container | The landing API's origin, allowed by the site's content security policy |
-| `VITE_CALLERWHALE_API_URL` | web, at build | Caller Whale's server (the core API) the site signs in against and gets dashboards from. Default `http://localhost:8088` in development; the Dockerfile defaults to `https://app.callerwhale.com` |
+| `VITE_CALLERWHALE_LANDING_API_URL` | web, at build | The landing API's address (waitlist and contact). Empty in development (same origin, forwarded by the dev server); the Dockerfile defaults to `https://api.callerwhale.com` |
+| `LANDING_API_ORIGIN` | web container | The landing API's origin, allowed by the site's content security policy |
+| `VITE_CALLERWHALE_API_URL` | web, at build | Caller Whale's server (the core API) the site signs in against and gets dashboards from. Default `http://localhost:8088` in development; the Dockerfile defaults to `https://gate.callerwhale.com` |
 | `AUTH_ORIGIN` | web container | The auth service's address, `https://auth.callerwhale.com`: the one other address the site's security policy lets it call |
 | `API_ORIGIN` | web container | The core API's origin, allowed by the site's content security policy |
 

@@ -113,13 +113,14 @@ impl Config {
                 private_key: var("AUTH_APPLE_PRIVATE_KEY", "").replace("\\n", "\n"),
                 ..Provider::apple_defaults()
             },
-            mailer: Some(var("AUTH_SMTP_HOST", "")).filter(|host| !host.trim().is_empty()).map(|host| {
+            // Email codes are offered only when both the server and the sender address are set: no address is written in the code.
+            mailer: Some(var("AUTH_SMTP_HOST", "")).filter(|host| !host.trim().is_empty() && !var("AUTH_MAIL_FROM", "").trim().is_empty()).map(|host| {
                 std::sync::Arc::new(crate::mail::Smtp {
                     host: host.trim().to_string(),
                     port: var("AUTH_SMTP_PORT", "587").trim().parse().unwrap_or(587),
                     user: var("AUTH_SMTP_USER", "").trim().to_string(),
                     password: var("AUTH_SMTP_PASSWORD", ""),
-                    from: var("AUTH_MAIL_FROM", "Caller Whale <no-reply@softfix.dev>").trim().to_string(),
+                    from: var("AUTH_MAIL_FROM", "").trim().to_string(),
                 }) as std::sync::Arc<dyn crate::mail::Mailer>
             }),
             telegram: Some(var("AUTH_TELEGRAM_BOT_TOKEN", "")).filter(|token| !token.trim().is_empty()).map(|token| {
