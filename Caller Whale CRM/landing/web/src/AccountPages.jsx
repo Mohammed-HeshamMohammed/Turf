@@ -104,7 +104,7 @@ function AuthForm({ mode }) {
     e.preventDefault();
     if (state.needCode) return attempt(auth => (form.password ? auth.signIn(form.email.trim(), form.password, form.code.trim(), "browser", humanToken) : auth.verifyMfa(form.code.trim())));
     if (signup) {
-      if (passwordRequirements(form.password).some(rule => !rule.met)) return setState(s => ({ ...s, error: "Meet all the password requirements below." }));
+      if (passwordRequirements(form.password).some(rule => !rule.met)) return setState(s => ({ ...s, error: "Meet all five password requirements." }));
       return attempt(auth => auth.signUp(form.name.trim(), form.email.trim(), form.password, "browser", humanToken));
     }
     return attempt(auth => auth.signIn(form.email.trim(), form.password, undefined, "browser", humanToken));
