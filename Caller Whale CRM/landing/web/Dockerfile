@@ -18,7 +18,7 @@ RUN SITE_URL="$SITE_URL" VITE_CALLERWHALE_API_URL="$VITE_CALLERWHALE_API_URL" VI
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 # The image fills the template in when it starts: the auth service's origin, and Caller Whale's server's origin for
 # the content security policy. Override them in the container's environment.
-ENV AUTH_ORIGIN="https://auth.callerwhale.com" API_ORIGIN="https://app.callerwhale.com" APPAPI_ORIGIN="https://appapi.callerwhale.com" GRAFANA_ORIGIN="" NGINX_ENVSUBST_FILTER="^(AUTH_ORIGIN|API_ORIGIN|APPAPI_ORIGIN|GRAFANA_ORIGIN)$"
+ENV AUTH_ORIGIN="https://auth.callerwhale.com" API_ORIGIN="https://app.callerwhale.com" APPAPI_ORIGIN="https://appapi.callerwhale.com" GRAFANA_ORIGIN="https://app.callerwhale.com" NGINX_ENVSUBST_FILTER="^(AUTH_ORIGIN|API_ORIGIN|APPAPI_ORIGIN|GRAFANA_ORIGIN)$"
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080

@@ -100,7 +100,7 @@ func (w *world) signIn(token, back string) *httptest.ResponseRecorder {
 
 // jwt is a token signed in at the given time; the last part is the name the fake core API knows it by.
 func jwt(name string, at time.Time) string {
-	claims, _ := json.Marshal(map[string]int64{"auth_time": at.Unix()})
+	claims, _ := json.Marshal(map[string]any{"auth_time": at.Unix(), "mfa": true})
 	return "h." + base64.RawURLEncoding.EncodeToString(claims) + "." + name
 }
 
@@ -454,7 +454,7 @@ func TestTheReturnPathStaysOnThisSite(t *testing.T) {
 		"https://evil.example": "/",
 		"//evil.example/x":     "/",
 		"/\\evil.example":      "/",
-		"/_callerwhale/logout":        "/",
+		"/_callerwhale/logout": "/",
 	} {
 		if got := safeReturn(in); got != want {
 			t.Errorf("%q: got %q, want %q", in, got, want)
@@ -488,5 +488,50 @@ func TestConfigNeedsItsAddressesAndChecksTheRest(t *testing.T) {
 	}
 	if c, _ := load(map[string]string{"COOKIE_SECURE": "false", "ADMIN_GRAFANA_ROLE": "Viewer"}); c.secure || c.adminRole != "Viewer" {
 		t.Fatalf("%+v", c)
+	}
+}
+
+func TestMonitoringSubpathAndRevocation(t *testing.T) {
+	w := newWorld(t)
+	w.proxy.cfg.basePath = "/staff/monitoring"
+	rec := w.page("/staff/monitoring/api/search", nil)
+	if rec.Code != 401 {
+		t.Fatalf("anonymous: %d", rec.Code)
+	}
+	form := url.Values{"token": {jwt("owner-token", w.clock.Add(-time.Minute))}, "return": {"/"}}
+	r := httptest.NewRequest("POST", website+"/staff/monitoring/_callerwhale/session", strings.NewReader(form.Encode()))
+	r.Header.Set("content-type", "application/x-www-form-urlencoded")
+	r.Header.Set("origin", website)
+	rec = w.do(r)
+	c := sessionCookie(t, rec)
+	if c.Path != "/staff/monitoring/" || rec.Header().Get("Location") != "/staff/monitoring/" {
+		t.Fatalf("cookie or redirect escaped prefix: %s %s", c.Path, rec.Header().Get("Location"))
+	}
+	rec = w.page("/staff/monitoring/api/search", c)
+	path, _ := seen(t, rec)
+	if path != "/staff/monitoring/api/search" {
+		t.Fatal(path)
+	}
+	w.core.set("owner-token", 403, person{})
+	rec = w.page("/staff/monitoring/api/search", c)
+	if rec.Code != 403 {
+		t.Fatalf("revocation not checked immediately: %d", rec.Code)
+	}
+	if rec = w.page("/api/search", c); rec.Code != 404 {
+		t.Fatalf("root accessible: %d", rec.Code)
+	}
+}
+
+func TestMFARequiredEvenWhenCoreAccepts(t *testing.T) {
+	w := newWorld(t)
+	claims, _ := json.Marshal(map[string]any{"auth_time": w.clock.Add(-time.Minute).Unix(), "mfa": false})
+	token := "h." + base64.RawURLEncoding.EncodeToString(claims) + ".owner-token"
+	form := url.Values{"token": {token}}
+	r := httptest.NewRequest("POST", website+"/_callerwhale/session", strings.NewReader(form.Encode()))
+	r.Header.Set("content-type", "application/x-www-form-urlencoded")
+	r.Header.Set("origin", website)
+	rec := w.do(r)
+	if rec.Code != 401 || hasSessionCookie(rec) {
+		t.Fatalf("non-MFA token accepted: %d", rec.Code)
 	}
 }

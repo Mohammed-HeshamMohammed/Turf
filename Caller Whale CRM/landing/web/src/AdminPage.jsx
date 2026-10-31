@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowClockwise, PaperPlaneTilt, ShieldCheck, UserPlus } from "@phosphor-icons/react";
 import { DayChart, DownloadButton, Gate, GoogleMark, Meter, Problem, RecentUsage, dateText, go, number, timeText } from "./AccountPages.jsx";
+import { SecondStep } from "./Security.jsx";
 import { NotFound } from "./pages.jsx";
 import { grafanaUrl, hinted, loadAuth, request, useSession } from "./session.jsx";
 
@@ -10,61 +11,25 @@ import { grafanaUrl, hinted, loadAuth, request, useSession } from "./session.jsx
 
 const STATUS_TEXT = { invited: "Invited", active: "Active", suspended: "Suspended" };
 
-/** Staff must confirm an authenticator code: set one up here, or sign in again with one. */
+/** Auth owns the challenge and offers the enrolled/available second factors. */
 function Authenticator({ onDone }) {
-  const [setup, setSetup] = useState(null);
-  const [code, setCode] = useState("");
+  const [challenge, setChallenge] = useState(null);
   const [state, setState] = useState({ busy: false, error: "" });
   const start = async () => {
     setState({ busy: true, error: "" });
     try {
-      const auth = await loadAuth();
-      const me = await auth.me();
-      if (me.mfa_enrolled) {
-        // Already set up: this sign-in just did not use it. Sign in again with a code.
-        await auth.signOut();
-        go("/signin");
-        return;
-      }
-      setSetup(await auth.setupMfa());
+      setChallenge(await (await loadAuth()).startStepUp());
       setState({ busy: false, error: "" });
     } catch (error) {
       setState({ busy: false, error: error.message });
     }
   };
-  const confirm = async e => {
-    e.preventDefault();
-    setState({ busy: true, error: "" });
-    try {
-      await (await loadAuth()).confirmMfa(code.trim());
-      onDone();
-    } catch (error) {
-      if (error.code === "signin_again") {
-        go("/signin");
-        return;
-      }
-      setState({ busy: false, error: error.message });
-    }
-  };
+  if (challenge) return <SecondStep {...challenge} onDone={onDone} />;
   return (
     <div className="panel">
-      <h2><ShieldCheck size={22} weight="duotone" aria-hidden="true" /> Confirm it is you</h2>
-      <p className="sub">The admin pages need a code from an authenticator app (Google Authenticator, 1Password, Authy…) every time you sign in.</p>
-      {!setup ? (
-        <button type="button" className="button" onClick={start} disabled={state.busy}>Set up or use my authenticator</button>
-      ) : (
-        <form onSubmit={confirm} noValidate>
-          <p className="sub">
-            Add this key to your authenticator app, or open the link on the phone that has it: <code className="key">{setup.secret}</code>{" "}
-            <a href={setup.otpauth_url}>Open in authenticator</a>
-          </p>
-          <label>
-            The 6-digit code it shows
-            <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={code} onChange={e => setCode(e.target.value)} />
-          </label>
-          <button className="button" type="submit" disabled={state.busy}>Turn it on</button>
-        </form>
-      )}
+      <h2><ShieldCheck size={22} aria-hidden="true" /> Confirm it is you</h2>
+      <p className="sub">Continue with a verification method offered by Caller Whale authentication.</p>
+      <button type="button" className="button" onClick={start} disabled={state.busy}>Verify my identity</button>
       {state.error && <Problem>{state.error}</Problem>}
     </div>
   );
@@ -446,9 +411,18 @@ export function GrafanaPanel() {
 
   useEffect(() => {
     if (!open) return undefined;
+    return () => {
+      if (grafanaUrl) fetch(`${grafanaUrl}/_callerwhale/logout`, {
+        method: "POST", credentials: "include", mode: "no-cors", keepalive: true,
+      }).catch(() => {});
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
     const ask = event => {
       // Only Grafana's own frame, at most once every 15 seconds, so a refusal can't loop.
-      if (grafanaUrl && event.origin === new URL(grafanaUrl).origin && event.data === "callerwhale-grafana-signin" && Date.now() - last.current > 15000) signIn();
+      if (grafanaUrl && event.source === document.querySelector('iframe[name="grafana-frame"]')?.contentWindow && event.origin === new URL(grafanaUrl, window.location.origin).origin && event.data === "callerwhale-grafana-signin" && Date.now() - last.current > 15000) signIn();
     };
     window.addEventListener("message", ask);
     return () => window.removeEventListener("message", ask);

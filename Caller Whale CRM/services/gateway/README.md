@@ -39,3 +39,5 @@ cd services/gateway && ROUTES=localhost=http://127.0.0.1:8088 CORE_HOST=localhos
 - Run it only behind a trusted proxy (Coolify's Traefik) and set `PROXY_HOPS` to match, or callers could choose their own address for the rate limit.
 - The limits are in memory, per copy. With several copies each counts for itself; move them to Redis when there is more than one.
 - Only Caller Whale tokens are checked. The retired auth service's tokens are refused at the gateway.
+
+`MONITORING_UPSTREAM` routes CORE_HOST `/staff/monitoring/` to the private Grafana proxy. The proxy validates its path-scoped HttpOnly session and asks the core API to check the auth token and staff role on every request. No Grafana hostname is required.

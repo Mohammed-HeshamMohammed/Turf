@@ -1,6 +1,6 @@
 # Grafana for Caller Whale's staff, behind the Caller Whale login proxy (docs/plans/grafana-access.md). One Coolify resource of type
-# Docker Compose, with this file as its compose file. In Coolify, give a domain ONLY to grafana-proxy; leave grafana's
-# domain empty. Grafana publishes no port.
+# Docker Compose. Neither service has a public domain or published port.
+# The gateway alone reaches grafana-proxy through the shared Coolify network.
 #
 # Locally (from the repository folder "Caller Whale CRM"):
 #   docker compose --env-file deploy/grafana/.env -f deploy/grafana/compose.yml up --build
@@ -19,6 +19,7 @@ services:
       context: ../../services/grafana-proxy
     environment:
       PORT: "8120"
+      GRAFANA_BASE_PATH: /staff/monitoring
       GRAFANA_URL: http://172.30.10.20:3000
       CALLERWHALE_CORE_API_URL: "${CALLERWHALE_CORE_API_URL:?set CALLERWHALE_CORE_API_URL, the core API's address}"
       CALLERWHALE_WEBSITE_URL: "${CALLERWHALE_WEBSITE_URL:?set CALLERWHALE_WEBSITE_URL, the website with the admin dashboard}"
@@ -29,6 +30,9 @@ services:
       AUTH_WITHIN: "${AUTH_WITHIN:-15m}"
       COOKIE_SECURE: "${COOKIE_SECURE:-true}"
     networks:
+      coolify:
+        aliases:
+          - grafana-proxy
       grafana:
         ipv4_address: 172.30.10.10
     healthcheck:
@@ -43,8 +47,9 @@ services:
   grafana:
     image: grafana/grafana-oss:13.2.5
     environment:
-      # Where people reach Grafana: the proxy's domain.
-      GF_SERVER_ROOT_URL: "${GRAFANA_PUBLIC_URL:?set GRAFANA_PUBLIC_URL, the proxy's https address}"
+      # Browser address, including the protected gateway subpath.
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_SERVER_ROOT_URL: "${GRAFANA_PUBLIC_URL:?set GRAFANA_PUBLIC_URL, the gateway https subpath}"
       # Grafana's own "admin" account. Nobody can sign in with it (no login form, no basic auth, and the proxy only
       # ever names people by their Caller Whale id); it is set only so Grafana doesn't keep its default password.
       GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD}"
@@ -87,6 +92,9 @@ services:
     restart: unless-stopped
 
 networks:
+  coolify:
+    external: true
+    name: "${COOLIFY_NETWORK:-coolify}"
   grafana:
     ipam:
       config:

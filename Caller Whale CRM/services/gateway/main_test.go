@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -387,5 +388,31 @@ func TestClassifyListsWhatEachPathNeeds(t *testing.T) {
 		if got := classify(c.method, c.path); got != c.want {
 			t.Errorf("%s %s: got %d, want %d", c.method, c.path, got, c.want)
 		}
+	}
+}
+
+func TestPrivateMonitoringPath(t *testing.T) {
+	w := newWorld(t, nil)
+	cfg := w.g.cfg
+	u, _ := url.Parse(w.graf.URL)
+	cfg.monitoring = &route{host: appHost, upstream: u}
+	w.g = newGateway(cfg)
+	r := httptest.NewRequest("GET", "https://"+appHost+"/staff/monitoring/api/search?q=team", nil)
+	rec := httptest.NewRecorder()
+	w.g.ServeHTTP(rec, r)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "/staff/monitoring/api/search?q=team") || w.reached.Load() != 0 {
+		t.Fatalf("monitoring was not routed privately: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = httptest.NewRecorder()
+	w.g.ServeHTTP(rec, httptest.NewRequest("GET", "https://"+appHost+"/staff/monitoring/_callerwhale/health", nil))
+	if rec.Code != 404 {
+		t.Fatalf("private health exposed: %d", rec.Code)
+	}
+	cfg.monitoring = nil
+	g := newGateway(cfg)
+	rec = httptest.NewRecorder()
+	g.ServeHTTP(rec, r)
+	if rec.Code != 404 {
+		t.Fatalf("unconfigured monitoring not closed: %d", rec.Code)
 	}
 }

@@ -35,6 +35,7 @@ type route struct {
 }
 
 type config struct {
+	monitoring    *route
 	routes        map[string]*route
 	authJWKS      string // the auth service's public keys: the only thing the gateway knows about sign-in
 	staffSecond   bool   // staff paths need the authenticator step in the token
@@ -81,6 +82,13 @@ func loadConfig(getenv func(string) string) (config, error) {
 		if c.authJWKS = strings.TrimSpace(getenv("AUTH_JWKS_URL")); c.authJWKS == "" {
 			return c, errors.New("set AUTH_JWKS_URL, the auth service's /.well-known/jwks.json: the core API's tokens are checked with it")
 		}
+	}
+	if target := strings.TrimSpace(getenv("MONITORING_UPSTREAM")); target != "" {
+		u, err := url.Parse(target)
+		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || core == "" {
+			return c, errors.New("MONITORING_UPSTREAM needs an http(s) origin and CORE_HOST")
+		}
+		c.monitoring = &route{host: core, upstream: u}
 	}
 	c.staffSecond = getenv("STAFF_REQUIRE_SECOND_FACTOR") != "false"
 	var err error
@@ -144,7 +152,14 @@ func newGateway(cfg config) *gateway {
 	if cfg.authJWKS != "" {
 		g.keys = newKeyset(cfg.authJWKS)
 	}
+	routes := make([]*route, 0, len(cfg.routes)+1)
 	for _, r := range cfg.routes {
+		routes = append(routes, r)
+	}
+	if cfg.monitoring != nil {
+		routes = append(routes, cfg.monitoring)
+	}
+	for _, r := range routes {
 		r := r
 		r.proxy = &httputil.ReverseProxy{
 			Rewrite: func(p *httputil.ProxyRequest) {
@@ -224,6 +239,15 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		tooMany(w)
 		return
 	}
+	if rt.core && (r.URL.Path == "/staff/monitoring" || strings.HasPrefix(r.URL.Path, "/staff/monitoring/")) {
+		if g.cfg.monitoring == nil || r.URL.Path == "/staff/monitoring/_callerwhale/health" {
+			http.NotFound(w, r)
+			return
+		}
+		// The private proxy validates the HttpOnly admin session and rechecks the
+		// signed token, MFA and staff role with the core API on every request.
+		rt = g.cfg.monitoring
+	}
 	if rt.core {
 		switch classify(r.Method, r.URL.Path) {
 		case private:
@@ -302,7 +326,14 @@ func main() {
 		log.Fatal(err)
 	}
 	g := newGateway(cfg)
+	routes := make([]*route, 0, len(cfg.routes)+1)
 	for _, r := range cfg.routes {
+		routes = append(routes, r)
+	}
+	if cfg.monitoring != nil {
+		routes = append(routes, cfg.monitoring)
+	}
+	for _, r := range routes {
 		log.Printf("%s -> %s (core: %v)", r.host, r.upstream, r.core)
 	}
 	log.Printf("%s listening on http://localhost:%s", service, port)
