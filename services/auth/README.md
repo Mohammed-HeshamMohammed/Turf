@@ -11,7 +11,7 @@
 
 ## What it owns
 
-- Accounts: email (stored lower-case), name, password (Argon2id, 12 characters or more), and whether the email is confirmed.
+- Accounts: email (stored lower-case), name, password (8–4096 characters, with uppercase, lowercase, a number and a special character; Argon2id in local-account mode), and whether the email is confirmed.
 - Signing in with Google or Apple, and the accounts they are linked to. The desktop app's sign-in through the browser.
 - Email confirmation links.
 - Two-step sign-in: an authenticator code, plus ten single-use recovery codes.
