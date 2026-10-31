@@ -32,3 +32,27 @@ paths:
                 properties:
                   service: { type: string }
                   version: { type: string, example: 0.1.0 }
+  /v1/mail:
+    post:
+      summary: Send one email from a template
+      description: Needs a service token (NOTIFY_TOKENS) as a bearer token. Each caller may send 60 a minute.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [template, to]
+              properties:
+                template: { type: string, enum: [mfa_code, invitation] }
+                to: { type: string, example: sami@example.com }
+                data:
+                  type: object
+                  description: "mfa_code: {code}. invitation: {name, inviter, monthly_credits, link}."
+      responses:
+        "202": { description: Handed to the mail server }
+        "400": { description: Unknown template or missing data }
+        "401": { description: No valid service token }
+        "429": { description: Too many requests }
+        "502": { description: The mail server did not accept the message }
+        "503": { description: No mail server is set up }
