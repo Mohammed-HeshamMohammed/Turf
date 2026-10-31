@@ -8,7 +8,7 @@
     "shortDescription": "Caller Whale: lists, Skip Tracing, calls and the CRM",
     "resources": {
       "../../../../service/dist/callerwhale-service.exe": "service/callerwhale-service.exe",
-      "../../../../service/migrations/": "migrations/"
+      "../../../../service/database_setup/": "database_setup/"
     },
     "windows": {
       "nsis": {
