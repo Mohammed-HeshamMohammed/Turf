@@ -43,31 +43,39 @@ class ProjectStore:
     def close(self) -> None:
         self._connection.close()
 
-    def migrate(self, migrations_path: Path) -> list[str]:
-        """Apply ordered migrations exactly once each. Returns the names applied in this call."""
+    def _adopt_setup_history(self) -> None:
+        legacy = self._connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").fetchone()
+        if legacy:
+            self._connection.execute("ALTER TABLE schema_migrations RENAME TO database_setup_history")
+            self._connection.commit()
+
+    def setup_database(self, database_setup_path: Path) -> list[str]:
+        """Apply ordered database updates exactly once each. Returns the names applied in this call."""
+        self._adopt_setup_history()
         self._connection.execute(
-            "CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)"
+            "CREATE TABLE IF NOT EXISTS database_setup_history (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)"
         )
-        applied = {row[0] for row in self._connection.execute("SELECT name FROM schema_migrations")}
+        applied = {row[0] for row in self._connection.execute("SELECT name FROM database_setup_history")}
         newly_applied = []
-        for migration_path in sorted(migrations_path.glob("*.sql")):
-            if migration_path.name in applied:
+        for update_path in sorted(database_setup_path.glob("*.sql")):
+            if update_path.name in applied:
                 continue
-            script = migration_path.read_text(encoding="utf-8")
+            script = update_path.read_text(encoding="utf-8")
             try:
                 self._connection.executescript(
-                    f"BEGIN;\n{script}\nINSERT INTO schema_migrations(name, applied_at) VALUES ('{migration_path.name}', '{utc_now()}');\nCOMMIT;"
+                    f"BEGIN;\n{script}\nINSERT INTO database_setup_history(name, applied_at) VALUES ('{update_path.name}', '{utc_now()}');\nCOMMIT;"
                 )
             except Exception:
                 self._connection.rollback()
                 raise
-            newly_applied.append(migration_path.name)
+            newly_applied.append(update_path.name)
         return newly_applied
 
-    def pending_migrations(self, migrations_path: Path) -> list[str]:
-        exists = self._connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").fetchone()
-        applied = {row[0] for row in self._connection.execute("SELECT name FROM schema_migrations")} if exists else set()
-        return [p.name for p in sorted(migrations_path.glob("*.sql")) if p.name not in applied]
+    def pending_database_updates(self, database_setup_path: Path) -> list[str]:
+        self._adopt_setup_history()
+        exists = self._connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'database_setup_history'").fetchone()
+        applied = {row[0] for row in self._connection.execute("SELECT name FROM database_setup_history")} if exists else set()
+        return [p.name for p in sorted(database_setup_path.glob("*.sql")) if p.name not in applied]
 
     def backup(self, destination: Path) -> Path:
         """Consistent online copy via the SQLite backup API (safe with WAL)."""
@@ -80,7 +88,7 @@ class ProjectStore:
         return destination
 
     def schema_version(self) -> int:
-        row = self._connection.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()
+        row = self._connection.execute("SELECT COUNT(*) FROM database_setup_history").fetchone()
         return int(row[0])
 
     def create_project(self, name: str, root_path: Path) -> str:

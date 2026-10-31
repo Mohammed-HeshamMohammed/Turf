@@ -4,7 +4,7 @@
 
 Writes service/dist/callerwhale-service.exe (callerwhale-service on other systems), or into `--dist`; `--work` is where the build
 keeps its working files (a few hundred megabytes), for a drive with more room. The desktop host looks for it in the bundle's
-`service` folder and starts it with `--resources <bundle>`; the migrations travel beside it (see src-tauri/tauri.package.conf.json).
+`service` folder and starts it with `--resources <bundle>`; the database updates travel beside it (see src-tauri/tauri.package.conf.json).
 Needs PyInstaller (`pip install pyinstaller`) and everything in service/requirements.txt.
 """
 

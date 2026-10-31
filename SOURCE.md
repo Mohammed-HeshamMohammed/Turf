@@ -26,7 +26,7 @@ Only what Caller Whale has was copied: projects, lists (import, list, rows) and 
 | `callerwhale_matching/duplicates.py` | Caller Whale's own, not a copy | Rows of one list that repeat the same lead, found during a phone check with the Skip Tracing setup: what the engine decides, read for lists of leads (one owner with several properties, names as county rolls write them, different phones for one lead, office lines), and which row to keep |
 | `callerwhale_matching/skiptrace.py` | same folder | Call statuses are read by `status_meaning.py` instead of four word lists; the status table says whether each meaning is sure; a disconnected line counts as a bad number when the warning signs are measured (`SKIPTRACE_VERSION` 5); the setup suggestion reads only status-like columns to the end of the list, with the same result |
 | `callerwhale_matching/status_meaning.py`, `callerwhale_service/status_model.py`, `tools/fetch_status_model.py` | Caller Whale's own, not a copy | How call statuses are read: the project's remembered decisions, phrase rules, and an optional local embedding model |
-| `migrations/` | `migrations/` | No |
+| `database_setup/` | `database_setup/` | No |
 
 Not copied: scraping, the collector extension, Clean & Combine's screens and service (mapping confirmation, the review queue, merged records and exports; only its matching engine is here), public records, automation, workbook export, updates.
 
@@ -34,8 +34,8 @@ Not copied: scraping, the collector extension, Clean & Combine's screens and ser
 
 ## Staying compatible
 
-A project is the same folder and database (`dataforge.sqlite3`, the same migrations) as in DataForge, so a DataForge project opens in Caller Whale. That holds while both have the same migrations. If DataForge adds one, copy it here before opening a project DataForge has already upgraded.
+A project is the same folder and database (`dataforge.sqlite3`, the same database updates) as in DataForge, so a DataForge project opens in Caller Whale. That holds while both have the same database updates. If DataForge adds one, copy it here before opening a project DataForge has already upgraded.
 
 Fixes to the Skip Tracing rules in DataForge do not arrive here by themselves. To take them, copy the unchanged files again; `callerwhale_matching/skiptrace.py` has Caller Whale changes (above) to keep.
 
-Remembered status decisions are kept in the project's `project_settings` table under `skiptrace.status_meanings`, an existing table, so no migration was added.
+Remembered status decisions are kept in the project's `project_settings` table under `skiptrace.status_meanings`, an existing table, so no database update was added.
