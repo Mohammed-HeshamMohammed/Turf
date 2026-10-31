@@ -91,7 +91,7 @@ impl Config {
             smtp_port: var("CALLERWHALE_SMTP_PORT", "587").trim().parse().context("CALLERWHALE_SMTP_PORT")?,
             smtp_user: var("CALLERWHALE_SMTP_USER", "").trim().to_string(),
             smtp_password: var("CALLERWHALE_SMTP_PASSWORD", ""),
-            mail_from: var("CALLERWHALE_MAIL_FROM", "Caller Whale <no-reply@softfix.dev>").trim().to_string(),
+            mail_from: var("CALLERWHALE_MAIL_FROM", "").trim().to_string(),
             release_repo: var("CALLERWHALE_RELEASE_REPO", "").trim().to_string(),
             release_tag_prefix: var("CALLERWHALE_RELEASE_TAG_PREFIX", "crm-v").trim().to_string(),
             github_token: var("CALLERWHALE_GITHUB_TOKEN", "").trim().to_string(),

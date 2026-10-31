@@ -16,9 +16,9 @@ pub struct Mail {
     pub html: String,
 }
 
-/// Whether the server has a mail server to send through.
+/// Whether the server has a mail server and a sender address to send with (neither is written in the code).
 pub fn configured(config: &Config) -> bool {
-    !config.smtp_host.is_empty()
+    !config.smtp_host.is_empty() && !config.mail_from.trim().is_empty()
 }
 
 pub async fn send(config: &Config, mail: Mail) -> anyhow::Result<()> {
