@@ -2,7 +2,9 @@
 # Build settings:
 SITE_URL=https://callerwhale.com
 VITE_CALLERWHALE_API_URL=https://app.callerwhale.com
+VITE_CALLERWHALE_LANDING_API_URL=https://appapi.callerwhale.com
 # Runtime settings (the web container's security policy):
 AUTH_ORIGIN=https://auth.callerwhale.com
 API_ORIGIN=https://app.callerwhale.com
+APPAPI_ORIGIN=https://appapi.callerwhale.com
 GRAFANA_ORIGIN=https://grafana.callerwhale.com

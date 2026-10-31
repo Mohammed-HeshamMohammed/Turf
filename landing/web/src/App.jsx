@@ -13,17 +13,6 @@ export const PAGE_PATHS = {
 /** "/pricing/" and "/pricing" are the same page; an unknown path is the not-found page. */
 export const pageFor = pathname => PAGE_PATHS[pathname.replace(/(.)\/+$/, "$1")] || "notfound";
 
-/** Counts a page view without cookies, addresses or any id (landing/api keeps a day, a page and a count). */
-function countView(pathname) {
-  if (import.meta.env?.DEV || navigator.doNotTrack === "1") return;
-  fetch("/api/hit", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ path: pathname }),
-    keepalive: true,
-  }).catch(() => {});
-}
-
 function scrollToHash(hash) {
   const target = hash && document.getElementById(decodeURIComponent(hash.slice(1)));
   if (target) target.scrollIntoView();
@@ -38,10 +27,8 @@ function useRoute(initialPath) {
     window.history.pushState({}, "", url.pathname + url.search + url.hash);
     setPathname(url.pathname);
     requestAnimationFrame(() => scrollToHash(url.hash));
-    countView(url.pathname);
   }, []);
   useEffect(() => {
-    countView(window.location.pathname);
     if (window.location.hash) requestAnimationFrame(() => scrollToHash(window.location.hash));
     const onPop = () => setPathname(window.location.pathname);
     // A click on a link to another page of this site: keep the app, change the page. Anchors on this page stay native.
