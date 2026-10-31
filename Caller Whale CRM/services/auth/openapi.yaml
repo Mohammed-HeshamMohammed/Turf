@@ -12,7 +12,7 @@ components:
       required: [error, code]
       properties:
         error: { type: string }
-        code: { type: string, enum: [bad_request, unauthenticated, wrong_credentials, mfa_required, wrong_code, forbidden, conflict, too_many_attempts, internal] }
+        code: { type: string, enum: [bad_request, unauthenticated, wrong_credentials, mfa_required, wrong_code, human_required, forbidden, conflict, too_many_attempts, internal] }
     Tokens:
       type: object
       required: [access_token, token_type, expires_in, refresh_token, user]
@@ -45,11 +45,11 @@ paths:
             schema:
               type: object
               required: [email, password, name]
-              properties: { email: { type: string }, password: { type: string, minLength: 12 }, name: { type: string }, kind: { type: string, enum: [browser, desktop] } }
+              properties: { email: { type: string }, password: { type: string, minLength: 8, maxLength: 4096, description: Requires uppercase and lowercase ASCII letters plus a number and a special character }, name: { type: string }, kind: { type: string, enum: [browser, desktop] }, human_token: { type: string, maxLength: 2048, description: Required when bot protection is enabled } }
       responses:
         "201": { description: Created and signed in, content: { application/json: { schema: { $ref: "#/components/schemas/Tokens" } } } }
         "400": { description: Not valid, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
-        "403": { description: Sign-up is closed }
+        "403": { description: Sign-up is closed or human verification is required }
         "409": { description: The email already has an account }
   /v1/sessions:
     post:
@@ -60,7 +60,7 @@ paths:
             schema:
               type: object
               required: [email, password]
-              properties: { email: { type: string }, password: { type: string }, code: { type: string, description: Authenticator or recovery code }, kind: { type: string, enum: [browser, desktop] } }
+              properties: { email: { type: string }, password: { type: string }, code: { type: string, description: Authenticator or recovery code }, kind: { type: string, enum: [browser, desktop] }, human_token: { type: string, maxLength: 2048, description: Required when bot protection is enabled } }
       responses:
         "200": { description: Signed in, content: { application/json: { schema: { $ref: "#/components/schemas/Tokens" } } } }
         "401": { description: wrong_credentials, mfa_required or wrong_code }
@@ -93,7 +93,7 @@ paths:
     post:
       summary: Change the password and close every other session
       security: [{ bearer: [] }]
-      requestBody: { content: { application/json: { schema: { type: object, required: [current, new], properties: { current: { type: string }, new: { type: string, minLength: 12 } } } } } }
+      requestBody: { content: { application/json: { schema: { type: object, required: [current, new], properties: { current: { type: string }, new: { type: string, minLength: 8, maxLength: 4096, description: Requires uppercase and lowercase ASCII letters plus a number and a special character } } } } } }
       responses: { "200": { description: Changed }, "401": { description: The current password is wrong } }
   /v1/mfa/setup:
     post:
@@ -106,3 +106,48 @@ paths:
       security: [{ bearer: [] }]
       requestBody: { content: { application/json: { schema: { type: object, required: [code], properties: { code: { type: string } } } } } }
       responses: { "200": { description: On }, "401": { description: The code is not right } }
+
+  /v1/security:
+    get:
+      summary: Public password policy and optional bot protection configuration
+      responses:
+        "200":
+          description: Only the public site key is exposed; no secret key
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bot_protection:
+                    type: object
+                    properties:
+                      enabled: { type: boolean }
+                      site_key: { type: string }
+                  password_policy: { type: object, description: Minimum 8 and maximum 4096 characters with uppercase lowercase number and special requirements }
+  /v1/providers:
+    get:
+      summary: Availability of Google and Apple using direct settings or cached Firebase authorization probes
+      responses: { "200": { description: Object with google and apple boolean flags } }
+  /v1/oauth/{provider}/start:
+    parameters:
+      - { name: provider, in: path, required: true, schema: { type: string, enum: [google, apple] } }
+    post:
+      summary: Verify optional human proof and prepare a provider authorization URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target: { type: string, enum: [website, landing, app, desktop] }
+                port: { type: integer, minimum: 1024, maximum: 65535, description: Required for desktop loopback handoff }
+                human_token: { type: string, maxLength: 2048, description: Required when bot protection is enabled }
+                action: { type: string, enum: [signin, signup], default: signin }
+      responses:
+        "200": { description: JSON object with authorization url }
+        "400": { description: Provider code-flow configuration is incomplete or the target is invalid }
+        "403": { description: Human verification is required }
+    get:
+      summary: Legacy browser redirect available only when bot protection is disabled
+      responses: { "303": { description: Provider authorization redirect }, "403": { description: Use the protected POST flow } }
