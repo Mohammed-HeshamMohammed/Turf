@@ -7,4 +7,4 @@ VITE_CALLERWHALE_LANDING_API_URL=https://appapi.callerwhale.com
 AUTH_ORIGIN=https://auth.callerwhale.com
 API_ORIGIN=https://app.callerwhale.com
 APPAPI_ORIGIN=https://appapi.callerwhale.com
-GRAFANA_ORIGIN=https://grafana.callerwhale.com
+GRAFANA_ORIGIN=https://app.callerwhale.com
