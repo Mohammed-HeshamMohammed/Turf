@@ -213,3 +213,22 @@ test("the security calls use the signed-in token, the right verbs and the labels
   assert.deepEqual(await auth.startStepUp(), { challenge: "C", methods: ["email"] });
   assert.equal((await auth.linkTelegram()).url, "https://t.me/bot?start=c");
 });
+
+
+test("human proofs are sent only to auth, including protected social starts", async () => {
+  const { calls, fetchImpl } = fakeService({
+    "/v1/accounts": tokens("A", "R"),
+    "/v1/sessions": tokens("A", "R"),
+    "/v1/security": { body: { bot_protection: { enabled: true, site_key: "public" } } },
+    "/v1/oauth/google/start": { body: { url: "https://accounts.google.com/authorize" } },
+  });
+  const auth = createAuth({ base: "https://auth.example", storage: memoryStorage(), fetchImpl });
+  await auth.signUp("Sami", "s@example.com", "Aa1!aaaa", "browser", "signup-proof");
+  await auth.signIn("s@example.com", "Aa1!aaaa", undefined, "desktop", "signin-proof");
+  assert.equal(calls[0].body.human_token, "signup-proof");
+  assert.equal(calls[1].body.human_token, "signin-proof");
+  assert.equal((await auth.security()).bot_protection.site_key, "public");
+  assert.equal(await auth.providerUrl("google", "desktop", 48123, "social-proof"), "https://accounts.google.com/authorize");
+  assert.deepEqual(calls.at(-1).body, { target: "desktop", port: 48123, human_token: "social-proof", action: "signin" });
+  assert.equal(calls.at(-1).init.method, "POST");
+});

@@ -10,6 +10,8 @@ use serde_json::json;
 pub enum AuthError {
     #[error("{0}")]
     Bad(String),
+    #[error("Verify you are human and try again.")]
+    HumanRequired,
     #[error("Sign in first.")]
     Unauthenticated,
     #[error("Wrong email or password.")]
@@ -32,6 +34,7 @@ pub enum AuthError {
 impl AuthError {
     fn status_and_code(&self) -> (StatusCode, &'static str) {
         match self {
+            AuthError::HumanRequired => (StatusCode::FORBIDDEN, "human_required"),
             AuthError::Bad(_) => (StatusCode::BAD_REQUEST, "bad_request"),
             AuthError::Unauthenticated => (StatusCode::UNAUTHORIZED, "unauthenticated"),
             AuthError::WrongCredentials => (StatusCode::UNAUTHORIZED, "wrong_credentials"),

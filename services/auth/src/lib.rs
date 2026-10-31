@@ -6,6 +6,7 @@
 //! (the `callerwhale-auth-verify` crate).
 
 pub mod config;
+pub mod human;
 pub mod error;
 pub mod keys;
 pub mod email;

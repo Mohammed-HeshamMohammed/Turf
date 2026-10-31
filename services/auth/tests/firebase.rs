@@ -114,11 +114,11 @@ async fn the_password_changes_in_firebase_and_other_sessions_end() {
     let (app, fake) = with_firebase().await;
     let first = sign_up(&app, "sami@example.com").await;
     let second = sign_up_again(&app).await;
-    let (status, _) = call(&app, "POST", "/v1/password", Some(json!({ "current": "not the password", "new": "a brand new password" })), Some(token(&second))).await;
+    let (status, _) = call(&app, "POST", "/v1/password", Some(json!({ "current": "not the password", "new": "A brand new password1!" })), Some(token(&second))).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
-    let (status, body) = call(&app, "POST", "/v1/password", Some(json!({ "current": PASSWORD, "new": "a brand new password" })), Some(token(&second))).await;
+    let (status, body) = call(&app, "POST", "/v1/password", Some(json!({ "current": PASSWORD, "new": "A brand new password1!" })), Some(token(&second))).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(fake.world.lock().unwrap().password_of("sami@example.com").as_deref(), Some("a brand new password"));
+    assert_eq!(fake.world.lock().unwrap().password_of("sami@example.com").as_deref(), Some("A brand new password1!"));
     assert_eq!(call(&app, "GET", "/v1/me", None, Some(token(&first))).await.0, StatusCode::UNAUTHORIZED, "the other session is closed");
     assert_eq!(call(&app, "GET", "/v1/me", None, Some(token(&second))).await.0, StatusCode::OK);
 }
@@ -239,13 +239,13 @@ async fn a_forgotten_password_is_reset_with_firebases_link_and_every_session_end
         assert_eq!((status, body), (StatusCode::OK, json!({ "ok": true })));
     }
     assert_eq!(fake.world.lock().unwrap().sent_resets, ["sami@example.com"]);
-    let (status, _) = call(&app, "POST", "/v1/password/reset", Some(json!({ "token": "nonsense", "new": "a brand new password" })), None).await;
+    let (status, _) = call(&app, "POST", "/v1/password/reset", Some(json!({ "token": "nonsense", "new": "A brand new password1!" })), None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
     let (status, _) = call(&app, "POST", "/v1/password/reset", Some(json!({ "token": "reset-sami@example.com", "new": "short" })), None).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    let (status, body) = call(&app, "POST", "/v1/password/reset", Some(json!({ "token": "reset-sami@example.com", "new": "a brand new password" })), None).await;
+    let (status, body) = call(&app, "POST", "/v1/password/reset", Some(json!({ "token": "reset-sami@example.com", "new": "A brand new password1!" })), None).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(fake.world.lock().unwrap().password_of("sami@example.com").as_deref(), Some("a brand new password"));
+    assert_eq!(fake.world.lock().unwrap().password_of("sami@example.com").as_deref(), Some("A brand new password1!"));
     assert_eq!(call(&app, "GET", "/v1/me", None, Some(token(&made))).await.0, StatusCode::UNAUTHORIZED, "the old session is closed");
 }
 
@@ -275,4 +275,86 @@ async fn the_public_site_gets_its_google_sign_in_back_on_its_sign_in_page() {
     let claims = json!({ "sub": "g-1", "email": "mona@example.com", "email_verified": true, "name": "Mona", "nonce": nonce });
     let (_, back) = follow(&app, get(&format!("/v1/oauth/google/callback?code={}&state={state}", provider::code(claims)))).await;
     assert!(back.starts_with("http://landing.example/signin?callerwhale_code="), "{back}");
+}
+
+#[tokio::test]
+async fn invalid_new_passwords_never_reach_firebase() {
+    let (app, fake) = with_firebase().await;
+    let signed = sign_up(&app, "policy@example.com").await;
+    let before_signup = fake.world.lock().unwrap().asked("signUp");
+    let before_reset = fake.world.lock().unwrap().asked("resetPassword");
+    let before_change = fake.world.lock().unwrap().asked("update");
+    for invalid in ["lowercase password1!".to_owned(), "UPPERCASE PASSWORD1!".into(), "No digits here!".into(), "NoSymbols123".into(), "Aa1!aaa".into(), format!("Aa1!{}", "a".repeat(4093))] {
+        for (path, data, bearer) in [
+            ("/v1/accounts", json!({"email":"new@example.com", "name":"N", "password":invalid}), None),
+            ("/v1/password", json!({"current":PASSWORD, "new":invalid}), Some(token(&signed))),
+            ("/v1/password/reset", json!({"token":"reset-policy@example.com", "new":invalid}), None),
+        ] {
+            let (status, body) = call(&app, "POST", path, Some(data), bearer).await;
+            assert_eq!(status, StatusCode::BAD_REQUEST, "{path}: {body}");
+            assert!(body["error"].as_str().unwrap().contains("Password needs"));
+        }
+    }
+    let world = fake.world.lock().unwrap();
+    assert_eq!(world.asked("signUp"), before_signup);
+    assert_eq!(world.asked("resetPassword"), before_reset);
+    assert_eq!(world.asked("update"), before_change);
+    assert_eq!(world.password_of("policy@example.com").as_deref(), Some(PASSWORD));
+}
+
+#[tokio::test]
+async fn firebase_broker_discovery_is_cached_and_apple_is_disabled() {
+    let (app, fake) = with_firebase().await;
+    for _ in 0..2 {
+        assert_eq!(call(&app, "GET", "/v1/providers", None, None).await.1, json!({"google":true,"apple":false}));
+    }
+    assert_eq!(fake.world.lock().unwrap().asked("createAuthUri"), 2);
+    let (status, error) = call(&app, "GET", "/v1/oauth/apple/start", None, None).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(error.to_string().contains("authorization code flow"));
+    assert!(!error.to_string().contains("OPERATION_NOT_ALLOWED"));
+}
+
+#[tokio::test]
+async fn firebase_broker_validates_session_state_and_rejects_replay() {
+    let (app, fake) = with_firebase().await;
+    let (_, to) = follow(&app, get("/v1/oauth/google/start?target=landing")).await;
+    let state = param(&to, "state").unwrap();
+    let (_, wrong) = follow(&app, get("/v1/oauth/google/callback?code=broker-code&state=wrong")).await;
+    assert!(param(&wrong, "oauth_error").is_some());
+    assert_eq!(fake.world.lock().unwrap().asked("signInWithIdp"), 0);
+    let callback = format!("/v1/oauth/google/callback?code=broker-code&state={state}");
+    let (_, back) = follow(&app, get(&callback)).await;
+    let code = param(&back, "callerwhale_code").unwrap_or_else(|| panic!("{back}"));
+    assert!(!back.contains("idToken") && !back.contains("refreshToken"));
+    let (_, replay) = follow(&app, get(&callback)).await;
+    assert!(param(&replay, "oauth_error").is_some());
+    assert_eq!(fake.world.lock().unwrap().asked("signInWithIdp"), 1);
+    let (status, body) = call(&app, "POST", "/v1/oauth/exchange", Some(json!({"code":code})), None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(claims(&app, token(&body)).await.provider, "google");
+    assert!(fake.world.lock().unwrap().has_account("broker@example.com"));
+    assert_eq!(call(&app, "POST", "/v1/oauth/exchange", Some(json!({"code":code})), None).await.0, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn oauth_start_requires_human_verification_when_enabled() {
+    let mut config = Config::for_tests();
+    config.human = Some(callerwhale_auth::human::HumanCheck::new("site", "secret", vec!["app.example".into()]).unwrap());
+    let app = service_with(config).await;
+    for method in ["GET", "POST"] {
+        let (status, body) = call(&app, method, "/v1/oauth/google/start",
+            (method == "POST").then(|| json!({"target":"app","action":"signin","human_token":""})), None).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(body["code"], "human_required");
+    }
+}
+
+#[tokio::test]
+async fn oauth_post_returns_authorization_url_without_human_protection() {
+    let (app, _) = with_firebase().await;
+    let (status, body) = call(&app, "POST", "/v1/oauth/google/start",
+        Some(json!({"target":"desktop","port":45678,"action":"signin"})), None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body["url"].as_str().unwrap().starts_with("https://accounts.google.com/"));
 }

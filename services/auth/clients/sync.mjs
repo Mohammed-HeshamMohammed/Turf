@@ -10,6 +10,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..", "..", "..");
 const remote = join(root, "desktop", "frontend", "react", "src", "remote");
 const files = {
+  "human-check.jsx": [join(remote, "human-check.jsx"), join(root, "landing", "web", "src", "auth", "human-check.jsx")],
   "auth-client.js": [join(root, "services", "core-api", "website", "auth-client.js"), join(remote, "auth-client.js"), join(root, "landing", "web", "src", "auth", "auth-client.js")],
 };
 

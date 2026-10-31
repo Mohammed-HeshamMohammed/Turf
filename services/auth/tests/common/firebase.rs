@@ -32,6 +32,7 @@ pub struct World {
     pub sent_resets: Vec<String>,
     pub calls: Vec<String>,
     counter: u32,
+    oauth: HashMap<String, (String, String)>,
 }
 
 pub type Shared = Arc<Mutex<World>>;
@@ -46,6 +47,7 @@ pub async fn start() -> Fake {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
     let app = Router::new()
+        .route("/v1/accounts:createAuthUri", post(create_auth_uri))
         .route("/v1/accounts:signUp", post(sign_up))
         .route("/v1/accounts:signInWithPassword", post(sign_in))
         .route("/v1/accounts:signInWithIdp", post(sign_in_idp))
@@ -121,6 +123,22 @@ fn text(body: &Value, key: &str) -> String {
     body[key].as_str().unwrap_or_default().to_string()
 }
 
+async fn create_auth_uri(State(w): State<Shared>, Json(body): Json<Value>) -> Reply {
+    let mut w = w.lock().unwrap();
+    w.calls.push("createAuthUri".into());
+    assert_eq!(body["authFlowType"], "CODE_FLOW");
+    if body["providerId"] != "google.com" { return refuse("OPERATION_NOT_ALLOWED: Code flow is not enabled for Apple"); }
+    let callback = text(&body, "continueUri");
+    assert!(!callback.contains('?'));
+    w.counter += 1;
+    let state = format!("state-{}", w.counter);
+    let session = format!("session-{}", w.counter);
+    w.oauth.insert(session.clone(), (state.clone(), callback.clone()));
+    let mut uri = reqwest::Url::parse("https://accounts.google.com/o/oauth2/auth").unwrap();
+    uri.query_pairs_mut().append_pair("state", &state).append_pair("redirect_uri", &callback);
+    ok(json!({"authUri":uri.as_str(),"sessionId":session}))
+}
+
 async fn sign_up(State(w): State<Shared>, Json(body): Json<Value>) -> Reply {
     let mut w = w.lock().unwrap();
     w.calls.push("signUp".into());
@@ -149,6 +167,19 @@ async fn sign_in(State(w): State<Shared>, Json(body): Json<Value>) -> Reply {
 async fn sign_in_idp(State(w): State<Shared>, Json(body): Json<Value>) -> Reply {
     let mut w = w.lock().unwrap();
     w.calls.push("signInWithIdp".into());
+    if let Some(session) = body["sessionId"].as_str() {
+        let Some((state, callback)) = w.oauth.remove(session) else { return refuse("INVALID_SESSION_INFO") };
+        let uri = reqwest::Url::parse(body["requestUri"].as_str().unwrap()).unwrap();
+        let query: HashMap<_, _> = uri.query_pairs().into_owned().collect();
+        assert_eq!(query.get("state"), Some(&state));
+        assert_eq!(uri.as_str().split('?').next(), Some(callback.as_str()));
+        if query.get("code").map(String::as_str) != Some("broker-code") { return refuse("INVALID_IDP_RESPONSE"); }
+        let uid = "fb-broker";
+        if !w.has_account("broker@example.com") {
+            w.accounts.push(Account { uid: uid.into(), email: "broker@example.com".into(), verified: true, ..Default::default() });
+        }
+        return ok(w.tokens(uid));
+    }
     let post_body = text(&body, "postBody");
     let encoded = reqwest::Url::parse(&format!("http://localhost?{post_body}")).unwrap();
     let fields: std::collections::HashMap<_, _> = encoded.query_pairs().into_owned().collect();
@@ -166,6 +197,7 @@ async fn sign_in_idp(State(w): State<Shared>, Json(body): Json<Value>) -> Reply 
     let email = text(&claims, "email");
     let name = text(&claims, "name");
     let email = email.to_lowercase();
+    if let Some(account) = w.accounts.iter_mut().find(|a| a.email == email) { account.verified = true; }
     let existing = w.accounts.iter().find(|a| a.email == email).cloned();
     let account = match existing {
         Some(a) => a,

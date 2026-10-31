@@ -4,6 +4,7 @@ pub struct Config {
     /// PostgreSQL in production; `sqlite://auth.db?mode=rwc` (the default) for local development.
     pub database_url: String,
     pub port: u16,
+    pub human: Option<crate::human::HumanCheck>,
     /// The Ed25519 signing key: base64 of its PKCS#8 form. Empty: a new key is made at start, so tokens stop working
     /// when the service restarts. Only acceptable on a developer's machine.
     pub signing_key: String,
@@ -83,9 +84,10 @@ fn var(name: &str, default: &str) -> String {
 
 impl Config {
     pub fn from_env() -> anyhow::Result<Self> {
-        Ok(Config {
+        let mut config = Config {
             database_url: var("DATABASE_URL", "sqlite://auth.db?mode=rwc"),
             port: var("PORT", "8101").parse()?,
+            human: None,
             signing_key: var("AUTH_SIGNING_KEY", ""),
             access_minutes: var("AUTH_ACCESS_MINUTES", "15").parse()?,
             refresh_days: var("AUTH_REFRESH_DAYS", "30").parse()?,
@@ -128,7 +130,22 @@ impl Config {
                     &var("AUTH_FIREBASE_TOKEN_URL", "https://securetoken.googleapis.com"),
                 )
             }),
-        })
+        };
+        match var("AUTH_BOT_PROTECTION", "false").as_str() {
+            "false" => {},
+            "true" => {
+                let explicit = var("AUTH_TURNSTILE_HOSTNAMES", "");
+                let hosts = if explicit.trim().is_empty() {
+                    config.allowed_origins.iter().chain([&config.public_url, &config.website_url, &config.landing_url, &config.app_url])
+                        .filter_map(|s| reqwest::Url::parse(s).ok()?.host_str().map(str::to_owned)).collect()
+                } else {
+                    explicit.split(',').map(str::trim).filter(|h| !h.is_empty()).map(str::to_owned).collect()
+                };
+                config.human = Some(crate::human::HumanCheck::new(&var("AUTH_TURNSTILE_SITE_KEY", ""), &var("AUTH_TURNSTILE_SECRET_KEY", ""), hosts)?);
+            },
+            _ => anyhow::bail!("AUTH_BOT_PROTECTION must be true or false"),
+        }
+        Ok(config)
     }
 
     /// Settings for tests and examples: nothing outside, sign-up open, development tokens on.
@@ -136,6 +153,7 @@ impl Config {
         Config {
             database_url: "sqlite::memory:".into(),
             port: 0,
+            human: None,
             signing_key: String::new(),
             access_minutes: 15,
             refresh_days: 30,

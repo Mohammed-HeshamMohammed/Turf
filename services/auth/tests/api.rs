@@ -165,14 +165,14 @@ async fn changing_the_password_closes_other_sessions() {
     let here = sign_up(&app, "sami@example.com").await;
     let (_, there) = call(&app, "POST", "/v1/sessions", Some(json!({ "email": "sami@example.com", "password": PASSWORD })), None).await;
 
-    let (status, _) = call(&app, "POST", "/v1/password", Some(json!({ "current": "wrong password!!", "new": "a brand new password" })), Some(token(&here))).await;
+    let (status, _) = call(&app, "POST", "/v1/password", Some(json!({ "current": "wrong password!!", "new": "A brand new password1!" })), Some(token(&here))).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
-    let (status, _) = call(&app, "POST", "/v1/password", Some(json!({ "current": PASSWORD, "new": "a brand new password" })), Some(token(&here))).await;
+    let (status, _) = call(&app, "POST", "/v1/password", Some(json!({ "current": PASSWORD, "new": "A brand new password1!" })), Some(token(&here))).await;
     assert_eq!(status, StatusCode::OK);
 
     assert_eq!(call(&app, "GET", "/v1/me", None, Some(token(&here))).await.0, StatusCode::OK);
     assert_eq!(call(&app, "GET", "/v1/me", None, Some(token(&there))).await.0, StatusCode::UNAUTHORIZED);
-    let (status, _) = call(&app, "POST", "/v1/sessions", Some(json!({ "email": "sami@example.com", "password": "a brand new password" })), None).await;
+    let (status, _) = call(&app, "POST", "/v1/sessions", Some(json!({ "email": "sami@example.com", "password": "A brand new password1!" })), None).await;
     assert_eq!(status, StatusCode::OK);
 }
 
@@ -206,4 +206,17 @@ async fn a_signing_key_survives_a_restart() {
     let (token, _) = a.sign(&person, "s", false, "password", callerwhale_auth::now(), callerwhale_auth::now(), 15).unwrap();
     assert!(b.verifier.verify(&token).is_ok());
     assert!(Keys::from_base64("not a key").is_err());
+}
+
+#[tokio::test]
+async fn password_policy_is_enforced_on_signup_and_change() {
+    let app = service().await;
+    let signed = sign_up(&app, "policy@example.com").await;
+    for invalid in ["lowercase password1!", "UPPERCASE PASSWORD1!", "No digits here!", "NoSymbols123", "Aa1!aaa"] {
+        let (status, body) = call(&app, "POST", "/v1/accounts", Some(json!({"email":"new@example.com", "name":"N", "password":invalid})), None).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+        assert!(body["error"].as_str().unwrap().contains("Password needs"));
+        let (status, _) = call(&app, "POST", "/v1/password", Some(json!({"current":PASSWORD, "new":invalid})), Some(token(&signed))).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
 }

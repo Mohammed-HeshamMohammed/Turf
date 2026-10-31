@@ -1,5 +1,8 @@
 //! The HTTP API. Contract: services/auth/openapi.yaml.
 
+#[path = "password.rs"]
+mod password;
+
 use crate::{
     email,
     error::{AuthError, AuthResult},
@@ -36,6 +39,7 @@ pub fn router() -> Router<AppState> {
         .route("/healthz", get(|| async { Json(json!({ "ok": true, "service": "auth" })) }))
         .route("/version", get(|| async { Json(json!({ "service": "auth", "version": VERSION })) }))
         .route("/.well-known/jwks.json", get(jwks))
+        .route("/v1/security", get(crate::human::security))
         .route("/v1/accounts", post(sign_up))
         .route("/v1/sessions", post(sign_in).get(list_sessions))
         .route("/v1/sessions/refresh", post(refresh))
@@ -53,9 +57,7 @@ pub fn router() -> Router<AppState> {
 // ---- helpers ----
 
 pub(crate) fn hash_password(password: &str) -> AuthResult<String> {
-    if password.chars().count() < 12 {
-        return Err(AuthError::Bad("Use a password of at least 12 characters.".into()));
-    }
+    password::validate(password)?;
     Argon2::default()
         .hash_password(password.as_bytes(), &SaltString::generate(&mut OsRng))
         .map(|h| h.to_string())
@@ -247,15 +249,13 @@ pub(crate) async fn session_id_token(state: &AppState, fb: &Firebase, sid: &str)
     Ok(login.id_token)
 }
 
-fn too_short(password: &str) -> AuthResult<()> {
-    if password.chars().count() < 12 {
-        return Err(AuthError::Bad("Use a password of at least 12 characters.".into()));
-    }
+fn validate_new_password(password: &str) -> AuthResult<()> {
+    password::validate(password)?;
     Ok(())
 }
 
 async fn firebase_sign_up(state: &AppState, fb: &Firebase, email: String, name: String, password: &str, kind: &'static str) -> AuthResult<(StatusCode, Json<Value>)> {
-    too_short(password)?;
+    validate_new_password(password)?;
     let login = fb.sign_up(&email, password).await.map_err(AuthError::from)?;
     // The name and the confirmation email are nice to have; the account exists either way.
     let _ = fb.set_name(&login.id_token, &name).await;
@@ -344,6 +344,7 @@ async fn jwks(State(state): State<AppState>) -> impl IntoResponse {
 
 #[derive(Deserialize)]
 struct SignUp {
+    human_token: Option<String>,
     email: String,
     password: String,
     name: String,
@@ -354,6 +355,7 @@ async fn sign_up(State(state): State<AppState>, Json(body): Json<SignUp>) -> Aut
     if !state.config.public_signup {
         return Err(AuthError::Forbidden("New accounts are by invitation on this server.".into()));
     }
+    crate::human::guard(&state.config, body.human_token.as_deref(), "signup").await?;
     let email = normal_email(&body.email)?;
     let name = body.name.trim().to_string();
     if name.is_empty() || name.chars().count() > 200 {
@@ -388,6 +390,7 @@ async fn sign_up(State(state): State<AppState>, Json(body): Json<SignUp>) -> Aut
 
 #[derive(Deserialize)]
 struct SignIn {
+    human_token: Option<String>,
     email: String,
     password: String,
     /// A code from the authenticator app, or a recovery code.
@@ -396,6 +399,8 @@ struct SignIn {
 }
 
 async fn sign_in(State(state): State<AppState>, Json(body): Json<SignIn>) -> AuthResult<Json<Value>> {
+    // A supplied legacy MFA code is not proof of a verified first leg. Guard it too.
+    crate::human::guard(&state.config, body.human_token.as_deref(), "signin").await?;
     let email = body.email.trim().to_lowercase();
     let kind = kind_of(body.kind.as_deref())?;
     if recent_failures(&state, &email).await? >= LOCKOUT_FAILURES {
@@ -551,7 +556,7 @@ struct PasswordChange {
 async fn change_password(State(state): State<AppState>, Person(claims): Person, Json(body): Json<PasswordChange>) -> AuthResult<Json<Value>> {
     let user = user_by(&state, "id", &claims.sub).await?.ok_or(AuthError::Unauthenticated)?;
     if let Some(fb) = state.config.firebase.clone() {
-        too_short(&body.new)?;
+        validate_new_password(&body.new)?;
         // Firebase checks the current password; an account with an authenticator answers "needs a code", which also means the password was right.
         if !matches!(fb.sign_in(&user.email, &body.current).await, Ok(_) | Err(Refusal::FirebaseAuthenticator)) {
             return Err(AuthError::WrongCredentials);
@@ -597,7 +602,7 @@ async fn reset_password(State(state): State<AppState>, Json(body): Json<Reset>) 
     let Some(fb) = state.config.firebase.clone() else {
         return Err(AuthError::Bad("Password reset is not available on this server.".into()));
     };
-    too_short(&body.new)?;
+    validate_new_password(&body.new)?;
     let email = fb.reset_password(body.token.trim(), &body.new).await.map_err(AuthError::from)?;
     sqlx::query("UPDATE sessions SET revoked_at = $1 WHERE revoked_at IS NULL AND user_id IN (SELECT id FROM users WHERE email = $2)").bind(now() as i64).bind(&email).execute(&state.db).await?;
     Ok(Json(json!({ "ok": true })))
@@ -618,10 +623,18 @@ mod tests {
     #[test]
     fn short_passwords_are_refused_and_hashes_check() {
         assert!(hash_password("short").is_err());
-        let hash = hash_password("a long enough password").unwrap();
-        assert!(password_matches("a long enough password", &hash));
+        let hash = hash_password("A long enough password1!").unwrap();
+        assert!(password_matches("A long enough password1!", &hash));
         assert!(!password_matches("another password!!", &hash));
         assert!(!password_matches("anything", "not a hash"));
+    }
+
+    #[test]
+    fn existing_passwords_still_verify_without_the_new_policy() {
+        let old = "an existing lowercase password";
+        let hash = Argon2::default().hash_password(old.as_bytes(), &SaltString::generate(&mut OsRng)).unwrap().to_string();
+        assert!(password_matches(old, &hash));
+        assert!(password::validate(old).is_err());
     }
 
     #[test]
