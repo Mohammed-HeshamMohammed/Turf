@@ -27,7 +27,7 @@ Caller Whale runs on Coolify at `187.7.72.171`, in the project "Caller Whale". T
 | Address | Application | Port |
 | --- | --- | --- |
 | `https://callerwhale.com` | landing-web (`www.callerwhale.com` redirects here, see `landing/web/nginx.conf`) | 8080 |
-| `https://callerwhale.com/api` | landing-api, with **Advanced → Path prefixes: Keep paths as-is** (it serves `/api/...` itself) | 8095 |
+| `https://appapi.callerwhale.com` | landing-api (serves `/waitlist` and `/contact` at the root, no path prefix) | 8095 |
 | `https://app.callerwhale.com` | gateway, which routes to core-api (the CRM's API: sign-in checks, invitations, credits, the download; docs/plans/gateway.md) | 8100 |
 | `https://grafana.callerwhale.com` | gateway, which routes to grafana-proxy (`deploy/grafana`) | 8100 |
 

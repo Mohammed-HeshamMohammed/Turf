@@ -43,8 +43,8 @@ function readJson(req) {
 }
 
 /**
- * The landing API as an HTTP server. `origins` are the sites allowed to call it from a browser (the landing site is
- * normally on the same origin, so this only matters in development).
+ * The landing API as an HTTP server, on its own address (appapi.callerwhale.com) with no path prefix: `/waitlist`,
+ * `/contact`, `/healthz`. `origins` are the sites allowed to call it from a browser (the landing site, https://callerwhale.com).
  */
 export function createApp({ store, release, origins = [], now = Date.now }) {
   const allowWrite = limiter(8, 60_000, now);
@@ -74,13 +74,13 @@ export function createApp({ store, release, origins = [], now = Date.now }) {
       }
       if (req.method === "GET" && url.pathname === "/healthz") return send(res, 200, { ok: true }, req);
 
-      if (req.method === "POST" && (url.pathname === "/api/waitlist" || url.pathname === "/api/contact")) {
+      if (req.method === "POST" && (url.pathname === "/waitlist" || url.pathname === "/contact")) {
         if (!allowWrite(req.socket.remoteAddress || "unknown")) {
           return send(res, 429, { error: "Too many requests. Try again in a minute." }, req);
         }
         const body = await readJson(req);
         if (body?.website) return send(res, 200, { ok: true }, req); // a hidden field only bots fill in
-        if (url.pathname === "/api/waitlist") {
+        if (url.pathname === "/waitlist") {
           const { value, error } = checkWaitlist(body);
           if (error) return send(res, 400, { error }, req);
           return send(res, 200, { ok: true, joined: store.joinWaitlist(value) }, req);

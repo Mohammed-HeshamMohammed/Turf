@@ -5,7 +5,7 @@ The public site that sells Caller Whale (Phase 1 of `docs/plans/service-architec
 | Folder | What | Stack |
 | --- | --- | --- |
 | `web/` | The site: Home, Features, Pricing, Why Caller Whale, Security, Contact, Privacy, Terms | React + Vite, the app's design tokens. No secrets. |
-| `api/` | `POST /api/waitlist`, `POST /api/contact`, `GET /healthz` | Node 24+, no dependencies, its own SQLite file (`api/data/landing.db`, git-ignored) |
+| `api/` | `POST /waitlist`, `POST /contact`, `GET /healthz` (on `appapi.callerwhale.com`) | Node 24+, no dependencies, its own SQLite file (`api/data/landing.db`, git-ignored) |
 
 ## Accounts
 
@@ -39,7 +39,7 @@ Convert the PNGs to WebP (quality 82) and copy them into `web/public/screens/`.
 
 ```bash
 npm --prefix landing/api start        # http://localhost:8095
-npm --prefix landing/web run dev      # http://localhost:5200, proxies /api to the API
+npm --prefix landing/web run dev      # http://localhost:5200, proxies /waitlist and /contact to the API
 ```
 
 Test and build:
@@ -57,6 +57,8 @@ SITE_URL=https://your-domain npm --prefix landing/web run build    # landing/web
 | `CALLERWHALE_LANDING_DB` | api | SQLite file, default `data/landing.db` |
 | `CALLERWHALE_RELEASE_REPO` | api | `owner/repo` whose latest published GitHub release feeds the Download button. Unset: "coming soon" |
 | `CALLERWHALE_LANDING_ORIGINS` | api | Comma-separated sites allowed to call the API from a browser (default the dev site) |
+| `VITE_CALLERWHALE_LANDING_API_URL` | web, at build | The landing API's address (waitlist and contact). Empty in development (same origin, forwarded by the dev server); the Dockerfile defaults to `https://appapi.callerwhale.com` |
+| `APPAPI_ORIGIN` | web container | The landing API's origin, allowed by the site's content security policy |
 | `VITE_CALLERWHALE_API_URL` | web, at build | Caller Whale's server (the core API) the site signs in against and gets dashboards from. Default `http://localhost:8088` in development; the Dockerfile defaults to `https://app.callerwhale.com` |
 | `AUTH_ORIGIN` | web container | The auth service's address, `https://auth.callerwhale.com`: the one other address the site's security policy lets it call |
 | `API_ORIGIN` | web container | The core API's origin, allowed by the site's content security policy |
@@ -67,5 +69,4 @@ SITE_URL=https://your-domain npm --prefix landing/web run build    # landing/web
 - Waitlist and contact messages are stored, not emailed. Sending the confirmation goes through the notification service (Phase 5).
 - Sign-up for an account stays on the existing server's site until the auth service exists (Phase 4).
 - Privacy and Terms are short drafts and must be reviewed before the product is sold.
-- Page views are counted by `landing/api` without cookies (a day, a page and a count; skipped when the browser sends Do Not Track). Read them with `GET /api/stats` and the stats token. There is no cookie banner because nothing needs one.
 - Set `SITE_URL` for the real domain at build time, or canonical links and the sitemap are left out.

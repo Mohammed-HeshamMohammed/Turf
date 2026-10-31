@@ -17,8 +17,8 @@ Everything (invitations, people, credits, usage) is stored in the core API's Pos
 
 | Address | Application (Coolify) | Notes |
 | --- | --- | --- |
-| `https://callerwhale.com` (and `www.`) | landing-web | Build args `SITE_URL=https://callerwhale.com`, `VITE_CALLERWHALE_API_URL=https://app.callerwhale.com`. Runtime env `AUTH_ORIGIN=https://auth.callerwhale.com` (the Dockerfile's default), `API_ORIGIN=https://app.callerwhale.com` |
-| `https://callerwhale.com/api` | landing-api | Waitlist and contact; Path prefixes: keep as-is. `CALLERWHALE_LANDING_ORIGINS=https://callerwhale.com,https://www.callerwhale.com` |
+| `https://callerwhale.com` (and `www.`) | landing-web | Build args `SITE_URL=https://callerwhale.com`, `VITE_CALLERWHALE_API_URL=https://app.callerwhale.com`, `VITE_CALLERWHALE_LANDING_API_URL=https://appapi.callerwhale.com`. Runtime env `AUTH_ORIGIN=https://auth.callerwhale.com` (the Dockerfile's default), `API_ORIGIN=https://app.callerwhale.com`, `APPAPI_ORIGIN=https://appapi.callerwhale.com` |
+| `https://appapi.callerwhale.com` | landing-api | Waitlist and contact (`/waitlist`, `/contact`), no path prefix. `CALLERWHALE_LANDING_ORIGINS=https://callerwhale.com` |
 | `https://app.callerwhale.com` | core-api | Sign-in checks, invitations, credits, download. Needs PostgreSQL (project "database") |
 | `https://grafana.callerwhale.com` | grafana-proxy | Staff only, reached from the admin page (Open Grafana). Set `GRAFANA_ORIGIN` on landing-web and `CALLERWHALE_GRAFANA_URL` on core-api to this address. See `deploy/grafana/README.md` |
 
