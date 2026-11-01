@@ -51,6 +51,20 @@ pub async fn new_verification(tx: &mut Transaction<'_, Any>, user_id: &str) -> A
     Ok(token)
 }
 
+/// Emails the confirmation link through the notification service. False when none is set (the caller then falls back to
+/// Firebase's own email) or when it could not be sent (logged; the person can ask for another link).
+pub async fn send_confirmation(state: &AppState, to: &str, name: &str, token: &str) -> bool {
+    let Some(mailer) = state.config.mailer.clone() else { return false };
+    let link = format!("{}/verify?token={}", state.config.landing_url, token);
+    match mailer.send_confirmation(to, name, &link).await {
+        Ok(()) => true,
+        Err(error) => {
+            tracing::warn!(error = %format!("{error:#}"), "confirmation email not sent");
+            false
+        }
+    }
+}
+
 pub fn with_dev_token(state: &AppState, reply: &mut Value, token: String) {
     if state.config.dev_tokens {
         reply["verification_token"] = json!(token);
@@ -64,19 +78,23 @@ struct Verify {
 
 async fn verify(State(state): State<AppState>, Json(body): Json<Verify>) -> AuthResult<Json<Value>> {
     let t = now() as i64;
-    if let Some(fb) = state.config.firebase.clone() {
-        // Firebase sent the link and knows the code; this service only records that the address is confirmed.
-        let email = fb.confirm_email(body.token.trim()).await.map_err(AuthError::from)?;
-        sqlx::query("UPDATE users SET email_verified_at = $1 WHERE email = $2 AND email_verified_at IS NULL").bind(t).bind(&email).execute(&state.db).await?;
-        return Ok(Json(json!({ "email_verified": true })));
-    }
     let mut tx = state.db.begin().await?;
     let row = sqlx::query("SELECT user_id FROM email_verifications WHERE token_hash = $1 AND used_at IS NULL AND expires_at > $2")
         .bind(sha256(body.token.trim()))
         .bind(t)
         .fetch_optional(&mut *tx)
-        .await?
-        .ok_or_else(|| AuthError::Forbidden("This link is not valid or has expired.".into()))?;
+        .await?;
+    let Some(row) = row else {
+        drop(tx);
+        // Not one of this service's links: with Firebase as the account store it may be one of Firebase's own (sent before
+        // the notification service took over, or while none is set), and Firebase knows its code.
+        if let Some(fb) = state.config.firebase.clone() {
+            let email = fb.confirm_email(body.token.trim()).await.map_err(AuthError::from)?;
+            sqlx::query("UPDATE users SET email_verified_at = $1 WHERE email = $2 AND email_verified_at IS NULL").bind(t).bind(&email).execute(&state.db).await?;
+            return Ok(Json(json!({ "email_verified": true })));
+        }
+        return Err(AuthError::Forbidden("This link is not valid or has expired.".into()));
+    };
     let user_id: String = row.try_get("user_id")?;
     sqlx::query("UPDATE email_verifications SET used_at = $1 WHERE token_hash = $2").bind(t).bind(sha256(body.token.trim())).execute(&mut *tx).await?;
     sqlx::query("UPDATE users SET email_verified_at = $1 WHERE id = $2 AND email_verified_at IS NULL").bind(t).bind(&user_id).execute(&mut *tx).await?;
@@ -90,7 +108,8 @@ async fn resend(State(state): State<AppState>, Person(claims): Person) -> AuthRe
     if user.email_verified {
         return Ok(Json(json!({ "email_verified": true })));
     }
-    if let Some(fb) = state.config.firebase.clone() {
+    // With no notification service set, Firebase (when it is the account store) sends its own email.
+    if let (Some(fb), None) = (state.config.firebase.clone(), state.config.mailer.as_ref()) {
         let id = crate::routes::session_id_token(&state, &fb, &claims.sid).await?;
         fb.send_verification(&id).await.map_err(AuthError::from)?;
         return Ok(Json(json!({ "email_verified": false, "sent": true })));
@@ -102,6 +121,7 @@ async fn resend(State(state): State<AppState>, Person(claims): Person) -> AuthRe
     let mut tx = state.db.begin().await?;
     let token = new_verification(&mut tx, &user.id).await?;
     tx.commit().await?;
+    send_confirmation(&state, &user.email, &user.name, &token).await;
     let mut reply = json!({ "email_verified": false, "sent": true });
     with_dev_token(&state, &mut reply, token);
     Ok(Json(reply))

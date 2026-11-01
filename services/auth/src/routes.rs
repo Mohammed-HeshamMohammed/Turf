@@ -259,10 +259,20 @@ async fn firebase_sign_up(state: &AppState, fb: &Firebase, email: String, name: 
     let login = fb.sign_up(&email, password).await.map_err(AuthError::from)?;
     // The name and the confirmation email are nice to have; the account exists either way.
     let _ = fb.set_name(&login.id_token, &name).await;
-    let _ = fb.send_verification(&login.id_token).await;
     let mut profile = fb.profile(&login.id_token).await.map_err(AuthError::from)?;
     profile.name = name;
     let user = upsert_firebase_user(state, &profile).await?;
+    if state.config.mailer.is_some() {
+        // The notification service sends the confirmation email, with a link this service makes and checks itself.
+        if !user.email_verified {
+            let mut tx = state.db.begin().await?;
+            let token = email::new_verification(&mut tx, &user.id).await?;
+            tx.commit().await?;
+            email::send_confirmation(state, &user.email, &user.name, &token).await;
+        }
+    } else {
+        let _ = fb.send_verification(&login.id_token).await;
+    }
     let session = FbSession { refresh: login.refresh_token };
     Ok((StatusCode::CREATED, Json(open_session_fb(state, &user, kind, false, "password", Some(&session)).await?)))
 }
@@ -383,6 +393,7 @@ async fn sign_up(State(state): State<AppState>, Json(body): Json<SignUp>) -> Aut
     email::outbox(&mut tx, "user.signed_up", json!({ "user_id": user.id, "version": 1 })).await?;
     let link = email::new_verification(&mut tx, &user.id).await?;
     tx.commit().await?;
+    email::send_confirmation(&state, &user.email, &user.name, &link).await;
     let mut reply = open_session(&state, &user, kind, false, "password").await?;
     email::with_dev_token(&state, &mut reply, link);
     Ok((StatusCode::CREATED, Json(reply)))
