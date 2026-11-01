@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Archive, Buildings, Circle, CreditCard, DeviceMobile, Export, HardDrives, IdentificationBadge, Kanban,
+  ArrowRight, ArrowUpRight, Archive, Buildings, Circle, CreditCard, DeviceMobile, Export, HardDrives, IdentificationBadge, Kanban,
   ListChecks, LockKey, MagnifyingGlass, MapTrifold, Phone, ShieldCheck, Sparkle, UploadSimple, Users, WifiSlash,
 } from "@phosphor-icons/react";
 import { STATUS, faqs, footerLinks, tiers } from "./content.js";
@@ -18,7 +18,7 @@ const GoogleLogo = ({ size }) => (
 );
 
 const ICONS = {
-  Archive, Buildings, CreditCard, DeviceMobile, Export, GoogleLogo, HardDrives, IdentificationBadge, Kanban,
+  ArrowRight, ArrowUpRight, Archive, Buildings, CreditCard, DeviceMobile, Export, GoogleLogo, HardDrives, IdentificationBadge, Kanban,
   ListChecks, LockKey, MagnifyingGlass, MapTrifold, Phone, ShieldCheck, Sparkle, UploadSimple, Users, WifiSlash,
 };
 
@@ -84,14 +84,42 @@ export function Shot({ file, alt, eager, tilt }) {
 }
 
 /**
- * The site's header. Signed out: Sign in and Sign up. Signed in: Dashboard for people Caller Whale invited, Admin for its staff,
+ * The site's header. Signed out: Sign in and Request access. Signed in: Dashboard for authorized accounts,
  * and Sign out. What a person may open is the server's decision (/account); the header only shows it.
  */
 export function Header({ route }) {
   const [open, setOpen] = useState(false);
   const session = useSession();
+  const menuButton = useRef(null);
+  const menu = useRef(null);
   useEffect(() => setOpen(false), [route]);
-  const links = [["features", "Features"], ["pricing", "Pricing"], ["compare", "Why Caller Whale"], ["security", "Security"]];
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        menuButton.current?.focus();
+      }
+    };
+    const outside = (event) => {
+      if (
+        !menu.current?.contains(event.target) &&
+        !menuButton.current?.contains(event.target)
+      )
+        setOpen(false);
+    };
+    document.addEventListener("keydown", dismiss);
+    document.addEventListener("pointerdown", outside);
+    return () => {
+      document.removeEventListener("keydown", dismiss);
+      document.removeEventListener("pointerdown", outside);
+    };
+  }, [open]);
+  const links = [
+    ["/features", "Product"],
+    ["/#workflow", "Workflow"],
+    ["/pricing", "Pricing"],
+  ];
   const account = session.status === "signed_in" ? session.account : null;
   const invited = Boolean(account?.access);
   return (
@@ -100,22 +128,63 @@ export function Header({ route }) {
         <Logo />
         Caller Whale
       </a>
-      <button className="menu-toggle" aria-expanded={open} aria-controls="site-nav" onClick={() => setOpen(!open)}>
+      <button
+        ref={menuButton}
+        type="button"
+        className="menu-toggle"
+        aria-expanded={open}
+        aria-controls="site-nav"
+        onClick={() => setOpen(!open)}
+      >
         {open ? "Close" : "Menu"}
       </button>
-      <nav id="site-nav" aria-label="Site" className={open ? "open" : ""}>
-        {links.map(([id, label]) => (
-          <a key={id} href={`/${id}`} aria-current={route === id ? "page" : undefined}>{label}</a>
+      <nav
+        ref={menu}
+        onClick={(event) => {
+          if (event.target.closest("a")) setOpen(false);
+        }}
+        id="site-nav"
+        aria-label="Site"
+        className={open ? "open" : ""}
+      >
+        {links.map(([href, label]) => (
+          <a
+            key={href}
+            href={href}
+            aria-current={route === href.slice(1) ? "page" : undefined}
+          >
+            {label}
+          </a>
         ))}
         {session.status === "signed_in" || session.status === "error" ? (
           <>
-            {(invited || account?.staff) && <a href="/dashboard" aria-current={route === "dashboard" ? "page" : undefined}>Dashboard</a>}
-            <button type="button" className="button small ghost" onClick={session.signOut}>Sign out</button>
+            {(invited || account?.staff) && (
+              <a
+                href="/dashboard"
+                aria-current={route === "dashboard" ? "page" : undefined}
+              >
+                Dashboard
+              </a>
+            )}
+            <button
+              type="button"
+              className="button small ghost"
+              onClick={session.signOut}
+            >
+              Sign out
+            </button>
           </>
         ) : (
           <>
-            <a href="/signin" aria-current={route === "signin" ? "page" : undefined}>Sign in</a>
-            <a className="button small" href="/signup">Sign up</a>
+            <a
+              href="/signin"
+              aria-current={route === "signin" ? "page" : undefined}
+            >
+              Sign in
+            </a>
+            <a className="button small" href="/#request-access">
+              Request access
+            </a>
           </>
         )}
       </nav>
@@ -123,33 +192,140 @@ export function Header({ route }) {
   );
 }
 
+/** Persistent marketing entry point; entitlement is still enforced by the server. */
+export function GetStarted({ route }) {
+  const dialog = useRef(null);
+  const trigger = useRef(null);
+  const session = useSession();
+  const signedIn = session.status === "signed_in";
+  useEffect(() => { dialog.current?.close(); }, [route]);
+  const previousOverflow = useRef(null);
+  const restoreScroll = () => {
+    if (previousOverflow.current !== null) {
+      document.body.style.overflow = previousOverflow.current;
+      previousOverflow.current = null;
+    }
+  };
+  useEffect(() => () => restoreScroll(), []);
+  const open = () => {
+    previousOverflow.current = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialog.current.showModal();
+  };
+  const close = () => dialog.current.close();
+  const containTab = event => {
+    if (event.key !== "Tab") return;
+    const items = dialog.current.querySelectorAll('button:not([disabled]), a[href]');
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  };
+  const downloadPath = signedIn ? "/dashboard#desktop-download" : "/signin?next=%2Fdashboard";
+  return <>
+    <button ref={trigger} type="button" className="get-started-float" onClick={open} aria-haspopup="dialog" aria-controls="get-started-dialog">Get started <Icon name="ArrowUpRight" size={20} /></button>
+    <dialog ref={dialog} id="get-started-dialog" className="entry-dialog" onKeyDown={containTab} onClose={() => { restoreScroll(); trigger.current?.focus(); }} aria-labelledby="entry-title" aria-describedby="entry-description" onClick={event => { if (event.target === event.currentTarget) close(); }}>
+      <div className="entry-content">
+        <button type="button" className="entry-close" onClick={close} aria-label="Close get started">Close</button>
+        <p className="studio-label">Your Caller Whale workspace</p>
+        <h2 id="entry-title">Your next step<br />starts here.</h2>
+        <p id="entry-description">Open your web dashboard or get the desktop app. Caller Whale is currently by invitation.</p>
+        <div className="entry-options">
+          <a className="entry-option" href={signedIn ? "/dashboard" : "/signin?next=%2Fdashboard"} onClick={close}><Icon name="Kanban" size={24} /><span><strong>{signedIn ? "Open web dashboard" : "Sign in"}</strong><span>{signedIn ? "Continue to your account and workspace." : "Already have an account? Continue to your dashboard."}</span></span><Icon name="ArrowRight" size={20} /></a>
+          {!signedIn && <a className="entry-option" href="/signup" onClick={close}><Icon name="Users" size={24} /><span><strong>Sign up</strong><span>Create your account with the email you were invited with.</span></span><Icon name="ArrowRight" size={20} /></a>}
+          <a className="entry-option" href={downloadPath} onClick={close}><Icon name="DeviceMobile" size={24} /><span><strong>Get the desktop app</strong><span>{signedIn ? "Find the Windows download in your dashboard." : "Sign in first. Invited accounts can download from their dashboard."}</span></span><Icon name="ArrowRight" size={20} /></a>
+        </div>
+        <p className="entry-waitlist">No invitation yet? <a href="/#request-access" onClick={close}>Join the waitlist</a>.</p>
+      </div>
+    </dialog>
+  </>;
+}
+
 export function Footer() {
   // Signed in, the footer's "Sign in" becomes the way back to the person's own page.
   const signedIn = useSession().status === "signed_in";
-  const columns = footerLinks.map(col => ({ ...col, links: col.links.map(link => (signedIn && link[1] === "/signin" ? ["Your dashboard", "/dashboard"] : link)) }));
+  const columns = footerLinks.map((col) => ({
+    ...col,
+    links: col.links.map((link) =>
+      signedIn && link[1] === "/signin"
+        ? ["Your dashboard", "/dashboard"]
+        : link,
+    ),
+  }));
   return (
     <footer className="foot">
       <div className="foot-main">
         <div className="foot-brand">
-          <a className="brand" href="/"><Logo />Caller Whale</a>
-          <p>The CRM and dialer for property outreach. Works offline, on your desktop.</p>
+          <a className="brand" href="/">
+            <Logo />
+            Caller Whale
+          </a>
+          <p>
+            A desktop workspace for property lists, conversations and the next
+            follow-up.
+          </p>
         </div>
-        {columns.map(col => (
+        {columns.map((col) => (
           <nav key={col.title} aria-label={col.title}>
             <h3>{col.title}</h3>
             <ul>
               {col.links.map(([label, href]) => (
-                <li key={label}><a href={href}>{label}</a></li>
+                <li key={label}>
+                  <a href={href}>{label}</a>
+                </li>
               ))}
             </ul>
           </nav>
         ))}
       </div>
       <div className="foot-base">
-        <span>© {new Date().getFullYear()} Caller Whale. All rights reserved.</span>
-        <span>Records stay on your machine and your organization's server.</span>
+        <span>
+          © {new Date().getFullYear()} Caller Whale. All rights reserved.
+        </span>
+        <ThemeSelect />
       </div>
     </footer>
+  );
+}
+
+function ThemeSelect() {
+  const [theme, setTheme] = useState("system");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("callerwhale-site-theme");
+      if (["system", "light", "dark"].includes(saved)) setTheme(saved);
+    } catch {
+      /* Theme remains usable when storage is unavailable. */
+    }
+  }, []);
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () =>
+      (document.documentElement.dataset.theme =
+        theme === "system" ? (media.matches ? "dark" : "light") : theme);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, [theme]);
+  return (
+    <label className="theme-control">
+      Appearance
+      <select
+        value={theme}
+        onChange={(event) => {
+          setTheme(event.target.value);
+          try {
+            localStorage.setItem("callerwhale-site-theme", event.target.value);
+          } catch {
+            /* Storage is optional. */
+          }
+        }}
+      >
+        <option value="system">System</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+    </label>
   );
 }
 
@@ -206,59 +382,136 @@ export function InviteOnly() {
 function useForm(initial, submit) {
   const [form, setForm] = useState(initial);
   const [state, setState] = useState({ status: "idle", message: "" });
-  const set = key => e => setForm({ ...form, [key]: e.target.value });
+  const sending = useRef(false);
+  const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
   async function onSubmit(e) {
     e.preventDefault();
+    if (sending.current || !e.currentTarget.reportValidity()) return;
+    sending.current = true;
     setState({ status: "sending", message: "" });
     try {
       setState({ status: "done", message: await submit(form) });
     } catch (err) {
       setState({ status: "error", message: err.message });
+    } finally {
+      sending.current = false;
     }
   }
   return { form, set, state, onSubmit, setForm };
 }
 
 export function Waitlist({ tier, plan, setTier }) {
-  const { form, set, state, onSubmit } = useForm({ email: "", name: "", company: "", website: "" }, async f => {
-    const r = await joinWaitlist({ ...f, tier, plan: tier === "custom" ? plan : "" });
-    return r.joined ? "You are on the list. We will email you at launch." : "You were already on the list.";
-  });
+  const { form, set, state, onSubmit } = useForm(
+    { email: "", name: "", company: "", website: "" },
+    async (f) => {
+      const r = await joinWaitlist({
+        ...f,
+        tier,
+        plan: tier === "custom" ? plan : "",
+      });
+      return r.joined
+        ? "Your interest is recorded. This does not create an account or grant access."
+        : "You were already on the list.";
+    },
+  );
   return (
-    <section id="waitlist" className="section">
+    <section id="request-access" className="section access-section">
+      <span id="waitlist" className="anchor-alias" aria-hidden="true" />
+      <div className="access-copy">
+        <p className="studio-label">Your next conversation starts here</p>
+        <h2>
+          A place for
+          <br />
+          your next list.
+        </h2>
+        <p>
+          Caller Whale is currently by invitation. Join the waitlist to record
+          your interest; submitting does not create an account, send an
+          invitation or unlock a download.
+        </p>
+        <p>
+          Already invited? <a href="/signup">Accept your invitation</a> or{" "}
+          <a href="/signin">sign in</a>.
+        </p>
+      </div>
       <div className="panel">
         <h2>Join the waitlist</h2>
-        <p className="sub">Be first to use Caller Whale, and tell us which plan fits.</p>
-        {tier === "custom" && plan && <p className="notice good" role="status">Your plan: {plan}</p>}
+        <p className="sub">
+          Tell us where to keep your interest on record. No automatic access or
+          confirmation email is promised.
+        </p>
+        {tier === "custom" && plan && (
+          <p className="notice good" role="status">
+            Your plan: {plan}
+          </p>
+        )}
         {state.status === "done" ? (
-          <p className="notice good" role="status">{state.message}</p>
+          <p className="notice good" role="status">
+            {state.message}
+          </p>
         ) : (
           <form onSubmit={onSubmit} noValidate>
             <label>
               Email
-              <input type="email" required autoComplete="email" value={form.email} onChange={set("email")} />
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                value={form.email}
+                onChange={set("email")}
+              />
             </label>
             <label>
               Name <span className="opt">(optional)</span>
-              <input autoComplete="name" value={form.name} onChange={set("name")} />
+              <input
+                autoComplete="name"
+                value={form.name}
+                onChange={set("name")}
+              />
             </label>
             <label>
               Company <span className="opt">(optional)</span>
-              <input autoComplete="organization" value={form.company} onChange={set("company")} />
+              <input
+                autoComplete="organization"
+                value={form.company}
+                onChange={set("company")}
+              />
             </label>
             <label>
               Plan you are leaning towards
-              <select value={tier} onChange={e => setTier(e.target.value, plan)}>
+              <select
+                value={tier}
+                onChange={(e) => setTier(e.target.value, plan)}
+              >
                 <option value="">Not sure yet</option>
                 {plan && <option value="custom">The plan I built</option>}
-                {tiers.filter(t => t.id !== "trial").map(t => (
-                  <option key={t.id} value={t.id}>{t.name} · {t.who}</option>
-                ))}
+                {tiers
+                  .filter((t) => t.id !== "trial")
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} · {t.who}
+                    </option>
+                  ))}
               </select>
             </label>
-            <input className="trap" tabIndex={-1} autoComplete="off" aria-hidden="true" value={form.website} onChange={set("website")} />
-            {state.status === "error" && <p className="notice bad" role="alert">{state.message}</p>}
-            <button className="button" type="submit" disabled={state.status === "sending"}>
+            <input
+              className="trap"
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+              value={form.website}
+              onChange={set("website")}
+            />
+            {state.status === "error" && (
+              <p className="notice bad" role="alert">
+                {state.message}
+              </p>
+            )}
+            <button
+              className="button"
+              type="submit"
+              disabled={state.status === "sending"}
+            >
               {state.status === "sending" ? "Joining…" : "Join the waitlist"}
             </button>
           </form>

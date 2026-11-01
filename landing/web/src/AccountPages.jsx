@@ -421,7 +421,7 @@ export function Dashboard() {
               <AdminMode account={account} signOut={session.signOut} />
               <Security />
               <div className="panel">
-                <h2>Desktop app</h2>
+                <h2 id="desktop-download">Desktop app</h2>
                 <DownloadButton release={account.release} />
               </div>
             </Shell>
@@ -470,7 +470,7 @@ export function Dashboard() {
             </div>
             <div className="split">
               <div className="panel">
-                <h2><DownloadSimple size={22} weight="duotone" aria-hidden="true" /> The desktop app</h2>
+                <h2 id="desktop-download"><DownloadSimple size={22} weight="duotone" aria-hidden="true" /> The desktop app</h2>
                 <DownloadButton release={account.release} />
               </div>
               <div className="panel">

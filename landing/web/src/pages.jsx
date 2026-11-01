@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 import {
-  audiences, compareRows, features, priceRows, principles, securityPoints, steps, tiers,
+  compareRows, features, priceRows, securityPoints, tiers,
 } from "./content.js";
 import { PlanBuilder } from "./PlanBuilder.jsx";
 import { ALL_IN, MORE_PLANS, quote, summarize, tierPrice } from "./plan.js";
@@ -8,138 +8,261 @@ import { Badge, ContactForm, Faq, FinalCta, Icon, PageHead, Reveal, Shot } from 
 
 const money = n => `$${n.toLocaleString("en-US")}`;
 
-export function Home({ onPick }) {
-  const tour = ["crm", "skip", "map", "dialer"].map(id => features.find(f => f.id === id));
+export function Home() {
   return (
-    <>
-      <section className="hero" id="top">
-        <p className="eyebrow">CRM and dialer for property outreach</p>
-        <h1>From a raw list to a closed deal, in one app.</h1>
-        <p className="lead">
-          Import lists, skip trace the owners, call and text them, and track every deal. Caller Whale is a desktop CRM that keeps
-          working when your connection does not.
-        </p>
-        <div className="actions">
-          <a className="button" href="/#waitlist">Join the waitlist</a>
-          <a className="button ghost" href="/features">See every feature</a>
-        </div>
-        <ul className="hero-points" aria-label="Highlights">
-          <li>Works offline</li>
-          <li>Original data never changed</li>
-          <li>Clients are free seats</li>
-        </ul>
-        <Shot file="calls" alt="The Calls page: a call queue, the lead being called with the phone number and Start call button, and the call assistant." eager />
-      </section>
-
-      <section className="section strip" aria-label="The old way and Caller Whale">
-        <Reveal className="old-new">
-          <div>
-            <h2>Five subscriptions, or one app.</h2>
-            <p className="sub">A list tool, a skip-tracing service, a dialer, a texting tool and a CRM, with you copying results between them.</p>
+    <div className="studio-home">
+      <section className="studio-hero" id="top" aria-labelledby="home-title">
+        <picture className="property-hero">
+          <source
+            media="(max-width: 600px)"
+            srcSet="/images/property-hero-mobile.webp"
+          />
+          <img
+            src="/images/property-hero.webp"
+            width="1536"
+            height="1024"
+            alt="Contemporary residential rooflines in warm afternoon light; an illustrative property scene."
+            fetchPriority="high"
+          />
+        </picture>
+        <div className="hero-copy">
+          <p className="studio-label">Built for property outreach</p>
+          <h1 id="home-title">
+            Your lists.
+            <br />
+            Your next
+            <br />
+            conversation.
+          </h1>
+          <p className="studio-lead">
+            Organize property lists, review phone evidence and keep every
+            follow-up in view.
+          </p>
+          <div className="actions">
+            <a className="button" href="/#workflow">
+              Explore the workflow <Icon name="ArrowRight" size={18} />
+            </a>
+            <a className="studio-link" href="/#workspace">
+              See the desktop app
+            </a>
           </div>
-          <ul className="chips" aria-label="What Caller Whale replaces">
-            {["Lists", "Skip tracing", "Dialer", "Texting", "CRM"].map(c => (
-              <li key={c}>{c}</li>
-            ))}
-          </ul>
-          <a className="button ghost small" href="/compare">See the difference</a>
-        </Reveal>
-      </section>
-
-      <section className="section">
-        <h2>Everything a lead goes through</h2>
-        <ul className="grid four">
-          {features.map((f, i) => (
-            <Reveal as="li" className="card" key={f.id} style={{ transitionDelay: `${(i % 4) * 60}ms` }}>
-              <Icon name={f.icon} />
-              <h3>{f.title}</h3>
-              <p>{f.short}</p>
-              <Badge status={f.status} />
-              <a className="more" href={`/features#${f.id}`}>Learn more</a>
-            </Reveal>
-          ))}
-        </ul>
-      </section>
-
-      <section className="section band" aria-labelledby="see">
-        <h2 id="see">See it working</h2>
-        <p className="sub">Real screens from the app, with sample data.</p>
-        <div className="tour">
-          {tour.map((f, i) => (
-            <Reveal className={`tour-item ${i % 2 ? "flip" : ""}`} key={f.id}>
-              <div className="tour-copy">
-                <h3>{f.pitch}</h3>
-                <p>{f.text}</p>
-                <a className="more" href={`/features#${f.id}`}>About {f.title.toLowerCase()}</a>
-              </div>
-              <Shot file={f.shot} alt={f.alt} />
-            </Reveal>
-          ))}
         </div>
       </section>
 
-      <section className="section" aria-labelledby="how">
-        <h2 id="how">How it works</h2>
-        <ol className="steps">
-          {steps.map((s, i) => (
-            <Reveal as="li" key={s.title}>
-              <span className="num">{i + 1}</span>
-              <h3>{s.title}</h3>
-              <p>{s.text}</p>
-            </Reveal>
+      <section
+        className="studio-workflow"
+        id="workflow"
+        aria-label="The outreach workflow"
+      >
+        <ol>
+          {[
+            ["Import lists", "Bring your property records into one workspace."],
+            [
+              "Review numbers",
+              "Review and rank the phone evidence you already have.",
+            ],
+            [
+              "Prepare calls",
+              "Keep context close. Live calling is not available yet.",
+            ],
+            [
+              "Track follow-ups",
+              "Record outcomes and give the next step an owner.",
+            ],
+          ].map(([title, text], i) => (
+            <li key={title}>
+              <span className="studio-label">0{i + 1}</span>
+              <div>
+                <h2>{title}</h2>
+                <p>{text}</p>
+              </div>
+              <Icon name="ArrowRight" size={22} />
+            </li>
           ))}
         </ol>
-        <ul className="grid three principles">
-          {principles.map(p => (
-            <li key={p.title}>
-              <Icon name={p.icon} />
-              <h3>{p.title}</h3>
-              <p>{p.text}</p>
+      </section>
+
+      <section className="studio-section workspace-proof" id="workspace">
+        <div className="proof-copy">
+          <p className="studio-label">The workspace behind the outreach</p>
+          <h2>Keep the conversation and the next step together.</h2>
+          <ul className="proof-points">
+            {[
+              [
+                "A list with context.",
+                "See property details, notes and prior activity before you call.",
+              ],
+              [
+                "A conversation with history.",
+                "Review call outcomes alongside the record they belong to.",
+              ],
+              [
+                "A follow-up with an owner.",
+                "Record the next step and hand work over with context.",
+              ],
+            ].map(([title, text]) => (
+              <li key={title}>
+                <h3>{title}</h3>
+                <p>{text}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <figure className="product-evidence">
+          <a
+            href="/screens/calls.webp"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open full-size Calls sample workspace screenshot"
+          >
+            <img
+              src="/screens/calls.webp"
+              width="1440"
+              height="900"
+              alt="Caller Whale sample Calls workspace with a queue, call history and follow-up controls."
+              loading="lazy"
+            />
+          </a>
+          <figcaption>
+            Sample workspace · calling preview.{" "}
+            <a href="/screens/calls.webp" target="_blank" rel="noreferrer">
+              View full size
+            </a>
+          </figcaption>
+        </figure>
+      </section>
+
+      <section className="studio-stories" aria-label="From property data to the next conversation">
+        <div className="stories-intro"><p className="studio-label">Less sorting. More meaningful conversations.</p><h2>A clearer path<br />from list to next step.</h2></div>
+        {[
+          {
+            number: "01", label: "From scattered to sorted",
+            title: "A messy list.\nA clear place to start.",
+            text: "Turn scattered property records into a list you can work with. Map the columns, review the numbers you already have and see the context behind the next conversation.",
+            detail: "Review supplied phone evidence. New-number discovery is planned.",
+            image: "list-work", alt: "An operator sorting loose property records into organized groups beside her notebook.",
+            signals: ["Import your list", "Review the evidence", "Choose the next call"],
+            badge: "A little order goes a long way", icon: "ListChecks", anchor: "skip",
+          },
+          {
+            number: "02", label: "A little help in the conversation",
+            title: "Less searching.\nMore listening.",
+            text: "Keep the lead’s details, call notes and useful prompts close at hand. The calling preview brings the conversation and its context together, so you can focus on what is being said.",
+            detail: "Call assistance is shown in preview. Live telephony is not available yet.",
+            image: "supported-call", alt: "A caller listening through a headset with his notes and laptop close at hand.",
+            signals: ["Lead context", "Useful prompts", "A clear outcome"],
+            badge: "The right context, close at hand", icon: "Phone", anchor: "dialer",
+          },
+          {
+            number: "03", label: "Keep the momentum",
+            title: "A conversation ends.\nThe context stays.",
+            text: "Leave a note, set a callback and keep the next step connected to the property. When work changes hands, the story can go with it.",
+            detail: "Team handoffs and role-based workflows are demonstrated in the sample workspace.",
+            image: "team-handoff", alt: "Two colleagues sharing a notebook and discussing the next follow-up.",
+            signals: ["Record the outcome", "Set the follow-up", "Pass on the context"],
+            badge: "Every next step has a place", icon: "Users", anchor: "crm",
+          },
+        ].map(story => (
+          <article className={`studio-story story-${story.number}`} key={story.number}>
+            <div className="story-copy">
+              <p className="studio-label">{story.number} / {story.label}</p>
+              <h2>{story.title.split("\n").map((line, index) => <Fragment key={line}>{index > 0 && <br />}{line}</Fragment>)}</h2>
+              <p>{story.text}</p>
+              <a className="studio-link" href={`/features#${story.anchor}`}>Explore the feature <Icon name="ArrowUpRight" size={18} /></a>
+              <p className="story-detail">{story.detail}</p>
+            </div>
+            <figure className="benefit-scene">
+              <div className="scene-art">
+                <img src={`/images/${story.image}.webp`} width="1536" height="1024" alt={story.alt} loading="lazy" decoding="async" />
+                <div className="scene-badge"><Icon name={story.icon} size={18} /><span>{story.badge}</span></div>
+              </div>
+              <figcaption className="scene-steps">{story.signals.map((signal,index) => <span key={signal}><span className="scene-step-number">0{index+1}</span>{signal}</span>)}</figcaption>
+            </figure>
+          </article>
+        ))}
+      </section>
+
+      <section className="studio-section studio-people">
+        <div>
+          <p className="studio-label">One person. Or the next person.</p>
+          <h2>
+            A clear next step,
+            <br />
+            whoever owns it.
+          </h2>
+          <p className="story-detail">
+            Individual list work today. Team roles and handoffs shown in
+            preview.
+          </p>
+        </div>
+        <ul>
+          {[
+            [
+              "Solo operator",
+              "Keep your lists, notes and callbacks in one desktop workspace.",
+            ],
+            [
+              "Caller",
+              "Review the lead’s context and record the outcome of the conversation.",
+            ],
+            [
+              "Closer & team",
+              "Review handoff context and the work that needs attention next.",
+            ],
+          ].map(([title, text]) => (
+            <li key={title}>
+              <h3>{title}</h3>
+              <p>{text}</p>
             </li>
           ))}
         </ul>
       </section>
 
-      <section className="section band">
-        <h2>Built for people who work property leads</h2>
-        <ul className="grid three">
-          {audiences.map(a => (
-            <Reveal as="li" className="card" key={a.title}>
-              <h3>{a.title}</h3>
-              <p>{a.text}</p>
-            </Reveal>
-          ))}
-        </ul>
+      <section className="studio-section studio-continuity">
+        <p className="studio-label">Your records. Still yours.</p>
+        <div>
+          <h2>
+            Keep the original.
+            <br />
+            Carry the work forward.
+          </h2>
+          <p>
+            Work with local lists and exports on your desktop. Signing in, team
+            sync and online services need a connection; not every operation
+            works offline.
+          </p>
+          <a className="studio-link" href="/security">
+            Data and security <Icon name="ArrowUpRight" size={18} />
+          </a>
+        </div>
       </section>
 
-      <section className="section" id="plans">
-        <h2>A plan for how you work</h2>
-        <p className="sub">Draft launch prices. Each feature is priced on its own, and a plan is the sum.</p>
-        <ul className="grid four">
-          {tiers.filter(t => t.id !== "trial").map(t => (
-            <li className="card" key={t.id}>
-              <h3>{t.name}</h3>
-              <p className="who">{t.who}</p>
-              <p className="price">{money(tierPrice(t.id).price)}<span> / {t.unit}</span></p>
-              {tierPrice(t.id).from && <p className="fine">from {money(tierPrice(t.id).from)} a month for 3 seats</p>}
-              {tierPrice(t.id).list > tierPrice(t.id).price && <p className="fine">One by one it would be {money(tierPrice(t.id).list)}. Together they cost less.</p>}
-              {t.includes && (
-                <ul className="ticks small">
-                  {t.includes.map(i => (
-                    <li key={i}>{i}</li>
-                  ))}
-                </ul>
-              )}
-              <p>{t.text}</p>
-              <a className="button ghost small" href="/#waitlist" onClick={() => onPick(t.id)}>I want {t.name}</a>
-            </li>
-          ))}
-        </ul>
-        <p className="fine center-text"><a href="/pricing">Compare every feature and limit</a></p>
+      <section className="studio-section studio-pricing" id="plans">
+        <div>
+          <p className="studio-label">A plan around the work</p>
+          <h2>
+            Choose the tools
+            <br />
+            your work needs.
+          </h2>
+        </div>
+        <div>
+          <p>
+            Start with the CRM base, configure features and choose the people
+            who need them. Explore the existing plan builder to see how the
+            pieces fit.
+          </p>
+          <p className="story-detail">
+            Draft launch pricing. Checkout and automatic activation are not
+            available.
+          </p>
+          <a className="button" href="/pricing">
+            Build your plan <Icon name="ArrowRight" size={18} />
+          </a>
+        </div>
       </section>
-
       <Faq />
-    </>
+    </div>
   );
 }
 
