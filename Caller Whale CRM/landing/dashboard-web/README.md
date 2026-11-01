@@ -16,7 +16,7 @@ Development port: 5201. Production files: `dist/`.
 
 ## Coolify
 
-Use branch `landing-dashboard-web-production`, base directory `/landing/dashboard-web`, build pack **Dockerfile**, Dockerfile `Dockerfile`, container port **8080**, health path `/healthz`. Build context must be this folder. Configure the desired hostname in Coolify and enable HTTPS. No secrets or environment variables are required by this foundation.
+Use branch `landing-dashboard-web-production`, base directory `/`, build pack **Dockerfile**, Dockerfile `/Dockerfile`, container port **8080**, health path `/healthz`. The production branch places this app at its root; its build context is the branch root. Configure the desired hostname in Coolify and enable HTTPS. No secrets or environment variables are required by this foundation.
 
 Build locally: `docker build -t callerwhale-dashboard .`
 

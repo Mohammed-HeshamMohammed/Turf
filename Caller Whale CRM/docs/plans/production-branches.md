@@ -4,8 +4,8 @@ One branch per part of Caller Whale, each holding **only that part's code**, so 
 
 | Branch | What it holds |
 | --- | --- |
-| `landing-web-production` | The landing site's frontend (`landing/web`) |
-| `landing-dashboard-web-production` | Independent dashboard frontend foundation (`landing/dashboard-web`); Coolify Dockerfile context is that folder, port 8080 |
+| `landing-web-production` | The landing site's frontend, exported from `landing/web` to the branch root |
+| `landing-dashboard-web-production` | Independent dashboard frontend foundation, exported from `landing/dashboard-web` to the branch root |
 | `landing-backend-production` | The landing site's backend (`landing/api`) |
 | `auth-backend-production` | The authentication service (`services/auth`) |
 | `notifications-backend-production` | The notification service |
@@ -21,7 +21,8 @@ Each server branch also carries its container file and its Kubernetes files (`in
 
 ## What is in a branch
 
-- The part's folder(s), at the same paths as in `Caller Whale CRM/` on `main` (the `Caller Whale CRM/` prefix itself is dropped), and `.gitignore`.
+- By default, the part's folders keep their paths relative to `Caller Whale CRM/` on `main`. A component can set `base` and `paths: ["."]` to export that source folder directly to its branch root. Both frontend production branches do this; other components retain their existing paths.
+- Frontend branches contain only their app, including its Dockerfile and dependency lockfile. Landing Kubernetes manifests and the environment example remain on `main`; configure the landing build/runtime variables using `landing/web/COOLIFY.md`.
 - For a Rust service: the Cargo workspace file cut down to the members present, and `Cargo.lock`. Dockerfile lines that copy a folder the branch does not have are removed.
 - A generated `readme.md`: what it is, which `main` commit it was made from, how to build and test it.
 
@@ -43,3 +44,12 @@ node tools/publish-production.mjs --push                    # and push what chan
 ## Things a single-part branch cannot do alone
 
 - `desktop-app-production` starts the Skip Tracing engine at run time and in its tests: check out `skip-engine-production` beside it and set `CALLERWHALE_SERVICE_ROOT` to it.
+
+## Coolify frontend settings
+
+| Branch | Base directory | Dockerfile location | Container port | Health path |
+| --- | --- | --- | --- | --- |
+| `landing-web-production` | `/` | `/Dockerfile` | `8080` | `/healthz` |
+| `landing-dashboard-web-production` | `/` | `/Dockerfile` | `8080` | `/healthz` |
+
+Choose the **Dockerfile** build pack. After refreshing a source scan, replace any saved `landing/web/Dockerfile` path with `/Dockerfile`. Both paths in Coolify must start with `/`. Each Dockerfile uses its branch root as the build context. These generated branches are the release sources; do not point these applications at `main` with base directory `/`.
