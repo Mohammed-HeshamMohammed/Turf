@@ -15,7 +15,7 @@ The header has **Sign in** and **Sign up** (through the auth service: email and 
 
 ## Pages
 
-Real paths (`/features`, `/features#map`). `npm run build` writes every page as plain HTML into its own folder (`dist/pricing/index.html`) and the browser hydrates it, so search engines, link previews and visitors without scripts see the content. `landing/api` serves `dist` and its `404.html`. Set `SITE_URL` when building to add canonical links, `sitemap.xml` and the `Sitemap` line in `robots.txt`.
+Real paths (`/features`, `/features#map`). `npm run build` writes every page as plain HTML into its own folder (`dist/pricing/index.html`) and the browser hydrates it, so search engines, link previews and visitors without scripts see the content. `landing/api` serves `dist` and its `404.html`. The build emits canonical links, `sitemap.xml`, `robots.txt` and a browser manifest from one route registry. `SITE_URL` defaults to `https://callerwhale.com`; override it for another origin and use `SITE_INDEXABLE=false` for a non-public build.
 
 | Page | Source of its text |
 | --- | --- |
@@ -71,4 +71,4 @@ SITE_URL=https://your-domain npm --prefix landing/web run build    # landing/web
 - Waitlist and contact messages are stored, not emailed. Sending the confirmation goes through the notification service (Phase 5).
 - Sign-up for an account stays on the existing server's site until the auth service exists (Phase 4).
 - Privacy and Terms are short drafts and must be reviewed before the product is sold.
-- Set `SITE_URL` for the real domain at build time, or canonical links and the sitemap are left out.
+- Discovery defaults to `https://callerwhale.com`. Override `SITE_URL` only for a deliberate different origin; use `SITE_INDEXABLE=false` for non-public builds.

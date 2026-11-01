@@ -1,20 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
-import { accountPages, pageMeta } from "./content.js";
+import { accountPages } from "./content.js";
 import { Footer, GetStarted, Header, InviteOnly, Waitlist } from "./components.jsx";
 import { Compare, Contact, Features, Home, Legal, NotFound, Pricing, Security, legalPages } from "./pages.jsx";
 import { Dashboard, SignIn, SignUp, VerifyEmail } from "./AccountPages.jsx";
 import { SessionProvider } from "./session.jsx";
+import { MotionProvider } from "./motion.jsx";
 
-export const PAGE_PATHS = {
-  "/": "home", "/features": "features", "/pricing": "pricing", "/compare": "compare", "/security": "security", "/contact": "contact", "/privacy": "privacy",
-  "/terms": "terms", "/signin": "signin", "/signup": "signup", "/dashboard": "dashboard", "/verify": "verify",
-};
-
-/** "/pricing/" and "/pricing" are the same page; an unknown path is the not-found page. */
-export const pageFor = pathname => PAGE_PATHS[pathname.replace(/(.)\/+$/, "$1")] || "notfound";
+import { PAGE_PATHS, routeForPath } from "./routes.js";
+import { applyMetadata } from "./metadata.js";
+export { PAGE_PATHS } from "./routes.js";
+export const pageFor = pathname => routeForPath(pathname).key;
 
 function scrollToHash(hash) {
-  const target = hash && document.getElementById(decodeURIComponent(hash.slice(1)));
+  let id = "";
+  try { id = decodeURIComponent(hash.slice(1)); } catch { /* Malformed fragments do not break navigation. */ }
+  const target = id && document.getElementById(id);
   if (target) target.scrollIntoView();
   else window.scrollTo(0, 0);
 }
@@ -24,13 +24,17 @@ function useRoute(initialPath) {
   const [pathname, setPathname] = useState(initialPath);
   const go = useCallback(href => {
     const url = new URL(href, window.location.origin);
+    const changed = url.pathname !== window.location.pathname;
     window.history.pushState({}, "", url.pathname + url.search + url.hash);
     setPathname(url.pathname);
-    requestAnimationFrame(() => scrollToHash(url.hash));
+    requestAnimationFrame(() => {
+      scrollToHash(url.hash);
+      if (changed && !url.hash) document.getElementById("main")?.focus({ preventScroll: true });
+    });
   }, []);
   useEffect(() => {
     if (window.location.hash) requestAnimationFrame(() => scrollToHash(window.location.hash));
-    const onPop = () => setPathname(window.location.pathname);
+    const onPop = () => { setPathname(window.location.pathname); requestAnimationFrame(() => scrollToHash(window.location.hash)); };
     // A click on a link to another page of this site: keep the app, change the page. Anchors on this page stay native.
     const onClick = e => {
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -52,9 +56,7 @@ function useRoute(initialPath) {
   }, [go]);
   const page = pageFor(pathname);
   useEffect(() => {
-    const [title, description] = pageMeta[page] || pageMeta.notfound;
-    document.title = title;
-    document.querySelector('meta[name="description"]')?.setAttribute("content", description);
+    applyMetadata(page);
   }, [page]);
   return page;
 }
@@ -81,16 +83,16 @@ export function App({ path = typeof window === "undefined" ? "/" : window.locati
   }[page];
   const marketing = !legalPages.includes(page) && !accountPages.includes(page) && page !== "notfound";
   return (
-    <SessionProvider>
+    <MotionProvider><SessionProvider>
       <a className="skip-link" href="#main">Skip to content</a>
       <Header route={page} />
-      <main id="main" tabIndex={-1}>
+      <main id="main" tabIndex={-1} key={page}>
         {body}
         {marketing && page !== "home" && <InviteOnly />}
         {marketing && <Waitlist tier={choice.tier} plan={choice.plan} setTier={onPick} />}
       </main>
       <Footer />
       {marketing && <GetStarted route={page} />}
-    </SessionProvider>
+    </SessionProvider></MotionProvider>
   );
 }

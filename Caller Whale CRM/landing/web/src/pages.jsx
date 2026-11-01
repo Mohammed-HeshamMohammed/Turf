@@ -2,6 +2,7 @@ import { Fragment, useState } from "react";
 import {
   compareRows, features, priceRows, securityPoints, tiers,
 } from "./content.js";
+import { Workflow } from "./Workflow.jsx";
 import { PlanBuilder } from "./PlanBuilder.jsx";
 import { ALL_IN, MORE_PLANS, quote, summarize, tierPrice } from "./plan.js";
 import { Badge, ContactForm, Faq, FinalCta, Icon, PageHead, Reveal, Shot } from "./components.jsx";
@@ -49,38 +50,7 @@ export function Home() {
         </div>
       </section>
 
-      <section
-        className="studio-workflow"
-        id="workflow"
-        aria-label="The outreach workflow"
-      >
-        <ol>
-          {[
-            ["Import lists", "Bring your property records into one workspace."],
-            [
-              "Review numbers",
-              "Review and rank the phone evidence you already have.",
-            ],
-            [
-              "Prepare calls",
-              "Keep context close. Live calling is not available yet.",
-            ],
-            [
-              "Track follow-ups",
-              "Record outcomes and give the next step an owner.",
-            ],
-          ].map(([title, text], i) => (
-            <li key={title}>
-              <span className="studio-label">0{i + 1}</span>
-              <div>
-                <h2>{title}</h2>
-                <p>{text}</p>
-              </div>
-              <Icon name="ArrowRight" size={22} />
-            </li>
-          ))}
-        </ol>
-      </section>
+      <Workflow />
 
       <Reveal as="section" className="studio-section workspace-proof" id="workspace">
         <div className="proof-copy">

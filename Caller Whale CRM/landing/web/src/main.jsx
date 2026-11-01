@@ -7,7 +7,11 @@ import "./pages.css";
 import "./builder.css";
 import "./account.css";
 
-// Scroll reveals hide their content only once scripts run, so the prerendered page is readable without them.
+// Apply a saved pause before enabling CSS entrances; do not flash motion on reload.
+let motionPaused = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+try { motionPaused ||= localStorage.getItem("callerwhale-site-motion") === "off"; } catch { /* Storage is optional. */ }
+document.documentElement.dataset.motion = motionPaused ? "off" : "on";
+// Scroll reveals enhance readable prerendered content only once scripts run.
 document.documentElement.classList.add("js");
 
 const root = document.getElementById("root");

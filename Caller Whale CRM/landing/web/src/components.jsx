@@ -6,6 +6,7 @@ import {
 import { STATUS, faqs, footerLinks, tiers } from "./content.js";
 import { joinWaitlist, sendMessage } from "./api.js";
 import { useSession } from "./session.jsx";
+import { MotionToggle } from "./motion.jsx";
 
 /** Google's own mark in its own colours, where the site talks about signing in with Google. */
 const GoogleLogo = ({ size }) => (
@@ -290,7 +291,7 @@ export function Footer() {
         <span>
           © {new Date().getFullYear()} Caller Whale. All rights reserved.
         </span>
-        <ThemeSelect />
+        <div className="footer-controls"><MotionToggle /><ThemeSelect /></div>
       </div>
     </footer>
   );
@@ -458,7 +459,7 @@ export function Waitlist({ tier, plan, setTier }) {
             {state.message}
           </p>
         ) : (
-          <form onSubmit={onSubmit} noValidate>
+          <form onSubmit={onSubmit} noValidate aria-busy={state.status === "sending"}>
             <label>
               Email
               <input
@@ -518,7 +519,7 @@ export function Waitlist({ tier, plan, setTier }) {
             <button
               className="button"
               type="submit"
-              disabled={state.status === "sending"}
+              disabled={state.status === "sending"} aria-busy={state.status === "sending"}
             >
               {state.status === "sending" ? "Joining…" : "Join the waitlist"}
             </button>
@@ -540,7 +541,7 @@ export function ContactForm() {
       {state.status === "done" ? (
         <p className="notice good" role="status">{state.message}</p>
       ) : (
-        <form onSubmit={onSubmit} noValidate>
+        <form onSubmit={onSubmit} noValidate aria-busy={state.status === "sending"}>
           <label>
             Name
             <input autoComplete="name" value={form.name} onChange={set("name")} />
@@ -555,7 +556,7 @@ export function ContactForm() {
           </label>
           <input className="trap" tabIndex={-1} autoComplete="off" aria-hidden="true" value={form.website} onChange={set("website")} />
           {state.status === "error" && <p className="notice bad" role="alert">{state.message}</p>}
-          <button className="button" type="submit" disabled={state.status === "sending"}>
+          <button className="button" type="submit" disabled={state.status === "sending"} aria-busy={state.status === "sending"}>
             {state.status === "sending" ? "Sending…" : "Send message"}
           </button>
         </form>
