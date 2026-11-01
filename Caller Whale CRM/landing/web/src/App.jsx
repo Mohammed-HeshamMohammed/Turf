@@ -86,7 +86,7 @@ export function App({ path = typeof window === "undefined" ? "/" : window.locati
       <Header route={page} />
       <main id="main" tabIndex={-1}>
         {body}
-        {marketing && <InviteOnly />}
+        {marketing && page !== "home" && <InviteOnly />}
         {marketing && <Waitlist tier={choice.tier} plan={choice.plan} setTier={onPick} />}
       </main>
       <Footer />

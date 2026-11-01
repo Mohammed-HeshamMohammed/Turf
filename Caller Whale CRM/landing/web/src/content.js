@@ -237,14 +237,46 @@ export const securityPoints = [
 ];
 
 export const faqs = [
-  { q: "Does Caller Whale work without an internet connection?", a: "Yes. Opening a list, skip tracing it and exporting run on your computer. Signing in, syncing with your team, calling and messaging need a connection." },
-  { q: "Where are my records kept?", a: "On your computer, and on your organization's server when you sync. Records are never shared between organizations." },
-  { q: "Which computers does it run on?", a: "Windows first. Caller Whale is by invitation for now: once you are invited, your dashboard has the download." },
-  { q: "How many people can use one account?", a: "Solo is one person and Duo is exactly two. Team starts at three and gives each person a role. Clients and partners you share properties with are free seats." },
-  { q: "What does it cost?", a: "Each feature is priced on its own, so you build the plan: switch off what you do not need, add extras where you need more. The ready-made plans are only starting points. The prices on the Pricing page are drafts until launch, and people on the waitlist hear first." },
-  { q: "Can I take my data with me?", a: "Yes. Exports are included in every plan, and a recycle bin and project backups protect against mistakes." },
-  { q: "Does Caller Whale find new phone numbers?", a: "Not yet. Caller Whale cleans and ranks the numbers your list already has. Looking up new numbers is planned as a separate service." },
-  { q: "Is calling live today?", a: "Not yet. The call screens, outcomes and logs work with sample data. Live calling is a launch feature." },
+  {
+    q: "What is Caller Whale for?",
+    a: "Caller Whale is a desktop workspace for people working property leads: organize supplied lists, review phone evidence, record outcomes and keep the next follow-up connected to its record.",
+  },
+  {
+    q: "Can I import my spreadsheet?",
+    a: "Yes. The desktop list workflow supports CSV and spreadsheet imports with column mapping. Original source values remain available for review and export.",
+  },
+  {
+    q: "Does Caller Whale work without an internet connection?",
+    a: "Yes. Opening a list, skip tracing it and exporting run on your computer. Signing in, syncing with your team, calling and messaging need a connection.",
+  },
+  {
+    q: "Where are my records kept?",
+    a: "The local desktop workflow keeps project records on your computer. Team sync and account services have separate online requirements; see Security for the current scope and limitations.",
+  },
+  {
+    q: "Which computers does it run on?",
+    a: "Windows first. Caller Whale is by invitation for now: once you are invited, your dashboard has the download.",
+  },
+  {
+    q: "How many people can use one account?",
+    a: "Solo is one person and Duo is exactly two. Team starts at three and gives each person a role. Clients and partners you share properties with are free seats.",
+  },
+  {
+    q: "What does it cost?",
+    a: "Each feature is priced on its own, so you build the plan: switch off what you do not need, add extras where you need more. The ready-made plans are only starting points. The prices on the Pricing page are drafts until launch, and joining the waitlist records your interest.",
+  },
+  {
+    q: "Can I take my data with me?",
+    a: "Yes. Exports are included in every plan, and a recycle bin and project backups protect against mistakes.",
+  },
+  {
+    q: "Does Caller Whale find new phone numbers?",
+    a: "Not yet. Caller Whale cleans and ranks the numbers your list already has. Looking up new numbers is planned as a separate service.",
+  },
+  {
+    q: "Is calling live today?",
+    a: "Not yet. The call screens, outcomes and logs work with sample data. Live calling is a launch feature.",
+  },
 ];
 
 export const footerLinks = [
@@ -254,7 +286,7 @@ export const footerLinks = [
 ];
 
 export const pageMeta = {
-  home: ["Caller Whale · The CRM and dialer for property outreach", "Import lists, skip trace them, call and text owners, and track every deal in one desktop CRM that keeps working offline."],
+  home: ["Caller Whale · The CRM and dialer for property outreach", "Organize property lists, review phone evidence and keep every follow-up in view. Explore Caller Whale’s desktop workflow and sample workspace."],
   features: ["Features · Caller Whale", "Lists, skip tracing, dialer, leads map, CRM, AI campaigns, exports and backup. Everything a property lead goes through."],
   pricing: ["Pricing · Caller Whale", "Draft launch pricing for Solo, Duo, Team and Pro. Each feature is priced alone and a plan is their sum."],
   compare: ["Why Caller Whale · One app instead of five", "See how one app replaces a list tool, a skip-tracing service, a dialer, a texting tool and a CRM."],

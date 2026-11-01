@@ -19,3 +19,5 @@ const app = (
 // A built page arrives prerendered and is hydrated; the dev server sends an empty root.
 if (root.hasChildNodes()) hydrateRoot(root, app);
 else createRoot(root).render(app);
+
+import "./studio.css";
