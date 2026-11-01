@@ -38,3 +38,59 @@ Every item below is **to do**. "Seen" means I saw it on the live page or in a li
 - Header: "Sign in" underlined plus a filled "Sign up" button is a normal pattern.
 - The sign-in text "Use the account your invitation was sent to." matches the sign-up text.
 - Sign-up is not open at the server (`AUTH_PUBLIC_SIGNUP=false`), so the refusal itself is correct; only the page's wording around it (item 3) is the problem.
+
+---
+
+# Part 2: the flow behind the pages (API calls, human check, security, usage)
+
+Added 2026-11-01 after "the flow of API, human checks, all other security and usage matters feel bad". Same rule: review only, everything is **to do**. "Seen" = measured or tried live; "Read" = from code; "Not verified" = my guess, needs a test.
+
+## The API flow (what happens before the form works)
+
+Seen/Read: opening `/signin` makes these calls **one after another**, each waiting for the last:
+
+1. `gate.callerwhale.com/api/v1/auth/service` (0.39 s): the site asks the **core API** where the auth service is.
+2. `auth.callerwhale.com/v1/providers` (0.53 s): which of Google and Apple are on.
+3. `auth.callerwhale.com/v1/security` (0.28 s): is the human check on, and its site key.
+4. the Cloudflare script, then the widget, then the person ticks a box.
+5. only then the sign-in request itself.
+
+That is about 1.2 s of waiting before the human check even starts, and it has three problems:
+
+- **A. Sign-in depends on the core API.** If core-api or the gateway is down, the person gets "Caller Whale's server cannot be reached" and cannot sign in, although auth itself is fine. The auth address is already known to the site at build time (`AUTH_ORIGIN`). **Do:** read the auth address from the build setting, drop call 1, and keep the core API out of the sign-in path.
+- **B. Calls 2 and 3 can be one call** (or run at the same time), and can be cached for the session. **Do:** one `/v1/security` answer that carries the provider list and the bot-protection setting.
+- **C. Several public API names for one site** (`gate`, `appapi`, `auth`, plus `api` for the waitlist) means several allowed origins in the content security policy and in CORS, and the person's browser talks to all of them. **Do:** decide which addresses the *browser* may ever call (suggest: `auth` and `gate` only) and keep `appapi` and `appapiw` private.
+
+## Human check
+
+- **D. It is a tick-box, on every attempt.** Seen: the widget shows "Verify you are human" with a checkbox. Read: sign-in and sign-up verify it *before* the password is looked at, so every wrong password means ticking again (the page resets it). **Do:** use Turnstile's managed or invisible mode so most people never see it, and verify it only when needed (for example after a failed attempt).
+- **E. It guards some doors and not others.** Read: checked on sign-in, sign-up and starting Google/Apple. **Not** checked on: forgot password, resend confirmation email, sending a second-step code by email or Telegram, and the landing API's waitlist and contact forms (those have only a hidden "honeypot" field). **Do:** put it on every action that sends an email or writes a row for an anonymous visitor.
+- **F. It fails closed, which is right, but the message is vague.** Read: any Cloudflare error returns "Verify you are human and try again." even when Cloudflare is the problem. **Do:** say "the check could not load, reload and try again" when it is a loading failure (the page already does this for script errors; the server does not).
+
+## Rate limits and lockouts
+
+- **G. The landing API's limit is probably shared by everyone.** Read: `landing/api/src/app.mjs` limits 8 writes a minute per `req.socket.remoteAddress`. Behind Cloudflare and Coolify's proxy that address is the proxy's, the same for every visitor. So the waitlist and contact forms allow **8 requests a minute in total**, not per person. **Do:** use the real client address (the forwarded header from the proxy, trusting only the hops you run), and keep the table small (it never forgets old addresses today).
+- **H. Auth has no per-address (IP) limits, only per-email.** Read: auth never looks at the caller's IP (`human.rs` says it does not trust forwarded headers); the lockout is 5 wrong passwords per email in 15 minutes. So someone can **lock a real person out** by failing 5 times on purpose, and nothing slows one machine trying many different emails (the human check is the only brake). **Do:** add a per-IP limit in front of sign-in, sign-up, forgot password and code sending, and make the lockout slow the attacker (delay or human check) instead of blocking the real owner.
+- **I. The gateway's per-IP limit may also be shared. Not verified.** Read: `PROXY_HOPS=1` makes the gateway take the address one hop from the end of `X-Forwarded-For`. With Cloudflare in front of Coolify's proxy there are two hops, and Coolify's proxy normally writes its own peer (a Cloudflare address) into that header. If so, everyone behind the same Cloudflare location shares the 600-a-minute bucket. **Do:** send one request through `gate` and log what address the gateway thinks it sees; then set the hop count, or use Cloudflare's own client-address header.
+
+## Where tokens live, and who can reach what
+
+- **J. The refresh token sits in the browser's `localStorage`.** Read: `auth-client.js` keeps it there. Any script that runs on the site can read it. The content security policy (`script-src 'self'` plus Cloudflare's challenge script) is what protects it today, which is a fair defence but a single one. **Do:** consider an `HttpOnly` cookie on the auth address for the refresh token, so scripts cannot read it, and keep access tokens in memory.
+- **K. `appapi` and `appapiw` are public names.** Seen: both answer from the internet. Core-api checks tokens itself, and `/internal/jobs/claim` answered 404 from outside, but the gateway's extra filtering (hidden paths, staff-needs-second-step) is skipped for anyone calling `appapi` directly. **Do:** either make those two names private again, or move the gateway's staff and internal-path rules into core-api so there is one set of rules.
+- **L. The server's IP is still open on its own.** Seen: it appears in the SPF record and the `inbox` MX, and a direct request to the IP still reaches the server's proxy. **Do:** a firewall on the server that takes web traffic from Cloudflare addresses only.
+- **M. DMARC reports go to `dmarc@softfix.dev`.** **Do:** move them to a callerwhale.com address.
+
+## Mail-related security
+
+- **N. Forgot-password email is Firebase's, not notifications'** (also item 2 above). Same for any Firebase-sent email that is left.
+- **O. Automated mail still goes out as `magdy@callerwhale.com`**, not `no-reply@`. Replies to a sign-in code would land in a person's mailbox. **Do:** send as `no-reply@` (the notification service needs that mailbox's login) or an alias.
+
+## Usage (credits, limits)
+
+I looked at the *rate* side only (items G, H, I). I did **not** audit credit counting, monthly limits or the usage chart, because "usage" can mean several things and I did not want to guess. **To decide:** which of these feels bad: the credit meter on the dashboard, the monthly limit per invitation, who can raise it, how the desktop app reports use, or the speed limits above. Tell me which and I will trace that one properly.
+
+## Suggested order
+
+1. G, H (limits that are wrong today), then A and B (sign-in no longer depends on the core API).
+2. D and E (human check mode and coverage), then item 2 of Part 1 (reset email through notifications).
+3. K, L, J (exposure), when you decide how closed `appapi` should be.
