@@ -158,6 +158,23 @@ func Render(template, to string, data map[string]any) (Message, error) {
 			Subject: "Your Caller Whale code",
 			Text:    code + " is your Caller Whale code. It works for 10 minutes. If you did not just try to sign in, ignore this and change your password.",
 		}, nil
+	case "confirm_email":
+		link := str("link")
+		if link == "" || !strings.HasPrefix(link, "https://") && !strings.HasPrefix(link, "http://") {
+			return Message{}, errors.New("confirm_email needs a link")
+		}
+		name := str("name")
+		greeting := "Hello,"
+		if name != "" {
+			greeting = "Hello " + name + ","
+		}
+		text := greeting + "\n\nConfirm your email address to finish setting up your Caller Whale account:\n\n" + link + "\n\nThe link works once and expires in 2 days. If you did not create an account, ignore this email.\n\n— Caller Whale"
+		e := html.EscapeString
+		page := `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:520px">` +
+			"<p>" + e(greeting) + "</p><p>Confirm your email address to finish setting up your Caller Whale account.</p>" +
+			`<p><a href="` + e(link) + `" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none">Confirm my email</a></p>` +
+			`<p style="color:#666;font-size:13px">The link works once and expires in 2 days. If you did not create an account, ignore this email.</p></div>`
+		return Message{To: to, Subject: "Confirm your Caller Whale email", Text: text, HTML: page}, nil
 	case "invitation":
 		inviter, link := str("inviter"), str("link")
 		if inviter == "" || link == "" {
