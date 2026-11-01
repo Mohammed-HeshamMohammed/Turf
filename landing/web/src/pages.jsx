@@ -82,7 +82,7 @@ export function Home() {
         </ol>
       </section>
 
-      <section className="studio-section workspace-proof" id="workspace">
+      <Reveal as="section" className="studio-section workspace-proof" id="workspace">
         <div className="proof-copy">
           <p className="studio-label">The workspace behind the outreach</p>
           <h2>Keep the conversation and the next step together.</h2>
@@ -130,7 +130,7 @@ export function Home() {
             </a>
           </figcaption>
         </figure>
-      </section>
+      </Reveal>
 
       <section className="studio-stories" aria-label="From property data to the next conversation">
         <div className="stories-intro"><p className="studio-label">Less sorting. More meaningful conversations.</p><h2>A clearer path<br />from list to next step.</h2></div>
@@ -163,7 +163,7 @@ export function Home() {
             badge: "Every next step has a place", icon: "Users", anchor: "crm",
           },
         ].map(story => (
-          <article className={`studio-story story-${story.number}`} key={story.number}>
+          <Reveal as="article" className={`studio-story story-${story.number}`} key={story.number}>
             <div className="story-copy">
               <p className="studio-label">{story.number} / {story.label}</p>
               <h2>{story.title.split("\n").map((line, index) => <Fragment key={line}>{index > 0 && <br />}{line}</Fragment>)}</h2>
@@ -178,7 +178,7 @@ export function Home() {
               </div>
               <figcaption className="scene-steps">{story.signals.map((signal,index) => <span key={signal}><span className="scene-step-number">0{index+1}</span>{signal}</span>)}</figcaption>
             </figure>
-          </article>
+          </Reveal>
         ))}
       </section>
 

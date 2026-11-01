@@ -54,12 +54,12 @@
   color: var(--muted);
 }
 
-.js .reveal {
+.js .reveal.motion-ready:not(.in) {
   opacity: 0;
   transform: translateY(18px);
-  transition: opacity 0.5s ease, transform 0.5s ease;
+  transition: opacity 360ms ease-out, transform 360ms ease-out;
 }
-.js .reveal.in {
+.js .reveal {
   opacity: 1;
   transform: none;
 }
