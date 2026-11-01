@@ -1,5 +1,7 @@
 # Landing site
 
+The proposed website/dashboard rebuild is documented in the [web rebuild plan](../docs/plans/web-rebuild/README.md), with one plan per page. The account description below contains historical details: current identity is brokered by the auth service, the browser does not use Firebase directly, and staff tools belong to dashboard admin mode rather than a public /admin page. Use current source and the new plan's baseline when implementing.
+
 The public site that sells Caller Whale (Phase 1 of `docs/plans/service-architecture.md`). Two parts, each with its own folder and nothing shared at run time.
 
 | Folder | What | Stack |

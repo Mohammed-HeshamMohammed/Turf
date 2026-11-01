@@ -1,5 +1,7 @@
 # Caller Whale plans
 
+For the public website and private dashboard rebuild, start with the [web rebuild plan](web-rebuild/README.md). That package has individual page plans and shared discovery, identity, human-verification and delivery requirements. This document remains the product tier/pricing reference.
+
 **Status:** Draft (2026-10-25). The tiers and seat rules below are agreed. Prices are not fixed: each plan's price is worked out from the features in it, which are priced one at a time in [the features folder](../features/README.md).
 
 This replaces the plan table in [the SaaS notes](../saas/README.md) (Free trial, Solo, Business), which predates Duo and per-feature pricing.
