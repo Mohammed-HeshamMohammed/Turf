@@ -15,9 +15,12 @@ landing/api/data/
 /target
 .env
 
-# Settings and secrets for every part (env/README.md): only the README and the examples are committed.
+# Runtime settings stay ignored; only examples, the README and the two named documentation JSON files are committed.
 env/*
 !env/README.md
+# Non-secret documentation catalog and variable-name inventory; never include runtime values.
+!env/container-notes.json
+!env/container-variable-inventory.json
 !env/*.example
 # The auth service's development database (SQLite).
 services/auth/*.db

@@ -2,12 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { accountPages, pageMeta } from "./content.js";
 import { Footer, Header, InviteOnly, Waitlist } from "./components.jsx";
 import { Compare, Contact, Features, Home, Legal, NotFound, Pricing, Security, legalPages } from "./pages.jsx";
-import { Dashboard, SignIn, SignUp } from "./AccountPages.jsx";
+import { Dashboard, SignIn, SignUp, VerifyEmail } from "./AccountPages.jsx";
 import { SessionProvider } from "./session.jsx";
 
 export const PAGE_PATHS = {
   "/": "home", "/features": "features", "/pricing": "pricing", "/compare": "compare", "/security": "security", "/contact": "contact", "/privacy": "privacy",
-  "/terms": "terms", "/signin": "signin", "/signup": "signup", "/dashboard": "dashboard",
+  "/terms": "terms", "/signin": "signin", "/signup": "signup", "/dashboard": "dashboard", "/verify": "verify",
 };
 
 /** "/pricing/" and "/pricing" are the same page; an unknown path is the not-found page. */
@@ -77,6 +77,7 @@ export function App({ path = typeof window === "undefined" ? "/" : window.locati
     signin: <SignIn />,
     signup: <SignUp />,
     dashboard: <Dashboard />,
+    verify: <VerifyEmail />,
   }[page];
   const marketing = !legalPages.includes(page) && !accountPages.includes(page) && page !== "notfound";
   return (

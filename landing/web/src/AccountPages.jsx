@@ -198,6 +198,42 @@ function AuthForm({ mode }) {
   );
 }
 
+/** The page the confirmation email links to: /verify?token=... confirms the address through the auth service. */
+export function VerifyEmail() {
+  const [state, setState] = useState({ status: "working", error: "" });
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("token") || "";
+    if (!token) {
+      setState({ status: "failed", error: "This link is incomplete. Open the link in the email again." });
+      return;
+    }
+    loadAuth()
+      .then(auth => auth.verifyEmail(token))
+      .then(() => setState({ status: "done", error: "" }))
+      .catch(error => setState({ status: "failed", error: error.message || "This link is not valid or has expired." }));
+  }, []);
+  return (
+    <Shell title="Confirm your email" lead={state.status === "working" ? "One moment…" : undefined}>
+      {state.status === "done" && (
+        <div className="panel">
+          <p className="notice good" role="status">Your email address is confirmed.</p>
+          <div className="actions">
+            <a className="button" href="/dashboard" onClick={e => { e.preventDefault(); go("/dashboard"); }}>Go to your dashboard</a>
+          </div>
+        </div>
+      )}
+      {state.status === "failed" && (
+        <div className="panel">
+          <p className="notice bad" role="alert">{state.error}</p>
+          <div className="actions">
+            <a className="button ghost" href="/signin" onClick={e => { e.preventDefault(); go("/signin"); }}>Sign in to ask for a new link</a>
+          </div>
+        </div>
+      )}
+    </Shell>
+  );
+}
+
 export const SignIn = () => <AuthForm mode="signin" />;
 export const SignUp = () => <AuthForm mode="signup" />;
 
