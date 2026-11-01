@@ -84,7 +84,7 @@ export function Shot({ file, alt, eager, tilt }) {
 }
 
 /**
- * The site's header. Signed out: Sign in and Sign up. Signed in: Dashboard for people Caller Whale invited, Admin for its staff,
+ * The site's header. Signed out: Sign in and Request access. Signed in: Dashboard for authorized accounts,
  * and Sign out. What a person may open is the server's decision (/account); the header only shows it.
  */
 export function Header({ route }) {
@@ -190,6 +190,55 @@ export function Header({ route }) {
       </nav>
     </header>
   );
+}
+
+/** Persistent marketing entry point; entitlement is still enforced by the server. */
+export function GetStarted({ route }) {
+  const dialog = useRef(null);
+  const trigger = useRef(null);
+  const session = useSession();
+  const signedIn = session.status === "signed_in";
+  useEffect(() => { dialog.current?.close(); }, [route]);
+  const previousOverflow = useRef(null);
+  const restoreScroll = () => {
+    if (previousOverflow.current !== null) {
+      document.body.style.overflow = previousOverflow.current;
+      previousOverflow.current = null;
+    }
+  };
+  useEffect(() => () => restoreScroll(), []);
+  const open = () => {
+    previousOverflow.current = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialog.current.showModal();
+  };
+  const close = () => dialog.current.close();
+  const containTab = event => {
+    if (event.key !== "Tab") return;
+    const items = dialog.current.querySelectorAll('button:not([disabled]), a[href]');
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  };
+  const downloadPath = signedIn ? "/dashboard#desktop-download" : "/signin?next=%2Fdashboard";
+  return <>
+    <button ref={trigger} type="button" className="get-started-float" onClick={open} aria-haspopup="dialog" aria-controls="get-started-dialog">Get started <Icon name="ArrowUpRight" size={20} /></button>
+    <dialog ref={dialog} id="get-started-dialog" className="entry-dialog" onKeyDown={containTab} onClose={() => { restoreScroll(); trigger.current?.focus(); }} aria-labelledby="entry-title" aria-describedby="entry-description" onClick={event => { if (event.target === event.currentTarget) close(); }}>
+      <div className="entry-content">
+        <button type="button" className="entry-close" onClick={close} aria-label="Close get started">Close</button>
+        <p className="studio-label">Your Caller Whale workspace</p>
+        <h2 id="entry-title">Your next step<br />starts here.</h2>
+        <p id="entry-description">Open your web dashboard or get the desktop app. Caller Whale is currently by invitation.</p>
+        <div className="entry-options">
+          <a className="entry-option" href={signedIn ? "/dashboard" : "/signin?next=%2Fdashboard"} onClick={close}><Icon name="Kanban" size={24} /><span><strong>{signedIn ? "Open web dashboard" : "Sign in"}</strong><span>{signedIn ? "Continue to your account and workspace." : "Already have an account? Continue to your dashboard."}</span></span><Icon name="ArrowRight" size={20} /></a>
+          {!signedIn && <a className="entry-option" href="/signup" onClick={close}><Icon name="Users" size={24} /><span><strong>Sign up</strong><span>Create your account with the email you were invited with.</span></span><Icon name="ArrowRight" size={20} /></a>}
+          <a className="entry-option" href={downloadPath} onClick={close}><Icon name="DeviceMobile" size={24} /><span><strong>Get the desktop app</strong><span>{signedIn ? "Find the Windows download in your dashboard." : "Sign in first. Invited accounts can download from their dashboard."}</span></span><Icon name="ArrowRight" size={20} /></a>
+        </div>
+        <p className="entry-waitlist">No invitation yet? <a href="/#request-access" onClick={close}>Join the waitlist</a>.</p>
+      </div>
+    </dialog>
+  </>;
 }
 
 export function Footer() {

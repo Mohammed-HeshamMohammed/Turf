@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { accountPages, pageMeta } from "./content.js";
-import { Footer, Header, InviteOnly, Waitlist } from "./components.jsx";
+import { Footer, GetStarted, Header, InviteOnly, Waitlist } from "./components.jsx";
 import { Compare, Contact, Features, Home, Legal, NotFound, Pricing, Security, legalPages } from "./pages.jsx";
 import { Dashboard, SignIn, SignUp, VerifyEmail } from "./AccountPages.jsx";
 import { SessionProvider } from "./session.jsx";
@@ -90,6 +90,7 @@ export function App({ path = typeof window === "undefined" ? "/" : window.locati
         {marketing && <Waitlist tier={choice.tier} plan={choice.plan} setTier={onPick} />}
       </main>
       <Footer />
+      {marketing && <GetStarted route={page} />}
     </SessionProvider>
   );
 }
