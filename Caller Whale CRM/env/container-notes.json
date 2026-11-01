@@ -31,10 +31,11 @@
         "AUTH_TELEGRAM_BOT_TOKEN": "Optional secret BotFather token enabling Telegram code delivery. Leave empty to disable this delivery method; never use a phone number as the token.",
         "AUTH_TELEGRAM_BOT_NAME": "Telegram bot's public name used for account linking; must identify the bot whose token auth uses. Optional when Telegram is disabled.",
         "AUTH_TELEGRAM_WEBHOOK_SECRET": "Secret URL path component protecting the Telegram webhook. Coordinate rotation with Telegram's registered webhook URL.",
-        "AUTH_BOT_PROTECTION": "true enforces server-side Turnstile verification on signup/sign-in and provider starts; requires BOTH Turnstile keys. Missing keys fail startup. false disables this layer.",
-        "AUTH_TURNSTILE_SITE_KEY": "Public Turnstile widget key exposed to clients for human verification. Must pair with the secret key and allow the deployed frontend hostnames.",
-        "AUTH_TURNSTILE_SECRET_KEY": "Secret Cloudflare Siteverify credential, held only in auth. Must match the widget site key; a missing key with bot protection true prevents startup.",
-        "AUTH_TURNSTILE_HOSTNAMES": "Optional comma-separated allowed challenge hostnames, without scheme/path. Empty derives hosts from configured origins/URLs; wrong hosts reject otherwise valid challenges.",
+        "AUTH_BOT_PROTECTION": "true enforces server-side reCAPTCHA verification on signup/sign-in and provider starts; requires BOTH reCAPTCHA keys. Missing keys fail startup. false disables this layer.",
+        "AUTH_RECAPTCHA_SITE_KEY": "Public reCAPTCHA v3 site key exposed to clients for human verification. Must pair with the secret key and allow the deployed frontend hostnames.",
+        "AUTH_RECAPTCHA_SECRET_KEY": "Secret reCAPTCHA key, held only in auth. Must match the widget site key; a missing key with bot protection true prevents startup.",
+        "AUTH_RECAPTCHA_MIN_SCORE": "Lowest Google score (0 bot to 1 human) auth accepts; default 0.5.",
+        "AUTH_RECAPTCHA_HOSTNAMES": "Optional comma-separated allowed challenge hostnames, without scheme/path. Empty derives hosts from configured origins/URLs; wrong hosts reject otherwise valid challenges.",
         "AUTH_ACCESS_MINUTES": "Access-token lifetime in minutes; default 15. Changing it affects newly issued tokens and the frequency of refresh.",
         "AUTH_REFRESH_DAYS": "Refresh-session lifetime in days; default 30. Changing it affects newly created session expiry, not the signing key."
       }
