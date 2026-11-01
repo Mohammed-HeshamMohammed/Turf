@@ -7,6 +7,7 @@ The public site that sells Caller Whale (Phase 1 of `docs/plans/service-architec
 | Folder | What | Stack |
 | --- | --- | --- |
 | `web/` | The site: Home, Features, Pricing, Why Caller Whale, Security, Contact, Privacy, Terms | React + Vite, the app's design tokens. No secrets. |
+| `dashboard-web/` | Independent dashboard frontend foundation; existing account routes remain in `web/` until cutover. See [setup and Coolify deployment](dashboard-web/README.md). | React + Vite, separate Docker image, port 8080 |
 | `api/` | `POST /waitlist`, `POST /contact`, `GET /healthz` (on `api.callerwhale.com`) | Node 24+, no dependencies, its own SQLite file (`api/data/landing.db`, git-ignored) |
 
 ## Accounts

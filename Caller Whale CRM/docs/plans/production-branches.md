@@ -5,6 +5,7 @@ One branch per part of Caller Whale, each holding **only that part's code**, so 
 | Branch | What it holds |
 | --- | --- |
 | `landing-web-production` | The landing site's frontend (`landing/web`) |
+| `landing-dashboard-web-production` | Independent dashboard frontend foundation (`landing/dashboard-web`); Coolify Dockerfile context is that folder, port 8080 |
 | `landing-backend-production` | The landing site's backend (`landing/api`) |
 | `auth-backend-production` | The authentication service (`services/auth`) |
 | `notifications-backend-production` | The notification service |
