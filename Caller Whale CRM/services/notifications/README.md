@@ -8,7 +8,7 @@ Email, SMS, push and in-app notifications, sent when another service publishes n
 | Language | Go 1.23 or newer (not compiled yet: Go was not installed when this was scaffolded) |
 | Default port | 8102 |
 | Owns data | Yes, its own database schema (`notifications`) |
-| Status | Email works: `POST /v1/mail` (templates `mfa_code` and `invitation`). SMS, push and in-app are not built |
+| Status | Email works: `POST /v1/mail` (templates `mfa_code`, `invitation` and `confirm_email`). SMS, push and in-app are not built |
 
 ## Run and test
 
@@ -19,7 +19,7 @@ cd services/notifications && PORT=8102 go run .
 
 ## Sending email
 
-`POST /v1/mail` with `Authorization: Bearer <token>` and `{"template": "mfa_code" | "invitation", "to": "...", "data": {...}}`. Tokens are `NOTIFY_TOKENS` (`name=token,...`, 24+ characters each). The mail server login is `NOTIFY_SMTP_HOST/PORT/USER/PASSWORD` and the sender `NOTIFY_MAIL_FROM` (see `env/notifications.production.example`). This is the only service that holds a mail login or writes an email; each caller is limited to 60 requests a minute. 503: no mail server set; 502: the mail server did not take it.
+`POST /v1/mail` with `Authorization: Bearer <token>` and `{"template": "mfa_code" | "invitation" | "confirm_email", "to": "...", "data": {...}}`. Tokens are `NOTIFY_TOKENS` (`name=token,...`, 24+ characters each). The mail server login is `NOTIFY_SMTP_HOST/PORT/USER/PASSWORD` and the sender `NOTIFY_MAIL_FROM` (see `env/notifications.production.example`). This is the only service that holds a mail login or writes an email; each caller is limited to 60 requests a minute. 503: no mail server set; 502: the mail server did not take it.
 
 ## What it must do
 

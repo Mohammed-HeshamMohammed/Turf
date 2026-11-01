@@ -10,12 +10,16 @@ use std::sync::{Arc, Mutex};
 use callerwhale_auth::{config::Config, mail::Mailer, telegram::Telegram};
 
 #[derive(Debug, Default)]
-struct Sink(Mutex<Vec<(String, String)>>);
+struct Sink(Mutex<Vec<(String, String)>>, Mutex<Vec<(String, String)>>);
 
 #[async_trait::async_trait]
 impl Mailer for Sink {
     async fn send_code(&self, to: &str, code: &str) -> anyhow::Result<()> {
         self.0.lock().unwrap().push((to.to_string(), code.to_string()));
+        Ok(())
+    }
+    async fn send_confirmation(&self, to: &str, _name: &str, link: &str) -> anyhow::Result<()> {
+        self.1.lock().unwrap().push((to.to_string(), link.to_string()));
         Ok(())
     }
 }
@@ -340,4 +344,19 @@ async fn a_way_is_removed_only_after_a_second_step_and_only_your_own() {
     assert_eq!((status, gone["removed"].as_i64()), (StatusCode::OK, Some(1)));
     // With nothing left, a password is enough again.
     assert_eq!(call(&app, "POST", "/v1/sessions", Some(json!({ "email": "sami@example.com", "password": PASSWORD })), None).await.0, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn the_confirmation_link_is_emailed_and_confirms_once() {
+    let (app, sink) = with_mail().await;
+    let made = sign_up(&app, "sami@example.com").await;
+    assert_eq!(made["user"]["email_verified"], false);
+    let (to, link) = sink.1.lock().unwrap().last().cloned().expect("a confirmation email was asked for");
+    assert_eq!(to, "sami@example.com");
+    let token = link.split("/verify?token=").nth(1).expect("the link carries the token").to_string();
+    let (status, body) = call(&app, "POST", "/v1/email/verify", Some(json!({ "token": token })), None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["email_verified"], true);
+    let (again, _) = call(&app, "POST", "/v1/email/verify", Some(json!({ "token": token })), None).await;
+    assert_eq!(again, StatusCode::FORBIDDEN);
 }

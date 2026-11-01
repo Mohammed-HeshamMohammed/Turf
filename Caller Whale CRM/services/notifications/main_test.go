@@ -102,6 +102,24 @@ func TestAnInvitationHasBothPartsAndEscapesTheName(t *testing.T) {
 	}
 }
 
+func TestAConfirmationEmailCarriesTheLinkAndRefusesOddOnes(t *testing.T) {
+	f := &fakeSender{}
+	s := newServer(map[string]string{"auth": testToken}, f, true)
+	good := `{"template":"confirm_email","to":"a@example.com","data":{"name":"<i>Al</i>","link":"https://callerwhale.com/verify?token=abc"}}`
+	if code, _ := post(t, s, testToken, good); code != 202 {
+		t.Fatalf("got %d", code)
+	}
+	m := f.sent[0]
+	if !strings.Contains(m.Text, "https://callerwhale.com/verify?token=abc") || strings.Contains(m.HTML, "<i>Al") || m.Subject != "Confirm your Caller Whale email" {
+		t.Fatalf("unexpected message %+v", m)
+	}
+	for _, body := range []string{`{"template":"confirm_email","to":"a@example.com","data":{}}`, `{"template":"confirm_email","to":"a@example.com","data":{"link":"javascript:alert(1)"}}`} {
+		if code, _ := post(t, s, testToken, body); code != 400 {
+			t.Fatalf("%q: got %d", body, code)
+		}
+	}
+}
+
 func TestBadRequestsAreRefusedBeforeSending(t *testing.T) {
 	f := &fakeSender{}
 	s := newServer(map[string]string{"auth": testToken}, f, true)

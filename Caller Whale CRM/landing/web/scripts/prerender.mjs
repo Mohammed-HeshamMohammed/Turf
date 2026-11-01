@@ -17,10 +17,10 @@ const template = readFileSync(join(dist, "index.html"), "utf8");
 const PAGES = [
   ["/", "home"], ["/features", "features"], ["/pricing", "pricing"], ["/compare", "compare"],
   ["/security", "security"], ["/contact", "contact"], ["/privacy", "privacy"], ["/terms", "terms"],
-  ["/signin", "signin"], ["/signup", "signup"], ["/dashboard", "dashboard"],
+  ["/signin", "signin"], ["/signup", "signup"], ["/dashboard", "dashboard"], ["/verify", "verify"],
 ];
 // A signed-in person's pages: never indexed, never in the sitemap.
-const PRIVATE = ["signin", "signup", "dashboard"];
+const PRIVATE = ["signin", "signup", "dashboard", "verify"];
 const esc = s => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
 function page(path, key) {

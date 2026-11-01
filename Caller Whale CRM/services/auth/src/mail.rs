@@ -8,6 +8,8 @@ use anyhow::Context;
 pub trait Mailer: Send + Sync + std::fmt::Debug {
     /// Asks for the sign-in code to be emailed to this address.
     async fn send_code(&self, to: &str, code: &str) -> anyhow::Result<()>;
+    /// Asks for the email-confirmation link to be emailed to this address.
+    async fn send_confirmation(&self, to: &str, name: &str, link: &str) -> anyhow::Result<()>;
 }
 
 #[derive(Debug, Clone)]
@@ -26,18 +28,28 @@ impl Notify {
     }
 }
 
-#[async_trait::async_trait]
-impl Mailer for Notify {
-    async fn send_code(&self, to: &str, code: &str) -> anyhow::Result<()> {
+impl Notify {
+    async fn post(&self, body: serde_json::Value) -> anyhow::Result<()> {
         let res = self
             .client
             .post(format!("{}/v1/mail", self.url))
             .bearer_auth(&self.token)
-            .json(&serde_json::json!({ "template": "mfa_code", "to": to, "data": { "code": code } }))
+            .json(&body)
             .send()
             .await
             .context("The notification service could not be reached")?;
         anyhow::ensure!(res.status().is_success(), "The notification service refused the message ({})", res.status());
         Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl Mailer for Notify {
+    async fn send_code(&self, to: &str, code: &str) -> anyhow::Result<()> {
+        self.post(serde_json::json!({ "template": "mfa_code", "to": to, "data": { "code": code } })).await
+    }
+
+    async fn send_confirmation(&self, to: &str, name: &str, link: &str) -> anyhow::Result<()> {
+        self.post(serde_json::json!({ "template": "confirm_email", "to": to, "data": { "name": name, "link": link } })).await
     }
 }
