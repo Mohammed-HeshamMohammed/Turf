@@ -1,61 +1,53 @@
 import { useEffect, useRef, useState } from "react";
 
-let loading, loadedKey;
-function recaptcha(siteKey) {
-  if (window.grecaptcha?.execute && loadedKey === siteKey) return Promise.resolve(window.grecaptcha);
-  if (!loading) {
-    loadedKey = siteKey;
-    loading = new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = `https://www.google.com/recaptcha/api.js?render=${encodeURIComponent(siteKey)}`;
-      script.async = true;
-      script.onload = () => window.grecaptcha ? window.grecaptcha.ready(() => resolve(window.grecaptcha)) : reject(new Error("The sign-in protection did not load. Reload and try again."));
-      script.onerror = () => { loading = null; script.remove(); reject(new Error("The sign-in protection could not load. Check your connection and try again.")); };
-      document.head.append(script);
-    });
-  }
+let loading;
+function turnstile() {
+  if (window.turnstile) return Promise.resolve(window.turnstile);
+  if (!loading) loading = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    script.async = true;
+    script.onload = () => window.turnstile ? resolve(window.turnstile) : reject(new Error("Human verification did not load. Reload and try again."));
+    script.onerror = () => { loading = null; script.remove(); reject(new Error("Human verification could not load. Check your connection and try again.")); };
+    document.head.append(script);
+  });
   return loading;
 }
 
-// A reCAPTCHA token is good for two minutes; ask for a new one a little before that.
-const REFRESH_MS = 90_000;
-
-/**
- * Invisible: nobody ticks anything. Google scores the visit and auth refuses a low score, so a person acting like a person
- * never sees a challenge. Loads only when auth has bot protection enabled; auth verifies every token itself.
- */
+/** The widget loads only when auth has bot protection enabled. Auth verifies every token itself. */
 export function HumanCheck({ getAuth, action, resetKey = 0, onToken }) {
+  const host = useRef(null);
   const callbacks = useRef({ getAuth, onToken });
   callbacks.current = { getAuth, onToken };
-  const [status, setStatus] = useState({ enabled: false, error: "" });
+  const [status, setStatus] = useState({ enabled: false, error: "", loading: true });
   useEffect(() => {
-    let live = true, timer;
+    let live = true, widget, api;
     callbacks.current.onToken("");
-    setStatus({ enabled: false, error: "" });
+    setStatus({ enabled: false, error: "", loading: true });
     (async () => {
       const auth = await callbacks.current.getAuth();
       const config = await auth.security();
-      if (!live || !config.bot_protection?.enabled) return;
-      const siteKey = config.bot_protection.site_key;
-      const api = await recaptcha(siteKey);
-      const renew = async () => {
-        try {
-          const token = await api.execute(siteKey, { action });
-          if (live) callbacks.current.onToken(token);
-        } catch {
-          if (live) callbacks.current.onToken("");
-        }
-        if (live) timer = setTimeout(renew, REFRESH_MS);
-      };
       if (!live) return;
-      setStatus({ enabled: true, error: "" });
-      await renew();
-    })().catch(error => live && setStatus({ enabled: true, error: error.message }));
-    return () => { live = false; clearTimeout(timer); };
+      if (!config.bot_protection?.enabled) return setStatus({ enabled: false, error: "", loading: false });
+      setStatus({ enabled: true, error: "", loading: true });
+      api = await turnstile();
+      if (!live) return;
+      widget = api.render(host.current, {
+        sitekey: config.bot_protection.site_key, action, theme: "auto", size: "flexible",
+        callback: token => live && callbacks.current.onToken(token),
+        "expired-callback": () => live && callbacks.current.onToken(""),
+        "error-callback": () => {
+          if (live) { callbacks.current.onToken(""); setStatus({ enabled: true, error: "Human verification did not finish. Reload and try again.", loading: false }); }
+        },
+      });
+      setStatus({ enabled: true, error: "", loading: false });
+    })().catch(error => live && setStatus({ enabled: true, error: error.message, loading: false }));
+    return () => { live = false; if (widget !== undefined && api) api.remove(widget); };
   }, [action, resetKey]);
-  return <div className="human-check" hidden={!status.enabled && !status.error}>
-    <style>{".grecaptcha-badge{visibility:hidden}"}</style>
-    {status.enabled && <p className="fine">Protected by reCAPTCHA. Google’s <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">Privacy Policy</a> and <a href="https://policies.google.com/terms" target="_blank" rel="noreferrer">Terms</a> apply.</p>}
+  return <div className="human-check" hidden={!status.enabled && !status.loading}>
+    {status.enabled && <p>Verify you’re human</p>}
+    <div ref={host} />
+    {status.loading && <p role="status">Checking sign-in protection…</p>}
     {status.error && <p role="alert">{status.error}</p>}
   </div>;
 }
