@@ -1,13 +1,23 @@
 # The gateway on Coolify (application "gateway", port 8100). Domain: gate.callerwhale.com (the only one). Paste into Developer View. No secrets.
+# Gateway HTTP listen port; default 8100. Match Coolify's upstream container port.
 PORT=8100
+# Comma-separated public-host=http(s)://private-upstream mappings. Changing this changes traffic destinations; do not expose internal-only services as public routes.
 ROUTES=gate.callerwhale.com=http://core-api:8088
+# Hostname in ROUTES that receives core-API access policy and private monitoring routing. Must match a configured route exactly.
 CORE_HOST=gate.callerwhale.com
+# Trusted auth public-key endpoint for token verification. Required when CORE_HOST is set; wrong keys block protected access.
 AUTH_JWKS_URL=http://auth:8101/.well-known/jwks.json
+# Staff-route second-factor requirement; defaults on unless false. Keep true in production to protect admin/monitoring access.
 STAFF_REQUIRE_SECOND_FACTOR=true
+# Positive per-IP requests-per-minute limit; default 600. Too low blocks legitimate shared-network users; too high weakens throttling.
 IP_PER_MINUTE=600
+# Positive per-authenticated-user requests-per-minute limit; default 1800. Changing it affects API throttling for signed-in users.
 USER_PER_MINUTE=1800
+# Positive maximum accepted request body size in MiB; default 64. Smaller limits can reject uploads; larger limits increase memory/traffic exposure.
 MAX_BODY_MB=64
+# Trusted proxy-hop count for resolving the client IP; default 1. Match the actual proxy chain or IP rate limits can identify clients incorrectly.
 PROXY_HOPS=1
 
 # Only CORE_HOST /staff/monitoring/ reaches this private proxy.
+# Private Grafana proxy HTTP origin, without path/query. Reached only through CORE_HOST /staff/monitoring; never give Grafana a direct public route.
 MONITORING_UPSTREAM=http://grafana-proxy:8120
