@@ -7,3 +7,5 @@ Use custom visual storytelling for the benefits, not text-only replacement secti
 Keep a persistent Get started entry point on public marketing pages, offering sign in, invitation-based sign up, the web dashboard, and the desktop download through the existing authorized account flow.
 
 Responsive/motion changes must preserve readable headline glyphs at 320px (not merely hide overflow), separate hero copy from photos on tablets, and keep menu/dialog content scrollable in short landscape viewports. Use restrained, finite entrances; reduced motion and missing IntersectionObserver must leave all content visible. Run `npm run test:browser` for regressions.
+
+The homepage should use the available screen width, with a full-bleed hero and consistent fluid side gutters across navigation, workflow, body sections and footer. Avoid fixed 1280/1440px page caps or applying viewport-based padding inside an already capped workflow container. Keep paragraph line lengths readable within the wider layout.
