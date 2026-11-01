@@ -40,3 +40,9 @@ From `landing/web`: `npm ci`, `npm run dev` (port 5200). Start the existing API 
 Owner feedback: show the app once or twice at most on the homepage. The homepage now contains exactly one app image (Calls, in workspace proof). The three product stories are text-led columns on desktop and stacked rows on phones. Existing screenshots remain available to the Features page.
 
 Revalidated the build and existing tests, then checked one app image, three stories and no page overflow at 390/768/1440px in both themes. Refreshed all four retained review captures. No additional API behavior changed.
+
+## Visual benefit storytelling revision
+
+Owner clarified that removing app screenshots should lead to designed marketing scenes rather than text-only sections. Replaced the three plain text columns with alternating editorial compositions containing original architectural illustrations: scattered records to an ordered list; a call with useful context; and a connected follow-up path. Kept the actual app image count at one. Preview-only call assistance and team behavior remain clearly described.
+
+Build and pricing tests passed. Browser checks decoded all three illustration assets, verified the single app image, nine live-text sequence labels, feature links and absence of overflow/runtime errors at 360/390/768/1024/1440px in light/dark. Desktop/mobile light/dark captures refreshed in `qa/`. Reviewed the illustration assets against the existing warm architectural direction. Concept scenes are not represented as actual UI.

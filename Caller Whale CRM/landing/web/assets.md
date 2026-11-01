@@ -13,3 +13,13 @@ The reference is not embedded as live UI.
 Copy is in Home (`src/pages.jsx`), shared FAQ/metadata (`src/content.js`), and the shared header/footer/waitlist (`src/components.jsx`). Pricing arithmetic remains exclusively in `src/plan.js`; the homepage quotes no independent prices.
 
 These assets and local checks do not constitute deployment approval or proof that calling, team sync, notification delivery, or billing are live.
+
+## Benefit illustrations
+
+Three original OpenAI Image Gen illustrations created on 2026-11-01, optimized as 1536 × 1024 WebP assets. These are marketing metaphors, not app captures, real listings, or proof of live telephony. Copy, sequence labels and badges remain live HTML.
+
+- `public/images/data-to-order.webp`: scattered paper records resolving into an ordered row of architectural property models. Original: `/workspace/generated_images/exec-17ec1009-0134-4795-8093-9d0c3f81deb0.png`.
+- `public/images/call-assistance.webp`: a handset, property model and context cards illustrating keeping useful information close while listening. Original: `/workspace/generated_images/exec-20796d9a-40e1-4473-a88a-9ad066c22208.png`.
+- `public/images/follow-through.webp`: connected property-model platforms illustrating continuity between an outcome and the next follow-up. Original: `/workspace/generated_images/exec-d9335276-166d-46d4-af0c-1050e3b9eeb1.png`.
+
+All three share the selected ivory/charcoal/peach architectural direction and are lazy-loaded with reserved dimensions. The homepage still includes exactly one genuine app screenshot in workspace proof.

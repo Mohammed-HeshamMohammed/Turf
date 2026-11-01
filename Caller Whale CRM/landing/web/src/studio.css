@@ -257,17 +257,91 @@ body {
 .product-evidence a:focus-visible {
   outline-offset: 4px;
 }
-/* Keep app imagery in the single workspace proof section. */
+/* Architectural concept scenes sell the workflow without repeating app UI. */
 .studio-stories {
+  border-top: 1px solid var(--line);
+}
+.stories-intro {
+  padding: 64px 0 24px;
+}
+.stories-intro h2 {
+  margin-top: 20px;
+}
+.studio-story {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  align-items: center;
+  gap: 64px;
+  padding: 64px 0;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.studio-story h2 {
+  font-size: clamp(40px, 4vw, 60px);
+}
+.story-02 {
+  grid-template-columns: 1.2fr 0.8fr;
+}
+.story-02 .story-copy {
+  order: 2;
+}
+.benefit-scene {
+  min-width: 0;
+  margin: 0;
+}
+.scene-art {
+  position: relative;
+  overflow: hidden;
+  background: #eee7dc;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.scene-art > img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+}
+.scene-badge {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  max-width: calc(100% - 48px);
+  background: #faf7f2;
+  color: #202321;
+  border: 1px solid #d3cdc3;
+  box-shadow: 0 8px 24px #20232112;
+  font-size: 13px;
+}
+.scene-badge svg {
+  flex: none;
+}
+.scene-steps {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 48px;
-  padding: 64px 0;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  gap: 12px;
+  margin-top: 18px;
 }
-.studio-story { min-width: 0; }
-.studio-story h2 { font-size: clamp(36px, 3.5vw, 52px); }
+.scene-steps > span {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.scene-step-number {
+  font-size: 11px;
+  color: var(--accent-ink);
+}
+:root[data-theme="dark"] .scene-art {
+  border-color: #777469;
+}
 .story-copy h2 {
   margin: 18px 0 24px;
 }
@@ -609,9 +683,35 @@ body {
     grid-template-columns: 1fr;
     gap: 32px;
   }
-  .studio-stories { grid-template-columns: 1fr; gap: 0; padding: 0; }
-  .studio-story { padding: 40px 0; }
-  .studio-story + .studio-story { border-top: 1px solid var(--line); }
+  .stories-intro {
+    padding-top: 40px;
+  }
+  .studio-story,
+  .story-02 {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding: 40px 0;
+  }
+  .story-02 .story-copy {
+    order: 0;
+  }
+  .scene-badge {
+    left: 16px;
+    bottom: 16px;
+    padding: 10px 12px;
+    font-size: 12px;
+    max-width: calc(100% - 32px);
+  }
+  .scene-steps {
+    gap: 10px;
+  }
+  .scene-steps > span {
+    display: block;
+  }
+  .scene-step-number {
+    display: block;
+    margin-bottom: 5px;
+  }
   .studio-home h2,
   .access-copy h2 {
     font-size: 46px;
@@ -685,4 +785,18 @@ body {
 }
 .anchor-alias {
   scroll-margin-top: 0;
+}
+
+@media (min-width: 761px) and (max-width: 1000px) {
+  .studio-story,
+  .story-02 {
+    gap: 32px;
+    grid-template-columns: 1fr 1fr;
+  }
+  .scene-badge {
+    left: 12px;
+    bottom: 12px;
+    padding: 10px;
+    max-width: calc(100% - 24px);
+  }
 }

@@ -132,48 +132,52 @@ export function Home() {
         </figure>
       </section>
 
-      <section className="studio-stories" aria-label="Explore the product">
+      <section className="studio-stories" aria-label="From property data to the next conversation">
+        <div className="stories-intro"><p className="studio-label">Less sorting. More meaningful conversations.</p><h2>A clearer path<br />from list to next step.</h2></div>
         {[
           {
-            number: "01",
-            label: "Make the list useful",
-            title: "Bring structure to the list.",
-            text: "Import your spreadsheet, map its columns and keep the original values alongside the work you do next.",
-            detail:
-              "Original records stay available. Export your work when you need it.",
-            anchor: "crm",
+            number: "01", label: "From scattered to sorted",
+            title: "A messy list.\nA clear place to start.",
+            text: "Turn scattered property records into a list you can work with. Map the columns, review the numbers you already have and see the context behind the next conversation.",
+            detail: "Review supplied phone evidence. New-number discovery is planned.",
+            image: "data-to-order", alt: "Scattered paper records give way to an ordered row of miniature property models.",
+            signals: ["Import your list", "Review the evidence", "Choose the next call"],
+            badge: "A little order goes a long way", icon: "ListChecks", anchor: "skip",
           },
           {
-            number: "02",
-            label: "Evidence before outreach",
-            title: "Review before reaching out.",
-            text: "Clean and rank the numbers your list already contains. Review the evidence instead of treating every number as a good next call.",
-            detail:
-              "New-number discovery is planned. Live calling remains a preview.",
-            anchor: "skip",
+            number: "02", label: "A little help in the conversation",
+            title: "Less searching.\nMore listening.",
+            text: "Keep the lead’s details, call notes and useful prompts close at hand. The calling preview brings the conversation and its context together, so you can focus on what is being said.",
+            detail: "Call assistance is shown in preview. Live telephony is not available yet.",
+            image: "call-assistance", alt: "A charcoal phone handset, a miniature house and a calm arrangement of context cards.",
+            signals: ["Lead context", "Useful prompts", "A clear outcome"],
+            badge: "The right context, close at hand", icon: "Phone", anchor: "dialer",
           },
           {
-            number: "03",
-            label: "Context carries forward",
-            title: "Keep the next step owned.",
-            text: "Keep notes, outcomes and callbacks connected to the record. Give the next person the context they need to pick up the conversation.",
-            detail:
-              "Team handoffs and role-based workflows are demonstrated in the sample workspace.",
-            anchor: "crm",
+            number: "03", label: "Keep the momentum",
+            title: "A conversation ends.\nThe context stays.",
+            text: "Leave a note, set a callback and keep the next step connected to the property. When work changes hands, the story can go with it.",
+            detail: "Team handoffs and role-based workflows are demonstrated in the sample workspace.",
+            image: "follow-through", alt: "Miniature houses along connected platforms, with one completed step and another waiting ahead.",
+            signals: ["Record the outcome", "Set the follow-up", "Pass on the context"],
+            badge: "Every next step has a place", icon: "Users", anchor: "crm",
           },
-        ].map((story) => (
-          <article className="studio-story" key={story.number}>
+        ].map(story => (
+          <article className={`studio-story story-${story.number}`} key={story.number}>
             <div className="story-copy">
-              <p className="studio-label">
-                {story.number} / {story.label}
-              </p>
-              <h2>{story.title}</h2>
+              <p className="studio-label">{story.number} / {story.label}</p>
+              <h2>{story.title.split("\n").map((line, index) => <Fragment key={line}>{index > 0 && <br />}{line}</Fragment>)}</h2>
               <p>{story.text}</p>
+              <a className="studio-link" href={`/features#${story.anchor}`}>Explore the feature <Icon name="ArrowUpRight" size={18} /></a>
               <p className="story-detail">{story.detail}</p>
-              <a className="studio-link" href={`/features#${story.anchor}`}>
-                Explore the feature <Icon name="ArrowUpRight" size={18} />
-              </a>
             </div>
+            <figure className="benefit-scene">
+              <div className="scene-art">
+                <img src={`/images/${story.image}.webp`} width="1536" height="1024" alt={story.alt} loading="lazy" decoding="async" />
+                <div className="scene-badge"><Icon name={story.icon} size={18} /><span>{story.badge}</span></div>
+              </div>
+              <figcaption className="scene-steps">{story.signals.map((signal,index) => <span key={signal}><span className="scene-step-number">0{index+1}</span>{signal}</span>)}</figcaption>
+            </figure>
           </article>
         ))}
       </section>
