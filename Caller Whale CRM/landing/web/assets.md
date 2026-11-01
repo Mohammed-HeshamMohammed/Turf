@@ -14,12 +14,16 @@ Copy is in Home (`src/pages.jsx`), shared FAQ/metadata (`src/content.js`), and t
 
 These assets and local checks do not constitute deployment approval or proof that calling, team sync, notification delivery, or billing are live.
 
-## Benefit illustrations
+## Human benefit photography
 
-Three original OpenAI Image Gen illustrations created on 2026-11-01, optimized as 1536 × 1024 WebP assets. These are marketing metaphors, not app captures, real listings, or proof of live telephony. Copy, sequence labels and badges remain live HTML.
+The earlier 3D model-house illustrations were replaced at the owner's request. Houses remain in the hero; the three benefit sections now use candid human work scenes.
 
-- `public/images/data-to-order.webp`: scattered paper records resolving into an ordered row of architectural property models. Original: `/workspace/generated_images/exec-17ec1009-0134-4795-8093-9d0c3f81deb0.png`.
-- `public/images/call-assistance.webp`: a handset, property model and context cards illustrating keeping useful information close while listening. Original: `/workspace/generated_images/exec-20796d9a-40e1-4473-a88a-9ad066c22208.png`.
-- `public/images/follow-through.webp`: connected property-model platforms illustrating continuity between an outcome and the next follow-up. Original: `/workspace/generated_images/exec-d9335276-166d-46d4-af0c-1050e3b9eeb1.png`.
+Original OpenAI Image Gen assets created 2026-11-01, optimized to 1536 × 1024 WebP:
 
-All three share the selected ivory/charcoal/peach architectural direction and are lazy-loaded with reserved dimensions. The homepage still includes exactly one genuine app screenshot in workspace proof.
+- `public/images/list-work.webp`: a woman organizing loose property records into clear groups. Original `/workspace/generated_images/exec-752387b8-04f3-4666-afd2-2715a806f9a1.png`.
+- `public/images/supported-call.webp`: a man listening on a headset with notes and a laptop close by. Original `/workspace/generated_images/exec-1a97f87a-583e-4ba3-a324-cd10cd2120ae.png`.
+- `public/images/team-handoff.webp`: colleagues sharing a notebook and discussing the next step. Original `/workspace/generated_images/exec-d8872df9-4ac1-4f8b-8882-f5d48df1f4f3.png`.
+
+These depict fictional people in illustrative situations, not actual customers or testimonials. Screens face away and contain no customer records. They do not demonstrate live calling or shipped team synchronization. Preview boundaries remain in adjacent copy.
+
+Photos are lazy-loaded with reserved dimensions and meaningful alt text. Captions, sequence labels and badges remain live HTML. The homepage retains exactly one actual app screenshot. Superseded 3D assets were removed from the public build; their original generations remain outside the checkout and their history remains in Git.

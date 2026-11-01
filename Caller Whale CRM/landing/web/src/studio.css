@@ -257,7 +257,7 @@ body {
 .product-evidence a:focus-visible {
   outline-offset: 4px;
 }
-/* Architectural concept scenes sell the workflow without repeating app UI. */
+/* Human work scenes explain the benefits without repeating app UI. */
 .studio-stories {
   border-top: 1px solid var(--line);
 }
