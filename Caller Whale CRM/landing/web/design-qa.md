@@ -70,3 +70,9 @@ Validation: 17 browser regressions passed, followed by 2 additional dark-mode/FA
 Reproduce: `npm ci`, then `npx playwright install chromium` and `npm run test:browser`. With an installed system Chromium, use `CALLERWHALE_BROWSER_EXECUTABLE=/usr/bin/chromium npm run test:browser`. The browser suite starts its own Vite server on port 5205. Standard `npm test` still runs the pricing model checks.
 
 Final frozen/offline dependency installation passed with the pinned browser-test dependency; client/SSR build and all 25 pricing-model tests passed. Existing platform-specific lockfile metadata was preserved.
+
+## Fluid-width homepage
+
+Removed the fixed 1440px hero/workflow and 1280px content caps. Replaced centered viewport-derived padding with one shared gutter token (24–80px, fluid between). The hero is full bleed; its copy, workflow rows, body sections, access section, header and footer align to the same gutters. Removed the workflow's compounded horizontal padding that made its items unusually narrow on wide screens. Individual paragraphs retain reading-width limits.
+
+Eight targeted browser regressions passed: public content/headline bounds at 320/768/1440/1920px, tablet hero separation, and exact full-width hero/shared-gutter geometry at 1440/1920/2560px. Build and existing pricing tests passed. Updated viewport captures are in `qa/fluid-home-*.webp`. No new animation or authentication behavior changed.

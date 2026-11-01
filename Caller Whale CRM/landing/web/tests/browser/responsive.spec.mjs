@@ -187,3 +187,22 @@ test("enlarged text reflows instead of clipping the hero", async ({ page }) => {
   });
   expect(right).toBeLessThanOrEqual(375);
 });
+
+for (const width of [1440, 1920, 2560]) {
+  test(`homepage uses the screen width at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1080 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/');
+    const hero = await page.locator('.studio-hero').boundingBox();
+    expect(hero.x).toBe(0);
+    expect(hero.width).toBe(width);
+    const gutter = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('header')).paddingLeft));
+    const workflow = await page.locator('.studio-workflow ol').boundingBox();
+    expect(Math.abs(workflow.x - gutter)).toBeLessThan(1);
+    expect(Math.abs(workflow.width - (width - 2 * gutter))).toBeLessThan(1);
+    const story = await page.locator('.studio-stories').boundingBox();
+    expect(Math.abs(story.x - gutter)).toBeLessThan(1);
+    expect(Math.abs(story.width - (width - 2 * gutter))).toBeLessThan(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+  });
+}
