@@ -21,6 +21,8 @@ Primary: sign in. Provider starts use auth; disabled/unconfigured providers expl
 
 ## Layout and design
 
+Follow the [selected direction](../05-selected-direction.md): a narrow residential architecture panel with concise return-to-work copy beside a calm ivory form, condensed display heading, readable fields, low-radius controls and peach action. On mobile prioritize the form and remove/shorten the decorative panel. Email-first is a sequencing concept, not implemented passwordless access or permission to change auth policy.
+
 Keep button hierarchy calm; do not add unrelated promotional panels. Preserve email on failure. Model callback pending, challenge, wrong account, expired session, rate limit and offline separately.
 Apply [shared experience rules](../01-experience.md), including light/dark, keyboard access and responsive review.
 

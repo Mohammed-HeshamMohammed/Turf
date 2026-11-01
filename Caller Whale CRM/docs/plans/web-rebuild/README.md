@@ -34,7 +34,13 @@ Inspected 2026-11-01; source evidence, not a fresh live service audit.
 | API preflight | Gateway fix 2a0f62e permits preflights through core origin checks | Keep a regression test across browser, gateway and core |
 | Documentation | landing/README.md still mentions /admin and browser Firebase | Correct these stale descriptions when implementing; do not copy them into the rebuild |
 
-## Visual direction to review
+## Selected main visual direction
+
+The owner selected **Precision Studio for property outreach**, combining Whale Studio's ivory/charcoal/peach continuity with Instrument's condensed typography, precise grids and architectural imagery layered behind selected text. The later residential-property concept is the main reference. See the [selected direction and asset rules](05-selected-direction.md) and [full landing-page remake](pages/home.md).
+
+This selects the visual direction for planning. Complete page layouts/copy and implementation still need acceptance checks; registration policy and feature readiness do not change.
+
+### Earlier alternatives (superseded as the main recommendation)
 
 | Direction | Public website | Dashboard | Trade-off |
 | --- | --- | --- | --- |
@@ -42,9 +48,9 @@ Inspected 2026-11-01; source evidence, not a fresh live service audit.
 | B — Studio | Larger compositions, more image-led sections and deliberate motion | Compact control workspace with minimal decoration | More asset and responsive composition work |
 | C — Utility | Short copy, direct feature/pricing comparisons | Dense controls and faster scanning | Less visual personality |
 
-Recommendation: A as the shared foundation, with C's information density for dashboard work. Light mode uses warm neutral surfaces; dark mode uses distinct dark surface levels with readable borders. Both share geometry and hierarchy. This is a proposal, not a claim that a visual direction has been approved.
+The earlier A/C recommendation is superseded by the selected direction. Light/dark share its typography, precise structure, property context and restrained peach accent.
 
-Do not infer exact designs from earlier unavailable screenshots or unnamed B/C options. Present actual desktop/mobile light/dark examples for selection before extending the visual system.
+Use the preserved selected reference rather than infer designs from older unavailable screenshots. Present full-height desktop/mobile light/dark compositions before extending the system across every page.
 
 ## Page register
 
@@ -91,6 +97,7 @@ No speculative feature-detail, blog, billing or checkout routes are included. Ad
 2. [Sitemap XML, robots.txt and search](02-discovery.md)
 3. [Identity, human verification and privacy](03-security.md)
 4. [Delivery, environments and acceptance](04-delivery.md)
+5. [Selected visual direction and assets](05-selected-direction.md)
 
 ## Delivery order
 
@@ -109,7 +116,7 @@ Each phase has a reviewable result. A design approval does not claim its API or 
 
 | Decision | Proposal | Needed evidence |
 | --- | --- | --- |
-| Visual direction | A with C's dashboard density | Real compositions approved by the owner |
+| Visual direction | Selected: Precision Studio + Whale Studio palette + layered property architecture | Direction selected; validate complete desktop/mobile light/dark compositions |
 | Dashboard scope | Account, usage, download, security, admin | Explicit decision before adding the full browser CRM |
 | Signup policy | Preserve invitation-only as baseline | Product decision before opening public signup; AUTH_DEV_TOKENS stays false |
 | Session storage | Review current bearer/refresh design | Threat review of browser refresh storage; compare an HttpOnly web-session adapter and its service/CSRF cost |

@@ -2,6 +2,8 @@
 
 Status: Proposed. Parent: [Web rebuild plan](README.md).
 
+Main visual direction: [Precision Studio for property outreach](05-selected-direction.md). Its typography, ivory/charcoal/peach palette, architectural layering and genuine product-evidence rules guide every page. Component details remain proposed until built and checked.
+
 ## Page-by-page audit first
 
 For every existing section record: URL, screenshot, audience, job, keep/improve/remake, specific issue, proposed adjustment, mobile behavior, data source and verification. Include header/footer, images, forms, tables, errors and empty states. Do not call a whole page reviewed after checking its hero.
