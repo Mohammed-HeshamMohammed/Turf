@@ -34,3 +34,25 @@ Apply [discovery](../02-discovery.md) and [security](../03-security.md) contract
 
 Verify every access state and role, staff-only account, customer+staff account, loading/empty/errors, period rollover, theme and mobile. Refresh/deep links must resolve without flashing restricted content.
 Record desktop/mobile light/dark evidence and loading, empty, success and failure states as applicable. Mark unsupported states explicitly rather than silently omit them.
+
+## Detailed implementation brief
+
+### Layout and sequence
+
+Shell -> access/verification task if needed -> period-bound usage summary -> supported desktop action -> activity preview -> security/approval links. Customers should not have to scroll past staff management or marketing.
+
+### Copy and visual application
+
+Heading welcomes the person without exposing email unnecessarily. Show exact task/action by state, including staff-only identity and dual customer/staff identity.
+
+### Data and service boundary
+
+Core GET account is the initial authority. Use can_download, not a frontend approximation. Auth approvals may load independently. No client-only admin state can authorize a privileged request.
+
+### Required edge states
+
+Public, unknown session, null access, unverified, active, zero remaining, suspended, staff-only, partial approvals failure, release unknown and account outage. Never render fake zeros or discard successful sections for unrelated widget failure.
+
+### Traceability
+
+J02, J06, J07; V06, V09, V17–V23, V28. See [verification matrix](../12-verification-matrix.md), [contracts](../06-architecture-contracts.md) and [component/state rules](../09-components-interactions.md). Acceptance requires implementation evidence; this brief does not claim those integrations already work.

@@ -33,3 +33,25 @@ Apply [discovery](../02-discovery.md) and [security](../03-security.md) contract
 
 Review against actual auth, notification, hosting and analytics choices. Retention numbers are explicit approved values, not invented defaults. Test print and mobile reading.
 Record desktop/mobile light/dark evidence and loading, empty, success and failure states as applicable. Mark unsupported states explicitly rather than silently omit them.
+
+## Detailed implementation brief
+
+### Layout and sequence
+
+Readable summary -> responsible business/date -> data categories/purposes -> processors/transfers -> retention/choices/deletion -> cookies -> contact -> version history. Use section links and a print-friendly view.
+
+### Copy and visual application
+
+Use plain specific language matching the chosen services and actual controls. A plan marked 'requires legal review' must not be shipped as a final policy without business approval.
+
+### Data and service boundary
+
+Content owner supplies actual responsible entity, jurisdiction/contact, processors, purposes and retention. Do not copy current example mail addresses or invent retention periods.
+
+### Required edge states
+
+Long legal text, print, zoom, link changes and consent-policy mismatch. Policy remains accessible without signing in or loading optional tracking.
+
+### Traceability
+
+V01–V06, V28, V30. See [verification matrix](../12-verification-matrix.md), [contracts](../06-architecture-contracts.md) and [component/state rules](../09-components-interactions.md). Acceptance requires implementation evidence; this brief does not claim those integrations already work.

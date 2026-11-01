@@ -35,3 +35,25 @@ Apply [discovery](../02-discovery.md) and [security](../03-security.md) contract
 
 Exercise email and each configured provider through auth, exchange, refresh, gateway preflight and /account. Callback exchange is single-use/deduplicated. Success returns to a valid requested page or dashboard.
 Record desktop/mobile light/dark evidence and loading, empty, success and failure states as applicable. Mark unsupported states explicitly rather than silently omit them.
+
+## Detailed implementation brief
+
+### Layout and sequence
+
+Entry -> provider choice or email first -> password -> required second step -> account loading -> valid destination. Back/edit-email is explicit and does not send an account-existence query. OAuth callback pending is its own state.
+
+### Copy and visual application
+
+Use the selected architectural side panel and calm form. First title 'Welcome back'; later headings describe the current task. Form errors remain close to the relevant action, not over the image.
+
+### Data and service boundary
+
+Bootstrap core auth/service, auth providers/security, POST sessions, POST OAuth start/exchange, then core account. Session storage decision D04 and callback/refresh single-flight are prerequisites.
+
+### Required edge states
+
+Configured-but-unavailable provider, wrong account, emailfirst Back, missing human token, blocked script, wrong password, challenge, exchange replay, account API failure and next-target rejection. Keep valid auth distinct from refused product access.
+
+### Traceability
+
+J02, J05; V08–V19, V28. See [verification matrix](../12-verification-matrix.md), [contracts](../06-architecture-contracts.md) and [component/state rules](../09-components-interactions.md). Acceptance requires implementation evidence; this brief does not claim those integrations already work.

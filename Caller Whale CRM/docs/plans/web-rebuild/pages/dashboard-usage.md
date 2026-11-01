@@ -33,3 +33,25 @@ Apply [discovery](../02-discovery.md) and [security](../03-security.md) contract
 
 Test period boundaries/timezones, no usage, exhausted limit, delayed data, pagination, forbidden workspace and failure. Never calculate an authoritative credit balance solely in browser code.
 Record desktop/mobile light/dark evidence and loading, empty, success and failure states as applicable. Mark unsupported states explicitly rather than silently omit them.
+
+## Detailed implementation brief
+
+### Layout and sequence
+
+Period/units -> used/remaining/limit -> daily chart + table alternative -> detail rows -> supported filter/page/export. Show last confirmed data context during refresh.
+
+### Copy and visual application
+
+Use readable numeric alignment and plain definitions. Explain UTC credit period versus display timezone and show actual units.
+
+### Data and service boundary
+
+Current account.access.usage/period supplies current data; do not invent a customer historical usage/export endpoint. Backend work must precede historical filters/pagination/export. Credit expenditure is a product action, never triggered by viewing this page.
+
+### Required edge states
+
+Unknown vs zero, no usage, limit zero, exhausted/over-limit after staff limit reduction, UTC rollover, delayed refresh, unauthorized account switch and export failure. Distinguish unlimited where explicitly supported.
+
+### Traceability
+
+J06; V06, V17–V20, V28. See [verification matrix](../12-verification-matrix.md), [contracts](../06-architecture-contracts.md) and [component/state rules](../09-components-interactions.md). Acceptance requires implementation evidence; this brief does not claim those integrations already work.

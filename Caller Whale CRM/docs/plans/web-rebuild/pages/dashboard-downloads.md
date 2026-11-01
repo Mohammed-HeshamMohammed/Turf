@@ -32,3 +32,25 @@ Apply [discovery](../02-discovery.md) and [security](../03-security.md) contract
 
 Verify authorized asset download end-to-end, expiry, access revocation, release-feed failure and correct platform artifact. Distinguish desktop updater checks from website version display.
 Record desktop/mobile light/dark evidence and loading, empty, success and failure states as applicable. Mark unsupported states explicitly rather than silently omit them.
+
+## Detailed implementation brief
+
+### Layout and sequence
+
+Platform/compatibility -> verified release details -> entitled download -> release notes/help -> update explanation. Unsupported OS/mobile stays clearly unavailable without a fake download button.
+
+### Copy and visual application
+
+Main action names the actual supported platform. Explain signing/update information only if verified through the release pipeline.
+
+### Data and service boundary
+
+GET account release/can_download, POST account/download and returned expiring asset. A null release conflates unknown/unavailable today; schedule explicit readiness contract if the UI distinguishes these.
+
+### Required edge states
+
+Entitlement denied, expired URL, feed unavailable, no release, wrong platform, revoked access after link creation and browser blocked download. Don't cache signed URLs or automatically request a new one in a loop.
+
+### Traceability
+
+J06; V17–V21, V28, V29. See [verification matrix](../12-verification-matrix.md), [contracts](../06-architecture-contracts.md) and [component/state rules](../09-components-interactions.md). Acceptance requires implementation evidence; this brief does not claim those integrations already work.

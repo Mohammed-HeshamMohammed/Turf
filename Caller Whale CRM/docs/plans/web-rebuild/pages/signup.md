@@ -33,3 +33,25 @@ Apply [discovery](../02-discovery.md) and [security](../03-security.md) contract
 
 Test invitation matching, uninvited signup policy, malformed/duplicate email, all password rules, missing/replayed CAPTCHA, provider signup and email delivery. No dev token exposure.
 Record desktop/mobile light/dark evidence and loading, empty, success and failure states as applicable. Mark unsupported states explicitly rather than silently omit them.
+
+## Detailed implementation brief
+
+### Layout and sequence
+
+Invitation/access explanation -> supported provider or email/password -> minimal profile -> email ownership step -> core entitlement check -> dashboard/access state. Keep an already registered person a clear route to sign in.
+
+### Copy and visual application
+
+Headline proposal: 'Get your workspace started.' Display password checklist before submit. A confirm field is local only; unsupported username/age fields are not silently stored in identity.
+
+### Data and service boundary
+
+POST auth accounts/OAuth, email verify/resend, then core account activation. Source invitation behavior is email-bound; do not mint fictitious invitation proofs or expose invitation details to an unverified caller.
+
+### Required edge states
+
+Invitation-only refusal, wrong invited email/provider, duplicate identity, existing account, partial identity-created/email-failed, expired proof, validation and CAPTCHA replay. Never create a second account as a retry shortcut.
+
+### Traceability
+
+J03; V09–V15, V18, V27, V28. See [verification matrix](../12-verification-matrix.md), [contracts](../06-architecture-contracts.md) and [component/state rules](../09-components-interactions.md). Acceptance requires implementation evidence; this brief does not claim those integrations already work.

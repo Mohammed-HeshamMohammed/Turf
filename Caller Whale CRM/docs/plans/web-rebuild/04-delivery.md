@@ -2,12 +2,14 @@
 
 Status: Proposed. Parent: [Web rebuild plan](README.md).
 
+Dependencies/owners: [work packages](11-work-breakdown-decisions.md). Required cases: [verification matrix](12-verification-matrix.md). Service gaps: [contracts](06-architecture-contracts.md). Incident handling: [operations](10-operations-runbooks.md).
+
 ## Stages and reviewable outputs
 
 | Stage | Output | Exit check |
 | --- | --- | --- |
 | 0 — Audit | Every section's keep/improve/remake record, route/data inventory, asset list | Owner can identify what changes and why |
-| 1 — Design | Home + dashboard compositions in two themes and desktop/mobile | Select direction and validate hierarchy before propagating |
+| 1 — Design | Home + auth + dashboard compositions in two themes and desktop/mobile | Apply selected direction and validate complete hierarchy/states before propagating |
 | 2 — Foundation | Tokens, components, layouts, one route registry | Keyboard/responsive checks; metadata and layout agree |
 | 3 — Public site | All public page plans implemented, genuine content/screens | Direct-route, no-JS content, discovery and form checks |
 | 4 — Identity | Signin/signup/verify/recovery and required human checks | Real staging provider and email flows pass |

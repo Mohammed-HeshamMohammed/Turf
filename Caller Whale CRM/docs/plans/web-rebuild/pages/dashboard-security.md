@@ -12,7 +12,7 @@ Manage second-step methods, sessions and device approvals with understandable co
 1. Verified sign-in methods and email status.
 2. Authenticator setup/confirmation, device labels and three-device limit behavior.
 3. Email/Telegram/desktop approval availability only when backed by real configuration.
-4. Session list/revocation if supported by an API.
+4. Session list/revocation using the source-backed auth routes after payload/policy verification.
 5. Pending device approvals with device/time/expiry and Approve/Deny.
 
 ## Actions and behavior
@@ -33,3 +33,25 @@ Apply [discovery](../02-discovery.md) and [security](../03-security.md) contract
 
 Test enrollment, invalid/replayed code, cancel, fourth-device removal, revocation, approval deny/expiry and concurrent attempts. Prevent removing the last usable recovery method without a defined recovery policy.
 Record desktop/mobile light/dark evidence and loading, empty, success and failure states as applicable. Mark unsupported states explicitly rather than silently omit them.
+
+## Detailed implementation brief
+
+### Layout and sequence
+
+Sign-in methods -> verified email -> enroll/manage factors -> sessions -> pending desktop approvals -> recovery guidance. Separate enrollment wizard from challenge answering.
+
+### Copy and visual application
+
+Make device labels and expiry understandable; highlight consequence before fourth TOTP activation removes the oldest. Show setup QR/secret only during enrollment and exclude it from shared screenshots.
+
+### Data and service boundary
+
+Auth factors/setup/confirm/remove, sessions list/revoke and approvals routes exist in source. Trace current payloads/assurance; password change and factor removal use supported fresh-verification policy. Backup/recovery capability must be verified before presenting codes.
+
+### Required edge states
+
+Cancel enrollment, invalid/replayed code, expired challenge, fourth device, last-factor removal, current-session revocation, unconfigured mail/Telegram, lost desktop and denial/timeout. Email-only second-step methods cannot silently satisfy stronger admin policy.
+
+### Traceability
+
+J05; V10–V17, V22, V27, V28. See [verification matrix](../12-verification-matrix.md), [contracts](../06-architecture-contracts.md) and [component/state rules](../09-components-interactions.md). Acceptance requires implementation evidence; this brief does not claim those integrations already work.

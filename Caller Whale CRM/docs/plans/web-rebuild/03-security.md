@@ -17,6 +17,8 @@ Deduplicate callback exchange and refresh operations. One expired access token m
 
 Before implementation, compare the current browser refresh-token storage with a same-origin HttpOnly session adapter. The latter needs CSRF protection, cookie scope, rotation and service/deployment ownership. Document the choice; neither approach is approved merely by this plan.
 
+Preferred target and transition trade-offs are detailed in [web-session proposal](14-web-session-target.md). Keep this decision separate from visual implementation and preserve native-app compatibility.
+
 ## Signup and recovery
 
 Read password rules from auth and enforce them on the server: current contract is 8–4096 characters with uppercase, lowercase, number and special character. Provide matching guidance before submission. Name/email belong to supported account fields. Confirm password is local validation only. Do not collect age/date of birth without a defined product/legal requirement and retention purpose.

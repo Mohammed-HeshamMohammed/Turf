@@ -32,3 +32,25 @@ Apply [discovery](../02-discovery.md) and [security](../03-security.md) contract
 
 Test policy mismatch, link expiry/replay, double submit and revoked existing sessions. Confirm issued links reach this route or a tested compatibility adapter.
 Record desktop/mobile light/dark evidence and loading, empty, success and failure states as applicable. Mark unsupported states explicitly rather than silently omit them.
+
+## Detailed implementation brief
+
+### Layout and sequence
+
+Capture/scrub token -> choose password with policy -> local confirm -> submit -> explain sessions/sign-in -> next step. Keep the form accessible after safe validation errors without persisting secrets.
+
+### Copy and visual application
+
+Headline proposal: 'Choose a new password.' Describe session invalidation only according to the auth response/contract.
+
+### Data and service boundary
+
+Auth POST password/reset with actual reset proof and new password shape from OpenAPI/client. Route compatibility for previously issued links is required before launch.
+
+### Required edge states
+
+Missing/expired/used proof, password policy mismatch, provider-only account, response lost after commit, repeated submit and old sessions still running. Reconcile without silently retrying a possibly completed reset.
+
+### Traceability
+
+J04; V10, V11, V17, V27, V28. See [verification matrix](../12-verification-matrix.md), [contracts](../06-architecture-contracts.md) and [component/state rules](../09-components-interactions.md). Acceptance requires implementation evidence; this brief does not claim those integrations already work.

@@ -152,6 +152,8 @@ Use [experience](../01-experience.md), [discovery](../02-discovery.md), [securit
 
 ## Acceptance evidence
 
+Traceability: J01 in [journeys](../07-journeys-permissions.md), V01–V07/V18/V27–V30 in [verification](../12-verification-matrix.md), plus selected-direction/content/asset gates. Every page section is required alongside shared contracts.
+
 - Every section reviewed; no untouched repeated-card page hidden below a new hero.
 - Full-height desktop/mobile light/dark captures match the selected typography, layering and business focus.
 - Every CTA/anchor works, including old waitlist links; no fictitious checkout or automatic access.

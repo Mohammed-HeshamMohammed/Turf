@@ -2,6 +2,8 @@
 
 Status: Proposed. Parent: [Web rebuild plan](README.md).
 
+Concrete route-registry fields, XML/robots examples, file inventory and optional-file decisions: [web artifacts](15-web-artifacts.md).
+
 ## One route registry
 
 Declare path, page identifier, title, description, canonical path, indexability, sitemap eligibility, navigation group, rendering mode and replacement URL. Generate public route artifacts from it. Private capability names and staff actions are not entries in public search.

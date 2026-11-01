@@ -31,3 +31,25 @@ Apply [discovery](../02-discovery.md) and [security](../03-security.md) contract
 
 Confirm actual mail delivery in staging, generic response for known/unknown addresses, retry cooldown and no token in logs. Route is added only after email-link contracts are traced.
 Record desktop/mobile light/dark evidence and loading, empty, success and failure states as applicable. Mark unsupported states explicitly rather than silently omit them.
+
+## Detailed implementation brief
+
+### Layout and sequence
+
+Email request -> generic acknowledgement -> cooldown/retry -> existing email link; include sign-in/support exits. Provider-only users get safe provider guidance without a revealing lookup.
+
+### Copy and visual application
+
+Headline proposal: 'Get back to your workspace.' The success copy is generic: if an eligible account exists, instructions are on their way.
+
+### Data and service boundary
+
+Auth POST password/forgot. Dedicated route is proposed; current sign-in reset action must still work or redirect deliberately. Endpoint abuse/human-check protection is a backend policy, not proof from a displayed widget.
+
+### Required edge states
+
+Known/unknown address, malformed input, provider-only identity, 429, unconfigured notification service, mail failure and offline. Do not disclose different outcomes to enumerate accounts.
+
+### Traceability
+
+J04; V07, V10–V13, V27, V28. See [verification matrix](../12-verification-matrix.md), [contracts](../06-architecture-contracts.md) and [component/state rules](../09-components-interactions.md). Acceptance requires implementation evidence; this brief does not claim those integrations already work.
