@@ -1,23 +1,42 @@
 # The core API on Coolify (application "core-api", port 8088, domain https://appapi.callerwhale.com; the site and the apps reach it through the gateway at https://gate.callerwhale.com).
 # Paste into Environment Variables -> Developer View. Fill every <...>.
+# Secret restricted PostgreSQL URI for ordinary API reads/writes. Use the application role, not the schema-owner or superuser login; changing it changes the CRM data target.
 DATABASE_URL=<postgres://callerwhale_api:password@host:5432/callerwhale>
+# Secret schema-owner PostgreSQL URI used only for database structure updates. Empty skips setup in this process; do not substitute it for the restricted runtime login.
 DATABASE_SETUP_URL=<postgres://callerwhale_owner:password@host:5432/callerwhale>
+# Secret Redis connection URI when credentials are included. Empty disables Redis caching; PostgreSQL remains the source of truth.
 REDIS_URL=
+# Runtime HTTP bind address; example 0.0.0.0:8088 allows the container network to reach the API. Match Coolify's private port.
 CALLERWHALE_BIND=0.0.0.0:8088
+# Secret comma-separated name=token pairs accepted on internal worker routes. Coordinate with worker CALLERWHALE_WORKER_TOKEN; each token should be at least 24 characters.
 CALLERWHALE_WORKER_TOKENS=<name=token, 24+ characters; the worker uses the same token>
+# Secret HMAC-SHA256 payment webhook key. Values shorter than 24 characters disable webhooks; coordinate changes with the payment sender.
 CALLERWHALE_BILLING_WEBHOOK_SECRET=<24+ characters>
+# Hosted checkout destination; payment ID is appended. Empty means no hosted checkout is configured.
 CALLERWHALE_CHECKOUT_URL=
+# Comma-separated permitted browser origins for API calls. Include deployed website/CRM and intended desktop origins; do not broaden casually.
 CALLERWHALE_ALLOWED_ORIGINS=https://callerwhale.com,https://gate.callerwhale.com,tauri://localhost,http://tauri.localhost
+# true lets an authenticated person create a trial organization. false reserves workspace creation for staff/invitations; does not enable or disable auth account registration.
 CALLERWHALE_PUBLIC_SIGNUP=false
+# true requires the second factor for workspace owners/admins. Separate from the staff-admin-mode policy; changing this affects privileged workspace access.
 CALLERWHALE_REQUIRE_MFA=false
+# Requires a second factor for platform staff admin access; default true. Keep true in production; turning it off weakens staff protection.
 CALLERWHALE_STAFF_MFA=true
+# Public website base URL used in invitation links. Changing it changes where invitation recipients are sent.
 CALLERWHALE_WEBSITE_URL=https://callerwhale.com
 # Sign-in is the auth service only: this server checks its tokens with its public keys. No Firebase settings here.
+# Auth service public-key endpoint used to verify access-token signatures. Must point to trusted auth, not Firebase or an arbitrary public key server.
 CALLERWHALE_AUTH_JWKS_URL=https://auth.callerwhale.com/.well-known/jwks.json
+# Public auth URL advertised to browser and desktop clients for central sign-in. Keep aligned with auth's public domain.
 CALLERWHALE_AUTH_PUBLIC_URL=https://auth.callerwhale.com
+# Protected gateway monitoring subpath exposed to staff UI. Empty hides the link; never replace it with a direct public Grafana address.
 CALLERWHALE_GRAFANA_URL=https://gate.callerwhale.com/staff/monitoring
 # Invitations are emailed by the notification service, which holds the mail login.
+# Notification-service base URL for invitation email. Together with CALLERWHALE_NOTIFY_TOKEN enables delivery; the API itself holds no SMTP login.
 CALLERWHALE_NOTIFY_URL=https://notify.callerwhale.com
+# Secret caller token matching core-api's NOTIFY_TOKENS entry. Rotate both sides together or invitation delivery fails.
 CALLERWHALE_NOTIFY_TOKEN=<the core-api token from NOTIFY_TOKENS>
+# GitHub owner/repository supplying desktop release assets. Wrong repository breaks downloads/update discovery; this is not the product display name.
 CALLERWHALE_RELEASE_REPO=Mohammed-HeshamMohammed/Turf
+# Release tag prefix identifying desktop releases; default crm-v. Changing it changes which releases are considered desktop updates.
 CALLERWHALE_RELEASE_TAG_PREFIX=crm-v

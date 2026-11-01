@@ -1,10 +1,17 @@
 # The public site on Coolify (application "landing-web", port 8080, domain https://callerwhale.com). Paste into Developer View.
 # Build settings:
+# Build-time canonical website base URL for prerendered pages/sitemap. Requires rebuilding the frontend to change; contains no secret.
 SITE_URL=https://callerwhale.com
+# Build-time public gateway URL embedded in browser JavaScript. Rebuild to change; never place private keys or credentials in VITE settings.
 VITE_CALLERWHALE_API_URL=https://gate.callerwhale.com
+# Build-time public contact/waitlist API URL embedded in browser JavaScript. Rebuild to change and align LANDING_API_ORIGIN.
 VITE_CALLERWHALE_LANDING_API_URL=https://api.callerwhale.com
 # Runtime settings (the web container's security policy):
+# Runtime nginx CSP origin permitting browser calls to central auth. Wrong value can block sign-in even when auth is healthy; use an origin, not a URL path.
 AUTH_ORIGIN=https://auth.callerwhale.com
+# Runtime nginx CSP origin permitting core API/gateway calls. Keep aligned with the built VITE_CALLERWHALE_API_URL.
 API_ORIGIN=https://gate.callerwhale.com
+# Runtime nginx CSP origin permitting contact/waitlist API calls. Keep aligned with the built VITE_CALLERWHALE_LANDING_API_URL.
 LANDING_API_ORIGIN=https://api.callerwhale.com
+# Runtime CSP frame origin for staff monitoring. Use the protected gateway origin; not a direct public Grafana endpoint.
 GRAFANA_ORIGIN=https://gate.callerwhale.com

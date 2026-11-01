@@ -1,8 +1,13 @@
 # The core API's worker on Coolify (application "core-api-worker", port 8090, domain https://appapiw.callerwhale.com: its health page only). Paste into Developer View.
+# Private core-api base URL used for job polling/results. Use the internal container address so the worker can reach internal routes without the public gateway.
 CALLERWHALE_API_URL=http://core-api:8088
+# Secret token matching a core-api CALLERWHALE_WORKER_TOKENS entry; at least 24 characters. Wrong/missing token stops authorized job processing.
 CALLERWHALE_WORKER_TOKEN=<the same token as in core-api's CALLERWHALE_WORKER_TOKENS>
+# Private Redis hostname:port for invalidation publishing. Empty disables the publisher; this is not a redis:// URI.
 REDIS_ADDR=<private Redis hostname>:6379
+# Secret Redis password used with REDIS_ADDR. Match the Redis resource and core-api's Redis credentials; rotate all consumers together.
 REDIS_PASSWORD=<same Redis password used by the core API>
 
 # Bind the health endpoint to the container interface for Coolify.
+# Worker health endpoint bind address; example 0.0.0.0:8090 lets Coolify reach it. Does not change the core API's listening address.
 CALLERWHALE_WORKER_BIND=0.0.0.0:8090

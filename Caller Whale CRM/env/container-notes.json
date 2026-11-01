@@ -1,0 +1,231 @@
+{
+  "schemaVersion": 1,
+  "resources": {
+    "auth": {
+      "description": "Central sign-in service: brokers Firebase, issues Caller Whale sessions and verifies second factors and human challenges.",
+      "sources": [
+        "services/auth/src/config.rs",
+        "services/auth/src/oauth.rs",
+        "services/auth/src/human.rs"
+      ],
+      "variables": {
+        "PORT": "Runtime HTTP listening port; default 8101. Match Coolify's container port and private auth URLs when changing it.",
+        "DATABASE_URL": "Secret connection URI for auth's own database and sessions. Use its dedicated PostgreSQL login; changing the target changes the account/session store.",
+        "AUTH_SIGNING_KEY": "Secret Ed25519 signing key (base64 seed or PKCS#8). Keep stable; replacing it invalidates previously signed access tokens. Never put it in frontend settings.",
+        "AUTH_PUBLIC_URL": "Public auth base URL used for provider callbacks. Changing it requires matching Google/Apple callback registrations.",
+        "AUTH_WEBSITE_URL": "Return base URL for the legacy website sign-in target. Must be a trusted application origin; changing it changes where that OAuth handoff returns.",
+        "AUTH_APP_URL": "Return base URL for browser CRM sign-in. Does not replace the desktop app's restricted loopback return.",
+        "AUTH_LANDING_URL": "Public site's sign-in return base URL. Keep it aligned with the deployed landing website.",
+        "AUTH_PUBLIC_SIGNUP": "true allows public account creation; false closes public registration. Separate from core-api's trial-workspace policy; keep false for invitation-only access.",
+        "AUTH_DEV_TOKENS": "Development-only confirmation tokens in API responses. Keep false in production; true exposes tokens intended only for local testing.",
+        "AUTH_ALLOWED_ORIGINS": "Comma-separated browser origins allowed to call auth. Include intended web and Tauri origins only; expanding this broadens cross-origin access.",
+        "AUTH_FIREBASE_API_KEY": "Firebase project's Web API key, used only by auth's server-side broker. Not a service-account private key; changing it selects a different Firebase project.",
+        "AUTH_GOOGLE_CLIENT_ID": "Optional direct Google OAuth Web client ID. With Firebase enabled, configured Firebase provider discovery can supply the broker flow instead.",
+        "AUTH_GOOGLE_CLIENT_SECRET": "Secret for the optional direct Google OAuth client. Must match its client ID; Firebase-managed broker flow does not require this direct-client override.",
+        "AUTH_APPLE_CLIENT_ID": "Optional direct Apple Services ID. Direct Apple flow also requires team ID, key ID and private key; Firebase broker availability depends on its own complete provider setup.",
+        "AUTH_APPLE_TEAM_ID": "Apple developer team ID for signing the optional direct-flow client secret. Must match the configured Apple key and Services ID.",
+        "AUTH_APPLE_KEY_ID": "Apple Sign in with Apple key identifier for the optional direct flow. Must match AUTH_APPLE_PRIVATE_KEY.",
+        "AUTH_APPLE_PRIVATE_KEY": "Secret Apple .p8 signing-key text for the optional direct flow; literal backslash-n sequences become line breaks. Never expose it to clients.",
+        "AUTH_NOTIFY_URL": "Notification-service base URL for email codes. Both this URL and AUTH_NOTIFY_TOKEN must be set for email delivery to be offered.",
+        "AUTH_NOTIFY_TOKEN": "Secret caller token matching auth's entry in notifications NOTIFY_TOKENS. Rotate both together; mismatches break authentication emails.",
+        "AUTH_TELEGRAM_BOT_TOKEN": "Optional secret BotFather token enabling Telegram code delivery. Leave empty to disable this delivery method; never use a phone number as the token.",
+        "AUTH_TELEGRAM_BOT_NAME": "Telegram bot's public name used for account linking; must identify the bot whose token auth uses. Optional when Telegram is disabled.",
+        "AUTH_TELEGRAM_WEBHOOK_SECRET": "Secret URL path component protecting the Telegram webhook. Coordinate rotation with Telegram's registered webhook URL.",
+        "AUTH_BOT_PROTECTION": "true enforces server-side Turnstile verification on signup/sign-in and provider starts; requires BOTH Turnstile keys. Missing keys fail startup. false disables this layer.",
+        "AUTH_TURNSTILE_SITE_KEY": "Public Turnstile widget key exposed to clients for human verification. Must pair with the secret key and allow the deployed frontend hostnames.",
+        "AUTH_TURNSTILE_SECRET_KEY": "Secret Cloudflare Siteverify credential, held only in auth. Must match the widget site key; a missing key with bot protection true prevents startup.",
+        "AUTH_TURNSTILE_HOSTNAMES": "Optional comma-separated allowed challenge hostnames, without scheme/path. Empty derives hosts from configured origins/URLs; wrong hosts reject otherwise valid challenges.",
+        "AUTH_ACCESS_MINUTES": "Access-token lifetime in minutes; default 15. Changing it affects newly issued tokens and the frequency of refresh.",
+        "AUTH_REFRESH_DAYS": "Refresh-session lifetime in days; default 30. Changing it affects newly created session expiry, not the signing key."
+      }
+    },
+    "core-api": {
+      "description": "Workspace and CRM API: validates auth tokens, enforces roles and row security, serves data and coordinates workers.",
+      "sources": [
+        "services/core-api/rust/crates/api/src/config.rs"
+      ],
+      "variables": {
+        "DATABASE_URL": "Secret restricted PostgreSQL URI for ordinary API reads/writes. Use the application role, not the schema-owner or superuser login; changing it changes the CRM data target.",
+        "DATABASE_SETUP_URL": "Secret schema-owner PostgreSQL URI used only for database structure updates. Empty skips setup in this process; do not substitute it for the restricted runtime login.",
+        "REDIS_URL": "Secret Redis connection URI when credentials are included. Empty disables Redis caching; PostgreSQL remains the source of truth.",
+        "CALLERWHALE_BIND": "Runtime HTTP bind address; example 0.0.0.0:8088 allows the container network to reach the API. Match Coolify's private port.",
+        "CALLERWHALE_WORKER_TOKENS": "Secret comma-separated name=token pairs accepted on internal worker routes. Coordinate with worker CALLERWHALE_WORKER_TOKEN; each token should be at least 24 characters.",
+        "CALLERWHALE_BILLING_WEBHOOK_SECRET": "Secret HMAC-SHA256 payment webhook key. Values shorter than 24 characters disable webhooks; coordinate changes with the payment sender.",
+        "CALLERWHALE_CHECKOUT_URL": "Hosted checkout destination; payment ID is appended. Empty means no hosted checkout is configured.",
+        "CALLERWHALE_ALLOWED_ORIGINS": "Comma-separated permitted browser origins for API calls. Include deployed website/CRM and intended desktop origins; do not broaden casually.",
+        "CALLERWHALE_PUBLIC_SIGNUP": "true lets an authenticated person create a trial organization. false reserves workspace creation for staff/invitations; does not enable or disable auth account registration.",
+        "CALLERWHALE_REQUIRE_MFA": "true requires the second factor for workspace owners/admins. Separate from the staff-admin-mode policy; changing this affects privileged workspace access.",
+        "CALLERWHALE_STAFF_MFA": "Requires a second factor for platform staff admin access; default true. Keep true in production; turning it off weakens staff protection.",
+        "CALLERWHALE_WEBSITE_URL": "Public website base URL used in invitation links. Changing it changes where invitation recipients are sent.",
+        "CALLERWHALE_AUTH_JWKS_URL": "Auth service public-key endpoint used to verify access-token signatures. Must point to trusted auth, not Firebase or an arbitrary public key server.",
+        "CALLERWHALE_AUTH_PUBLIC_URL": "Public auth URL advertised to browser and desktop clients for central sign-in. Keep aligned with auth's public domain.",
+        "CALLERWHALE_GRAFANA_URL": "Protected gateway monitoring subpath exposed to staff UI. Empty hides the link; never replace it with a direct public Grafana address.",
+        "CALLERWHALE_NOTIFY_URL": "Notification-service base URL for invitation email. Together with CALLERWHALE_NOTIFY_TOKEN enables delivery; the API itself holds no SMTP login.",
+        "CALLERWHALE_NOTIFY_TOKEN": "Secret caller token matching core-api's NOTIFY_TOKENS entry. Rotate both sides together or invitation delivery fails.",
+        "CALLERWHALE_RELEASE_REPO": "GitHub owner/repository supplying desktop release assets. Wrong repository breaks downloads/update discovery; this is not the product display name.",
+        "CALLERWHALE_RELEASE_TAG_PREFIX": "Release tag prefix identifying desktop releases; default crm-v. Changing it changes which releases are considered desktop updates.",
+        "CALLERWHALE_GITHUB_TOKEN": "Optional secret GitHub read token for private release assets. Empty supports public releases only; keep scopes minimal and server-side."
+      }
+    },
+    "core-api-worker": {
+      "description": "Background CRM job processor; authenticates to private core-api routes and optionally publishes Redis invalidations.",
+      "sources": [
+        "services/core-api/go/cmd/callerwhale-worker/main.go"
+      ],
+      "variables": {
+        "CALLERWHALE_API_URL": "Private core-api base URL used for job polling/results. Use the internal container address so the worker can reach internal routes without the public gateway.",
+        "CALLERWHALE_WORKER_TOKEN": "Secret token matching a core-api CALLERWHALE_WORKER_TOKENS entry; at least 24 characters. Wrong/missing token stops authorized job processing.",
+        "REDIS_ADDR": "Private Redis hostname:port for invalidation publishing. Empty disables the publisher; this is not a redis:// URI.",
+        "REDIS_PASSWORD": "Secret Redis password used with REDIS_ADDR. Match the Redis resource and core-api's Redis credentials; rotate all consumers together.",
+        "CALLERWHALE_WORKER_BIND": "Worker health endpoint bind address; example 0.0.0.0:8090 lets Coolify reach it. Does not change the core API's listening address.",
+        "CALLERWHALE_WORKER_CONCURRENCY": "Concurrent worker processing count; default 4. Increase only with sufficient API/database capacity."
+      }
+    },
+    "gateway": {
+      "description": "Public API gateway: routes hostnames, verifies auth tokens, rate-limits requests and gates the private monitoring subpath.",
+      "sources": [
+        "services/gateway/main.go"
+      ],
+      "variables": {
+        "PORT": "Gateway HTTP listen port; default 8100. Match Coolify's upstream container port.",
+        "ROUTES": "Comma-separated public-host=http(s)://private-upstream mappings. Changing this changes traffic destinations; do not expose internal-only services as public routes.",
+        "CORE_HOST": "Hostname in ROUTES that receives core-API access policy and private monitoring routing. Must match a configured route exactly.",
+        "AUTH_JWKS_URL": "Trusted auth public-key endpoint for token verification. Required when CORE_HOST is set; wrong keys block protected access.",
+        "STAFF_REQUIRE_SECOND_FACTOR": "Staff-route second-factor requirement; defaults on unless false. Keep true in production to protect admin/monitoring access.",
+        "IP_PER_MINUTE": "Positive per-IP requests-per-minute limit; default 600. Too low blocks legitimate shared-network users; too high weakens throttling.",
+        "USER_PER_MINUTE": "Positive per-authenticated-user requests-per-minute limit; default 1800. Changing it affects API throttling for signed-in users.",
+        "MAX_BODY_MB": "Positive maximum accepted request body size in MiB; default 64. Smaller limits can reject uploads; larger limits increase memory/traffic exposure.",
+        "PROXY_HOPS": "Trusted proxy-hop count for resolving the client IP; default 1. Match the actual proxy chain or IP rate limits can identify clients incorrectly.",
+        "MONITORING_UPSTREAM": "Private Grafana proxy HTTP origin, without path/query. Reached only through CORE_HOST /staff/monitoring; never give Grafana a direct public route."
+      }
+    },
+    "landing-api": {
+      "description": "Public website API for contact/waitlist persistence and desktop-release metadata.",
+      "sources": [
+        "landing/api/src/server.mjs"
+      ],
+      "variables": {
+        "PORT": "Website API HTTP listening port; default 8095. Match Coolify's container port.",
+        "CALLERWHALE_LANDING_DB": "SQLite database file for website submissions; default data/landing.db. Persist its directory; changing the path selects a different submission store.",
+        "CALLERWHALE_RELEASE_REPO": "GitHub owner/repository used to look up desktop releases. Keep aligned with the release publisher; wrong repository breaks download discovery.",
+        "CALLERWHALE_LANDING_ORIGINS": "Comma-separated origins allowed to call the website API. Production should name the intended website origins only."
+      }
+    },
+    "landing-web": {
+      "description": "Public static React site; build-time API addresses and runtime nginx content-security-policy origins must agree.",
+      "sources": [
+        "landing/web/Dockerfile",
+        "landing/web/nginx.conf"
+      ],
+      "variables": {
+        "SITE_URL": "Build-time canonical website base URL for prerendered pages/sitemap. Requires rebuilding the frontend to change; contains no secret.",
+        "VITE_CALLERWHALE_API_URL": "Build-time public gateway URL embedded in browser JavaScript. Rebuild to change; never place private keys or credentials in VITE settings.",
+        "VITE_CALLERWHALE_LANDING_API_URL": "Build-time public contact/waitlist API URL embedded in browser JavaScript. Rebuild to change and align LANDING_API_ORIGIN.",
+        "AUTH_ORIGIN": "Runtime nginx CSP origin permitting browser calls to central auth. Wrong value can block sign-in even when auth is healthy; use an origin, not a URL path.",
+        "API_ORIGIN": "Runtime nginx CSP origin permitting core API/gateway calls. Keep aligned with the built VITE_CALLERWHALE_API_URL.",
+        "LANDING_API_ORIGIN": "Runtime nginx CSP origin permitting contact/waitlist API calls. Keep aligned with the built VITE_CALLERWHALE_LANDING_API_URL.",
+        "GRAFANA_ORIGIN": "Runtime CSP frame origin for staff monitoring. Use the protected gateway origin; not a direct public Grafana endpoint."
+      }
+    },
+    "notifications": {
+      "description": "Central mail sender: only authorized backend callers can request messages; SMTP credentials stay here.",
+      "sources": [
+        "services/notifications/main.go",
+        "services/notifications/mail.go"
+      ],
+      "variables": {
+        "PORT": "Notification API HTTP listening port; default 8102. Match Coolify's private/public upstream configuration.",
+        "NOTIFY_TOKENS": "Secret comma-separated caller=token pairs, at least 24 characters per token. Match auth/core-api notification tokens; changing one side breaks that caller's mail.",
+        "NOTIFY_SMTP_HOST": "SMTP server hostname for delivery. Use the mail server's authenticated submission endpoint, not an inbound MX routing worker.",
+        "NOTIFY_SMTP_PORT": "SMTP submission port; default 587. Use STARTTLS 587 or implicit TLS 465 as supported by the server; do not use cleartext submission.",
+        "NOTIFY_SMTP_USER": "SMTP mailbox login; not a forwarding alias unless the mail server explicitly supports alias authentication. Must match the allowed sender.",
+        "NOTIFY_SMTP_PASSWORD": "Secret SMTP mailbox password. Rotate together with the mail server credential; incorrect value breaks every notification email.",
+        "NOTIFY_MAIL_FROM": "Email From header with Caller Whale display name and permitted sender mailbox. Must match mail-server sender authorization, not merely a forwarding destination."
+      }
+    },
+    "callerwhale-monitoring": {
+      "description": "Compose stack containing private grafana-proxy and Grafana; no direct public domain. Proxy enforces staff sessions; Grafana trusts only that proxy.",
+      "sources": [
+        "deploy/grafana/compose.yml",
+        "services/grafana-proxy/main.go",
+        "env/container-variable-inventory.json"
+      ],
+      "variables": {
+        "PORT": "Private Grafana proxy listen port; compose fixes it at 8120. Match the gateway's private monitoring upstream if changing it.",
+        "GRAFANA_BASE_PATH": "Protected browser subpath; only /staff/monitoring or empty is accepted. Match gateway routing and Grafana's root URL.",
+        "GRAFANA_URL": "Private Grafana HTTP origin reached by the proxy. Keep on the private monitoring network; not a browser-facing address.",
+        "CALLERWHALE_CORE_API_URL": "Trusted core API/gateway base URL used to recheck staff identity. If unreachable or refusing access, the proxy fails closed.",
+        "CALLERWHALE_WEBSITE_URL": "Trusted website origin allowed to frame Grafana and post the session handoff. Must match the website hosting Dashboard admin mode.",
+        "ADMIN_GRAFANA_ROLE": "Grafana role for system administrators: Viewer, Editor or Admin; default Editor. Platform owner remains Admin. Raising it grants more dashboard permissions.",
+        "RECHECK_EVERY": "Maximum interval between staff authorization rechecks; default 60s. Shorter intervals increase API traffic; revocation is checked on subsequent requests.",
+        "SESSION_MAX_AGE": "Absolute proxy session lifetime; default 1h. Expiry requires a new authorized sign-in even while the user remains active.",
+        "IDLE_TIMEOUT": "Inactivity limit for proxy sessions; default 10m. Idle sessions require fresh entry; this does not keep a disconnected browser authorized indefinitely.",
+        "AUTH_WITHIN": "Maximum age of the authentication used to enter monitoring; default 15m. Old sign-ins cannot create a fresh proxy session.",
+        "COOKIE_SECURE": "Secure session-cookie flag; default true. Keep true with HTTPS in production; false is only for local HTTP testing.",
+        "GRAFANA_PUBLIC_URL": "Browser root URL including the protected /staff/monitoring/ subpath. Compose maps it to GF_SERVER_ROOT_URL; never a direct public Grafana domain.",
+        "GRAFANA_ADMIN_PASSWORD": "Secret initial Grafana admin password, replacing the image default. Login form/basic auth remain disabled; changing env alone may not reset an existing stored admin password.",
+        "GRAFANA_PLUGINS": "Comma-separated Grafana plugin IDs to preinstall. Adding third-party plugins changes the dashboard code loaded at startup; review plugins before installing.",
+        "GF_SERVER_SERVE_FROM_SUB_PATH": "true serves Grafana under its configured root subpath. Must stay aligned with the gateway monitoring path.",
+        "GF_SERVER_ROOT_URL": "Browser-visible Grafana root, derived from GRAFANA_PUBLIC_URL. Keep the protected gateway URL/subpath or asset and redirect links break.",
+        "GF_SECURITY_ADMIN_PASSWORD": "Secret Grafana admin bootstrap password derived from GRAFANA_ADMIN_PASSWORD. Environment changes are not a password-reset mechanism for an initialized Grafana database.",
+        "GF_SECURITY_COOKIE_SECURE": "Grafana HTTPS-only cookies, derived from COOKIE_SECURE. Keep true for production HTTPS.",
+        "GF_SECURITY_COOKIE_SAMESITE": "Cookie SameSite policy; compose uses lax. Changing it can alter browser cookie behavior during navigation and embedded monitoring.",
+        "GF_SECURITY_ALLOW_EMBEDDING": "true permits rendering inside Dashboard admin mode. The Grafana proxy separately restricts allowed frame origins and staff sessions.",
+        "GF_AUTH_PROXY_ENABLED": "true enables proxy-header authentication. Keep the proxy whitelist and disabled alternative logins intact to avoid impersonation paths.",
+        "GF_AUTH_PROXY_HEADER_NAME": "Trusted username header, X-WEBAUTH-USER. Must match the proxy's emitted identity header.",
+        "GF_AUTH_PROXY_HEADER_PROPERTY": "Proxy identity header is treated as username. Changing it changes how Grafana maps incoming identities to stored users.",
+        "GF_AUTH_PROXY_HEADERS": "Mapping for Email, Name and Role from X-WEBAUTH headers. Must match the staff proxy; changing Role mapping affects dashboard privileges.",
+        "GF_AUTH_PROXY_AUTO_SIGN_UP": "true creates Grafana profiles for identities accepted from the trusted proxy. This is not public Caller Whale account signup.",
+        "GF_AUTH_PROXY_WHITELIST": "Only this proxy source IP may assert Grafana identity headers. Keep aligned with the proxy's fixed private-network address; widening it increases impersonation risk.",
+        "GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN": "false avoids persistent Grafana proxy-login tokens. Access remains dependent on the staff proxy's session checks.",
+        "GF_AUTH_DISABLE_LOGIN_FORM": "true hides Grafana's local login form. Keep true; staff enter only through authenticated Dashboard admin mode.",
+        "GF_AUTH_BASIC_ENABLED": "false disables direct HTTP Basic authentication. Keep false to preserve the single staff-proxy entry path.",
+        "GF_AUTH_ANONYMOUS_ENABLED": "false prevents anonymous Grafana access. Keep false in production.",
+        "GF_USERS_ALLOW_SIGN_UP": "false disables Grafana's own public registration. Trusted proxy profile creation is a separate controlled setting.",
+        "GF_USERS_ALLOW_ORG_CREATE": "false prevents Grafana users creating organizations. Keep false unless intentionally changing monitoring tenancy/permissions.",
+        "GF_AUTH_SIGNOUT_REDIRECT_URL": "Logout redirect to the protected proxy's /_callerwhale/logout endpoint. Must match its public monitoring subpath to end the proxy session.",
+        "GF_ANALYTICS_REPORTING_ENABLED": "false disables Grafana usage analytics reporting. Changing it enables outbound reporting; unrelated to Caller Whale operational metrics.",
+        "GF_ANALYTICS_CHECK_FOR_UPDATES": "false disables Grafana's automatic update checks. Container upgrades are handled through deployment instead.",
+        "GF_SNAPSHOTS_EXTERNAL_ENABLED": "false disables external snapshot publishing. Keep false to avoid exposing dashboard snapshots externally.",
+        "GF_NEWS_NEWS_FEED_ENABLED": "false disables Grafana's news feed. Does not affect dashboard data collection.",
+        "GF_PLUGINS_PREINSTALL": "Plugin IDs installed by Grafana, derived from GRAFANA_PLUGINS. Review before adding third-party code to the monitoring container.",
+        "COOLIFY_NETWORK": "External Docker network shared with the gateway; default coolify. Wrong network isolates monitoring from the gateway; never publish Grafana to compensate.",
+        "SERVICE_FQDN_GRAFANA": "Coolify-generated Grafana hostname metadata. The repository Compose does not consume this key; keep direct Grafana domain exposure disabled and use the protected gateway subpath.",
+        "SERVICE_URL_GRAFANA": "Coolify-generated Grafana service URL metadata. Not referenced by the repository Compose; it must not become a direct public monitoring entry point.",
+        "SERVICE_FQDN_GRAFANA_3000": "Coolify-generated hostname metadata for Grafana port 3000. The repository Compose does not consume it; do not attach a public Grafana domain.",
+        "SERVICE_URL_GRAFANA_3000": "Coolify-generated service URL metadata for port 3000. The repository Compose does not consume it; clients should use the protected gateway monitoring URL.",
+        "SERVICE_PASSWORD_GRAFANA": "Secret generated by Coolify for the monitoring resource. The repository Compose uses GRAFANA_ADMIN_PASSWORD instead; check the live Compose mapping before changing or deleting this key.",
+        "GF_SERVER_DOMAIN": "Grafana server-domain setting in the live inventory. Repository Compose uses an explicit GF_SERVER_ROOT_URL instead; keep browser links on the protected gateway origin.",
+        "GF_SECURITY_ADMIN_USER": "Grafana bootstrap administrator username in the live inventory. Not set by repository Compose; changing it does not rename an existing stored account or enable direct login."
+      }
+    },
+    "callerwhale-auth-postgres": {
+      "description": "Private PostgreSQL auth account/session store. Coolify manages database/login fields in General settings, not Environment Variables. Auth connects using its dedicated role through DATABASE_URL.",
+      "sources": [
+        "env/database.env.example",
+        "env/container-variable-inventory.json"
+      ],
+      "variables": {}
+    },
+    "callerwhale-core-postgres": {
+      "description": "Private PostgreSQL CRM store. Coolify manages database/login fields in General settings. Core DATABASE_URL uses the restricted application role; DATABASE_SETUP_URL uses the schema owner for structure updates.",
+      "sources": [
+        "env/database.env.example",
+        "env/container-variable-inventory.json"
+      ],
+      "variables": {}
+    },
+    "callerwhale-core-redis": {
+      "description": "Private Redis cache/invalidation broker for core-api and its worker. Password/user changes must match application consumers; PostgreSQL remains the primary data store.",
+      "sources": [
+        "env/container-variable-inventory.json",
+        "services/core-api/go/cmd/callerwhale-worker/main.go",
+        "services/core-api/rust/crates/api/src/config.rs"
+      ],
+      "variables": {
+        "REDIS_USERNAME": "Redis login name managed by Coolify; use the configured ACL identity when connecting. Keep core-api connection credentials aligned; the worker publisher currently accepts a password but no custom username.",
+        "REDIS_PASSWORD": "Secret Redis password managed by Coolify. Rotate together with core-api REDIS_URL and worker REDIS_PASSWORD; mismatches break caching/invalidation. Keep Redis private."
+      }
+    }
+  }
+}
