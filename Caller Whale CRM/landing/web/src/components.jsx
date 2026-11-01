@@ -45,6 +45,7 @@ export const Logo = ({ size = 32 }) => (
 export function Reveal({ children, as: Tag = "div", className = "", ...rest }) {
   const ref = useRef(null);
   const [shown, setShown] = useState(false);
+  const [ready, setReady] = useState(false);
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof IntersectionObserver === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -60,11 +61,12 @@ export function Reveal({ children, as: Tag = "div", className = "", ...rest }) {
       },
       { rootMargin: "0px 0px -8% 0px" },
     );
+    setReady(true);
     io.observe(el);
     return () => io.disconnect();
   }, []);
   return (
-    <Tag ref={ref} className={`reveal ${shown ? "in" : ""} ${className}`} {...rest}>
+    <Tag ref={ref} className={`reveal ${ready ? "motion-ready" : ""} ${shown ? "in" : ""} ${className}`} {...rest}>
       {children}
     </Tag>
   );
@@ -115,6 +117,12 @@ export function Header({ route }) {
       document.removeEventListener("pointerdown", outside);
     };
   }, [open]);
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 961px)");
+    const dismissOnDesktop = () => { if (desktop.matches) setOpen(false); };
+    desktop.addEventListener("change", dismissOnDesktop);
+    return () => desktop.removeEventListener("change", dismissOnDesktop);
+  }, []);
   const links = [
     ["/features", "Product"],
     ["/#workflow", "Workflow"],
