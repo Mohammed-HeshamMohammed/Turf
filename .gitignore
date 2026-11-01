@@ -1,0 +1,28 @@
+node_modules/
+dist/
+.vite/
+*.log
+.vercel/
+
+.env*
+desktop/container/rust/target/
+desktop/container/rust/gen/
+
+# Landing API database
+landing/api/data/
+
+# New stack (tools/scaffold-stack.mjs)
+/target
+.env
+
+# Runtime settings stay ignored; only examples, the README and the two named documentation JSON files are committed.
+env/*
+!env/README.md
+# Non-secret documentation catalog and variable-name inventory; never include runtime values.
+!env/container-notes.json
+!env/container-variable-inventory.json
+!env/*.example
+# The auth service's development database (SQLite).
+services/auth/*.db
+services/auth/*.db-*
+!deploy/grafana/.env.example
