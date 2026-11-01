@@ -257,23 +257,17 @@ body {
 .product-evidence a:focus-visible {
   outline-offset: 4px;
 }
+/* Keep app imagery in the single workspace proof section. */
 .studio-stories {
-  border-top: 1px solid var(--line);
-}
-.studio-story {
   display: grid;
-  grid-template-columns: 0.8fr 1.2fr;
-  align-items: center;
-  gap: 80px;
-  padding: 80px 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 48px;
+  padding: 64px 0;
+  border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
-.studio-story:nth-child(2) {
-  grid-template-columns: 1.2fr 0.8fr;
-}
-.studio-story:nth-child(2) .story-copy {
-  order: 2;
-}
+.studio-story { min-width: 0; }
+.studio-story h2 { font-size: clamp(36px, 3.5vw, 52px); }
 .story-copy h2 {
   margin: 18px 0 24px;
 }
@@ -497,9 +491,7 @@ body {
     grid-template-columns: 1fr 1fr;
     gap: 30px;
   }
-  .workspace-proof,
-  .studio-story,
-  .studio-story:nth-child(2) {
+  .workspace-proof {
     gap: 32px;
     grid-template-columns: 1fr 1fr;
   }
@@ -609,8 +601,6 @@ body {
     padding: 56px 0;
   }
   .workspace-proof,
-  .studio-story,
-  .studio-story:nth-child(2),
   .studio-people,
   .studio-continuity,
   .studio-pricing,
@@ -619,12 +609,9 @@ body {
     grid-template-columns: 1fr;
     gap: 32px;
   }
-  .studio-story {
-    padding: 48px 0;
-  }
-  .studio-story:nth-child(2) .story-copy {
-    order: 0;
-  }
+  .studio-stories { grid-template-columns: 1fr; gap: 0; padding: 0; }
+  .studio-story { padding: 40px 0; }
+  .studio-story + .studio-story { border-top: 1px solid var(--line); }
   .studio-home h2,
   .access-copy h2 {
     font-size: 46px;

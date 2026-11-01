@@ -34,3 +34,9 @@ P3: font swap can briefly change heading metrics on first load; the licensed loc
 ## Reproduction
 
 From `landing/web`: `npm ci`, `npm run dev` (port 5200). Start the existing API with `CALLERWHALE_LANDING_DB` pointing to disposable local storage and `npm --prefix ../api start`. Production: build with SITE_URL, then `npm run preview`. Browser tooling and original run artifacts for this session are under `/workspace/turf-qa` and `/workspace/browser-tools`; the four review captures are retained in `qa/`.
+
+## Homepage imagery revision
+
+Owner feedback: show the app once or twice at most on the homepage. The homepage now contains exactly one app image (Calls, in workspace proof). The three product stories are text-led columns on desktop and stacked rows on phones. Existing screenshots remain available to the Features page.
+
+Revalidated the build and existing tests, then checked one app image, three stories and no page overflow at 390/768/1440px in both themes. Refreshed all four retained review captures. No additional API behavior changed.

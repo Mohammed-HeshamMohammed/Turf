@@ -141,9 +141,7 @@ export function Home() {
             text: "Import your spreadsheet, map its columns and keep the original values alongside the work you do next.",
             detail:
               "Original records stay available. Export your work when you need it.",
-            shot: "lists",
             anchor: "crm",
-            alt: "Sample source lists with their imported records and column context.",
           },
           {
             number: "02",
@@ -152,9 +150,7 @@ export function Home() {
             text: "Clean and rank the numbers your list already contains. Review the evidence instead of treating every number as a good next call.",
             detail:
               "New-number discovery is planned. Live calling remains a preview.",
-            shot: "skip",
             anchor: "skip",
-            alt: "Sample phone review workflow with mapping and evidence review steps.",
           },
           {
             number: "03",
@@ -163,9 +159,7 @@ export function Home() {
             text: "Keep notes, outcomes and callbacks connected to the record. Give the next person the context they need to pick up the conversation.",
             detail:
               "Team handoffs and role-based workflows are demonstrated in the sample workspace.",
-            shot: "handoffs",
             anchor: "crm",
-            alt: "Sample team handoffs with their status and assigned owners.",
           },
         ].map((story) => (
           <article className="studio-story" key={story.number}>
@@ -180,23 +174,6 @@ export function Home() {
                 Explore the feature <Icon name="ArrowUpRight" size={18} />
               </a>
             </div>
-            <figure className="product-evidence">
-              <a
-                href={`/screens/${story.shot}.webp`}
-                target="_blank"
-                rel="noreferrer"
-                aria-label={`Open full-size ${story.label} sample screenshot`}
-              >
-                <img
-                  src={`/screens/${story.shot}.webp`}
-                  width="1440"
-                  height="900"
-                  alt={story.alt}
-                  loading="lazy"
-                />
-              </a>
-              <figcaption>Sample workspace · illustrative records</figcaption>
-            </figure>
           </article>
         ))}
       </section>
