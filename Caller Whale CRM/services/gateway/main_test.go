@@ -168,6 +168,38 @@ func TestSignedInPathsNeedAValidToken(t *testing.T) {
 	}
 }
 
+func TestBrowserPreflightReachesCoreWithoutOpeningProtectedRequests(t *testing.T) {
+	w := newWorld(t, nil)
+	preflight := func(path, method string) *httptest.ResponseRecorder {
+		return w.do(appHost, http.MethodOptions, path, "", func(r *http.Request) {
+			r.Header.Set("Origin", "https://callerwhale.com")
+			r.Header.Set("Access-Control-Request-Method", method)
+			r.Header.Set("Access-Control-Request-Headers", "authorization")
+		})
+	}
+	if rec := preflight("/api/v1/account", http.MethodGet); rec.Code != http.StatusOK {
+		t.Fatalf("account preflight: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := preflight("/api/v1/platform/people", http.MethodGet); rec.Code != http.StatusOK {
+		t.Fatalf("staff preflight: %d %s", rec.Code, rec.Body.String())
+	}
+	if w.reached.Load() != 2 {
+		t.Fatalf("preflights forwarded: %d", w.reached.Load())
+	}
+	if rec := preflight("/internal/jobs/claim", http.MethodPost); rec.Code != http.StatusNotFound {
+		t.Fatalf("private preflight: %d", rec.Code)
+	}
+	if rec := w.do(appHost, http.MethodGet, "/api/v1/account", ""); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("tokenless account request: %d", rec.Code)
+	}
+	if rec := w.do(appHost, http.MethodGet, "/api/v1/platform/people", ""); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("tokenless staff request: %d", rec.Code)
+	}
+	if w.reached.Load() != 2 {
+		t.Fatal("a protected request reached the core API")
+	}
+}
+
 func TestAnAlgorithmSwapIsRefused(t *testing.T) {
 	w := newWorld(t, nil)
 	enc := func(v any) string { b, _ := json.Marshal(v); return base64.RawURLEncoding.EncodeToString(b) }

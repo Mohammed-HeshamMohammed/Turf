@@ -1,0 +1,23 @@
+name: Check gateway
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Caller Whale CRM/services/gateway/**"
+      - ".github/workflows/check-gateway.yml"
+  pull_request:
+    paths:
+      - "Caller Whale CRM/services/gateway/**"
+      - ".github/workflows/check-gateway.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "Caller Whale CRM/services/gateway/go.mod"
+      - run: go test ./...
+        working-directory: "Caller Whale CRM/services/gateway"

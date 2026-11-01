@@ -248,7 +248,25 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// signed token, MFA and staff role with the core API on every request.
 		rt = g.cfg.monitoring
 	}
+	if r.Header.Get("Upgrade") == "" {
+		r.Body = http.MaxBytesReader(w, r.Body, g.cfg.maxBody)
+	}
 	if rt.core {
+		// A browser's CORS preflight carries no bearer token. Let the core API's
+		// origin policy answer it; the subsequent request still needs its token.
+		// Classify using the method the browser intends to send so private paths
+		// cannot be probed through an OPTIONS request.
+		if r.Method == http.MethodOptions && r.Header.Get("Origin") != "" {
+			requested := r.Header.Get("Access-Control-Request-Method")
+			if requested != "" {
+				if classify(requested, r.URL.Path) == private {
+					writeJSON(w, http.StatusNotFound, map[string]any{"error": "Not found."})
+					return
+				}
+				rt.proxy.ServeHTTP(w, r)
+				return
+			}
+		}
 		switch classify(r.Method, r.URL.Path) {
 		case private:
 			writeJSON(w, http.StatusNotFound, map[string]any{"error": "Not found."})
@@ -269,9 +287,6 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-	}
-	if r.Header.Get("Upgrade") == "" {
-		r.Body = http.MaxBytesReader(w, r.Body, g.cfg.maxBody)
 	}
 	rt.proxy.ServeHTTP(w, r)
 }
