@@ -94,3 +94,53 @@ I looked at the *rate* side only (items G, H, I). I did **not** audit credit cou
 1. G, H (limits that are wrong today), then A and B (sign-in no longer depends on the core API).
 2. D and E (human check mode and coverage), then item 2 of Part 1 (reset email through notifications).
 3. K, L, J (exposure), when you decide how closed `appapi` should be.
+
+---
+
+# Part 3: credits and limits
+
+Added 2026-11-01 after you picked "credits and limits". Same rule: review only, everything is **to do**. Code read: `services/core-api/rust/crates/api/src/routes/desktop_access.rs`, `database_setup/0014_desktop_access.sql`, `desktop/frontend/react/src/DataPages.jsx` and `remote/api.js`, `service/` (the Skip Tracing engine), `landing/web/src/AccountPages.jsx`.
+
+## How it works today (so the findings make sense)
+
+- Staff invite a person by email and type a **monthly credit limit** (0 to 1,000,000,000). Limit and status (`invited`, `active`, `suspended`) live in `access_invitations`.
+- Usage is a **ledger**, `credit_usage`: one row per metered action, only ever added to, one kind so far (`skip_trace`). A month's usage is the sum of that calendar month (UTC).
+- Before Skip Tracing, the **desktop app** calls `POST /api/v1/credits/use` with the number of credits (one per row) and a fresh request id. The server counts it, or answers 402 "Not enough credits left this month". Then the app runs the engine **on the person's own computer**.
+- The website dashboard shows used / limit / left / renews, a meter and a daily chart.
+
+What is done well: the check-and-count is one transaction that locks the person's invitation row, so two parallel requests cannot both slip under the limit; a retry with the same request id counts once; the ledger cannot be edited.
+
+## The big one
+
+1. **The limit does not actually stop anyone. (Read)** The amount (`rows.length`) is chosen by the **desktop app's JavaScript**, and the work it "pays for" is the Skip Tracing engine running **locally**, which calls only free public census services. The server never sees the work, so nothing prevents a person from skipping the call, sending `credits: 1` for a 50,000-row list, or running the engine directly. Today the credit counter is an honour system plus a meter. **Decide:** is the limit meant as (a) a courtesy meter, which is fine as it is but should be described that way, or (b) a real cap on something that costs Caller Whale money? If (b), the costly step (the matching, or any paid data lookup) has to run **on the server** and the server must decide the price. Until then, don't sell credits as a guarantee.
+
+## Money and fairness
+
+2. **No server-side price list. (Read)** The price (1 credit per row) is written in the desktop app, and the server accepts any amount from 1 to 10,000,000. Your rule is that each feature gets a cost, an amount per plan and its own sell price; none of that exists in the server. **Do:** a small table (kind, credits per unit) in core-api, and make `/credits/use` take the *units* (rows) and work out the credits itself.
+3. **Credits are charged up front and never given back. (Read)** The app pays, then runs `prepare` and `check`. If the engine fails, the list is empty, or the person presses Stop, the credits are gone: the ledger only allows `credits > 0` and the app's database login can only `INSERT`, so even staff cannot refund a row. **Do:** either charge when the work finishes, or add a refund (a negative or reversal row, staff-only) and have the app call it on failure or cancel.
+4. **Rows with no phone number are charged the same. (Read)** The "no phone numbers" branch skips the phone check but still ran after charging a credit per row. **Do:** charge for what was actually checked.
+5. **A retry can change the amount silently. (Read)** If the same request id arrives again with a different `credits` value, the server returns success for the first charge and ignores the new number. Harmless today; wrong once prices matter. **Do:** refuse a repeat whose amount differs.
+
+## What the person sees
+
+6. **Nothing warns before the limit. (Read)** No email or in-app message at 80% or 100%, although the notification service now exists. The first sign is a 402 in the middle of a task: "Ask Caller Whale to raise your limit." **Do:** a notice at 80% and at 100% (website, app, and one email each), and a clear "what to do" path.
+7. **No way to ask for more, or to buy more. (Read)** The only route is a person telling staff, who edit the number by hand. The billing code (`billing.rs`, a checkout URL setting) is not connected to credits. **Do:** decide the path (request button that notifies staff, or paid top-ups) before invitations go to real customers.
+8. **The month resets on UTC, shown in UTC. (Read)** "Renews" and the chart use UTC days, so a person in another time zone sees the meter reset at an odd local hour. **Do:** keep counting in UTC but show the reset in the person's local time (or say "UTC" next to the date).
+9. **Offline means no Skip Tracing. (Read)** The app refuses to run without reaching the server (so credits can be counted). That is consistent with item 1's honour system, but it is a product decision nobody wrote down. **Do:** state it in the plan, and make the message offer what to do.
+
+## Gaps in who is counted
+
+10. **Only invited people are limited and recorded. (Read)** Staff, and members a workspace owner invited, get `limited: false` and **no ledger row at all**, so there is no record of how much they use. **Do:** record their usage too (limit off, but visible), so staff see real consumption.
+11. **A suspended person is stopped only at the credit call. (Read)** Suspension is checked in `/credits/use` and in the download check; the rest of the person's access (their token, the CRM sync) keeps working. **Do:** decide what "suspended" should switch off, and make sure it does.
+12. **Limit 0 is allowed and means "invited but can do nothing".** It is accepted by the form and the database (`BETWEEN 0 AND ...`). **Do:** either forbid 0 or show it as "no credits" in the admin list, so it is not mistaken for unlimited.
+
+## Structure
+
+13. **A new metered feature needs a database migration.** The `kind` column has a `CHECK` that allows only `'skip_trace'`, and the allowed list is repeated in code (`KINDS`). **Do:** keep the kinds in the price table from item 2 and drop the database check.
+14. **The account page does work on every load. (Read)** `GET /account` runs the activation step (a locked write transaction), five usage queries and a GitHub release lookup (cached) every time the dashboard opens. It is fine at a few users, but it is the page everyone loads first. **Do:** only activate on the first visit, and cache the month's numbers for a short time.
+
+## Suggested order
+
+1. **Decide item 1** (courtesy meter or real cap). Everything else depends on it.
+2. Items 3 and 4 (refund and fair charging), then 2 and 5 (server price list), then 6 and 7 (warnings and how to get more).
+3. Items 10 to 14 when a second metered feature or real customers arrive.
