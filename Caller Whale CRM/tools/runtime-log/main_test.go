@@ -97,3 +97,9 @@ func TestExitCodeAndBothStreams(t *testing.T) {
 		t.Fatalf("code %d, output %s", code, out.String())
 	}
 }
+
+func TestEmbeddedSeparatorsStayReadable(t *testing.T) {
+	if got := safe("Preparing | configuration"); got != "Preparing / configuration" {
+		t.Fatal(got)
+	}
+}

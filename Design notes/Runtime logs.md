@@ -95,7 +95,7 @@ PostgreSQL, Redis, Grafana itself, and Coolify's own proxy/management containers
 
 - HTTP adapters do not log request headers, cookies, authorization, or bodies.
 - Strip query strings and fragments from request paths. Redact secret webhook path suffixes.
-- The runner removes ANSI codes, escapes control characters and table delimiters, and redacts common credential assignments, URL credentials and email addresses.
+- The runner removes ANSI codes, escapes control characters and displays embedded table delimiters as slashes, and redacts common credential assignments, URL credentials and email addresses.
 - Redaction is additional protection, not permission to send secrets or personal records to a logger. New code must avoid emitting them at the source.
 - Preserve useful warning/error details. Structured events retain their diagnostic fields; the logger does not print the same message twice.
 - Keep complete rows atomic across stdout/stderr. Flush partial final lines and label large-line continuations rather than losing diagnostics.
