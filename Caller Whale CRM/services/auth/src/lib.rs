@@ -5,6 +5,7 @@
 //! this service to check a token: they verify it with the public keys at `/.well-known/jwks.json`
 //! (the `callerwhale-auth-verify` crate).
 
+mod access_log;
 pub mod config;
 pub mod human;
 pub mod error;
@@ -84,7 +85,7 @@ pub fn app(state: AppState) -> axum::Router {
         .allow_origin(AllowOrigin::list(origins))
         .allow_methods([Method::GET, Method::POST, Method::DELETE])
         .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION]);
-    routes::router().with_state(state).layer(cors)
+    routes::router().with_state(state).layer(cors).layer(axum::middleware::from_fn(access_log::record))
 }
 
 pub fn now() -> u64 {

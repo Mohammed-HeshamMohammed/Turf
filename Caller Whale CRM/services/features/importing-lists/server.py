@@ -1,6 +1,7 @@
 """Importing lists (server). Scaffold: it answers /healthz and /version using only the standard library."""
 import json
 import os
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 SERVICE = "importing-lists"
@@ -18,6 +19,7 @@ def route(method: str, path: str) -> tuple[int, dict]:
 
 class Handler(BaseHTTPRequestHandler):
     def _reply(self, method: str) -> None:
+        self._cw_started = time.perf_counter()
         status, body = route(method, self.path.split("?", 1)[0])
         data = json.dumps(body).encode("utf-8")
         self.send_response(status)
@@ -34,7 +36,15 @@ class Handler(BaseHTTPRequestHandler):
         self._reply("POST")
 
     def log_message(self, format: str, *args) -> None:  # noqa: A002
-        print(f"{SERVICE}: {format % args}")
+        if format.startswith('"%s" %s %s') and len(args) >= 2:
+            status = int(args[1])
+            path = self.path.split("?", 1)[0].split("#", 1)[0]
+            if path == "/healthz" and status < 400:
+                return
+            print(json.dumps({"cw_event": "request", "method": self.command, "path": path,
+                              "status": status, "duration_seconds": max(0, time.perf_counter() - getattr(self, "_cw_started", time.perf_counter()))}), flush=True)
+        else:
+            print(json.dumps({"level": "WARN", "message": format % args}), flush=True)
 
 
 def main() -> None:

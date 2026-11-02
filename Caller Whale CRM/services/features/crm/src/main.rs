@@ -1,5 +1,6 @@
 //! The CRM. Scaffold: it answers /healthz and /version. Swap the hand-written server for the project's web framework
 //! when the first real route is added.
+mod access_log;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 
@@ -16,6 +17,7 @@ fn route(method: &str, path: &str) -> (u16, String) {
 }
 
 fn handle(mut stream: TcpStream) {
+    let started = std::time::Instant::now();
     let mut buf = [0u8; 2048];
     let n = stream.read(&mut buf).unwrap_or(0);
     let request = String::from_utf8_lossy(&buf[..n]);
@@ -28,6 +30,7 @@ fn handle(mut stream: TcpStream) {
         "HTTP/1.1 {status} {reason}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
         body.len()
     );
+    access_log::record(method, path, status, started.elapsed().as_secs_f64());
 }
 
 fn main() {

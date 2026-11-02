@@ -1,6 +1,7 @@
 //! Caller Whale CRM API (plan 2.2, 2.3): authentication, permission enforcement, authoritative transactions,
 //! synchronization and WebSocket events. Workers reach the database only through the /internal routes.
 
+mod access_log;
 pub mod access;
 pub mod auth;
 pub mod cache;
@@ -154,6 +155,7 @@ pub fn app(state: AppState) -> Router {
         .layer(TraceLayer::new_for_http())
         .layer(PropagateHeaderLayer::new(request_id.clone()))
         .layer(SetRequestIdLayer::new(request_id, MakeRequestUuid))
+        .layer(axum::middleware::from_fn(access_log::record))
 }
 
 pub async fn serve(config: config::Config) -> anyhow::Result<()> {

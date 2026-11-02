@@ -2,6 +2,10 @@
 #   docker build -f services/core-api/Dockerfile -t callerwhale-core-api .
 # Runs any number of copies: it keeps no state in memory that matters, and a person's session is a signed token.
 # It needs PostgreSQL (DATABASE_URL, DATABASE_SETUP_URL) and its settings from env/core-api.env (env/README.md).
+FROM golang:1 AS runtime-log-build
+COPY services/core-api/runtime-log/main.go /src/main.go
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log /src/main.go
+
 FROM rust:1 AS build
 WORKDIR /src
 COPY services/auth/verify ./services/auth/verify
@@ -10,6 +14,8 @@ WORKDIR /src/services/core-api/rust
 RUN cargo build --release -p callerwhale-api
 
 FROM debian:bookworm-slim
+COPY --from=runtime-log-build /runtime-log /usr/local/bin/callerwhale-log
+ENV CALLERWHALE_LOG_SERVICE="Core API"
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/services/core-api/rust/target/release/callerwhale-api /usr/local/bin/callerwhale-api
 COPY services/core-api/website /srv/website
@@ -21,3 +27,5 @@ EXPOSE 8088
 USER 65534:65534
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s CMD ["callerwhale-api", "health"]
 CMD ["callerwhale-api"]
+
+ENTRYPOINT ["/usr/local/bin/callerwhale-log"]

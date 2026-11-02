@@ -184,5 +184,5 @@ func main() {
 	}
 	srv := newServer(cfg.Tokens, cfg.SMTP, cfg.SMTP.Configured())
 	log.Printf("%s listening on :%s", service, port)
-	log.Fatal((&http.Server{Addr: ":" + port, Handler: srv.mux(), ReadHeaderTimeout: 5 * time.Second}).ListenAndServe())
+	log.Fatal((&http.Server{Addr: ":" + port, Handler: logHTTP(srv.mux()), ReadHeaderTimeout: 5 * time.Second}).ListenAndServe())
 }

@@ -1,3 +1,4 @@
+import { observeRequest } from "./access-log.mjs";
 // Dialer, auto dialing and SMS. Scaffold: it answers /healthz and /version. Node runs this TypeScript directly (type stripping), so there
 // is no build step and no dependency until the first real one is needed.
 import { createServer } from "node:http";
@@ -20,6 +21,7 @@ export function route(method: string, path: string): Reply {
 
 export function createApp(): Server {
   return createServer((req, res) => {
+    observeRequest(req, res);
     const { status, body } = route(req.method ?? "GET", new URL(req.url ?? "/", "http://localhost").pathname);
     res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
     res.end(JSON.stringify(body));

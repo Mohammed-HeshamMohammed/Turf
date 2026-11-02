@@ -5,7 +5,7 @@ import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { pruneWorkspace, rewriteDockerfile } from "./publish-production.mjs";
+import { runtimeLogTargets, pruneWorkspace, rewriteDockerfile } from "./publish-production.mjs";
 
 const cargo = `# One workspace.
 [workspace]
@@ -85,13 +85,17 @@ test("frontend production branches export runnable contexts at root and retain h
       }
       writeFileSync(join(source, "src/main.jsx"), "initial source");
     }
+    const runner = join(root, "Caller Whale CRM/tools/runtime-log/main.go");
+    mkdirSync(join(root, "Caller Whale CRM/tools/runtime-log"), { recursive: true });
+    copyFileSync(new URL("./runtime-log/main.go", import.meta.url), runner);
     git("add", ".");
     git("commit", "-m", "Source fixtures");
     const publish = () => execFileSync(process.execPath, [join(tools, "publish-production.mjs")], { cwd: root, encoding: "utf8" });
     publish();
     for (const c of components) {
       const files = git("ls-tree", "-r", "--name-only", c.name).trim().split("\n");
-      for (const required of ["Dockerfile", "package.json", "package-lock.json", "nginx.conf", ".dockerignore", "src/main.jsx"]) assert.ok(files.includes(required), `${c.name}: ${required}`);
+      for (const required of ["Dockerfile", "package.json", "package-lock.json", "nginx.conf", ".dockerignore", "src/main.jsx", "runtime-log/main.go"]) assert.ok(files.includes(required), `${c.name}: ${required}`);
+      assert.equal(git("show", `${c.name}:runtime-log/main.go`), readFileSync(runner, "utf8"));
       assert.ok(files.every(f => !f.startsWith("landing/")), "no nested build context");
       assert.equal(git("show", `${c.name}:Dockerfile`), readFileSync(join(root, c.base, "Dockerfile"), "utf8"));
     }
@@ -105,4 +109,12 @@ test("frontend production branches export runnable contexts at root and retain h
     assert.equal(git("rev-parse", `${c.name}^`).trim(), before, "refresh appends without rewriting");
     assert.equal(git("show", `${c.name}:src/main.jsx`), "updated source");
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("production snapshots inject a runner only for opted-in image contexts", () => {
+  assert.deepEqual(runtimeLogTargets([
+    ["Dockerfile", "FROM golang:1 AS runtime-log-build"],
+    ["services/core-api/Dockerfile", "FROM golang:1 AS runtime-log-build"],
+    ["vendor/Dockerfile", "FROM redis:7"],
+  ]), ["runtime-log/main.go", "services/core-api/runtime-log/main.go"]);
 });

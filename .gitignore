@@ -39,3 +39,7 @@ service/dist
 # Rust build output and local dev accounts
 target/
 **/scripts/.dev-accounts.json
+
+# Generated local image helpers; production snapshots inject the canonical source.
+Caller Whale CRM/**/runtime-log/main.go
+!Caller Whale CRM/tools/runtime-log/main.go

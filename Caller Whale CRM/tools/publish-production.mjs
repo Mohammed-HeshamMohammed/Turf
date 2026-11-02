@@ -32,6 +32,12 @@ export function rewriteDockerfile(text, files, dir = "") {
     .join("\n");
 }
 
+/** Generated runner paths for Dockerfiles that opt into the shared log adapter. */
+export function runtimeLogTargets(dockerfiles) {
+  return dockerfiles.filter(([, body]) => body.includes("AS runtime-log-build"))
+    .map(([file]) => file.replace(/Dockerfile$/, "runtime-log/main.go"));
+}
+
 /** The Cargo workspace file with only the members (and excludes) whose folders are in the branch. */
 export function pruneWorkspace(text, has) {
   const out = [];
@@ -131,6 +137,14 @@ function run() {
       // A member is there only with its Cargo.toml (a branch can hold other files under the same folder).
       const has = member => Boolean(member) && files.includes(`${member}/Cargo.toml`);
       put("Cargo.toml", pruneWorkspace(git(["show", `${sha}:${at("Cargo.toml")}`]), has));
+    }
+    const dockerfiles = listing().filter(f => /(^|\/)Dockerfile$/.test(f)).map(file => [file,
+      git(["cat-file", "-p", git(["ls-files", "-s", "--", file], { env }).split(/\s+/)[1]])]);
+    const runnerTargets = runtimeLogTargets(dockerfiles);
+    if (runnerTargets.length) {
+      // Keep one source on main; isolated build contexts get a committed copy in their snapshot.
+      const runner = git(["show", `${sha}:Caller Whale CRM/tools/runtime-log/main.go`]);
+      for (const target of runnerTargets) put(target, runner);
     }
     const files = listing();
     for (const dockerfile of files.filter(f => /(^|\/)Dockerfile$/.test(f))) {

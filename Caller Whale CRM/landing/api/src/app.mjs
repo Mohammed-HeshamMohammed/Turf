@@ -1,3 +1,4 @@
+import { observeRequest } from "./access-log.mjs";
 import { createServer } from "node:http";
 import { checkContact, checkWaitlist } from "./validate.mjs";
 
@@ -46,7 +47,7 @@ function readJson(req) {
  * The landing API as an HTTP server, on its own address with no path prefix: `/waitlist`,
  * `/contact`, `/healthz`. `origins` are the sites allowed to call it from a browser (the landing site; CALLERWHALE_LANDING_ORIGINS).
  */
-export function createApp({ store, release, origins = [], now = Date.now }) {
+export function createApp({ store, release, origins = [], now = Date.now, log }) {
   const allowWrite = limiter(8, 60_000, now);
 
   const send = (res, status, body, req) => {
@@ -62,6 +63,7 @@ export function createApp({ store, release, origins = [], now = Date.now }) {
   };
 
   return createServer(async (req, res) => {
+    observeRequest(req, res, log);
     const url = new URL(req.url, "http://localhost");
     try {
       if (req.method === "OPTIONS") {
