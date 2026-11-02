@@ -1,4 +1,6 @@
 import "@fontsource-variable/schibsted-grotesk";
+import "@fontsource-variable/jetbrains-mono";
+import "@fontsource/instrument-serif/400-italic.css";
 import { StrictMode } from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { App } from "./App.jsx";
@@ -27,3 +29,4 @@ else createRoot(root).render(app);
 import "./studio.css";
 
 import "./home.css";
+import "./deep.css";

@@ -13,7 +13,7 @@ Seen on callerwhale.com on 3 November 2026.
 | It looks like a template, not a product with a point of view. | Cream page, rounded cards, peach button, a stock-style street photo. Nothing is recognisably Caller Whale except the small orca. |
 | The orca, our one strong asset, is a 38 px icon. | The brand has a whale-first identity but the page never uses it as a shape. |
 | The hero photo fights the headline. | Houses fade in behind the copy with a mask; on the dark theme the text and photo both go muddy. |
-| Content appears to be hidden until it scrolls into view. | In a scripted scroll the sections below the hero stayed blank. Reveal animations must never leave a page empty (to be confirmed in a real browser). |
+| Scroll-reveal animation hides content until it is seen. | Content is in the page, but it depends on scripts. Reveals must never leave a page empty. (An earlier version of this note said sections were blank; that was my browser pane failing to draw while hidden, not a site fault.) |
 | Too many treatments. | `studio.css` (1,349 lines) plus `pages.css`, `home.css`, `builder.css`, `account.css`: five stylesheets layering over each other, each page its own mood. |
 | Tiny type. | Labels at 11 px and captions at 11 px carry real information. |
 | Product proof is a screenshot of the old app. | The screenshot still shows the older logo and a lighter UI than the app has now. |
@@ -32,6 +32,24 @@ Looked at on 3 November 2026. We take principles, not layouts or copy.
 | [Close](https://close.com) | Nearest competitor in tone: one plain promise ("The CRM that sells with you"), an email box in the hero, then a live-looking app frame. Light, friendly, clear. | Pastel gradient waves; it reads generic. |
 | [REsimpli](https://resimpli.com) | Knows its buyer: real-estate investors, one giant word, feature chips in one row. | Loud teal-and-red, sticker badges, "unlimited" shouting. |
 | [BatchDialer](https://batchdialer.com) | Shows a real screen in the hero with proof (4.9 rating). | Stock-photo hero, all-caps shouting, dense navy. |
+
+### Deeper pass: Kombai Gallery and 21st.dev (3 November 2026)
+
+**Kombai Gallery** lists 140 landing pages, 370 heroes and 299 navbars, and each entry publishes its palette, type and spacing tokens. Read: Midnight Studio, Nightfall, Lumen, Prism, Vesper.
+
+| Pattern seen in the dark ones | Examples |
+| --- | --- |
+| Near-black page, never pure grey: `#0B0F1A`, `#0A0F1E`, `#0D0A08`, `#000` | Midnight Studio, Nightfall, Lumen, Vesper |
+| One warm accent: amber `#F5A623`, gold `#E8AF4A`, orange `#F97316`, sand `#D4A574` | all of them |
+| Display in an elegant serif (Instrument Serif, Fraunces, Playfair), body in a plain sans, labels in small mono (Space Mono, JetBrains Mono) | Lumen, Prism, Vesper, Nightfall |
+| Very large, fluid display type, `clamp(56px, 11.5vw, 196px)` | Prism |
+| Hairlines at 8 to 18% opacity instead of boxes | Midnight Studio, Prism, Nightfall |
+| Muted text at 55% of the ink colour, never mid-grey | Lumen, Prism |
+| Numbered principles with big serif numerals | Lumen, Vesper |
+
+Take: this is the same family as Deep water, which is reassuring. The one change it suggests is to make the serif a bigger part of the headline than a single word.
+
+**21st.dev** (284 hero components, 354 templates, 956 themes). The hero grid and template list show: a dark field with one soft light source (a glow, an orbit, a planet horizon), a centred or left two-line headline, one primary button, and the product dashboard inside a window directly under it ("Give your big idea the website it deserves" with a CRM dashboard below is the closest match). Template names worth studying for structure: AI CRM dashboard, Folio data-intelligence landing, Qronos AI/SaaS product, Waymark multipage SaaS. Take: soft glow + product window. Leave: shader and WebGL backgrounds, which cost performance and are not needed.
 
 **What the property-outreach competitors share:** loud colour, stock photos, feature lists. Nobody in the niche looks calm, premium or confident. That is the opening.
 
@@ -116,7 +134,11 @@ Top bar (pill, blurred, sticky) · primary and secondary button · mono label ·
 5. **Fresh product capture.** The hero depends on a current screenshot of the app with sample data. Who takes it, and when?
 6. **Scope.** Start with Home only as the proof of the theme, then roll it to the other pages?
 
-## 7. Not done yet
+## 7. Built so far (Home only)
+
+Home now uses this theme: `landing/web/src/Home.jsx` and `landing/web/src/deep.css`. Dark is the default (saved choice and the Appearance menu still work); fonts added are Instrument Serif italic and JetBrains Mono, both self-hosted. Checked at 1440 and 390 px, dark and light, with no horizontal overflow, and the 31 site unit tests pass. The other pages inherit only the new dark colours and are not yet restyled. The old Home styles (`home.css`, the `editorial-home` class) are no longer used by Home and can be deleted once the other pages move.
+
+## 8. Not done yet
 
 - No mock-up or prototype exists; the colours and fonts above are proposals.
 - Contrast has not been measured.

@@ -291,7 +291,7 @@ export function Footer() {
 }
 
 function ThemeSelect() {
-  const [theme, setTheme] = useState("system");
+  const [theme, setTheme] = useState("dark");
   useEffect(() => {
     try {
       const saved = localStorage.getItem("callerwhale-site-theme");
