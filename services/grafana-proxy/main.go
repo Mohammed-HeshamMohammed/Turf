@@ -529,6 +529,6 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Printf("%s listening on http://localhost:%s, in front of %s", service, port, cfg.grafana)
-	srv := &http.Server{Addr: ":" + port, Handler: newProxy(cfg), ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Addr: ":" + port, Handler: logHTTP(newProxy(cfg)), ReadHeaderTimeout: 10 * time.Second}
 	log.Fatal(srv.ListenAndServe())
 }
