@@ -46,13 +46,15 @@ AUTH_TELEGRAM_BOT_NAME=<@bot_name, or empty>
 # Secret URL path component protecting the Telegram webhook. Coordinate rotation with Telegram's registered webhook URL.
 AUTH_TELEGRAM_WEBHOOK_SECRET=<a long random string, or empty>
 
-# Optional Turnstile. Leave off until real keys and the frontend widget are ready.
-# true enforces server-side Turnstile verification on signup/sign-in and provider starts; requires BOTH Turnstile keys. Missing keys fail startup. false disables this layer.
+# Optional Google reCAPTCHA v3 (invisible, scored). Create keys at google.com/recaptcha/admin, type v3, with the site's domains. Leave off until real keys are ready.
+# true enforces server-side reCAPTCHA verification on signup/sign-in and provider starts; requires BOTH reCAPTCHA keys. Missing keys fail startup. false disables this layer.
 AUTH_BOT_PROTECTION=false
-# Public Turnstile widget key exposed to clients for human verification. Must pair with the secret key and allow the deployed frontend hostnames.
-AUTH_TURNSTILE_SITE_KEY=
-# Secret Cloudflare Siteverify credential, held only in auth. Must match the widget site key; a missing key with bot protection true prevents startup.
-AUTH_TURNSTILE_SECRET_KEY=
+# Public reCAPTCHA v3 site key exposed to clients. Must pair with the secret key and list the deployed frontend hostnames.
+AUTH_RECAPTCHA_SITE_KEY=
+# Secret reCAPTCHA key, held only in auth. Must match the widget site key; a missing key with bot protection true prevents startup.
+AUTH_RECAPTCHA_SECRET_KEY=
 # Optional comma-separated hostnames; defaults to configured origin hostnames.
 # Optional comma-separated allowed challenge hostnames, without scheme/path. Empty derives hosts from configured origins/URLs; wrong hosts reject otherwise valid challenges.
-AUTH_TURNSTILE_HOSTNAMES=
+AUTH_RECAPTCHA_HOSTNAMES=
+# Lowest Google score (0 bot to 1 human) auth accepts. 0.5 is Google's default; raise it if bots get through, lower it if real people are refused.
+AUTH_RECAPTCHA_MIN_SCORE=0.5

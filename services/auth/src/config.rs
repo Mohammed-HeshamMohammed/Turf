@@ -134,14 +134,15 @@ impl Config {
         match var("AUTH_BOT_PROTECTION", "false").as_str() {
             "false" => {},
             "true" => {
-                let explicit = var("AUTH_TURNSTILE_HOSTNAMES", "");
+                let explicit = var("AUTH_RECAPTCHA_HOSTNAMES", "");
                 let hosts = if explicit.trim().is_empty() {
                     config.allowed_origins.iter().chain([&config.public_url, &config.website_url, &config.landing_url, &config.app_url])
                         .filter_map(|s| reqwest::Url::parse(s).ok()?.host_str().map(str::to_owned)).collect()
                 } else {
                     explicit.split(',').map(str::trim).filter(|h| !h.is_empty()).map(str::to_owned).collect()
                 };
-                config.human = Some(crate::human::HumanCheck::new(&var("AUTH_TURNSTILE_SITE_KEY", ""), &var("AUTH_TURNSTILE_SECRET_KEY", ""), hosts)?);
+                let score = var("AUTH_RECAPTCHA_MIN_SCORE", "0.5").trim().parse::<f64>().ok().filter(|s| (0.0..=1.0).contains(s)).ok_or_else(|| anyhow::anyhow!("AUTH_RECAPTCHA_MIN_SCORE must be a number from 0 to 1"))?;
+                config.human = Some(crate::human::HumanCheck::new(&var("AUTH_RECAPTCHA_SITE_KEY", ""), &var("AUTH_RECAPTCHA_SECRET_KEY", ""), hosts)?.with_min_score(score));
             },
             _ => anyhow::bail!("AUTH_BOT_PROTECTION must be true or false"),
         }
