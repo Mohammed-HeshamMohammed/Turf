@@ -50,6 +50,7 @@ test("a contact message needs text", async () => {
 test("only listed origins get CORS", async () => {
   const ok = await fetch(base + "/healthz", { headers: { origin: "http://localhost:5200" } });
   assert.equal(ok.headers.get("access-control-allow-origin"), "http://localhost:5200");
+  assert.equal(ok.headers.get("strict-transport-security"), "max-age=31536000");
   const other = await fetch(base + "/healthz", { headers: { origin: "http://evil.example" } });
   assert.equal(other.headers.get("access-control-allow-origin"), null);
 });

@@ -55,6 +55,7 @@ export function createApp({ store, release, origins = [], now = Date.now }) {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
       "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000",
       ...(origin && origins.includes(origin) ? { "access-control-allow-origin": origin, vary: "origin" } : {}),
     });
     res.end(JSON.stringify(body));
@@ -66,6 +67,7 @@ export function createApp({ store, release, origins = [], now = Date.now }) {
       if (req.method === "OPTIONS") {
         const allowed = origins.includes(req.headers.origin);
         res.writeHead(204, {
+          "strict-transport-security": "max-age=31536000",
           ...(allowed ? { "access-control-allow-origin": req.headers.origin, vary: "origin" } : {}),
           "access-control-allow-methods": "GET, POST",
           "access-control-allow-headers": "content-type",
