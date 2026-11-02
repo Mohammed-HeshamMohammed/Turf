@@ -77,6 +77,12 @@ export function createApp({ store, release, origins = [], now = Date.now }) {
       if (req.method === "GET" && url.pathname === "/healthz") return send(res, 200, { ok: true }, req);
 
       if (req.method === "POST" && (url.pathname === "/waitlist" || url.pathname === "/contact")) {
+        if (req.headers.origin && !origins.includes(req.headers.origin)) {
+          return send(res, 403, { error: "This site cannot submit the form." }, req);
+        }
+        if (req.headers["content-type"]?.split(";", 1)[0].trim().toLowerCase() !== "application/json") {
+          return send(res, 415, { error: "Send JSON." }, req);
+        }
         if (!allowWrite(req.socket.remoteAddress || "unknown")) {
           return send(res, 429, { error: "Too many requests. Try again in a minute." }, req);
         }

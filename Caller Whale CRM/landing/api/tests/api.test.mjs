@@ -55,6 +55,29 @@ test("only listed origins get CORS", async () => {
   assert.equal(other.headers.get("access-control-allow-origin"), null);
 });
 
+test("form writes require JSON from an allowed browser origin", async () => {
+  const body = JSON.stringify({ email: "cross-site@example.com" });
+  const crossSite = await fetch(base + "/waitlist", {
+    method: "POST",
+    headers: { origin: "http://evil.example", "content-type": "application/json" },
+    body,
+  });
+  assert.equal(crossSite.status, 403);
+  const simpleRequest = await fetch(base + "/waitlist", {
+    method: "POST",
+    headers: { "content-type": "text/plain" },
+    body,
+  });
+  assert.equal(simpleRequest.status, 415);
+  assert.equal(store.waitlistCount(), 1);
+  const allowed = await fetch(base + "/waitlist", {
+    method: "POST",
+    headers: { origin: "http://localhost:5200", "content-type": "application/json; charset=utf-8" },
+    body,
+  });
+  assert.equal(allowed.status, 200);
+});
+
 test("latestRelease reads GitHub once and caches it", async () => {
   let calls = 0;
   const fetchImpl = async () => {
