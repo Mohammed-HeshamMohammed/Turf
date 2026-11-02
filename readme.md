@@ -2,10 +2,10 @@
 
 This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in `Caller Whale CRM/landing/web/` on `main`.
 
-- Last changed from `main` at `cdcbebd` (2026-11-02)
-- Content id: `abf56bd695c1661fd957083e9ab371b7c6c26ed0` (the branch is only refreshed when this changes)
+- Last changed from `main` at `502902a` (2026-11-03)
+- Content id: `d81819ad2d0c2e0b8620a7db7815841b17158884` (the branch is only refreshed when this changes)
 - Holds: `.`
-- 98 files
+- 99 files
 - Build and test: npm ci && npm run build; Coolify: base directory /, Dockerfile /Dockerfile, port 8080, health /healthz. Configure build arguments and runtime origins as documented in COOLIFY.md
 
 Do not edit it here. Change the code on `main`, then refresh the branch from a checkout of `main`:
