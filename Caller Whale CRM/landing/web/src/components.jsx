@@ -28,17 +28,10 @@ export const Icon = ({ name, size = 22 }) => {
   return <Component size={size} weight="duotone" aria-hidden="true" />;
 };
 
-/** Caller Whale's mark: a whale with its spout, in the site's dark and peach (the same drawing as public/favicon.svg). */
+/** Supplied temporary orca artwork, displayed through a tight viewBox without redrawing it. */
 export const Logo = ({ size = 32 }) => (
-  <svg className="logo" width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-    <rect width="64" height="64" rx="18" fill="#191919" />
-    <path d="M31 15.5v-4M31 11.5l-3.6-3M31 11.5l3.6-3" fill="none" stroke="#ecc394" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-    <path
-      d="M9 35.5C9 26.6 16.6 20 27.4 20c9.3 0 15.8 4.9 17.9 11.6l7.2-7c1.4-1.4 3.8-.4 3.5 1.6l-.9 6.2 5.3 2.7c1.7.8 1.2 3.3-.7 3.6l-7.9 1.2C48.6 46.9 40.4 51 30 51 17.7 51 9 44.7 9 35.5z"
-      fill="#fff"
-    />
-    <path d="M12.6 40.2c5.4 3.7 14.6 4.6 21.8 2.2" fill="none" stroke="#ecc394" strokeWidth="3" strokeLinecap="round" />
-    <circle cx="19.5" cy="32.5" r="2.4" fill="#191919" />
+  <svg className="logo orca-mark" width={size} height={size} viewBox="195 60 230 245" aria-hidden="true" focusable="false">
+    <image href="/brand/callerwhale-orca.png" width="629" height="360" />
   </svg>
 );
 
@@ -262,7 +255,8 @@ export function Footer() {
     ),
   }));
   return (
-    <footer className="foot">
+    <footer className="foot site-footer">
+      <div className="footer-masthead"><span>Keep good work moving.</span><a href="/contact">Talk to us <Icon name="ArrowUpRight" size={24} /></a></div>
       <div className="foot-main">
         <div className="foot-brand">
           <a className="brand" href="/">
@@ -270,8 +264,7 @@ export function Footer() {
             Caller Whale
           </a>
           <p>
-            A desktop workspace for property lists, conversations and the next
-            follow-up.
+            Property outreach, from the first record to the follow-up.
           </p>
         </div>
         {columns.map((col) => (
@@ -348,12 +341,12 @@ export function PageHead({ eyebrow, title, lead }) {
   );
 }
 
-export function Faq() {
+export function Faq({ compact = false }) {
   return (
     <section id="faq" className="section band">
       <h2>Questions people ask</h2>
       <div className="faq">
-        {faqs.map(f => (
+        {(compact ? faqs.filter((_, i) => [0, 1, 2, 8, 9].includes(i)) : faqs).map(f => (
           <details key={f.q}>
             <summary>{f.q}</summary>
             <p>{f.a}</p>
@@ -427,16 +420,14 @@ export function Waitlist({ tier, plan, setTier }) {
     <section id="request-access" className="section access-section">
       <span id="waitlist" className="anchor-alias" aria-hidden="true" />
       <div className="access-copy">
-        <p className="studio-label">Your next conversation starts here</p>
+        <p className="studio-label">Early access</p>
         <h2>
-          A place for
+          Bring your next list.
           <br />
-          your next list.
+          We’ll bring the workspace.
         </h2>
         <p>
-          Caller Whale is currently by invitation. Join the waitlist to record
-          your interest; submitting does not create an account, send an
-          invitation or unlock a download.
+          Caller Whale is currently by invitation. Leave your details to join the waitlist. Access and desktop downloads require an invitation.
         </p>
         <p>
           Already invited? <a href="/signup">Accept your invitation</a> or{" "}
@@ -446,8 +437,7 @@ export function Waitlist({ tier, plan, setTier }) {
       <div className="panel">
         <h2>Join the waitlist</h2>
         <p className="sub">
-          Tell us where to keep your interest on record. No automatic access or
-          confirmation email is promised.
+          Leave an email and a little about your work. Joining records your interest; it does not create an account.
         </p>
         {tier === "custom" && plan && (
           <p className="notice good" role="status">

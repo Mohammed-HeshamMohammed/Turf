@@ -25,3 +25,5 @@ if (root.hasChildNodes()) hydrateRoot(root, app);
 else createRoot(root).render(app);
 
 import "./studio.css";
+
+import "./home.css";
