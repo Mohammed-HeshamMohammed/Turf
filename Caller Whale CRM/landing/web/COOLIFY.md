@@ -6,7 +6,8 @@ Deploy `landing-web-production` with the **Dockerfile** build pack:
 - Dockerfile location: `/Dockerfile`
 - Container port: `8080`
 - Health path: `/healthz`
-- Domain: `https://callerwhale.com` (enable HTTPS in Coolify)
+- Primary domain: `https://callerwhale.com` (enable HTTPS in Coolify)
+- Only `https://www.callerwhale.com` may use `www`; redirect it to the primary domain. Do not create `www` records for `app`, `api`, or other subdomains.
 
 The branch exports `Caller Whale CRM/landing/web` from `main` directly to its root. The Docker build context must be that root. No repository prefix or nested `landing/web` path is needed in Coolify. Re-scan the branch after its refresh and correct previously saved nested Dockerfile paths.
 
