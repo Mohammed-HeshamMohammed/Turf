@@ -352,7 +352,7 @@ func main() {
 		log.Printf("%s -> %s (core: %v)", r.host, r.upstream, r.core)
 	}
 	log.Printf("%s listening on http://localhost:%s", service, port)
-	srv := &http.Server{Addr: ":" + port, Handler: g, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
+	srv := &http.Server{Addr: ":" + port, Handler: logHTTP(g), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 	log.Fatal(srv.ListenAndServe())
 }
 
