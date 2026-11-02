@@ -134,11 +134,32 @@ Top bar (pill, blurred, sticky) · primary and secondary button · mono label ·
 5. **Fresh product capture.** The hero depends on a current screenshot of the app with sample data. Who takes it, and when?
 6. **Scope.** Start with Home only as the proof of the theme, then roll it to the other pages?
 
-## 7. Built so far (Home only)
+## 7. The desktop app and this theme
+
+Status: **proposal only; no app code has changed.**
+
+Today the app (`desktop/frontend/react/src/crm.css`) is light only. It uses a grey page (`#ececec`), grey cards, a tan accent (`#ecc394`), 28 px corner radius, 14 px base type and Schibsted Grotesk throughout. The website's old light theme was copied from it, so the two matched; the new Home no longer does. Until the app moves, a visitor sees a dark site and a light app. That is acceptable for the first release of the theme but should not last.
+
+Rules for bringing the app in line:
+
+| Area | Direction |
+| --- | --- |
+| Colour | Same tokens as section 3: the app gets a dark theme built from them (`--page`, `--card`, `--raised`, `--line`, `--ink`, `--muted`, `--accent`). Light stays available and keeps its own tokens. System setting decides the default; the website's dark-first default does not apply inside a work tool. |
+| Accent | Peach `#FFB594` replaces the tan `#ecc394`, in both themes, so a button looks the same on the site and in the app. |
+| Type | Schibsted Grotesk stays for everything. The serif italic is for marketing only and must not appear in tables, forms or dialogs. Mono is allowed for phone numbers, IDs and timestamps. |
+| Size | Base 14 px stays (dense work screen). Nothing below 12 px. |
+| Radius | Reduce 28 px to 12 px for panels and keep pills for buttons and chips, matching the site. |
+| Density | Hairline dividers over boxes, as on the site, but keep the app's compact rows. |
+| Imagery | No orca watermark behind working screens. The orca appears only on sign-in, empty states and the about dialog. |
+| Status colours | Green, red and amber for status are kept and given dark-theme variants with the same contrast rules. |
+
+Order of work: introduce the shared tokens in `crm.css` behind a `data-theme` switch, restyle the shell (rail, top bar, buttons, inputs), then each screen. After that, re-capture the product screenshots used on the site so the site shows the app as it really looks. Contrast and a screen-by-screen review (keep, improve or remake each section) are still to do.
+
+## 8. Built so far (Home only)
 
 Home now uses this theme: `landing/web/src/Home.jsx` and `landing/web/src/deep.css`. Dark is the default (saved choice and the Appearance menu still work); fonts added are Instrument Serif italic and JetBrains Mono, both self-hosted. Checked at 1440 and 390 px, dark and light, with no horizontal overflow, and the 31 site unit tests pass. The other pages inherit only the new dark colours and are not yet restyled. The old Home styles (`home.css`, the `editorial-home` class) are no longer used by Home and can be deleted once the other pages move.
 
-## 8. Not done yet
+## 9. Not done yet
 
 - No mock-up or prototype exists; the colours and fonts above are proposals.
 - Contrast has not been measured.
