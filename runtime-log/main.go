@@ -34,7 +34,7 @@ func safe(s string) string {
 	s = email.ReplaceAllString(s, "[email]")
 	s = userinfo.ReplaceAllString(s, "${1}[redacted]@")
 	s = query.ReplaceAllString(s, "?[omitted]")
-	return strings.NewReplacer("\r", `\r`, "\n", `\n`, "\t", `\t`, "|", `\u007c`).Replace(s)
+	return strings.NewReplacer("\r", `\r`, "\n", `\n`, "\t", `\t`, "|", "/").Replace(s)
 }
 func cell(s string, n int) string {
 	r := []rune(safe(s))

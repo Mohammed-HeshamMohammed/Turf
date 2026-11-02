@@ -2,8 +2,8 @@
 
 This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in `Caller Whale CRM/landing/dashboard-web/` on `main`.
 
-- Last changed from `main` at `ecee4f6` (2026-11-02)
-- Content id: `fb5fbdbadb5a55363b22e88bebf7b1c6de9acf2d` (the branch is only refreshed when this changes)
+- Last changed from `main` at `cdcbebd` (2026-11-02)
+- Content id: `4c72e507f647ec567f83c53ced73dcc678ec9380` (the branch is only refreshed when this changes)
 - Holds: `.`
 - 15 files
 - Build and test: npm ci && npm run build; Coolify: base directory /, Dockerfile /Dockerfile, port 8080, health /healthz
