@@ -12,7 +12,7 @@ Each server used to sit on its own public name and do its own checks. The gatewa
 Cloudflare DNS ──► Coolify Traefik (TLS) ──► gateway ──► core-api         (gate.callerwhale.com)
                                                     ├──► grafana-proxy ──► Grafana   (grafana.callerwhale.com)
                                                     └──► auth          (auth.callerwhale.com, no token check: it is where tokens are made)
-callerwhale.com ──► landing-web, landing-api   (marketing site: no tokens, stays as it is)
+callerwhale.com ──► landing-web   (marketing site: no tokens, stays as it is)
 ```
 
 - `gate.callerwhale.com` and `grafana.callerwhale.com` both point at the gateway (port 8100). `core-api` and `grafana-proxy` have **no domain** and are reached on the private Docker network.
