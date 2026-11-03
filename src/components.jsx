@@ -5,6 +5,8 @@ import {
 } from "@phosphor-icons/react";
 import { STATUS, faqs, footerLinks, tiers } from "./content.js";
 import { joinWaitlist, sendMessage } from "./api.js";
+import { loadAuth } from "./session.jsx";
+import { HumanCheck } from "./auth/human-check.jsx";
 import { useSession } from "./session.jsx";
 import { MotionToggle } from "./motion.jsx";
 
@@ -403,17 +405,17 @@ function useForm(initial, submit) {
 }
 
 export function Waitlist({ tier, plan, setTier }) {
+  const [humanToken, setHumanToken] = useState("");
   const { form, set, state, onSubmit } = useForm(
     { email: "", name: "", company: "", website: "" },
     async (f) => {
-      const r = await joinWaitlist({
+      await joinWaitlist({
         ...f,
         tier,
         plan: tier === "custom" ? plan : "",
+        human_token: humanToken,
       });
-      return r.joined
-        ? "Your interest is recorded. This does not create an account or grant access."
-        : "You were already on the list.";
+      return "Your interest is recorded. This does not create an account or grant access.";
     },
   );
   return (
@@ -501,6 +503,7 @@ export function Waitlist({ tier, plan, setTier }) {
               value={form.website}
               onChange={set("website")}
             />
+            <HumanCheck getAuth={loadAuth} action="waitlist" onToken={setHumanToken} />
             {state.status === "error" && (
               <p className="notice bad" role="alert">
                 {state.message}
@@ -521,8 +524,9 @@ export function Waitlist({ tier, plan, setTier }) {
 }
 
 export function ContactForm() {
+  const [humanToken, setHumanToken] = useState("");
   const { form, set, state, onSubmit } = useForm({ name: "", email: "", message: "", website: "" }, async f => {
-    await sendMessage(f);
+    await sendMessage({ ...f, human_token: humanToken });
     return "Thanks. We will reply by email.";
   });
   return (
@@ -545,6 +549,7 @@ export function ContactForm() {
             <textarea rows={5} required value={form.message} onChange={set("message")} />
           </label>
           <input className="trap" tabIndex={-1} autoComplete="off" aria-hidden="true" value={form.website} onChange={set("website")} />
+          <HumanCheck getAuth={loadAuth} action="contact" onToken={setHumanToken} />
           {state.status === "error" && <p className="notice bad" role="alert">{state.message}</p>}
           <button className="button" type="submit" disabled={state.status === "sending"} aria-busy={state.status === "sending"}>
             {state.status === "sending" ? "Sending…" : "Send message"}
