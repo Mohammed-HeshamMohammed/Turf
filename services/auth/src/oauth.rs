@@ -16,7 +16,7 @@ use crate::{
     error::{AuthError, AuthResult},
     now,
     firebase::{FbSession, Firebase},
-    routes::{new_secret, open_session_fb, sha256, upsert_firebase_user, user_by, User},
+    routes::{new_secret, open_session_fb, Person, sha256, upsert_firebase_user, user_by, User},
     AppState,
 };
 use axum::{
@@ -51,6 +51,7 @@ pub fn routes() -> Router<AppState> {
         // Google returns with a GET; Apple posts a form back (response_mode=form_post) once it asked for a name.
         .route("/v1/oauth/{provider}/callback", get(callback_get).post(callback_post))
         .route("/v1/oauth/exchange", post(exchange))
+        .route("/v1/handoffs", post(desktop_handoff))
 }
 
 fn provider<'a>(state: &'a AppState, name: &str) -> AuthResult<&'a Provider> {
@@ -275,7 +276,7 @@ async fn finish(state: AppState, name: String, returned: Returned) -> Response {
     }
     let kind = if target == "desktop" { "desktop" } else { "browser" };
     let outcome = match sign_in(&state, &stored_provider, &returned, &nonce, verifier.as_deref()).await {
-        Ok((user, fb)) => handoff(&state, &user, kind, &stored_provider, fb.as_ref()).await,
+        Ok((user, fb)) => handoff(&state, &user, kind, &stored_provider, false, fb.as_ref()).await,
         Err(error) => Err(error),
     };
     match outcome {
@@ -294,16 +295,17 @@ async fn finish(state: AppState, name: String, returned: Returned) -> Response {
 }
 
 /// A finished sign-in to collect, once, within two minutes.
-async fn handoff(state: &AppState, user: &str, kind: &str, provider: &str, fb: Option<&FbSession>) -> AuthResult<String> {
+async fn handoff(state: &AppState, user: &str, kind: &str, provider: &str, mfa_passed: bool, fb: Option<&FbSession>) -> AuthResult<String> {
     let (code, hash) = new_secret();
     let t = now() as i64;
-    sqlx::query("INSERT INTO oauth_handoffs (code_hash, user_id, kind, expires_at, provider, fb_refresh) VALUES ($1, $2, $3, $4, $5, $6)")
+    sqlx::query("INSERT INTO oauth_handoffs (code_hash, user_id, kind, expires_at, provider, fb_refresh, mfa_passed) VALUES ($1, $2, $3, $4, $5, $6, $7)")
         .bind(&hash)
         .bind(user)
         .bind(kind)
         .bind(t + HANDOFF_SECONDS)
         .bind(provider)
         .bind(fb.map(|f| f.refresh.clone()).filter(|r| !r.is_empty()))
+        .bind(mfa_passed as i64)
         .execute(&state.db)
         .await?;
     sqlx::query("DELETE FROM oauth_handoffs WHERE expires_at < $1").bind(t).execute(&state.db).await?;
@@ -319,7 +321,7 @@ struct Exchange {
 async fn exchange(State(state): State<AppState>, Json(body): Json<Exchange>) -> AuthResult<Json<Value>> {
     let hash = sha256(body.code.trim());
     let mut tx = state.db.begin().await?;
-    let row = sqlx::query("SELECT user_id, kind, provider, fb_refresh FROM oauth_handoffs WHERE code_hash = $1 AND expires_at > $2")
+    let row = sqlx::query("SELECT user_id, kind, provider, fb_refresh, mfa_passed FROM oauth_handoffs WHERE code_hash = $1 AND expires_at > $2")
         .bind(&hash)
         .bind(now() as i64)
         .fetch_optional(&mut *tx)
@@ -329,15 +331,30 @@ async fn exchange(State(state): State<AppState>, Json(body): Json<Exchange>) -> 
     let kind: String = row.try_get("kind")?;
     let provider: String = row.try_get("provider")?;
     let fb_refresh: Option<String> = row.try_get("fb_refresh")?;
+    let mfa_passed: i64 = row.try_get("mfa_passed")?;
     let used = sqlx::query("DELETE FROM oauth_handoffs WHERE code_hash = $1").bind(&hash).execute(&mut *tx).await?;
     tx.commit().await?;
     if used.rows_affected() != 1 {
         return Err(AuthError::Forbidden("This sign-in has expired. Try again.".into()));
     }
     let user = user_by(&state, "id", &user_id).await?.filter(|u| !u.disabled).ok_or_else(|| AuthError::Forbidden("This account is disabled.".into()))?;
-    // A provider sign-in does not pass two-step sign-in: the token says so, and services that need it will ask.
+    // A provider sign-in does not pass two-step sign-in: the token says so, and services that need it will ask. A sign-in
+    // handed over from the browser (POST /v1/handoffs) keeps what that session passed.
     let fb = fb_refresh.filter(|r| !r.is_empty()).map(|refresh| FbSession { refresh });
-    Ok(Json(open_session_fb(&state, &user, &kind, false, &provider, fb.as_ref()).await?))
+    Ok(Json(open_session_fb(&state, &user, &kind, mfa_passed == 1, &provider, fb.as_ref()).await?))
+}
+
+/// The signed-in person's browser hands its sign-in to the desktop app (docs/plans/desktop-sign-in.md). The desktop
+/// window never shows a password form or a reCAPTCHA: the person signs in at callerwhale.com, and the page asks for this
+/// code, which it sends only to 127.0.0.1 on the person's computer. The code works once, for two minutes, and becomes a
+/// separate "desktop" session with the same second-step result; the browser's own session is left as it is.
+async fn desktop_handoff(State(state): State<AppState>, Person(claims): Person) -> AuthResult<Json<Value>> {
+    let user = user_by(&state, "id", &claims.sub).await?.filter(|u| !u.disabled).ok_or(AuthError::Unauthenticated)?;
+    let fb_refresh: Option<String> = sqlx::query("SELECT fb_refresh FROM sessions WHERE id = $1").bind(&claims.sid).fetch_optional(&state.db).await?
+        .and_then(|row| row.try_get("fb_refresh").ok()).filter(|r: &String| !r.is_empty());
+    let fb = fb_refresh.map(|refresh| FbSession { refresh });
+    let code = handoff(&state, &user.id, "desktop", &claims.provider, claims.mfa, fb.as_ref()).await?;
+    Ok(Json(json!({ "code": code })))
 }
 
 #[derive(Deserialize)]
