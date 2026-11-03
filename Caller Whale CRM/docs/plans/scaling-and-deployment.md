@@ -9,9 +9,9 @@ Every `*-production` branch (`docs/plans/production-branches.md`) is one contain
 | Branch | Dockerfile | Build context | Port | Copies it can run |
 | --- | --- | --- | --- | --- |
 | `landing-web-production` | `landing/web/Dockerfile` | `landing/web` | 8080 | any number |
-| `auth-backend-production` | `services/auth/Dockerfile` | `.` (the branch root) | 8101 | any number, on PostgreSQL |
+| `auth-backend-production` | `Dockerfile` | `.` (the branch root) | 8101 | any number, on PostgreSQL |
 | `notifications-backend-production` | `services/notifications/Dockerfile` | `services/notifications` | 8102 | any number |
-| `gateway-backend-production` | `services/gateway/Dockerfile` | `services/gateway` | 8100 | any number |
+| `gateway-backend-production` | `Dockerfile` | `.` (the branch root) | 8100 | any number |
 | `core-api-backend-production` | `services/core-api/Dockerfile` | `.` | 8088 | any number, once uploaded files are shared (below) |
 | (same branch, the worker) | `services/core-api/go/Dockerfile` | `services/core-api/go` | 8090 (health) | any number: workers lease their work |
 

@@ -32,7 +32,7 @@ Tokens are the auth service's: checked for signature (its Ed25519 keys from `AUT
 
 ## Coolify steps
 
-1. **New application** from the `gateway-backend-production` branch: build type Dockerfile, `services/gateway/Dockerfile`, port 8100. Environment from `env/gateway.env.example`. `ROUTES` upstreams are the other applications' network aliases (see below).
+1. **New application** from the `gateway-backend-production` branch: build type Dockerfile, base directory `/`, Dockerfile `/Dockerfile`, port 8100. Environment from `env/gateway.env.example`. `ROUTES` upstreams are the other applications' network aliases (see below).
 2. Check it answers `/healthz` from the server (it is not reachable through the public name), and check the routes with a temporary domain.
 3. **Move the domains.** Remove `gate.callerwhale.com` from core-api and `grafana.callerwhale.com` from grafana-proxy; add both to the gateway, port 8100. Redeploy the three. No `www.` copies.
 4. Set core-api's `CALLERWHALE_BIND` to listen on all interfaces on the private network (as now); it keeps no public domain.
