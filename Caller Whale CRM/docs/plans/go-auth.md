@@ -85,3 +85,46 @@ Follow `Design notes/Runtime logs.md`:
 ## Review after the build
 
 Before step 8, go through the whole result and write down: what is slower or heavier than expected, what is confusing to a person signing in, what we wrote that a maintained library already does, what Firebase offers that we did not use, and what can be removed. Turn the findings into changes before deleting the old service.
+
+## Port plan (2026-11-03)
+
+Where the code lives: `services/auth-go/` (module `callerwhale/auth`) beside the Rust `services/auth/`, until cutover. At deletion the Rust folder goes and this one is renamed to `services/auth`. Both services use the same database and the same `database_setup_history` table; the Go service carries copies of the same numbered SQL files, so whichever starts first brings the schema up to date and the other finds nothing to do. Do not change a numbered file; add a new number to both.
+
+### Decisions that narrow the port
+
+- **Firebase mode only.** The Rust service also keeps its own Argon2id passwords when no Firebase key is set. Production uses Firebase and the owner chose Firebase for sign-up and sign-in, so the Go service always needs `AUTH_FIREBASE_API_KEY` and keeps no passwords. Development and tests use Firebase's own Auth Emulator or a fake server (`AUTH_FIREBASE_IDENTITY_URL`, `AUTH_FIREBASE_TOKEN_URL` already exist).
+- **PostgreSQL only.** No SQLite. Tests run against a real PostgreSQL (`AUTH_TEST_DATABASE_URL`; the developer machine has PostgreSQL 18 in `X:\tools\pg`), each test in its own schema.
+- **The human check is not in this service.** It is in the gateway.
+- **Same contract.** Same routes (`openapi.yaml` and `docs` of the Rust service), same JSON, same error codes, same token claims (`sub email name sid mfa email_verified provider auth_time iss aud iat exp`), issuer `callerwhale-auth`, audience `callerwhale`, EdDSA with `kid` = first 8 bytes of SHA-256 of the public key in hex. A token from either service verifies with either service's keys, so the core API's Rust check (`callerwhale-auth-verify`) does not change, and the signing key (`AUTH_SIGNING_KEY`) is shared during the side-by-side period.
+
+### What we use instead of writing it (open source)
+
+| Part | Library | Why not our own |
+| --- | --- | --- |
+| Database driver and pool | `github.com/jackc/pgx/v5` | The standard PostgreSQL driver for Go. |
+| Access tokens (EdDSA) | `github.com/golang-jwt/jwt/v5` | Signing and checking with issuer, audience and expiry checks built in. |
+| Browser access from the sites | `github.com/rs/cors` | CORS is easy to get subtly wrong; this is the common one. |
+| Ids | `github.com/google/uuid` | |
+| HTTP, JSON, crypto, SHA-256, Ed25519, base64 | Go standard library | Already there. |
+| Authenticator codes (phase 3) | `github.com/pquerna/otp` | RFC 6238, with the `otpauth://` link. |
+| Telegram (phase 3) | a maintained Telegram library, chosen then | |
+| Provider sign-in (phase 4) | `golang.org/x/oauth2` and `github.com/coreos/go-oidc/v3` | The standard OpenID Connect pieces: ID token checks against the provider's keys. |
+| Firebase | Firebase's documented REST API with `net/http` | There is no official Go client for the password sign-in endpoints; the Admin SDK covers only server administration and needs a service account. |
+| Migrations | a small loader (about 30 lines) over the existing `database_setup_history` table | Every migration tool keeps its own history table; ours must keep the one the Rust service already wrote, so both can run on one database. This is the only thing written by hand that a library could do. |
+| Runtime log rows | the shared `access.go` adapter and `callerwhale-log` runner | Already ours, already synchronised (`tools/runtime-log/sync.mjs`). |
+
+### Phases
+
+Each phase ends with its tests green, `go vet`, `gofmt`, and a note here of what is done.
+
+1. **Core** (this phase): config, signing key and JWKS, database and schema loader, access-token check, `GET /healthz /version /.well-known/jwks.json /v1/security`, `POST /v1/accounts`, `POST /v1/sessions` (with the lockout of five failures in 15 minutes), `POST /v1/sessions/refresh` (rotation, reuse ends the session, atomic), `POST /v1/sessions/sign-out`, `GET /v1/sessions`, `POST /v1/sessions/revoke`, `GET /v1/me`, the outbox event, and the confirmation email request. A person who has a second step is refused with a clear 503 until phase 3 (fail closed; it never skips a second step).
+2. **Passwords and email**: change password, forgot, reset, email verify and resend, the notification service client.
+3. **Second step**: authenticator devices and recovery codes, email codes, Telegram, approval on another device, step-up, `/v1/mfa/*`.
+4. **Providers and the desktop handoff**: Google and Apple through Firebase, `/v1/oauth/*`, `POST /v1/handoffs`.
+5. **Parity and cutover**: the Rust tests as the checklist (each one ported or shown redundant), the shield's allow-list test against the Go routes, load test of both, the kill tests, side-by-side run, move traffic route by route at the gateway, a week of the old one stopped, then delete it.
+
+Everything above also has to hold the "Cases" listed earlier in this note.
+
+### Phase 1 status (2026-11-03): done
+
+`services/auth-go` has the core: 27 tests against a real PostgreSQL and a fake Firebase, `go vet` and `gofmt` clean. Checked: a token signed here verifies with the Rust `callerwhale-auth-verify` crate that the core API uses (same header, claims and key id); the refresh race (8 parallel requests with one token: exactly one wins); the lockout; a person with a second step is refused with 503, never let in; Firebase down is a 500 and not a failed sign-in; closing a session stops its access token at once. Not done: the Go race detector (needs a C compiler on this machine), a load test, the Docker image build (no Docker here). Next: phase 2.
