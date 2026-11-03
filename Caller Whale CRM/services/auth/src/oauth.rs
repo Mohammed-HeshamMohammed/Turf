@@ -478,15 +478,11 @@ async fn sign_in(state: &AppState, name: &str, returned: &Returned, nonce: &str,
         .map_err(|e| AuthError::Internal(anyhow::anyhow!("token answer: {e}")))?;
     let claims = verify_id_token(config, &answer.id_token, &if name == "apple" { sha256(nonce) } else { nonce.to_string() }).await?;
     let email = claims.verified_email().ok_or_else(|| AuthError::Forbidden(format!("Your {} account has no confirmed email address.", label(name))))?;
-    let display = claims
-        .name
-        .clone()
-        .filter(|n| !n.trim().is_empty())
-        .or_else(|| apple_name(&returned.user))
-        .unwrap_or_else(|| email.split('@').next().unwrap_or("Caller Whale user").to_string());
+    let provider_name = claims.name.clone().filter(|n| !n.trim().is_empty()).or_else(|| apple_name(&returned.user));
+    let display = provider_name.clone().unwrap_or_else(|| email.split('@').next().unwrap_or("Caller Whale user").to_string());
 
     if let Some(fb) = state.config.firebase.clone() {
-        return firebase_provider(state, &fb, name, &answer.id_token, nonce, &display).await;
+        return firebase_provider(state, &fb, name, &answer.id_token, nonce, &provider_name.unwrap_or_default()).await;
     }
 
     let t = now() as i64;

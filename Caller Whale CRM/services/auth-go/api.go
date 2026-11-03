@@ -44,6 +44,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("GET /v1/me", serve(s.me))
 	s.accountRoutes(mux)
 	s.mfaRoutes(mux)
+	s.oauthRoutes(mux)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]any{"error": "Not found."})
 	})

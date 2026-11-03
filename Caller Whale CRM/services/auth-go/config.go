@@ -30,6 +30,8 @@ type config struct {
 	notifyURL   string
 	notifyToken string
 
+	google, apple provider // Google and Apple sign-in; a provider with no client of its own is left to Firebase
+
 	telegramToken  string // the bot that sends the Telegram codes; empty: Telegram is not offered
 	telegramBot    string
 	telegramAPI    string
@@ -71,10 +73,16 @@ func loadConfig(getenv func(string) string) (config, error) {
 		firebaseToken:    trimSlash(get("AUTH_FIREBASE_TOKEN_URL", "https://securetoken.googleapis.com")),
 		notifyURL:        trimSlash(getenv("AUTH_NOTIFY_URL")),
 		notifyToken:      strings.TrimSpace(getenv("AUTH_NOTIFY_TOKEN")),
-		telegramToken:    strings.TrimSpace(getenv("AUTH_TELEGRAM_BOT_TOKEN")),
-		telegramBot:      strings.TrimSpace(getenv("AUTH_TELEGRAM_BOT_NAME")),
-		telegramAPI:      trimSlash(get("AUTH_TELEGRAM_API_URL", "https://api.telegram.org")),
-		telegramSecret:   strings.TrimSpace(getenv("AUTH_TELEGRAM_WEBHOOK_SECRET")),
+		google: provider{clientID: strings.TrimSpace(getenv("AUTH_GOOGLE_CLIENT_ID")), clientSecret: strings.TrimSpace(getenv("AUTH_GOOGLE_CLIENT_SECRET")),
+			authURL: "https://accounts.google.com/o/oauth2/v2/auth", tokenURL: "https://oauth2.googleapis.com/token", jwksURL: "https://www.googleapis.com/oauth2/v3/certs", issuer: "https://accounts.google.com"},
+		apple: provider{clientID: strings.TrimSpace(getenv("AUTH_APPLE_CLIENT_ID")), teamID: strings.TrimSpace(getenv("AUTH_APPLE_TEAM_ID")), keyID: strings.TrimSpace(getenv("AUTH_APPLE_KEY_ID")),
+			// A .p8 key in an environment variable usually arrives with a backslash and n for its line breaks.
+			privateKey: strings.ReplaceAll(getenv("AUTH_APPLE_PRIVATE_KEY"), `\n`, "\n"),
+			authURL:    "https://appleid.apple.com/auth/authorize", tokenURL: "https://appleid.apple.com/auth/token", jwksURL: "https://appleid.apple.com/auth/keys", issuer: "https://appleid.apple.com"},
+		telegramToken:  strings.TrimSpace(getenv("AUTH_TELEGRAM_BOT_TOKEN")),
+		telegramBot:    strings.TrimSpace(getenv("AUTH_TELEGRAM_BOT_NAME")),
+		telegramAPI:    trimSlash(get("AUTH_TELEGRAM_API_URL", "https://api.telegram.org")),
+		telegramSecret: strings.TrimSpace(getenv("AUTH_TELEGRAM_WEBHOOK_SECRET")),
 	}
 	if c.databaseURL == "" {
 		return c, errors.New("set DATABASE_URL, a PostgreSQL address like postgres://user:password@host:5432/callerwhale_auth")

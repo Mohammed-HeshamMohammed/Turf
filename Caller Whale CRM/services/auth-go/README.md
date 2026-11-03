@@ -1,6 +1,6 @@
 # Auth (Go)
 
-The Go rebuild of the authentication service. **Not live yet**: the Rust service in `../auth` is still the one that signs people in, until this one has every route and passes the same tests. Plan, decisions and phases: [docs/plans/go-auth.md](../../docs/plans/go-auth.md).
+The Go rebuild of the authentication service. **Built and tested, not live yet**: the Rust service in `../auth` is still the one that signs people in until the cutover steps in the plan are done (the old one is deleted after that). Plan, decisions, phases and what is left: [docs/plans/go-auth.md](../../docs/plans/go-auth.md).
 
 | | |
 | --- | --- |
@@ -13,9 +13,12 @@ The Go rebuild of the authentication service. **Not live yet**: the Rust service
 
 ## What is built
 
-Phase 1 of 5 (see the plan): `GET /healthz /version /.well-known/jwks.json /v1/security`, `POST /v1/accounts`, `POST /v1/sessions`, `POST /v1/sessions/refresh`, `POST /v1/sessions/sign-out`, `GET /v1/sessions`, `POST /v1/sessions/revoke`, `GET /v1/me`.
+Every route of the Rust service (the gateway's allow-list in `services/gateway/shield.go` is checked against this source, and against the Rust one):
 
-Not built yet, so the gateway must not send these here: password change, forgot and reset, email verify and resend (phase 2); every `/v1/mfa/*` route (phase 3); `/v1/providers`, `/v1/oauth/*`, `/v1/handoffs` (phase 4). A person who has a second step is answered `503 second_step_unavailable` and never gets a session: the service refuses rather than skips it.
+- Sign-up, sign-in, refresh, sign-out, sessions, `/v1/me`, JWKS, `/v1/security`, health (phase 1).
+- Change password, forgot, reset, email verify and resend (phase 2).
+- Every `/v1/mfa/*` route: authenticator devices, recovery codes, email and Telegram codes, approval on another device, step-up (phase 3).
+- `/v1/providers`, `/v1/oauth/*` (Google and Apple, direct or through Firebase) and `POST /v1/handoffs` for the desktop app (phase 4).
 
 ## Same as the Rust service
 
@@ -23,6 +26,9 @@ Routes, JSON, error codes and sentences, the access token (EdDSA, issuer `caller
 
 ## Different on purpose
 
+- An authenticator code works once (the time step of the last accepted code is kept); answers to a second-step challenge are counted before they are looked at, so parallel guesses cannot get more than five tries; recovery codes exist for a lost device.
+- A session that never passed a second step cannot add its own authenticator to an account that has one (fixed in the Rust service too).
+- A returning person keeps their name when a provider sends none (Apple sends it once).
 - A refresh is one conditional `UPDATE`: of two requests with the same token exactly one wins, the other looks like a copied token and ends the session.
 - The schema loader holds a database lock, so several instances starting together do not race.
 - A stop signal finishes the requests in flight, then closes (20 seconds at most).
@@ -36,6 +42,8 @@ go vet ./... && go test ./...        # PostgreSQL tests are skipped without AUTH
 AUTH_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:5433/postgres go test ./...   # each test gets its own schema
 DATABASE_URL=postgres://... AUTH_FIREBASE_API_KEY=... go run .
 go run . new-key                      # prints a value for AUTH_SIGNING_KEY
+AUTH_LOAD=1 go test -run Load -v      # how fast (the handler and PostgreSQL, Firebase a stand-in)
+go test -run Killing -v               # kills the real binary mid-work three times and checks nothing answered was lost
 ```
 
 `go run . health` is the container's health check (the image has no shell). The Firebase Auth Emulator can stand in for Firebase in development: set `AUTH_FIREBASE_IDENTITY_URL` and `AUTH_FIREBASE_TOKEN_URL` to it.

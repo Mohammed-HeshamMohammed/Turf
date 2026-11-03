@@ -141,3 +141,23 @@ Hardening beyond the Rust service, each with a test:
 - Forgot-password cannot be used to fill an inbox; a Firebase outage is a 500, never a "wrong password" or a counted failure.
 
 Left for the review after the build: TOTP secrets are stored as plain base32 (the Rust service does the same); encrypt them at rest with a key derived from a separate setting. Telegram uses two plain HTTPS calls instead of a library (a library would add more code than it saves). Next: phase 4.
+
+### Phase 4 and 5 status (2026-11-03): built and tested, not cut over
+
+Phase 4 (`oauth.go`): Google and Apple with `golang.org/x/oauth2` (code exchange, PKCE for Google, Apple's ES256 client secret) and `go-oidc` (ID token: signature against the provider's published keys, issuer, audience, expiry, then the nonce); Firebase-owned providers through `createAuthUri`; state and one-time codes each used by one statement; the desktop handoff (`POST /v1/handoffs`) reads what the session passed from the session row. Another fix, in both services: a returning person's name was overwritten with the start of their email address when a provider sent none (Apple sends the name once).
+
+Phase 5, what is proven now (all against PostgreSQL 18):
+- **Tests:** 100+ in `services/auth-go`; the gateway's allow-list is checked against the Go source and the Rust source; the Rust suite still passes with the same two fixes.
+- **Kill test** (`TestKillingTheServiceMidWayLosesNothingThatWasAnswered`): the real binary, 60 sign-ups in flight, killed with no warning three times, restarted on the same database and key. 112 answered sign-ups, every one still signs in; every user has its sign-up event; no session without a person; no handoff left behind.
+- **Speed**, one laptop, handler plus PostgreSQL, Firebase a stand-in (so a floor, not a production number): sign-in about 1,900 a second (p50 7 ms, p99 23 ms), refresh about 1,900 a second (p50 8 ms, p99 22 ms), `/v1/me` about 13,000 a second (p50 1 ms). In production a sign-in is dominated by Firebase's own answer time. No Rust figures were measured, so there is no comparison; this is not a claim that it is faster.
+- **Rust tests not ported on purpose:** the ones for the Rust service's own password store (`api.rs` local mode, `without_a_firebase_key...`), and the three in `human.rs` (the human check is in the gateway, with its own 13 tests).
+
+### What is left before the Rust service can be deleted
+
+1. **Docker image**: build `services/auth-go/Dockerfile` (no Docker on the development machine) and read the first real log rows in Coolify against `Design notes/Runtime logs.md`.
+2. **Production branch**: in `tools/production.json` change `auth-backend-production` to the Go folder (base `Caller Whale CRM/services/auth-go`, paths `["."]`, no `rust`, `envExample` unchanged) and publish. The Coolify app then builds `/Dockerfile` from that branch root.
+3. **Side by side**: run the Go service on its own name with the same database and signing key (settings are the same names), point the gateway's `auth` route at it, watch real sign-ins (password, Google, Apple, second step, desktop), keep the Rust container stopped but not deleted.
+4. **One live sign-in of each kind** (reCAPTCHA through the gateway, Google, Apple, authenticator, email code, Telegram, approval, desktop handoff) with real Firebase, Google, Apple, Telegram and the notification service: none of those are exercised by the tests, only stand-ins.
+5. **A week**, then the review (next section) and the deletion: `services/auth`, its Cargo workspace entry, `auth-backend-production` content, the Rust-only env and docs. `services/auth/verify` (the token check the core API uses) moves to `services/core-api` or its own folder first.
+
+Review items collected so far: encrypt TOTP secrets at rest; a closed server (`AUTH_PUBLIC_SIGNUP=false`) still lets a provider sign-in create an account in Firebase and a row here (the core API then refuses a workspace; decide whether to stop it earlier once it is clear how invitations create accounts); per-address limits on password reset and sign-in beyond the gateway's; sign-in codes and recovery codes use SHA-256 of high-entropy values, which is sound, but a keyed hash would also protect a leaked database.

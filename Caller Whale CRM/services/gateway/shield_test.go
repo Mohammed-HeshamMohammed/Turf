@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -195,6 +196,52 @@ func TestTheAllowListMatchesTheAuthSource(t *testing.T) {
 	for route := range listed {
 		if !found[route] {
 			t.Errorf("the gateway allows %q, auth has no such route", route)
+		}
+	}
+}
+
+// The Go rebuild of auth (services/auth-go) must have exactly the routes the allow-list has, too. Skipped when its source is not in this checkout.
+func TestTheAllowListMatchesTheGoAuthSource(t *testing.T) {
+	files, _ := filepath.Glob("../auth-go/*.go")
+	if len(files) == 0 {
+		t.Skip("the Go auth's source is not in this checkout")
+	}
+	var text strings.Builder
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text.Write(raw)
+		text.WriteByte('\n')
+	}
+	paramName := regexp.MustCompile(`\{[a-z_]+\}`)
+	norm := func(route string) string { return paramName.ReplaceAllString(route, "{x}") }
+	found := map[string]bool{}
+	for _, m := range regexp.MustCompile(`mux\.Handle(?:Func)?\("(GET|POST|DELETE|PUT|PATCH) ([^"]+)"`).FindAllStringSubmatch(text.String(), -1) {
+		found[norm(m[1]+" "+m[2])] = true
+	}
+	if len(found) < 30 {
+		t.Fatalf("found only %d routes in the Go auth: the pattern no longer matches how it registers them", len(found))
+	}
+	listed := map[string]bool{}
+	for _, route := range authRoutes {
+		listed[norm(route)] = true
+	}
+	for route := range found {
+		if route == "GET /healthz" || route == "GET /version" {
+			continue // for the private network, never through the gateway
+		}
+		if !listed[route] {
+			t.Errorf("the Go auth has %q, the gateway does not allow it", route)
+		}
+	}
+	for route := range listed {
+		if !found[route] {
+			t.Errorf("the gateway allows %q, the Go auth has no such route", route)
 		}
 	}
 }

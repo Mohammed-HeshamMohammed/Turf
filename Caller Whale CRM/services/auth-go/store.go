@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -31,6 +32,9 @@ type server struct {
 	fb   *firebase
 	mail mailer    // nil: no notification service, Firebase sends its own emails
 	tg   *telegram // nil: Telegram is not offered
+
+	verifiers sync.Map // provider name -> *oidc.IDTokenVerifier, keys cached by the library
+	seen      sync.Map // Firebase-owned provider availability, for a minute
 
 	resets resetThrottle // password reset emails per address
 }

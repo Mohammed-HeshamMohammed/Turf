@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -64,6 +66,13 @@ type fakeFirebase struct {
 	down      bool
 	pending   bool // sign-in answers with an old Firebase authenticator pending
 	refreshes int
+
+	// Google and Apple through Firebase
+	idpNonces     []string // the raw nonce Firebase was given for an Apple token
+	idpTokens     []string // the ID tokens Firebase was handed
+	brokered      bool     // Firebase owns the provider's client: createAuthUri answers
+	brokeredEmail string   // who the brokered flow signs in
+	idpDown       bool
 }
 
 type fbAccount struct {
@@ -204,6 +213,41 @@ func (f *fakeFirebase) serve(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		f.fail(w, "INVALID_OOB_CODE")
+	case strings.HasSuffix(r.URL.Path, "accounts:createAuthUri"):
+		if !f.brokered {
+			f.fail(w, "OPERATION_NOT_ALLOWED")
+			return
+		}
+		n := len(f.sent) + 1
+		f.sent = append(f.sent, "AUTH_URI")
+		_ = json.NewEncoder(w).Encode(map[string]any{"authUri": fmt.Sprintf("https://accounts.google.com/o/oauth2/auth?state=fbstate-%d&client_id=firebase", n), "sessionId": fmt.Sprintf("fbsession-%d", n)})
+	case strings.HasSuffix(r.URL.Path, "accounts:signInWithIdp"):
+		if f.idpDown {
+			f.fail(w, "OPERATION_NOT_ALLOWED")
+			return
+		}
+		form, _ := url.ParseQuery(str("postBody"))
+		email, name := f.brokeredEmail, ""
+		if raw := form.Get("id_token"); raw != "" {
+			f.idpTokens = append(f.idpTokens, raw)
+			f.idpNonces = append(f.idpNonces, form.Get("nonce"))
+			payload, _ := base64.RawURLEncoding.DecodeString(strings.Split(raw, ".")[1])
+			var c map[string]any
+			_ = json.Unmarshal(payload, &c)
+			email, _ = c["email"].(string)
+			name, _ = c["name"].(string)
+		} else if !strings.HasPrefix(str("sessionId"), "fbsession-") || form.Get("code") == "" {
+			f.fail(w, "INVALID_IDP_RESPONSE")
+			return
+		}
+		email = strings.ToLower(email)
+		a := f.accounts[email]
+		if a == nil {
+			a = &fbAccount{uid: "uid-" + uuid.NewString()[:8], email: email, name: name}
+			f.accounts[email] = a
+		}
+		a.verified = true // the provider vouched for the address
+		login(a)
 	default:
 		f.fail(w, "UNKNOWN")
 	}

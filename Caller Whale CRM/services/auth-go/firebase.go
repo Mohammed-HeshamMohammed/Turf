@@ -300,3 +300,65 @@ func (f *firebase) confirmEmail(ctx context.Context, oobCode string) (string, er
 }
 
 var _ = fmt.Sprintf
+
+// ---- Google and Apple through Firebase ----
+
+// signInProvider: only this service hands verified provider tokens (and Apple's raw nonce) to Firebase, which finds or opens the person.
+func (f *firebase) signInProvider(ctx context.Context, provider, idToken, nonce string) (fbLogin, error) {
+	form := url.Values{"id_token": {idToken}, "providerId": {provider + ".com"}}
+	if provider == "apple" {
+		form.Set("nonce", nonce)
+	}
+	reply, err := f.call(ctx, "/v1/accounts:signInWithIdp", map[string]any{
+		"postBody": form.Encode(), "requestUri": "http://localhost", "returnSecureToken": true, "returnIdpCredential": false,
+	})
+	if err != nil {
+		return fbLogin{}, err
+	}
+	return outcome(reply)
+}
+
+// oauthURI: when this service has no client of its own for a provider, Firebase owns the provider's credentials; its session binds
+// the callback to this initiation. Returns the address to send the browser to, Firebase's session id and the state in the address.
+func (f *firebase) oauthURI(ctx context.Context, provider, callback string) (uri, session, state string, err error) {
+	data, err := f.post(ctx, "/v1/accounts:createAuthUri", map[string]any{"providerId": provider + ".com", "authFlowType": "CODE_FLOW", "continueUri": callback})
+	if err != nil {
+		return "", "", "", err
+	}
+	var out struct {
+		AuthURI   string `json:"authUri"`
+		SessionID string `json:"sessionId"`
+	}
+	if json.Unmarshal(data, &out) != nil {
+		return "", "", "", &firebaseError{kind: refusedOther, message: "unexpected answer"}
+	}
+	parsed, perr := url.Parse(out.AuthURI)
+	if perr != nil {
+		return "", "", "", &firebaseError{kind: refusedOther, message: "invalid authorization URL"}
+	}
+	state = parsed.Query().Get("state")
+	if parsed.Scheme != "https" || state == "" || out.SessionID == "" {
+		return "", "", "", &firebaseError{kind: refusedOther, message: "incomplete authorization response"}
+	}
+	return out.AuthURI, out.SessionID, state, nil
+}
+
+// finishOAuth completes a Firebase-owned provider flow with the code the provider sent back.
+func (f *firebase) finishOAuth(ctx context.Context, callback, session, provider, code, state string) (fbLogin, error) {
+	requestURI, err := url.Parse(callback)
+	if err != nil {
+		return fbLogin{}, &firebaseError{kind: refusedOther, message: "invalid callback"}
+	}
+	q := requestURI.Query()
+	q.Set("code", code)
+	q.Set("state", state)
+	requestURI.RawQuery = q.Encode()
+	form := url.Values{"providerId": {provider + ".com"}, "code": {code}}
+	reply, err := f.call(ctx, "/v1/accounts:signInWithIdp", map[string]any{
+		"requestUri": requestURI.String(), "sessionId": session, "postBody": form.Encode(), "returnSecureToken": true, "returnIdpCredential": false,
+	})
+	if err != nil {
+		return fbLogin{}, err
+	}
+	return outcome(reply)
+}
