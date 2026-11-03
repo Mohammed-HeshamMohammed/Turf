@@ -107,14 +107,28 @@ func (w *world) do(host, method, path, token string, mod ...func(*http.Request))
 	return rec
 }
 
-func TestHealthAndVersionAnswerOnAnyHost(t *testing.T) {
+func TestHealthAndVersionAreForThePrivateNetworkOnly(t *testing.T) {
 	w := newWorld(t, nil)
-	rec := w.do("anything.example", "GET", "/healthz", "")
-	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"service":"gateway"`) {
+	// The container's own health check has no proxy in front: it is answered on any host.
+	direct := func(path string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("GET", "http://127.0.0.1:8100"+path, nil)
+		r.RemoteAddr = "127.0.0.1:5555"
+		rec := httptest.NewRecorder()
+		w.g.ServeHTTP(rec, r)
+		return rec
+	}
+	if rec := direct("/healthz"); rec.Code != 200 || !strings.Contains(rec.Body.String(), "\"service\":\"gateway\"") {
 		t.Fatalf("got %d %s", rec.Code, rec.Body.String())
 	}
-	if rec := w.do("anything.example", "GET", "/version", ""); rec.Code != 200 || !strings.Contains(rec.Body.String(), version) {
+	if rec := direct("/version"); rec.Code != 200 || !strings.Contains(rec.Body.String(), version) {
 		t.Fatalf("got %d", rec.Code)
+	}
+	// Through the public proxy they are paths like any other: nothing names the software.
+	for _, path := range []string{"/healthz", "/version"} {
+		rec := w.do("anything.example", "GET", path, "")
+		if rec.Code != 404 || strings.Contains(rec.Body.String(), "gateway") || strings.Contains(rec.Body.String(), version) {
+			t.Fatalf("%s through the proxy: got %d %s", path, rec.Code, rec.Body.String())
+		}
 	}
 }
 
@@ -411,7 +425,7 @@ func TestClassifyListsWhatEachPathNeeds(t *testing.T) {
 		method, path string
 		want         need
 	}{
-		{"GET", "/healthz", open}, {"GET", "/", open}, {"GET", "/index.html", open},
+		{"GET", "/healthz", private}, {"GET", "/version", private}, {"GET", "/", open}, {"GET", "/index.html", open},
 		{"POST", "/internal/events/claim", private}, {"GET", "/readyz", private},
 		{"GET", "/api/v1/me", signedIn}, {"POST", "/sync/push", signedIn}, {"GET", "/events", signedIn},
 		{"GET", "/api/v1/platform/staff", staff}, {"GET", "/api/v1/platform", staff},
