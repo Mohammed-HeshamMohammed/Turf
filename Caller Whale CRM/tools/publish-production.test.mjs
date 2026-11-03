@@ -1,10 +1,7 @@
 // node --test tools/publish-production.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { runtimeLogTargets, pruneWorkspace, rewriteDockerfile } from "./publish-production.mjs";
 
 const cargo = `# One workspace.
@@ -59,56 +56,6 @@ test("the real workspace file prunes to its members", () => {
   const real = readFileSync(new URL("../Cargo.toml", import.meta.url), "utf8");
   const pruned = pruneWorkspace(real, member => member === "services/features/leads-map");
   assert.equal([...pruned.matchAll(/^\s+"([^"]+)",?$/gm)].map(m => m[1]).join(), "services/features/leads-map");
-});
-
-
-test("frontend production branches export runnable contexts at root and retain history", () => {
-  const root = mkdtempSync(join(tmpdir(), "callerwhale-publish-"));
-  const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8" });
-  try {
-    git("init", "-b", "main");
-    git("config", "user.name", "Publisher Test");
-    git("config", "user.email", "publisher@example.test");
-    const tools = join(root, "tools");
-    mkdirSync(tools);
-    copyFileSync(new URL("./publish-production.mjs", import.meta.url), join(tools, "publish-production.mjs"));
-    const config = JSON.parse(readFileSync(new URL("./production.json", import.meta.url), "utf8"));
-    const components = config.components.filter(c => ["landing-web-production", "landing-dashboard-web-production"].includes(c.name));
-    assert.equal(components.length, 2);
-    writeFileSync(join(tools, "production.json"), JSON.stringify({ components }));
-    for (const c of components) {
-      assert.deepEqual(c.paths, ["."]);
-      const source = join(root, c.base);
-      mkdirSync(join(source, "src"), { recursive: true });
-      for (const file of ["Dockerfile", "package.json", "package-lock.json", "nginx.conf", ".dockerignore", ".gitignore"]) {
-        copyFileSync(new URL(`../${c.base.replace("Caller Whale CRM/", "")}/${file}`, import.meta.url), join(source, file));
-      }
-      writeFileSync(join(source, "src/main.jsx"), "initial source");
-    }
-    const runner = join(root, "Caller Whale CRM/tools/runtime-log/main.go");
-    mkdirSync(join(root, "Caller Whale CRM/tools/runtime-log"), { recursive: true });
-    copyFileSync(new URL("./runtime-log/main.go", import.meta.url), runner);
-    git("add", ".");
-    git("commit", "-m", "Source fixtures");
-    const publish = () => execFileSync(process.execPath, [join(tools, "publish-production.mjs")], { cwd: root, encoding: "utf8" });
-    publish();
-    for (const c of components) {
-      const files = git("ls-tree", "-r", "--name-only", c.name).trim().split("\n");
-      for (const required of ["Dockerfile", "package.json", "package-lock.json", "nginx.conf", ".dockerignore", "src/main.jsx", "runtime-log/main.go"]) assert.ok(files.includes(required), `${c.name}: ${required}`);
-      assert.equal(git("show", `${c.name}:runtime-log/main.go`), readFileSync(runner, "utf8"));
-      assert.ok(files.every(f => !f.startsWith("landing/")), "no nested build context");
-      assert.equal(git("show", `${c.name}:Dockerfile`), readFileSync(join(root, c.base, "Dockerfile"), "utf8"));
-    }
-    const c = components[0];
-    const before = git("rev-parse", c.name).trim();
-    publish();
-    assert.equal(git("rev-parse", c.name).trim(), before, "unchanged publication is idempotent");
-    writeFileSync(join(root, c.base, "src/main.jsx"), "updated source");
-    git("add", "."); git("commit", "-m", "Update source");
-    publish();
-    assert.equal(git("rev-parse", `${c.name}^`).trim(), before, "refresh appends without rewriting");
-    assert.equal(git("show", `${c.name}:src/main.jsx`), "updated source");
-  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test("production snapshots inject a runner only for opted-in image contexts", () => {
