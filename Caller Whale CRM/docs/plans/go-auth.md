@@ -154,7 +154,7 @@ Phase 5, what is proven now (all against PostgreSQL 18):
 
 ### Done in the repository (2026-11-03)
 
-The Rust service is gone from the repository and the Go one lives at `services/auth`. `services/auth/verify` (the token check the core API uses) moved to `services/auth-verify`; its Cargo workspace entry, the Rust service's own tests and the Rust-only parts of the gateway test went with the rest. `auth-backend-production` is now built from the Go code (Coolify: base directory `/services/auth`, Dockerfile `/Dockerfile`, port 8101). Older mentions of `services/auth-go` and "the Rust service" below are history. What remains is the Coolify side:
+The Rust service is gone from the repository and the Go one lives at `services/auth`. `services/auth/verify` (the token check the core API uses) moved to `services/auth-verify`; its Cargo workspace entry, the Rust service's own tests and the Rust-only parts of the gateway test went with the rest. `auth-backend-production` is now built from the Go code (Coolify: base directory `/`, Dockerfile `/Dockerfile`, port 8101). Older mentions of `services/auth-go` and "the Rust service" below are history. What remains is the Coolify side:
 
 ### What is left on the server side
 

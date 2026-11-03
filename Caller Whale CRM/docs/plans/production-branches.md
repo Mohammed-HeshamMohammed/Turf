@@ -20,7 +20,7 @@ Each server branch also carries its container file and its Kubernetes files (`in
 
 ## What is in a branch
 
-- By default, the part's folders keep their paths relative to `Caller Whale CRM/` on `main`. A component can set `base` and `paths: ["."]` to export that source folder directly to its branch root. Both frontend production branches do this; other components retain their existing paths.
+- By default, the part's folders keep their paths relative to `Caller Whale CRM/` on `main`. A component can set `base` and `paths: ["."]` to export that source folder directly to its branch root. Both frontend branches and the auth branch do this; other components retain their existing paths.
 - Frontend branches contain only their app, including its Dockerfile and dependency lockfile. Landing Kubernetes manifests and the environment example remain on `main`; configure the landing build/runtime variables using `landing/web/COOLIFY.md`.
 - For a Rust service: the Cargo workspace file cut down to the members present, and `Cargo.lock`. Dockerfile lines that copy a folder the branch does not have are removed.
 - A generated `readme.md`: what it is, which `main` commit it was made from, how to build and test it.
@@ -50,5 +50,6 @@ node tools/publish-production.mjs --push                    # and push what chan
 | --- | --- | --- | --- | --- |
 | `landing-web-production` | `/` | `/Dockerfile` | `8080` | `/healthz` |
 | `landing-dashboard-web-production` | `/` | `/Dockerfile` | `8080` | `/healthz` |
+| `auth-backend-production` | `/` | `/Dockerfile` | `8101` | `/healthz` |
 
 Choose the **Dockerfile** build pack. After refreshing a source scan, replace any saved `landing/web/Dockerfile` path with `/Dockerfile`. Both paths in Coolify must start with `/`. Each Dockerfile uses its branch root as the build context. These generated branches are the release sources; do not point these applications at `main` with base directory `/`.
