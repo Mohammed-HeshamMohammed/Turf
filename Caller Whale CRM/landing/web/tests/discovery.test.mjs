@@ -54,7 +54,7 @@ test("sitemap contains exactly the approved public routes and absolute URLs", ()
       .filter((r) => r.sitemap && r.indexable)
       .map((r) => "https://callerwhale.com" + r.path),
   );
-  for (const path of ["/signin", "/signup", "/dashboard", "/verify"])
+  for (const path of ["/signin", "/signup", "/dashboard", "/verify", "/desktop-sign-in"])
     assert(!sitemap.includes(path));
   assert(robots.includes("Sitemap: https://callerwhale.com/sitemap.xml"));
   assert(!sitemap.includes("lastmod")); // No invented build-date content changes.

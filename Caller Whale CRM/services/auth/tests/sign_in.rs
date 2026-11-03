@@ -212,6 +212,44 @@ async fn confirmation_links_are_not_shown_outside_development() {
 }
 
 #[tokio::test]
+async fn a_browser_sign_in_is_handed_to_the_desktop_app_once() {
+    let (app, _) = with_providers(Config::for_tests()).await;
+    // Without being signed in there is nothing to hand over.
+    assert_eq!(call(&app, "POST", "/v1/handoffs", Some(json!({})), None).await.0, StatusCode::UNAUTHORIZED);
+
+    let made = sign_up(&app, "mona@example.com").await;
+    let (status, handed) = call(&app, "POST", "/v1/handoffs", Some(json!({})), Some(token(&made))).await;
+    assert_eq!(status, StatusCode::OK, "{handed}");
+    let code = handed["code"].as_str().unwrap().to_string();
+    let (status, desktop) = exchange(&app, &code).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_ne!(token(&desktop), token(&made), "the desktop app gets a session of its own");
+    assert_eq!(claims(&app, token(&desktop)).await.provider, "password");
+    let (_, list) = call(&app, "GET", "/v1/sessions", None, Some(token(&desktop))).await;
+    assert!(list["sessions"].as_array().unwrap().iter().any(|s| s["kind"] == "desktop"));
+    // The code works once.
+    assert_eq!(exchange(&app, &code).await.0, StatusCode::FORBIDDEN);
+    // The browser's own session is untouched.
+    assert_eq!(call(&app, "GET", "/v1/me", None, Some(token(&made))).await.0, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn a_handed_over_sign_in_keeps_the_second_step() {
+    let (app, _) = with_providers(Config::for_tests()).await;
+    let made = sign_up(&app, "mona@example.com").await;
+    let (_, setup) = call(&app, "POST", "/v1/mfa/setup", None, Some(token(&made))).await;
+    let secret = setup["secret"].as_str().unwrap().to_string();
+    call(&app, "POST", "/v1/mfa/confirm", Some(json!({ "code": current_code(&secret, "mona@example.com") })), Some(token(&made))).await;
+    // This session has not passed the second step, so neither does what it hands over.
+    let (_, handed) = call(&app, "POST", "/v1/handoffs", Some(json!({})), Some(token(&made))).await;
+    let (_, desktop) = exchange(&app, handed["code"].as_str().unwrap()).await;
+    assert!(!claims(&app, token(&desktop)).await.mfa);
+    // After the code, it does.
+    let (_, stepped) = call(&app, "POST", "/v1/mfa/verify", Some(json!({ "code": current_code(&secret, "mona@example.com") })), Some(token(&desktop))).await;
+    assert!(claims(&app, stepped["access_token"].as_str().unwrap()).await.mfa);
+}
+
+#[tokio::test]
 async fn a_provider_sign_in_steps_up_with_a_two_step_code() {
     let (app, _) = with_providers(Config::for_tests()).await;
     // Mona has a password account with two-step sign-in on.

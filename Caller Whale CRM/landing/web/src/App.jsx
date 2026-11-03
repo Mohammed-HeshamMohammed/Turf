@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { accountPages } from "./content.js";
 import { Footer, GetStarted, Header, InviteOnly, Waitlist } from "./components.jsx";
 import { Compare, Contact, Features, Home, Legal, NotFound, Pricing, Security, legalPages } from "./pages.jsx";
-import { Dashboard, SignIn, SignUp, VerifyEmail } from "./AccountPages.jsx";
+import { Dashboard, DesktopSignIn, SignIn, SignUp, VerifyEmail } from "./AccountPages.jsx";
 import { SessionProvider } from "./session.jsx";
 import { MotionProvider } from "./motion.jsx";
 
@@ -80,6 +80,7 @@ export function App({ path = typeof window === "undefined" ? "/" : window.locati
     signup: <SignUp />,
     dashboard: <Dashboard />,
     verify: <VerifyEmail />,
+    desktopsignin: <DesktopSignIn />,
   }[page];
   const marketing = !legalPages.includes(page) && !accountPages.includes(page) && page !== "notfound";
   return (

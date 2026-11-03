@@ -13,10 +13,22 @@ Frontend contract: include human_token:string in SignUp (POST /v1/accounts) and 
 
 The backend posts to the fixed HTTPS Google siteverify endpoint (`https://www.google.com/recaptcha/api/siteverify`) with an eight-second timeout and no redirects. Tokens must be nonblank and at most 2048 bytes. Failure, timeout, wrong action, hostname mismatch or a score below AUTH_RECAPTCHA_MIN_SCORE returns 403 with code human_required. No user-supplied IP is trusted or forwarded. Google handles token expiry and replay rejection; every submission is verified remotely.
 
-AUTH_RECAPTCHA_HOSTNAMES optionally supplies exact comma-separated hostnames. Otherwise auth derives them from AUTH_ALLOWED_ORIGINS and configured public, website, landing and app URLs. List the same domains on the reCAPTCHA key. Windows desktop HTTP webviews may explicitly allow tauri.localhost using AUTH_RECAPTCHA_HOSTNAMES (include the web hostnames too). reCAPTCHA on tauri:// origins is unsupported; a future macOS flow needs a supported HTTPS browser handoff. Do not use dummy keys or enable live protection before frontend support is deployed.
+AUTH_RECAPTCHA_HOSTNAMES optionally supplies exact comma-separated hostnames. Otherwise auth derives them from AUTH_ALLOWED_ORIGINS and configured public, website, landing and app URLs. List the same domains on the reCAPTCHA key. The desktop app never runs reCAPTCHA itself (its window is `tauri.localhost` on Windows, which is not a real domain, and reCAPTCHA does not work on `tauri://` at all). It signs in through the person's browser instead, see "Desktop sign-in" below, so only real domains are ever on the key. Do not use dummy keys or enable live protection before frontend support is deployed.
 
 The website and desktop share `services/auth/clients/human-check.jsx`, synchronized with the auth client. POST /v1/oauth/{provider}/start accepts {target,port,human_token,action} and returns {url}; GET provider starts are refused while protection is enabled, preventing a direct-address bypass. The parent CSP permits only Google's reCAPTCHA origins (`www.google.com/recaptcha`, `www.gstatic.com/recaptcha`) for this external script/frame. The page shows Google's required notice in small print instead of the floating badge.
 
 Setup still to do, by the owner:
-- Create a reCAPTCHA **v3** key at google.com/recaptcha/admin with `callerwhale.com`, `auth.callerwhale.com` if used, and `tauri.localhost`. Put the site key and secret into the auth container only (secret never in GitHub, build variables, source or chat), set AUTH_BOT_PROTECTION=true, redeploy.
+- Create a reCAPTCHA **v3** key at google.com/recaptcha/admin with `callerwhale.com` (this covers its subdomains; add `auth.callerwhale.com` only if the key asks for exact names). Do not add `tauri.localhost`. Put the site key and secret into the auth container only (secret never in GitHub, build variables, source or chat), set AUTH_BOT_PROTECTION=true, redeploy.
 - A new key and code alone do not prove live verification: try a real sign-in and read the score Google returns.
+
+## Desktop sign-in
+
+The desktop app has no password form and no human check of its own. "Sign in with your browser" does this:
+
+1. The window starts a listener on `127.0.0.1` (a free port, this computer only) and makes a random `state`.
+2. It opens `https://callerwhale.com/desktop-sign-in?port=<port>&state=<state>` in the person's default browser (`VITE_CALLERWHALE_SITE_URL` changes the site for a test build).
+3. On that page the person signs in the normal way: password, second step, Google or Apple, and the reCAPTCHA check on the real domain. The page accepts only a port from 1024 to 65535 and a 16 to 64 character `state`; anything else shows "Start from the app".
+4. Signed in, the page asks the person to press **Continue to the app**, then calls `POST /v1/handoffs` with the browser's access token. Auth answers with a one-time code (two minutes, works once, stored hashed in `oauth_handoffs`) and records whether that browser session passed the second step.
+5. The page sends the browser to `http://127.0.0.1:<port>/callerwhale-sign-in?code=...&state=...`. The listener hands both to the window, which checks `state`, then trades the code at `POST /v1/oauth/exchange` for its own `desktop` session. The browser's session is left as it is.
+
+A session handed over without the second step asks for it in the app, as a Google sign-in does. The token never travels in an address, only the one-time code, and only to this computer.

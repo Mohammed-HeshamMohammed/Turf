@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Lock, ShieldCheck, SignIn, UserCircleMinus, WifiSlash } from "@phosphor-icons/react";
 import { AppleMark, GoogleMark } from "./SignInMarks.jsx";
-import { api, apiBase, auth, organization, SERVER, setApiBase, setOrganization } from "./remote/api.js";
+import { api, apiBase, auth, organization, SERVER, SITE, setApiBase, setOrganization } from "./remote/api.js";
 import { MemoryVault, Vault } from "./remote/vault.js";
 import { inDesktopApp } from "./popout.js";
 import { Button, Card, Field } from "./ui.jsx";
@@ -131,6 +131,38 @@ export function RemoteGate({ onReady, onLeave }) {
       await invoke("open_in_browser", { url: await auth.providerUrl(provider, "desktop", port, humanToken) });
       setStep("browser");
     });
+  /**
+   * Sign-in in the desktop app happens on callerwhale.com, in the person's own browser: password, second step, Google and
+   * Apple, with the human check on the real website. The page sends a one-time code back to this computer only; the
+   * window checks it is the sign-in it started (`state`) and trades the code for its own session.
+   */
+  const signInWithBrowser = () =>
+    attempt(async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const { listen } = await import("@tauri-apps/api/event");
+      waiting.current?.();
+      const port = await invoke("google_sign_in_listen");
+      const state = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(24)))).replace(/\+/g, "-").replace(/\//g, "_");
+      const stop = await listen("callerwhale-sign-in", ({ payload }) => {
+        stop();
+        waiting.current = null;
+        attempt(async () => {
+          if (!payload.code) {
+            setStep("signin");
+            throw new Error(payload.error || "Sign-in did not finish.");
+          }
+          if (payload.state !== state) {
+            setStep("signin");
+            throw new Error("That sign-in was not started in this window. Try again.");
+          }
+          await auth.exchange(payload.code);
+          await check();
+        });
+      });
+      waiting.current = stop;
+      await invoke("open_in_browser", { url: `${SITE}/desktop-sign-in?port=${port}&state=${state}` });
+      setStep("browser");
+    });
   const stopWaiting = () => {
     waiting.current?.();
     waiting.current = null;
@@ -246,7 +278,16 @@ export function RemoteGate({ onReady, onLeave }) {
             </div>
           </div>
         )}
-        {(step === "signin" || step === "code") && (
+        {inDesktopApp() && step === "signin" && (
+          <div className="remote-step">
+            <p className="body-copy">Sign in on Caller Whale's website, in your browser. Caller Whale continues here when you're done.</p>
+            <Button variant="primary" icon={SignIn} disabled={busy} onClick={signInWithBrowser}>
+              Sign in with your browser
+            </Button>
+            <p className="muted">New here? Caller Whale is by invitation. Accept yours on Caller Whale's website first, then sign in here with the same account.</p>
+          </div>
+        )}
+        {!inDesktopApp() && (step === "signin" || step === "code") && (
           <form className="remote-step" onSubmit={signIn}>
             {step === "signin" && (
               <>
