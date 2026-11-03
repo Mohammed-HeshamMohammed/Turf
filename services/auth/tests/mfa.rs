@@ -360,3 +360,21 @@ async fn the_confirmation_link_is_emailed_and_confirms_once() {
     let (again, _) = call(&app, "POST", "/v1/email/verify", Some(json!({ "token": token })), None).await;
     assert_eq!(again, StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+async fn a_session_that_has_not_passed_a_second_step_cannot_add_an_authenticator_of_its_own() {
+    let app = service().await;
+    let first = sign_up(&app, "sami@example.com").await;
+    // A second session, opened before anything is set up, so it never passes a second step.
+    let (_, second) = call(&app, "POST", "/v1/sessions", Some(json!({ "email": "sami@example.com", "password": PASSWORD })), None).await;
+    add_device(&app, token(&first), "sami@example.com", "Phone").await;
+    // The account has a second step now. The other session must not be able to pick its own and pass.
+    let (status, setup) = call(&app, "POST", "/v1/mfa/totp/setup", None, Some(token(&second))).await;
+    assert_eq!(status, StatusCode::OK, "{setup}");
+    let secret = setup["secret"].as_str().unwrap().to_string();
+    let (status, body) = call(&app, "POST", "/v1/mfa/totp/confirm", Some(json!({ "code": current_code(&secret, "sami@example.com"), "label": "Mine" })), Some(token(&second))).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(!claims(&app, token(&second)).await.mfa);
+    let (_, factors) = call(&app, "GET", "/v1/mfa/factors", None, Some(token(&first))).await;
+    assert_eq!(factors["factors"].as_array().unwrap().len(), 1, "no second device was added");
+}

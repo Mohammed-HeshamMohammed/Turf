@@ -452,6 +452,15 @@ async fn totp_confirm(State(state): State<AppState>, Person(claims): Person, Jso
         return Err(AuthError::WrongCode);
     }
     let first = !enrolled(&state, &claims.sub).await?;
+    // A session that has not passed a second step (a Google sign-in, say) must not be able to add its own authenticator to an account that
+    // already has one: that would be a second step it picks itself.
+    // (The session row says it, not the token: a token made before this session passed one still says no.)
+    if !first {
+        let passed: i64 = sqlx::query("SELECT mfa_passed FROM sessions WHERE id = $1").bind(&claims.sid).fetch_one(&state.db).await?.try_get("mfa_passed")?;
+        if passed != 1 {
+            return Err(AuthError::Forbidden("Confirm a second step on this device first.".into()));
+        }
+    }
     let label: String = body.label.as_deref().map(str::trim).filter(|l| !l.is_empty()).unwrap_or("Authenticator app").chars().take(60).collect();
     let n = next_n(&state, &claims.sub).await?;
     let mut tx = state.db.begin().await?;

@@ -44,6 +44,7 @@ const DATABASE_UPDATES: &[(i64, &str)] = &[
     (4, include_str!("../database_setup/0004_firebase.sql")),
     (5, include_str!("../database_setup/0005_second_factor.sql")),
     (6, include_str!("../database_setup/0006_handoff_second_step.sql")),
+    (7, include_str!("../database_setup/0007_totp_replay.sql")),
 ];
 
 /// Brings the database up to date. Safe to run on every start.
