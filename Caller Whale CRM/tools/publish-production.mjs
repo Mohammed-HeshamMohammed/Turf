@@ -131,6 +131,12 @@ function run() {
     git(["read-tree", "--empty"], { env });
     for (const rel of component.paths) addPath(rel);
     addPath(".gitignore", { optional: true });
+    // Every branch carries the repository's licence (LICENSE at the root of main).
+    try {
+      put("LICENSE", git(["show", `${sha}:LICENSE`]));
+    } catch {
+      /* main has no LICENSE yet */
+    }
     // "exclude" drops files that belong on main but not on this branch (e.g. the source folder README).
     for (const rel of component.exclude ?? []) git(["update-index", "--force-remove", rel], { env });
     if (component.rust) {

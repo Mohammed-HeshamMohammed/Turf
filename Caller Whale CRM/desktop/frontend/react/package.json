@@ -1,6 +1,7 @@
 {
   "name": "testing-full-crm-mode",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "type": "module",
   "scripts": {

@@ -1,6 +1,7 @@
 {
   "name": "callerwhale-dialer-sms",
   "version": "0.1.0",
+  "license": "UNLICENSED",
   "private": true,
   "type": "module",
   "description": "Feature 3: calling, auto dialing, texting, number health, call logs and the carrier webhooks.",

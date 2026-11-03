@@ -1,6 +1,7 @@
 {
   "name": "callerwhale-landing-api",
   "version": "0.1.0",
+  "license": "UNLICENSED",
   "private": true,
   "type": "module",
   "description": "Backend of the Caller Whale landing site: waitlist, contact messages and the latest download.",

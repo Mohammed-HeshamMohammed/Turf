@@ -1,6 +1,7 @@
 {
   "name": "callerwhale-billing",
   "version": "0.1.0",
+  "license": "UNLICENSED",
   "private": true,
   "type": "module",
   "description": "Plans, features, seats, add-ons and the payment provider. Stores a subscription as entitlements. Checkout is off until a provider is chosen.",
