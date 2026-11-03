@@ -46,15 +46,18 @@ AUTH_TELEGRAM_BOT_NAME=<@bot_name, or empty>
 # Secret URL path component protecting the Telegram webhook. Coordinate rotation with Telegram's registered webhook URL.
 AUTH_TELEGRAM_WEBHOOK_SECRET=<a long random string, or empty>
 
-# Optional Google reCAPTCHA v3 (invisible, scored). Create keys at google.com/recaptcha/admin, type v3, with the site's domains. Leave off until real keys are ready.
-# true enforces server-side reCAPTCHA verification on signup/sign-in and provider starts; requires BOTH reCAPTCHA keys. Missing keys fail startup. false disables this layer.
+# Google reCAPTCHA v3 (invisible, scored) for sign-in and sign-up. This is the only human check auth reads: any AUTH_TURNSTILE_* variable
+# left in Coolify from an older setup is ignored and can be deleted.
+# Create the key in Google Cloud (reCAPTCHA, Create key): type Web, domains callerwhale.com and auth.callerwhale.com, Challenge, Test key and
+# WAF off. Do NOT add tauri.localhost: the desktop app signs in through callerwhale.com in the browser. Then open the key, choose
+# "Integrate with a third party service or plugin" to get the legacy secret key. The site key is the key's ID.
+# Set the two keys and the hostnames first, then set this to true and redeploy. true needs BOTH keys; missing keys fail startup.
 AUTH_BOT_PROTECTION=false
-# Public reCAPTCHA v3 site key exposed to clients. Must pair with the secret key and list the deployed frontend hostnames.
-AUTH_RECAPTCHA_SITE_KEY=
-# Secret reCAPTCHA key, held only in auth. Must match the widget site key; a missing key with bot protection true prevents startup.
-AUTH_RECAPTCHA_SECRET_KEY=
-# Optional comma-separated hostnames; defaults to configured origin hostnames.
-# Optional comma-separated allowed challenge hostnames, without scheme/path. Empty derives hosts from configured origins/URLs; wrong hosts reject otherwise valid challenges.
-AUTH_RECAPTCHA_HOSTNAMES=
+# The key's ID (public; sent to the website). Starts with 6L.
+AUTH_RECAPTCHA_SITE_KEY=<key ID, or empty while protection is off>
+# The legacy secret key. Held only in auth: Coolify's auth environment, never GitHub, a build variable or chat.
+AUTH_RECAPTCHA_SECRET_KEY=<legacy secret key, or empty while protection is off>
+# Hostnames a token may come from, comma separated, no scheme or path. Must match the key's domains.
+AUTH_RECAPTCHA_HOSTNAMES=callerwhale.com,auth.callerwhale.com
 # Lowest Google score (0 bot to 1 human) auth accepts. 0.5 is Google's default; raise it if bots get through, lower it if real people are refused.
 AUTH_RECAPTCHA_MIN_SCORE=0.5
