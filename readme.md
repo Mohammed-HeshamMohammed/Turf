@@ -2,8 +2,8 @@
 
 This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in `Caller Whale CRM/` on `main`.
 
-- Last changed from `main` at `8739a13` (2026-11-03)
-- Content id: `868b9d50045e3211d8fd1af95af51079dfe62ab7` (the branch is only refreshed when this changes)
+- Last changed from `main` at `d397cde` (2026-11-03)
+- Content id: `b22e81d5b989eb7c51125b0cf475f546577e6a46` (the branch is only refreshed when this changes)
 - Holds: `infra/k8s/auth`, `services/auth`, `env/auth.env.example`, `env/auth.production.example`, `env/callerwhale-auth-db.sql.example`, `env/README.md`
 - 56 files
 - Build and test: go test ./... in services/auth; docker build services/auth. Coolify: base directory /services/auth, Dockerfile /Dockerfile, port 8101
