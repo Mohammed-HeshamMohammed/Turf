@@ -1,23 +1,23 @@
-# Build from the repository folder "Caller Whale CRM" so the Cargo workspace is in context:
-#   docker build -f services/auth/Dockerfile -t callerwhale-auth .
+# Auth, in Go (plan: docs/plans/go-auth.md). Build with this folder as the context:
+#   docker build -t callerwhale-auth services/auth
 FROM golang:1 AS runtime-log-build
-COPY services/auth/runtime-log/main.go /src/main.go
+COPY runtime-log/main.go /src/main.go
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log /src/main.go
 
-FROM rust:1 AS build
+FROM golang:1 AS build
 WORKDIR /src
-COPY Cargo.toml Cargo.lock ./
-COPY services ./services
-RUN cargo build --release -p callerwhale-auth
+COPY go.mod go.sum ./
+RUN go mod download
+COPY *.go ./
+COPY database_setup ./database_setup
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/service .
 
-FROM debian:bookworm-slim
+FROM gcr.io/distroless/static-debian12
 COPY --from=runtime-log-build /runtime-log /usr/local/bin/callerwhale-log
 ENV CALLERWHALE_LOG_SERVICE="Auth"
-COPY --from=build /src/target/release/callerwhale-auth /usr/local/bin/service
+COPY --from=build /out/service /service
 ENV PORT=8101
 EXPOSE 8101
-USER nobody
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD ["service", "health"]
-CMD ["service"]
-
-ENTRYPOINT ["/usr/local/bin/callerwhale-log"]
+USER nonroot
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD ["/service", "health"]
+ENTRYPOINT ["/usr/local/bin/callerwhale-log","/service"]
