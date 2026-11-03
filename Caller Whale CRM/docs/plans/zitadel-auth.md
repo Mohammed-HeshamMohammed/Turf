@@ -92,3 +92,12 @@ Before step 9, go through the whole result with fresh eyes and write down: what 
 ## Until then
 
 The current Rust auth stays as it is: reCAPTCHA keys, the new browser sign-in for the desktop app and the Coolify settings are the launch path. Nothing in this plan changes them.
+
+## Update, 2026-11-03 (later)
+
+Owner decisions after the plan above:
+
+- **Licence.** Everything, on every branch including `main`, is proprietary: `LICENSE` at the repository root, copied into every production branch by `tools/publish-production.mjs`, and `"license": "UNLICENSED"` in the npm packages. The repository was made private. Third-party components keep their own licences. **Do not modify Zitadel or any other AGPL component and offer it to users**: AGPL would require offering that modified source to them. Use such software unchanged, and put our own code beside it.
+- **Accounts.** The owner wants **Firebase** to hold accounts, passwords and social sign-in (as `firebase-auth.md` already plans), and to add stronger second steps. Firebase and Zitadel cannot both be the place people sign in. Open question: how the extra second steps are added (see the conversation). Until that is answered, nothing here is built.
+- **Second steps.** Owner wants to build custom ones. Our existing Telegram code, email code and in-app approval already do this in `services/auth/src/mfa.rs`; Firebase's own authenticator-app step covers TOTP.
+- **Tokens, human check, server size.** Adapt or add them when needed; optimise after launch.
