@@ -18,7 +18,6 @@ Mark these public values as **build variables** in Coolify (Dockerfile ARGs):
 ```dotenv
 SITE_URL=https://callerwhale.com
 VITE_CALLERWHALE_API_URL=https://gate.callerwhale.com
-VITE_CALLERWHALE_LANDING_API_URL=https://api.callerwhale.com
 ```
 
 Set these as **runtime variables** for the nginx content security policy:
@@ -26,7 +25,6 @@ Set these as **runtime variables** for the nginx content security policy:
 ```dotenv
 AUTH_ORIGIN=https://auth.callerwhale.com
 API_ORIGIN=https://gate.callerwhale.com
-LANDING_API_ORIGIN=https://api.callerwhale.com
 GRAFANA_ORIGIN=https://gate.callerwhale.com
 ```
 

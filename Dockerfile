@@ -16,16 +16,14 @@ COPY . .
 # No address is written in this file: every one comes from the environment (env/landing-web.production.example).
 ARG SITE_URL
 ARG VITE_CALLERWHALE_API_URL
-# The landing API (waitlist and contact) has its own address, not a path on the site.
-ARG VITE_CALLERWHALE_LANDING_API_URL
-RUN SITE_URL="$SITE_URL" VITE_CALLERWHALE_API_URL="$VITE_CALLERWHALE_API_URL" VITE_CALLERWHALE_LANDING_API_URL="$VITE_CALLERWHALE_LANDING_API_URL" npm run build
+RUN SITE_URL="$SITE_URL" VITE_CALLERWHALE_API_URL="$VITE_CALLERWHALE_API_URL" npm run build
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 COPY --from=runtime-log-build /runtime-log /usr/local/bin/callerwhale-log
 ENV CALLERWHALE_LOG_SERVICE="Website"
-# The image fills the template in when it starts, from the container's environment (AUTH_ORIGIN, API_ORIGIN, LANDING_API_ORIGIN,
+# The image fills the template in when it starts, from the container's environment (AUTH_ORIGIN, API_ORIGIN,
 # GRAFANA_ORIGIN: the origins the content security policy allows). None has a default here.
-ENV NGINX_ENVSUBST_FILTER="^(AUTH_ORIGIN|API_ORIGIN|LANDING_API_ORIGIN|GRAFANA_ORIGIN)$"
+ENV NGINX_ENVSUBST_FILTER="^(AUTH_ORIGIN|API_ORIGIN|GRAFANA_ORIGIN)$"
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 # Use labelled startup checks; retain nginx warnings and errors.
