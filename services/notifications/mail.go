@@ -22,6 +22,7 @@ import (
 // Message is one email, ready to send.
 type Message struct {
 	To      string
+	ReplyTo string // optional: where a reply goes (the person who wrote through the contact form)
 	Subject string
 	Text    string
 	HTML    string
@@ -115,6 +116,13 @@ func build(from, to *mail.Address, m Message) ([]byte, error) {
 	header := func(k, v string) { fmt.Fprintf(&out, "%s: %s\r\n", k, v) }
 	header("From", from.String())
 	header("To", to.String())
+	if m.ReplyTo != "" {
+		reply, err := mail.ParseAddress(m.ReplyTo)
+		if err != nil {
+			return nil, errors.New("the reply address is not an address")
+		}
+		header("Reply-To", reply.String())
+	}
 	header("Subject", mime.QEncoding.Encode("utf-8", m.Subject))
 	header("Date", time.Now().UTC().Format(time.RFC1123Z))
 	header("MIME-Version", "1.0")
@@ -203,8 +211,38 @@ func Render(template, to string, data map[string]any) (Message, error) {
 			`<p><a href="` + e(link) + `" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none">Accept the invitation</a></p>` +
 			`<p style="color:#666;font-size:13px">Only this email address can use the invitation.</p></div>`
 		return Message{To: to, Subject: inviter + " invited you to Caller Whale", Text: text, HTML: page}, nil
+	case "contact":
+		// A message from the website's contact form, sent to the team's inbox (the "to"). The writer's address is the reply address.
+		from, message := str("email"), str("message")
+		writer, err := mail.ParseAddress(from)
+		if err != nil || writer.Name != "" || message == "" || len(message) > 4000 {
+			return Message{}, errors.New("contact needs the writer's email and a message")
+		}
+		name := str("name")
+		if len(name) > 120 || strings.ContainsAny(name, "\r\n") {
+			return Message{}, errors.New("contact needs a short name")
+		}
+		label := writer.Address
+		if name != "" {
+			label = name + " <" + writer.Address + ">"
+		}
+		text := "From the contact form on the website:\n\n" + label + "\n\n" + message + "\n\nReply to this email to answer them."
+		e := html.EscapeString
+		page := `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:560px">` +
+			"<p><strong>" + e(label) + "</strong> wrote through the contact form:</p>" +
+			`<p style="white-space:pre-wrap">` + e(message) + "</p>" +
+			`<p style="color:#666;font-size:13px">Reply to this email to answer them.</p></div>`
+		return Message{To: to, ReplyTo: writer.Address, Subject: "Contact form: " + subjectOf(name, writer.Address), Text: text, HTML: page}, nil
 	}
 	return Message{}, errors.New("unknown template")
+}
+
+// subjectOf names the writer in a subject line: their name when given, else their address.
+func subjectOf(name, address string) string {
+	if name != "" {
+		return name
+	}
+	return address
 }
 
 // thousands writes 12500 as "12,500".

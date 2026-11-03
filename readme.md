@@ -2,8 +2,8 @@
 
 This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in `Caller Whale CRM/` on `main`.
 
-- Last changed from `main` at `8739a13` (2026-11-03)
-- Content id: `159d5627cbec26bf3d87daad3b372d033f52f88a` (the branch is only refreshed when this changes)
+- Last changed from `main` at `ce0c3be` (2026-11-03)
+- Content id: `c35bb61b4147bbff59258e5ae640efbea089d03d` (the branch is only refreshed when this changes)
 - Holds: `infra/k8s/notifications`, `services/notifications`, `env/notifications.production.example`
 - 20 files
 - Build and test: go test ./... in services/notifications; docker build -f Dockerfile services/notifications
