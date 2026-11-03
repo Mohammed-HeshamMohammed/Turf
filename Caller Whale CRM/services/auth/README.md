@@ -21,6 +21,20 @@ Every route (the gateway's allow-list in `services/gateway/shield.go` is checked
 - Every `/v1/mfa/*` route: authenticator devices, recovery codes, email and Telegram codes, approval on another device, step-up (phase 3).
 - `/v1/providers`, `/v1/oauth/*` (Google and Apple, direct or through Firebase) and `POST /v1/handoffs` for the desktop app (phase 4).
 
+## Coolify
+
+| Setting | Value |
+| --- | --- |
+| Source | branch `auth-backend-production` |
+| Build pack | Dockerfile |
+| Base directory | `/services/auth` |
+| Dockerfile location | `/Dockerfile` |
+| Port | 8101 |
+| Health check | the image has one (`/service health`); or HTTP `/healthz` on 8101 |
+| Settings | every key in [env/auth.production.example](../../env/auth.production.example), in Coolify only |
+
+The service creates and updates its own tables when it starts, so it only needs an empty PostgreSQL database and its role. `AUTH_BOT_PROTECTION` stays `false`; the gateway does the human check.
+
 ## The contract
 
 Routes, JSON, error codes and sentences, the access token (EdDSA, issuer `callerwhale-auth`, audience `callerwhale`, claims `sub email name sid mfa email_verified provider auth_time iss aud iat exp`, key id from the public key), the lockout (five failed sign-ins for one email in 15 minutes), refresh-token rotation with theft detection, the signing key (`AUTH_SIGNING_KEY`, so tokens from either service verify with either's keys). A token signed here was checked against the Rust verifier (`callerwhale-auth-verify`) that the core API uses.
