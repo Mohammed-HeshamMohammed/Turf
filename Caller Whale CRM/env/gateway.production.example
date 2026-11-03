@@ -25,7 +25,7 @@ MONITORING_UPSTREAM=http://grafana-proxy:8120
 # ---- The human check (Google reCAPTCHA v3, invisible) in front of auth ----
 # This is the only place it is checked: auth must have AUTH_BOT_PROTECTION=false, no public domain of its own, and be reached only through this gateway.
 # true turns it on and then needs every value below, or the gateway will not start. Leave false until the keys exist.
-# true turns on the reCAPTCHA check in front of auth sign-up, sign-in and provider start; needs every RECAPTCHA_* value and AUTH_HOST or the gateway will not start.
+# true turns on the reCAPTCHA check in front of auth sign-up, sign-in, provider start and the website's waitlist and contact forms; needs every RECAPTCHA_* value and AUTH_HOST or the gateway will not start.
 HUMAN_CHECK=false
 # The ROUTES host that is the auth service. Must be one of the ROUTES hosts. Set it even while HUMAN_CHECK is false (see Hiding what exists below).
 # The ROUTES host that is the auth service. Only its real routes are answered; everything else is a plain Not found. Must be one of the ROUTES hosts.

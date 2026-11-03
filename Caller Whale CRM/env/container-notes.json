@@ -98,7 +98,7 @@
         "MAX_BODY_MB": "Positive maximum accepted request body size in MiB; default 64. Smaller limits can reject uploads; larger limits increase memory/traffic exposure.",
         "PROXY_HOPS": "Trusted proxy-hop count for resolving the client IP; default 1. Match the actual proxy chain or IP rate limits can identify clients incorrectly.",
         "MONITORING_UPSTREAM": "Private Grafana proxy HTTP origin, without path/query. Reached only through CORE_HOST /staff/monitoring; never give Grafana a direct public route.",
-        "HUMAN_CHECK": "true turns on the reCAPTCHA check in front of auth sign-up, sign-in and provider start; needs every RECAPTCHA_* value and AUTH_HOST or the gateway will not start.",
+        "HUMAN_CHECK": "true turns on the reCAPTCHA check in front of auth sign-up, sign-in, provider start and the website's waitlist and contact forms; needs every RECAPTCHA_* value and AUTH_HOST or the gateway will not start.",
         "AUTH_HOST": "The ROUTES host that is the auth service. Only its real routes are answered; everything else is a plain Not found. Must be one of the ROUTES hosts.",
         "RECAPTCHA_SITE_KEY": "Public reCAPTCHA v3 key ID (starts with 6L). The sign-in pages receive it from auth's /v1/security answer through the gateway.",
         "RECAPTCHA_SECRET_KEY": "Secret legacy reCAPTCHA key for the same key ID. Coolify only; never in GitHub, build variables or chat. Missing it with HUMAN_CHECK true prevents startup.",
