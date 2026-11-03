@@ -27,7 +27,7 @@ Every route (the gateway's allow-list in `services/gateway/shield.go` is checked
 | --- | --- |
 | Source | branch `auth-backend-production` |
 | Build pack | Dockerfile |
-| Base directory | `/services/auth` |
+| Base directory | `/` |
 | Dockerfile location | `/Dockerfile` |
 | Port | 8101 |
 | Health check | the image has one (`/service health`); or HTTP `/healthz` on 8101 |
