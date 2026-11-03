@@ -119,6 +119,21 @@ func ruleFor(method, path string) (humanRule, bool) {
 	return humanRule{}, false
 }
 
+// formRuleFor is the check the website's two public forms need on the core API: a waitlist sign-up or a contact message is proven
+// human here, with a token the page asked Google for under the form's own name.
+func formRuleFor(method, path string) (humanRule, bool) {
+	if method != http.MethodPost {
+		return humanRule{}, false
+	}
+	switch path {
+	case "/api/v1/public/waitlist":
+		return humanRule{action: "waitlist"}, true
+	case "/api/v1/public/contact":
+		return humanRule{action: "contact"}, true
+	}
+	return humanRule{}, false
+}
+
 type humanBody struct {
 	Token  string `json:"human_token"`
 	Action string `json:"action"`

@@ -2,8 +2,8 @@
 
 This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in `Caller Whale CRM/` on `main`.
 
-- Last changed from `main` at `ce0c3be` (2026-11-03)
-- Content id: `572a992933bdb39d605b73ba60682d8766e711db` (the branch is only refreshed when this changes)
+- Last changed from `main` at `df43932` (2026-11-03)
+- Content id: `3e6a938bf68dbf6645d0873bfc99d708b2072541` (the branch is only refreshed when this changes)
 - Holds: `infra/k8s/gateway`, `services/gateway`, `env/gateway.env.example`, `docs/plans/gateway.md`, `env/gateway.production.example`
 - 26 files
 - Build and test: go test ./... in services/gateway; docker build services/gateway

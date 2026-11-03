@@ -320,6 +320,18 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	// The website's two forms are proven human the same way (the core API behind does not check it again).
+	if g.human != nil && rt.core {
+		if rule, guarded := formRuleFor(r.Method, r.URL.Path); guarded {
+			if !g.humanIPs.allow(g.clientIP(r), g.now()) {
+				tooMany(w)
+				return
+			}
+			if !g.human.guard(w, r, rule) {
+				return
+			}
+		}
+	}
 	if r.Header.Get("Upgrade") == "" {
 		r.Body = http.MaxBytesReader(w, r.Body, g.cfg.maxBody)
 	}

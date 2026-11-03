@@ -11,7 +11,10 @@ import (
 	"testing"
 )
 
-const authHost = "auth.callerwhale.example"
+const (
+	authHost = "auth.callerwhale.example"
+	coreHost = "gate.callerwhale.example"
+)
 
 // humanWorld is a gateway in front of a fake auth service, with a fake Google behind the check.
 type humanWorld struct {
@@ -19,6 +22,7 @@ type humanWorld struct {
 	reached  atomic.Int32 // requests that got through to the auth service
 	asked    atomic.Int32 // questions put to the fake Google
 	lastBody atomic.Value // the last body the auth service received
+	coreHit  atomic.Int32 // requests that got through to the core API
 	google   *httptest.Server
 	answer   atomic.Value // func(url.Values) (int, any): what the fake Google says
 }
@@ -44,6 +48,11 @@ func newHumanWorld(t *testing.T, extra map[string]string) *humanWorld {
 		_, _ = rw.Write([]byte(`{"ok":true}`))
 	}))
 	t.Cleanup(auth.Close)
+	core := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		w.coreHit.Add(1)
+		_, _ = rw.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(core.Close)
 	w.google = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		w.asked.Add(1)
 		_ = r.ParseForm()
@@ -55,7 +64,9 @@ func newHumanWorld(t *testing.T, extra map[string]string) *humanWorld {
 	t.Cleanup(w.google.Close)
 	w.answer.Store(goodAnswer("signin"))
 	env := map[string]string{
-		"ROUTES":               authHost + "=" + auth.URL,
+		"ROUTES":               authHost + "=" + auth.URL + "," + coreHost + "=" + core.URL,
+		"CORE_HOST":            coreHost,
+		"AUTH_JWKS_URL":        auth.URL + "/.well-known/jwks.json",
 		"HUMAN_CHECK":          "true",
 		"AUTH_HOST":            authHost,
 		"RECAPTCHA_SITE_KEY":   "site-key-1",
@@ -81,6 +92,16 @@ func (w *humanWorld) call(method, path, body string) *httptest.ResponseRecorder 
 	req.Header.Set("Content-Type", "application/json")
 	req.RemoteAddr = "10.0.0.9:4444"
 	req.Header.Set("X-Forwarded-For", "203.0.113.9") // public traffic always comes through the proxy
+	rec := httptest.NewRecorder()
+	logHTTP(w.g).ServeHTTP(rec, req)
+	return rec
+}
+
+func (w *humanWorld) callCore(method, path, body string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, "http://"+coreHost+path, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "10.0.0.9:4444"
+	req.Header.Set("X-Forwarded-For", "203.0.113.9")
 	rec := httptest.NewRecorder()
 	logHTTP(w.g).ServeHTTP(rec, req)
 	return rec
@@ -349,5 +370,38 @@ func TestSettingsAreChecked(t *testing.T) {
 	// Off, none of those matter.
 	if err := with(map[string]string{"HUMAN_CHECK": "false", "RECAPTCHA_SITE_KEY": ""}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestTheWebsiteFormsNeedAHumanToken(t *testing.T) {
+	for _, form := range []struct{ path, action string }{{"/api/v1/public/waitlist", "waitlist"}, {"/api/v1/public/contact", "contact"}} {
+		w := newHumanWorld(t, nil)
+		w.answer.Store(goodAnswer(form.action))
+		// No token, or a token Google refuses: stopped here, the core API never sees it.
+		if rec := w.callCore("POST", form.path, `{"email":"a@example.com"}`); rec.Code != http.StatusForbidden || code(t, rec) != "human_required" || w.coreHit.Load() != 0 {
+			t.Fatalf("%s without a token: %d %s (core reached %d)", form.path, rec.Code, rec.Body, w.coreHit.Load())
+		}
+		// A token asked for under another form's name is not good for this one.
+		w.answer.Store(goodAnswer("signin"))
+		if rec := w.callCore("POST", form.path, `{"email":"a@example.com","human_token":"tok"}`); rec.Code != http.StatusForbidden || w.coreHit.Load() != 0 {
+			t.Fatalf("%s with a token for another action: %d", form.path, rec.Code)
+		}
+		// The right token goes through, and the core API gets the body as it was sent.
+		w.answer.Store(goodAnswer(form.action))
+		if rec := w.callCore("POST", form.path, `{"email":"a@example.com","human_token":"tok"}`); rec.Code != 200 || w.coreHit.Load() != 1 {
+			t.Fatalf("%s with a good token: %d %s (core reached %d)", form.path, rec.Code, rec.Body, w.coreHit.Load())
+		}
+	}
+}
+
+func TestOtherCorePathsAreNotAskedForAHumanToken(t *testing.T) {
+	w := newHumanWorld(t, nil)
+	before := w.asked.Load()
+	// Open, no sign-in and no human token: only the two forms are guarded.
+	if rec := w.callCore("GET", "/api/v1/plans", ""); rec.Code != 200 {
+		t.Fatalf("plans: %d %s", rec.Code, rec.Body)
+	}
+	if w.asked.Load() != before {
+		t.Fatal("Google was asked about a path that is not a form")
 	}
 }
