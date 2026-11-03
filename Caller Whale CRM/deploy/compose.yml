@@ -22,8 +22,7 @@ services:
     restart: unless-stopped
   auth:
     build:
-      context: ..
-      dockerfile: services/auth/Dockerfile
+      context: ../services/auth
     environment:
       PORT: "8101"
       DATABASE_URL: "${AUTH_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_auth}"

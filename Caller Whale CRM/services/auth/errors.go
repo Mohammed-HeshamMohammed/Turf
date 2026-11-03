@@ -8,7 +8,7 @@ import (
 )
 
 // apiError is a refusal the service sends: a status, a stable code for programs and a sentence for people. The codes and
-// sentences are the Rust service's, so the pages and the desktop app read both the same way.
+// sentences are the ones the pages and the desktop app read.
 type apiError struct {
 	status  int
 	code    string

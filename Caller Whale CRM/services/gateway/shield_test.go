@@ -159,52 +159,11 @@ func TestAuthHostMustBeARoute(t *testing.T) {
 	}
 }
 
-// In a full checkout, the list of routes here must be exactly the routes auth has.
+// In a full checkout, the routes here must be exactly the routes auth (services/auth) has.
 func TestTheAllowListMatchesTheAuthSource(t *testing.T) {
-	var sources []string
-	for _, name := range []string{"routes.rs", "oauth.rs", "mfa.rs", "email.rs", "human.rs"} {
-		raw, err := os.ReadFile("../auth/src/" + name)
-		if err != nil {
-			t.Skip("auth's source is not in this checkout")
-		}
-		sources = append(sources, string(raw))
-	}
-	text := strings.Join(sources, "\n")
-	found := map[string]bool{}
-	paramName := regexp.MustCompile(`\{[a-z_]+\}`)
-	for _, m := range regexp.MustCompile(`\.route\("([^"]+)",\s*((?:[a-z_]+\([^()]*\)\.?)+)\)`).FindAllStringSubmatch(text, -1) {
-		path := paramName.ReplaceAllStringFunc(m[1], func(string) string { return "{x}" })
-		for _, verb := range []string{"get", "post", "delete", "put", "patch"} {
-			if regexp.MustCompile(`\b` + verb + `\(`).MatchString(m[2]) {
-				found[strings.ToUpper(verb)+" "+path] = true
-			}
-		}
-	}
-	listed := map[string]bool{}
-	for _, route := range authRoutes {
-		path := paramName.ReplaceAllStringFunc(route, func(string) string { return "{x}" })
-		listed[path] = true
-	}
-	for route := range found {
-		if route == "GET /healthz" || route == "GET /version" {
-			continue // for the private network, never through the gateway
-		}
-		if !listed[route] {
-			t.Errorf("auth has %q, the gateway does not allow it", route)
-		}
-	}
-	for route := range listed {
-		if !found[route] {
-			t.Errorf("the gateway allows %q, auth has no such route", route)
-		}
-	}
-}
-
-// The Go rebuild of auth (services/auth-go) must have exactly the routes the allow-list has, too. Skipped when its source is not in this checkout.
-func TestTheAllowListMatchesTheGoAuthSource(t *testing.T) {
-	files, _ := filepath.Glob("../auth-go/*.go")
+	files, _ := filepath.Glob("../auth/*.go")
 	if len(files) == 0 {
-		t.Skip("the Go auth's source is not in this checkout")
+		t.Skip("auth's source is not in this checkout")
 	}
 	var text strings.Builder
 	for _, f := range files {
@@ -225,7 +184,7 @@ func TestTheAllowListMatchesTheGoAuthSource(t *testing.T) {
 		found[norm(m[1]+" "+m[2])] = true
 	}
 	if len(found) < 30 {
-		t.Fatalf("found only %d routes in the Go auth: the pattern no longer matches how it registers them", len(found))
+		t.Fatalf("found only %d routes in auth: the pattern no longer matches how it registers them", len(found))
 	}
 	listed := map[string]bool{}
 	for _, route := range authRoutes {
@@ -236,12 +195,12 @@ func TestTheAllowListMatchesTheGoAuthSource(t *testing.T) {
 			continue // for the private network, never through the gateway
 		}
 		if !listed[route] {
-			t.Errorf("the Go auth has %q, the gateway does not allow it", route)
+			t.Errorf("auth has %q, the gateway does not allow it", route)
 		}
 	}
 	for route := range listed {
 		if !found[route] {
-			t.Errorf("the gateway allows %q, the Go auth has no such route", route)
+			t.Errorf("the gateway allows %q, auth has no such route", route)
 		}
 	}
 }

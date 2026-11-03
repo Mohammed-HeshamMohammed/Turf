@@ -987,7 +987,7 @@ func (s *server) telegramWebhook(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// otpauthURL is the address an authenticator app scans: the Rust service's form, with the @ in the label escaped.
+// otpauthURL is the address an authenticator app scans: the usual form, with the @ in the label escaped.
 func otpauthURL(email, secret string) string {
 	issuer := "Caller%20Whale"
 	return "otpauth://totp/" + issuer + ":" + strings.ReplaceAll(email, "@", "%40") + "?secret=" + secret + "&issuer=" + issuer + "&algorithm=SHA1&digits=6&period=30"

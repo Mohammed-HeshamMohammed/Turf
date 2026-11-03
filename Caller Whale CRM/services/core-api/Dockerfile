@@ -8,7 +8,7 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log /src/main.
 
 FROM rust:1 AS build
 WORKDIR /src
-COPY services/auth/verify ./services/auth/verify
+COPY services/auth-verify ./services/auth-verify
 COPY services/core-api/rust ./services/core-api/rust
 WORKDIR /src/services/core-api/rust
 RUN cargo build --release -p callerwhale-api

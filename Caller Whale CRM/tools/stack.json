@@ -1,7 +1,7 @@
 {
   "services": [
     { "name": "gateway", "dir": "services/gateway", "lang": "go", "port": 8100, "owns": false, "title": "Gateway", "desc": "The one public entry point: HTTPS, token check, rate limits, and routing of /api/v1/<service>/* to the service behind it." },
-    { "name": "auth", "dir": "services/auth", "lang": "rust", "port": 8101, "owns": true, "title": "Authentication service", "desc": "Accounts, sessions, two-step sign-in, Google sign-in, roles and tokens. Signs short-lived tokens and publishes its public keys. Nothing else." },
+    { "name": "auth", "dir": "services/auth", "lang": "go", "port": 8101, "owns": true, "title": "Authentication service", "desc": "Accounts, sessions, two-step sign-in, Google sign-in, roles and tokens. Signs short-lived tokens and publishes its public keys. Nothing else." },
     { "name": "notifications", "dir": "services/notifications", "lang": "go", "port": 8102, "owns": true, "title": "Notification service", "desc": "Email, SMS, push and in-app notifications, sent when another service publishes notification.requested. Nothing else." },
     { "name": "billing", "dir": "services/billing", "lang": "ts", "port": 8103, "owns": true, "title": "Billing service", "desc": "Plans, features, seats, add-ons and the payment provider. Stores a subscription as entitlements. Checkout is off until a provider is chosen." },
     { "name": "importing-lists", "dir": "services/features/importing-lists", "lang": "python", "port": 8111, "owns": true, "title": "Importing lists (server)", "desc": "Feature 1: server-side list imports, column mapping and repeat merging for lists kept on the server." },

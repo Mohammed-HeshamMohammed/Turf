@@ -152,10 +152,14 @@ Phase 5, what is proven now (all against PostgreSQL 18):
 - **Speed**, one laptop, handler plus PostgreSQL, Firebase a stand-in (so a floor, not a production number): sign-in about 1,900 a second (p50 7 ms, p99 23 ms), refresh about 1,900 a second (p50 8 ms, p99 22 ms), `/v1/me` about 13,000 a second (p50 1 ms). In production a sign-in is dominated by Firebase's own answer time. No Rust figures were measured, so there is no comparison; this is not a claim that it is faster.
 - **Rust tests not ported on purpose:** the ones for the Rust service's own password store (`api.rs` local mode, `without_a_firebase_key...`), and the three in `human.rs` (the human check is in the gateway, with its own 13 tests).
 
-### What is left before the Rust service can be deleted
+### Done in the repository (2026-11-03)
 
-1. **Docker image**: build `services/auth-go/Dockerfile` (no Docker on the development machine) and read the first real log rows in Coolify against `Design notes/Runtime logs.md`.
-2. **Production branch**: in `tools/production.json` change `auth-backend-production` to the Go folder (base `Caller Whale CRM/services/auth-go`, paths `["."]`, no `rust`, `envExample` unchanged) and publish. The Coolify app then builds `/Dockerfile` from that branch root.
+The Rust service is gone from the repository and the Go one lives at `services/auth`. `services/auth/verify` (the token check the core API uses) moved to `services/auth-verify`; its Cargo workspace entry, the Rust service's own tests and the Rust-only parts of the gateway test went with the rest. `auth-backend-production` is now built from the Go code (Coolify: base directory `/services/auth`, Dockerfile `/Dockerfile`, port 8101). Older mentions of `services/auth-go` and "the Rust service" below are history. What remains is the Coolify side:
+
+### What is left on the server side
+
+1. **Docker image**: build `services/auth/Dockerfile` (no Docker on the development machine) and read the first real log rows in Coolify against `Design notes/Runtime logs.md`.
+2. **Production branch**: done in `tools/production.json`; publish it, then point the Coolify app at the new branch content.
 3. **Side by side**: run the Go service on its own name with the same database and signing key (settings are the same names), point the gateway's `auth` route at it, watch real sign-ins (password, Google, Apple, second step, desktop), keep the Rust container stopped but not deleted.
 4. **One live sign-in of each kind** (reCAPTCHA through the gateway, Google, Apple, authenticator, email code, Telegram, approval, desktop handoff) with real Firebase, Google, Apple, Telegram and the notification service: none of those are exercised by the tests, only stand-ins.
 5. **A week**, then the review (next section) and the deletion: `services/auth`, its Cargo workspace entry, `auth-backend-production` content, the Rust-only env and docs. `services/auth/verify` (the token check the core API uses) moves to `services/core-api` or its own folder first.

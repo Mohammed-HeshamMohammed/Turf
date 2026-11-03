@@ -12,9 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// The database updates, numbered. The Rust service (services/auth) carries the same files and the same history table, so on one
-// database whichever starts first brings it up to date and the other finds nothing to do. Never change a numbered file: add the
-// next number to both services.
+// The database updates, numbered. They are applied in order and recorded in database_setup_history, and several copies starting
+// together do not race (a database lock). Never change a numbered file: add the next number.
 //
 //go:embed database_setup/*.sql
 var updates embed.FS

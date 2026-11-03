@@ -16,14 +16,14 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// The access token's contract with every other service (services/auth/verify, the gateway): EdDSA (Ed25519), issuer and audience
+// The access token's contract with every other service (services/auth-verify, the gateway): EdDSA (Ed25519), issuer and audience
 // below, the claims below, and a key id that is the first 8 bytes of the SHA-256 of the public key.
 const (
 	tokenIssuer   = "callerwhale-auth"
 	tokenAudience = "callerwhale"
 )
 
-// claims is what an access token says about the person. Field names are the Rust service's.
+// claims is what an access token says about the person. Field names are fixed by the token contract.
 type claims struct {
 	Sub           string `json:"sub"`
 	Email         string `json:"email"`

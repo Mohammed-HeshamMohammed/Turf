@@ -4,9 +4,8 @@
     "auth": {
       "description": "Central sign-in service: brokers Firebase, issues Caller Whale sessions and verifies second factors and human challenges.",
       "sources": [
-        "services/auth/src/config.rs",
-        "services/auth/src/oauth.rs",
-        "services/auth/src/human.rs"
+        "services/auth/config.go",
+        "services/auth/oauth.go"
       ],
       "variables": {
         "PORT": "Runtime HTTP listening port; default 8101. Match Coolify's container port and private auth URLs when changing it.",

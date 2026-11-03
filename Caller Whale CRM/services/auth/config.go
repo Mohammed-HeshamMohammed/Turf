@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// config is everything the service reads from its environment. The names are the ones the Rust service reads, so the same Coolify
+// config is everything the service reads from its environment. The names are the ones the Coolify
 // settings serve both while they run side by side.
 type config struct {
 	databaseURL    string
