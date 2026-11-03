@@ -2,8 +2,8 @@
 
 This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in `Caller Whale CRM/` on `main`.
 
-- Last changed from `main` at `8739a13` (2026-11-03)
-- Content id: `dcccbdb4c3d9b39f2762bc1ae8f68e2010709d75` (the branch is only refreshed when this changes)
+- Last changed from `main` at `ce0c3be` (2026-11-03)
+- Content id: `77ac0524af77ef499bf873e2af27fc11d828febf` (the branch is only refreshed when this changes)
 - Holds: `desktop`, `services/auth/clients`, `env/desktop.env.example`, `env/README.md`, and the Cargo workspace file and lock for it
 - 173 files
 - Build and test: npm install && npm run build in desktop/frontend/react; cargo test --workspace at the root (the feature modules); cargo build in desktop/container/rust. Their tests start the Skip Tracing engine from skip-engine-production: set CALLERWHALE_SERVICE_ROOT to its checkout
