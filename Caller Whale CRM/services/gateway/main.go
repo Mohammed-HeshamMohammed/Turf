@@ -42,7 +42,8 @@ type config struct {
 	ipPerMinute   int
 	userPerMinute int
 	maxBody       int64
-	hops          int // proxies in front of this one (Coolify's Traefik: 1), to find the caller's address
+	hops          int            // proxies in front of this one (Coolify's Traefik: 1), to find the caller's address
+	human         *humanSettings // the human check in front of the auth service (nil: off)
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -92,6 +93,9 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	c.staffSecond = getenv("STAFF_REQUIRE_SECOND_FACTOR") != "false"
 	var err error
+	if c.human, err = loadHuman(getenv, c.routes); err != nil {
+		return c, err
+	}
 	if c.ipPerMinute, err = number("IP_PER_MINUTE", 600); err != nil {
 		return c, err
 	}
@@ -140,15 +144,21 @@ func classify(method, path string) need {
 }
 
 type gateway struct {
-	cfg    config
-	keys   *keyset
-	ips    *limiter
-	people *limiter
-	now    func() time.Time
+	cfg      config
+	keys     *keyset
+	ips      *limiter
+	people   *limiter
+	human    *humanCheck // nil when the check is off
+	humanIPs *limiter    // guarded requests per address: every one costs a call to Google
+	now      func() time.Time
 }
 
 func newGateway(cfg config) *gateway {
 	g := &gateway{cfg: cfg, ips: newLimiter(cfg.ipPerMinute), people: newLimiter(cfg.userPerMinute), now: time.Now}
+	if cfg.human != nil {
+		g.human = newHumanCheck(*cfg.human)
+		g.humanIPs = newLimiter(cfg.human.perMinute)
+	}
 	if cfg.authJWKS != "" {
 		g.keys = newKeyset(cfg.authJWKS)
 	}
@@ -174,6 +184,15 @@ func newGateway(cfg config) *gateway {
 				p.Out.Header.Set("X-Forwarded-For", g.clientIP(p.In))
 				p.Out.Header.Set("X-Forwarded-Host", p.In.Host)
 				p.Out.Header.Set("X-Forwarded-Proto", g.proto(p.In))
+				if g.human != nil && r.host == g.human.authHost && p.In.URL.Path == "/v1/security" {
+					p.Out.Header.Del("Accept-Encoding") // the answer is edited below, so it must arrive as plain JSON
+				}
+			},
+			ModifyResponse: func(res *http.Response) error {
+				if g.human != nil && r.host == g.human.authHost {
+					return g.human.announce(res)
+				}
+				return nil
 			},
 			ErrorHandler: func(w http.ResponseWriter, req *http.Request, err error) {
 				log.Printf("upstream %s: %v", r.host, err)
@@ -247,6 +266,18 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// The private proxy validates the HttpOnly admin session and rechecks the
 		// signed token, MFA and staff role with the core API on every request.
 		rt = g.cfg.monitoring
+	}
+	// The first leg of signing in is proven human here, once; the auth service behind does not check it again.
+	if g.human != nil && rt.host == g.human.authHost {
+		if rule, guarded := ruleFor(r.Method, r.URL.Path); guarded {
+			if !g.humanIPs.allow(g.clientIP(r), g.now()) {
+				tooMany(w)
+				return
+			}
+			if !g.human.guard(w, r, rule) {
+				return
+			}
+		}
 	}
 	if r.Header.Get("Upgrade") == "" {
 		r.Body = http.MaxBytesReader(w, r.Body, g.cfg.maxBody)

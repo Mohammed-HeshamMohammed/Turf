@@ -3,7 +3,7 @@
 Two layers, each doing one job.
 
 1. **Cloudflare, at the front door (callerwhale.com).** Cloudflare looks at every visit to the site. A person who behaves like a person is let straight in and sees nothing. Only a visit that looks automated is challenged (a Managed Challenge rule). It protects the whole site and costs real visitors nothing. This is set in Cloudflare, not in code. **Set up 2026-11-01:** custom rule "Site entrance: challenge suspicious visitors" (Security rules, free plan), action Managed Challenge, for `(http.host in {"callerwhale.com" "www.callerwhale.com"} and cf.threat_score gt 10 and not cf.client.bot)`. Only the two site names are covered, so `auth`, `gate` and the other API names are never challenged. After deploying, the site, the www redirect, `auth` and `gate` still answered normally. Not yet tried from a suspicious address, so the challenge itself is unproven.
-2. **Google reCAPTCHA v3, inside the service (auth).** Invisible: nobody ticks a box. Google scores each sign-in, sign-up and Google/Apple start from 0 (bot) to 1 (human), and auth refuses a score below a limit (default 0.5). So the human check is never "enforced" on a person who acts like one; it only refuses what looks like a bot.
+2. **Google reCAPTCHA v3, in the gateway (Go), in front of auth.** (Moved there on 2026-11-03: the gateway is the one place every public request passes, and payments will use the same check. The sections below that say "auth verifies" describe the Rust auth's built-in check, which stays only until the Go auth replaces it; run it with `AUTH_BOT_PROTECTION=false` once the gateway check is on, because a token works once.) Invisible: nobody ticks a box. Google scores each sign-in, sign-up and Google/Apple start from 0 (bot) to 1 (human), and auth refuses a score below a limit (default 0.5). So the human check is never "enforced" on a person who acts like one; it only refuses what looks like a bot.
 
 Auth alone verifies reCAPTCHA tokens. Off by default. Set AUTH_BOT_PROTECTION=true only after entering real AUTH_RECAPTCHA_SITE_KEY and AUTH_RECAPTCHA_SECRET_KEY. Missing keys prevent startup. Never expose the secret key.
 
@@ -20,6 +20,19 @@ The website and desktop share `services/auth/clients/human-check.jsx`, synchroni
 Setup still to do, by the owner:
 - Create a reCAPTCHA **v3** key at google.com/recaptcha/admin with `callerwhale.com` (this covers its subdomains; add `auth.callerwhale.com` only if the key asks for exact names). Do not add `tauri.localhost`. Put the site key and secret into the auth container only (secret never in GitHub, build variables, source or chat), set AUTH_BOT_PROTECTION=true, redeploy.
 - A new key and code alone do not prove live verification: try a real sign-in and read the score Google returns.
+
+## The check in the gateway
+
+`services/gateway/human.go`. Settings are in `env/gateway.env.example` (`HUMAN_CHECK`, `AUTH_HOST`, `RECAPTCHA_SITE_KEY`, `RECAPTCHA_SECRET_KEY`, `RECAPTCHA_HOSTNAMES`, `RECAPTCHA_MIN_SCORE`, `HUMAN_PER_MINUTE`). Guarded requests, all on the auth host:
+
+| Request | Action Google must report |
+| --- | --- |
+| `POST /v1/accounts` | `signup` |
+| `POST /v1/sessions` | `signin` |
+| `POST /v1/oauth/{provider}/start` | `signin` or `signup`, as the body says (default `signin`) |
+| `GET /v1/oauth/{provider}/start` | refused: an address cannot carry a token |
+
+The token is the body's `human_token`. A good token must also come from one of `RECAPTCHA_HOSTNAMES` and score at least the minimum. Everything else, including Google not answering, is a 403 `human_required`, and nothing reaches auth. Each address may make `HUMAN_PER_MINUTE` guarded requests a minute, counted before Google is asked. `GET /v1/security` is edited on the way out so the pages learn the check is on and which site key to use. Auth must not be reachable except through the gateway.
 
 ## Desktop sign-in
 

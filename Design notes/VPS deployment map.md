@@ -133,14 +133,15 @@ DATABASE_SETUP_URL=postgres://callerwhale_owner:<OWNER_ROLE_PASSWORD>@rodavb3rey
 
 The auth URL observed during provisioning still pointed at `6oj2ccetdgr1jgn6h7luiv92`, which is not one of this VPS project's database resources. Replace that old destination with the checked new auth resource and its actual role password. Do not carry over an old URI and assume it connects to a newly created container.
 
-### 3. Finish auth's bot-verification keys
+### 3. Bot verification now lives in the gateway (updated 2026-11-03)
 
-Keep `AUTH_BOT_PROTECTION` enabled as requested. This source version requires matching Google reCAPTCHA v3 values:
+The human check (Google reCAPTCHA v3) is no longer auth's job: it runs in the Go gateway in front of auth (`services/gateway/human.go`, plan in `Caller Whale CRM/docs/plans/bot-protection.md`). Google accepts a token once, so only one of them may check.
 
-- `AUTH_RECAPTCHA_SITE_KEY`
-- `AUTH_RECAPTCHA_SECRET_KEY`
+- **Auth:** set `AUTH_BOT_PROTECTION=false` and leave `AUTH_RECAPTCHA_*` empty. Auth then starts without keys. Delete any `AUTH_TURNSTILE_*` variables: nothing reads them.
+- **Gateway:** set `HUMAN_CHECK=true`, `AUTH_HOST`, `RECAPTCHA_SITE_KEY` (the key's ID), `RECAPTCHA_SECRET_KEY` (its legacy secret key, entered privately in Coolify), `RECAPTCHA_HOSTNAMES` (`callerwhale.com,auth.callerwhale.com`) and optionally `RECAPTCHA_MIN_SCORE` and `HUMAN_PER_MINUTE`. Missing values stop the gateway from starting.
+- **Network:** the public auth name (`auth.callerwhale.com`) must point at the **gateway**, which routes it to `http://auth:8101`. Auth must have no public domain of its own, or the check can be walked around.
 
-A Turnstile secret is not interchangeable. The owner requested auth remain staged until these are obtained. The existing signing/Firebase credentials are preserved. Provider, email-code and redirect behavior still need end-to-end verification after deployment.
+The existing signing/Firebase credentials are preserved. Provider, email-code and redirect behavior still need end-to-end verification after deployment, and the check itself needs one real sign-in through the gateway to read Google's score.
 
 ### 4. Match service caller credentials
 
