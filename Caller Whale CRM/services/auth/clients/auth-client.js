@@ -18,11 +18,17 @@ export class AuthError extends Error {
 
 const REFRESH_KEY = "callerwhale.auth.refresh";
 const EARLY_MS = 60_000;
+/** /v1/me is asked once a minute at most; new tokens, signing out and anything that changes the answer ask again. */
+const ME_MS = 60_000;
 
 export function createAuth({ base, storage = globalThis.localStorage, fetchImpl = (...args) => fetch(...args), now = () => Date.now(), onChange = () => {} }) {
   base = String(base || "").replace(/\/$/, "");
   let access = null;
   let refreshing = null;
+  let known = null; // the last /v1/me request and when it was made
+  const dropMe = () => {
+    known = null;
+  };
 
   const readRefresh = () => {
     try {
@@ -64,6 +70,7 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
 
   function keep(tokens) {
     access = { token: tokens.access_token, expiresAt: now() + tokens.expires_in * 1000 };
+    dropMe(); // new tokens may say something new (the second step passed, the email confirmed)
     if (tokens.refresh_token) writeRefresh(tokens.refresh_token);
     onChange();
     return tokens;
@@ -72,6 +79,7 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
   function forget() {
     const had = access || readRefresh();
     access = null;
+    dropMe();
     writeRefresh(null);
     if (had) onChange();
   }
@@ -138,7 +146,17 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
       await call("POST", "/v1/oauth/exchange", { code }).then(keep);
       return true;
     },
-    me: () => withToken("GET", "/v1/me"),
+    /** Who is signed in and what they have set up. Many callers in a minute share one request; `{ fresh: true }` asks again. */
+    me: ({ fresh = false } = {}) => {
+      if (!fresh && known && now() - known.at < ME_MS) return known.request;
+      const request = withToken("GET", "/v1/me");
+      known = { at: now(), request };
+      // A failed answer is never remembered.
+      request.catch(() => {
+        if (known?.request === request) dropMe();
+      });
+      return request;
+    },
     /** A one-time code that hands this sign-in to the desktop app (sent only to 127.0.0.1 by the website page). */
     handoff: () => withToken("POST", "/v1/handoffs", {}).then(answer => answer.code),
     // ---- the second step (docs/plans/second-factor.md) ----
@@ -158,7 +176,7 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
     decide: (id, approve) => withToken("POST", `/v1/mfa/approvals/${encodeURIComponent(id)}`, { approve }),
     /** What the person has set up, what could be set up, and how many authenticator devices may be on. */
     factors: () => withToken("GET", "/v1/mfa/factors"),
-    removeFactor: id => withToken("DELETE", `/v1/mfa/factors/${encodeURIComponent(id)}`),
+    removeFactor: id => withToken("DELETE", `/v1/mfa/factors/${encodeURIComponent(id)}`).finally(dropMe),
     setupMfa: () => withToken("POST", "/v1/mfa/totp/setup"),
     /** Adds an authenticator device; a fourth removes the oldest (`removed` names them). The session counts as confirmed. */
     confirmMfa: async (code, label) => {
@@ -170,7 +188,7 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
     linkTelegram: () => withToken("POST", "/v1/mfa/telegram/link"),
     /** Confirms a code from an authenticator device for this session (the older step-up). */
     verifyMfa: async code => keep(await withToken("POST", "/v1/mfa/verify", { code })),
-    verifyEmail: token => call("POST", "/v1/email/verify", { token }),
+    verifyEmail: token => call("POST", "/v1/email/verify", { token }).finally(dropMe),
     /** A new confirmation link; then a fresh token says whether the email is confirmed. */
     resendEmail: () => withToken("POST", "/v1/email/resend"),
     signOut: async () => {

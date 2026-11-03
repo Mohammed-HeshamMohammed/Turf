@@ -62,14 +62,14 @@ export function RemoteGate({ onReady, onLeave }) {
       setMe(identity);
       if (identity.mfa.required && !identity.mfa.passed) {
         // Auth knows whether two-step sign-in is on; Caller Whale's server only knows whether this session passed it.
-        const person = await auth.me();
         // Ask the auth service which ways this person has (an authenticator, email, Telegram, an approval on another device).
         const offered = await auth.startStepUp().catch(() => null);
         if (offered?.methods?.length) {
           setSecond(offered);
           return setStep("second");
         }
-        return setStep(person.mfa_enrolled ? "stepup" : "enroll");
+        // Only now is /v1/me needed: to tell a person who has an authenticator from one who must set it up.
+        return setStep((await auth.me()).mfa_enrolled ? "stepup" : "enroll");
       }
       // The trial or plan has run out: the server refuses CRM records until it is renewed on the website.
       if (identity.subscription && !identity.subscription.usable) setStep("plan");

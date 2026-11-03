@@ -131,6 +131,14 @@ function run() {
     git(["read-tree", "--empty"], { env });
     for (const rel of component.paths) addPath(rel);
     addPath(".gitignore", { optional: true });
+    // A branch root .env.example, copied from the example this part's environment follows (the path is from the repository root).
+    if (component.envExample) {
+      try {
+        put(".env.example", git(["show", `${sha}:${component.envExample}`]));
+      } catch {
+        console.log(`${component.name}: ${component.envExample} is not in ${from}, no .env.example`);
+      }
+    }
     // Every branch carries the repository's licence (LICENSE at the root of main).
     try {
       put("LICENSE", git(["show", `${sha}:LICENSE`]));

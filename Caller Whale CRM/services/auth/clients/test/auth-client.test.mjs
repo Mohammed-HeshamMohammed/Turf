@@ -232,3 +232,47 @@ test("human proofs are sent only to auth, including protected social starts", as
   assert.deepEqual(calls.at(-1).body, { target: "desktop", port: 48123, human_token: "social-proof", action: "signin" });
   assert.equal(calls.at(-1).init.method, "POST");
 });
+
+test("/v1/me is asked once a minute, and again when anything that changes it happens", async () => {
+  let clock = 0;
+  let asked = 0;
+  const { fetchImpl } = fakeService({
+    "/v1/sessions": tokens("A1", "R1", 900),
+    "/v1/sessions/refresh": tokens("A2", "R2", 900),
+    "/v1/me": () => {
+      asked++;
+      return { status: 200, body: { mfa_enrolled: false, mfa_passed: asked > 3 } };
+    },
+  });
+  const auth = createAuth({ base: "http://auth.example", storage: memoryStorage(), fetchImpl, now: () => clock });
+  await auth.signIn("s@example.com", "pw");
+  // Many callers at once, and again a moment later: one request.
+  await Promise.all([auth.me(), auth.me(), auth.me()]);
+  clock = 30_000;
+  await auth.me();
+  assert.equal(asked, 1);
+  // A minute later it is asked again.
+  clock = 61_000;
+  await auth.me();
+  assert.equal(asked, 2);
+  // fresh asks again at once.
+  await auth.me({ fresh: true });
+  assert.equal(asked, 3);
+  // New tokens (a refresh) may say something new: asked again.
+  await auth.refresh();
+  assert.equal((await auth.me()).mfa_passed, true);
+  assert.equal(asked, 4);
+});
+
+test("a failed /v1/me is never remembered", async () => {
+  let asked = 0;
+  const { fetchImpl } = fakeService({
+    "/v1/sessions": tokens("A1", "R1", 900),
+    "/v1/me": () => (++asked === 1 ? { status: 500, body: { error: "Try again.", code: "error" } } : { status: 200, body: { mfa_enrolled: true } }),
+  });
+  const auth = createAuth({ base: "http://auth.example", storage: memoryStorage(), fetchImpl });
+  await auth.signIn("s@example.com", "pw");
+  await assert.rejects(auth.me());
+  assert.equal((await auth.me()).mfa_enrolled, true);
+  assert.equal(asked, 2);
+});
