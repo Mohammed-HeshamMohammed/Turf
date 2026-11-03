@@ -131,6 +131,8 @@ function run() {
     git(["read-tree", "--empty"], { env });
     for (const rel of component.paths) addPath(rel);
     addPath(".gitignore", { optional: true });
+    // "exclude" drops files that belong on main but not on this branch (e.g. the source folder README).
+    for (const rel of component.exclude ?? []) git(["update-index", "--force-remove", rel], { env });
     if (component.rust) {
       addPath("Cargo.lock");
       const files = listing();
@@ -167,7 +169,8 @@ function run() {
     }
     let before = "";
     try {
-      before = git(["show", `${parent}:${NOTE}`]).match(/Content id: `([0-9a-f]+)`/)?.[1] ?? "";
+      // A branch with "note": false has no readme.md; its content id is kept in the commit message instead.
+      before = (component.note === false ? git(["log", "-1", "--format=%B", parent]) : git(["show", `${parent}:${NOTE}`])).match(/Content id: `?([0-9a-f]{40})/)?.[1] ?? "";
     } catch {
       before = "";
     }
@@ -175,17 +178,20 @@ function run() {
       console.log(`${component.name}: up to date`);
       continue;
     }
-    put(NOTE, note(component, { ref: from, short, date, files: files.length + 1, content }));
+    const noted = component.note !== false;
+    if (noted) put(NOTE, note(component, { ref: from, short, date, files: files.length + 1, content }));
     const tree = git(["write-tree"], { env }).trim();
     if (flag("--list")) {
-      console.log(`${component.name}: ${files.length + 1} files  (${component.paths.join(", ")})`);
+      console.log(`${component.name}: ${files.length + (noted ? 1 : 0)} files  (${component.paths.join(", ")})`);
       continue;
     }
-    const message = `${component.title}: production snapshot of main ${short}${trailer}`;
+    const message = `${component.title}: production snapshot of main ${short}${noted ? "" : `
+
+Content id: ${content}`}${trailer}`;
     const commit = git(["commit-tree", tree, ...(parent ? ["-p", parent] : []), "-m", message]).trim();
     git(["update-ref", ref, commit, ...(parent ? [parent] : [])]);
     changed.push(component.name);
-    console.log(`${component.name}: ${parent ? "updated" : "created"} (${files.length + 1} files)`);
+    console.log(`${component.name}: ${parent ? "updated" : "created"} (${files.length + (noted ? 1 : 0)} files)`);
   }
   rmSync(indexFile, { force: true });
   if (flag("--push") && !flag("--list")) {
