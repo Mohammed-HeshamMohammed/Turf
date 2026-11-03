@@ -5,7 +5,7 @@ async fn setup_history_survives_the_table_rename_and_restarts() {
     let db = connect("sqlite::memory:").await.unwrap();
     setup_database(&db).await.unwrap();
     let before: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM database_setup_history").fetch_one(&db).await.unwrap();
-    assert_eq!(before, 6);
+    assert_eq!(before, 7);
     sqlx::query("ALTER TABLE database_setup_history RENAME TO schema_migrations").execute(&db).await.unwrap();
     setup_database(&db).await.unwrap();
     setup_database(&db).await.unwrap();

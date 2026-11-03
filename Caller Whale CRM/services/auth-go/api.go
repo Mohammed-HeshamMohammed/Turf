@@ -42,6 +42,8 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/sessions/sign-out", serve(s.signOut))
 	mux.Handle("POST /v1/sessions/revoke", serve(s.revoke))
 	mux.Handle("GET /v1/me", serve(s.me))
+	s.accountRoutes(mux)
+	s.mfaRoutes(mux)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]any{"error": "Not found."})
 	})
@@ -210,23 +212,42 @@ func (s *server) signIn(w http.ResponseWriter, r *http.Request) error {
 	if u.disabled {
 		return errWrongCredentials
 	}
-	return s.finishSignIn(ctx, w, u, kind, "password", login.refreshToken, email)
+	return s.finishSignIn(ctx, w, u, kind, "password", login.refreshToken, email, body.Code)
 }
 
-// finishSignIn runs after the password is right. A person who has set up a second step must pass it before a session opens;
-// until the second step is ported (docs/plans/go-auth.md, phase 3) this service refuses them, never skips it.
-func (s *server) finishSignIn(ctx context.Context, w http.ResponseWriter, u *user, kind, provider, fbRefresh, email string) error {
+// finishSignIn runs after the password is right: a person who has set up a second step passes it (a code sent along with the sign-in,
+// or a challenge to answer) before a session opens; anyone else gets a session that has not passed one yet.
+func (s *server) finishSignIn(ctx context.Context, w http.ResponseWriter, u *user, kind, provider, fbRefresh, email, code string) error {
+	passed := false
 	enrolled, err := s.mfaEnrolled(ctx, u.id)
 	if err != nil {
 		return err
 	}
 	if enrolled {
-		return errSecondStepPending
+		code = strings.TrimSpace(code)
+		if code == "" {
+			challenge, err := s.challengeError(ctx, u, "", kind, provider, fbRefresh)
+			if err != nil {
+				return err
+			}
+			return challenge
+		}
+		ok, err := s.verifyTOTP(ctx, u, code)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			if err := s.recordFailure(ctx, email); err != nil {
+				return err
+			}
+			return errWrongCode
+		}
+		passed = true
 	}
 	if _, err := s.db.Exec(ctx, "DELETE FROM failed_sign_ins WHERE email = $1", email); err != nil {
 		return err
 	}
-	reply, err := s.openSession(ctx, u, kind, false, provider, fbRefresh)
+	reply, err := s.openSession(ctx, u, kind, passed, provider, fbRefresh)
 	if err != nil {
 		return err
 	}

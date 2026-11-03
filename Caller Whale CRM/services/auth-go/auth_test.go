@@ -190,7 +190,7 @@ func TestTheDatabaseIsBroughtUpToDateOnceAndSafelyTogether(t *testing.T) {
 	db := testDB(t)
 	ctx := context.Background()
 	var versions int
-	if err := db.QueryRow(ctx, "SELECT COUNT(*) FROM database_setup_history").Scan(&versions); err != nil || versions != 6 {
+	if err := db.QueryRow(ctx, "SELECT COUNT(*) FROM database_setup_history").Scan(&versions); err != nil || versions != 7 {
 		t.Fatalf("history %d %v", versions, err)
 	}
 	// Again, and from several instances at once: nothing runs twice and nothing fails.
@@ -205,7 +205,7 @@ func TestTheDatabaseIsBroughtUpToDateOnceAndSafelyTogether(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if err := db.QueryRow(ctx, "SELECT COUNT(*) FROM database_setup_history").Scan(&versions); err != nil || versions != 6 {
+	if err := db.QueryRow(ctx, "SELECT COUNT(*) FROM database_setup_history").Scan(&versions); err != nil || versions != 7 {
 		t.Fatalf("history %d %v", versions, err)
 	}
 }
@@ -454,27 +454,6 @@ func TestAnOldFirebaseAuthenticatorIsRefusedPlainly(t *testing.T) {
 	a := w.call("POST", "/v1/sessions", map[string]any{"email": "sami@example.com", "password": goodPassword}, "")
 	if a.status != 403 || !strings.Contains(a.str("error"), "old authenticator") {
 		t.Fatalf("%d %v", a.status, a.body)
-	}
-}
-
-func TestAPersonWithASecondStepIsNeverLetInWithoutIt(t *testing.T) {
-	w := newWorld(t)
-	made := w.signUp("sami@example.com")
-	c, _ := w.s.keys.verify(made.access(), time.Now())
-	if _, err := w.s.db.Exec(context.Background(), "INSERT INTO mfa_factors (id, user_id, kind, label, secret, created_at, n) VALUES ('f1', $1, 'totp', 'phone', 'SECRET', $2, 1)", c.Sub, now()); err != nil {
-		t.Fatal(err)
-	}
-	before := w.count("SELECT COUNT(*) FROM sessions")
-	a := w.call("POST", "/v1/sessions", map[string]any{"email": "sami@example.com", "password": goodPassword, "code": "123456"}, "")
-	if a.status != 503 || a.str("code") != "second_step_unavailable" || a.access() != "" {
-		t.Fatalf("%d %v", a.status, a.body)
-	}
-	if w.count("SELECT COUNT(*) FROM sessions") != before {
-		t.Fatal("no session may open")
-	}
-	// /v1/me says what they have.
-	if me := w.call("GET", "/v1/me", nil, made.access()); me.body["mfa_enrolled"] != true || me.body["mfa_passed"] != false {
-		t.Fatalf("%v", me.body)
 	}
 }
 

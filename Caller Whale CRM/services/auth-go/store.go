@@ -29,7 +29,10 @@ type server struct {
 	db   *pgxpool.Pool
 	keys *keys
 	fb   *firebase
-	mail mailer // nil: no notification service, Firebase sends its own emails
+	mail mailer    // nil: no notification service, Firebase sends its own emails
+	tg   *telegram // nil: Telegram is not offered
+
+	resets resetThrottle // password reset emails per address
 }
 
 type user struct {

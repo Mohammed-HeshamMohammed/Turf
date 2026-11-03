@@ -71,6 +71,9 @@ func run() error {
 	if cfg.notifyURL != "" && cfg.notifyToken != "" {
 		s.mail = newNotify(cfg.notifyURL, cfg.notifyToken)
 	}
+	if cfg.telegramToken != "" {
+		s.tg = newTelegram(cfg.telegramToken, cfg.telegramBot, cfg.telegramAPI)
+	}
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 	failed := make(chan error, 1)
 	go func() { failed <- srv.ListenAndServe() }()

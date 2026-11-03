@@ -27,11 +27,10 @@ func forbidden(message string) *apiError { return newError(http.StatusForbidden,
 func conflict(message string) *apiError  { return newError(http.StatusConflict, "conflict", message) }
 
 var (
-	errUnauthenticated   = newError(http.StatusUnauthorized, "unauthenticated", "Sign in first.")
-	errWrongCredentials  = newError(http.StatusUnauthorized, "wrong_credentials", "Wrong email or password.")
-	errWrongCode         = newError(http.StatusUnauthorized, "wrong_code", "That code is not right.")
-	errTooMany           = newError(http.StatusTooManyRequests, "too_many_attempts", "Too many attempts. Wait 15 minutes and try again.")
-	errSecondStepPending = newError(http.StatusServiceUnavailable, "second_step_unavailable", "Sign-in with a second step is not available on this server yet. Try again later.")
+	errUnauthenticated  = newError(http.StatusUnauthorized, "unauthenticated", "Sign in first.")
+	errWrongCredentials = newError(http.StatusUnauthorized, "wrong_credentials", "Wrong email or password.")
+	errWrongCode        = newError(http.StatusUnauthorized, "wrong_code", "That code is not right.")
+	errTooMany          = newError(http.StatusTooManyRequests, "too_many_attempts", "Too many attempts. Wait 15 minutes and try again.")
 )
 
 // handler is a route that answers with an error instead of writing one.

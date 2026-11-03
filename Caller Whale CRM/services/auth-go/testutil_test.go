@@ -218,10 +218,12 @@ func (f *fakeFirebase) verify(email string) {
 
 // capture is a mailer that remembers what it was asked to send.
 type capture struct {
-	mu    sync.Mutex
-	links []string
-	to    []string
-	fail  bool
+	mu     sync.Mutex
+	links  []string
+	to     []string
+	codes  []string // sign-in codes asked for, with who they went to in codeTo
+	codeTo []string
+	fail   bool
 }
 
 func (c *capture) sendConfirmation(_ context.Context, to, _ string, link string) error {
@@ -233,7 +235,15 @@ func (c *capture) sendConfirmation(_ context.Context, to, _ string, link string)
 	c.to, c.links = append(c.to, to), append(c.links, link)
 	return nil
 }
-func (c *capture) sendCode(context.Context, string, string) error { return nil }
+func (c *capture) sendCode(_ context.Context, to, code string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.fail {
+		return fmt.Errorf("down")
+	}
+	c.codeTo, c.codes = append(c.codeTo, to), append(c.codes, code)
+	return nil
+}
 
 // world is the service under test with its stand-ins.
 type world struct {

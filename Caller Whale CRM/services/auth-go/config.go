@@ -29,6 +29,11 @@ type config struct {
 
 	notifyURL   string
 	notifyToken string
+
+	telegramToken  string // the bot that sends the Telegram codes; empty: Telegram is not offered
+	telegramBot    string
+	telegramAPI    string
+	telegramSecret string // the secret in the webhook's address
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -66,6 +71,10 @@ func loadConfig(getenv func(string) string) (config, error) {
 		firebaseToken:    trimSlash(get("AUTH_FIREBASE_TOKEN_URL", "https://securetoken.googleapis.com")),
 		notifyURL:        trimSlash(getenv("AUTH_NOTIFY_URL")),
 		notifyToken:      strings.TrimSpace(getenv("AUTH_NOTIFY_TOKEN")),
+		telegramToken:    strings.TrimSpace(getenv("AUTH_TELEGRAM_BOT_TOKEN")),
+		telegramBot:      strings.TrimSpace(getenv("AUTH_TELEGRAM_BOT_NAME")),
+		telegramAPI:      trimSlash(get("AUTH_TELEGRAM_API_URL", "https://api.telegram.org")),
+		telegramSecret:   strings.TrimSpace(getenv("AUTH_TELEGRAM_WEBHOOK_SECRET")),
 	}
 	if c.databaseURL == "" {
 		return c, errors.New("set DATABASE_URL, a PostgreSQL address like postgres://user:password@host:5432/callerwhale_auth")

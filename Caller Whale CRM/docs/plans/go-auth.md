@@ -128,3 +128,16 @@ Everything above also has to hold the "Cases" listed earlier in this note.
 ### Phase 1 status (2026-11-03): done
 
 `services/auth-go` has the core: 27 tests against a real PostgreSQL and a fake Firebase, `go vet` and `gofmt` clean. Checked: a token signed here verifies with the Rust `callerwhale-auth-verify` crate that the core API uses (same header, claims and key id); the refresh race (8 parallel requests with one token: exactly one wins); the lockout; a person with a second step is refused with 503, never let in; Firebase down is a 500 and not a failed sign-in; closing a session stops its access token at once. Not done: the Go race detector (needs a C compiler on this machine), a load test, the Docker image build (no Docker here). Next: phase 2.
+
+### Phase 2 and 3 status (2026-11-03): done
+
+Phase 2 (`account.go`): change password, forgot (the same answer for any address, three emails an hour per address), reset (ends every session), email verify (one atomic statement uses the link; Firebase's own codes still work) and resend. Phase 3 (`mfa.go`, `telegram.go`): authenticator devices (three, the fourth removes the oldest), recovery codes (ten, once, only hashes kept), email and Telegram codes, approval on another device, step-up, every `/v1/mfa/*` route. 80+ tests against PostgreSQL pass.
+
+Hardening beyond the Rust service, each with a test:
+- **An authenticator code works once.** The time step of the last accepted code is kept (`database_setup/0007_totp_replay.sql`, in both services), so the same code cannot be replayed inside its clock window (RFC 6238 section 5.2).
+- **Five tries, counted before the answer is looked at**, in one statement: thirty parallel guesses get five looks between them. A challenge completes once, and an email or Telegram code is used once, even with answers arriving together.
+- **Recovery codes** for a lost device (the Rust service gives none in Firebase mode): ten, four groups of five hex digits, typed with or without dashes and capitals, each used once.
+- **A hole closed in the Rust service too (`mfa.rs`)**: a session that had not passed a second step (a Google sign-in, or any session opened before one was set up) could add its own authenticator to an account that already had one, pass the step-up with it, and so choose its own second step. Adding a device now needs a session that passed one, read from the session row (not the token, which can be stale). Test in both services.
+- Forgot-password cannot be used to fill an inbox; a Firebase outage is a 500, never a "wrong password" or a counted failure.
+
+Left for the review after the build: TOTP secrets are stored as plain base32 (the Rust service does the same); encrypt them at rest with a key derived from a separate setting. Telegram uses two plain HTTPS calls instead of a library (a library would add more code than it saves). Next: phase 4.
