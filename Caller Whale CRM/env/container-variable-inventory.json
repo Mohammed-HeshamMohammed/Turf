@@ -20,8 +20,7 @@
       "AUTH_FIREBASE_API_KEY",
       "AUTH_ALLOWED_ORIGINS",
       "AUTH_NOTIFY_URL",
-      "AUTH_NOTIFY_TOKEN",
-      "AUTH_BOT_PROTECTION"
+      "AUTH_NOTIFY_TOKEN"
     ],
     "core-api": [
       "DATABASE_URL",

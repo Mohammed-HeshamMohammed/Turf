@@ -59,7 +59,7 @@ func start(t *testing.T, binary, databaseURL, firebaseURL, signingKey string) *r
 	cmd := exec.Command(binary)
 	cmd.Env = append(os.Environ(),
 		"PORT="+port, "DATABASE_URL="+databaseURL, "AUTH_SIGNING_KEY="+signingKey, "AUTH_FIREBASE_API_KEY=test-key",
-		"AUTH_FIREBASE_IDENTITY_URL="+firebaseURL, "AUTH_FIREBASE_TOKEN_URL="+firebaseURL, "AUTH_BOT_PROTECTION=false",
+		"AUTH_FIREBASE_IDENTITY_URL="+firebaseURL, "AUTH_FIREBASE_TOKEN_URL="+firebaseURL,
 	)
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)

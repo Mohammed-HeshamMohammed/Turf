@@ -40,7 +40,7 @@ cd services/gateway && ROUTES=localhost=http://127.0.0.1:8088 CORE_HOST=localhos
 
 ## Things to know
 
-- **Human check.** The gateway verifies the token with Google (an 8 second limit, no redirects, no address sent); a missing, reused, expired, wrong-action, wrong-site, low-score or unverifiable token is a 403 `human_required`, and Google being unreachable also refuses (it fails closed). It also edits `GET /v1/security` so the pages see the check is on with the site key, because auth itself answers "off". Auth must run with `AUTH_BOT_PROTECTION=false` and be reachable only through this gateway (no public route of its own), or the check can be walked around. Per-route scores are in `ruleFor` in `human.go`; payment routes get their own rule there.
+- **Human check.** The gateway verifies the token with Google (an 8 second limit, no redirects, no address sent); a missing, reused, expired, wrong-action, wrong-site, low-score or unverifiable token is a 403 `human_required`, and Google being unreachable also refuses (it fails closed). It also edits `GET /v1/security` so the pages see the check is on with the site key, because auth itself answers "off". Auth must be reachable only through this gateway (no public route of its own), or the check can be walked around. Per-route scores are in `ruleFor` in `human.go`; payment routes get their own rule there.
 
 - Run it only behind a trusted proxy (Coolify's Traefik) and set `PROXY_HOPS` to match, or callers could choose their own address for the rate limit.
 - The limits are in memory, per copy. With several copies each counts for itself; move them to Redis when there is more than one.

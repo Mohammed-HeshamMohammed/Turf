@@ -47,7 +47,5 @@ AUTH_TELEGRAM_BOT_NAME=<@bot_name, or empty>
 AUTH_TELEGRAM_WEBHOOK_SECRET=<a long random string, or empty>
 
 # Human check. The Go gateway does it now (env/gateway.env.example: HUMAN_CHECK and RECAPTCHA_*), because Google accepts a token once and
-# a second check here would refuse every real sign-in. Keep this false; auth has no reCAPTCHA settings. auth must be reachable only through the
+# a second check here would refuse every real sign-in. Auth has no reCAPTCHA settings. It must be reachable only through the
 # gateway. Any AUTH_TURNSTILE_* variable left in Coolify from an older setup is ignored and can be deleted.
-# Keep false: the gateway does the human check, and Google accepts a token once. true makes auth refuse to start. Needs no keys here.
-AUTH_BOT_PROTECTION=false

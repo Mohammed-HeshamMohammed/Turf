@@ -8,7 +8,7 @@ The authentication service, in Go. It replaced the Rust service that used to liv
 | Port | 8101 |
 | Data | PostgreSQL only (`database_setup_history` plus the numbered SQL in `database_setup/`) |
 | Accounts | Firebase holds accounts and passwords (always needs `AUTH_FIREBASE_API_KEY`); this service keeps no passwords |
-| Human check | Not here. The gateway checks reCAPTCHA; `AUTH_BOT_PROTECTION=true` stops this service from starting |
+| Human check | Not here. The gateway checks reCAPTCHA; this service has no setting for it |
 | Settings | [env/auth.production.example](../../env/auth.production.example) |
 | Token check for other services | `../auth-verify` (Rust crate the core API uses); `clients/` (JavaScript sign-in client, copied into the apps by `clients/sync.mjs`) |
 
@@ -33,7 +33,7 @@ Every route (the gateway's allow-list in `services/gateway/shield.go` is checked
 | Health check | the image has one (`/service health`); or HTTP `/healthz` on 8101 |
 | Settings | every key in [env/auth.production.example](../../env/auth.production.example), in Coolify only |
 
-The service creates and updates its own tables when it starts, so it only needs an empty PostgreSQL database and its role. `AUTH_BOT_PROTECTION` stays `false`; the gateway does the human check.
+The service creates and updates its own tables when it starts, so it only needs an empty PostgreSQL database and its role. The gateway does the human check.
 
 ## The contract
 
