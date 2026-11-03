@@ -34,7 +34,6 @@ test("parts that scale have an autoscaler and never lose their last copy; the si
     // With an autoscaler the Deployment leaves the count to it.
     assert.equal(/^  replicas:/m.test(out[`${s.name}/deployment.yaml`]), !scales, s.name);
   }
-  assert.match(out["landing-api/deployment.yaml"], /type: Recreate/);
   assert.match(out["core-api/deployment.yaml"], /maxUnavailable: 0/);
 });
 

@@ -430,6 +430,8 @@ func TestClassifyListsWhatEachPathNeeds(t *testing.T) {
 		{"GET", "/api/v1/me", signedIn}, {"POST", "/sync/push", signedIn}, {"GET", "/events", signedIn},
 		{"GET", "/api/v1/platform/staff", staff}, {"GET", "/api/v1/platform", staff},
 		{"GET", "/api/v1/platformx", signedIn},
+		{"POST", "/api/v1/public/waitlist", open}, {"POST", "/api/v1/public/contact", open},
+		{"GET", "/api/v1/public/waitlist", signedIn}, {"POST", "/api/v1/public/other", signedIn}, {"GET", "/api/v1/platform/waitlist", staff},
 	} {
 		if got := classify(c.method, c.path); got != c.want {
 			t.Errorf("%s %s: got %d, want %d", c.method, c.path, got, c.want)

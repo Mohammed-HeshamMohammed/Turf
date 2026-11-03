@@ -62,6 +62,7 @@
         "CALLERWHALE_GRAFANA_URL": "Protected gateway monitoring subpath exposed to staff UI. Empty hides the link; never replace it with a direct public Grafana address.",
         "CALLERWHALE_NOTIFY_URL": "Notification-service base URL for invitation email. Together with CALLERWHALE_NOTIFY_TOKEN enables delivery; the API itself holds no SMTP login.",
         "CALLERWHALE_NOTIFY_TOKEN": "Secret caller token matching core-api's NOTIFY_TOKENS entry. Rotate both sides together or invitation delivery fails.",
+        "CALLERWHALE_CONTACT_INBOX": "Email address that receives the website's contact-form messages, sent through the notification service. Empty: the form answers that it cannot send right now.",
         "CALLERWHALE_RELEASE_REPO": "GitHub owner/repository supplying desktop release assets. Wrong repository breaks downloads/update discovery; this is not the product display name.",
         "CALLERWHALE_RELEASE_TAG_PREFIX": "Release tag prefix identifying desktop releases; default crm-v. Changing it changes which releases are considered desktop updates.",
         "CALLERWHALE_GITHUB_TOKEN": "Optional secret GitHub read token for private release assets. Empty supports public releases only; keep scopes minimal and server-side."
@@ -109,18 +110,6 @@
         "SCAN_PAUSE_MINUTES": "Minutes an address stays paused after passing SCAN_LIMIT; default 15."
       }
     },
-    "landing-api": {
-      "description": "Public website API for contact/waitlist persistence and desktop-release metadata.",
-      "sources": [
-        "landing/api/src/server.mjs"
-      ],
-      "variables": {
-        "PORT": "Website API HTTP listening port; default 8095. Match Coolify's container port.",
-        "CALLERWHALE_LANDING_DB": "SQLite database file for website submissions; default data/landing.db. Persist its directory; changing the path selects a different submission store.",
-        "CALLERWHALE_RELEASE_REPO": "GitHub owner/repository used to look up desktop releases. Keep aligned with the release publisher; wrong repository breaks download discovery.",
-        "CALLERWHALE_LANDING_ORIGINS": "Comma-separated origins allowed to call the website API. Production should name the intended website origins only."
-      }
-    },
     "landing-web": {
       "description": "Public static React site; build-time API addresses and runtime nginx content-security-policy origins must agree.",
       "sources": [
@@ -130,10 +119,8 @@
       "variables": {
         "SITE_URL": "Build-time canonical website base URL for prerendered pages/sitemap. Requires rebuilding the frontend to change; contains no secret.",
         "VITE_CALLERWHALE_API_URL": "Build-time public gateway URL embedded in browser JavaScript. Rebuild to change; never place private keys or credentials in VITE settings.",
-        "VITE_CALLERWHALE_LANDING_API_URL": "Build-time public contact/waitlist API URL embedded in browser JavaScript. Rebuild to change and align LANDING_API_ORIGIN.",
         "AUTH_ORIGIN": "Runtime nginx CSP origin permitting browser calls to central auth. Wrong value can block sign-in even when auth is healthy; use an origin, not a URL path.",
         "API_ORIGIN": "Runtime nginx CSP origin permitting core API/gateway calls. Keep aligned with the built VITE_CALLERWHALE_API_URL.",
-        "LANDING_API_ORIGIN": "Runtime nginx CSP origin permitting contact/waitlist API calls. Keep aligned with the built VITE_CALLERWHALE_LANDING_API_URL.",
         "GRAFANA_ORIGIN": "Runtime CSP frame origin for staff monitoring. Use the protected gateway origin; not a direct public Grafana endpoint."
       }
     },

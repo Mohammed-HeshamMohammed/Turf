@@ -6,7 +6,6 @@ One branch per part of Caller Whale, each holding **only that part's code**, so 
 | --- | --- |
 | `landing-web-production` | The landing site's frontend, exported from `landing/web` to the branch root |
 | `landing-dashboard-web-production` | Independent dashboard frontend foundation, exported from `landing/dashboard-web` to the branch root |
-| `landing-backend-production` | The landing site's backend (`landing/api`) |
 | `auth-backend-production` | The authentication service (`services/auth`) |
 | `notifications-backend-production` | The notification service |
 | `gateway-backend-production` | The gateway: the one public entry point (it only answers its health check so far) |

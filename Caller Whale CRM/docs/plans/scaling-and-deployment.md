@@ -9,7 +9,6 @@ Every `*-production` branch (`docs/plans/production-branches.md`) is one contain
 | Branch | Dockerfile | Build context | Port | Copies it can run |
 | --- | --- | --- | --- | --- |
 | `landing-web-production` | `landing/web/Dockerfile` | `landing/web` | 8080 | any number |
-| `landing-backend-production` | `landing/api/Dockerfile` | `landing/api` | 8095 | **exactly one** (SQLite file in `/data`) |
 | `auth-backend-production` | `services/auth/Dockerfile` | `.` (the branch root) | 8101 | any number, on PostgreSQL |
 | `notifications-backend-production` | `services/notifications/Dockerfile` | `services/notifications` | 8102 | any number |
 | `gateway-backend-production` | `services/gateway/Dockerfile` | `services/gateway` | 8100 | any number |
@@ -27,7 +26,6 @@ Caller Whale runs on Coolify at `187.7.72.171`, in the project "Caller Whale". T
 | Container (Coolify) | Address | Port | What it is |
 | --- | --- | --- | --- |
 | landing-web | `https://callerwhale.com` | 8080 | The public site (static). Build and runtime settings: `env/landing-web.production.example` |
-| landing-api | `https://api.callerwhale.com` | 8095 | Waitlist and contact (`/waitlist`, `/contact`), no path prefix |
 | gateway | `https://gate.callerwhale.com` | 8100 | The front door for the CRM's API and the staff monitoring page (`/staff/monitoring`); routes to core-api (docs/plans/gateway.md) |
 | core-api | `https://appapi.callerwhale.com` | 8088 | The CRM's API: sign-in checks, invitations, credits, the download. Needs PostgreSQL |
 | core-api-worker | `https://appapiw.callerwhale.com` | 8090 | The job worker; the address only serves its health page |
@@ -87,7 +85,6 @@ What was checked in the code:
 | --- | --- | --- | --- | --- |
 | Uploaded files live on the local disk | `CALLERWHALE_ARTIFACT_DIR` (`routes/artifacts.rs`, `routes/worker_data.rs`) | A file uploaded to copy A does not exist on copy B | Object storage (any S3-compatible: R2, MinIO, B2). Until then a shared `ReadWriteMany` volume | No |
 | Sign-up rate limit is in memory | `SIGNUPS` in `routes/billing.rs` | Each copy counts on its own, so the limit multiplies by the number of copies | A Redis counter | No |
-| Landing API keeps a SQLite file | `landing/api/src/store.mjs` | One writer only | Move it to PostgreSQL if the site ever needs two copies | No (runs as exactly one) |
 | The gateway does not route yet | `services/gateway/main.go` | It only answers `/healthz` and `/version`; the apps talk to the services directly | Build routing and rate limits | No |
 | No read/write split | one `DATABASE_URL` | Replicas would sit idle | See replication below | No |
 

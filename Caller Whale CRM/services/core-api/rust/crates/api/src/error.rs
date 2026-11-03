@@ -25,6 +25,9 @@ pub enum ApiError {
     /// The organization's plan has run out (trial over, minutes used, payment due).
     #[error("{0}")]
     PaymentRequired(String),
+    /// Something this server depends on (the mail service) could not be reached.
+    #[error("{0}")]
+    Unavailable(String),
     #[error("internal error")]
     Internal(#[from] anyhow::Error),
 }
@@ -49,6 +52,7 @@ impl ApiError {
             ApiError::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
             ApiError::TooMany(_) => (StatusCode::TOO_MANY_REQUESTS, "rate_limited"),
             ApiError::PaymentRequired(_) => (StatusCode::PAYMENT_REQUIRED, "payment_required"),
+            ApiError::Unavailable(_) => (StatusCode::SERVICE_UNAVAILABLE, "unavailable"),
             ApiError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal"),
         }
     }

@@ -23,8 +23,8 @@ Inspect values securely and record only presence/validity, never secrets, in aud
 
 | Component | Check |
 | --- | --- |
-| Landing web build | SITE_URL, VITE_CALLERWHALE_API_URL, VITE_CALLERWHALE_LANDING_API_URL match intended hosts |
-| Landing web runtime | AUTH_ORIGIN, API_ORIGIN, LANDING_API_ORIGIN, GRAFANA_ORIGIN align with generated URLs and CSP |
+| Landing web build | SITE_URL, VITE_CALLERWHALE_API_URL match intended hosts |
+| Landing web runtime | AUTH_ORIGIN, API_ORIGIN, GRAFANA_ORIGIN align with generated URLs and CSP |
 | Auth | Public/callback/landing URLs, origin allowlist, signup policy, dev tokens off, provider readiness, notification delivery, Turnstile configuration |
 | Gateway | Host mappings, CORE_HOST, JWKS, private monitoring upstream, proxy hops, rate limits, preflight regression |
 | Core API | Auth key source, origin allowlist, private DB connection, staff/elevation policy, account/download authorization |

@@ -102,6 +102,8 @@ paths:
   /api/v1/artifacts: { post: { summary: "Stream a file; query name, lead_id, visibility" } }
   /api/v1/artifacts/{sha256}: { get: { summary: Download a file you may see } }
   /api/v1/plans: { get: { summary: Plans and their prices } }
+  /api/v1/public/waitlist: { post: { summary: "The website's waitlist form: no sign-in; the same answer whether or not the address was already there" } }
+  /api/v1/public/contact: { post: { summary: "The website's contact form: no sign-in; emailed on through the notification service, not stored" } }
   /api/v1/billing: { get: { summary: "This organization's plan, seats, usage and payments" } }
   /api/v1/billing/checkout: { post: { summary: Start a checkout for a plan } }
   /api/v1/billing/webhook: { post: { summary: "Payment provider events; signature checked against the raw body, each counted once" } }
@@ -115,6 +117,7 @@ paths:
   /api/v1/platform/people/{id}/access: { post: { summary: "Staff: turn a person's access off or on" } }
   /api/v1/platform/staff: { get: { summary: "Staff: Caller Whale's staff" }, post: { summary: "Owner: name or remove a system administrator" } }
   /api/v1/platform/payments: { get: { summary: "Staff: every payment" } }
+  /api/v1/platform/waitlist: { get: { summary: "Staff: the people on the website's waitlist" } }
   /api/v1/platform/activity: { get: { summary: "Staff: what staff changed" } }
   /api/v1/platform/workspace: { post: { summary: "Staff: open a staff workspace with no plan limits" } }
   /api/v1/platform/customers: { post: { summary: "Staff: open a trial workspace for a customer, with an invitation that makes them its owner" } }

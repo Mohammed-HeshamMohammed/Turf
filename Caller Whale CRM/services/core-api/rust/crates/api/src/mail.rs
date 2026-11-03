@@ -29,6 +29,27 @@ pub async fn send_invitation(config: &Config, to: &str, name: &str, inviter: &st
     Ok(())
 }
 
+/// Asks the notification service to email a message from the website's contact form to the team's inbox
+/// (CALLERWHALE_CONTACT_INBOX). The writer's address becomes the reply address. Nothing is kept here.
+pub async fn send_contact(config: &Config, name: &str, from: &str, message: &str) -> anyhow::Result<()> {
+    anyhow::ensure!(configured(config), "The notification service is not set (CALLERWHALE_NOTIFY_URL and CALLERWHALE_NOTIFY_TOKEN)");
+    anyhow::ensure!(!config.contact_inbox.is_empty(), "The contact inbox is not set (CALLERWHALE_CONTACT_INBOX)");
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).build()?;
+    let res = client
+        .post(format!("{}/v1/mail", config.notify_url))
+        .bearer_auth(&config.notify_token)
+        .json(&serde_json::json!({
+            "template": "contact",
+            "to": config.contact_inbox,
+            "data": { "name": name, "email": from, "message": message },
+        }))
+        .send()
+        .await
+        .context("The notification service could not be reached")?;
+    anyhow::ensure!(res.status().is_success(), "The notification service refused the message ({})", res.status());
+    Ok(())
+}
+
 /// 12500 as "12,500".
 pub fn format_number(value: i64) -> String {
     let digits = value.unsigned_abs().to_string();

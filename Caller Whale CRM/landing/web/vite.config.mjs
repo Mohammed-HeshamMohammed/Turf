@@ -10,19 +10,6 @@ const options = {
   origin: resolveSiteOrigin(process.env.SITE_URL),
   indexable: process.env.SITE_INDEXABLE !== "false",
 };
-const landingProxy = {
-  "/waitlist": "http://localhost:8095",
-  "/contact": {
-    target: "http://localhost:8095",
-    bypass(request) {
-      if (
-        request.method === "GET" &&
-        request.headers.accept?.includes("text/html")
-      )
-        return request.url;
-    },
-  },
-};
 const types = {
   "sitemap.xml": "application/xml; charset=utf-8",
   "robots.txt": "text/plain; charset=utf-8",
@@ -91,6 +78,4 @@ export default defineConfig({
       },
     },
   ],
-  server: { proxy: landingProxy },
-  preview: { proxy: landingProxy },
 });

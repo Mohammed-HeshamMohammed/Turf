@@ -47,6 +47,9 @@ pub struct Config {
     /// dashboard says so.
     pub notify_url: String,
     pub notify_token: String,
+    /// Where the website's contact-form messages are emailed (CALLERWHALE_CONTACT_INBOX). Empty: the contact form answers that it
+    /// cannot send right now.
+    pub contact_inbox: String,
     /// `owner/repo` whose GitHub releases hold the desktop installer. Empty: no download yet.
     pub release_repo: String,
     /// Only releases whose tag starts with this are the desktop app's (the repository releases other things too).
@@ -86,6 +89,7 @@ impl Config {
             website_url: var("CALLERWHALE_WEBSITE_URL", "http://localhost:5200").trim().trim_end_matches('/').to_string(),
             notify_url: var("CALLERWHALE_NOTIFY_URL", "").trim().trim_end_matches('/').to_string(),
             notify_token: var("CALLERWHALE_NOTIFY_TOKEN", "").trim().to_string(),
+            contact_inbox: var("CALLERWHALE_CONTACT_INBOX", "").trim().to_string(),
             release_repo: var("CALLERWHALE_RELEASE_REPO", "").trim().to_string(),
             release_tag_prefix: var("CALLERWHALE_RELEASE_TAG_PREFIX", "crm-v").trim().to_string(),
             github_token: var("CALLERWHALE_GITHUB_TOKEN", "").trim().to_string(),

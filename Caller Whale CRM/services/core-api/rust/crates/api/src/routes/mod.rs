@@ -5,6 +5,7 @@ pub mod desktop_access;
 pub mod identity;
 pub mod internal;
 pub mod platform;
+pub mod public;
 pub mod records;
 pub mod reports;
 pub mod sync;
@@ -22,7 +23,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/healthz", get(|| async { Json(json!({ "ok": true })) }))
         .route("/readyz", get(ready))
-        .nest("/api/v1", identity::routes().merge(admin::routes()).merge(records::routes()).merge(reports::routes()).merge(artifacts::routes()).merge(billing::routes()).merge(platform::routes()).merge(desktop_access::routes()))
+        .nest("/api/v1", identity::routes().merge(admin::routes()).merge(records::routes()).merge(reports::routes()).merge(artifacts::routes()).merge(billing::routes()).merge(platform::routes()).merge(desktop_access::routes()).merge(public::routes()))
         .route("/api/v1/ops", post(sync::one))
         .route("/sync/push", post(sync::push))
         .route("/sync/pull", get(sync::pull))

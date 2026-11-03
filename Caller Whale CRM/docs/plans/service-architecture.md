@@ -83,9 +83,8 @@ flowchart TB
         LB["desktop/backend/features/*"]
         App --> LB
     end
-    Web["landing/web"] --> LAPI["landing/api"]
-    LAPI --> Auth
-    LAPI --> Bill["billing"]
+    Web["landing/web"] --> Auth
+    Web --> Bill["billing"]
     App -- HTTPS --> GW["gateway"]
     GW --> Auth["auth"]
     GW --> F["features/* (8 services)"]
@@ -104,7 +103,7 @@ Goal: you tell Claude "release 0.4.0" and it ships.
 - **Workflow** `.github/workflows/release-desktop.yml`, trigger `workflow_dispatch` with inputs `version` and `notes`. It never runs on a plain push.
 - **Steps:** check `desktop/` tests, set the version in `tauri.conf.json` and `Cargo.toml`, build on `windows-latest` with `tauri-action`, sign the installer, create a **draft** GitHub Release with the `.msi`/`.exe` and `latest.json`, tag `desktop-v<version>`.
 - **Auto-update:** `tauri-plugin-updater` reads `latest.json` from the release, verified with an update-signing key (not the Windows code-signing certificate).
-- **Landing download button:** `landing/api` asks GitHub for the latest published release, so publishing the draft is what makes it public.
+- **Landing download button:** the core API asks GitHub for the latest published release, so publishing the draft is what makes it public.
 - **How Claude triggers it:** `gh workflow run release-desktop.yml -f version=0.4.0`. Claude runs this only when you ask in that message, and publishes the draft only when you say so.
 - **Secrets needed in the repo settings:** `TAURI_SIGNING_PRIVATE_KEY` and its password, and a Windows code-signing certificate (otherwise SmartScreen warns every user).
 - **Service deploys** get their own workflows (`deploy-<service>.yml`, also manual) so a landing-page fix never ships the desktop app.
@@ -122,7 +121,7 @@ Goal: you tell Claude "release 0.4.0" and it ships.
 | Phase | Work | Done when |
 | --- | --- | --- |
 | 0 | Agree this document and amend the structure document | Status set to Accepted |
-| 1 | **Landing:** `landing/web` (pricing, features, download, sign-up link) and `landing/api` (sign-up, waitlist, download link; checkout stays off until billing is chosen) on the existing API for accounts | A stranger can find the site, join the waitlist or sign up, and download the app |
+| 1 | **Landing:** `landing/web` (pricing, features, download, sign-up link) with its two public forms (waitlist, contact) on the core API; the download link comes from the core API (checkout stays off until billing is chosen) on the existing API for accounts | A stranger can find the site, join the waitlist or sign up, and download the app |
 | 2 | **Release pipeline** and updater | `gh workflow run` produces a draft release that installs and updates |
 | 3 | **Restructure** the repo to the target layout (move, re-point configs, no behaviour change) | All existing tests pass from the new paths |
 | 4 | **Auth service** split out of `server/rust`, own database, JWKS | The desktop and landing sign in through it; CRM verifies tokens locally |

@@ -33,6 +33,7 @@ pub fn routes() -> Router<AppState> {
         .route("/platform/people/{id}/access", post(access))
         .route("/platform/staff", get(staff_list).post(set_staff))
         .route("/platform/payments", get(payments))
+        .route("/platform/waitlist", get(waitlist))
         .route("/platform/activity", get(activity))
         .route("/platform/workspace", post(workspace))
         .route("/platform/customers", post(customer))
@@ -360,6 +361,18 @@ async fn payments(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Val
         "payments": list,
         "totals": { "paid_cents": sum("paid"), "pending_cents": sum("pending"), "failed_cents": sum("failed"), "refunded_cents": sum("refunded") },
     })))
+}
+
+/// The people who joined the waitlist on the website, newest first.
+async fn waitlist(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {
+    staff(&state, &ctx).await?;
+    let rows: Vec<Value> = sqlx::query_scalar(
+        "SELECT json_build_object('email', email, 'name', name, 'company', company, 'tier', tier, 'joined_at', created_at)::jsonb \
+         FROM landing_waitlist ORDER BY created_at DESC LIMIT 1000",
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(json!({ "waitlist": rows })))
 }
 
 async fn activity(State(state): State<AppState>, ctx: Ctx) -> ApiResult<Json<Value>> {

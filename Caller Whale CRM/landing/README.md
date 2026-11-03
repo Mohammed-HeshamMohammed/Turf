@@ -8,7 +8,6 @@ The public site that sells Caller Whale (Phase 1 of `docs/plans/service-architec
 | --- | --- | --- |
 | `web/` | The site: Home, Features, Pricing, Why Caller Whale, Security, Contact, Privacy, Terms | React + Vite, the app's design tokens. No secrets. |
 | `dashboard-web/` | Independent dashboard frontend foundation; existing account routes remain in `web/` until cutover. See [setup and Coolify deployment](dashboard-web/README.md). | React + Vite, separate Docker image, port 8080 |
-| `api/` | `POST /waitlist`, `POST /contact`, `GET /healthz` (on `api.callerwhale.com`) | Node 24+, no dependencies, its own SQLite file (`api/data/landing.db`, git-ignored) |
 
 ## Accounts
 
@@ -16,7 +15,6 @@ The header has **Sign in** and **Sign up** (through the auth service: email and 
 
 ## Pages
 
-Real paths (`/features`, `/features#map`). `npm run build` writes every page as plain HTML into its own folder (`dist/pricing/index.html`) and the browser hydrates it, so search engines, link previews and visitors without scripts see the content. `landing/api` serves `dist` and its `404.html`. The build emits canonical links, `sitemap.xml`, `robots.txt` and a browser manifest from one route registry. `SITE_URL` defaults to `https://callerwhale.com`; override it for another origin and use `SITE_INDEXABLE=false` for a non-public build.
 
 | Page | Source of its text |
 | --- | --- |
@@ -41,14 +39,12 @@ Convert the PNGs to WebP (quality 82) and copy them into `web/public/screens/`.
 ## Run it
 
 ```bash
-npm --prefix landing/api start        # http://localhost:8095
 npm --prefix landing/web run dev      # http://localhost:5200, proxies /waitlist and /contact to the API
 ```
 
 Test and build:
 
 ```bash
-npm --prefix landing/api test
 SITE_URL=https://your-domain npm --prefix landing/web run build    # landing/web/dist, prerendered
 ```
 
@@ -56,12 +52,9 @@ SITE_URL=https://your-domain npm --prefix landing/web run build    # landing/web
 
 | Variable | Where | Meaning |
 | --- | --- | --- |
-| `PORT` | api | Default 8095 |
 | `CALLERWHALE_LANDING_DB` | api | SQLite file, default `data/landing.db` |
 | `CALLERWHALE_RELEASE_REPO` | api | `owner/repo` whose latest published GitHub release feeds the Download button. Unset: "coming soon" |
 | `CALLERWHALE_LANDING_ORIGINS` | api | Comma-separated sites allowed to call the API from a browser (default the dev site) |
-| `VITE_CALLERWHALE_LANDING_API_URL` | web, at build | The landing API's address (waitlist and contact). Empty in development (same origin, forwarded by the dev server); the Dockerfile defaults to `https://api.callerwhale.com` |
-| `LANDING_API_ORIGIN` | web container | The landing API's origin, allowed by the site's content security policy |
 | `VITE_CALLERWHALE_API_URL` | web, at build | Caller Whale's server (the core API) the site signs in against and gets dashboards from. Default `http://localhost:8088` in development; the Dockerfile defaults to `https://gate.callerwhale.com` |
 | `AUTH_ORIGIN` | web container | The auth service's address, `https://auth.callerwhale.com`: the one other address the site's security policy lets it call |
 | `API_ORIGIN` | web container | The core API's origin, allowed by the site's content security policy |

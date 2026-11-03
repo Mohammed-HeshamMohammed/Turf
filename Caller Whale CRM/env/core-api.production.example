@@ -36,6 +36,8 @@ CALLERWHALE_GRAFANA_URL=https://gate.callerwhale.com/staff/monitoring
 CALLERWHALE_NOTIFY_URL=https://notify.callerwhale.com
 # Secret caller token matching core-api's NOTIFY_TOKENS entry. Rotate both sides together or invitation delivery fails.
 CALLERWHALE_NOTIFY_TOKEN=<the core-api token from NOTIFY_TOKENS>
+# Email address that receives the website's contact-form messages, sent through the notification service. Empty: the form answers that it cannot send right now.
+CALLERWHALE_CONTACT_INBOX=<the team's inbox, for example hello@callerwhale.com>
 # GitHub owner/repository supplying desktop release assets. Wrong repository breaks downloads/update discovery; this is not the product display name.
 CALLERWHALE_RELEASE_REPO=Mohammed-HeshamMohammed/Turf
 # Release tag prefix identifying desktop releases; default crm-v. Changing it changes which releases are considered desktop updates.

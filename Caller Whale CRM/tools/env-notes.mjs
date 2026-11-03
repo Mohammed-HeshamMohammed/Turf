@@ -11,7 +11,6 @@ const examples = {
   'core-api.production.example': 'core-api',
   'worker.production.example': 'core-api-worker',
   'gateway.production.example': 'gateway',
-  'landing-api.production.example': 'landing-api',
   'landing-web.production.example': 'landing-web',
   'notifications.production.example': 'notifications',
   // Pointer-only example; actual monitoring settings are in deploy/grafana.

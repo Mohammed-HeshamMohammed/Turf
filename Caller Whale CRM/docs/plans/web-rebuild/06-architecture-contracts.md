@@ -102,7 +102,7 @@ Validate required fields at the boundary; unknown optional fields must not crash
 - Public submission delivery/reference/abuse policy and durable distributed rate limiting when scaling.
 - Staff table pagination/search/versioning if replacing the inspected 1000-row bounded invitation list.
 
-Source references: services/auth/src/{routes,mfa,email,oauth}.rs and openapi.yaml; services/core-api/rust/crates/api/src/routes/{desktop_access,platform}.rs; landing/api/src/{app,validate,store}.mjs.
+Source references: services/auth/src/{routes,mfa,email,oauth}.rs and openapi.yaml; services/core-api/rust/crates/api/src/routes/{desktop_access,platform}.rs; services/core-api/rust/crates/api/src/routes/public.rs (the waitlist and contact forms).
 
 ## Acceptance
 

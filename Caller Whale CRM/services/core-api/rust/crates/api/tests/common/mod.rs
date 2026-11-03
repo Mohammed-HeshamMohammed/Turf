@@ -74,6 +74,7 @@ pub fn config(redis: bool) -> Option<Config> {
         website_url: "https://callerwhale.example".into(),
         notify_url: String::new(),
         notify_token: String::new(),
+        contact_inbox: String::new(),
         release_repo: String::new(),
         release_tag_prefix: "crm-v".into(),
         github_token: String::new(),

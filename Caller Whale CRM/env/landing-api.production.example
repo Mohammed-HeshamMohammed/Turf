@@ -1,9 +1,0 @@
-# The site's API on Coolify (application "landing-api", port 8095, domain https://api.callerwhale.com, no path).
-# Website API HTTP listening port; default 8095. Match Coolify's container port.
-PORT=8095
-# SQLite database file for website submissions; default data/landing.db. Persist its directory; changing the path selects a different submission store.
-CALLERWHALE_LANDING_DB=data/landing.db
-# GitHub owner/repository used to look up desktop releases. Keep aligned with the release publisher; wrong repository breaks download discovery.
-CALLERWHALE_RELEASE_REPO=Mohammed-HeshamMohammed/Turf
-# Comma-separated origins allowed to call the website API. Production should name the intended website origins only.
-CALLERWHALE_LANDING_ORIGINS=https://callerwhale.com

@@ -18,7 +18,6 @@ Everything (invitations, people, credits, usage) is stored in the core API's Pos
 | Container (Coolify) | Address | Port | What it is |
 | --- | --- | --- | --- |
 | landing-web | `https://callerwhale.com` | 8080 | The public site (static). Build and runtime settings: `env/landing-web.production.example` |
-| landing-api | `https://api.callerwhale.com` | 8095 | Waitlist and contact (`/waitlist`, `/contact`), no path prefix |
 | gateway | `https://gate.callerwhale.com` | 8100 | The front door for the CRM's API and the staff monitoring page (`/staff/monitoring`); routes to core-api (docs/plans/gateway.md) |
 | core-api | `https://appapi.callerwhale.com` | 8088 | The CRM's API: sign-in checks, invitations, credits, the download. Needs PostgreSQL |
 | core-api-worker | `https://appapiw.callerwhale.com` | 8090 | The job worker; the address only serves its health page |

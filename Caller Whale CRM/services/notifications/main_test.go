@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/mail"
 	"strings"
 	"testing"
 )
@@ -99,6 +100,41 @@ func TestAnInvitationHasBothPartsAndEscapesTheName(t *testing.T) {
 	m := f.sent[0]
 	if !strings.Contains(m.Text, "12,500 credits a month") || strings.Contains(m.HTML, "<b>Sami") || !strings.Contains(m.HTML, "&lt;b&gt;Sami") || m.Subject != "Mo invited you to Caller Whale" {
 		t.Fatalf("unexpected message %+v", m)
+	}
+}
+
+func TestAContactMessageGoesToTheInboxWithAReplyAddress(t *testing.T) {
+	f := &fakeSender{}
+	s := newServer(map[string]string{"core-api": testToken}, f, true)
+	body := `{"template":"contact","to":"hello@example.com","data":{"name":"<b>Sami</b>","email":"sami@example.com","message":"Hi <script>there"}}`
+	if code, _ := post(t, s, testToken, body); code != 202 {
+		t.Fatalf("got %d", code)
+	}
+	m := f.sent[0]
+	if m.To != "hello@example.com" || m.ReplyTo != "sami@example.com" || m.Subject != "Contact form: <b>Sami</b>" || strings.Contains(m.HTML, "<script>") || strings.Contains(m.HTML, "<b>Sami") {
+		t.Fatalf("unexpected message %+v", m)
+	}
+	raw, err := build(&mail.Address{Address: "from@example.com"}, &mail.Address{Address: m.To}, m)
+	if err != nil || !strings.Contains(string(raw), "Reply-To: <sami@example.com>") {
+		t.Fatalf("no reply address in %q (%v)", raw, err)
+	}
+}
+
+func TestAContactMessageWithOddFieldsIsRefused(t *testing.T) {
+	f := &fakeSender{}
+	s := newServer(map[string]string{"core-api": testToken}, f, true)
+	for _, data := range []string{
+		`{"email":"not an address","message":"hello"}`,
+		`{"email":"a@example.com","message":""}`,
+		`{"email":"a@example.com\r\nBcc: x@example.com","message":"hello"}`,
+		`{"name":"A\r\nBcc: x@example.com","email":"a@example.com","message":"hello"}`,
+	} {
+		if code, _ := post(t, s, testToken, `{"template":"contact","to":"hello@example.com","data":`+data+`}`); code != 400 {
+			t.Errorf("%s: got %d, want 400", data, code)
+		}
+	}
+	if len(f.sent) != 0 {
+		t.Fatalf("something was sent: %+v", f.sent)
 	}
 }
 
