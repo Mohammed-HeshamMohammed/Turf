@@ -2,10 +2,10 @@
 
 This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in `Caller Whale CRM/` on `main`.
 
-- Last changed from `main` at `c708b11` (2026-11-03)
-- Content id: `78520c324b5402d022ddfa7cbfbc927e08934762` (the branch is only refreshed when this changes)
+- Last changed from `main` at `411612e` (2026-11-03)
+- Content id: `1b9cc395ce5cf8eee798bc41cbdc3f72491bf8b2` (the branch is only refreshed when this changes)
 - Holds: `infra/k8s/auth`, `services/auth`, `env/auth.env.example`, `env/auth.production.example`, `env/callerwhale-auth-db.sql.example`, `env/README.md`, and the Cargo workspace file and lock for it
-- 59 files
+- 60 files
 - Build and test: docker build -f services/auth/Dockerfile -t callerwhale-auth .   or   cargo test -p callerwhale-auth -p callerwhale-auth-verify
 
 Do not edit it here. Change the code on `main`, then refresh the branch from a checkout of `main`:
