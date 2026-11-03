@@ -50,6 +50,32 @@ const passwordRequirements = value => [
 ];
 
 /** Sign in and sign up share one form: email and password, Google, and the authenticator code when one is set up. */
+const ASK_KEY = "callerwhale.desktop-sign-in";
+const TEN_MINUTES = 10 * 60 * 1000;
+
+/** The desktop app's request, from the address it opened (/desktop-sign-in?port=…&state=…), kept for this tab while a provider round trip returns. */
+function desktopAsk() {
+  try {
+    const query = new URLSearchParams(window.location.search);
+    let ask = { port: query.get("port") || "", state: query.get("state") || "", at: Date.now() };
+    const fromAddress = Boolean(ask.port || ask.state);
+    if (!fromAddress) ask = JSON.parse(window.sessionStorage.getItem(ASK_KEY) || "null") || ask;
+    // Only a port on this computer's unprivileged range and a long random state are accepted; nothing else is ever put in the address we send the code to.
+    const good = /^\d{4,5}$/.test(ask.port) && Number(ask.port) >= 1024 && Number(ask.port) <= 65535 && /^[A-Za-z0-9_-]{16,64}$/.test(ask.state) && Date.now() - ask.at < TEN_MINUTES;
+    if (!good) return null;
+    if (fromAddress) window.sessionStorage.setItem(ASK_KEY, JSON.stringify(ask));
+    return ask;
+  } catch {
+    return null;
+  }
+}
+const forgetAsk = () => {
+  try { window.sessionStorage.removeItem(ASK_KEY); } catch { /* Nothing was kept. */ }
+};
+/** True while a sign-in started by the desktop app is in progress in this tab. */
+const pendingDesktop = () => { try { return Boolean(JSON.parse(window.sessionStorage.getItem(ASK_KEY) || "null")) && desktopAsk() !== null; } catch { return false; } };
+const homeAfterSignIn = account => (pendingDesktop() ? "/desktop-sign-in" : destination(account));
+
 function AuthForm({ mode }) {
   const session = useSession();
   const [humanToken, setHumanToken] = useState("");
@@ -76,12 +102,12 @@ function AuthForm({ mode }) {
 
   // Already signed in: nothing to do here.
   useEffect(() => {
-    if (session.status === "signed_in") go(destination(session.account));
+    if (session.status === "signed_in") go(homeAfterSignIn(session.account));
   }, [session.status, session.account]);
 
   async function arrive() {
     const account = await session.reload();
-    go(destination(account));
+    go(homeAfterSignIn(account));
   }
 
   async function attempt(work) {
@@ -235,6 +261,51 @@ export function VerifyEmail() {
 }
 
 export const SignIn = () => <AuthForm mode="signin" />;
+
+/**
+ * The desktop app opens this page in the person's browser so the password, the second step and reCAPTCHA all happen on
+ * callerwhale.com. Signed in, the person confirms, and the page sends a one-time code to the app on this computer
+ * (127.0.0.1 and the port the app named); the app trades it for its own session.
+ */
+export function DesktopSignIn() {
+  const session = useSession();
+  // Read in an effect: the page is prerendered without an address, and the first render must match it.
+  const [ask, setAsk] = useState(undefined);
+  useEffect(() => setAsk(desktopAsk()), []);
+  const [state, setState] = useState({ busy: false, error: "", done: false });
+  if (ask === undefined) return <Shell title="One moment…" />;
+  if (!ask) {
+    return (
+      <Shell title="Start from the app" lead="Open the Caller Whale desktop app and choose Sign in with your browser. This page only works when the app opens it." />
+    );
+  }
+  if (state.done) return <Shell title="You're signed in" lead="Return to the Caller Whale app. You can close this tab." />;
+  if (session.status === "unknown") return <Shell title="One moment…" />;
+  if (session.status !== "signed_in") return <AuthForm mode="signin" />;
+  const person = session.account?.person;
+  const send = async () => {
+    setState({ busy: true, error: "", done: false });
+    try {
+      const code = await (await loadAuth()).handoff();
+      forgetAsk();
+      setState({ busy: false, error: "", done: true });
+      window.location.assign(`http://127.0.0.1:${ask.port}/callerwhale-sign-in?code=${encodeURIComponent(code)}&state=${encodeURIComponent(ask.state)}`);
+    } catch (error) {
+      setState({ busy: false, error: error.message, done: false });
+    }
+  };
+  return (
+    <Shell title="Continue to the Caller Whale app" lead={person?.email ? `Signed in as ${person.email}.` : "You are signed in."}>
+      <div className="panel auth-panel">
+        {state.error && <p className="notice bad" role="alert">{state.error}</p>}
+        <button type="button" className="button" onClick={send} disabled={state.busy}>{state.busy ? "One moment…" : "Continue to the app"}</button>
+        <p className="switch">
+          Not you? <button type="button" className="text-button" onClick={() => session.signOut()}>Use a different account</button>
+        </p>
+      </div>
+    </Shell>
+  );
+}
 export const SignUp = () => <AuthForm mode="signup" />;
 
 /** The download: a short-lived link from the server, for people it lets download only. */

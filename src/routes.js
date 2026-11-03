@@ -58,6 +58,7 @@ export const routes = [
     ["/signup", "signup", "Sign up"],
     ["/dashboard", "dashboard", "Dashboard"],
     ["/verify", "verify", "Confirm email"],
+    ["/desktop-sign-in", "desktopsignin", "Sign in to the desktop app"],
   ].map(([path, key, label]) => ({
     path,
     key,

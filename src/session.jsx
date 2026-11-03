@@ -126,7 +126,7 @@ export function SessionProvider({ children }) {
   useEffect(() => {
     live.current = true;
     // Only someone who signed in on this device loads the SDK on every page.
-    if (!hinted() && !/^\/(signin|signup|dashboard)/.test(window.location.pathname)) setState(s => ({ ...s, status: "signed_out" }));
+    if (!hinted() && !/^\/(signin|signup|dashboard|desktop-sign-in)/.test(window.location.pathname)) setState(s => ({ ...s, status: "signed_out" }));
     else reload().catch(() => {});
     return () => {
       live.current = false;
