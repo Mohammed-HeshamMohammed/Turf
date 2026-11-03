@@ -30,11 +30,11 @@
         "AUTH_TELEGRAM_BOT_TOKEN": "Optional secret BotFather token enabling Telegram code delivery. Leave empty to disable this delivery method; never use a phone number as the token.",
         "AUTH_TELEGRAM_BOT_NAME": "Telegram bot's public name used for account linking; must identify the bot whose token auth uses. Optional when Telegram is disabled.",
         "AUTH_TELEGRAM_WEBHOOK_SECRET": "Secret URL path component protecting the Telegram webhook. Coordinate rotation with Telegram's registered webhook URL.",
-        "AUTH_BOT_PROTECTION": "true enforces server-side reCAPTCHA verification on signup/sign-in and provider starts; requires BOTH reCAPTCHA keys. Missing keys fail startup. false disables this layer.",
-        "AUTH_RECAPTCHA_SITE_KEY": "Public reCAPTCHA v3 site key exposed to clients for human verification. Must pair with the secret key and allow the deployed frontend hostnames.",
-        "AUTH_RECAPTCHA_SECRET_KEY": "Secret reCAPTCHA key, held only in auth. Must match the widget site key; a missing key with bot protection true prevents startup.",
-        "AUTH_RECAPTCHA_MIN_SCORE": "Lowest Google score (0 bot to 1 human) auth accepts; default 0.5.",
-        "AUTH_RECAPTCHA_HOSTNAMES": "Optional comma-separated allowed challenge hostnames, without scheme/path. Empty derives hosts from configured origins/URLs; wrong hosts reject otherwise valid challenges.",
+        "AUTH_BOT_PROTECTION": "Keep false: the gateway does the human check, and Google accepts a token once. true makes auth refuse to start. Needs no keys here.",
+        "AUTH_RECAPTCHA_SITE_KEY": "Leave empty. The reCAPTCHA keys belong to the gateway (RECAPTCHA_SITE_KEY); auth does not read them.",
+        "AUTH_RECAPTCHA_SECRET_KEY": "Leave empty. The secret key belongs to the gateway (RECAPTCHA_SECRET_KEY) and nowhere else; never put it in auth.",
+        "AUTH_RECAPTCHA_MIN_SCORE": "Leave at 0.5 or empty. The score limit is the gateway's (RECAPTCHA_MIN_SCORE); auth does not use it.",
+        "AUTH_RECAPTCHA_HOSTNAMES": "Leave empty. The allowed sites are the gateway's (RECAPTCHA_HOSTNAMES); auth does not use them.",
         "AUTH_ACCESS_MINUTES": "Access-token lifetime in minutes; default 15. Changing it affects newly issued tokens and the frequency of refresh.",
         "AUTH_REFRESH_DAYS": "Refresh-session lifetime in days; default 30. Changing it affects newly created session expiry, not the signing key."
       }
@@ -96,7 +96,17 @@
         "USER_PER_MINUTE": "Positive per-authenticated-user requests-per-minute limit; default 1800. Changing it affects API throttling for signed-in users.",
         "MAX_BODY_MB": "Positive maximum accepted request body size in MiB; default 64. Smaller limits can reject uploads; larger limits increase memory/traffic exposure.",
         "PROXY_HOPS": "Trusted proxy-hop count for resolving the client IP; default 1. Match the actual proxy chain or IP rate limits can identify clients incorrectly.",
-        "MONITORING_UPSTREAM": "Private Grafana proxy HTTP origin, without path/query. Reached only through CORE_HOST /staff/monitoring; never give Grafana a direct public route."
+        "MONITORING_UPSTREAM": "Private Grafana proxy HTTP origin, without path/query. Reached only through CORE_HOST /staff/monitoring; never give Grafana a direct public route.",
+        "HUMAN_CHECK": "true turns on the reCAPTCHA check in front of auth sign-up, sign-in and provider start; needs every RECAPTCHA_* value and AUTH_HOST or the gateway will not start.",
+        "AUTH_HOST": "The ROUTES host that is the auth service. Only its real routes are answered; everything else is a plain Not found. Must be one of the ROUTES hosts.",
+        "RECAPTCHA_SITE_KEY": "Public reCAPTCHA v3 key ID (starts with 6L). The sign-in pages receive it from auth's /v1/security answer through the gateway.",
+        "RECAPTCHA_SECRET_KEY": "Secret legacy reCAPTCHA key for the same key ID. Coolify only; never in GitHub, build variables or chat. Missing it with HUMAN_CHECK true prevents startup.",
+        "RECAPTCHA_HOSTNAMES": "Comma-separated sites a token may come from, as Google reports them; must match the key's domains. A wrong list refuses real people.",
+        "RECAPTCHA_MIN_SCORE": "Lowest Google score (0 bot to 1 human) accepted; default 0.5. Raise it if bots get through, lower it if real people are refused.",
+        "HUMAN_PER_MINUTE": "Guarded requests (sign-up, sign-in, provider start) a minute from one address, counted before Google is asked; default 30.",
+        "SCAN_LIMIT": "Requests for things that do not exist, from one address within SCAN_WINDOW_MINUTES, before that address is paused; default 20.",
+        "SCAN_WINDOW_MINUTES": "Minutes over which SCAN_LIMIT is counted; default 10.",
+        "SCAN_PAUSE_MINUTES": "Minutes an address stays paused after passing SCAN_LIMIT; default 15."
       }
     },
     "landing-api": {
