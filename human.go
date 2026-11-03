@@ -1,7 +1,7 @@
 package main
 
 // The human check: Google reCAPTCHA v3 (invisible, scored) in front of the auth service's first-leg requests. The auth
-// service does not check it any more (AUTH_BOT_PROTECTION=false there): this is the one place a token is verified, because
+// service does not check it any more: this is the one place a token is verified, because
 // Google accepts a token only once. The same check will guard payment routes, each with its own minimum score.
 //
 // Plan: docs/plans/go-auth.md and docs/plans/bot-protection.md.
