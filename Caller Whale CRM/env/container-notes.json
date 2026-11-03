@@ -31,10 +31,6 @@
         "AUTH_TELEGRAM_BOT_NAME": "Telegram bot's public name used for account linking; must identify the bot whose token auth uses. Optional when Telegram is disabled.",
         "AUTH_TELEGRAM_WEBHOOK_SECRET": "Secret URL path component protecting the Telegram webhook. Coordinate rotation with Telegram's registered webhook URL.",
         "AUTH_BOT_PROTECTION": "Keep false: the gateway does the human check, and Google accepts a token once. true makes auth refuse to start. Needs no keys here.",
-        "AUTH_RECAPTCHA_SITE_KEY": "Leave empty. The reCAPTCHA keys belong to the gateway (RECAPTCHA_SITE_KEY); auth does not read them.",
-        "AUTH_RECAPTCHA_SECRET_KEY": "Leave empty. The secret key belongs to the gateway (RECAPTCHA_SECRET_KEY) and nowhere else; never put it in auth.",
-        "AUTH_RECAPTCHA_MIN_SCORE": "Leave at 0.5 or empty. The score limit is the gateway's (RECAPTCHA_MIN_SCORE); auth does not use it.",
-        "AUTH_RECAPTCHA_HOSTNAMES": "Leave empty. The allowed sites are the gateway's (RECAPTCHA_HOSTNAMES); auth does not use them.",
         "AUTH_ACCESS_MINUTES": "Access-token lifetime in minutes; default 15. Changing it affects newly issued tokens and the frequency of refresh.",
         "AUTH_REFRESH_DAYS": "Refresh-session lifetime in days; default 30. Changing it affects newly created session expiry, not the signing key."
       }
