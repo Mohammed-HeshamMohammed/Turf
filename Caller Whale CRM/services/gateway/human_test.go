@@ -79,7 +79,8 @@ func newHumanWorld(t *testing.T, extra map[string]string) *humanWorld {
 func (w *humanWorld) call(method, path, body string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, "http://"+authHost+path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.RemoteAddr = "203.0.113.9:4444"
+	req.RemoteAddr = "10.0.0.9:4444"
+	req.Header.Set("X-Forwarded-For", "203.0.113.9") // public traffic always comes through the proxy
 	rec := httptest.NewRecorder()
 	logHTTP(w.g).ServeHTTP(rec, req)
 	return rec

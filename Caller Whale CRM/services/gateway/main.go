@@ -44,6 +44,10 @@ type config struct {
 	maxBody       int64
 	hops          int            // proxies in front of this one (Coolify's Traefik: 1), to find the caller's address
 	human         *humanSettings // the human check in front of the auth service (nil: off)
+	authHost      string         // the ROUTES host of the auth service: only its real routes are answered
+	scanLimit     int            // requests for things that are not there, from one address, before it is paused
+	scanWindow    time.Duration
+	scanPause     time.Duration
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -93,9 +97,24 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	c.staffSecond = getenv("STAFF_REQUIRE_SECOND_FACTOR") != "false"
 	var err error
+	if c.authHost = strings.ToLower(strings.TrimSpace(getenv("AUTH_HOST"))); c.authHost != "" && c.routes[c.authHost] == nil {
+		return c, errors.New("AUTH_HOST is not one of the ROUTES hosts")
+	}
 	if c.human, err = loadHuman(getenv, c.routes); err != nil {
 		return c, err
 	}
+	if c.scanLimit, err = number("SCAN_LIMIT", 20); err != nil {
+		return c, err
+	}
+	window, err := number("SCAN_WINDOW_MINUTES", 10)
+	if err != nil {
+		return c, err
+	}
+	pause, err := number("SCAN_PAUSE_MINUTES", 15)
+	if err != nil {
+		return c, err
+	}
+	c.scanWindow, c.scanPause = time.Duration(window)*time.Minute, time.Duration(pause)*time.Minute
 	if c.ipPerMinute, err = number("IP_PER_MINUTE", 600); err != nil {
 		return c, err
 	}
@@ -127,8 +146,9 @@ const (
 // routes and need a token; the internal routes (worker jobs, imports) never leave the private network.
 func classify(method, path string) need {
 	switch {
-	case path == "/healthz":
-		return open
+	// Health and version are for the private network: the container's own check never passes through here.
+	case path == "/healthz" || path == "/version":
+		return private
 	case path == "/internal" || strings.HasPrefix(path, "/internal/") || path == "/readyz":
 		return private
 	case method == http.MethodGet && (path == "/api/v1/auth/service" || path == "/api/v1/plans" || strings.HasPrefix(path, "/api/v1/download/")):
@@ -149,12 +169,14 @@ type gateway struct {
 	ips      *limiter
 	people   *limiter
 	human    *humanCheck // nil when the check is off
-	humanIPs *limiter    // guarded requests per address: every one costs a call to Google
+	scans    *scanners
+	humanIPs *limiter // guarded requests per address: every one costs a call to Google
 	now      func() time.Time
 }
 
 func newGateway(cfg config) *gateway {
-	g := &gateway{cfg: cfg, ips: newLimiter(cfg.ipPerMinute), people: newLimiter(cfg.userPerMinute), now: time.Now}
+	g := &gateway{cfg: cfg, ips: newLimiter(cfg.ipPerMinute), people: newLimiter(cfg.userPerMinute), now: time.Now,
+		scans: newScanners(cfg.scanLimit, cfg.scanWindow, cfg.scanPause)}
 	if cfg.human != nil {
 		g.human = newHumanCheck(*cfg.human)
 		g.humanIPs = newLimiter(cfg.human.perMinute)
@@ -189,6 +211,7 @@ func newGateway(cfg config) *gateway {
 				}
 			},
 			ModifyResponse: func(res *http.Response) error {
+				scrub(res)
 				if g.human != nil && r.host == g.human.authHost {
 					return g.human.announce(res)
 				}
@@ -231,11 +254,18 @@ func (g *gateway) proto(r *http.Request) string {
 
 func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
-	case r.Method == http.MethodGet && r.URL.Path == "/healthz":
+	// The gateway's own health and version are for the private network (the container's health check); through the public proxy
+	// they are paths like any other.
+	case r.Method == http.MethodGet && r.URL.Path == "/healthz" && !viaProxy(r):
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": service})
 		return
-	case r.Method == http.MethodGet && r.URL.Path == "/version":
+	case r.Method == http.MethodGet && r.URL.Path == "/version" && !viaProxy(r):
 		writeJSON(w, http.StatusOK, map[string]any{"service": service, "version": version})
+		return
+	}
+	caller := g.clientIP(r)
+	if g.scans.blocked(caller, g.now()) {
+		paused(w)
 		return
 	}
 	host := strings.ToLower(r.Host)
@@ -244,28 +274,37 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	rt := g.cfg.routes[host]
 	if rt == nil {
-		writeJSON(w, http.StatusNotFound, map[string]any{"error": "Not found."})
+		g.scans.miss(caller, g.now())
+		notFound(w)
 		return
 	}
 	// One spelling per path: what is checked here is what the service behind reads, with no ".." or encoded slash
 	// between them.
 	lower := strings.ToLower(r.URL.EscapedPath())
 	if strings.Contains(r.URL.Path, "..") || strings.Contains(r.URL.Path, "//") || strings.Contains(lower, "%2f") || strings.Contains(lower, "%5c") || strings.Contains(lower, "%00") || strings.Contains(lower, "%2e") {
+		g.scans.miss(caller, g.now())
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "Bad request."})
 		return
 	}
-	if !g.ips.allow(g.clientIP(r), g.now()) {
+	if !g.ips.allow(caller, g.now()) {
 		tooMany(w)
 		return
 	}
 	if rt.core && (r.URL.Path == "/staff/monitoring" || strings.HasPrefix(r.URL.Path, "/staff/monitoring/")) {
 		if g.cfg.monitoring == nil || r.URL.Path == "/staff/monitoring/_callerwhale/health" {
-			http.NotFound(w, r)
+			g.scans.miss(caller, g.now())
+			notFound(w)
 			return
 		}
 		// The private proxy validates the HttpOnly admin session and rechecks the
 		// signed token, MFA and staff role with the core API on every request.
 		rt = g.cfg.monitoring
+	}
+	// The auth service answers only the routes it has; everything else looks the same as nothing at all.
+	if g.cfg.authHost != "" && rt.host == g.cfg.authHost && !authAllowed(r.Method, r.URL.Path) {
+		g.scans.miss(caller, g.now())
+		notFound(w)
+		return
 	}
 	// The first leg of signing in is proven human here, once; the auth service behind does not check it again.
 	if g.human != nil && rt.host == g.human.authHost {
@@ -291,7 +330,8 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			requested := r.Header.Get("Access-Control-Request-Method")
 			if requested != "" {
 				if classify(requested, r.URL.Path) == private {
-					writeJSON(w, http.StatusNotFound, map[string]any{"error": "Not found."})
+					g.scans.miss(caller, g.now())
+					notFound(w)
 					return
 				}
 				rt.proxy.ServeHTTP(w, r)
@@ -300,7 +340,8 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		switch classify(r.Method, r.URL.Path) {
 		case private:
-			writeJSON(w, http.StatusNotFound, map[string]any{"error": "Not found."})
+			g.scans.miss(caller, g.now())
+			notFound(w)
 			return
 		case signedIn, staff:
 			c, err := g.identify(r)

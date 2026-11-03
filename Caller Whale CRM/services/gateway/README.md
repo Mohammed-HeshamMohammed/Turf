@@ -18,6 +18,9 @@ The one public entry point for Caller Whale's servers. It routes by host name to
 | One spelling per path: `..`, `//`, encoded slashes and NUL are refused | every request |
 | Rate limit per address (and per signed-in person on the core API) | every request |
 | The human check (Google reCAPTCHA v3) on sign-up, sign-in and provider starts, once per request; a start by address is refused. Off unless `HUMAN_CHECK=true` | auth host (`AUTH_HOST`) |
+| Only the auth service's real routes are answered; anything else (even a real path with the wrong method) is the same plain 404 | auth host (`AUTH_HOST`) |
+| An address that asks for too many things that are not there (`SCAN_LIMIT` in `SCAN_WINDOW_MINUTES`) is paused for `SCAN_PAUSE_MINUTES` | every host |
+| `/healthz` and `/version` (the gateway's and the core API's) are not reachable through the public proxy; the container's own health check still works | every host |
 | `/internal/*` and `/readyz` are never reachable: not found | core API host |
 | A Caller Whale token from the auth service (EdDSA signature with its public keys, issuer, audience, expiry) on everything under `/api/v1`, `/sync` and `/events` except the public list (`/api/v1/auth/service`, `/api/v1/plans`, `/api/v1/download/*`, the billing webhook) | core API host |
 | The authenticator step (the token's `mfa` claim) on `/api/v1/platform/*` | core API host |
@@ -33,7 +36,7 @@ cd services/gateway && go test ./...
 cd services/gateway && ROUTES=localhost=http://127.0.0.1:8088 CORE_HOST=localhost AUTH_JWKS_URL=http://127.0.0.1:8101/.well-known/jwks.json go run .
 ```
 
-`GET /healthz` and `GET /version` answer on any host. `service health` is the container's health check.
+`GET /healthz` and `GET /version` answer only when there is no proxy in front (no `X-Forwarded-For`): the container's own health check, or a call from inside the private network. Through the public name they are a plain 404. `service health` is the container's health check.
 
 ## Things to know
 

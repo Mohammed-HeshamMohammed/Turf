@@ -26,7 +26,7 @@ MONITORING_UPSTREAM=http://grafana-proxy:8120
 # This is the only place it is checked: auth must have AUTH_BOT_PROTECTION=false, no public domain of its own, and be reached only through this gateway.
 # true turns it on and then needs every value below, or the gateway will not start. Leave false until the keys exist.
 HUMAN_CHECK=false
-# The ROUTES host that is the auth service. Must be one of the ROUTES hosts.
+# The ROUTES host that is the auth service. Must be one of the ROUTES hosts. Set it even while HUMAN_CHECK is false (see Hiding what exists below).
 AUTH_HOST=auth.callerwhale.com
 # The reCAPTCHA key's ID (public; the sign-in pages receive it from auth's /v1/security answer through this gateway). Starts with 6L.
 RECAPTCHA_SITE_KEY=<key ID, or empty while the check is off>
@@ -38,3 +38,12 @@ RECAPTCHA_HOSTNAMES=callerwhale.com,auth.callerwhale.com
 RECAPTCHA_MIN_SCORE=0.5
 # Guarded requests (sign-up, sign-in, provider start) a minute from one address, counted before Google is asked.
 HUMAN_PER_MINUTE=30
+
+# ---- Hiding what exists ----
+# On the AUTH_HOST only the auth service's real routes are answered; everything else (and a real path with the wrong method) is the same plain
+# "Not found", so a scan learns nothing. Set AUTH_HOST even while the human check is off.
+# The gateway's own /healthz and /version, and the core API's, answer only inside the private network (the container's own health check), never through the public proxy.
+# An address that asks for more than SCAN_LIMIT things that are not there within SCAN_WINDOW_MINUTES is paused for SCAN_PAUSE_MINUTES (people using the pages never ask for them).
+SCAN_LIMIT=20
+SCAN_WINDOW_MINUTES=10
+SCAN_PAUSE_MINUTES=15
