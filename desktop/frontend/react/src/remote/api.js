@@ -34,6 +34,9 @@ export function apiBase() {
 /** Caller Whale's server. People never type it: it is fixed when the app is built (VITE_CALLERWHALE_API_URL). */
 export const SERVER = (import.meta.env?.VITE_CALLERWHALE_API_URL || "http://localhost:8088").replace(/\/$/, "");
 
+/** Caller Whale's website, where the desktop app sends people to sign in (VITE_CALLERWHALE_SITE_URL). */
+export const SITE = (import.meta.env?.VITE_CALLERWHALE_SITE_URL || "https://callerwhale.com").replace(/\/$/, "");
+
 /** The auth service, where people sign in (VITE_CALLERWHALE_AUTH_URL). */
 export const AUTH_SERVER = (import.meta.env?.VITE_CALLERWHALE_AUTH_URL || "http://localhost:8101").replace(/\/$/, "");
 

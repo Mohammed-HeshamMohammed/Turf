@@ -5,7 +5,8 @@
 //! 2. `open_in_browser` opens the auth service (services/auth), which sends the browser to Google.
 //! 3. When Google is done, auth sends the browser to `http://127.0.0.1:<port>/callerwhale-sign-in?code=…` (or
 //!    `?error=…`). The listener answers with a "return to Caller Whale" page and hands the one-time code to the window as the
-//!    `callerwhale-sign-in` event; the window trades it for tokens at auth's /v1/oauth/exchange.
+//!    `callerwhale-sign-in` event, with the `state` the window chose; the window trades it for tokens at auth's /v1/oauth/exchange.
+//!    Password sign-in uses the same listener: the window opens the website's /desktop-sign-in page, which sends the code.
 
 use serde_json::json;
 use std::io::{BufRead, BufReader, Write};
@@ -121,7 +122,7 @@ pub fn google_sign_in_listen(app: AppHandle) -> Result<u16, String> {
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
     std::thread::spawn(move || {
         let answer = match wait(listener, "/callerwhale-sign-in") {
-            Some(back) => json!({ "code": back.code, "error": back.error }),
+            Some(back) => json!({ "code": back.code, "error": back.error, "state": back.state }),
             None => json!({ "code": null, "error": "Sign-in took too long. Try again." }),
         };
         let _ = app.emit("callerwhale-sign-in", answer);
