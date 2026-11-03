@@ -61,7 +61,6 @@ func TestSettingsAreChecked(t *testing.T) {
 	for name, change := range map[string]map[string]string{
 		"no database":         {"DATABASE_URL": ""},
 		"no firebase key":     {"AUTH_FIREBASE_API_KEY": ""},
-		"the old check is on": {"AUTH_BOT_PROTECTION": "true"},
 		"bad port":            {"PORT": "eighty"},
 		"bad access minutes":  {"AUTH_ACCESS_MINUTES": "0"},
 		"bad refresh days":    {"AUTH_REFRESH_DAYS": "many"},
@@ -70,7 +69,7 @@ func TestSettingsAreChecked(t *testing.T) {
 			t.Errorf("%s: this must not start", name)
 		}
 	}
-	c, err = with(map[string]string{"AUTH_BOT_PROTECTION": "false", "AUTH_PUBLIC_SIGNUP": "false", "AUTH_ALLOWED_ORIGINS": "https://a.example/, https://b.example", "AUTH_PUBLIC_URL": "https://auth.example/"})
+	c, err = with(map[string]string{"AUTH_PUBLIC_SIGNUP": "false", "AUTH_ALLOWED_ORIGINS": "https://a.example/, https://b.example", "AUTH_PUBLIC_URL": "https://auth.example/"})
 	if err != nil || c.publicSignup || strings.Join(c.allowedOrigins, "|") != "https://a.example|https://b.example" || c.publicURL != "https://auth.example" {
 		t.Fatalf("%+v %v", c, err)
 	}

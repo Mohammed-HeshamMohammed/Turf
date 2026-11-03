@@ -106,10 +106,6 @@ func loadConfig(getenv func(string) string) (config, error) {
 			c.allowedOrigins = append(c.allowedOrigins, o)
 		}
 	}
-	// The human check lives in the gateway. Two checks cannot both pass: Google accepts a token once.
-	if strings.TrimSpace(getenv("AUTH_BOT_PROTECTION")) == "true" {
-		return c, errors.New("AUTH_BOT_PROTECTION=true: this service does not check reCAPTCHA, the gateway does (HUMAN_CHECK there). Set it to false")
-	}
 	return c, nil
 }
 
