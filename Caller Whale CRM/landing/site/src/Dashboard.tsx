@@ -7,6 +7,13 @@ type StaffMember = { name: string; email?: string; role: string };
 const roleNames: Record<string, string> = { owner: "Owner", cofounder: "Cofounder", system_admin: "System admin", tester: "Tester" };
 
 const staffRoles = new Set(["owner", "cofounder", "system_admin"]);
+type AdminView = "overview" | "team" | "access" | "account";
+const viewFromHash = (hash: string): AdminView => {
+  if (hash === "#team" || hash === "#admin-team") return "team";
+  if (hash === "#access" || hash === "#admin-manage") return "access";
+  if (hash === "#account" || hash === "#admin-account") return "account";
+  return "overview";
+};
 
 function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: Auth; authBase: string; me: Me }) {
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -25,6 +32,27 @@ function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: 
   const [code, setCode] = useState("");
   const [recovery, setRecovery] = useState<string[]>([]);
   const canManage = access.platform_role === "owner" || access.platform_role === "cofounder";
+  const [view, setView] = useState<AdminView>("overview");
+  useEffect(() => {
+    const sync = () => {
+      const next = viewFromHash(location.hash);
+      if (next === "access" && !canManage) {
+        history.replaceState(null, "", "#overview");
+        setView("overview");
+      } else setView(next);
+    };
+    sync();
+    addEventListener("popstate", sync);
+    addEventListener("hashchange", sync);
+    return () => { removeEventListener("popstate", sync); removeEventListener("hashchange", sync); };
+  }, [canManage]);
+  const openView = (next: AdminView) => {
+    if (recovery.length) return;
+    if (view === next && location.hash === `#${next}`) return;
+    history.pushState(null, "", `#${next}`);
+    setView(next);
+    scrollTo(0, 0);
+  };
   const visibleStaff = staff.filter(person => {
     const matchesText = `${person.name} ${person.email || ""}`.toLowerCase().includes(query.trim().toLowerCase());
     return matchesText && (roleFilter === "all" || person.role === roleFilter);
@@ -34,7 +62,7 @@ function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: 
     setEmail(person.email);
     setRole(person.role);
     setMessage("");
-    document.getElementById("admin-manage")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    openView("access");
   };
   const request = async (method: string, path: string, body?: object) => {
     const token = await auth.accessToken();
@@ -112,10 +140,20 @@ function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: 
     } catch (error) { setMessage(error instanceof Error ? error.message : "That code could not be confirmed."); }
     setBusy(false);
   };
-  return <section className="admin-workspace" id="admin-overview" aria-labelledby="dashboard-administration">
-    <header className="admin-heading"><div><span className="eyebrow">Caller Whale administration</span><h1 id="dashboard-administration">Platform dashboard</h1><p className="muted">Manage staff access and review the people who can administer the platform.</p></div><div className="admin-heading-actions"><button type="button" className="button raised" onClick={() => void load()} disabled={status === "loading"}>Refresh</button>{canManage && status === "ready" && <a className="button primary" href="#admin-manage">Manage access</a>}</div></header>
-    {status === "loading" && <div className="admin-feedback card" role="status">Loading platform staff…</div>}
-    {status === "verify" && <div className="staff-verify">
+  const shownView = recovery.length ? "recovery" : view;
+  const headings = {
+    overview: ["Platform overview", "A clear view of who can administer Caller Whale."],
+    team: ["Platform team", "Find staff accounts and review their access."],
+    access: ["Manage access", "Assign or change administrative roles."],
+    account: ["Your account", "Your profile and workspace memberships."],
+    recovery: ["Save your recovery codes", "Finish securing your account before continuing."],
+  };
+  return <div className="admin-layout">
+    <aside className="admin-sidebar" aria-label="Administration navigation"><div className="admin-sidebar-brand"><span className="admin-sidebar-mark" aria-hidden="true">CW</span><span><strong>Platform</strong><small>Administration</small></span></div>{recovery.length ? <p className="admin-sidebar-note">Save your recovery codes to continue.</p> : <nav aria-label="Dashboard sections"><a href="#overview" aria-current={view === "overview" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("overview"); }}>Overview</a><a href="#team" aria-current={view === "team" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("team"); }}>Platform team</a>{canManage && <a href="#access" aria-current={view === "access" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("access"); }}>Manage access</a>}<a href="#account" aria-current={view === "account" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("account"); }}>Your account</a></nav>}<div className="admin-sidebar-account"><span className="eyebrow">Signed in as</span><strong>{me.name || me.email}</strong><small>{access.platform_label || roleNames[access.platform_role]}</small><Link to="/account">Open profile →</Link></div></aside>
+    <div className="admin-main"><section className="admin-workspace" aria-labelledby="dashboard-administration">
+    <header className="admin-heading"><div><span className="eyebrow">Caller Whale administration</span><h1 id="dashboard-administration">{headings[shownView][0]}</h1><p className="muted">{headings[shownView][1]}</p></div>{shownView !== "account" && shownView !== "recovery" && <div className="admin-heading-actions"><button type="button" className="button raised" onClick={() => void load()} disabled={status === "loading"}>Refresh</button>{canManage && status === "ready" && shownView !== "access" && <button type="button" className="button primary" onClick={() => openView("access")}>Manage access</button>}</div>}</header>
+    {shownView !== "account" && !recovery.length && status === "loading" && <div className="admin-feedback card" role="status">Loading platform staff…</div>}
+    {shownView !== "account" && !recovery.length && status === "verify" && <div className="staff-verify">
       <span className="eyebrow">Two-step security</span>
       <h3>{setupDetails ? "Connect your authenticator" : me.mfa_enrolled ? "Confirm it’s you" : "Protect your staff access"}</h3>
       <p className="muted">{setupDetails ? "Scan this QR code in your authenticator app, then enter its six-digit code below." : me.mfa_enrolled ? "Enter a code from your authenticator app to open the staff dashboard." : "Set up an authenticator app to open the staff dashboard. This takes about a minute."}</p>
@@ -133,15 +171,15 @@ function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: 
       {message && <p className="notice bad" role="alert">{message}</p>}
     </div>}
     {recovery.length > 0 && <div className="staff-recovery" role="status"><span className="eyebrow">One-time backup</span><h3>Save your recovery codes</h3><p>These codes can restore staff access if you lose your authenticator. Each code works once. They will not be shown again after you leave this page.</p><ol>{recovery.map(value => <li key={value}><code>{value}</code></li>)}</ol><div className="staff-recovery-actions"><button type="button" className="button raised" onClick={() => void copy(recovery.join("\n"), "Recovery codes")}>Copy codes</button><button type="button" className="button raised" onClick={downloadRecovery}>Download text file</button></div>{copyMessage && <p className="fine" role="status">{copyMessage}</p>}<button type="button" className="button primary" onClick={() => { setRecovery([]); setCopyMessage(""); }}>I saved my codes</button></div>}
-    {status === "error" && <div className="admin-feedback card" role="alert"><h2>Staff information is unavailable</h2><p>Check your connection and try again.</p><button type="button" className="button primary" onClick={() => void load()}>Try again</button></div>}
-    {status === "ready" && recovery.length === 0 && <><div className="admin-metrics" aria-label="Staff summary"><div><span>Staff accounts</span><strong>{staff.length}</strong><small>Across the platform</small></div><div><span>System admins</span><strong>{staff.filter(person => person.role === "system_admin").length}</strong><small>Operational access</small></div><div><span>Testers</span><strong>{staff.filter(person => person.role === "tester").length}</strong><small>Testing access</small></div><div><span>Founders</span><strong>{staff.filter(person => person.role === "owner" || person.role === "cofounder").length}</strong><small>Permanent roles</small></div></div>
-      <section className="admin-team card" id="admin-team" aria-labelledby="admin-team-title"><div className="admin-section-heading"><div><span className="eyebrow">Access directory</span><h2 id="admin-team-title">Platform team</h2><p className="muted">Owner and cofounder roles are permanent. System admin and tester roles can be managed here.</p></div><span className="admin-count">{query || roleFilter !== "all" ? `${visibleStaff.length} of ${staff.length}` : staff.length} {staff.length === 1 ? "person" : "people"}</span></div>
+    {shownView !== "account" && !recovery.length && status === "error" && <div className="admin-feedback card" role="alert"><h2>Staff information is unavailable</h2><p>Check your connection and try again.</p><button type="button" className="button primary" onClick={() => void load()}>Try again</button></div>}
+    {status === "ready" && shownView === "overview" && <><div className="admin-metrics" aria-label="Staff summary"><div><span>Staff accounts</span><strong>{staff.length}</strong><small>Across the platform</small></div><div><span>System admins</span><strong>{staff.filter(person => person.role === "system_admin").length}</strong><small>Operational access</small></div><div><span>Testers</span><strong>{staff.filter(person => person.role === "tester").length}</strong><small>Testing access</small></div><div><span>Founders</span><strong>{staff.filter(person => person.role === "owner" || person.role === "cofounder").length}</strong><small>Permanent roles</small></div></div><section className="admin-overview-panels"><div className="card"><span className="eyebrow">Team directory</span><h2>Review platform staff</h2><p className="muted">Find people and update managed roles.</p><button type="button" className="button primary" onClick={() => openView("team")}>View team →</button></div><div className="card"><span className="eyebrow">Your access</span><h2>{access.platform_label || roleNames[access.platform_role]}</h2><p className="muted">{canManage ? "You can assign system admin and tester roles." : "You can review platform staff. Founder roles manage access."}</p>{canManage ? <button type="button" className="button raised" onClick={() => openView("access")}>Manage roles →</button> : <button type="button" className="button raised" onClick={() => openView("account")}>View account →</button>}</div></section></>}
+    {status === "ready" && shownView === "team" && <section className="admin-team card" aria-labelledby="admin-team-title"><div className="admin-section-heading"><div><span className="eyebrow">Access directory</span><h2 id="admin-team-title">Staff directory</h2><p className="muted">Owner and cofounder roles are permanent. System admin and tester roles can be managed here.</p></div><span className="admin-count">{query || roleFilter !== "all" ? `${visibleStaff.length} of ${staff.length}` : staff.length} {staff.length === 1 ? "person" : "people"}</span></div>
         <div className="admin-toolbar"><label>Search people<input type="search" placeholder="Name or email" value={query} onChange={event => setQuery(event.target.value)} /></label><label>Role<select value={roleFilter} onChange={event => setRoleFilter(event.target.value)}><option value="all">All roles</option><option value="owner">Owner</option><option value="cofounder">Cofounder</option><option value="system_admin">System admin</option><option value="tester">Tester</option></select></label></div>
-        {staff.length === 0 ? <div className="admin-empty"><h3>No staff to show yet</h3><p>When an account receives platform access, it will appear here.</p>{canManage && <a className="button primary" href="#admin-manage">Assign a role</a>}</div> : visibleStaff.length === 0 ? <div className="admin-empty"><h3>No matches</h3><p>Try a different name, email, or role.</p><button type="button" className="button raised" onClick={() => { setQuery(""); setRoleFilter("all"); }}>Clear filters</button></div> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th scope="col">Person</th><th scope="col">Role</th><th scope="col">Access</th><th scope="col"><span className="sr-only">Action</span></th></tr></thead><tbody>{visibleStaff.map((person, index) => <tr key={person.email || `${person.role}-${index}`}><td data-label="Person"><span className="admin-person"><span className="admin-person-avatar" aria-hidden="true">{(person.name || person.email || "?").charAt(0).toUpperCase()}</span><span><strong>{person.name || person.email}</strong>{person.email && <small>{person.email}</small>}</span></span></td><td data-label="Role"><span className={`staff-role staff-role-${person.role}`}>{roleNames[person.role] || person.role}</span></td><td data-label="Access">{person.role === "owner" || person.role === "cofounder" ? "Permanent" : "Managed"}</td><td data-label="Action">{canManage && person.email && (person.role === "system_admin" || person.role === "tester") && <button type="button" className="staff-text-button" onClick={() => editRole(person)}>Edit role</button>}</td></tr>)}</tbody></table></div>}
-      </section>
-      {canManage && <section className="admin-manage card" id="admin-manage" aria-labelledby="admin-manage-title"><div><span className="eyebrow">Role management</span><h2 id="admin-manage-title">Assign or change access</h2><p className="muted">The person must already have signed in to Caller Whale. Founder roles cannot be changed here.</p></div><form className="staff-form" onSubmit={assign}><div className="staff-fields"><label>Account email<input type="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="person@example.com" /></label><label>Role<select value={role} onChange={event => setRole(event.target.value)}><option value="system_admin">System admin</option><option value="tester">Tester</option><option value="">Remove role</option></select></label><button className="button primary" disabled={busy}>{busy ? "Saving…" : "Save access"}</button></div>{message && <p className={message.includes("saved") || message.includes("removed") ? "notice" : "notice bad"} role="status">{message}</p>}</form></section>}
-    </>}
-  </section>;
+        {staff.length === 0 ? <div className="admin-empty"><h3>No staff to show yet</h3><p>When an account receives platform access, it will appear here.</p>{canManage && <button type="button" className="button primary" onClick={() => openView("access")}>Assign a role</button>}</div> : visibleStaff.length === 0 ? <div className="admin-empty"><h3>No matches</h3><p>Try a different name, email, or role.</p><button type="button" className="button raised" onClick={() => { setQuery(""); setRoleFilter("all"); }}>Clear filters</button></div> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th scope="col">Person</th><th scope="col">Role</th><th scope="col">Access</th><th scope="col"><span className="sr-only">Action</span></th></tr></thead><tbody>{visibleStaff.map((person, index) => <tr key={person.email || `${person.role}-${index}`}><td data-label="Person"><span className="admin-person"><span className="admin-person-avatar" aria-hidden="true">{(person.name || person.email || "?").charAt(0).toUpperCase()}</span><span><strong>{person.name || person.email}</strong>{person.email && <small>{person.email}</small>}</span></span></td><td data-label="Role"><span className={`staff-role staff-role-${person.role}`}>{roleNames[person.role] || person.role}</span></td><td data-label="Access">{person.role === "owner" || person.role === "cofounder" ? "Permanent" : "Managed"}</td><td data-label="Action">{canManage && person.email && (person.role === "system_admin" || person.role === "tester") && <button type="button" className="staff-text-button" onClick={() => editRole(person)}>Edit role</button>}</td></tr>)}</tbody></table></div>}
+      </section>}
+    {canManage && status === "ready" && shownView === "access" && <section className="admin-manage card" aria-labelledby="admin-manage-title"><div><span className="eyebrow">Role management</span><h2 id="admin-manage-title">Assign or change access</h2><p className="muted">The person must already have signed in to Caller Whale. Founder roles cannot be changed here.</p></div><form className="staff-form" onSubmit={assign}><div className="staff-fields"><label>Account email<input type="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="person@example.com" /></label><label>Role<select value={role} onChange={event => setRole(event.target.value)}><option value="system_admin">System admin</option><option value="tester">Tester</option><option value="">Remove role</option></select></label><button className="button primary" disabled={busy}>{busy ? "Saving…" : "Save access"}</button></div>{message && <p className={message.includes("saved") || message.includes("removed") ? "notice" : "notice bad"} role="status">{message}</p>}</form></section>}
+    {shownView === "account" && <section className="admin-account card" aria-labelledby="admin-account-title"><div><span className="eyebrow">Your profile</span><h2 id="admin-account-title">{me.name || me.email}</h2><p className="muted">{me.email}</p><RoleBadges access={{ ...access, workspaces: [] }} /><Link to="/account">Manage your profile →</Link></div><div><h3>Workspace memberships</h3>{access.workspaces.length ? <ul className="membership-list">{access.workspaces.map((workspace, index) => <li key={workspace.org_id}><strong>Workspace {index + 1}</strong><RoleBadges access={{ platform_role: "", workspaces: [workspace] }} /></li>)}</ul> : <p className="muted">No workspace memberships yet.</p>}</div></section>}
+  </section></div></div>;
 }
 
 export function Dashboard({ me, auth, authBase }: { me: Me | null | undefined; auth: Auth; authBase: string }) {
@@ -174,10 +212,7 @@ export function Dashboard({ me, auth, authBase }: { me: Me | null | undefined; a
   if (!me) return <div className="form-wrap"><p className="muted">Loading your dashboard…</p></div>;
   if (status === "loading") return <div className="admin-feedback card" role="status"><h1>Preparing your dashboard</h1><p>Checking your account and access…</p></div>;
   if (status === "unavailable" || !access) return <div className="admin-feedback card" role="alert"><h1>We couldn’t load your dashboard</h1><p>Your account is signed in, but access details are unavailable right now.</p><button type="button" className="button primary" onClick={() => setRetry(value => value + 1)}>Try again</button></div>;
-  if (staffRoles.has(access.platform_role)) return <div className="admin-layout">
-    <aside className="admin-sidebar" aria-label="Administration navigation"><div className="admin-sidebar-brand"><span className="admin-sidebar-mark" aria-hidden="true">CW</span><span><strong>Platform</strong><small>Administration</small></span></div><nav aria-label="Dashboard sections"><a href="#admin-overview">Overview</a>{me.mfa_passed !== false && <a href="#admin-team">Platform team</a>}{me.mfa_passed !== false && (access.platform_role === "owner" || access.platform_role === "cofounder") && <a href="#admin-manage">Manage access</a>}<a href="#admin-account">Your account</a></nav><div className="admin-sidebar-account"><span className="eyebrow">Signed in as</span><strong>{me.name || me.email}</strong><small>{access.platform_label || roleNames[access.platform_role]}</small><Link to="/account">Open profile →</Link></div></aside>
-    <div className="admin-main"><StaffDashboard access={access} auth={auth} authBase={authBase} me={me} /><section className="admin-account card" id="admin-account" aria-labelledby="admin-account-title"><div><span className="eyebrow">Your account</span><h2 id="admin-account-title">Profile and workspaces</h2><p className="muted">{me.email}</p><Link to="/account">Manage your profile →</Link></div><div><h3>Workspace memberships</h3>{access.workspaces.length ? <ul className="membership-list">{access.workspaces.map((workspace, index) => <li key={workspace.org_id}><strong>Workspace {index + 1}</strong><RoleBadges access={{ platform_role: "", workspaces: [workspace] }} /></li>)}</ul> : <p className="muted">No workspace memberships yet.</p>}</div></section></div>
-  </div>;
+  if (staffRoles.has(access.platform_role)) return <StaffDashboard access={access} auth={auth} authBase={authBase} me={me} />;
   return <div className="dashboard-page">
     <header className="page-head">
       <span className="eyebrow">Your Caller Whale account</span>
