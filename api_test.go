@@ -49,6 +49,23 @@ func TestStaffDirectoryNeedsAServiceToken(t *testing.T) {
 	}
 }
 
+func TestAuthCanApplyAnOwnerApprovedMemberRoleOnly(t *testing.T) {
+	h := newHarness(t)
+	h.opened()
+	body := map[string]any{"actor_id": ownerID, "actor_second_step": true, "roles": []string{"caller"}}
+	path := "/v1/orgs/" + org1 + "/members/" + strangerID
+	if code, _ := h.call(authToken, "PUT", path, body); code != 200 {
+		t.Fatalf("auth may apply an owner-approved member role: %d", code)
+	}
+	if code, _ := h.call(authToken, "DELETE", path, body); code != 403 {
+		t.Fatalf("auth must not delete members: %d", code)
+	}
+	body["actor_id"] = callerID
+	if code, _ := h.call(authToken, "PUT", path, body); code != 403 {
+		t.Fatalf("a non-owner cannot authorize the same call: %d", code)
+	}
+}
+
 func TestGrantsCarryDatabaseRightsAndScope(t *testing.T) {
 	h := newHarness(t)
 	h.opened()
