@@ -74,11 +74,11 @@ Stays in the core API: the CRM records, organizations and the `access_revision` 
 
 | Item | Authorization (`authz`) | SpiceDB |
 | --- | --- | --- |
-| Folder | `services/authz` | config in `deploy/spicedb` |
+| Folder | `services/authz` | notes in `deploy/spicedb` |
 | Language | Go | SpiceDB's own image (Go) |
 | Port | 8104 (billing's scaffold already uses 8103) | 50051 (gRPC), private |
-| Coolify app | `authz`, alias `authz` | `spicedb`, alias `spicedb` |
-| Branch | `authz-backend-production` (service at the branch root: Base directory `/`, Dockerfile `/Dockerfile`) | `spicedb-production` or a Compose resource |
+| Coolify app | `authz`, alias `authz` (backend environment) | `spicedb`, alias `spicedb` (Database environment, beside PostgreSQL) |
+| Branch | `authz-backend-production` (service at the branch root: Base directory `/`, Dockerfile `/Dockerfile`) | None: a Docker Image resource (`authzed/spicedb`) |
 | Domain | **None**, not in the gateway's `ROUTES` | **None** |
 | Database | Its own database and login, for the grant audit log | Its own database and login (`callerwhale_spicedb`) |
 | Who may call it | Our services, each with a machine token in `AUTHZ_TOKENS` and an allow-list | Only `authz`, with SpiceDB's preshared key |

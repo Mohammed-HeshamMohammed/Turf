@@ -247,13 +247,13 @@
       }
     },
     "spicedb": {
-      "description": "SpiceDB, the authorization service's rules store (Docker Compose). No domain or published port; only authz calls it.",
+      "description": "SpiceDB, the authorization service's rules store (a Docker Image resource in the Database environment, no branch). No domain or published port; only authz calls it.",
       "variables": {
-        "SPICEDB_DATASTORE_ENGINE": "SpiceDB's datastore: postgres. Fixed in the compose file.",
+        "SPICEDB_DATASTORE_ENGINE": "SpiceDB's datastore: postgres.",
         "SPICEDB_DATASTORE_CONN_URI": "Secret PostgreSQL URI of SpiceDB's own database and login (callerwhale_spicedb). No other service uses it.",
         "SPICEDB_GRPC_PRESHARED_KEY": "Secret key authz sends with every call (authz's SPICEDB_PRESHARED_KEY). Long and random; change both together.",
-        "SPICEDB_HTTP_ENABLED": "false: only the private gRPC API, with no HTTP gateway or dashboard.",
-        "SPICEDB_TELEMETRY_ENDPOINT": "Empty: no usage reports leave the server."
+        "SPICEDB_HTTP_ENABLED": "Set false: only the private gRPC API, with no HTTP gateway or dashboard.",
+        "SPICEDB_TELEMETRY_ENDPOINT": "Set empty: no usage reports leave the server."
       }
     }
   }
