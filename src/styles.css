@@ -13,7 +13,8 @@ body { margin: 0; min-height: 100vh; }
 a { color: var(--accent-ink); }
 :focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
 
-.page { max-width: 1440px; margin: 0 auto; padding: 14px; display: grid; gap: 24px; }
+.page { max-width: 1440px; margin: 0 auto; padding: 14px; display: grid; gap: 16px; }
+.page > main { display: grid; align-content: start; gap: clamp(12px, 1.6vw, 20px); min-width: 0; }
 .header { display: flex; align-items: center; justify-content: space-between; gap: var(--gap); height: 86px; padding: 14px 20px; background: var(--shell); border-radius: var(--radius); }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 600; color: var(--ink); text-decoration: none; }
 .brand img { width: 32px; height: 32px; }
@@ -22,6 +23,8 @@ a { color: var(--accent-ink); }
 .rail a[aria-current="page"], .button.primary { background: var(--accent); }
 .button.raised { background: var(--raised); }
 .button[disabled] { opacity: .55; cursor: default; }
+.button.primary:hover:not(:disabled) { background: #f3d3ad; }
+.button.raised:hover:not(:disabled) { background: var(--accent-soft); }
 
 .card { background: var(--card); border-radius: var(--radius); padding: var(--pad); }
 .hero { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); min-height: 520px; }
@@ -37,6 +40,10 @@ a { color: var(--accent-ink); }
 .well { background: var(--well); border-radius: var(--radius); }
 
 .form-wrap { display: grid; place-items: center; padding: 24px 0 48px; }
+.session-card { width: min(520px, 100%); display: grid; gap: 14px; padding: clamp(24px, 4vw, 40px); }
+.session-card h1, .session-card p { margin: 0; }
+.session-card h1 { font-size: clamp(24px, 3vw, 32px); line-height: 1.15; }
+.session-card .button { justify-self: start; }
 .form { width: min(440px, 100%); display: grid; gap: var(--gap); }
 .form h1 { margin: 0; font-size: 24px; font-weight: 550; }
 .field { display: grid; gap: 6px; }

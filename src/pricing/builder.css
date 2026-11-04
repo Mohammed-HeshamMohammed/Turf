@@ -10,6 +10,7 @@
   border-radius: var(--radius);
   background: var(--card);
 }
+.builder-live-total { display: none; }
 .builder-main h3 {
   font-size: 18px;
 }
@@ -241,13 +242,16 @@
   }
   .builder-sum {
     position: static;
-    order: -1;
   }
+  .builder-live-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 18px; padding: 12px 14px; border-radius: 14px; background: var(--accent-soft); font-size: 13px; }
+  .builder-live-total strong { white-space: nowrap; font-size: 20px; }
+  .builder-live-total span { font-size: 13px; font-weight: 500; }
 }
 @media (max-width: 520px) {
   .builder-main {
     padding: 18px;
   }
+  .builder-top { align-items: flex-start; flex-direction: column; }
   .builder-features > li {
     flex-direction: column;
     align-items: stretch;
