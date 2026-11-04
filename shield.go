@@ -25,6 +25,8 @@ var authRoutes = []string{
 	"POST /v1/sessions/refresh", "POST /v1/sessions/sign-out", "POST /v1/sessions/revoke",
 	"GET /v1/me",
 	"GET /v1/me/access",
+	"GET /v1/admin/staff",
+	"POST /v1/admin/staff",
 	"GET /v1/security", "GET /v1/providers", "GET /.well-known/jwks.json",
 	"POST /v1/password", "POST /v1/password/forgot", "POST /v1/password/reset",
 	"POST /v1/email/verify", "POST /v1/email/resend",
