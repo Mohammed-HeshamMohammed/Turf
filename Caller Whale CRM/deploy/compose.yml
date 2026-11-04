@@ -40,6 +40,28 @@ services:
       context: ../services/billing
     environment:
       PORT: "8103"
+      DATABASE_URL: "${BILLING_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_billing}"
+      BILLING_TOKENS: "${BILLING_TOKENS:-}"
+      PADDLE_WEBHOOK_SECRET: "${PADDLE_WEBHOOK_SECRET:-}"
+      AUTHZ_URL: "http://authz:8104"
+      AUTHZ_TOKEN: "${AUTHZ_BILLING_TOKEN:?set AUTHZ_BILLING_TOKEN in env/compose.env}"
+    restart: unless-stopped
+  # The rules store for authz. Locally it keeps everything in memory: a restart starts empty.
+  spicedb:
+    image: authzed/spicedb:v1.57.0
+    command: ["serve-testing", "--grpc-addr", ":50051"]
+    restart: unless-stopped
+  authz:
+    build:
+      context: ../services/authz
+    environment:
+      PORT: "8104"
+      SPICEDB_ENDPOINT: "spicedb:50051"
+      SPICEDB_PRESHARED_KEY: "local"
+      AUTHZ_SIGNING_KEY: "${AUTHZ_SIGNING_KEY:?set AUTHZ_SIGNING_KEY in env/compose.env}"
+      AUTHZ_TOKENS: "core-api=${AUTHZ_CORE_TOKEN:?set AUTHZ_CORE_TOKEN in env/compose.env},billing=${AUTHZ_BILLING_TOKEN:?set AUTHZ_BILLING_TOKEN in env/compose.env}"
+    depends_on:
+      - spicedb
     restart: unless-stopped
   importing-lists:
     build:

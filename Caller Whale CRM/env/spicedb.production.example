@@ -1,0 +1,5 @@
+# SpiceDB on Coolify (Docker Compose resource from spicedb-production, deploy/spicedb/compose.yml; no domain). Only these two are set in Coolify; the rest is fixed in the compose file.
+# Secret PostgreSQL URI of SpiceDB's own database and login (callerwhale_spicedb). No other service uses it.
+SPICEDB_DATASTORE_CONN_URI=<postgres://callerwhale_spicedb:password@host:5432/callerwhale_spicedb>
+# Secret key authz sends with every call (authz's SPICEDB_PRESHARED_KEY). Long and random; change both together.
+SPICEDB_GRPC_PRESHARED_KEY=<a long random string>

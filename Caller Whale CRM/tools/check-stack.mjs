@@ -2,7 +2,7 @@
 //
 //   node tools/check-stack.mjs
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,7 +19,13 @@ const add = (name, what, r) => results.push({ name, what, status: r.missing ? "s
 
 for (const s of stack.services) {
   if (s.lang === "ts") add(s.name, "node test", run("node", ["--test", "test/*.test.ts"], join(root, s.dir)));
-  if (s.lang === "python") add(s.name, "unittest", run("python", ["-m", "unittest", "discover", "-s", "tests"], join(root, s.dir)));
+  if (s.lang === "python") {
+    // A service with dependencies keeps them in its own .venv (services/billing/README.md); the others use the standard library.
+    const venv = join(root, s.dir, ".venv", process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
+    // Quoted: on Windows the command runs through the shell, and the folder name has spaces.
+    const python = existsSync(venv) ? (process.platform === "win32" ? `"${venv}"` : venv) : "python";
+    add(s.name, "unittest", run(python, ["-m", "unittest", "discover", "-s", "tests"], join(root, s.dir)));
+  }
   if (s.lang === "go") add(s.name, "go test", run("go", ["test", "./..."], join(root, s.dir)));
 }
 add("rust crates", "cargo test --workspace", run("cargo", ["test", "--workspace", "--quiet"]));

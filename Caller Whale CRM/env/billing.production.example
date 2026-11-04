@@ -1,0 +1,15 @@
+# The billing service on Coolify (application "billing", port 8103, no domain: the gateway routes /api/v1/plans and /api/v1/billing/webhook). Paste into Developer View; secrets in Coolify only.
+# HTTP port; default 8103. Match Coolify's container port.
+PORT=8103
+# Secret PostgreSQL URI of billing's own database and login (callerwhale_billing). No other service uses it.
+DATABASE_URL=<postgres://callerwhale_billing:password@host:5432/callerwhale_billing>
+# Secret caller tokens, caller=token comma-separated (core-api, worker), 32+ characters each. Each caller gets only its own rights.
+BILLING_TOKENS=core-api=<token>,worker=<token>
+# Secret key of Paddle's notification destination for the billing webhook. Empty refuses every payment webhook.
+PADDLE_WEBHOOK_SECRET=<Paddle notification destination secret>
+# How old a signed webhook may be, 5 to 3600 seconds; default 300. Redeliveries are harmless: each event applies once.
+PADDLE_WEBHOOK_TOLERANCE_SECONDS=300
+# The authorization service's private address, like http://authz:8104, told of every standing change. Set with AUTHZ_TOKEN.
+AUTHZ_URL=http://authz:8104
+# Secret billing token from authz's AUTHZ_TOKENS. Set with AUTHZ_URL.
+AUTHZ_TOKEN=<billing token from AUTHZ_TOKENS>

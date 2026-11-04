@@ -7,7 +7,8 @@ The server side of Caller Whale CRM: one folder per service, each with its own c
 | gateway | `services/gateway/` | Go 1.23 or newer | 8100 | no | The one public entry point: HTTPS, token check, rate limits, and routing of /api/v1/<service>/* to the service behind it. |
 | auth | `services/auth/` | Rust | 8101 | yes | Accounts, sessions, two-step sign-in, Google sign-in, roles and tokens. Signs short-lived tokens and publishes its public keys. Nothing else. |
 | notifications | `services/notifications/` | Go 1.23 or newer | 8102 | yes | Email, SMS, push and in-app notifications, sent when another service publishes notification.requested. Nothing else. |
-| billing | `services/billing/` | TypeScript | 8103 | yes | Plans, features, seats, add-ons and the payment provider. Stores a subscription as entitlements. Checkout is off until a provider is chosen. |
+| billing | `services/billing/` | Python 3.13 (FastAPI) | 8103 | yes | Plans, subscriptions, payments, call minutes and desktop credits. Records what the payment provider's signed webhooks say; money never moves through it. |
+| authz | `services/authz/` | Go | 8104 | no (rules in SpiceDB) | Decides what each person may do in each workspace and which database rights each request runs under. No public address. |
 | importing-lists | `services/features/importing-lists/` | Python 3.13 or newer | 8111 | yes | Feature 1: server-side list imports, column mapping and repeat merging for lists kept on the server. |
 | skip-tracing | `services/features/skip-tracing/` | Python 3.13 or newer | 8112 | yes | Feature 2: server-side phone checks, Do Not Call, number lookups and network hints. Shares its rules with the shared service/ engine. |
 | dialer-sms | `services/features/dialer-sms/` | TypeScript | 8113 | yes | Feature 3: calling, auto dialing, texting, number health, call logs and the carrier webhooks. |

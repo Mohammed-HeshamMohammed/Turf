@@ -1,0 +1,3 @@
+# Only for running the tests (FastAPI's test client needs httpx).
+-r requirements.txt
+httpx==0.28.1

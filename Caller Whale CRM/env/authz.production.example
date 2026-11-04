@@ -1,0 +1,19 @@
+# The authorization service on Coolify (application "authz", port 8104, no domain). Paste into Developer View; secrets in Coolify only.
+# HTTP port; default 8104. Match Coolify's container port and the callers' AUTHZ_URL.
+PORT=8104
+# SpiceDB's private gRPC address, host:port; default spicedb:50051. Never a public address.
+SPICEDB_ENDPOINT=spicedb:50051
+# Secret key SpiceDB was started with (its SPICEDB_GRPC_PRESHARED_KEY). Change both together, or every decision fails closed.
+SPICEDB_PRESHARED_KEY=<the SpiceDB preshared key>
+# true when SpiceDB serves TLS; default false on the private Docker network.
+SPICEDB_TLS=false
+# Secret Ed25519 key (base64 PKCS#8 or 32-byte seed) that signs grants; `service new-key` prints one. Keep stable; empty uses a temporary key.
+AUTHZ_SIGNING_KEY=<service new-key>
+# Secret caller tokens, caller=token comma-separated (core-api, billing, gateway, worker), 32+ characters each. Each caller gets only its own rights.
+AUTHZ_TOKENS=core-api=<token>,billing=<token>,gateway=<token>,worker=<token>
+# How long a grant lasts, 5 to 600 seconds; default 60. Shorter means faster revocation and more calls.
+AUTHZ_GRANT_SECONDS=60
+# Default true: roles that need the second step (owner, solo) must have passed it. false only for local testing.
+AUTHZ_REQUIRE_SECOND_STEP=true
+# Default true: Caller Whale's staff must have passed the second step. Keep true in production.
+AUTHZ_STAFF_SECOND_STEP=true

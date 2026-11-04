@@ -5,7 +5,7 @@ import { resolve, dirname } from "node:path";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const containers = [
  ["landing/web", "Website"], ["landing/dashboard-web", "Dashboard"],
- ["services/auth", "Auth"], ["services/billing", "Billing"],
+ ["services/auth", "Auth"], ["services/authz", "Authorization"], ["services/billing", "Billing"],
  ["services/core-api", "Core API", true], ["services/core-api/go", "Core API worker"],
  ["services/gateway", "Gateway"], ["services/grafana-proxy", "Grafana proxy"], ["services/notifications", "Notifications"],
  ["services/features/ai-campaigns", "AI campaigns"], ["services/features/backup-restore", "Backup restore", true],
@@ -40,8 +40,8 @@ console.log(`${check ? "Checked" : "Synchronized"} ${containers.length} applicat
 
 const adapters = [
  ["scaffold-access.rs.txt", ["services/features/crm/src/access_log.rs", "services/features/leads-map/src/access_log.rs", "services/features/backup-restore/src/access_log.rs"]],
- ["access-log.mjs", ["services/billing/src/access-log.mjs", "services/features/ai-campaigns/src/access-log.mjs", "services/features/dialer-sms/src/access-log.mjs"]],
- ["access.go", ["services/gateway/access_log.go", "services/grafana-proxy/access_log.go", "services/notifications/access_log.go", "services/auth/access_log.go"]],
+ ["access-log.mjs", ["services/features/ai-campaigns/src/access-log.mjs", "services/features/dialer-sms/src/access-log.mjs"]],
+ ["access.go", ["services/gateway/access_log.go", "services/grafana-proxy/access_log.go", "services/notifications/access_log.go", "services/auth/access_log.go", "services/authz/access_log.go"]],
  ["access.rs.txt", ["services/core-api/rust/crates/api/src/access_log.rs"]],
 ];
 for (const [sourceName, targets] of adapters) {

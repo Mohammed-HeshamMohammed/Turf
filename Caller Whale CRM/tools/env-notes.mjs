@@ -13,6 +13,9 @@ const examples = {
   'gateway.production.example': 'gateway',
   'landing-web.production.example': 'landing-web',
   'notifications.production.example': 'notifications',
+  'authz.production.example': 'authz',
+  'billing.production.example': 'billing',
+  'spicedb.production.example': 'spicedb',
   // Pointer-only example; actual monitoring settings are in deploy/grafana.
   'grafana.production.example': 'callerwhale-monitoring',
 };
@@ -60,6 +63,7 @@ if (command === 'render') {
   for (const [file, name] of Object.entries(examples)) await checkFile(`env/${file}`, name);
   await checkFile('deploy/grafana/.env.example', 'callerwhale-monitoring');
   await checkFile('deploy/grafana/compose.yml', 'callerwhale-monitoring', 'compose');
+  await checkFile('deploy/spicedb/compose.yml', 'spicedb', 'compose');
   const inventory = JSON.parse(await readFile(path.join(root, 'env/container-variable-inventory.json'), 'utf8'));
   let observed = 0;
   for (const [name, keys] of Object.entries(inventory.resources)) {

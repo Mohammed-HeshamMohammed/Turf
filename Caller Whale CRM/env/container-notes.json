@@ -218,6 +218,42 @@
         "REDIS_USERNAME": "Redis login name managed by Coolify; use the configured ACL identity when connecting. Keep core-api connection credentials aligned; the worker publisher currently accepts a password but no custom username.",
         "REDIS_PASSWORD": "Secret Redis password managed by Coolify. Rotate together with core-api REDIS_URL and worker REDIS_PASSWORD; mismatches break caching/invalidation. Keep Redis private."
       }
+    },
+    "authz": {
+      "description": "Authorization service: decides what each person may do and which database rights each request runs under. No domain; called only by Caller Whale's services.",
+      "variables": {
+        "PORT": "HTTP port; default 8104. Match Coolify's container port and the callers' AUTHZ_URL.",
+        "SPICEDB_ENDPOINT": "SpiceDB's private gRPC address, host:port; default spicedb:50051. Never a public address.",
+        "SPICEDB_PRESHARED_KEY": "Secret key SpiceDB was started with (its SPICEDB_GRPC_PRESHARED_KEY). Change both together, or every decision fails closed.",
+        "SPICEDB_TLS": "true when SpiceDB serves TLS; default false on the private Docker network.",
+        "AUTHZ_SIGNING_KEY": "Secret Ed25519 key (base64 PKCS#8 or 32-byte seed) that signs grants; `service new-key` prints one. Keep stable; empty uses a temporary key.",
+        "AUTHZ_TOKENS": "Secret caller tokens, caller=token comma-separated (core-api, billing, gateway, worker), 32+ characters each. Each caller gets only its own rights.",
+        "AUTHZ_GRANT_SECONDS": "How long a grant lasts, 5 to 600 seconds; default 60. Shorter means faster revocation and more calls.",
+        "AUTHZ_REQUIRE_SECOND_STEP": "Default true: roles that need the second step (owner, solo) must have passed it. false only for local testing.",
+        "AUTHZ_STAFF_SECOND_STEP": "Default true: Caller Whale's staff must have passed the second step. Keep true in production."
+      }
+    },
+    "billing": {
+      "description": "Billing service: plans, subscriptions, payments, call minutes and desktop credits. No domain; the gateway routes its public paths.",
+      "variables": {
+        "PORT": "HTTP port; default 8103. Match Coolify's container port.",
+        "DATABASE_URL": "Secret PostgreSQL URI of billing's own database and login (callerwhale_billing). No other service uses it.",
+        "BILLING_TOKENS": "Secret caller tokens, caller=token comma-separated (core-api, worker), 32+ characters each. Each caller gets only its own rights.",
+        "PADDLE_WEBHOOK_SECRET": "Secret key of Paddle's notification destination for the billing webhook. Empty refuses every payment webhook.",
+        "PADDLE_WEBHOOK_TOLERANCE_SECONDS": "How old a signed webhook may be, 5 to 3600 seconds; default 300. Redeliveries are harmless: each event applies once.",
+        "AUTHZ_URL": "The authorization service's private address, like http://authz:8104, told of every standing change. Set with AUTHZ_TOKEN.",
+        "AUTHZ_TOKEN": "Secret billing token from authz's AUTHZ_TOKENS. Set with AUTHZ_URL."
+      }
+    },
+    "spicedb": {
+      "description": "SpiceDB, the authorization service's rules store (Docker Compose). No domain or published port; only authz calls it.",
+      "variables": {
+        "SPICEDB_DATASTORE_ENGINE": "SpiceDB's datastore: postgres. Fixed in the compose file.",
+        "SPICEDB_DATASTORE_CONN_URI": "Secret PostgreSQL URI of SpiceDB's own database and login (callerwhale_spicedb). No other service uses it.",
+        "SPICEDB_GRPC_PRESHARED_KEY": "Secret key authz sends with every call (authz's SPICEDB_PRESHARED_KEY). Long and random; change both together.",
+        "SPICEDB_HTTP_ENABLED": "false: only the private gRPC API, with no HTTP gateway or dashboard.",
+        "SPICEDB_TELEMETRY_ENDPOINT": "Empty: no usage reports leave the server."
+      }
     }
   }
 }
