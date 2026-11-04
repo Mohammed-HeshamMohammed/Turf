@@ -19,6 +19,7 @@ export interface Me {
 
 export interface Auth {
   signedIn(): boolean;
+  accessToken(): Promise<string | null>;
   me(options?: { fresh?: boolean }): Promise<Me>;
   signIn(email: string, password: string, code?: string, kind?: string, humanToken?: string): Promise<unknown>;
   signUp(name: string, email: string, password: string, kind?: string, humanToken?: string): Promise<unknown>;

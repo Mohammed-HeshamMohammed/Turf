@@ -24,6 +24,12 @@
 .contact-form input, .contact-form textarea { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: var(--inner); background: var(--raised); color: var(--ink); font: inherit; }
 .contact-form .button { justify-self: start; }
 .contact-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.dashboard-page { display: grid; gap: 16px; }
+.dashboard-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+.dashboard-panels .card { min-width: 0; padding: clamp(20px, 3vw, 32px); }
+.dashboard-panels h2 { margin-top: 0; font-size: 24px; }
+.membership-list { display: grid; gap: 12px; padding: 0; list-style: none; }
+.membership-list li { display: grid; gap: 4px; padding: 12px 0; border-top: 1px solid var(--line); }
 .legal { max-width: 900px; line-height: 1.7; }
 .legal h2 { margin-top: 30px; }
 .footer { display: flex; flex-wrap: wrap; gap: 16px; }

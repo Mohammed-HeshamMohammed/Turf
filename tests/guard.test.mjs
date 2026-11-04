@@ -3,16 +3,17 @@ import test from "node:test";
 import { redirectFor } from "../src/guard.ts";
 
 test("nothing is decided while the sign-in state is unknown", () => {
-  for (const path of ["/", "/signin", "/signup", "/forgot", "/account"]) assert.equal(redirectFor(path, undefined), null);
+  for (const path of ["/", "/signin", "/signup", "/forgot", "/account", "/dashboard"]) assert.equal(redirectFor(path, undefined), null);
 });
 
 test("someone signed in is sent away from the sign-in pages", () => {
-  for (const path of ["/signin", "/signup", "/forgot", "/signin/"]) assert.equal(redirectFor(path, { email: "a@example.com" }), "/account");
+  for (const path of ["/signin", "/signup", "/forgot", "/signin/"]) assert.equal(redirectFor(path, { email: "a@example.com" }), "/dashboard");
 });
 
 test("nobody signed in is sent from the account page to sign in", () => {
   assert.equal(redirectFor("/account", null), "/signin");
   assert.equal(redirectFor("/account/", null), "/signin");
+  assert.equal(redirectFor("/dashboard", null), "/signin");
 });
 
 test("every other page stays as it is", () => {

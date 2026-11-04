@@ -30,6 +30,7 @@ export const routes = [
   { path: "/signup", key: "signup", title: "Create your account · Caller Whale", description: "Create your Caller Whale account.", indexable: false, sitemap: false },
   { path: "/forgot", key: "forgot", title: "Reset your password · Caller Whale", description: "Reset your Caller Whale password.", indexable: false, sitemap: false },
   { path: "/account", key: "account", title: "Your account · Caller Whale", description: "Your Caller Whale account.", indexable: false, sitemap: false },
+  { path: "/dashboard", key: "dashboard", title: "Dashboard · Caller Whale", description: "Your Caller Whale membership and platform access.", indexable: false, sitemap: false },
 ];
 
 export const notFoundRoute = {
