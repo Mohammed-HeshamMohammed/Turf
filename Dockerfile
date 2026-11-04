@@ -13,7 +13,7 @@ ARG VITE_CALLERWHALE_AUTH_URL
 ENV VITE_CALLERWHALE_AUTH_URL=$VITE_CALLERWHALE_AUTH_URL
 ARG VITE_CALLERWHALE_GATEWAY_URL=https://gate.callerwhale.com
 ENV VITE_CALLERWHALE_GATEWAY_URL=$VITE_CALLERWHALE_GATEWAY_URL
-RUN npm test && node scripts/security-headers.mjs /app/security-headers.conf && npm run build
+RUN npm test && npm run build && node scripts/security-headers.mjs /app/security-headers.conf /app/dist
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 COPY --from=runtime-log-build /runtime-log /usr/local/bin/callerwhale-log

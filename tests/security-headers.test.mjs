@@ -1,15 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { BADGE_STYLE, authOrigin, securityHeaders } from "../scripts/security-headers.mjs";
+import { BADGE_STYLE, authOrigin, jsonLdHashes, securityHeaders } from "../scripts/security-headers.mjs";
 
 test("the policy permits auth, reCAPTCHA, and Cloudflare's injected beacon", () => {
   const headers = securityHeaders("https://auth.callerwhale.com");
   assert.match(headers, /connect-src 'self' https:\/\/auth\.callerwhale\.com https:\/\/gate\.callerwhale\.com https:\/\/www\.google\.com\/recaptcha\/;/);
-  assert.match(headers, /script-src 'self' https:\/\/www\.google\.com\/recaptcha\/ https:\/\/www\.gstatic\.com\/recaptcha\/ https:\/\/static\.cloudflareinsights\.com;/);
+  assert.match(headers, /script-src 'self' 'nonce-\$request_id' https:\/\/www\.google\.com\/recaptcha\/ https:\/\/www\.gstatic\.com\/recaptcha\/ https:\/\/static\.cloudflareinsights\.com;/);
   assert.match(headers, /frame-ancestors 'none'/);
   assert.match(headers, /default-src 'none'/);
   assert.doesNotMatch(headers, /unsafe-eval|script-src[^;]*unsafe-inline/);
+});
+
+test("the policy allows only the built JSON-LD inline content", () => {
+  const hashes = jsonLdHashes('<script type="application/ld+json">{"@context":"https://schema.org"}</script><script>alert(1)</script>');
+  assert.equal(hashes.length, 1);
+  assert.match(securityHeaders("https://auth.callerwhale.com", undefined, hashes), /script-src 'self' 'nonce-\$request_id' 'sha256-[^']+'/);
 });
 
 test("the contact API origin must be safe", () => {
