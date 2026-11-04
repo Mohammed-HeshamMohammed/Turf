@@ -310,6 +310,16 @@ func (c *capture) sendCode(_ context.Context, to, code string) error {
 	return nil
 }
 
+func (c *capture) sendInvitation(_ context.Context, to, _, _, link string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.fail {
+		return fmt.Errorf("down")
+	}
+	c.to, c.links = append(c.to, to), append(c.links, link)
+	return nil
+}
+
 // world is the service under test with its stand-ins.
 type world struct {
 	t    *testing.T

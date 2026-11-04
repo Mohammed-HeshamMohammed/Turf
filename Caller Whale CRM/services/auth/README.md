@@ -21,6 +21,7 @@ Every route (the gateway's allow-list in `services/gateway/shield.go` is checked
 
 If the profile says authorization is unavailable (503), check auth's logs for `WARN roles unavailable`. The log distinguishes missing `AUTHZ_URL`/`AUTHZ_TOKEN`, a network failure, authz refusing the machine token (HTTP 401/403), or an invalid upstream response; no token or account ID is logged. Authz must be running, reachable at its private `AUTHZ_URL`, and configured with an `auth=<same token>` entry in `AUTHZ_TOKENS`.
 - `GET /v1/admin/staff` lists platform staff for a signed-in owner, cofounder, or system admin who passed a second step. `POST /v1/admin/staff` accepts an existing account email and `system_admin`, `tester`, or an empty role; only owner and cofounder may change roles. Auth resolves the account ID privately and authz enforces the permanent founder roles.
+- Platform founders can invite future staff through `/v1/admin/invitations`; workspace owners can list members, change one member role, and invite people through `/v1/orgs/{org}/...`. Invites live in auth PostgreSQL for seven days. They are bound to a verified email and applied by authz only when the recipient accepts from `/v1/me/invitations`. An inviter who loses authority cannot grant access through an old invite. The response distinguishes an emailed invite from one saved while notifications were unavailable.
 - `POST /v1/me/profile` saves a display name in Firebase and auth, plus an optional phone and PNG/JPEG picture (up to 100 KB) in auth's PostgreSQL. `GET /v1/me/providers` reads linked Google/Apple methods from Firebase. `POST /v1/me/providers/{provider}/start` binds a provider link to the current session and requires a sign-in from the last 15 minutes; the callback verifies Firebase kept the same account ID.
 - Change password, forgot, reset, email verify and resend (phase 2).
 - Every `/v1/mfa/*` route: authenticator devices, recovery codes, email and Telegram codes, approval on another device, step-up (phase 3).
@@ -39,6 +40,8 @@ If the profile says authorization is unavailable (503), check auth's logs for `W
 | Settings | every key in [env/auth.production.example](../../env/auth.production.example), in Coolify only |
 
 The service creates and updates its own tables when it starts, so it only needs an empty PostgreSQL database and its role. The gateway does the human check.
+
+Deploy authz's `manage_members` right and notifications' `team_invitation` template before this auth version. Auth's existing `AUTHZ_URL`, `AUTHZ_TOKEN`, `AUTH_NOTIFY_URL`, `AUTH_NOTIFY_TOKEN`, and `AUTH_LANDING_URL` settings are used; no browser receives a machine token. `AUTH_PUBLIC_SIGNUP` must allow account creation if invitees do not already have accounts.
 
 ## The contract
 

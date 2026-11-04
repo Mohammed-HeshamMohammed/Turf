@@ -46,6 +46,16 @@ func (s *server) handler() http.Handler {
 	mux.Handle("GET /v1/me/access", serve(s.meAccess))
 	mux.Handle("GET /v1/admin/staff", serve(s.adminStaff))
 	mux.Handle("POST /v1/admin/staff", serve(s.assignStaff))
+	mux.Handle("GET /v1/admin/invitations", serve(s.listPlatformInvitations))
+	mux.Handle("POST /v1/admin/invitations", serve(s.invitePlatform))
+	mux.Handle("GET /v1/orgs/{org}/members", serve(s.workspaceMembers))
+	mux.Handle("GET /v1/orgs/{org}/roles", serve(s.workspaceRoles))
+	mux.Handle("PUT /v1/orgs/{org}/members/{user}", serve(s.changeWorkspaceMember))
+	mux.Handle("GET /v1/orgs/{org}/invitations", serve(s.listWorkspaceInvitations))
+	mux.Handle("POST /v1/orgs/{org}/invitations", serve(s.inviteWorkspace))
+	mux.Handle("DELETE /v1/invitations/{id}", serve(s.revokeInvitation))
+	mux.Handle("GET /v1/me/invitations", serve(s.myInvitations))
+	mux.Handle("POST /v1/me/invitations/{id}/accept", serve(s.acceptInvitation))
 	s.accountRoutes(mux)
 	s.mfaRoutes(mux)
 	s.oauthRoutes(mux)
@@ -56,7 +66,7 @@ func (s *server) handler() http.Handler {
 	// Browsers call this service directly with a bearer token (no cookies), from the origins listed in AUTH_ALLOWED_ORIGINS.
 	policy := cors.New(cors.Options{
 		AllowedOrigins: s.cfg.allowedOrigins,
-		AllowedMethods: []string{http.MethodGet, http.MethodPost, http.MethodDelete},
+		AllowedMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete},
 		AllowedHeaders: []string{"Content-Type", "Authorization"},
 	})
 	return logHTTP(policy.Handler(mux))

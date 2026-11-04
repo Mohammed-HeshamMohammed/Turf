@@ -14,6 +14,7 @@ import (
 type mailer interface {
 	sendConfirmation(ctx context.Context, to, name, link string) error
 	sendCode(ctx context.Context, to, code string) error
+	sendInvitation(ctx context.Context, to, inviter, role, link string) error
 }
 
 type notify struct {
@@ -50,4 +51,8 @@ func (n *notify) sendConfirmation(ctx context.Context, to, name, link string) er
 
 func (n *notify) sendCode(ctx context.Context, to, code string) error {
 	return n.post(ctx, map[string]any{"template": "mfa_code", "to": to, "data": map[string]any{"code": code}})
+}
+
+func (n *notify) sendInvitation(ctx context.Context, to, inviter, role, link string) error {
+	return n.post(ctx, map[string]any{"template": "team_invitation", "to": to, "data": map[string]any{"inviter": inviter, "role": role, "link": link}})
 }

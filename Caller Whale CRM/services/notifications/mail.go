@@ -211,6 +211,15 @@ func Render(template, to string, data map[string]any) (Message, error) {
 			`<p><a href="` + e(link) + `" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none">Accept the invitation</a></p>` +
 			`<p style="color:#666;font-size:13px">Only this email address can use the invitation.</p></div>`
 		return Message{To: to, Subject: inviter + " invited you to Caller Whale", Text: text, HTML: page}, nil
+	case "team_invitation":
+		inviter, role, link := str("inviter"), str("role"), str("link")
+		if inviter == "" || role == "" || link == "" {
+			return Message{}, errors.New("team invitation needs inviter, role and link")
+		}
+		e := html.EscapeString
+		text := inviter + " invited you to Caller Whale as " + role + ".\n\nSign in or create an account with " + to + " at " + link + ", confirm your email, then accept the invitation in your dashboard.\n\nOnly this email address can accept it."
+		page := `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:520px"><p><strong>` + e(inviter) + `</strong> invited you to Caller Whale as <strong>` + e(role) + `</strong>.</p><p>Sign in or create an account with ` + e(to) + `, confirm your email, then accept the invitation in your dashboard.</p><p><a href="` + e(link) + `">Open Caller Whale</a></p><p>Only this email address can accept it.</p></div>`
+		return Message{To: to, Subject: "Your Caller Whale invitation", Text: text, HTML: page}, nil
 	case "contact":
 		// A message from the website's contact form, sent to the team's inbox (the "to"). The writer's address is the reply address.
 		from, message := str("email"), str("message")

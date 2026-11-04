@@ -44,11 +44,11 @@ paths:
               type: object
               required: [template, to]
               properties:
-                template: { type: string, enum: [mfa_code, invitation, confirm_email] }
+                template: { type: string, enum: [mfa_code, invitation, team_invitation, confirm_email] }
                 to: { type: string, example: sami@example.com }
                 data:
                   type: object
-                  description: "mfa_code: {code}. invitation: {name, inviter, monthly_credits, link}. confirm_email: {name, link}."
+                  description: "mfa_code: {code}. invitation: {name, inviter, monthly_credits, link}. team_invitation: {inviter, role, link}. confirm_email: {name, link}."
       responses:
         "202": { description: Handed to the mail server }
         "400": { description: Unknown template or missing data }

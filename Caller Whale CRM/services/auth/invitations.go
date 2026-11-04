@@ -1,0 +1,474 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+)
+
+type invitation struct {
+	ID            string `json:"id"`
+	Scope         string `json:"scope"`
+	OrgID         string `json:"org_id"`
+	Email         string `json:"email"`
+	Role          string `json:"role"`
+	InvitedBy     string `json:"-"`
+	ExpiresAt     int64  `json:"expires_at"`
+	DeliveryState string `json:"delivery_state"`
+}
+
+func (s *server) authzCall(r *http.Request, method, path string, body any, out any) (int, error) {
+	if s.cfg.authzURL == "" || s.cfg.authzToken == "" {
+		return 0, errAccessUnavailable
+	}
+	var raw io.Reader
+	if body != nil {
+		data, _ := json.Marshal(body)
+		raw = bytes.NewReader(data)
+	}
+	req, err := http.NewRequestWithContext(r.Context(), method, s.cfg.authzURL+path, raw)
+	if err != nil {
+		return 0, errAccessUnavailable
+	}
+	req.Header.Set("Authorization", "Bearer "+s.cfg.authzToken)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	res, err := (&http.Client{Timeout: 4 * time.Second}).Do(req)
+	if err != nil {
+		return 0, errAccessUnavailable
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusForbidden {
+		return res.StatusCode, forbidden("You cannot change this access.")
+	}
+	if res.StatusCode != http.StatusOK {
+		return res.StatusCode, newError(http.StatusServiceUnavailable, "access_unavailable", "Membership information is unavailable right now.")
+	}
+	if out != nil && json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(out) != nil {
+		return 0, errAccessUnavailable
+	}
+	return res.StatusCode, nil
+}
+
+func (s *server) workspaceActor(r *http.Request, org string) (claims, error) {
+	if _, err := uuid.Parse(org); err != nil {
+		return claims{}, bad("Choose a valid workspace.")
+	}
+	c, err := s.person(r)
+	if err != nil {
+		return claims{}, err
+	}
+	if !c.MFA {
+		return claims{}, newError(http.StatusForbidden, "mfa_required", "Confirm your identity with a second step first.")
+	}
+	profile, err := readAccess(r.Context(), s.cfg.authzURL, s.cfg.authzToken, c.Sub)
+	if err != nil {
+		return claims{}, errAccessUnavailable
+	}
+	for _, space := range profile.Workspaces {
+		if space.OrgID == org && space.BusinessOwner {
+			return c, nil
+		}
+	}
+	return claims{}, forbidden("Only this workspace's owner can manage members.")
+}
+
+func (s *server) listInvitations(w http.ResponseWriter, r *http.Request, scope, org string) error {
+	rows, err := s.db.Query(r.Context(), `SELECT id,scope,org_id,email,role,invited_by,expires_at,delivery_state FROM access_invitations WHERE scope=$1 AND org_id=$2 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at>$3 ORDER BY created_at DESC LIMIT 200`, scope, org, now())
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	items := []invitation{}
+	for rows.Next() {
+		var item invitation
+		if err := rows.Scan(&item.ID, &item.Scope, &item.OrgID, &item.Email, &item.Role, &item.InvitedBy, &item.ExpiresAt, &item.DeliveryState); err != nil {
+			return err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"invitations": items})
+	return nil
+}
+
+func (s *server) listPlatformInvitations(w http.ResponseWriter, r *http.Request) error {
+	if _, err := s.staffActor(r, false); err != nil {
+		return err
+	}
+	return s.listInvitations(w, r, "platform", "")
+}
+func (s *server) listWorkspaceInvitations(w http.ResponseWriter, r *http.Request) error {
+	org := r.PathValue("org")
+	if _, err := s.workspaceActor(r, org); err != nil {
+		return err
+	}
+	return s.listInvitations(w, r, "workspace", org)
+}
+
+func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope, org string, c claims) error {
+	var body struct {
+		Email string `json:"email"`
+		Role  string `json:"role"`
+	}
+	if err := readJSON(w, r, &body); err != nil {
+		return err
+	}
+	email, err := normalEmail(body.Email)
+	if err != nil {
+		return err
+	}
+	role := strings.TrimSpace(body.Role)
+	if scope == "platform" {
+		if role != "system_admin" && role != "tester" {
+			return bad("Choose system admin or tester.")
+		}
+	} else {
+		if role == "owner" || role == "solo" || role == "admin" || role == "" {
+			return bad("Choose a workspace member role.")
+		}
+		var listed struct {
+			Roles []struct {
+				Key string `json:"key"`
+			} `json:"roles"`
+		}
+		if _, err := s.authzCall(r, http.MethodGet, "/v1/orgs/"+org+"/roles", nil, &listed); err != nil {
+			return err
+		}
+		found := false
+		for _, item := range listed.Roles {
+			if item.Key == role {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return bad("That role is not available in this workspace.")
+		}
+	}
+	var existing string
+	err = s.db.QueryRow(r.Context(), "SELECT id FROM users WHERE email=$1 AND disabled_at IS NULL", email).Scan(&existing)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	if existing == c.Sub {
+		return bad("You cannot invite yourself.")
+	}
+	if existing != "" {
+		if scope == "platform" {
+			profile, err := readAccess(r.Context(), s.cfg.authzURL, s.cfg.authzToken, existing)
+			if err != nil {
+				return errAccessUnavailable
+			}
+			if profile.PlatformRole != "" {
+				return conflict("This person already has a platform role. Change it in the staff directory.")
+			}
+		}
+		if scope == "workspace" {
+			profile, err := readAccess(r.Context(), s.cfg.authzURL, s.cfg.authzToken, existing)
+			if err != nil {
+				return errAccessUnavailable
+			}
+			for _, space := range profile.Workspaces {
+				if space.OrgID == org {
+					return conflict("This person is already a workspace member. Change their role in the member list.")
+				}
+			}
+		}
+	}
+	id := uuid.NewString()
+	expires := now() + 7*86400
+	if _, err := s.db.Exec(r.Context(), "UPDATE access_invitations SET revoked_at=$1 WHERE scope=$2 AND org_id=$3 AND email=$4 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at<=$1", now(), scope, org, email); err != nil {
+		return err
+	}
+	_, err = s.db.Exec(r.Context(), `INSERT INTO access_invitations (id,scope,org_id,email,role,invited_by,created_at,expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, id, scope, org, email, role, c.Sub, now(), expires)
+	if err != nil {
+		if strings.Contains(err.Error(), "access_invitations_open") {
+			return conflict("An invitation is already pending for this email.")
+		}
+		return err
+	}
+	state := "not_configured"
+	if s.mail != nil {
+		var inviter string
+		if err := s.db.QueryRow(r.Context(), "SELECT display_name FROM users WHERE id=$1", c.Sub).Scan(&inviter); err != nil {
+			return err
+		}
+		link := s.cfg.landingURL + "/dashboard"
+		if err := s.mail.sendInvitation(r.Context(), email, inviter, role, link); err == nil {
+			state = "sent"
+		} else {
+			state = "failed"
+		}
+	}
+	if _, err := s.db.Exec(r.Context(), "UPDATE access_invitations SET delivery_state=$1 WHERE id=$2", state, id); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"id": id, "delivery_state": state, "expires_at": expires})
+	return nil
+}
+
+func (s *server) invitePlatform(w http.ResponseWriter, r *http.Request) error {
+	c, err := s.staffActor(r, true)
+	if err != nil {
+		return err
+	}
+	return s.createInvitation(w, r, "platform", "", c)
+}
+func (s *server) inviteWorkspace(w http.ResponseWriter, r *http.Request) error {
+	org := r.PathValue("org")
+	c, err := s.workspaceActor(r, org)
+	if err != nil {
+		return err
+	}
+	return s.createInvitation(w, r, "workspace", org, c)
+}
+
+func (s *server) myInvitations(w http.ResponseWriter, r *http.Request) error {
+	c, err := s.person(r)
+	if err != nil {
+		return err
+	}
+	if !c.EmailVerified {
+		writeJSON(w, http.StatusOK, map[string]any{"invitations": []invitation{}})
+		return nil
+	}
+	rows, err := s.db.Query(r.Context(), `SELECT id,scope,org_id,email,role,invited_by,expires_at,delivery_state FROM access_invitations WHERE email=$1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at>$2 ORDER BY created_at DESC LIMIT 50`, strings.ToLower(c.Email), now())
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	items := []invitation{}
+	for rows.Next() {
+		var item invitation
+		if err := rows.Scan(&item.ID, &item.Scope, &item.OrgID, &item.Email, &item.Role, &item.InvitedBy, &item.ExpiresAt, &item.DeliveryState); err != nil {
+			return err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"invitations": items})
+	return nil
+}
+
+func (s *server) acceptInvitation(w http.ResponseWriter, r *http.Request) error {
+	c, err := s.person(r)
+	if err != nil {
+		return err
+	}
+	if !c.EmailVerified {
+		return forbidden("Confirm your email address before accepting an invitation.")
+	}
+	id := r.PathValue("id")
+	if _, err := uuid.Parse(id); err != nil {
+		return bad("Choose a valid invitation.")
+	}
+	tx, err := s.db.Begin(r.Context())
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(r.Context())
+	var item invitation
+	err = tx.QueryRow(r.Context(), `SELECT id,scope,org_id,email,role,invited_by,expires_at,delivery_state FROM access_invitations WHERE id=$1 AND accepted_at IS NULL AND revoked_at IS NULL FOR UPDATE`, id).Scan(&item.ID, &item.Scope, &item.OrgID, &item.Email, &item.Role, &item.InvitedBy, &item.ExpiresAt, &item.DeliveryState)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return newError(http.StatusNotFound, "not_found", "Invitation not found.")
+	}
+	if err != nil {
+		return err
+	}
+	if item.Email != strings.ToLower(c.Email) || item.ExpiresAt <= now() {
+		return forbidden("This invitation is unavailable for this account.")
+	}
+	profile, err := readAccess(r.Context(), s.cfg.authzURL, s.cfg.authzToken, c.Sub)
+	if err != nil {
+		return errAccessUnavailable
+	}
+	alreadyApplied := false
+	if item.Scope == "platform" && profile.PlatformRole != "" {
+		if profile.PlatformRole != item.Role {
+			return conflict("You already have a different platform role.")
+		}
+		alreadyApplied = true
+	}
+	if item.Scope == "workspace" {
+		for _, space := range profile.Workspaces {
+			if space.OrgID == item.OrgID {
+				if len(space.Roles) != 1 || !slices.Contains(space.Roles, item.Role) {
+					return conflict("You are already a member of this workspace with a different role.")
+				}
+				alreadyApplied = true
+			}
+		}
+	}
+	actor := map[string]any{"actor_id": item.InvitedBy, "actor_second_step": true}
+	path := "/v1/staff/" + c.Sub
+	if item.Scope == "platform" {
+		actor["role"] = item.Role
+	} else {
+		path = "/v1/orgs/" + item.OrgID + "/members/" + c.Sub
+		actor["roles"] = []string{item.Role}
+	}
+	if !alreadyApplied {
+		if _, err := s.authzCall(r, http.MethodPut, path, actor, nil); err != nil {
+			return err
+		}
+	}
+	_, err = tx.Exec(r.Context(), "UPDATE access_invitations SET accepted_at=$1 WHERE id=$2", now(), id)
+	if err != nil {
+		return err
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	return nil
+}
+
+func (s *server) revokeInvitation(w http.ResponseWriter, r *http.Request) error {
+	id := r.PathValue("id")
+	if _, err := uuid.Parse(id); err != nil {
+		return bad("Choose a valid invitation.")
+	}
+	var scope, org string
+	err := s.db.QueryRow(r.Context(), "SELECT scope,org_id FROM access_invitations WHERE id=$1 AND accepted_at IS NULL AND revoked_at IS NULL", id).Scan(&scope, &org)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return newError(http.StatusNotFound, "not_found", "Invitation not found.")
+	}
+	if err != nil {
+		return err
+	}
+	if scope == "platform" {
+		if _, err := s.staffActor(r, true); err != nil {
+			return err
+		}
+	} else {
+		if _, err := s.workspaceActor(r, org); err != nil {
+			return err
+		}
+	}
+	_, err = s.db.Exec(r.Context(), "UPDATE access_invitations SET revoked_at=$1 WHERE id=$2 AND accepted_at IS NULL AND revoked_at IS NULL", now(), id)
+	if err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	return nil
+}
+
+type member struct {
+	UserID       string   `json:"user_id"`
+	Roles        []string `json:"roles"`
+	Restrictions []string `json:"restrictions"`
+	TeamIDs      []string `json:"team_ids"`
+	ProjectIDs   []string `json:"project_ids"`
+	Email        string   `json:"email,omitempty"`
+	Name         string   `json:"name,omitempty"`
+}
+
+func (s *server) workspaceRoles(w http.ResponseWriter, r *http.Request) error {
+	org := r.PathValue("org")
+	if _, err := s.workspaceActor(r, org); err != nil {
+		return err
+	}
+	var listed struct {
+		Roles []struct {
+			Key string `json:"key"`
+		} `json:"roles"`
+	}
+	if _, err := s.authzCall(r, http.MethodGet, "/v1/orgs/"+org+"/roles", nil, &listed); err != nil {
+		return err
+	}
+	keys := []string{}
+	for _, role := range listed.Roles {
+		if role.Key != "owner" && role.Key != "solo" && role.Key != "admin" {
+			keys = append(keys, role.Key)
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"roles": keys})
+	return nil
+}
+
+func (s *server) workspaceMembers(w http.ResponseWriter, r *http.Request) error {
+	org := r.PathValue("org")
+	if _, err := s.workspaceActor(r, org); err != nil {
+		return err
+	}
+	var listed struct {
+		Members []member `json:"members"`
+	}
+	if _, err := s.authzCall(r, http.MethodGet, "/v1/orgs/"+org+"/members", nil, &listed); err != nil {
+		return err
+	}
+	for i := range listed.Members {
+		_ = s.db.QueryRow(r.Context(), "SELECT email,display_name FROM users WHERE id=$1", listed.Members[i].UserID).Scan(&listed.Members[i].Email, &listed.Members[i].Name)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"members": listed.Members})
+	return nil
+}
+func (s *server) changeWorkspaceMember(w http.ResponseWriter, r *http.Request) error {
+	org, user := r.PathValue("org"), r.PathValue("user")
+	c, err := s.workspaceActor(r, org)
+	if err != nil {
+		return err
+	}
+	if _, err := uuid.Parse(user); err != nil {
+		return bad("Choose a valid member.")
+	}
+	var body struct {
+		Roles []string `json:"roles"`
+	}
+	if err := readJSON(w, r, &body); err != nil {
+		return err
+	}
+	if len(body.Roles) == 0 || len(body.Roles) > 8 {
+		return bad("Choose one to eight member roles.")
+	}
+	seen := map[string]bool{}
+	for _, role := range body.Roles {
+		if role == "owner" || role == "solo" || role == "admin" || seen[role] {
+			return bad("Choose unique editable member roles.")
+		}
+		seen[role] = true
+	}
+	var listed struct {
+		Members []member `json:"members"`
+	}
+	if _, err := s.authzCall(r, http.MethodGet, "/v1/orgs/"+org+"/members", nil, &listed); err != nil {
+		return err
+	}
+	var current *member
+	for i := range listed.Members {
+		if listed.Members[i].UserID == user {
+			current = &listed.Members[i]
+			break
+		}
+	}
+	if current == nil {
+		return newError(http.StatusNotFound, "not_found", "Member not found.")
+	}
+	if current.Roles != nil {
+		for _, role := range current.Roles {
+			if role == "owner" || role == "solo" {
+				return forbidden("The workspace owner's role is permanent.")
+			}
+		}
+	}
+	change := map[string]any{"actor_id": c.Sub, "actor_second_step": c.MFA, "roles": body.Roles, "restrictions": current.Restrictions, "team_ids": current.TeamIDs, "project_ids": current.ProjectIDs}
+	if _, err := s.authzCall(r, http.MethodPut, "/v1/orgs/"+org+"/members/"+user, change, nil); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	return nil
+}

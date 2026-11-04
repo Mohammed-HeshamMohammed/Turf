@@ -103,6 +103,13 @@ func TestAnInvitationHasBothPartsAndEscapesTheName(t *testing.T) {
 	}
 }
 
+func TestTeamInvitationDoesNotInventCreditsAndEscapesRole(t *testing.T) {
+	m, err := Render("team_invitation", "sami@example.com", map[string]any{"inviter": "Mo", "role": "<admin>", "link": "https://callerwhale.com/dashboard"})
+	if err != nil || strings.Contains(m.Text, "credits") || strings.Contains(m.HTML, "<admin>") || !strings.Contains(m.HTML, "&lt;admin&gt;") {
+		t.Fatalf("team invitation: %+v %v", m, err)
+	}
+}
+
 func TestAContactMessageGoesToTheInboxWithAReplyAddress(t *testing.T) {
 	f := &fakeSender{}
 	s := newServer(map[string]string{"core-api": testToken}, f, true)
