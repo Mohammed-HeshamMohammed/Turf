@@ -8,6 +8,7 @@ import { Pricing } from "./Pricing.tsx";
 import { FeaturesIndex, FeaturePage } from "./Features.tsx";
 import { Security } from "./Security.tsx";
 import { Contact, Privacy, Terms } from "./PublicPages.tsx";
+import { WhyCallerWhale } from "./WhyCallerWhale.tsx";
 import { cleanPath, routeFor } from "./routes.ts";
 
 // Anything that changes who is signed in (new tokens, a refresh the server refused, signing out) tells the page.
@@ -64,6 +65,7 @@ function Header({ path, me, onSignOut }: { path: string; me: Who; onSignOut: () 
       </Link>
       <nav className="rail" aria-label="Main">
         <Link to="/features" aria-current={path.startsWith("/features") ? "page" : undefined}>Features</Link>
+        <Link to="/why-caller-whale" aria-current={current("/why-caller-whale")}>Why Caller Whale</Link>
         <Link to="/pricing" aria-current={current("/pricing")}>Pricing</Link>
         <Link to="/security" aria-current={current("/security")}>Security</Link>
       </nav>
@@ -93,40 +95,29 @@ function Header({ path, me, onSignOut }: { path: string; me: Who; onSignOut: () 
 }
 
 function Home({ me }: { me: Who }) {
-  const steps = [
-    ["Sign up", "Make your account with an email and password, or with Google."],
-    ["Open the workspace", "Your leads, calls and team in one place."],
-    ["Call", "Work the list and keep every conversation on record."],
-  ];
+  const steps = [["Lists", "Import leads and keep the source intact."], ["Lead records", "Find the next step and the full history."], ["Calls", "Work the queue and record outcomes."], ["Handoffs", "Move a deal to the right teammate."], ["Reports", "See what moved forward and export your data."]];
   return (
     <>
       <section className="hero">
         <div className="card">
           <span className="badge">Calling workspace</span>
-          <h1>Work every lead by phone, in one place.</h1>
-          <p>Caller Whale keeps your leads, your calls and your team together, so the next call is always one click away.</p>
+          <h1>Every lead has a next call.</h1>
+          <p>Keep your lists, calls, deal notes and team handoffs in one workspace, so you know what to do next.</p>
           <div className="actions">
             {me === undefined ? null : me ? (
               <Link className="button primary" to="/account">Your account</Link>
             ) : (
               <>
                 <Link className="button primary" to="/signup">Create an account</Link>
-                <Link className="button raised" to="/signin">Sign in</Link>
+                <Link className="button raised" to="/features">Explore features</Link>
               </>
             )}
           </div>
         </div>
-        <div className="well" aria-hidden="true" />
+        <div className="well hero-shot"><img src="/screens/dashboard.webp" alt="Caller Whale overview showing leads, next steps and pipeline value" width="1280" height="800" /></div>
       </section>
-      <section className="steps">
-        {steps.map(([title, text], i) => (
-          <div className="card step" key={title}>
-            <span>0{i + 1}</span>
-            <b>{title}</b>
-            <span>{text}</span>
-          </div>
-        ))}
-      </section>
+      <section className="section" aria-labelledby="workspace-title"><h2 id="workspace-title">One flow, from list to closed deal.</h2><div className="steps five">{steps.map(([title, text], i) => <div className="card step" key={title}><span>0{i + 1}</span><b>{title}</b><span>{text}</span></div>)}</div><p><Link to="/why-caller-whale">Why keep it together →</Link></p></section>
+      <section className="cta"><h2>Build a plan around your work.</h2><p>Choose the features your team needs and see the draft monthly total as you go.</p><Link className="button primary" to="/pricing">Explore pricing</Link></section>
     </>
   );
 }
@@ -358,6 +349,7 @@ export function App({ path: first = "/" }) {
     "/forgot": <Forgot />,
     "/pricing": <Pricing />,
     "/features": <FeaturesIndex />,
+    "/why-caller-whale": <WhyCallerWhale />,
     "/security": <Security />,
     "/contact": <Contact getAuth={getAuth} />,
     "/privacy": <Privacy />,
@@ -373,6 +365,7 @@ export function App({ path: first = "/" }) {
         <span>© Caller Whale</span>
         <Link to="/pricing">Pricing</Link>
         <Link to="/features">Features</Link>
+        <Link to="/why-caller-whale">Why Caller Whale</Link>
         <Link to="/security">Security</Link>
         <Link to="/contact">Contact</Link>
         <Link to="/privacy">Privacy</Link>

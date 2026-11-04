@@ -20,6 +20,7 @@ export const routes = [
     sitemap: true,
   },
   { path: "/features", key: "features", title: "Features · Caller Whale", description: "Explore Caller Whale's lead importing, calling, CRM and reporting features, with clear availability labels.", indexable: true, sitemap: true },
+  { path: "/why-caller-whale", key: "why", title: "Why Caller Whale · One workspace for lead teams", description: "Keep lists, lead records, calls, handoffs and reports together in one workspace.", indexable: true, sitemap: true },
   ...features.map(feature => ({ path: `/features/${feature.slug}`, key: `feature:${feature.slug}`, title: `${feature.title} · Caller Whale`, description: feature.short, indexable: true, sitemap: true })),
   { path: "/security", key: "security", title: "Security · Caller Whale", description: "How Caller Whale protects accounts and data, and what is still in preview.", indexable: true, sitemap: true },
   { path: "/contact", key: "contact", title: "Contact · Caller Whale", description: "Send the Caller Whale team a message.", indexable: true, sitemap: true },
