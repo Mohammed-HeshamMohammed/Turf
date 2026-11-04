@@ -18,6 +18,8 @@ Every route (the gateway's allow-list in `services/gateway/shield.go` is checked
 
 - Sign-up, sign-in, refresh, sign-out, sessions, `/v1/me`, JWKS, `/v1/security`, health (phase 1).
 - `GET /v1/me/access` returns only the signed-in person's platform role and workspace memberships from private authz. Set `AUTHZ_URL` and an auth read token in `AUTHZ_TOKEN`; unavailable authz returns 503 without inventing access.
+
+If the profile says authorization is unavailable (503), check auth's logs for `WARN roles unavailable`. The log distinguishes missing `AUTHZ_URL`/`AUTHZ_TOKEN`, a network failure, authz refusing the machine token (HTTP 401/403), or an invalid upstream response; no token or account ID is logged. Authz must be running, reachable at its private `AUTHZ_URL`, and configured with an `auth=<same token>` entry in `AUTHZ_TOKENS`.
 - `GET /v1/admin/staff` lists platform staff for a signed-in owner, cofounder, or system admin who passed a second step. `POST /v1/admin/staff` accepts an existing account email and `system_admin`, `tester`, or an empty role; only owner and cofounder may change roles. Auth resolves the account ID privately and authz enforces the permanent founder roles.
 - `POST /v1/me/profile` saves a display name in Firebase and auth, plus an optional phone and PNG/JPEG picture (up to 100 KB) in auth's PostgreSQL. `GET /v1/me/providers` reads linked Google/Apple methods from Firebase. `POST /v1/me/providers/{provider}/start` binds a provider link to the current session and requires a sign-in from the last 15 minutes; the callback verifies Firebase kept the same account ID.
 - Change password, forgot, reset, email verify and resend (phase 2).

@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 )
@@ -27,20 +29,23 @@ var errAccessUnavailable = errors.New("authorization profile unavailable")
 func readAccess(ctx context.Context, base, token, userID string) (accessProfile, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/v1/people/"+userID, nil)
 	if err != nil {
-		return accessProfile{}, errAccessUnavailable
+		return accessProfile{}, fmt.Errorf("%w: invalid authz request: %v", errAccessUnavailable, err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	res, err := (&http.Client{Timeout: 4 * time.Second}).Do(req)
 	if err != nil {
-		return accessProfile{}, errAccessUnavailable
+		return accessProfile{}, fmt.Errorf("%w: authz request failed: %v", errAccessUnavailable, err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return accessProfile{}, errAccessUnavailable
+		return accessProfile{}, fmt.Errorf("%w: authz returned HTTP %d", errAccessUnavailable, res.StatusCode)
 	}
 	var profile accessProfile
-	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&profile); err != nil || profile.UserID != userID {
-		return accessProfile{}, errAccessUnavailable
+	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&profile); err != nil {
+		return accessProfile{}, fmt.Errorf("%w: invalid authz response: %v", errAccessUnavailable, err)
+	}
+	if profile.UserID != userID {
+		return accessProfile{}, fmt.Errorf("%w: authz returned a different account", errAccessUnavailable)
 	}
 	if profile.Workspaces == nil {
 		profile.Workspaces = []workspaceAccess{}
@@ -57,10 +62,12 @@ func (s *server) meAccess(w http.ResponseWriter, r *http.Request) error {
 	}
 	unavailable := newError(http.StatusServiceUnavailable, "access_unavailable", "Membership information is unavailable right now.")
 	if s.cfg.authzURL == "" || s.cfg.authzToken == "" {
+		log.Print("WARN roles unavailable: set AUTHZ_URL and AUTHZ_TOKEN on auth")
 		return unavailable
 	}
 	profile, err := readAccess(r.Context(), s.cfg.authzURL, s.cfg.authzToken, c.Sub)
 	if err != nil {
+		log.Printf("WARN roles unavailable: %v", err)
 		return unavailable
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
