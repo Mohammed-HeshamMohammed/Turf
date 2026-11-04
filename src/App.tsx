@@ -306,7 +306,7 @@ export function App({ path: first = "/" }) {
   };
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
   return (
-    <div className="page">
+    <div className={`page${cleanPath(path) === "/" ? " home-page" : ""}`}>
       <SiteHeader path={path} me={me} onSignOut={signOut} />
       <main>{pages[cleanPath(path)] || (routeFor(path).key.startsWith("feature:") ? <FeaturePage slug={featureSlug} /> : <NotFound />)}</main>
       <SiteFooter />
