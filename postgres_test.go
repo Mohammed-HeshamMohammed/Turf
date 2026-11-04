@@ -8,22 +8,19 @@ import (
 	"time"
 )
 
-// TestSpiceDB runs the real rules store against a SpiceDB started with `spicedb serve-testing` (an empty in-memory store per
-// key). Set SPICEDB_TEST_ENDPOINT (like localhost:50051) to run it; without it the test is skipped.
-func TestSpiceDB(t *testing.T) {
-	endpoint := os.Getenv("SPICEDB_TEST_ENDPOINT")
-	if endpoint == "" {
-		t.Skip("SPICEDB_TEST_ENDPOINT is not set")
+// TestPostgres runs against a dedicated disposable PostgreSQL database.
+func TestPostgres(t *testing.T) {
+	url := os.Getenv("AUTHZ_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("AUTHZ_TEST_DATABASE_URL is not set")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	s, err := newSpice(config{spicedbEndpoint: endpoint, spicedbKey: "test-" + time.Now().Format("150405.000000")})
+	s, err := newPostgres(ctx, url)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.writeSchema(ctx); err != nil {
-		t.Fatalf("schema.zed is refused: %v", err)
-	}
+	defer s.close()
 	must := func(err error) {
 		t.Helper()
 		if err != nil {

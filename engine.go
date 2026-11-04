@@ -24,7 +24,7 @@ type membership struct {
 
 var errAlreadyOpen = errors.New("this workspace already has an owner")
 
-// engine is the rules store (SpiceDB in production, memEngine in tests). Every method is one consistent read or one atomic
+// engine is the rules store (PostgreSQL in production, memEngine in tests). Every method is one consistent read or one atomic
 // write there.
 type engine interface {
 	facts(ctx context.Context, user, org string) (facts, error)

@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// memEngine is the rules store in memory, following schema.zed's meaning: a person's capabilities and scopes are the union of
+// memEngine is the rules store in memory: a person's capabilities and scopes are the union of
 // their roles' grants minus their restrictions; standing flags apply to everyone in the workspace.
 type memEngine struct {
 	roleDefs  map[string]map[string]role       // org -> key -> role

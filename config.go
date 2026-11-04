@@ -19,9 +19,7 @@ var callerRights = map[string][]string{
 
 type config struct {
 	port              string
-	spicedbEndpoint   string
-	spicedbKey        string
-	spicedbTLS        bool
+	databaseURL       string
 	signingKey        string
 	tokens            map[string]string // machine token -> calling service
 	grantSeconds      int
@@ -39,9 +37,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	c := config{
 		port:              get("PORT", "8104"),
-		spicedbEndpoint:   get("SPICEDB_ENDPOINT", "spicedb:50051"),
-		spicedbKey:        get("SPICEDB_PRESHARED_KEY", ""),
-		spicedbTLS:        get("SPICEDB_TLS", "false") == "true",
+		databaseURL:       get("DATABASE_URL", ""),
 		signingKey:        get("AUTHZ_SIGNING_KEY", ""),
 		requireSecondStep: get("AUTHZ_REQUIRE_SECOND_STEP", "true") != "false",
 		staffSecondStep:   get("AUTHZ_STAFF_SECOND_STEP", "true") != "false",
@@ -50,8 +46,8 @@ func loadConfig(getenv func(string) string) (config, error) {
 	if _, err := strconv.Atoi(c.port); err != nil {
 		return c, errors.New("PORT is not a number")
 	}
-	if c.spicedbKey == "" {
-		return c, errors.New("set SPICEDB_PRESHARED_KEY, the key SpiceDB was started with")
+	if c.databaseURL == "" {
+		return c, errors.New("set DATABASE_URL to the authorization PostgreSQL database")
 	}
 	seconds, err := strconv.Atoi(get("AUTHZ_GRANT_SECONDS", "60"))
 	if err != nil || seconds < 5 || seconds > 600 {
