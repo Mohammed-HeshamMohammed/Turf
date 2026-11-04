@@ -1,13 +1,14 @@
-import "@fontsource-variable/schibsted-grotesk";
-import { StrictMode, useEffect, useRef, useState } from "react";
-import { createRoot } from "react-dom/client";
-import { createAuth } from "./auth/auth-client.js";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes } from "react";
+import { createAuth, type AuthError, type Me } from "./auth/auth-client.js";
 import { HumanCheck } from "./auth/human-check.jsx";
-import { cleanPath, redirectFor } from "./guard.js";
-import "./styles.css";
+import { redirectFor } from "./guard.ts";
+import { applyMetadata, metadataFor } from "./metadata.ts";
+import { Link, go, useRoute } from "./nav.tsx";
+import { Pricing } from "./Pricing.tsx";
+import { cleanPath, routeFor } from "./routes.ts";
 
 // Anything that changes who is signed in (new tokens, a refresh the server refused, signing out) tells the page.
-const listeners = new Set();
+const listeners = new Set<() => void>();
 const auth = createAuth({
   base: import.meta.env.VITE_CALLERWHALE_AUTH_URL || "http://localhost:8101",
   onChange: () => listeners.forEach(listener => listener()),
@@ -16,38 +17,11 @@ const getAuth = async () => auth;
 // Where the auth client keeps the refresh token: another tab signing in or out changes it.
 const REFRESH_KEY = "callerwhale.auth.refresh";
 
-function useRoute() {
-  const [path, setPath] = useState(location.pathname);
-  useEffect(() => {
-    const sync = () => setPath(location.pathname);
-    addEventListener("popstate", sync);
-    return () => removeEventListener("popstate", sync);
-  }, []);
-  return path;
-}
-const go = (to, { replace = false } = {}) => {
-  history[replace ? "replaceState" : "pushState"](null, "", to);
-  dispatchEvent(new PopStateEvent("popstate"));
-};
-function Link({ to, children, ...rest }) {
-  return (
-    <a
-      href={to}
-      onClick={e => {
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
-        e.preventDefault();
-        go(to);
-      }}
-      {...rest}
-    >
-      {children}
-    </a>
-  );
-}
-
 /** Who is signed in: undefined while asking, null when nobody. */
+type Who = Me | null | undefined;
+
 function useMe() {
-  const [me, setMe] = useState(auth.signedIn() ? undefined : null);
+  const [me, setMe] = useState<Who>(auth.signedIn() ? undefined : null);
   useEffect(() => {
     let live = true;
     const ask = () => {
@@ -60,7 +34,7 @@ function useMe() {
     // Coming back from Google signs this page in before anything else is asked.
     auth.finishProvider().catch(() => {}).finally(ask);
     // Signed in, signed out or refused by the server, here or (through storage) in another tab: ask again.
-    const changed = event => {
+    const changed = (event: StorageEvent) => {
       if (event.key !== REFRESH_KEY) return;
       // The other tab signed out: forget this tab's copy of the session too (no request: the refresh token is gone).
       if (!event.newValue) auth.signOut().then(ask);
@@ -74,17 +48,20 @@ function useMe() {
       removeEventListener("storage", changed);
     };
   }, []);
-  return [me, setMe];
+  return [me, setMe] as const;
 }
 
-function Header({ path, me, onSignOut }) {
-  const current = to => (path === to ? "page" : undefined);
+function Header({ path, me, onSignOut }: { path: string; me: Who; onSignOut: () => void }) {
+  const current = (to: string) => (path === to ? "page" : undefined);
   return (
     <header className="header">
       <Link to="/" className="brand">
         <img src="/favicon.svg" alt="" />
         Caller Whale
       </Link>
+      <nav className="rail" aria-label="Main">
+        <Link to="/pricing" aria-current={current("/pricing")}>Pricing</Link>
+      </nav>
       <nav className="rail" aria-label="Account" aria-busy={me === undefined}>
         {me === undefined ? null : me ? (
           <>
@@ -110,7 +87,7 @@ function Header({ path, me, onSignOut }) {
   );
 }
 
-function Home({ me }) {
+function Home({ me }: { me: Who }) {
   const steps = [
     ["Sign up", "Make your account with an email and password, or with Google."],
     ["Open the workspace", "Your leads, calls and team in one place."],
@@ -149,7 +126,7 @@ function Home({ me }) {
   );
 }
 
-function Field({ label, ...input }) {
+function Field({ label, ...input }: { label: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div className="field">
       <label>
@@ -163,22 +140,22 @@ function Field({ label, ...input }) {
 /** Runs `fn`, keeps what went wrong (or the note it returns) for the form to show. Resolves true when it worked. */
 function useAction() {
   const [state, setState] = useState({ busy: false, error: "", info: "" });
-  const run = async fn => {
+  const run = async (fn: () => Promise<string | void>) => {
     setState({ busy: true, error: "", info: "" });
     try {
       const info = await fn();
       setState({ busy: false, error: "", info: info || "" });
       return true;
     } catch (error) {
-      setState({ busy: false, error: error.message || "Something went wrong. Try again.", info: "" });
+      setState({ busy: false, error: (error as Error).message || "Something went wrong. Try again.", info: "" });
       return false;
     }
   };
-  return [state, run];
+  return [state, run] as const;
 }
 
-function Providers({ action, human }) {
-  const [list, setList] = useState({});
+function Providers({ action, human }: { action: string; human: string }) {
+  const [list, setList] = useState<{ google?: boolean; apple?: boolean }>({});
   const [state, run] = useAction();
   useEffect(() => {
     auth.providers().then(setList, () => {});
@@ -186,7 +163,7 @@ function Providers({ action, human }) {
   if (!list.google) return null;
   return (
     <>
-      <button type="button" className="button raised" disabled={state.busy} onClick={() => run(() => auth.startProvider("google", "landing", human, action))}>
+      <button type="button" className="button raised" disabled={state.busy} onClick={() => run(async () => void (await auth.startProvider("google", "landing", human, action)))}>
         Continue with Google
       </button>
       {state.error && <p className="notice bad" role="alert">{state.error}</p>}
@@ -194,20 +171,20 @@ function Providers({ action, human }) {
   );
 }
 
-function SignIn({ onDone, notice }) {
+function SignIn({ onDone, notice }: { onDone: () => void; notice: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [needCode, setNeedCode] = useState(false);
   const [human, setHuman] = useState("");
   const [state, run] = useAction();
-  const submit = async e => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     const ok = await run(async () => {
       try {
         await auth.signIn(email, password, code || undefined, "browser", human);
       } catch (error) {
-        if (error.code === "mfa_required") {
+        if ((error as AuthError).code === "mfa_required") {
           setNeedCode(true);
           throw new Error("Enter the code from your authenticator app.");
         }
@@ -221,9 +198,9 @@ function SignIn({ onDone, notice }) {
       <form className="form card" onSubmit={submit}>
         <h1>Sign in</h1>
         {notice && <p className="notice" role="status">{notice}</p>}
-        <Field label="Email" type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} />
-        <Field label="Password" type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} />
-        {needCode && <Field label="Code" inputMode="numeric" autoComplete="one-time-code" required value={code} onChange={e => setCode(e.target.value)} />}
+        <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} />
+        <Field label="Password" type="password" autoComplete="current-password" required value={password} onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)} />
+        {needCode && <Field label="Code" inputMode="numeric" autoComplete="one-time-code" required value={code} onChange={(e: ChangeEvent<HTMLInputElement>) => setCode(e.target.value)} />}
         <HumanCheck getAuth={getAuth} action="signin" onToken={setHuman} />
         {state.error && <p className="notice bad" role="alert">{state.error}</p>}
         <button className="button primary" disabled={state.busy}>{state.busy ? "Signing in…" : "Sign in"}</button>
@@ -237,23 +214,23 @@ function SignIn({ onDone, notice }) {
   );
 }
 
-function SignUp({ onDone }) {
+function SignUp({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [human, setHuman] = useState("");
   const [state, run] = useAction();
-  const submit = async e => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (await run(() => auth.signUp(name, email, password, "browser", human))) onDone();
+    if (await run(async () => void (await auth.signUp(name, email, password, "browser", human)))) onDone();
   };
   return (
     <div className="form-wrap">
       <form className="form card" onSubmit={submit}>
         <h1>Create your account</h1>
-        <Field label="Name" autoComplete="name" required value={name} onChange={e => setName(e.target.value)} />
-        <Field label="Email" type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} />
-        <Field label="Password" type="password" autoComplete="new-password" minLength={8} required value={password} onChange={e => setPassword(e.target.value)} />
+        <Field label="Name" autoComplete="name" required value={name} onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)} />
+        <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} />
+        <Field label="Password" type="password" autoComplete="new-password" minLength={8} required value={password} onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)} />
         <HumanCheck getAuth={getAuth} action="signup" onToken={setHuman} />
         {state.error && <p className="notice bad" role="alert">{state.error}</p>}
         <button className="button primary" disabled={state.busy}>{state.busy ? "Creating…" : "Sign up"}</button>
@@ -270,7 +247,7 @@ function SignUp({ onDone }) {
 function Forgot() {
   const [email, setEmail] = useState("");
   const [state, run] = useAction();
-  const submit = e => {
+  const submit = (e: FormEvent) => {
     e.preventDefault();
     run(async () => {
       await auth.forgotPassword(email);
@@ -281,7 +258,7 @@ function Forgot() {
     <div className="form-wrap">
       <form className="form card" onSubmit={submit}>
         <h1>Reset your password</h1>
-        <Field label="Email" type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} />
+        <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} />
         {state.error && <p className="notice bad" role="alert">{state.error}</p>}
         {state.info && <p className="notice" role="status">{state.info}</p>}
         <button className="button primary" disabled={state.busy}>Send the link</button>
@@ -293,7 +270,7 @@ function Forgot() {
   );
 }
 
-function Account({ me, onSignOut }) {
+function Account({ me, onSignOut }: { me: Who; onSignOut: () => void }) {
   if (me === undefined) return <div className="form-wrap"><p className="muted">Loading…</p></div>;
   if (!me) {
     return (
@@ -320,8 +297,21 @@ function Account({ me, onSignOut }) {
   );
 }
 
-function App() {
-  const path = useRoute();
+function NotFound() {
+  return (
+    <div className="form-wrap">
+      <div className="form card">
+        <h1>Page not found</h1>
+        <p className="muted" style={{ margin: 0 }}>That page does not exist.</p>
+        <Link className="button primary" to="/">Go to the home page</Link>
+      </div>
+    </div>
+  );
+}
+
+/** The whole site for one path. The browser renders it live; the build renders it once per page into that page's HTML. */
+export function App({ path: first = "/" }) {
+  const path = useRoute(first);
   const [me, setMe] = useMe();
   const [notice, setNotice] = useState("");
   const leaving = useRef(false); // true while the person themselves is signing out
@@ -338,6 +328,8 @@ function App() {
     setMe(null);
     go("/");
   };
+  // The title, description and canonical address follow the page (the build writes them into each page's HTML).
+  useEffect(() => applyMetadata(metadataFor(routeFor(path).key)), [path]);
   // Pages are for the right state: signed in, nobody sees the sign-in forms; signed out, nobody sees the account page.
   useEffect(() => {
     const to = redirectFor(path, me);
@@ -354,24 +346,22 @@ function App() {
       leaving.current = false;
     }
   }, [me]);
-  const pages = {
+  const pages: Record<string, React.ReactNode> = {
     "/": <Home me={me} />,
     "/signin": <SignIn onDone={signedIn} notice={notice} />,
     "/signup": <SignUp onDone={signedIn} />,
     "/forgot": <Forgot />,
+    "/pricing": <Pricing />,
     "/account": <Account me={me} onSignOut={signOut} />,
   };
   return (
     <div className="page">
       <Header path={path} me={me} onSignOut={signOut} />
-      <main>{pages[cleanPath(path)] || <Home me={me} />}</main>
-      <footer className="footer">© Caller Whale</footer>
+      <main>{pages[cleanPath(path)] || <NotFound />}</main>
+      <footer className="footer mt-4 text-accent-ink">
+        <span>© Caller Whale</span>
+        <Link to="/pricing">Pricing</Link>
+      </footer>
     </div>
   );
 }
-
-createRoot(document.getElementById("root")).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);

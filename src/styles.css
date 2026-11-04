@@ -2,6 +2,7 @@
   --page: #ececec; --shell: #efefef; --card: #f7f7f7; --raised: #fff; --well: #e6e6e6;
   --ink: #121212; --muted: #595959; --line: #dcdcdc;
   --accent: #ecc394; --accent-soft: #fbdfc2; --accent-ink: #805015; --danger-ink: #8a342b;
+  --dark: #121212; --good: #cfe7d3; --good-ink: #1d5a2f;
   --radius: 28px; --inner: 8px; --gap: 16px; --pad: 20px;
   font-family: "Schibsted Grotesk Variable", system-ui, sans-serif;
   font-size: 14px; line-height: 1.45; color: var(--ink); background: var(--page);
