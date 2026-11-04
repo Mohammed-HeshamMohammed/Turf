@@ -10,6 +10,7 @@ import { Security } from "./Security.tsx";
 import { Contact, Privacy, Terms } from "./PublicPages.tsx";
 import { WhyCallerWhale } from "./WhyCallerWhale.tsx";
 import { HeroDemo } from "./components/ui/demo.tsx";
+import { SiteHeader } from "./components/ui/site-header.tsx";
 import { cleanPath, routeFor } from "./routes.ts";
 
 // Anything that changes who is signed in (new tokens, a refresh the server refused, signing out) tells the page.
@@ -56,50 +57,11 @@ function useMe() {
   return [me, setMe] as const;
 }
 
-function Header({ path, me, onSignOut }: { path: string; me: Who; onSignOut: () => void }) {
-  const current = (to: string) => (path === to ? "page" : undefined);
-  return (
-    <header className="header">
-      <Link to="/" className="brand">
-        <img src="/favicon.svg" alt="" />
-        Caller Whale
-      </Link>
-      <nav className="rail" aria-label="Main">
-        <Link to="/features" aria-current={path.startsWith("/features") ? "page" : undefined}>Features</Link>
-        <Link to="/why-caller-whale" aria-current={current("/why-caller-whale")}>Why Caller Whale</Link>
-        <Link to="/pricing" aria-current={current("/pricing")}>Pricing</Link>
-        <Link to="/security" aria-current={current("/security")}>Security</Link>
-      </nav>
-      <nav className="rail" aria-label="Account" aria-busy={me === undefined}>
-        {me === undefined ? null : me ? (
-          <>
-            <Link to="/account" aria-current={current("/account")}>Account</Link>
-            <a
-              href="/"
-              onClick={e => {
-                e.preventDefault();
-                onSignOut();
-              }}
-            >
-              Sign out
-            </a>
-          </>
-        ) : (
-          <>
-            <Link to="/signin" aria-current={current("/signin")}>Sign in</Link>
-            <Link to="/signup" aria-current={current("/signup")}>Sign up</Link>
-          </>
-        )}
-      </nav>
-    </header>
-  );
-}
-
-function Home({ me }: { me: Who }) {
+function Home({ me, onSignOut }: { me: Who; onSignOut: () => void }) {
   const steps = [["Lists", "Import leads and keep the source intact."], ["Lead records", "Find the next step and the full history."], ["Calls", "Work the queue and record outcomes."], ["Handoffs", "Move a deal to the right teammate."], ["Reports", "See what moved forward and export your data."]];
   return (
     <>
-      <HeroDemo signedIn={me === undefined ? undefined : Boolean(me)} />
+      <HeroDemo me={me} onSignOut={onSignOut} />
       <section className="section" aria-labelledby="workspace-title"><h2 id="workspace-title">One flow, from list to closed deal.</h2><div className="steps five">{steps.map(([title, text], i) => <div className="card step" key={title}><span>0{i + 1}</span><b>{title}</b><span>{text}</span></div>)}</div><p><Link to="/why-caller-whale">Why keep it together →</Link></p></section>
       <section className="cta"><h2>Build a plan around your work.</h2><p>Choose the features your team needs and see the draft monthly total as you go.</p><Link className="button primary" to="/pricing">Explore pricing</Link></section>
     </>
@@ -250,7 +212,7 @@ function Forgot() {
   );
 }
 
-function Account({ me, onSignOut }: { me: Who; onSignOut: () => void }) {
+function Account({ me }: { me: Who }) {
   if (me === undefined) return <div className="form-wrap"><p className="muted">Loading…</p></div>;
   if (!me) {
     return (
@@ -271,7 +233,6 @@ function Account({ me, onSignOut }: { me: Who; onSignOut: () => void }) {
           <br />
           <span className="muted">{me.email}</span>
         </p>
-        <button className="button raised" onClick={onSignOut}>Sign out</button>
       </div>
     </div>
   );
@@ -327,7 +288,7 @@ export function App({ path: first = "/" }) {
     }
   }, [me]);
   const pages: Record<string, React.ReactNode> = {
-    "/": <Home me={me} />,
+    "/": <Home me={me} onSignOut={signOut} />,
     "/signin": <SignIn onDone={signedIn} notice={notice} />,
     "/signup": <SignUp onDone={signedIn} />,
     "/forgot": <Forgot />,
@@ -338,12 +299,12 @@ export function App({ path: first = "/" }) {
     "/contact": <Contact getAuth={getAuth} />,
     "/privacy": <Privacy />,
     "/terms": <Terms />,
-    "/account": <Account me={me} onSignOut={signOut} />,
+    "/account": <Account me={me} />,
   };
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
   return (
     <div className="page">
-      {cleanPath(path) !== "/" && <Header path={path} me={me} onSignOut={signOut} />}
+      {cleanPath(path) !== "/" && <SiteHeader path={path} me={me} onSignOut={signOut} />}
       <main>{pages[cleanPath(path)] || (routeFor(path).key.startsWith("feature:") ? <FeaturePage slug={featureSlug} /> : <NotFound />)}</main>
       <footer className="footer mt-4 text-accent-ink">
         <span>© Caller Whale</span>
