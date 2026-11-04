@@ -10,7 +10,7 @@ The authentication service, in Go. It replaced the Rust service that used to liv
 | Accounts | Firebase holds accounts and passwords (always needs `AUTH_FIREBASE_API_KEY`); this service keeps no passwords |
 | Human check | Not here. The gateway checks reCAPTCHA; this service has no setting for it |
 | Settings | [env/auth.production.example](../../env/auth.production.example) |
-| Token check for other services | `clients/` (JavaScript sign-in client, copied into the apps by `clients/sync.mjs`) |
+| Token check for other services | `tools/auth-verify/` (Go, copied into each Go service that checks tokens, today the gateway); `clients/` (JavaScript sign-in client, copied into the apps by `clients/sync.mjs`) |
 
 ## What is built
 

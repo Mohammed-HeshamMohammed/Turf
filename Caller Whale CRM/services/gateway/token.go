@@ -14,19 +14,30 @@ import (
 	"time"
 )
 
+// Source of truth: tools/auth-verify/token.go. Copied into each Go service that checks sign-in tokens by
+// tools/auth-verify/sync.mjs; change it there, not in the copy.
+//
 // Caller Whale's access tokens are made by the auth service: EdDSA (Ed25519) JWTs whose public keys it publishes at
-// /.well-known/jwks.json. The gateway checks the signature with those keys and the claims that say the token is
-// Caller Whale's and still valid. It never sees an identity provider: how the person proved who they are is the auth
-// service's business. What the person may do (roles, organization, revocation) is the core API's to decide.
+// /.well-known/jwks.json. A service checks the signature with those keys and the claims that say the token is
+// Caller Whale's and still valid, locally, so a signed-in person keeps working while auth restarts. It never sees an
+// identity provider: how the person proved who they are is the auth service's business. What the person may do (roles,
+// organization, revocation) is the authorization service's to decide.
 
 const (
 	tokenIssuer   = "callerwhale-auth"
 	tokenAudience = "callerwhale"
 )
 
+// claims is what an access token says about the person.
 type claims struct {
-	sub          string
-	secondFactor bool // the person confirmed an authenticator code when they signed in
+	sub           string // the person's id, the same in every service
+	email         string
+	name          string
+	sessionID     string // the session the token belongs to; revoking it stops new tokens
+	secondFactor  bool   // the person confirmed an authenticator code (or a recovery code) when they signed in
+	emailVerified bool   // absent in older tokens: false
+	provider      string // how they signed in: password, google or apple; absent in older tokens: empty
+	authTime      int64  // when they signed in (Unix seconds), the session's start; absent in older tokens: 0
 }
 
 type keyset struct {
@@ -106,7 +117,7 @@ func (k *keyset) fetch(now time.Time) error {
 	return nil
 }
 
-// verify checks a token and returns who it names.
+// verify checks a token (shape, key, signature, issuer, audience, time) and returns who it names.
 func (k *keyset) verify(token string, now time.Time) (claims, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 || len(token) > 8192 {
@@ -125,12 +136,18 @@ func (k *keyset) verify(token string, now time.Time) (claims, error) {
 		return claims{}, errors.New("bad signature")
 	}
 	var body struct {
-		Iss string `json:"iss"`
-		Aud string `json:"aud"`
-		Sub string `json:"sub"`
-		Exp int64  `json:"exp"`
-		Iat int64  `json:"iat"`
-		Mfa bool   `json:"mfa"`
+		Iss           string `json:"iss"`
+		Aud           string `json:"aud"`
+		Sub           string `json:"sub"`
+		Email         string `json:"email"`
+		Name          string `json:"name"`
+		Sid           string `json:"sid"`
+		Exp           int64  `json:"exp"`
+		Iat           int64  `json:"iat"`
+		Mfa           bool   `json:"mfa"`
+		EmailVerified bool   `json:"email_verified"`
+		Provider      string `json:"provider"`
+		AuthTime      int64  `json:"auth_time"`
 	}
 	if err := decode(parts[1], &body); err != nil {
 		return claims{}, errors.New("bad claims")
@@ -145,7 +162,8 @@ func (k *keyset) verify(token string, now time.Time) (claims, error) {
 	case body.Iat > now.Unix()+60:
 		return claims{}, errors.New("issued in the future")
 	}
-	return claims{sub: body.Sub, secondFactor: body.Mfa}, nil
+	return claims{sub: body.Sub, email: body.Email, name: body.Name, sessionID: body.Sid, secondFactor: body.Mfa,
+		emailVerified: body.EmailVerified, provider: body.Provider, authTime: body.AuthTime}, nil
 }
 
 func decode(part string, into any) error {
