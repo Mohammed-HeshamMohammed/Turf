@@ -216,7 +216,6 @@ function Forgot() {
 }
 
 function Account({ me }: { me: Who }) {
-  const [copied, setCopied] = useState(false);
   if (me === undefined) return <div className="form-wrap"><p className="muted">Loading…</p></div>;
   if (!me) {
     return (
@@ -237,7 +236,6 @@ function Account({ me }: { me: Who }) {
           <br />
           <span className="muted">{me.email}</span>
         </p>
-        <div className="account-id"><span className="muted">Account ID</span><code>{me.id}</code><button type="button" className="button raised" onClick={() => navigator.clipboard.writeText(me.id).then(() => setCopied(true), () => setCopied(false))}>{copied ? "Copied" : "Copy ID"}</button></div>
       </div>
     </div>
   );
