@@ -1,8 +1,8 @@
 # SpiceDB in Coolify's Database environment (Docker Image resource authzed/spicedb:v1.57.0, network alias spicedb; no branch, no domain). Set all five.
 # SpiceDB's datastore: postgres.
 SPICEDB_DATASTORE_ENGINE=postgres
-# Secret PostgreSQL URI of SpiceDB's own database and login (callerwhale_spicedb). No other service uses it.
-SPICEDB_DATASTORE_CONN_URI=<postgres://callerwhale_spicedb:password@host:5432/callerwhale_spicedb>
+# Secret internal PostgreSQL URI of SpiceDB's own database and login (callerwhale_spicedb). SSL is required on this database.
+SPICEDB_DATASTORE_CONN_URI=<postgres://callerwhale_spicedb:password@host:5432/callerwhale_spicedb?sslmode=require>
 # Secret key authz sends with every call (authz's SPICEDB_PRESHARED_KEY). Long and random; change both together.
 SPICEDB_GRPC_PRESHARED_KEY=<a long random string>
 # Set false: only the private gRPC API, with no HTTP gateway or dashboard.
