@@ -153,6 +153,9 @@ func classify(method, path string) need {
 		return private
 	case path == "/internal" || strings.HasPrefix(path, "/internal/") || path == "/readyz":
 		return private
+	// The services' own interfaces (like the notification service's /v1/mail) are for the private network, whatever sits behind the address.
+	case path == "/v1" || strings.HasPrefix(path, "/v1/"):
+		return private
 	case method == http.MethodGet && (path == "/api/v1/auth/service" || path == "/api/v1/plans" || strings.HasPrefix(path, "/api/v1/download/")):
 		return open
 	case method == http.MethodPost && (path == "/api/v1/public/waitlist" || path == "/api/v1/public/contact"): // the website's two forms: no sign-in, the address limit still applies

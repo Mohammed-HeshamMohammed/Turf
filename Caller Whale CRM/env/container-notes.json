@@ -85,7 +85,9 @@
         "NOTIFY_SMTP_PORT": "SMTP submission port; default 587. Use STARTTLS 587 or implicit TLS 465 as supported by the server; do not use cleartext submission.",
         "NOTIFY_SMTP_USER": "SMTP mailbox login; not a forwarding alias unless the mail server explicitly supports alias authentication. Must match the allowed sender.",
         "NOTIFY_SMTP_PASSWORD": "Secret SMTP mailbox password. Rotate together with the mail server credential; incorrect value breaks every notification email.",
-        "NOTIFY_MAIL_FROM": "Email From header with Caller Whale display name and permitted sender mailbox. Must match mail-server sender authorization, not merely a forwarding destination."
+        "NOTIFY_MAIL_FROM": "Email From header with Caller Whale display name and permitted sender mailbox. Must match mail-server sender authorization, not merely a forwarding destination.",
+        "NOTIFY_CONTACT_TO": "Team inbox the website's contact form writes to. Empty: the form answers 503. Only the team reads it; visitors never see it.",
+        "NOTIFY_CONTACT_ORIGINS": "Pages allowed to post the contact form from a browser, comma-separated origins like https://callerwhale.com. Others get no permission, so only the site can use it."
       }
     },
     "callerwhale-monitoring": {

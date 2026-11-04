@@ -44,7 +44,9 @@
       "NOTIFY_SMTP_PORT",
       "NOTIFY_SMTP_USER",
       "NOTIFY_SMTP_PASSWORD",
-      "NOTIFY_MAIL_FROM"
+      "NOTIFY_MAIL_FROM",
+      "NOTIFY_CONTACT_TO",
+      "NOTIFY_CONTACT_ORIGINS"
     ],
     "callerwhale-monitoring": [
       "SERVICE_FQDN_GRAFANA",
