@@ -98,23 +98,20 @@ function Home({ me }: { me: Who }) {
   const steps = [["Lists", "Import leads and keep the source intact."], ["Lead records", "Find the next step and the full history."], ["Calls", "Work the queue and record outcomes."], ["Handoffs", "Move a deal to the right teammate."], ["Reports", "See what moved forward and export your data."]];
   return (
     <>
-      <section className="hero">
-        <div className="card">
-          <span className="badge">Calling workspace</span>
-          <h1>Every lead has a next call.</h1>
-          <p>Keep your lists, calls, deal notes and team handoffs in one workspace, so you know what to do next.</p>
+      <section className="hero hero-banner">
+        <div className="hero-banner-copy">
+          <span className="hero-kicker"><span>Caller Whale</span> The calling workspace for lead teams</span>
+          <h1>Every lead has<br />a next call.</h1>
+          <p>Keep your lists, calls, deal notes and team handoffs in one workspace, so you always know what to do next.</p>
           <div className="actions">
-            {me === undefined ? null : me ? (
-              <Link className="button primary" to="/account">Your account</Link>
-            ) : (
-              <>
-                <Link className="button primary" to="/signup">Create an account</Link>
-                <Link className="button raised" to="/features">Explore features</Link>
-              </>
-            )}
+            {me === undefined ? null : <Link className="button primary" to={me ? "/account" : "/signup"}>{me ? "Your account" : "Create an account"}<span aria-hidden="true">↗</span></Link>}
+            <Link className="button hero-secondary" to="/features">Explore features <span aria-hidden="true">→</span></Link>
           </div>
         </div>
-        <div className="well hero-shot"><img src="/screens/dashboard.webp" alt="Caller Whale overview showing leads, next steps and pipeline value" width="1280" height="800" /></div>
+        <figure className="hero-preview">
+          <img src="/screens/dashboard.webp" alt="Caller Whale overview showing leads, next steps and pipeline value" width="1280" height="800" fetchPriority="high" />
+          <figcaption>See the work that needs you next, in one place.</figcaption>
+        </figure>
       </section>
       <section className="section" aria-labelledby="workspace-title"><h2 id="workspace-title">One flow, from list to closed deal.</h2><div className="steps five">{steps.map(([title, text], i) => <div className="card step" key={title}><span>0{i + 1}</span><b>{title}</b><span>{text}</span></div>)}</div><p><Link to="/why-caller-whale">Why keep it together →</Link></p></section>
       <section className="cta"><h2>Build a plan around your work.</h2><p>Choose the features your team needs and see the draft monthly total as you go.</p><Link className="button primary" to="/pricing">Explore pricing</Link></section>
