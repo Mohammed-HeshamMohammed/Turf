@@ -9,8 +9,8 @@ SPICEDB_PRESHARED_KEY=<the SpiceDB preshared key>
 SPICEDB_TLS=false
 # Secret Ed25519 key (base64 PKCS#8 or 32-byte seed) that signs grants; `service new-key` prints one. Keep stable; empty uses a temporary key.
 AUTHZ_SIGNING_KEY=<service new-key>
-# Secret caller tokens, caller=token comma-separated (core-api, billing, gateway, worker), 32+ characters each. Each caller gets only its own rights.
-AUTHZ_TOKENS=core-api=<token>,billing=<token>,gateway=<token>,worker=<token>
+# Secret caller tokens, caller=token comma-separated, 32+ characters each; only billing today (core-api once rebuilt). Each caller gets only its own rights.
+AUTHZ_TOKENS=billing=<token>
 # How long a grant lasts, 5 to 600 seconds; default 60. Shorter means faster revocation and more calls.
 AUTHZ_GRANT_SECONDS=60
 # Default true: roles that need the second step (owner, solo) must have passed it. false only for local testing.

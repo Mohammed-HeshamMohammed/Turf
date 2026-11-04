@@ -1,8 +1,8 @@
-# The gateway on Coolify (application "gateway", port 8100). Domains: gate.callerwhale.com (the core API), auth.callerwhale.com (the auth service, so the human check sees every sign-in) and notify.callerwhale.com (the notification service, so every email request passes the gateway). Paste into Developer View. The reCAPTCHA secret key is the only secret here: enter it privately in Coolify, never in GitHub.
+# The gateway on Coolify (application "gateway", port 8100). Domains: gate.callerwhale.com (the core API; nothing answers there until it is rebuilt), auth.callerwhale.com (the auth service, so the human check sees every sign-in). The notification service has no public route: only auth calls it, on the private network. Paste into Developer View. The reCAPTCHA secret key is the only secret here: enter it privately in Coolify, never in GitHub.
 # Gateway HTTP listen port; default 8100. Match Coolify's upstream container port.
 PORT=8100
 # Comma-separated public-host=http(s)://private-upstream mappings. Changing this changes traffic destinations; do not expose internal-only services as public routes.
-ROUTES=gate.callerwhale.com=http://core-api:8088,auth.callerwhale.com=http://auth:8101,notify.callerwhale.com=http://notifications:8102
+ROUTES=gate.callerwhale.com=http://core-api:8088,auth.callerwhale.com=http://auth:8101
 # Hostname in ROUTES that receives core-API access policy and private monitoring routing. Must match a configured route exactly.
 CORE_HOST=gate.callerwhale.com
 # Trusted auth public-key endpoint for token verification. Required when CORE_HOST is set; wrong keys block protected access.
