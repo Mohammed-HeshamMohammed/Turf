@@ -17,6 +17,7 @@ The authentication service, in Go. It replaced the Rust service that used to liv
 Every route (the gateway's allow-list in `services/gateway/shield.go` is checked against this source):
 
 - Sign-up, sign-in, refresh, sign-out, sessions, `/v1/me`, JWKS, `/v1/security`, health (phase 1).
+- `GET /v1/me/access` returns only the signed-in person's platform role and workspace memberships from private authz. Set `AUTHZ_URL` and an auth read token in `AUTHZ_TOKEN`; unavailable authz returns 503 without inventing access.
 - Change password, forgot, reset, email verify and resend (phase 2).
 - Every `/v1/mfa/*` route: authenticator devices, recovery codes, email and Telegram codes, approval on another device, step-up (phase 3).
 - `/v1/providers`, `/v1/oauth/*` (Google and Apple, direct or through Firebase) and `POST /v1/handoffs` for the desktop app (phase 4).

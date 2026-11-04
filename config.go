@@ -29,6 +29,8 @@ type config struct {
 
 	notifyURL   string
 	notifyToken string
+	authzURL    string
+	authzToken  string
 
 	google, apple provider // Google and Apple sign-in; a provider with no client of its own is left to Firebase
 
@@ -73,6 +75,8 @@ func loadConfig(getenv func(string) string) (config, error) {
 		firebaseToken:    trimSlash(get("AUTH_FIREBASE_TOKEN_URL", "https://securetoken.googleapis.com")),
 		notifyURL:        trimSlash(getenv("AUTH_NOTIFY_URL")),
 		notifyToken:      strings.TrimSpace(getenv("AUTH_NOTIFY_TOKEN")),
+		authzURL:         trimSlash(getenv("AUTHZ_URL")),
+		authzToken:       strings.TrimSpace(getenv("AUTHZ_TOKEN")),
 		google: provider{clientID: strings.TrimSpace(getenv("AUTH_GOOGLE_CLIENT_ID")), clientSecret: strings.TrimSpace(getenv("AUTH_GOOGLE_CLIENT_SECRET")),
 			authURL: "https://accounts.google.com/o/oauth2/v2/auth", tokenURL: "https://oauth2.googleapis.com/token", jwksURL: "https://www.googleapis.com/oauth2/v3/certs", issuer: "https://accounts.google.com"},
 		apple: provider{clientID: strings.TrimSpace(getenv("AUTH_APPLE_CLIENT_ID")), teamID: strings.TrimSpace(getenv("AUTH_APPLE_TEAM_ID")), keyID: strings.TrimSpace(getenv("AUTH_APPLE_KEY_ID")),

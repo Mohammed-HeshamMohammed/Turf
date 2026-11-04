@@ -89,6 +89,11 @@ paths:
       summary: Who the token belongs to
       security: [{ bearer: [] }]
       responses: { "200": { description: The person }, "401": { description: Not signed in } }
+  /v1/me/access:
+    get:
+      summary: Current person's platform role and workspace memberships from authorization
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Current access }, "401": { description: Not signed in }, "503": { description: Authorization unavailable } }
   /v1/password:
     post:
       summary: Change the password and close every other session
