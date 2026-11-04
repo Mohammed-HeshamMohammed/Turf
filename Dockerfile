@@ -1,3 +1,5 @@
+# Notifications. Build with this folder as the context:
+#   docker build -t callerwhale-notifications services/notifications
 FROM golang:1 AS runtime-log-build
 COPY runtime-log/main.go /src/main.go
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log /src/main.go
