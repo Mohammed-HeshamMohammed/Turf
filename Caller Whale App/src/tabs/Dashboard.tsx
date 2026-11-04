@@ -488,7 +488,12 @@ export function Dashboard({ callerwhale }: { callerwhale: CallerWhale }) {
                       <strong>{step.text}</strong>
                       <small>{step.detail}</small>
                     </div>
-                    <button type="button" className="round" aria-label={`${step.action}: ${step.text}`} onClick={() => callerwhale.open(step.tab, step.datasetId)}>
+                    <button
+                      type="button"
+                      className="round"
+                      aria-label={`${step.action}: ${step.text}`}
+                      onClick={() => callerwhale.open(step.tab, step.datasetId)}
+                    >
                       <Icon name="arrow" />
                     </button>
                   </li>
@@ -797,7 +802,12 @@ export function Dashboard({ callerwhale }: { callerwhale: CallerWhale }) {
                       )}
                     </td>
                     <td className="num">
-                      <button type="button" className="round" aria-label={`Open ${item.dataset.name}`} onClick={() => callerwhale.open("lists", item.dataset.id)}>
+                      <button
+                        type="button"
+                        className="round"
+                        aria-label={`Open ${item.dataset.name}`}
+                        onClick={() => callerwhale.open("lists", item.dataset.id)}
+                      >
                         <Icon name="arrow" />
                       </button>
                     </td>

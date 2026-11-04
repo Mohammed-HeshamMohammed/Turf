@@ -224,7 +224,9 @@ function Queue({ callerwhale, dataset }: { callerwhale: CallerWhale; dataset: Da
     <section className="list-view calls">
       <header className="list-head">
         <div>
-          <h1>{dataset.kind === "checked" ? (callerwhale.datasets.find(item => item.id === dataset.parent_dataset_id)?.name ?? dataset.name) : dataset.name}</h1>
+          <h1>
+            {dataset.kind === "checked" ? (callerwhale.datasets.find(item => item.id === dataset.parent_dataset_id)?.name ?? dataset.name) : dataset.name}
+          </h1>
           <p>
             {formatNumber(sorted.queue.length)} to call now · {formatNumber(sorted.due.length)} {sorted.due.length === 1 ? "callback" : "callbacks"} due ·{" "}
             {formatNumber(sorted.later.length)} for later · {formatNumber(Object.keys(done).length)} called since you opened this

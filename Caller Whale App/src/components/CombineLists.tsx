@@ -19,7 +19,9 @@ const STAGES: Record<string, string> = {
 export function CombineLists({ callerwhale, onDone, onCancel }: { callerwhale: CallerWhale; onDone: (datasetId: string) => void; onCancel: () => void }) {
   // A checked copy is its list with results added; the list itself is what is combined, and its check is used.
   const lists = callerwhale.datasets.filter(dataset => dataset.kind !== "checked");
-  const [chosen, setChosen] = useState<string[]>(() => (callerwhale.selectedId && lists.some(item => item.id === callerwhale.selectedId) ? [callerwhale.selectedId] : []));
+  const [chosen, setChosen] = useState<string[]>(() =>
+    callerwhale.selectedId && lists.some(item => item.id === callerwhale.selectedId) ? [callerwhale.selectedId] : [],
+  );
   const [summary, setSummary] = useState<CombineSummary | null>(null);
   const [compared, setCompared] = useState<string[]>([]);
   const [mode, setMode] = useState<CombineMode>("all");
@@ -130,7 +132,10 @@ export function CombineLists({ callerwhale, onDone, onCancel }: { callerwhale: C
       <header className="list-head">
         <div>
           <h1>Combine lists</h1>
-          <p>Pick the lists. Caller Whale compares their rows, whatever each list calls its columns, and makes one new list. The lists themselves stay as they are.</p>
+          <p>
+            Pick the lists. Caller Whale compares their rows, whatever each list calls its columns, and makes one new list. The lists themselves stay as they
+            are.
+          </p>
         </div>
         <button type="button" className="button ghost" disabled={busy !== null} onClick={onCancel}>
           Close

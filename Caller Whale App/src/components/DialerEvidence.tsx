@@ -32,8 +32,8 @@ export function DialerEvidence({ callerwhale, datasetId }: { callerwhale: Caller
       <h3>Use your existing dialer's results</h3>
       <p className="muted">
         Import the dialer's CSV or Excel export, choose the exact phone-number column called, map its call statuses, and choose its call date/time column when
-        available. Save those mappings, then check your lead list. Caller Whale reads the mapped export as evidence across this project. No Twilio account, credentials,
-        or additional lookup subscription is needed.
+        available. Save those mappings, then check your lead list. Caller Whale reads the mapped export as evidence across this project. No Twilio account,
+        credentials, or additional lookup subscription is needed.
       </p>
       <div className="row">
         <button
@@ -72,7 +72,12 @@ export function DialerEvidence({ callerwhale, datasetId }: { callerwhale: Caller
             options={sources.map(dataset => ({ value: dataset.id, label: dataset.name }))}
             onChange={setSelected}
           />
-          <button type="button" className="button ghost small" disabled={!selected || busy} onClick={() => selected && callerwhale.open("skiptracing", selected)}>
+          <button
+            type="button"
+            className="button ghost small"
+            disabled={!selected || busy}
+            onClick={() => selected && callerwhale.open("skiptracing", selected)}
+          >
             Map this export's outcomes
           </button>
         </div>

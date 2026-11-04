@@ -102,7 +102,11 @@ export function Lists({ callerwhale }: { callerwhale: CallerWhale }) {
           {(() => {
             const shown = callerwhale.datasets.find(item => item.id === id)!;
             // A long list is counted and paged by the service; a shorter one is read whole.
-            return isLarge(marksSource(shown, callerwhale.datasets)) ? <LargeListView callerwhale={callerwhale} dataset={shown} /> : <ListView callerwhale={callerwhale} dataset={shown} />;
+            return isLarge(marksSource(shown, callerwhale.datasets)) ? (
+              <LargeListView callerwhale={callerwhale} dataset={shown} />
+            ) : (
+              <ListView callerwhale={callerwhale} dataset={shown} />
+            );
           })()}
         </div>
       ))}
@@ -156,7 +160,10 @@ function ListView({ callerwhale, dataset }: { callerwhale: CallerWhale; dataset:
   }
 
   const columns = useMemo(() => (rows?.[0] ? Object.keys(rows[0].raw) : []), [rows]);
-  const asked = callerwhale.rowTarget && (callerwhale.rowTarget.datasetId === dataset.id || callerwhale.rowTarget.datasetId === source.id) ? callerwhale.rowTarget.rowNumber : null;
+  const asked =
+    callerwhale.rowTarget && (callerwhale.rowTarget.datasetId === dataset.id || callerwhale.rowTarget.datasetId === source.id)
+      ? callerwhale.rowTarget.rowNumber
+      : null;
   useEffect(() => {
     if (asked === null || !rows) return;
     setOnlyRow(asked);
@@ -213,7 +220,10 @@ function ListView({ callerwhale, dataset }: { callerwhale: CallerWhale; dataset:
   const activeLevel = level && areaMap[level] ? level : (available.at(-1) ?? null);
   const areaColumn = activeLevel ? areaMap[activeLevel] : undefined;
 
-  const marked = useMemo(() => (rows ?? []).map(row => ({ row, marks: readMarks(row.raw, phoneColumns, callerwhale.manual) })), [rows, phoneColumns, callerwhale.manual]);
+  const marked = useMemo(
+    () => (rows ?? []).map(row => ({ row, marks: readMarks(row.raw, phoneColumns, callerwhale.manual) })),
+    [rows, phoneColumns, callerwhale.manual],
+  );
   const areas = useMemo(() => countAreas(rows ?? [], areaColumn), [rows, areaColumn]);
 
   // Every filter but the chosen area: the map shades by this, so choosing an area does not grey out the rest.

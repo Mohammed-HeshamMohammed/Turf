@@ -294,7 +294,9 @@ describe("the complete five-step process", () => {
     await user.click(screen.getByRole("button", { name: "Remove Owner 2" }));
     await user.click(screen.getByRole("button", { name: "Owner for Other Phone: Owner not assigned" }));
     await user.click(screen.getByRole("option", { name: "Owner 1", exact: true }));
-    await waitFor(() => expect(JSON.parse(localStorage.getItem("callerwhale.skiptrace.draft.project.list")!).state.base.phone_owner_map["Other Phone"]).toBe(0));
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem("callerwhale.skiptrace.draft.project.list")!).state.base.phone_owner_map["Other Phone"]).toBe(0),
+    );
   });
 
   it("keeps identifier-looking columns from being accepted without review", async () => {
