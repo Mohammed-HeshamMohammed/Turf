@@ -1,12 +1,20 @@
 import "@fontsource-variable/schibsted-grotesk";
-import { StrictMode, useEffect, useState } from "react";
+import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { createAuth } from "./auth/auth-client.js";
 import { HumanCheck } from "./auth/human-check.jsx";
+import { cleanPath, redirectFor } from "./guard.js";
 import "./styles.css";
 
-const auth = createAuth({ base: import.meta.env.VITE_CALLERWHALE_AUTH_URL || "http://localhost:8101" });
+// Anything that changes who is signed in (new tokens, a refresh the server refused, signing out) tells the page.
+const listeners = new Set();
+const auth = createAuth({
+  base: import.meta.env.VITE_CALLERWHALE_AUTH_URL || "http://localhost:8101",
+  onChange: () => listeners.forEach(listener => listener()),
+});
 const getAuth = async () => auth;
+// Where the auth client keeps the refresh token: another tab signing in or out changes it.
+const REFRESH_KEY = "callerwhale.auth.refresh";
 
 function useRoute() {
   const [path, setPath] = useState(location.pathname);
@@ -17,8 +25,8 @@ function useRoute() {
   }, []);
   return path;
 }
-const go = to => {
-  history.pushState(null, "", to);
+const go = (to, { replace = false } = {}) => {
+  history[replace ? "replaceState" : "pushState"](null, "", to);
   dispatchEvent(new PopStateEvent("popstate"));
 };
 function Link({ to, children, ...rest }) {
@@ -51,8 +59,19 @@ function useMe() {
     };
     // Coming back from Google signs this page in before anything else is asked.
     auth.finishProvider().catch(() => {}).finally(ask);
+    // Signed in, signed out or refused by the server, here or (through storage) in another tab: ask again.
+    const changed = event => {
+      if (event.key !== REFRESH_KEY) return;
+      // The other tab signed out: forget this tab's copy of the session too (no request: the refresh token is gone).
+      if (!event.newValue) auth.signOut().then(ask);
+      else ask();
+    };
+    listeners.add(ask);
+    addEventListener("storage", changed);
     return () => {
       live = false;
+      listeners.delete(ask);
+      removeEventListener("storage", changed);
     };
   }, []);
   return [me, setMe];
@@ -66,8 +85,8 @@ function Header({ path, me, onSignOut }) {
         <img src="/favicon.svg" alt="" />
         Caller Whale
       </Link>
-      <nav className="rail" aria-label="Account">
-        {me ? (
+      <nav className="rail" aria-label="Account" aria-busy={me === undefined}>
+        {me === undefined ? null : me ? (
           <>
             <Link to="/account" aria-current={current("/account")}>Account</Link>
             <a
@@ -105,7 +124,7 @@ function Home({ me }) {
           <h1>Work every lead by phone, in one place.</h1>
           <p>Caller Whale keeps your leads, your calls and your team together, so the next call is always one click away.</p>
           <div className="actions">
-            {me ? (
+            {me === undefined ? null : me ? (
               <Link className="button primary" to="/account">Your account</Link>
             ) : (
               <>
@@ -175,7 +194,7 @@ function Providers({ action, human }) {
   );
 }
 
-function SignIn({ onDone }) {
+function SignIn({ onDone, notice }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -201,6 +220,7 @@ function SignIn({ onDone }) {
     <div className="form-wrap">
       <form className="form card" onSubmit={submit}>
         <h1>Sign in</h1>
+        {notice && <p className="notice" role="status">{notice}</p>}
         <Field label="Email" type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} />
         <Field label="Password" type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} />
         {needCode && <Field label="Code" inputMode="numeric" autoComplete="one-time-code" required value={code} onChange={e => setCode(e.target.value)} />}
@@ -303,19 +323,40 @@ function Account({ me, onSignOut }) {
 function App() {
   const path = useRoute();
   const [me, setMe] = useMe();
+  const [notice, setNotice] = useState("");
+  const leaving = useRef(false); // true while the person themselves is signing out
+  const wasIn = useRef(false);
   const signedIn = () => {
+    setNotice("");
     setMe(undefined);
     auth.me({ fresh: true }).then(setMe, () => setMe(null));
     go("/account");
   };
   const signOut = async () => {
+    leaving.current = true;
     await auth.signOut();
     setMe(null);
     go("/");
   };
+  // Pages are for the right state: signed in, nobody sees the sign-in forms; signed out, nobody sees the account page.
+  useEffect(() => {
+    const to = redirectFor(path, me);
+    if (to) go(to, { replace: true });
+  }, [path, me]);
+  // Signed in and then not, without the person asking (the session ended, or they signed out in another tab): say so.
+  useEffect(() => {
+    if (me) {
+      wasIn.current = true;
+      leaving.current = false;
+    } else if (me === null && wasIn.current) {
+      wasIn.current = false;
+      if (!leaving.current) setNotice("Your session ended. Sign in again.");
+      leaving.current = false;
+    }
+  }, [me]);
   const pages = {
     "/": <Home me={me} />,
-    "/signin": <SignIn onDone={signedIn} />,
+    "/signin": <SignIn onDone={signedIn} notice={notice} />,
     "/signup": <SignUp onDone={signedIn} />,
     "/forgot": <Forgot />,
     "/account": <Account me={me} onSignOut={signOut} />,
@@ -323,7 +364,7 @@ function App() {
   return (
     <div className="page">
       <Header path={path} me={me} onSignOut={signOut} />
-      <main>{pages[path.replace(/(.)\/$/, "$1")] || <Home me={me} />}</main>
+      <main>{pages[cleanPath(path)] || <Home me={me} />}</main>
       <footer className="footer">© Caller Whale</footer>
     </div>
   );
