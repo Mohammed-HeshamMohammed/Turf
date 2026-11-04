@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { authOrigin, securityHeaders } from "../scripts/security-headers.mjs";
+import { readFileSync } from "node:fs";
+import { BADGE_STYLE, authOrigin, securityHeaders } from "../scripts/security-headers.mjs";
 
 test("the policy lets the page talk to the auth service and nobody else", () => {
   const headers = securityHeaders("https://auth.callerwhale.com");
@@ -22,4 +23,9 @@ test("the build stops on a missing or unsafe auth address", () => {
 
 test("a local address is allowed over http, for trying the image on this computer", () => {
   assert.equal(authOrigin("http://localhost:8101"), "http://localhost:8101");
+});
+
+test("the one inline style the page makes is allowed by its hash, and is still what the human check writes", () => {
+  assert.ok(readFileSync(new URL("../src/auth/human-check.jsx", import.meta.url), "utf8").includes(BADGE_STYLE));
+  assert.match(securityHeaders("https://auth.callerwhale.com"), /style-src 'self' 'sha256-CybIssPtAts0iFZtkYuubemEprrtHjzE2orsUue9Cbc=';/);
 });
