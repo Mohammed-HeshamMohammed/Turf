@@ -94,6 +94,16 @@ paths:
       summary: Current person's platform role and workspace memberships from authorization
       security: [{ bearer: [] }]
       responses: { "200": { description: Current access }, "401": { description: Not signed in }, "503": { description: Authorization unavailable } }
+  /v1/admin/staff:
+    get:
+      summary: Platform staff directory for owner, cofounder, and system admin after a second step
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Staff directory }, "403": { description: Staff role or second step required }, "503": { description: Authorization unavailable } }
+    post:
+      summary: Assign or remove a system admin or tester role by account email; owner and cofounder only
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string, enum: [system_admin, tester, ""] } } } } } }
+      responses: { "200": { description: Role saved }, "403": { description: Owner or cofounder with second step required }, "404": { description: Account has not signed in }, "503": { description: Authorization unavailable } }
   /v1/password:
     post:
       summary: Change the password and close every other session
