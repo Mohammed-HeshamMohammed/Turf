@@ -16,6 +16,10 @@ npm --prefix landing/site run build    # landing/site/dist
 
 Sign-up answers "by invitation" while the auth service has `AUTH_PUBLIC_SIGNUP=false`. Google sign-in comes back to `/signin` (`AUTH_LANDING_URL` on the auth service). Deploy: Dockerfile in this folder, port 8080.
 
+**Health and logs.** The image probes `http://127.0.0.1:8080/healthz` every 30 seconds. In Coolify, configure the application health check as HTTP `GET /healthz` on port `8080` so its Healthcheck indicator also reports status. nginx emits JSON request records to stdout; the shared `callerwhale-log` runner formats them, suppresses successful health probes, and keeps failures visible. nginx errors go to stderr through the same runner.
+
+**Delivery.** The browser hydrates the prerendered HTML. The home page preloads its hero image, text assets are gzip compressed, fingerprinted `/assets/` files are cached for a year, and `/screens/` images are cached for an hour with background revalidation.
+
 **State.** The page follows who is signed in: the header and home page wait until that is known, someone signed in is sent away from the sign-in pages, nobody signed in is sent from `/account` to sign in, and a sign-in or sign-out in another tab (or a session the server ended) is picked up at once, with a note on the sign-in page when the session ended. The rules are in `src/guard.ts`.
 
 **Security.** nginx sends a content security policy that lets the page talk only to the auth service, plus clickjacking, content-type, referrer, permissions and HSTS headers. `scripts/security-headers.mjs` writes them when the image is built, from the same `VITE_CALLERWHALE_AUTH_URL`, and the build stops if it is missing, not https, or has a path. `npm test` runs the checks (also in the image build). If the auth service turns on the human check (reCAPTCHA), the policy already allows Google's script and frame.

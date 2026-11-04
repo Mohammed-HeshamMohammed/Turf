@@ -28,7 +28,8 @@ const REFRESH_KEY = "callerwhale.auth.refresh";
 type Who = Me | null | undefined;
 
 function useMe() {
-  const [me, setMe] = useState<Who>(auth.signedIn() ? undefined : null);
+  // Match the prerendered HTML on the first browser render so it can hydrate.
+  const [me, setMe] = useState<Who>(null);
   useEffect(() => {
     let live = true;
     const ask = () => {
@@ -39,6 +40,7 @@ function useMe() {
       );
     };
     // Coming back from Google signs this page in before anything else is asked.
+    if (auth.signedIn()) setMe(undefined);
     auth.finishProvider().catch(() => {}).finally(ask);
     // Signed in, signed out or refused by the server, here or (through storage) in another tab: ask again.
     const changed = (event: StorageEvent) => {

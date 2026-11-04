@@ -24,6 +24,7 @@ if (!template.includes('<div id="root"></div>')) throw new Error("The HTML templ
 for (const route of [...routes, notFoundRoute]) {
   const html = template
     .replace(slot, () => renderMetadata(metadataFor(route.key, options)))
+    .replace('  </head>', () => `${route.path === "/" ? '    <link rel="preload" as="image" href="/screens/dashboard.webp" fetchpriority="high" />\n' : ""}  </head>`)
     .replace('<div id="root"></div>', () => `<div id="root">${render(route.path)}</div>`);
   const file = route.key === "notfound" ? join(dist, "404.html") : join(dist, route.path === "/" ? "" : route.path.slice(1), "index.html");
   mkdirSync(dirname(file), { recursive: true });

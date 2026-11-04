@@ -1,11 +1,11 @@
 import "@fontsource-variable/schibsted-grotesk";
 import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
+import { hydrateRoot } from "react-dom/client";
 import { App } from "./App.tsx";
 import "./app.css";
 
-// The page arrives already written into the HTML (so search engines and slow connections see it); the browser's own copy takes over.
-createRoot(document.getElementById("root") as HTMLElement).render(
+// Keep the prerendered page in place while React attaches its event handlers.
+hydrateRoot(document.getElementById("root") as HTMLElement,
   <StrictMode>
     <App path={location.pathname} />
   </StrictMode>,
