@@ -43,3 +43,4 @@ target/
 # Generated local image helpers; production snapshots inject the canonical source.
 Caller Whale CRM/**/runtime-log/main.go
 !Caller Whale CRM/tools/runtime-log/main.go
+!Caller Whale CRM/landing/site/runtime-log/main.go

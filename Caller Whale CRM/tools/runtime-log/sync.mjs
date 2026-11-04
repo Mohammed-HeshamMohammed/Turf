@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { resolve, dirname } from "node:path";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const containers = [
+ ["landing/site", "Landing"],
  ["landing/dashboard-web", "Dashboard"],
  ["services/auth", "Auth"], ["services/authz", "Authorization"], ["services/billing", "Billing"],
  ["services/gateway", "Gateway"], ["services/grafana-proxy", "Grafana proxy"], ["services/notifications", "Notifications"],
