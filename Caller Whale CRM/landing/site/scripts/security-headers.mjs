@@ -3,8 +3,13 @@
 // page is built with, and the build stops when that setting is missing or is not a safe address.
 //
 //   node scripts/security-headers.mjs <output file>      reads VITE_CALLERWHALE_AUTH_URL
+import { createHash } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+
+// The one inline <style> the page makes (src/auth/human-check.jsx hides Google's badge), allowed by its hash and nothing else inline.
+export const BADGE_STYLE = ".grecaptcha-badge{visibility:hidden}";
+const badgeHash = `'sha256-${createHash("sha256").update(BADGE_STYLE).digest("base64")}'`;
 
 /** The origin (scheme and host) of the auth service address, or an error saying what is wrong with it. */
 export function authOrigin(value) {
@@ -29,7 +34,7 @@ export function securityHeaders(authUrl) {
     "default-src 'none'",
     // The invisible human check, when the auth service turns it on, loads Google's script and frame.
     "script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/",
-    "style-src 'self'",
+    `style-src 'self' ${badgeHash}`,
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self'",
