@@ -10,6 +10,7 @@ Status: plan, nothing built yet. Written 2026-11-04 from the owner's request. Au
 4. **Delete the Rust one last.** `services/core-api/rust`, `services/auth-verify` (the Rust token check) and the Rust parts of `core-api-backend-production` are removed only after the checks below pass. Until then the Rust service stays live.
 5. **Same contract.** `contracts/api-v1.yaml` and the routes the website, the desktop app and the gateway use do not change. The rebuild is invisible to them.
 6. **Do not reinvent the wheel.** Maintained open-source libraries wherever one exists; we write only our own rules.
+7. **Mail is sent only by the notification service.** The core API never talks to a mail server and holds no mail setting. When it needs an email sent (an invitation, a contact-form message, a billing notice) it calls the notification service **through the gateway**, with only what the message needs: the template name, the address, and the data for the wording. The notification service owns the mail login and the wording.
 
 ## What the rebuild covers
 
@@ -36,6 +37,15 @@ Two different kinds of "create":
 | **Data** (records, lists, notes, jobs, invitations, settings) | a person adds a lead | signed-in people allowed to, by role | every route checks the token, the organisation (`x-callerwhale-org`) and the role before it writes, and records who did it in the audit log |
 
 Roles stay as they are today (owner, member, staff, platform roles); staff routes keep the second-step requirement. A person whose membership was removed loses access on their next request, because every request reads the membership.
+
+## Mail goes through the gateway
+
+- **Today** (`mail.rs`): the core API already sends no mail itself, but it posts to `CALLERWHALE_NOTIFY_URL` (`https://notify.callerwhale.com`) with its own token, straight to the notification service's public domain. The gateway never sees these calls.
+- **Wanted:** the gateway is the only public door for every server, so the notification service gets **no public domain of its own**. `notify.callerwhale.com` becomes a route on the gateway (`ROUTES` gets `notify.callerwhale.com=http://notifications:8102`), and the gateway forwards `POST /v1/mail` to it. The core API keeps the same URL and token, so nothing in the Go port changes except that the call is made by a small `mail` package with one function, `Send(template, to, data)`.
+- **Who may call it:** the notification service still checks the caller's token (`NOTIFY_TOKENS`: one token for auth, one for the core API); the gateway adds its rate limits and logs the call. The gateway should answer only `POST /v1/mail` and its health check on that host, the way it answers only auth's real routes on the auth host (a follow-up change in `services/gateway`).
+- **What the core API sends:** `{"template": "invitation", "to": "...", "data": {...}}` and nothing else. No HTML, no mail-server details, no password. New kinds of message are new templates in the notification service.
+- **When it fails:** the core API does not retry in a loop and does not lose the request: the email is recorded in the outbox table with its template and data, a worker retries it with backoff, and a message that cannot be sent is shown to the owner in the admin operations list.
+- **Auth** follows the same rule (`AUTH_NOTIFY_URL`), moved to the gateway route in the same change.
 
 ## Open-source parts to use
 
