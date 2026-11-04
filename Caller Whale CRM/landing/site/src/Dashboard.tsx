@@ -1,12 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Auth, Me } from "./auth/auth-client.js";
 import { Link } from "./nav.tsx";
-
-type Access = {
-  platform_role: string;
-  platform_label?: string;
-  workspaces: { org_id: string; roles: string[]; business_owner: boolean }[];
-};
+import { RoleBadges, type Access } from "./RoleBadges.tsx";
 
 type StaffMember = { name: string; email?: string; role: string };
 const roleNames: Record<string, string> = { owner: "Owner", cofounder: "Cofounder", system_admin: "System admin", tester: "Tester" };
@@ -137,13 +132,13 @@ export function Dashboard({ me, auth, authBase }: { me: Me | null | undefined; a
         {status === "ready" && access && access.workspaces.length > 0 && <ul className="membership-list">
           {access.workspaces.map((workspace, index) => <li key={workspace.org_id}>
             <strong>Workspace {index + 1}</strong>
-            <span>{workspace.business_owner ? "Business owner" : workspace.roles.join(", ") || "Member"}</span>
+            <RoleBadges access={{ platform_role: "", workspaces: [workspace] }} />
           </li>)}
         </ul>}
       </section>
-      {status === "ready" && access?.platform_role && <section className="card" aria-labelledby="dashboard-platform">
+      {status === "ready" && access && <section className="card" aria-labelledby="dashboard-platform">
         <h2 id="dashboard-platform">Platform role</h2>
-        <p>{access.platform_label || access.platform_role}</p>
+        <RoleBadges access={{ ...access, workspaces: [] }} />
       </section>}
       {staff && <StaffDashboard access={access} auth={auth} authBase={authBase} me={me} />}
     </div>

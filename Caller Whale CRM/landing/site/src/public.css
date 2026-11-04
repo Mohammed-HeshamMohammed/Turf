@@ -53,6 +53,28 @@
 .staff-recovery { margin-top: 12px; }
 .staff-recovery pre { white-space: pre-wrap; }
 @media (max-width: 600px) { .staff-stats { grid-template-columns: 1fr; } .staff-heading { flex-direction: column; } }
+.profile-page { display: grid; gap: 16px; }
+.profile-head { display: flex; align-items: center; gap: clamp(20px, 4vw, 44px); }
+.profile-head h1 { margin-bottom: 6px; }
+.profile-avatar { display: grid; flex: 0 0 auto; place-items: center; width: clamp(84px, 12vw, 144px); aspect-ratio: 1; overflow: hidden; border-radius: 50%; background: var(--accent); color: var(--ink); font-size: clamp(36px, 6vw, 66px); font-weight: 650; }
+.profile-avatar img, .avatar img { width: 100%; height: 100%; object-fit: cover; }
+.role-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.role-badge { display: inline-flex; align-items: center; width: fit-content; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--accent-soft); color: var(--ink); font-size: 13px; font-weight: 650; }
+.profile-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+.profile-card { display: grid; gap: 16px; min-width: 0; padding: clamp(22px, 3vw, 34px); }
+.profile-card h2 { margin: 0; font-size: 24px; }
+.profile-card p { margin: 0; }
+.profile-card .button { justify-self: start; }
+.profile-fields { display: grid; gap: 15px; }
+.profile-fields label { display: grid; gap: 6px; font-weight: 550; }
+.profile-fields input { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--inner); background: var(--raised); color: var(--ink); font: inherit; }
+.profile-fields input[readonly] { color: var(--muted); }
+.profile-fields input[type=file] { padding: 9px; }
+.profile-providers { display: grid; gap: 10px; }
+.profile-providers > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; border-top: 1px solid var(--line); }
+.avatar { overflow: hidden; }
+@media (max-width: 760px) { .profile-grid { grid-template-columns: 1fr; } .profile-head { align-items: flex-start; } }
+@media (max-width: 520px) { .profile-head { flex-direction: column; } }
 .legal { max-width: 900px; line-height: 1.7; }
 .legal h2 { margin-top: 30px; }
 .footer { display: flex; flex-wrap: wrap; gap: 16px; }

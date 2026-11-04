@@ -1,0 +1,43 @@
+package main
+
+import (
+	"encoding/base64"
+	"strings"
+	"testing"
+)
+
+func TestProfilePictureAcceptsOnlySmallPNGOrJPEG(t *testing.T) {
+	png := "data:image/png;base64," + base64.StdEncoding.EncodeToString(append([]byte{0x89, 'P', 'N', 'G', 13, 10, 26, 10}, []byte("image")...))
+	if !validAvatar("") || !validAvatar(png) {
+		t.Fatal("a PNG or an empty picture should be accepted")
+	}
+	if validAvatar("data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte("<svg/>"))) {
+		t.Fatal("SVG must be rejected")
+	}
+	if validAvatar("data:image/png;base64," + base64.StdEncoding.EncodeToString([]byte("not a PNG"))) {
+		t.Fatal("a false PNG must be rejected")
+	}
+	if validAvatar("data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(append([]byte{0xff, 0xd8, 0xff}, []byte(strings.Repeat("a", 100001))...))) {
+		t.Fatal("oversize picture must be rejected")
+	}
+}
+
+func TestProfileChangesAppearInMyAccount(t *testing.T) {
+	w := newWorld(t)
+	account := w.signUp("profile@example.com")
+	png := "data:image/png;base64," + base64.StdEncoding.EncodeToString(append([]byte{0x89, 'P', 'N', 'G', 13, 10, 26, 10}, []byte("picture")...))
+	changed := w.call("POST", "/v1/me/profile", map[string]any{"name": "New Name", "phone": "+1 555 123 4567", "avatar": png}, account.access())
+	if changed.status != 200 {
+		t.Fatalf("save profile: %d %v", changed.status, changed.body)
+	}
+	me := w.call("GET", "/v1/me", nil, account.access())
+	if me.body["name"] != "New Name" || me.body["phone"] != "+1 555 123 4567" || me.body["avatar"] != png {
+		t.Fatalf("profile not saved: %v", me.body)
+	}
+	if bad := w.call("POST", "/v1/me/profile", map[string]any{"name": "", "phone": "bad", "avatar": png}, account.access()); bad.status != 400 {
+		t.Fatalf("invalid profile: %d", bad.status)
+	}
+	if anonymous := w.call("POST", "/v1/me/profile", map[string]any{"name": "Bad"}, ""); anonymous.status != 401 {
+		t.Fatalf("anonymous update: %d", anonymous.status)
+	}
+}

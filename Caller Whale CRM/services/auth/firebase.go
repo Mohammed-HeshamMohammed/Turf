@@ -40,6 +40,7 @@ type fbProfile struct {
 	uid           string
 	email         string
 	name          string
+	providers     []string
 	emailVerified bool
 	disabled      bool
 }
@@ -248,18 +249,32 @@ func (f *firebase) profile(ctx context.Context, idToken string) (fbProfile, erro
 	}
 	var out struct {
 		Users []struct {
-			LocalID       string `json:"localId"`
-			Email         string `json:"email"`
-			DisplayName   string `json:"displayName"`
-			EmailVerified bool   `json:"emailVerified"`
-			Disabled      bool   `json:"disabled"`
+			LocalID          string `json:"localId"`
+			Email            string `json:"email"`
+			DisplayName      string `json:"displayName"`
+			EmailVerified    bool   `json:"emailVerified"`
+			Disabled         bool   `json:"disabled"`
+			ProviderUserInfo []struct {
+				ProviderID string `json:"providerId"`
+			} `json:"providerUserInfo"`
 		} `json:"users"`
 	}
 	if err := json.Unmarshal(data, &out); err != nil || len(out.Users) == 0 {
 		return fbProfile{}, &firebaseError{kind: refusedOther, message: "no user in the answer"}
 	}
 	u := out.Users[0]
-	return fbProfile{uid: u.LocalID, email: strings.ToLower(u.Email), name: u.DisplayName, emailVerified: u.EmailVerified, disabled: u.Disabled}, nil
+	providers := []string{}
+	for _, provider := range u.ProviderUserInfo {
+		if provider.ProviderID == "google.com" || provider.ProviderID == "apple.com" {
+			providers = append(providers, strings.TrimSuffix(provider.ProviderID, ".com"))
+		}
+	}
+	return fbProfile{uid: u.LocalID, email: strings.ToLower(u.Email), name: u.DisplayName, emailVerified: u.EmailVerified, disabled: u.Disabled, providers: providers}, nil
+}
+
+func (f *firebase) linkedProviders(ctx context.Context, idToken string) ([]string, error) {
+	profile, err := f.profile(ctx, idToken)
+	return profile.providers, err
 }
 
 func (f *firebase) setName(ctx context.Context, idToken, name string) error {
@@ -305,13 +320,19 @@ var _ = fmt.Sprintf
 
 // signInProvider: only this service hands verified provider tokens (and Apple's raw nonce) to Firebase, which finds or opens the person.
 func (f *firebase) signInProvider(ctx context.Context, provider, idToken, nonce string) (fbLogin, error) {
-	form := url.Values{"id_token": {idToken}, "providerId": {provider + ".com"}}
+	return f.providerCredential(ctx, provider, idToken, nonce, "")
+}
+
+func (f *firebase) providerCredential(ctx context.Context, provider, providerToken, nonce, accountToken string) (fbLogin, error) {
+	form := url.Values{"id_token": {providerToken}, "providerId": {provider + ".com"}}
 	if provider == "apple" {
 		form.Set("nonce", nonce)
 	}
-	reply, err := f.call(ctx, "/v1/accounts:signInWithIdp", map[string]any{
-		"postBody": form.Encode(), "requestUri": "http://localhost", "returnSecureToken": true, "returnIdpCredential": false,
-	})
+	body := map[string]any{"postBody": form.Encode(), "requestUri": "http://localhost", "returnSecureToken": true, "returnIdpCredential": false}
+	if accountToken != "" {
+		body["idToken"] = accountToken
+	}
+	reply, err := f.call(ctx, "/v1/accounts:signInWithIdp", body)
 	if err != nil {
 		return fbLogin{}, err
 	}
@@ -344,7 +365,7 @@ func (f *firebase) oauthURI(ctx context.Context, provider, callback string) (uri
 }
 
 // finishOAuth completes a Firebase-owned provider flow with the code the provider sent back.
-func (f *firebase) finishOAuth(ctx context.Context, callback, session, provider, code, state string) (fbLogin, error) {
+func (f *firebase) finishOAuth(ctx context.Context, callback, session, provider, code, state, accountToken string) (fbLogin, error) {
 	requestURI, err := url.Parse(callback)
 	if err != nil {
 		return fbLogin{}, &firebaseError{kind: refusedOther, message: "invalid callback"}
@@ -354,9 +375,11 @@ func (f *firebase) finishOAuth(ctx context.Context, callback, session, provider,
 	q.Set("state", state)
 	requestURI.RawQuery = q.Encode()
 	form := url.Values{"providerId": {provider + ".com"}, "code": {code}}
-	reply, err := f.call(ctx, "/v1/accounts:signInWithIdp", map[string]any{
-		"requestUri": requestURI.String(), "sessionId": session, "postBody": form.Encode(), "returnSecureToken": true, "returnIdpCredential": false,
-	})
+	body := map[string]any{"requestUri": requestURI.String(), "sessionId": session, "postBody": form.Encode(), "returnSecureToken": true, "returnIdpCredential": false}
+	if accountToken != "" {
+		body["idToken"] = accountToken
+	}
+	reply, err := f.call(ctx, "/v1/accounts:signInWithIdp", body)
 	if err != nil {
 		return fbLogin{}, err
 	}

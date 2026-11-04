@@ -19,6 +19,7 @@ Every route (the gateway's allow-list in `services/gateway/shield.go` is checked
 - Sign-up, sign-in, refresh, sign-out, sessions, `/v1/me`, JWKS, `/v1/security`, health (phase 1).
 - `GET /v1/me/access` returns only the signed-in person's platform role and workspace memberships from private authz. Set `AUTHZ_URL` and an auth read token in `AUTHZ_TOKEN`; unavailable authz returns 503 without inventing access.
 - `GET /v1/admin/staff` lists platform staff for a signed-in owner, cofounder, or system admin who passed a second step. `POST /v1/admin/staff` accepts an existing account email and `system_admin`, `tester`, or an empty role; only owner and cofounder may change roles. Auth resolves the account ID privately and authz enforces the permanent founder roles.
+- `POST /v1/me/profile` saves a display name in Firebase and auth, plus an optional phone and PNG/JPEG picture (up to 100 KB) in auth's PostgreSQL. `GET /v1/me/providers` reads linked Google/Apple methods from Firebase. `POST /v1/me/providers/{provider}/start` binds a provider link to the current session and requires a sign-in from the last 15 minutes; the callback verifies Firebase kept the same account ID.
 - Change password, forgot, reset, email verify and resend (phase 2).
 - Every `/v1/mfa/*` route: authenticator devices, recovery codes, email and Telegram codes, approval on another device, step-up (phase 3).
 - `/v1/providers`, `/v1/oauth/*` (Google and Apple, direct or through Firebase) and `POST /v1/handoffs` for the desktop app (phase 4).

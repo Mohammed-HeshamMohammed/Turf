@@ -189,7 +189,7 @@ func TestTheDatabaseIsBroughtUpToDateOnceAndSafelyTogether(t *testing.T) {
 	db := testDB(t)
 	ctx := context.Background()
 	var versions int
-	if err := db.QueryRow(ctx, "SELECT COUNT(*) FROM database_setup_history").Scan(&versions); err != nil || versions != 7 {
+	if err := db.QueryRow(ctx, "SELECT COUNT(*) FROM database_setup_history").Scan(&versions); err != nil || versions != 8 {
 		t.Fatalf("history %d %v", versions, err)
 	}
 	// Again, and from several instances at once: nothing runs twice and nothing fails.
@@ -204,7 +204,7 @@ func TestTheDatabaseIsBroughtUpToDateOnceAndSafelyTogether(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if err := db.QueryRow(ctx, "SELECT COUNT(*) FROM database_setup_history").Scan(&versions); err != nil || versions != 7 {
+	if err := db.QueryRow(ctx, "SELECT COUNT(*) FROM database_setup_history").Scan(&versions); err != nil || versions != 8 {
 		t.Fatalf("history %d %v", versions, err)
 	}
 }

@@ -82,6 +82,51 @@ func mona() map[string]any {
 	return map[string]any{"sub": "g-100", "email": "Mona@Example.com", "email_verified": true, "name": "Mona Adel", "nonce": true}
 }
 
+func TestProviderLinkStartIsBoundToTheCurrentSession(t *testing.T) {
+	w, _ := newOAuthWorld(t)
+	account := w.signUp("link@example.com")
+	if a := w.call("POST", "/v1/me/providers/apple/start", nil, ""); a.status != 401 {
+		t.Fatalf("anonymous link start: %d", a.status)
+	}
+	started := w.call("POST", "/v1/me/providers/apple/start", nil, account.access())
+	if started.status != 200 || started.str("url") == "" {
+		t.Fatalf("link start: %d %v", started.status, started.body)
+	}
+	state := param(started.str("url"), "state")
+	var linked, session string
+	if err := w.s.db.QueryRow(context.Background(), "SELECT link_user_id, link_session_id FROM oauth_states WHERE state_hash = $1", sha256Hex(state)).Scan(&linked, &session); err != nil {
+		t.Fatal(err)
+	}
+	if linked == "" || session == "" || w.count("SELECT COUNT(*) FROM sessions WHERE id = $1 AND user_id = $2", session, linked) != 1 {
+		t.Fatalf("link was not tied to the signed-in session")
+	}
+}
+
+func TestAppleLinkKeepsTheExistingAccount(t *testing.T) {
+	w, _ := newOAuthWorld(t)
+	account := w.signUp("link@example.com")
+	before := w.call("GET", "/v1/me", nil, account.access())
+	started := w.call("POST", "/v1/me/providers/apple/start", nil, account.access())
+	if started.status != 200 {
+		t.Fatalf("start link: %d %v", started.status, started.body)
+	}
+	to := started.str("url")
+	claim := map[string]any{"sub": "apple-link-1", "email": "link@example.com", "email_verified": true, "nonce": param(to, "nonce")}
+	code := codeFor(claim)
+	_, landed := w.location("POST", "/v1/oauth/apple/callback", url.Values{"code": {code}, "state": {param(to, "state")}})
+	if param(landed, "linked") != "apple" || param(landed, "callerwhale_code") != "" {
+		t.Fatalf("link callback: %s", landed)
+	}
+	after := w.call("GET", "/v1/me", nil, account.access())
+	if after.body["id"] != before.body["id"] {
+		t.Fatalf("link changed account: %v %v", before.body, after.body)
+	}
+	providers := w.call("GET", "/v1/me/providers", nil, account.access())
+	if providers.status != 200 || !contains(toStrings(providers.body["providers"]), "apple") {
+		t.Fatalf("linked methods: %d %v", providers.status, providers.body)
+	}
+}
+
 func TestGoogleSignUpThenSignInAgainAsTheSamePerson(t *testing.T) {
 	w, _ := newOAuthWorld(t)
 	if a := w.call("GET", "/v1/providers", nil, ""); a.body["google"] != true || a.body["apple"] != true {

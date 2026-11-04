@@ -13,6 +13,7 @@ import { HeroDemo } from "./components/ui/demo.tsx";
 import { SiteHeader } from "./components/ui/site-header.tsx";
 import { SiteFooter } from "./components/ui/site-footer.tsx";
 import { Dashboard } from "./Dashboard.tsx";
+import { Profile } from "./Profile.tsx";
 import { cleanPath, routeFor } from "./routes.ts";
 
 // Anything that changes who is signed in (new tokens, a refresh the server refused, signing out) tells the page.
@@ -217,32 +218,6 @@ function Forgot() {
   );
 }
 
-function Account({ me }: { me: Who }) {
-  if (me === undefined) return <div className="form-wrap"><p className="muted">Loading…</p></div>;
-  if (!me) {
-    return (
-      <div className="form-wrap">
-        <div className="form card">
-          <h1>You are signed out</h1>
-          <Link className="button primary" to="/signin">Sign in</Link>
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div className="form-wrap">
-      <div className="form card">
-        <h1>Your account</h1>
-        <p style={{ margin: 0 }}>
-          <b>{me.name || me.email}</b>
-          <br />
-          <span className="muted">{me.email}</span>
-        </p>
-      </div>
-    </div>
-  );
-}
-
 function NotFound() {
   return (
     <div className="form-wrap">
@@ -304,7 +279,7 @@ export function App({ path: first = "/" }) {
     "/contact": <Contact getAuth={getAuth} />,
     "/privacy": <Privacy />,
     "/terms": <Terms />,
-    "/account": <Account me={me} />,
+    "/account": me ? <Profile me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <div className="form-wrap"><p className="muted">Loading your profile…</p></div>,
     "/dashboard": <Dashboard me={me} auth={auth} authBase={authBase} />,
   };
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
