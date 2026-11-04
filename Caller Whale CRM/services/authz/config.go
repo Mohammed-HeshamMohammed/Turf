@@ -25,8 +25,9 @@ type config struct {
 	signingKey        string
 	tokens            map[string]string // machine token -> calling service
 	grantSeconds      int
-	requireSecondStep bool // roles that need the second step (owner, solo) must have passed it
-	staffSecondStep   bool // Caller Whale's staff must have passed it
+	requireSecondStep bool   // roles that need the second step (owner, solo) must have passed it
+	staffSecondStep   bool   // Caller Whale's staff must have passed it
+	platformOwner     string // who is the Caller Whale owner; set once at start, never changed
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -44,6 +45,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 		signingKey:        get("AUTHZ_SIGNING_KEY", ""),
 		requireSecondStep: get("AUTHZ_REQUIRE_SECOND_STEP", "true") != "false",
 		staffSecondStep:   get("AUTHZ_STAFF_SECOND_STEP", "true") != "false",
+		platformOwner:     strings.ToLower(get("AUTHZ_PLATFORM_OWNER", "")),
 	}
 	if _, err := strconv.Atoi(c.port); err != nil {
 		return c, errors.New("PORT is not a number")
@@ -56,6 +58,9 @@ func loadConfig(getenv func(string) string) (config, error) {
 		return c, errors.New("AUTHZ_GRANT_SECONDS is a number from 5 to 600")
 	}
 	c.grantSeconds = seconds
+	if c.platformOwner != "" && !validID(c.platformOwner) {
+		return c, errors.New("AUTHZ_PLATFORM_OWNER is a person's id (a UUID, the sub of their sign-in token)")
+	}
 	if c.tokens, err = parseTokens(get("AUTHZ_TOKENS", "")); err != nil {
 		return c, err
 	}

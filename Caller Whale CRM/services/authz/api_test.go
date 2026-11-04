@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -221,4 +223,58 @@ func toStrings(v any) []string {
 		out = append(out, x.(string))
 	}
 	return out
+}
+
+func TestWhoIsThisPerson(t *testing.T) {
+	h := newHarness(t)
+	h.opened()
+	h.mem.staff[strangerID] = "admin"
+	h.mem.staff[callerID] = ""
+	get := func(user string) map[string]any {
+		code, out := h.call(coreToken, "GET", "/v1/people/"+user, nil)
+		if code != 200 {
+			t.Fatalf("person %s: %d %v", user, code, out)
+		}
+		return out
+	}
+	owner := get(ownerID)
+	spaces := owner["workspaces"].([]any)
+	if owner["platform_role"] != "" || len(spaces) != 1 || spaces[0].(map[string]any)["business_owner"] != true {
+		t.Errorf("a business owner: %v", owner)
+	}
+	if _, has := owner["platform_label"]; has {
+		t.Errorf("a business owner is not on the platform ladder: %v", owner)
+	}
+	caller := get(callerID)
+	if caller["workspaces"].([]any)[0].(map[string]any)["business_owner"] != false {
+		t.Errorf("a caller is not a business owner: %v", caller)
+	}
+	admin := get(strangerID)
+	if admin["platform_role"] != "admin" || admin["platform_label"] != "System admin" || len(admin["workspaces"].([]any)) != 0 {
+		t.Errorf("a system admin: %v", admin)
+	}
+	h.mem.staff[ownerID] = "owner"
+	if get(ownerID)["platform_label"] != "Caller Whale owner" {
+		t.Errorf("the Caller Whale owner is named")
+	}
+	if code, _ := h.call(coreToken, "GET", "/v1/people/not-an-id", nil); code != 400 {
+		t.Errorf("a bad id: %d", code)
+	}
+	if code, _ := h.call(gatewayToken, "GET", "/v1/people/"+ownerID, nil); code != 403 {
+		t.Errorf("the gateway may only check: %d", code)
+	}
+}
+
+func TestPlatformOwnerIsSetOnceAndNeverReplaced(t *testing.T) {
+	m := newMem()
+	ctx := context.Background()
+	if err := m.setPlatformOwner(ctx, ownerID); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.setPlatformOwner(ctx, ownerID); err != nil {
+		t.Errorf("the same owner again is harmless: %v", err)
+	}
+	if err := m.setPlatformOwner(ctx, callerID); !errors.Is(err, errOwnerTaken) {
+		t.Errorf("a second owner: %v", err)
+	}
 }

@@ -24,7 +24,12 @@ func TestConfig(t *testing.T) {
 	if c.tokens[coreToken] != "core-api" || c.tokens[billingToken] != "billing" {
 		t.Errorf("tokens: %v", c.tokens)
 	}
+	withOwner := map[string]string{"SPICEDB_PRESHARED_KEY": "key", "AUTHZ_TOKENS": "core-api=" + coreToken, "AUTHZ_PLATFORM_OWNER": strings.ToUpper(ownerID)}
+	if c, err := loadConfig(env(withOwner)); err != nil || c.platformOwner != ownerID {
+		t.Errorf("the owner id is read in lowercase: %q %v", c.platformOwner, err)
+	}
 	bad := []map[string]string{
+		{"SPICEDB_PRESHARED_KEY": "k", "AUTHZ_TOKENS": "core-api=" + coreToken, "AUTHZ_PLATFORM_OWNER": "not-an-id"},
 		{"AUTHZ_TOKENS": "core-api=" + coreToken},
 		{"SPICEDB_PRESHARED_KEY": "k"},
 		{"SPICEDB_PRESHARED_KEY": "k", "AUTHZ_TOKENS": "stranger=" + coreToken},
