@@ -10,7 +10,7 @@ const staffRoles = new Set(["owner", "cofounder", "system_admin"]);
 
 function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: Auth; authBase: string; me: Me }) {
   const [staff, setStaff] = useState<StaffMember[]>([]);
-  const [status, setStatus] = useState<"loading" | "ready" | "error" | "verify">("loading");
+  const [status, setStatus] = useState<"loading" | "ready" | "error" | "verify">(me.mfa_passed === false ? "verify" : "loading");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("system_admin");
   const [message, setMessage] = useState("");
@@ -43,7 +43,10 @@ function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: 
       setStatus(error instanceof Error && error.message.includes("second step") ? "verify" : "error");
     }
   };
-  useEffect(() => { void load(); }, [authBase, auth, access.platform_role]);
+  useEffect(() => {
+    if (me.mfa_passed === false) { setStatus("verify"); return; }
+    void load();
+  }, [authBase, auth, access.platform_role, me.mfa_passed]);
   const assign = async (event: React.FormEvent) => {
     event.preventDefault();
     setBusy(true); setMessage("");

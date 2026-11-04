@@ -4,12 +4,31 @@
 //
 //   node scripts/security-headers.mjs <output file>      reads VITE_CALLERWHALE_AUTH_URL
 import { createHash } from "node:crypto";
-import { writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // The one inline <style> the page makes (src/auth/human-check.jsx hides Google's badge), allowed by its hash and nothing else inline.
 export const BADGE_STYLE = ".grecaptcha-badge{visibility:hidden}";
 const badgeHash = `'sha256-${createHash("sha256").update(BADGE_STYLE).digest("base64")}'`;
+
+// Prerendered JSON-LD is inline data. Hash its exact built bytes so the browser can read it under CSP.
+export function jsonLdHashes(html) {
+  return [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+    .map(([, json]) => `'sha256-${createHash("sha256").update(json).digest("base64")}'`);
+}
+
+function builtJsonLdHashes(dir) {
+  const hashes = new Set();
+  for (const item of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, item.name);
+    if (item.isDirectory()) for (const hash of builtJsonLdHashes(path)) hashes.add(hash);
+    else if (item.isFile() && item.name.endsWith(".html")) {
+      for (const hash of jsonLdHashes(readFileSync(path, "utf8"))) hashes.add(hash);
+    }
+  }
+  return [...hashes].sort();
+}
 
 /** The origin (scheme and host) of the auth service address, or an error saying what is wrong with it. */
 export function authOrigin(value, setting = "VITE_CALLERWHALE_AUTH_URL") {
@@ -28,14 +47,15 @@ export function authOrigin(value, setting = "VITE_CALLERWHALE_AUTH_URL") {
 }
 
 /** The headers, one `add_header` per line. Included again in every nginx location that sets a header of its own. */
-export function securityHeaders(authUrl, gatewayUrl = "https://gate.callerwhale.com") {
+export function securityHeaders(authUrl, gatewayUrl = "https://gate.callerwhale.com", inlineHashes = []) {
   const origin = authOrigin(authUrl);
   const gateway = authOrigin(gatewayUrl, "VITE_CALLERWHALE_GATEWAY_URL");
+  const scripts = ["'self'", "'nonce-$request_id'", ...inlineHashes, "https://www.google.com/recaptcha/", "https://www.gstatic.com/recaptcha/", "https://static.cloudflareinsights.com"];
   const policy = [
     "default-src 'none'",
     // The invisible human check, when the auth service turns it on, loads Google's script and frame.
     // Cloudflare injects its Web Analytics beacon at the edge on the proxied site.
-    "script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://static.cloudflareinsights.com",
+    `script-src ${scripts.join(" ")}`,
     `style-src 'self' ${badgeHash}`,
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data:",
@@ -59,7 +79,7 @@ export function securityHeaders(authUrl, gatewayUrl = "https://gate.callerwhale.
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const [file] = process.argv.slice(2);
-  if (!file) throw new Error("Usage: node scripts/security-headers.mjs <output file>");
-  writeFileSync(file, securityHeaders(process.env.VITE_CALLERWHALE_AUTH_URL, process.env.VITE_CALLERWHALE_GATEWAY_URL || "https://gate.callerwhale.com"));
+  const [file, dist] = process.argv.slice(2);
+  if (!file || !dist) throw new Error("Usage: node scripts/security-headers.mjs <output file> <built HTML directory>");
+  writeFileSync(file, securityHeaders(process.env.VITE_CALLERWHALE_AUTH_URL, process.env.VITE_CALLERWHALE_GATEWAY_URL || "https://gate.callerwhale.com", builtJsonLdHashes(dist)));
 }
