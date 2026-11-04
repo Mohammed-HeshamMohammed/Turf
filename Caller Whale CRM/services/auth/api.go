@@ -42,6 +42,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/sessions/sign-out", serve(s.signOut))
 	mux.Handle("POST /v1/sessions/revoke", serve(s.revoke))
 	mux.Handle("GET /v1/me", serve(s.me))
+	mux.Handle("GET /v1/me/access", serve(s.meAccess))
 	s.accountRoutes(mux)
 	s.mfaRoutes(mux)
 	s.oauthRoutes(mux)

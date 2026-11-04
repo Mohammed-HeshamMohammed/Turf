@@ -12,6 +12,7 @@ import (
 // API changes who belongs where, and only billing and the core API set a workspace's standing.
 var callerRights = map[string][]string{
 	"core-api": {"grant", "check", "read", "manage", "open", "standing"},
+	"auth":     {"read"},
 	"billing":  {"grant", "check", "standing"},
 	"gateway":  {"check"},
 	"worker":   {"check"},

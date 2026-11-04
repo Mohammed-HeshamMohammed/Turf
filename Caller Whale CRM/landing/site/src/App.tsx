@@ -12,12 +12,14 @@ import { WhyCallerWhale } from "./WhyCallerWhale.tsx";
 import { HeroDemo } from "./components/ui/demo.tsx";
 import { SiteHeader } from "./components/ui/site-header.tsx";
 import { SiteFooter } from "./components/ui/site-footer.tsx";
+import { Dashboard } from "./Dashboard.tsx";
 import { cleanPath, routeFor } from "./routes.ts";
 
 // Anything that changes who is signed in (new tokens, a refresh the server refused, signing out) tells the page.
 const listeners = new Set<() => void>();
+const authBase = import.meta.env.VITE_CALLERWHALE_AUTH_URL || "http://localhost:8101";
 const auth = createAuth({
-  base: import.meta.env.VITE_CALLERWHALE_AUTH_URL || "http://localhost:8101",
+  base: authBase,
   onChange: () => listeners.forEach(listener => listener()),
 });
 const getAuth = async () => auth;
@@ -264,7 +266,7 @@ export function App({ path: first = "/" }) {
     setNotice("");
     setMe(undefined);
     auth.me({ fresh: true }).then(setMe, () => setMe(null));
-    go("/account");
+    go("/dashboard");
   };
   const signOut = async () => {
     leaving.current = true;
@@ -303,6 +305,7 @@ export function App({ path: first = "/" }) {
     "/privacy": <Privacy />,
     "/terms": <Terms />,
     "/account": <Account me={me} />,
+    "/dashboard": <Dashboard me={me} auth={auth} authBase={authBase} />,
   };
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
   return (

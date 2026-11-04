@@ -28,6 +28,8 @@ services:
       DATABASE_URL: "${AUTH_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_auth}"
       # Without it every token stops working on restart.
       AUTH_SIGNING_KEY: "${AUTH_SIGNING_KEY:?set AUTH_SIGNING_KEY in env/compose.env}"
+      AUTHZ_URL: "http://authz:8104"
+      AUTHZ_TOKEN: "${AUTHZ_AUTH_TOKEN:?set AUTHZ_AUTH_TOKEN in env/compose.env}"
     restart: unless-stopped
   notifications:
     build:
@@ -53,7 +55,7 @@ services:
       PORT: "8104"
       DATABASE_URL: "${AUTHZ_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_authz?sslmode=disable}"
       AUTHZ_SIGNING_KEY: "${AUTHZ_SIGNING_KEY:?set AUTHZ_SIGNING_KEY in env/compose.env}"
-      AUTHZ_TOKENS: "billing=${AUTHZ_BILLING_TOKEN:?set AUTHZ_BILLING_TOKEN in env/compose.env}"
+      AUTHZ_TOKENS: "billing=${AUTHZ_BILLING_TOKEN:?set AUTHZ_BILLING_TOKEN in env/compose.env},auth=${AUTHZ_AUTH_TOKEN:?set AUTHZ_AUTH_TOKEN in env/compose.env}"
     depends_on:
       - postgres
     restart: unless-stopped
