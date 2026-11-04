@@ -28,7 +28,7 @@ is; this service decides what they may do. Plan: [docs/plans/authorization-servi
 
 1. Copy the internal connection URL from the existing private PostgreSQL resource into authz's `DATABASE_URL`, with `sslmode=require`. The login needs permission to create and update the `authz_*` tables. The unused SpiceDB server is not needed.
 2. Have the owner and cofounder sign in once, then look up each Caller Whale Account ID in the auth database: `SELECT id FROM users WHERE firebase_uid = 'the-actual-firebase-uid';`. Each ID is a UUID and the `sub` of that person's sign-in token. Put the distinct IDs in `AUTHZ_PLATFORM_OWNER` and `AUTHZ_PLATFORM_COFOUNDER`. Either setting may be added before a later redeploy if that account is not ready.
-3. Generate `AUTHZ_SIGNING_KEY` with `go run . new-key` from `services/authz`, or use PowerShell `[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))` for a 32-byte Ed25519 seed. Run the PowerShell command a second time for a **different** `billing=` token in `AUTHZ_TOKENS`. Copy the billing token to billing's `AUTHZ_TOKEN`; never put either secret in Git.
+3. Generate `AUTHZ_SIGNING_KEY` with `go run . new-key` from `services/authz`, or use PowerShell `[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))` for a 32-byte Ed25519 seed. Generate separate `billing=` and `auth=` tokens in `AUTHZ_TOKENS`. Copy each token to the matching service's `AUTHZ_TOKEN`; never put secrets in Git.
 4. Set the authz application with the Coolify settings above, paste the filled `.env.example` from the production branch, and deploy. Its startup creates its tables and fills only empty owner and cofounder slots. Check the startup log for role assignment and for a healthy container.
 
 The owner and cofounder roles are for the Caller Whale platform. They are distinct from a customer's workspace owner. Changing their environment values cannot replace the people already assigned; the service logs a warning if a slot is taken.
@@ -47,7 +47,7 @@ workspace's standing.
 | `GET`/`PUT /v1/orgs/{org}/roles[/{key}]` | The workspace's roles; changing one needs an actor with `admin` |
 | `GET /v1/orgs/{org}/members`, `PUT`/`DELETE /v1/orgs/{org}/members/{user}` | Members, their roles, restrictions, teams and projects; changes need an actor with `admin` |
 | `PUT /v1/orgs/{org}/standing` | Suspended and payment-required flags (billing, core API) |
-| `GET /v1/people/{user}` | Who this person is: their place on the platform (`platform_role`, `platform_label`) and their roles in each workspace (`business_owner` is true for the workspace's owner) |
+| `GET /v1/people/{user}` | Who this person is: their place on the platform (`platform_role`, `platform_label`) and their roles in each workspace (`business_owner` is true for the workspace's owner). Auth reads this for the signed-in person's website dashboard. |
 | `PUT /v1/staff/{user}` | Assign or remove `system_admin` and `tester`; platform owner or cofounder only |
 | `GET /.well-known/jwks.json` | The public key that verifies grants |
 | `GET /healthz`, `GET /version` | Health and version |
