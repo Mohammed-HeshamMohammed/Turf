@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { Link } from "../../nav.tsx";
 
 interface NavLink { label: string; href: string }
 interface Partner { logoUrl: string; href: string; name: string }
 
 interface ResponsiveHeroBannerProps {
+  header?: ReactNode;
   logoUrl?: string;
   backgroundImageUrl?: string;
   previewImageUrl?: string;
@@ -27,6 +28,7 @@ interface ResponsiveHeroBannerProps {
 
 /** The supplied hero pattern, using Caller Whale's own routes and assets. */
 export function ResponsiveHeroBanner({
+  header,
   logoUrl = "/favicon.svg",
   backgroundImageUrl,
   previewImageUrl,
@@ -47,9 +49,35 @@ export function ResponsiveHeroBanner({
   partners = [],
 }: ResponsiveHeroBannerProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  return <section className="hero-banner">
+  const frame = useRef<number | null>(null);
+  useEffect(() => () => { if (frame.current !== null) cancelAnimationFrame(frame.current); }, []);
+  const moveBackground = (event: PointerEvent<HTMLElement>) => {
+    if (event.pointerType === "touch") return;
+    const section = event.currentTarget;
+    const rect = section.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    const y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => {
+      section.style.setProperty("--pointer-x", `${x * 100}%`);
+      section.style.setProperty("--pointer-y", `${y * 100}%`);
+      section.style.setProperty("--drift-x", `${(0.5 - x) * 18}px`);
+      section.style.setProperty("--drift-y", `${(0.5 - y) * 18}px`);
+      frame.current = null;
+    });
+  };
+  const resetBackground = (event: PointerEvent<HTMLElement>) => {
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    frame.current = null;
+    const section = event.currentTarget;
+    section.style.setProperty("--pointer-x", "50%");
+    section.style.setProperty("--pointer-y", "50%");
+    section.style.setProperty("--drift-x", "0px");
+    section.style.setProperty("--drift-y", "0px");
+  };
+  return <section className="hero-banner" onPointerMove={moveBackground} onPointerLeave={resetBackground}>
     {backgroundImageUrl && <img className="hero-banner-bg" src={backgroundImageUrl} alt="" aria-hidden="true" />}
-    <header className="hero-banner-nav">
+    {header || <header className="hero-banner-nav">
       <Link className="hero-brand" to="/"><img src={logoUrl} alt="" width="34" height="34" />Caller Whale</Link>
       <nav className="hero-nav-desktop" aria-label="Main">
         {navLinks.map(link => <Link key={link.href} to={link.href}>{link.label}</Link>)}
@@ -62,7 +90,7 @@ export function ResponsiveHeroBanner({
         {navLinks.map(link => <Link key={link.href} to={link.href} onClick={() => setMobileMenuOpen(false)}>{link.label}</Link>)}
         {ctaButtonText && ctaButtonHref && <Link to={ctaButtonHref} onClick={() => setMobileMenuOpen(false)}>{ctaButtonText}</Link>}
       </nav>
-    </header>
+    </header>}
     <div className="hero-banner-copy">
       {(badgeLabel || badgeText) && <span className="hero-kicker">{badgeLabel && <span>{badgeLabel}</span>}{badgeText}</span>}
       <h1>{title}{titleLine2 && <><br />{titleLine2}</>}</h1>

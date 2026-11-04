@@ -17,12 +17,13 @@ export const go = (to: string, { replace = false }: { replace?: boolean } = {}) 
   if (!replace) scrollTo(0, 0);
 };
 
-export function Link({ to, children, ...rest }: { to: string } & AnchorHTMLAttributes<HTMLAnchorElement>) {
+export function Link({ to, children, onClick, ...rest }: { to: string } & AnchorHTMLAttributes<HTMLAnchorElement>) {
   return (
     <a
       href={to}
       onClick={e => {
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+        onClick?.(e);
+        if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button || e.currentTarget.target === "_blank") return;
         e.preventDefault();
         go(to);
       }}
