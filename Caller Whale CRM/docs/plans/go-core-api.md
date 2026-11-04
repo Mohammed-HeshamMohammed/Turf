@@ -1,6 +1,6 @@
 # Core API rebuild in Go, on one database link
 
-Status: plan, nothing built yet. Written 2026-11-04 from the owner's request. Auth and the gateway are already Go; the core API is the last server written in Rust.
+Status: plan, nothing built yet, **on hold pending the language decision in `core-api-language-decision.md`** (its research does not show Go makes the core API faster). Written 2026-11-04 from the owner's request. Auth and the gateway are already Go; the core API is the last server written in Rust.
 
 ## Decisions
 
