@@ -79,6 +79,7 @@ type fbAccount struct {
 	uid, email, password, name string
 	verified, disabled         bool
 	refresh                    string
+	providers                  map[string]bool
 }
 
 func newFakeFirebase(t *testing.T) *fakeFirebase {
@@ -168,7 +169,11 @@ func (f *fakeFirebase) serve(w http.ResponseWriter, r *http.Request) {
 			f.fail(w, "INVALID_ID_TOKEN")
 			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"users": []map[string]any{{"localId": a.uid, "email": a.email, "displayName": a.name, "emailVerified": a.verified, "disabled": a.disabled}}})
+		providerInfo := []map[string]string{}
+		for provider := range a.providers {
+			providerInfo = append(providerInfo, map[string]string{"providerId": provider})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"users": []map[string]any{{"localId": a.uid, "email": a.email, "displayName": a.name, "emailVerified": a.verified, "disabled": a.disabled, "providerUserInfo": providerInfo}}})
 	case strings.HasSuffix(r.URL.Path, "accounts:update"):
 		if code := str("oobCode"); code != "" {
 			for _, a := range f.accounts {
@@ -242,10 +247,26 @@ func (f *fakeFirebase) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		email = strings.ToLower(email)
 		a := f.accounts[email]
+		if token := str("idToken"); token != "" {
+			linked := f.byToken(token)
+			if linked == nil {
+				f.fail(w, "INVALID_ID_TOKEN")
+				return
+			}
+			if a != nil && a != linked {
+				f.fail(w, "FEDERATED_USER_ID_ALREADY_LINKED")
+				return
+			}
+			a = linked
+		}
 		if a == nil {
 			a = &fbAccount{uid: "uid-" + uuid.NewString()[:8], email: email, name: name}
 			f.accounts[email] = a
 		}
+		if a.providers == nil {
+			a.providers = map[string]bool{}
+		}
+		a.providers[form.Get("providerId")] = true
 		a.verified = true // the provider vouched for the address
 		login(a)
 	default:

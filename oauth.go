@@ -46,6 +46,8 @@ func (p provider) configured() bool {
 
 func (s *server) oauthRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /v1/providers", serve(s.providers))
+	mux.Handle("GET /v1/me/providers", serve(s.myProviders))
+	mux.Handle("POST /v1/me/providers/{provider}/start", serve(s.startLink))
 	mux.Handle("GET /v1/oauth/{provider}/start", serve(s.startGet))
 	mux.Handle("POST /v1/oauth/{provider}/start", serve(s.startPost))
 	// Google returns with a GET; Apple posts a form back (response_mode=form_post) once it asked for a name.
@@ -53,6 +55,58 @@ func (s *server) oauthRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/oauth/{provider}/callback", s.callback)
 	mux.Handle("POST /v1/oauth/exchange", serve(s.exchange))
 	mux.Handle("POST /v1/handoffs", serve(s.desktopHandoff))
+}
+
+func (s *server) myProviders(w http.ResponseWriter, r *http.Request) error {
+	c, err := s.person(r)
+	if err != nil {
+		return err
+	}
+	idToken, err := s.sessionIDToken(r.Context(), c.SID)
+	if err != nil {
+		return err
+	}
+	providers, err := s.fb.linkedProviders(r.Context(), idToken)
+	if err != nil {
+		return asAPI(err)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"providers": providers})
+	return nil
+}
+
+func (s *server) startLink(w http.ResponseWriter, r *http.Request) error {
+	c, err := s.person(r)
+	if err != nil {
+		return err
+	}
+	if c.AuthTime == 0 || now()-c.AuthTime > 15*60 {
+		return forbidden("Sign in again before linking a sign-in method.")
+	}
+	if _, err := s.sessionIDToken(r.Context(), c.SID); err != nil {
+		return err
+	}
+	name := r.PathValue("provider")
+	to, err := s.startURL(r.Context(), name, "landing", 0)
+	if err != nil {
+		return err
+	}
+	parsed, err := url.Parse(to)
+	if err != nil {
+		return err
+	}
+	state := parsed.Query().Get("state")
+	if state == "" {
+		return forbidden("The provider could not start a secure link.")
+	}
+	updated, err := s.db.Exec(r.Context(), "UPDATE oauth_states SET link_user_id = $1, link_session_id = $2 WHERE state_hash = $3", c.Sub, c.SID, sha256Hex(state))
+	if err != nil {
+		return err
+	}
+	if updated.RowsAffected() != 1 {
+		return forbidden("The provider could not start a secure link.")
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"url": to})
+	return nil
 }
 
 func (s *server) providerFor(name string) (*provider, error) {
@@ -264,6 +318,16 @@ func (s *server) back(target string, port *int64, code, failure string) string {
 	return s.cfg.websiteURL + "/?" + found + "#/" + page
 }
 
+func (s *server) backLink(provider, failure string) string {
+	values := url.Values{}
+	if failure != "" {
+		values.Set("link_error", failure)
+	} else {
+		values.Set("linked", provider)
+	}
+	return s.cfg.landingURL + "/account?" + values.Encode()
+}
+
 func (s *server) callback(w http.ResponseWriter, r *http.Request) {
 	// A GET carries the answer in the address, a POST (Apple) in a form.
 	_ = r.ParseForm()
@@ -281,8 +345,9 @@ func (s *server) finish(ctx context.Context, name string, got returned) string {
 	var stored, nonce, target string
 	var verifier *string
 	var port *int64
-	err := s.db.QueryRow(ctx, "DELETE FROM oauth_states WHERE state_hash = $1 AND expires_at > $2 RETURNING provider, nonce, code_verifier, target, return_port", sha256Hex(got.state), t).
-		Scan(&stored, &nonce, &verifier, &target, &port)
+	var linkUser, linkSession *string
+	err := s.db.QueryRow(ctx, "DELETE FROM oauth_states WHERE state_hash = $1 AND expires_at > $2 RETURNING provider, nonce, code_verifier, target, return_port, link_user_id, link_session_id", sha256Hex(got.state), t).
+		Scan(&stored, &nonce, &verifier, &target, &port, &linkUser, &linkSession)
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && stored != name) {
 		return s.back("website", nil, "", "That sign-in link has expired. Try again.")
 	}
@@ -291,16 +356,43 @@ func (s *server) finish(ctx context.Context, name string, got returned) string {
 		return s.back("website", nil, "", label(name)+" sign-in did not work. Try again in a moment.")
 	}
 	if got.failure != "" || got.code == "" {
+		if linkUser != nil {
+			return s.backLink(name, "Linking was cancelled.")
+		}
 		return s.back(target, port, "", "Sign-in was cancelled.")
+	}
+	linkToken := ""
+	if linkUser != nil {
+		var actualUser string
+		var started int64
+		if linkSession == nil {
+			return s.backLink(name, "Sign in again to link this method.")
+		}
+		if err := s.db.QueryRow(ctx, "SELECT user_id, created_at FROM sessions WHERE id = $1 AND revoked_at IS NULL AND expires_at > $2", *linkSession, t).Scan(&actualUser, &started); err != nil || actualUser != *linkUser || t-started > 15*60 {
+			return s.backLink(name, "Sign in again before linking a sign-in method.")
+		}
+		var err error
+		linkToken, err = s.sessionIDToken(ctx, *linkSession)
+		if err != nil {
+			return s.backLink(name, "Sign in again to link this method.")
+		}
 	}
 	kind := "browser"
 	if target == "desktop" {
 		kind = "desktop"
 	}
-	userID, fbRefresh, err := s.providerSignIn(ctx, name, got, nonce, deref(verifier))
+	userID, fbRefresh, err := s.providerSignIn(ctx, name, got, nonce, deref(verifier), linkToken, deref(linkUser))
 	var code string
-	if err == nil {
+	if err == nil && linkUser == nil {
 		code, err = s.handoff(ctx, userID, kind, name, false, fbRefresh)
+	}
+	if err == nil && linkUser != nil {
+		if fbRefresh != "" {
+			_, err = s.db.Exec(ctx, "UPDATE sessions SET fb_refresh = $1 WHERE id = $2", fbRefresh, *linkSession)
+		}
+		if err == nil {
+			return s.backLink(name, "")
+		}
 	}
 	if err != nil {
 		var api *apiError
@@ -309,6 +401,9 @@ func (s *server) finish(ctx context.Context, name string, got returned) string {
 			message = api.message
 		} else {
 			log.Printf("ERROR provider %s: %v", name, err)
+		}
+		if linkUser != nil {
+			return s.backLink(name, message)
 		}
 		return s.back(target, port, "", message)
 	}
@@ -358,11 +453,14 @@ func appleSecret(p *provider) (string, error) {
 }
 
 // providerSignIn exchanges the provider's code, checks who it says the person is, and returns their account's id.
-func (s *server) providerSignIn(ctx context.Context, name string, got returned, nonce, verifier string) (userID, fbRefresh string, err error) {
+func (s *server) providerSignIn(ctx context.Context, name string, got returned, nonce, verifier, linkToken, linkUser string) (userID, fbRefresh string, err error) {
 	if verifier == "firebase" {
-		login, err := s.fb.finishOAuth(ctx, s.redirectURI(name), nonce, name, got.code, got.state)
+		login, err := s.fb.finishOAuth(ctx, s.redirectURI(name), nonce, name, got.code, got.state, linkToken)
 		if err != nil {
 			return "", "", asAPI(err)
+		}
+		if linkUser != "" {
+			return s.linkedFirebaseAccount(ctx, login, linkUser)
 		}
 		return s.firebaseAccount(ctx, login, "")
 	}
@@ -420,11 +518,29 @@ func (s *server) providerSignIn(ctx context.Context, name string, got returned, 
 	}
 	// With no name from the provider, display stays empty: a new person is named from their address, and a returning one keeps the name they
 	// have (Apple tells the name only once).
-	login, err := s.fb.signInProvider(ctx, name, rawID, nonce)
+	login, err := s.fb.providerCredential(ctx, name, rawID, nonce, linkToken)
 	if err != nil {
 		return "", "", asAPI(err)
 	}
+	if linkUser != "" {
+		return s.linkedFirebaseAccount(ctx, login, linkUser)
+	}
 	return s.firebaseAccount(ctx, login, display)
+}
+
+func (s *server) linkedFirebaseAccount(ctx context.Context, login fbLogin, userID string) (string, string, error) {
+	profile, err := s.fb.profile(ctx, login.idToken)
+	if err != nil {
+		return "", "", asAPI(err)
+	}
+	u, err := s.userBy(ctx, "firebase_uid", profile.uid)
+	if err != nil {
+		return "", "", err
+	}
+	if u == nil || u.id != userID {
+		return "", "", forbidden("That provider belongs to a different account.")
+	}
+	return userID, login.refreshToken, nil
 }
 
 func (s *server) firebaseAccount(ctx context.Context, login fbLogin, display string) (string, string, error) {

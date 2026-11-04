@@ -42,6 +42,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/sessions/sign-out", serve(s.signOut))
 	mux.Handle("POST /v1/sessions/revoke", serve(s.revoke))
 	mux.Handle("GET /v1/me", serve(s.me))
+	mux.Handle("POST /v1/me/profile", serve(s.updateProfile))
 	mux.Handle("GET /v1/me/access", serve(s.meAccess))
 	mux.Handle("GET /v1/admin/staff", serve(s.adminStaff))
 	mux.Handle("POST /v1/admin/staff", serve(s.assignStaff))
@@ -451,9 +452,14 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	var phone, avatar string
+	if err := s.db.QueryRow(r.Context(), "SELECT phone, avatar FROM users WHERE id = $1", u.id).Scan(&phone, &avatar); err != nil {
+		return err
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id": u.id, "email": u.email, "name": u.name, "mfa_enrolled": enrolled, "email_verified": u.emailVerified,
 		"mfa_passed": c.MFA, "session_id": c.SID,
+		"phone": phone, "avatar": avatar,
 	})
 	return nil
 }
