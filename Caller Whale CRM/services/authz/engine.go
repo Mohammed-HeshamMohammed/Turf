@@ -41,11 +41,13 @@ type engine interface {
 	setStaff(ctx context.Context, user, staffRole string) error
 	// setPlatformOwner makes someone the Caller Whale owner. It does nothing when they already are, and refuses when someone else is.
 	setPlatformOwner(ctx context.Context, user string) error
+	setCofounder(ctx context.Context, user string) error
 	// workspaces lists the workspaces a person belongs to.
 	workspaces(ctx context.Context, user string) ([]string, error)
 }
 
 var errOwnerTaken = errors.New("Caller Whale already has an owner")
+var errCofounderTaken = errors.New("Caller Whale already has a cofounder")
 
 // checkable are the names /v1/check answers for, besides the capabilities.
-var checkable = []string{"member", "manage_access", "staff", "manage_staff"}
+var checkable = []string{"member", "manage_access", "staff", "manage_staff", "tester"}

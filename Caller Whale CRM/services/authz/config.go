@@ -26,6 +26,7 @@ type config struct {
 	requireSecondStep bool   // roles that need the second step (owner, solo) must have passed it
 	staffSecondStep   bool   // Caller Whale's staff must have passed it
 	platformOwner     string // who is the Caller Whale owner; set once at start, never changed
+	platformCofounder string // the cofounder is also permanent
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -42,6 +43,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 		requireSecondStep: get("AUTHZ_REQUIRE_SECOND_STEP", "true") != "false",
 		staffSecondStep:   get("AUTHZ_STAFF_SECOND_STEP", "true") != "false",
 		platformOwner:     strings.ToLower(get("AUTHZ_PLATFORM_OWNER", "")),
+		platformCofounder: strings.ToLower(get("AUTHZ_PLATFORM_COFOUNDER", "")),
 	}
 	if _, err := strconv.Atoi(c.port); err != nil {
 		return c, errors.New("PORT is not a number")
@@ -56,6 +58,12 @@ func loadConfig(getenv func(string) string) (config, error) {
 	c.grantSeconds = seconds
 	if c.platformOwner != "" && !validID(c.platformOwner) {
 		return c, errors.New("AUTHZ_PLATFORM_OWNER is a person's id (a UUID, the sub of their sign-in token)")
+	}
+	if c.platformCofounder != "" && !validID(c.platformCofounder) {
+		return c, errors.New("AUTHZ_PLATFORM_COFOUNDER is a person's id (a UUID, the sub of their sign-in token)")
+	}
+	if c.platformOwner != "" && c.platformOwner == c.platformCofounder {
+		return c, errors.New("the owner and cofounder must be different people")
 	}
 	if c.tokens, err = parseTokens(get("AUTHZ_TOKENS", "")); err != nil {
 		return c, err

@@ -183,7 +183,8 @@
         "AUTHZ_GRANT_SECONDS": "How long a grant lasts, 5 to 600 seconds; default 60. Shorter means faster revocation and more calls.",
         "AUTHZ_REQUIRE_SECOND_STEP": "Default true: roles that need the second step (owner, solo) must have passed it. false only for local testing.",
         "AUTHZ_STAFF_SECOND_STEP": "Default true: Caller Whale's staff must have passed the second step. Keep true in production.",
-        "AUTHZ_PLATFORM_OWNER": "Optional. The person id (UUID, the sub of their sign-in token) of the Caller Whale owner. Applied at start only when Caller Whale has no owner yet; it never replaces one."
+        "AUTHZ_PLATFORM_OWNER": "Optional. The person id (UUID, the sub of their sign-in token) of the Caller Whale owner. Applied at start only when Caller Whale has no owner yet; it never replaces one.",
+        "AUTHZ_PLATFORM_COFOUNDER": "Optional. Set once to the cofounder's Account ID (UUID). The first value is permanent across redeploys; changing this variable cannot replace them."
       }
     },
     "billing": {

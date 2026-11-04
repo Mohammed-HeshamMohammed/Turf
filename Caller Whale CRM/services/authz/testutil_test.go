@@ -19,7 +19,7 @@ type memEngine struct {
 	roleDefs  map[string]map[string]role       // org -> key -> role
 	people    map[string]map[string]membership // org -> user -> membership
 	standing  map[string][2]bool               // org -> suspended, payment required
-	staff     map[string]string                // user -> owner/admin
+	staff     map[string]string                // user -> platform role
 	failNext  bool
 	openOwner map[string]string
 }
@@ -83,9 +83,11 @@ func (m *memEngine) staffRole(_ context.Context, user string) (string, error) {
 func (m *memEngine) check(ctx context.Context, user, org, permission string) (bool, error) {
 	switch permission {
 	case "staff":
-		return m.staff[user] != "", m.down()
+		return m.staff[user] == "owner" || m.staff[user] == "cofounder" || m.staff[user] == "system_admin", m.down()
 	case "manage_staff":
-		return m.staff[user] == "owner", m.down()
+		return m.staff[user] == "owner" || m.staff[user] == "cofounder", m.down()
+	case "tester":
+		return m.staff[user] == "tester", m.down()
 	}
 	f, err := m.facts(ctx, user, org)
 	if err != nil {
@@ -96,7 +98,7 @@ func (m *memEngine) check(ctx context.Context, user, org, permission string) (bo
 		return f.member, nil
 	case "manage_access":
 		p := m.people[org][user]
-		return m.staff[user] != "" || slices.ContainsFunc(p.Roles, func(r string) bool { return slices.Contains(heldRoles, r) }), nil
+		return m.staff[user] == "owner" || m.staff[user] == "cofounder" || m.staff[user] == "system_admin" || slices.ContainsFunc(p.Roles, func(r string) bool { return slices.Contains(heldRoles, r) }), nil
 	}
 	return f.capabilities[permission], nil
 }
@@ -171,12 +173,28 @@ func (m *memEngine) setStanding(_ context.Context, org string, suspended, paymen
 }
 
 func (m *memEngine) setPlatformOwner(_ context.Context, user string) error {
+	if m.staff[user] == "cofounder" {
+		return errCofounderTaken
+	}
 	for other, role := range m.staff {
 		if role == "owner" && other != user {
 			return errOwnerTaken
 		}
 	}
 	m.staff[user] = "owner"
+	return m.down()
+}
+
+func (m *memEngine) setCofounder(_ context.Context, user string) error {
+	for other, role := range m.staff {
+		if role == "cofounder" && other != user {
+			return errCofounderTaken
+		}
+	}
+	if m.staff[user] == "owner" {
+		return errOwnerTaken
+	}
+	m.staff[user] = "cofounder"
 	return m.down()
 }
 
@@ -192,6 +210,12 @@ func (m *memEngine) workspaces(_ context.Context, user string) ([]string, error)
 }
 
 func (m *memEngine) setStaff(_ context.Context, user, staffRole string) error {
+	if m.staff[user] == "owner" || m.staff[user] == "cofounder" {
+		return nil
+	}
+	if staffRole != "" && staffRole != "system_admin" && staffRole != "tester" {
+		return errors.New("unknown platform role")
+	}
 	if staffRole == "" {
 		delete(m.staff, user)
 	} else {

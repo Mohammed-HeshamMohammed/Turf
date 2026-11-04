@@ -167,16 +167,16 @@ func TestStaffChanges(t *testing.T) {
 		code, _ := h.call(coreToken, "PUT", "/v1/staff/"+target, map[string]any{"actor_id": actor, "actor_second_step": second, "role": role})
 		return code
 	}
-	if code := put(callerID, strangerID, "admin", true); code != 403 {
+	if code := put(callerID, strangerID, "system_admin", true); code != 403 {
 		t.Errorf("only the platform owner manages staff: %d", code)
 	}
-	if code := put(ownerID, strangerID, "admin", false); code != 403 {
+	if code := put(ownerID, strangerID, "system_admin", false); code != 403 {
 		t.Errorf("the platform owner needs the second step: %d", code)
 	}
 	if code := put(ownerID, strangerID, "owner", true); code != 400 {
 		t.Errorf("there is one platform owner: %d", code)
 	}
-	if code := put(ownerID, strangerID, "admin", true); code != 200 {
+	if code := put(ownerID, strangerID, "system_admin", true); code != 200 {
 		t.Errorf("make staff: %d", code)
 	}
 	code, out := h.call(coreToken, "POST", "/v1/grant", map[string]any{"user_id": strangerID, "action": "platform", "second_step_passed": true})
@@ -185,6 +185,27 @@ func TestStaffChanges(t *testing.T) {
 	}
 	if code := put(ownerID, ownerID, "", true); code != 403 {
 		t.Errorf("the platform owner's access cannot change: %d", code)
+	}
+	if err := h.mem.setCofounder(context.Background(), callerID); err != nil {
+		t.Fatal(err)
+	}
+	if code := put(callerID, ownerID, "tester", true); code != 403 {
+		t.Errorf("the cofounder cannot change the owner: %d", code)
+	}
+	if code := put(ownerID, callerID, "tester", true); code != 403 {
+		t.Errorf("the owner cannot change the cofounder: %d", code)
+	}
+	if code := put(callerID, strangerID, "tester", true); code != 200 {
+		t.Errorf("cofounder assigns tester: %d", code)
+	}
+	if code, out := h.call(coreToken, "POST", "/v1/grant", map[string]any{"user_id": strangerID, "action": "platform", "second_step_passed": true}); code != 200 || out["allowed"] != false {
+		t.Errorf("tester cannot get staff grant: %d %v", code, out)
+	}
+	if code, out := h.call(gatewayToken, "POST", "/v1/check", map[string]any{"user_id": strangerID, "permission": "tester"}); code != 200 || out["allowed"] != true {
+		t.Errorf("tester check: %d %v", code, out)
+	}
+	if code := put(callerID, strangerID, "system_admin", true); code != 200 {
+		t.Errorf("cofounder assigns system admin: %d", code)
 	}
 }
 
@@ -228,7 +249,7 @@ func toStrings(v any) []string {
 func TestWhoIsThisPerson(t *testing.T) {
 	h := newHarness(t)
 	h.opened()
-	h.mem.staff[strangerID] = "admin"
+	h.mem.staff[strangerID] = "system_admin"
 	h.mem.staff[callerID] = ""
 	get := func(user string) map[string]any {
 		code, out := h.call(coreToken, "GET", "/v1/people/"+user, nil)
@@ -250,12 +271,20 @@ func TestWhoIsThisPerson(t *testing.T) {
 		t.Errorf("a caller is not a business owner: %v", caller)
 	}
 	admin := get(strangerID)
-	if admin["platform_role"] != "admin" || admin["platform_label"] != "System admin" || len(admin["workspaces"].([]any)) != 0 {
+	if admin["platform_role"] != "system_admin" || admin["platform_label"] != "System admin" || len(admin["workspaces"].([]any)) != 0 {
 		t.Errorf("a system admin: %v", admin)
 	}
 	h.mem.staff[ownerID] = "owner"
 	if get(ownerID)["platform_label"] != "Caller Whale owner" {
 		t.Errorf("the Caller Whale owner is named")
+	}
+	h.mem.staff[callerID] = "cofounder"
+	if get(callerID)["platform_label"] != "Cofounder" {
+		t.Error("the cofounder is named")
+	}
+	h.mem.staff[strangerID] = "tester"
+	if get(strangerID)["platform_label"] != "Tester" {
+		t.Error("the tester is named")
 	}
 	if code, _ := h.call(coreToken, "GET", "/v1/people/not-an-id", nil); code != 400 {
 		t.Errorf("a bad id: %d", code)
@@ -276,5 +305,20 @@ func TestPlatformOwnerIsSetOnceAndNeverReplaced(t *testing.T) {
 	}
 	if err := m.setPlatformOwner(ctx, callerID); !errors.Is(err, errOwnerTaken) {
 		t.Errorf("a second owner: %v", err)
+	}
+	if err := m.setCofounder(ctx, callerID); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.setCofounder(ctx, callerID); err != nil {
+		t.Errorf("same cofounder: %v", err)
+	}
+	if err := m.setCofounder(ctx, strangerID); !errors.Is(err, errCofounderTaken) {
+		t.Errorf("second cofounder: %v", err)
+	}
+	if err := m.setStaff(ctx, callerID, "system_admin"); err != nil {
+		t.Fatal(err)
+	}
+	if m.staff[callerID] != "cofounder" {
+		t.Error("cofounder cannot be changed")
 	}
 }

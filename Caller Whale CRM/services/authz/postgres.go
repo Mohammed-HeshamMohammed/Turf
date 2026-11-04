@@ -50,7 +50,14 @@ func (p *postgres) setup(ctx context.Context) error {
 		`CREATE TABLE IF NOT EXISTS authz_members (org_id text NOT NULL, user_id text NOT NULL, roles text[] NOT NULL DEFAULT '{}', restrictions text[] NOT NULL DEFAULT '{}', team_ids text[] NOT NULL DEFAULT '{}', project_ids text[] NOT NULL DEFAULT '{}', PRIMARY KEY (org_id, user_id))`,
 		`CREATE INDEX IF NOT EXISTS authz_members_user_idx ON authz_members (user_id)`,
 		`CREATE TABLE IF NOT EXISTS authz_staff (user_id text PRIMARY KEY, role text NOT NULL CHECK (role IN ('owner', 'admin')))`,
+		`ALTER TABLE authz_staff DROP CONSTRAINT IF EXISTS authz_staff_role_check`,
+		`UPDATE authz_staff SET role='system_admin' WHERE role='admin'`,
+		`ALTER TABLE authz_staff ADD CONSTRAINT authz_staff_role_check CHECK (role IN ('owner', 'cofounder', 'system_admin', 'tester'))`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS authz_one_owner_idx ON authz_staff (role) WHERE role = 'owner'`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS authz_one_cofounder_idx ON authz_staff (role) WHERE role = 'cofounder'`,
+		`CREATE OR REPLACE FUNCTION authz_protect_owner() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF OLD.role IN ('owner', 'cofounder') THEN RAISE EXCEPTION 'the platform owner and cofounder cannot be changed or deleted'; END IF; IF TG_OP = 'DELETE' THEN RETURN OLD; END IF; RETURN NEW; END $$`,
+		`DROP TRIGGER IF EXISTS authz_owner_immutable ON authz_staff`,
+		`CREATE TRIGGER authz_owner_immutable BEFORE UPDATE OR DELETE ON authz_staff FOR EACH ROW EXECUTE FUNCTION authz_protect_owner()`,
 	} {
 		if _, err = tx.Exec(ctx, ddl); err != nil {
 			return err
@@ -168,13 +175,13 @@ func (p *postgres) staffRole(ctx context.Context, user string) (string, error) {
 
 func (p *postgres) setStaff(ctx context.Context, user, staffRole string) error {
 	if staffRole == "" {
-		_, err := p.db.Exec(ctx, `DELETE FROM authz_staff WHERE user_id=$1 AND role='admin'`, user)
+		_, err := p.db.Exec(ctx, `DELETE FROM authz_staff WHERE user_id=$1 AND role IN ('system_admin','tester')`, user)
 		return err
 	}
-	if staffRole != "admin" {
-		return errors.New("only admin may be assigned through setStaff")
+	if !slices.Contains([]string{"system_admin", "tester"}, staffRole) {
+		return errors.New("unknown platform role")
 	}
-	_, err := p.db.Exec(ctx, `INSERT INTO authz_staff (user_id,role) VALUES ($1,'admin') ON CONFLICT (user_id) DO UPDATE SET role='admin' WHERE authz_staff.role <> 'owner'`, user)
+	_, err := p.db.Exec(ctx, `INSERT INTO authz_staff (user_id,role) VALUES ($1,$2) ON CONFLICT (user_id) DO UPDATE SET role=EXCLUDED.role WHERE authz_staff.role IN ('system_admin','tester')`, user, staffRole)
 	return err
 }
 
@@ -195,7 +202,36 @@ func (p *postgres) setPlatformOwner(ctx context.Context, user string) error {
 	if current != "" && current != user {
 		return errOwnerTaken
 	}
+	if current == user {
+		return tx.Commit(ctx)
+	}
 	if _, err = tx.Exec(ctx, `INSERT INTO authz_staff (user_id,role) VALUES ($1,'owner') ON CONFLICT (user_id) DO UPDATE SET role='owner'`, user); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (p *postgres) setCofounder(ctx context.Context, user string) error {
+	tx, err := p.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(8106)`); err != nil {
+		return err
+	}
+	var current string
+	err = tx.QueryRow(ctx, `SELECT user_id FROM authz_staff WHERE role='cofounder'`).Scan(&current)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	if current != "" && current != user {
+		return errCofounderTaken
+	}
+	if current == user {
+		return tx.Commit(ctx)
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO authz_staff (user_id,role) VALUES ($1,'cofounder') ON CONFLICT (user_id) DO UPDATE SET role='cofounder'`, user); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -281,15 +317,18 @@ func (p *postgres) facts(ctx context.Context, user, org string) (facts, error) {
 }
 
 func (p *postgres) check(ctx context.Context, user, org, permission string) (bool, error) {
-	if permission == "staff" || permission == "manage_staff" {
+	if permission == "staff" || permission == "manage_staff" || permission == "tester" {
 		r, err := p.staffRole(ctx, user)
 		if err != nil {
 			return false, err
 		}
 		if permission == "staff" {
-			return r != "", nil
+			return r == "owner" || r == "cofounder" || r == "system_admin", nil
 		}
-		return r == "owner", nil
+		if permission == "tester" {
+			return r == "tester", nil
+		}
+		return r == "owner" || r == "cofounder", nil
 	}
 	f, err := p.facts(ctx, user, org)
 	if err != nil {
@@ -303,7 +342,7 @@ func (p *postgres) check(ctx context.Context, user, org, permission string) (boo
 		if err != nil {
 			return false, err
 		}
-		if r != "" {
+		if r == "owner" || r == "cofounder" || r == "system_admin" {
 			return true, nil
 		}
 		m, ok, err := p.membership(ctx, org, user)

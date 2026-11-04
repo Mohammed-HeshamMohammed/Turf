@@ -28,8 +28,14 @@ func TestConfig(t *testing.T) {
 	if c, err := loadConfig(env(withOwner)); err != nil || c.platformOwner != ownerID {
 		t.Errorf("the owner id is read in lowercase: %q %v", c.platformOwner, err)
 	}
+	withOwner["AUTHZ_PLATFORM_COFOUNDER"] = strings.ToUpper(callerID)
+	if c, err := loadConfig(env(withOwner)); err != nil || c.platformCofounder != callerID {
+		t.Errorf("the cofounder id is read in lowercase: %q %v", c.platformCofounder, err)
+	}
 	bad := []map[string]string{
 		{"DATABASE_URL": good["DATABASE_URL"], "AUTHZ_TOKENS": "core-api=" + coreToken, "AUTHZ_PLATFORM_OWNER": "not-an-id"},
+		{"DATABASE_URL": good["DATABASE_URL"], "AUTHZ_TOKENS": "core-api=" + coreToken, "AUTHZ_PLATFORM_COFOUNDER": "not-an-id"},
+		{"DATABASE_URL": good["DATABASE_URL"], "AUTHZ_TOKENS": "core-api=" + coreToken, "AUTHZ_PLATFORM_OWNER": ownerID, "AUTHZ_PLATFORM_COFOUNDER": ownerID},
 		{"AUTHZ_TOKENS": "core-api=" + coreToken},
 		{"DATABASE_URL": good["DATABASE_URL"]},
 		{"DATABASE_URL": good["DATABASE_URL"], "AUTHZ_TOKENS": "stranger=" + coreToken},
