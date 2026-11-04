@@ -1,6 +1,6 @@
 # Build context is landing/site. The auth service's address is fixed at build time (it is also in the content security policy);
 # the build stops without it, so a site that would send people to localhost is never made.
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci

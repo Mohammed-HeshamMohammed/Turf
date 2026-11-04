@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { redirectFor } from "../src/guard.js";
+import { redirectFor } from "../src/guard.ts";
 
 test("nothing is decided while the sign-in state is unknown", () => {
   for (const path of ["/", "/signin", "/signup", "/forgot", "/account"]) assert.equal(redirectFor(path, undefined), null);
