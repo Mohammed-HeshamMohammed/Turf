@@ -173,6 +173,23 @@ func (p *postgres) staffRole(ctx context.Context, user string) (string, error) {
 	return r, err
 }
 
+func (p *postgres) staffMembers(ctx context.Context) ([]staffMember, error) {
+	rows, err := p.db.Query(ctx, `SELECT user_id, role FROM authz_staff ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'cofounder' THEN 1 WHEN 'system_admin' THEN 2 ELSE 3 END, user_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	members := []staffMember{}
+	for rows.Next() {
+		var member staffMember
+		if err := rows.Scan(&member.UserID, &member.Role); err != nil {
+			return nil, err
+		}
+		members = append(members, member)
+	}
+	return members, rows.Err()
+}
+
 func (p *postgres) setStaff(ctx context.Context, user, staffRole string) error {
 	if staffRole == "" {
 		_, err := p.db.Exec(ctx, `DELETE FROM authz_staff WHERE user_id=$1 AND role IN ('system_admin','tester')`, user)

@@ -22,6 +22,11 @@ type membership struct {
 	ProjectIDs   []string `json:"project_ids"`
 }
 
+type staffMember struct {
+	UserID string `json:"user_id"`
+	Role   string `json:"role"`
+}
+
 var errAlreadyOpen = errors.New("this workspace already has an owner")
 
 // engine is the rules store (PostgreSQL in production, memEngine in tests). Every method is one consistent read or one atomic
@@ -29,6 +34,7 @@ var errAlreadyOpen = errors.New("this workspace already has an owner")
 type engine interface {
 	facts(ctx context.Context, user, org string) (facts, error)
 	staffRole(ctx context.Context, user string) (string, error)
+	staffMembers(ctx context.Context) ([]staffMember, error)
 	check(ctx context.Context, user, org, permission string) (bool, error)
 	roles(ctx context.Context, org string) ([]role, error)
 	membership(ctx context.Context, org, user string) (membership, bool, error)

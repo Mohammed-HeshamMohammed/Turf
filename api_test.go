@@ -27,6 +27,28 @@ func TestOnlyKnownServicesMayCall(t *testing.T) {
 	}
 }
 
+func TestStaffDirectoryNeedsAServiceToken(t *testing.T) {
+	h := newHarness(t)
+	h.mem.staff[ownerID] = "owner"
+	h.mem.staff[callerID] = "cofounder"
+	if code, _ := h.call("", "GET", "/v1/staff", nil); code != 401 {
+		t.Fatalf("anonymous staff list: %d", code)
+	}
+	if code, _ := h.call(gatewayToken, "GET", "/v1/staff", nil); code != 403 {
+		t.Fatalf("gateway staff list: %d", code)
+	}
+	if code, _ := h.call(authToken, "PUT", "/v1/orgs/"+org1+"/roles/helper", map[string]any{}); code != 403 {
+		t.Fatalf("auth must not manage workspaces: %d", code)
+	}
+	if code, _ := h.call(authToken, "GET", "/v1/staff", nil); code != 200 {
+		t.Fatalf("auth staff list: %d", code)
+	}
+	code, out := h.call(coreToken, "GET", "/v1/staff", nil)
+	if code != 200 || len(out["staff"].([]any)) != 2 {
+		t.Fatalf("staff list: %d %v", code, out)
+	}
+}
+
 func TestGrantsCarryDatabaseRightsAndScope(t *testing.T) {
 	h := newHarness(t)
 	h.opened()
