@@ -5,6 +5,9 @@ import { redirectFor } from "./guard.ts";
 import { applyMetadata, metadataFor } from "./metadata.ts";
 import { Link, go, useRoute } from "./nav.tsx";
 import { Pricing } from "./Pricing.tsx";
+import { FeaturesIndex, FeaturePage } from "./Features.tsx";
+import { Security } from "./Security.tsx";
+import { Contact, Privacy, Terms } from "./PublicPages.tsx";
 import { cleanPath, routeFor } from "./routes.ts";
 
 // Anything that changes who is signed in (new tokens, a refresh the server refused, signing out) tells the page.
@@ -60,7 +63,9 @@ function Header({ path, me, onSignOut }: { path: string; me: Who; onSignOut: () 
         Caller Whale
       </Link>
       <nav className="rail" aria-label="Main">
+        <Link to="/features" aria-current={path.startsWith("/features") ? "page" : undefined}>Features</Link>
         <Link to="/pricing" aria-current={current("/pricing")}>Pricing</Link>
+        <Link to="/security" aria-current={current("/security")}>Security</Link>
       </nav>
       <nav className="rail" aria-label="Account" aria-busy={me === undefined}>
         {me === undefined ? null : me ? (
@@ -352,15 +357,26 @@ export function App({ path: first = "/" }) {
     "/signup": <SignUp onDone={signedIn} />,
     "/forgot": <Forgot />,
     "/pricing": <Pricing />,
+    "/features": <FeaturesIndex />,
+    "/security": <Security />,
+    "/contact": <Contact getAuth={getAuth} />,
+    "/privacy": <Privacy />,
+    "/terms": <Terms />,
     "/account": <Account me={me} onSignOut={signOut} />,
   };
+  const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
   return (
     <div className="page">
       <Header path={path} me={me} onSignOut={signOut} />
-      <main>{pages[cleanPath(path)] || <NotFound />}</main>
+      <main>{pages[cleanPath(path)] || (routeFor(path).key.startsWith("feature:") ? <FeaturePage slug={featureSlug} /> : <NotFound />)}</main>
       <footer className="footer mt-4 text-accent-ink">
         <span>© Caller Whale</span>
         <Link to="/pricing">Pricing</Link>
+        <Link to="/features">Features</Link>
+        <Link to="/security">Security</Link>
+        <Link to="/contact">Contact</Link>
+        <Link to="/privacy">Privacy</Link>
+        <Link to="/terms">Terms</Link>
       </footer>
     </div>
   );

@@ -1,0 +1,30 @@
+.page-head { padding: clamp(32px, 6vw, 80px) clamp(24px, 5vw, 72px); background: var(--shell); border-radius: var(--radius); }
+.page-head h1 { max-width: 17ch; margin: 12px 0; font-size: clamp(34px, 5vw, 64px); line-height: 1.06; font-weight: 550; }
+.page-head .lead { max-width: 65ch; font-size: 18px; color: var(--muted); }
+.eyebrow { color: var(--accent-ink); font-weight: 650; text-transform: uppercase; letter-spacing: .1em; }
+.section { margin-top: 16px; padding: clamp(20px, 3vw, 40px); background: var(--shell); border-radius: var(--radius); }
+.section h2 { font-size: clamp(24px, 3vw, 36px); font-weight: 550; }
+.grid { display: grid; gap: 16px; padding: 0; list-style: none; }
+.grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid .card { min-width: 0; }
+.grid h3 { font-size: 23px; font-weight: 550; }
+.grid p, .sub { color: var(--muted); }
+.more { font-weight: 600; }
+.crumbs { display: flex; gap: 10px; padding: 12px 20px; }
+.feature-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; }
+.feature-copy { font-size: 18px; }
+.feature-copy li { margin: 10px 0; }
+.feature-shots { display: grid; gap: 16px; align-content: start; }
+.screen { width: 100%; height: auto; border-radius: 16px; }
+.chips { display: flex; gap: 10px; flex-wrap: wrap; padding: 0; list-style: none; }
+.chips a { display: inline-block; padding: 10px 16px; border-radius: 999px; background: var(--card); }
+.cta { margin-top: 16px; padding: clamp(24px, 5vw, 64px); background: var(--accent-soft); border-radius: var(--radius); }
+.contact-form { max-width: 640px; display: grid; gap: 18px; }
+.contact-form label { display: grid; gap: 6px; font-weight: 550; }
+.contact-form input, .contact-form textarea { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: var(--inner); background: var(--raised); color: var(--ink); font: inherit; }
+.contact-form .button { justify-self: start; }
+.contact-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.legal { max-width: 900px; line-height: 1.7; }
+.legal h2 { margin-top: 30px; }
+.footer { display: flex; flex-wrap: wrap; gap: 16px; }
+@media (max-width: 800px) { .grid.three, .feature-grid { grid-template-columns: 1fr; } }

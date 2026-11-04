@@ -5,10 +5,14 @@ import { BADGE_STYLE, authOrigin, securityHeaders } from "../scripts/security-he
 
 test("the policy lets the page talk to the auth service and nobody else", () => {
   const headers = securityHeaders("https://auth.callerwhale.com");
-  assert.match(headers, /connect-src 'self' https:\/\/auth\.callerwhale\.com;/);
+  assert.match(headers, /connect-src 'self' https:\/\/auth\.callerwhale\.com https:\/\/gate\.callerwhale\.com;/);
   assert.match(headers, /frame-ancestors 'none'/);
   assert.match(headers, /default-src 'none'/);
   assert.doesNotMatch(headers, /unsafe-eval|script-src[^;]*unsafe-inline/);
+});
+
+test("the contact API origin must be safe", () => {
+  assert.throws(() => securityHeaders("https://auth.callerwhale.com", "http://gate.callerwhale.com"), /VITE_CALLERWHALE_GATEWAY_URL/);
 });
 
 test("a trailing slash is fine, but only the origin goes into the policy", () => {

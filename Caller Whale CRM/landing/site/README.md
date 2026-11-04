@@ -5,6 +5,7 @@ The public page of Caller Whale: a home page and the account pages (sign in, sig
 | Setting | Meaning |
 | --- | --- |
 | `VITE_CALLERWHALE_AUTH_URL` | Auth service address, set at build. Development default `http://localhost:8101` |
+| `VITE_CALLERWHALE_GATEWAY_URL` | Public gateway origin for the contact form, set at build. Default `https://gate.callerwhale.com` |
 
 ```bash
 npm --prefix landing/site run dev      # http://localhost:5200
