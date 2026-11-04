@@ -45,13 +45,28 @@
 .staff-fields { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
 .staff-fields label { display: grid; flex: 1 1 190px; gap: 6px; }
 .staff-fields input, .staff-fields select { min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--inner); background: var(--raised); color: var(--ink); font: inherit; }
-.staff-verify, .staff-recovery { padding: 20px; border: 1px solid var(--line); border-radius: var(--inner); background: var(--raised); }
-.staff-verify form { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
-.staff-verify label { display: grid; gap: 6px; }
-.staff-verify input { min-height: 44px; padding: 10px; border: 1px solid var(--line); border-radius: var(--inner); background: var(--card); color: var(--ink); font: inherit; }
-.staff-verify code { display: inline-block; padding: 4px 7px; border-radius: 6px; background: var(--card); overflow-wrap: anywhere; }
-.staff-recovery { margin-top: 12px; }
-.staff-recovery pre { white-space: pre-wrap; }
+.staff-verify, .staff-recovery { display: grid; justify-items: start; gap: 16px; padding: clamp(22px, 3vw, 36px); border: 1px solid var(--line); border-radius: 20px; background: var(--raised); }
+.staff-verify h3, .staff-recovery h3 { margin: 0; font-size: clamp(23px, 2.8vw, 30px); line-height: 1.15; }
+.staff-verify p, .staff-recovery p { max-width: 65ch; margin: 0; }
+.staff-setup { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: clamp(20px, 4vw, 44px); width: 100%; padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+.staff-qr { display: grid; place-items: center; width: 248px; min-height: 248px; padding: 12px; border-radius: 12px; background: #fff; color: var(--muted); text-align: center; }
+.staff-qr img { display: block; width: 224px; max-width: 100%; height: auto; image-rendering: crisp-edges; }
+.staff-setup-instructions { display: grid; justify-items: start; gap: 12px; min-width: 0; }
+.staff-secret { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; max-width: 100%; }
+.staff-secret code { padding: 11px 13px; border: 1px solid var(--line); border-radius: 9px; background: var(--raised); font-size: 15px; letter-spacing: .08em; overflow-wrap: anywhere; user-select: all; }
+.staff-code-form { display: grid; gap: 8px; width: min(100%, 480px); }
+.staff-code-form label { font-weight: 600; }
+.staff-code-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.staff-code-row input { flex: 1 1 170px; width: 100%; min-width: 0; min-height: 44px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--inner); background: var(--card); color: var(--ink); font: inherit; font-size: 17px; letter-spacing: .08em; }
+.staff-code-row .button { min-height: 44px; }
+.staff-text-button { justify-self: start; padding: 5px 0; border: 0; background: transparent; color: var(--accent-ink); font: inherit; text-decoration: underline; cursor: pointer; }
+.staff-recovery { width: 100%; background: var(--accent-soft); }
+.staff-recovery ol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 22px; width: 100%; margin: 0; padding: 0; list-style: none; counter-reset: recovery; }
+.staff-recovery li { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px 12px; border-radius: 9px; background: var(--raised); counter-increment: recovery; }
+.staff-recovery li::before { content: counter(recovery, decimal-leading-zero); color: var(--muted); font-size: 12px; }
+.staff-recovery code { overflow-wrap: anywhere; user-select: all; }
+.staff-recovery-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+@media (max-width: 700px) { .staff-setup { grid-template-columns: 1fr; } .staff-recovery ol { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .staff-stats { grid-template-columns: 1fr; } .staff-heading { flex-direction: column; } .staff-list li { align-items: flex-start; } }
 .profile-page { display: grid; gap: 16px; }
 .profile-head { display: flex; align-items: center; gap: clamp(20px, 4vw, 44px); }
