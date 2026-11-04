@@ -8,6 +8,8 @@ export function Profile({ me, auth, authBase, onSaved }: { me: Me; auth: Auth; a
   const [phone, setPhone] = useState(String(me.phone || ""));
   const [avatar, setAvatar] = useState(String(me.avatar || ""));
   const [access, setAccess] = useState<Access | null>(null);
+  const [accessStatus, setAccessStatus] = useState<"loading" | "ready" | "service" | "session" | "error">("loading");
+  const [accessAttempt, setAccessAttempt] = useState(0);
   const [providers, setProviders] = useState<string[]>([]);
   const [available, setAvailable] = useState<{ google?: boolean; apple?: boolean }>({});
   const [state, setState] = useState({ busy: false, message: "", error: "" });
@@ -15,17 +17,17 @@ export function Profile({ me, auth, authBase, onSaved }: { me: Me; auth: Auth; a
   useEffect(() => {
     let active = true;
     auth.accessToken().then(async token => {
-      if (!token) return;
+      if (!token) { if (active) setAccessStatus("session"); return; }
       const headers = { Authorization: `Bearer ${token}` };
-      const [role, linked] = await Promise.all([
-        fetch(`${authBase}/v1/me/access`, { headers }).then(r => r.ok ? r.json() : null),
-        fetch(`${authBase}/v1/me/providers`, { headers }).then(r => r.ok ? r.json() : null),
-      ]);
-      if (active) { setAccess(role); setProviders(linked?.providers || []); }
-    }).catch(() => {});
+      fetch(`${authBase}/v1/me/providers`, { headers }).then(r => r.ok ? r.json() : null).then(linked => { if (active) setProviders(linked?.providers || []); }).catch(() => {});
+      const response = await fetch(`${authBase}/v1/me/access`, { headers });
+      if (!response.ok) { if (active) setAccessStatus(response.status === 503 ? "service" : response.status === 401 ? "session" : "error"); return; }
+      const role = await response.json() as Access;
+      if (active) { setAccess(role); setAccessStatus("ready"); }
+    }).catch(() => { if (active) setAccessStatus("error"); });
     auth.providers().then(result => { if (active) setAvailable(result); }).catch(() => {});
     return () => { active = false; };
-  }, [auth, authBase, me.id]);
+  }, [auth, authBase, me.id, accessAttempt]);
   const picture = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -68,7 +70,7 @@ export function Profile({ me, auth, authBase, onSaved }: { me: Me; auth: Auth; a
   return <div className="profile-page">
     <header className="page-head profile-head"><div className="profile-avatar" aria-hidden="true">{avatar ? <img src={avatar} alt="" /> : (name || me.email).charAt(0).toUpperCase()}</div><div><span className="eyebrow">Your account</span><h1>Your profile</h1><p className="lead">Manage your identity and sign-in methods.</p>{access && <RoleBadges access={access} />}</div></header>
     <div className="profile-grid"><form className="card profile-card" onSubmit={save}><h2>Personal details</h2><div className="profile-fields"><label>Display name<input required maxLength={120} value={name} onChange={event => setName(event.target.value)} /></label><label>Email<input value={me.email} readOnly aria-readonly="true" /></label><label>Phone number<input type="tel" value={phone} onChange={event => setPhone(event.target.value)} placeholder="Optional" autoComplete="tel" /></label><label>Profile picture<input type="file" accept="image/png,image/jpeg" onChange={picture} /></label></div>{avatar && <button className="text-button" type="button" onClick={() => setAvatar("")}>Remove picture</button>}<button className="button primary" disabled={state.busy}>{state.busy ? "Saving…" : "Save changes"}</button>{state.message && <p role="status" className="notice good">{state.message}</p>}{state.error && <p role="alert" className="notice bad">{state.error}</p>}</form>
-      <section className="card profile-card"><h2>Access and roles</h2>{access ? <><RoleBadges access={access} /><p className="muted">{access.workspaces.length ? `${access.workspaces.length} workspace membership${access.workspaces.length === 1 ? "" : "s"}` : "No workspace memberships yet."}</p></> : <p className="muted">Roles are unavailable right now.</p>}<Link to="/dashboard">Go to dashboard →</Link></section>
+      <section className="card profile-card"><h2>Access and roles</h2>{accessStatus === "ready" && access ? <><RoleBadges access={access} /><p className="muted">{access.workspaces.length ? `${access.workspaces.length} workspace membership${access.workspaces.length === 1 ? "" : "s"}` : "No workspace memberships yet."}</p></> : <p className="muted" role="status">{accessStatus === "loading" ? "Checking your roles…" : accessStatus === "service" ? "Authorization is unavailable (503). The site cannot read roles until auth and authz are connected." : accessStatus === "session" ? "Your session ended. Sign in again to see your roles." : "Could not load roles. Check the auth connection and try again."}</p>}{accessStatus !== "ready" && accessStatus !== "loading" && <button type="button" className="button" onClick={() => { setAccessStatus("loading"); setAccessAttempt(n => n + 1); }}>Retry roles</button>}<Link to="/dashboard">Go to dashboard →</Link></section>
       <section className="card profile-card"><h2>Connected accounts</h2><p className="muted">Connect a sign-in method to this same Caller Whale account.</p><div className="profile-providers">{(["google", "apple"] as const).map(provider => <div key={provider}><span>{provider === "google" ? "Google" : "Apple"}</span>{providers.includes(provider) ? <span className="role-badge">Connected</span> : available[provider] ? <button type="button" className="button" disabled={state.busy} onClick={() => void link(provider)}>Connect</button> : <span className="muted">Unavailable</span>}</div>)}</div>{linked && <p role="status" className="notice good">{linked === "apple" ? "Apple" : "Google"} connected.</p>}{linkError && <p role="alert" className="notice bad">{linkError}</p>}<p className="muted">You may need to sign in again before linking a method.</p></section></div>
   </div>;
 }
