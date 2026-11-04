@@ -24,10 +24,13 @@ AUTH_PUBLIC_SIGNUP=true
 AUTH_DEV_TOKENS=false
 # Comma-separated browser origins allowed to call auth. Include intended web and Tauri origins only; expanding this broadens cross-origin access.
 AUTH_ALLOWED_ORIGINS=https://gate.callerwhale.com,https://callerwhale.com,tauri://localhost,http://tauri.localhost
-# Private authorization service URL for the signed-in person's dashboard membership lookup. Keep this on the internal network.
+# Private authorization service URL for the signed-in person's dashboard membership lookup. Both apps must share Coolify's internal Docker network; authz needs the alias "authz" and port 8104, with no public domain.
 AUTHZ_URL=http://authz:8104
-# Secret auth caller token matching authz's AUTHZ_TOKENS auth entry. Never expose it in frontend settings.
-AUTHZ_TOKEN=<the auth token from AUTHZ_TOKENS>
+# On the authz application, AUTHZ_TOKENS must contain billing=<existing billing token>,auth=<new auth token>.
+# Set this variable on the AUTH application to only the new auth token: no "auth=" prefix and never the billing token.
+# Use the exact same 64-character value after auth= in authz. Save as a runtime variable, keep it unavailable during build, then redeploy auth after authz.
+# Never expose this secret in frontend settings or a public URL.
+AUTHZ_TOKEN=<same new auth token from authz's AUTHZ_TOKENS auth entry>
 # Firebase: only this service uses it (docs/plans/firebase-auth.md). Firebase console -> Project settings -> General -> Web API key.
 # Firebase project's Web API key, used only by auth's server-side broker. Not a service-account private key; changing it selects a different Firebase project.
 AUTH_FIREBASE_API_KEY=<Web API key>
