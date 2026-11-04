@@ -12,6 +12,10 @@ export interface Me {
   id: string;
   email: string;
   name: string;
+	phone?: string;
+	avatar?: string;
+	mfa_enrolled?: boolean;
+	mfa_passed?: boolean;
   mfa?: boolean;
   email_verified?: boolean;
   [key: string]: unknown;
