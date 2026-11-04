@@ -1,0 +1,4 @@
+*_test.go
+openapi.yaml
+README.md
+.dockerignore

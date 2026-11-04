@@ -7,7 +7,7 @@ One branch per part of Caller Whale, each holding **only that part's code**, so 
 | `landing-web-production` | The landing site's frontend, exported from `landing/web` to the branch root |
 | `landing-dashboard-web-production` | Independent dashboard frontend foundation, exported from `landing/dashboard-web` to the branch root |
 | `auth-backend-production` | The authentication service (`services/auth`) |
-| `notifications-backend-production` | The notification service |
+| `notifications-backend-production` | The notification service (`services/notifications`, Go) at the branch root |
 | `gateway-backend-production` | The gateway: the one public entry point (it only answers its health check so far) |
 | `authz-backend-production` | The authorization service (`services/authz`, Go) at the branch root: decides what each person may do and which database rights each request gets. No domain |
 | `billing-backend-production` | The billing service (`services/billing`, Python) at the branch root. No domain; the gateway routes its public paths |
@@ -53,6 +53,7 @@ node tools/publish-production.mjs --push                    # and push what chan
 | `landing-web-production` | `/` | `/Dockerfile` | `8080` | `/healthz` |
 | `landing-dashboard-web-production` | `/` | `/Dockerfile` | `8080` | `/healthz` |
 | `auth-backend-production` | `/` | `/Dockerfile` | `8101` | `/healthz` |
+| `notifications-backend-production` | `/` | `/Dockerfile` | `8102` | `/healthz`; no domain |
 | `gateway-backend-production` | `/` | `/Dockerfile` | `8100` | its own health check (inside the private network only) |
 | `authz-backend-production` | `/` | `/Dockerfile` | `8104` | its own health check; no domain |
 | `billing-backend-production` | `/` | `/Dockerfile` | `8103` | `/healthz`; no domain |
