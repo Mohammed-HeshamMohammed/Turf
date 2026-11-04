@@ -9,6 +9,7 @@ import { FeaturesIndex, FeaturePage } from "./Features.tsx";
 import { Security } from "./Security.tsx";
 import { Contact, Privacy, Terms } from "./PublicPages.tsx";
 import { WhyCallerWhale } from "./WhyCallerWhale.tsx";
+import { HeroDemo } from "./components/ui/demo.tsx";
 import { cleanPath, routeFor } from "./routes.ts";
 
 // Anything that changes who is signed in (new tokens, a refresh the server refused, signing out) tells the page.
@@ -98,21 +99,7 @@ function Home({ me }: { me: Who }) {
   const steps = [["Lists", "Import leads and keep the source intact."], ["Lead records", "Find the next step and the full history."], ["Calls", "Work the queue and record outcomes."], ["Handoffs", "Move a deal to the right teammate."], ["Reports", "See what moved forward and export your data."]];
   return (
     <>
-      <section className="hero hero-banner">
-        <div className="hero-banner-copy">
-          <span className="hero-kicker"><span>Caller Whale</span> The calling workspace for lead teams</span>
-          <h1>Every lead has<br />a next call.</h1>
-          <p>Keep your lists, calls, deal notes and team handoffs in one workspace, so you always know what to do next.</p>
-          <div className="actions">
-            {me === undefined ? null : <Link className="button primary" to={me ? "/account" : "/signup"}>{me ? "Your account" : "Create an account"}<span aria-hidden="true">↗</span></Link>}
-            <Link className="button hero-secondary" to="/features">Explore features <span aria-hidden="true">→</span></Link>
-          </div>
-        </div>
-        <figure className="hero-preview">
-          <img src="/screens/dashboard.webp" alt="Caller Whale overview showing leads, next steps and pipeline value" width="1280" height="800" fetchPriority="high" />
-          <figcaption>See the work that needs you next, in one place.</figcaption>
-        </figure>
-      </section>
+      <HeroDemo signedIn={me === undefined ? undefined : Boolean(me)} />
       <section className="section" aria-labelledby="workspace-title"><h2 id="workspace-title">One flow, from list to closed deal.</h2><div className="steps five">{steps.map(([title, text], i) => <div className="card step" key={title}><span>0{i + 1}</span><b>{title}</b><span>{text}</span></div>)}</div><p><Link to="/why-caller-whale">Why keep it together →</Link></p></section>
       <section className="cta"><h2>Build a plan around your work.</h2><p>Choose the features your team needs and see the draft monthly total as you go.</p><Link className="button primary" to="/pricing">Explore pricing</Link></section>
     </>
@@ -356,7 +343,7 @@ export function App({ path: first = "/" }) {
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
   return (
     <div className="page">
-      <Header path={path} me={me} onSignOut={signOut} />
+      {cleanPath(path) !== "/" && <Header path={path} me={me} onSignOut={signOut} />}
       <main>{pages[cleanPath(path)] || (routeFor(path).key.startsWith("feature:") ? <FeaturePage slug={featureSlug} /> : <NotFound />)}</main>
       <footer className="footer mt-4 text-accent-ink">
         <span>© Caller Whale</span>
