@@ -63,6 +63,10 @@ if (command === 'render') {
   for (const [file, name] of Object.entries(examples)) await checkFile(`env/${file}`, name);
   await checkFile('deploy/grafana/.env.example', 'callerwhale-monitoring');
   await checkFile('deploy/grafana/compose.yml', 'callerwhale-monitoring', 'compose');
+  // authz reaches SpiceDB by the network alias the SpiceDB resource is given in Coolify; the two examples must agree.
+  const aliasOf = (await readFile(path.join(root, 'env/spicedb.production.example'), 'utf8')).match(/network alias ([^\s;,)]+)/)?.[1];
+  const hostOf = (await readFile(path.join(root, 'env/authz.production.example'), 'utf8')).match(/^SPICEDB_ENDPOINT=([^:\s]+)/m)?.[1];
+  if (!aliasOf || aliasOf !== hostOf) errors.push(`authz SPICEDB_ENDPOINT host (${hostOf}) must equal the SpiceDB network alias (${aliasOf})`);
   const inventory = JSON.parse(await readFile(path.join(root, 'env/container-variable-inventory.json'), 'utf8'));
   let observed = 0;
   for (const [name, keys] of Object.entries(inventory.resources)) {
