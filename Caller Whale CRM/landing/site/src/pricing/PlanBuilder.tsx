@@ -32,6 +32,7 @@ export function PlanBuilder({ initial }: { initial: Selection | null }) {
   return (
     <div className="builder">
       <div className="builder-main">
+        <p className="builder-live-total">Current plan <strong>{money(q.total)} <span>/ month</span></strong></p>
         <div className="builder-top">
           <div>
             <h3 id="seats-label">People on your team</h3>
@@ -140,7 +141,7 @@ export function PlanBuilder({ initial }: { initial: Selection | null }) {
         </p>
       </div>
 
-      <aside className="builder-sum" aria-label="Your plan">
+      <aside className="builder-sum" aria-label="Your plan" id="plan-summary">
         <h3>Your plan</h3>
         <p className="total">{money(q.total)}<span> / month</span></p>
         <ul>

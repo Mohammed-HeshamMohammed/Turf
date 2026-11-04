@@ -31,19 +31,27 @@ const REFRESH_KEY = "callerwhale.auth.refresh";
 type Who = Me | null | undefined;
 
 function useMe() {
-  // Match the prerendered HTML on the first browser render so it can hydrate.
-  const [me, setMe] = useState<Who>(null);
+  // Keep the initial state undecided on both the server and browser. Redirecting before
+  // the saved session is restored sends a signed-in visitor through /signin on refresh.
+  const [me, setMe] = useState<Who>(undefined);
+  const [restoreError, setRestoreError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true;
     const ask = () => {
-      if (!auth.signedIn()) return setMe(null);
+      if (!auth.signedIn()) { setRestoreError(false); setMe(null); return; }
+      setRestoreError(false);
+      setMe(current => current === null ? undefined : current);
       auth.me().then(
         m => live && setMe(m),
-        () => live && setMe(null),
+        () => {
+          if (!live) return;
+          if (auth.signedIn()) setRestoreError(true);
+          else setMe(null);
+        },
       );
     };
     // Coming back from Google signs this page in before anything else is asked.
-    if (auth.signedIn()) setMe(undefined);
     auth.finishProvider().catch(() => {}).finally(ask);
     // Signed in, signed out or refused by the server, here or (through storage) in another tab: ask again.
     const changed = (event: StorageEvent) => {
@@ -59,8 +67,17 @@ function useMe() {
       listeners.delete(ask);
       removeEventListener("storage", changed);
     };
-  }, []);
-  return [me, setMe] as const;
+  }, [attempt]);
+  return [me, setMe, restoreError, () => setAttempt(n => n + 1)] as const;
+}
+
+function AccountPending({ error, onRetry }: { error: boolean; onRetry: () => void }) {
+  return <div className="form-wrap"><div className="card session-card" role="status">
+    <span className="eyebrow">Your account</span>
+    <h1>{error ? "We could not check your session" : "Checking your session"}</h1>
+    <p className="muted">{error ? "Your account is still saved on this device. Check your connection and try again." : "Restoring your account and access…"}</p>
+    {error && <button className="button primary" type="button" onClick={onRetry}>Try again</button>}
+  </div></div>;
 }
 
 function Home({ me }: { me: Who }) {
@@ -233,14 +250,14 @@ function NotFound() {
 /** The whole site for one path. The browser renders it live; the build renders it once per page into that page's HTML. */
 export function App({ path: first = "/" }) {
   const path = useRoute(first);
-  const [me, setMe] = useMe();
+  const [me, setMe, restoreError, retrySession] = useMe();
   const [notice, setNotice] = useState("");
   const leaving = useRef(false); // true while the person themselves is signing out
   const wasIn = useRef(false);
   const signedIn = () => {
     setNotice("");
     setMe(undefined);
-    auth.me({ fresh: true }).then(setMe, () => setMe(null));
+    // keep() already notifies useMe, which restores the profile and handles a temporary failure.
     go("/dashboard");
   };
   const signOut = async () => {
@@ -279,8 +296,8 @@ export function App({ path: first = "/" }) {
     "/contact": <Contact getAuth={getAuth} />,
     "/privacy": <Privacy />,
     "/terms": <Terms />,
-    "/account": me ? <Profile me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <div className="form-wrap"><p className="muted">Loading your profile…</p></div>,
-    "/dashboard": <Dashboard me={me} auth={auth} authBase={authBase} />,
+    "/account": me ? <Profile me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
+    "/dashboard": me ? <Dashboard me={me} auth={auth} authBase={authBase} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
   };
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
   return (
