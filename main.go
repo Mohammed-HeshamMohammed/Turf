@@ -1,5 +1,6 @@
 // Notification service. Everything Caller Whale sends to a person goes out from here: the mail server login and the email
-// templates live in this service only. Other services call POST /v1/mail with a service token (NOTIFY_TOKENS).
+// templates live in this service only. Other services call POST /v1/mail with a service token (NOTIFY_TOKENS). The website's
+// contact form posts to /api/v1/public/contact (through the gateway) and is emailed to NOTIFY_CONTACT_TO.
 package main
 
 import (
@@ -23,6 +24,9 @@ const (
 
 // Config is read from the environment only; nothing about the mail server or the callers is written in the code.
 type Config struct {
+	// ContactTo is the team inbox the website's contact form writes to, and ContactOrigins the pages (like https://callerwhale.com) that may post to it.
+	ContactTo      string
+	ContactOrigins []string
 	// Tokens maps a caller's name to its token ("auth=...,core-api=..."), each at least 24 characters.
 	Tokens map[string]string
 	SMTP   SMTP
@@ -36,6 +40,8 @@ func loadConfig() Config {
 			cfg.Tokens[name] = token
 		}
 	}
+	cfg.ContactTo = strings.TrimSpace(os.Getenv("NOTIFY_CONTACT_TO"))
+	cfg.ContactOrigins = strings.Split(os.Getenv("NOTIFY_CONTACT_ORIGINS"), ",")
 	port := strings.TrimSpace(os.Getenv("NOTIFY_SMTP_PORT"))
 	if port == "" {
 		port = "587"
@@ -58,6 +64,9 @@ type Server struct {
 	now        func() time.Time
 	mu         sync.Mutex
 	window     map[string][]time.Time
+
+	contactTo      string
+	contactOrigins map[string]bool
 }
 
 func newServer(tokens map[string]string, sender Sender, configured bool) *Server {
@@ -75,6 +84,8 @@ func (s *Server) mux() *http.ServeMux {
 		writeJSON(w, http.StatusOK, map[string]any{"service": service, "version": version})
 	})
 	mux.HandleFunc("POST /v1/mail", s.mail)
+	mux.HandleFunc("POST "+contactPath, s.contact)
+	mux.HandleFunc("OPTIONS "+contactPath, s.contactPreflight)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]any{"error": "Not found."})
 	})
@@ -182,7 +193,10 @@ func main() {
 	if !cfg.SMTP.Configured() {
 		log.Print("NOTIFY_SMTP_HOST or NOTIFY_MAIL_FROM is empty: mail requests answer 503 until they are set")
 	}
-	srv := newServer(cfg.Tokens, cfg.SMTP, cfg.SMTP.Configured())
+	if cfg.ContactTo == "" {
+		log.Print("NOTIFY_CONTACT_TO is empty: the website's contact form answers 503 until it is set")
+	}
+	srv := newServer(cfg.Tokens, cfg.SMTP, cfg.SMTP.Configured()).withContact(cfg.ContactTo, cfg.ContactOrigins)
 	log.Printf("%s listening on :%s", service, port)
 	log.Fatal((&http.Server{Addr: ":" + port, Handler: logHTTP(srv.mux()), ReadHeaderTimeout: 5 * time.Second}).ListenAndServe())
 }
