@@ -10,7 +10,7 @@ The authentication service, in Go. It replaced the Rust service that used to liv
 | Accounts | Firebase holds accounts and passwords (always needs `AUTH_FIREBASE_API_KEY`); this service keeps no passwords |
 | Human check | Not here. The gateway checks reCAPTCHA; this service has no setting for it |
 | Settings | [env/auth.production.example](../../env/auth.production.example) |
-| Token check for other services | `../auth-verify` (Rust crate the core API uses); `clients/` (JavaScript sign-in client, copied into the apps by `clients/sync.mjs`) |
+| Token check for other services | `clients/` (JavaScript sign-in client, copied into the apps by `clients/sync.mjs`) |
 
 ## What is built
 
@@ -37,7 +37,7 @@ The service creates and updates its own tables when it starts, so it only needs 
 
 ## The contract
 
-Routes, JSON, error codes and sentences, the access token (EdDSA, issuer `callerwhale-auth`, audience `callerwhale`, claims `sub email name sid mfa email_verified provider auth_time iss aud iat exp`, key id from the public key), the lockout (five failed sign-ins for one email in 15 minutes), refresh-token rotation with theft detection, the signing key (`AUTH_SIGNING_KEY`, so tokens from either service verify with either's keys). A token signed here was checked against the Rust verifier (`callerwhale-auth-verify`) that the core API uses.
+Routes, JSON, error codes and sentences, the access token (EdDSA, issuer `callerwhale-auth`, audience `callerwhale`, claims `sub email name sid mfa email_verified provider auth_time iss aud iat exp`, key id from the public key), the lockout (five failed sign-ins for one email in 15 minutes), refresh-token rotation with theft detection, the signing key (`AUTH_SIGNING_KEY`, so tokens from either service verify with either's keys).
 
 ## Different on purpose
 

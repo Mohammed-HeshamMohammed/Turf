@@ -8,8 +8,6 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const catalog = JSON.parse(await readFile(path.join(root, 'env/container-notes.json'), 'utf8'));
 const examples = {
   'auth.production.example': 'auth',
-  'core-api.production.example': 'core-api',
-  'worker.production.example': 'core-api-worker',
   'gateway.production.example': 'gateway',
   'landing-web.production.example': 'landing-web',
   'notifications.production.example': 'notifications',

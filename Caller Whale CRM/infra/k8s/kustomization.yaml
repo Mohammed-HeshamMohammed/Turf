@@ -9,8 +9,6 @@ resources:
   - gateway
   - auth
   - notifications
-  - core-api
-  - core-api-worker
   - landing-web
 images:
   - name: callerwhale-gateway
@@ -21,12 +19,6 @@ images:
     newTag: latest   # pin a version in production
   - name: callerwhale-notifications
     newName: registry.example.com/callerwhale/callerwhale-notifications
-    newTag: latest   # pin a version in production
-  - name: callerwhale-core-api
-    newName: registry.example.com/callerwhale/callerwhale-core-api
-    newTag: latest   # pin a version in production
-  - name: callerwhale-core-api-worker
-    newName: registry.example.com/callerwhale/callerwhale-core-api-worker
     newTag: latest   # pin a version in production
   - name: callerwhale-landing-web
     newName: registry.example.com/callerwhale/callerwhale-landing-web

@@ -11,7 +11,6 @@ One branch per part of Caller Whale, each holding **only that part's code**, so 
 | `gateway-backend-production` | The gateway: the one public entry point (it only answers its health check so far) |
 | `authz-backend-production` | The authorization service (`services/authz`, Go) at the branch root: decides what each person may do and which database rights each request gets. No domain |
 | `billing-backend-production` | The billing service (`services/billing`, Python) at the branch root. No domain; the gateway routes its public paths |
-| `core-api-backend-production` | The core API: the CRM server and the website it serves, with the auth verifier crate and the contract it checks |
 | `desktop-app-production` | The whole desktop app: the frontend (`desktop/frontend/react`, also the CRM in a browser), the window container (Tauri) and the feature modules (`desktop/backend`) |
 | `grafana-production` | Grafana for Caller Whale's staff and its login proxy (`deploy/grafana`, `services/grafana-proxy`), deployed on Coolify as one Docker Compose resource |
 | `skip-engine-production` | The Skip Tracing engine (`service/`, Python) that the desktop app runs |

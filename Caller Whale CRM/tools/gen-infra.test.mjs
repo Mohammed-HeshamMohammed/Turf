@@ -34,10 +34,9 @@ test("parts that scale have an autoscaler and never lose their last copy; the si
     // With an autoscaler the Deployment leaves the count to it.
     assert.equal(/^  replicas:/m.test(out[`${s.name}/deployment.yaml`]), !scales, s.name);
   }
-  assert.match(out["core-api/deployment.yaml"], /maxUnavailable: 0/);
 });
 
 test("secrets are named, never written in", () => {
   for (const [path, text] of Object.entries(out)) assert.doesNotMatch(text, /password|secret:\s*\S+=|BEGIN [A-Z ]*KEY/i, path);
-  assert.match(out["core-api/deployment.yaml"], /secretRef:\n\s+name: core-api-env/);
+  assert.match(out["auth/deployment.yaml"], /secretRef:\n\s+name: auth-env/);
 });

@@ -10,13 +10,11 @@ It never overwrites a file. Run it again after an example gains a setting, and i
 
 | File | Read by | Secrets in it |
 | --- | --- | --- |
-| `core-api.env` | `services/core-api/scripts/run-api.sh` | `CALLERWHALE_WORKER_TOKENS`, `CALLERWHALE_BILLING_WEBHOOK_SECRET` (generated) |
-| `worker.env` | `services/core-api/scripts/run-worker.sh` | `CALLERWHALE_WORKER_TOKEN` (the same token as the API's) |
 | `auth.env` | `services/auth/scripts/run-auth.sh` | `AUTH_SIGNING_KEY` (generated), `AUTH_GOOGLE_CLIENT_SECRET`, `AUTH_APPLE_PRIVATE_KEY` |
 | `desktop.env` | the desktop app and the CRM (`vite.config.mjs`), when built or served | None that are server secrets: everything here ships inside the app |
 | `compose.env` | `docker compose --env-file env/compose.env -f deploy/compose.yml` | `POSTGRES_PASSWORD`, `AUTH_SIGNING_KEY` (generated) |
 | `gateway.env` | the gateway (`services/gateway`), when run locally | None |
-| `*.production.example` | Coolify: the values to paste into each application's Environment Variables, Developer View (`auth`, `core-api`, `worker`, `gateway`, `landing-web`, `grafana`). Fill every `<...>`; keep secrets in Coolify, never in the repository | Marked `<...>` |
+| `*.production.example` | Coolify: the values to paste into each application's Environment Variables, Developer View (`auth`, `gateway`, `landing-web`, `grafana`). Fill every `<...>`; keep secrets in Coolify, never in the repository | Marked `<...>` |
 | `firebase.env` | `tools/firebase/configure-auth.mjs` (one-time Firebase project setup for the auth service) | `FIREBASE_SERVICE_ACCOUNT`: the key's JSON itself, not the path of a downloaded key file |
 
 A setting already in the environment wins over the file, so a deploy can set any of them its own way.
@@ -91,21 +89,12 @@ and inventory while real secret files remain ignored.
 - `TEST_DATABASE_SETUP_URL`: the owner connection to a dedicated test database.
 - `database_setup/`: the ordered SQL scripts shipped with a service or the desktop project store.
 - `database_setup_history`: records completed scripts so restarting does not run them again.
-- `callerwhale-api setup-database`: explicitly apply setup without starting the API server.
 
-Update the stored core-api variable in Coolify to `DATABASE_SETUP_URL` before deploying
-this version. Its value stays the same owner connection string. Existing databases
-keep their completed-script history: startup adopts the old history table automatically.
-Do not edit previously applied SQL files: their original checksums protect against drift.
-SQLx dependency API names retain upstream spelling; they are not operator settings.
 
 
 ## Container health reporting in Coolify
 
-For `core-api`, use **Container command** `/usr/local/bin/callerwhale-api health`,
-with a 40-second startup grace period. The slim image has no curl or wget; a Coolify
-HTTP probe would override the image's working health check and mark it unhealthy.
-Auth and the worker also ship their own Dockerfile health commands.
+Auth ships its own Dockerfile health command.
 
 
 The `Check container configuration notes` GitHub Actions workflow runs the catalog check on relevant main pushes and pull requests. It reports missing descriptions, undocumented observed keys, and removed or changed source comments. It does not monitor or prevent manual comment deletion in Coolify; use the versioned catalog to restore those native Comment fields.
