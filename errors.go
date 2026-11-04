@@ -47,7 +47,11 @@ func serve(h handler) http.Handler {
 		var api *apiError
 		if !errors.As(err, &api) {
 			log.Printf("ERROR %s %s: %v", r.Method, r.URL.Path, err)
-			api = newError(http.StatusInternalServerError, "internal", "Something went wrong.")
+			if errors.Is(err, errAccessUnavailable) {
+				api = newError(http.StatusServiceUnavailable, "access_unavailable", "Membership information is unavailable right now.")
+			} else {
+				api = newError(http.StatusInternalServerError, "internal", "Something went wrong.")
+			}
 		}
 		body := map[string]any{"error": api.message, "code": api.code}
 		for k, v := range api.extra {

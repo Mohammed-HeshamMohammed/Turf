@@ -120,6 +120,57 @@ paths:
       security: [{ bearer: [] }]
       requestBody: { content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string, enum: [system_admin, tester, ""] } } } } } }
       responses: { "200": { description: Role saved }, "403": { description: Owner or cofounder with second step required }, "404": { description: Account has not signed in }, "503": { description: Authorization unavailable } }
+  /v1/admin/invitations:
+    get:
+      summary: List live platform staff invitations; staff with a second step
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Pending invitations }, "403": { description: Staff access required } }
+    post:
+      summary: Invite a system admin or tester by verified email; owner or cofounder only
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string, enum: [system_admin, tester] } } } } } }
+      responses: { "201": { description: Invitation saved, with delivery_state sent, failed, or not_configured }, "403": { description: Founder with second step required }, "409": { description: Duplicate invitation or existing staff role } }
+  /v1/orgs/{org}/members:
+    get:
+      summary: List workspace members; business owner with a second step only
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Members and roles }, "403": { description: Owner with second step required } }
+  /v1/orgs/{org}/roles:
+    get:
+      summary: List editable role keys for a workspace owner
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Editable role keys }, "403": { description: Owner with second step required } }
+  /v1/orgs/{org}/members/{user}:
+    put:
+      summary: Change existing member roles without changing their scopes; business owner only
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [roles], properties: { roles: { type: array, minItems: 1, maxItems: 8, items: { type: string } } } } } } }
+      responses: { "200": { description: Role saved }, "403": { description: Owner or second step required }, "404": { description: Member absent } }
+  /v1/orgs/{org}/invitations:
+    get:
+      summary: List pending invitations in a workspace; business owner only
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Pending invitations } }
+    post:
+      summary: Invite a person to an editable workspace role; business owner only
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string } } } } } }
+      responses: { "201": { description: Invitation saved with delivery state }, "409": { description: Duplicate or existing member } }
+  /v1/invitations/{id}:
+    delete:
+      summary: Withdraw a pending invitation; founder or workspace owner as appropriate
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Withdrawn }, "404": { description: No pending invitation } }
+  /v1/me/invitations:
+    get:
+      summary: List live invitations addressed to the signed-in verified email
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Invitations, empty until email is verified } }
+  /v1/me/invitations/{id}/accept:
+    post:
+      summary: Accept a pending invitation after verified-email sign-in; Authz checks the inviter's current authority
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Membership applied }, "403": { description: Wrong email, expired invitation, or inviter lost authority }, "409": { description: Already has a role or membership } }
   /v1/password:
     post:
       summary: Change the password and close every other session
