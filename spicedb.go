@@ -475,6 +475,44 @@ func (s *spice) setStanding(ctx context.Context, org string, suspended, paymentR
 	return s.write(ctx, []*v1.RelationshipUpdate{flag(suspended, "suspended"), flag(paymentRequired, "payment_required")})
 }
 
+func (s *spice) setPlatformOwner(ctx context.Context, user string) error {
+	owners, err := s.read(ctx, &v1.RelationshipFilter{ResourceType: "platform", OptionalResourceId: platformID, OptionalRelation: "owner"})
+	if err != nil {
+		return err
+	}
+	for _, r := range owners {
+		if r.Subject.Object.ObjectId != user {
+			return errOwnerTaken
+		}
+	}
+	// The owner is not also an admin: one place on the ladder.
+	return s.write(ctx, []*v1.RelationshipUpdate{
+		drop(rel(obj("platform", platformID), "admin", subject("user", user))),
+		touch(rel(obj("platform", platformID), "owner", subject("user", user))),
+	})
+}
+
+func (s *spice) workspaces(ctx context.Context, user string) ([]string, error) {
+	stream, err := s.client.LookupResources(ctx, &v1.LookupResourcesRequest{
+		Consistency: fullyConsistent, ResourceObjectType: "organization", Permission: "member", Subject: subject("user", user),
+	})
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for {
+		res, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			slices.Sort(ids)
+			return ids, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, res.ResourceObjectId)
+	}
+}
+
 func (s *spice) setStaff(ctx context.Context, user, staffRole string) error {
 	updates := []*v1.RelationshipUpdate{drop(rel(obj("platform", platformID), "admin", subject("user", user)))}
 	if staffRole != "" {

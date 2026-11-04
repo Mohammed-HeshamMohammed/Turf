@@ -92,6 +92,19 @@ func TestSpiceDB(t *testing.T) {
 		t.Error("a removed person is not a member")
 	}
 
+	must(s.setPlatformOwner(ctx, ownerID))
+	must(s.setPlatformOwner(ctx, ownerID))
+	if err := s.setPlatformOwner(ctx, callerID); err != errOwnerTaken {
+		t.Errorf("a second Caller Whale owner: %v", err)
+	}
+	if r, _ := s.staffRole(ctx, ownerID); r != "owner" {
+		t.Errorf("the Caller Whale owner: %q", r)
+	}
+	must(s.setMembership(ctx, org1, membership{UserID: callerID, Roles: []string{"caller"}}))
+	if spaces, err := s.workspaces(ctx, callerID); err != nil || !slices.Equal(spaces, []string{org1}) {
+		t.Errorf("workspaces: %v %v", spaces, err)
+	}
+	must(s.removeMember(ctx, org1, callerID))
 	must(s.setStaff(ctx, strangerID, "admin"))
 	if r, _ := s.staffRole(ctx, strangerID); r != "admin" {
 		t.Errorf("staff: %q", r)

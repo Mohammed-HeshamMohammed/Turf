@@ -170,6 +170,27 @@ func (m *memEngine) setStanding(_ context.Context, org string, suspended, paymen
 	return m.down()
 }
 
+func (m *memEngine) setPlatformOwner(_ context.Context, user string) error {
+	for other, role := range m.staff {
+		if role == "owner" && other != user {
+			return errOwnerTaken
+		}
+	}
+	m.staff[user] = "owner"
+	return m.down()
+}
+
+func (m *memEngine) workspaces(_ context.Context, user string) ([]string, error) {
+	var out []string
+	for org, people := range m.people {
+		if p, ok := people[user]; ok && len(p.Roles) > 0 {
+			out = append(out, org)
+		}
+	}
+	slices.Sort(out)
+	return out, m.down()
+}
+
 func (m *memEngine) setStaff(_ context.Context, user, staffRole string) error {
 	if staffRole == "" {
 		delete(m.staff, user)

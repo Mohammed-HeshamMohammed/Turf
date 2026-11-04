@@ -43,6 +43,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/check", s.only("check", s.check))
 	mux.Handle("POST /v1/check-batch", s.only("check", s.checkBatch))
 	mux.Handle("PUT /v1/orgs/{org}/owner", s.only("open", s.open))
+	mux.Handle("GET /v1/people/{user}", s.only("read", s.person))
 	mux.Handle("GET /v1/orgs/{org}/roles", s.only("read", s.listRoles))
 	mux.Handle("PUT /v1/orgs/{org}/roles/{key}", s.only("manage", s.putRole))
 	mux.Handle("GET /v1/orgs/{org}/members", s.only("read", s.listMembers))
@@ -481,5 +482,49 @@ func (s *server) putStaff(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "access_changed": true})
+	return nil
+}
+
+// ladder names the platform places in words people read: the Caller Whale owner and the system admins.
+var ladder = map[string]string{
+	"owner": "Caller Whale owner",
+	"admin": "System admin",
+	"held":  "Business owner",
+}
+
+type workspaceRoles struct {
+	OrgID         string   `json:"org_id"`
+	Roles         []string `json:"roles"`
+	BusinessOwner bool     `json:"business_owner"`
+}
+
+// person answers "who is this person here": their place on the platform, and their roles in each workspace.
+func (s *server) person(w http.ResponseWriter, r *http.Request) error {
+	user := r.PathValue("user")
+	if !validID(user) {
+		return bad("That is not a person's id.")
+	}
+	staff, err := s.rules.staffRole(r.Context(), user)
+	if err != nil {
+		return store(err)
+	}
+	orgs, err := s.rules.workspaces(r.Context(), user)
+	if err != nil {
+		return store(err)
+	}
+	spaces := []workspaceRoles{}
+	for _, org := range orgs {
+		m, _, err := s.rules.membership(r.Context(), org, user)
+		if err != nil {
+			return store(err)
+		}
+		held := slices.ContainsFunc(m.Roles, func(role string) bool { return slices.Contains(heldRoles, role) })
+		spaces = append(spaces, workspaceRoles{OrgID: org, Roles: m.Roles, BusinessOwner: held})
+	}
+	body := map[string]any{"user_id": user, "platform_role": staff, "workspaces": spaces}
+	if label := ladder[staff]; label != "" {
+		body["platform_label"] = label
+	}
+	writeJSON(w, http.StatusOK, body)
 	return nil
 }

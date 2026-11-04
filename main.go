@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -37,9 +38,42 @@ func main() {
 		fmt.Println(key)
 		return
 	}
+	if len(os.Args) > 2 && os.Args[1] == "set-owner" {
+		if err := setOwnerCommand(os.Args[2]); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// setOwnerCommand is "service set-owner <person id>": it makes that person the Caller Whale owner and exits. It refuses when
+// someone else already is. Run it with `docker exec <authz container> /service set-owner <person id>` (the image has no shell).
+func setOwnerCommand(id string) error {
+	id = strings.ToLower(strings.TrimSpace(id))
+	if !validID(id) {
+		return errors.New("give the person's id: a UUID, the sub of their sign-in token")
+	}
+	cfg, err := loadConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	rules, err := newSpice(cfg)
+	if err != nil {
+		return err
+	}
+	if err := rules.writeSchema(ctx); err != nil {
+		return err
+	}
+	if err := rules.setPlatformOwner(ctx, id); err != nil {
+		return err
+	}
+	fmt.Printf("%s is the Caller Whale owner\n", id)
+	return nil
 }
 
 func run() error {
@@ -65,6 +99,17 @@ func run() error {
 	}
 	if err := rules.writeSchema(ctx); err != nil {
 		return err
+	}
+	// AUTHZ_PLATFORM_OWNER names the Caller Whale owner when nobody is yet. It never replaces an owner.
+	if cfg.platformOwner != "" {
+		switch err := rules.setPlatformOwner(ctx, cfg.platformOwner); {
+		case errors.Is(err, errOwnerTaken):
+			log.Print("WARN AUTHZ_PLATFORM_OWNER is ignored: Caller Whale already has a different owner")
+		case err != nil:
+			return err
+		default:
+			log.Printf("INFO %s is the Caller Whale owner", cfg.platformOwner)
+		}
 	}
 	s := &server{cfg: cfg, rules: rules, keys: k, now: time.Now}
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
