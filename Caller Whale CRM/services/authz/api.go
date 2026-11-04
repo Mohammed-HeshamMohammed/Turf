@@ -30,6 +30,14 @@ type callerKey struct{}
 func (s *server) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		if live, ok := s.rules.(interface{ ping(context.Context) error }); ok {
+			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+			defer cancel()
+			if err := live.ping(ctx); err != nil {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]any{"ok": false, "service": "authz"})
+				return
+			}
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": "authz"})
 	})
 	mux.HandleFunc("GET /version", func(w http.ResponseWriter, r *http.Request) {

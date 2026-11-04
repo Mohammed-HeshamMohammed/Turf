@@ -7,7 +7,7 @@ is; this service decides what they may do. Plan: [docs/plans/authorization-servi
 | --- | --- |
 | Language | Go |
 | Port | 8104 |
-| Rules store | SpiceDB ([deploy/spicedb](../../deploy/spicedb)), schema in `schema.zed`, written at start |
+| Rules store | The existing private PostgreSQL resource; `authz_*` tables are created at startup |
 | Public address | **None.** Not in the gateway's `ROUTES`. Only Caller Whale's services call it, each with its own token |
 | Status | First version. Not yet called by the core API (shadow mode is the next step) |
 
@@ -26,10 +26,10 @@ is; this service decides what they may do. Plan: [docs/plans/authorization-servi
 
 ### First deployment and owner
 
-1. Create and migrate the private SpiceDB resource using `deploy/spicedb/README.md` on `main`. Keep its `SPICEDB_GRPC_PRESHARED_KEY` for the authz settings.
+1. Copy the internal connection URL from the existing private PostgreSQL resource into authz's `DATABASE_URL`, with `sslmode=require`. The login needs permission to create and update the `authz_*` tables. The unused SpiceDB server is not needed.
 2. Sign in to `https://callerwhale.com/account` and copy **Account ID**. This is the UUID returned as `/v1/me.id`, also the `sub` of your sign-in token. Put it in `AUTHZ_PLATFORM_OWNER` if you want owner assignment at first startup. If your account is not ready, leave the setting empty and add it before a later redeploy.
 3. Generate `AUTHZ_SIGNING_KEY` with `go run . new-key` from `services/authz`, or use PowerShell `[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))` for a 32-byte Ed25519 seed. Run the PowerShell command a second time for a **different** `billing=` token in `AUTHZ_TOKENS`. Copy the billing token to billing's `AUTHZ_TOKEN`; never put either secret in Git.
-4. Create the authz application with the Coolify settings above, paste the filled `.env.example` from the production branch, and deploy. Its startup writes the schema to SpiceDB and sets the owner only if no owner exists. Check the startup log for `is the Caller Whale owner` and for a healthy container.
+4. Set the authz application with the Coolify settings above, paste the filled `.env.example` from the production branch, and deploy. Its startup creates its tables and sets the owner only if no owner exists. Check the startup log for `is the Caller Whale owner` and for a healthy container.
 
 The owner role is for the Caller Whale platform. It is distinct from a customer's workspace owner. `AUTHZ_PLATFORM_OWNER` cannot replace an existing different owner; the service logs a warning if that slot is already taken.
 
@@ -56,7 +56,7 @@ Actions and the database role each runs under: `read` → `cw_read`; `edit`, `as
 `review`, `rules`, `publicComment` → `cw_write`; `import` → `cw_import`; `export` → `cw_export`; `finance` and `pay` →
 `cw_finance`; `admin` → `cw_admin`; `platform` → `cw_staff`. `pay` stays open while a plan needs paying.
 
-When SpiceDB cannot be reached, requests get `503 unavailable` and never a grant: callers refuse the person's request.
+When PostgreSQL cannot be reached, requests get `503 unavailable` and never a grant: callers refuse the person's request.
 
 ## Who is who: the ladder
 
@@ -79,6 +79,6 @@ Both platform roles and the business owner need the second step (`AUTHZ_STAFF_SE
 go test ./...
 ```
 
-The SpiceDB test runs against a real SpiceDB: start `spicedb serve-testing` and set `SPICEDB_TEST_ENDPOINT=localhost:50051`.
+The PostgreSQL integration test uses a dedicated disposable database set by `AUTHZ_TEST_DATABASE_URL`.
 
 `service new-key` prints a key for `AUTHZ_SIGNING_KEY`.

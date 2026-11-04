@@ -181,10 +181,12 @@ func validRestriction(r string) bool {
 	return false
 }
 
-// schemaName is a capability's name in the rules store's schema (it only allows lowercase and underscores).
-func schemaName(capability string) string {
-	if capability == "publicComment" {
-		return "public_comment"
+func orderCapabilities(in []string) []string {
+	out := []string{}
+	for _, c := range capabilities {
+		if slices.Contains(in, c) {
+			out = append(out, c)
+		}
 	}
-	return capability
+	return out
 }

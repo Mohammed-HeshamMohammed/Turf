@@ -94,14 +94,3 @@ func TestRestrictions(t *testing.T) {
 		}
 	}
 }
-
-func TestGrantRelations(t *testing.T) {
-	got := grantRelations(role{Key: "owner", Capabilities: []string{"edit", "publicComment"}, Scope: "organization", SecondStep: true})
-	want := []string{"grants_edit", "grants_public_comment", "scope_organization", "second_step", "manages_access"}
-	if !slices.Equal(got, want) {
-		t.Errorf("got %v", got)
-	}
-	if got := grantRelations(role{Key: "viewer", Scope: "none"}); len(got) != 0 {
-		t.Errorf("a role with nothing grants nothing: %v", got)
-	}
-}

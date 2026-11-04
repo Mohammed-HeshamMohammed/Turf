@@ -69,7 +69,8 @@
         "landing/site/nginx.conf"
       ],
       "variables": {
-        "VITE_CALLERWHALE_AUTH_URL": "Build-time public auth service address embedded in the browser JavaScript, like https://auth.callerwhale.com. Rebuild to change; it is not a secret. Wrong value breaks every sign-in."
+        "VITE_CALLERWHALE_AUTH_URL": "Build-time public auth service address embedded in the browser JavaScript, like https://auth.callerwhale.com. Rebuild to change; it is not a secret. Wrong value breaks every sign-in.",
+        "VITE_CALLERWHALE_GATEWAY_URL": "Public gateway address for the contact form. Available during build."
       }
     },
     "notifications": {
@@ -176,9 +177,7 @@
       "description": "Authorization service: decides what each person may do and which database rights each request runs under. No domain; called only by Caller Whale's services.",
       "variables": {
         "PORT": "HTTP port; default 8104. Match Coolify's container port and the callers' AUTHZ_URL.",
-        "SPICEDB_ENDPOINT": "SpiceDB's private gRPC address, host:port; default spicedb:50051. Never a public address.",
-        "SPICEDB_PRESHARED_KEY": "Secret key SpiceDB was started with (its SPICEDB_GRPC_PRESHARED_KEY). Change both together, or every decision fails closed.",
-        "SPICEDB_TLS": "true when SpiceDB serves TLS; default false on the private Docker network.",
+        "DATABASE_URL": "Secret PostgreSQL URI of the existing private authz database. Include sslmode=require. The service creates its own authz_* tables.",
         "AUTHZ_SIGNING_KEY": "Secret Ed25519 key (base64 PKCS#8 or 32-byte seed) that signs grants; `service new-key` prints one. Keep stable; empty uses a temporary key.",
         "AUTHZ_TOKENS": "Secret caller tokens, caller=token comma-separated, 32+ characters each; only billing today (core-api once rebuilt). Each caller gets only its own rights.",
         "AUTHZ_GRANT_SECONDS": "How long a grant lasts, 5 to 600 seconds; default 60. Shorter means faster revocation and more calls.",
@@ -197,16 +196,6 @@
         "PADDLE_WEBHOOK_TOLERANCE_SECONDS": "How old a signed webhook may be, 5 to 3600 seconds; default 300. Redeliveries are harmless: each event applies once.",
         "AUTHZ_URL": "The authorization service's private address, like http://authz:8104, told of every standing change. Set with AUTHZ_TOKEN.",
         "AUTHZ_TOKEN": "Secret billing token from authz's AUTHZ_TOKENS. Set with AUTHZ_URL."
-      }
-    },
-    "spicedb": {
-      "description": "SpiceDB, the authorization service's rules store (a Docker Image resource in the Database environment, no branch). No domain or published port; only authz calls it.",
-      "variables": {
-        "SPICEDB_DATASTORE_ENGINE": "SpiceDB's datastore: postgres.",
-        "SPICEDB_DATASTORE_CONN_URI": "Secret PostgreSQL URI of SpiceDB's own database and login (callerwhale_spicedb). No other service uses it.",
-        "SPICEDB_GRPC_PRESHARED_KEY": "Secret key authz sends with every call (authz's SPICEDB_PRESHARED_KEY). Long and random; change both together.",
-        "SPICEDB_HTTP_ENABLED": "Set false: only the private gRPC API, with no HTTP gateway or dashboard.",
-        "SPICEDB_TELEMETRY_ENDPOINT": "Set empty: no usage reports leave the server."
       }
     }
   }

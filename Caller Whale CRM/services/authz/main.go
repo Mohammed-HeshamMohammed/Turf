@@ -1,5 +1,5 @@
 // Authorization: decides what each person may do, and which database rights each request runs under. It has no public
-// address: only Caller Whale's own services call it, each with its own token. The rules live in SpiceDB.
+// address: only Caller Whale's own services call it, each with its own token. The rules live in PostgreSQL.
 // Plan: docs/plans/authorization-service.md.
 package main
 
@@ -62,13 +62,11 @@ func setOwnerCommand(id string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	rules, err := newSpice(cfg)
+	rules, err := newPostgres(ctx, cfg.databaseURL)
 	if err != nil {
 		return err
 	}
-	if err := rules.writeSchema(ctx); err != nil {
-		return err
-	}
+	defer rules.close()
 	if err := rules.setPlatformOwner(ctx, id); err != nil {
 		return err
 	}
@@ -93,13 +91,11 @@ func run() error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	rules, err := newSpice(cfg)
+	rules, err := newPostgres(ctx, cfg.databaseURL)
 	if err != nil {
 		return err
 	}
-	if err := rules.writeSchema(ctx); err != nil {
-		return err
-	}
+	defer rules.close()
 	// AUTHZ_PLATFORM_OWNER names the Caller Whale owner when nobody is yet. It never replaces an owner.
 	if cfg.platformOwner != "" {
 		switch err := rules.setPlatformOwner(ctx, cfg.platformOwner); {

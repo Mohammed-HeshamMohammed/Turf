@@ -41,6 +41,8 @@ Safety rules from the research and PostgreSQL's behaviour:
 
 This replaces today's arrangement, where the core API reads memberships itself and sets the scope from its own reading.
 
+> **Updated implementation (November 2026):** The authz service now stores rules directly in the existing private PostgreSQL resource. It creates `authz_*` tables at startup and does not require a SpiceDB application. The SpiceDB design below is retained as historical planning context.
+
 ## Policy engine: SpiceDB, behind our own Go service
 
 **Choice:** SpiceDB as the rules engine, with a small Go service (`authz`) in front of it that every other service calls. Nobody talks to SpiceDB directly.

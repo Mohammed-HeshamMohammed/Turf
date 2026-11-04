@@ -46,22 +46,16 @@ services:
       AUTHZ_URL: "http://authz:8104"
       AUTHZ_TOKEN: "${AUTHZ_BILLING_TOKEN:?set AUTHZ_BILLING_TOKEN in env/compose.env}"
     restart: unless-stopped
-  # The rules store for authz. Locally it keeps everything in memory: a restart starts empty.
-  spicedb:
-    image: authzed/spicedb:v1.57.0
-    command: ["serve-testing", "--grpc-addr", ":50051"]
-    restart: unless-stopped
   authz:
     build:
       context: ../services/authz
     environment:
       PORT: "8104"
-      SPICEDB_ENDPOINT: "spicedb:50051"
-      SPICEDB_PRESHARED_KEY: "local"
+      DATABASE_URL: "${AUTHZ_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_authz?sslmode=disable}"
       AUTHZ_SIGNING_KEY: "${AUTHZ_SIGNING_KEY:?set AUTHZ_SIGNING_KEY in env/compose.env}"
       AUTHZ_TOKENS: "billing=${AUTHZ_BILLING_TOKEN:?set AUTHZ_BILLING_TOKEN in env/compose.env}"
     depends_on:
-      - spicedb
+      - postgres
     restart: unless-stopped
   importing-lists:
     build:
