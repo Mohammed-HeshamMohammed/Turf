@@ -15,7 +15,7 @@
         "AUTH_WEBSITE_URL": "Return base URL for the legacy website sign-in target. Must be a trusted application origin; changing it changes where that OAuth handoff returns.",
         "AUTH_APP_URL": "Return base URL for browser CRM sign-in. Does not replace the desktop app's restricted loopback return.",
         "AUTH_LANDING_URL": "Public site's sign-in return base URL. Keep it aligned with the deployed landing website.",
-        "AUTH_PUBLIC_SIGNUP": "true allows public account creation; false closes public registration. Separate from core-api's trial-workspace policy; keep false for invitation-only access.",
+        "AUTH_PUBLIC_SIGNUP": "true lets anyone create an account (turn the human check on first); false closes public registration to invitation only.",
         "AUTH_DEV_TOKENS": "Development-only confirmation tokens in API responses. Keep false in production; true exposes tokens intended only for local testing.",
         "AUTH_ALLOWED_ORIGINS": "Comma-separated browser origins allowed to call auth. Include intended web and Tauri origins only; expanding this broadens cross-origin access.",
         "AUTH_FIREBASE_API_KEY": "Firebase project's Web API key, used only by auth's server-side broker. Not a service-account private key; changing it selects a different Firebase project.",
