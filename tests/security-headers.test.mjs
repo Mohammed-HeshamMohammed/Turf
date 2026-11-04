@@ -3,9 +3,10 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { BADGE_STYLE, authOrigin, securityHeaders } from "../scripts/security-headers.mjs";
 
-test("the policy lets the page talk to the auth service and nobody else", () => {
+test("the policy permits auth, reCAPTCHA, and Cloudflare's injected beacon", () => {
   const headers = securityHeaders("https://auth.callerwhale.com");
-  assert.match(headers, /connect-src 'self' https:\/\/auth\.callerwhale\.com https:\/\/gate\.callerwhale\.com;/);
+  assert.match(headers, /connect-src 'self' https:\/\/auth\.callerwhale\.com https:\/\/gate\.callerwhale\.com https:\/\/www\.google\.com\/recaptcha\/;/);
+  assert.match(headers, /script-src 'self' https:\/\/www\.google\.com\/recaptcha\/ https:\/\/www\.gstatic\.com\/recaptcha\/ https:\/\/static\.cloudflareinsights\.com;/);
   assert.match(headers, /frame-ancestors 'none'/);
   assert.match(headers, /default-src 'none'/);
   assert.doesNotMatch(headers, /unsafe-eval|script-src[^;]*unsafe-inline/);

@@ -34,12 +34,13 @@ export function securityHeaders(authUrl, gatewayUrl = "https://gate.callerwhale.
   const policy = [
     "default-src 'none'",
     // The invisible human check, when the auth service turns it on, loads Google's script and frame.
-    "script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/",
+    // Cloudflare injects its Web Analytics beacon at the edge on the proxied site.
+    "script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://static.cloudflareinsights.com",
     `style-src 'self' ${badgeHash}`,
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self'",
-    `connect-src 'self' ${origin} ${gateway}`,
+    `connect-src 'self' ${origin} ${gateway} https://www.google.com/recaptcha/`,
     "frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/",
     "form-action 'self'",
     "base-uri 'none'",
