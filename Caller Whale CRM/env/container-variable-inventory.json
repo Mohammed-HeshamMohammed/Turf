@@ -35,11 +35,7 @@
       "MONITORING_UPSTREAM"
     ],
     "landing-web": [
-      "SITE_URL",
-      "VITE_CALLERWHALE_API_URL",
-      "AUTH_ORIGIN",
-      "API_ORIGIN",
-      "GRAFANA_ORIGIN"
+      "VITE_CALLERWHALE_AUTH_URL"
     ],
     "notifications": [
       "PORT",

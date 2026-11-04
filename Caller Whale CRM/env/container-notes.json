@@ -63,17 +63,13 @@
       }
     },
     "landing-web": {
-      "description": "Public static React site; build-time API addresses and runtime nginx content-security-policy origins must agree.",
+      "description": "Public static React site (home and account pages); signs people in through the auth service. The auth address is fixed at build time.",
       "sources": [
-        "landing/web/Dockerfile",
-        "landing/web/nginx.conf"
+        "landing/site/Dockerfile",
+        "landing/site/nginx.conf"
       ],
       "variables": {
-        "SITE_URL": "Build-time canonical website base URL for prerendered pages/sitemap. Requires rebuilding the frontend to change; contains no secret.",
-        "VITE_CALLERWHALE_API_URL": "Build-time public gateway URL embedded in browser JavaScript. Rebuild to change; never place private keys or credentials in VITE settings.",
-        "AUTH_ORIGIN": "Runtime nginx CSP origin permitting browser calls to central auth. Wrong value can block sign-in even when auth is healthy; use an origin, not a URL path.",
-        "API_ORIGIN": "Runtime nginx CSP origin permitting core API/gateway calls. Keep aligned with the built VITE_CALLERWHALE_API_URL.",
-        "GRAFANA_ORIGIN": "Runtime CSP frame origin for staff monitoring. Use the protected gateway origin; not a direct public Grafana endpoint."
+        "VITE_CALLERWHALE_AUTH_URL": "Build-time public auth service address embedded in the browser JavaScript, like https://auth.callerwhale.com. Rebuild to change; it is not a secret. Wrong value breaks every sign-in."
       }
     },
     "notifications": {
