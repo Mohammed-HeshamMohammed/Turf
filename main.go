@@ -39,7 +39,13 @@ func main() {
 		return
 	}
 	if len(os.Args) > 2 && os.Args[1] == "set-owner" {
-		if err := setOwnerCommand(os.Args[2]); err != nil {
+		if err := setPermanentRoleCommand(os.Args[2], "owner"); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if len(os.Args) > 2 && os.Args[1] == "set-cofounder" {
+		if err := setPermanentRoleCommand(os.Args[2], "cofounder"); err != nil {
 			log.Fatal(err)
 		}
 		return
@@ -49,9 +55,8 @@ func main() {
 	}
 }
 
-// setOwnerCommand is "service set-owner <person id>": it makes that person the Caller Whale owner and exits. It refuses when
-// someone else already is. Run it with `docker exec <authz container> /service set-owner <person id>` (the image has no shell).
-func setOwnerCommand(id string) error {
+// setPermanentRoleCommand sets the owner or cofounder and exits. Each role is assigned once.
+func setPermanentRoleCommand(id, role string) error {
 	id = strings.ToLower(strings.TrimSpace(id))
 	if !validID(id) {
 		return errors.New("give the person's id: a UUID, the sub of their sign-in token")
@@ -67,10 +72,15 @@ func setOwnerCommand(id string) error {
 		return err
 	}
 	defer rules.close()
-	if err := rules.setPlatformOwner(ctx, id); err != nil {
+	if role == "owner" {
+		err = rules.setPlatformOwner(ctx, id)
+	} else {
+		err = rules.setCofounder(ctx, id)
+	}
+	if err != nil {
 		return err
 	}
-	fmt.Printf("%s is the Caller Whale owner\n", id)
+	fmt.Printf("%s is the Caller Whale %s\n", id, role)
 	return nil
 }
 
@@ -105,6 +115,16 @@ func run() error {
 			return err
 		default:
 			log.Printf("INFO %s is the Caller Whale owner", cfg.platformOwner)
+		}
+	}
+	if cfg.platformCofounder != "" {
+		switch err := rules.setCofounder(ctx, cfg.platformCofounder); {
+		case errors.Is(err, errCofounderTaken):
+			log.Print("WARN AUTHZ_PLATFORM_COFOUNDER is ignored: Caller Whale already has a different cofounder")
+		case err != nil:
+			return err
+		default:
+			log.Printf("INFO %s is the Caller Whale cofounder", cfg.platformCofounder)
 		}
 	}
 	s := &server{cfg: cfg, rules: rules, keys: k, now: time.Now}

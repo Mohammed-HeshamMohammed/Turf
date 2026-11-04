@@ -97,17 +97,48 @@ func TestPostgres(t *testing.T) {
 	if r, _ := s.staffRole(ctx, ownerID); r != "owner" {
 		t.Errorf("the Caller Whale owner: %q", r)
 	}
+	must(s.setCofounder(ctx, callerID))
+	must(s.setCofounder(ctx, callerID))
+	if err := s.setCofounder(ctx, strangerID); err != errCofounderTaken {
+		t.Errorf("second cofounder: %v", err)
+	}
+	if _, err := s.db.Exec(ctx, `DELETE FROM authz_staff WHERE user_id=$1`, ownerID); err == nil {
+		t.Error("database deleted the permanent owner")
+	}
+	if _, err := s.db.Exec(ctx, `UPDATE authz_staff SET role='tester' WHERE user_id=$1`, callerID); err == nil {
+		t.Error("database changed the permanent cofounder")
+	}
+	if ok, err := s.check(ctx, callerID, "", "manage_staff"); err != nil || !ok {
+		t.Errorf("cofounder manages staff: %t %v", ok, err)
+	}
 	must(s.setMembership(ctx, org1, membership{UserID: callerID, Roles: []string{"caller"}}))
 	if spaces, err := s.workspaces(ctx, callerID); err != nil || !slices.Equal(spaces, []string{org1}) {
 		t.Errorf("workspaces: %v %v", spaces, err)
 	}
 	must(s.removeMember(ctx, org1, callerID))
-	must(s.setStaff(ctx, strangerID, "admin"))
-	if r, _ := s.staffRole(ctx, strangerID); r != "admin" {
+	must(s.setStaff(ctx, strangerID, "system_admin"))
+	if r, _ := s.staffRole(ctx, strangerID); r != "system_admin" {
 		t.Errorf("staff: %q", r)
 	}
 	must(s.setStaff(ctx, strangerID, ""))
 	if r, _ := s.staffRole(ctx, strangerID); r != "" {
 		t.Errorf("staff removed: %q", r)
+	}
+	must(s.setStaff(ctx, strangerID, "tester"))
+	if ok, err := s.check(ctx, strangerID, "", "staff"); err != nil || ok {
+		t.Errorf("tester got staff access: %t %v", ok, err)
+	}
+	if ok, err := s.check(ctx, strangerID, "", "tester"); err != nil || !ok {
+		t.Errorf("tester identity: %t %v", ok, err)
+	}
+	// Startup runs schema setup again. Permanent roles must still belong to the same people.
+	again, err := newPostgres(ctx, url)
+	must(err)
+	defer again.close()
+	if r, err := again.staffRole(ctx, ownerID); err != nil || r != "owner" {
+		t.Errorf("owner after redeploy: %q %v", r, err)
+	}
+	if r, err := again.staffRole(ctx, callerID); err != nil || r != "cofounder" {
+		t.Errorf("cofounder after redeploy: %q %v", r, err)
 	}
 }

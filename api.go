@@ -152,7 +152,7 @@ func (s *server) answer(ctx context.Context, c checkItem) (bool, error) {
 	if !validID(c.UserID) || !(slices.Contains(capabilities, c.Permission) || slices.Contains(checkable, c.Permission)) {
 		return false, bad("Send user_id and a known permission.")
 	}
-	if c.Permission != "staff" && c.Permission != "manage_staff" && !validID(c.OrgID) {
+	if c.Permission != "staff" && c.Permission != "manage_staff" && c.Permission != "tester" && !validID(c.OrgID) {
 		return false, bad("Send org_id for a permission in a workspace.")
 	}
 	ok, err := s.rules.check(ctx, c.UserID, c.OrgID, c.Permission)
@@ -449,8 +449,8 @@ func (s *server) putStanding(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// putStaff makes someone one of Caller Whale's staff admins, or takes it away. Only the platform owner may, and nobody can
-// change the platform owner.
+// putStaff assigns system admins and testers. The platform owner and cofounder may do this;
+// neither permanent role can be changed here.
 func (s *server) putStaff(w http.ResponseWriter, r *http.Request) error {
 	user := r.PathValue("user")
 	if !validID(user) {
@@ -463,8 +463,8 @@ func (s *server) putStaff(w http.ResponseWriter, r *http.Request) error {
 	if err := readJSON(w, r, &body); err != nil {
 		return err
 	}
-	if body.Role != "" && body.Role != "admin" {
-		return bad("A staff role is admin, or empty to take it away.")
+	if body.Role != "" && body.Role != "system_admin" && body.Role != "tester" {
+		return bad("A staff role is system_admin, tester, or empty to take it away.")
 	}
 	if !validID(body.ActorID) {
 		return bad("Send actor_id: the person asking for this change.")
@@ -473,8 +473,8 @@ func (s *server) putStaff(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return store(err)
 	}
-	if actorRole != "owner" {
-		return forbidden("Only the platform owner manages staff.")
+	if actorRole != "owner" && actorRole != "cofounder" {
+		return forbidden("Only the platform owner or cofounder manages staff.")
 	}
 	if s.cfg.staffSecondStep && !body.ActorSecondStep {
 		return forbidden("Confirm it's you with your second step first.")
@@ -483,8 +483,8 @@ func (s *server) putStaff(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return store(err)
 	}
-	if target == "owner" {
-		return forbidden("The platform owner's access cannot be changed.")
+	if target == "owner" || target == "cofounder" {
+		return forbidden("The platform owner and cofounder cannot be changed here.")
 	}
 	if err := store(s.rules.setStaff(r.Context(), user, body.Role)); err != nil {
 		return err
@@ -493,11 +493,13 @@ func (s *server) putStaff(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// ladder names the platform places in words people read: the Caller Whale owner and the system admins.
+// ladder names the platform places in words people read.
 var ladder = map[string]string{
-	"owner": "Caller Whale owner",
-	"admin": "System admin",
-	"held":  "Business owner",
+	"owner":        "Caller Whale owner",
+	"cofounder":    "Cofounder",
+	"system_admin": "System admin",
+	"tester":       "Tester",
+	"held":         "Business owner",
 }
 
 type workspaceRoles struct {

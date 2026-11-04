@@ -59,11 +59,17 @@ func TestDecideStaff(t *testing.T) {
 	if d := decideStaff("", true, true); d.Allowed || d.Code != "not_staff" {
 		t.Errorf("not staff: %+v", d)
 	}
-	if d := decideStaff("admin", false, true); d.Allowed || d.Code != "second_step_required" {
+	if d := decideStaff("system_admin", false, true); d.Allowed || d.Code != "second_step_required" {
 		t.Errorf("staff without the second step: %+v", d)
 	}
-	if d := decideStaff("admin", true, true); !d.Allowed || d.DBRole != "cw_staff" {
+	if d := decideStaff("system_admin", true, true); !d.Allowed || d.DBRole != "cw_staff" {
 		t.Errorf("staff: %+v", d)
+	}
+	if d := decideStaff("cofounder", true, true); !d.Allowed || d.DBRole != "cw_staff" {
+		t.Errorf("cofounder: %+v", d)
+	}
+	if d := decideStaff("tester", true, true); d.Allowed || d.Code != "not_staff" {
+		t.Errorf("tester must not get staff database rights: %+v", d)
 	}
 }
 
