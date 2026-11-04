@@ -24,6 +24,15 @@ is; this service decides what they may do. Plan: [docs/plans/authorization-servi
 | Domain | none |
 | Settings | every key in `env/authz.production.example`, in Coolify only |
 
+### First deployment and owner
+
+1. Create and migrate the private SpiceDB resource using [its setup guide](../../deploy/spicedb/README.md). Keep its `SPICEDB_GRPC_PRESHARED_KEY` for the authz settings.
+2. Sign in to `https://callerwhale.com/account` and copy **Account ID**. This is the UUID returned as `/v1/me.id`, also the `sub` of your sign-in token. Put it in `AUTHZ_PLATFORM_OWNER` if you want owner assignment at first startup. If your account is not ready, leave the setting empty and add it before a later redeploy.
+3. Generate `AUTHZ_SIGNING_KEY` with `go run . new-key` from `services/authz`, or use PowerShell `[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))` for a 32-byte Ed25519 seed. Run the PowerShell command a second time for a **different** `billing=` token in `AUTHZ_TOKENS`. Copy the billing token to billing's `AUTHZ_TOKEN`; never put either secret in Git.
+4. Create the authz application with the Coolify settings above, paste the filled [production env example](../../env/authz.production.example), and deploy. Its startup writes the schema to SpiceDB and sets the owner only if no owner exists. Check the startup log for `is the Caller Whale owner` and for a healthy container.
+
+The owner role is for the Caller Whale platform. It is distinct from a customer's workspace owner. `AUTHZ_PLATFORM_OWNER` cannot replace an existing different owner; the service logs a warning if that slot is already taken.
+
 ## What it answers
 
 All requests need `Authorization: Bearer <the calling service's token>` from `AUTHZ_TOKENS`. Each service may make only some

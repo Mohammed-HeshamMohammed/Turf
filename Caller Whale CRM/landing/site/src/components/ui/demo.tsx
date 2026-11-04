@@ -1,11 +1,9 @@
 import { ResponsiveHeroBanner } from "./responsive-hero-banner.tsx";
-import { SiteHeader } from "./site-header.tsx";
-import type { Me } from "../../auth/auth-client.js";
 
 /** Caller Whale's configuration of the supplied hero component. */
-export function HeroDemo({ me, onSignOut }: { me: Me | null | undefined; onSignOut: () => void }) {
+export function HeroDemo({ signedIn }: { signedIn: boolean | undefined }) {
   return <ResponsiveHeroBanner
-    header={<SiteHeader path="/" me={me} onSignOut={onSignOut} />}
+    header={null}
     backgroundImageUrl="/screens/dashboard.webp"
     previewImageUrl="/screens/dashboard.webp"
     previewAlt="Caller Whale overview showing leads, next steps and pipeline value"
@@ -15,8 +13,8 @@ export function HeroDemo({ me, onSignOut }: { me: Me | null | undefined; onSignO
     title="Every lead has"
     titleLine2="a next call."
     description="Keep your lists, calls, deal notes and team handoffs in one workspace, so you always know what to do next."
-    primaryButtonText={me === undefined ? undefined : me ? "Your profile" : "Create an account"}
-    primaryButtonHref={me ? "/account" : "/signup"}
+    primaryButtonText={signedIn === undefined ? undefined : signedIn ? "Your profile" : "Create an account"}
+    primaryButtonHref={signedIn ? "/account" : "/signup"}
     secondaryButtonText="Explore features"
     secondaryButtonHref="/features"
   />;

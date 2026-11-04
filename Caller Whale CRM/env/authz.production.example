@@ -1,21 +1,29 @@
-# The authorization service on Coolify (application "authz", port 8104, no domain). Paste into Developer View; secrets in Coolify only.
+# Authorization on Coolify: application "authz", branch authz-backend-production, Dockerfile build, port 8104, network alias authz, NO domain.
+# Create and migrate SpiceDB first (deploy/spicedb/README.md). Paste these variables into authz's Developer View, replacing every <...>.
+# Keep generated secrets in Coolify; never commit a filled copy of this file.
 # HTTP port; default 8104. Match Coolify's container port and the callers' AUTHZ_URL.
 PORT=8104
 # SpiceDB's private gRPC address, host:port; default spicedb:50051. Never a public address.
 SPICEDB_ENDPOINT=spicedb:50051
-# Secret key SpiceDB was started with (its SPICEDB_GRPC_PRESHARED_KEY). Change both together, or every decision fails closed.
-SPICEDB_PRESHARED_KEY=<the SpiceDB preshared key>
+# Paste the exact SPICEDB_GRPC_PRESHARED_KEY from the SpiceDB resource. A mismatch prevents authz from starting.
+SPICEDB_PRESHARED_KEY=<paste the existing SpiceDB key>
 # true when SpiceDB serves TLS; default false on the private Docker network.
 SPICEDB_TLS=false
-# Secret Ed25519 key (base64 PKCS#8 or 32-byte seed) that signs grants; `service new-key` prints one. Keep stable; empty uses a temporary key.
-AUTHZ_SIGNING_KEY=<service new-key>
-# Secret caller tokens, caller=token comma-separated, 32+ characters each; only billing today (core-api once rebuilt). Each caller gets only its own rights.
-AUTHZ_TOKENS=billing=<token>
+# Generate once: PowerShell `[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))` (a 32-byte Ed25519 seed).
+# Or run `go run . new-key` from services/authz. Paste the output here and keep it stable across redeploys.
+# Empty would use a temporary signing key, invalidating grants on each restart.
+AUTHZ_SIGNING_KEY=<paste a new-key output>
+# Generate a unique 32-byte random token for billing. Put the SAME token in billing's AUTHZ_TOKEN. Do not add callers that are not deployed.
+# PowerShell: [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+AUTHZ_TOKENS=billing=<paste a unique random token>
 # How long a grant lasts, 5 to 600 seconds; default 60. Shorter means faster revocation and more calls.
 AUTHZ_GRANT_SECONDS=60
 # Default true: roles that need the second step (owner, solo) must have passed it. false only for local testing.
 AUTHZ_REQUIRE_SECOND_STEP=true
 # Default true: Caller Whale's staff must have passed the second step. Keep true in production.
 AUTHZ_STAFF_SECOND_STEP=true
-# Optional. The person id (UUID, the sub of their sign-in token) of the Caller Whale owner. Applied at start only when Caller Whale has no owner yet; it never replaces one.
+# To set the first Caller Whale owner, sign in at callerwhale.com/account and copy Account ID (a UUID) here BEFORE starting authz.
+# The same id is /v1/me.id and the sign-in token's sub. Email addresses and Firebase IDs do not work.
+# If you have not signed up yet, leave this empty, deploy authz, then set the ID and redeploy. It only fills an empty owner slot.
+# An existing different owner is never replaced by changing this variable.
 AUTHZ_PLATFORM_OWNER=

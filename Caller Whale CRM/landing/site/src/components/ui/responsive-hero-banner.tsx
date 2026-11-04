@@ -77,7 +77,7 @@ export function ResponsiveHeroBanner({
   };
   return <section className="hero-banner" onPointerMove={moveBackground} onPointerLeave={resetBackground}>
     {backgroundImageUrl && <img className="hero-banner-bg" src={backgroundImageUrl} alt="" aria-hidden="true" />}
-    {header || <header className="hero-banner-nav">
+    {header !== undefined ? header : <header className="hero-banner-nav">
       <Link className="hero-brand" to="/"><img src={logoUrl} alt="" width="34" height="34" />Caller Whale</Link>
       <nav className="hero-nav-desktop" aria-label="Main">
         {navLinks.map(link => <Link key={link.href} to={link.href}>{link.label}</Link>)}

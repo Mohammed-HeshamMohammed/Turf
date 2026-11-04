@@ -11,6 +11,7 @@ import { Contact, Privacy, Terms } from "./PublicPages.tsx";
 import { WhyCallerWhale } from "./WhyCallerWhale.tsx";
 import { HeroDemo } from "./components/ui/demo.tsx";
 import { SiteHeader } from "./components/ui/site-header.tsx";
+import { SiteFooter } from "./components/ui/site-footer.tsx";
 import { cleanPath, routeFor } from "./routes.ts";
 
 // Anything that changes who is signed in (new tokens, a refresh the server refused, signing out) tells the page.
@@ -57,11 +58,11 @@ function useMe() {
   return [me, setMe] as const;
 }
 
-function Home({ me, onSignOut }: { me: Who; onSignOut: () => void }) {
+function Home({ me }: { me: Who }) {
   const steps = [["Lists", "Import leads and keep the source intact."], ["Lead records", "Find the next step and the full history."], ["Calls", "Work the queue and record outcomes."], ["Handoffs", "Move a deal to the right teammate."], ["Reports", "See what moved forward and export your data."]];
   return (
     <>
-      <HeroDemo me={me} onSignOut={onSignOut} />
+      <HeroDemo signedIn={me === undefined ? undefined : Boolean(me)} />
       <section className="section" aria-labelledby="workspace-title"><h2 id="workspace-title">One flow, from list to closed deal.</h2><div className="steps five">{steps.map(([title, text], i) => <div className="card step" key={title}><span>0{i + 1}</span><b>{title}</b><span>{text}</span></div>)}</div><p><Link to="/why-caller-whale">Why keep it together →</Link></p></section>
       <section className="cta"><h2>Build a plan around your work.</h2><p>Choose the features your team needs and see the draft monthly total as you go.</p><Link className="button primary" to="/pricing">Explore pricing</Link></section>
     </>
@@ -213,6 +214,7 @@ function Forgot() {
 }
 
 function Account({ me }: { me: Who }) {
+  const [copied, setCopied] = useState(false);
   if (me === undefined) return <div className="form-wrap"><p className="muted">Loading…</p></div>;
   if (!me) {
     return (
@@ -233,6 +235,7 @@ function Account({ me }: { me: Who }) {
           <br />
           <span className="muted">{me.email}</span>
         </p>
+        <div className="account-id"><span className="muted">Account ID</span><code>{me.id}</code><button type="button" className="button raised" onClick={() => navigator.clipboard.writeText(me.id).then(() => setCopied(true), () => setCopied(false))}>{copied ? "Copied" : "Copy ID"}</button></div>
       </div>
     </div>
   );
@@ -288,7 +291,7 @@ export function App({ path: first = "/" }) {
     }
   }, [me]);
   const pages: Record<string, React.ReactNode> = {
-    "/": <Home me={me} onSignOut={signOut} />,
+    "/": <Home me={me} />,
     "/signin": <SignIn onDone={signedIn} notice={notice} />,
     "/signup": <SignUp onDone={signedIn} />,
     "/forgot": <Forgot />,
@@ -304,18 +307,9 @@ export function App({ path: first = "/" }) {
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
   return (
     <div className="page">
-      {cleanPath(path) !== "/" && <SiteHeader path={path} me={me} onSignOut={signOut} />}
+      <SiteHeader path={path} me={me} onSignOut={signOut} />
       <main>{pages[cleanPath(path)] || (routeFor(path).key.startsWith("feature:") ? <FeaturePage slug={featureSlug} /> : <NotFound />)}</main>
-      <footer className="footer mt-4 text-accent-ink">
-        <span>© Caller Whale</span>
-        <Link to="/pricing">Pricing</Link>
-        <Link to="/features">Features</Link>
-        <Link to="/why-caller-whale">Why Caller Whale</Link>
-        <Link to="/security">Security</Link>
-        <Link to="/contact">Contact</Link>
-        <Link to="/privacy">Privacy</Link>
-        <Link to="/terms">Terms</Link>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
