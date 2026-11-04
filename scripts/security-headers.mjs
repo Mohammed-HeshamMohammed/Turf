@@ -12,24 +12,25 @@ export const BADGE_STYLE = ".grecaptcha-badge{visibility:hidden}";
 const badgeHash = `'sha256-${createHash("sha256").update(BADGE_STYLE).digest("base64")}'`;
 
 /** The origin (scheme and host) of the auth service address, or an error saying what is wrong with it. */
-export function authOrigin(value) {
+export function authOrigin(value, setting = "VITE_CALLERWHALE_AUTH_URL") {
   let url;
   try {
     url = new URL(String(value || ""));
   } catch {
-    throw new Error("Set VITE_CALLERWHALE_AUTH_URL to the auth service's address, like https://auth.example.com");
+    throw new Error(`Set ${setting} to a service origin, like https://auth.example.com`);
   }
   const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
-  if (url.protocol !== "https:" && !(local && url.protocol === "http:")) throw new Error("VITE_CALLERWHALE_AUTH_URL must be an https address");
+  if (url.protocol !== "https:" && !(local && url.protocol === "http:")) throw new Error(`${setting} must be an https address`);
   if ((url.pathname !== "/" && url.pathname !== "") || url.search || url.hash || url.username || url.password) {
-    throw new Error("VITE_CALLERWHALE_AUTH_URL must be only the address, with no path, query or login");
+    throw new Error(`${setting} must be only the address, with no path, query or login`);
   }
   return url.origin;
 }
 
 /** The headers, one `add_header` per line. Included again in every nginx location that sets a header of its own. */
-export function securityHeaders(authUrl) {
+export function securityHeaders(authUrl, gatewayUrl = "https://gate.callerwhale.com") {
   const origin = authOrigin(authUrl);
+  const gateway = authOrigin(gatewayUrl, "VITE_CALLERWHALE_GATEWAY_URL");
   const policy = [
     "default-src 'none'",
     // The invisible human check, when the auth service turns it on, loads Google's script and frame.
@@ -38,7 +39,7 @@ export function securityHeaders(authUrl) {
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self'",
-    `connect-src 'self' ${origin}`,
+    `connect-src 'self' ${origin} ${gateway}`,
     "frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/",
     "form-action 'self'",
     "base-uri 'none'",
@@ -59,5 +60,5 @@ export function securityHeaders(authUrl) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [file] = process.argv.slice(2);
   if (!file) throw new Error("Usage: node scripts/security-headers.mjs <output file>");
-  writeFileSync(file, securityHeaders(process.env.VITE_CALLERWHALE_AUTH_URL));
+  writeFileSync(file, securityHeaders(process.env.VITE_CALLERWHALE_AUTH_URL, process.env.VITE_CALLERWHALE_GATEWAY_URL || "https://gate.callerwhale.com"));
 }
