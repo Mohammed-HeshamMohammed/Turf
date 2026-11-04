@@ -11,8 +11,8 @@ import (
 // callerRights are the requests each calling service may make. Workers and the gateway only ask questions; only the core
 // API changes who belongs where, and only billing and the core API set a workspace's standing.
 var callerRights = map[string][]string{
-	"core-api": {"grant", "check", "read", "manage", "open", "standing"},
-	"auth":     {"read"},
+	"core-api": {"grant", "check", "read", "manage", "manage_staff", "open", "standing"},
+	"auth":     {"read", "manage_staff"},
 	"billing":  {"grant", "check", "standing"},
 	"gateway":  {"check"},
 	"worker":   {"check"},

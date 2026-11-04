@@ -49,6 +49,7 @@ workspace's standing.
 | `PUT /v1/orgs/{org}/standing` | Suspended and payment-required flags (billing, core API) |
 | `GET /v1/people/{user}` | Who this person is: their place on the platform (`platform_role`, `platform_label`) and their roles in each workspace (`business_owner` is true for the workspace's owner). Auth reads this for the signed-in person's website dashboard. |
 | `PUT /v1/staff/{user}` | Assign or remove `system_admin` and `tester`; platform owner or cofounder only |
+| `GET /v1/staff` | List platform roles for the private auth bridge and core API |
 | `GET /.well-known/jwks.json` | The public key that verifies grants |
 | `GET /healthz`, `GET /version` | Health and version |
 

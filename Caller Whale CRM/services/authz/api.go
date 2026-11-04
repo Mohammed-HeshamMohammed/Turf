@@ -58,7 +58,8 @@ func (s *server) handler() http.Handler {
 	mux.Handle("PUT /v1/orgs/{org}/members/{user}", s.only("manage", s.putMember))
 	mux.Handle("DELETE /v1/orgs/{org}/members/{user}", s.only("manage", s.deleteMember))
 	mux.Handle("PUT /v1/orgs/{org}/standing", s.only("standing", s.putStanding))
-	mux.Handle("PUT /v1/staff/{user}", s.only("manage", s.putStaff))
+	mux.Handle("PUT /v1/staff/{user}", s.only("manage_staff", s.putStaff))
+	mux.Handle("GET /v1/staff", s.only("read", s.listStaff))
 	return logHTTP(mux)
 }
 
@@ -490,6 +491,16 @@ func (s *server) putStaff(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "access_changed": true})
+	return nil
+}
+
+// listStaff returns the platform directory only to private services with read rights.
+func (s *server) listStaff(w http.ResponseWriter, r *http.Request) error {
+	members, err := s.rules.staffMembers(r.Context())
+	if err != nil {
+		return store(err)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"staff": members})
 	return nil
 }
 

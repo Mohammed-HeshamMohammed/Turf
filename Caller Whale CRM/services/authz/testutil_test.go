@@ -80,6 +80,14 @@ func (m *memEngine) staffRole(_ context.Context, user string) (string, error) {
 	return m.staff[user], m.down()
 }
 
+func (m *memEngine) staffMembers(_ context.Context) ([]staffMember, error) {
+	members := []staffMember{}
+	for user, role := range m.staff {
+		members = append(members, staffMember{UserID: user, Role: role})
+	}
+	return members, m.down()
+}
+
 func (m *memEngine) check(ctx context.Context, user, org, permission string) (bool, error) {
 	switch permission {
 	case "staff":
@@ -226,6 +234,7 @@ func (m *memEngine) setStaff(_ context.Context, user, staffRole string) error {
 
 const (
 	coreToken    = "core-api-token-0123456789abcdef0123456789"
+	authToken    = "auth-token-0123456789abcdef0123456789"
 	billingToken = "billing-token-0123456789abcdef0123456789"
 	gatewayToken = "gateway-token-0123456789abcdef0123456789"
 	org1         = "11111111-1111-4111-8111-111111111111"
@@ -251,7 +260,7 @@ func newHarness(t *testing.T) *harness {
 	}
 	h := &harness{t: t, mem: newMem(), keys: k, clock: time.Unix(1_800_000_000, 0)}
 	cfg := config{
-		tokens:            map[string]string{coreToken: "core-api", billingToken: "billing", gatewayToken: "gateway"},
+		tokens:            map[string]string{coreToken: "core-api", authToken: "auth", billingToken: "billing", gatewayToken: "gateway"},
 		grantSeconds:      60,
 		requireSecondStep: true,
 		staffSecondStep:   true,
