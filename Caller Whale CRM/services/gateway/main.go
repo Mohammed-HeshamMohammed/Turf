@@ -145,6 +145,8 @@ const (
 // classify decides what a core API request needs. Paths nobody listed as open fall under /api/v1 or the sync and event
 // routes and need a token; the internal routes (worker jobs, imports) never leave the private network.
 func classify(method, path string) need {
+	// Classified case-blind: an upper-case spelling of a guarded path must not fall through to open.
+	path = strings.ToLower(path)
 	switch {
 	// Health and version are for the private network: the container's own check never passes through here.
 	case path == "/healthz" || path == "/version":
