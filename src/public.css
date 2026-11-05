@@ -364,29 +364,6 @@
 .signup-picture .profile-avatar { width: 72px; font-size: 30px; flex: 0 0 auto; }
 .form .text-button, .signup-picture .text-button { justify-self: center; padding: 6px 10px; border: 0; background: transparent; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
 .admin-sidebar-brand strong { text-transform: uppercase; letter-spacing: .06em; }
-
-/* The profile: a card that follows what is typed, to the right of the forms when there is room, above them when there is not. */
-.profile-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
-.profile-main { grid-column: 1; grid-row: 1; display: grid; gap: 16px; min-width: 0; }
-.profile-main .profile-grid { grid-template-columns: minmax(0, 1fr); }
-.profile-live { grid-column: 2; grid-row: 1; position: sticky; top: 96px; display: grid; justify-items: center; gap: 10px; padding: 28px 20px; border-radius: var(--outer, 24px); background: var(--card, #fff); text-align: center; animation: profile-slide .35s ease-out both; }
-.profile-live h1 { margin: 6px 0 0; font-size: clamp(24px, 3vw, 30px); line-height: 1.15; overflow-wrap: anywhere; }
-.profile-live-email { margin: 0; overflow-wrap: anywhere; }
-.profile-live .profile-avatar { width: 140px; font-size: 56px; }
-.profile-live-picture { position: relative; }
-.profile-avatar-remove { position: absolute; top: 2px; right: 2px; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 2px solid var(--card, #fff); border-radius: 50%; background: #121212; color: #fff; font-size: 18px; line-height: 1; cursor: pointer; }
-.profile-avatar-remove:hover:not(:disabled) { background: var(--danger, #b3261e); }
-@keyframes profile-slide { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
-@media (max-width: 900px) {
-  .profile-layout { grid-template-columns: minmax(0, 1fr); }
-  .profile-live { grid-column: 1; grid-row: 1; position: static; grid-template-columns: auto minmax(0, 1fr); justify-items: start; text-align: left; align-items: center; column-gap: 18px; padding: 20px; animation-name: profile-drop; }
-  .profile-live-picture { grid-row: 1 / span 4; }
-  .profile-live .profile-avatar { width: 96px; font-size: 40px; }
-  .profile-live .notice { grid-column: 1 / -1; }
-  .profile-main { grid-column: 1; grid-row: 2; }
-}
-@keyframes profile-drop { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .profile-live { animation: none; } }
 /* Sign-up, step 2: a live preview of the profile, above the form on a narrow screen and to its right when there is room. */
 .signup-two { grid-template-columns: minmax(0, 1fr); gap: 16px; justify-items: center; align-content: start; }
 .signup-preview { display: grid; justify-items: center; gap: 8px; width: min(440px, 100%); padding: 20px; border-radius: var(--radius, 20px); background: var(--card, #fff); box-shadow: 0 0 0 1px var(--line); text-align: center; animation: preview-in .35s ease-out both; }
