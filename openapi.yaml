@@ -130,6 +130,11 @@ paths:
       security: [{ bearer: [] }]
       requestBody: { content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string, enum: [system_admin, tester] } } } } } }
       responses: { "201": { description: Invitation saved, with delivery_state sent, failed, or not_configured }, "403": { description: Founder with second step required }, "409": { description: Duplicate invitation or existing staff role } }
+  /v1/roles:
+    get:
+      summary: Every role there is, with nothing twice: the standard workspace roles, and the platform staff roles in their own group
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Role catalog }, "401": { description: Sign in first } }
   /v1/admin/members:
     get:
       summary: Accounts that are not platform staff, newest first, with workspaces, roles, two-step and last activity; staff with a second step
@@ -174,7 +179,7 @@ paths:
       responses: { "200": { description: Removed }, "403": { description: Owner or cofounder with second step required } }
   /v1/orgs/{org}/members:
     get:
-      summary: List workspace members; business owner with a second step only
+      summary: List workspace members; agency owner with a second step only
       security: [{ bearer: [] }]
       responses: { "200": { description: Members and roles }, "403": { description: Owner with second step required } }
   /v1/orgs/{org}/roles:
@@ -184,17 +189,17 @@ paths:
       responses: { "200": { description: Editable role keys }, "403": { description: Owner with second step required } }
   /v1/orgs/{org}/members/{user}:
     put:
-      summary: Change existing member roles without changing their scopes; business owner only
+      summary: Change existing member roles without changing their scopes; agency owner only
       security: [{ bearer: [] }]
       requestBody: { content: { application/json: { schema: { type: object, required: [roles], properties: { roles: { type: array, minItems: 1, maxItems: 8, items: { type: string } } } } } } }
       responses: { "200": { description: Role saved }, "403": { description: Owner or second step required }, "404": { description: Member absent } }
   /v1/orgs/{org}/invitations:
     get:
-      summary: List pending invitations in a workspace; business owner only
+      summary: List pending invitations in a workspace; agency owner only
       security: [{ bearer: [] }]
       responses: { "200": { description: Pending invitations } }
     post:
-      summary: Invite a person to an editable workspace role; business owner only
+      summary: Invite a person to an editable workspace role; agency owner only
       security: [{ bearer: [] }]
       requestBody: { content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string } } } } } }
       responses: { "201": { description: Invitation saved with delivery state }, "409": { description: Duplicate or existing member } }
