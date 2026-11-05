@@ -56,7 +56,8 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana-oss:13.0.2
+    build:
+      context: ./grafana
     environment:
       # Browser address, including the protected gateway subpath.
       # true serves Grafana under its configured root subpath. Must stay aligned with the gateway monitoring path.
@@ -126,6 +127,66 @@ services:
       retries: 3
     restart: unless-stopped
 
+  # ---- What Grafana watches (nothing below has a public address; they live on this resource's private network) ----
+  prometheus:
+    build:
+      context: ./prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+    volumes:
+      - prometheus-data:/prometheus
+    networks:
+      - grafana
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # The server itself: CPU, memory, disk, network, load, uptime.
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    command:
+      - --path.rootfs=/host
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+)($$|/)
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - grafana
+    restart: unless-stopped
+
+  # Every container on the server: what each one uses.
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=15s
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - grafana
+    restart: unless-stopped
+
+  # Asks each Caller Whale service whether it answers (it also sits on the shared Coolify network to reach them).
+  blackbox:
+    build:
+      context: ./blackbox
+    networks:
+      - grafana
+      - coolify
+    restart: unless-stopped
+
 networks:
   coolify:
     external: true
@@ -137,3 +198,4 @@ networks:
 
 volumes:
   grafana-data:
+  prometheus-data:
