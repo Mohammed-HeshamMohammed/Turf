@@ -81,7 +81,7 @@ func (s *server) adminStaff(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (s *server) assignStaff(w http.ResponseWriter, r *http.Request) error {
-	c, err := s.staffActor(r, true)
+	c, err := s.ownerActor(r)
 	if err != nil {
 		return err
 	}
