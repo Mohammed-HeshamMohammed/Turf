@@ -304,7 +304,7 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// The private proxy validates the HttpOnly admin session and rechecks the
-		// signed token, MFA and staff role with the core API on every request.
+		// signed token, MFA and staff role with Auth on every request.
 		rt = g.cfg.monitoring
 	}
 	// The auth service answers only the routes it has; everything else looks the same as nothing at all.

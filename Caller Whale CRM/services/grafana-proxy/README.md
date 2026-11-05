@@ -1,25 +1,25 @@
 # Grafana login proxy
 
-Lets only Caller Whale's staff into Grafana: the platform owner and system administrators, after the authenticator step. It asks the core API (`GET /api/v1/platform/whoami`) and passes the answer to Grafana in its auth-proxy headers (`X-WEBAUTH-USER`, `-EMAIL`, `-NAME`, `-ROLE`). Plan and progress: [docs/plans/grafana-access.md](../../docs/plans/grafana-access.md).
+Lets only Caller Whale's platform owner, cofounder, and system administrators into Grafana after MFA. Auth validates the session (`GET /v1/me`) and returns the current platform role (`GET /v1/me/access`). The proxy passes the approved identity to Grafana in its auth-proxy headers (`X-WEBAUTH-USER`, `-EMAIL`, `-NAME`, `-ROLE`). Plan and progress: [docs/plans/grafana-access.md](../../docs/plans/grafana-access.md).
 
-Not behind the gateway: it is its own way in, with its own domain (in Coolify, the only service of the Grafana resource with one).
+The gateway routes `/staff/monitoring/` to this proxy. Neither the proxy nor Grafana has its own public domain.
 
 ## How sign-in works
 
 1. A visit without a session, inside the admin page's frame, asks that page to post a sign-in; a direct visit is refused.
 2. The website, already signed in, posts the person's Caller Whale token to `/_callerwhale/session` (a form post, so the token is never in a URL). Only the website's origin may post it.
-3. The proxy asks `whoami`. If the person is staff, it sets the `callerwhale_grafana` cookie (a random session id, HttpOnly, Secure, SameSite=Lax) and sends them back to the path.
+3. The proxy asks Auth for the current session, MFA state, and platform role. If the person is staff, it sets the `callerwhale_grafana` cookie (a random session id, HttpOnly, Secure, SameSite=Lax) and sends them back to the path.
 4. Every request carries their id, email, name and Grafana role to Grafana. Headers the browser sent with those names, `Authorization` and the proxy's own cookie are removed first.
-5. At most once a `RECHECK_EVERY` it asks `whoami` again with the token it keeps in memory. If staff access is gone, the session ends at once. An expired token means signing in again. If the core API can't be reached, nobody gets through until it answers.
+5. At most once a `RECHECK_EVERY` it asks Auth again with the token it keeps in memory. If staff access is gone, the session ends at once. An expired token means signing in again. If Auth cannot answer, nobody gets through until it answers.
 
-The owner is Grafana's `Admin`, and system administrators get `ADMIN_GRAFANA_ROLE`. Sessions live in memory: run one copy; a restart only means signing in again.
+The owner and cofounder are Grafana `Admin`; system administrators get `ADMIN_GRAFANA_ROLE`. Sessions live in memory: run one copy; a restart only means signing in again.
 
 ## Settings
 
 | Variable | Default | What |
 | --- | --- | --- |
 | `GRAFANA_URL` | required | Grafana on the private network, e.g. `http://grafana:3000` |
-| `CALLERWHALE_CORE_API_URL` | required | The core API, e.g. `https://api.callerwhale.example` |
+| `CALLERWHALE_AUTH_URL` | required | Auth service, e.g. `https://auth.callerwhale.example` |
 | `CALLERWHALE_WEBSITE_URL` | required | The website with the admin dashboard; its origin is the only one allowed to post a sign-in |
 | `ADMIN_GRAFANA_ROLE` | `Editor` | `Viewer`, `Editor` or `Admin` for system administrators |
 | `RECHECK_EVERY` | `60s` | How often access is asked again |
@@ -37,11 +37,11 @@ Health: `GET /_callerwhale/health`, or `/service health` inside the container (e
 cd services/grafana-proxy && go test ./...
 ```
 
-The tests use a fake core API and a fake Grafana. They cover:
+The tests use a fake Auth service and a fake Grafana. They cover:
 - forged headers and cookies
 - sign-ins posted from other sites
 - the owner's and admins' roles
 - refusal on re-check
 - an expired token
-- a core API that's down
+- an Auth service that's down
 - the return path never leaving the site

@@ -75,6 +75,8 @@
 .admin-access-summary span, .admin-access-summary small { color: var(--muted); }
 .admin-access-summary strong { font-size: clamp(20px, 2vw, 28px); font-weight: 600; }
 .admin-team, .admin-manage, .admin-account { min-width: 0; padding: clamp(16px, 2vw, 24px); }
+.admin-monitoring { display: grid; gap: 16px; min-width: 0; padding: clamp(16px, 2vw, 24px); }
+.admin-monitoring iframe { width: 100%; min-height: 70vh; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
 .admin-team { display: grid; gap: 16px; }
 .admin-section-heading { display: flex; justify-content: space-between; align-items: start; gap: 20px; }
 .admin-section-heading h2, .admin-manage h2, .admin-account h2 { margin: 7px 0; font-size: clamp(23px, 2.6vw, 30px); font-weight: 550; }

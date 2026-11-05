@@ -15,7 +15,7 @@ import (
 
 const website = "https://app.callerwhale.example"
 
-// A fake core API: each token has an answer to whoami, and every call is counted.
+// A fake Auth service: it validates the session and returns the current staff role.
 type fakeCore struct {
 	mu      sync.Mutex
 	answers map[string]int // token -> status; 200 answers as the matching person
@@ -30,10 +30,12 @@ func (f *fakeCore) set(token string, status int, who person) {
 }
 
 func (f *fakeCore) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	f.calls.Add(1)
-	if r.URL.Path != "/api/v1/platform/whoami" {
+	if r.URL.Path != "/v1/me" && r.URL.Path != "/v1/me/access" {
 		http.NotFound(w, r)
 		return
+	}
+	if r.URL.Path == "/v1/me/access" {
+		f.calls.Add(1)
 	}
 	token := strings.TrimPrefix(r.Header.Get("authorization"), "Bearer ")
 	token = token[strings.LastIndex(token, ".")+1:] // tests name a token after its last part
@@ -46,7 +48,11 @@ func (f *fakeCore) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(status)
 	if status == http.StatusOK {
-		_ = json.NewEncoder(w).Encode(who)
+		if r.URL.Path == "/v1/me" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": who.ID, "email": who.Email, "name": who.Name, "mfa_passed": token != "mfa-false-token"})
+		} else {
+			_ = json.NewEncoder(w).Encode(map[string]any{"platform_role": who.Role})
+		}
 	}
 }
 
@@ -59,15 +65,18 @@ type world struct {
 
 var (
 	owner = person{ID: "11111111-1111-1111-1111-111111111111", Email: "owner@callerwhale.example", Name: "App Owner", Role: "owner"}
-	admin = person{ID: "22222222-2222-2222-2222-222222222222", Email: "helper@callerwhale.example", Name: "Support Person", Role: "admin"}
+	cofounder = person{ID: "33333333-3333-3333-3333-333333333333", Email: "cofounder@callerwhale.example", Name: "App Cofounder", Role: "cofounder"}
+	admin = person{ID: "22222222-2222-2222-2222-222222222222", Email: "helper@callerwhale.example", Name: "Support Person", Role: "system_admin"}
 )
 
-// newWorld starts a fake core API and a fake Grafana that answers with the headers it was sent.
+// newWorld starts a fake Auth service and a fake Grafana that answers with the headers it was sent.
 func newWorld(t *testing.T) *world {
 	t.Helper()
 	core := &fakeCore{answers: map[string]int{}, people: map[string]person{}}
 	core.set("owner-token", 200, owner)
+	core.set("cofounder-token", 200, cofounder)
 	core.set("admin-token", 200, admin)
+	core.set("mfa-false-token", 200, admin)
 	core.set("customer-token", 403, person{})
 	core.set("no-mfa-token", 401, person{})
 	coreSrv := httptest.NewServer(core)
@@ -76,7 +85,7 @@ func newWorld(t *testing.T) *world {
 		_ = json.NewEncoder(w).Encode(map[string]any{"path": r.URL.RequestURI(), "host": r.Host, "headers": r.Header})
 	}))
 	t.Cleanup(grafana.Close)
-	env := map[string]string{"GRAFANA_URL": grafana.URL, "CALLERWHALE_CORE_API_URL": coreSrv.URL, "CALLERWHALE_WEBSITE_URL": website + "/"}
+	env := map[string]string{"GRAFANA_URL": grafana.URL, "CALLERWHALE_AUTH_URL": coreSrv.URL, "CALLERWHALE_WEBSITE_URL": website + "/"}
 	cfg, err := loadConfig(func(k string) string { return env[k] })
 	if err != nil {
 		t.Fatal(err)
@@ -236,6 +245,14 @@ func TestASystemAdministratorGetsTheConfiguredRole(t *testing.T) {
 	}
 }
 
+func TestCofounderGetsGrafanaAdmin(t *testing.T) {
+	w := newWorld(t)
+	c := sessionCookie(t, w.signIn("cofounder-token", "/"))
+	if _, h := seen(t, w.page("/", c)); h.Get("X-Webauth-Role") != "Admin" || h.Get("X-Webauth-User") != cofounder.ID {
+		t.Fatalf("headers %v", h)
+	}
+}
+
 func TestCustomersAndStaffWithoutTheAuthenticatorStepGetNoSession(t *testing.T) {
 	w := newWorld(t)
 	rec := w.signIn("customer-token", "/")
@@ -246,6 +263,11 @@ func TestCustomersAndStaffWithoutTheAuthenticatorStepGetNoSession(t *testing.T) 
 	// A page, not a redirect: back at the website the same token would be posted again, forever.
 	if rec.Code != 401 || rec.Header().Get("location") != "" || hasSessionCookie(rec) || !strings.Contains(rec.Body.String(), "authenticator") {
 		t.Fatalf("no MFA: %d %q", rec.Code, rec.Header().Get("location"))
+	}
+	// The signed token's MFA claim alone cannot overrule Auth's current session state.
+	rec = w.signIn("mfa-false-token", "/")
+	if rec.Code != 401 || hasSessionCookie(rec) {
+		t.Fatalf("Auth revoked MFA: %d", rec.Code)
 	}
 	if rec := w.signIn("", "/"); rec.Code != 400 {
 		t.Fatalf("no token: %d", rec.Code)
@@ -331,7 +353,7 @@ func TestTheSessionEndsAtItsMaximumAge(t *testing.T) {
 	}
 }
 
-func TestWhenTheCoreAPIIsDownNobodyGetsThrough(t *testing.T) {
+func TestWhenAuthIsDownNobodyGetsThrough(t *testing.T) {
 	w := newWorld(t)
 	c := sessionCookie(t, w.signIn("owner-token", "/"))
 	w.coreSrv.Close()
@@ -344,10 +366,10 @@ func TestWhenTheCoreAPIIsDownNobodyGetsThrough(t *testing.T) {
 	}
 }
 
-func TestAStrangeAnswerFromTheCoreAPIIsNotTrusted(t *testing.T) {
+func TestAStrangeRoleFromAuthIsNotTrusted(t *testing.T) {
 	w := newWorld(t)
-	w.core.set("odd-token", 200, person{ID: owner.ID, Role: "business-owner"})
-	if rec := w.signIn("odd-token", "/"); rec.Code != 503 || hasSessionCookie(rec) {
+	w.core.set("odd-token", 200, person{ID: owner.ID, Email: owner.Email, Role: "business-owner"})
+	if rec := w.signIn("odd-token", "/"); rec.Code != 403 || hasSessionCookie(rec) {
 		t.Fatalf("got %d", rec.Code)
 	}
 }
@@ -463,7 +485,7 @@ func TestTheReturnPathStaysOnThisSite(t *testing.T) {
 }
 
 func TestConfigNeedsItsAddressesAndChecksTheRest(t *testing.T) {
-	base := map[string]string{"GRAFANA_URL": "http://grafana:3000", "CALLERWHALE_CORE_API_URL": "http://core-api:8080", "CALLERWHALE_WEBSITE_URL": "https://app.callerwhale.example"}
+	base := map[string]string{"GRAFANA_URL": "http://grafana:3000", "CALLERWHALE_AUTH_URL": "http://auth:8101", "CALLERWHALE_WEBSITE_URL": "https://app.callerwhale.example"}
 	load := func(change map[string]string) (config, error) {
 		env := map[string]string{}
 		for k, v := range base {
@@ -479,7 +501,7 @@ func TestConfigNeedsItsAddressesAndChecksTheRest(t *testing.T) {
 		t.Fatalf("defaults: %+v %v", c, err)
 	}
 	for _, bad := range []map[string]string{
-		{"GRAFANA_URL": ""}, {"CALLERWHALE_CORE_API_URL": ""}, {"CALLERWHALE_WEBSITE_URL": ""}, {"CALLERWHALE_WEBSITE_URL": "not a url"},
+		{"GRAFANA_URL": ""}, {"CALLERWHALE_AUTH_URL": ""}, {"CALLERWHALE_WEBSITE_URL": ""}, {"CALLERWHALE_WEBSITE_URL": "not a url"},
 		{"RECHECK_EVERY": "soon"}, {"RECHECK_EVERY": "-1s"}, {"ADMIN_GRAFANA_ROLE": "GrafanaAdmin"},
 	} {
 		if _, err := load(bad); err == nil {
@@ -522,7 +544,7 @@ func TestMonitoringSubpathAndRevocation(t *testing.T) {
 	}
 }
 
-func TestMFARequiredEvenWhenCoreAccepts(t *testing.T) {
+func TestMFARequiredEvenWhenAuthAcceptsTheToken(t *testing.T) {
 	w := newWorld(t)
 	claims, _ := json.Marshal(map[string]any{"auth_time": w.clock.Add(-time.Minute).Unix(), "mfa": false})
 	token := "h." + base64.RawURLEncoding.EncodeToString(claims) + ".owner-token"
