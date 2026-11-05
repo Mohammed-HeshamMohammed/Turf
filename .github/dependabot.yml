@@ -1,0 +1,95 @@
+# Keeps every container's dependencies and base images current. One weekly pull request per ecosystem and folder group (minor and
+# patch updates together, each major update on its own), so there is a short list to review, not a flood. Security updates are
+# opened straight away by GitHub whatever this schedule says. The checks in .github/workflows/audit.yml tell which of them matter.
+version: 2
+
+updates:
+  # --- JavaScript: the websites, the desktop app's web part, and the tools -------------------------------------------------
+  - package-ecosystem: npm
+    directories:
+      - "/Caller Whale App"
+      - "/Caller Whale CRM/desktop/frontend/react"
+      - "/Caller Whale CRM/landing/site"
+      - "/Caller Whale CRM/landing/dashboard-web"
+      - "/Caller Whale CRM/tools/firebase"
+    schedule: { interval: weekly, day: monday, time: "06:00", timezone: "Etc/UTC" }
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+    labels: [dependencies, npm]
+
+  # --- Go: the gateway, auth, authorization, notifications and the Grafana login proxy -------------------------------------
+  - package-ecosystem: gomod
+    directories:
+      - "/Caller Whale CRM/services/gateway"
+      - "/Caller Whale CRM/services/auth"
+      - "/Caller Whale CRM/services/authz"
+      - "/Caller Whale CRM/services/notifications"
+      - "/Caller Whale CRM/services/grafana-proxy"
+    schedule: { interval: weekly, day: monday, time: "06:00", timezone: "Etc/UTC" }
+    open-pull-requests-limit: 5
+    groups:
+      go-minor-and-patch:
+        update-types: [minor, patch]
+    labels: [dependencies, go]
+
+  # --- Python: billing, and the skip-tracing engine ------------------------------------------------------------------------
+  - package-ecosystem: pip
+    directories:
+      - "/Caller Whale CRM/services/billing"
+      - "/service"
+    schedule: { interval: weekly, day: monday, time: "06:00", timezone: "Etc/UTC" }
+    open-pull-requests-limit: 5
+    groups:
+      python-minor-and-patch:
+        update-types: [minor, patch]
+    labels: [dependencies, python]
+
+  # --- Rust: the desktop app, the workspace of feature crates, and the desktop container -----------------------------------
+  - package-ecosystem: cargo
+    directories:
+      - "/Caller Whale App/src-tauri"
+      - "/Caller Whale CRM"
+      - "/Caller Whale CRM/desktop/container/rust"
+    schedule: { interval: weekly, day: monday, time: "06:00", timezone: "Etc/UTC" }
+    open-pull-requests-limit: 5
+    groups:
+      rust-minor-and-patch:
+        update-types: [minor, patch]
+    labels: [dependencies, rust]
+
+  # --- Containers: the base image of every Dockerfile (node, golang, python, rust, nginx, distroless) ------------------------
+  - package-ecosystem: docker
+    directories:
+      - "/Caller Whale CRM/landing/site"
+      - "/Caller Whale CRM/landing/dashboard-web"
+      - "/Caller Whale CRM/services/gateway"
+      - "/Caller Whale CRM/services/auth"
+      - "/Caller Whale CRM/services/authz"
+      - "/Caller Whale CRM/services/billing"
+      - "/Caller Whale CRM/services/notifications"
+      - "/Caller Whale CRM/services/grafana-proxy"
+      - "/Caller Whale CRM/services/features/ai-campaigns"
+      - "/Caller Whale CRM/services/features/backup-restore"
+      - "/Caller Whale CRM/services/features/crm"
+      - "/Caller Whale CRM/services/features/dialer-sms"
+      - "/Caller Whale CRM/services/features/exports"
+      - "/Caller Whale CRM/services/features/importing-lists"
+      - "/Caller Whale CRM/services/features/leads-map"
+      - "/Caller Whale CRM/services/features/skip-tracing"
+    schedule: { interval: weekly, day: monday, time: "06:00", timezone: "Etc/UTC" }
+    open-pull-requests-limit: 5
+    groups:
+      base-images:
+        patterns: ["*"]
+    labels: [dependencies, docker]
+
+  # --- The build checks themselves -----------------------------------------------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule: { interval: weekly, day: monday, time: "06:00", timezone: "Etc/UTC" }
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: [dependencies, github-actions]

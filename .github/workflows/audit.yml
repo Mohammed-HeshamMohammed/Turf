@@ -1,0 +1,112 @@
+name: Dependency audit
+
+# Looks for known security problems in what every container ships: npm packages, Go modules, Python packages and Rust crates.
+# It runs when a dependency file changes, and every morning, because a new advisory can land on an unchanged lockfile. Only
+# the packages that end up in the running software count (dev-only tools are left to the weekly dependency updates).
+# Dependabot (.github/dependabot.yml) opens the pull requests that fix what this finds.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/package-lock.json"
+      - "**/go.mod"
+      - "**/go.sum"
+      - "**/requirements*.txt"
+      - "**/Cargo.lock"
+      - ".github/workflows/audit.yml"
+  pull_request:
+    paths:
+      - "**/package-lock.json"
+      - "**/go.mod"
+      - "**/go.sum"
+      - "**/requirements*.txt"
+      - "**/Cargo.lock"
+      - ".github/workflows/audit.yml"
+  schedule:
+    - cron: "30 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm:
+    name: npm audit (${{ matrix.dir }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir:
+          - "Caller Whale App"
+          - "Caller Whale CRM/desktop/frontend/react"
+          - "Caller Whale CRM/landing/site"
+          - "Caller Whale CRM/landing/dashboard-web"
+          - "Caller Whale CRM/tools/firebase"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # High and critical problems in production packages fail the check; the lockfile is read as it is, nothing is installed.
+      - run: npm audit --omit=dev --audit-level=high --package-lock-only
+        working-directory: ${{ matrix.dir }}
+
+  go:
+    name: govulncheck (${{ matrix.dir }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir:
+          - gateway
+          - auth
+          - authz
+          - notifications
+          - grafana-proxy
+    defaults:
+      run:
+        working-directory: Caller Whale CRM/services/${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: Caller Whale CRM/services/${{ matrix.dir }}/go.mod
+      # Fails only when the code calls the vulnerable function, not merely when a module has an advisory.
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
+  python:
+    name: pip-audit (${{ matrix.dir }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir:
+          - Caller Whale CRM/services/billing
+          - service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install pip-audit
+      - run: pip-audit -r requirements.txt
+        working-directory: ${{ matrix.dir }}
+
+  rust:
+    name: cargo audit (${{ matrix.lock }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lock:
+          - Caller Whale App/src-tauri/Cargo.lock
+          - Caller Whale CRM/Cargo.lock
+          - Caller Whale CRM/desktop/container/rust/Cargo.lock
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      # Known vulnerabilities fail the check. Crates that are only unmaintained are reported as warnings and do not.
+      - run: cargo audit --file "${{ matrix.lock }}"
