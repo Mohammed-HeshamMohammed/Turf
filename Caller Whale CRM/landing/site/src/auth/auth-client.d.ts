@@ -39,6 +39,10 @@ export interface Auth {
   setWorkProfile(answers: { role: string; team_size: string; uses: string[]; other: string }): Promise<unknown>;
   signOut(): Promise<void>;
   forgotPassword(email: string): Promise<unknown>;
+	factors(): Promise<{ factors: { id: string; kind: string; label: string; created_at: number; last_used_at: number | null }[]; max_totp: number; email_enabled: boolean; available: { email: boolean; telegram: boolean; push: boolean } }>;
+	removeFactor(id: string): Promise<unknown>;
+	setEmailCodes(enabled: boolean): Promise<unknown>;
+	linkTelegram(): Promise<{ url: string; expires_in: number }>;
 	setupMfa(): Promise<{ secret: string; otpauth_url: string }>;
 	confirmMfa(code: string, label?: string): Promise<{ recovery_codes: string[] }>;
 	verifyMfa(code: string): Promise<unknown>;

@@ -49,7 +49,7 @@ var authRoutes = []string{
 	"POST /v1/mfa/setup", "POST /v1/mfa/totp/setup", "POST /v1/mfa/confirm", "POST /v1/mfa/totp/confirm", "POST /v1/mfa/verify",
 	"POST /v1/mfa/challenge/start", "POST /v1/mfa/challenge/send", "POST /v1/mfa/challenge/status", "POST /v1/mfa/challenge/answer",
 	"GET /v1/mfa/approvals", "POST /v1/mfa/approvals/{id}",
-	"POST /v1/mfa/telegram/link", "POST /v1/mfa/telegram/webhook/{secret}",
+	"POST /v1/mfa/email", "POST /v1/mfa/telegram/link", "POST /v1/mfa/telegram/webhook/{secret}",
 }
 
 // authAllowed is true for a request the auth service has a route for. A browser's preflight (OPTIONS) is let through for any

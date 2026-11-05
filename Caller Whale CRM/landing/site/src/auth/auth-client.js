@@ -192,6 +192,8 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
       await refresh();
       return answer;
     },
+    /** Turns the codes sent to the person's email on or off as a way to answer the second step. */
+    setEmailCodes: enabled => withToken("POST", "/v1/mfa/email", { enabled }),
     /** A one-time link that opens the bot in Telegram and links that chat. */
     linkTelegram: () => withToken("POST", "/v1/mfa/telegram/link"),
     /** Confirms a code from an authenticator device for this session (the older step-up). */

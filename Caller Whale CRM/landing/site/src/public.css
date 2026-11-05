@@ -378,3 +378,19 @@
 }
 @keyframes preview-in-side { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .signup-preview { animation: none; } }
+.settings-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; padding: 6px; border-radius: 999px; background: var(--card, #fff); box-shadow: 0 0 0 1px var(--line); width: fit-content; max-width: 100%; }
+.settings-tabs button { padding: 9px 18px; border: 0; border-radius: 999px; background: transparent; color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+.settings-tabs button.is-current { background: var(--accent); color: var(--ink); }
+.settings-stack { display: grid; gap: 16px; max-width: 760px; }
+.settings-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.settings-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.settings-list li:first-child { border-top: 0; }
+.settings-list li span:first-child { display: grid; gap: 2px; min-width: 0; }
+.role-badge.is-off { background: var(--raised); color: var(--muted); }
+.recovery-codes { margin: 0; padding: 14px; border-radius: 12px; background: var(--raised); font-size: 15px; line-height: 1.7; }
+.settings-setup { display: grid; gap: 12px; justify-items: start; }
+.settings-setup .field { display: grid; gap: 6px; font-weight: 550; }
+.settings-setup input { min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--inner, 12px); background: var(--raised); font: inherit; }
+.settings-stack .button:not(.primary) { background: var(--raised); }
+.settings-stack .text-button { padding: 6px 10px; border: 0; background: transparent; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
+.settings-stack .check { align-items: center; }
