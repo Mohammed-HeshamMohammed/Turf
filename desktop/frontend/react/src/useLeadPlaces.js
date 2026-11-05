@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCrm } from "./context.jsx";
-import { engineAvailable, locatable, locateAddresses, zipPlaces } from "./engine.js";
+import { engineAvailable, locatable, locateAddresses, zipPlaces } from "./engine.ts";
 
 const placeOf = lead => (lead.geo && Number.isFinite(lead.geo.lat) && Number.isFinite(lead.geo.lng) ? lead.geo : null);
 

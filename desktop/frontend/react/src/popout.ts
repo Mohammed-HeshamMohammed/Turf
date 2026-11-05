@@ -1,7 +1,7 @@
 // The caption bar can leave the app window and float over the whole screen. That needs a second window, which only the
 // desktop app can open; in a browser the bar stays inside the page. The two windows share one live feed over a BroadcastChannel.
 
-export const inDesktopApp = () => typeof window !== "undefined" && Boolean(window.__TAURI_INTERNALS__);
+export const inDesktopApp = () => typeof window !== "undefined" && Boolean((window as any).__TAURI_INTERNALS__);
 
 export const CAPTIONS_CHANNEL = "callerwhale-captions";
 export const CAPTIONS_ROUTE = "#/captions-window";

@@ -4,7 +4,7 @@ export function createUpdater({ check, restart, prepareInstall = async () => {} 
   let pending = null;
   let downloaded = false;
   let busy = false;
-  const listeners = new Set();
+  const listeners = new Set<() => void>();
   const publish = patch => {
     state = { ...state, ...patch };
     listeners.forEach(listener => listener());

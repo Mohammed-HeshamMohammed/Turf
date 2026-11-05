@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowBendUpLeft, ChartBar, FileText, Image, MapPin, Plus, Smiley, UserCircle, X } from "@phosphor-icons/react";
-import { PEOPLE } from "./data.js";
-import { REACTIONS, messagePreview } from "./model.js";
+import { PEOPLE } from "./data.ts";
+import { REACTIONS, messagePreview } from "./model.ts";
 import { Empty, Field, Modal } from "./ui.jsx";
 
 // The Inbox's chat tools: the + menu (photo, file, location, contact, poll), the emoji and GIF panel, and how each kind

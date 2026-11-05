@@ -1,5 +1,5 @@
-import { capability, visibleLeads, visibleThreads } from "./model.js";
-import { phoneNumberKey, validPhoneNumber } from "./phone.js";
+import { capability, visibleLeads, visibleThreads } from "./model.ts";
+import { phoneNumberKey, validPhoneNumber } from "./phone.ts";
 
 /** A phone-number conversation can belong to a known lead or just to the person messaging it. */
 export function smsRecipient(state, number) {

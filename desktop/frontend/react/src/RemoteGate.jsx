@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Lock, ShieldCheck, SignIn, UserCircleMinus, WifiSlash } from "@phosphor-icons/react";
 import { AppleMark, GoogleMark } from "./SignInMarks.jsx";
-import { api, apiBase, auth, organization, SERVER, SITE, setApiBase, setOrganization } from "./remote/api.js";
-import { MemoryVault, Vault } from "./remote/vault.js";
-import { inDesktopApp } from "./popout.js";
+import { api, apiBase, auth, organization, SERVER, SITE, setApiBase, setOrganization } from "./remote/api.ts";
+import { MemoryVault, Vault } from "./remote/vault.ts";
+import { inDesktopApp } from "./popout.ts";
 import { Button, Card, Field } from "./ui.jsx";
 import { SecondStep } from "./SecondStep.jsx";
 import { HumanCheck } from "./remote/human-check.jsx";
@@ -23,6 +23,7 @@ export function RemoteGate({ onReady, onLeave }) {
   const [humanToken, setHumanToken] = useState("");
   const [humanReset, setHumanReset] = useState(0);
   const [me, setMe] = useState(null);
+  const [birthDate, setBirthDate] = useState("");
   const [enrolment, setEnrolment] = useState(null);
   const [recovery, setRecovery] = useState(null);
   // The second step: the challenge the server handed over, and the ways it may be answered.
@@ -34,6 +35,12 @@ export function RemoteGate({ onReady, onLeave }) {
   async function check() {
     try {
       if (!auth.signedIn()) return setStep("signin");
+      // Caller Whale is for adults: an account that has not given its date of birth gives it before anything else.
+      const sessionPerson = await auth.me({ fresh: true }).catch(() => null);
+      if (sessionPerson && sessionPerson.age_confirmed === false) {
+        setMe({ user: sessionPerson });
+        return setStep("age");
+      }
       // An invitation from Caller Whale opens the person's workspace the first time they arrive with its email confirmed.
       const account = await api.account();
       if (account.access?.status === "unverified") {
@@ -250,13 +257,15 @@ export function RemoteGate({ onReady, onLeave }) {
   return (
     <div className="remote-gate">
       <Card
-        title={step === "unlock" ? "Keep an offline copy on this device?" : step === "notinvited" ? "You are not invited" : "Sign in to your Caller Whale workspace"}
+        title={step === "unlock" ? "Keep an offline copy on this device?" : step === "notinvited" ? "You are not invited" : step === "age" ? "Confirm your age" : "Sign in to your Caller Whale workspace"}
         subtitle={
           step === "unlock"
             ? "Records and pending changes are encrypted with a passphrase only you know."
             : step === "notinvited"
               ? "Only the owner, admins and people they invite can use Caller Whale."
-              : "Your records stay on your organization's server."
+              : step === "age"
+                ? "Caller Whale is for people aged 18 or older."
+                : "Your records stay on your organization's server."
         }
       >
         {step === "checking" && <p className="muted">Checking your session…</p>}
@@ -351,6 +360,26 @@ export function RemoteGate({ onReady, onLeave }) {
             </Field>
             <Button type="submit" variant="primary" icon={ShieldCheck} disabled={busy}>
               Confirm
+            </Button>
+            {signedInAs}
+          </form>
+        )}
+        {step === "age" && (
+          <form
+            className="remote-step"
+            onSubmit={event => {
+              event.preventDefault();
+              attempt(async () => {
+                await auth.setBirthDate(birthDate);
+                await check();
+              });
+            }}
+          >
+            <Field label="Date of birth" help="It is kept on your account and cannot be changed later.">
+              <input type="date" required autoComplete="bday" min="1900-01-01" max={new Date(Date.now() - 18 * 365.2425 * 86400000).toISOString().slice(0, 10)} value={birthDate} onChange={event => setBirthDate(event.target.value)} />
+            </Field>
+            <Button type="submit" variant="primary" icon={ShieldCheck} disabled={busy || !birthDate}>
+              Continue
             </Button>
             {signedInAs}
           </form>

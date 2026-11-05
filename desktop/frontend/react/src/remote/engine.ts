@@ -5,11 +5,13 @@
 // records (never the queue) and takes a fresh snapshot. One tab syncs at a time (Web Locks); the others hear about it
 // on a BroadcastChannel. Client clocks never decide anything: the server answers each operation.
 
-import { api as defaultApi, ApiError, auth, eventsUrl, socketProtocols } from "./api.js";
-import { applyChanges, storeFromSnapshot } from "./translate.js";
+import { api as defaultApi, ApiError, auth, eventsUrl, socketProtocols } from "./api.ts";
+import { applyChanges, storeFromSnapshot } from "./translate.ts";
 
 export class SyncEngine {
-  constructor({ vault, api = defaultApi, onChange = () => {}, socket = true }) {
+  vault: any; api: any; onChange: any; useSocket: any; store: any; ops: any[]; online: boolean; reachable: boolean; status: string;
+  error: string; running: any; again: boolean; channel: any; socket: any; stopped: any; connecting: any; extra: any;
+  constructor({ vault, api = defaultApi, onChange = () => {}, socket = true }: any) {
     this.vault = vault;
     this.api = api;
     this.onChange = onChange;
@@ -74,7 +76,7 @@ export class SyncEngine {
     await this.vault.remove(id);
     this.ops = this.ops.filter(item => item.id !== id);
     if (choice === "keep" && op.status === "Conflict" && op.fields) {
-      const base = Object.fromEntries(Object.entries(op.fields).map(([field, values]) => [field, values.server]));
+      const base = Object.fromEntries(Object.entries<any>(op.fields).map(([field, values]) => [field, values.server]));
       await this.enqueue({ ...op, id: crypto.randomUUID(), payload: { ...op.payload, base: { ...op.payload.base, ...base } }, fields: undefined, message: undefined });
     }
     this.emit();
@@ -195,7 +197,7 @@ export class SyncEngine {
     this.socket = socket;
     let timer = null;
     socket.onmessage = message => {
-      let event = {};
+      let event: any = {};
       try {
         event = JSON.parse(message.data);
       } catch {

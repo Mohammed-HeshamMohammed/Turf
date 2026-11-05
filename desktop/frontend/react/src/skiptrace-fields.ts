@@ -1,4 +1,4 @@
-import { FIRST_WORDS, LAST_WORDS, MAILING_WORDS, OWNER_WORDS, VOCABULARY } from "./field-vocabulary.js";
+import { FIRST_WORDS, LAST_WORDS, MAILING_WORDS, OWNER_WORDS, VOCABULARY } from "./field-vocabulary.ts";
 
 export const EVIDENCE_FIELDS = [
   {

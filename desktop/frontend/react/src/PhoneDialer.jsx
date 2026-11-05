@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Backspace, Phone, PhoneDisconnect, X } from "@phosphor-icons/react";
 import { useCrm } from "./context.jsx";
-import { capability, visibleLeads } from "./model.js";
-import { beginDemoCall, clearCallOutcome, endDemoCall, useCallSession } from "./callSession.js";
-import { dialerTarget } from "./dialer.js";
+import { capability, visibleLeads } from "./model.ts";
+import { beginDemoCall, clearCallOutcome, endDemoCall, useCallSession } from "./callSession.ts";
+import { dialerTarget } from "./dialer.ts";
 import { CallTimer } from "./CallTimer.jsx";
 import { Button, usePresence } from "./ui.jsx";
 

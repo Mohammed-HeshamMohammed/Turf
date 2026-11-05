@@ -1,9 +1,9 @@
 // Connected mode for the prototype: state built from the server's records with the person's pending changes replayed
 // on top, and the actions that become API operations.
 
-import { reducer } from "../model.js";
-import { seedState } from "../data.js";
-import { collectionsFromStore } from "./translate.js";
+import { reducer } from "../model.ts";
+import { seedState } from "../data.ts";
+import { collectionsFromStore } from "./translate.ts";
 
 /** The prototype reducer, plus the actions that bring server state in. */
 export function remoteReducer(state, action) {

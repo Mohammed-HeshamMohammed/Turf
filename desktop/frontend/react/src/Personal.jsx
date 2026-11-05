@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Bell, CalendarBlank, CheckCircle, SlidersHorizontal, UserCircle } from "@phosphor-icons/react";
-import { ROLES } from "./data.js";
-import { AVATAR_PRESETS, squareAvatar } from "./avatars.js";
+import { ROLES } from "./data.ts";
+import { AVATAR_PRESETS, squareAvatar } from "./avatars.ts";
 import { EmailChange } from "./EmailChange.jsx";
-import { personalProfile } from "./model.js";
+import { personalProfile } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { Avatar, Badge, Breadcrumb, Button, Card, Field, PageHeader, usePresence } from "./ui.jsx";
 

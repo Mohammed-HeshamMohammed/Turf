@@ -1,9 +1,10 @@
 // Caller Whale's Skip Tracing engine (../service, Python) as the CRM uses it. The desktop window reaches it through the Tauri
 // host (src-tauri/src/sidecar.rs); a browser tab on the dev server through /rpc (scripts/service-bridge.mjs). Where
 // neither exists, for instance the hosted demo, `engineAvailable` answers false and the page keeps its demo check.
-import { phoneColumns, sourceValue } from "./skiptrace-fields.js";
+import { phoneColumns, sourceValue } from "./skiptrace-fields.ts";
 
 export class EngineError extends Error {
+  code: string;
   constructor(code, message) {
     super(message);
     this.code = code;
@@ -54,7 +55,7 @@ export function engineAvailable() {
 }
 
 /** Follows a job until it ends. `onEvent` gets each stage event, `onStart` the job id (cancelling needs it). */
-export async function watchJob(jobId, { onEvent, signal } = {}) {
+export async function watchJob(jobId, { onEvent, signal }: { onEvent?: (_event: any) => void; signal?: AbortSignal } = {}) {
   let seen = 0;
   for (;;) {
     const job = await call("job.get", { job_id: jobId, after_event_id: seen });
@@ -336,7 +337,7 @@ export async function zipPlaces(leads) {
  * Exact places for leads' addresses. Answers { places: { leadId: { lat, lng, precision: "address" } }, notFound: [leadId] }.
  * `onStage` gets { done, total, found } as batches come back.
  */
-export async function locateAddresses(leads, { onStage, signal } = {}) {
+export async function locateAddresses(leads, { onStage, signal }: { onStage?: (_stage: any) => void; signal?: AbortSignal } = {}) {
   const asked = leads.filter(locatable);
   if (!asked.length) return { places: {}, notFound: [] };
   const columns = ["Street", "City", "State", "Zip"];

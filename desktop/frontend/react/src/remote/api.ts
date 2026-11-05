@@ -4,6 +4,8 @@
 import { createAuth } from "./auth-client.js";
 
 export class ApiError extends Error {
+  status: number;
+  code: string;
   constructor(status, code, message) {
     super(message);
     this.status = status;
@@ -51,7 +53,7 @@ export const auth = createAuth({ base: remembered("callerwhale.auth.url") || AUT
 export const organization = () => remembered("callerwhale.org");
 export const setOrganization = id => remember("callerwhale.org", id || "");
 
-export async function request(method, path, body, { base = apiBase(), timeout = 15000, retried = false } = {}) {
+export async function request(method: string, path: string, body?: unknown, { base = apiBase(), timeout = 15000, retried = false }: { base?: string; timeout?: number; retried?: boolean } = {}): Promise<any> {
   const token = await auth.accessToken().catch(() => null);
   const org = organization();
   const controller = new AbortController();

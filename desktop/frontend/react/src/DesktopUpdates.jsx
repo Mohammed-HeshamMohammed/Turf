@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from "react";
-import { desktopUpdater } from "./updates.js";
+import { desktopUpdater } from "./updates.ts";
 
 const HALF_HOUR = 30 * 60 * 1000;
 let lastCheck = 0;

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { DotsSixVertical } from "@phosphor-icons/react";
 import { CaptionsPanel } from "./LiveCaptions.jsx";
-import { CAPTIONS_CHANNEL, dragThisWindow, inDesktopApp, sizeThisWindow } from "./popout.js";
+import { CAPTIONS_CHANNEL, dragThisWindow, inDesktopApp, sizeThisWindow } from "./popout.ts";
 
 /**
  * What the floating caption window shows. It owns no call: the main window runs the captions and streams each frame here,
