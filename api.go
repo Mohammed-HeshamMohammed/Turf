@@ -509,13 +509,17 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	exempt := false
+	if ageConfirmed == 0 || !termsAccepted || workAnswers == nil {
+		exempt = s.setupExempt(r.Context(), u.id)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id": u.id, "email": u.email, "name": u.name, "mfa_enrolled": enrolled, "email_verified": u.emailVerified,
 		"mfa_passed": c.MFA, "session_id": c.SID,
 		"phone": phone, "avatar": avatar, "currency": currency,
 		"first_name": first, "middle_name": middle, "last_name": last,
-		"age_confirmed": ageConfirmed > 0,
-		"terms_accepted": termsAccepted, "terms_version": termsVersion, "work_profile": workAnswers,
+		"age_confirmed":  ageConfirmed > 0,
+		"terms_accepted": termsAccepted, "terms_version": termsVersion, "work_profile": workAnswers, "setup_exempt": exempt,
 	})
 	return nil
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"slices"
@@ -130,4 +131,17 @@ func (s *server) onboarding(r *http.Request, id string) (termsAccepted bool, pro
 		}
 	}
 	return termsAccepted, profile, nil
+}
+
+// setupExempt is true for Caller Whale's own owner and cofounder: they run the company, so they are not asked for their age, the terms or
+// their work when they sign in. Anyone else, and anyone when the authorization service cannot be asked, is asked as usual.
+func (s *server) setupExempt(ctx context.Context, id string) bool {
+	if s.cfg.authzURL == "" || s.cfg.authzToken == "" {
+		return false
+	}
+	profile, err := readAccess(ctx, s.cfg.authzURL, s.cfg.authzToken, id)
+	if err != nil {
+		return false
+	}
+	return profile.PlatformRole == "owner" || profile.PlatformRole == "cofounder"
 }
