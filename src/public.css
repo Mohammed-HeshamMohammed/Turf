@@ -355,3 +355,6 @@
 .choice input { flex: 0 0 auto; }
 .choice span { display: grid; gap: 2px; }
 .choice small { color: var(--muted); font-size: 13px; }
+.form-note { margin-top: 12px; color: var(--muted); font-size: 13px; text-align: center; }
+.form-note .fine { margin: 0; }
+.notice-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }

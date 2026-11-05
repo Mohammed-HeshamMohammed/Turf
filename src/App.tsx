@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes } from "react";
 import { createAuth, type AuthError, type Me } from "./auth/auth-client.js";
-import { HumanCheck } from "./auth/human-check.jsx";
+import { HumanCheck, HumanNotice } from "./auth/human-check.jsx";
 import { redirectFor, waitingForSecondStep } from "./guard.ts";
 import { readProfile, writeProfile, type CachedProfile } from "./profile-cache.ts";
 import { applyMetadata, metadataFor } from "./metadata.ts";
@@ -14,7 +14,7 @@ import { HeroDemo } from "./components/ui/demo.tsx";
 import { SiteHeader } from "./components/ui/site-header.tsx";
 import { hasCrmAccess, type CrmAccess } from "./crm-access.ts";
 import { crmUrl } from "./crm-url.ts";
-import { ageProblem, latestBirthDate } from "./age.ts";
+import { paramOf, wantsCrm } from "./links.ts";
 import { SiteFooter } from "./components/ui/site-footer.tsx";
 import { Dashboard } from "./Dashboard.tsx";
 import { Profile } from "./Profile.tsx";
@@ -110,15 +110,15 @@ function Field({ label, ...input }: { label: string } & InputHTMLAttributes<HTML
 
 /** Runs `fn`, keeps what went wrong (or the note it returns) for the form to show. Resolves true when it worked. */
 function useAction() {
-  const [state, setState] = useState({ busy: false, error: "", info: "" });
+  const [state, setState] = useState({ busy: false, error: "", info: "", code: "" });
   const run = async (fn: () => Promise<string | void>) => {
-    setState({ busy: true, error: "", info: "" });
+    setState({ busy: true, error: "", info: "", code: "" });
     try {
       const info = await fn();
-      setState({ busy: false, error: "", info: info || "" });
+      setState({ busy: false, error: "", info: info || "", code: "" });
       return true;
     } catch (error) {
-      setState({ busy: false, error: (error as Error).message || "Something went wrong. Try again.", info: "" });
+      setState({ busy: false, error: (error as Error).message || "Something went wrong. Try again.", info: "", code: (error as { code?: string }).code || "" });
       return false;
     }
   };
@@ -145,7 +145,7 @@ function Providers({ action, human }: { action: string; human: string }) {
 type Challenge = { challenge: string; method: string };
 
 function SignIn({ onDone, notice, me }: { onDone: () => void; notice: string; me: Me | null | undefined }) {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => paramOf(typeof window === "undefined" ? "" : window.location.search, "email"));
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [challenge, setChallenge] = useState<Challenge | null>(null);
@@ -232,41 +232,51 @@ function SignUp({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [again, setAgain] = useState("");
   const [human, setHuman] = useState("");
-  const [birth, setBirth] = useState("");
+  const [protectedByGoogle, setProtectedByGoogle] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [state, run] = useAction();
-  const birthProblem = ageProblem(birth);
+  const mismatch = again !== "" && again !== password;
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (birthProblem || !agreed) return;
-    if (await run(async () => void (await auth.signUp(name, email, password, "browser", human, birth, TERMS_VERSION)))) onDone();
+    if (mismatch || !agreed) return;
+    if (await run(async () => void (await auth.signUp(name, email, password, "browser", human, "", TERMS_VERSION)))) onDone();
   };
+  const taken = state.code === "conflict";
+  const mine = encodeURIComponent(email.trim());
   return (
     <div className="form-wrap">
       <form className="form card" onSubmit={submit}>
         <h1>Create your account</h1>
-        <Field label="Name" autoComplete="name" required value={name} onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)} />
+        <Field label="Display name" autoComplete="name" required value={name} onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)} />
         <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} />
         <Field label="Password" type="password" autoComplete="new-password" minLength={8} required value={password} onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)} />
-        <Field label="Date of birth" type="date" autoComplete="bday" required max={latestBirthDate()} min="1900-01-01" value={birth} onChange={(e: ChangeEvent<HTMLInputElement>) => setBirth(e.target.value)} />
-        <p className={birthProblem ? "notice bad" : "muted"} role={birthProblem ? "alert" : undefined}>{birthProblem || "You must be 18 or older. Your date of birth is kept on your account and cannot be changed later."}</p>
+        <Field label="Confirm password" type="password" autoComplete="new-password" minLength={8} required value={again} onChange={(e: ChangeEvent<HTMLInputElement>) => setAgain(e.target.value)} />
+        {mismatch && <p className="notice bad" role="alert">The two passwords are not the same.</p>}
         <label className="check"><input type="checkbox" required checked={agreed} onChange={(e: ChangeEvent<HTMLInputElement>) => setAgreed(e.target.checked)} /> <span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
-        <HumanCheck getAuth={getAuth} action="signup" onToken={setHuman} />
-        {state.error && <p className="notice bad" role="alert">{state.error}</p>}
-        <button className="button primary" disabled={state.busy || Boolean(birthProblem) || !agreed}>{state.busy ? "Creating…" : "Sign up"}</button>
+        <HumanCheck getAuth={getAuth} action="signup" onToken={setHuman} notice={false} onEnabled={setProtectedByGoogle} />
+        {taken ? (
+          <div className="notice" role="alert">
+            <strong>You already have an account with this email.</strong>
+            <p>Sign in instead. If you forgot your password, we can email you a link to choose a new one. If you signed up with Google or Apple, use that button on the sign-in page.</p>
+            <div className="notice-actions"><Link className="button primary" to={`/signin?email=${mine}`}>Sign in</Link><Link className="button" to={`/forgot?email=${mine}`}>Reset my password</Link></div>
+          </div>
+        ) : state.error && <p className="notice bad" role="alert">{state.error}</p>}
+        <button className="button primary" disabled={state.busy || mismatch || !agreed}>{state.busy ? "Creating…" : "Sign up"}</button>
         <Providers action="signup" human={human} />
         <div className="alt">
           <span className="muted">Already have an account?</span>
           <Link to="/signin">Sign in</Link>
         </div>
       </form>
+      {protectedByGoogle && <div className="form-note"><HumanNotice /></div>}
     </div>
   );
 }
 
 function Forgot() {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => paramOf(typeof window === "undefined" ? "" : window.location.search, "email"));
   const [state, run] = useAction();
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -319,6 +329,11 @@ export function App({ path: first = "/" }) {
   useEffect(() => { if (me) { writeProfile(me); setCached(readProfile()); } else if (me === null) { writeProfile(null); setCached(null); } }, [me]);
   // The link to the CRM is offered only to people with access to it (staff, or members of a workspace).
   const [crmLink, setCrmLink] = useState(false);
+  // Carries this sign-in to the CRM web app: a one-time code (good for two minutes) is traded there for its own session.
+  const openCrm = async () => {
+    try { window.location.assign(`${crmUrl}/?callerwhale_code=${encodeURIComponent(await auth.handoff("browser"))}`); }
+    catch { window.location.assign(crmUrl); }
+  };
   useEffect(() => {
     setCrmLink(false);
     if (!me || setupStep(me)) return;
@@ -336,7 +351,7 @@ export function App({ path: first = "/" }) {
     setNotice("");
     setMe(undefined);
     // keep() already notifies useMe, which restores the profile and handles a temporary failure.
-    go("/dashboard");
+    if (!wantsCrm(window.location.search)) go("/dashboard");
   };
   const signOut = async () => {
     leaving.current = true;
@@ -347,7 +362,9 @@ export function App({ path: first = "/" }) {
   // The title, description and canonical address follow the page (the build writes them into each page's HTML).
   useEffect(() => applyMetadata(metadataFor(routeFor(path).key)), [path]);
   // Pages are for the right state: signed in, nobody sees the sign-in forms; signed out, nobody sees the account page.
+  const fromCrm = typeof window !== "undefined" && wantsCrm(window.location.search);
   useEffect(() => {
+    if (me && fromCrm) { if (!setupStep(me)) void openCrm(); return; } // the setup steps (age, terms, work) come first
     const to = redirectFor(path, me);
     if (to) go(to, { replace: true });
   }, [path, me]);
@@ -366,7 +383,7 @@ export function App({ path: first = "/" }) {
   const setup = me ? <Setup me={me} auth={auth} onDone={() => { auth.me({ fresh: true }).then(setMe); }} onSignOut={signOut} /> : null;
   const pages: Record<string, React.ReactNode> = {
     "/": <Home me={me} />,
-    "/signin": <SignIn onDone={signedIn} notice={notice} me={me} />,
+    "/signin": me && fromCrm ? (setupStep(me) ? setup : <div className="form-wrap"><p className="muted" role="status">Opening the CRM…</p></div>) : <SignIn onDone={signedIn} notice={notice} me={me} />,
     "/signup": <SignUp onDone={signedIn} />,
     "/forgot": <Forgot />,
     "/pricing": <Pricing />,
@@ -382,7 +399,7 @@ export function App({ path: first = "/" }) {
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
   return (
     <div className={`page${cleanPath(path) === "/" ? " home-page" : ""}${cleanPath(path) === "/dashboard" ? " dashboard-shell" : ""}`}>
-      <SiteHeader path={path} me={me} onSignOut={signOut} savedSession={savedSession} cached={cached} crmUrl={crmLink ? crmUrl : ""} />
+      <SiteHeader path={path} me={me} onSignOut={signOut} savedSession={savedSession} cached={cached} openCrm={crmLink ? openCrm : undefined} />
       <main>{pages[cleanPath(path)] || (routeFor(path).key.startsWith("feature:") ? <FeaturePage slug={featureSlug} /> : <NotFound />)}</main>
       <SiteFooter compact={cleanPath(path) === "/dashboard"} />
     </div>

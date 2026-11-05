@@ -33,6 +33,7 @@ export interface Auth {
   signIn(email: string, password: string, code?: string, kind?: string, humanToken?: string): Promise<unknown>;
   signUp(name: string, email: string, password: string, kind?: string, humanToken?: string, birthDate?: string, termsVersion?: string): Promise<unknown>;
   setBirthDate(birthDate: string): Promise<unknown>;
+  handoff(kind?: "desktop" | "browser"): Promise<string>;
   acceptTerms(version: string): Promise<unknown>;
   setWorkProfile(answers: { role: string; team_size: string; uses: string[]; other: string }): Promise<unknown>;
   signOut(): Promise<void>;

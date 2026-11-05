@@ -6,4 +6,9 @@ export function HumanCheck(props: {
   action: string;
   resetKey?: number;
   onToken: (token: string) => void;
+  /** Show Google's notice inside the check (the default); false when the page shows <HumanNotice /> elsewhere. */
+  notice?: boolean;
+  onEnabled?: (enabled: boolean) => void;
 }): import("react").JSX.Element | null;
+
+export function HumanNotice(): import("react").JSX.Element;
