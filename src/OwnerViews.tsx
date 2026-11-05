@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { workspaceRoleName } from "./roles.ts";
+import type { Auth } from "./auth/auth-client.js";
+import { SecondStep, needsSecondStep } from "./SecondStep.tsx";
 
 /** The dashboard's authed request to the auth service (it adds the token and turns refusals into messages). */
 export type Api = (method: string, path: string, body?: object) => Promise<any>;
@@ -110,7 +112,7 @@ export function PlatformOverview({ request, openCosts }: { request: Api; openCos
 
 type Member = { id: string; name: string; email: string; joined_at: number; last_active: number; email_verified: boolean; two_step: boolean; disabled: boolean; workspaces: number; roles: string[] };
 
-export function MembersTable({ request, canGive = false }: { request: Api; canGive?: boolean }) {
+export function MembersTable({ request, canGive = false, auth }: { request: Api; canGive?: boolean; auth?: Auth }) {
   const [reload, setReload] = useState(0);
   const [giving, setGiving] = useState<Member | null>(null);
   const [given, setGiven] = useState("");
@@ -137,7 +139,7 @@ export function MembersTable({ request, canGive = false }: { request: Api; canGi
         <td data-label="Security"><span className={`owner-badge ${member.two_step ? "good" : ""}`}>{member.two_step ? "Two-step on" : "No two-step"}</span> {!member.email_verified && <span className="owner-badge warn">Email not confirmed</span>} {member.disabled && <span className="owner-badge bad">Disabled</span>}</td>
         <td data-label="Joined">{when(member.joined_at)}</td><td data-label="Last seen">{when(member.last_active)}</td>{canGive && <td data-label="Action"><button type="button" className="staff-text-button" onClick={() => { setGiven(""); setGiving(member); }}>Give membership</button></td>}</tr>)}</tbody></table></div>}
     {given && <p className="notice" role="status">{given}</p>}
-    {giving && <GiveMembership request={request} member={giving} onClose={() => setGiving(null)} onGiven={text => { setGiving(null); setGiven(text); setReload(count => count + 1); }} />}
+    {giving && auth && <GiveMembership request={request} auth={auth} member={giving} onClose={() => setGiving(null)} onGiven={text => { setGiving(null); setGiven(text); setReload(count => count + 1); }} />}
   </section>;
 }
 
@@ -267,7 +269,7 @@ type PlanOption = { key: string; name: string; price_minor: number; currency: st
 const paymentNames: Record<string, string> = { trial: "Trial", free: "Free", manual: "Paid manually" };
 
 /** An owner or cofounder gives a person a plan they arranged with them: it opens their own workspace and starts the plan in billing. */
-function GiveMembership({ request, member, onClose, onGiven }: { request: Api; member: Member; onClose: () => void; onGiven: (text: string) => void }) {
+function GiveMembership({ request, auth, member, onClose, onGiven }: { request: Api; auth: Auth; member: Member; onClose: () => void; onGiven: (text: string) => void }) {
   const { data, error } = useLoad<{ plans: PlanOption[] }>(request, "/v1/admin/plans");
   const { data: catalog } = useLoad<{ workspace: { key: string; name: string; assignable: boolean }[] }>(request, "/v1/roles");
   const [plan, setPlan] = useState("");
@@ -278,14 +280,15 @@ function GiveMembership({ request, member, onClose, onGiven }: { request: Api; m
   const [amount, setAmount] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const plans = data?.plans || [];
   const chosen = plans.find(option => option.key === (plan || plans[0]?.key));
   // The roles that open a workspace are the ones a membership can give; the catalog says which, so nothing is listed twice or invented here.
   const roles = (catalog?.workspace || []).filter(entry => !entry.assignable);
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
+  const submit = async (event?: FormEvent) => {
+    event?.preventDefault();
     if (!chosen) return;
-    setBusy(true); setMessage("");
+    setBusy(true); setMessage(""); setConfirming(false);
     try {
       const digits = moneyDigits(chosen.currency);
       const answer = await request("POST", "/v1/admin/memberships", {
@@ -295,9 +298,17 @@ function GiveMembership({ request, member, onClose, onGiven }: { request: Api; m
       });
       const who = member.name || member.email;
       onGiven(`${who} now has the ${answer.plan_name || chosen.name} plan (${paymentNames[payment].toLowerCase()})${answer.workspace_created ? " in a new workspace" : " in their workspace"}.`);
-    } catch (problem) { setMessage(problem instanceof Error ? problem.message : "Could not give that membership."); }
+    } catch (problem) {
+      // Giving a membership needs a second step done just now: ask for the code here, and give it as soon as it is accepted.
+      if (needsSecondStep(problem)) setConfirming(true);
+      else setMessage(problem instanceof Error ? problem.message : "Could not give that membership.");
+    }
     setBusy(false);
   };
+  if (confirming) return <section className="admin-manage card" aria-labelledby="give-title">
+    <div><span className="eyebrow">Membership</span><h2 id="give-title">Give {member.name || member.email} a plan</h2></div>
+    <SecondStep auth={auth} reason="Giving a plan needs a code entered just now." onDone={() => void submit()} onCancel={onClose} />
+  </section>;
   return <section className="admin-manage card" aria-labelledby="give-title">
     <div><span className="eyebrow">Membership</span><h2 id="give-title">Give {member.name || member.email} a plan</h2><p className="muted">This opens their own workspace (or uses the one they have) and starts the plan. Their role is the one they hold in that workspace. Everyone else on their team is invited into it afterwards.</p></div>
     {error ? <p className="notice bad" role="alert">{error}</p> : <form className="staff-form" onSubmit={submit}>
