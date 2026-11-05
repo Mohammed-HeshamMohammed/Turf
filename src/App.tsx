@@ -145,18 +145,21 @@ function SignIn({ onDone, notice }: { onDone: () => void; notice: string }) {
   const [state, run] = useAction();
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    let codeNeeded = false;
     const ok = await run(async () => {
       try {
         await auth.signIn(email, password, code || undefined, "browser", human);
       } catch (error) {
         if ((error as AuthError).code === "mfa_required") {
-          setNeedCode(true);
+          codeNeeded = true;
           return;
         }
         throw error;
       }
     });
-    if (ok) onDone();
+    // Asking for the code is not signing in: nothing opens the dashboard until the code is accepted.
+    if (codeNeeded) setNeedCode(true);
+    else if (ok) onDone();
   };
   if (needCode) {
     // The password was right: the card now asks for the second step and nothing else.
