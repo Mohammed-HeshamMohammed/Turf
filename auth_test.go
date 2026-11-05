@@ -334,7 +334,7 @@ func TestSignUpRefusals(t *testing.T) {
 		"weak password":  {with("password", "short"), 400, "bad_request"},
 		"unknown kind":   {with("kind", "tablet"), 400, "bad_request"},
 		"missing fields": {map[string]any{}, 400, "bad_request"},
-		"no birth date": {with("birth_date", ""), 400, "bad_request"},
+		"no terms":      {with("terms_version", ""), 400, "bad_request"},
 		"a minor":       {with("birth_date", time.Now().AddDate(-17, 0, 0).Format("2006-01-02")), 403, "forbidden"},
 	} {
 		if a := post(c.body); a.status != c.status || a.str("code") != c.code {

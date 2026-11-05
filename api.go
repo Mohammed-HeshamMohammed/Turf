@@ -129,7 +129,7 @@ type signUpBody struct {
 	Password string `json:"password"`
 	Name     string `json:"name"`
 	Kind     string `json:"kind"`
-	// The date of birth (YYYY-MM-DD): the age check. Required.
+	// The date of birth (YYYY-MM-DD): the age check. Optional here; an account without one is asked for it before anything else.
 	BirthDate string `json:"birth_date"`
 	// The version of the terms and privacy notice they ticked. Required, and must be the current one.
 	TermsVersion string `json:"terms_version"`
@@ -151,9 +151,12 @@ func (s *server) signUp(w http.ResponseWriter, r *http.Request) error {
 	if n := utf8.RuneCountInString(name); n == 0 || n > 200 {
 		return bad("Enter your name.")
 	}
-	birth, err := parseBirthDate(body.BirthDate, time.Now())
-	if err != nil {
-		return err
+	var birth time.Time
+	if strings.TrimSpace(body.BirthDate) != "" {
+		var err error
+		if birth, err = parseBirthDate(body.BirthDate, time.Now()); err != nil {
+			return err
+		}
 	}
 	if body.TermsVersion != termsVersion {
 		return bad("Accept the Terms and the Privacy Policy to create an account.")
@@ -181,8 +184,13 @@ func (s *server) signUp(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	if _, err := s.db.Exec(ctx, "UPDATE users SET birth_date = $1, age_confirmed_at = $2, terms_version = $3, terms_accepted_at = $2 WHERE id = $4", birth.Format("2006-01-02"), now(), termsVersion, u.id); err != nil {
+	if _, err := s.db.Exec(ctx, "UPDATE users SET terms_version = $1, terms_accepted_at = $2 WHERE id = $3", termsVersion, now(), u.id); err != nil {
 		return err
+	}
+	if !birth.IsZero() {
+		if _, err := s.db.Exec(ctx, "UPDATE users SET birth_date = $1, age_confirmed_at = $2 WHERE id = $3", birth.Format("2006-01-02"), now(), u.id); err != nil {
+			return err
+		}
 	}
 	if s.mail != nil {
 		// The notification service sends the confirmation email, with a link this service makes and checks itself.
