@@ -278,7 +278,7 @@ func (p *proxy) signIn(w http.ResponseWriter, r *http.Request) {
 	// Auth still accepts it. Auth checks the token's signature before the claims are trusted.
 	at := signedInAt(token)
 	if at.After(p.now()) || p.now().Sub(at) > p.cfg.authWithin || !hasMFA(token) {
-		page(w, http.StatusUnauthorized, "Sign in again", "Admin mode needs a recent sign-in with your authenticator code. Sign in to Caller Whale again, then start admin mode.")
+		p.askForCode(w, "Sign in again", "Admin mode needs a recent sign-in with your authenticator code. Sign in to Caller Whale again, then start admin mode.")
 		return
 	}
 	who, v := p.whoami(token)
@@ -305,7 +305,7 @@ func (p *proxy) signIn(w http.ResponseWriter, r *http.Request) {
 	// frame again (the panel closed and reopened).
 	if _, used := p.used[key]; used && !p.liveLocked(key, now) {
 		p.mu.Unlock()
-		page(w, http.StatusUnauthorized, "Sign in again", "Admin mode ended. To go back in, sign in to Caller Whale again with your authenticator code, then start admin mode.")
+		p.askForCode(w, "Sign in again", "Admin mode ended. To go back in, sign in to Caller Whale again with your authenticator code, then start admin mode.")
 		return
 	}
 	for k, t := range p.used {
@@ -521,6 +521,13 @@ func randomID() (string, error) {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+// askForCode is the refusal for a sign-in that is too old. The words are for anyone who opens this address on its own; inside the
+// dashboard's frame the page also tells the dashboard, which asks for the authenticator code right there and opens admin mode again.
+func (p *proxy) askForCode(w http.ResponseWriter, title, text string) {
+	page(w, http.StatusUnauthorized, title, text)
+	fmt.Fprintf(w, `<script>parent.postMessage("callerwhale-grafana-stepup",%q)</script>`, p.cfg.origin)
 }
 
 func page(w http.ResponseWriter, status int, title, text string) {
