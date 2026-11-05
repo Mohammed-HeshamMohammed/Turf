@@ -116,7 +116,10 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
     signedIn: () => Boolean(access || readRefresh()),
     accessToken,
     refresh,
-    signUp: (name, email, password, kind = "browser", human_token = "") => call("POST", "/v1/accounts", { name, email, password, kind, ...(human_token ? { human_token } : {}) }).then(keep),
+    /** `birth_date` is YYYY-MM-DD: the age check. Refused (403) under 18. */
+    signUp: (name, email, password, kind = "browser", human_token = "", birth_date = "") => call("POST", "/v1/accounts", { name, email, password, kind, birth_date, ...(human_token ? { human_token } : {}) }).then(keep),
+    /** The age check for an account that has not given its date of birth yet (`me.age_confirmed` is false). Once only. */
+    setBirthDate: birth_date => withToken("POST", "/v1/me/birth-date", { birth_date }),
     /** With two-step sign-in on, the first try answers code "mfa_required"; try again with `code`. */
     signIn: (email, password, code, kind = "browser", human_token = "") => call("POST", "/v1/sessions", { email, password, ...(code ? { code } : {}), kind, ...(human_token ? { human_token } : {}) }).then(keep),
     /** Emails a password reset link. The answer is the same for any address. */
