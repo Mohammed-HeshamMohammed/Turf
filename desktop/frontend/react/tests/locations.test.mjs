@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { coordinates, mappedRecord, sourceEvidence } from "../src/skiptrace-fields.js";
-import { recordLocation, mapSearchUrl } from "../src/locations.js";
-import { reducer, visibleLeads } from "../src/model.js";
-import { seedState } from "../src/data.js";
+import { coordinates, mappedRecord, sourceEvidence } from "../src/skiptrace-fields.ts";
+import { recordLocation, mapSearchUrl } from "../src/locations.ts";
+import { reducer, visibleLeads } from "../src/model.ts";
+import { seedState } from "../src/data.ts";
 
 test("coordinates accept zero and international points, reject blanks, partial and invalid pairs", () => {
   assert.deepEqual(coordinates(0, 0), [0, 0]);

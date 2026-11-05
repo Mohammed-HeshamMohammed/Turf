@@ -1,4 +1,4 @@
-import { numberedOwnerColumns, SOURCE_FIELDS, sourceEvidence } from "./skiptrace-fields.js";
+import { numberedOwnerColumns, SOURCE_FIELDS, sourceEvidence } from "./skiptrace-fields.ts";
 import { Field, Select } from "./ui.jsx";
 
 /** How Caller Whale found a field's column, shown under it. */

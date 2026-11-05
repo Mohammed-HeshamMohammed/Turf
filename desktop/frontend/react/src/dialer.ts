@@ -1,6 +1,6 @@
-import { canEditLead, capability, visibleLeads } from "./model.js";
-import { phoneNumberKey as dialNumberKey } from "./phone.js";
-export { phoneNumberKey as dialNumberKey } from "./phone.js";
+import { canEditLead, capability, visibleLeads } from "./model.ts";
+import { phoneNumberKey as dialNumberKey } from "./phone.ts";
+export { phoneNumberKey as dialNumberKey } from "./phone.ts";
 
 /** Resolve a typed number without creating a lead or bypassing an existing contact's calling restrictions. */
 export function dialerTarget(state, number) {

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Archive, ArrowUUpLeft, EnvelopeSimple, PaperPlaneTilt, Plus } from "@phosphor-icons/react";
 import { useCrm } from "./context.jsx";
-import { ROLES } from "./data.js";
+import { ROLES } from "./data.ts";
 import { EmailThread, subjectOf } from "./email.jsx";
-import { capability, uid, visibleLeads, visibleThreads } from "./model.js";
+import { capability, uid, visibleLeads, visibleThreads } from "./model.ts";
 import { Badge, Button, Card, Empty, Field, Modal, PageHeader, RoundButton, Search, Select } from "./ui.jsx";
 
 // Mail: email with leads and partners, kept apart from the chats in Inbox. Folders, subject-first rows, and the email

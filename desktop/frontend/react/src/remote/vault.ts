@@ -4,7 +4,7 @@
 
 import Dexie from "dexie";
 
-const db = new Dexie("callerwhale-crm-offline");
+const db = new Dexie("callerwhale-crm-offline") as Dexie & Record<"meta" | "sealed" | "queue", any>;
 db.version(1).stores({ meta: "key", sealed: "key", queue: "id, seq" });
 
 const encoder = new TextEncoder();
@@ -29,6 +29,7 @@ async function open(key, box) {
 }
 
 export class Vault {
+  key: any; owner: any;
   constructor(key, owner) {
     this.key = key;
     this.owner = owner;
@@ -107,6 +108,7 @@ export class Vault {
 
 /** A vault-shaped store that keeps everything in memory, for people who choose no passphrase. */
 export class MemoryVault {
+  values: Map<string, any>; ops: any[];
   constructor() {
     this.values = new Map();
     this.ops = [];

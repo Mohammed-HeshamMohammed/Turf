@@ -1,5 +1,5 @@
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { CALL_DAYS, CALL_TREND } from "./data.js";
+import { CALL_DAYS, CALL_TREND } from "./data.ts";
 import { DataTable, useTableView } from "./ui.jsx";
 
 function IntervalTooltip({ active, payload }) {

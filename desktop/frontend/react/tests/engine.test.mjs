@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { after, before, test } from "node:test";
-import { check, checkRepeats, crmVerdict, engineAvailable, engineConfig, locatable, prepare, saveCopy, sourceCsv, stateCode, zipPlaces } from "../src/engine.js";
+import { check, checkRepeats, crmVerdict, engineAvailable, engineConfig, locatable, prepare, saveCopy, sourceCsv, stateCode, zipPlaces } from "../src/engine.ts";
 import { ALLOWED_COMMANDS, refusal } from "../scripts/service-bridge.mjs";
 
 // CALLERWHALE_SERVICE_ROOT: where the engine is when this part is checked out alone (skip-engine-production).

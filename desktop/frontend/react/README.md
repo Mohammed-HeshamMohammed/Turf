@@ -9,6 +9,7 @@ npm run desktop          # the Tauri window, signed-in mode (needs a Caller Whal
 npm run desktop:sample   # the Tauri window on the sample workspace
 npm test                 # node --test tests/*.test.mjs
 npm run lint
+npm run typecheck      # TypeScript, checked without building
 npm run build            # dist/client, plus the Sites build files for the demo
 ```
 

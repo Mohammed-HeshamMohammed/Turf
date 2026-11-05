@@ -1,7 +1,7 @@
 import { ArrowUpRight, ChatCircle, Phone, CheckCircle, Clock, Users, Handshake, ShieldCheck, Database, HardDrives, GearSix, Plus } from "@phosphor-icons/react";
 import { Suspense, lazy } from "react";
-import { ROLES, TODAY } from "./data.js";
-import { callbackLabel, capability, conversationPath, dayLabel, personalProfile, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
+import { ROLES, TODAY } from "./data.ts";
+import { callbackLabel, capability, conversationPath, dayLabel, personalProfile, visibleLeads, visibleTasks, visibleThreads } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { Badge, Button, Card, Empty, LeadLink, RoundButton, Status, money, PageHeader, propertyFacts } from "./ui.jsx";
 

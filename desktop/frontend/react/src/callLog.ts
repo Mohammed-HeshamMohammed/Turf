@@ -1,10 +1,10 @@
-import { ROLES } from "./data.js";
-import { visibleLeads } from "./model.js";
+import { ROLES } from "./data.ts";
+import { visibleLeads } from "./model.ts";
 
 export function visibleCallLog(state) {
   const leads = visibleLeads(state);
-  const byId = new Map(leads.map(lead => [lead.id, lead]));
-  const entries = new Map((state.callLog || [])
+  const byId = new Map<any, any>(leads.map(lead => [lead.id, lead]));
+  const entries = new Map<any, any>((state.callLog || [])
     .filter(call => call.leadId ? byId.has(call.leadId) : call.agent === ROLES[state.role].person)
     .map(call => [call.id, { ...call, name: byId.get(call.leadId)?.name || call.name, outcome: call.leadId ? "Outcome not recorded" : "Completed" }]));
   for (const lead of leads) {

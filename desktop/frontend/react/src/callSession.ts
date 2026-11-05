@@ -31,8 +31,8 @@ let session = {
   // Settled lines, oldest first: { id, who, side, text }.
   transcript: [],
 };
-const listeners = new Set();
-const logListeners = new Set();
+const listeners = new Set<() => void>();
+const logListeners = new Set<(_call: any) => void>();
 export function subscribeCallLog(listener) {
   logListeners.add(listener);
   return () => logListeners.delete(listener);

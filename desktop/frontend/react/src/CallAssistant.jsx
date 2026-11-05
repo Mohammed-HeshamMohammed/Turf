@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ChatCenteredText, Flag, Pause, Play, Plus, Question, Sparkle, Warning, X } from "@phosphor-icons/react";
 import { Card, Select, Field } from "./ui.jsx";
-import { cuesFor } from "./cues.js";
-import { useCallSession } from "./callSession.js";
+import { cuesFor } from "./cues.ts";
+import { useCallSession } from "./callSession.ts";
 
 const STORAGE_KEY = "callerwhale.full-crm.ai-assist";
 const INTERVAL = 6000;

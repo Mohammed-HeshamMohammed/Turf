@@ -27,14 +27,14 @@ import {
   PencilSimple,
   X,
 } from "@phosphor-icons/react";
-import { CALL_OUTCOMES, DEAL_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
-import { callbackLabel, canEditLead, dayLabel, capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.js";
+import { CALL_OUTCOMES, DEAL_STAGES, PEOPLE, ROLES, TODAY } from "./data.ts";
+import { callbackLabel, canEditLead, dayLabel, capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { CallAssistant } from "./CallAssistant.jsx";
 import { CallTimer } from "./CallTimer.jsx";
 import { CallLog } from "./CallLog.jsx";
-import { smsRecipient } from "./sms.js";
-import { beginDemoCall, clearCallOutcome, endDemoCall, getCallSession, setCallSession, useCallSession } from "./callSession.js";
+import { smsRecipient } from "./sms.ts";
+import { beginDemoCall, clearCallOutcome, endDemoCall, getCallSession, setCallSession, useCallSession } from "./callSession.ts";
 import {
   Badge,
   BoardColumn,

@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ROLES, seedState } from "../src/data.js";
-import { reducer, restoreState, visibleThreads } from "../src/model.js";
-import { smsRecipient } from "../src/sms.js";
-import { callDuration, visibleCallLog } from "../src/callLog.js";
-import { beginDemoCall, clearCallOutcome, endDemoCall, getCallSession, subscribeCallLog } from "../src/callSession.js";
+import { ROLES, seedState } from "../src/data.ts";
+import { reducer, restoreState, visibleThreads } from "../src/model.ts";
+import { smsRecipient } from "../src/sms.ts";
+import { callDuration, visibleCallLog } from "../src/callLog.ts";
+import { beginDemoCall, clearCallOutcome, endDemoCall, getCallSession, subscribeCallLog } from "../src/callSession.ts";
 
 const phone = "+1 (202) 555-0199";
 const thread = { id: "number-thread", leadId: null, phone, channel: "SMS", unread: false, preview: "New conversation", messages: [] };
@@ -147,7 +147,7 @@ test("an email reply keeps its To, Cc and Subject, and a bad address is refused"
 });
 
 test("mail keeps its own unread count and drafts, apart from the chat inbox", async () => {
-  const { navCounts, conversationPath } = await import("../src/model.js");
+  const { navCounts, conversationPath } = await import("../src/model.ts");
   let state = { ...seedState(), role: "owner" };
   const threads = visibleThreads(state);
   const emailUnread = threads.filter(item => item.unread && item.channel === "Email").length;

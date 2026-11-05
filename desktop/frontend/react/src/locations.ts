@@ -1,4 +1,4 @@
-import { coordinates, mappedRecord } from "./skiptrace-fields.js";
+import { coordinates, mappedRecord } from "./skiptrace-fields.ts";
 
 // Rounded city reference areas, never property coordinates or geocoded addresses.
 const FLORIDA_AREAS = { tampa: [28, -82.5], orlando: [28.5, -81.4], clearwater: [28, -82.8], "st petersburg": [27.8, -82.6] };

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { addTranscriptLine, beginDemoCall, clearCallOutcome, endDemoCall, getCallSession, setCallSession } from "../src/callSession.js";
+import { addTranscriptLine, beginDemoCall, clearCallOutcome, endDemoCall, getCallSession, setCallSession } from "../src/callSession.ts";
 
 const sarah = { id: "sarah", name: "Sarah Johnson", phone: "+1 (813) 555-0101" };
 const michael = { id: "michael", name: "Michael Bennett", phone: "+1 (813) 555-0102" };

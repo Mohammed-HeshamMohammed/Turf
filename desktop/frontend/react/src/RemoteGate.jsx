@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Lock, ShieldCheck, SignIn, UserCircleMinus, WifiSlash } from "@phosphor-icons/react";
 import { AppleMark, GoogleMark } from "./SignInMarks.jsx";
-import { api, apiBase, auth, organization, SERVER, SITE, setApiBase, setOrganization } from "./remote/api.js";
-import { MemoryVault, Vault } from "./remote/vault.js";
-import { inDesktopApp } from "./popout.js";
+import { api, apiBase, auth, organization, SERVER, SITE, setApiBase, setOrganization } from "./remote/api.ts";
+import { MemoryVault, Vault } from "./remote/vault.ts";
+import { inDesktopApp } from "./popout.ts";
 import { Button, Card, Field } from "./ui.jsx";
 import { SecondStep } from "./SecondStep.jsx";
 import { HumanCheck } from "./remote/human-check.jsx";

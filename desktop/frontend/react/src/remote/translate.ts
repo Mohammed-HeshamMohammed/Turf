@@ -1,7 +1,7 @@
 // Translation between the Caller Whale API's records and this prototype's state, and from prototype actions to API
 // operations. Pure functions: the sync engine and the tests use them the same way.
 
-import { ROLES } from "../data.js";
+import { ROLES } from "../data.ts";
 
 /** The prototype role for a member's server roles; the broadest wins. */
 export function roleKey(roles = []) {
@@ -140,7 +140,7 @@ export function handoffFromServer(handoff, directory = []) {
 
 /** The record collections of prototype state from the server's raw store. */
 export function collectionsFromStore(store) {
-  const records = kind => Object.values(store[kind] || {});
+  const records = (kind: string): any[] => Object.values(store[kind] || {});
   const context = { directory: store.directory || [], teams: store.teams || [], calls: records("calls"), notes: records("notes") };
   return {
     leads: records("leads")
@@ -175,7 +175,7 @@ export function applyChanges(store, changes) {
       if (change.entity === "lead") {
         // Everything hanging off a lead goes with it.
         for (const child of ["tasks", "notes", "calls", "deals", "handoffs"]) {
-          next[child] = Object.fromEntries(Object.entries(next[child] || {}).filter(([, record]) => record.lead_id !== change.id));
+          next[child] = Object.fromEntries(Object.entries<any>(next[child] || {}).filter(([, record]) => record.lead_id !== change.id));
         }
       }
     } else {
@@ -227,8 +227,8 @@ export function operationFor(action, before, store) {
           payload: { ids: [lead.id], assignee_id: idOf(directory, change.assignee), reason: "Changed in the lead record" },
         };
       }
-      const changes = {};
-      const edited = {};
+      const changes: Record<string, any> = {};
+      const edited: Record<string, any> = {};
       if (change.stage !== undefined) {
         changes.stage = change.stage;
         edited.stage = lead.stage;
@@ -280,8 +280,8 @@ export function operationFor(action, before, store) {
     case "DEAL": {
       const deal = before.deals.find(item => item.id === action.id);
       if (!deal) return null;
-      const changes = {};
-      const edited = {};
+      const changes: Record<string, any> = {};
+      const edited: Record<string, any> = {};
       for (const [field, server] of [
         ["stage", "stage"],
         ["amount", "amount"],
@@ -330,8 +330,8 @@ export function operationFor(action, before, store) {
     case "UPDATE_TASK": {
       const task = before.tasks.find(item => item.id === action.id);
       if (!task) return null;
-      const changes = {};
-      const edited = {};
+      const changes: Record<string, any> = {};
+      const edited: Record<string, any> = {};
       const { change } = action;
       for (const field of ["title", "type", "priority"]) {
         if (typeof change[field] === "string") {

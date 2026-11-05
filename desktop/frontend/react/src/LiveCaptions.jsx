@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowSquareIn, ArrowSquareOut, ClosedCaptioning, DotsSixVertical, Microphone, PlayCircle, TextAa, X } from "@phosphor-icons/react";
-import { ROLES } from "./data.js";
+import { ROLES } from "./data.ts";
 import { useCrm } from "./context.jsx";
-import { addTranscriptLine, getCallSession, setCallSession, useCallSession } from "./callSession.js";
-import { speechSupported, startListening } from "./listen.js";
-import { CAPTIONS_CHANNEL, closeCaptionsWindow, inDesktopApp, openCaptionsWindow } from "./popout.js";
+import { addTranscriptLine, getCallSession, setCallSession, useCallSession } from "./callSession.ts";
+import { speechSupported, startListening } from "./listen.ts";
+import { CAPTIONS_CHANNEL, closeCaptionsWindow, inDesktopApp, openCaptionsWindow } from "./popout.ts";
 import { usePresence } from "./ui.jsx";
 
 const WORD_MS = 230;

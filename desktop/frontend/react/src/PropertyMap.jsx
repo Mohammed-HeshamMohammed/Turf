@@ -3,7 +3,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 const EMPTY = [];
 import { MapPin, ArrowsOut, ArrowUpRight } from "@phosphor-icons/react";
 import { useCrm } from "./context.jsx";
-import { recordLocation, mapSearchUrl } from "./locations.js";
+import { recordLocation, mapSearchUrl } from "./locations.ts";
 import { Badge, Select, Button, useShowMore } from "./ui.jsx";
 import { Crosshair } from "@phosphor-icons/react";
 import { locateLabel, useLeadPlaces } from "./useLeadPlaces.js";

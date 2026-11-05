@@ -15,8 +15,8 @@ import {
   Users,
   UsersThree,
 } from "@phosphor-icons/react";
-import { ROLES } from "./data.js";
-import { navCounts } from "./model.js";
+import { ROLES } from "./data.ts";
+import { navCounts } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { CountBadge } from "./ui.jsx";
 

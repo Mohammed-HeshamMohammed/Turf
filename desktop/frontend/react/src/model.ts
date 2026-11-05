@@ -1,6 +1,6 @@
-import { CALL_OUTCOMES, PEOPLE, ROLES, TODAY, seedState } from "./data.js";
-import { detectSourceFields, headerKey, leadFromSource, SOURCE_FIELDS } from "./skiptrace-fields.js";
-import { phoneNumberKey, validPhoneNumber } from "./phone.js";
+import { CALL_OUTCOMES, PEOPLE, ROLES, TODAY, seedState } from "./data.ts";
+import { detectSourceFields, headerKey, leadFromSource, SOURCE_FIELDS } from "./skiptrace-fields.ts";
+import { phoneNumberKey, validPhoneNumber } from "./phone.ts";
 
 export const uid = () => crypto.randomUUID();
 export function personalProfile(state) {
@@ -390,7 +390,7 @@ export function reducer(state, action) {
     case "UPDATE_TASK": {
       const task = state.tasks.find(item => item.id === action.id);
       if (!task || (!capability(state, "edit") && !capability(state, "review")) || !visibleTasks(state).some(item => item.id === task.id)) return state;
-      const change = {};
+      const change: Record<string, any> = {};
       for (const key of ["title", "date", "time", "assignee", "priority", "type"])
         if (typeof action.change[key] === "string") change[key] = action.change[key].trim();
       if ("title" in change && !change.title) return state;
@@ -616,7 +616,7 @@ export function reducer(state, action) {
         datasets: state.datasets.map(item => (item.id === source.id ? { ...item, fieldMappings: mappings } : item)),
         leads: state.leads.map(item => {
           if (item.datasetId !== source.id || !item.sourceValues) return item;
-          const data = leadFromSource(source.columns, item, mappings);
+          const data: any = leadFromSource(source.columns, item, mappings);
           return {
             ...item,
             ...data,
