@@ -130,6 +130,10 @@ paths:
       security: [{ bearer: [] }]
       requestBody: { content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string, enum: [system_admin, tester] } } } } } }
       responses: { "201": { description: Invitation saved, with delivery_state sent, failed, or not_configured }, "403": { description: Founder with second step required }, "409": { description: Duplicate invitation or existing staff role } }
+  /v1/fx:
+    get:
+      summary: Exchange rates against the US dollar (ISO currencies only, kept six hours, last good rates if the source is down). Public; for showing prices in a visitor's currency and for the owner's own sums, never for what a customer is charged
+      responses: { "200": { description: "base, as_of and rates" }, "503": { description: No rates available yet } }
   /v1/roles:
     get:
       summary: Every role there is, with nothing twice: the standard workspace roles, and the platform staff roles in their own group

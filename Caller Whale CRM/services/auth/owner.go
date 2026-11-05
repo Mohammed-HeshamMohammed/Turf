@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"math"
 	"net/http"
 	"regexp"
 	"sort"
@@ -372,13 +373,15 @@ type finance struct {
 	TotalMonthlyCosts  int64            `json:"total_monthly_costs_minor"`
 	Quota              quota            `json:"quota"`
 	RatesEntered       int              `json:"rates_entered"`
+	Converted          int              `json:"converted_entries"` // costs and rates entered in another currency, counted here at the day's exchange rate
+	FXAsOf             string           `json:"fx_as_of,omitempty"`
 	ByMonth            []monthRevenue   `json:"revenue_by_month"`
 	CostsByCategory    map[string]int64 `json:"costs_by_category"`
 	OtherCurrency      int              `json:"other_currency_costs"` // costs in a different currency, left out of the figures above
 }
 
 // financeFrom works out the money figures in the currency that earns the most. Costs in another currency are counted, not converted.
-func financeFrom(b *billingSummary, costs []costItem, rates []rateItem, at time.Time) finance {
+func financeFrom(b *billingSummary, costs []costItem, rates []rateItem, fx *fxTable, at time.Time) finance {
 	var paymentsThisMonth int64
 	f := finance{Currency: "USD", ByMonth: []monthRevenue{}, CostsByCategory: map[string]int64{}}
 	if b != nil {
@@ -418,9 +421,13 @@ func financeFrom(b *billingSummary, costs []costItem, rates []rateItem, at time.
 			}
 		}
 	}
+	// Costs and rates entered in another currency are counted in this one at the day's exchange rate; with no rates they are left out.
+	costs, rates, f.Converted, f.OtherCurrency = inCurrency(costs, rates, f.Currency, fx)
+	if fx != nil {
+		f.FXAsOf = fx.AsOf
+	}
 	for _, c := range costs {
 		if c.Currency != f.Currency {
-			f.OtherCurrency++
 			continue
 		}
 		switch c.Interval {
@@ -574,10 +581,43 @@ func (s *server) adminOverview(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		body["finance"] = financeFrom(b, costs, rates, at)
+		body["finance"] = financeFrom(b, costs, rates, s.fx.rates(ctx), at)
 	}
 	writeJSON(w, http.StatusOK, body)
 	return nil
+}
+
+// inCurrency counts every cost and rate in one currency. Those already in it stay as they are; the others are converted at the day's
+// rate when there is one (and counted as converted), or left as they were (and counted as left out).
+func inCurrency(costs []costItem, rates []rateItem, to string, fx *fxTable) ([]costItem, []rateItem, int, int) {
+	converted, left := 0, 0
+	outCosts := make([]costItem, 0, len(costs))
+	for _, c := range costs {
+		if c.Currency != to {
+			if minor, ok := fx.convert(c.AmountMinor, c.Currency, to); ok {
+				c.AmountMinor, c.Currency = minor, to
+				converted++
+			} else {
+				left++
+			}
+		}
+		outCosts = append(outCosts, c)
+	}
+	outRates := make([]rateItem, 0, len(rates))
+	for _, r := range rates {
+		if r.Currency != to {
+			if factor, ok := fx.factor(r.Currency, to); ok {
+				r.RateMicros = int64(math.Round(float64(r.RateMicros) * factor))
+				r.FixedMicros = int64(math.Round(float64(r.FixedMicros) * factor))
+				r.Currency = to
+				converted++
+			} else {
+				left++
+			}
+		}
+		outRates = append(outRates, r)
+	}
+	return outCosts, outRates, converted, left
 }
 
 func shortID(id string) string {
