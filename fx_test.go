@@ -9,6 +9,9 @@ import (
 	"time"
 )
 
+// Tests never reach the real standards: the background refresh does nothing unless a test calls refreshCurrencyTables itself.
+func init() { startCurrencyRefresh = func() {} }
+
 // a source with enough real currencies, some coins that must be ignored, and one rate that makes no sense
 func fakeSource(t *testing.T, calls *int, fail *bool) *httptest.Server {
 	t.Helper()
