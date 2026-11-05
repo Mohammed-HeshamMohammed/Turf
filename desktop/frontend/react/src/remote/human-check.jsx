@@ -24,9 +24,14 @@ const REFRESH_MS = 90_000;
  * Invisible: nobody ticks anything. Google scores the visit and auth refuses a low score, so a person acting like a person
  * never sees a challenge. Loads only when auth has bot protection enabled; auth verifies every token itself.
  */
-export function HumanCheck({ getAuth, action, resetKey = 0, onToken }) {
-  const callbacks = useRef({ getAuth, onToken });
-  callbacks.current = { getAuth, onToken };
+/** The notice Google asks for when its badge is hidden. `HumanCheck` shows it itself unless told `notice={false}`, for a page that puts it elsewhere. */
+export function HumanNotice() {
+  return <p className="fine">Protected by reCAPTCHA. Google’s <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">Privacy Policy</a> and <a href="https://policies.google.com/terms" target="_blank" rel="noreferrer">Terms</a> apply.</p>;
+}
+
+export function HumanCheck({ getAuth, action, resetKey = 0, onToken, notice = true, onEnabled }) {
+  const callbacks = useRef({ getAuth, onToken, onEnabled });
+  callbacks.current = { getAuth, onToken, onEnabled };
   const [status, setStatus] = useState({ enabled: false, error: "" });
   useEffect(() => {
     let live = true, timer;
@@ -54,9 +59,10 @@ export function HumanCheck({ getAuth, action, resetKey = 0, onToken }) {
     })().catch(error => live && setStatus({ enabled: true, error: error.message }));
     return () => { live = false; clearTimeout(timer); };
   }, [action, resetKey]);
+  useEffect(() => { callbacks.current.onEnabled?.(status.enabled); }, [status.enabled]);
   return <div className="human-check" hidden={!status.enabled && !status.error}>
     <style>{".grecaptcha-badge{visibility:hidden}"}</style>
-    {status.enabled && <p className="fine">Protected by reCAPTCHA. Google’s <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">Privacy Policy</a> and <a href="https://policies.google.com/terms" target="_blank" rel="noreferrer">Terms</a> apply.</p>}
+    {status.enabled && notice && <HumanNotice />}
     {status.error && <p role="alert">{status.error}</p>}
   </div>;
 }
