@@ -14,9 +14,11 @@ import { HeroDemo } from "./components/ui/demo.tsx";
 import { SiteHeader } from "./components/ui/site-header.tsx";
 import { hasCrmAccess, type CrmAccess } from "./crm-access.ts";
 import { crmUrl } from "./crm-url.ts";
+import { ageProblem, latestBirthDate } from "./age.ts";
 import { SiteFooter } from "./components/ui/site-footer.tsx";
 import { Dashboard } from "./Dashboard.tsx";
 import { Profile } from "./Profile.tsx";
+import { AgeGate } from "./AgeGate.tsx";
 import { cleanPath, routeFor } from "./routes.ts";
 
 // Anything that changes who is signed in (new tokens, a refresh the server refused, signing out) tells the page.
@@ -230,10 +232,13 @@ function SignUp({ onDone }: { onDone: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [human, setHuman] = useState("");
+  const [birth, setBirth] = useState("");
   const [state, run] = useAction();
+  const birthProblem = ageProblem(birth);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (await run(async () => void (await auth.signUp(name, email, password, "browser", human)))) onDone();
+    if (birthProblem) return;
+    if (await run(async () => void (await auth.signUp(name, email, password, "browser", human, birth)))) onDone();
   };
   return (
     <div className="form-wrap">
@@ -242,9 +247,11 @@ function SignUp({ onDone }: { onDone: () => void }) {
         <Field label="Name" autoComplete="name" required value={name} onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)} />
         <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} />
         <Field label="Password" type="password" autoComplete="new-password" minLength={8} required value={password} onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)} />
+        <Field label="Date of birth" type="date" autoComplete="bday" required max={latestBirthDate()} min="1900-01-01" value={birth} onChange={(e: ChangeEvent<HTMLInputElement>) => setBirth(e.target.value)} />
+        <p className={birthProblem ? "notice bad" : "muted"} role={birthProblem ? "alert" : undefined}>{birthProblem || "You must be 18 or older. Your date of birth is kept on your account and cannot be changed later."}</p>
         <HumanCheck getAuth={getAuth} action="signup" onToken={setHuman} />
         {state.error && <p className="notice bad" role="alert">{state.error}</p>}
-        <button className="button primary" disabled={state.busy}>{state.busy ? "Creating…" : "Sign up"}</button>
+        <button className="button primary" disabled={state.busy || Boolean(birthProblem)}>{state.busy ? "Creating…" : "Sign up"}</button>
         <Providers action="signup" human={human} />
         <div className="alt">
           <span className="muted">Already have an account?</span>
@@ -311,7 +318,7 @@ export function App({ path: first = "/" }) {
   const [crmLink, setCrmLink] = useState(false);
   useEffect(() => {
     setCrmLink(false);
-    if (!me) return;
+    if (!me || me.age_confirmed === false) return;
     const controller = new AbortController();
     auth.accessToken().then(async token => {
       if (!token) return;
@@ -352,6 +359,8 @@ export function App({ path: first = "/" }) {
       leaving.current = false;
     }
   }, [me]);
+  // An account that has not given its date of birth (made before the age check, or through Google or Apple) gives it before anything else.
+  const ageGate = me ? <AgeGate auth={auth} onDone={() => { auth.me({ fresh: true }).then(setMe); }} onSignOut={signOut} /> : null;
   const pages: Record<string, React.ReactNode> = {
     "/": <Home me={me} />,
     "/signin": <SignIn onDone={signedIn} notice={notice} me={me} />,
@@ -364,8 +373,8 @@ export function App({ path: first = "/" }) {
     "/contact": <Contact getAuth={getAuth} />,
     "/privacy": <Privacy />,
     "/terms": <Terms />,
-    "/account": me ? <Profile me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
-    "/dashboard": me ? <Dashboard me={me} auth={auth} authBase={authBase} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
+    "/account": me && me.age_confirmed === false ? ageGate : me ? <Profile me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
+    "/dashboard": me && me.age_confirmed === false ? ageGate : me ? <Dashboard me={me} auth={auth} authBase={authBase} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
   };
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
   return (
