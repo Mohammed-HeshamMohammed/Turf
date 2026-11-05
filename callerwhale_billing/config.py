@@ -7,7 +7,8 @@ CALLER_RIGHTS = {
     "core-api": {"reserve", "standing", "credits", "subscribe"},
     "worker": {"standing"},
     # The auth service reads a summary of revenue, plans and usage for the platform owner's dashboard.
-    "auth": {"summary"},
+    # ...and, for an owner or cofounder, gives a person a membership: a trial, a free plan, or one paid for outside Paddle.
+    "auth": {"summary", "assign"},
 }
 
 
