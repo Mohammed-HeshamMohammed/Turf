@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type Inp
 import { createAuth, type AuthError, type Me } from "./auth/auth-client.js";
 import { HumanCheck } from "./auth/human-check.jsx";
 import { redirectFor, waitingForSecondStep } from "./guard.ts";
+import { readProfile, writeProfile, type CachedProfile } from "./profile-cache.ts";
 import { applyMetadata, metadataFor } from "./metadata.ts";
 import { Link, go, useRoute } from "./nav.tsx";
 import { Pricing } from "./Pricing.tsx";
@@ -299,6 +300,11 @@ export function App({ path: first = "/" }) {
   // holds a saved session, so the buttons never go missing for a visitor.
   const [savedSession, setSavedSession] = useState(false);
   useEffect(() => setSavedSession(auth.signedIn()), [me]);
+  // The last-known profile, read once the page is in the browser (the page built ahead of time never has it), so a refresh keeps the
+  // person's picture in the header while the real answer loads; it is updated on every answer and removed when nobody is signed in.
+  const [cached, setCached] = useState<CachedProfile | null>(null);
+  useEffect(() => setCached(readProfile()), []);
+  useEffect(() => { if (me) { writeProfile(me); setCached(readProfile()); } else if (me === null) { writeProfile(null); setCached(null); } }, [me]);
   const leaving = useRef(false); // true while the person themselves is signing out
   const wasIn = useRef(false);
   const signedIn = () => {
@@ -349,7 +355,7 @@ export function App({ path: first = "/" }) {
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
   return (
     <div className={`page${cleanPath(path) === "/" ? " home-page" : ""}${cleanPath(path) === "/dashboard" ? " dashboard-shell" : ""}`}>
-      <SiteHeader path={path} me={me} onSignOut={signOut} savedSession={savedSession} />
+      <SiteHeader path={path} me={me} onSignOut={signOut} savedSession={savedSession} cached={cached} />
       <main>{pages[cleanPath(path)] || (routeFor(path).key.startsWith("feature:") ? <FeaturePage slug={featureSlug} /> : <NotFound />)}</main>
       <SiteFooter compact={cleanPath(path) === "/dashboard"} />
     </div>
