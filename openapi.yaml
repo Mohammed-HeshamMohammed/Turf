@@ -156,6 +156,22 @@ paths:
       security: [{ bearer: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
       responses: { "200": { description: Removed }, "403": { description: Owner or cofounder with second step required } }
+  /v1/admin/rates:
+    get:
+      summary: Costs that follow customers (price per call minute, per gigabyte, payment provider fee); owner and cofounder only
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Rates }, "403": { description: Owner or cofounder with second step required } }
+    post:
+      summary: Add a rate. Prices are in millionths of the currency unit; the payment fee is a percentage in hundredths of a percent plus a fixed part per payment; one rate per kind and currency
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [label, kind, currency], properties: { label: { type: string }, kind: { type: string, enum: [minute, gb, payment_fee] }, rate_micros: { type: integer }, quantity: { type: integer }, percent_bp: { type: integer }, fixed_micros: { type: integer }, currency: { type: string }, note: { type: string } } } } } }
+      responses: { "201": { description: Rate saved }, "400": { description: Not valid, or a rate of that kind already exists }, "403": { description: Owner or cofounder with second step required } }
+  /v1/admin/rates/{id}:
+    delete:
+      summary: Remove a rate; owner and cofounder only
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { "200": { description: Removed }, "403": { description: Owner or cofounder with second step required } }
   /v1/orgs/{org}/members:
     get:
       summary: List workspace members; business owner with a second step only

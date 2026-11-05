@@ -261,6 +261,14 @@ type billingSummary struct {
 		AmountMinor int64  `json:"amount_minor"`
 		Payments    int    `json:"payments"`
 	} `json:"revenue_by_month"`
+	// What each workspace's plan includes this period, and what it has used, nearest the limit first.
+	Allowances []struct {
+		OrgID   string `json:"org_id"`
+		PlanKey string `json:"plan_key"`
+		Allowed int64  `json:"allowed"`
+		Status  string `json:"status"`
+		Used    int64  `json:"used"`
+	} `json:"allowances"`
 	UsageThisMonth map[string]int64 `json:"usage_this_month"`
 	TopUsage       []struct {
 		AccountID string `json:"account_id"`
@@ -347,22 +355,31 @@ type monthRevenue struct {
 }
 
 type finance struct {
-	Currency          string           `json:"currency"`
-	MRRMinor          int64            `json:"mrr_minor"`
-	RevenueThisMonth  int64            `json:"revenue_this_month_minor"`
-	RevenueLastMonth  int64            `json:"revenue_last_month_minor"`
-	Revenue12Months   int64            `json:"revenue_12_months_minor"`
-	MonthlyCostsMinor int64            `json:"monthly_costs_minor"`
-	OneOffCostsMinor  int64            `json:"one_off_costs_minor"`
-	ProfitMonthMinor  int64            `json:"profit_month_minor"` // monthly recurring revenue minus monthly costs
-	ROIPercent        *float64         `json:"roi_percent"`        // profit divided by monthly costs; nil until there are costs
-	ByMonth           []monthRevenue   `json:"revenue_by_month"`
-	CostsByCategory   map[string]int64 `json:"costs_by_category"`
-	OtherCurrency     int              `json:"other_currency_costs"` // costs in a different currency, left out of the figures above
+	Currency          string   `json:"currency"`
+	MRRMinor          int64    `json:"mrr_minor"`
+	RevenueThisMonth  int64    `json:"revenue_this_month_minor"`
+	RevenueLastMonth  int64    `json:"revenue_last_month_minor"`
+	Revenue12Months   int64    `json:"revenue_12_months_minor"`
+	MonthlyCostsMinor int64    `json:"monthly_costs_minor"`
+	OneOffCostsMinor  int64    `json:"one_off_costs_minor"`
+	ProfitMonthMinor  int64    `json:"profit_month_minor"` // monthly recurring revenue minus all monthly costs (fixed and customer-driven)
+	ROIPercent        *float64 `json:"roi_percent"`        // profit divided by all monthly costs; nil until there are costs
+	// Costs that follow customers, worked out from this month's usage and payments with the owner's rates.
+	Variable           variableCosts    `json:"variable_costs"`
+	GrossProfitMinor   int64            `json:"gross_profit_month_minor"` // revenue so far this month minus the customer-driven costs so far
+	GrossMarginPercent *float64         `json:"gross_margin_percent"`     // gross profit as a share of revenue so far; nil until there is revenue
+	VariableMonthly    int64            `json:"variable_costs_estimate_month_minor"`
+	TotalMonthlyCosts  int64            `json:"total_monthly_costs_minor"`
+	Quota              quota            `json:"quota"`
+	RatesEntered       int              `json:"rates_entered"`
+	ByMonth            []monthRevenue   `json:"revenue_by_month"`
+	CostsByCategory    map[string]int64 `json:"costs_by_category"`
+	OtherCurrency      int              `json:"other_currency_costs"` // costs in a different currency, left out of the figures above
 }
 
 // financeFrom works out the money figures in the currency that earns the most. Costs in another currency are counted, not converted.
-func financeFrom(b *billingSummary, costs []costItem, at time.Time) finance {
+func financeFrom(b *billingSummary, costs []costItem, rates []rateItem, at time.Time) finance {
+	var paymentsThisMonth int64
 	f := finance{Currency: "USD", ByMonth: []monthRevenue{}, CostsByCategory: map[string]int64{}}
 	if b != nil {
 		totals := map[string]int64{}
@@ -390,6 +407,7 @@ func financeFrom(b *billingSummary, costs []costItem, at time.Time) finance {
 			switch row.Month {
 			case thisMonth:
 				f.RevenueThisMonth = row.AmountMinor
+				paymentsThisMonth = int64(row.Payments)
 			case lastMonth:
 				f.RevenueLastMonth = row.AmountMinor
 			}
@@ -416,9 +434,25 @@ func financeFrom(b *billingSummary, costs []costItem, at time.Time) finance {
 			f.OneOffCostsMinor += c.AmountMinor
 		}
 	}
-	f.ProfitMonthMinor = f.MRRMinor - f.MonthlyCostsMinor
-	if f.MonthlyCostsMinor > 0 {
-		roi := float64(f.ProfitMonthMinor) / float64(f.MonthlyCostsMinor) * 100
+	for _, r := range rates {
+		if r.Currency == f.Currency {
+			f.RatesEntered++
+		}
+	}
+	f.Variable, f.Quota = variableFrom(b, rates, f.Currency, f.RevenueThisMonth, paymentsThisMonth)
+	f.GrossProfitMinor = f.RevenueThisMonth - f.Variable.TotalMinor
+	// The margin on what has been taken so far is applied to a whole month of recurring revenue, so an early-month figure is not
+	// a half-month of income set against a whole month of costs.
+	if f.RevenueThisMonth > 0 {
+		margin := float64(f.GrossProfitMinor) / float64(f.RevenueThisMonth)
+		pct := margin * 100
+		f.GrossMarginPercent = &pct
+		f.VariableMonthly = int64(float64(f.MRRMinor) * (1 - margin))
+	}
+	f.TotalMonthlyCosts = f.MonthlyCostsMinor + f.VariableMonthly
+	f.ProfitMonthMinor = f.MRRMinor - f.TotalMonthlyCosts
+	if f.TotalMonthlyCosts > 0 {
+		roi := float64(f.ProfitMonthMinor) / float64(f.TotalMonthlyCosts) * 100
 		f.ROIPercent = &roi
 	}
 	return f
@@ -536,7 +570,11 @@ func (s *server) adminOverview(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		body["finance"] = financeFrom(b, costs, at)
+		rates, err := s.readRates(ctx)
+		if err != nil {
+			return err
+		}
+		body["finance"] = financeFrom(b, costs, rates, at)
 	}
 	writeJSON(w, http.StatusOK, body)
 	return nil
