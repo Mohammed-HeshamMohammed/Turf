@@ -381,6 +381,10 @@ func TestASignInOlderThanTheWindowOpensNothing(t *testing.T) {
 		if rec.Code != http.StatusUnauthorized || hasSessionCookie(rec) {
 			t.Fatalf("%s: got %d", name, rec.Code)
 		}
+		// The dashboard is told, so it can ask for the authenticator code in place instead of sending the person away.
+		if !strings.Contains(rec.Body.String(), "callerwhale-grafana-stepup") {
+			t.Fatalf("%s: the dashboard was not asked for a code: %s", name, rec.Body.String())
+		}
 	}
 	if w.core.calls.Load() != 0 {
 		t.Fatal("asked the core API about a stale sign-in")
