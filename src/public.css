@@ -59,18 +59,15 @@
 .admin-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); align-items: stretch; gap: var(--dash-gap, 12px); min-width: 0; min-height: 100%; }
 .admin-sidebar { position: sticky; top: 100px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 18px; min-width: 0; padding: 16px 12px; border-radius: 18px; background: #171d1a; color: #fff; }
 .admin-sidebar-brand { display: flex; align-items: center; gap: 11px; padding: 4px 8px; }
-.admin-sidebar-brand > span:last-child, .admin-sidebar-account { display: grid; gap: 2px; min-width: 0; }
+.admin-sidebar-brand > span:last-child { display: grid; gap: 2px; min-width: 0; }
 .admin-sidebar-brand strong { font-size: 16px; }
-.admin-sidebar-brand small, .admin-sidebar-account small { color: #c8d1c9; }
+.admin-sidebar-brand small { color: #c8d1c9; }
 .admin-sidebar-mark { display: grid; flex: 0 0 auto; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--accent); color: var(--ink); font-size: 12px; font-weight: 800; }
 .admin-sidebar nav { display: grid; gap: 4px; }
 .admin-sidebar nav a { display: block; padding: 9px 10px; border-radius: 10px; color: #e4eae4; font-weight: 550; text-decoration: none; }
 .admin-sidebar nav a:hover, .admin-sidebar nav a:focus-visible { background: #ffffff20; color: #fff; }
 .admin-sidebar nav a[aria-current="page"] { background: var(--accent); color: var(--ink); font-weight: 650; }
 .admin-sidebar-note { margin: 0 8px; color: #e4eae4; line-height: 1.5; }
-.admin-sidebar-account { gap: 6px; margin: 0 8px; padding-top: 14px; border-top: 1px solid #ffffff35; overflow-wrap: anywhere; }
-.admin-sidebar-account .eyebrow { width: fit-content; padding: 0; background: transparent; color: var(--accent); font-size: 11px; }
-.admin-sidebar-account a { color: var(--accent); }
 .admin-main, .admin-workspace { display: grid; align-content: start; gap: var(--dash-gap, 12px); min-width: 0; }
 .admin-main { min-height: 0; }
 .admin-view-overview { grid-template-rows: auto auto minmax(min-content, 1fr); min-height: 100%; }
@@ -177,7 +174,7 @@
 .staff-recovery-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 @media (max-width: 700px) { .staff-setup { grid-template-columns: 1fr; } .staff-recovery ol { grid-template-columns: 1fr; } }
 @media (max-width: 1100px) { .admin-layout { grid-template-columns: 180px minmax(0, 1fr); } .admin-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 760px) { .dashboard-shell .admin-sidebar-slot { position: static; display: block; height: auto; } .admin-layout { grid-template-columns: 1fr; align-content: start; } .admin-sidebar { position: static; grid-template-rows: none; gap: 12px; padding: 15px; } .admin-sidebar nav { display: flex; flex-wrap: wrap; } .admin-sidebar nav a { flex: 0 0 auto; padding: 8px 10px; } .admin-sidebar-account { display: none; } .admin-view-overview { grid-template-rows: none; } .admin-account, .admin-overview-panels { grid-template-columns: 1fr; } .admin-overview-panels .card { min-height: 220px; } .admin-workspace, .admin-team, .admin-manage, .admin-account { scroll-margin-top: 86px; } }
+@media (max-width: 760px) { .dashboard-shell .admin-sidebar-slot { position: static; display: block; height: auto; } .admin-layout { grid-template-columns: 1fr; align-content: start; } .admin-sidebar { position: static; grid-template-rows: none; gap: 12px; padding: 15px; } .admin-sidebar nav { display: flex; flex-wrap: wrap; } .admin-sidebar nav a { flex: 0 0 auto; padding: 8px 10px; } .admin-view-overview { grid-template-rows: none; } .admin-account, .admin-overview-panels { grid-template-columns: 1fr; } .admin-overview-panels .card { min-height: 220px; } .admin-workspace, .admin-team, .admin-manage, .admin-account { scroll-margin-top: 86px; } }
 @media (max-width: 600px) { .admin-toolbar label:last-child { flex: 1 1 210px; } .admin-section-heading { flex-direction: column; } .admin-table thead { display: none; } .admin-table tbody { display: grid; gap: 10px; } .admin-table tr { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 9px; padding: 15px; border-radius: 12px; background: var(--raised); } .admin-table td { padding: 0; border: 0; } .admin-table td:first-child { grid-column: 1 / -1; } .admin-table td:last-child { text-align: right; } }
 .profile-page { display: grid; gap: 16px; }
 .profile-head { display: flex; align-items: center; gap: clamp(20px, 4vw, 44px); }
