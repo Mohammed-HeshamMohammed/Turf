@@ -165,7 +165,8 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
       return request;
     },
     /** A one-time code that hands this sign-in to the desktop app (sent only to 127.0.0.1 by the website page). */
-    handoff: () => withToken("POST", "/v1/handoffs", {}).then(answer => answer.code),
+    /** A one-time code that signs the same person in somewhere else: the desktop app (the default), or the CRM web app (`kind` "browser"). */
+    handoff: (kind = "desktop") => withToken("POST", "/v1/handoffs", { kind }).then(answer => answer.code),
     // ---- the second step (docs/plans/second-factor.md) ----
     /**
      * After the password, a person who set up a second step gets `mfa_required` with `error.data = { challenge, methods }`

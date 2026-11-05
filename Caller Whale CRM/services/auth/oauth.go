@@ -665,7 +665,16 @@ func (s *server) desktopHandoff(w http.ResponseWriter, r *http.Request) error {
 	if err := s.db.QueryRow(ctx, "SELECT fb_refresh, mfa_passed FROM sessions WHERE id = $1", c.SID).Scan(&fb, &passed); err != nil {
 		return err
 	}
-	code, err := s.handoff(ctx, u.id, "desktop", c.Provider, passed == 1, deref(fb))
+	// The desktop app (the default) or the CRM web app, which has its own address and so its own session. Nothing else is handed to.
+	var body struct {
+		Kind string `json:"kind"`
+	}
+	_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&body) // an empty body means the desktop app
+	kind := "desktop"
+	if body.Kind == "browser" {
+		kind = "browser"
+	}
+	code, err := s.handoff(ctx, u.id, kind, c.Provider, passed == 1, deref(fb))
 	if err != nil {
 		return err
 	}

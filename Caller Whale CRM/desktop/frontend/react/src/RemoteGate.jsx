@@ -15,6 +15,24 @@ import { HumanCheck } from "./remote/human-check.jsx";
  * the people they invited; anyone else is told they are not invited) → a two-step code when the role needs one → the
  * offline passphrase.
  */
+/**
+ * One Caller Whale account for the website and the CRM. The CRM in a browser keeps its own session (it is a different address),
+ * so a visit with none goes to the website's sign-in once: signed in there already, it comes straight back with a one-time
+ * code and the person is in; otherwise they sign in there and come back. Only once per tab, so signing out here stays out.
+ */
+function goToWebsiteSignIn(automatic) {
+  try {
+    if (automatic) {
+      if (window.sessionStorage.getItem("cw-sso") === "tried") return false;
+      window.sessionStorage.setItem("cw-sso", "tried");
+    }
+  } catch {
+    if (automatic) return false; // no storage to remember it, so never risk a loop
+  }
+  window.location.replace(`${SITE}/signin?next=app`);
+  return true;
+}
+
 export function RemoteGate({ onReady, onLeave }) {
   const [step, setStep] = useState("checking");
   // A Google sign-in that did not work comes back with its reason in the address.
@@ -34,7 +52,10 @@ export function RemoteGate({ onReady, onLeave }) {
 
   async function check() {
     try {
-      if (!auth.signedIn()) return setStep("signin");
+      if (!auth.signedIn()) {
+        if (!inDesktopApp() && goToWebsiteSignIn(true)) return setStep("checking");
+        return setStep("signin");
+      }
       // Caller Whale is for adults: an account that has not given its date of birth gives it before anything else.
       const sessionPerson = await auth.me({ fresh: true }).catch(() => null);
       if (sessionPerson && sessionPerson.age_confirmed === false) {
@@ -308,6 +329,9 @@ export function RemoteGate({ onReady, onLeave }) {
             {step === "signin" && (
               <>
                 <div className="provider-buttons">
+                  <Button variant="primary" disabled={busy} onClick={() => goToWebsiteSignIn(false)}>
+                    Continue with your Caller Whale account
+                  </Button>
                   <Button icon={GoogleMark} disabled={busy} onClick={() => continueWith("google", "Google")}>
                     Continue with Google
                   </Button>

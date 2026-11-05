@@ -44,7 +44,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [email, password, name, birth_date, terms_version]
+              required: [email, password, name, terms_version]
               properties: { terms_version: { type: string, description: The version of the terms and privacy notice they accepted (GET /v1/me tells the current one) }, birth_date: { type: string, description: "Date of birth, YYYY-MM-DD. Refused (403) under 18" }, email: { type: string }, password: { type: string, minLength: 8, maxLength: 4096, description: Requires uppercase and lowercase ASCII letters plus a number and a special character }, name: { type: string }, kind: { type: string, enum: [browser, desktop] }, human_token: { type: string, maxLength: 2048, description: Required when bot protection is enabled } }
       responses:
         "201": { description: Created and signed in, content: { application/json: { schema: { $ref: "#/components/schemas/Tokens" } } } }
