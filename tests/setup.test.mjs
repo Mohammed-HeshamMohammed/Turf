@@ -9,6 +9,10 @@ test("the next step is age, then terms, then work, then nothing", () => {
   assert.equal(setupStep({ age_confirmed: true, terms_accepted: true, work_profile: { role: "solo_caller" } }), null);
 });
 
+test("the owner and cofounder are never asked", () => {
+  assert.equal(setupStep({ age_confirmed: false, terms_accepted: false, work_profile: null, setup_exempt: true }), null);
+});
+
 test("an older service that sends none of these does not lock anybody out", () => {
   assert.equal(setupStep({}), null);
 });

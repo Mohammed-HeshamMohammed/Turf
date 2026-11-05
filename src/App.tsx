@@ -15,6 +15,9 @@ import { SiteHeader } from "./components/ui/site-header.tsx";
 import { hasCrmAccess, type CrmAccess } from "./crm-access.ts";
 import { crmUrl } from "./crm-url.ts";
 import { paramOf, wantsCrm } from "./links.ts";
+import { ageProblem, latestBirthDate } from "./age.ts";
+import { AvatarCropper } from "./AvatarCropper.tsx";
+import { splitName } from "./person-name.ts";
 import { SiteFooter } from "./components/ui/site-footer.tsx";
 import { Dashboard } from "./Dashboard.tsx";
 import { Profile } from "./Profile.tsx";
@@ -229,48 +232,105 @@ function SignIn({ onDone, notice, me }: { onDone: () => void; notice: string; me
 }
 
 function SignUp({ onDone }: { onDone: () => void }) {
+  // Two steps on one form: the account (display name, email, password, terms), then who you are (age, names, phone, picture).
+  const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [again, setAgain] = useState("");
+  const [agreed, setAgreed] = useState(false);
+  const [birth, setBirth] = useState("");
+  const [first, setFirst] = useState("");
+  const [last, setLast] = useState("");
+  const [phone, setPhone] = useState("");
+  const [picture, setPicture] = useState("");
+  const [choosing, setChoosing] = useState<File | null>(null);
   const [human, setHuman] = useState("");
   const [protectedByGoogle, setProtectedByGoogle] = useState(false);
-  const [agreed, setAgreed] = useState(false);
   const [state, run] = useAction();
+  const filePicker = useRef<HTMLInputElement>(null);
   const mismatch = again !== "" && again !== password;
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (mismatch || !agreed) return;
-    if (await run(async () => void (await auth.signUp(name, email, password, "browser", human, "", TERMS_VERSION)))) onDone();
-  };
+  const started = Boolean(name || email || password || again);
+  const birthProblem = ageProblem(birth);
   const taken = state.code === "conflict";
   const mine = encodeURIComponent(email.trim());
+
+  const next = (e: FormEvent) => {
+    e.preventDefault();
+    if (mismatch || !agreed) return;
+    if (!first && !last) { const parts = splitName(name); setFirst(parts.first); setLast(parts.last); }
+    setStep(2);
+  };
+  const create = async (e: FormEvent) => {
+    e.preventDefault();
+    if (birthProblem || !birth) return;
+    const made = await run(async () => {
+      await auth.signUp(name.trim(), email, password, "browser", human, birth, TERMS_VERSION);
+      // The account exists now. Its names, phone and picture are saved with it; if that fails, the profile page can do it later.
+      try {
+        const token = await auth.accessToken();
+        if (token) {
+          await fetch(`${authBase}/v1/me/profile`, {
+            method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ name: name.trim(), phone: phone.trim(), avatar: picture, first_name: first, middle_name: "", last_name: last }),
+          });
+        }
+      } catch { /* the account is made either way */ }
+    });
+    if (made) onDone();
+  };
+
   return (
     <div className="form-wrap">
-      <form className="form card" onSubmit={submit}>
-        <h1>Create your account</h1>
-        <Field label="Display name" autoComplete="name" required value={name} onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)} />
-        <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} />
-        <Field label="Password" type="password" autoComplete="new-password" minLength={8} required value={password} onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)} />
-        <Field label="Confirm password" type="password" autoComplete="new-password" minLength={8} required value={again} onChange={(e: ChangeEvent<HTMLInputElement>) => setAgain(e.target.value)} />
-        {mismatch && <p className="notice bad" role="alert">The two passwords are not the same.</p>}
-        <label className="check"><input type="checkbox" required checked={agreed} onChange={(e: ChangeEvent<HTMLInputElement>) => setAgreed(e.target.checked)} /> <span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
-        <HumanCheck getAuth={getAuth} action="signup" onToken={setHuman} notice={false} onEnabled={setProtectedByGoogle} />
-        {taken ? (
-          <div className="notice" role="alert">
-            <strong>You already have an account with this email.</strong>
-            <p>Sign in instead. If you forgot your password, we can email you a link to choose a new one. If you signed up with Google or Apple, use that button on the sign-in page.</p>
-            <div className="notice-actions"><Link className="button primary" to={`/signin?email=${mine}`}>Sign in</Link><Link className="button" to={`/forgot?email=${mine}`}>Reset my password</Link></div>
+      {step === 1 ? (
+        <form className="form card" onSubmit={next}>
+          <h1>Create your account</h1>
+          <Field label="Display name" autoComplete="nickname" required value={name} onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)} />
+          <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} />
+          <Field label="Password" type="password" autoComplete="new-password" minLength={8} required value={password} onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)} />
+          <Field label="Confirm password" type="password" autoComplete="new-password" minLength={8} required value={again} onChange={(e: ChangeEvent<HTMLInputElement>) => setAgain(e.target.value)} />
+          {mismatch && <p className="notice bad" role="alert">The two passwords are not the same.</p>}
+          <label className="check"><input type="checkbox" required checked={agreed} onChange={(e: ChangeEvent<HTMLInputElement>) => setAgreed(e.target.checked)} /> <span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
+          <button className="button primary" disabled={mismatch || !agreed}>{started ? "Continue" : "Sign up"}</button>
+          <Providers action="signup" human={human} />
+          <div className="alt">
+            <span className="muted">Already have an account?</span>
+            <Link to="/signin">Sign in</Link>
           </div>
-        ) : state.error && <p className="notice bad" role="alert">{state.error}</p>}
-        <button className="button primary" disabled={state.busy || mismatch || !agreed}>{state.busy ? "Creating…" : "Sign up"}</button>
-        <Providers action="signup" human={human} />
-        <div className="alt">
-          <span className="muted">Already have an account?</span>
-          <Link to="/signin">Sign in</Link>
-        </div>
-      </form>
-      {protectedByGoogle && <div className="form-note"><HumanNotice /></div>}
+        </form>
+      ) : (
+        <form className="form card" onSubmit={create}>
+          <h1>Verify your age</h1>
+          <p className="muted">Caller Whale is for people aged 18 or older. Your date of birth is kept on your account and cannot be changed later.</p>
+          <Field label="Date of birth" type="date" autoComplete="bday" required max={latestBirthDate()} min="1900-01-01" value={birth} onChange={(e: ChangeEvent<HTMLInputElement>) => setBirth(e.target.value)} />
+          {birthProblem && <p className="notice bad" role="alert">{birthProblem}</p>}
+          <div className="two-fields">
+            <Field label="First name" autoComplete="given-name" required maxLength={60} value={first} onChange={(e: ChangeEvent<HTMLInputElement>) => setFirst(e.target.value)} />
+            <Field label="Last name" autoComplete="family-name" maxLength={60} value={last} onChange={(e: ChangeEvent<HTMLInputElement>) => setLast(e.target.value)} />
+          </div>
+          <Field label="Phone number" type="tel" autoComplete="tel" placeholder="Optional" value={phone} onChange={(e: ChangeEvent<HTMLInputElement>) => setPhone(e.target.value)} />
+          <div className="signup-picture">
+            <button type="button" className="profile-avatar profile-avatar-button" aria-label="Add a profile picture" onClick={() => filePicker.current?.click()}>
+              {picture ? <img src={picture} alt="" /> : (first || name || "?").trim().charAt(0).toUpperCase()}
+              <span className="profile-avatar-change" aria-hidden="true">{picture ? "Change" : "Add"}</span>
+            </button>
+            <input ref={filePicker} type="file" hidden accept="image/*" onChange={(e: ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) setChoosing(file); }} />
+            <span className="muted">Profile picture (optional). {picture ? <button type="button" className="text-button" onClick={() => setPicture("")}>Remove</button> : "Any image works."}</span>
+          </div>
+          {choosing && <AvatarCropper file={choosing} confirmLabel="Use this picture" onCancel={() => setChoosing(null)} onDone={async dataUrl => { setPicture(dataUrl); setChoosing(null); }} />}
+          <HumanCheck getAuth={getAuth} action="signup" onToken={setHuman} notice={false} onEnabled={setProtectedByGoogle} />
+          {taken ? (
+            <div className="notice" role="alert">
+              <strong>You already have an account with this email.</strong>
+              <p>Sign in instead. If you forgot your password, we can email you a link to choose a new one. If you signed up with Google or Apple, use that button on the sign-in page.</p>
+              <div className="notice-actions"><Link className="button primary" to={`/signin?email=${mine}`}>Sign in</Link><Link className="button" to={`/forgot?email=${mine}`}>Reset my password</Link></div>
+            </div>
+          ) : state.error && <p className="notice bad" role="alert">{state.error}</p>}
+          <button className="button primary" disabled={state.busy || !birth || Boolean(birthProblem) || !first.trim()}>{state.busy ? <><span className="spinner" aria-hidden="true" />Creating…</> : "Create account"}</button>
+          <button type="button" className="text-button" disabled={state.busy} onClick={() => setStep(1)}>Back</button>
+        </form>
+      )}
+      {protectedByGoogle && step === 2 && <div className="form-note"><HumanNotice /></div>}
     </div>
   );
 }

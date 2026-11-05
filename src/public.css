@@ -358,3 +358,8 @@
 .form-note { margin-top: 12px; color: var(--muted); font-size: 13px; text-align: center; }
 .form-note .fine { margin: 0; }
 .notice-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.two-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 480px) { .two-fields { grid-template-columns: 1fr; } }
+.signup-picture { display: flex; align-items: center; gap: 14px; }
+.signup-picture .profile-avatar { width: 72px; font-size: 30px; flex: 0 0 auto; }
+.form .text-button, .signup-picture .text-button { justify-self: center; padding: 6px 10px; border: 0; background: transparent; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }

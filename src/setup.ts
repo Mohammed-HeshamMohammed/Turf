@@ -34,7 +34,8 @@ export const WORK_USES = [
 export type SetupStep = "age" | "terms" | "work" | null;
 
 /** The next thing this person still has to do, or null when the account is ready. Fields the service did not send count as done. */
-export function setupStep(me: { age_confirmed?: boolean; terms_accepted?: boolean; work_profile?: unknown }): SetupStep {
+export function setupStep(me: { age_confirmed?: boolean; terms_accepted?: boolean; work_profile?: unknown; setup_exempt?: boolean }): SetupStep {
+  if (me.setup_exempt === true) return null; // Caller Whale's owner and cofounder are never asked
   if (me.age_confirmed === false) return "age";
   if (me.terms_accepted === false) return "terms";
   if (me.work_profile === null) return "work";
