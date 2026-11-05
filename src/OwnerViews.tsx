@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { workspaceRoleName } from "./roles.ts";
+import { CurrencySelect } from "./CurrencySelect.tsx";
 import type { Auth } from "./auth/auth-client.js";
 import { SecondStep, needsSecondStep, useSecondStep } from "./SecondStep.tsx";
 
@@ -46,7 +47,7 @@ type Overview = {
   people: { accounts: number; staff: number; members: number; new_7_days: number; new_30_days: number; email_verified: number; two_step: number; active_7_days: number; active_30_days: number; signups_by_day: { day: string; count: number }[] };
   plans: Plan[]; most_requested_plan?: Plan; billing_connected: boolean;
   usage: { connected: boolean; minutes_this_month: number; credits_this_month: number; top: { kind: string; label: string; total: number }[] };
-  finance?: { currency: string; mrr_minor: number; revenue_this_month_minor: number; revenue_last_month_minor: number; revenue_12_months_minor: number; monthly_costs_minor: number; one_off_costs_minor: number; profit_month_minor: number; roi_percent: number | null; revenue_by_month: { month: string; amount_minor: number }[]; costs_by_category: Record<string, number>; other_currency_costs: number;
+  finance?: { currency: string; mrr_minor: number; revenue_this_month_minor: number; revenue_last_month_minor: number; revenue_12_months_minor: number; monthly_costs_minor: number; one_off_costs_minor: number; profit_month_minor: number; roi_percent: number | null; revenue_by_month: { month: string; amount_minor: number }[]; costs_by_category: Record<string, number>; other_currency_costs: number; converted_entries: number; fx_as_of?: string;
     variable_costs: { voip_minor: number; storage_minor: number; fees_minor: number; total_minor: number }; gross_profit_month_minor: number; gross_margin_percent: number | null;
     variable_costs_estimate_month_minor: number; total_monthly_costs_minor: number; rates_entered: number;
     quota: { near_limit: { workspace: string; plan: string; used: number; allowed: number; percent: number }[]; over_allowance_minutes: number; over_allowance_cost_minor: number; workspaces_over_allowance: number } };
@@ -91,7 +92,8 @@ export function PlatformOverview({ request, openCosts }: { request: Api; openCos
         <p className="muted">{finance.quota.near_limit.length === 0 ? "Nobody is close to the minutes their plan includes." : `${plural(finance.quota.near_limit.length, "workspace")} at 90% or more of their plan's minutes.`}{finance.quota.over_allowance_minutes > 0 && ` ${finance.quota.over_allowance_minutes.toLocaleString()} minutes have been used past the plans' allowances${finance.quota.over_allowance_cost_minor > 0 ? `, about ${money(finance.quota.over_allowance_cost_minor, finance.currency)} at your per-minute price` : ""}. Those are the minutes to buy for customers.`}</p>
         {finance.quota.near_limit.length > 0 && <ul className="owner-list">{finance.quota.near_limit.map(row => <li key={row.workspace}><span>Workspace {row.workspace}<small>{row.plan} plan</small></span><strong>{row.used.toLocaleString()} of {row.allowed.toLocaleString()} ({Math.round(row.percent)}%)</strong></li>)}</ul>}
       </section>
-      {finance.other_currency_costs > 0 && <p className="notice" role="note">{plural(finance.other_currency_costs, "cost")} in another currency are not counted. Costs are added up in {finance.currency}, the currency that earns the most.</p>}
+      {finance.converted_entries > 0 && <p className="notice" role="note">{plural(finance.converted_entries, "cost or rate")} entered in another currency {finance.converted_entries === 1 ? "is" : "are"} counted in {finance.currency}, the currency that earns the most, at the exchange rate of {finance.fx_as_of}.</p>}
+      {finance.other_currency_costs > 0 && <p className="notice" role="note">{plural(finance.other_currency_costs, "cost or rate")} in another currency could not be converted (no exchange rate right now) and {finance.other_currency_costs === 1 ? "is" : "are"} not counted.</p>}
     </> : null}
     <section className="admin-overview-panels" aria-label="Trends">
       <div className="card"><span className="eyebrow">Growth</span><h2>New members, last 30 days</h2><p className="muted">{plural(people.new_30_days, "member")} joined in the last 30 days.</p><Bars title="New members per day" data={people.signups_by_day.map(day => ({ label: day.day, value: day.count }))} format={value => plural(value, "member")} /></div>
@@ -193,7 +195,7 @@ export function CostsManager({ request, auth }: { request: Api; auth: Auth }) {
           <label>Name<input required maxLength={80} value={label} onChange={event => setLabel(event.target.value)} placeholder="Server, ads, designer…" /></label>
           <label>Type<select value={category} onChange={event => setCategory(event.target.value)}>{Object.entries(categoryNames).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>
           <label>Amount<input required inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.00" /></label>
-          <label>Currency<input required maxLength={3} value={currency} onChange={event => setCurrency(event.target.value.toUpperCase())} /></label>
+          <CurrencySelect label="Currency" value={currency} onChange={setCurrency} required />
           <label>Paid<select value={interval} onChange={event => setInterval(event.target.value)}><option value="monthly">Every month</option><option value="yearly">Every year</option><option value="once">Once</option></select></label>
           <label>Note (optional)<input maxLength={200} value={note} onChange={event => setNote(event.target.value)} /></label>
           <button className="button primary" disabled={busy}>{busy ? "Saving…" : "Add cost"}</button>
@@ -271,7 +273,7 @@ function RatesManager({ request, auth }: { request: Api; auth: Auth }) {
           <label>{kind === "minute" ? "Price of one minute" : "Price of one GB"}<input required inputMode="decimal" value={price} onChange={event => setPrice(event.target.value.replace(/[^0-9.]/g, ""))} placeholder={kind === "minute" ? "0.0085" : "0.02"} /></label>
           {kind === "gb" && <label>GB used each month<input required inputMode="numeric" value={quantity} onChange={event => setQuantity(event.target.value.replace(/\D/g, ""))} placeholder="50" /></label>}
         </>}
-        <label>Currency<input required maxLength={3} value={currency} onChange={event => setCurrency(event.target.value.toUpperCase())} /></label>
+        <CurrencySelect label="Currency" value={currency} onChange={setCurrency} required />
         <button className="button primary" disabled={busy}>{busy ? "Saving…" : "Add rate"}</button>
       </div>
       {message && <p className="notice bad" role="alert">{message}</p>}

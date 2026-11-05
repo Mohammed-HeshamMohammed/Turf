@@ -302,3 +302,16 @@
 .owner-costs { display: grid; gap: var(--dash-gap, 12px); }
 .owner-costs .staff-fields > label { flex: 1 1 150px; }
 .owner-plans .admin-table-wrap { margin-top: 8px; }
+
+/* ---- Currency chooser (a searchable list) and the pricing page's currency bar ---- */
+.currency-select { position: relative; display: grid; gap: 4px; min-width: 0; }
+.currency-select input { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--inner); background: var(--raised); color: var(--ink); font: inherit; }
+.currency-select ul { position: absolute; top: 100%; left: 0; right: 0; z-index: 30; max-height: 260px; margin: 4px 0 0; padding: 4px; overflow-y: auto; list-style: none; border: 1px solid var(--line); border-radius: var(--inner); background: var(--card); box-shadow: 0 12px 28px #0003; }
+.currency-select li { display: flex; align-items: baseline; gap: 10px; padding: 8px 10px; border-radius: 8px; color: var(--ink); cursor: pointer; }
+.currency-select li strong { flex: 0 0 3.2em; font-weight: 650; }
+.currency-select li span { min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.currency-select li.active, .currency-select li[aria-selected="true"] { background: var(--accent-soft); }
+.currency-select li.none { color: var(--muted); cursor: default; }
+.currency-bar { display: flex; flex-wrap: wrap; align-items: end; gap: var(--gap); padding: 14px 18px; border-radius: var(--radius); background: var(--well); }
+.currency-bar .currency-select { flex: 0 1 300px; }
+.currency-bar .fine { flex: 1 1 320px; margin: 0; }
