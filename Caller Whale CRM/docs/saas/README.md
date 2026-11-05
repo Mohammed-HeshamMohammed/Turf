@@ -30,7 +30,7 @@ means 12,000 minutes shared by the team.
    account page and checkout still work, so the owner can pay.
 6. **Checkout** records a pending payment and sends the browser to the payment provider. Only the provider's **signed
    webhook** marks it paid. That switches the plan, starts a new period with full minutes, and sets the seats.
-7. **Business owners invite their team.** Each invitation has a role: manager, caller, closer, researcher,
+7. **Agency owners invite their team.** Each invitation has a role: manager, caller, closer, researcher,
    administrator or client. The role decides what that person can see and do. An open invitation holds a seat. When
    every seat is taken, inviting is refused until seats are added.
 

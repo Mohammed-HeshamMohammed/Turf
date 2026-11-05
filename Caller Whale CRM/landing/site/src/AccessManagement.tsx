@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import type { Auth, Me } from "./auth/auth-client.js";
+import { workspaceRoleName } from "./roles.ts";
 
 type Invitation = { id: string; scope: string; org_id: string; email: string; role: string; expires_at: number; delivery_state: string };
 type Member = { user_id: string; email?: string; name?: string; roles: string[] };
 const workspaceRoles = ["manager", "caller", "closer", "researcher", "client"];
-const roleLabel = (role: string) => role.replace(/_/g, " ").replace(/^./, letter => letter.toUpperCase());
+const roleLabel = (role: string) => workspaceRoleName(role);
 
 async function call(auth: Auth, base: string, method: string, path: string, body?: object) {
   const token = await auth.accessToken();
@@ -26,7 +27,7 @@ export function InviteManager({ auth, authBase, scope, orgId = "" }: { auth: Aut
   const [message, setMessage] = useState("");
   const load = async () => { try { setItems((await call(auth, authBase, "GET", path)).invitations); setState("ready"); } catch { setState("error"); } };
   useEffect(() => { void load(); }, [auth, authBase, path]);
-  useEffect(() => { if (scope === "workspace") call(auth, authBase, "GET", `/v1/orgs/${orgId}/roles`).then(result => setRoles(result.roles), () => setMessage("Custom roles could not be loaded. The standard roles are available.")); }, [auth, authBase, orgId, scope]);
+  useEffect(() => { if (scope === "workspace") call(auth, authBase, "GET", `/v1/orgs/${orgId}/roles`).then(result => setRoles([...new Set<string>(result.roles)]), () => setMessage("Custom roles could not be loaded. The standard roles are available.")); }, [auth, authBase, orgId, scope]);
   const invite = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setMessage("");
     try {
@@ -88,7 +89,7 @@ export function WorkspaceManager({ auth, authBase, orgId }: { auth: Auth; authBa
   const [message, setMessage] = useState("");
   const load = async () => { try { setMembers((await call(auth, authBase, "GET", `/v1/orgs/${orgId}/members`)).members); setState("ready"); } catch { setState("error"); } };
   useEffect(() => { void load(); }, [auth, authBase, orgId]);
-  useEffect(() => { call(auth, authBase, "GET", `/v1/orgs/${orgId}/roles`).then(result => setRoles(result.roles), () => setMessage("Custom roles could not be loaded. Standard roles remain available.")); }, [auth, authBase, orgId]);
+  useEffect(() => { call(auth, authBase, "GET", `/v1/orgs/${orgId}/roles`).then(result => setRoles([...new Set<string>(result.roles)]), () => setMessage("Custom roles could not be loaded. Standard roles remain available.")); }, [auth, authBase, orgId]);
   const save = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setMessage("");
     try { await call(auth, authBase, "PUT", `/v1/orgs/${orgId}/members/${editing}`, { roles: selectedRoles }); await load(); setEditing(""); setMessage("Member roles saved."); }

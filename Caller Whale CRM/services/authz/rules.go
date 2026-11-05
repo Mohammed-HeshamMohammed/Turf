@@ -28,7 +28,7 @@ var presets = []preset{
 	{"caller", "Caller", []string{"edit", "handoff", "call", "message"}, "own", false},
 	{"closer", "Acquisitions / closer", []string{"edit", "accept", "call", "message", "finance"}, "own", false},
 	{"manager", "Team manager", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "rules"}, "team", false},
-	{"owner", "Business owner", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "review", "admin"}, "organization", true},
+	{"owner", "Agency owner", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "review", "admin"}, "organization", true},
 	{"client", "Client / partner", []string{"publicComment"}, "shared", false},
 }
 

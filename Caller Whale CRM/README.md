@@ -42,7 +42,7 @@ The workspace identity sits beside Caller Whale in the header. The avatar opens 
 
 | Role                  | Workspace and record scope                                                                                                                        |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Business owner        | Organization-wide leads, deals, reports, data operations, and administration.                                                                     |
+| Agency owner        | Organization-wide leads, deals, reports, data operations, and administration.                                                                     |
 | Team manager          | Tampa team records, assignments, handoffs, tasks, conversations, and workflow previews.                                                           |
 | Caller                | Maya's assigned leads, calling queue, callbacks, notes, outgoing handoffs, and conversations.                                                     |
 | Acquisitions / closer | Alex's assigned leads and incoming handoffs; acceptance transfers responsibility and creates a deal.                                              |

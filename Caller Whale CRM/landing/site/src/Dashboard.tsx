@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import type { Auth, Me } from "./auth/auth-client.js";
 import { Link } from "./nav.tsx";
 import { RoleBadges, type Access } from "./RoleBadges.tsx";
+import { PLATFORM_ROLES } from "./roles.ts";
 import { CostsManager, MembersTable, PlatformOverview } from "./OwnerViews.tsx";
 import { InviteManager, PendingInvitations, WorkspaceManager, WorkspaceSecondStep } from "./AccessManagement.tsx";
 import { MonitoringPanel } from "./MonitoringPanel.tsx";
 
 type StaffMember = { name: string; email?: string; role: string };
-const roleNames: Record<string, string> = { owner: "Owner", cofounder: "Cofounder", system_admin: "System admin", tester: "Tester" };
+const roleNames: Record<string, string> = Object.fromEntries(PLATFORM_ROLES.map(role => [role.key, role.name]));
 
 const staffRoles = new Set(["owner", "cofounder", "system_admin"]);
 type AdminView = "overview" | "team" | "members" | "access" | "costs" | "monitoring" | "account";

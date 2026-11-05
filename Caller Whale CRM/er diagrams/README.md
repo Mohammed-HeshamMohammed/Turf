@@ -37,7 +37,7 @@ The diagrams describe what the UI reads and writes today (`src/data.js`, `src/mo
 
 | Role | Pages |
 | --- | --- |
-| Business owner | dashboard, leads, calls, deals, handoffs, tasks, calendar, inbox, lists, skip, team, reports, settings |
+| Agency owner | dashboard, leads, calls, deals, handoffs, tasks, calendar, inbox, lists, skip, team, reports, settings |
 | Team manager | dashboard, leads, calls, deals, handoffs, tasks, calendar, inbox, lists, team, reports, settings |
 | Caller | dashboard, leads, calls, handoffs, tasks, calendar, inbox |
 | Acquisitions / closer | dashboard, leads, calls, deals, handoffs, tasks, calendar, inbox, reports |

@@ -28,7 +28,7 @@ export const ROLES = {
     capabilities: ["edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "rules"],
   },
   owner: {
-    name: "Business owner",
+    name: "Agency owner",
     person: "Jordan Ellis",
     title: "Oak & Palm Partners",
     scope: "Organization records",

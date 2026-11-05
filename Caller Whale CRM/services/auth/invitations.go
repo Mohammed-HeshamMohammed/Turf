@@ -387,20 +387,54 @@ func (s *server) workspaceRoles(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	var listed struct {
-		Roles []struct {
-			Key string `json:"key"`
-		} `json:"roles"`
+		Roles []workspaceRole `json:"roles"`
 	}
 	if _, err := s.authzCall(r, http.MethodGet, "/v1/orgs/"+org+"/roles", nil, &listed); err != nil {
 		return err
 	}
-	keys := []string{}
+	// "roles" stays the plain keys (older screens read it); "catalog" carries the same roles with their names, once each.
+	keys, catalog := []string{}, []workspaceRole{}
+	seen := map[string]bool{}
 	for _, role := range listed.Roles {
-		if role.Key != "owner" && role.Key != "solo" && role.Key != "admin" {
-			keys = append(keys, role.Key)
+		if !role.Assignable || role.Key == "admin" || seen[role.Key] {
+			continue
 		}
+		seen[role.Key] = true
+		keys = append(keys, role.Key)
+		catalog = append(catalog, role)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"roles": keys})
+	writeJSON(w, http.StatusOK, map[string]any{"roles": keys, "catalog": catalog})
+	return nil
+}
+
+// workspaceRole is one role of the authorization service's catalog: its key, the words people read, whether it is a standard role
+// or this workspace's own, and whether it can be given to someone (the agency owner's role cannot).
+type workspaceRole struct {
+	Key        string `json:"key"`
+	Name       string `json:"name"`
+	Source     string `json:"source"`
+	Scope      string `json:"scope"`
+	SecondStep bool   `json:"second_step"`
+	Assignable bool   `json:"assignable"`
+}
+
+// roleCatalog is every role there is, with nothing twice: the standard workspace roles, and the platform staff roles in their own
+// group. It needs no workspace, so any signed-in person's screens can label roles the same way.
+func (s *server) roleCatalog(w http.ResponseWriter, r *http.Request) error {
+	if _, err := s.person(r); err != nil {
+		return err
+	}
+	var listed struct {
+		Workspace []workspaceRole `json:"workspace"`
+		Platform  []struct {
+			Key  string `json:"key"`
+			Name string `json:"name"`
+		} `json:"platform"`
+	}
+	if _, err := s.authzCall(r, http.MethodGet, "/v1/roles", nil, &listed); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"workspace": listed.Workspace, "platform": listed.Platform})
 	return nil
 }
 
