@@ -12,7 +12,7 @@ const links = [
 
 type Shown = { name?: string; email?: string; avatar?: unknown };
 
-export function SiteHeader({ path, me, onSignOut, savedSession = false, cached = null }: { path: string; me: Me | null | undefined; onSignOut: () => void; savedSession?: boolean; cached?: Shown | null }) {
+export function SiteHeader({ path, me, onSignOut, savedSession = false, cached = null, crmUrl = "" }: { path: string; me: Me | null | undefined; onSignOut: () => void; savedSession?: boolean; cached?: Shown | null; crmUrl?: string }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [detached, setDetached] = useState(false);
   const header = useRef<HTMLElement>(null);
@@ -37,7 +37,7 @@ export function SiteHeader({ path, me, onSignOut, savedSession = false, cached =
   const nav = links.map(link => <Link key={link.to} to={link.to} aria-current={path === link.to || (link.to === "/features" && path.startsWith("/features/")) ? "page" : undefined}>{link.label}</Link>);
   const menu = (known: Shown) => <details className="account-menu" ref={accountMenu}>
     <summary aria-label={`Account menu for ${known.name || known.email}`} title="Account menu"><span className="avatar" aria-hidden="true">{known.avatar ? <img src={String(known.avatar)} alt="" /> : (known.name || known.email || "C").trim().charAt(0).toUpperCase()}</span></summary>
-    <div className="account-popover"><span className="account-identity">{known.name || "Your account"}<small>{known.email}</small></span><Link to="/dashboard" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; }}>Dashboard</Link><Link to="/account" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; }}>Your profile</Link><button type="button" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; onSignOut(); }}>Sign out</button></div>
+    <div className="account-popover"><span className="account-identity">{known.name || "Your account"}<small>{known.email}</small></span><Link to="/dashboard" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; }}>Dashboard</Link>{crmUrl && <a href={crmUrl}>Open CRM</a>}<Link to="/account" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; }}>Your profile</Link><button type="button" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; onSignOut(); }}>Sign out</button></div>
   </details>;
   // What is known at once: the person, or (while the session is still being checked) the last-known profile kept on this device.
   const known = me || (me === undefined && savedSession ? cached : null);
