@@ -3,9 +3,11 @@ import type { Auth, Me } from "./auth/auth-client.js";
 import { RoleBadges, type Access } from "./RoleBadges.tsx";
 import { MainCurrency } from "./MainCurrency.tsx";
 import { AvatarCropper } from "./AvatarCropper.tsx";
+import { namePartsOf } from "./person-name.ts";
 
 export function Profile({ me, auth, authBase, onSaved }: { me: Me; auth: Auth; authBase: string; onSaved: () => void }) {
-  const [name, setName] = useState(me.name || "");
+  const [parts, setParts] = useState(() => namePartsOf(me));
+  const name = [parts.first, parts.middle, parts.last].filter(Boolean).join(" ");
   const [phone, setPhone] = useState(String(me.phone || ""));
   const savedAvatar = String(me.avatar || "");
   const [cropping, setCropping] = useState<File | null>(null);
@@ -15,7 +17,7 @@ export function Profile({ me, auth, authBase, onSaved }: { me: Me; auth: Auth; a
   const [providers, setProviders] = useState<string[]>([]);
   const [available, setAvailable] = useState<{ google?: boolean; apple?: boolean }>({});
   const [state, setState] = useState({ busy: false, message: "", error: "" });
-  useEffect(() => { setName(me.name || ""); setPhone(String(me.phone || "")); }, [me.id, me.name, me.phone]);
+  useEffect(() => { setParts(namePartsOf(me)); setPhone(String(me.phone || "")); }, [me.id, me.name, me.phone, me.first_name, me.middle_name, me.last_name]);
   useEffect(() => {
     let active = true;
     auth.accessToken().then(async token => {
@@ -39,7 +41,7 @@ export function Profile({ me, auth, authBase, onSaved }: { me: Me; auth: Auth; a
     setCropping(file);
   };
   // The picture is saved on its own, with the details as they are saved now; the details form saves the details with the picture as it is saved now.
-  const post = async (body: { name: string; phone: string; avatar: string }) => {
+  const post = async (body: { name: string; phone: string; avatar: string; first_name?: string; middle_name?: string; last_name?: string }) => {
     const token = await auth.accessToken();
     if (!token) throw new Error("Sign in again to save your profile.");
     const response = await fetch(`${authBase}/v1/me/profile`, {
@@ -65,7 +67,7 @@ export function Profile({ me, auth, authBase, onSaved }: { me: Me; auth: Auth; a
   const save = async (event: FormEvent) => {
     event.preventDefault(); setState({ busy: true, message: "", error: "" });
     try {
-      await post({ name: name.trim(), phone: phone.trim(), avatar: savedAvatar });
+      await post({ name, phone: phone.trim(), avatar: savedAvatar, first_name: parts.first, middle_name: parts.middle, last_name: parts.last });
       setState({ busy: false, message: "Profile saved.", error: "" });
       onSaved();
     } catch (error) { setState({ busy: false, message: "", error: error instanceof Error ? error.message : "Could not save your profile." }); }
@@ -84,9 +86,9 @@ export function Profile({ me, auth, authBase, onSaved }: { me: Me; auth: Auth; a
   const linked = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("linked");
   const linkError = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("link_error");
   return <div className="profile-page">
-    <header className="page-head profile-head"><button type="button" className="profile-avatar profile-avatar-button" aria-label="Change profile picture" title="Change profile picture" onClick={() => pictureInput.current?.click()}>{avatar ? <img src={avatar} alt="" /> : (name || me.email).charAt(0).toUpperCase()}<span className="profile-avatar-change" aria-hidden="true">Change</span></button><input ref={pictureInput} type="file" hidden accept="image/*" onChange={picture} /><div><h1>Your profile</h1>{access && <RoleBadges access={access} />}<div className="profile-picture-actions"><button type="button" className="button" disabled={pictureState.busy} onClick={() => pictureInput.current?.click()}>{savedAvatar ? "Change picture" : "Choose picture"}</button>{savedAvatar && <button type="button" className="text-button" disabled={pictureState.busy} onClick={() => void savePicture("")}>Remove</button>}</div>{pictureState.message && <p role="status" className="notice good">{pictureState.message}</p>}{pictureState.error && <p role="alert" className="notice bad">{pictureState.error}</p>}</div></header>
+    <header className="page-head profile-head"><button type="button" className="profile-avatar profile-avatar-button" aria-label="Change profile picture" title="Change profile picture" onClick={() => pictureInput.current?.click()}>{avatar ? <img src={avatar} alt="" /> : (name || me.email).charAt(0).toUpperCase()}<span className="profile-avatar-change" aria-hidden="true">Change</span></button><input ref={pictureInput} type="file" hidden accept="image/*" onChange={picture} /><div><h1>{me.name || "Your profile"}</h1>{access && <RoleBadges access={access} />}<div className="profile-picture-actions"><button type="button" className="button raised" disabled={pictureState.busy} onClick={() => pictureInput.current?.click()}>{savedAvatar ? "Change picture" : "Choose picture"}</button>{savedAvatar && <button type="button" className="text-button" disabled={pictureState.busy} onClick={() => void savePicture("")}>Remove</button>}</div>{pictureState.message && <p role="status" className="notice good">{pictureState.message}</p>}{pictureState.error && <p role="alert" className="notice bad">{pictureState.error}</p>}</div></header>
     {cropping && <AvatarCropper file={cropping} onCancel={() => setCropping(null)} onDone={savePicture} />}
-    <div className="profile-grid"><form className="card profile-card" onSubmit={save}><h2>Personal details</h2><div className="profile-fields"><label>Display name<input required maxLength={120} value={name} onChange={event => setName(event.target.value)} /></label><label>Email<input value={me.email} readOnly aria-readonly="true" /></label><label>Phone number<input type="tel" value={phone} onChange={event => setPhone(event.target.value)} placeholder="Optional" autoComplete="tel" /></label></div><button className="button primary" disabled={state.busy}>{state.busy ? "Saving…" : "Save changes"}</button>{state.message && <p role="status" className="notice good">{state.message}</p>}{state.error && <p role="alert" className="notice bad">{state.error}</p>}</form>
+    <div className="profile-grid"><form className="card profile-card" onSubmit={save}><div className="profile-card-head"><h2>Personal details</h2><button className="button primary" disabled={state.busy || !parts.first.trim()} aria-busy={state.busy}>{state.busy ? <><span className="spinner" aria-hidden="true" />Saving…</> : "Save changes"}</button></div><div className="profile-fields"><div className="profile-name"><label>First name<input required maxLength={60} autoComplete="given-name" value={parts.first} onChange={event => setParts({ ...parts, first: event.target.value })} /></label><label>Middle name<input maxLength={60} autoComplete="additional-name" value={parts.middle} onChange={event => setParts({ ...parts, middle: event.target.value })} placeholder="Optional" /></label><label>Last name<input maxLength={60} autoComplete="family-name" value={parts.last} onChange={event => setParts({ ...parts, last: event.target.value })} placeholder="Optional" /></label></div><label>Email<input value={me.email} readOnly aria-readonly="true" /></label><label>Phone number<input type="tel" value={phone} onChange={event => setPhone(event.target.value)} placeholder="Optional" autoComplete="tel" /></label></div>{state.message && <p role="status" className="notice good">{state.message}</p>}{state.error && <p role="alert" className="notice bad">{state.error}</p>}</form>
       <section className="card profile-card"><h2>Connected accounts</h2><div className="profile-providers">{(["google", "apple"] as const).map(provider => <div key={provider}><span>{provider === "google" ? "Google" : "Apple"}</span>{providers.includes(provider) ? <span className="role-badge">Connected</span> : available[provider] ? <button type="button" className="button" disabled={state.busy} onClick={() => void link(provider)}>Connect</button> : <span className="muted">Unavailable</span>}</div>)}</div>{linked && <p role="status" className="notice good">{linked === "apple" ? "Apple" : "Google"} connected.</p>}{linkError && <p role="alert" className="notice bad">{linkError}</p>}</section>
       <MainCurrency auth={auth} authBase={authBase} saved={String(me.currency || "")} onSaved={onSaved} /></div>
   </div>;
