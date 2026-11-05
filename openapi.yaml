@@ -44,8 +44,8 @@ paths:
           application/json:
             schema:
               type: object
-              required: [email, password, name, birth_date]
-              properties: { birth_date: { type: string, description: "Date of birth, YYYY-MM-DD. Refused (403) under 18" }, email: { type: string }, password: { type: string, minLength: 8, maxLength: 4096, description: Requires uppercase and lowercase ASCII letters plus a number and a special character }, name: { type: string }, kind: { type: string, enum: [browser, desktop] }, human_token: { type: string, maxLength: 2048, description: Required when bot protection is enabled } }
+              required: [email, password, name, birth_date, terms_version]
+              properties: { terms_version: { type: string, description: The version of the terms and privacy notice they accepted (GET /v1/me tells the current one) }, birth_date: { type: string, description: "Date of birth, YYYY-MM-DD. Refused (403) under 18" }, email: { type: string }, password: { type: string, minLength: 8, maxLength: 4096, description: Requires uppercase and lowercase ASCII letters plus a number and a special character }, name: { type: string }, kind: { type: string, enum: [browser, desktop] }, human_token: { type: string, maxLength: 2048, description: Required when bot protection is enabled } }
       responses:
         "201": { description: Created and signed in, content: { application/json: { schema: { $ref: "#/components/schemas/Tokens" } } } }
         "400": { description: Not valid, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
@@ -106,6 +106,18 @@ paths:
       security: [{ bearer: [] }]
       requestBody: { content: { application/json: { schema: { type: object, required: [birth_date], properties: { birth_date: { type: string, description: YYYY-MM-DD } } } } } }
       responses: { "200": { description: Age confirmed }, "400": { description: Not a real date, or already given }, "401": { description: Not signed in }, "403": { description: Under 18 } }
+  /v1/me/terms:
+    post:
+      summary: Accept the current terms and privacy notice
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [version], properties: { version: { type: string } } } } } }
+      responses: { "200": { description: Accepted }, "400": { description: Not the current version }, "401": { description: Not signed in } }
+  /v1/me/work:
+    post:
+      summary: Say what the person's work is (role, team size, what they will use Caller Whale for), so it can be set up to fit them
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [role, team_size, uses], properties: { role: { type: string, enum: [business_owner, lead_buyer, call_center, sales_team, solo_caller, data_provider, other] }, team_size: { type: string, enum: [just_me, "2_10", "11_50", 51_plus] }, uses: { type: array, items: { type: string, enum: [cold_calling, buying_selling_leads, managing_deals, follow_ups, skip_tracing, team_reporting, sms_email] } }, other: { type: string, maxLength: 200 } } } } } }
+      responses: { "200": { description: Saved }, "400": { description: An answer is not one of the choices }, "401": { description: Not signed in } }
   /v1/me/providers:
     get:
       summary: Google and Apple methods linked to the signed-in Firebase account
