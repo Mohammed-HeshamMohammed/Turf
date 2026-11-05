@@ -38,6 +38,20 @@
    and it scrolls inside itself when the screen is shorter than it. The menu items sit close together at the top. */
 .dashboard-shell .admin-sidebar { top: 0; align-self: start; max-height: 100%; overflow-y: auto; grid-template-rows: auto auto auto; gap: var(--dash-gap); }
 .dashboard-shell .admin-sidebar nav { align-content: start; }
+
+/* ---- Dashboard design tokens: one spacing step, one corner radius and one padding for every panel on the screen ---------------
+   --dash-gap    space between panels and around the screen (set above)
+   --dash-radius corner of the header, sidebar, footer and every card
+   --dash-inner  corner of things inside a panel (buttons, inputs, menu items)
+   --dash-pad    padding inside the header, sidebar and footer; --dash-pad-lg inside content cards                                   */
+.dashboard-shell { --dash-radius: 20px; --dash-inner: 12px; --dash-pad: 16px; --dash-pad-lg: 24px; }
+.dashboard-shell > .site-header { position: static; margin: 0; min-height: 64px; padding: 10px var(--dash-pad); border-radius: var(--dash-radius); }
+.dashboard-shell > .site-footer-compact { min-height: 0; padding: 10px var(--dash-pad); border-radius: var(--dash-radius); font-size: 13px; }
+.dashboard-shell .admin-sidebar { padding: var(--dash-pad); border-radius: var(--dash-radius); }
+.dashboard-shell .admin-sidebar nav a { border-radius: var(--dash-inner); }
+.dashboard-shell > main .card, .dashboard-shell > main .staff-verify, .dashboard-shell > main .staff-recovery, .dashboard-shell > main .admin-monitoring, .dashboard-shell > main .admin-pending, .dashboard-shell > main .admin-feedback { border-radius: var(--dash-radius); padding: var(--dash-pad-lg); }
+.dashboard-shell > main .admin-toolbar, .dashboard-shell > main .admin-empty { border-radius: var(--dash-inner); }
+.dashboard-shell > main input, .dashboard-shell > main select { border-radius: var(--dash-inner); }
 .admin-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); align-items: stretch; gap: var(--dash-gap, 12px); min-width: 0; min-height: 100%; }
 .admin-sidebar { position: sticky; top: 100px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 18px; min-width: 0; padding: 16px 12px; border-radius: 18px; background: #171d1a; color: #fff; }
 .admin-sidebar-brand { display: flex; align-items: center; gap: 11px; padding: 4px 8px; }
