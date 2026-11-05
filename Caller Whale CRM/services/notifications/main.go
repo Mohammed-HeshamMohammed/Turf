@@ -27,17 +27,18 @@ type Config struct {
 	// ContactTo is the team inbox the website's contact form writes to, and ContactOrigins the pages (like https://callerwhale.com) that may post to it.
 	ContactTo      string
 	ContactOrigins []string
-	// Tokens maps a caller's name to its token ("auth=...,core-api=..."), each at least 24 characters.
-	Tokens map[string]string
+	// Tokens maps a caller's name to its tokens ("auth=...,core-api=..."), each at least 24 characters. A name may appear twice
+	// while its token is being replaced: add the new one, switch the caller over, then remove the old one.
+	Tokens map[string][]string
 	SMTP   SMTP
 }
 
 func loadConfig() Config {
-	cfg := Config{Tokens: map[string]string{}}
+	cfg := Config{Tokens: map[string][]string{}}
 	for _, pair := range strings.Split(os.Getenv("NOTIFY_TOKENS"), ",") {
 		name, token, ok := strings.Cut(strings.TrimSpace(pair), "=")
-		if ok && name != "" && len(token) >= 24 {
-			cfg.Tokens[name] = token
+		if ok && name != "" && len(token) >= 24 && len(cfg.Tokens[name]) < 2 {
+			cfg.Tokens[name] = append(cfg.Tokens[name], token)
 		}
 	}
 	cfg.ContactTo = strings.TrimSpace(os.Getenv("NOTIFY_CONTACT_TO"))
@@ -58,7 +59,7 @@ func loadConfig() Config {
 
 // Server is the HTTP side: who may ask, how often, and which sender delivers.
 type Server struct {
-	tokens     map[string]string
+	tokens     map[string][]string
 	sender     Sender
 	configured bool
 	now        func() time.Time
@@ -69,7 +70,7 @@ type Server struct {
 	contactOrigins map[string]bool
 }
 
-func newServer(tokens map[string]string, sender Sender, configured bool) *Server {
+func newServer(tokens map[string][]string, sender Sender, configured bool) *Server {
 	return &Server{tokens: tokens, sender: sender, configured: configured, now: time.Now, window: map[string][]time.Time{}}
 }
 
@@ -99,9 +100,11 @@ func (s *Server) caller(r *http.Request) (string, bool) {
 		return "", false
 	}
 	found := ""
-	for name, token := range s.tokens {
-		if subtle.ConstantTimeCompare([]byte(given), []byte(token)) == 1 {
-			found = name
+	for name, tokens := range s.tokens {
+		for _, token := range tokens {
+			if subtle.ConstantTimeCompare([]byte(given), []byte(token)) == 1 {
+				found = name
+			}
 		}
 	}
 	return found, found != ""

@@ -70,7 +70,7 @@ func post(t *testing.T, s *Server, token, body string) (int, map[string]any) {
 }
 
 func TestMailNeedsAServiceToken(t *testing.T) {
-	s := newServer(map[string]string{"auth": testToken}, &fakeSender{}, true)
+	s := newServer(map[string][]string{"auth": {testToken}}, &fakeSender{}, true)
 	for _, token := range []string{"", "wrong-token-wrong-token-wrong"} {
 		if code, _ := post(t, s, token, `{"template":"mfa_code","to":"a@example.com","data":{"code":"123456"}}`); code != 401 {
 			t.Fatalf("token %q: got %d", token, code)
@@ -80,7 +80,7 @@ func TestMailNeedsAServiceToken(t *testing.T) {
 
 func TestACodeIsSentThroughTheTemplate(t *testing.T) {
 	f := &fakeSender{}
-	s := newServer(map[string]string{"auth": testToken}, f, true)
+	s := newServer(map[string][]string{"auth": {testToken}}, f, true)
 	code, _ := post(t, s, testToken, `{"template":"mfa_code","to":"a@example.com","data":{"code":"123456"}}`)
 	if code != 202 || len(f.sent) != 1 {
 		t.Fatalf("got %d, sent %d", code, len(f.sent))
@@ -92,7 +92,7 @@ func TestACodeIsSentThroughTheTemplate(t *testing.T) {
 
 func TestAnInvitationHasBothPartsAndEscapesTheName(t *testing.T) {
 	f := &fakeSender{}
-	s := newServer(map[string]string{"core-api": testToken}, f, true)
+	s := newServer(map[string][]string{"core-api": {testToken}}, f, true)
 	body := `{"template":"invitation","to":"sami@example.com","data":{"name":"<b>Sami</b>","inviter":"Mo","monthly_credits":12500,"link":"https://example.test/signup"}}`
 	if code, _ := post(t, s, testToken, body); code != 202 {
 		t.Fatalf("got %d", code)
@@ -112,7 +112,7 @@ func TestTeamInvitationDoesNotInventCreditsAndEscapesRole(t *testing.T) {
 
 func TestAContactMessageGoesToTheInboxWithAReplyAddress(t *testing.T) {
 	f := &fakeSender{}
-	s := newServer(map[string]string{"core-api": testToken}, f, true)
+	s := newServer(map[string][]string{"core-api": {testToken}}, f, true)
 	body := `{"template":"contact","to":"hello@example.com","data":{"name":"<b>Sami</b>","email":"sami@example.com","message":"Hi <script>there"}}`
 	if code, _ := post(t, s, testToken, body); code != 202 {
 		t.Fatalf("got %d", code)
@@ -129,7 +129,7 @@ func TestAContactMessageGoesToTheInboxWithAReplyAddress(t *testing.T) {
 
 func TestAContactMessageWithOddFieldsIsRefused(t *testing.T) {
 	f := &fakeSender{}
-	s := newServer(map[string]string{"core-api": testToken}, f, true)
+	s := newServer(map[string][]string{"core-api": {testToken}}, f, true)
 	for _, data := range []string{
 		`{"email":"not an address","message":"hello"}`,
 		`{"email":"a@example.com","message":""}`,
@@ -147,7 +147,7 @@ func TestAContactMessageWithOddFieldsIsRefused(t *testing.T) {
 
 func TestAConfirmationEmailCarriesTheLinkAndRefusesOddOnes(t *testing.T) {
 	f := &fakeSender{}
-	s := newServer(map[string]string{"auth": testToken}, f, true)
+	s := newServer(map[string][]string{"auth": {testToken}}, f, true)
 	good := `{"template":"confirm_email","to":"a@example.com","data":{"name":"<i>Al</i>","link":"https://callerwhale.com/verify?token=abc"}}`
 	if code, _ := post(t, s, testToken, good); code != 202 {
 		t.Fatalf("got %d", code)
@@ -165,7 +165,7 @@ func TestAConfirmationEmailCarriesTheLinkAndRefusesOddOnes(t *testing.T) {
 
 func TestBadRequestsAreRefusedBeforeSending(t *testing.T) {
 	f := &fakeSender{}
-	s := newServer(map[string]string{"auth": testToken}, f, true)
+	s := newServer(map[string][]string{"auth": {testToken}}, f, true)
 	for _, body := range []string{`not json`, `{"template":"nope","to":"a@example.com"}`, `{"template":"mfa_code","to":"a@example.com","data":{}}`, `{"template":"mfa_code","to":"a@example.com","data":{"code":"12 34"}}`} {
 		if code, _ := post(t, s, testToken, body); code != 400 {
 			t.Fatalf("%q: got %d", body, code)
@@ -177,14 +177,14 @@ func TestBadRequestsAreRefusedBeforeSending(t *testing.T) {
 }
 
 func TestNoMailServerAnswers503(t *testing.T) {
-	s := newServer(map[string]string{"auth": testToken}, nil, false)
+	s := newServer(map[string][]string{"auth": {testToken}}, nil, false)
 	if code, _ := post(t, s, testToken, `{"template":"mfa_code","to":"a@example.com","data":{"code":"123456"}}`); code != 503 {
 		t.Fatalf("got %d", code)
 	}
 }
 
 func TestAMailServerFailureIsA502WithoutTheReason(t *testing.T) {
-	s := newServer(map[string]string{"auth": testToken}, &fakeSender{err: errors.New("535 bad login for secret@host")}, true)
+	s := newServer(map[string][]string{"auth": {testToken}}, &fakeSender{err: errors.New("535 bad login for secret@host")}, true)
 	code, body := post(t, s, testToken, `{"template":"mfa_code","to":"a@example.com","data":{"code":"123456"}}`)
 	if code != 502 || strings.Contains(body["error"].(string), "secret") {
 		t.Fatalf("got %d %v", code, body)
@@ -192,7 +192,7 @@ func TestAMailServerFailureIsA502WithoutTheReason(t *testing.T) {
 }
 
 func TestACallerIsLimitedPerMinute(t *testing.T) {
-	s := newServer(map[string]string{"auth": testToken}, &fakeSender{}, true)
+	s := newServer(map[string][]string{"auth": {testToken}}, &fakeSender{}, true)
 	var last int
 	for i := 0; i < perMinute+1; i++ {
 		last, _ = post(t, s, testToken, `{"template":"mfa_code","to":"a@example.com","data":{"code":"123456"}}`)
@@ -204,7 +204,24 @@ func TestACallerIsLimitedPerMinute(t *testing.T) {
 
 func TestTokensShorterThan24AreIgnored(t *testing.T) {
 	t.Setenv("NOTIFY_TOKENS", "short=abc,auth="+testToken)
-	if cfg := loadConfig(); len(cfg.Tokens) != 1 || cfg.Tokens["auth"] != testToken {
+	if cfg := loadConfig(); len(cfg.Tokens) != 1 || len(cfg.Tokens["auth"]) != 1 || cfg.Tokens["auth"][0] != testToken {
 		t.Fatalf("got %v", cfg.Tokens)
+	}
+}
+
+func TestACallerMayHoldTwoTokensWhileOneIsReplaced(t *testing.T) {
+	newer := strings.Repeat("n", 40)
+	t.Setenv("NOTIFY_TOKENS", "auth="+testToken+",auth="+newer+",auth="+strings.Repeat("x", 40))
+	cfg := loadConfig()
+	if got := cfg.Tokens["auth"]; len(got) != 2 || got[0] != testToken || got[1] != newer {
+		t.Fatalf("got %v", got)
+	}
+	s := newServer(cfg.Tokens, &fakeSender{}, true)
+	for _, token := range []string{testToken, newer} {
+		r := httptest.NewRequest("POST", "/v1/mail", nil)
+		r.Header.Set("Authorization", "Bearer "+token)
+		if name, ok := s.caller(r); !ok || name != "auth" {
+			t.Fatalf("%s… was refused", token[:4])
+		}
 	}
 }

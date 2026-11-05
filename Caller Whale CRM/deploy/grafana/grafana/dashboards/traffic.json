@@ -1,0 +1,411 @@
+{
+  "uid": "cw-traffic",
+  "title": "Service traffic: who called what",
+  "tags": [
+    "caller-whale"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "editable": false,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 31,
+      "type": "stat",
+      "title": "Requests (last hour)",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\".+\"} |= \"HTTP request\" | regexp `\\|\\s*\\[(?P<result>[A-Z]+)\\]\\s*\\|\\s*(?P<service>[^|]+?)\\s*\\|\\s*HTTP request\\s*\\|\\s*(?P<method>[A-Z]+)\\s*\\|\\s*(?P<status>\\d+)\\s*\\|\\s*(?P<seconds>[0-9.]+) s\\s*\\|\\s*(?P<path>\\S*)` [1h]))",
+          "legendFormat": "",
+          "refId": "A",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      }
+    },
+    {
+      "id": 32,
+      "type": "stat",
+      "title": "Refused (401/403, last hour)",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\".+\"} |= \"HTTP request\" | regexp `\\|\\s*\\[(?P<result>[A-Z]+)\\]\\s*\\|\\s*(?P<service>[^|]+?)\\s*\\|\\s*HTTP request\\s*\\|\\s*(?P<method>[A-Z]+)\\s*\\|\\s*(?P<status>\\d+)\\s*\\|\\s*(?P<seconds>[0-9.]+) s\\s*\\|\\s*(?P<path>\\S*)` | status=~\"401|403\" [1h])) or vector(0)",
+          "legendFormat": "",
+          "refId": "A",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 20
+              },
+              {
+                "color": "red",
+                "value": 100
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      }
+    },
+    {
+      "id": 33,
+      "type": "stat",
+      "title": "Server errors (5xx, last hour)",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\".+\"} |= \"HTTP request\" | regexp `\\|\\s*\\[(?P<result>[A-Z]+)\\]\\s*\\|\\s*(?P<service>[^|]+?)\\s*\\|\\s*HTTP request\\s*\\|\\s*(?P<method>[A-Z]+)\\s*\\|\\s*(?P<status>\\d+)\\s*\\|\\s*(?P<seconds>[0-9.]+) s\\s*\\|\\s*(?P<path>\\S*)` | status=~\"5..\" [1h])) or vector(0)",
+          "legendFormat": "",
+          "refId": "A",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      }
+    },
+    {
+      "id": 34,
+      "type": "stat",
+      "title": "Too many requests (429, last hour)",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({container=~\".+\"} |= \"HTTP request\" | regexp `\\|\\s*\\[(?P<result>[A-Z]+)\\]\\s*\\|\\s*(?P<service>[^|]+?)\\s*\\|\\s*HTTP request\\s*\\|\\s*(?P<method>[A-Z]+)\\s*\\|\\s*(?P<status>\\d+)\\s*\\|\\s*(?P<seconds>[0-9.]+) s\\s*\\|\\s*(?P<path>\\S*)` | status=\"429\" [1h])) or vector(0)",
+          "legendFormat": "",
+          "refId": "A",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      }
+    },
+    {
+      "id": 35,
+      "type": "timeseries",
+      "title": "Requests by service",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (service) (count_over_time({container=~\".+\"} |= \"HTTP request\" | regexp `\\|\\s*\\[(?P<result>[A-Z]+)\\]\\s*\\|\\s*(?P<service>[^|]+?)\\s*\\|\\s*HTTP request\\s*\\|\\s*(?P<method>[A-Z]+)\\s*\\|\\s*(?P<status>\\d+)\\s*\\|\\s*(?P<seconds>[0-9.]+) s\\s*\\|\\s*(?P<path>\\S*)` [$__auto]))",
+          "legendFormat": "{{service}}",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 36,
+      "type": "timeseries",
+      "title": "Refused requests by service (401/403)",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (service, status) (count_over_time({container=~\".+\"} |= \"HTTP request\" | regexp `\\|\\s*\\[(?P<result>[A-Z]+)\\]\\s*\\|\\s*(?P<service>[^|]+?)\\s*\\|\\s*HTTP request\\s*\\|\\s*(?P<method>[A-Z]+)\\s*\\|\\s*(?P<status>\\d+)\\s*\\|\\s*(?P<seconds>[0-9.]+) s\\s*\\|\\s*(?P<path>\\S*)` | status=~\"401|403\" [$__auto]))",
+          "legendFormat": "{{service}} {{status}}",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 37,
+      "type": "timeseries",
+      "title": "Answers by status code",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (status) (count_over_time({container=~\".+\"} |= \"HTTP request\" | regexp `\\|\\s*\\[(?P<result>[A-Z]+)\\]\\s*\\|\\s*(?P<service>[^|]+?)\\s*\\|\\s*HTTP request\\s*\\|\\s*(?P<method>[A-Z]+)\\s*\\|\\s*(?P<status>\\d+)\\s*\\|\\s*(?P<seconds>[0-9.]+) s\\s*\\|\\s*(?P<path>\\S*)` [$__auto]))",
+          "legendFormat": "{{status}}",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 38,
+      "type": "table",
+      "title": "Slowest addresses (average seconds)",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "topk(10, avg by (service, method, path) (avg_over_time({container=~\".+\"} |= \"HTTP request\" | regexp `\\|\\s*\\[(?P<result>[A-Z]+)\\]\\s*\\|\\s*(?P<service>[^|]+?)\\s*\\|\\s*HTTP request\\s*\\|\\s*(?P<method>[A-Z]+)\\s*\\|\\s*(?P<status>\\d+)\\s*\\|\\s*(?P<seconds>[0-9.]+) s\\s*\\|\\s*(?P<path>\\S*)` | unwrap seconds [1h])))",
+          "legendFormat": "",
+          "refId": "A",
+          "queryType": "instant",
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 39,
+      "type": "logs",
+      "title": "Refusals and errors (every service)",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{container=~\".+\"} |~ \"\\\\[(REJECTED|ERROR|WARN)\\\\]\"",
+          "legendFormat": "",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      }
+    }
+  ]
+}
