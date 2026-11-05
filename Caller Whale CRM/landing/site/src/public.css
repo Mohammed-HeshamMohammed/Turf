@@ -363,3 +363,4 @@
 .signup-picture { display: flex; align-items: center; gap: 14px; }
 .signup-picture .profile-avatar { width: 72px; font-size: 30px; flex: 0 0 auto; }
 .form .text-button, .signup-picture .text-button { justify-self: center; padding: 6px 10px; border: 0; background: transparent; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
+.admin-sidebar-brand strong { text-transform: uppercase; letter-spacing: .06em; }
