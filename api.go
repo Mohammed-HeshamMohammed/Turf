@@ -475,14 +475,15 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	var phone, avatar, currency string
-	if err := s.db.QueryRow(r.Context(), "SELECT phone, avatar, currency FROM users WHERE id = $1", u.id).Scan(&phone, &avatar, &currency); err != nil {
+	var phone, avatar, currency, first, middle, last string
+	if err := s.db.QueryRow(r.Context(), "SELECT phone, avatar, currency, first_name, middle_name, last_name FROM users WHERE id = $1", u.id).Scan(&phone, &avatar, &currency, &first, &middle, &last); err != nil {
 		return err
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id": u.id, "email": u.email, "name": u.name, "mfa_enrolled": enrolled, "email_verified": u.emailVerified,
 		"mfa_passed": c.MFA, "session_id": c.SID,
 		"phone": phone, "avatar": avatar, "currency": currency,
+		"first_name": first, "middle_name": middle, "last_name": last,
 	})
 	return nil
 }
