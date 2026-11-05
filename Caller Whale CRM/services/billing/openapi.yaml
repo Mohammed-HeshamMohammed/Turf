@@ -1,4 +1,4 @@
-# Generated from the code: .venv/Scripts/python -c "...app.openapi()..." (see README). JSON is valid YAML.
+# Generated from the code (see README). JSON is valid YAML.
 {
   "openapi": "3.1.0",
   "info": {
@@ -124,6 +124,44 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/summary": {
+      "get": {
+        "summary": "Summary",
+        "operationId": "summary_v1_admin_summary_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Authorization"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",

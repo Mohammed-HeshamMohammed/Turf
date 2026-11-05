@@ -1,0 +1,176 @@
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+
+/** The dashboard's authed request to the auth service (it adds the token and turns refusals into messages). */
+export type Api = (method: string, path: string, body?: object) => Promise<any>;
+
+const moneyDigits = (currency: string) => new Intl.NumberFormat(undefined, { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
+export const money = (minor: number, currency: string) => new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: moneyDigits(currency) }).format(minor / 10 ** moneyDigits(currency));
+const when = (seconds: number) => seconds ? new Date(seconds * 1000).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "Never";
+const pct = (part: number, whole: number) => whole ? `${Math.round(part / whole * 100)}%` : "0%";
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+function useLoad<T>(request: Api, path: string, again = 0) {
+  const [state, setState] = useState<{ data: T | null; error: string; loading: boolean }>({ data: null, error: "", loading: true });
+  useEffect(() => {
+    let live = true;
+    setState(current => ({ ...current, loading: true, error: "" }));
+    request("GET", path).then(
+      data => live && setState({ data, error: "", loading: false }),
+      error => live && setState({ data: null, error: error instanceof Error ? error.message : "Could not load this.", loading: false }),
+    );
+    return () => { live = false; };
+  }, [path, again]);
+  return state;
+}
+
+/** Bars drawn as plain SVG: no chart library, readable by a screen reader through the title and the list below. */
+function Bars({ title, data, format }: { title: string; data: { label: string; value: number }[]; format: (value: number) => string }) {
+  const top = Math.max(1, ...data.map(point => point.value));
+  const width = 100 / Math.max(1, data.length);
+  return <figure className="owner-chart">
+    <svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label={title}>
+      {data.map((point, index) => {
+        const height = point.value / top * 36;
+        return <rect key={point.label} x={index * width + width * 0.12} y={38 - height} width={width * 0.76} height={Math.max(height, point.value ? 0.6 : 0)} rx="0.6"><title>{`${point.label}: ${format(point.value)}`}</title></rect>;
+      })}
+    </svg>
+    <figcaption><span>{data[0]?.label}</span><span>{data[data.length - 1]?.label}</span></figcaption>
+  </figure>;
+}
+
+type Plan = { plan: string; name: string; workspaces: number; paying: number; trialing: number; mrr_minor: number; currency: string };
+type Overview = {
+  people: { accounts: number; staff: number; members: number; new_7_days: number; new_30_days: number; email_verified: number; two_step: number; active_7_days: number; active_30_days: number; signups_by_day: { day: string; count: number }[] };
+  plans: Plan[]; most_requested_plan?: Plan; billing_connected: boolean;
+  usage: { connected: boolean; minutes_this_month: number; credits_this_month: number; top: { kind: string; label: string; total: number }[] };
+  finance?: { currency: string; mrr_minor: number; revenue_this_month_minor: number; revenue_last_month_minor: number; revenue_12_months_minor: number; monthly_costs_minor: number; one_off_costs_minor: number; profit_month_minor: number; roi_percent: number | null; revenue_by_month: { month: string; amount_minor: number }[]; costs_by_category: Record<string, number>; other_currency_costs: number };
+};
+
+const categoryNames: Record<string, string> = { hosting: "Hosting", tools: "Tools", marketing: "Marketing", staff_pay: "Staff pay", other: "Other" };
+
+export function PlatformOverview({ request, openCosts }: { request: Api; openCosts?: () => void }) {
+  const { data, error, loading } = useLoad<Overview>(request, "/v1/admin/overview");
+  if (loading && !data) return <p role="status" className="muted">Loading the overview…</p>;
+  if (error || !data) return <div className="admin-feedback card" role="alert"><h2>The overview is unavailable</h2><p>{error || "Try again in a moment."}</p></div>;
+  const { people, plans, usage, finance } = data;
+  const best = data.most_requested_plan;
+  return <div className="owner-overview">
+    <div className="admin-metrics" aria-label="People">
+      <div><span>Members</span><strong>{people.members}</strong><small>{plural(people.new_7_days, "new member")} this week</small></div>
+      <div><span>Active in 30 days</span><strong>{people.active_30_days}</strong><small>{pct(people.active_30_days, people.members)} of members · {people.active_7_days} this week</small></div>
+      <div><span>Two-step on</span><strong>{pct(people.two_step, people.members)}</strong><small>{people.two_step} of {people.members} members</small></div>
+      <div><span>Email confirmed</span><strong>{pct(people.email_verified, people.members)}</strong><small>{people.email_verified} of {people.members} members</small></div>
+    </div>
+    {finance ? <>
+      <div className="admin-metrics" aria-label="Money">
+        <div><span>Monthly recurring revenue</span><strong>{money(finance.mrr_minor, finance.currency)}</strong><small>From paying workspaces</small></div>
+        <div><span>Revenue this month</span><strong>{money(finance.revenue_this_month_minor, finance.currency)}</strong><small>Last month {money(finance.revenue_last_month_minor, finance.currency)}</small></div>
+        <div><span>Monthly profit</span><strong className={finance.profit_month_minor < 0 ? "owner-negative" : undefined}>{money(finance.profit_month_minor, finance.currency)}</strong><small>Recurring revenue minus {money(finance.monthly_costs_minor, finance.currency)} costs</small></div>
+        <div><span>Return on costs (ROI)</span><strong className={finance.roi_percent !== null && finance.roi_percent < 0 ? "owner-negative" : undefined}>{finance.roi_percent === null ? "—" : `${Math.round(finance.roi_percent)}%`}</strong><small>{finance.roi_percent === null ? "Enter your costs to see it" : "Profit divided by monthly costs"}</small></div>
+      </div>
+      {finance.monthly_costs_minor === 0 && openCosts && <p className="notice" role="note">No costs entered yet, so profit equals revenue and there is no ROI. <button type="button" className="staff-text-button" onClick={openCosts}>Enter your costs</button></p>}
+      {finance.other_currency_costs > 0 && <p className="notice" role="note">{plural(finance.other_currency_costs, "cost")} in another currency are not counted. Costs are added up in {finance.currency}, the currency that earns the most.</p>}
+    </> : null}
+    <section className="admin-overview-panels" aria-label="Trends">
+      <div className="card"><span className="eyebrow">Growth</span><h2>New members, last 30 days</h2><p className="muted">{plural(people.new_30_days, "member")} joined in the last 30 days.</p><Bars title="New members per day" data={people.signups_by_day.map(day => ({ label: day.day, value: day.count }))} format={value => plural(value, "member")} /></div>
+      {finance && <div className="card"><span className="eyebrow">Revenue</span><h2>Money taken by month</h2><p className="muted">{money(finance.revenue_12_months_minor, finance.currency)} in the last 12 months.</p>{finance.revenue_by_month.length ? <Bars title="Revenue per month" data={finance.revenue_by_month.map(row => ({ label: row.month, value: row.amount_minor }))} format={value => money(value, finance.currency)} /> : <p className="muted">No payments yet.</p>}</div>}
+    </section>
+    <section className="card owner-plans" aria-labelledby="owner-plans-title">
+      <div className="admin-section-heading"><div><span className="eyebrow">Plans</span><h2 id="owner-plans-title">What people ask for</h2><p className="muted">{best ? `${best.name} is the most requested plan, with ${plural(best.workspaces, "workspace")}.` : "Nobody has picked a plan yet."}</p></div></div>
+      {!data.billing_connected && <p className="notice" role="note">Billing is not connected to this dashboard yet, so plans, revenue and usage are empty. Set AUTH_BILLING_URL and AUTH_BILLING_TOKEN on the auth service.</p>}
+      {plans.length > 0 && <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th scope="col">Plan</th><th scope="col">Workspaces</th><th scope="col">Paying</th><th scope="col">On trial</th><th scope="col">Monthly revenue</th></tr></thead><tbody>{plans.map(plan => <tr key={plan.plan}><td data-label="Plan"><strong>{plan.name}</strong></td><td data-label="Workspaces">{plan.workspaces}</td><td data-label="Paying">{plan.paying}</td><td data-label="On trial">{plan.trialing}</td><td data-label="Monthly revenue">{money(plan.mrr_minor, plan.currency)}</td></tr>)}</tbody></table></div>}
+    </section>
+    <section className="admin-overview-panels" aria-label="Usage">
+      <div className="card"><span className="eyebrow">Usage this month</span><h2>What is being used</h2><ul className="owner-list"><li><span>Call minutes</span><strong>{usage.minutes_this_month.toLocaleString()}</strong></li><li><span>Desktop credits</span><strong>{usage.credits_this_month.toLocaleString()}</strong></li></ul></div>
+      <div className="card"><span className="eyebrow">Heaviest users</span><h2>Most usage per member</h2>{usage.top.length ? <ul className="owner-list">{usage.top.slice(0, 8).map((row, index) => <li key={`${row.kind}-${row.label}-${index}`}><span>{row.label}<small>{row.kind === "minutes" ? "call minutes" : "credits"}</small></span><strong>{row.total.toLocaleString()}</strong></li>)}</ul> : <p className="muted">No usage recorded this month.</p>}</div>
+    </section>
+    {finance && Object.keys(finance.costs_by_category).length > 0 && <section className="card" aria-labelledby="owner-costs-title"><span className="eyebrow">Costs</span><h2 id="owner-costs-title">Where the money goes each month</h2><ul className="owner-list">{Object.entries(finance.costs_by_category).sort((a, b) => b[1] - a[1]).map(([category, amount]) => <li key={category}><span>{categoryNames[category] || category}</span><strong>{money(amount, finance.currency)}</strong></li>)}</ul></section>}
+  </div>;
+}
+
+type Member = { id: string; name: string; email: string; joined_at: number; last_active: number; email_verified: boolean; two_step: boolean; disabled: boolean; workspaces: number; roles: string[] };
+
+export function MembersTable({ request }: { request: Api }) {
+  const { data, error, loading } = useLoad<{ members: Member[]; total: number; shown: number }>(request, "/v1/admin/members");
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
+  const rows = useMemo(() => (data?.members || []).filter(member => {
+    if (!`${member.name} ${member.email}`.toLowerCase().includes(query.trim().toLowerCase())) return false;
+    if (filter === "no_two_step") return !member.two_step;
+    if (filter === "unconfirmed") return !member.email_verified;
+    if (filter === "no_workspace") return member.workspaces === 0;
+    if (filter === "inactive") return member.last_active < Date.now() / 1000 - 30 * 86400;
+    return true;
+  }), [data, query, filter]);
+  if (loading && !data) return <p role="status" className="muted">Loading members…</p>;
+  if (error || !data) return <div className="admin-feedback card" role="alert"><h2>Members are unavailable</h2><p>{error || "Try again in a moment."}</p></div>;
+  return <section className="admin-team card" aria-labelledby="members-title">
+    <div className="admin-section-heading"><div><span className="eyebrow">Everyone who is not staff</span><h2 id="members-title">Members</h2><p className="muted">People with a Caller Whale account, their workspaces and how they sign in.{data.total > data.shown ? ` Showing the newest ${data.shown} of ${data.total}.` : ""}</p></div><span className="admin-count">{query || filter !== "all" ? `${rows.length} of ${data.members.length}` : data.total} {data.total === 1 ? "member" : "members"}</span></div>
+    <div className="admin-toolbar"><label>Search members<input type="search" placeholder="Name or email" value={query} onChange={event => setQuery(event.target.value)} /></label><label>Show<select value={filter} onChange={event => setFilter(event.target.value)}><option value="all">Everyone</option><option value="no_two_step">Without two-step</option><option value="unconfirmed">Email not confirmed</option><option value="no_workspace">Not in a workspace</option><option value="inactive">Not seen in 30 days</option></select></label></div>
+    {data.members.length === 0 ? <div className="admin-empty"><h3>No members yet</h3><p>People who sign up will appear here.</p></div> : rows.length === 0 ? <div className="admin-empty"><h3>No matches</h3><p>Try a different name, email, or filter.</p><button type="button" className="button raised" onClick={() => { setQuery(""); setFilter("all"); }}>Clear filters</button></div> :
+      <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th scope="col">Member</th><th scope="col">Workspaces</th><th scope="col">Security</th><th scope="col">Joined</th><th scope="col">Last seen</th></tr></thead><tbody>{rows.map(member => <tr key={member.id}>
+        <td data-label="Member"><span className="admin-person"><span className="admin-person-avatar" aria-hidden="true">{(member.name || member.email || "?").charAt(0).toUpperCase()}</span><span><strong>{member.name || member.email}</strong><small>{member.email}</small></span></span></td>
+        <td data-label="Workspaces">{member.workspaces ? <>{plural(member.workspaces, "workspace")}<small className="owner-sub">{member.roles.join(", ")}</small></> : <span className="muted">None</span>}</td>
+        <td data-label="Security"><span className={`owner-badge ${member.two_step ? "good" : ""}`}>{member.two_step ? "Two-step on" : "No two-step"}</span> {!member.email_verified && <span className="owner-badge warn">Email not confirmed</span>} {member.disabled && <span className="owner-badge bad">Disabled</span>}</td>
+        <td data-label="Joined">{when(member.joined_at)}</td><td data-label="Last seen">{when(member.last_active)}</td></tr>)}</tbody></table></div>}
+  </section>;
+}
+
+type Cost = { id: string; label: string; category: string; amount_minor: number; currency: string; interval: string; note: string };
+
+export function CostsManager({ request }: { request: Api }) {
+  const [again, setAgain] = useState(0);
+  const { data, error, loading } = useLoad<{ costs: Cost[] }>(request, "/v1/admin/costs", again);
+  const [label, setLabel] = useState("");
+  const [category, setCategory] = useState("hosting");
+  const [amount, setAmount] = useState("");
+  const [currency, setCurrency] = useState("USD");
+  const [interval, setInterval] = useState("monthly");
+  const [note, setNote] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const add = async (event: FormEvent) => {
+    event.preventDefault();
+    const digits = moneyDigits(currency.toUpperCase().length === 3 ? currency.toUpperCase() : "USD");
+    const minor = Math.round(Number(amount) * 10 ** digits);
+    if (!Number.isFinite(minor) || minor <= 0) { setMessage("Enter an amount above zero."); return; }
+    setBusy(true); setMessage("");
+    try {
+      await request("POST", "/v1/admin/costs", { label, category, amount_minor: minor, currency: currency.toUpperCase(), interval, note });
+      setLabel(""); setAmount(""); setNote(""); setAgain(count => count + 1);
+    } catch (problem) { setMessage(problem instanceof Error ? problem.message : "Could not save that cost."); }
+    setBusy(false);
+  };
+  const remove = async (id: string) => {
+    setBusy(true); setMessage("");
+    try { await request("DELETE", `/v1/admin/costs/${id}`); setAgain(count => count + 1); }
+    catch (problem) { setMessage(problem instanceof Error ? problem.message : "Could not remove that cost."); }
+    setBusy(false);
+  };
+  const costs = data?.costs || [];
+  const monthly = costs.filter(cost => cost.currency === (costs[0]?.currency || "USD")).reduce((sum, cost) => sum + (cost.interval === "monthly" ? cost.amount_minor : cost.interval === "yearly" ? Math.floor(cost.amount_minor / 12) : 0), 0);
+  return <div className="owner-costs">
+    <section className="admin-manage card" aria-labelledby="costs-title">
+      <div><span className="eyebrow">Owner and cofounders only</span><h2 id="costs-title">Running costs</h2><p className="muted">What it costs to run Caller Whale. The overview uses these to work out profit and return. Staff pay can be entered here too.</p></div>
+      <form className="staff-form" onSubmit={add}>
+        <div className="staff-fields">
+          <label>Name<input required maxLength={80} value={label} onChange={event => setLabel(event.target.value)} placeholder="Server, ads, designer…" /></label>
+          <label>Type<select value={category} onChange={event => setCategory(event.target.value)}>{Object.entries(categoryNames).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>
+          <label>Amount<input required inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.00" /></label>
+          <label>Currency<input required maxLength={3} value={currency} onChange={event => setCurrency(event.target.value.toUpperCase())} /></label>
+          <label>Paid<select value={interval} onChange={event => setInterval(event.target.value)}><option value="monthly">Every month</option><option value="yearly">Every year</option><option value="once">Once</option></select></label>
+          <label>Note (optional)<input maxLength={200} value={note} onChange={event => setNote(event.target.value)} /></label>
+          <button className="button primary" disabled={busy}>{busy ? "Saving…" : "Add cost"}</button>
+        </div>
+        {message && <p className="notice bad" role="alert">{message}</p>}
+      </form>
+    </section>
+    <section className="admin-team card" aria-labelledby="costs-list-title">
+      <div className="admin-section-heading"><div><h2 id="costs-list-title">Costs entered</h2><p className="muted">{costs.length ? `About ${money(monthly, costs[0]?.currency || "USD")} a month in ${costs[0]?.currency || "USD"}.` : "Nothing yet."}</p></div></div>
+      {loading && !data ? <p role="status" className="muted">Loading…</p> : error ? <p className="notice bad" role="alert">{error}</p> : costs.length === 0 ? <div className="admin-empty"><h3>No costs yet</h3><p>Add what you pay for, and the overview will show profit and return.</p></div> :
+        <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th scope="col">Cost</th><th scope="col">Type</th><th scope="col">Amount</th><th scope="col">Paid</th><th scope="col"><span className="sr-only">Action</span></th></tr></thead><tbody>{costs.map(cost => <tr key={cost.id}>
+          <td data-label="Cost"><strong>{cost.label}</strong>{cost.note && <small className="owner-sub">{cost.note}</small>}</td><td data-label="Type">{categoryNames[cost.category] || cost.category}</td><td data-label="Amount">{money(cost.amount_minor, cost.currency)}</td><td data-label="Paid">{cost.interval === "monthly" ? "Every month" : cost.interval === "yearly" ? "Every year" : "Once"}</td>
+          <td data-label="Action"><button type="button" className="staff-text-button" disabled={busy} onClick={() => void remove(cost.id)}>Remove</button></td></tr>)}</tbody></table></div>}
+    </section>
+  </div>;
+}

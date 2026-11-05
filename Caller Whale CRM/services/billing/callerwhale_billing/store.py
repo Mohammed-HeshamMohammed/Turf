@@ -59,6 +59,34 @@ class Store:
             row["price"] = str(money.from_minor(row["price_minor"], row["currency"]))
         return rows
 
+    def summary(self, now: datetime) -> dict:
+        """What the platform owner's dashboard shows: money taken, who is on which plan, and what is being used. Totals only: no card
+        or payment-provider details, and people appear by id."""
+        start, end = month_of(now)
+        with self.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                "SELECT s.plan_key, p.name, p.currency, p.price_minor, s.status, count(*)::int AS workspaces "
+                "FROM billing.subscriptions s JOIN billing.plans p ON p.key = s.plan_key GROUP BY 1, 2, 3, 4, 5 ORDER BY workspaces DESC"
+            )
+            subscriptions = cur.fetchall()
+            cur.execute(
+                "SELECT to_char(date_trunc('month', at), 'YYYY-MM') AS month, currency, coalesce(sum(amount_minor), 0)::bigint AS amount_minor, count(*)::int AS payments "
+                "FROM billing.payments WHERE status IN ('completed', 'paid', 'billed') AND at >= %s GROUP BY 1, 2 ORDER BY 1",
+                (now - timedelta(days=365),),
+            )
+            revenue = cur.fetchall()
+            cur.execute(
+                "SELECT kind, coalesce(sum(amount), 0)::bigint AS total FROM billing.ledger WHERE at >= %s AND at < %s GROUP BY kind", (start, end)
+            )
+            usage = {row["kind"]: row["total"] for row in cur.fetchall()}
+            cur.execute(
+                "SELECT account_id::text AS account_id, kind, sum(amount)::bigint AS total FROM billing.ledger WHERE at >= %s AND at < %s "
+                "GROUP BY 1, 2 ORDER BY total DESC LIMIT 20",
+                (start, end),
+            )
+            top = cur.fetchall()
+        return {"as_of": now.isoformat(), "subscriptions": subscriptions, "revenue_by_month": revenue, "usage_this_month": usage, "top_usage": top}
+
     def standing(self, org_id: UUID, now: datetime) -> dict:
         with self.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
             cur.execute(

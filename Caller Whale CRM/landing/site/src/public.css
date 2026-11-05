@@ -286,3 +286,22 @@
 @keyframes hero-enter { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .hero-banner-bg { transform: scale(1.08); transition: none; } .hero-banner::after { background: none; } }
 @media (prefers-reduced-motion: reduce) { .site-header { transition: none; } }
+
+/* ---- Owner views: overview charts and lists, members, costs ---- */
+.owner-overview { display: grid; gap: var(--dash-gap, 12px); min-width: 0; }
+.owner-overview .card { min-width: 0; }
+.owner-chart { display: grid; gap: 6px; width: 100%; margin: 0; }
+.owner-chart svg { width: 100%; height: 120px; fill: var(--accent); }
+.owner-chart figcaption { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+.owner-list { display: grid; gap: 0; width: 100%; margin: 0; padding: 0; list-style: none; }
+.owner-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.owner-list li:first-child { border-top: 0; }
+.owner-list small, .owner-sub { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
+.owner-negative { color: #b3261e; }
+.owner-badge { display: inline-block; padding: 2px 9px; border-radius: 999px; background: var(--well); color: var(--ink); font-size: 12px; font-weight: 550; white-space: nowrap; }
+.owner-badge.good { background: #dcefdc; color: #1c5a24; }
+.owner-badge.warn { background: var(--accent-soft); color: var(--accent-ink); }
+.owner-badge.bad { background: #f6d6d3; color: #8a1c14; }
+.owner-costs { display: grid; gap: var(--dash-gap, 12px); }
+.owner-costs .staff-fields > label { flex: 1 1 150px; }
+.owner-plans .admin-table-wrap { margin-top: 8px; }

@@ -28,6 +28,8 @@
         "AUTH_APPLE_KEY_ID": "Apple Sign in with Apple key identifier for the optional direct flow. Must match AUTH_APPLE_PRIVATE_KEY.",
         "AUTH_APPLE_PRIVATE_KEY": "Secret Apple .p8 signing-key text for the optional direct flow; literal backslash-n sequences become line breaks. Never expose it to clients.",
         "AUTH_NOTIFY_URL": "Notification service private address (http://notifications:8102), never a public one. Set with AUTH_NOTIFY_TOKEN for email codes to be offered.",
+        "AUTH_BILLING_URL": "Billing service private address (http://billing:8103), never a public one. Lets the dashboard show plans, revenue and usage to staff. Set with AUTH_BILLING_TOKEN.",
+        "AUTH_BILLING_TOKEN": "Secret caller token: the auth entry in billing's BILLING_TOKENS (auth=<token>), saved as a runtime variable. Without it the dashboard shows no revenue or usage.",
         "AUTH_NOTIFY_TOKEN": "Secret caller token matching auth's entry in notifications NOTIFY_TOKENS. Rotate both together; mismatches break authentication emails.",
         "AUTH_TELEGRAM_BOT_TOKEN": "Optional secret BotFather token enabling Telegram code delivery. Leave empty to disable this delivery method; never use a phone number as the token.",
         "AUTH_TELEGRAM_BOT_NAME": "Telegram bot's public name used for account linking; must identify the bot whose token auth uses. Optional when Telegram is disabled.",
@@ -195,7 +197,7 @@
       "variables": {
         "PORT": "HTTP port; default 8103. Match Coolify's container port.",
         "DATABASE_URL": "Secret PostgreSQL URI of billing's own database and login (callerwhale_billing). No other service uses it.",
-        "BILLING_TOKENS": "Secret caller tokens, caller=token comma-separated, 32+ characters each; empty today, nothing calls billing yet (core-api once rebuilt).",
+        "BILLING_TOKENS": "Secret caller tokens, caller=token comma-separated, 32+ characters each; today only auth (auth=<token>, for the dashboard's revenue and usage); core-api joins once rebuilt.",
         "PADDLE_WEBHOOK_SECRET": "Secret key of Paddle's notification destination for the billing webhook. Empty refuses every payment webhook.",
         "PADDLE_WEBHOOK_TOLERANCE_SECONDS": "How old a signed webhook may be, 5 to 3600 seconds; default 300. Redeliveries are harmless: each event applies once.",
         "AUTHZ_URL": "The authorization service's private address, like http://authz:8104, told of every standing change. Set with AUTHZ_TOKEN.",

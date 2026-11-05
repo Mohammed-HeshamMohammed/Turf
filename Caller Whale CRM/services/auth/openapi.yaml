@@ -130,6 +130,32 @@ paths:
       security: [{ bearer: [] }]
       requestBody: { content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string, enum: [system_admin, tester] } } } } } }
       responses: { "201": { description: Invitation saved, with delivery_state sent, failed, or not_configured }, "403": { description: Founder with second step required }, "409": { description: Duplicate invitation or existing staff role } }
+  /v1/admin/members:
+    get:
+      summary: Accounts that are not platform staff, newest first, with workspaces, roles, two-step and last activity; staff with a second step
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Members }, "403": { description: Staff access required }, "503": { description: Authorization unavailable } }
+  /v1/admin/overview:
+    get:
+      summary: People, plans, usage and (owner and cofounder only) revenue, costs, profit and return; staff with a second step
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Overview; the finance block is present only for owner and cofounder }, "403": { description: Staff access required } }
+  /v1/admin/costs:
+    get:
+      summary: Running costs the owner has entered; owner and cofounder only
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Costs }, "403": { description: Owner or cofounder with second step required } }
+    post:
+      summary: Add a running cost (hosting, tools, marketing, staff pay, other; monthly, yearly or once); owner and cofounder only
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [label, category, amount_minor, currency, interval], properties: { label: { type: string }, category: { type: string, enum: [hosting, tools, marketing, staff_pay, other] }, amount_minor: { type: integer }, currency: { type: string }, interval: { type: string, enum: [monthly, yearly, once] }, note: { type: string } } } } } }
+      responses: { "201": { description: Cost saved }, "400": { description: Not valid }, "403": { description: Owner or cofounder with second step required } }
+  /v1/admin/costs/{id}:
+    delete:
+      summary: Remove a running cost; owner and cofounder only
+      security: [{ bearer: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { "200": { description: Removed }, "403": { description: Owner or cofounder with second step required } }
   /v1/orgs/{org}/members:
     get:
       summary: List workspace members; business owner with a second step only
