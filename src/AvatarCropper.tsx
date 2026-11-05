@@ -4,11 +4,12 @@ import { FORMATS, MAX_ZOOM, cropRect, dragCrop, fitsAvatar, outputSide, shrinkSt
 const VIEW = 280; // the cropping window, in pixels
 
 /** Opens any image the browser can read, lets the person move and zoom a square over it, and hands back a small square JPEG. */
-export function AvatarCropper({ file, onCancel, onDone }: { file: File; onCancel: () => void; onDone: (dataUrl: string) => void }) {
+export function AvatarCropper({ file, onCancel, onDone }: { file: File; onCancel: () => void; onDone: (dataUrl: string) => Promise<string | void> }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const drag = useRef<{ x: number; y: number } | null>(null);
   const [image, setImage] = useState<ImageBitmap | null>(null);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [crop, setCrop] = useState<Crop>({ zoom: 1, cx: 0.5, cy: 0.5 });
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export function AvatarCropper({ file, onCancel, onDone }: { file: File; onCancel
 
   // The cropped square keeps its own pixels. It is only written in another form (PNG, which loses nothing); if that is too big
   // for the server it becomes a near-lossless JPEG, and only if that is still too big is it made smaller.
-  const use = () => {
+  const use = async () => {
     if (!image) return;
     const { sx, sy, size } = cropRect(image.width, image.height, crop);
     for (const shrink of shrinkSteps) {
@@ -54,7 +55,12 @@ export function AvatarCropper({ file, onCancel, onDone }: { file: File; onCancel
         if (format !== png) context.fillRect(0, 0, side, side);
         context.drawImage(image, sx, sy, size, size, 0, 0, side, side);
         const dataUrl = out.toDataURL(format.type, format.quality);
-        if (fitsAvatar(dataUrl)) { onDone(dataUrl); return; }
+        if (fitsAvatar(dataUrl)) {
+          setSaving(true); setError("");
+          const problem = await onDone(dataUrl); // the picture is saved here; a refusal is shown in this dialog
+          if (problem) { setError(problem); setSaving(false); }
+          return;
+        }
       }
     }
     setError("This picture could not be prepared. Try a different one.");
@@ -90,8 +96,8 @@ export function AvatarCropper({ file, onCancel, onDone }: { file: File; onCancel
           </>
         )}
         <div className="cropper-actions">
-          <button type="button" className="button" onClick={onCancel}>Cancel</button>
-          {!error && <button type="button" className="button primary" disabled={!image} onClick={use}>Use this picture</button>}
+          <button type="button" className="button" disabled={saving} onClick={onCancel}>Cancel</button>
+          {(image || error) && <button type="button" className="button primary" disabled={!image || saving} onClick={() => void use()}>{saving ? "Saving…" : "Save picture"}</button>}
         </div>
       </div>
     </div>

@@ -52,7 +52,7 @@ export function MainCurrency({ auth, authBase, saved, onSaved }: { auth: Auth; a
   };
   return <section className="card profile-card" aria-labelledby="main-currency-title">
     <h2 id="main-currency-title">Main currency</h2>
-    <p className="muted">The currency amounts are shown in for you, such as your costs and your overview. {main.automatic && !choice ? `Right now it is automatic: ${main.detected} (${currencyName(main.detected)}), from ${main.country ? "where you are" : "your language"}.` : "You chose this one; it stays until you change it."}</p>
+    <p className="muted">{main.automatic && !choice ? `Automatic: ${main.detected} (${currencyName(main.detected)}).` : "Your choice, until you change it."}</p>
     <CurrencySelect label="Currency" value={shown} onChange={code => setChoice(code)} />
     <div className="profile-actions">
       <button type="button" className="button primary" disabled={state.busy || !choice || choice === saved} onClick={() => void save(choice)}>{state.busy ? "Saving…" : "Save currency"}</button>
