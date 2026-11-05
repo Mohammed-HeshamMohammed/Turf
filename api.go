@@ -43,6 +43,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/sessions/revoke", serve(s.revoke))
 	mux.Handle("GET /v1/me", serve(s.me))
 	mux.Handle("POST /v1/me/profile", serve(s.updateProfile))
+	mux.Handle("POST /v1/me/birth-date", serve(s.setBirthDate))
 	mux.Handle("GET /v1/me/access", serve(s.meAccess))
 	mux.Handle("GET /v1/admin/staff", serve(s.adminStaff))
 	mux.Handle("POST /v1/admin/staff", serve(s.assignStaff))
@@ -126,6 +127,8 @@ type signUpBody struct {
 	Password string `json:"password"`
 	Name     string `json:"name"`
 	Kind     string `json:"kind"`
+	// The date of birth (YYYY-MM-DD): the age check. Required.
+	BirthDate string `json:"birth_date"`
 }
 
 func (s *server) signUp(w http.ResponseWriter, r *http.Request) error {
@@ -143,6 +146,10 @@ func (s *server) signUp(w http.ResponseWriter, r *http.Request) error {
 	name := strings.TrimSpace(body.Name)
 	if n := utf8.RuneCountInString(name); n == 0 || n > 200 {
 		return bad("Enter your name.")
+	}
+	birth, err := parseBirthDate(body.BirthDate, time.Now())
+	if err != nil {
+		return err
 	}
 	kind, err := kindOf(body.Kind)
 	if err != nil {
@@ -165,6 +172,9 @@ func (s *server) signUp(w http.ResponseWriter, r *http.Request) error {
 	profile.name = name
 	u, err := s.upsertFirebaseUser(ctx, profile)
 	if err != nil {
+		return err
+	}
+	if _, err := s.db.Exec(ctx, "UPDATE users SET birth_date = $1, age_confirmed_at = $2 WHERE id = $3", birth.Format("2006-01-02"), now(), u.id); err != nil {
 		return err
 	}
 	if s.mail != nil {
@@ -476,7 +486,8 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	var phone, avatar, currency, first, middle, last string
-	if err := s.db.QueryRow(r.Context(), "SELECT phone, avatar, currency, first_name, middle_name, last_name FROM users WHERE id = $1", u.id).Scan(&phone, &avatar, &currency, &first, &middle, &last); err != nil {
+	var ageConfirmed int64
+	if err := s.db.QueryRow(r.Context(), "SELECT phone, avatar, currency, first_name, middle_name, last_name, age_confirmed_at FROM users WHERE id = $1", u.id).Scan(&phone, &avatar, &currency, &first, &middle, &last, &ageConfirmed); err != nil {
 		return err
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -484,6 +495,7 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) error {
 		"mfa_passed": c.MFA, "session_id": c.SID,
 		"phone": phone, "avatar": avatar, "currency": currency,
 		"first_name": first, "middle_name": middle, "last_name": last,
+		"age_confirmed": ageConfirmed > 0,
 	})
 	return nil
 }

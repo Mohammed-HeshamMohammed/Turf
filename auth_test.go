@@ -316,7 +316,7 @@ func TestSignUpRefusals(t *testing.T) {
 	w := newWorld(t)
 	post := func(body map[string]any) answer { return w.call("POST", "/v1/accounts", body, "") }
 	good := func() map[string]any {
-		return map[string]any{"name": "Sami", "email": "sami@example.com", "password": goodPassword}
+		return map[string]any{"name": "Sami", "email": "sami@example.com", "password": goodPassword, "birth_date": "1990-01-01"}
 	}
 	with := func(k string, v any) map[string]any {
 		m := good()
@@ -334,6 +334,8 @@ func TestSignUpRefusals(t *testing.T) {
 		"weak password":  {with("password", "short"), 400, "bad_request"},
 		"unknown kind":   {with("kind", "tablet"), 400, "bad_request"},
 		"missing fields": {map[string]any{}, 400, "bad_request"},
+		"no birth date": {with("birth_date", ""), 400, "bad_request"},
+		"a minor":       {with("birth_date", time.Now().AddDate(-17, 0, 0).Format("2006-01-02")), 403, "forbidden"},
 	} {
 		if a := post(c.body); a.status != c.status || a.str("code") != c.code {
 			t.Errorf("%s: %d %v", name, a.status, a.body)
@@ -357,7 +359,7 @@ func TestSignUpRefusals(t *testing.T) {
 
 func TestSignUpCanBeClosed(t *testing.T) {
 	w := newWorld(t, func(c *config) { c.publicSignup = false })
-	a := w.call("POST", "/v1/accounts", map[string]any{"name": "S", "email": "s@example.com", "password": goodPassword}, "")
+	a := w.call("POST", "/v1/accounts", map[string]any{"name": "S", "email": "s@example.com", "password": goodPassword, "birth_date": "1990-01-01"}, "")
 	if a.status != 403 || len(w.fb.accounts) != 0 {
 		t.Fatalf("%d %v", a.status, a.body)
 	}
@@ -366,11 +368,11 @@ func TestSignUpCanBeClosed(t *testing.T) {
 func TestFirebaseBeingDownIsAnInternalFaultNotTheirMistake(t *testing.T) {
 	w := newWorld(t)
 	w.fb.down = true
-	a := w.call("POST", "/v1/accounts", map[string]any{"name": "S", "email": "s@example.com", "password": goodPassword}, "")
+	a := w.call("POST", "/v1/accounts", map[string]any{"name": "S", "email": "s@example.com", "password": goodPassword, "birth_date": "1990-01-01"}, "")
 	if a.status != 500 || a.str("code") != "internal" || a.str("error") != "Something went wrong." {
 		t.Fatalf("%d %v", a.status, a.body)
 	}
-	if a := w.call("POST", "/v1/sessions", map[string]any{"email": "s@example.com", "password": goodPassword}, ""); a.status != 500 {
+	if a := w.call("POST", "/v1/sessions", map[string]any{"email": "s@example.com", "password": goodPassword, "birth_date": "1990-01-01"}, ""); a.status != 500 {
 		t.Fatalf("sign-in: %d", a.status)
 	}
 	if w.count("SELECT COUNT(*) FROM failed_sign_ins") != 0 {
@@ -426,14 +428,14 @@ func TestWrongPasswordsAreCountedAndFiveLockTheEmail(t *testing.T) {
 func TestUnknownAndDisabledAccountsLookTheSameAsAWrongPassword(t *testing.T) {
 	w := newWorld(t)
 	w.signUp("sami@example.com")
-	unknown := w.call("POST", "/v1/sessions", map[string]any{"email": "nobody@example.com", "password": goodPassword}, "")
+	unknown := w.call("POST", "/v1/sessions", map[string]any{"email": "nobody@example.com", "password": goodPassword, "birth_date": "1990-01-01"}, "")
 	wrong := w.call("POST", "/v1/sessions", map[string]any{"email": "sami@example.com", "password": "wrong"}, "")
 	if unknown.status != wrong.status || unknown.str("error") != wrong.str("error") || unknown.str("code") != wrong.str("code") {
 		t.Fatalf("%v vs %v", unknown, wrong)
 	}
 	// Turned off in Firebase.
 	w.fb.accounts["sami@example.com"].disabled = true
-	if a := w.call("POST", "/v1/sessions", map[string]any{"email": "sami@example.com", "password": goodPassword}, ""); a.status != 401 || a.str("code") != "wrong_credentials" {
+	if a := w.call("POST", "/v1/sessions", map[string]any{"email": "sami@example.com", "password": goodPassword, "birth_date": "1990-01-01"}, ""); a.status != 401 || a.str("code") != "wrong_credentials" {
 		t.Fatalf("disabled in Firebase: %d %v", a.status, a.body)
 	}
 	w.fb.accounts["sami@example.com"].disabled = false
@@ -441,7 +443,7 @@ func TestUnknownAndDisabledAccountsLookTheSameAsAWrongPassword(t *testing.T) {
 	if _, err := w.s.db.Exec(context.Background(), "UPDATE users SET disabled_at = $1", now()); err != nil {
 		t.Fatal(err)
 	}
-	if a := w.call("POST", "/v1/sessions", map[string]any{"email": "sami@example.com", "password": goodPassword}, ""); a.status != 401 || a.str("code") != "wrong_credentials" {
+	if a := w.call("POST", "/v1/sessions", map[string]any{"email": "sami@example.com", "password": goodPassword, "birth_date": "1990-01-01"}, ""); a.status != 401 || a.str("code") != "wrong_credentials" {
 		t.Fatalf("disabled here: %d %v", a.status, a.body)
 	}
 }
@@ -450,7 +452,7 @@ func TestAnOldFirebaseAuthenticatorIsRefusedPlainly(t *testing.T) {
 	w := newWorld(t)
 	w.signUp("sami@example.com")
 	w.fb.pending = true
-	a := w.call("POST", "/v1/sessions", map[string]any{"email": "sami@example.com", "password": goodPassword}, "")
+	a := w.call("POST", "/v1/sessions", map[string]any{"email": "sami@example.com", "password": goodPassword, "birth_date": "1990-01-01"}, "")
 	if a.status != 403 || !strings.Contains(a.str("error"), "old authenticator") {
 		t.Fatalf("%d %v", a.status, a.body)
 	}
@@ -567,7 +569,7 @@ func TestMeListRevokeAndSignOut(t *testing.T) {
 	w := newWorld(t)
 	first := w.signUp("sami@example.com")
 	second := w.call("POST", "/v1/sessions", map[string]any{"email": "sami@example.com", "password": goodPassword, "kind": "desktop"}, "")
-	third := w.call("POST", "/v1/sessions", map[string]any{"email": "sami@example.com", "password": goodPassword}, "")
+	third := w.call("POST", "/v1/sessions", map[string]any{"email": "sami@example.com", "password": goodPassword, "birth_date": "1990-01-01"}, "")
 	stranger := w.signUp("lina@example.com")
 
 	me := w.call("GET", "/v1/me", nil, first.access())

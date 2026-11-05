@@ -44,12 +44,12 @@ paths:
           application/json:
             schema:
               type: object
-              required: [email, password, name]
-              properties: { email: { type: string }, password: { type: string, minLength: 8, maxLength: 4096, description: Requires uppercase and lowercase ASCII letters plus a number and a special character }, name: { type: string }, kind: { type: string, enum: [browser, desktop] }, human_token: { type: string, maxLength: 2048, description: Required when bot protection is enabled } }
+              required: [email, password, name, birth_date]
+              properties: { birth_date: { type: string, description: "Date of birth, YYYY-MM-DD. Refused (403) under 18" }, email: { type: string }, password: { type: string, minLength: 8, maxLength: 4096, description: Requires uppercase and lowercase ASCII letters plus a number and a special character }, name: { type: string }, kind: { type: string, enum: [browser, desktop] }, human_token: { type: string, maxLength: 2048, description: Required when bot protection is enabled } }
       responses:
         "201": { description: Created and signed in, content: { application/json: { schema: { $ref: "#/components/schemas/Tokens" } } } }
         "400": { description: Not valid, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
-        "403": { description: Sign-up is closed or human verification is required }
+        "403": { description: Sign-up is closed, human verification is required, or the person is under 18 }
         "409": { description: The email already has an account }
   /v1/sessions:
     post:
@@ -100,6 +100,12 @@ paths:
       security: [{ bearer: [] }]
       requestBody: { content: { application/json: { schema: { type: object, required: [name, phone, avatar], properties: { name: { type: string }, phone: { type: string }, avatar: { type: string }, first_name: { type: string, nullable: true }, middle_name: { type: string, nullable: true }, last_name: { type: string, nullable: true } } } } } }
       responses: { "200": { description: Profile saved }, "401": { description: Not signed in }, "400": { description: Invalid profile detail } }
+  /v1/me/birth-date:
+    post:
+      summary: Give the date of birth for the age check, once (accounts made before the check, or through Google or Apple)
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [birth_date], properties: { birth_date: { type: string, description: YYYY-MM-DD } } } } } }
+      responses: { "200": { description: Age confirmed }, "400": { description: Not a real date, or already given }, "401": { description: Not signed in }, "403": { description: Under 18 } }
   /v1/me/providers:
     get:
       summary: Google and Apple methods linked to the signed-in Firebase account

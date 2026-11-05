@@ -147,7 +147,7 @@ func TestKillingTheServiceMidWayLosesNothingThatWasAnswered(t *testing.T) {
 			go func(i int) {
 				defer wg.Done()
 				email := fmt.Sprintf("p%d-%d@example.com", n, i)
-				status, body, err := post(svc.base, "/v1/accounts", map[string]any{"name": "P", "email": email, "password": goodPassword})
+				status, body, err := post(svc.base, "/v1/accounts", map[string]any{"name": "P", "email": email, "password": goodPassword, "birth_date": "1990-01-01"})
 				sent.Add(1)
 				if err == nil && status == 201 {
 					mu.Lock()
@@ -202,7 +202,7 @@ func TestKillingTheServiceMidWayLosesNothingThatWasAnswered(t *testing.T) {
 		if err != nil || (status != 200 && status != 401) {
 			t.Errorf("%s: refresh %d %v", a.email, status, err)
 		}
-		status, _, _ = post(svc.base, "/v1/sessions", map[string]any{"email": a.email, "password": goodPassword})
+		status, _, _ = post(svc.base, "/v1/sessions", map[string]any{"email": a.email, "password": goodPassword, "birth_date": "1990-01-01"})
 		if status != 200 {
 			lost++
 			t.Errorf("%s was told its account exists but cannot sign in: %d", a.email, status)
