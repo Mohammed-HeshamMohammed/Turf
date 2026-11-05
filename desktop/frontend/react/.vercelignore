@@ -1,0 +1,13 @@
+node_modules
+dist
+.vite
+.git
+.env*
+*.log
+screenshots
+tests
+AGENTS.md
+design-qa.md
+README.md
+.openai
+worker
