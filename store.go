@@ -26,6 +26,7 @@ const (
 )
 
 type server struct {
+	fx   fxCache // exchange rates, kept six hours
 	cfg  config
 	db   *pgxpool.Pool
 	keys *keys

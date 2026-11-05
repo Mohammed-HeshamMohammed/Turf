@@ -1,0 +1,161 @@
+package main
+
+// Exchange rates, so an amount in one currency can be shown or counted in another: the owner's costs in euros against revenue in
+// dollars, and the pricing page in the visitor's own currency. Rates come from a free daily source that needs no key, are kept for six
+// hours, and the last good ones are served if the source is down. They are for showing and for the owner's own sums: the amount a
+// customer is charged, and the tax on it, are worked out by the payment provider at checkout.
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"math"
+	"net/http"
+	"strings"
+	"sync"
+	"time"
+)
+
+// fxSources are tried in order. Both publish the same file; the second is a different host in case the first is down.
+var fxSources = []string{
+	"https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json",
+	"https://latest.currency-api.pages.dev/v1/currencies/usd.json",
+}
+
+const (
+	fxFresh   = 6 * time.Hour
+	fxMinimum = 100 // a source that sends fewer currencies than this is not trusted
+)
+
+// isoCurrencies are the active ISO 4217 codes. The source also lists coins and tokens, which are left out.
+var isoCurrencies = map[string]bool{}
+
+func init() {
+	for _, code := range strings.Fields(`AED AFN ALL AMD ANG AOA ARS AUD AWG AZN BAM BBD BDT BGN BHD BIF BMD BND BOB BRL BSD BTN BWP BYN BZD CAD CDF CHF CLP CNY COP CRC CUP CVE CZK
+		DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS GIP GMD GNF GTQ GYD HKD HNL HTG HUF IDR ILS INR IQD IRR ISK JMD JOD JPY KES KGS KHR KMF KPW KRW KWD KYD KZT
+		LAK LBP LKR LRD LSL LYD MAD MDL MGA MKD MMK MNT MOP MRU MUR MVR MWK MXN MYR MZN NAD NGN NIO NOK NPR NZD OMR PAB PEN PGK PHP PKR PLN PYG QAR RON RSD RUB RWF SAR SBD
+		SCR SDG SEK SGD SHP SLE SOS SRD SSP STN SVC SYP SZL THB TJS TMT TND TOP TRY TTD TWD TZS UAH UGX USD UYU UZS VES VND VUV WST XAF XCD XOF XPF YER ZAR ZMW ZWL`) {
+		isoCurrencies[code] = true
+	}
+}
+
+// fxTable is the rates against the US dollar: one dollar buys Rates["EUR"] euros.
+type fxTable struct {
+	Base  string             `json:"base"`
+	AsOf  string             `json:"as_of"`
+	Rates map[string]float64 `json:"rates"`
+	// fetched is when this server got them (not sent to anyone).
+	fetched time.Time
+}
+
+type fxCache struct {
+	mu    sync.Mutex
+	table *fxTable
+}
+
+// fetchFX reads one source. Only real currencies with a sensible rate are kept.
+func fetchFX(ctx context.Context, url string) (*fxTable, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	res, err := (&http.Client{Timeout: 6 * time.Second}).Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.New("exchange rates: the source answered " + res.Status)
+	}
+	var raw struct {
+		Date string             `json:"date"`
+		USD  map[string]float64 `json:"usd"`
+	}
+	if err := json.NewDecoder(io.LimitReader(res.Body, 4<<20)).Decode(&raw); err != nil {
+		return nil, err
+	}
+	t := &fxTable{Base: "USD", AsOf: raw.Date, Rates: map[string]float64{"USD": 1}, fetched: time.Now()}
+	for code, rate := range raw.USD {
+		code = strings.ToUpper(code)
+		// The dollar is the base: it is always exactly 1, whatever the source lists for it.
+		if code != "USD" && isoCurrencies[code] && rate > 0 && !math.IsInf(rate, 0) && !math.IsNaN(rate) {
+			t.Rates[code] = rate
+		}
+	}
+	if len(t.Rates) < fxMinimum {
+		return nil, errors.New("exchange rates: the source sent too few currencies")
+	}
+	return t, nil
+}
+
+// rates returns the table, fetching when it is older than six hours. If every source fails, the last good table is served (and
+// nil only when there never was one), so a source being down never takes a screen with it.
+func (c *fxCache) rates(ctx context.Context) *fxTable {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.table != nil && time.Since(c.table.fetched) < fxFresh {
+		return c.table
+	}
+	for _, source := range fxSources {
+		if table, err := fetchFX(ctx, source); err == nil {
+			c.table = table
+			return table
+		}
+	}
+	return c.table
+}
+
+// digits is the number of decimals the currency's minor unit has: 100 cents to the dollar, none for the yen, a thousand fils to the dinar.
+func digits(currency string) int {
+	switch {
+	case zeroDecimal[currency]:
+		return 0
+	case threeDecimal[currency]:
+		return 3
+	}
+	return 2
+}
+
+var threeDecimal = map[string]bool{"BHD": true, "IQD": true, "JOD": true, "KWD": true, "LYD": true, "OMR": true, "TND": true}
+
+// convert turns an amount in one currency's minor unit into another's, rounded to the nearest. It is false when either currency
+// has no rate.
+func (t *fxTable) convert(minor int64, from, to string) (int64, bool) {
+	if from == to {
+		return minor, true
+	}
+	if t == nil {
+		return 0, false
+	}
+	a, b := t.Rates[from], t.Rates[to]
+	if a <= 0 || b <= 0 {
+		return 0, false
+	}
+	major := float64(minor) / math.Pow10(digits(from))
+	return int64(math.Round(major / a * b * math.Pow10(digits(to)))), true
+}
+
+// factor is how many units of `to` one unit of `from` is worth (for a price per minute, which is a fraction of a unit).
+func (t *fxTable) factor(from, to string) (float64, bool) {
+	if from == to {
+		return 1, true
+	}
+	if t == nil || t.Rates[from] <= 0 || t.Rates[to] <= 0 {
+		return 0, false
+	}
+	return t.Rates[to] / t.Rates[from], true
+}
+
+// publicFX is what anyone may read: the rates and their date. The pricing page uses it to show prices in the visitor's currency.
+func (s *server) publicFX(w http.ResponseWriter, r *http.Request) error {
+	table := s.fx.rates(r.Context())
+	if table == nil {
+		return newError(http.StatusServiceUnavailable, "rates_unavailable", "Exchange rates are not available right now.")
+	}
+	// Anyone may read the rates, and a browser or CDN may keep them for an hour (writeJSON would mark them uncacheable).
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	_ = json.NewEncoder(w).Encode(table)
+	return nil
+}

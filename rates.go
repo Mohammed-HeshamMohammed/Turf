@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"strings"
 
@@ -40,10 +41,8 @@ var zeroDecimal = map[string]bool{"JPY": true, "KRW": true, "VND": true, "CLP": 
 
 // minorOf turns an amount in millionths of the currency unit into its minor unit (cents), rounding to the nearest.
 func minorOf(micros int64, currency string) int64 {
-	if zeroDecimal[currency] {
-		return (micros + 500_000) / 1_000_000
-	}
-	return (micros + 5_000) / 10_000
+	unit := int64(math.Pow10(6 - digits(currency))) // millionths in one minor unit: 10,000 for cents, 1,000,000 for yen
+	return (micros + unit/2) / unit
 }
 
 func (s *server) readRates(ctx context.Context) ([]rateItem, error) {
