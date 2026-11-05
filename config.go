@@ -72,10 +72,15 @@ func loadConfig(getenv func(string) string) (config, error) {
 	return c, nil
 }
 
-// parseTokens reads AUTHZ_TOKENS: "core-api=<token>,billing=<token>,gateway=<token>,worker=<token>".
+// tokensPerCaller lets a caller hold two tokens at once, so a token can be replaced with no moment where the caller is refused: add
+// the new one, switch the caller over, then remove the old one.
+const tokensPerCaller = 2
+
+// parseTokens reads AUTHZ_TOKENS: "core-api=<token>,billing=<token>,gateway=<token>,worker=<token>" (a name may appear twice while
+// its token is being replaced).
 func parseTokens(text string) (map[string]string, error) {
 	tokens := map[string]string{}
-	seen := map[string]bool{}
+	seen := map[string]int{}
 	for _, part := range strings.Split(text, ",") {
 		part = strings.TrimSpace(part)
 		if part == "" {
@@ -89,10 +94,12 @@ func parseTokens(text string) (map[string]string, error) {
 		if len(token) < 32 {
 			return nil, fmt.Errorf("AUTHZ_TOKENS: the token for %s is shorter than 32 characters", name)
 		}
-		if seen[name] || tokens[token] != "" {
-			return nil, fmt.Errorf("AUTHZ_TOKENS: %s is listed twice, or shares a token", name)
+		if tokens[token] != "" {
+			return nil, fmt.Errorf("AUTHZ_TOKENS: %s shares a token with another entry; every token must be different", name)
 		}
-		seen[name] = true
+		if seen[name]++; seen[name] > tokensPerCaller {
+			return nil, fmt.Errorf("AUTHZ_TOKENS: %s has more than %d tokens; keep the new one and the one being replaced", name, tokensPerCaller)
+		}
 		tokens[token] = name
 	}
 	if len(tokens) == 0 {
