@@ -2,14 +2,13 @@
 // The rates are indicative (a free daily source, via the auth service). What a customer is actually charged, and the tax on it, are
 // worked out by the payment provider at checkout.
 
+import { CURRENCY_DIGITS, REGION_CURRENCY } from "./currency-data.ts";
+
 export type Rates = { base: string; as_of: string; rates: Record<string, number> };
 
-/** The currencies a person can choose from: every one the browser knows, or the common ones when it cannot say. */
+/** The currencies a person can choose from: every current ISO 4217 currency (generated from the standard), sorted. */
 export function currencyCodes(): string[] {
-  const supported = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf;
-  const known = supported ? supported("currency") : [];
-  const codes = known.length ? known : ["USD", "EUR", "GBP", "EGP", "AED", "SAR", "CAD", "AUD", "JPY", "INR", "CHF", "CNY", "BRL", "MXN", "ZAR"];
-  return [...new Set(codes.map(code => code.toUpperCase()))].sort();
+  return Object.keys(CURRENCY_DIGITS).sort();
 }
 
 /** "Egyptian Pound" for EGP, in the visitor's language; the code itself when the browser has no name for it. */
@@ -37,18 +36,8 @@ export function filterCurrencies(codes: string[], query: string, name: (code: st
   return codes.map(code => ({ code, r: rank(code) })).filter(entry => entry.r >= 0).sort((a, b) => a.r - b.r || a.code.localeCompare(b.code)).map(entry => entry.code);
 }
 
-const BY_REGION: Record<string, string> = {
-  US: "USD", GB: "GBP", CA: "CAD", AU: "AUD", NZ: "NZD", CH: "CHF", SE: "SEK", NO: "NOK", DK: "DKK", PL: "PLN", CZ: "CZK", HU: "HUF", RO: "RON", IS: "ISK",
-  TR: "TRY", RU: "RUB", UA: "UAH", IL: "ILS", AE: "AED", SA: "SAR", QA: "QAR", KW: "KWD", BH: "BHD", OM: "OMR", JO: "JOD", EG: "EGP", MA: "MAD", TN: "TND",
-  DZ: "DZD", NG: "NGN", GH: "GHS", KE: "KES", ZA: "ZAR", IN: "INR", PK: "PKR", BD: "BDT", LK: "LKR", NP: "NPR", CN: "CNY", HK: "HKD", TW: "TWD", JP: "JPY",
-  KR: "KRW", SG: "SGD", MY: "MYR", TH: "THB", VN: "VND", ID: "IDR", PH: "PHP", MX: "MXN", BR: "BRL", AR: "ARS", CL: "CLP", CO: "COP", PE: "PEN", UY: "UYU",
-  // The euro area.
-  AT: "EUR", BE: "EUR", BG: "EUR", CY: "EUR", DE: "EUR", EE: "EUR", ES: "EUR", FI: "EUR", FR: "EUR", GR: "EUR", HR: "EUR", IE: "EUR", IT: "EUR", LT: "EUR",
-  LU: "EUR", LV: "EUR", MT: "EUR", NL: "EUR", PT: "EUR", SI: "EUR", SK: "EUR",
-};
-
 /** The currency used in a country (two letters, like "EG"), or "" when it is not one this list knows. */
-export const currencyForCountry = (country: string) => BY_REGION[country.toUpperCase()] || "";
+export const currencyForCountry = (country: string) => REGION_CURRENCY[country.toUpperCase()] || "";
 
 /** An amount in one currency's minor unit (cents) as the same amount in another's, or null when there is no rate for either. */
 export function convertMinor(minor: number, from: string, to: string, rates: Rates | null): number | null {
@@ -71,20 +60,14 @@ export function formatMinor(minor: number, currency: string, locale?: string): s
 export function currencyForLocale(tag: string | undefined): string {
   try {
     const region = new Intl.Locale(tag || "en-US").maximize().region;
-    return (region && BY_REGION[region]) || "USD";
+    return (region && REGION_CURRENCY[region]) || "USD";
   } catch {
     return "USD";
   }
 }
 
-/** The minor-unit digits a currency has (2 for dollars, 0 for yen, 3 for dinars). */
-export function currencyDigits(code: string): number {
-  try {
-    return new Intl.NumberFormat("en", { style: "currency", currency: code }).resolvedOptions().maximumFractionDigits ?? 2;
-  } catch {
-    return 2;
-  }
-}
+/** The minor-unit digits a currency has (2 for dollars, 0 for yen, 3 for dinars), from ISO 4217. */
+export const currencyDigits = (code: string) => CURRENCY_DIGITS[code] ?? 2;
 
 /** An amount of US dollars as it reads in another currency: "≈ €92", or plain dollars when there is no rate. */
 export function showAmount(usd: number, currency: string, rates: Rates | null, locale?: string): string {

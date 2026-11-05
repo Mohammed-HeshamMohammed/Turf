@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { CURRENCY_DIGITS, REGION_CURRENCY } from "../src/currency-data.ts";
 import { convertMinor, currencyCodes, currencyDigits, currencyForCountry, currencyForLocale, currencyName, filterCurrencies, formatMinor, showAmount } from "../src/currency.ts";
 
 test("the list has real currencies, once each, in order", () => {
@@ -66,4 +67,25 @@ test("a cost in one currency is read in another by each one's own decimals", () 
   assert.equal(convertMinor(500, "USD", "EUR", null), null);
   assert.equal(formatMinor(500000, "EGP", "en").replace(/\s/g, " "), "EGP 5,000.00");
   assert.equal(formatMinor(15000, "JPY", "en").replace(/\s/g, " ").includes("15,000"), true);
+});
+
+test("the currency tables come from the standards, so they know what changed", () => {
+  // Countries that changed currency in recent years: a hand-typed table is the one that forgets.
+  assert.equal(REGION_CURRENCY.HR, "EUR");
+  assert.equal(REGION_CURRENCY.BG, "EUR");
+  assert.equal(REGION_CURRENCY.SL, "SLE");
+  assert.equal(REGION_CURRENCY.VE, "VES");
+  assert.equal(REGION_CURRENCY.ZW, "ZWG");
+  assert.equal(REGION_CURRENCY.EG, "EGP");
+  for (const retired of ["HRK", "ZWL", "SLL", "VEF"]) assert.equal(retired in CURRENCY_DIGITS, false, `${retired} is no longer a currency`);
+  assert.equal(CURRENCY_DIGITS.JPY, 0);
+  assert.equal(CURRENCY_DIGITS.KWD, 3);
+  assert.equal(CURRENCY_DIGITS.USD, 2);
+  // Every country's currency is a currency in the list, so a country never points at something the dropdown cannot show.
+  for (const [country, code] of Object.entries(REGION_CURRENCY)) assert.ok(code in CURRENCY_DIGITS, `${country} uses ${code}, which is not in the list`);
+  assert.ok(currencyCodes().length > 140);
+  assert.equal(currencyForCountry("HR"), "EUR");
+  assert.equal(currencyForLocale("hr-HR"), "EUR");
+  assert.equal(currencyForLocale("sv-SE"), "SEK");
+  assert.equal(currencyForLocale("ar-EG"), "EGP");
 });
