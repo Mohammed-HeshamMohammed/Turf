@@ -20,7 +20,7 @@ import { AvatarCropper } from "./AvatarCropper.tsx";
 import { splitName } from "./person-name.ts";
 import { SiteFooter } from "./components/ui/site-footer.tsx";
 import { Dashboard } from "./Dashboard.tsx";
-import { Profile } from "./Profile.tsx";
+import { Settings } from "./Settings.tsx";
 import { Setup } from "./Setup.tsx";
 import { TERMS_VERSION, setupStep } from "./setup.ts";
 import { cleanPath, routeFor } from "./routes.ts";
@@ -458,7 +458,7 @@ export function App({ path: first = "/" }) {
     "/contact": <Contact getAuth={getAuth} />,
     "/privacy": <Privacy />,
     "/terms": <Terms />,
-    "/account": me && setupStep(me) ? setup : me ? <Profile me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
+    "/account": me && setupStep(me) ? setup : me ? <Settings me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
     "/dashboard": me && setupStep(me) ? setup : me ? <Dashboard me={me} auth={auth} authBase={authBase} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
   };
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
