@@ -123,6 +123,10 @@ def create_app(settings: Settings, store, now: Callable[[], datetime] = lambda: 
     def reserve(body: ReserveBody, _: str = caller("reserve")):
         return store.reserve(body.kind, body.account_id, body.amount, body.request_id, body.detail, now()).as_json()
 
+    @app.get("/v1/admin/summary")
+    def summary(_: str = caller("summary")):
+        return store.summary(now())
+
     @app.get("/v1/orgs/{org_id}/standing")
     def standing(org_id: UUID, _: str = caller("standing")):
         return store.standing(org_id, now())

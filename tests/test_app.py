@@ -11,6 +11,7 @@ from callerwhale_billing.store import Refused, Reservation
 
 CORE = "core-api-token-0123456789abcdef0123456789"
 WORKER = "worker-token-0123456789abcdef0123456789ab"
+AUTH = "auth-token-0123456789abcdef0123456789abcd"
 SECRET = "pdl_ntfset_test_secret"
 NOW = datetime(2026, 11, 4, 12, 0, tzinfo=UTC)
 
@@ -35,6 +36,9 @@ class FakeStore:
         self.reserved.append((kind, account_id, amount, request_id))
         return Reservation(limited=True, used=amount, allowed=100)
 
+    def summary(self, now):
+        return {"subscriptions": [], "revenue_by_month": [], "usage_this_month": {}, "top_usage": []}
+
     def set_credit_limit(self, user_id, monthly):
         self.limits[user_id] = monthly
 
@@ -52,7 +56,7 @@ class AppTest(unittest.TestCase):
     def setUp(self):
         self.store = FakeStore()
         self.told = []
-        settings = config.Settings(database_url="postgres://x", tokens={CORE: "core-api", WORKER: "worker"}, paddle_webhook_secret=SECRET)
+        settings = config.Settings(database_url="postgres://x", tokens={CORE: "core-api", WORKER: "worker", AUTH: "auth"}, paddle_webhook_secret=SECRET)
         app = create_app(settings, self.store, now=lambda: NOW, notify=lambda s, org, standing: self.told.append(org))
         self.client = TestClient(app)
 
@@ -68,6 +72,13 @@ class AppTest(unittest.TestCase):
         res = self.client.post("/v1/reservations", json=body, headers={"Authorization": f"Bearer {CORE}"})
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()["remaining"], 95)
+
+    def test_the_summary_is_for_the_auth_service_only(self):
+        url = "/v1/admin/summary"
+        self.assertEqual(self.client.get(url).status_code, 401)
+        self.assertEqual(self.client.get(url, headers={"Authorization": f"Bearer {CORE}"}).status_code, 403)
+        res = self.client.get(url, headers={"Authorization": f"Bearer {AUTH}"})
+        self.assertEqual((res.status_code, res.json()["subscriptions"]), (200, []))
 
     def test_refusals_keep_their_code(self):
         body = {"kind": "minutes", "account_id": str(uuid4()), "amount": 500, "request_id": str(uuid4())}

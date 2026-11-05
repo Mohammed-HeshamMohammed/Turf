@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 CALLER_RIGHTS = {
     "core-api": {"reserve", "standing", "credits", "subscribe"},
     "worker": {"standing"},
+    # The auth service reads a summary of revenue, plans and usage for the platform owner's dashboard.
+    "auth": {"summary"},
 }
 
 
