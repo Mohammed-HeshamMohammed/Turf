@@ -58,12 +58,12 @@ export function RemoteGate({ onReady, onLeave }) {
       }
       // Caller Whale is for adults: an account that has not given its date of birth gives it before anything else.
       const sessionPerson = await auth.me({ fresh: true }).catch(() => null);
-      if (sessionPerson && sessionPerson.age_confirmed === false) {
+      if (sessionPerson && !sessionPerson.setup_exempt && sessionPerson.age_confirmed === false) {
         setMe({ user: sessionPerson });
         return setStep("age");
       }
       // The terms and what their work is are agreed and answered on the website, in the same few steps.
-      if (sessionPerson && (sessionPerson.terms_accepted === false || sessionPerson.work_profile === null)) {
+      if (sessionPerson && !sessionPerson.setup_exempt && (sessionPerson.terms_accepted === false || sessionPerson.work_profile === null)) {
         setMe({ user: sessionPerson });
         return setStep("setup");
       }
