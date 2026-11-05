@@ -1,0 +1,58 @@
+# What Prometheus collects, every 15 seconds. Everything it scrapes sits on this resource's private network; none of it has a
+# public address.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Prometheus itself.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # The server: CPU, memory, disk, network, load, uptime.
+  - job_name: server
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  # Every container on the server: CPU, memory, network and disk use of each one.
+  - job_name: containers
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  # Is each Caller Whale service answering? The blackbox exporter asks each address below and reports up or down and how long it took.
+  - job_name: services
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://gateway:8100/healthz
+          - http://auth:8101/healthz
+          - http://authz:8104/healthz
+          - http://notifications:8102/healthz
+          - http://grafana-proxy:8120/_callerwhale/health
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+
+  # The public website and the sign-in address, the way a visitor reaches them (also reports when the certificate expires).
+  - job_name: public
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://callerwhale.com
+          - https://auth.callerwhale.com/v1/security
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
