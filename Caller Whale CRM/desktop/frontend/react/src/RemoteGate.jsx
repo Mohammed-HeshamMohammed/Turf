@@ -41,6 +41,11 @@ export function RemoteGate({ onReady, onLeave }) {
         setMe({ user: sessionPerson });
         return setStep("age");
       }
+      // The terms and what their work is are agreed and answered on the website, in the same few steps.
+      if (sessionPerson && (sessionPerson.terms_accepted === false || sessionPerson.work_profile === null)) {
+        setMe({ user: sessionPerson });
+        return setStep("setup");
+      }
       // An invitation from Caller Whale opens the person's workspace the first time they arrive with its email confirmed.
       const account = await api.account();
       if (account.access?.status === "unverified") {
@@ -257,7 +262,7 @@ export function RemoteGate({ onReady, onLeave }) {
   return (
     <div className="remote-gate">
       <Card
-        title={step === "unlock" ? "Keep an offline copy on this device?" : step === "notinvited" ? "You are not invited" : step === "age" ? "Confirm your age" : "Sign in to your Caller Whale workspace"}
+        title={step === "unlock" ? "Keep an offline copy on this device?" : step === "notinvited" ? "You are not invited" : step === "age" ? "Confirm your age" : step === "setup" ? "Finish setting up your account" : "Sign in to your Caller Whale workspace"}
         subtitle={
           step === "unlock"
             ? "Records and pending changes are encrypted with a passphrase only you know."
@@ -265,6 +270,8 @@ export function RemoteGate({ onReady, onLeave }) {
               ? "Only the owner, admins and people they invite can use Caller Whale."
               : step === "age"
                 ? "Caller Whale is for people aged 18 or older."
+                : step === "setup"
+                  ? "Two quick steps on the website first."
                 : "Your records stay on your organization's server."
         }
       >
@@ -383,6 +390,16 @@ export function RemoteGate({ onReady, onLeave }) {
             </Button>
             {signedInAs}
           </form>
+        )}
+        {step === "setup" && (
+          <div className="remote-step">
+            <p className="body-copy">Accept the terms and tell us about your work on the Caller Whale website, then come back and check again.</p>
+            <div className="row">
+              <a className="button primary" href={`${SITE}/dashboard`} target="_blank" rel="noopener noreferrer">Open the website</a>
+              <Button disabled={busy} onClick={() => attempt(async () => { await check(); })}>I finished, check again</Button>
+            </div>
+            {signedInAs}
+          </div>
         )}
         {step === "verify" && (
           <div className="remote-step">

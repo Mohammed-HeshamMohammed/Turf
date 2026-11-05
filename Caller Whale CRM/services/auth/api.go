@@ -44,6 +44,8 @@ func (s *server) handler() http.Handler {
 	mux.Handle("GET /v1/me", serve(s.me))
 	mux.Handle("POST /v1/me/profile", serve(s.updateProfile))
 	mux.Handle("POST /v1/me/birth-date", serve(s.setBirthDate))
+	mux.Handle("POST /v1/me/terms", serve(s.acceptTerms))
+	mux.Handle("POST /v1/me/work", serve(s.setWorkProfile))
 	mux.Handle("GET /v1/me/access", serve(s.meAccess))
 	mux.Handle("GET /v1/admin/staff", serve(s.adminStaff))
 	mux.Handle("POST /v1/admin/staff", serve(s.assignStaff))
@@ -129,6 +131,8 @@ type signUpBody struct {
 	Kind     string `json:"kind"`
 	// The date of birth (YYYY-MM-DD): the age check. Required.
 	BirthDate string `json:"birth_date"`
+	// The version of the terms and privacy notice they ticked. Required, and must be the current one.
+	TermsVersion string `json:"terms_version"`
 }
 
 func (s *server) signUp(w http.ResponseWriter, r *http.Request) error {
@@ -150,6 +154,9 @@ func (s *server) signUp(w http.ResponseWriter, r *http.Request) error {
 	birth, err := parseBirthDate(body.BirthDate, time.Now())
 	if err != nil {
 		return err
+	}
+	if body.TermsVersion != termsVersion {
+		return bad("Accept the Terms and the Privacy Policy to create an account.")
 	}
 	kind, err := kindOf(body.Kind)
 	if err != nil {
@@ -174,7 +181,7 @@ func (s *server) signUp(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	if _, err := s.db.Exec(ctx, "UPDATE users SET birth_date = $1, age_confirmed_at = $2 WHERE id = $3", birth.Format("2006-01-02"), now(), u.id); err != nil {
+	if _, err := s.db.Exec(ctx, "UPDATE users SET birth_date = $1, age_confirmed_at = $2, terms_version = $3, terms_accepted_at = $2 WHERE id = $4", birth.Format("2006-01-02"), now(), termsVersion, u.id); err != nil {
 		return err
 	}
 	if s.mail != nil {
@@ -490,12 +497,17 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) error {
 	if err := s.db.QueryRow(r.Context(), "SELECT phone, avatar, currency, first_name, middle_name, last_name, age_confirmed_at FROM users WHERE id = $1", u.id).Scan(&phone, &avatar, &currency, &first, &middle, &last, &ageConfirmed); err != nil {
 		return err
 	}
+	termsAccepted, workAnswers, err := s.onboarding(r, u.id)
+	if err != nil {
+		return err
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id": u.id, "email": u.email, "name": u.name, "mfa_enrolled": enrolled, "email_verified": u.emailVerified,
 		"mfa_passed": c.MFA, "session_id": c.SID,
 		"phone": phone, "avatar": avatar, "currency": currency,
 		"first_name": first, "middle_name": middle, "last_name": last,
 		"age_confirmed": ageConfirmed > 0,
+		"terms_accepted": termsAccepted, "terms_version": termsVersion, "work_profile": workAnswers,
 	})
 	return nil
 }

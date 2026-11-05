@@ -26,6 +26,8 @@ var authRoutes = []string{
 	"GET /v1/me",
 	"POST /v1/me/profile",
 	"POST /v1/me/birth-date",
+	"POST /v1/me/terms",
+	"POST /v1/me/work",
 	"GET /v1/me/providers", "POST /v1/me/providers/{provider}/start",
 	"GET /v1/me/access",
 	"GET /v1/admin/staff",

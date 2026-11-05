@@ -18,7 +18,8 @@ import { ageProblem, latestBirthDate } from "./age.ts";
 import { SiteFooter } from "./components/ui/site-footer.tsx";
 import { Dashboard } from "./Dashboard.tsx";
 import { Profile } from "./Profile.tsx";
-import { AgeGate } from "./AgeGate.tsx";
+import { Setup } from "./Setup.tsx";
+import { TERMS_VERSION, setupStep } from "./setup.ts";
 import { cleanPath, routeFor } from "./routes.ts";
 
 // Anything that changes who is signed in (new tokens, a refresh the server refused, signing out) tells the page.
@@ -233,12 +234,13 @@ function SignUp({ onDone }: { onDone: () => void }) {
   const [password, setPassword] = useState("");
   const [human, setHuman] = useState("");
   const [birth, setBirth] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [state, run] = useAction();
   const birthProblem = ageProblem(birth);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (birthProblem) return;
-    if (await run(async () => void (await auth.signUp(name, email, password, "browser", human, birth)))) onDone();
+    if (birthProblem || !agreed) return;
+    if (await run(async () => void (await auth.signUp(name, email, password, "browser", human, birth, TERMS_VERSION)))) onDone();
   };
   return (
     <div className="form-wrap">
@@ -249,9 +251,10 @@ function SignUp({ onDone }: { onDone: () => void }) {
         <Field label="Password" type="password" autoComplete="new-password" minLength={8} required value={password} onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)} />
         <Field label="Date of birth" type="date" autoComplete="bday" required max={latestBirthDate()} min="1900-01-01" value={birth} onChange={(e: ChangeEvent<HTMLInputElement>) => setBirth(e.target.value)} />
         <p className={birthProblem ? "notice bad" : "muted"} role={birthProblem ? "alert" : undefined}>{birthProblem || "You must be 18 or older. Your date of birth is kept on your account and cannot be changed later."}</p>
+        <label className="check"><input type="checkbox" required checked={agreed} onChange={(e: ChangeEvent<HTMLInputElement>) => setAgreed(e.target.checked)} /> <span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
         <HumanCheck getAuth={getAuth} action="signup" onToken={setHuman} />
         {state.error && <p className="notice bad" role="alert">{state.error}</p>}
-        <button className="button primary" disabled={state.busy || Boolean(birthProblem)}>{state.busy ? "Creating…" : "Sign up"}</button>
+        <button className="button primary" disabled={state.busy || Boolean(birthProblem) || !agreed}>{state.busy ? "Creating…" : "Sign up"}</button>
         <Providers action="signup" human={human} />
         <div className="alt">
           <span className="muted">Already have an account?</span>
@@ -318,7 +321,7 @@ export function App({ path: first = "/" }) {
   const [crmLink, setCrmLink] = useState(false);
   useEffect(() => {
     setCrmLink(false);
-    if (!me || me.age_confirmed === false) return;
+    if (!me || setupStep(me)) return;
     const controller = new AbortController();
     auth.accessToken().then(async token => {
       if (!token) return;
@@ -359,8 +362,8 @@ export function App({ path: first = "/" }) {
       leaving.current = false;
     }
   }, [me]);
-  // An account that has not given its date of birth (made before the age check, or through Google or Apple) gives it before anything else.
-  const ageGate = me ? <AgeGate auth={auth} onDone={() => { auth.me({ fresh: true }).then(setMe); }} onSignOut={signOut} /> : null;
+  // An account with a setup step still to do (its age, the terms, what its work is) does it before anything else.
+  const setup = me ? <Setup me={me} auth={auth} onDone={() => { auth.me({ fresh: true }).then(setMe); }} onSignOut={signOut} /> : null;
   const pages: Record<string, React.ReactNode> = {
     "/": <Home me={me} />,
     "/signin": <SignIn onDone={signedIn} notice={notice} me={me} />,
@@ -373,8 +376,8 @@ export function App({ path: first = "/" }) {
     "/contact": <Contact getAuth={getAuth} />,
     "/privacy": <Privacy />,
     "/terms": <Terms />,
-    "/account": me && me.age_confirmed === false ? ageGate : me ? <Profile me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
-    "/dashboard": me && me.age_confirmed === false ? ageGate : me ? <Dashboard me={me} auth={auth} authBase={authBase} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
+    "/account": me && setupStep(me) ? setup : me ? <Profile me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
+    "/dashboard": me && setupStep(me) ? setup : me ? <Dashboard me={me} auth={auth} authBase={authBase} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
   };
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
   return (
