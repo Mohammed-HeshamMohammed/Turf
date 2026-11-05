@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -183,7 +184,9 @@ func (h *humanCheck) guard(w http.ResponseWriter, r *http.Request, rule humanRul
 // verify is true only when Google says the token is good, for this action, from one of our sites, with a high enough score.
 // Anything else, including Google not answering, is a refusal.
 func (h *humanCheck) verify(ctx context.Context, token, action string, minScore float64) bool {
+	// Every refusal says why in the log (never the secret or the token), because from the page it only looks like "verify you are human".
 	if strings.TrimSpace(token) == "" || len(token) > maxHumanToken {
+		log.Printf("WARN human check refused: the request carried no usable token (length %d)", len(token))
 		return false
 	}
 	// No remoteip: an address from a header or a body is not trusted, and Google does not need it.
@@ -195,22 +198,38 @@ func (h *humanCheck) verify(ctx context.Context, token, action string, minScore 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	res, err := h.client.Do(req)
 	if err != nil {
+		log.Printf("WARN human check refused: Google's check did not answer: %v", err)
 		return false
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
+		log.Printf("WARN human check refused: Google's check answered %d", res.StatusCode)
 		return false
 	}
 	var out struct {
-		Success  bool     `json:"success"`
-		Score    *float64 `json:"score"`
-		Action   string   `json:"action"`
-		Hostname string   `json:"hostname"`
+		Success    bool     `json:"success"`
+		Score      *float64 `json:"score"`
+		Action     string   `json:"action"`
+		Hostname   string   `json:"hostname"`
+		ErrorCodes []string `json:"error-codes"`
 	}
-	if json.NewDecoder(io.LimitReader(res.Body, 64<<10)).Decode(&out) != nil {
+	if err := json.NewDecoder(io.LimitReader(res.Body, 64<<10)).Decode(&out); err != nil {
+		log.Printf("WARN human check refused: Google's answer could not be read: %v", err)
 		return false
 	}
-	if !out.Success || out.Score == nil || *out.Score < minScore || out.Action != action {
+	switch {
+	case !out.Success:
+		// invalid-input-secret: the secret key is wrong or is for another site key. browser-error or timeout-or-duplicate: the token is bad or used twice.
+		log.Printf("WARN human check refused: Google does not accept the token (error codes: %v)", out.ErrorCodes)
+		return false
+	case out.Score == nil:
+		log.Printf("WARN human check refused: Google sent no score, so the keys are not reCAPTCHA v3 keys")
+		return false
+	case *out.Score < minScore:
+		log.Printf("WARN human check refused: score %.2f is below the minimum %.2f (RECAPTCHA_MIN_SCORE)", *out.Score, minScore)
+		return false
+	case out.Action != action:
+		log.Printf("WARN human check refused: the token is for action %q, this request needs %q", out.Action, action)
 		return false
 	}
 	for _, host := range h.hostnames {
@@ -218,6 +237,7 @@ func (h *humanCheck) verify(ctx context.Context, token, action string, minScore 
 			return true
 		}
 	}
+	log.Printf("WARN human check refused: the token is for the site %q, which is not in RECAPTCHA_HOSTNAMES %v", out.Hostname, h.hostnames)
 	return false
 }
 

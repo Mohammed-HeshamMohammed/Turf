@@ -61,7 +61,8 @@
         "HUMAN_PER_MINUTE": "Guarded requests (sign-up, sign-in, provider start) a minute from one address, counted before Google is asked; default 30.",
         "SCAN_LIMIT": "Requests for things that do not exist, from one address within SCAN_WINDOW_MINUTES, before that address is paused; default 20.",
         "SCAN_WINDOW_MINUTES": "Minutes over which SCAN_LIMIT is counted; default 10.",
-        "SCAN_PAUSE_MINUTES": "Minutes an address stays paused after passing SCAN_LIMIT; default 15."
+        "SCAN_PAUSE_MINUTES": "Minutes an address stays paused after passing SCAN_LIMIT; default 15.",
+        "CORS_ORIGINS": "Pages allowed to read the gateway's own refusals (not a person, too many requests, not found) from a browser, comma-separated origins like https://callerwhale.com. Empty: none, and the browser reports a refusal as a CORS error. Replies from services keep their own CORS headers."
       }
     },
     "landing-web": {

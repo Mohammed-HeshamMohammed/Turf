@@ -48,6 +48,7 @@ type config struct {
 	scanLimit     int            // requests for things that are not there, from one address, before it is paused
 	scanWindow    time.Duration
 	scanPause     time.Duration
+	corsOrigins   map[string]bool // pages (like https://callerwhale.com) that may read the gateway's own replies from a browser
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -97,6 +98,9 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	c.staffSecond = getenv("STAFF_REQUIRE_SECOND_FACTOR") != "false"
 	var err error
+	if c.corsOrigins, err = parseOrigins(getenv("CORS_ORIGINS")); err != nil {
+		return c, err
+	}
 	if c.authHost = strings.ToLower(strings.TrimSpace(getenv("AUTH_HOST"))); c.authHost != "" && c.routes[c.authHost] == nil {
 		return c, errors.New("AUTH_HOST is not one of the ROUTES hosts")
 	}
@@ -260,6 +264,11 @@ func (g *gateway) proto(r *http.Request) string {
 }
 
 func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// The gateway's own refusals (too many requests, not a person, not found) must be readable by the page that asked, or the browser
+	// reports them as a CORS failure and hides what they say. Replies from the services behind keep the CORS headers they set.
+	if origin := r.Header.Get("Origin"); origin != "" && g.cfg.corsOrigins[origin] {
+		w = &corsWriter{ResponseWriter: w, origin: origin}
+	}
 	switch {
 	// The gateway's own health and version are for the private network (the container's health check); through the public proxy
 	// they are paths like any other.
