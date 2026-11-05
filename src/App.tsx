@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes } from "react";
 import { createAuth, type AuthError, type Me } from "./auth/auth-client.js";
 import { HumanCheck } from "./auth/human-check.jsx";
-import { redirectFor } from "./guard.ts";
+import { redirectFor, waitingForSecondStep } from "./guard.ts";
 import { applyMetadata, metadataFor } from "./metadata.ts";
 import { Link, go, useRoute } from "./nav.tsx";
 import { Pricing } from "./Pricing.tsx";
@@ -136,43 +136,57 @@ function Providers({ action, human }: { action: string; human: string }) {
   );
 }
 
-function SignIn({ onDone, notice }: { onDone: () => void; notice: string }) {
+type Challenge = { challenge: string; method: string };
+
+function SignIn({ onDone, notice, me }: { onDone: () => void; notice: string; me: Me | null | undefined }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
-  const [needCode, setNeedCode] = useState(false);
+  const [challenge, setChallenge] = useState<Challenge | null>(null);
+  const resumed = Boolean(me && waitingForSecondStep(me)); // signed in already (Google, or an older session), second step not done
   const [human, setHuman] = useState("");
   const [state, run] = useAction();
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    let codeNeeded = false;
+    let next: Challenge | null = null;
     const ok = await run(async () => {
       try {
-        await auth.signIn(email, password, code || undefined, "browser", human);
+        await auth.signIn(email, password, undefined, "browser", human);
       } catch (error) {
-        if ((error as AuthError).code === "mfa_required") {
-          codeNeeded = true;
-          return;
-        }
-        throw error;
+        if ((error as AuthError).code !== "mfa_required") throw error;
+        const data = (error as AuthError).data as { challenge?: string; methods?: string[] } | null;
+        const methods = data?.methods || [];
+        const method = methods.includes("totp") ? "totp" : methods.find(m => m === "email" || m === "telegram");
+        if (!data?.challenge || !method) throw new Error("This account needs a second step this page cannot do yet. Use the Caller Whale app.");
+        if (method !== "totp") await auth.sendCode(data.challenge, method);
+        next = { challenge: data.challenge, method };
       }
     });
     // Asking for the code is not signing in: nothing opens the dashboard until the code is accepted.
-    if (codeNeeded) setNeedCode(true);
+    if (next) setChallenge(next);
     else if (ok) onDone();
   };
-  if (needCode) {
+  const verify = async (e: FormEvent) => {
+    e.preventDefault();
+    const ok = await run(async () => {
+      if (challenge) await auth.answer(challenge.challenge, challenge.method, code.trim());
+      else await auth.verifyMfa(code.trim());
+    });
+    // The session now counts as verified; the page follows that by itself when it was already signed in.
+    if (ok && challenge) onDone();
+  };
+  if (challenge || resumed) {
     // The password was right: the card now asks for the second step and nothing else.
     return (
       <div className="form-wrap">
-        <form className="form card" onSubmit={submit}>
+        <form className="form card" onSubmit={verify}>
           <h1>Confirm it's you</h1>
-          <p className="fine">Enter the 6-digit code from your authenticator app.</p>
+          <p className="fine">{challenge && challenge.method !== "totp" ? `Enter the code we sent you by ${challenge.method}.` : "Enter the 6-digit code from your authenticator app."}</p>
           <Field label="Code" inputMode="numeric" autoComplete="one-time-code" autoFocus required value={code} onChange={(e: ChangeEvent<HTMLInputElement>) => setCode(e.target.value)} />
           {state.error && <p className="notice bad" role="alert">{state.error}</p>}
           <button className="button primary" disabled={state.busy}>{state.busy ? "Checking…" : "Verify"}</button>
           <div className="alt">
-            <button type="button" className="button raised" onClick={() => { setNeedCode(false); setCode(""); setPassword(""); }}>Use a different account</button>
+            <button type="button" className="button raised" onClick={() => { setCode(""); setPassword(""); if (challenge) setChallenge(null); else void auth.signOut(); }}>Use a different account</button>
           </div>
         </form>
       </div>
@@ -305,7 +319,7 @@ export function App({ path: first = "/" }) {
   }, [me]);
   const pages: Record<string, React.ReactNode> = {
     "/": <Home me={me} />,
-    "/signin": <SignIn onDone={signedIn} notice={notice} />,
+    "/signin": <SignIn onDone={signedIn} notice={notice} me={me} />,
     "/signup": <SignUp onDone={signedIn} />,
     "/forgot": <Forgot />,
     "/pricing": <Pricing />,
