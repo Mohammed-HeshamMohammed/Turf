@@ -12,6 +12,8 @@ import { Contact, Privacy, Terms } from "./PublicPages.tsx";
 import { WhyCallerWhale } from "./WhyCallerWhale.tsx";
 import { HeroDemo } from "./components/ui/demo.tsx";
 import { SiteHeader } from "./components/ui/site-header.tsx";
+import { hasCrmAccess, type CrmAccess } from "./crm-access.ts";
+import { crmUrl } from "./crm-url.ts";
 import { SiteFooter } from "./components/ui/site-footer.tsx";
 import { Dashboard } from "./Dashboard.tsx";
 import { Profile } from "./Profile.tsx";
@@ -305,6 +307,19 @@ export function App({ path: first = "/" }) {
   const [cached, setCached] = useState<CachedProfile | null>(null);
   useEffect(() => setCached(readProfile()), []);
   useEffect(() => { if (me) { writeProfile(me); setCached(readProfile()); } else if (me === null) { writeProfile(null); setCached(null); } }, [me]);
+  // The link to the CRM is offered only to people with access to it (staff, or members of a workspace).
+  const [crmLink, setCrmLink] = useState(false);
+  useEffect(() => {
+    setCrmLink(false);
+    if (!me) return;
+    const controller = new AbortController();
+    auth.accessToken().then(async token => {
+      if (!token) return;
+      const response = await fetch(`${authBase}/v1/me/access`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
+      if (response.ok && !controller.signal.aborted) setCrmLink(hasCrmAccess((await response.json()) as CrmAccess));
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [me?.id]);
   const leaving = useRef(false); // true while the person themselves is signing out
   const wasIn = useRef(false);
   const signedIn = () => {
@@ -355,7 +370,7 @@ export function App({ path: first = "/" }) {
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
   return (
     <div className={`page${cleanPath(path) === "/" ? " home-page" : ""}${cleanPath(path) === "/dashboard" ? " dashboard-shell" : ""}`}>
-      <SiteHeader path={path} me={me} onSignOut={signOut} savedSession={savedSession} cached={cached} />
+      <SiteHeader path={path} me={me} onSignOut={signOut} savedSession={savedSession} cached={cached} crmUrl={crmLink ? crmUrl : ""} />
       <main>{pages[cleanPath(path)] || (routeFor(path).key.startsWith("feature:") ? <FeaturePage slug={featureSlug} /> : <NotFound />)}</main>
       <SiteFooter compact={cleanPath(path) === "/dashboard"} />
     </div>
