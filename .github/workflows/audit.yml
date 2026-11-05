@@ -69,9 +69,13 @@ jobs:
         working-directory: Caller Whale CRM/services/${{ matrix.dir }}
     steps:
       - uses: actions/checkout@v4
+      # The newest Go, because the images build with golang:1 (the newest too). An older Go carries its own known problems in the
+      # standard library (net/http, TLS), and those ship inside every service built with it.
       - uses: actions/setup-go@v5
         with:
-          go-version-file: Caller Whale CRM/services/${{ matrix.dir }}/go.mod
+          go-version: stable
+          check-latest: true
+          cache-dependency-path: Caller Whale CRM/services/${{ matrix.dir }}/go.sum
       # Fails only when the code calls the vulnerable function, not merely when a module has an advisory.
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
 
