@@ -1,5 +1,5 @@
-import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { currencyCodes, currencyName, filterCurrencies } from "./currency.ts";
+import { useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import { currencyCodes, currencyName, currencyVersion, filterCurrencies, subscribeCurrencies } from "./currency.ts";
 
 /**
  * A currency chooser you can type into: "egy" finds the Egyptian pound, "eur" the euro. Arrow keys move, Enter chooses, Escape closes.
@@ -7,7 +7,9 @@ import { currencyCodes, currencyName, filterCurrencies } from "./currency.ts";
  */
 export function CurrencySelect({ value, onChange, label, required = false, codes }: { value: string; onChange: (code: string) => void; label: string; required?: boolean; codes?: string[] }) {
   const id = useId();
-  const all = useMemo(() => codes || currencyCodes(), [codes]);
+  // The list follows the live tables when they arrive (a new currency appears without reloading the page).
+  const tables = useSyncExternalStore(subscribeCurrencies, currencyVersion, () => 0);
+  const all = useMemo(() => codes || currencyCodes(), [codes, tables]);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);

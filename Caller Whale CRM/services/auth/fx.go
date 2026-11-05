@@ -31,7 +31,7 @@ const (
 // isCurrency is true for a current ISO 4217 currency (the table is generated, see currency_data.go). The rates source also lists coins
 // and tokens, which are left out.
 func isCurrency(code string) bool {
-	_, ok := isoMinorUnits[code]
+	_, ok := currentTables().digits[code]
 	return ok
 }
 
@@ -104,7 +104,7 @@ func (c *fxCache) rates(ctx context.Context) *fxTable {
 // digits is the number of decimals the currency's minor unit has: 100 cents to the dollar, none for the yen, a thousand fils to the dinar.
 // It comes from ISO 4217; a code the standard does not list is treated as two.
 func digits(currency string) int {
-	if d, ok := isoMinorUnits[currency]; ok {
+	if d, ok := currentTables().digits[currency]; ok {
 		return d
 	}
 	return 2
@@ -148,12 +148,18 @@ func (s *server) publicFX(w http.ResponseWriter, r *http.Request) error {
 	// not hand one visitor's country to another. writeJSON would mark it uncacheable altogether.
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "private, max-age=3600")
+	// The currency tables are kept live: this starts a refresh when they are a day old (in the background, so nobody waits for it).
+	startCurrencyRefresh()
+	tables := currentTables()
 	country := visitorCountry(r)
 	_ = json.NewEncoder(w).Encode(struct {
 		*fxTable
-		Country  string `json:"country,omitempty"`
-		Currency string `json:"currency,omitempty"` // the currency of that country
-	}{table, country, regionCurrency[country]})
+		Country  string            `json:"country,omitempty"`
+		Currency string            `json:"currency,omitempty"` // the currency of that country
+		Digits   map[string]int    `json:"digits"`             // every current currency and its decimals
+		Regions  map[string]string `json:"regions"`            // the currency each country uses now
+		Source   string            `json:"currency_source"`
+	}{table, country, tables.regions[country], tables.digits, tables.regions, tables.source})
 	return nil
 }
 

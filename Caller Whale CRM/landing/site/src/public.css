@@ -312,3 +312,11 @@
 .currency-select li span { min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 .currency-select li.active, .currency-select li[aria-selected="true"] { background: var(--accent-soft); }
 .currency-select li.none { color: var(--muted); cursor: default; }
+
+/* ---- The header's avatar while the session is still being checked, and the sidebar's picture of the person ---- */
+.avatar.avatar-pending { background: #ffffff30; animation: avatar-wait 1.2s ease-in-out infinite alternate; }
+@keyframes avatar-wait { from { opacity: .45; } to { opacity: .85; } }
+@media (prefers-reduced-motion: reduce) { .avatar.avatar-pending { animation: none; opacity: .6; } }
+.admin-sidebar-mark { overflow: hidden; }
+.admin-sidebar-mark img { width: 100%; height: 100%; object-fit: cover; }
+.admin-sidebar-brand strong, .admin-sidebar-brand small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

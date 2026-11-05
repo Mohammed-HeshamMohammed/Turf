@@ -10,7 +10,9 @@ const links = [
   { label: "Contact", to: "/contact" },
 ];
 
-export function SiteHeader({ path, me, onSignOut, savedSession = false }: { path: string; me: Me | null | undefined; onSignOut: () => void; savedSession?: boolean }) {
+type Shown = { name?: string; email?: string; avatar?: unknown };
+
+export function SiteHeader({ path, me, onSignOut, savedSession = false, cached = null }: { path: string; me: Me | null | undefined; onSignOut: () => void; savedSession?: boolean; cached?: Shown | null }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [detached, setDetached] = useState(false);
   const header = useRef<HTMLElement>(null);
@@ -33,10 +35,13 @@ export function SiteHeader({ path, me, onSignOut, savedSession = false }: { path
     return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", escape); };
   }, []);
   const nav = links.map(link => <Link key={link.to} to={link.to} aria-current={path === link.to || (link.to === "/features" && path.startsWith("/features/")) ? "page" : undefined}>{link.label}</Link>);
-  const account = me === undefined && savedSession ? null : me ? <details className="account-menu" ref={accountMenu}>
-    <summary aria-label={`Account menu for ${me.name || me.email}`} title="Account menu"><span className="avatar" aria-hidden="true">{me.avatar ? <img src={String(me.avatar)} alt="" /> : (me.name || me.email || "C").trim().charAt(0).toUpperCase()}</span></summary>
-    <div className="account-popover"><span className="account-identity">{me.name || "Your account"}<small>{me.email}</small></span><Link to="/dashboard" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; }}>Dashboard</Link><Link to="/account" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; }}>Your profile</Link><button type="button" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; onSignOut(); }}>Sign out</button></div>
-  </details> : <div className="site-auth"><Link to="/signin">Sign in</Link><Link className="site-signup" to="/signup">Sign up</Link></div>;
+  const menu = (known: Shown) => <details className="account-menu" ref={accountMenu}>
+    <summary aria-label={`Account menu for ${known.name || known.email}`} title="Account menu"><span className="avatar" aria-hidden="true">{known.avatar ? <img src={String(known.avatar)} alt="" /> : (known.name || known.email || "C").trim().charAt(0).toUpperCase()}</span></summary>
+    <div className="account-popover"><span className="account-identity">{known.name || "Your account"}<small>{known.email}</small></span><Link to="/dashboard" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; }}>Dashboard</Link><Link to="/account" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; }}>Your profile</Link><button type="button" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; onSignOut(); }}>Sign out</button></div>
+  </details>;
+  // What is known at once: the person, or (while the session is still being checked) the last-known profile kept on this device.
+  const known = me || (me === undefined && savedSession ? cached : null);
+  const account = known ? menu(known) : me === undefined && savedSession ? <span className="avatar avatar-pending" aria-hidden="true" /> : <div className="site-auth"><Link to="/signin">Sign in</Link><Link className="site-signup" to="/signup">Sign up</Link></div>;
   return <header ref={header} className={`site-header${path === "/" ? detached ? " is-detached" : " is-on-hero" : ""}`}>
     <Link className="site-brand" to="/"><img src="/favicon.svg" alt="" width="34" height="34" />Caller Whale</Link>
     <nav className="site-nav" aria-label="Main">{nav}</nav>

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import type { Auth } from "./auth/auth-client.js";
 import { CurrencySelect } from "./CurrencySelect.tsx";
-import { currencyForCountry, currencyForLocale, currencyName, type Rates } from "./currency.ts";
+import { applyLiveCurrencyData, currencyForCountry, currencyForLocale, currencyName, type Rates } from "./currency.ts";
 
-type Fx = Rates & { country?: string };
+type Fx = Rates & { country?: string; currency?: string; digits?: Record<string, number>; regions?: Record<string, string> };
 
 /**
  * A person's main currency: the one amounts are shown in. Until they choose, it is worked out for them: where they are (the country
@@ -13,10 +13,14 @@ export function useMainCurrency(load: () => Promise<Fx | null>, saved: string | 
   const [fx, setFx] = useState<Fx | null>(null);
   useEffect(() => {
     let live = true;
-    load().then(answer => { if (live) setFx(answer); }, () => {});
+    load().then(answer => {
+      if (!live) return;
+      applyLiveCurrencyData(answer); // the server's live currency tables replace the ones shipped with the page
+      setFx(answer);
+    }, () => {});
     return () => { live = false; };
   }, []);
-  const detected = (fx?.country && currencyForCountry(fx.country)) || currencyForLocale(typeof navigator === "undefined" ? undefined : navigator.language);
+  const detected = fx?.currency || (fx?.country && currencyForCountry(fx.country)) || currencyForLocale(typeof navigator === "undefined" ? undefined : navigator.language);
   return { currency: saved || detected, detected, automatic: !saved, rates: fx && fx.rates ? fx : null, country: fx?.country };
 }
 

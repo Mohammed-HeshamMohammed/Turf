@@ -89,3 +89,24 @@ test("the currency tables come from the standards, so they know what changed", (
   assert.equal(currencyForLocale("sv-SE"), "SEK");
   assert.equal(currencyForLocale("ar-EG"), "EGP");
 });
+
+test("the live tables from the server replace the shipped ones, and a bad answer is ignored", async () => {
+  const { applyLiveCurrencyData, currencyCodes, currencyDigits, currencyForCountry } = await import("../src/currency.ts");
+  assert.equal(currencyForCountry("EG"), "EGP");
+  assert.equal(currencyCodes().includes("QQQ"), false);
+  // The server says Egypt now uses the euro and that a new currency exists.
+  const digits = { ...CURRENCY_DIGITS, QQQ: 3 };
+  const regions = { ...REGION_CURRENCY, EG: "EUR" };
+  applyLiveCurrencyData({ digits, regions });
+  assert.equal(currencyForCountry("EG"), "EUR");
+  assert.equal(currencyCodes().includes("QQQ"), true);
+  assert.equal(currencyDigits("QQQ"), 3);
+  // An answer that is cut short, or missing, does not replace good tables.
+  applyLiveCurrencyData({ digits: { USD: 2 }, regions: { US: "USD" } });
+  applyLiveCurrencyData({});
+  assert.equal(currencyForCountry("EG"), "EUR");
+  // Going back to what ships with the page.
+  applyLiveCurrencyData(null);
+  assert.equal(currencyForCountry("EG"), "EGP");
+  assert.equal(currencyCodes().includes("QQQ"), false);
+});
