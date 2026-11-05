@@ -166,14 +166,24 @@ function SignIn({ onDone, notice, me }: { onDone: () => void; notice: string; me
     if (next) setChallenge(next);
     else if (ok) onDone();
   };
-  const verify = async (e: FormEvent) => {
-    e.preventDefault();
+  const verifyCode = async (value: string) => {
     const ok = await run(async () => {
-      if (challenge) await auth.answer(challenge.challenge, challenge.method, code.trim());
-      else await auth.verifyMfa(code.trim());
+      if (challenge) await auth.answer(challenge.challenge, challenge.method, value);
+      else await auth.verifyMfa(value);
     });
     // The session now counts as verified; the page follows that by itself when it was already signed in.
     if (ok && challenge) onDone();
+    else if (!ok) setCode("");
+  };
+  const verify = (e: FormEvent) => {
+    e.preventDefault();
+    if (code.trim()) void verifyCode(code.trim());
+  };
+  // The sixth digit sends the code by itself: no Enter, no button.
+  const typeCode = (e: ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, "").slice(0, 6);
+    setCode(value);
+    if (value.length === 6 && !state.busy) void verifyCode(value);
   };
   if (challenge || resumed) {
     // The password was right: the card now asks for the second step and nothing else.
@@ -182,7 +192,7 @@ function SignIn({ onDone, notice, me }: { onDone: () => void; notice: string; me
         <form className="form card" onSubmit={verify}>
           <h1>Confirm it's you</h1>
           <p className="fine">{challenge && challenge.method !== "totp" ? `Enter the code we sent you by ${challenge.method}.` : "Enter the 6-digit code from your authenticator app."}</p>
-          <Field label="Code" inputMode="numeric" autoComplete="one-time-code" autoFocus required value={code} onChange={(e: ChangeEvent<HTMLInputElement>) => setCode(e.target.value)} />
+          <Field label="Code" inputMode="numeric" autoComplete="one-time-code" autoFocus required maxLength={6} placeholder="000000" value={code} onChange={typeCode} />
           {state.error && <p className="notice bad" role="alert">{state.error}</p>}
           <button className="button primary" disabled={state.busy}>{state.busy ? "Checking…" : "Verify"}</button>
           <div className="alt">

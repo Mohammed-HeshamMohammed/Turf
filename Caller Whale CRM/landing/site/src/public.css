@@ -24,16 +24,18 @@
 .contact-form input, .contact-form textarea { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: var(--inner); background: var(--raised); color: var(--ink); font: inherit; }
 .contact-form .button { justify-self: start; }
 .contact-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
-.dashboard-page { display: grid; gap: 16px; }
-.dashboard-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+/* One gap for the whole dashboard: around the screen, between the header, sidebar, content and footer, and between cards. */
+.dashboard-shell, .dashboard-shell main { --dash-gap: 12px; }
+.dashboard-page { display: grid; gap: var(--dash-gap, 16px); }
+.dashboard-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--dash-gap, 16px); }
 .dashboard-panels .card { min-width: 0; padding: clamp(20px, 3vw, 32px); }
 .dashboard-panels h2 { margin-top: 0; font-size: 24px; }
 .membership-list { display: grid; gap: 12px; padding: 0; list-style: none; }
 .membership-list li { display: grid; gap: 4px; padding: 12px 0; border-top: 1px solid var(--line); }
-.dashboard-shell { width: 100%; max-width: none; height: 100dvh; grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px; overflow: hidden; padding: clamp(8px, 1vw, 14px); }
+.dashboard-shell { width: 100%; max-width: none; height: 100dvh; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--dash-gap); overflow: hidden; padding: var(--dash-gap); }
 .dashboard-shell > main { display: block; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .dashboard-shell .admin-sidebar { top: 0; }
-.admin-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); align-items: stretch; gap: 12px; min-width: 0; min-height: 100%; }
+.admin-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); align-items: stretch; gap: var(--dash-gap, 12px); min-width: 0; min-height: 100%; }
 .admin-sidebar { position: sticky; top: 100px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 18px; min-width: 0; padding: 16px 12px; border-radius: 18px; background: #171d1a; color: #fff; }
 .admin-sidebar-brand { display: flex; align-items: center; gap: 11px; padding: 4px 8px; }
 .admin-sidebar-brand > span:last-child, .admin-sidebar-account { display: grid; gap: 2px; min-width: 0; }
@@ -48,18 +50,18 @@
 .admin-sidebar-account { gap: 6px; margin: 0 8px; padding-top: 14px; border-top: 1px solid #ffffff35; overflow-wrap: anywhere; }
 .admin-sidebar-account .eyebrow { width: fit-content; padding: 0; background: transparent; color: var(--accent); font-size: 11px; }
 .admin-sidebar-account a { color: var(--accent); }
-.admin-main, .admin-workspace { display: grid; align-content: start; gap: 12px; min-width: 0; }
+.admin-main, .admin-workspace { display: grid; align-content: start; gap: var(--dash-gap, 12px); min-width: 0; }
 .admin-main { min-height: 0; }
 .admin-view-overview { grid-template-rows: auto auto minmax(min-content, 1fr); min-height: 100%; }
 .admin-workspace, .admin-team, .admin-manage, .admin-account { scroll-margin-top: 110px; }
 .admin-view-header { display: flex; align-items: center; min-height: 38px; padding: 0 4px; }
 .admin-view-header h1 { margin: 0; font-size: clamp(23px, 2vw, 29px); font-weight: 600; line-height: 1.15; letter-spacing: -.02em; }
-.admin-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.admin-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--dash-gap, 12px); }
 .admin-metrics > div { display: grid; align-content: space-between; gap: 5px; min-height: 98px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 15px; background: var(--card); }
 .admin-metrics span { color: var(--muted); font-weight: 550; }
 .admin-metrics strong { font-size: clamp(27px, 2.6vw, 34px); line-height: 1; font-weight: 550; }
 .admin-metrics small { color: var(--muted); }
-.admin-overview-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; min-height: 0; }
+.admin-overview-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--dash-gap, 12px); min-height: 0; }
 .admin-overview-panels .card { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; justify-items: start; gap: 9px; min-width: 0; min-height: 0; padding: clamp(16px, 2vw, 24px); }
 .admin-overview-panels .card:last-child { background: var(--accent-soft); }
 .admin-overview-panels h2, .admin-overview-panels p { margin: 0; }
