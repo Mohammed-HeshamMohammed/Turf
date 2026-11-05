@@ -295,6 +295,10 @@ export function App({ path: first = "/" }) {
   const path = useRoute(first);
   const [me, setMe, restoreError, retrySession] = useMe();
   const [notice, setNotice] = useState("");
+  // Until the profile arrives (and in the page built ahead of time) the header shows Sign in and Sign up, unless this browser
+  // holds a saved session, so the buttons never go missing for a visitor.
+  const [savedSession, setSavedSession] = useState(false);
+  useEffect(() => setSavedSession(auth.signedIn()), [me]);
   const leaving = useRef(false); // true while the person themselves is signing out
   const wasIn = useRef(false);
   const signedIn = () => {
@@ -345,7 +349,7 @@ export function App({ path: first = "/" }) {
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
   return (
     <div className={`page${cleanPath(path) === "/" ? " home-page" : ""}${cleanPath(path) === "/dashboard" ? " dashboard-shell" : ""}`}>
-      <SiteHeader path={path} me={me} onSignOut={signOut} />
+      <SiteHeader path={path} me={me} onSignOut={signOut} savedSession={savedSession} />
       <main>{pages[cleanPath(path)] || (routeFor(path).key.startsWith("feature:") ? <FeaturePage slug={featureSlug} /> : <NotFound />)}</main>
       <SiteFooter compact={cleanPath(path) === "/dashboard"} />
     </div>
