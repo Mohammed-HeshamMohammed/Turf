@@ -23,3 +23,13 @@ test("every other page stays as it is", () => {
   assert.equal(redirectFor("/account", { email: "a@example.com" }), null);
   assert.equal(redirectFor("/anything-else", null), null);
 });
+
+test("signed in but the second step is not done: stay on sign-in, and nothing behind it opens", () => {
+  const waiting = { email: "a@example.com", mfa_enrolled: true, mfa_passed: false };
+  assert.equal(redirectFor("/signin", waiting), null);
+  assert.equal(redirectFor("/dashboard", waiting), "/signin");
+  assert.equal(redirectFor("/account", waiting), "/signin");
+  assert.equal(redirectFor("/signup", waiting), "/signin");
+  const done = { email: "a@example.com", mfa_enrolled: true, mfa_passed: true };
+  assert.equal(redirectFor("/signin", done), "/dashboard");
+});
