@@ -13,6 +13,22 @@ export class ApiError extends Error {
 export const needsSecondStep = (error: unknown) => error instanceof ApiError && error.code === "step_up_required";
 
 /**
+ * For an action that needs a second step done just now. `guard(action)` runs it; if the service says a code is needed, the code
+ * box appears in `prompt` and, once the code is accepted, the same action runs again. Any other error is the action's own to handle.
+ */
+export function useSecondStep(auth: Auth, reason = "This needs a code entered just now.") {
+  const [pending, setPending] = useState<(() => Promise<void>) | null>(null);
+  const guard = async (action: () => Promise<void>) => {
+    try { await action(); } catch (error) {
+      if (needsSecondStep(error)) setPending(() => action);
+      else throw error;
+    }
+  };
+  const prompt = pending ? <SecondStep auth={auth} reason={reason} onCancel={() => setPending(null)} onDone={() => { const again = pending; setPending(null); void guard(again); }} /> : null;
+  return { guard, prompt };
+}
+
+/**
  * Asks for a fresh authenticator code (or the code sent by email or Telegram) in place, for the actions that need a second step done
  * just now. The sixth digit sends it by itself. When it is accepted the session carries the new confirmation and `onDone` runs,
  * so the screen can carry on with what the person was doing.

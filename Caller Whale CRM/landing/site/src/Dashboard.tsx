@@ -3,7 +3,7 @@ import type { Auth, Me } from "./auth/auth-client.js";
 import { Link } from "./nav.tsx";
 import { RoleBadges, type Access } from "./RoleBadges.tsx";
 import { PLATFORM_ROLES } from "./roles.ts";
-import { ApiError } from "./SecondStep.tsx";
+import { ApiError, needsSecondStep, useSecondStep } from "./SecondStep.tsx";
 import { CostsManager, MembersTable, PlatformOverview } from "./OwnerViews.tsx";
 import { InviteManager, PendingInvitations, WorkspaceManager, WorkspaceSecondStep } from "./AccessManagement.tsx";
 import { MonitoringPanel } from "./MonitoringPanel.tsx";
@@ -128,16 +128,22 @@ function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: 
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
-  const assign = async (event: React.FormEvent) => {
+  const second = useSecondStep(auth, "Changing a staff role needs a code entered just now.");
+  const assign = (event: React.FormEvent) => {
     event.preventDefault();
-    setBusy(true); setMessage("");
-    try {
-      await request("POST", "/v1/admin/staff", { email: email.trim(), role });
-      setEmail("");
-      setMessage(role ? "Staff role saved." : "Staff role removed.");
-      await load();
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save the role."); }
-    setBusy(false);
+    return second.guard(async () => {
+      setBusy(true); setMessage("");
+      try {
+        await request("POST", "/v1/admin/staff", { email: email.trim(), role });
+        setEmail("");
+        setMessage(role ? "Staff role saved." : "Staff role removed.");
+        await load();
+      } catch (error) {
+        if (needsSecondStep(error)) { setBusy(false); throw error; }
+        setMessage(error instanceof Error ? error.message : "Could not save the role.");
+      }
+      setBusy(false);
+    });
   };
   const setup = async () => {
     setMessage(""); setBusy(true);
@@ -193,13 +199,13 @@ function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: 
     {shownView !== "account" && !recovery.length && status === "error" && <div className="admin-feedback card" role="alert"><h2>Staff information is unavailable</h2><p>Check your connection and try again.</p><button type="button" className="button primary" onClick={() => void load()}>Try again</button></div>}
     {status === "ready" && shownView === "overview" && <><PlatformOverview request={request} openCosts={canManage ? () => openView("costs") : undefined} />{!canManage && <section className="admin-overview-panels" aria-label="Your access"><div className="card admin-overview-access"><span className="eyebrow">Your access</span><h2>{access.platform_label || roleNames[access.platform_role]}</h2><p className="muted">{canManage ? "You can invite staff and manage system admin and tester roles." : "You can review platform staff. Founder roles manage access."}</p><div className="admin-access-summary"><span>Access scope</span><strong>{canManage ? "Team administration" : "Staff directory"}</strong><small>{canManage ? "Invite staff and manage roles" : "Review platform staff"}</small></div>{canManage ? <button type="button" className="button raised" onClick={() => openView("access")}>Manage access →</button> : <button type="button" className="button raised" onClick={() => openView("account")}>View account →</button>}</div></section>}</>}
     {status === "ready" && shownView === "members" && <MembersTable request={request} canGive={canManage} auth={auth} />}
-    {canManage && status === "ready" && shownView === "costs" && <CostsManager request={request} />}
+    {canManage && status === "ready" && shownView === "costs" && <CostsManager request={request} auth={auth} />}
     {status === "ready" && shownView === "monitoring" && <MonitoringPanel auth={auth} />}
     {status === "ready" && shownView === "team" && <section className="admin-team card" aria-labelledby="admin-team-title"><div className="admin-section-heading"><div><span className="eyebrow">Access directory</span><h2 id="admin-team-title">Staff directory</h2><p className="muted">Owner and cofounder roles are permanent. System admin and tester roles can be managed here.</p></div><span className="admin-count">{query || roleFilter !== "all" ? `${visibleStaff.length} of ${staff.length}` : staff.length} {staff.length === 1 ? "person" : "people"}</span></div>
         <div className="admin-toolbar"><label>Search people<input type="search" placeholder="Name or email" value={query} onChange={event => setQuery(event.target.value)} /></label><label>Role<select value={roleFilter} onChange={event => setRoleFilter(event.target.value)}><option value="all">All roles</option><option value="owner">Owner</option><option value="cofounder">Cofounder</option><option value="system_admin">System admin</option><option value="tester">Tester</option></select></label></div>
         {staff.length === 0 ? <div className="admin-empty"><h3>No staff to show yet</h3><p>When an account receives platform access, it will appear here.</p>{canManage && <button type="button" className="button primary" onClick={() => document.getElementById("staff-role-form")?.scrollIntoView({ block: "center", behavior: "smooth" })}>Assign a role</button>}</div> : visibleStaff.length === 0 ? <div className="admin-empty"><h3>No matches</h3><p>Try a different name, email, or role.</p><button type="button" className="button raised" onClick={() => { setQuery(""); setRoleFilter("all"); }}>Clear filters</button></div> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th scope="col">Person</th><th scope="col">Role</th><th scope="col">Access</th><th scope="col"><span className="sr-only">Action</span></th></tr></thead><tbody>{visibleStaff.map((person, index) => <tr key={person.email || `${person.role}-${index}`}><td data-label="Person"><span className="admin-person"><span className="admin-person-avatar" aria-hidden="true">{(person.name || person.email || "?").charAt(0).toUpperCase()}</span><span><strong>{person.name || person.email}</strong>{person.email && <small>{person.email}</small>}</span></span></td><td data-label="Role"><span className={`staff-role staff-role-${person.role}`}>{roleNames[person.role] || person.role}</span></td><td data-label="Access">{person.role === "owner" || person.role === "cofounder" ? "Permanent" : "Managed"}</td><td data-label="Action">{canManage && person.email && (person.role === "system_admin" || person.role === "tester") && <button type="button" className="staff-text-button" onClick={() => editRole(person)}>Edit role</button>}</td></tr>)}</tbody></table></div>}
       </section>}
-    {canManage && status === "ready" && shownView === "team" && <section id="staff-role-form" className="admin-manage card" aria-labelledby="admin-manage-title"><div><span className="eyebrow">Role management</span><h2 id="admin-manage-title">Change current staff roles</h2><p className="muted">Select a person in the staff directory, or enter the email of an account that has already signed in. Founder roles are permanent.</p></div><form className="staff-form" onSubmit={assign}><div className="staff-fields"><label>Account email<input type="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="person@example.com" /></label><label>Role<select value={role} onChange={event => setRole(event.target.value)}><option value="system_admin">System admin</option><option value="tester">Tester</option><option value="">Remove role</option></select></label><button className="button primary" disabled={busy}>{busy ? "Saving…" : "Save access"}</button></div>{message && <p className={message.includes("saved") || message.includes("removed") ? "notice" : "notice bad"} role="status">{message}</p>}</form></section>}
+    {canManage && status === "ready" && shownView === "team" && <section id="staff-role-form" className="admin-manage card" aria-labelledby="admin-manage-title"><div><span className="eyebrow">Role management</span><h2 id="admin-manage-title">Change current staff roles</h2><p className="muted">Select a person in the staff directory, or enter the email of an account that has already signed in. Founder roles are permanent.</p></div>{second.prompt}<form className="staff-form" onSubmit={assign}><div className="staff-fields"><label>Account email<input type="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="person@example.com" /></label><label>Role<select value={role} onChange={event => setRole(event.target.value)}><option value="system_admin">System admin</option><option value="tester">Tester</option><option value="">Remove role</option></select></label><button className="button primary" disabled={busy}>{busy ? "Saving…" : "Save access"}</button></div>{message && <p className={message.includes("saved") || message.includes("removed") ? "notice" : "notice bad"} role="status">{message}</p>}</form></section>}
     {canManage && status === "ready" && shownView === "access" && <InviteManager auth={auth} authBase={authBase} scope="platform" />}
     {shownView === "account" && <><section className="admin-account card" aria-labelledby="admin-account-title"><div><span className="eyebrow">Your profile</span><h2 id="admin-account-title">{me.name || me.email}</h2><p className="muted">{me.email}</p><RoleBadges access={{ ...access, workspaces: [] }} /><Link to="/account">Manage your profile →</Link></div><div><h3>Workspace memberships</h3>{access.workspaces.length ? <ul className="membership-list">{access.workspaces.map((workspace, index) => <li key={workspace.org_id}><strong>Workspace {index + 1}</strong><RoleBadges access={{ platform_role: "", workspaces: [workspace] }} /></li>)}</ul> : <p className="muted">No workspace memberships yet.</p>}</div></section><PendingInvitations auth={auth} authBase={authBase} />{access.workspaces.filter(space => space.business_owner).map(space => <div className="workspace-access" key={space.org_id}><h2>Workspace access</h2><WorkspaceManager auth={auth} authBase={authBase} orgId={space.org_id} /><InviteManager auth={auth} authBase={authBase} scope="workspace" orgId={space.org_id} /></div>)}</>}
   </section></div></div>;

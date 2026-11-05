@@ -60,6 +60,19 @@ func (s *server) adminPlans(w http.ResponseWriter, r *http.Request) error {
 // openingRoles are the roles that open a workspace: the agency owner, or a solo operator (the same two the authorization service holds back).
 var openingRoles = []string{"owner", "solo"}
 
+// ownerActor is an owner or cofounder who has also confirmed themselves with a second step in the last five minutes: the rule for
+// everything that moves money or access (staff roles and invitations, costs and rates, memberships). Reading stays with staffActor.
+func (s *server) ownerActor(r *http.Request) (claims, error) {
+	c, err := s.staffActor(r, true)
+	if err != nil {
+		return claims{}, err
+	}
+	if problem := requireFreshSecondStep(c, now()); problem != nil {
+		return claims{}, problem
+	}
+	return c, nil
+}
+
 // freshSecondStepWindow is how long a second step counts for the actions that need one done just now.
 const freshSecondStepWindow = 5 * 60
 
@@ -125,13 +138,9 @@ func checkMembership(b *membershipBody) *apiError {
 // giveMembership opens the person's workspace (once: a person who already runs one keeps it and gets the new plan there) and tells
 // billing the plan. Asking again is safe: the same workspace is found and the plan is set again.
 func (s *server) giveMembership(w http.ResponseWriter, r *http.Request) error {
-	c, err := s.staffActor(r, true)
-	if err != nil {
+	// Giving someone a workspace and a plan moves money and access: it needs a second step done just now (ownerActor).
+	if _, err := s.ownerActor(r); err != nil {
 		return err
-	}
-	// Giving someone a workspace and a plan is a decision that moves money and access, so it needs a second step done just now.
-	if problem := requireFreshSecondStep(c, now()); problem != nil {
-		return problem
 	}
 	var body membershipBody
 	if err := readJSON(w, r, &body); err != nil {

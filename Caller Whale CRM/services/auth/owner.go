@@ -69,7 +69,7 @@ func (s *server) readCosts(ctx context.Context) ([]costItem, error) {
 }
 
 func (s *server) addCost(w http.ResponseWriter, r *http.Request) error {
-	if _, err := s.staffActor(r, true); err != nil {
+	if _, err := s.ownerActor(r); err != nil {
 		return err
 	}
 	var body costItem
@@ -111,7 +111,7 @@ func (s *server) addCost(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (s *server) deleteCost(w http.ResponseWriter, r *http.Request) error {
-	if _, err := s.staffActor(r, true); err != nil {
+	if _, err := s.ownerActor(r); err != nil {
 		return err
 	}
 	id := r.PathValue("id")

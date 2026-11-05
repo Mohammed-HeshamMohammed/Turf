@@ -224,7 +224,7 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 }
 
 func (s *server) invitePlatform(w http.ResponseWriter, r *http.Request) error {
-	c, err := s.staffActor(r, true)
+	c, err := s.ownerActor(r)
 	if err != nil {
 		return err
 	}
@@ -355,7 +355,7 @@ func (s *server) revokeInvitation(w http.ResponseWriter, r *http.Request) error 
 		return err
 	}
 	if scope == "platform" {
-		if _, err := s.staffActor(r, true); err != nil {
+		if _, err := s.ownerActor(r); err != nil {
 			return err
 		}
 	} else {

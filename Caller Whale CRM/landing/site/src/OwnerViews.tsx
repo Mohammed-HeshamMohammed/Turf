@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { workspaceRoleName } from "./roles.ts";
 import type { Auth } from "./auth/auth-client.js";
-import { SecondStep, needsSecondStep } from "./SecondStep.tsx";
+import { SecondStep, needsSecondStep, useSecondStep } from "./SecondStep.tsx";
 
 /** The dashboard's authed request to the auth service (it adds the token and turns refusals into messages). */
 export type Api = (method: string, path: string, body?: object) => Promise<any>;
@@ -145,7 +145,7 @@ export function MembersTable({ request, canGive = false, auth }: { request: Api;
 
 type Cost = { id: string; label: string; category: string; amount_minor: number; currency: string; interval: string; note: string };
 
-export function CostsManager({ request }: { request: Api }) {
+export function CostsManager({ request, auth }: { request: Api; auth: Auth }) {
   const [again, setAgain] = useState(0);
   const { data, error, loading } = useLoad<{ costs: Cost[] }>(request, "/v1/admin/costs", again);
   const [label, setLabel] = useState("");
@@ -156,30 +156,39 @@ export function CostsManager({ request }: { request: Api }) {
   const [note, setNote] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const add = async (event: FormEvent) => {
+  const second = useSecondStep(auth, "Changing your costs needs a code entered just now.");
+  const add = (event: FormEvent) => {
     event.preventDefault();
     const digits = moneyDigits(currency.toUpperCase().length === 3 ? currency.toUpperCase() : "USD");
     const minor = Math.round(Number(amount) * 10 ** digits);
-    if (!Number.isFinite(minor) || minor <= 0) { setMessage("Enter an amount above zero."); return; }
-    setBusy(true); setMessage("");
-    try {
-      await request("POST", "/v1/admin/costs", { label, category, amount_minor: minor, currency: currency.toUpperCase(), interval, note });
-      setLabel(""); setAmount(""); setNote(""); setAgain(count => count + 1);
-    } catch (problem) { setMessage(problem instanceof Error ? problem.message : "Could not save that cost."); }
-    setBusy(false);
+    if (!Number.isFinite(minor) || minor <= 0) { setMessage("Enter an amount above zero."); return Promise.resolve(); }
+    return second.guard(async () => {
+      setBusy(true); setMessage("");
+      try {
+        await request("POST", "/v1/admin/costs", { label, category, amount_minor: minor, currency: currency.toUpperCase(), interval, note });
+        setLabel(""); setAmount(""); setNote(""); setAgain(count => count + 1);
+      } catch (problem) {
+        if (needsSecondStep(problem)) { setBusy(false); throw problem; }
+        setMessage(problem instanceof Error ? problem.message : "Could not save that cost.");
+      }
+      setBusy(false);
+    });
   };
-  const remove = async (id: string) => {
+  const remove = (id: string) => second.guard(async () => {
     setBusy(true); setMessage("");
     try { await request("DELETE", `/v1/admin/costs/${id}`); setAgain(count => count + 1); }
-    catch (problem) { setMessage(problem instanceof Error ? problem.message : "Could not remove that cost."); }
+    catch (problem) {
+      if (needsSecondStep(problem)) { setBusy(false); throw problem; }
+      setMessage(problem instanceof Error ? problem.message : "Could not remove that cost.");
+    }
     setBusy(false);
-  };
+  });
   const costs = data?.costs || [];
   const monthly = costs.filter(cost => cost.currency === (costs[0]?.currency || "USD")).reduce((sum, cost) => sum + (cost.interval === "monthly" ? cost.amount_minor : cost.interval === "yearly" ? Math.floor(cost.amount_minor / 12) : 0), 0);
   return <div className="owner-costs">
     <section className="admin-manage card" aria-labelledby="costs-title">
       <div><span className="eyebrow">Owner and cofounders only</span><h2 id="costs-title">Running costs</h2><p className="muted">What it costs to run Caller Whale. The overview uses these to work out profit and return. Staff pay can be entered here too.</p></div>
-      <form className="staff-form" onSubmit={add}>
+      {second.prompt}<form className="staff-form" onSubmit={add}>
         <div className="staff-fields">
           <label>Name<input required maxLength={80} value={label} onChange={event => setLabel(event.target.value)} placeholder="Server, ads, designer…" /></label>
           <label>Type<select value={category} onChange={event => setCategory(event.target.value)}>{Object.entries(categoryNames).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>
@@ -192,7 +201,7 @@ export function CostsManager({ request }: { request: Api }) {
         {message && <p className="notice bad" role="alert">{message}</p>}
       </form>
     </section>
-    <RatesManager request={request} />
+    <RatesManager request={request} auth={auth} />
     <section className="admin-team card" aria-labelledby="costs-list-title">
       <div className="admin-section-heading"><div><h2 id="costs-list-title">Costs entered</h2><p className="muted">{costs.length ? `About ${money(monthly, costs[0]?.currency || "USD")} a month in ${costs[0]?.currency || "USD"}.` : "Nothing yet."}</p></div></div>
       {loading && !data ? <p role="status" className="muted">Loading…</p> : error ? <p className="notice bad" role="alert">{error}</p> : costs.length === 0 ? <div className="admin-empty"><h3>No costs yet</h3><p>Add what you pay for, and the overview will show profit and return.</p></div> :
@@ -209,7 +218,7 @@ const toMicros = (text: string) => Math.round(Number(text) * 1_000_000);
 const fromMicros = (micros: number, currency: string) => new Intl.NumberFormat(undefined, { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(micros / 1_000_000);
 
 /** The costs that follow customers: what the provider charges per call minute and per GB, and the payment provider's cut of each payment. */
-function RatesManager({ request }: { request: Api }) {
+function RatesManager({ request, auth }: { request: Api; auth: Auth }) {
   const [again, setAgain] = useState(0);
   const { data, error, loading } = useLoad<{ rates: Rate[] }>(request, "/v1/admin/rates", again);
   const [kind, setKind] = useState("minute");
@@ -221,8 +230,10 @@ function RatesManager({ request }: { request: Api }) {
   const [currency, setCurrency] = useState("USD");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const add = async (event: FormEvent) => {
+  const second = useSecondStep(auth, "Changing your rates needs a code entered just now.");
+  const add = (event: FormEvent) => {
     event.preventDefault();
+    return second.guard(async () => {
     setBusy(true); setMessage("");
     try {
       await request("POST", "/v1/admin/rates", {
@@ -230,19 +241,26 @@ function RatesManager({ request }: { request: Api }) {
         ...(kind === "payment_fee" ? { percent_bp: Math.round(Number(percent || 0) * 100), fixed_micros: toMicros(fixed || "0") } : { rate_micros: toMicros(price), ...(kind === "gb" ? { quantity: Math.round(Number(quantity || 0)) } : {}) }),
       });
       setLabel(""); setPrice(""); setQuantity(""); setPercent(""); setFixed(""); setAgain(count => count + 1);
-    } catch (problem) { setMessage(problem instanceof Error ? problem.message : "Could not save that rate."); }
+    } catch (problem) {
+      if (needsSecondStep(problem)) { setBusy(false); throw problem; }
+      setMessage(problem instanceof Error ? problem.message : "Could not save that rate.");
+    }
     setBusy(false);
+    });
   };
-  const remove = async (id: string) => {
+  const remove = (id: string) => second.guard(async () => {
     setBusy(true); setMessage("");
     try { await request("DELETE", `/v1/admin/rates/${id}`); setAgain(count => count + 1); }
-    catch (problem) { setMessage(problem instanceof Error ? problem.message : "Could not remove that rate."); }
+    catch (problem) {
+      if (needsSecondStep(problem)) { setBusy(false); throw problem; }
+      setMessage(problem instanceof Error ? problem.message : "Could not remove that rate.");
+    }
     setBusy(false);
-  };
+  });
   const rates = data?.rates || [];
   return <section className="admin-manage card" aria-labelledby="rates-title">
     <div><span className="eyebrow">Costs that follow customers</span><h2 id="rates-title">What you pay when customers pay or use the service</h2><p className="muted">Each plan sells unlimited calls on a real minutes allowance. Enter what your provider charges per minute (including the extra minutes you buy for customers near their limit), your storage price and the payment fee. The overview multiplies these by what customers actually used and paid this month.</p></div>
-    <form className="staff-form" onSubmit={add}>
+    {second.prompt}<form className="staff-form" onSubmit={add}>
       <div className="staff-fields">
         <label>What for<select value={kind} onChange={event => setKind(event.target.value)}>{Object.entries(kindNames).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>
         <label>Name<input required maxLength={80} value={label} onChange={event => setLabel(event.target.value)} placeholder={kind === "minute" ? "VOIP provider" : kind === "gb" ? "Storage" : "Paddle fee"} /></label>

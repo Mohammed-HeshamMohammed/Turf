@@ -2,6 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -209,6 +212,38 @@ func TestAMembershipNeedsASecondStepDoneJustNow(t *testing.T) {
 		problem := requireFreshSecondStep(c, at)
 		if problem == nil || problem.code != "step_up_required" {
 			t.Errorf("%s was accepted: %v", name, problem)
+		}
+	}
+}
+
+// Everything that moves money or access for the platform goes through ownerActor (an owner or cofounder with a second step done just
+// now). This reads the source, so a new owner action added without it, or one of these changed back, fails here.
+func TestEveryOwnerActionAsksForAFreshSecondStep(t *testing.T) {
+	files, _ := filepath.Glob("*.go")
+	var text strings.Builder
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text.Write(raw)
+		text.WriteByte('\n')
+	}
+	source := text.String()
+	for _, name := range []string{"assignStaff", "invitePlatform", "revokeInvitation", "addCost", "deleteCost", "addRate", "deleteRate", "giveMembership"} {
+		start := strings.Index(source, "func (s *server) "+name+"(")
+		if start < 0 {
+			t.Fatalf("%s is not in the source any more: update this list", name)
+		}
+		body := source[start:]
+		if next := strings.Index(body[1:], "\nfunc "); next > 0 {
+			body = body[:next+1]
+		}
+		if !strings.Contains(body, "ownerActor(r)") {
+			t.Errorf("%s does not ask for a fresh second step (ownerActor)", name)
 		}
 	}
 }
