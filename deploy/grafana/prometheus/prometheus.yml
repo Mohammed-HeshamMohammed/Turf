@@ -30,6 +30,7 @@ scrape_configs:
           - http://gateway:8100/healthz
           - http://auth:8101/healthz
           - http://authz:8104/healthz
+          - http://billing:8103/healthz
           - http://notifications:8102/healthz
           - http://grafana-proxy:8120/_callerwhale/health
     relabel_configs:
