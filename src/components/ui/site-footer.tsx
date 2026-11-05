@@ -1,6 +1,10 @@
 import { Link } from "../../nav.tsx";
 
-export function SiteFooter() {
+export function SiteFooter({ compact = false }: { compact?: boolean }) {
+  if (compact) return <footer className="site-footer site-footer-compact">
+    <span>© {new Date().getFullYear()} Caller Whale</span>
+    <nav aria-label="Dashboard footer"><Link to="/contact">Contact</Link><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link></nav>
+  </footer>;
   return <footer className="site-footer">
     <div className="footer-top">
       <div className="footer-about"><Link className="footer-brand" to="/"><img src="/favicon.svg" alt="" width="34" height="34" />Caller Whale</Link><p>Keep your leads, calls and next steps together in one workspace.</p><Link className="footer-cta" to="/pricing">Build your plan <span aria-hidden="true">↗</span></Link></div>
