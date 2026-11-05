@@ -10,6 +10,13 @@ import (
 
 var profilePhone = regexp.MustCompile(`^\+?[0-9][0-9 ()-]{5,24}$`)
 
+// A profile picture is kept as it was cropped (lossless PNG when it fits), so the limit is generous: 500 KB of image, which is
+// 667 KB as text, under the 1 MiB request limit. The website resizes anything larger before it is sent.
+const (
+	maxAvatarBytes   = 500000
+	maxAvatarEncoded = 668000
+)
+
 func validAvatar(value string) bool {
 	if value == "" {
 		return true
@@ -26,11 +33,11 @@ func validAvatar(value string) bool {
 	default:
 		return false
 	}
-	if len(encoded) > 140000 {
+	if len(encoded) > maxAvatarEncoded {
 		return false
 	}
 	image, err := base64.StdEncoding.DecodeString(encoded)
-	return err == nil && len(image) <= 100000 && len(image) >= len(signature) && string(image[:len(signature)]) == string(signature)
+	return err == nil && len(image) <= maxAvatarBytes && len(image) >= len(signature) && string(image[:len(signature)]) == string(signature)
 }
 
 func (s *server) updateProfile(w http.ResponseWriter, r *http.Request) error {
@@ -55,7 +62,7 @@ func (s *server) updateProfile(w http.ResponseWriter, r *http.Request) error {
 		return bad("Enter a valid phone number, or leave it blank.")
 	}
 	if !validAvatar(body.Avatar) {
-		return bad("Choose a PNG or JPEG profile picture smaller than 100 KB.")
+		return bad("Choose a PNG or JPEG profile picture smaller than 500 KB.")
 	}
 	var current string
 	if err := s.db.QueryRow(r.Context(), "SELECT display_name FROM users WHERE id = $1", c.Sub).Scan(&current); err != nil {
