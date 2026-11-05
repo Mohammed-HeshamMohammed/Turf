@@ -53,6 +53,8 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/admin/costs", serve(s.addCost))
 	mux.Handle("DELETE /v1/admin/costs/{id}", serve(s.deleteCost))
 	mux.Handle("GET /v1/admin/rates", serve(s.listRates))
+	mux.Handle("GET /v1/admin/plans", serve(s.adminPlans))
+	mux.Handle("POST /v1/admin/memberships", serve(s.giveMembership))
 	mux.Handle("POST /v1/admin/rates", serve(s.addRate))
 	mux.Handle("DELETE /v1/admin/rates/{id}", serve(s.deleteRate))
 	mux.Handle("POST /v1/admin/invitations", serve(s.invitePlatform))

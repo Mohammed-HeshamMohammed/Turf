@@ -154,3 +154,37 @@ func TestRatesAreCheckedBeforeTheyAreKept(t *testing.T) {
 		}
 	}
 }
+
+func TestAMembershipRequestIsCheckedBeforeAnythingIsOpened(t *testing.T) {
+	person := "7b0f8f0e-1f0a-4e0b-9d57-0a8d1c0a0001"
+	good := membershipBody{UserID: person, Plan: " starter ", Payment: "manual"}
+	if problem := checkMembership(&good); problem != nil || good.Plan != "starter" || good.Role != "owner" || good.Days != 14 || good.Months != 12 {
+		t.Fatalf("a good request was refused or not filled in: %v %+v", problem, good)
+	}
+	solo := membershipBody{UserID: person, Plan: "solo", Payment: "free", Role: "solo", Months: 6}
+	if checkMembership(&solo) != nil || solo.Months != 6 {
+		t.Fatalf("a solo membership: %+v", solo)
+	}
+	paid := int64(14700)
+	trial := membershipBody{UserID: person, Plan: "starter", Payment: "trial", AmountMinor: &paid}
+	if checkMembership(&trial) != nil || trial.AmountMinor != nil {
+		t.Fatalf("an amount only means something for a manual payment: %+v", trial)
+	}
+	negative := int64(-1)
+	for name, bad := range map[string]membershipBody{
+		"no person":       {Plan: "starter", Payment: "trial"},
+		"not a uuid":      {UserID: "someone", Plan: "starter", Payment: "trial"},
+		"no plan":         {UserID: person, Payment: "trial"},
+		"unknown payment": {UserID: person, Plan: "starter", Payment: "gift"},
+		"a caller role":   {UserID: person, Plan: "starter", Payment: "trial", Role: "caller"},
+		"a platform role": {UserID: person, Plan: "starter", Payment: "trial", Role: "cofounder"},
+		"a long trial":    {UserID: person, Plan: "starter", Payment: "trial", Days: 91},
+		"years of free":   {UserID: person, Plan: "starter", Payment: "free", Months: 37},
+		"negative amount": {UserID: person, Plan: "starter", Payment: "manual", AmountMinor: &negative},
+	} {
+		bad := bad
+		if checkMembership(&bad) == nil {
+			t.Errorf("%s was accepted", name)
+		}
+	}
+}
