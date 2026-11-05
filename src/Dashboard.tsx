@@ -138,11 +138,12 @@ function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: 
     catch (error) { setMessage(error instanceof Error ? error.message : "Could not start authenticator setup."); }
     setBusy(false);
   };
-  const confirm = async (event: React.FormEvent) => {
-    event.preventDefault(); setMessage(""); setBusy(true);
+  const confirm = async (event: React.FormEvent) => { event.preventDefault(); await confirmCode(code.trim()); };
+  const confirmCode = async (value: string) => {
+    setMessage(""); setBusy(true);
     try {
-      if (setupDetails) setRecovery((await auth.confirmMfa(code.trim())).recovery_codes);
-      else await auth.verifyMfa(code.trim());
+      if (setupDetails) setRecovery((await auth.confirmMfa(value)).recovery_codes);
+      else await auth.verifyMfa(value);
       setCode(""); setSetupDetails(null); setCopyMessage("");
       await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : "That code could not be confirmed."); }
@@ -173,7 +174,7 @@ function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: 
       </div>}
       {(me.mfa_enrolled || setupDetails) && <form className="staff-code-form" onSubmit={confirm}>
         <label htmlFor="staff-auth-code">{useRecoveryCode && !setupDetails ? "Recovery code" : "Six-digit code"}</label>
-        <div className="staff-code-row"><input id="staff-auth-code" inputMode={useRecoveryCode && !setupDetails ? "text" : "numeric"} autoComplete="one-time-code" required minLength={setupDetails || !useRecoveryCode ? 6 : undefined} maxLength={setupDetails || !useRecoveryCode ? 6 : undefined} pattern={setupDetails || !useRecoveryCode ? "[0-9]{6}" : undefined} placeholder={useRecoveryCode && !setupDetails ? "Enter a recovery code" : "000000"} value={code} onChange={event => setCode(setupDetails || !useRecoveryCode ? event.target.value.replace(/\D/g, "").slice(0, 6) : event.target.value)} /><button className="button primary" disabled={busy}>{busy ? "Checking…" : setupDetails ? "Finish setup" : "Verify and continue"}</button></div>
+        <div className="staff-code-row"><input id="staff-auth-code" inputMode={useRecoveryCode && !setupDetails ? "text" : "numeric"} autoComplete="one-time-code" required minLength={setupDetails || !useRecoveryCode ? 6 : undefined} maxLength={setupDetails || !useRecoveryCode ? 6 : undefined} pattern={setupDetails || !useRecoveryCode ? "[0-9]{6}" : undefined} placeholder={useRecoveryCode && !setupDetails ? "Enter a recovery code" : "000000"} value={code} onChange={event => { const digits = setupDetails || !useRecoveryCode; const value = digits ? event.target.value.replace(/\D/g, "").slice(0, 6) : event.target.value; setCode(value); if (digits && value.length === 6 && !busy) void confirmCode(value); }} /><button className="button primary" disabled={busy}>{busy ? "Checking…" : setupDetails ? "Finish setup" : "Verify and continue"}</button></div>
         {!setupDetails && <button type="button" className="staff-text-button" onClick={() => { setUseRecoveryCode(value => !value); setCode(""); }}>{useRecoveryCode ? "Use authenticator code instead" : "Use a recovery code instead"}</button>}
       </form>}
       {copyMessage && <p className="fine" role="status">{copyMessage}</p>}
