@@ -23,7 +23,7 @@ import (
 
 const (
 	siteverifyURL  = "https://www.google.com/recaptcha/api/siteverify"
-	maxHumanToken  = 2048     // bytes; a real token is about 1.5 KB
+	maxHumanToken  = 8192     // bytes; a real reCAPTCHA token is about 2.3 KB today and has grown before, so this is a limit on abuse, not on size
 	maxCheckedBody = 64 << 10 // a sign-in, sign-up or provider start is a few hundred bytes
 )
 
@@ -185,8 +185,12 @@ func (h *humanCheck) guard(w http.ResponseWriter, r *http.Request, rule humanRul
 // Anything else, including Google not answering, is a refusal.
 func (h *humanCheck) verify(ctx context.Context, token, action string, minScore float64) bool {
 	// Every refusal says why in the log (never the secret or the token), because from the page it only looks like "verify you are human".
-	if strings.TrimSpace(token) == "" || len(token) > maxHumanToken {
-		log.Printf("WARN human check refused: the request carried no usable token (length %d)", len(token))
+	if strings.TrimSpace(token) == "" {
+		log.Print("WARN human check refused: the request carried no token")
+		return false
+	}
+	if len(token) > maxHumanToken {
+		log.Printf("WARN human check refused: the token is %d bytes, over the %d allowed (maxHumanToken)", len(token), maxHumanToken)
 		return false
 	}
 	// No remoteip: an address from a header or a body is not trusted, and Google does not need it.
