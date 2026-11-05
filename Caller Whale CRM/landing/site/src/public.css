@@ -36,7 +36,11 @@
 .dashboard-shell > main { display: block; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 /* The sidebar is as tall as its own content, never stretched to the edges of the scrolling area (it would touch the header and the footer),
    and it scrolls inside itself when the screen is shorter than it. The menu items sit close together at the top. */
-.dashboard-shell .admin-sidebar { top: 0; align-self: start; max-height: 100%; overflow-y: auto; grid-template-rows: auto auto auto; gap: var(--dash-gap); }
+/* The sidebar sits in the middle of the visible height and grows equally upward and downward as items are added. The slot is as tall as
+   the scrolling area (100cqh) and stays put while the content scrolls. */
+.dashboard-shell > main { container-type: size; }
+.dashboard-shell .admin-sidebar-slot { position: sticky; top: 0; display: flex; align-items: center; height: 100cqh; min-width: 0; }
+.dashboard-shell .admin-sidebar { position: static; width: 100%; max-height: 100%; overflow-y: auto; grid-template-rows: auto auto auto; gap: var(--dash-gap); }
 .dashboard-shell .admin-sidebar nav { align-content: start; }
 
 /* ---- Dashboard design tokens: one spacing step, one corner radius and one padding for every panel on the screen ---------------
@@ -171,7 +175,7 @@
 .staff-recovery-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 @media (max-width: 700px) { .staff-setup { grid-template-columns: 1fr; } .staff-recovery ol { grid-template-columns: 1fr; } }
 @media (max-width: 1100px) { .admin-layout { grid-template-columns: 180px minmax(0, 1fr); } .admin-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 760px) { .admin-layout { grid-template-columns: 1fr; align-content: start; } .admin-sidebar { position: static; grid-template-rows: none; gap: 12px; padding: 15px; } .admin-sidebar nav { display: flex; flex-wrap: wrap; } .admin-sidebar nav a { flex: 0 0 auto; padding: 8px 10px; } .admin-sidebar-account { display: none; } .admin-view-overview { grid-template-rows: none; } .admin-account, .admin-overview-panels { grid-template-columns: 1fr; } .admin-overview-panels .card { min-height: 220px; } .admin-workspace, .admin-team, .admin-manage, .admin-account { scroll-margin-top: 86px; } }
+@media (max-width: 760px) { .dashboard-shell .admin-sidebar-slot { position: static; display: block; height: auto; } .admin-layout { grid-template-columns: 1fr; align-content: start; } .admin-sidebar { position: static; grid-template-rows: none; gap: 12px; padding: 15px; } .admin-sidebar nav { display: flex; flex-wrap: wrap; } .admin-sidebar nav a { flex: 0 0 auto; padding: 8px 10px; } .admin-sidebar-account { display: none; } .admin-view-overview { grid-template-rows: none; } .admin-account, .admin-overview-panels { grid-template-columns: 1fr; } .admin-overview-panels .card { min-height: 220px; } .admin-workspace, .admin-team, .admin-manage, .admin-account { scroll-margin-top: 86px; } }
 @media (max-width: 600px) { .admin-toolbar label:last-child { flex: 1 1 210px; } .admin-section-heading { flex-direction: column; } .admin-table thead { display: none; } .admin-table tbody { display: grid; gap: 10px; } .admin-table tr { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 9px; padding: 15px; border-radius: 12px; background: var(--raised); } .admin-table td { padding: 0; border: 0; } .admin-table td:first-child { grid-column: 1 / -1; } .admin-table td:last-child { text-align: right; } }
 .profile-page { display: grid; gap: 16px; }
 .profile-head { display: flex; align-items: center; gap: clamp(20px, 4vw, 44px); }
