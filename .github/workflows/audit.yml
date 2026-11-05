@@ -76,8 +76,9 @@ jobs:
           go-version: stable
           check-latest: true
           cache-dependency-path: Caller Whale CRM/services/${{ matrix.dir }}/go.sum
-      # Fails only when the code calls the vulnerable function, not merely when a module has an advisory.
-      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+      # Fails only when the code calls the vulnerable function, not merely when a module has an advisory. Always the latest checker:
+      # an old one cannot read the newest Go (v1.1.4 crashed on Go 1.27).
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
   python:
     name: pip-audit (${{ matrix.dir }})
