@@ -387,7 +387,7 @@ const goodPassword = "A long enough password1!"
 // signUp makes an account through the API.
 func (w *world) signUp(email string) answer {
 	w.t.Helper()
-	a := w.call("POST", "/v1/accounts", map[string]any{"name": "Sami", "email": email, "password": goodPassword}, "")
+	a := w.call("POST", "/v1/accounts", map[string]any{"name": "Sami", "email": email, "password": goodPassword, "birth_date": "1990-01-01"}, "")
 	if a.status != http.StatusCreated {
 		w.t.Fatalf("sign up %s: %d %v", email, a.status, a.body)
 	}

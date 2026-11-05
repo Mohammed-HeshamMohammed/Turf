@@ -15,6 +15,7 @@ export interface Me {
 	phone?: string;
 	avatar?: string;
 	currency?: string;
+	age_confirmed?: boolean;
 	mfa_enrolled?: boolean;
 	mfa_passed?: boolean;
   mfa?: boolean;
@@ -27,7 +28,8 @@ export interface Auth {
   accessToken(): Promise<string | null>;
   me(options?: { fresh?: boolean }): Promise<Me>;
   signIn(email: string, password: string, code?: string, kind?: string, humanToken?: string): Promise<unknown>;
-  signUp(name: string, email: string, password: string, kind?: string, humanToken?: string): Promise<unknown>;
+  signUp(name: string, email: string, password: string, kind?: string, humanToken?: string, birthDate?: string): Promise<unknown>;
+  setBirthDate(birthDate: string): Promise<unknown>;
   signOut(): Promise<void>;
   forgotPassword(email: string): Promise<unknown>;
 	setupMfa(): Promise<{ secret: string; otpauth_url: string }>;
