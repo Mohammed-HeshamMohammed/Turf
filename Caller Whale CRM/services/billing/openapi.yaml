@@ -184,6 +184,64 @@
         }
       }
     },
+    "/v1/admin/orgs/{org_id}/membership": {
+      "put": {
+        "summary": "Membership",
+        "operationId": "membership_v1_admin_orgs__org_id__membership_put",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Org Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MembershipBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/orgs/{org_id}/standing": {
       "get": {
         "summary": "Standing",
@@ -382,6 +440,54 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "MembershipBody": {
+        "properties": {
+          "plan": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Plan"
+          },
+          "payment": {
+            "type": "string",
+            "pattern": "^(trial|free|manual)$",
+            "title": "Payment"
+          },
+          "days": {
+            "type": "integer",
+            "maximum": 90.0,
+            "minimum": 1.0,
+            "title": "Days",
+            "default": 14
+          },
+          "months": {
+            "type": "integer",
+            "maximum": 36.0,
+            "minimum": 1.0,
+            "title": "Months",
+            "default": 12
+          },
+          "amount_minor": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000000000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "plan",
+          "payment"
+        ],
+        "title": "MembershipBody"
       },
       "ReserveBody": {
         "properties": {

@@ -34,6 +34,14 @@ class CreditLimitBody(BaseModel):
     monthly_credits: int | None = Field(default=None, ge=0, le=1_000_000_000)
 
 
+class MembershipBody(BaseModel):
+    plan: str = Field(min_length=1, max_length=40)
+    payment: str = Field(pattern="^(trial|free|manual)$")
+    days: int = Field(default=14, ge=1, le=90)  # a trial's length
+    months: int = Field(default=12, ge=1, le=36)  # how long a free or manually paid plan lasts
+    amount_minor: int | None = Field(default=None, ge=0, le=1_000_000_000_000)  # what was paid, when it is not the plan's price for the months
+
+
 class TrialBody(BaseModel):
     plan: str = "trial"
     days: int = Field(default=14, ge=1, le=90)
@@ -126,6 +134,12 @@ def create_app(settings: Settings, store, now: Callable[[], datetime] = lambda: 
     @app.get("/v1/admin/summary")
     def summary(_: str = caller("summary")):
         return store.summary(now())
+
+    @app.put("/v1/admin/orgs/{org_id}/membership")
+    def membership(org_id: UUID, body: MembershipBody, _: str = caller("assign")):
+        given = store.assign_membership(org_id, body.plan, body.payment, body.days, body.months, body.amount_minor, now())
+        notify(settings, str(org_id), store.standing(org_id, now()))
+        return given
 
     @app.get("/v1/orgs/{org_id}/standing")
     def standing(org_id: UUID, _: str = caller("standing")):

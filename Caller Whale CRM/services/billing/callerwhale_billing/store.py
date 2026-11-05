@@ -4,7 +4,7 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
@@ -24,6 +24,14 @@ class Refused(Exception):
     def __init__(self, status: int, code: str, message: str):
         super().__init__(message)
         self.status, self.code, self.message = status, code, message
+
+
+def add_months(moment: datetime, months: int) -> datetime:
+    """The same day and time `months` calendar months later (the last day of the month when that day does not exist there)."""
+    index = moment.month - 1 + months
+    year, month = moment.year + index // 12, index % 12 + 1
+    last = (datetime(year + (month == 12), month % 12 + 1, 1, tzinfo=moment.tzinfo) - timedelta(days=1)).day
+    return moment.replace(year=year, month=month, day=min(moment.day, last))
 
 
 def month_of(now: datetime) -> tuple[datetime, datetime]:
@@ -195,6 +203,41 @@ class Store:
                     raise Refused(400, "bad_request", f"{plan_key} is not a plan.")
                 return False
             return True
+
+    def assign_membership(self, org_id: UUID, plan_key: str, payment: str, days: int, months: int, amount_minor: int | None, now: datetime) -> dict:
+        """Gives a workspace a plan by hand, for an owner or cofounder who has arranged it with the person.
+
+        trial: the plan, free, for `days`. free: the plan with no payment, for `months`. manual: the plan, paid outside the payment
+        provider (a bank transfer, cash), for `months`, and the payment is recorded so it counts as revenue. A workspace that is paying
+        through the payment provider is not changed: its subscription belongs to the provider's webhooks."""
+        if payment not in ("trial", "free", "manual"):
+            raise Refused(400, "bad_request", "Choose trial, free or paid manually.")
+        with self.pool.connection() as conn, conn.transaction():
+            plan = conn.execute("SELECT key, name, price_minor, currency FROM billing.plans WHERE key = %s AND active", (plan_key,)).fetchone()
+            if plan is None:
+                raise Refused(400, "bad_request", f"{plan_key} is not a plan.")
+            key, name, price_minor, currency = plan
+            current = conn.execute("SELECT provider, provider_subscription_id, status, period_end FROM billing.subscriptions WHERE org_id = %s FOR UPDATE", (org_id,)).fetchone()
+            if current is not None and current[1] is not None and current[2] in GOOD_STANDING and current[3] > now:
+                raise Refused(409, "conflict", "This workspace pays through the payment provider already. Change that plan there.")
+            if payment == "trial":
+                status, provider, ends = "trialing", None, now + timedelta(days=days)
+            else:
+                status, provider, ends = "active", ("manual" if payment == "manual" else "comp"), add_months(now, months)
+            conn.execute(
+                "INSERT INTO billing.subscriptions (org_id, plan_key, status, period_start, period_end, provider, provider_subscription_id, updated_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s, NULL, now()) ON CONFLICT (org_id) DO UPDATE SET plan_key = EXCLUDED.plan_key, status = EXCLUDED.status, "
+                "period_start = EXCLUDED.period_start, period_end = EXCLUDED.period_end, provider = EXCLUDED.provider, provider_subscription_id = NULL, updated_at = now()",
+                (org_id, key, status, now, ends, provider),
+            )
+            paid = 0
+            if payment == "manual":
+                paid = price_minor * months if amount_minor is None else amount_minor
+                conn.execute(
+                    "INSERT INTO billing.payments (org_id, provider, provider_payment_id, amount_minor, currency, status, at) VALUES (%s, 'manual', %s, %s, %s, 'completed', %s)",
+                    (org_id, f"manual-{uuid4()}", paid, currency, now),
+                )
+        return {"org_id": str(org_id), "plan": key, "plan_name": name, "payment": payment, "status": status, "period_end": ends.isoformat(), "paid_minor": paid, "currency": currency}
 
     def record_webhook(self, provider: str, event: dict) -> tuple[bool, str | None]:
         """Stores a provider event once and applies it. Returns (new, org whose standing changed)."""

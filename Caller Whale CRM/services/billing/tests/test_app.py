@@ -23,6 +23,7 @@ class FakeStore:
         self.events = {}
         self.reserved = []
         self.limits = {}
+        self.assigned = []
 
     def plans(self):
         return [{"key": "starter", "name": "Starter", "price": "49.00", "currency": "USD"}]
@@ -35,6 +36,12 @@ class FakeStore:
             raise Refused(402, "limit_reached", "Not enough minutes left this period.")
         self.reserved.append((kind, account_id, amount, request_id))
         return Reservation(limited=True, used=amount, allowed=100)
+
+    def assign_membership(self, org_id, plan, payment, days, months, amount_minor, now):
+        if plan != "starter":
+            raise Refused(400, "bad_request", f"{plan} is not a plan.")
+        self.assigned.append((org_id, plan, payment, days, months, amount_minor))
+        return {"org_id": str(org_id), "plan": plan, "payment": payment, "status": "active"}
 
     def summary(self, now):
         return {"subscriptions": [], "revenue_by_month": [], "usage_this_month": {}, "top_usage": [], "allowances": []}
@@ -79,6 +86,19 @@ class AppTest(unittest.TestCase):
         self.assertEqual(self.client.get(url, headers={"Authorization": f"Bearer {CORE}"}).status_code, 403)
         res = self.client.get(url, headers={"Authorization": f"Bearer {AUTH}"})
         self.assertEqual((res.status_code, res.json()["subscriptions"]), (200, []))
+
+    def test_a_membership_is_given_by_the_auth_service_only(self):
+        org = uuid4()
+        url, body = f"/v1/admin/orgs/{org}/membership", {"plan": "starter", "payment": "manual", "months": 3, "amount_minor": 14700}
+        self.assertEqual(self.client.put(url, json=body).status_code, 401)
+        self.assertEqual(self.client.put(url, json=body, headers={"Authorization": f"Bearer {CORE}"}).status_code, 403)
+        res = self.client.put(url, json=body, headers={"Authorization": f"Bearer {AUTH}"})
+        self.assertEqual((res.status_code, res.json()["payment"]), (200, "manual"))
+        self.assertEqual(self.store.assigned, [(org, "starter", "manual", 14, 3, 14700)])
+        self.assertEqual(self.told, [str(org)], "authorization hears about the new standing")
+        for bad in ({"plan": "starter", "payment": "gift"}, {"plan": "starter", "payment": "trial", "days": 0}, {"plan": "starter", "payment": "free", "months": 99}):
+            self.assertEqual(self.client.put(url, json=bad, headers={"Authorization": f"Bearer {AUTH}"}).status_code, 400)
+        self.assertEqual(self.client.put(url, json={"plan": "nope", "payment": "trial"}, headers={"Authorization": f"Bearer {AUTH}"}).status_code, 400)
 
     def test_refusals_keep_their_code(self):
         body = {"kind": "minutes", "account_id": str(uuid4()), "amount": 500, "request_id": str(uuid4())}
@@ -139,6 +159,16 @@ class SettingsTest(unittest.TestCase):
         ):
             with self.assertRaises(config.SettingsError):
                 config.load(bad)
+
+
+class AddMonthsTest(unittest.TestCase):
+    def test_a_month_later_is_the_same_day_or_the_last_day_of_that_month(self):
+        from callerwhale_billing.store import add_months
+
+        self.assertEqual(add_months(datetime(2026, 11, 5, 9, tzinfo=UTC), 3), datetime(2027, 2, 5, 9, tzinfo=UTC))
+        self.assertEqual(add_months(datetime(2026, 1, 31, tzinfo=UTC), 1), datetime(2026, 2, 28, tzinfo=UTC))
+        self.assertEqual(add_months(datetime(2026, 12, 15, tzinfo=UTC), 1), datetime(2027, 1, 15, tzinfo=UTC))
+        self.assertEqual(add_months(datetime(2026, 11, 5, tzinfo=UTC), 12), datetime(2027, 11, 5, tzinfo=UTC))
 
 
 class TokenRotationTest(unittest.TestCase):

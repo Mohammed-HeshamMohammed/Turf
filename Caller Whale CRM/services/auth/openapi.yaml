@@ -161,6 +161,17 @@ paths:
       security: [{ bearer: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
       responses: { "200": { description: Removed }, "403": { description: Owner or cofounder with second step required } }
+  /v1/admin/plans:
+    get:
+      summary: The plans that can be given to a person, from billing; owner and cofounder only
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Plans }, "403": { description: Owner or cofounder with second step required }, "503": { description: Billing not connected } }
+  /v1/admin/memberships:
+    post:
+      summary: Give a person a membership: opens their own workspace with the agency owner (or solo) role and gives it a plan as a trial, free, or paid manually. Asking again sets the plan again on the same workspace; owner and cofounder only
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [user_id, plan, payment], properties: { user_id: { type: string, format: uuid }, plan: { type: string }, payment: { type: string, enum: [trial, free, manual] }, role: { type: string, enum: [owner, solo] }, days: { type: integer }, months: { type: integer }, amount_minor: { type: integer } } } } } }
+      responses: { "200": { description: Membership given }, "400": { description: Not valid }, "403": { description: Owner or cofounder with second step required }, "404": { description: No such account }, "409": { description: The workspace pays through the payment provider already }, "503": { description: Billing or authorization unavailable } }
   /v1/admin/rates:
     get:
       summary: Costs that follow customers (price per call minute, per gigabyte, payment provider fee); owner and cofounder only
