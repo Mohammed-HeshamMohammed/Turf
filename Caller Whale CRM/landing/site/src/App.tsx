@@ -151,13 +151,30 @@ function SignIn({ onDone, notice }: { onDone: () => void; notice: string }) {
       } catch (error) {
         if ((error as AuthError).code === "mfa_required") {
           setNeedCode(true);
-          throw new Error("Enter the code from your authenticator app.");
+          return;
         }
         throw error;
       }
     });
     if (ok) onDone();
   };
+  if (needCode) {
+    // The password was right: the card now asks for the second step and nothing else.
+    return (
+      <div className="form-wrap">
+        <form className="form card" onSubmit={submit}>
+          <h1>Confirm it's you</h1>
+          <p className="fine">Enter the 6-digit code from your authenticator app.</p>
+          <Field label="Code" inputMode="numeric" autoComplete="one-time-code" autoFocus required value={code} onChange={(e: ChangeEvent<HTMLInputElement>) => setCode(e.target.value)} />
+          {state.error && <p className="notice bad" role="alert">{state.error}</p>}
+          <button className="button primary" disabled={state.busy}>{state.busy ? "Checking…" : "Verify"}</button>
+          <div className="alt">
+            <button type="button" className="button raised" onClick={() => { setNeedCode(false); setCode(""); setPassword(""); }}>Use a different account</button>
+          </div>
+        </form>
+      </div>
+    );
+  }
   return (
     <div className="form-wrap">
       <form className="form card" onSubmit={submit}>
@@ -165,7 +182,6 @@ function SignIn({ onDone, notice }: { onDone: () => void; notice: string }) {
         {notice && <p className="notice" role="status">{notice}</p>}
         <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} />
         <Field label="Password" type="password" autoComplete="current-password" required value={password} onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)} />
-        {needCode && <Field label="Code" inputMode="numeric" autoComplete="one-time-code" required value={code} onChange={(e: ChangeEvent<HTMLInputElement>) => setCode(e.target.value)} />}
         <HumanCheck getAuth={getAuth} action="signin" onToken={setHuman} />
         {state.error && <p className="notice bad" role="alert">{state.error}</p>}
         <button className="button primary" disabled={state.busy}>{state.busy ? "Signing in…" : "Sign in"}</button>
