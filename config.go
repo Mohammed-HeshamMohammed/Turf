@@ -12,7 +12,7 @@ import (
 // API changes who belongs where, and only billing and the core API set a workspace's standing.
 var callerRights = map[string][]string{
 	"core-api": {"grant", "check", "read", "manage", "manage_members", "manage_staff", "open", "standing"},
-	"auth":     {"read", "manage_members", "manage_staff"},
+	"auth":     {"read", "manage_members", "manage_staff", "open"}, // "open": an owner or cofounder gives a person a membership, which opens their workspace
 	"billing":  {"grant", "check", "standing"},
 	"gateway":  {"check"},
 	"worker":   {"check"},
