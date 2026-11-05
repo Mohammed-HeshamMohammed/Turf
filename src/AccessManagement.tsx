@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Auth, Me } from "./auth/auth-client.js";
 import { workspaceRoleName } from "./roles.ts";
+import { ApiError, needsSecondStep, useSecondStep } from "./SecondStep.tsx";
 
 type Invitation = { id: string; scope: string; org_id: string; email: string; role: string; expires_at: number; delivery_state: string };
 type Member = { user_id: string; email?: string; name?: string; roles: string[] };
@@ -12,7 +13,7 @@ async function call(auth: Auth, base: string, method: string, path: string, body
   if (!token) throw new Error("Sign in again to continue.");
   const response = await fetch(`${base}${path}`, { method, headers: { Authorization: `Bearer ${token}`, ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const result = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(result?.error || "The request could not be completed.");
+  if (!response.ok) throw new ApiError(result?.error || "The request could not be completed.", result?.code || "");
   return result;
 }
 
@@ -28,25 +29,38 @@ export function InviteManager({ auth, authBase, scope, orgId = "" }: { auth: Aut
   const load = async () => { try { setItems((await call(auth, authBase, "GET", path)).invitations); setState("ready"); } catch { setState("error"); } };
   useEffect(() => { void load(); }, [auth, authBase, path]);
   useEffect(() => { if (scope === "workspace") call(auth, authBase, "GET", `/v1/orgs/${orgId}/roles`).then(result => setRoles([...new Set<string>(result.roles)]), () => setMessage("Custom roles could not be loaded. The standard roles are available.")); }, [auth, authBase, orgId, scope]);
-  const invite = async (event: React.FormEvent) => {
-    event.preventDefault(); setBusy(true); setMessage("");
-    try {
-      const result = await call(auth, authBase, "POST", path, { email: email.trim(), role });
-      setEmail(""); await load();
-      setMessage(result.delivery_state === "sent" ? "Invitation emailed." : "Invitation saved. Email delivery is unavailable; ask the person to sign in with this address and open their dashboard.");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not invite this person."); }
-    setBusy(false);
+  // Platform staff invitations are for the owner and cofounders, and need a second step done just now: the code box appears here.
+  const second = useSecondStep(auth, "Inviting or withdrawing platform staff needs a code entered just now.");
+  const invite = (event: React.FormEvent) => {
+    event.preventDefault();
+    return second.guard(async () => {
+      setBusy(true); setMessage("");
+      try {
+        const result = await call(auth, authBase, "POST", path, { email: email.trim(), role });
+        setEmail(""); await load();
+        setMessage(result.delivery_state === "sent" ? "Invitation emailed." : "Invitation saved. Email delivery is unavailable; ask the person to sign in with this address and open their dashboard.");
+      } catch (error) {
+        if (needsSecondStep(error)) { setBusy(false); throw error; }
+        setMessage(error instanceof Error ? error.message : "Could not invite this person.");
+      }
+      setBusy(false);
+    });
   };
-  const revoke = async (item: Invitation) => {
-    if (!confirm(`Withdraw the invitation for ${item.email}?`)) return;
-    setBusy(true); setMessage("");
-    try { await call(auth, authBase, "DELETE", `/v1/invitations/${item.id}`); await load(); setMessage("Invitation withdrawn."); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "Could not withdraw the invitation."); }
-    setBusy(false);
+  const revoke = (item: Invitation) => {
+    if (!confirm(`Withdraw the invitation for ${item.email}?`)) return Promise.resolve();
+    return second.guard(async () => {
+      setBusy(true); setMessage("");
+      try { await call(auth, authBase, "DELETE", `/v1/invitations/${item.id}`); await load(); setMessage("Invitation withdrawn."); }
+      catch (error) {
+        if (needsSecondStep(error)) { setBusy(false); throw error; }
+        setMessage(error instanceof Error ? error.message : "Could not withdraw the invitation.");
+      }
+      setBusy(false);
+    });
   };
   return <section className="admin-manage card" aria-label={`${scope} invitations`}>
     <div><span className="eyebrow">Invitation</span><h2>Invite {scope === "platform" ? "platform staff" : "workspace members"}</h2><p className="muted">Access starts only after the recipient signs in with this email, confirms it, and accepts the invitation. Invitations expire one hour after they are created.</p></div>
-    <form className="staff-form" onSubmit={invite}><div className="staff-fields"><label>Email address<input type="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="person@example.com" /></label><label>Role<select value={role} onChange={event => setRole(event.target.value)}>{roles.map(value => <option key={value} value={value}>{roleLabel(value)}</option>)}</select></label><button className="button primary" disabled={busy}>{busy ? "Saving…" : "Send invitation"}</button></div></form>
+    {second.prompt}<form className="staff-form" onSubmit={invite}><div className="staff-fields"><label>Email address<input type="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="person@example.com" /></label><label>Role<select value={role} onChange={event => setRole(event.target.value)}>{roles.map(value => <option key={value} value={value}>{roleLabel(value)}</option>)}</select></label><button className="button primary" disabled={busy}>{busy ? "Saving…" : "Send invitation"}</button></div></form>
     {message && <p className="notice" role="status">{message}</p>}
     <div><h3>Pending invitations</h3>{state === "loading" ? <p className="muted" role="status">Loading invitations…</p> : state === "error" ? <p role="alert">Invitations are unavailable. <button type="button" className="staff-text-button" onClick={() => void load()}>Retry</button></p> : items.length === 0 ? <p className="muted">No pending invitations.</p> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Email</th><th>Role</th><th>Delivery</th><th>Expires</th><th><span className="sr-only">Action</span></th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td>{item.email}</td><td>{roleLabel(item.role)}</td><td>{item.delivery_state === "sent" ? "Emailed" : "Saved, not emailed"}</td><td>{new Date(item.expires_at * 1000).toLocaleString()}</td><td><button type="button" className="staff-text-button" disabled={busy} onClick={() => void revoke(item)}>Withdraw</button></td></tr>)}</tbody></table></div>}</div>
   </section>;
