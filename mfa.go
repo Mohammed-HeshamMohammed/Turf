@@ -52,6 +52,7 @@ func (s *server) mfaRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /v1/mfa/challenge/answer", serve(s.challengeAnswer))
 	mux.Handle("GET /v1/mfa/approvals", serve(s.approvals))
 	mux.Handle("POST /v1/mfa/approvals/{id}", serve(s.decide))
+	mux.Handle("POST /v1/mfa/email", serve(s.setEmailCodes))
 	mux.Handle("POST /v1/mfa/telegram/link", serve(s.telegramLink))
 	mux.Handle("POST /v1/mfa/telegram/webhook/{secret}", serve(s.telegramWebhook))
 }
@@ -115,7 +116,11 @@ func (s *server) methods(ctx context.Context, u *user, session string) ([]string
 		found = append(found, "totp")
 	}
 	if s.mail != nil && u.emailVerified {
-		found = append(found, "email")
+		if on, err := s.emailCodesOn(ctx, u.id); err != nil {
+			return nil, err
+		} else if on {
+			found = append(found, "email")
+		}
 	}
 	if s.tg != nil {
 		if chat, err := s.telegramChat(ctx, u.id); err != nil {
@@ -720,10 +725,55 @@ func (s *server) factors(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	emailOn, err := s.emailCodesOn(ctx, u.id)
+	if err != nil {
+		return err
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"factors": list, "max_totp": maxTOTP,
+		"factors": list, "max_totp": maxTOTP, "email_enabled": emailOn,
 		"available": map[string]any{"email": s.mail != nil && u.emailVerified, "telegram": s.tg != nil, "push": push},
 	})
+	return nil
+}
+
+// emailCodesOn says whether codes sent to the person's email are one of the ways they may answer the second step.
+func (s *server) emailCodesOn(ctx context.Context, userID string) (bool, error) {
+	var off int64
+	if err := s.db.QueryRow(ctx, "SELECT mfa_email_off FROM users WHERE id = $1", userID).Scan(&off); err != nil {
+		return false, err
+	}
+	return off == 0, nil
+}
+
+// setEmailCodes turns the email code on or off as a way to answer the second step. It needs a second step already set up (otherwise there
+// is nothing to choose between) and done on this session, so a stolen session cannot switch a method off.
+func (s *server) setEmailCodes(w http.ResponseWriter, r *http.Request) error {
+	c, err := s.person(r)
+	if err != nil {
+		return err
+	}
+	if err := mustHavePassed(c); err != nil {
+		return err
+	}
+	var body struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := readJSON(w, r, &body); err != nil {
+		return err
+	}
+	if enrolled, err := s.mfaEnrolled(r.Context(), c.Sub); err != nil {
+		return err
+	} else if !enrolled {
+		return bad("Set up two-step sign-in first.")
+	}
+	off := int64(1)
+	if body.Enabled {
+		off = 0
+	}
+	if _, err := s.db.Exec(r.Context(), "UPDATE users SET mfa_email_off = $1 WHERE id = $2", off, c.Sub); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"email_enabled": body.Enabled})
 	return nil
 }
 
