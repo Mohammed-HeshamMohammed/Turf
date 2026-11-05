@@ -4,7 +4,7 @@ import { FORMATS, MAX_ZOOM, cropRect, dragCrop, fitsAvatar, outputSide, shrinkSt
 const VIEW = 280; // the cropping window, in pixels
 
 /** Opens any image the browser can read, lets the person move and zoom a square over it, and hands back a small square JPEG. */
-export function AvatarCropper({ file, onCancel, onDone }: { file: File; onCancel: () => void; onDone: (dataUrl: string) => Promise<string | void> }) {
+export function AvatarCropper({ file, onCancel, onDone, confirmLabel = "Save picture" }: { file: File; onCancel: () => void; onDone: (dataUrl: string) => Promise<string | void>; confirmLabel?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const drag = useRef<{ x: number; y: number } | null>(null);
   const [image, setImage] = useState<ImageBitmap | null>(null);
@@ -97,7 +97,7 @@ export function AvatarCropper({ file, onCancel, onDone }: { file: File; onCancel
         )}
         <div className="cropper-actions">
           <button type="button" className="button" disabled={saving} onClick={onCancel}>Cancel</button>
-          {(image || error) && <button type="button" className="button primary" disabled={!image || saving} onClick={() => void use()}>{saving ? <><span className="spinner" aria-hidden="true" />Saving…</> : "Save picture"}</button>}
+          {(image || error) && <button type="button" className="button primary" disabled={!image || saving} onClick={() => void use()}>{saving ? <><span className="spinner" aria-hidden="true" />Saving…</> : confirmLabel}</button>}
         </div>
       </div>
     </div>

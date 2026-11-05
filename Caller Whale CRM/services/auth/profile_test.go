@@ -61,7 +61,7 @@ func TestAvatarSizeLimit(t *testing.T) {
 func TestProfileNameInParts(t *testing.T) {
 	w := newWorld(t)
 	account := w.signUp("parts@example.com")
-	saved := w.call("POST", "/v1/me/profile", map[string]any{"name": "ignored", "phone": "", "avatar": "", "first_name": " Mohammed ", "middle_name": "", "last_name": "Hesham"}, account.access())
+	saved := w.call("POST", "/v1/me/profile", map[string]any{"name": "", "phone": "", "avatar": "", "first_name": " Mohammed ", "middle_name": "", "last_name": "Hesham"}, account.access())
 	if saved.status != 200 {
 		t.Fatalf("save name parts: %d %v", saved.status, saved.body)
 	}

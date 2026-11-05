@@ -17,6 +17,7 @@ export interface Me {
 	currency?: string;
 	age_confirmed?: boolean;
 	terms_accepted?: boolean;
+	setup_exempt?: boolean;
 	terms_version?: string;
 	work_profile?: { role: string; team_size: string; uses: string[]; other: string } | null;
 	mfa_enrolled?: boolean;

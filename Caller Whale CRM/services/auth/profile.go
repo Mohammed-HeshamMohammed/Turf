@@ -75,7 +75,10 @@ func (s *server) updateProfile(w http.ResponseWriter, r *http.Request) error {
 		if first == "" {
 			return bad("Enter your first name.")
 		}
-		body.Name = strings.Join(strings.Fields(first+" "+middle+" "+last), " ")
+		// A name sent along with the parts is the display name as chosen (at sign-up, "Display name" is its own field); without one, it is made from them.
+		if body.Name == "" {
+			body.Name = strings.Join(strings.Fields(first+" "+middle+" "+last), " ")
+		}
 	}
 	body.Phone = strings.TrimSpace(body.Phone)
 	if body.Name == "" || utf8.RuneCountInString(body.Name) > 120 {
