@@ -16,6 +16,9 @@ export interface Me {
 	avatar?: string;
 	currency?: string;
 	age_confirmed?: boolean;
+	terms_accepted?: boolean;
+	terms_version?: string;
+	work_profile?: { role: string; team_size: string; uses: string[]; other: string } | null;
 	mfa_enrolled?: boolean;
 	mfa_passed?: boolean;
   mfa?: boolean;
@@ -28,8 +31,10 @@ export interface Auth {
   accessToken(): Promise<string | null>;
   me(options?: { fresh?: boolean }): Promise<Me>;
   signIn(email: string, password: string, code?: string, kind?: string, humanToken?: string): Promise<unknown>;
-  signUp(name: string, email: string, password: string, kind?: string, humanToken?: string, birthDate?: string): Promise<unknown>;
+  signUp(name: string, email: string, password: string, kind?: string, humanToken?: string, birthDate?: string, termsVersion?: string): Promise<unknown>;
   setBirthDate(birthDate: string): Promise<unknown>;
+  acceptTerms(version: string): Promise<unknown>;
+  setWorkProfile(answers: { role: string; team_size: string; uses: string[]; other: string }): Promise<unknown>;
   signOut(): Promise<void>;
   forgotPassword(email: string): Promise<unknown>;
 	setupMfa(): Promise<{ secret: string; otpauth_url: string }>;

@@ -344,3 +344,14 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } }
 .profile-picture-actions .text-button { padding: 0 8px; border: 0; background: transparent; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
+.check { display: flex; align-items: flex-start; gap: 10px; font-weight: 500; line-height: 1.4; }
+.check input { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 2px; }
+.setup-work { width: min(100%, 640px); }
+.choice-group { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.choice-group legend { margin-bottom: 4px; padding: 0; font-weight: 650; }
+.choice-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.choice { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--raised); cursor: pointer; }
+.choice.is-chosen { border-color: var(--accent-ink, #805015); background: var(--accent-soft, #fbdfc2); }
+.choice input { flex: 0 0 auto; }
+.choice span { display: grid; gap: 2px; }
+.choice small { color: var(--muted); font-size: 13px; }
