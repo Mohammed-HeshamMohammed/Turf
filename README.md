@@ -46,4 +46,4 @@ cd services/gateway && ROUTES=localhost=http://127.0.0.1:8088 CORE_HOST=localhos
 - The limits are in memory, per copy. With several copies each counts for itself; move them to Redis when there is more than one.
 - Only Caller Whale tokens are checked. The retired auth service's tokens are refused at the gateway.
 
-`MONITORING_UPSTREAM` routes CORE_HOST `/staff/monitoring/` to the private Grafana proxy. The proxy validates its path-scoped HttpOnly session and asks the core API to check the auth token and staff role on every request. No Grafana hostname is required.
+`MONITORING_UPSTREAM` routes CORE_HOST `/staff/monitoring/` to the private Grafana proxy. The proxy validates its path-scoped HttpOnly session and asks Auth to check the session, MFA, and current platform role on every request. No Grafana hostname is required.
