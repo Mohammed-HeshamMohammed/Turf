@@ -24,7 +24,7 @@ services:
       GRAFANA_BASE_PATH: /staff/monitoring
       # Private Grafana HTTP origin reached by the proxy. Keep on the private monitoring network; not a browser-facing address.
       GRAFANA_URL: http://172.30.10.20:3000
-      # Auth validates the current session, MFA, and platform role on each proxy check.
+      # Auth service URL used to validate sessions, MFA, and current platform role. The proxy fails closed when Auth is unavailable.
       CALLERWHALE_AUTH_URL: "${CALLERWHALE_AUTH_URL:?set CALLERWHALE_AUTH_URL, the auth service's address}"
       # Trusted website origin allowed to frame Grafana and post the session handoff. Must match the website hosting Dashboard admin mode.
       CALLERWHALE_WEBSITE_URL: "${CALLERWHALE_WEBSITE_URL:?set CALLERWHALE_WEBSITE_URL, the website with the admin dashboard}"
