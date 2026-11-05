@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MAX_ZOOM, OUTPUT_SIZE, cropRect, dragCrop, fitsAvatar, qualitySteps, type Crop } from "./avatar-image.ts";
+import { FORMATS, MAX_ZOOM, cropRect, dragCrop, fitsAvatar, outputSide, shrinkSteps, type Crop } from "./avatar-image.ts";
 
 const VIEW = 280; // the cropping window, in pixels
 
@@ -35,22 +35,29 @@ export function AvatarCropper({ file, onCancel, onDone }: { file: File; onCancel
     return () => document.removeEventListener("keydown", escape);
   }, [onCancel]);
 
+  // The cropped square keeps its own pixels. It is only written in another form (PNG, which loses nothing); if that is too big
+  // for the server it becomes a near-lossless JPEG, and only if that is still too big is it made smaller.
   const use = () => {
     if (!image) return;
-    const out = document.createElement("canvas");
-    out.width = out.height = OUTPUT_SIZE;
-    const context = out.getContext("2d");
-    if (!context) { setError("This browser cannot prepare the picture."); return; }
     const { sx, sy, size } = cropRect(image.width, image.height, crop);
-    context.fillStyle = "#fff"; // a transparent picture gets a white background, since the saved picture is a JPEG
-    context.fillRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
-    context.imageSmoothingQuality = "high";
-    context.drawImage(image, sx, sy, size, size, 0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
-    for (const quality of qualitySteps()) {
-      const dataUrl = out.toDataURL("image/jpeg", quality);
-      if (fitsAvatar(dataUrl)) { onDone(dataUrl); return; }
+    for (const shrink of shrinkSteps) {
+      const side = outputSide(Math.min(size, 512) * shrink);
+      const out = document.createElement("canvas");
+      out.width = out.height = side;
+      const context = out.getContext("2d");
+      if (!context) { setError("This browser cannot prepare the picture."); return; }
+      context.imageSmoothingQuality = "high";
+      context.fillStyle = "#fff"; // used only if a JPEG is needed, which has no transparency
+      const png = FORMATS[0]!;
+      for (const format of FORMATS) {
+        context.clearRect(0, 0, side, side);
+        if (format !== png) context.fillRect(0, 0, side, side);
+        context.drawImage(image, sx, sy, size, size, 0, 0, side, side);
+        const dataUrl = out.toDataURL(format.type, format.quality);
+        if (fitsAvatar(dataUrl)) { onDone(dataUrl); return; }
+      }
     }
-    setError("This picture could not be made small enough. Try a different one.");
+    setError("This picture could not be prepared. Try a different one.");
   };
 
   const move = (dx: number, dy: number) => { if (image) setCrop(previous => dragCrop(image.width, image.height, previous, dx, dy, VIEW)); };

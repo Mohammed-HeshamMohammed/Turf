@@ -1,9 +1,10 @@
 // The maths of the profile picture cropper, kept apart from the page so it can be tested: which square of the chosen image is
 // shown, and how the result is saved. Any image the browser can open is accepted; what is saved is always a small square JPEG.
 
-/** The saved picture's side in pixels, and the longest data address the auth service accepts for it (140000 characters). */
-export const OUTPUT_SIZE = 320;
-export const MAX_ENCODED = 130000;
+/** The largest side kept, in pixels (the picture is shown at 150 px at most, so this is more than twice what is needed), and the
+ *  longest data address the auth service accepts for it (668000 characters, about 500 KB of image). */
+export const MAX_SIDE = 512;
+export const MAX_ENCODED = 668000;
 export const MAX_ZOOM = 4;
 
 export type Crop = { zoom: number; cx: number; cy: number }; // cx and cy: the centre of the shown square, as fractions of the image
@@ -24,11 +25,24 @@ export function dragCrop(width: number, height: number, crop: Crop, dx: number, 
   return { ...moved, cx: (sx + size / 2) / width, cy: (sy + size / 2) / height };
 }
 
-/** The lowest-quality step is still tried; the first quality whose result fits is used. */
-export function qualitySteps(): number[] {
-  return [0.92, 0.85, 0.75, 0.65, 0.5, 0.35];
+/** The picture's side: the cropped square as it is, never enlarged, and only reduced when it is bigger than is ever shown. */
+export function outputSide(cropSide: number): number {
+  return Math.max(1, Math.min(Math.round(cropSide), MAX_SIDE));
 }
 
+/** How the picture is written, best first: PNG keeps every pixel as it is, so it comes first; JPEG is only for a picture whose
+ *  PNG does not fit, and starts almost lossless. Making it smaller instead is the last resort (see `shrinkSteps`). */
+export const FORMATS: { type: "image/png" | "image/jpeg"; quality?: number }[] = [
+  { type: "image/png" },
+  { type: "image/jpeg", quality: 0.97 },
+  { type: "image/jpeg", quality: 0.92 },
+  { type: "image/jpeg", quality: 0.85 },
+];
+
+/** When even JPEG does not fit, the same picture is tried at these fractions of its size. */
+export const shrinkSteps = [1, 0.85, 0.7, 0.55];
+
 export function fitsAvatar(dataUrl: string): boolean {
-  return dataUrl.startsWith("data:image/jpeg;base64,") && dataUrl.length - "data:image/jpeg;base64,".length <= MAX_ENCODED;
+  const body = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  return /^data:image\/(png|jpeg);base64,/.test(dataUrl) && body.length <= MAX_ENCODED;
 }

@@ -17,7 +17,7 @@ func TestProfilePictureAcceptsOnlySmallPNGOrJPEG(t *testing.T) {
 	if validAvatar("data:image/png;base64," + base64.StdEncoding.EncodeToString([]byte("not a PNG"))) {
 		t.Fatal("a false PNG must be rejected")
 	}
-	if validAvatar("data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(append([]byte{0xff, 0xd8, 0xff}, []byte(strings.Repeat("a", 100001))...))) {
+	if validAvatar("data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(append([]byte{0xff, 0xd8, 0xff}, []byte(strings.Repeat("a", 500001))...))) {
 		t.Fatal("oversize picture must be rejected")
 	}
 }
@@ -39,5 +39,21 @@ func TestProfileChangesAppearInMyAccount(t *testing.T) {
 	}
 	if anonymous := w.call("POST", "/v1/me/profile", map[string]any{"name": "Bad"}, ""); anonymous.status != 401 {
 		t.Fatalf("anonymous update: %d", anonymous.status)
+	}
+}
+
+func TestAvatarSizeLimit(t *testing.T) {
+	png := func(size int) string {
+		data := append([]byte{0x89, 'P', 'N', 'G', 13, 10, 26, 10}, make([]byte, size-8)...)
+		return "data:image/png;base64," + base64.StdEncoding.EncodeToString(data)
+	}
+	if !validAvatar(png(400000)) {
+		t.Fatal("a 400 KB picture should be accepted")
+	}
+	if validAvatar(png(500001)) {
+		t.Fatal("a picture over 500 KB should be refused")
+	}
+	if validAvatar("data:image/gif;base64,R0lGODlhAQABAAAAACw=") {
+		t.Fatal("only PNG and JPEG are accepted")
 	}
 }
