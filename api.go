@@ -60,6 +60,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/admin/invitations", serve(s.invitePlatform))
 	mux.Handle("GET /v1/orgs/{org}/members", serve(s.workspaceMembers))
 	mux.Handle("GET /v1/fx", serve(s.publicFX))
+	mux.Handle("POST /v1/me/currency", serve(s.setCurrency))
 	mux.Handle("GET /v1/roles", serve(s.roleCatalog))
 	mux.Handle("GET /v1/orgs/{org}/roles", serve(s.workspaceRoles))
 	mux.Handle("PUT /v1/orgs/{org}/members/{user}", serve(s.changeWorkspaceMember))
@@ -474,14 +475,14 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	var phone, avatar string
-	if err := s.db.QueryRow(r.Context(), "SELECT phone, avatar FROM users WHERE id = $1", u.id).Scan(&phone, &avatar); err != nil {
+	var phone, avatar, currency string
+	if err := s.db.QueryRow(r.Context(), "SELECT phone, avatar, currency FROM users WHERE id = $1", u.id).Scan(&phone, &avatar, &currency); err != nil {
 		return err
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id": u.id, "email": u.email, "name": u.name, "mfa_enrolled": enrolled, "email_verified": u.emailVerified,
 		"mfa_passed": c.MFA, "session_id": c.SID,
-		"phone": phone, "avatar": avatar,
+		"phone": phone, "avatar": avatar, "currency": currency,
 	})
 	return nil
 }

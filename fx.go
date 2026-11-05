@@ -153,9 +153,51 @@ func (s *server) publicFX(w http.ResponseWriter, r *http.Request) error {
 	if table == nil {
 		return newError(http.StatusServiceUnavailable, "rates_unavailable", "Exchange rates are not available right now.")
 	}
-	// Anyone may read the rates, and a browser or CDN may keep them for an hour (writeJSON would mark them uncacheable).
+	// The answer also says where the visitor is (Cloudflare tells us, from their address), so a browser may keep it but a shared cache may
+	// not hand one visitor's country to another. writeJSON would mark it uncacheable altogether.
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "public, max-age=3600")
-	_ = json.NewEncoder(w).Encode(table)
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	_ = json.NewEncoder(w).Encode(struct {
+		*fxTable
+		Country string `json:"country,omitempty"`
+	}{table, visitorCountry(r)})
+	return nil
+}
+
+// visitorCountry is the two-letter country Cloudflare saw the request come from, or "" when it did not say (a direct request, an
+// unknown address, Tor). It only chooses a default currency; nothing depends on it being right.
+func visitorCountry(r *http.Request) string {
+	code := strings.ToUpper(strings.TrimSpace(r.Header.Get("CF-IPCountry")))
+	if len(code) != 2 || code == "XX" || code == "T1" {
+		return ""
+	}
+	for _, c := range code {
+		if c < 'A' || c > 'Z' {
+			return ""
+		}
+	}
+	return code
+}
+
+// setCurrency saves a person's main currency, or clears it (empty) to go back to automatic.
+func (s *server) setCurrency(w http.ResponseWriter, r *http.Request) error {
+	c, err := s.person(r)
+	if err != nil {
+		return err
+	}
+	var body struct {
+		Currency string `json:"currency"`
+	}
+	if err := readJSON(w, r, &body); err != nil {
+		return err
+	}
+	body.Currency = strings.ToUpper(strings.TrimSpace(body.Currency))
+	if body.Currency != "" && !isoCurrencies[body.Currency] {
+		return bad("That is not a currency we know. Choose one from the list.")
+	}
+	if _, err := s.db.Exec(r.Context(), "UPDATE users SET currency = $1 WHERE id = $2", body.Currency, c.Sub); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"currency": body.Currency})
 	return nil
 }
