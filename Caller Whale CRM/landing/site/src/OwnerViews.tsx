@@ -49,7 +49,7 @@ type Overview = {
   people: { accounts: number; staff: number; members: number; new_7_days: number; new_30_days: number; email_verified: number; two_step: number; active_7_days: number; active_30_days: number; signups_by_day: { day: string; count: number }[] };
   plans: Plan[]; most_requested_plan?: Plan; billing_connected: boolean;
   usage: { connected: boolean; minutes_this_month: number; credits_this_month: number; top: { kind: string; label: string; total: number }[] };
-  finance?: { currency: string; mrr_minor: number; revenue_this_month_minor: number; revenue_last_month_minor: number; revenue_12_months_minor: number; monthly_costs_minor: number; one_off_costs_minor: number; profit_month_minor: number; roi_percent: number | null; revenue_by_month: { month: string; amount_minor: number }[]; costs_by_category: Record<string, number>; other_currency_costs: number; converted_entries: number; fx_as_of?: string;
+  finance?: { currency: string; mrr_minor: number; revenue_this_month_minor: number; revenue_last_month_minor: number; revenue_12_months_minor: number; monthly_costs_minor: number; one_off_costs_minor: number; profit_month_minor: number; roi_percent: number | null; revenue_by_month: { month: string; amount_minor: number }[]; costs_by_category: Record<string, number>; other_currency_costs: number; converted_entries: number; fx_as_of?: string; requested_currency?: string;
     variable_costs: { voip_minor: number; storage_minor: number; fees_minor: number; total_minor: number }; gross_profit_month_minor: number; gross_margin_percent: number | null;
     variable_costs_estimate_month_minor: number; total_monthly_costs_minor: number; rates_entered: number;
     quota: { near_limit: { workspace: string; plan: string; used: number; allowed: number; percent: number }[]; over_allowance_minutes: number; over_allowance_cost_minor: number; workspaces_over_allowance: number } };
@@ -94,6 +94,7 @@ export function PlatformOverview({ request, openCosts }: { request: Api; openCos
         <p className="muted">{finance.quota.near_limit.length === 0 ? "Nobody is close to the minutes their plan includes." : `${plural(finance.quota.near_limit.length, "workspace")} at 90% or more of their plan's minutes.`}{finance.quota.over_allowance_minutes > 0 && ` ${finance.quota.over_allowance_minutes.toLocaleString()} minutes have been used past the plans' allowances${finance.quota.over_allowance_cost_minor > 0 ? `, about ${money(finance.quota.over_allowance_cost_minor, finance.currency)} at your per-minute price` : ""}. Those are the minutes to buy for customers.`}</p>
         {finance.quota.near_limit.length > 0 && <ul className="owner-list">{finance.quota.near_limit.map(row => <li key={row.workspace}><span>Workspace {row.workspace}<small>{row.plan} plan</small></span><strong>{row.used.toLocaleString()} of {row.allowed.toLocaleString()} ({Math.round(row.percent)}%)</strong></li>)}</ul>}
       </section>
+      {finance.requested_currency && <p className="notice" role="note">There is no exchange rate for {finance.requested_currency} right now, so these figures are in {finance.currency === "USD" ? "US dollars, the main price" : finance.currency} until there is. Nothing is lost: they switch back by themselves.</p>}
       {finance.converted_entries > 0 && <p className="notice" role="note">{plural(finance.converted_entries, "cost or rate")} entered in another currency {finance.converted_entries === 1 ? "is" : "are"} counted in {finance.currency}, the currency that earns the most, at the exchange rate of {finance.fx_as_of}.</p>}
       {finance.other_currency_costs > 0 && <p className="notice" role="note">{plural(finance.other_currency_costs, "cost or rate")} in another currency could not be converted (no exchange rate right now) and {finance.other_currency_costs === 1 ? "is" : "are"} not counted.</p>}
     </> : null}
@@ -208,6 +209,7 @@ export function CostsManager({ request, auth, saved }: { request: Api; auth: Aut
     </section>
     <RatesManager request={request} auth={auth} main={main} />
     <section className="admin-team card" aria-labelledby="costs-list-title">
+      {main.ratesUnavailable && <p className="notice" role="note">Exchange rates are not available right now, so each cost shows in the currency it was entered in, and the overview in the currency it was taken in, until they are.</p>}
       <div className="admin-section-heading"><div><h2 id="costs-list-title">Costs entered</h2><p className="muted">{costs.length ? `About ${money(monthly, costs[0]?.currency || "USD")} a month in ${costs[0]?.currency || "USD"}.` : "Nothing yet."}</p></div></div>
       {loading && !data ? <p role="status" className="muted">Loading…</p> : error ? <p className="notice bad" role="alert">{error}</p> : costs.length === 0 ? <div className="admin-empty"><h3>No costs yet</h3><p>Add what you pay for, and the overview will show profit and return.</p></div> :
         <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th scope="col">Cost</th><th scope="col">Type</th><th scope="col">Amount</th><th scope="col">Paid</th><th scope="col"><span className="sr-only">Action</span></th></tr></thead><tbody>{costs.map(cost => <tr key={cost.id}>
@@ -354,5 +356,8 @@ function GiveMembership({ request, auth, member, onClose, onGiven }: { request: 
 function inMain(minor: number, currency: string, main: { currency: string; rates: Rates | null }) {
   if (currency === main.currency) return null;
   const converted = convertMinor(minor, currency, main.currency, main.rates);
-  return converted === null ? null : <small className="owner-sub">≈ {formatMinor(converted, main.currency)}</small>;
+  if (converted !== null) return <small className="owner-sub">≈ {formatMinor(converted, main.currency)}</small>;
+  // No rate for the main currency right now: the main price is in US dollars, so show that, and say why.
+  const dollars = main.currency === "USD" ? null : convertMinor(minor, currency, "USD", main.rates);
+  return dollars === null ? null : <small className="owner-sub" title={`No exchange rate for ${main.currency} right now`}>≈ {formatMinor(dollars, "USD")} (US dollars)</small>;
 }

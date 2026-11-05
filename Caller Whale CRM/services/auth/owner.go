@@ -375,6 +375,7 @@ type finance struct {
 	RatesEntered       int              `json:"rates_entered"`
 	Converted          int              `json:"converted_entries"` // costs and rates entered in another currency, counted here at the day's exchange rate
 	FXAsOf             string           `json:"fx_as_of,omitempty"`
+	RequestedCurrency  string           `json:"requested_currency,omitempty"` // the main currency that could not be used (no rate), when the figures fell back to US dollars
 	ByMonth            []monthRevenue   `json:"revenue_by_month"`
 	CostsByCategory    map[string]int64 `json:"costs_by_category"`
 	OtherCurrency      int              `json:"other_currency_costs"` // costs in a different currency, left out of the figures above
@@ -402,8 +403,15 @@ func financeFrom(b *billingSummary, costs []costItem, rates []rateItem, fx *fxTa
 				best, f.Currency = total, currency
 			}
 		}
-		if reporting != "" && (reporting == f.Currency || (fx != nil && fx.Rates[reporting] > 0)) {
-			f.Currency = reporting
+		if reporting != "" {
+			switch {
+			case reporting == f.Currency || (fx != nil && fx.Rates[reporting] > 0):
+				f.Currency = reporting
+			case f.Currency == "USD" || (fx != nil && fx.Rates[f.Currency] > 0):
+				// No exchange rate for the main currency right now (or the source is down): fall back to the main price, in US dollars,
+				// and say so, instead of guessing or going blank.
+				f.RequestedCurrency, f.Currency = reporting, "USD"
+			}
 		}
 		thisMonth, lastMonth := at.UTC().Format("2006-01"), at.UTC().AddDate(0, -1, 0).Format("2006-01")
 		months := map[string]int{} // a month paid in two currencies is one month once converted

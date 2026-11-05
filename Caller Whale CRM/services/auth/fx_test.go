@@ -257,3 +257,27 @@ func TestTheRatesAnswerSaysWhichCurrencyTheVisitorsCountryUses(t *testing.T) {
 		t.Fatalf("%v %+v", err, got)
 	}
 }
+
+func TestWithoutARateForTheMainCurrencyTheFiguresFallBackToUSDollars(t *testing.T) {
+	at := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
+	// A business that earns in euros, whose owner asked for a currency there is no rate for.
+	var b billingSummary
+	if err := json.Unmarshal([]byte(`{"subscriptions": [{"plan_key": "starter", "name": "Starter", "currency": "EUR", "price_minor": 4500, "status": "active", "workspaces": 2}],
+	  "revenue_by_month": [{"month": "2026-11", "currency": "EUR", "amount_minor": 9000, "payments": 2}], "usage_this_month": {}, "top_usage": []}`), &b); err != nil {
+		t.Fatal(err)
+	}
+	fx := &fxTable{AsOf: "2026-11-05", Rates: map[string]float64{"USD": 1, "EUR": 0.9}}
+	f := financeFrom(&b, nil, nil, fx, "ZAR", at)
+	// 90.00 euros at 0.9 euros a dollar is 100.00 dollars.
+	if f.Currency != "USD" || f.RequestedCurrency != "ZAR" || f.RevenueThisMonth != 10000 || f.MRRMinor != 10000 {
+		t.Fatalf("fell back to %s (asked for %q): revenue %d, mrr %d", f.Currency, f.RequestedCurrency, f.RevenueThisMonth, f.MRRMinor)
+	}
+	// A main currency that has a rate is used, and nothing is flagged.
+	if g := financeFrom(&b, nil, nil, fx, "EUR", at); g.Currency != "EUR" || g.RequestedCurrency != "" {
+		t.Fatalf("with a rate: %s %q", g.Currency, g.RequestedCurrency)
+	}
+	// With no exchange rates at all, nothing can be converted, so the money stays in the currency it was taken in.
+	if g := financeFrom(&b, nil, nil, nil, "ZAR", at); g.Currency != "EUR" || g.RequestedCurrency != "" || g.RevenueThisMonth != 9000 {
+		t.Fatalf("with no rates: %s %q %d", g.Currency, g.RequestedCurrency, g.RevenueThisMonth)
+	}
+}

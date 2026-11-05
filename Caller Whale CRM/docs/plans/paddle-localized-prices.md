@@ -30,13 +30,13 @@ The builder makes any mix of features, people and extras, so there are far too m
 
 - **Billing** gets `POST /api/v1/price-preview` (selection and country in, localized totals out) and holds a new secret, `PADDLE_API_KEY`, used only here.
 - **A public address for billing.** Paddle must reach billing's webhook from the internet, and the page must reach the preview, but billing has no public address. Add one (for example `pay.callerwhale.com`): a Cloudflare record, the domain on the gateway app in Coolify, and a gateway route that allows only `/api/v1/plans`, `/api/v1/price-preview` and `/api/v1/billing/webhook`. Everything else of billing stays private. This is the same job the webhook needs anyway.
-- **The pricing page** calls the preview when the selection or country changes (debounced), shows the localized subtotal, tax and total, and falls back to today's indicative conversion if the call fails.
+- **The pricing page** calls the preview when the selection or country changes (debounced), shows the localized subtotal, tax and total, and, if the call fails or the currency is not one Paddle bills in, **falls back to the main price in US dollars** (the list price, labelled as such). It never shows a guessed conversion.
 
 ## What the visitor sees
 
 - Total in their currency, then "includes VAT of …" or "plus tax …", from Paddle's answer, not ours.
 - No currency or country chooser on the page. Paddle works both out from the visitor's IP address; a visitor who wants another country changes it at checkout.
-- A currency Paddle does not support: billed in US dollars, with the converted amount labelled "about" as it is now.
+- A currency Paddle does not support, or any failure to get Paddle's answer: the main price in US dollars, labelled "US dollars". The same rule is already in the dashboard: with no exchange rate for a person's main currency, the overview and the cost rows show US dollars and say so.
 - Checkout opens with the same item, so what they saw is what they pay. If it differs (a price changed in between), checkout shows the new one and the page says so.
 
 ## What you need to do in Paddle
@@ -70,7 +70,7 @@ Order: Paddle sandbox first (steps 1 to 5 below), then Stripe test mode behind t
 ## Risks
 
 - **Step 1 fails** (Paddle does not localize custom amounts): fall back to B, or create the few most-used plans as catalog prices and treat the rest as "custom, quoted at checkout".
-- **Paddle rate versus ours.** The page's old indicative figure and Paddle's real one will differ a little. The page shows only Paddle's once it has it.
+- **No guessed prices on the pricing page.** The page shows either Paddle's real answer or the main USD price, never an exchange-rate estimate of ours, so a visitor is never shown a number that checkout then changes.
 - **Tax is Paddle's call.** Our page can show it but must never promise it: the final tax is set at checkout from the buyer's real details.
 - **Abuse of the preview endpoint.** It costs a Paddle call; it needs the per-address limit and the cache.
 

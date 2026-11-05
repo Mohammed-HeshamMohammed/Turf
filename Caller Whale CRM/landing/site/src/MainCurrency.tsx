@@ -11,17 +11,21 @@ type Fx = Rates & { country?: string; currency?: string; digits?: Record<string,
  */
 export function useMainCurrency(load: () => Promise<Fx | null>, saved: string | undefined) {
   const [fx, setFx] = useState<Fx | null>(null);
+  const [asked, setAsked] = useState(false);
   useEffect(() => {
     let live = true;
     load().then(answer => {
       if (!live) return;
       applyLiveCurrencyData(answer); // the server's live currency tables replace the ones shipped with the page
       setFx(answer);
-    }, () => {});
+      setAsked(true);
+    }, () => { if (live) setAsked(true); });
     return () => { live = false; };
   }, []);
   const detected = fx?.currency || (fx?.country && currencyForCountry(fx.country)) || currencyForLocale(typeof navigator === "undefined" ? undefined : navigator.language);
-  return { currency: saved || detected, detected, automatic: !saved, rates: fx && fx.rates ? fx : null, country: fx?.country };
+  const rates = fx && fx.rates ? fx : null;
+  // `ratesUnavailable`: the question was asked and no rates came back, so amounts fall back to US dollars, the main price.
+  return { currency: saved || detected, detected, automatic: !saved, rates, country: fx?.country, ratesUnavailable: asked && !rates };
 }
 
 /** The Profile page's "Main currency" setting, beside the connected accounts. */
@@ -54,6 +58,7 @@ export function MainCurrency({ auth, authBase, saved, onSaved }: { auth: Auth; a
       <button type="button" className="button primary" disabled={state.busy || !choice || choice === saved} onClick={() => void save(choice)}>{state.busy ? "Saving…" : "Save currency"}</button>
       {saved && <button type="button" className="button raised" disabled={state.busy} onClick={() => void save("")}>Use automatic</button>}
     </div>
+    {main.ratesUnavailable && <p role="status" className="notice">Exchange rates are not available right now, so amounts show in US dollars, the main price, until they are.</p>}
     {state.message && <p role="status" className="notice good">{state.message}</p>}
     {state.error && <p role="alert" className="notice bad">{state.error}</p>}
   </section>;
