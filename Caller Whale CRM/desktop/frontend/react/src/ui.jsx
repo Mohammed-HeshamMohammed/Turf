@@ -16,8 +16,8 @@ import {
 import { Children, Fragment, isValidElement, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useCrm } from "./context.jsx";
-import { avatarSources } from "./avatars.js";
-import { TODAY } from "./data.js";
+import { avatarSources } from "./avatars.ts";
+import { TODAY } from "./data.ts";
 
 export const money = value => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
 /** Bedrooms, bathrooms, area, units and year built, leaving out what the source did not supply. */

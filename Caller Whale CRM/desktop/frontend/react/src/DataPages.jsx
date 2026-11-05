@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import { ArrowRight, ArrowUpRight, CheckCircle, Phone, Cloud, DownloadSimple, FileCsv, HardDrives, ShieldCheck, UploadSimple } from "@phosphor-icons/react";
-import { LEAD_STAGES, ROLES } from "./data.js";
-import { capability, uid, visibleLeads } from "./model.js";
+import { LEAD_STAGES, ROLES } from "./data.ts";
+import { capability, uid, visibleLeads } from "./model.ts";
 import { useCrm } from "./context.jsx";
-import { detectSourceFields, leadFromSource, sourceEvidence, sourceValue } from "./skiptrace-fields.js";
+import { detectSourceFields, leadFromSource, sourceEvidence, sourceValue } from "./skiptrace-fields.ts";
 import { SourceFieldMapping } from "./SourceFieldMapping.jsx";
 import { PropertyMap } from "./PropertyMap.jsx";
 import { LeadsMap } from "./LeadsMap.jsx";
-import { cancelJob, check, checkRepeats, engineAvailable, engineConfig, prepare, saveCopy } from "./engine.js";
-import { api } from "./remote/api.js";
+import { cancelJob, check, checkRepeats, engineAvailable, engineConfig, prepare, saveCopy } from "./engine.ts";
+import { api } from "./remote/api.ts";
 import {
   Badge,
   Select,

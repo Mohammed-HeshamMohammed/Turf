@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { seedState } from "../src/data.js";
-import { applyChanges, collectionsFromStore, isoFromLocal, labelFor, localParts, operationFor, roleKey, storeFromSnapshot } from "../src/remote/translate.js";
-import { remoteReducer, syncAction } from "../src/remote/session.js";
+import { seedState } from "../src/data.ts";
+import { applyChanges, collectionsFromStore, isoFromLocal, labelFor, localParts, operationFor, roleKey, storeFromSnapshot } from "../src/remote/translate.ts";
+import { remoteReducer, syncAction } from "../src/remote/session.ts";
 
 const directory = [
   { id: "u-maya", name: "Maya Chen" },

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { PropertyMap } from "./PropertyMap.jsx";
 import { LeadsMap } from "./LeadsMap.jsx";
-import { coordinates } from "./skiptrace-fields.js";
+import { coordinates } from "./skiptrace-fields.ts";
 import { Archive, ArrowUpRight, ArrowLeft, Plus, Phone, Envelope, Handshake, Clock, FileText, CheckCircle, Export, HouseLine } from "@phosphor-icons/react";
-import { LEAD_STAGES, PEOPLE, ROLES, TODAY } from "./data.js";
-import { archivedLeads, callbackLabel, canEditLead, capability, scopedLeads, uid, visibleLeads } from "./model.js";
+import { LEAD_STAGES, PEOPLE, ROLES, TODAY } from "./data.ts";
+import { archivedLeads, callbackLabel, canEditLead, capability, scopedLeads, uid, visibleLeads } from "./model.ts";
 import { CallHistory, NewDealModal } from "./Work.jsx";
 import { useCrm } from "./context.jsx";
 import {

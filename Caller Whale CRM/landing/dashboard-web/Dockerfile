@@ -19,7 +19,7 @@ ENV VITE_CALLERWHALE_AUTH_URL=$VITE_CALLERWHALE_AUTH_URL \
     VITE_CALLERWHALE_API_URL=$VITE_CALLERWHALE_API_URL \
     VITE_CALLERWHALE_SITE_URL=$VITE_CALLERWHALE_SITE_URL \
     VITE_CALLERWHALE_REQUIRE_SIGN_IN=true
-RUN node /headers/security-headers.mjs /app/security-headers.conf && npx vite build
+RUN node /headers/security-headers.mjs /app/security-headers.conf && npx tsc -p . && npx vite build
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 COPY --from=runtime-log-build /runtime-log /usr/local/bin/callerwhale-log

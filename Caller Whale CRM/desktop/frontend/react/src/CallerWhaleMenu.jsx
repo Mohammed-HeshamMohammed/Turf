@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowClockwise, CloudArrowUp, FileCsv, GearSix, Plugs, SidebarSimple, SignOut, SquaresFour, WifiHigh, WifiSlash, Info } from "@phosphor-icons/react";
-import { ROLES } from "./data.js";
-import { personalProfile } from "./model.js";
+import { ROLES } from "./data.ts";
+import { personalProfile } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { Badge, Select, usePresence } from "./ui.jsx";
 import { SignInMark } from "./SignInMarks.jsx";

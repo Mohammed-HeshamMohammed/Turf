@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CALL_DAYS, CALL_OUTCOMES, CALL_TREND, TODAY, seedState } from "../src/data.js";
-import { callbackLabel, canEditLead, loadState, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "../src/model.js";
+import { CALL_DAYS, CALL_OUTCOMES, CALL_TREND, TODAY, seedState } from "../src/data.ts";
+import { callbackLabel, canEditLead, loadState, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "../src/model.ts";
 
 const as = role => ({ ...seedState(), role });
 test("personal details persist per account without renaming lead responsibility", () => {

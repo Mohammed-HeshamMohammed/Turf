@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sourceEvidence, sourceValue } from "../src/skiptrace-fields.js";
+import { sourceEvidence, sourceValue } from "../src/skiptrace-fields.ts";
 
 test("uses a real populated phone field first, including common header variants", () => {
   const evidence = sourceEvidence(
@@ -52,7 +52,7 @@ const COUNTY_HEADER = ["Id", "Address", "City", "State", "Zip", "County", "Livin
 const COUNTY_ROW = ["110462", "840 W 124TH ST", "LOS ANGELES", "CA", "90044", "Los Angeles", "2457", "1952", "0.2502066", "10899", "Residential", "Multi-Family 2-4 Units", "DUPLEX (2 UNITS, ANY COMBINATION)", "8", "6117-016-011", "TRACT NO 8O LOT 5 BLK K", "2", "5", "3", "1", "Type Not Specified", "0", "", "", "", "", "0", "VIRGINIA", "FRIZ", "", "", "KATHERINE", "AVARIA", "", "", "721 W EL SEGUNDO BLVD APT 6", "GARDENA", "CA", "90247", "227", "INDIVIDUAL", "", ""];
 
 test("a county-records export maps every column the lead uses", async () => {
-  const { leadFromSource } = await import("../src/skiptrace-fields.js");
+  const { leadFromSource } = await import("../src/skiptrace-fields.ts");
   const row = { sourceValues: Object.fromEntries(COUNTY_HEADER.map((column, index) => [column, COUNTY_ROW[index]])) };
   const lead = leadFromSource(COUNTY_HEADER, row);
   assert.equal(lead.name, "VIRGINIA FRIZ");
@@ -89,7 +89,7 @@ test("a county-records export maps every column the lead uses", async () => {
 const sheet = (header, ...rows) => ({ columns: header, rows: rows.map(values => ({ sourceValues: Object.fromEntries(header.map((column, i) => [column, values[i]])) })) });
 
 test("different header wording still finds the same fields", async () => {
-  const { detectSourceFields } = await import("../src/skiptrace-fields.js");
+  const { detectSourceFields } = await import("../src/skiptrace-fields.ts");
   const crm = sheet(
     ["Customer Name", "Client Phone #", "E-mail Address", "Street Address", "Town", "Province", "Postal Code"],
     ["Mona Adel", "(813) 274-6610", "mona@example.com", "12 Palm Ave", "Tampa", "FL", "33602"],
@@ -119,7 +119,7 @@ test("different header wording still finds the same fields", async () => {
 });
 
 test("a name split in two, and property versus mailing addresses, are told apart", async () => {
-  const { detectSourceFields, leadFromSource } = await import("../src/skiptrace-fields.js");
+  const { detectSourceFields, leadFromSource } = await import("../src/skiptrace-fields.ts");
   const split = sheet(
     ["FIRST", "LAST", "Cell", "Property Address", "Property City", "Mailing Address", "Mailing City", "Mailing State", "Mailing Zip"],
     ["Ana", "Lopez", "7135553142", "77 Bay Road", "Houston", "PO Box 9", "Austin", "TX", "78701"],
@@ -139,7 +139,7 @@ test("a name split in two, and property versus mailing addresses, are told apart
 });
 
 test("columns with no useful header are named by their values, and a misleading header is overruled", async () => {
-  const { detectSourceFields } = await import("../src/skiptrace-fields.js");
+  const { detectSourceFields } = await import("../src/skiptrace-fields.ts");
   const blank = sheet(
     ["Column 1", "Column 2", "Column 3", "Column 4", "Column 5", "Column 6"],
     ["Mona Adel", "(813) 274-6610", "mona@example.com", "12 Palm Ave", "$342,000", "4"],
@@ -161,7 +161,7 @@ test("columns with no useful header are named by their values, and a misleading 
 });
 
 test("a header mapped by hand is remembered for the next list", async () => {
-  const { detectSourceFields, setLearnedHeaders, headerKey } = await import("../src/skiptrace-fields.js");
+  const { detectSourceFields, setLearnedHeaders, headerKey } = await import("../src/skiptrace-fields.ts");
   const odd = sheet(["Owner", "Development", "Digits"], ["Mona Adel", "Palm Grove", "(813) 274-6610"]);
   // A person's name and a phone number are recognised by their values; "Proprietor" would be too.
   assert.equal(detectSourceFields(odd.columns, odd.rows).phone, "Digits");
@@ -173,7 +173,7 @@ test("a header mapped by hand is remembered for the next list", async () => {
 });
 
 test("numbered owners with full or split names all become owners", async () => {
-  const { leadFromSource } = await import("../src/skiptrace-fields.js");
+  const { leadFromSource } = await import("../src/skiptrace-fields.ts");
   const owners = sheet(["Owner 1 Name", "Owner 2 Name", "Owner 3 First Name", "Owner 3 Last Name", "Address"], ["Mona Adel", "", "Sam", "Hill", "12 Palm Ave"]);
   const lead = leadFromSource(owners.columns, owners.rows[0]);
   assert.equal(lead.name, "Mona Adel");
@@ -181,7 +181,7 @@ test("numbered owners with full or split names all become owners", async () => {
 });
 
 test("a dialer export: a status column of repeated phrases is never taken for the owner's name", async () => {
-  const { detectSourceFields, leadFromSource } = await import("../src/skiptrace-fields.js");
+  const { detectSourceFields, leadFromSource } = await import("../src/skiptrace-fields.ts");
   const header = ["Phone", "Alt. Phone", "First Name", "Last Name", "Address", "City", "State", "Country", "Zip", "Email", "Batch Name", "Status", "Original Status", "Status (agent)"];
   const statuses = ["Not interested", "No answer", "Left voicemail", "Wrong number"];
   const people = [["Jose", "Ortega"], ["Mona", "Adel"], ["Sam", "Hill"], ["Ana", "Lopez"], ["Ben", "Ortiz"], ["Cy", "Young"], ["Di", "Park"], ["Ed", "Shaw"]];

@@ -12,8 +12,8 @@ import {
   ShieldCheck,
   WarningCircle,
 } from "@phosphor-icons/react";
-import { ROLES } from "./data.js";
-import { capability, visibleLeads, visibleTasks } from "./model.js";
+import { ROLES } from "./data.ts";
+import { capability, visibleLeads, visibleTasks } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { Badge, Select, Button, Card, Empty, Field, Modal, PageHeader, Person, Segmented, DataTable, Status, downloadCsv, money, useTableView } from "./ui.jsx";
 

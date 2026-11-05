@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { seedState } from "../src/data.js";
-import { dialerTarget, dialNumberKey } from "../src/dialer.js";
+import { seedState } from "../src/data.ts";
+import { dialerTarget, dialNumberKey } from "../src/dialer.ts";
 
 test("typed numbers match lead phone formats without creating a new record", () => {
   const state = seedState();

@@ -1,7 +1,7 @@
 // Live speech to text from the microphone, through the browser's built-in recogniser (the Web Speech API).
 // Chrome and Edge provide it; some webviews do not, so callers check `speechSupported()` first.
 
-const Recognition = typeof window !== "undefined" ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
+const Recognition = typeof window !== "undefined" ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition : null;
 
 export const speechSupported = () => Boolean(Recognition);
 

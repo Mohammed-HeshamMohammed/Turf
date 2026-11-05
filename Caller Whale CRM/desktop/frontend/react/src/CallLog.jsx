@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { ArrowUpRight, Phone } from "@phosphor-icons/react";
 import { useCrm } from "./context.jsx";
-import { beginDemoCall, useCallSession } from "./callSession.js";
-import { dialerTarget } from "./dialer.js";
-import { callDuration, visibleCallLog } from "./callLog.js";
+import { beginDemoCall, useCallSession } from "./callSession.ts";
+import { dialerTarget } from "./dialer.ts";
+import { callDuration, visibleCallLog } from "./callLog.ts";
 import { Button, Empty, Search } from "./ui.jsx";
 
 export function CallLog({ onCall }) {

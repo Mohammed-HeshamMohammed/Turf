@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { createUpdater } from "../src/updates.js";
+import { createUpdater } from "../src/updates.ts";
 import { prepareRelease, releaseManifest } from "../scripts/release-manifest.mjs";
 
 test("checking never installs; concurrent checks are coalesced and the resource is released on the next check", async () => {

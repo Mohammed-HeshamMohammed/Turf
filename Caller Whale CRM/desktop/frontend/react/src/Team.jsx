@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { CheckCircle, Handshake, Phone, UsersThree } from "@phosphor-icons/react";
-import { PEOPLE, ROLES, SIGN_IN } from "./data.js";
-import { capability, visibleLeads, visibleTasks } from "./model.js";
+import { PEOPLE, ROLES, SIGN_IN } from "./data.ts";
+import { capability, visibleLeads, visibleTasks } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { Avatar, Badge, Button, Card, PageHeader, money } from "./ui.jsx";
 import { SignInMark } from "./SignInMarks.jsx";

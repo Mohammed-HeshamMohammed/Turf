@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { closeMainWindow, dragThisWindow, inDesktopApp, minimizeWindow, toggleMaximizeWindow, watchMaximized } from "./popout.js";
+import { closeMainWindow, dragThisWindow, inDesktopApp, minimizeWindow, toggleMaximizeWindow, watchMaximized } from "./popout.ts";
 import { DesktopUpdates } from "./DesktopUpdates.jsx";
 
 /** Elements that must keep working as controls and so never start a window drag. */
