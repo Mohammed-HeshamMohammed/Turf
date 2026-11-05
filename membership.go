@@ -60,6 +60,18 @@ func (s *server) adminPlans(w http.ResponseWriter, r *http.Request) error {
 // openingRoles are the roles that open a workspace: the agency owner, or a solo operator (the same two the authorization service holds back).
 var openingRoles = []string{"owner", "solo"}
 
+// freshSecondStepWindow is how long a second step counts for the actions that need one done just now.
+const freshSecondStepWindow = 5 * 60
+
+// requireFreshSecondStep is nothing when the person confirmed themselves with a second step within the last five minutes. Otherwise
+// the answer is "step_up_required", which the dashboard turns into a code box on the spot, then asks again.
+func requireFreshSecondStep(c claims, at int64) *apiError {
+	if !c.MFA || c.AuthTime <= 0 || at-c.AuthTime > freshSecondStepWindow || c.AuthTime > at+60 {
+		return newError(http.StatusForbidden, "step_up_required", "Confirm it's you with your authenticator code to do this.")
+	}
+	return nil
+}
+
 type membershipBody struct {
 	UserID      string `json:"user_id"`
 	Plan        string `json:"plan"`
@@ -113,8 +125,13 @@ func checkMembership(b *membershipBody) *apiError {
 // giveMembership opens the person's workspace (once: a person who already runs one keeps it and gets the new plan there) and tells
 // billing the plan. Asking again is safe: the same workspace is found and the plan is set again.
 func (s *server) giveMembership(w http.ResponseWriter, r *http.Request) error {
-	if _, err := s.staffActor(r, true); err != nil {
+	c, err := s.staffActor(r, true)
+	if err != nil {
 		return err
+	}
+	// Giving someone a workspace and a plan is a decision that moves money and access, so it needs a second step done just now.
+	if problem := requireFreshSecondStep(c, now()); problem != nil {
+		return problem
 	}
 	var body membershipBody
 	if err := readJSON(w, r, &body); err != nil {
