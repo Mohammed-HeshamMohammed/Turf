@@ -142,17 +142,17 @@ function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: 
     setBusy(false);
   };
   const shownView = recovery.length ? "recovery" : view;
-  const headings = {
-    overview: ["Platform overview", "A clear view of who can administer Caller Whale."],
-    team: ["Platform team", "Find staff accounts and review their access."],
-    access: ["Manage access", "Assign or change administrative roles."],
-    account: ["Your account", "Your profile and workspace memberships."],
-    recovery: ["Save your recovery codes", "Finish securing your account before continuing."],
+  const viewTitles = {
+    overview: "Overview",
+    team: "Platform team",
+    access: "Manage access",
+    account: "Your account",
+    recovery: "Save your recovery codes",
   };
   return <div className="admin-layout">
     <aside className="admin-sidebar" aria-label="Administration navigation"><div className="admin-sidebar-brand"><span className="admin-sidebar-mark" aria-hidden="true">CW</span><span><strong>Platform</strong><small>Administration</small></span></div>{recovery.length ? <p className="admin-sidebar-note">Save your recovery codes to continue.</p> : <nav aria-label="Dashboard sections"><a href="#overview" aria-current={view === "overview" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("overview"); }}>Overview</a><a href="#team" aria-current={view === "team" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("team"); }}>Platform team</a>{canManage && <a href="#access" aria-current={view === "access" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("access"); }}>Manage access</a>}<a href="#account" aria-current={view === "account" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("account"); }}>Your account</a></nav>}<div className="admin-sidebar-account"><span className="eyebrow">Signed in as</span><strong>{me.name || me.email}</strong><small>{access.platform_label || roleNames[access.platform_role]}</small><Link to="/account">Open profile →</Link></div></aside>
     <div className="admin-main"><section className="admin-workspace" aria-labelledby="dashboard-administration">
-    <header className="admin-heading"><div><span className="eyebrow">Caller Whale administration</span><h1 id="dashboard-administration">{headings[shownView][0]}</h1><p className="muted">{headings[shownView][1]}</p></div>{shownView !== "account" && shownView !== "recovery" && <div className="admin-heading-actions"><button type="button" className="button raised" onClick={() => void load()} disabled={status === "loading"}>Refresh</button>{canManage && status === "ready" && shownView !== "access" && <button type="button" className="button primary" onClick={() => openView("access")}>Manage access</button>}</div>}</header>
+    <header className="admin-view-header"><h1 id="dashboard-administration">{viewTitles[shownView]}</h1></header>
     {shownView !== "account" && !recovery.length && status === "loading" && <div className="admin-feedback card" role="status">Loading platform staff…</div>}
     {shownView !== "account" && !recovery.length && status === "verify" && <div className="staff-verify">
       <span className="eyebrow">Two-step security</span>
