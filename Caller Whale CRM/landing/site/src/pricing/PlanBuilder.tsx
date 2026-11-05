@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useMoney } from "./display-currency.tsx";
 import { ADDONS, ALL_IN, BUILDER_FEATURES, FLEX, MAX_SEATS, clampSeats, preset, quote, type Feature, type Level, type Line, type PresetId, type Selection } from "./plan.ts";
 import { Link } from "../nav.tsx";
 
@@ -10,8 +9,9 @@ const PRESETS: [PresetId, string][] = [["solo", "Solo"], ["duo", "Duo"], ["team"
  * "Build your plan": switch features on and off, pick how many people, add extras. The ready-made plans are only
  * starting points; the price is always the sum of what is switched on.
  */
+const money = (n: number) => `$${n.toLocaleString("en-US")}`;
+
 export function PlanBuilder({ initial }: { initial: Selection | null }) {
-  const money = useMoney();
   const [sel, setSel] = useState(() => initial || preset("solo"));
   const q = quote(sel);
   const setSeats = (n: number) => setSel({ ...sel, seats: clampSeats(n) });

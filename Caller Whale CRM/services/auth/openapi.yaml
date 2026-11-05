@@ -130,6 +130,12 @@ paths:
       security: [{ bearer: [] }]
       requestBody: { content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string, enum: [system_admin, tester] } } } } } }
       responses: { "201": { description: Invitation saved, with delivery_state sent, failed, or not_configured }, "403": { description: Founder with second step required }, "409": { description: Duplicate invitation or existing staff role } }
+  /v1/me/currency:
+    post:
+      summary: Set the signed-in person's main currency (an ISO code), or clear it with an empty value to go back to automatic
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { currency: { type: string } } } } } }
+      responses: { "200": { description: Saved }, "400": { description: Not a currency we know } }
   /v1/fx:
     get:
       summary: Exchange rates against the US dollar (ISO currencies only, kept six hours, last good rates if the source is down). Public; for showing prices in a visitor's currency and for the owner's own sums, never for what a customer is charged

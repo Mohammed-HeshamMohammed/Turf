@@ -61,7 +61,7 @@ func TestFinanceIsWorkedOutInTheCurrencyThatEarnsTheMost(t *testing.T) {
 		{Label: "Laptop", Category: "other", AmountMinor: 90000, Currency: "USD", Interval: "once"},
 		{Label: "Tool in euros", Category: "tools", AmountMinor: 500, Currency: "EUR", Interval: "monthly"},
 	}
-	f := financeFrom(sample(t), costs, nil, nil, at)
+	f := financeFrom(sample(t), costs, nil, nil, "", at)
 	if f.Currency != "USD" {
 		t.Fatalf("currency %s", f.Currency)
 	}
@@ -88,11 +88,11 @@ func TestFinanceIsWorkedOutInTheCurrencyThatEarnsTheMost(t *testing.T) {
 
 func TestReturnNeedsCostsAndBillingMayBeAbsent(t *testing.T) {
 	at := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
-	f := financeFrom(sample(t), nil, nil, nil, at)
+	f := financeFrom(sample(t), nil, nil, nil, "", at)
 	if f.ROIPercent != nil || f.ProfitMonthMinor != f.MRRMinor {
 		t.Fatalf("with no costs: %+v", f)
 	}
-	none := financeFrom(nil, nil, nil, nil, at)
+	none := financeFrom(nil, nil, nil, nil, "", at)
 	if none.Currency != "USD" || none.MRRMinor != 0 || none.ROIPercent != nil || len(none.ByMonth) != 0 {
 		t.Fatalf("with nothing: %+v", none)
 	}
@@ -113,7 +113,7 @@ func TestCostsThatFollowCustomersAreWorkedOutFromThisMonthsUsage(t *testing.T) {
 		{Kind: "payment_fee", PercentBP: 290, FixedMicros: 300000, Currency: "USD"}, // 2.9% + 0.30 a payment
 		{Kind: "minute", RateMicros: 99999, Currency: "EUR"},                        // another currency: not used
 	}
-	f := financeFrom(b, nil, rates, nil, at)
+	f := financeFrom(b, nil, rates, nil, "", at)
 	// 1,200 minutes at 0.0085 = 10.20; 50 GB at 0.02 = 1.00; 2.9% of 200.00 = 5.80 plus 3 payments at 0.30 = 0.90.
 	if f.Variable.VoipMinor != 1020 || f.Variable.StorageMinor != 100 || f.Variable.FeesMinor != 670 || f.Variable.TotalMinor != 1790 {
 		t.Fatalf("variable costs %+v", f.Variable)

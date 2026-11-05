@@ -381,7 +381,9 @@ type finance struct {
 }
 
 // financeFrom works out the money figures in the currency that earns the most. Costs in another currency are counted, not converted.
-func financeFrom(b *billingSummary, costs []costItem, rates []rateItem, fx *fxTable, at time.Time) finance {
+// financeFrom works the money figures out in `reporting` (the owner's main currency) when they chose one and there is a rate for it, and
+// otherwise in the currency that earns the most. Revenue, plan prices, costs and rates in any other currency are converted at the day's rate.
+func financeFrom(b *billingSummary, costs []costItem, rates []rateItem, fx *fxTable, reporting string, at time.Time) finance {
 	var paymentsThisMonth int64
 	f := finance{Currency: "USD", ByMonth: []monthRevenue{}, CostsByCategory: map[string]int64{}}
 	if b != nil {
@@ -400,24 +402,34 @@ func financeFrom(b *billingSummary, costs []costItem, rates []rateItem, fx *fxTa
 				best, f.Currency = total, currency
 			}
 		}
+		if reporting != "" && (reporting == f.Currency || (fx != nil && fx.Rates[reporting] > 0)) {
+			f.Currency = reporting
+		}
 		thisMonth, lastMonth := at.UTC().Format("2006-01"), at.UTC().AddDate(0, -1, 0).Format("2006-01")
+		months := map[string]int{} // a month paid in two currencies is one month once converted
 		for _, row := range b.RevenueByMonth {
-			if row.Currency != f.Currency {
+			amount, ok := fx.convert(row.AmountMinor, row.Currency, f.Currency)
+			if !ok {
 				continue
 			}
-			f.ByMonth = append(f.ByMonth, monthRevenue{Month: row.Month, AmountMinor: row.AmountMinor})
-			f.Revenue12Months += row.AmountMinor
+			if at, seen := months[row.Month]; seen {
+				f.ByMonth[at].AmountMinor += amount
+			} else {
+				months[row.Month] = len(f.ByMonth)
+				f.ByMonth = append(f.ByMonth, monthRevenue{Month: row.Month, AmountMinor: amount})
+			}
+			f.Revenue12Months += amount
 			switch row.Month {
 			case thisMonth:
-				f.RevenueThisMonth = row.AmountMinor
-				paymentsThisMonth = int64(row.Payments)
+				f.RevenueThisMonth += amount
+				paymentsThisMonth += int64(row.Payments)
 			case lastMonth:
-				f.RevenueLastMonth = row.AmountMinor
+				f.RevenueLastMonth += amount
 			}
 		}
 		for _, sub := range b.Subscriptions {
-			if sub.Currency == f.Currency && (sub.Status == "active" || sub.Status == "past_due") {
-				f.MRRMinor += sub.PriceMinor * int64(sub.Workspaces)
+			if price, ok := fx.convert(sub.PriceMinor, sub.Currency, f.Currency); ok && (sub.Status == "active" || sub.Status == "past_due") {
+				f.MRRMinor += price * int64(sub.Workspaces)
 			}
 		}
 	}
@@ -581,7 +593,10 @@ func (s *server) adminOverview(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		body["finance"] = financeFrom(b, costs, rates, s.fx.rates(ctx), at)
+		// The owner's main currency (set in their profile) is what the money is shown in; empty means the currency that earns the most.
+		var main string
+		_ = s.db.QueryRow(ctx, "SELECT currency FROM users WHERE id = $1", c.Sub).Scan(&main)
+		body["finance"] = financeFrom(b, costs, rates, s.fx.rates(ctx), main, at)
 	}
 	writeJSON(w, http.StatusOK, body)
 	return nil

@@ -128,7 +128,7 @@ func TestCostsAndRatesInAnotherCurrencyAreCountedAtTodaysRate(t *testing.T) {
 		{Label: "Designer", Category: "other", AmountMinor: 9999, Currency: "ZAR", Interval: "monthly"},          // no rate: left out
 	}
 	rates := []rateItem{{Kind: "minute", RateMicros: 4000, Currency: "EUR"}} // 0.004 euros a minute = 0.008 dollars
-	f := financeFrom(sample(t), costs, rates, fx, at)
+	f := financeFrom(sample(t), costs, rates, fx, "", at)
 	if f.MonthlyCostsMinor != 4000 || f.Converted != 2 || f.OtherCurrency != 1 || f.FXAsOf != "2026-11-05" {
 		t.Fatalf("converted %d, left out %d, monthly costs %d, as of %q", f.Converted, f.OtherCurrency, f.MonthlyCostsMinor, f.FXAsOf)
 	}
@@ -137,7 +137,7 @@ func TestCostsAndRatesInAnotherCurrencyAreCountedAtTodaysRate(t *testing.T) {
 		t.Fatalf("minutes cost %d", f.Variable.VoipMinor)
 	}
 	// Without rates the euro cost is left out, as before.
-	plain := financeFrom(sample(t), costs, rates, nil, at)
+	plain := financeFrom(sample(t), costs, rates, nil, "", at)
 	if plain.MonthlyCostsMinor != 0 || plain.Converted != 0 || plain.OtherCurrency != 3 || plain.Variable.VoipMinor != 0 {
 		t.Fatalf("without rates: %+v", plain)
 	}
@@ -159,7 +159,48 @@ func TestThePublicRatesAnswerNeedsNoSignIn(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil || got.Base != "USD" || got.Rates["EUR"] != 0.9 {
 		t.Fatalf("%v %+v", err, got)
 	}
-	if rec.Header().Get("Cache-Control") != "public, max-age=3600" {
-		t.Errorf("rates may be kept for an hour: %q", rec.Header().Get("Cache-Control"))
+	if rec.Header().Get("Cache-Control") != "private, max-age=3600" {
+		t.Errorf("rates may be kept by the browser for an hour, not shared: %q", rec.Header().Get("Cache-Control"))
+	}
+}
+
+func TestTheVisitorsCountryComesFromCloudflareOrIsLeftOut(t *testing.T) {
+	for header, want := range map[string]string{"EG": "EG", " gb ": "GB", "XX": "", "T1": "", "": "", "USA": "", "1A": "", "E1": ""} {
+		r := httptest.NewRequest(http.MethodGet, "/v1/fx", nil)
+		if header != "" {
+			r.Header.Set("CF-IPCountry", header)
+		}
+		if got := visitorCountry(r); got != want {
+			t.Errorf("%q gave %q, wanted %q", header, got, want)
+		}
+	}
+}
+
+func TestAMainCurrencyIsUsedWhenThereIsARateForIt(t *testing.T) {
+	at := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
+	fx := &fxTable{AsOf: "2026-11-05", Rates: map[string]float64{"USD": 1, "EUR": 0.5, "EGP": 50}}
+	b := sample(t) // revenue 200.00 this month in USD, and 10.00 in EUR; MRR 296.00 in USD
+	f := financeFrom(b, nil, nil, fx, "EGP", at)
+	if f.Currency != "EGP" {
+		t.Fatalf("reporting currency %s", f.Currency)
+	}
+	// 296.00 dollars at 50 is 14,800.00 pounds; this month 200.00 dollars is 10,000.00 and 10.00 euros is 1,000.00 (at 0.5 euros a dollar the euro is worth 2 dollars, 100 pounds).
+	if f.MRRMinor != 1_480_000 || f.RevenueThisMonth != 1_100_000 {
+		t.Fatalf("mrr %d, this month %d", f.MRRMinor, f.RevenueThisMonth)
+	}
+	months := map[string]int{}
+	for _, m := range f.ByMonth {
+		months[m.Month]++
+	}
+	if months["2026-11"] != 1 {
+		t.Fatalf("a month paid in two currencies must be one month: %+v", f.ByMonth)
+	}
+	// With no rates at all, a main currency that is not the earning one cannot be used: nothing crashes, the earning currency stays.
+	if g := financeFrom(b, nil, nil, nil, "EGP", at); g.Currency != "USD" || g.MRRMinor != 29600 {
+		t.Fatalf("without rates: %s %d", g.Currency, g.MRRMinor)
+	}
+	// A main currency with no rate is ignored too.
+	if g := financeFrom(b, nil, nil, fx, "ZAR", at); g.Currency != "USD" {
+		t.Fatalf("an unknown rate: %s", g.Currency)
 	}
 }

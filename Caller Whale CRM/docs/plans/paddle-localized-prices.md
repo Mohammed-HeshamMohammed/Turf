@@ -1,11 +1,13 @@
 # Exact prices in the visitor's currency, with tax, from Paddle
 
-**Status:** Proposed. Nothing here is built. The pricing page already shows an indicative price in the visitor's currency (exchange rates from the auth service, `GET /v1/fx`); this plan replaces that guess with Paddle's own answer.
+**Status:** Proposed, updated 2026-11-05 with your decisions: **build and test in Paddle's sandbox now, then add Stripe (in its test mode) the same way.** Nothing here is built.
+
+**Where currency lives today (built):** the pricing page shows plain US dollars and has no currency chooser. A person's *main currency* is an account setting (Profile, beside the connected accounts): automatic from where they are (the country Cloudflare sees, then their language) until they choose one. It is what their Costs rows and overview are shown in. Exchange rates (auth, `GET /v1/fx`) are for those dashboard sums only, never for what a customer is charged.
 **Date:** 2026-11-05
 
 ## Goal
 
-A visitor who builds a plan sees what will actually be taken from them: the amount in their currency, the sales tax or VAT for their country, and the total, before they press anything. Checkout then charges exactly that. Caller Whale never works out tax itself: Paddle is the merchant of record, so it owes and calculates the tax.
+A visitor who builds a plan sees what will actually be taken from them: the amount in their currency, the sales tax or VAT for their country, and the total, before they press anything, with **no chooser on the pricing page**: the currency and country are worked out automatically from where the visitor is (their IP address, which Paddle reads). Checkout then charges exactly that. Caller Whale never works out tax itself: Paddle is the merchant of record, so it owes and calculates the tax.
 
 ## What Paddle gives us (from its documentation)
 
@@ -33,13 +35,13 @@ The builder makes any mix of features, people and extras, so there are far too m
 ## What the visitor sees
 
 - Total in their currency, then "includes VAT of …" or "plus tax …", from Paddle's answer, not ours.
-- A country chooser (searchable, like the currency one) beside the currency, defaulting from their language. With no country, Paddle works it out from their IP address.
+- No currency or country chooser on the page. Paddle works both out from the visitor's IP address; a visitor who wants another country changes it at checkout.
 - A currency Paddle does not support: billed in US dollars, with the converted amount labelled "about" as it is now.
 - Checkout opens with the same item, so what they saw is what they pay. If it differs (a price changed in between), checkout shows the new one and the page says so.
 
 ## What you need to do in Paddle
 
-1. A **sandbox** account first, then live.
+1. A **Paddle sandbox** account now (live later, with the same steps). Nothing is built against live money until the sandbox flow passes.
 2. Turn on **automatic currency conversion** for the currencies you want to bill in, and set **price overrides** for any country where a round local price matters (for example Egypt, Vietnam).
 3. Make an **API key** (server side, secret: set it only in Coolify as `PADDLE_API_KEY`) and a **client-side token** (public, for the page).
 4. Say which countries you sell to, so tax settings and the country list match.
@@ -53,6 +55,18 @@ The builder makes any mix of features, people and extras, so there are far too m
 5. **Pricing page** wiring, country chooser, and the fallback.
 6. **Checkout** with the same server-priced item (separate plan, but it reuses 2 and 4).
 
+## Stripe, second, in its test mode
+
+Stripe is the second provider (bank debit and invoices for annual and large plans, per `docs/features/09-accounts-security-billing.md`). Differences that change the work, from Stripe's documentation ([Adaptive Pricing](https://docs.stripe.com/payments/checkout/adaptive-pricing), [Stripe Tax testing](https://docs.stripe.com/tax/testing)):
+
+- **Local currency** is Stripe's *Adaptive Pricing*, switched on in its payment settings separately for the test and live modes. It works with **Checkout Sessions only**, not the Payment Intents API, and needs the prices in a settlement currency. So a Stripe checkout is Stripe's hosted or embedded checkout, not a custom form.
+- **Tax stays in your base currency** with Adaptive Pricing: tax calculation, reporting and invoicing are in the integration currency, unlike Paddle, which handles it all.
+- **Stripe is not the merchant of record.** Caller Whale owes the sales tax and VAT, so Stripe Tax needs *registrations* added (even in test mode) for the places you collect tax. This is the biggest difference from Paddle and needs an accountant's answer before live.
+- **Testing a customer's country** in test mode: use an email with a `+location_XX` suffix (for example `test+location_FR@example.com`) to see the local currency.
+- Not confirmed from the sources: how to preview tax before payment outside Checkout. Read Stripe's Tax Calculation API reference at that step.
+
+Order: Paddle sandbox first (steps 1 to 5 below), then Stripe test mode behind the same server-priced selection, so the page shows one answer whichever provider the buyer will use.
+
 ## Risks
 
 - **Step 1 fails** (Paddle does not localize custom amounts): fall back to B, or create the few most-used plans as catalog prices and treat the rest as "custom, quoted at checkout".
@@ -64,4 +78,5 @@ The builder makes any mix of features, people and extras, so there are far too m
 
 1. Go with approach A if step 1 passes? (Recommended.)
 2. Which currencies to bill in, and any countries that need a fixed local price.
-3. Do you have a Paddle account yet, and is it sandbox or live?
+3. Paddle sandbox: please create the account and the two keys (API key for the server, client-side token for the page), and tell me when they are in Coolify, never in a chat or a file.
+4. Stripe test mode: the same, later, once Paddle's sandbox flow passes.
