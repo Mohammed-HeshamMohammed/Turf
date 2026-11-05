@@ -2,8 +2,8 @@
 
 This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in `Caller Whale CRM/` on `main`.
 
-- Last changed from `main` at `ce0c3be` (2026-11-03)
-- Content id: `060d40d1c4d301ea2ab6f0d9c337021e41fd83d8` (the branch is only refreshed when this changes)
+- Last changed from `main` at `16ea908` (2026-11-05)
+- Content id: `05c20f7a10cd61d7c29a6f4bf75d845259284d1c` (the branch is only refreshed when this changes)
 - Holds: `deploy/grafana`, `services/grafana-proxy`, `docs/plans/grafana-access.md`, `env/grafana.production.example`
 - 16 files
 - Build and test: go test ./... in services/grafana-proxy; in Coolify: a Docker Compose resource from this branch with deploy/grafana/compose.yml (deploy/grafana/README.md)

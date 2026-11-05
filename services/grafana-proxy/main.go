@@ -1,11 +1,11 @@
-// Grafana login proxy. Lets only Caller Whale's staff (the platform owner and system administrators, who passed the
-// authenticator step) into Grafana: it asks the core API who the person is (GET /api/v1/platform/whoami) and tells
+// Grafana login proxy. Lets only Caller Whale's platform owner, cofounder, and system administrators who passed the
+// authenticator step into Grafana: it asks Auth for the current account and platform role, then tells
 // Grafana in its auth-proxy headers. Grafana trusts those headers only from this proxy's address.
 // Plan: docs/plans/grafana-access.md.
 //
 // Sign-in: a visit without a session goes to the website's /admin/grafana, which posts the person's Caller Whale token to
 // /_callerwhale/session. The token stays in this process's memory, never in the cookie (a random session id) or a URL, and is
-// used to ask again at most once a RECHECK_EVERY. A refusal ends the session at once; a core API that can't be reached
+// used to ask again at most once a RECHECK_EVERY. A refusal ends the session at once; if Auth cannot be reached,
 // lets nobody through. Sessions live in memory, so run one copy; a restart only means signing in again.
 package main
 
@@ -37,7 +37,7 @@ const (
 type config struct {
 	basePath   string
 	grafana    *url.URL
-	coreAPI    string // the core API's base URL, no trailing slash
+	authURL    string // the auth service's base URL, no trailing slash
 	website    string // the website's base URL, no trailing slash
 	origin     string // the website's origin: the only page allowed to post a sign-in
 	recheck    time.Duration
@@ -64,7 +64,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 	if c.grafana, err = url.Parse(g); err != nil || c.grafana.Host == "" {
 		return c, errors.New("GRAFANA_URL is not a URL")
 	}
-	if c.coreAPI, err = need("CALLERWHALE_CORE_API_URL"); err != nil {
+	if c.authURL, err = need("CALLERWHALE_AUTH_URL"); err != nil {
 		return c, err
 	}
 	if c.website, err = need("CALLERWHALE_WEBSITE_URL"); err != nil {
@@ -120,14 +120,14 @@ type person struct {
 	Role  string `json:"role"`
 }
 
-// What the core API said about a token.
+// What Auth said about a token.
 type verdict int
 
 const (
 	allowed     verdict = iota
 	refused             // signed in, but not staff (403)
 	signInAgain         // no valid token, or the authenticator step is missing (401)
-	unavailable         // the core API could not answer
+	unavailable         // Auth could not answer
 )
 
 type session struct {
@@ -173,33 +173,59 @@ func newProxy(cfg config) *proxy {
 	return p
 }
 
-// whoami asks the core API whether the token belongs to Caller Whale staff.
+// whoami asks Auth to validate the session and MFA, then reads the current platform role.
 func (p *proxy) whoami(token string) (person, verdict) {
-	req, err := http.NewRequest(http.MethodGet, p.cfg.coreAPI+"/api/v1/platform/whoami", nil)
-	if err != nil {
-		return person{}, unavailable
-	}
-	req.Header.Set("authorization", "Bearer "+token)
-	res, err := p.client.Do(req)
-	if err != nil {
-		log.Printf("core API: %v", err)
-		return person{}, unavailable
-	}
-	defer res.Body.Close()
-	switch {
-	case res.StatusCode == http.StatusOK:
-		var who person
-		if json.NewDecoder(res.Body).Decode(&who) != nil || who.ID == "" || (who.Role != "owner" && who.Role != "admin") {
-			return person{}, unavailable
+	read := func(path string, result any) verdict {
+		req, err := http.NewRequest(http.MethodGet, p.cfg.authURL+path, nil)
+		if err != nil {
+			return unavailable
 		}
-		return who, allowed
-	case res.StatusCode == http.StatusUnauthorized:
-		return person{}, signInAgain
-	case res.StatusCode == http.StatusForbidden:
-		return person{}, refused
-	default:
-		log.Printf("core API: whoami answered %d", res.StatusCode)
+		req.Header.Set("authorization", "Bearer "+token)
+		res, err := p.client.Do(req)
+		if err != nil {
+			log.Printf("auth: %v", err)
+			return unavailable
+		}
+		defer res.Body.Close()
+		switch res.StatusCode {
+		case http.StatusOK:
+			if json.NewDecoder(res.Body).Decode(result) != nil {
+				return unavailable
+			}
+			return allowed
+		case http.StatusUnauthorized:
+			return signInAgain
+		case http.StatusForbidden:
+			return refused
+		default:
+			log.Printf("auth: %s answered %d", path, res.StatusCode)
+			return unavailable
+		}
+	}
+	var account struct {
+		ID, Email, Name string
+		MFAPassed       bool `json:"mfa_passed"`
+	}
+	if v := read("/v1/me", &account); v != allowed {
+		return person{}, v
+	}
+	if account.ID == "" || account.Email == "" {
 		return person{}, unavailable
+	}
+	if !account.MFAPassed {
+		return person{}, signInAgain
+	}
+	var access struct {
+		PlatformRole string `json:"platform_role"`
+	}
+	if v := read("/v1/me/access", &access); v != allowed {
+		return person{}, v
+	}
+	switch access.PlatformRole {
+	case "owner", "cofounder", "system_admin":
+		return person{ID: account.ID, Email: account.Email, Name: account.Name, Role: access.PlatformRole}, allowed
+	default:
+		return person{}, refused
 	}
 }
 
@@ -231,7 +257,7 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// signIn takes the token the website posts, and opens a session if the core API says the person is staff.
+// signIn takes the token the website posts, and opens a session if Auth says the person is staff.
 func (p *proxy) signIn(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		page(w, http.StatusMethodNotAllowed, "Not here", "Open Grafana from Caller Whale's admin dashboard.")
@@ -249,7 +275,7 @@ func (p *proxy) signIn(w http.ResponseWriter, r *http.Request) {
 	}
 	token := r.PostForm.Get("token")
 	// Admin mode starts from a recent sign-in: an old token (or one without a sign-in time) is not enough, even when the
-	// core API still accepts it. The core API has already checked the token's signature by the time this is trusted.
+	// Auth still accepts it. Auth checks the token's signature before the claims are trusted.
 	at := signedInAt(token)
 	if at.After(p.now()) || p.now().Sub(at) > p.cfg.authWithin || !hasMFA(token) {
 		page(w, http.StatusUnauthorized, "Sign in again", "Admin mode needs a recent sign-in with your authenticator code. Sign in to Caller Whale again, then start admin mode.")
@@ -356,9 +382,9 @@ func (p *proxy) forward(w http.ResponseWriter, r *http.Request) {
 		case allowed:
 			s.person, s.checked = who, now
 		case unavailable:
-			// Fail closed, but keep the session: it works again once the core API answers.
+			// Fail closed, but keep the session: it works again once Auth answers.
 			s.mu.Unlock()
-			page(w, http.StatusServiceUnavailable, "Can't check your access", "Caller Whale's API is not answering. Try again in a minute.")
+			page(w, http.StatusServiceUnavailable, "Can't check your access", "Caller Whale's sign-in service is not answering. Try again in a minute.")
 			return
 		default:
 			s.mu.Unlock()
@@ -390,7 +416,7 @@ func (p *proxy) forward(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *proxy) grafanaRole(role string) string {
-	if role == "owner" {
+	if role == "owner" || role == "cofounder" {
 		return "Admin"
 	}
 	return p.cfg.adminRole
@@ -399,11 +425,11 @@ func (p *proxy) grafanaRole(role string) string {
 func (p *proxy) deny(w http.ResponseWriter, r *http.Request, v verdict) {
 	switch v {
 	case refused:
-		page(w, http.StatusForbidden, "Grafana is for Caller Whale's staff", "Only the platform owner and system administrators can open it.")
+		page(w, http.StatusForbidden, "Grafana is for Caller Whale's staff", "Only the platform owner, cofounder, and system administrators can open it.")
 	case signInAgain:
 		p.toSignIn(w, r)
 	default:
-		page(w, http.StatusServiceUnavailable, "Can't check your access", "Caller Whale's API is not answering. Try again in a minute.")
+		page(w, http.StatusServiceUnavailable, "Can't check your access", "Caller Whale's sign-in service is not answering. Try again in a minute.")
 	}
 }
 

@@ -24,11 +24,11 @@ services:
       GRAFANA_BASE_PATH: /staff/monitoring
       # Private Grafana HTTP origin reached by the proxy. Keep on the private monitoring network; not a browser-facing address.
       GRAFANA_URL: http://172.30.10.20:3000
-      # Trusted core API/gateway base URL used to recheck staff identity. If unreachable or refusing access, the proxy fails closed.
-      CALLERWHALE_CORE_API_URL: "${CALLERWHALE_CORE_API_URL:?set CALLERWHALE_CORE_API_URL, the core API's address}"
+      # Auth service URL used to validate sessions, MFA, and current platform role. The proxy fails closed when Auth is unavailable.
+      CALLERWHALE_AUTH_URL: "${CALLERWHALE_AUTH_URL:?set CALLERWHALE_AUTH_URL, the auth service's address}"
       # Trusted website origin allowed to frame Grafana and post the session handoff. Must match the website hosting Dashboard admin mode.
       CALLERWHALE_WEBSITE_URL: "${CALLERWHALE_WEBSITE_URL:?set CALLERWHALE_WEBSITE_URL, the website with the admin dashboard}"
-      # Grafana role for system administrators: Viewer, Editor or Admin; default Editor. Platform owner remains Admin. Raising it grants more dashboard permissions.
+      # Grafana role for system administrators: Viewer, Editor or Admin; default Editor. Platform owner and cofounder remain Admin. Raising it grants more dashboard permissions.
       ADMIN_GRAFANA_ROLE: "${ADMIN_GRAFANA_ROLE:-Editor}"
       # Maximum interval between staff authorization rechecks; default 60s. Shorter intervals increase API traffic; revocation is checked on subsequent requests.
       RECHECK_EVERY: "${RECHECK_EVERY:-60s}"
@@ -102,7 +102,7 @@ services:
       GF_USERS_ALLOW_ORG_CREATE: "false"
       # Signing out of Grafana signs out of the proxy.
       # Logout redirect to the protected proxy's /_callerwhale/logout endpoint. Must match its public monitoring subpath to end the proxy session.
-      GF_AUTH_SIGNOUT_REDIRECT_URL: "${GRAFANA_PUBLIC_URL}/_callerwhale/logout"
+      GF_AUTH_SIGNOUT_REDIRECT_URL: "${GRAFANA_PUBLIC_URL}_callerwhale/logout"
       # false disables Grafana usage analytics reporting. Changing it enables outbound reporting; unrelated to Caller Whale operational metrics.
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       # false disables Grafana's automatic update checks. Container upgrades are handled through deployment instead.
