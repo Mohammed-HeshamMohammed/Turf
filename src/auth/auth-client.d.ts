@@ -14,6 +14,7 @@ export interface Me {
   name: string;
 	phone?: string;
 	avatar?: string;
+	currency?: string;
 	mfa_enrolled?: boolean;
 	mfa_passed?: boolean;
   mfa?: boolean;

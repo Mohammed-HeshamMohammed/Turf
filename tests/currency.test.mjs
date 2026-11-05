@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { currencyCodes, currencyDigits, currencyForLocale, currencyName, filterCurrencies, showAmount } from "../src/currency.ts";
+import { convertMinor, currencyCodes, currencyDigits, currencyForCountry, currencyForLocale, currencyName, filterCurrencies, formatMinor, showAmount } from "../src/currency.ts";
 
 test("the list has real currencies, once each, in order", () => {
   const codes = currencyCodes();
@@ -45,4 +45,25 @@ test("an amount in dollars reads in another currency, or stays in dollars when t
   assert.equal(currencyDigits("JPY"), 0);
   assert.equal(currencyDigits("USD"), 2);
   assert.equal(currencyDigits("KWD"), 3);
+});
+
+test("a country says which currency to start with, and an unknown one says nothing", () => {
+  assert.equal(currencyForCountry("EG"), "EGP");
+  assert.equal(currencyForCountry("gb"), "GBP");
+  assert.equal(currencyForCountry("DE"), "EUR");
+  assert.equal(currencyForCountry("ZZ"), "");
+  assert.equal(currencyForCountry(""), "");
+});
+
+test("a cost in one currency is read in another by each one's own decimals", () => {
+  const rates = { base: "USD", as_of: "2026-11-05", rates: { USD: 1, EUR: 0.9, EGP: 50, JPY: 150, KWD: 0.3 } };
+  assert.equal(convertMinor(10000, "USD", "EUR", rates), 9000);
+  assert.equal(convertMinor(9000, "EUR", "USD", rates), 10000);
+  assert.equal(convertMinor(10000, "USD", "JPY", rates), 15000);
+  assert.equal(convertMinor(10000, "USD", "KWD", rates), 30000);
+  assert.equal(convertMinor(500, "EGP", "EGP", rates), 500);
+  assert.equal(convertMinor(500, "ZAR", "USD", rates), null);
+  assert.equal(convertMinor(500, "USD", "EUR", null), null);
+  assert.equal(formatMinor(500000, "EGP", "en").replace(/\s/g, " "), "EGP 5,000.00");
+  assert.equal(formatMinor(15000, "JPY", "en").replace(/\s/g, " ").includes("15,000"), true);
 });

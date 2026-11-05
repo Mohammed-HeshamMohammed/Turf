@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Link } from "./nav.tsx";
 import { PlanBuilder } from "./pricing/PlanBuilder.tsx";
-import { CurrencyBar, DisplayCurrencyProvider, useMoney } from "./pricing/display-currency.tsx";
 import { faqs, priceRows, tiers } from "./pricing/content.ts";
 import { ALL_IN, MORE_PLANS, quote, tierPrice, type Selection } from "./pricing/plan.ts";
 
+
+const money = (n: number) => `$${n.toLocaleString("en-US")}`;
 
 function PageHead({ eyebrow, title, lead }: { eyebrow: string; title: string; lead: string }) {
   return (
@@ -33,11 +34,6 @@ function Faq() {
 }
 
 export function Pricing() {
-  return <DisplayCurrencyProvider><PricingPage /></DisplayCurrencyProvider>;
-}
-
-function PricingPage() {
-  const money = useMoney();
   const cols = tiers;
   // "Customize" on a plan card loads it into the builder (a new key remounts the builder with that selection).
   const [seed, setSeed] = useState<{ n: number; selection: Selection | null }>({ n: 0, selection: null });
@@ -48,7 +44,6 @@ function PricingPage() {
         title="Build the plan you need."
         lead="Switch features on and off and pay only for what you use. The ready-made plans are just starting points. These are draft launch prices and may change before launch. Checkout is not open yet."
       />
-      <section className="section" id="currency"><CurrencyBar /></section>
       <section className="section" id="builder">
         <PlanBuilder key={seed.n} initial={seed.selection} />
       </section>

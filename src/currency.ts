@@ -47,6 +47,26 @@ const BY_REGION: Record<string, string> = {
   LU: "EUR", LV: "EUR", MT: "EUR", NL: "EUR", PT: "EUR", SI: "EUR", SK: "EUR",
 };
 
+/** The currency used in a country (two letters, like "EG"), or "" when it is not one this list knows. */
+export const currencyForCountry = (country: string) => BY_REGION[country.toUpperCase()] || "";
+
+/** An amount in one currency's minor unit (cents) as the same amount in another's, or null when there is no rate for either. */
+export function convertMinor(minor: number, from: string, to: string, rates: Rates | null): number | null {
+  if (from === to) return minor;
+  const a = rates?.rates[from], b = rates?.rates[to];
+  if (!a || !b) return null;
+  return Math.round(minor / 10 ** currencyDigits(from) / a * b * 10 ** currencyDigits(to));
+}
+
+/** An amount in a currency's minor unit, written for people ("EGP 5,000.00"). */
+export function formatMinor(minor: number, currency: string, locale?: string): string {
+  try {
+    return new Intl.NumberFormat(locale, { style: "currency", currency }).format(minor / 10 ** currencyDigits(currency));
+  } catch {
+    return `${currency} ${(minor / 100).toFixed(2)}`;
+  }
+}
+
 /** The currency most likely used where a language tag says the person is (en-GB: GBP). US dollars when it cannot tell. */
 export function currencyForLocale(tag: string | undefined): string {
   try {

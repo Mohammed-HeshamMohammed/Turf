@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { workspaceRoleName } from "./roles.ts";
 import { CurrencySelect } from "./CurrencySelect.tsx";
+import { convertMinor, formatMinor, type Rates } from "./currency.ts";
+import { useMainCurrency } from "./MainCurrency.tsx";
 import type { Auth } from "./auth/auth-client.js";
 import { SecondStep, needsSecondStep, useSecondStep } from "./SecondStep.tsx";
 
@@ -147,7 +149,8 @@ export function MembersTable({ request, canGive = false, auth }: { request: Api;
 
 type Cost = { id: string; label: string; category: string; amount_minor: number; currency: string; interval: string; note: string };
 
-export function CostsManager({ request, auth }: { request: Api; auth: Auth }) {
+export function CostsManager({ request, auth, saved }: { request: Api; auth: Auth; saved?: string }) {
+  const main = useMainCurrency(() => request("GET", "/v1/fx"), saved);
   const [again, setAgain] = useState(0);
   const { data, error, loading } = useLoad<{ costs: Cost[] }>(request, "/v1/admin/costs", again);
   const [label, setLabel] = useState("");
@@ -203,12 +206,12 @@ export function CostsManager({ request, auth }: { request: Api; auth: Auth }) {
         {message && <p className="notice bad" role="alert">{message}</p>}
       </form>
     </section>
-    <RatesManager request={request} auth={auth} />
+    <RatesManager request={request} auth={auth} main={main} />
     <section className="admin-team card" aria-labelledby="costs-list-title">
       <div className="admin-section-heading"><div><h2 id="costs-list-title">Costs entered</h2><p className="muted">{costs.length ? `About ${money(monthly, costs[0]?.currency || "USD")} a month in ${costs[0]?.currency || "USD"}.` : "Nothing yet."}</p></div></div>
       {loading && !data ? <p role="status" className="muted">Loading…</p> : error ? <p className="notice bad" role="alert">{error}</p> : costs.length === 0 ? <div className="admin-empty"><h3>No costs yet</h3><p>Add what you pay for, and the overview will show profit and return.</p></div> :
         <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th scope="col">Cost</th><th scope="col">Type</th><th scope="col">Amount</th><th scope="col">Paid</th><th scope="col"><span className="sr-only">Action</span></th></tr></thead><tbody>{costs.map(cost => <tr key={cost.id}>
-          <td data-label="Cost"><strong>{cost.label}</strong>{cost.note && <small className="owner-sub">{cost.note}</small>}</td><td data-label="Type">{categoryNames[cost.category] || cost.category}</td><td data-label="Amount">{money(cost.amount_minor, cost.currency)}</td><td data-label="Paid">{cost.interval === "monthly" ? "Every month" : cost.interval === "yearly" ? "Every year" : "Once"}</td>
+          <td data-label="Cost"><strong>{cost.label}</strong>{cost.note && <small className="owner-sub">{cost.note}</small>}</td><td data-label="Type">{categoryNames[cost.category] || cost.category}</td><td data-label="Amount">{money(cost.amount_minor, cost.currency)}{inMain(cost.amount_minor, cost.currency, main)}</td><td data-label="Paid">{cost.interval === "monthly" ? "Every month" : cost.interval === "yearly" ? "Every year" : "Once"}</td>
           <td data-label="Action"><button type="button" className="staff-text-button" disabled={busy} onClick={() => void remove(cost.id)}>Remove</button></td></tr>)}</tbody></table></div>}
     </section>
   </div>;
@@ -220,7 +223,7 @@ const toMicros = (text: string) => Math.round(Number(text) * 1_000_000);
 const fromMicros = (micros: number, currency: string) => new Intl.NumberFormat(undefined, { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(micros / 1_000_000);
 
 /** The costs that follow customers: what the provider charges per call minute and per GB, and the payment provider's cut of each payment. */
-function RatesManager({ request, auth }: { request: Api; auth: Auth }) {
+function RatesManager({ request, auth, main }: { request: Api; auth: Auth; main: { currency: string; rates: Rates | null } }) {
   const [again, setAgain] = useState(0);
   const { data, error, loading } = useLoad<{ rates: Rate[] }>(request, "/v1/admin/rates", again);
   const [kind, setKind] = useState("minute");
@@ -280,7 +283,7 @@ function RatesManager({ request, auth }: { request: Api; auth: Auth }) {
     </form>
     {loading && !data ? <p role="status" className="muted">Loading…</p> : error ? <p className="notice bad" role="alert">{error}</p> : rates.length > 0 && <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th scope="col">Rate</th><th scope="col">For</th><th scope="col">Price</th><th scope="col"><span className="sr-only">Action</span></th></tr></thead><tbody>{rates.map(rate => <tr key={rate.id}>
       <td data-label="Rate"><strong>{rate.label}</strong></td><td data-label="For">{kindNames[rate.kind] || rate.kind}</td>
-      <td data-label="Price">{rate.kind === "payment_fee" ? `${rate.percent_bp / 100}%${rate.fixed_micros ? ` + ${fromMicros(rate.fixed_micros, rate.currency)}` : ""} per payment` : rate.kind === "gb" ? `${fromMicros(rate.rate_micros, rate.currency)} × ${rate.quantity.toLocaleString()} GB a month` : `${fromMicros(rate.rate_micros, rate.currency)} a minute`}</td>
+      <td data-label="Price">{rate.kind === "payment_fee" ? `${rate.percent_bp / 100}%${rate.fixed_micros ? ` + ${fromMicros(rate.fixed_micros, rate.currency)}` : ""} per payment` : rate.kind === "gb" ? `${fromMicros(rate.rate_micros, rate.currency)} × ${rate.quantity.toLocaleString()} GB a month` : `${fromMicros(rate.rate_micros, rate.currency)} a minute`}{rate.kind !== "payment_fee" && main.rates && rate.currency !== main.currency && main.rates.rates[rate.currency] && main.rates.rates[main.currency] ? <small className="owner-sub">≈ {fromMicros(Math.round(rate.rate_micros * main.rates.rates[main.currency] / main.rates.rates[rate.currency]), main.currency)}{rate.kind === "gb" ? " per GB" : " a minute"}</small> : null}</td>
       <td data-label="Action"><button type="button" className="staff-text-button" disabled={busy} onClick={() => void remove(rate.id)}>Remove</button></td></tr>)}</tbody></table></div>}
   </section>;
 }
@@ -345,4 +348,11 @@ function GiveMembership({ request, auth, member, onClose, onGiven }: { request: 
       {message && <p className="notice bad" role="alert">{message}</p>}
     </form>}
   </section>;
+}
+
+/** A cost in another currency also read in the person's main currency, at today's rate, under the amount. */
+function inMain(minor: number, currency: string, main: { currency: string; rates: Rates | null }) {
+  if (currency === main.currency) return null;
+  const converted = convertMinor(minor, currency, main.currency, main.rates);
+  return converted === null ? null : <small className="owner-sub">≈ {formatMinor(converted, main.currency)}</small>;
 }
