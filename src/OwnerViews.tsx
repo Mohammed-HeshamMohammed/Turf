@@ -43,7 +43,10 @@ type Overview = {
   people: { accounts: number; staff: number; members: number; new_7_days: number; new_30_days: number; email_verified: number; two_step: number; active_7_days: number; active_30_days: number; signups_by_day: { day: string; count: number }[] };
   plans: Plan[]; most_requested_plan?: Plan; billing_connected: boolean;
   usage: { connected: boolean; minutes_this_month: number; credits_this_month: number; top: { kind: string; label: string; total: number }[] };
-  finance?: { currency: string; mrr_minor: number; revenue_this_month_minor: number; revenue_last_month_minor: number; revenue_12_months_minor: number; monthly_costs_minor: number; one_off_costs_minor: number; profit_month_minor: number; roi_percent: number | null; revenue_by_month: { month: string; amount_minor: number }[]; costs_by_category: Record<string, number>; other_currency_costs: number };
+  finance?: { currency: string; mrr_minor: number; revenue_this_month_minor: number; revenue_last_month_minor: number; revenue_12_months_minor: number; monthly_costs_minor: number; one_off_costs_minor: number; profit_month_minor: number; roi_percent: number | null; revenue_by_month: { month: string; amount_minor: number }[]; costs_by_category: Record<string, number>; other_currency_costs: number;
+    variable_costs: { voip_minor: number; storage_minor: number; fees_minor: number; total_minor: number }; gross_profit_month_minor: number; gross_margin_percent: number | null;
+    variable_costs_estimate_month_minor: number; total_monthly_costs_minor: number; rates_entered: number;
+    quota: { near_limit: { workspace: string; plan: string; used: number; allowed: number; percent: number }[]; over_allowance_minutes: number; over_allowance_cost_minor: number; workspaces_over_allowance: number } };
 };
 
 const categoryNames: Record<string, string> = { hosting: "Hosting", tools: "Tools", marketing: "Marketing", staff_pay: "Staff pay", other: "Other" };
@@ -65,10 +68,26 @@ export function PlatformOverview({ request, openCosts }: { request: Api; openCos
       <div className="admin-metrics" aria-label="Money">
         <div><span>Monthly recurring revenue</span><strong>{money(finance.mrr_minor, finance.currency)}</strong><small>From paying workspaces</small></div>
         <div><span>Revenue this month</span><strong>{money(finance.revenue_this_month_minor, finance.currency)}</strong><small>Last month {money(finance.revenue_last_month_minor, finance.currency)}</small></div>
-        <div><span>Monthly profit</span><strong className={finance.profit_month_minor < 0 ? "owner-negative" : undefined}>{money(finance.profit_month_minor, finance.currency)}</strong><small>Recurring revenue minus {money(finance.monthly_costs_minor, finance.currency)} costs</small></div>
-        <div><span>Return on costs (ROI)</span><strong className={finance.roi_percent !== null && finance.roi_percent < 0 ? "owner-negative" : undefined}>{finance.roi_percent === null ? "—" : `${Math.round(finance.roi_percent)}%`}</strong><small>{finance.roi_percent === null ? "Enter your costs to see it" : "Profit divided by monthly costs"}</small></div>
+        <div><span>Monthly profit</span><strong className={finance.profit_month_minor < 0 ? "owner-negative" : undefined}>{money(finance.profit_month_minor, finance.currency)}</strong><small>Recurring revenue minus {money(finance.total_monthly_costs_minor, finance.currency)} costs</small></div>
+        <div><span>Return on costs (ROI)</span><strong className={finance.roi_percent !== null && finance.roi_percent < 0 ? "owner-negative" : undefined}>{finance.roi_percent === null ? "—" : `${Math.round(finance.roi_percent)}%`}</strong><small>{finance.roi_percent === null ? "Enter your costs to see it" : "Profit divided by all monthly costs"}</small></div>
       </div>
-      {finance.monthly_costs_minor === 0 && openCosts && <p className="notice" role="note">No costs entered yet, so profit equals revenue and there is no ROI. <button type="button" className="staff-text-button" onClick={openCosts}>Enter your costs</button></p>}
+      {finance.total_monthly_costs_minor === 0 && openCosts && <p className="notice" role="note">No costs entered yet, so profit equals revenue and there is no ROI. <button type="button" className="staff-text-button" onClick={openCosts}>Enter your costs and rates</button></p>}
+      <section className="card" aria-labelledby="owner-margin-title">
+        <span className="eyebrow">Per customer</span><h2 id="owner-margin-title">What each month's customers cost you</h2>
+        {finance.rates_entered === 0 ? <p className="muted">Enter your provider's price per call minute, your storage and the payment fee in the Costs tab, and this shows what your customers' usage costs you. {openCosts && <button type="button" className="staff-text-button" onClick={openCosts}>Enter rates</button>}</p> : <>
+          <p className="muted">So far this month: {money(finance.revenue_this_month_minor, finance.currency)} taken, {money(finance.variable_costs.total_minor, finance.currency)} paid out because of it.{finance.gross_margin_percent !== null && <> You keep <strong>{Math.round(finance.gross_margin_percent)}%</strong> of every payment after these costs.</>}</p>
+          <ul className="owner-list">
+            <li><span>Call minutes<small>VOIP provider, per minute used</small></span><strong>{money(finance.variable_costs.voip_minor, finance.currency)}</strong></li>
+            <li><span>Storage and data<small>per GB, as you entered</small></span><strong>{money(finance.variable_costs.storage_minor, finance.currency)}</strong></li>
+            <li><span>Payment provider fees<small>percent and fixed part of each payment</small></span><strong>{money(finance.variable_costs.fees_minor, finance.currency)}</strong></li>
+            <li><span>Gross profit so far</span><strong className={finance.gross_profit_month_minor < 0 ? "owner-negative" : undefined}>{money(finance.gross_profit_month_minor, finance.currency)}</strong></li>
+          </ul></>}
+      </section>
+      <section className="card" aria-labelledby="owner-quota-title">
+        <span className="eyebrow">Minutes bank</span><h2 id="owner-quota-title">Who is close to their minutes</h2>
+        <p className="muted">{finance.quota.near_limit.length === 0 ? "Nobody is close to the minutes their plan includes." : `${plural(finance.quota.near_limit.length, "workspace")} at 90% or more of their plan's minutes.`}{finance.quota.over_allowance_minutes > 0 && ` ${finance.quota.over_allowance_minutes.toLocaleString()} minutes have been used past the plans' allowances${finance.quota.over_allowance_cost_minor > 0 ? `, about ${money(finance.quota.over_allowance_cost_minor, finance.currency)} at your per-minute price` : ""}. Those are the minutes to buy for customers.`}</p>
+        {finance.quota.near_limit.length > 0 && <ul className="owner-list">{finance.quota.near_limit.map(row => <li key={row.workspace}><span>Workspace {row.workspace}<small>{row.plan} plan</small></span><strong>{row.used.toLocaleString()} of {row.allowed.toLocaleString()} ({Math.round(row.percent)}%)</strong></li>)}</ul>}
+      </section>
       {finance.other_currency_costs > 0 && <p className="notice" role="note">{plural(finance.other_currency_costs, "cost")} in another currency are not counted. Costs are added up in {finance.currency}, the currency that earns the most.</p>}
     </> : null}
     <section className="admin-overview-panels" aria-label="Trends">
@@ -165,6 +184,7 @@ export function CostsManager({ request }: { request: Api }) {
         {message && <p className="notice bad" role="alert">{message}</p>}
       </form>
     </section>
+    <RatesManager request={request} />
     <section className="admin-team card" aria-labelledby="costs-list-title">
       <div className="admin-section-heading"><div><h2 id="costs-list-title">Costs entered</h2><p className="muted">{costs.length ? `About ${money(monthly, costs[0]?.currency || "USD")} a month in ${costs[0]?.currency || "USD"}.` : "Nothing yet."}</p></div></div>
       {loading && !data ? <p role="status" className="muted">Loading…</p> : error ? <p className="notice bad" role="alert">{error}</p> : costs.length === 0 ? <div className="admin-empty"><h3>No costs yet</h3><p>Add what you pay for, and the overview will show profit and return.</p></div> :
@@ -173,4 +193,66 @@ export function CostsManager({ request }: { request: Api }) {
           <td data-label="Action"><button type="button" className="staff-text-button" disabled={busy} onClick={() => void remove(cost.id)}>Remove</button></td></tr>)}</tbody></table></div>}
     </section>
   </div>;
+}
+
+type Rate = { id: string; label: string; kind: string; rate_micros: number; quantity: number; percent_bp: number; fixed_micros: number; currency: string; note: string };
+const kindNames: Record<string, string> = { minute: "Per call minute", gb: "Per GB of storage or data", payment_fee: "Payment provider fee" };
+const toMicros = (text: string) => Math.round(Number(text) * 1_000_000);
+const fromMicros = (micros: number, currency: string) => new Intl.NumberFormat(undefined, { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(micros / 1_000_000);
+
+/** The costs that follow customers: what the provider charges per call minute and per GB, and the payment provider's cut of each payment. */
+function RatesManager({ request }: { request: Api }) {
+  const [again, setAgain] = useState(0);
+  const { data, error, loading } = useLoad<{ rates: Rate[] }>(request, "/v1/admin/rates", again);
+  const [kind, setKind] = useState("minute");
+  const [label, setLabel] = useState("");
+  const [price, setPrice] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [percent, setPercent] = useState("");
+  const [fixed, setFixed] = useState("");
+  const [currency, setCurrency] = useState("USD");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const add = async (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true); setMessage("");
+    try {
+      await request("POST", "/v1/admin/rates", {
+        label, kind, currency: currency.toUpperCase(),
+        ...(kind === "payment_fee" ? { percent_bp: Math.round(Number(percent || 0) * 100), fixed_micros: toMicros(fixed || "0") } : { rate_micros: toMicros(price), ...(kind === "gb" ? { quantity: Math.round(Number(quantity || 0)) } : {}) }),
+      });
+      setLabel(""); setPrice(""); setQuantity(""); setPercent(""); setFixed(""); setAgain(count => count + 1);
+    } catch (problem) { setMessage(problem instanceof Error ? problem.message : "Could not save that rate."); }
+    setBusy(false);
+  };
+  const remove = async (id: string) => {
+    setBusy(true); setMessage("");
+    try { await request("DELETE", `/v1/admin/rates/${id}`); setAgain(count => count + 1); }
+    catch (problem) { setMessage(problem instanceof Error ? problem.message : "Could not remove that rate."); }
+    setBusy(false);
+  };
+  const rates = data?.rates || [];
+  return <section className="admin-manage card" aria-labelledby="rates-title">
+    <div><span className="eyebrow">Costs that follow customers</span><h2 id="rates-title">What you pay when customers pay or use the service</h2><p className="muted">Each plan sells unlimited calls on a real minutes allowance. Enter what your provider charges per minute (including the extra minutes you buy for customers near their limit), your storage price and the payment fee. The overview multiplies these by what customers actually used and paid this month.</p></div>
+    <form className="staff-form" onSubmit={add}>
+      <div className="staff-fields">
+        <label>What for<select value={kind} onChange={event => setKind(event.target.value)}>{Object.entries(kindNames).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>
+        <label>Name<input required maxLength={80} value={label} onChange={event => setLabel(event.target.value)} placeholder={kind === "minute" ? "VOIP provider" : kind === "gb" ? "Storage" : "Paddle fee"} /></label>
+        {kind === "payment_fee" ? <>
+          <label>Percent of each payment<input inputMode="decimal" value={percent} onChange={event => setPercent(event.target.value.replace(/[^0-9.]/g, ""))} placeholder="5" /></label>
+          <label>Plus a fixed amount per payment<input inputMode="decimal" value={fixed} onChange={event => setFixed(event.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.50" /></label>
+        </> : <>
+          <label>{kind === "minute" ? "Price of one minute" : "Price of one GB"}<input required inputMode="decimal" value={price} onChange={event => setPrice(event.target.value.replace(/[^0-9.]/g, ""))} placeholder={kind === "minute" ? "0.0085" : "0.02"} /></label>
+          {kind === "gb" && <label>GB used each month<input required inputMode="numeric" value={quantity} onChange={event => setQuantity(event.target.value.replace(/\D/g, ""))} placeholder="50" /></label>}
+        </>}
+        <label>Currency<input required maxLength={3} value={currency} onChange={event => setCurrency(event.target.value.toUpperCase())} /></label>
+        <button className="button primary" disabled={busy}>{busy ? "Saving…" : "Add rate"}</button>
+      </div>
+      {message && <p className="notice bad" role="alert">{message}</p>}
+    </form>
+    {loading && !data ? <p role="status" className="muted">Loading…</p> : error ? <p className="notice bad" role="alert">{error}</p> : rates.length > 0 && <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th scope="col">Rate</th><th scope="col">For</th><th scope="col">Price</th><th scope="col"><span className="sr-only">Action</span></th></tr></thead><tbody>{rates.map(rate => <tr key={rate.id}>
+      <td data-label="Rate"><strong>{rate.label}</strong></td><td data-label="For">{kindNames[rate.kind] || rate.kind}</td>
+      <td data-label="Price">{rate.kind === "payment_fee" ? `${rate.percent_bp / 100}%${rate.fixed_micros ? ` + ${fromMicros(rate.fixed_micros, rate.currency)}` : ""} per payment` : rate.kind === "gb" ? `${fromMicros(rate.rate_micros, rate.currency)} × ${rate.quantity.toLocaleString()} GB a month` : `${fromMicros(rate.rate_micros, rate.currency)} a minute`}</td>
+      <td data-label="Action"><button type="button" className="staff-text-button" disabled={busy} onClick={() => void remove(rate.id)}>Remove</button></td></tr>)}</tbody></table></div>}
+  </section>;
 }
