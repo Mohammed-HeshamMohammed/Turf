@@ -3,6 +3,7 @@ import type { Auth, Me } from "./auth/auth-client.js";
 import { Link } from "./nav.tsx";
 import { RoleBadges, type Access } from "./RoleBadges.tsx";
 import { PLATFORM_ROLES } from "./roles.ts";
+import { ApiError } from "./SecondStep.tsx";
 import { CostsManager, MembersTable, PlatformOverview } from "./OwnerViews.tsx";
 import { InviteManager, PendingInvitations, WorkspaceManager, WorkspaceSecondStep } from "./AccessManagement.tsx";
 import { MonitoringPanel } from "./MonitoringPanel.tsx";
@@ -84,8 +85,10 @@ function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: 
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!response.ok) {
+      const problem = await response.json().catch(() => null) as { error?: string; code?: string } | null;
+      // A second step done just now is asked for in place, so the screen keeps the code (step_up_required) and lets the person act on it.
+      if (problem?.code === "step_up_required") throw new ApiError(problem.error || "Confirm it's you with your authenticator code.", problem.code);
       if (response.status === 403) throw new Error("A verified second step and the required staff role are needed.");
-      const problem = await response.json().catch(() => null) as { error?: string } | null;
       throw new Error(problem?.error || "Staff information is unavailable. Try again.");
     }
     return response.json();
@@ -189,7 +192,7 @@ function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: 
     {recovery.length > 0 && <div className="staff-recovery" role="status"><span className="eyebrow">One-time backup</span><h3>Save your recovery codes</h3><p>These codes can restore staff access if you lose your authenticator. Each code works once. They will not be shown again after you leave this page.</p><ol>{recovery.map(value => <li key={value}><code>{value}</code></li>)}</ol><div className="staff-recovery-actions"><button type="button" className="button raised" onClick={() => void copy(recovery.join("\n"), "Recovery codes")}>Copy codes</button><button type="button" className="button raised" onClick={downloadRecovery}>Download text file</button></div>{copyMessage && <p className="fine" role="status">{copyMessage}</p>}<button type="button" className="button primary" onClick={() => { setRecovery([]); setCopyMessage(""); }}>I saved my codes</button></div>}
     {shownView !== "account" && !recovery.length && status === "error" && <div className="admin-feedback card" role="alert"><h2>Staff information is unavailable</h2><p>Check your connection and try again.</p><button type="button" className="button primary" onClick={() => void load()}>Try again</button></div>}
     {status === "ready" && shownView === "overview" && <><PlatformOverview request={request} openCosts={canManage ? () => openView("costs") : undefined} />{!canManage && <section className="admin-overview-panels" aria-label="Your access"><div className="card admin-overview-access"><span className="eyebrow">Your access</span><h2>{access.platform_label || roleNames[access.platform_role]}</h2><p className="muted">{canManage ? "You can invite staff and manage system admin and tester roles." : "You can review platform staff. Founder roles manage access."}</p><div className="admin-access-summary"><span>Access scope</span><strong>{canManage ? "Team administration" : "Staff directory"}</strong><small>{canManage ? "Invite staff and manage roles" : "Review platform staff"}</small></div>{canManage ? <button type="button" className="button raised" onClick={() => openView("access")}>Manage access →</button> : <button type="button" className="button raised" onClick={() => openView("account")}>View account →</button>}</div></section>}</>}
-    {status === "ready" && shownView === "members" && <MembersTable request={request} canGive={canManage} />}
+    {status === "ready" && shownView === "members" && <MembersTable request={request} canGive={canManage} auth={auth} />}
     {canManage && status === "ready" && shownView === "costs" && <CostsManager request={request} />}
     {status === "ready" && shownView === "monitoring" && <MonitoringPanel auth={auth} />}
     {status === "ready" && shownView === "team" && <section className="admin-team card" aria-labelledby="admin-team-title"><div className="admin-section-heading"><div><span className="eyebrow">Access directory</span><h2 id="admin-team-title">Staff directory</h2><p className="muted">Owner and cofounder roles are permanent. System admin and tester roles can be managed here.</p></div><span className="admin-count">{query || roleFilter !== "all" ? `${visibleStaff.length} of ${staff.length}` : staff.length} {staff.length === 1 ? "person" : "people"}</span></div>

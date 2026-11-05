@@ -188,3 +188,27 @@ func TestAMembershipRequestIsCheckedBeforeAnythingIsOpened(t *testing.T) {
 		}
 	}
 }
+
+func TestAMembershipNeedsASecondStepDoneJustNow(t *testing.T) {
+	const at = 1_800_000_000
+	for name, c := range map[string]claims{
+		"two-step passed a minute ago":     {MFA: true, AuthTime: at - 60},
+		"two-step passed four minutes ago": {MFA: true, AuthTime: at - 240},
+	} {
+		if problem := requireFreshSecondStep(c, at); problem != nil {
+			t.Errorf("%s was refused: %v", name, problem)
+		}
+	}
+	for name, c := range map[string]claims{
+		"never passed two-step":        {MFA: false, AuthTime: at - 10},
+		"passed it ten minutes ago":    {MFA: true, AuthTime: at - 600},
+		"passed it an hour ago":        {MFA: true, AuthTime: at - 3600},
+		"no sign-in time in the token": {MFA: true},
+		"a time in the future":         {MFA: true, AuthTime: at + 3600},
+	} {
+		problem := requireFreshSecondStep(c, at)
+		if problem == nil || problem.code != "step_up_required" {
+			t.Errorf("%s was accepted: %v", name, problem)
+		}
+	}
+}
