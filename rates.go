@@ -36,9 +36,6 @@ const (
 
 var rateKinds = map[string]bool{"minute": true, "gb": true, "payment_fee": true}
 
-// zeroDecimal lists currencies with no minor unit, so their amounts are whole units.
-var zeroDecimal = map[string]bool{"JPY": true, "KRW": true, "VND": true, "CLP": true, "ISK": true, "UGX": true, "XAF": true, "XOF": true, "PYG": true}
-
 // minorOf turns an amount in millionths of the currency unit into its minor unit (cents), rounding to the nearest.
 func minorOf(micros int64, currency string) int64 {
 	unit := int64(math.Pow10(6 - digits(currency))) // millionths in one minor unit: 10,000 for cents, 1,000,000 for yen

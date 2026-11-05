@@ -28,16 +28,11 @@ const (
 	fxMinimum = 100 // a source that sends fewer currencies than this is not trusted
 )
 
-// isoCurrencies are the active ISO 4217 codes. The source also lists coins and tokens, which are left out.
-var isoCurrencies = map[string]bool{}
-
-func init() {
-	for _, code := range strings.Fields(`AED AFN ALL AMD ANG AOA ARS AUD AWG AZN BAM BBD BDT BGN BHD BIF BMD BND BOB BRL BSD BTN BWP BYN BZD CAD CDF CHF CLP CNY COP CRC CUP CVE CZK
-		DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS GIP GMD GNF GTQ GYD HKD HNL HTG HUF IDR ILS INR IQD IRR ISK JMD JOD JPY KES KGS KHR KMF KPW KRW KWD KYD KZT
-		LAK LBP LKR LRD LSL LYD MAD MDL MGA MKD MMK MNT MOP MRU MUR MVR MWK MXN MYR MZN NAD NGN NIO NOK NPR NZD OMR PAB PEN PGK PHP PKR PLN PYG QAR RON RSD RUB RWF SAR SBD
-		SCR SDG SEK SGD SHP SLE SOS SRD SSP STN SVC SYP SZL THB TJS TMT TND TOP TRY TTD TWD TZS UAH UGX USD UYU UZS VES VND VUV WST XAF XCD XOF XPF YER ZAR ZMW ZWL`) {
-		isoCurrencies[code] = true
-	}
+// isCurrency is true for a current ISO 4217 currency (the table is generated, see currency_data.go). The rates source also lists coins
+// and tokens, which are left out.
+func isCurrency(code string) bool {
+	_, ok := isoMinorUnits[code]
+	return ok
 }
 
 // fxTable is the rates against the US dollar: one dollar buys Rates["EUR"] euros.
@@ -79,7 +74,7 @@ func fetchFX(ctx context.Context, url string) (*fxTable, error) {
 	for code, rate := range raw.USD {
 		code = strings.ToUpper(code)
 		// The dollar is the base: it is always exactly 1, whatever the source lists for it.
-		if code != "USD" && isoCurrencies[code] && rate > 0 && !math.IsInf(rate, 0) && !math.IsNaN(rate) {
+		if code != "USD" && isCurrency(code) && rate > 0 && !math.IsInf(rate, 0) && !math.IsNaN(rate) {
 			t.Rates[code] = rate
 		}
 	}
@@ -107,17 +102,13 @@ func (c *fxCache) rates(ctx context.Context) *fxTable {
 }
 
 // digits is the number of decimals the currency's minor unit has: 100 cents to the dollar, none for the yen, a thousand fils to the dinar.
+// It comes from ISO 4217; a code the standard does not list is treated as two.
 func digits(currency string) int {
-	switch {
-	case zeroDecimal[currency]:
-		return 0
-	case threeDecimal[currency]:
-		return 3
+	if d, ok := isoMinorUnits[currency]; ok {
+		return d
 	}
 	return 2
 }
-
-var threeDecimal = map[string]bool{"BHD": true, "IQD": true, "JOD": true, "KWD": true, "LYD": true, "OMR": true, "TND": true}
 
 // convert turns an amount in one currency's minor unit into another's, rounded to the nearest. It is false when either currency
 // has no rate.
@@ -157,10 +148,12 @@ func (s *server) publicFX(w http.ResponseWriter, r *http.Request) error {
 	// not hand one visitor's country to another. writeJSON would mark it uncacheable altogether.
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "private, max-age=3600")
+	country := visitorCountry(r)
 	_ = json.NewEncoder(w).Encode(struct {
 		*fxTable
-		Country string `json:"country,omitempty"`
-	}{table, visitorCountry(r)})
+		Country  string `json:"country,omitempty"`
+		Currency string `json:"currency,omitempty"` // the currency of that country
+	}{table, country, regionCurrency[country]})
 	return nil
 }
 
@@ -192,7 +185,7 @@ func (s *server) setCurrency(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	body.Currency = strings.ToUpper(strings.TrimSpace(body.Currency))
-	if body.Currency != "" && !isoCurrencies[body.Currency] {
+	if body.Currency != "" && !isCurrency(body.Currency) {
 		return bad("That is not a currency we know. Choose one from the list.")
 	}
 	if _, err := s.db.Exec(r.Context(), "UPDATE users SET currency = $1 WHERE id = $2", body.Currency, c.Sub); err != nil {
