@@ -67,12 +67,12 @@ When PostgreSQL cannot be reached, requests get `503 unavailable` and never a gr
 | **Cofounder** | platform `cofounder` (exactly one) | Same staff page and staff management rights as the owner, but cannot change either permanent role. The database prevents changing or deleting this row. |
 | **System admin** | platform `system_admin` | Gets Caller Whale's staff pages (`platform` grant) and passes `staff` and `manage_access`. Cannot manage platform roles. |
 | **Tester** | platform `tester` | Identified by the `tester` check. Does not receive the `platform` grant or staff database rights. |
-| **Business owner** | workspace role `owner` (or `solo`) | Runs one workspace and manages its members and roles. The role cannot be given, changed or removed, and no other role can manage access. |
+| **Agency owner** | workspace role `owner` (or `solo`) | Runs one workspace and manages its members and roles. The role cannot be given, changed or removed, and no other role can manage access. |
 | **Manager, closer, caller, researcher, client, or a custom role** | workspace roles | Only the capabilities and records their role allows (see the table of actions above). |
 
-Passing `manage_access` is for callers deciding what to show. **Changing** a workspace's members or roles still needs the person asking to be an `admin` member of that workspace (in practice its business owner); the staff roles do not bypass that yet. Giving staff a supervised way into a workspace is a decision for later.
+Passing `manage_access` is for callers deciding what to show. **Changing** a workspace's members or roles still needs the person asking to be an `admin` member of that workspace (in practice its agency owner); the staff roles do not bypass that yet. Giving staff a supervised way into a workspace is a decision for later.
 
-Platform staff grants and the business owner need the second step (`AUTHZ_STAFF_SECOND_STEP`, `AUTHZ_REQUIRE_SECOND_STEP`).
+Platform staff grants and the agency owner need the second step (`AUTHZ_STAFF_SECOND_STEP`, `AUTHZ_REQUIRE_SECOND_STEP`).
 
 **Setting the permanent roles (once).** Neither owner nor cofounder can be assigned through an API request. Set `AUTHZ_PLATFORM_OWNER=<person id>` and `AUTHZ_PLATFORM_COFOUNDER=<person id>` before startup, or run `docker exec <authz container> /service set-owner <person id>` and `... /service set-cofounder <person id>`. Each id is the `sub` of that person's sign-in token. A redeploy with a different value does not replace the existing person. PostgreSQL also rejects updates and deletes of these two rows.
 

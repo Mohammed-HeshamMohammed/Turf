@@ -300,14 +300,14 @@ func TestWhoIsThisPerson(t *testing.T) {
 	owner := get(ownerID)
 	spaces := owner["workspaces"].([]any)
 	if owner["platform_role"] != "" || len(spaces) != 1 || spaces[0].(map[string]any)["business_owner"] != true {
-		t.Errorf("a business owner: %v", owner)
+		t.Errorf("a agency owner: %v", owner)
 	}
 	if _, has := owner["platform_label"]; has {
-		t.Errorf("a business owner is not on the platform ladder: %v", owner)
+		t.Errorf("a agency owner is not on the platform ladder: %v", owner)
 	}
 	caller := get(callerID)
 	if caller["workspaces"].([]any)[0].(map[string]any)["business_owner"] != false {
-		t.Errorf("a caller is not a business owner: %v", caller)
+		t.Errorf("a caller is not a agency owner: %v", caller)
 	}
 	admin := get(strangerID)
 	if admin["platform_role"] != "system_admin" || admin["platform_label"] != "System admin" || len(admin["workspaces"].([]any)) != 0 {
@@ -359,5 +359,81 @@ func TestPlatformOwnerIsSetOnceAndNeverReplaced(t *testing.T) {
 	}
 	if m.staff[callerID] != "cofounder" {
 		t.Error("cofounder cannot be changed")
+	}
+}
+
+func TestACustomRoleCannotTakeAStandardRolesName(t *testing.T) {
+	h := newHarness(t)
+	h.opened()
+	put := func(key string) int {
+		code, _ := h.call(coreToken, "PUT", "/v1/orgs/"+org1+"/roles/"+key, map[string]any{"actor_id": ownerID, "actor_second_step": true, "capabilities": []string{"edit"}})
+		return code
+	}
+	for _, key := range []string{"caller", "closer", "manager", "researcher", "client", "solo", "owner", "cofounder", "system_admin", "tester", "admin"} {
+		if code := put(key); code != 403 {
+			t.Errorf("a custom role called %s was accepted: %d", key, code)
+		}
+	}
+	if code := put("senior_closer"); code != 200 {
+		t.Fatalf("a role with its own name: %d", code)
+	}
+}
+
+func TestTheCatalogListsEachRoleOnce(t *testing.T) {
+	stored := []role{
+		{Key: "caller", Capabilities: []string{"call"}, Scope: "team"}, // kept from before presets were protected
+		{Key: "senior_closer", Capabilities: []string{"edit"}, Scope: "own"},
+		{Key: "helper", Capabilities: []string{"export"}, Scope: "team"},
+		{Key: "helper", Capabilities: []string{"export"}, Scope: "team"}, // a repeat is still one role
+	}
+	got := buildCatalog(stored)
+	seen := map[string]bool{}
+	for _, r := range got {
+		if seen[r.Key] {
+			t.Fatalf("%s is listed twice", r.Key)
+		}
+		seen[r.Key] = true
+	}
+	if len(got) != len(presets)+2 {
+		t.Fatalf("expected the %d standard roles and 2 custom ones, got %d", len(presets), len(got))
+	}
+	// Standard roles come first in their usual order, then custom ones by key.
+	if got[0].Key != presets[0].key || got[len(got)-2].Key != "helper" || got[len(got)-1].Key != "senior_closer" {
+		t.Fatalf("order: %+v", got)
+	}
+	var caller, owner catalogRole
+	for _, r := range got {
+		switch r.Key {
+		case "caller":
+			caller = r
+		case "owner":
+			owner = r
+		}
+	}
+	if caller.Source != "preset" || caller.Scope != "team" {
+		t.Errorf("a kept standard role is shown once, as itself, with what the workspace stored: %+v", caller)
+	}
+	if owner.Name != "Agency owner" || owner.Assignable {
+		t.Errorf("the agency owner's role is named so and cannot be handed out: %+v", owner)
+	}
+	if got[len(got)-1].Name != "Senior closer" || got[len(got)-1].Source != "custom" {
+		t.Errorf("a custom role is named from its key: %+v", got[len(got)-1])
+	}
+}
+
+func TestTheRoleCatalogHasThePlatformRolesInTheirOwnGroup(t *testing.T) {
+	h := newHarness(t)
+	code, out := h.call(authToken, "GET", "/v1/roles", nil)
+	if code != 200 {
+		t.Fatalf("catalog: %d", code)
+	}
+	workspace, _ := out["workspace"].([]any)
+	platform, _ := out["platform"].([]any)
+	if len(workspace) != len(presets) || len(platform) != 4 {
+		t.Fatalf("workspace %d, platform %d", len(workspace), len(platform))
+	}
+	first, _ := platform[0].(map[string]any)
+	if first["name"] != "Platform owner" {
+		t.Errorf("the platform owner is labelled so: %v", first)
 	}
 }

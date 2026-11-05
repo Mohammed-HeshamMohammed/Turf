@@ -52,6 +52,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/check-batch", s.only("check", s.checkBatch))
 	mux.Handle("PUT /v1/orgs/{org}/owner", s.only("open", s.open))
 	mux.Handle("GET /v1/people/{user}", s.only("read", s.person))
+	mux.Handle("GET /v1/roles", s.only("read", s.catalog))
 	mux.Handle("GET /v1/orgs/{org}/roles", s.only("read", s.listRoles))
 	mux.Handle("PUT /v1/orgs/{org}/roles/{key}", s.only("manage", s.putRole))
 	mux.Handle("GET /v1/orgs/{org}/members", s.only("read", s.listMembers))
@@ -259,7 +260,8 @@ func (s *server) listRoles(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return store(err)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"roles": roles})
+	// One list with nothing twice: the standard roles, then this workspace's own.
+	writeJSON(w, http.StatusOK, map[string]any{"roles": buildCatalog(roles)})
 	return nil
 }
 
@@ -283,6 +285,11 @@ func (s *server) putRole(w http.ResponseWriter, r *http.Request) error {
 	}
 	if slices.Contains(heldRoles, key) || key == "admin" {
 		return forbidden("This role cannot be changed.")
+	}
+	// A custom role may not take a standard role's or a platform role's name: two things would share one label, or a standard
+	// role would quietly change for everyone who holds it.
+	if reserved(key) {
+		return forbidden(key + " is a standard role. Give your own role a different name.")
 	}
 	for _, c := range body.Capabilities {
 		if !slices.Contains(capabilities, c) {
@@ -510,7 +517,7 @@ var ladder = map[string]string{
 	"cofounder":    "Cofounder",
 	"system_admin": "System admin",
 	"tester":       "Tester",
-	"held":         "Business owner",
+	"held":         "Agency owner",
 }
 
 type workspaceRoles struct {
