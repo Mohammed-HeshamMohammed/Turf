@@ -41,9 +41,10 @@ export function HumanCheck({ getAuth, action, resetKey = 0, onToken }) {
       const renew = async () => {
         try {
           const token = await api.execute(siteKey, { action });
-          if (live) callbacks.current.onToken(token);
+          if (live) { callbacks.current.onToken(token); setStatus({ enabled: true, error: "" }); }
         } catch {
-          if (live) callbacks.current.onToken("");
+          // No token means the server will refuse the request, so say why here: usually a content blocker or a privacy setting.
+          if (live) { callbacks.current.onToken(""); setStatus({ enabled: true, error: "The sign-in protection could not check this browser. Turn off any blocker for this site, then reload." }); }
         }
         if (live) timer = setTimeout(renew, REFRESH_MS);
       };

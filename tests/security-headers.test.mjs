@@ -6,6 +6,8 @@ import { BADGE_STYLE, authOrigin, jsonLdHashes, securityHeaders } from "../scrip
 test("the policy permits auth, reCAPTCHA, and Cloudflare's injected beacon", () => {
   const headers = securityHeaders("https://auth.callerwhale.com");
   assert.match(headers, /connect-src 'self' https:\/\/auth\.callerwhale\.com https:\/\/gate\.callerwhale\.com https:\/\/www\.google\.com\/recaptcha\/;/);
+  assert.match(headers, /frame-src https:\/\/gate\.callerwhale\.com https:\/\/www\.google\.com\/recaptcha\//);
+  assert.match(headers, /form-action 'self' https:\/\/gate\.callerwhale\.com;/);
   assert.match(headers, /script-src 'self' 'nonce-\$request_id' https:\/\/www\.google\.com\/recaptcha\/ https:\/\/www\.gstatic\.com\/recaptcha\/ https:\/\/static\.cloudflareinsights\.com;/);
   assert.match(headers, /frame-ancestors 'none'/);
   assert.match(headers, /default-src 'none'/);
