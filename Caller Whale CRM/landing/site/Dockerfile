@@ -4,7 +4,7 @@ FROM golang:1 AS runtime-log-build
 COPY runtime-log/main.go /src/main.go
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log /src/main.go
 
-FROM node:24-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -15,7 +15,7 @@ ARG VITE_CALLERWHALE_GATEWAY_URL=https://gate.callerwhale.com
 ENV VITE_CALLERWHALE_GATEWAY_URL=$VITE_CALLERWHALE_GATEWAY_URL
 RUN npm test && npm run build && node scripts/security-headers.mjs /app/security-headers.conf /app/dist
 
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 COPY --from=runtime-log-build /runtime-log /usr/local/bin/callerwhale-log
 ENV CALLERWHALE_LOG_SERVICE="Landing"
 COPY nginx.conf /etc/nginx/conf.d/default.conf
