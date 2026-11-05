@@ -15,6 +15,10 @@ const viewFromHash = (hash: string): AdminView => {
   if (hash === "#account" || hash === "#admin-account") return "account";
   return "overview";
 };
+const resetDashboardScroll = () => {
+  document.querySelector<HTMLElement>(".dashboard-shell > main")?.scrollTo(0, 0);
+  window.scrollTo(0, 0);
+};
 
 function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: Auth; authBase: string; me: Me }) {
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -41,6 +45,7 @@ function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: 
         history.replaceState(null, "", "#overview");
         setView("overview");
       } else setView(next);
+      resetDashboardScroll();
     };
     sync();
     addEventListener("popstate", sync);
@@ -52,7 +57,7 @@ function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: 
     if (view === next && location.hash === `#${next}`) return;
     history.pushState(null, "", `#${next}`);
     setView(next);
-    scrollTo(0, 0);
+    resetDashboardScroll();
   };
   const visibleStaff = staff.filter(person => {
     const matchesText = `${person.name} ${person.email || ""}`.toLowerCase().includes(query.trim().toLowerCase());
