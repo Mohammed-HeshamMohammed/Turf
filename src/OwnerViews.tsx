@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { workspaceRoleName } from "./roles.ts";
 
 /** The dashboard's authed request to the auth service (it adds the token and turns refusals into messages). */
 export type Api = (method: string, path: string, body?: object) => Promise<any>;
@@ -129,7 +130,7 @@ export function MembersTable({ request }: { request: Api }) {
     {data.members.length === 0 ? <div className="admin-empty"><h3>No members yet</h3><p>People who sign up will appear here.</p></div> : rows.length === 0 ? <div className="admin-empty"><h3>No matches</h3><p>Try a different name, email, or filter.</p><button type="button" className="button raised" onClick={() => { setQuery(""); setFilter("all"); }}>Clear filters</button></div> :
       <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th scope="col">Member</th><th scope="col">Workspaces</th><th scope="col">Security</th><th scope="col">Joined</th><th scope="col">Last seen</th></tr></thead><tbody>{rows.map(member => <tr key={member.id}>
         <td data-label="Member"><span className="admin-person"><span className="admin-person-avatar" aria-hidden="true">{(member.name || member.email || "?").charAt(0).toUpperCase()}</span><span><strong>{member.name || member.email}</strong><small>{member.email}</small></span></span></td>
-        <td data-label="Workspaces">{member.workspaces ? <>{plural(member.workspaces, "workspace")}<small className="owner-sub">{member.roles.join(", ")}</small></> : <span className="muted">None</span>}</td>
+        <td data-label="Workspaces">{member.workspaces ? <>{plural(member.workspaces, "workspace")}<small className="owner-sub">{[...new Set(member.roles.map(role => workspaceRoleName(role)))].join(", ")}</small></> : <span className="muted">None</span>}</td>
         <td data-label="Security"><span className={`owner-badge ${member.two_step ? "good" : ""}`}>{member.two_step ? "Two-step on" : "No two-step"}</span> {!member.email_verified && <span className="owner-badge warn">Email not confirmed</span>} {member.disabled && <span className="owner-badge bad">Disabled</span>}</td>
         <td data-label="Joined">{when(member.joined_at)}</td><td data-label="Last seen">{when(member.last_active)}</td></tr>)}</tbody></table></div>}
   </section>;
