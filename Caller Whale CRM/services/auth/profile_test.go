@@ -57,3 +57,24 @@ func TestAvatarSizeLimit(t *testing.T) {
 		t.Fatal("only PNG and JPEG are accepted")
 	}
 }
+
+func TestProfileNameInParts(t *testing.T) {
+	w := newWorld(t)
+	account := w.signUp("parts@example.com")
+	saved := w.call("POST", "/v1/me/profile", map[string]any{"name": "ignored", "phone": "", "avatar": "", "first_name": " Mohammed ", "middle_name": "", "last_name": "Hesham"}, account.access())
+	if saved.status != 200 {
+		t.Fatalf("save name parts: %d %v", saved.status, saved.body)
+	}
+	me := w.call("GET", "/v1/me", nil, account.access())
+	if me.body["name"] != "Mohammed Hesham" || me.body["first_name"] != "Mohammed" || me.body["last_name"] != "Hesham" {
+		t.Fatalf("name parts not saved: %v", me.body)
+	}
+	// A picture saved on its own leaves the parts as they are.
+	w.call("POST", "/v1/me/profile", map[string]any{"name": "Mohammed Hesham", "phone": "", "avatar": ""}, account.access())
+	if again := w.call("GET", "/v1/me", nil, account.access()); again.body["last_name"] != "Hesham" {
+		t.Fatalf("parts changed by a save without them: %v", again.body)
+	}
+	if bad := w.call("POST", "/v1/me/profile", map[string]any{"name": "x", "phone": "", "avatar": "", "first_name": "  ", "last_name": "Hesham"}, account.access()); bad.status != 400 {
+		t.Fatalf("a missing first name should be refused: %d", bad.status)
+	}
+}

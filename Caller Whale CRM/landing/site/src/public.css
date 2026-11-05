@@ -336,3 +336,11 @@
 .profile-picture h2 { margin: 0 0 4px; }
 .profile-picture-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .profile-head .profile-picture-actions { margin-top: 10px; }
+.profile-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.profile-card .profile-card-head .button { justify-self: auto; }
+.profile-name { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 640px) { .profile-name { grid-template-columns: 1fr; } }
+.spinner { display: inline-block; width: 14px; height: 14px; margin-right: 8px; vertical-align: -2px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } }
+.profile-picture-actions .text-button { padding: 0 8px; border: 0; background: transparent; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }

@@ -97,7 +97,7 @@ export function AvatarCropper({ file, onCancel, onDone }: { file: File; onCancel
         )}
         <div className="cropper-actions">
           <button type="button" className="button" disabled={saving} onClick={onCancel}>Cancel</button>
-          {(image || error) && <button type="button" className="button primary" disabled={!image || saving} onClick={() => void use()}>{saving ? "Saving…" : "Save picture"}</button>}
+          {(image || error) && <button type="button" className="button primary" disabled={!image || saving} onClick={() => void use()}>{saving ? <><span className="spinner" aria-hidden="true" />Saving…</> : "Save picture"}</button>}
         </div>
       </div>
     </div>

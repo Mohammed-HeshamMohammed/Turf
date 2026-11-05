@@ -98,7 +98,7 @@ paths:
     post:
       summary: Change the signed-in person's display name, saved phone and small PNG or JPEG picture
       security: [{ bearer: [] }]
-      requestBody: { content: { application/json: { schema: { type: object, required: [name, phone, avatar], properties: { name: { type: string }, phone: { type: string }, avatar: { type: string } } } } } }
+      requestBody: { content: { application/json: { schema: { type: object, required: [name, phone, avatar], properties: { name: { type: string }, phone: { type: string }, avatar: { type: string }, first_name: { type: string, nullable: true }, middle_name: { type: string, nullable: true }, last_name: { type: string, nullable: true } } } } } }
       responses: { "200": { description: Profile saved }, "401": { description: Not signed in }, "400": { description: Invalid profile detail } }
   /v1/me/providers:
     get:
