@@ -132,11 +132,20 @@ class SettingsTest(unittest.TestCase):
             {},
             {"DATABASE_URL": "x", "BILLING_TOKENS": "stranger=" + CORE},
             {"DATABASE_URL": "x", "BILLING_TOKENS": "core-api=short"},
+            {"DATABASE_URL": "x", "BILLING_TOKENS": f"core-api={CORE},worker={CORE}"},
+            {"DATABASE_URL": "x", "BILLING_TOKENS": f"auth={AUTH},auth={AUTH[::-1]},auth={CORE}"},
             {"DATABASE_URL": "x", "AUTHZ_URL": "http://authz:8104"},
             {"DATABASE_URL": "x", "PADDLE_WEBHOOK_TOLERANCE_SECONDS": "1"},
         ):
             with self.assertRaises(config.SettingsError):
                 config.load(bad)
+
+
+class TokenRotationTest(unittest.TestCase):
+    def test_a_caller_may_hold_two_tokens_while_one_is_replaced(self):
+        old, new = AUTH, AUTH[::-1]
+        tokens = config.parse_tokens(f"auth={old}, auth={new}")
+        self.assertEqual(tokens, {old: "auth", new: "auth"})
 
 
 if __name__ == "__main__":

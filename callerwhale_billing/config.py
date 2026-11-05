@@ -26,10 +26,15 @@ class SettingsError(ValueError):
     pass
 
 
+# A caller may have two tokens at once, so a token can be replaced without a moment where the caller is refused: add the new one,
+# switch the caller over, then remove the old one.
+TOKENS_PER_CALLER = 2
+
+
 def parse_tokens(text: str) -> dict[str, str]:
-    """BILLING_TOKENS: "core-api=<token>,worker=<token>"."""
+    """BILLING_TOKENS: "core-api=<token>,worker=<token>" (a name may appear twice while its token is being replaced)."""
     tokens: dict[str, str] = {}
-    seen: set[str] = set()
+    seen: dict[str, int] = {}
     for part in (p.strip() for p in text.split(",")):
         if not part:
             continue
@@ -38,9 +43,11 @@ def parse_tokens(text: str) -> dict[str, str]:
             raise SettingsError(f"BILLING_TOKENS: {name!r} is not one of the calling services ({', '.join(sorted(CALLER_RIGHTS))})")
         if len(token) < 32:
             raise SettingsError(f"BILLING_TOKENS: the token for {name} is shorter than 32 characters")
-        if name in seen or token in tokens:
-            raise SettingsError(f"BILLING_TOKENS: {name} is listed twice, or shares a token")
-        seen.add(name)
+        if token in tokens:
+            raise SettingsError(f"BILLING_TOKENS: {name} shares a token with another entry; every token must be different")
+        seen[name] = seen.get(name, 0) + 1
+        if seen[name] > TOKENS_PER_CALLER:
+            raise SettingsError(f"BILLING_TOKENS: {name} has more than {TOKENS_PER_CALLER} tokens; keep the new one and the one being replaced")
         tokens[token] = name
     return tokens
 
