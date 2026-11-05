@@ -110,8 +110,11 @@ export function PlatformOverview({ request, openCosts }: { request: Api; openCos
 
 type Member = { id: string; name: string; email: string; joined_at: number; last_active: number; email_verified: boolean; two_step: boolean; disabled: boolean; workspaces: number; roles: string[] };
 
-export function MembersTable({ request }: { request: Api }) {
-  const { data, error, loading } = useLoad<{ members: Member[]; total: number; shown: number }>(request, "/v1/admin/members");
+export function MembersTable({ request, canGive = false }: { request: Api; canGive?: boolean }) {
+  const [reload, setReload] = useState(0);
+  const [giving, setGiving] = useState<Member | null>(null);
+  const [given, setGiven] = useState("");
+  const { data, error, loading } = useLoad<{ members: Member[]; total: number; shown: number }>(request, "/v1/admin/members", reload);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const rows = useMemo(() => (data?.members || []).filter(member => {
@@ -128,11 +131,13 @@ export function MembersTable({ request }: { request: Api }) {
     <div className="admin-section-heading"><div><span className="eyebrow">Everyone who is not staff</span><h2 id="members-title">Members</h2><p className="muted">People with a Caller Whale account, their workspaces and how they sign in.{data.total > data.shown ? ` Showing the newest ${data.shown} of ${data.total}.` : ""}</p></div><span className="admin-count">{query || filter !== "all" ? `${rows.length} of ${data.members.length}` : data.total} {data.total === 1 ? "member" : "members"}</span></div>
     <div className="admin-toolbar"><label>Search members<input type="search" placeholder="Name or email" value={query} onChange={event => setQuery(event.target.value)} /></label><label>Show<select value={filter} onChange={event => setFilter(event.target.value)}><option value="all">Everyone</option><option value="no_two_step">Without two-step</option><option value="unconfirmed">Email not confirmed</option><option value="no_workspace">Not in a workspace</option><option value="inactive">Not seen in 30 days</option></select></label></div>
     {data.members.length === 0 ? <div className="admin-empty"><h3>No members yet</h3><p>People who sign up will appear here.</p></div> : rows.length === 0 ? <div className="admin-empty"><h3>No matches</h3><p>Try a different name, email, or filter.</p><button type="button" className="button raised" onClick={() => { setQuery(""); setFilter("all"); }}>Clear filters</button></div> :
-      <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th scope="col">Member</th><th scope="col">Workspaces</th><th scope="col">Security</th><th scope="col">Joined</th><th scope="col">Last seen</th></tr></thead><tbody>{rows.map(member => <tr key={member.id}>
+      <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th scope="col">Member</th><th scope="col">Workspaces</th><th scope="col">Security</th><th scope="col">Joined</th><th scope="col">Last seen</th>{canGive && <th scope="col"><span className="sr-only">Action</span></th>}</tr></thead><tbody>{rows.map(member => <tr key={member.id}>
         <td data-label="Member"><span className="admin-person"><span className="admin-person-avatar" aria-hidden="true">{(member.name || member.email || "?").charAt(0).toUpperCase()}</span><span><strong>{member.name || member.email}</strong><small>{member.email}</small></span></span></td>
         <td data-label="Workspaces">{member.workspaces ? <>{plural(member.workspaces, "workspace")}<small className="owner-sub">{[...new Set(member.roles.map(role => workspaceRoleName(role)))].join(", ")}</small></> : <span className="muted">None</span>}</td>
         <td data-label="Security"><span className={`owner-badge ${member.two_step ? "good" : ""}`}>{member.two_step ? "Two-step on" : "No two-step"}</span> {!member.email_verified && <span className="owner-badge warn">Email not confirmed</span>} {member.disabled && <span className="owner-badge bad">Disabled</span>}</td>
-        <td data-label="Joined">{when(member.joined_at)}</td><td data-label="Last seen">{when(member.last_active)}</td></tr>)}</tbody></table></div>}
+        <td data-label="Joined">{when(member.joined_at)}</td><td data-label="Last seen">{when(member.last_active)}</td>{canGive && <td data-label="Action"><button type="button" className="staff-text-button" onClick={() => { setGiven(""); setGiving(member); }}>Give membership</button></td>}</tr>)}</tbody></table></div>}
+    {given && <p className="notice" role="status">{given}</p>}
+    {giving && <GiveMembership request={request} member={giving} onClose={() => setGiving(null)} onGiven={text => { setGiving(null); setGiven(text); setReload(count => count + 1); }} />}
   </section>;
 }
 
@@ -255,5 +260,58 @@ function RatesManager({ request }: { request: Api }) {
       <td data-label="Rate"><strong>{rate.label}</strong></td><td data-label="For">{kindNames[rate.kind] || rate.kind}</td>
       <td data-label="Price">{rate.kind === "payment_fee" ? `${rate.percent_bp / 100}%${rate.fixed_micros ? ` + ${fromMicros(rate.fixed_micros, rate.currency)}` : ""} per payment` : rate.kind === "gb" ? `${fromMicros(rate.rate_micros, rate.currency)} × ${rate.quantity.toLocaleString()} GB a month` : `${fromMicros(rate.rate_micros, rate.currency)} a minute`}</td>
       <td data-label="Action"><button type="button" className="staff-text-button" disabled={busy} onClick={() => void remove(rate.id)}>Remove</button></td></tr>)}</tbody></table></div>}
+  </section>;
+}
+
+type PlanOption = { key: string; name: string; price_minor: number; currency: string; price: string };
+const paymentNames: Record<string, string> = { trial: "Trial", free: "Free", manual: "Paid manually" };
+
+/** An owner or cofounder gives a person a plan they arranged with them: it opens their own workspace and starts the plan in billing. */
+function GiveMembership({ request, member, onClose, onGiven }: { request: Api; member: Member; onClose: () => void; onGiven: (text: string) => void }) {
+  const { data, error } = useLoad<{ plans: PlanOption[] }>(request, "/v1/admin/plans");
+  const { data: catalog } = useLoad<{ workspace: { key: string; name: string; assignable: boolean }[] }>(request, "/v1/roles");
+  const [plan, setPlan] = useState("");
+  const [payment, setPayment] = useState("trial");
+  const [role, setRole] = useState("owner");
+  const [days, setDays] = useState("14");
+  const [months, setMonths] = useState("12");
+  const [amount, setAmount] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const plans = data?.plans || [];
+  const chosen = plans.find(option => option.key === (plan || plans[0]?.key));
+  // The roles that open a workspace are the ones a membership can give; the catalog says which, so nothing is listed twice or invented here.
+  const roles = (catalog?.workspace || []).filter(entry => !entry.assignable);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!chosen) return;
+    setBusy(true); setMessage("");
+    try {
+      const digits = moneyDigits(chosen.currency);
+      const answer = await request("POST", "/v1/admin/memberships", {
+        user_id: member.id, plan: chosen.key, payment, role,
+        ...(payment === "trial" ? { days: Number(days) } : { months: Number(months) }),
+        ...(payment === "manual" && amount.trim() ? { amount_minor: Math.round(Number(amount) * 10 ** digits) } : {}),
+      });
+      const who = member.name || member.email;
+      onGiven(`${who} now has the ${answer.plan_name || chosen.name} plan (${paymentNames[payment].toLowerCase()})${answer.workspace_created ? " in a new workspace" : " in their workspace"}.`);
+    } catch (problem) { setMessage(problem instanceof Error ? problem.message : "Could not give that membership."); }
+    setBusy(false);
+  };
+  return <section className="admin-manage card" aria-labelledby="give-title">
+    <div><span className="eyebrow">Membership</span><h2 id="give-title">Give {member.name || member.email} a plan</h2><p className="muted">This opens their own workspace (or uses the one they have) and starts the plan. Their role is the one they hold in that workspace. Everyone else on their team is invited into it afterwards.</p></div>
+    {error ? <p className="notice bad" role="alert">{error}</p> : <form className="staff-form" onSubmit={submit}>
+      <div className="staff-fields">
+        <label>Plan<select value={plan || plans[0]?.key || ""} onChange={event => setPlan(event.target.value)} required>{plans.map(option => <option key={option.key} value={option.key}>{option.name}{option.price ? ` · ${money(option.price_minor, option.currency)} a month` : ""}</option>)}</select></label>
+        <label>How it is paid<select value={payment} onChange={event => setPayment(event.target.value)}>{Object.entries(paymentNames).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>
+        <label>Their role<select value={role} onChange={event => setRole(event.target.value)}>{(roles.length ? roles : [{ key: "owner", name: "Agency owner" }, { key: "solo", name: "Solo operator" }]).map(entry => <option key={entry.key} value={entry.key}>{entry.name}</option>)}</select></label>
+        {payment === "trial" ? <label>Trial length (days)<input inputMode="numeric" required value={days} onChange={event => setDays(event.target.value.replace(/\D/g, ""))} /></label> : <label>For how many months<input inputMode="numeric" required value={months} onChange={event => setMonths(event.target.value.replace(/\D/g, ""))} /></label>}
+        {payment === "manual" && chosen && <label>Amount they paid ({chosen.currency})<input inputMode="decimal" value={amount} onChange={event => setAmount(event.target.value.replace(/[^0-9.]/g, ""))} placeholder={`${(chosen.price_minor * Number(months || 1) / 10 ** moneyDigits(chosen.currency)).toFixed(moneyDigits(chosen.currency))}`} /></label>}
+        <button className="button primary" disabled={busy || !chosen}>{busy ? "Giving…" : "Give membership"}</button>
+        <button type="button" className="button raised" disabled={busy} onClick={onClose}>Cancel</button>
+      </div>
+      {payment === "manual" && <p className="muted">Leave the amount empty to record the plan's price for those months. The payment counts as revenue in the overview.</p>}
+      {message && <p className="notice bad" role="alert">{message}</p>}
+    </form>}
   </section>;
 }
