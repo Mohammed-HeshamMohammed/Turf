@@ -130,7 +130,26 @@ func TestHumanCheckLogsAnEmptyToken(t *testing.T) {
 	var logged bytes.Buffer
 	log.SetOutput(&logged)
 	defer log.SetOutput(os.Stderr)
-	if check.verify(context.Background(), " ", "signin", 0.5) || !strings.Contains(logged.String(), "no usable token") {
+	if check.verify(context.Background(), " ", "signin", 0.5) || !strings.Contains(logged.String(), "no token") {
 		t.Fatalf("log: %q", logged.String())
+	}
+}
+
+func TestHumanCheckAcceptsTheLongTokensGoogleIssuesToday(t *testing.T) {
+	// Tokens were about 1.5 KB when this limit was first set; they are about 2.3 KB now. A good token of that size must pass.
+	google := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"success":true,"score":0.9,"action":"signin","hostname":"callerwhale.com"}`))
+	}))
+	defer google.Close()
+	check := newHumanCheck(humanSettings{siteKey: "site", secret: "s", hostnames: []string{"callerwhale.com"}, minScore: 0.5})
+	check.endpoint = google.URL
+	if !check.verify(context.Background(), strings.Repeat("a", 2400), "signin", 0.5) {
+		t.Fatal("a 2,400-byte token was refused")
+	}
+	var logged bytes.Buffer
+	log.SetOutput(&logged)
+	defer log.SetOutput(os.Stderr)
+	if check.verify(context.Background(), strings.Repeat("a", maxHumanToken+1), "signin", 0.5) || !strings.Contains(logged.String(), "over the") {
+		t.Fatalf("an oversized token passed or was not explained: %q", logged.String())
 	}
 }
