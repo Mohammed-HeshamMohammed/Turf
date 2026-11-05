@@ -1,0 +1,30 @@
+name: Currency data
+
+# The currency list, each currency's decimals and each country's currency are generated from the standards (ISO 4217 and Unicode CLDR),
+# not typed by hand (tools/currency-data.mjs). Countries do change currency (Croatia in 2023, Bulgaria in 2026), so once a month this
+# fetches the standards again and fails if the files in the repository are behind. The fix is to run the tool and commit its two files.
+
+on:
+  schedule:
+    - cron: "15 6 1 * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "Caller Whale CRM/tools/currency-data.mjs"
+      - "Caller Whale CRM/landing/site/src/currency-data.ts"
+      - "Caller Whale CRM/services/auth/currency_data.go"
+      - ".github/workflows/currency-data.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Tables match the standards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node "Caller Whale CRM/tools/currency-data.mjs" --check

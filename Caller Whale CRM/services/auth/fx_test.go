@@ -20,7 +20,7 @@ func fakeSource(t *testing.T, calls *int, fail *bool) *httptest.Server {
 		}
 		usd := map[string]float64{"eur": 0.9, "egp": 50, "jpy": 150, "kwd": 0.3, "gbp": 0.75, "btc": 0.00001, "eth": 0.0003, "zzz": 5, "aud": -1}
 		n := 0
-		for code := range isoCurrencies { // pad with the real codes so the source looks complete
+		for code := range isoMinorUnits { // pad with the real codes so the source looks complete
 			if _, ok := usd[lower(code)]; !ok {
 				usd[lower(code)] = float64(2 + n%7)
 				n++
@@ -202,5 +202,55 @@ func TestAMainCurrencyIsUsedWhenThereIsARateForIt(t *testing.T) {
 	// A main currency with no rate is ignored too.
 	if g := financeFrom(b, nil, nil, fx, "ZAR", at); g.Currency != "USD" {
 		t.Fatalf("an unknown rate: %s", g.Currency)
+	}
+}
+
+func TestTheCurrencyTablesAreTheStandardsNotAGuess(t *testing.T) {
+	// Currencies that changed in recent years: a hand-typed table is the one that forgets.
+	for country, want := range map[string]string{"HR": "EUR", "BG": "EUR", "SL": "SLE", "VE": "VES", "ZW": "ZWG", "EG": "EGP", "US": "USD"} {
+		if got := regionCurrency[country]; got != want {
+			t.Errorf("%s uses %q, wanted %q", country, got, want)
+		}
+	}
+	for _, retired := range []string{"HRK", "ZWL", "SLL", "VEF"} {
+		if isCurrency(retired) {
+			t.Errorf("%s is no longer a currency", retired)
+		}
+	}
+	for code, want := range map[string]int{"JPY": 0, "KWD": 3, "USD": 2, "EGP": 2, "ISK": 0, "XOF": 0} {
+		if digits(code) != want {
+			t.Errorf("%s has %d decimals, wanted %d", code, digits(code), want)
+		}
+	}
+	for country, code := range regionCurrency {
+		if !isCurrency(code) {
+			t.Errorf("%s uses %s, which is not in the list", country, code)
+		}
+	}
+	if len(isoMinorUnits) < 140 || len(regionCurrency) < 200 {
+		t.Errorf("the tables look empty: %d currencies, %d countries", len(isoMinorUnits), len(regionCurrency))
+	}
+}
+
+func TestTheRatesAnswerSaysWhichCurrencyTheVisitorsCountryUses(t *testing.T) {
+	calls, fail := 0, false
+	source := fakeSource(t, &calls, &fail)
+	defer source.Close()
+	old := fxSources
+	fxSources = []string{source.URL}
+	defer func() { fxSources = old }()
+	s := &server{}
+	req := httptest.NewRequest(http.MethodGet, "/v1/fx", nil)
+	req.Header.Set("CF-IPCountry", "EG")
+	rec := httptest.NewRecorder()
+	if err := s.publicFX(rec, req); err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Country  string `json:"country"`
+		Currency string `json:"currency"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil || got.Country != "EG" || got.Currency != "EGP" {
+		t.Fatalf("%v %+v", err, got)
 	}
 }
