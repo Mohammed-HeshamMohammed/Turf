@@ -187,6 +187,28 @@ services:
       - coolify
     restart: unless-stopped
 
+  # The containers' logs: Alloy reads them from Docker (read-only) and Loki keeps them 14 days for Grafana.
+  loki:
+    build:
+      context: ./loki
+    volumes:
+      - loki-data:/loki
+    networks:
+      - grafana
+    restart: unless-stopped
+
+  alloy:
+    build:
+      context: ./alloy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+    networks:
+      - grafana
+    depends_on:
+      - loki
+    restart: unless-stopped
+
 networks:
   coolify:
     external: true
@@ -199,3 +221,5 @@ networks:
 volumes:
   grafana-data:
   prometheus-data:
+  loki-data:
+  alloy-data:
