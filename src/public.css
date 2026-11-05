@@ -387,3 +387,17 @@
 }
 @keyframes profile-drop { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .profile-live { animation: none; } }
+/* Sign-up, step 2: a live preview of the profile, above the form on a narrow screen and to its right when there is room. */
+.signup-two { grid-template-columns: minmax(0, 1fr); gap: 16px; justify-items: center; align-content: start; }
+.signup-preview { display: grid; justify-items: center; gap: 8px; width: min(440px, 100%); padding: 20px; border-radius: var(--radius, 20px); background: var(--card, #fff); box-shadow: 0 0 0 1px var(--line); text-align: center; animation: preview-in .35s ease-out both; }
+.signup-preview .profile-avatar { width: 104px; font-size: 44px; }
+.signup-preview-name { font-size: 20px; overflow-wrap: anywhere; }
+.signup-preview-email, .signup-preview-hint { font-size: 14px; overflow-wrap: anywhere; }
+@keyframes preview-in { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: none; } }
+@media (min-width: 940px) {
+  .signup-two { grid-template-columns: minmax(0, 440px) 280px; justify-content: center; align-items: start; }
+  .signup-two .signup-preview { grid-column: 2; grid-row: 1; width: 100%; position: sticky; top: 96px; animation-name: preview-in-side; }
+  .signup-two .form { grid-column: 1; grid-row: 1; }
+}
+@keyframes preview-in-side { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .signup-preview { animation: none; } }

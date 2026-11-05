@@ -280,8 +280,21 @@ function SignUp({ onDone }: { onDone: () => void }) {
     if (made) onDone();
   };
 
+  const shownName = [first, last].map(part => part.trim()).filter(Boolean).join(" ");
   return (
-    <div className="form-wrap">
+    <div className={`form-wrap${step === 2 ? " signup-two" : ""}`}>
+      {step === 2 && (
+        <aside className="signup-preview" aria-label="Your profile preview">
+          <button type="button" className="profile-avatar profile-avatar-button" aria-label="Choose a profile picture" onClick={() => filePicker.current?.click()}>
+            {picture ? <img src={picture} alt="" /> : (first || name || "?").trim().charAt(0).toUpperCase()}
+            <span className="profile-avatar-change" aria-hidden="true">{picture ? "Change" : "Add photo"}</span>
+          </button>
+          <strong className="signup-preview-name">{shownName || name.trim() || "Your name"}</strong>
+          <span className="muted signup-preview-email">{email.trim() || "you@example.com"}</span>
+          {picture ? <button type="button" className="text-button" onClick={() => setPicture("")}>Remove picture</button> : <span className="muted signup-preview-hint">Press the picture to add one</span>}
+          <input ref={filePicker} type="file" hidden accept="image/*" onChange={(e: ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) setChoosing(file); }} />
+        </aside>
+      )}
       {step === 1 ? (
         <form className="form card" onSubmit={next}>
           <h1>Create your account</h1>
@@ -309,14 +322,6 @@ function SignUp({ onDone }: { onDone: () => void }) {
             <Field label="Last name" autoComplete="family-name" maxLength={60} value={last} onChange={(e: ChangeEvent<HTMLInputElement>) => setLast(e.target.value)} />
           </div>
           <Field label="Phone number" type="tel" autoComplete="tel" placeholder="Optional" value={phone} onChange={(e: ChangeEvent<HTMLInputElement>) => setPhone(e.target.value)} />
-          <div className="signup-picture">
-            <button type="button" className="profile-avatar profile-avatar-button" aria-label="Add a profile picture" onClick={() => filePicker.current?.click()}>
-              {picture ? <img src={picture} alt="" /> : (first || name || "?").trim().charAt(0).toUpperCase()}
-              <span className="profile-avatar-change" aria-hidden="true">{picture ? "Change" : "Add"}</span>
-            </button>
-            <input ref={filePicker} type="file" hidden accept="image/*" onChange={(e: ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) setChoosing(file); }} />
-            <span className="muted">Profile picture (optional). {picture ? <button type="button" className="text-button" onClick={() => setPicture("")}>Remove</button> : "Any image works."}</span>
-          </div>
           {choosing && <AvatarCropper file={choosing} confirmLabel="Use this picture" onCancel={() => setChoosing(null)} onDone={async dataUrl => { setPicture(dataUrl); setChoosing(null); }} />}
           <HumanCheck getAuth={getAuth} action="signup" onToken={setHuman} notice={false} onEnabled={setProtectedByGoogle} />
           {taken ? (
