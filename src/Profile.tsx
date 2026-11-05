@@ -86,10 +86,25 @@ export function Profile({ me, auth, authBase, onSaved }: { me: Me; auth: Auth; a
   const linked = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("linked");
   const linkError = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("link_error");
   return <div className="profile-page">
-    <header className="page-head profile-head"><button type="button" className="profile-avatar profile-avatar-button" aria-label="Change profile picture" title="Change profile picture" onClick={() => pictureInput.current?.click()}>{avatar ? <img src={avatar} alt="" /> : (name || me.email).charAt(0).toUpperCase()}<span className="profile-avatar-change" aria-hidden="true">Change</span></button><input ref={pictureInput} type="file" hidden accept="image/*" onChange={picture} /><div><h1>{me.name || "Your profile"}</h1>{access && <RoleBadges access={access} />}<div className="profile-picture-actions"><button type="button" className="button raised" disabled={pictureState.busy} onClick={() => pictureInput.current?.click()}>{savedAvatar ? "Change picture" : "Choose picture"}</button>{savedAvatar && <button type="button" className="text-button" disabled={pictureState.busy} onClick={() => void savePicture("")}>Remove</button>}</div>{pictureState.message && <p role="status" className="notice good">{pictureState.message}</p>}{pictureState.error && <p role="alert" className="notice bad">{pictureState.error}</p>}</div></header>
+    <div className="profile-layout">
+    <aside className="profile-live" aria-label="Your profile">
+      <div className="profile-live-picture">
+        <button type="button" className="profile-avatar profile-avatar-button" aria-label="Change profile picture" title="Change profile picture" onClick={() => pictureInput.current?.click()}>{avatar ? <img src={avatar} alt="" /> : (name || me.email).charAt(0).toUpperCase()}<span className="profile-avatar-change" aria-hidden="true">{avatar ? "Change" : "Add photo"}</span></button>
+        {avatar && <button type="button" className="profile-avatar-remove" aria-label="Remove profile picture" title="Remove picture" disabled={pictureState.busy} onClick={() => void savePicture("")}>×</button>}
+      </div>
+      <input ref={pictureInput} type="file" hidden accept="image/*" onChange={picture} />
+      <h1>{name || me.name || "Your profile"}</h1>
+      {access && <RoleBadges access={access} />}
+      <p className="muted profile-live-email">{me.email}</p>
+      {pictureState.message && <p role="status" className="notice good">{pictureState.message}</p>}
+      {pictureState.error && <p role="alert" className="notice bad">{pictureState.error}</p>}
+    </aside>
+    <div className="profile-main">
     {cropping && <AvatarCropper file={cropping} onCancel={() => setCropping(null)} onDone={savePicture} />}
     <div className="profile-grid"><form className="card profile-card" onSubmit={save}><div className="profile-card-head"><h2>Personal details</h2><button className="button primary" disabled={state.busy || !parts.first.trim()} aria-busy={state.busy}>{state.busy ? <><span className="spinner" aria-hidden="true" />Saving…</> : "Save changes"}</button></div><div className="profile-fields"><div className="profile-name"><label>First name<input required maxLength={60} autoComplete="given-name" value={parts.first} onChange={event => setParts({ ...parts, first: event.target.value })} /></label><label>Middle name<input maxLength={60} autoComplete="additional-name" value={parts.middle} onChange={event => setParts({ ...parts, middle: event.target.value })} placeholder="Optional" /></label><label>Last name<input maxLength={60} autoComplete="family-name" value={parts.last} onChange={event => setParts({ ...parts, last: event.target.value })} placeholder="Optional" /></label></div><label>Email<input value={me.email} readOnly aria-readonly="true" /></label><label>Phone number<input type="tel" value={phone} onChange={event => setPhone(event.target.value)} placeholder="Optional" autoComplete="tel" /></label></div>{state.message && <p role="status" className="notice good">{state.message}</p>}{state.error && <p role="alert" className="notice bad">{state.error}</p>}</form>
       <section className="card profile-card"><h2>Connected accounts</h2><div className="profile-providers">{(["google", "apple"] as const).map(provider => <div key={provider}><span>{provider === "google" ? "Google" : "Apple"}</span>{providers.includes(provider) ? <span className="role-badge">Connected</span> : available[provider] ? <button type="button" className="button" disabled={state.busy} onClick={() => void link(provider)}>Connect</button> : <span className="muted">Unavailable</span>}</div>)}</div>{linked && <p role="status" className="notice good">{linked === "apple" ? "Apple" : "Google"} connected.</p>}{linkError && <p role="alert" className="notice bad">{linkError}</p>}</section>
       <MainCurrency auth={auth} authBase={authBase} saved={String(me.currency || "")} onSaved={onSaved} /></div>
+    </div>
+    </div>
   </div>;
 }
