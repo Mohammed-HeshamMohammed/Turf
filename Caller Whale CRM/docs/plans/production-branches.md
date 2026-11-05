@@ -5,7 +5,7 @@ One branch per part of Caller Whale, each holding **only that part's code**, so 
 | Branch | What it holds |
 | --- | --- |
 | `landing-web-production` | The landing site's frontend, exported from `landing/web` to the branch root |
-| `landing-dashboard-web-production` | Independent dashboard frontend foundation, exported from `landing/dashboard-web` to the branch root |
+| `landing-dashboard-web-production` | The CRM web app: the desktop frontend built for the browser, packaged by `landing/dashboard-web` |
 | `auth-backend-production` | The authentication service (`services/auth`) |
 | `notifications-backend-production` | The notification service (`services/notifications`, Go) at the branch root |
 | `gateway-backend-production` | The gateway: the one public entry point (it only answers its health check so far) |
@@ -50,7 +50,7 @@ node tools/publish-production.mjs --push                    # and push what chan
 | Branch | Base directory | Dockerfile location | Container port | Health path |
 | --- | --- | --- | --- | --- |
 | `landing-web-production` | `/` | `/Dockerfile` | `8080` | `/healthz` |
-| `landing-dashboard-web-production` | `/` | `/Dockerfile` | `8080` | `/healthz` |
+| `landing-dashboard-web-production` | `/` | `/landing/dashboard-web/Dockerfile` | `8080` | `/healthz` |
 | `auth-backend-production` | `/` | `/Dockerfile` | `8101` | `/healthz` |
 | `notifications-backend-production` | `/` | `/Dockerfile` | `8102` | `/healthz`; no domain |
 | `gateway-backend-production` | `/` | `/Dockerfile` | `8100` | its own health check (inside the private network only) |

@@ -1,30 +1,22 @@
-# Landing dashboard web
+# CRM web app (app.callerwhale.com)
 
-Independent React/Vite dashboard foundation, alongside `../web` (public marketing). This scaffold does not move or replace the existing `/dashboard` in the landing site. It has no live account data, login, or API connection yet; no mock totals are presented as real. Keep existing authorized account flows in place until a separately reviewed cutover.
-
-## Local development
-
-Node 24 LTS recommended.
-
-```sh
-npm ci
-npm run dev
-npm run build
-```
-
-Development port: 5201. Production files: `dist/`.
+The same CRM as the desktop app, in the browser. There is no separate code: the screens are `desktop/frontend/react`, built with `VITE_CALLERWHALE_REQUIRE_SIGN_IN=true` so it cannot be used without signing in. This folder only packages that build: the `Dockerfile`, the nginx config, the content security policy (`scripts/security-headers.mjs`) and the log wrapper.
 
 ## Coolify
 
-Use branch `landing-dashboard-web-production`, base directory `/`, build pack **Dockerfile**, Dockerfile `/Dockerfile`, container port **8080**, health path `/healthz`. The production branch places this app at its root; its build context is the branch root. Its hostname is `app.callerwhale.com` (no `www` variant). No secrets or environment variables are required by this foundation.
+Branch `landing-dashboard-web-production`, base directory `/`, build pack **Dockerfile**, Dockerfile location `/landing/dashboard-web/Dockerfile`, container port **8080**, health path `/healthz`, domain `app.callerwhale.com`.
 
-Build locally: `docker build -t callerwhale-dashboard .`
+Build arguments (compiled into the page, so never secrets). The build stops if either of the first two is missing:
 
-Before handling customer data, implement the central auth/gateway contract, server-side authorization and the dashboard API integration. Search exclusion is not access control. Do not add secrets to Vite variables or browser code. A separate hostname needs an explicit session/CORS review; the existing plan defaults to same-origin routes.
+- `VITE_CALLERWHALE_AUTH_URL`: the auth service origin, e.g. `https://auth.callerwhale.com`
+- `VITE_CALLERWHALE_API_URL`: the gateway origin the CRM calls, e.g. `https://gate.callerwhale.com`
+- `VITE_CALLERWHALE_SITE_URL` (optional): defaults to `https://callerwhale.com`
+
+On the auth service, `AUTH_APP_URL=https://app.callerwhale.com` and `https://app.callerwhale.com` in `AUTH_ALLOWED_ORIGINS`; on the gateway, the same origin in `CORS_ORIGINS`.
+
+Local check: from the repository root (`Caller Whale CRM`), `docker build -f landing/dashboard-web/Dockerfile --build-arg VITE_CALLERWHALE_AUTH_URL=https://auth.callerwhale.com --build-arg VITE_CALLERWHALE_API_URL=https://gate.callerwhale.com .` (the production branch has the same layout).
 
 ## Publication
-
-Source lives on `main` at `Caller Whale CRM/landing/dashboard-web`. From `Caller Whale CRM`, publish with:
 
 ```sh
 node tools/publish-production.mjs landing-dashboard-web-production --push
