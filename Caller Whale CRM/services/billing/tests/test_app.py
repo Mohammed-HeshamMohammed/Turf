@@ -37,7 +37,7 @@ class FakeStore:
         return Reservation(limited=True, used=amount, allowed=100)
 
     def summary(self, now):
-        return {"subscriptions": [], "revenue_by_month": [], "usage_this_month": {}, "top_usage": []}
+        return {"subscriptions": [], "revenue_by_month": [], "usage_this_month": {}, "top_usage": [], "allowances": []}
 
     def set_credit_limit(self, user_id, monthly):
         self.limits[user_id] = monthly

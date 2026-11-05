@@ -85,7 +85,22 @@ class Store:
                 (start, end),
             )
             top = cur.fetchall()
-        return {"as_of": now.isoformat(), "subscriptions": subscriptions, "revenue_by_month": revenue, "usage_this_month": usage, "top_usage": top}
+            # How close each workspace is to the minutes its plan includes, in the plan's current period: the nearest first. The
+            # dashboard uses it to show who needs extra minutes bought for them, and what the minutes past the allowance cost.
+            cur.execute(
+                "SELECT org_id, plan_key, allowed, status, used FROM ("
+                "SELECT s.org_id::text AS org_id, s.plan_key, p.monthly_minutes AS allowed, s.status, "
+                "coalesce((SELECT sum(l.amount) FROM billing.ledger l WHERE l.account_id = s.org_id AND l.kind = 'minutes' "
+                "AND l.at >= s.period_start AND l.at < s.period_end), 0)::bigint AS used "
+                "FROM billing.subscriptions s JOIN billing.plans p ON p.key = s.plan_key "
+                "WHERE s.status IN ('active', 'trialing', 'past_due') AND p.monthly_minutes > 0"
+                ") nearest ORDER BY used::numeric / allowed DESC, org_id LIMIT 100"
+            )
+            allowances = cur.fetchall()
+        return {
+            "as_of": now.isoformat(), "subscriptions": subscriptions, "revenue_by_month": revenue, "usage_this_month": usage,
+            "top_usage": top, "allowances": allowances,
+        }
 
     def standing(self, org_id: UUID, now: datetime) -> dict:
         with self.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
