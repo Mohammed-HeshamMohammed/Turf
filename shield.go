@@ -171,6 +171,25 @@ func scrub(res *http.Response) {
 	}
 }
 
+// harden adds the headers every answer through the gateway should carry, unless the service behind already chose its own. framable is
+// for the monitoring pages only, which the website shows in a frame: everything else is never framed.
+func harden(res *http.Response, framable bool) {
+	h := res.Header
+	set := func(name, value string) {
+		if h.Get(name) == "" {
+			h.Set(name, value)
+		}
+	}
+	set("Strict-Transport-Security", "max-age=31536000")
+	set("X-Content-Type-Options", "nosniff")
+	set("Referrer-Policy", "strict-origin-when-cross-origin")
+	if !framable && h.Get("Content-Security-Policy") == "" {
+		set("X-Frame-Options", "DENY")
+	}
+	// An API answer is for one caller: never kept by a shared cache. A service that wants caching (public keys) says so itself.
+	set("Cache-Control", "no-store")
+}
+
 // mcpAllowed is true for the routes the MCP service has: the protocol endpoint, and the document that tells an assistant where to sign the
 // person in. A browser's preflight (OPTIONS) is let through for those paths only; everything else on that host is a plain "Not found".
 func mcpAllowed(method, path string) bool {

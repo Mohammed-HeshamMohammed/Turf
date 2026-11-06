@@ -231,3 +231,23 @@ func TestMCPHostAnswersOnlyItsOwnRoutes(t *testing.T) {
 		}
 	}
 }
+
+func TestAnswersGetDefensiveHeadersUnlessTheServiceChoseItsOwn(t *testing.T) {
+	plain := &http.Response{Header: http.Header{}}
+	harden(plain, false)
+	for name, want := range map[string]string{"Strict-Transport-Security": "max-age=31536000", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Cache-Control": "no-store"} {
+		if got := plain.Header.Get(name); got != want {
+			t.Errorf("%s: got %q, want %q", name, got, want)
+		}
+	}
+	keys := &http.Response{Header: http.Header{"Cache-Control": {"public, max-age=300"}}}
+	harden(keys, false)
+	if keys.Header.Get("Cache-Control") != "public, max-age=300" {
+		t.Error("a service's own caching choice is kept")
+	}
+	monitoring := &http.Response{Header: http.Header{}}
+	harden(monitoring, true)
+	if monitoring.Header.Get("X-Frame-Options") != "" {
+		t.Error("the monitoring pages are shown in a frame on the website, so they must not be marked DENY")
+	}
+}
