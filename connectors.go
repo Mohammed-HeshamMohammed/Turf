@@ -6,6 +6,7 @@ package main
 // once. The `mcp` service never sees a password: it asks this service who a token belongs to (docs/plans/ai-connectors.md).
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -207,6 +208,20 @@ func (s *server) connectorClient(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// mayConnect is the rule for who can give an assistant access: Caller Whale staff, and people who belong to a workspace (a role there).
+// Everyone else has nothing for an assistant to act on. It is checked when the person agrees and on every use of a token, so ending a
+// person's access also ends what their assistants can do.
+func (s *server) mayConnect(ctx context.Context, userID string) (bool, error) {
+	if s.cfg.authzURL == "" || s.cfg.authzToken == "" {
+		return false, errAccessUnavailable
+	}
+	profile, err := readAccess(ctx, s.cfg.authzURL, s.cfg.authzToken, userID)
+	if err != nil {
+		return false, errAccessUnavailable
+	}
+	return profile.PlatformRole != "" || len(profile.Workspaces) > 0, nil
+}
+
 // ---- the person says yes (or no) ----
 
 func randomText(n int) string {
@@ -256,6 +271,13 @@ func (s *server) connectorConsent(w http.ResponseWriter, r *http.Request) error 
 	}
 	if len(body.CodeChallenge) < 43 || len(body.CodeChallenge) > 128 {
 		return bad("This request is not valid. Start again from the assistant.")
+	}
+	allowed, err := s.mayConnect(r.Context(), c.Sub)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return forbidden("Connecting an assistant is for Caller Whale staff and people who belong to a workspace.")
 	}
 	scope := cleanScope(body.Scope)
 	// One grant per person and assistant: connecting again renews it instead of piling up copies.
@@ -421,6 +443,10 @@ func (s *server) connectorIntrospect(w http.ResponseWriter, r *http.Request) err
 		return err
 	}
 	if u == nil || u.disabled {
+		writeJSON(w, http.StatusOK, map[string]any{"active": false})
+		return nil
+	}
+	if allowed, err := s.mayConnect(r.Context(), u.id); err != nil || !allowed {
 		writeJSON(w, http.StatusOK, map[string]any{"active": false})
 		return nil
 	}
