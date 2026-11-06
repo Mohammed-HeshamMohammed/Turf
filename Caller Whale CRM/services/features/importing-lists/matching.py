@@ -1,0 +1,72 @@
+"""Which CRM field each source column is, from its header. The wording is the same as the CRM's own column matching
+(desktop/frontend/react/src/field-vocabulary.ts): phrases are compared after case, punctuation and spacing are evened out,
+so "Owner Name", "OWNER_NAME" and "ownerName" read the same. A column it does not know is suggested as "not used"."""
+import re
+
+# CRM field -> what people call it. Phones and emails may come from several columns (phone 1, phone 2).
+VOCABULARY = {
+    "name": ["name", "full name", "owner", "owner name", "owner full name", "primary owner", "owner 1", "customer", "customer name", "client",
+             "client name", "contact", "contact name", "seller", "seller name", "homeowner", "home owner", "lead name", "person", "person name",
+             "taxpayer", "taxpayer name", "deed holder", "grantee", "recipient", "full owner name"],
+    "first_name": ["first name", "first", "fname", "given name", "forename", "owner first name", "owner 1 first name", "first name owner",
+                   "customer first name", "client first name", "contact first name", "seller first name"],
+    "last_name": ["last name", "last", "lname", "surname", "family name", "owner last name", "owner 1 last name", "last name owner",
+                  "customer last name", "client last name", "contact last name", "seller last name"],
+    "phone": ["phone", "phone number", "phone 1", "phone #", "telephone", "tel", "mobile", "mobile phone", "mobile number", "cell", "cell phone",
+              "cellphone", "wireless", "landline", "contact number", "contact phone", "owner phone", "primary phone", "best phone", "home phone",
+              "work phone", "number", "whatsapp"],
+    "email": ["email", "e mail", "email address", "owner email", "contact email", "primary email"],
+    "address": ["address", "street address", "property address", "site address", "situs address", "address 1", "address line 1", "street",
+                "location", "house address", "home address", "subject property address", "property street"],
+    "unit": ["unit", "apartment", "apt", "suite", "address 2", "address line 2", "unit number"],
+    "city": ["city", "town", "property city", "site city", "situs city"],
+    "region": ["state", "region", "province", "property state", "site state", "state code"],
+    "zip": ["zip", "zip code", "zipcode", "postal code", "postcode", "property zip", "site zip"],
+    "country": ["country", "nation"],
+    "latitude": ["latitude", "lat", "y"],
+    "longitude": ["longitude", "long", "lng", "lon", "x"],
+    "parcel": ["apn", "parcel", "parcel id", "parcel number", "pin", "folio", "tax id"],
+    "value": ["value", "estimated value", "est value", "market value", "property value", "price", "avm", "estimated price", "assessed value",
+              "total assessed value"],
+    "source": ["source", "lead source", "list source", "origin"],
+}
+MULTIPLE = {"phone", "email"}
+_MAILING = {"mailing", "mail"}  # the mailing address is another address than the property's: not matched to the property fields
+
+_lookup = {phrase: field for field, phrases in VOCABULARY.items() for phrase in phrases}
+
+
+def normalize_header(header: str) -> str:
+    """Lower-case words separated by single spaces; camelCase is split."""
+    text = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", str(header or ""))
+    return " ".join(re.sub(r"[^a-z0-9#]+", " ", text.lower()).split())
+
+
+def suggest(header: str) -> str | None:
+    """The CRM field a header most likely is, or None when the CRM does not use it."""
+    words = normalize_header(header)
+    if not words or _MAILING & set(words.split()):
+        return None
+    field = _lookup.get(words)
+    if field:
+        return field
+    # "Phone 2", "Cell 3", "Email 2": a known phrase followed by a number.
+    stem = re.sub(r"\s*\d+$", "", words)
+    if stem != words and _lookup.get(stem) in MULTIPLE:
+        return _lookup[stem]
+    return None
+
+
+def suggest_all(headers: list[str]) -> list[str | None]:
+    """Suggestions for a whole header row: a field that cannot repeat (name, address...) goes to its first column only."""
+    taken: set[str] = set()
+    out: list[str | None] = []
+    for header in headers:
+        field = suggest(header)
+        if field and field not in MULTIPLE:
+            if field in taken:
+                field = None
+            else:
+                taken.add(field)
+        out.append(field)
+    return out

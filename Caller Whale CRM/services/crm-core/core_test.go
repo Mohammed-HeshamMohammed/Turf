@@ -1,0 +1,403 @@
+package main
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/coder/websocket"
+)
+
+const (
+	alice   = "11111111-1111-4111-8111-111111111111"
+	bob     = "22222222-2222-4222-8222-222222222222"
+	carol   = "33333333-3333-4333-8333-333333333333"
+	orgA    = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	orgB    = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+	missing = "99999999-9999-4999-8999-999999999999"
+)
+
+func (e *env) seed() {
+	e.rules.grants[alice+"|"+orgA] = owner()
+	e.rules.grants[bob+"|"+orgA] = grantReply{Allowed: true, Scopes: []string{"own"}, Capabilities: []string{"edit", "call", "handoff", "accept"}}
+	e.rules.grants[carol+"|"+orgB] = owner()
+	e.rules.people_[alice] = peopleReply{UserID: alice, Workspaces: []workspaceRoles{{OrgID: orgA, Roles: []string{"owner"}, BusinessOwner: true}}}
+	e.rules.people_[bob] = peopleReply{UserID: bob, Workspaces: []workspaceRoles{{OrgID: orgA, Roles: []string{"caller"}}}}
+	e.rules.people_[carol] = peopleReply{UserID: carol, Workspaces: []workspaceRoles{{OrgID: orgB, Roles: []string{"owner"}, BusinessOwner: true}}}
+	e.rules.roster[orgA] = []member{{UserID: alice, Roles: []string{"owner"}}, {UserID: bob, Roles: []string{"caller"}}}
+}
+
+func TestMeListsWorkspacesAndWhatThePersonMayDo(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	status, me := e.call(alice, "", "GET", "/api/v1/me", nil)
+	if status != 200 || me["organization_id"] != orgA {
+		t.Fatalf("me: %d %v", status, me)
+	}
+	orgs := me["organizations"].([]any)
+	if len(orgs) != 1 || orgs[0].(map[string]any)["name"] != "Person 1111's workspace" {
+		t.Fatalf("a workspace is named after the person who opened it: %v", orgs)
+	}
+	if caps := me["capabilities"].([]any); len(caps) != len(everything) {
+		t.Fatalf("capabilities: %v", caps)
+	}
+	if me["subscription"].(map[string]any)["usable"] != true {
+		t.Fatal("an active workspace is usable")
+	}
+
+	// A workspace that needs payment still answers, saying so, so the app can tell the person what to do.
+	e.rules.grants[alice+"|"+orgA] = grantReply{Code: "payment_required", Reason: "The trial has ended."}
+	_, me = e.call(alice, orgA, "GET", "/api/v1/me", nil)
+	if sub := me["subscription"].(map[string]any); sub["usable"] != false || sub["reason"] != "The trial has ended." {
+		t.Fatalf("payment required: %v", sub)
+	}
+	// and refuses the records.
+	if status, _ = e.call(alice, orgA, "GET", "/sync/snapshot", nil); status != http.StatusPaymentRequired {
+		t.Fatalf("snapshot while unpaid: %d", status)
+	}
+	// A second step not yet passed is told apart from a refusal.
+	e.rules.grants[alice+"|"+orgA] = grantReply{Code: "second_step_required", Reason: "Confirm with your authenticator."}
+	_, me = e.call(alice, orgA, "GET", "/api/v1/me", nil)
+	if mfa := me["mfa"].(map[string]any); mfa["required"] != true || mfa["passed"] != false {
+		t.Fatalf("second step: %v", mfa)
+	}
+}
+
+func TestNothingWithoutAGoodTokenOrAMembership(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	req, _ := http.NewRequest("GET", e.ts.URL+"/api/v1/me", nil)
+	if res, _ := http.DefaultClient.Do(req); res.StatusCode != 401 {
+		t.Fatalf("no token: %d", res.StatusCode)
+	}
+	if status, _ := e.call(alice, orgB, "GET", "/sync/snapshot", nil); status != 403 {
+		t.Fatalf("someone else's workspace: %d", status)
+	}
+	if status, _ := e.call(alice, "", "GET", "/sync/snapshot", nil); status != 400 {
+		t.Fatalf("no workspace named: %d", status)
+	}
+	e.rules.down = true
+	if status, _ := e.call(alice, orgA, "GET", "/sync/snapshot", nil); status != 503 {
+		t.Fatalf("authz down must refuse, not guess: %d", status)
+	}
+}
+
+func TestALeadsWholeLifeThroughSync(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	_, snap := e.call(alice, orgA, "GET", "/sync/snapshot", nil)
+	cursor, rev := snap["cursor"].(float64), snap["access_revision"].(float64)
+
+	leadID := newID(t)
+	created := e.want(e.opWith(alice, orgA, "lead.create", map[string]any{"id": leadID, "name": "Pat Owner", "phone": "555-0100", "address": "1 Main St", "city": "Austin", "zip": "78701", "latitude": 30.27, "longitude": -97.74}, "d0000000-0000-4000-8000-000000000001"), "applied")
+	if created["id"] != leadID || created["assignee_id"] != alice {
+		t.Fatalf("created: %v", created)
+	}
+	// The same operation again is a duplicate with the first answer.
+	if dup := e.opWith(alice, orgA, "lead.create", map[string]any{"name": "Pat Owner"}, "d0000000-0000-4000-8000-000000000001"); dup["status"] != "duplicate" || dup["original_status"] != "applied" {
+		t.Fatalf("replay: %v", dup)
+	}
+	// Another person cannot probe an operation id they did not send.
+	if other := e.opWith(carol, orgB, "lead.create", map[string]any{"name": "x"}, "d0000000-0000-4000-8000-000000000001"); other["status"] != "rejected" {
+		t.Fatalf("foreign id: %v", other)
+	}
+
+	// An edit made from a stale value is a conflict, and applies nothing.
+	e.want(e.op(alice, orgA, "lead.update", map[string]any{"id": leadID, "changes": map[string]any{"stage": "Contacted"}, "base": map[string]any{"stage": "New"}}), "applied")
+	conflict := e.op(alice, orgA, "lead.update", map[string]any{"id": leadID, "changes": map[string]any{"stage": "Interested"}, "base": map[string]any{"stage": "New"}})
+	if conflict["status"] != "conflict" || conflict["result"].(map[string]any)["fields"].(map[string]any)["stage"].(map[string]any)["server"] != "Contacted" {
+		t.Fatalf("conflict: %v", conflict)
+	}
+	if bad := e.op(alice, orgA, "lead.update", map[string]any{"id": leadID, "changes": map[string]any{"stage": "Nonsense"}, "base": map[string]any{}}); bad["status"] != "rejected" {
+		t.Fatalf("unknown stage: %v", bad)
+	}
+
+	e.want(e.op(alice, orgA, "note.add", map[string]any{"lead_id": leadID, "body": "Call after five."}), "applied")
+	// A callback outcome moves the lead and leaves exactly one open callback task.
+	e.want(e.op(alice, orgA, "call.record", map[string]any{"lead_id": leadID, "outcome": "Callback", "callback_at": "2026-12-01T15:00:00Z"}), "applied")
+	e.want(e.op(alice, orgA, "call.record", map[string]any{"lead_id": leadID, "outcome": "Voicemail"}), "applied")
+	var open int
+	if err := e.admin.QueryRow(context.Background(), `SELECT count(*) FROM crm.tasks WHERE lead_id = $1 AND type = 'Callback' AND done_at IS NULL`, leadID).Scan(&open); err != nil || open != 1 {
+		t.Fatalf("open callback tasks: %d %v", open, err)
+	}
+	if status, _ := e.call(alice, orgA, "GET", "/sync/pull?cursor=0&access_revision="+strconv.FormatInt(int64(rev), 10), nil); status != 200 {
+		t.Fatalf("pull: %d", status)
+	}
+
+	// Pull brings every change since the cursor, once per record.
+	_, pulled := e.call(alice, orgA, "GET", "/sync/pull?cursor="+strconv.FormatInt(int64(cursor), 10)+"&access_revision="+strconv.FormatInt(int64(rev), 10), nil)
+	entities := map[string]int{}
+	for _, c := range pulled["changes"].([]any) {
+		entities[c.(map[string]any)["entity"].(string)]++
+	}
+	if entities["lead"] != 1 || entities["note"] != 1 || entities["call"] != 2 || entities["task"] < 1 {
+		t.Fatalf("pulled: %v", entities)
+	}
+	// A deal, then removing the lead tells every device to drop it.
+	deal := e.want(e.op(alice, orgA, "deal.create", map[string]any{"lead_id": leadID, "amount": 120000, "fee": 8000}), "applied")
+	e.want(e.op(alice, orgA, "deal.update", map[string]any{"id": deal["id"], "changes": map[string]any{"stage": "Closed lost"}, "base": map[string]any{"stage": "Qualified"}}), "rejected")
+	e.want(e.op(alice, orgA, "lead.delete", map[string]any{"id": leadID}), "applied")
+	_, after := e.call(alice, orgA, "GET", "/sync/pull?cursor="+strconv.FormatInt(int64(pulled["cursor"].(float64)), 10)+"&access_revision="+strconv.FormatInt(int64(rev), 10), nil)
+	removed := false
+	for _, c := range after["changes"].([]any) {
+		m := c.(map[string]any)
+		removed = removed || (m["entity"] == "lead" && m["id"] == leadID && m["op"] == "remove")
+	}
+	if !removed {
+		t.Fatalf("a deleted lead must arrive as a removal: %v", after)
+	}
+	// A device holding an old access revision is told to start over.
+	_, reset := e.call(alice, orgA, "GET", "/sync/pull?cursor=0&access_revision=1", nil)
+	if reset["reset"] != true {
+		t.Fatalf("stale revision: %v", reset)
+	}
+}
+
+func TestEachPersonSeesOnlyTheirWorkspaceAndScope(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	mine, theirs, bobs := newID(t), newID(t), newID(t)
+	e.want(e.op(alice, orgA, "lead.create", map[string]any{"id": mine, "name": "Alice's lead"}), "applied")
+	e.want(e.op(alice, orgA, "lead.create", map[string]any{"id": bobs, "name": "Bob's lead", "assignee_id": bob}), "applied")
+	e.want(e.op(carol, orgB, "lead.create", map[string]any{"id": theirs, "name": "Other workspace"}), "applied")
+
+	_, snap := e.call(alice, orgA, "GET", "/sync/snapshot", nil)
+	if n := len(snap["leads"].([]any)); n != 2 {
+		t.Fatalf("an organization-wide role sees its own workspace's two leads, not %d", n)
+	}
+	_, snap = e.call(bob, orgA, "GET", "/sync/snapshot", nil)
+	leads := snap["leads"].([]any)
+	if len(leads) != 1 || leads[0].(map[string]any)["name"] != "Bob's lead" {
+		t.Fatalf("a caller sees only what is assigned to them: %v", leads)
+	}
+	// Bob cannot edit, or even learn of, Alice's lead.
+	if res := e.op(bob, orgA, "lead.update", map[string]any{"id": mine, "changes": map[string]any{"stage": "Contacted"}, "base": map[string]any{}}); res["status"] != "rejected" {
+		t.Fatalf("outside scope: %v", res)
+	}
+	// Row security holds even for a query that forgets to name the workspace.
+	tx, err := e.s.st.begin(context.Background(), scope{userID: carol, orgID: orgB, scopes: []string{"organization"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(context.Background())
+	var n int
+	if err = tx.QueryRow(context.Background(), `SELECT count(*) FROM leads`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("a bare select inside a workspace: %d %v", n, err)
+	}
+}
+
+func TestAHandoffMovesTheLeadOnlyWhenAccepted(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	lead := newID(t)
+	e.want(e.op(bob, orgA, "lead.create", map[string]any{"id": lead, "name": "Handoff lead"}), "applied")
+	e.rules.grants[carol+"|"+orgA] = grantReply{Allowed: true, Scopes: []string{"own"}, Capabilities: []string{"accept", "edit"}}
+	e.rules.grants[alice+"|"+orgA] = owner()
+	req := e.want(e.op(bob, orgA, "handoff.request", map[string]any{"lead_id": lead, "to_user": alice, "note": "Ready for the closer."}), "applied")
+	if again := e.op(bob, orgA, "handoff.request", map[string]any{"lead_id": lead, "to_user": alice, "note": "Again"}); again["status"] != "rejected" {
+		t.Fatalf("a second open handoff: %v", again)
+	}
+	// Bob cannot accept his own handoff.
+	if res := e.op(bob, orgA, "handoff.decide", map[string]any{"id": req["id"], "decision": "accept"}); res["status"] != "rejected" {
+		t.Fatalf("the requester accepting: %v", res)
+	}
+	e.want(e.op(alice, orgA, "handoff.decide", map[string]any{"id": req["id"], "decision": "accept"}), "applied")
+	var assignee, stage string
+	if err := e.admin.QueryRow(context.Background(), `SELECT assignee_id::text, stage FROM crm.leads WHERE id = $1`, lead).Scan(&assignee, &stage); err != nil || assignee != alice || stage != "Qualified" {
+		t.Fatalf("after accept: %s %s %v", assignee, stage, err)
+	}
+	var deals int
+	_ = e.admin.QueryRow(context.Background(), `SELECT count(*) FROM crm.deals WHERE lead_id = $1`, lead).Scan(&deals)
+	if deals != 1 {
+		t.Fatalf("accepting opens the deal: %d", deals)
+	}
+	// Offline queues may not carry changes that need a connection.
+	status, out := e.call(alice, orgA, "POST", "/api/v1/ops", map[string]any{"id": newID(t), "kind": "lead.delete", "queued_offline": true, "payload": map[string]any{"id": lead}})
+	if status != 200 || out["status"] != "rejected" {
+		t.Fatalf("offline delete: %v", out)
+	}
+}
+
+func TestDirectoryNamesPeopleAndProjectsAreListed(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	e.call(bob, orgA, "GET", "/sync/snapshot", nil) // Bob has used the CRM, so his name is known
+	e.call(alice, orgA, "GET", "/sync/snapshot", nil)
+	res, raw := e.raw(alice, orgA, "GET", "/api/v1/directory", nil, nil)
+	var people []map[string]any
+	_ = json.Unmarshal(raw, &people)
+	if res != 200 || len(people) != 2 || people[0]["name"] == "Member" {
+		t.Fatalf("directory: %d %v", res, people)
+	}
+	status, project := e.call(alice, orgA, "POST", "/api/v1/projects", map[string]any{"name": "Austin owners"})
+	if status != 200 || project["name"] != "Austin owners" {
+		t.Fatalf("create project: %d %v", status, project)
+	}
+	if status, _ = e.call(bob, orgA, "POST", "/api/v1/projects", map[string]any{"name": "No"}); status != 403 {
+		t.Fatalf("a caller creating a list: %d", status)
+	}
+}
+
+func TestLiveEventsReachOnlyTheSameWorkspace(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	dial := func(user, org string) *websocket.Conn {
+		conn, _, err := websocket.Dial(ctx, "ws"+e.ts.URL[4:]+"/events", &websocket.DialOptions{Subprotocols: []string{"callerwhale.v1", "bearer." + e.token(user), "org." + org}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, hello, err := conn.Read(ctx)
+		if err != nil || string(hello) != `{"kind":"hello"}` {
+			t.Fatalf("hello: %s %v", hello, err)
+		}
+		return conn
+	}
+	a, c := dial(alice, orgA), dial(carol, orgB)
+	defer a.CloseNow()
+	defer c.CloseNow()
+	time.Sleep(300 * time.Millisecond) // the database listener is already running; give it a moment
+	e.want(e.op(alice, orgA, "lead.create", map[string]any{"name": "Live"}), "applied")
+	_, msg, err := a.Read(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var event map[string]any
+	_ = json.Unmarshal(msg, &event)
+	if event["kind"] != "lead.created" || event["entity"] != "lead" {
+		t.Fatalf("event: %s", msg)
+	}
+	quiet, stop := context.WithTimeout(ctx, 700*time.Millisecond)
+	defer stop()
+	if _, got, err := c.Read(quiet); err == nil {
+		t.Fatalf("another workspace heard: %s", got)
+	}
+	// A socket without a good token never opens.
+	if _, res, err := websocket.Dial(ctx, "ws"+e.ts.URL[4:]+"/events", &websocket.DialOptions{Subprotocols: []string{"callerwhale.v1", "bearer.junk", "org." + orgA}}); err == nil || res == nil || res.StatusCode != 401 {
+		t.Fatalf("junk token: %v %v", res, err)
+	}
+}
+
+func sha(b []byte) string { h := sha256.Sum256(b); return hex.EncodeToString(h[:]) }
+
+func TestUploadingInPiecesResumesAndRejectsDamage(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	file := []byte("name,phone\nPat,555-0100\n")
+	status, job := e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "owners.csv", "size": len(file)})
+	if status != 200 || job["status"] != "uploading" || job["total_chunks"] != float64(1) {
+		t.Fatalf("start: %d %v", status, job)
+	}
+	id := job["id"].(string)
+	header := func(sum string) http.Header { return http.Header{"X-Chunk-Sha256": {sum}} }
+	if status, _ := e.raw(alice, orgA, "PUT", "/api/v1/imports/"+id+"/chunks/0", file, header(sha([]byte("other")))); status != 422 {
+		t.Fatalf("a damaged piece: %d", status)
+	}
+	if status, _ := e.raw(alice, orgA, "PUT", "/api/v1/imports/"+id+"/chunks/0", file[:5], header(sha(file[:5]))); status != 400 {
+		t.Fatalf("a short piece: %d", status)
+	}
+	if status, _ := e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/complete", nil); status != 400 {
+		t.Fatalf("completing with a piece missing: %d", status)
+	}
+	if status, _ := e.raw(alice, orgA, "PUT", "/api/v1/imports/"+id+"/chunks/0", file, header(sha(file))); status != 200 {
+		t.Fatalf("a good piece: %d", status)
+	}
+	if _, again := e.call(alice, orgA, "GET", "/api/v1/imports/"+id, nil); len(again["received"].([]any)) != 1 {
+		t.Fatalf("resume must list the pieces held: %v", again)
+	}
+	if _, err := os.Stat(filepath.Join(e.s.cfg.importDir, id, "0.part")); err != nil {
+		t.Fatalf("the piece is in the shared folder: %v", err)
+	}
+	if _, done := e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/complete", nil); done["status"] != "queued" {
+		t.Fatalf("complete: %v", done)
+	}
+	// Other people cannot see it, and a bad file type is refused up front.
+	if status, _ := e.call(bob, orgA, "GET", "/api/v1/imports/"+id, nil); status != 404 {
+		t.Fatalf("someone else's import: %d", status)
+	}
+	if status, _ := e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "run.exe", "size": 10}); status != 400 {
+		t.Fatalf("file type: %d", status)
+	}
+}
+
+// The worker is a separate program; here the test plays it, writing the holding tables as its login would.
+func TestAConfirmedListIsMergedIntoLeadsInBatches(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	ctx := context.Background()
+	_, job := e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "owners.csv", "size": 100, "name": "Austin"})
+	id := job["id"].(string)
+	columns := `[{"idx":0,"header":"Owner","suggested":"name"},{"idx":1,"header":"Cell","suggested":"phone"},{"idx":2,"header":"Bathroom style","suggested":null}]`
+	if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'mapping', columns = $2::jsonb WHERE id = $1`, id, columns); err != nil {
+		t.Fatal(err)
+	}
+	// Unused columns are only dropped after the person says so.
+	if status, _ := e.call(alice, orgA, "PUT", "/api/v1/imports/"+id+"/mapping", map[string]any{"columns": []any{map[string]any{"idx": 0, "field": "name", "use": true}}}); status != 400 {
+		t.Fatalf("an unanswered column: %d", status)
+	}
+	if status, _ := e.call(alice, orgA, "PUT", "/api/v1/imports/"+id+"/mapping", map[string]any{"columns": []any{
+		map[string]any{"idx": 0, "field": "name", "use": true}, map[string]any{"idx": 1, "field": "phone", "use": true}, map[string]any{"idx": 2, "use": false}}}); status != 200 {
+		t.Fatalf("mapping: %d", status)
+	}
+	for _, row := range []struct {
+		no                 int
+		name, phone, state string
+		group              *int
+		match              *string
+	}{
+		{1, "Pat Owner", "5550100", "clean", nil, nil}, {2, "Sam Seller", "5550101", "clean", nil, nil},
+		{3, "Pat O.", "5550100", "near_duplicate", ptr(7), nil}, {4, "Pat Owner", "5550100", "near_duplicate", ptr(7), nil},
+	} {
+		if _, err := e.admin.Exec(ctx, `INSERT INTO importing.rows (job_id, row_no, fp, cells, name, phone, state, group_id) VALUES ($1, $2, sha256($3::bytea), ARRAY[$4], $4, $5, $6, $7)`,
+			id, row.no, []byte(strconv.Itoa(row.no)), row.name, row.phone, row.state, row.group); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'reviewing' WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ := e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/merge", nil); status != 400 {
+		t.Fatalf("merging before the repeats are decided: %d", status)
+	}
+	_, dups := e.call(alice, orgA, "GET", "/api/v1/imports/"+id+"/duplicates", nil)
+	if dups["total"] != float64(2) {
+		t.Fatalf("repeats listed: %v", dups)
+	}
+	_, decided := e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/duplicates", map[string]any{"decisions": []any{map[string]any{"group_id": 7, "action": "merge"}}})
+	if decided["status"] != "ready" {
+		t.Fatalf("after deciding: %v", decided)
+	}
+	e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/merge", nil)
+	deadline := time.Now().Add(15 * time.Second)
+	var state string
+	for time.Now().Before(deadline) {
+		_ = e.admin.QueryRow(ctx, `SELECT status FROM importing.jobs WHERE id = $1`, id).Scan(&state)
+		if state == "done" {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if state != "done" {
+		t.Fatalf("merge finished as %q", state)
+	}
+	// Three leads: two clean rows and one of the repeat pair; and the project holds them, visible through sync.
+	_, snap := e.call(alice, orgA, "GET", "/sync/snapshot", nil)
+	if n := len(snap["leads"].([]any)); n != 3 {
+		t.Fatalf("leads after import: %d", n)
+	}
+	var feed int
+	_ = e.admin.QueryRow(ctx, `SELECT count(*) FROM crm.change_log WHERE entity = 'lead'`).Scan(&feed)
+	if feed != 3 {
+		t.Fatalf("every new lead reaches the pull feed: %d", feed)
+	}
+}
+
+func ptr[T any](v T) *T { return &v }

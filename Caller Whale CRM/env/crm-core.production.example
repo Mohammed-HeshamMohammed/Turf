@@ -1,0 +1,25 @@
+# The CRM's backend on Coolify (application "crm-core", branch crm-core-backend-production, port 8107, network alias crm-core, NO domain of its own).
+# It keeps the CRM's records (leads, tasks, notes, calls, deals, handoffs), syncs them to the web CRM and the desktop app, and receives uploaded lists.
+# To switch the website over, after this and the import worker are healthy: in the gateway's ROUTES replace gate.callerwhale.com=http://notifications:8102 with gate.callerwhale.com=http://crm-core:8107 (the contact form keeps working: crm-core passes it to NOTIFY_URL).
+# Paste into Environment Variables -> Developer View. Fill every <...>. Secrets stay in Coolify; never commit a filled copy.
+# HTTP port; default 8107. Match Coolify's container port and the gateway's ROUTES.
+PORT=8107
+# Secret PostgreSQL URI of the CRM database with crm-core's login. The service creates its own tables (schemas crm and importing) at start.
+DATABASE_URL=<postgres://crm_core:password@crm-postgres:5432/crm?sslmode=require>
+# The auth service's public keys at its private address (http://auth:8101/.well-known/jwks.json); sign-in tokens are checked with them locally.
+AUTH_JWKS_URL=http://auth:8101/.well-known/jwks.json
+# The authorization service's private address, like http://authz:8104.
+AUTHZ_URL=http://authz:8104
+# Secret crm-core token: the value after core-api= in authz's AUTHZ_TOKENS, 32+ characters.
+AUTHZ_TOKEN=<the core-api token from authz's AUTHZ_TOKENS>
+# The notification service's private address; the website's contact form is passed on to it. Empty turns the form off.
+NOTIFY_URL=http://notifications:8102
+# Pages that may call crm-core from a browser, comma-separated origins like https://app.callerwhale.com. Keep it the same as the gateway's CORS_ORIGINS: the gateway passes a browser's preflight on and leaves the answer to this service.
+CORS_ORIGINS=https://app.callerwhale.com,https://callerwhale.com
+# The folder shared with the import worker, where upload pieces wait; default /data/imports. One persistent volume mounted at the same path in crm-core and importing-lists.
+IMPORT_DIR=/data/imports
+# Create the worker's login once in the CRM PostgreSQL (CREATE ROLE importer LOGIN PASSWORD '<long random password>';); crm-core grants it its tables at each start.
+# The import worker's database login, given the holding tables at start. Empty until the worker is deployed.
+IMPORT_DB_ROLE=importer
+# Largest list accepted, in megabytes; default 20480.
+MAX_IMPORT_MB=20480

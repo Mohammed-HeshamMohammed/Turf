@@ -14,6 +14,8 @@ const examples = {
   'authz.production.example': 'authz',
   'billing.production.example': 'billing',
   'mcp.production.example': 'mcp',
+  'crm-core.production.example': 'crm-core',
+  'importing-lists.production.example': 'importing-lists',
   // Pointer-only example; actual monitoring settings are in deploy/grafana.
   'grafana.production.example': 'callerwhale-monitoring',
 };

@@ -30,7 +30,7 @@ class ServerTest(unittest.TestCase):
     def test_version_is_reported(self) -> None:
         status, body = server.route("GET", "/version")
         self.assertEqual(status, 200)
-        self.assertEqual(body, {"service": "importing-lists", "version": "0.1.0"})
+        self.assertEqual(body, {"service": "importing-lists", "version": "0.2.0"})
 
     def test_unknown_paths_are_not_found(self) -> None:
         with self.assertRaises(urllib.error.HTTPError) as caught:

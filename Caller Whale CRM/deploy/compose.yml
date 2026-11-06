@@ -55,15 +55,40 @@ services:
       PORT: "8104"
       DATABASE_URL: "${AUTHZ_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_authz?sslmode=disable}"
       AUTHZ_SIGNING_KEY: "${AUTHZ_SIGNING_KEY:?set AUTHZ_SIGNING_KEY in env/compose.env}"
-      AUTHZ_TOKENS: "billing=${AUTHZ_BILLING_TOKEN:?set AUTHZ_BILLING_TOKEN in env/compose.env},auth=${AUTHZ_AUTH_TOKEN:?set AUTHZ_AUTH_TOKEN in env/compose.env}"
+      AUTHZ_TOKENS: "billing=${AUTHZ_BILLING_TOKEN:?set AUTHZ_BILLING_TOKEN in env/compose.env},auth=${AUTHZ_AUTH_TOKEN:?set AUTHZ_AUTH_TOKEN in env/compose.env},core-api=${AUTHZ_CORE_TOKEN:?set AUTHZ_CORE_TOKEN in env/compose.env}"
     depends_on:
       - postgres
+    restart: unless-stopped
+  crm-core:
+    build:
+      context: ../services/crm-core
+    environment:
+      PORT: "8107"
+      DATABASE_URL: "${CRM_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_crm?sslmode=disable}"
+      AUTH_JWKS_URL: "http://auth:8101/.well-known/jwks.json"
+      AUTHZ_URL: "http://authz:8104"
+      AUTHZ_TOKEN: "${AUTHZ_CORE_TOKEN:?set AUTHZ_CORE_TOKEN in env/compose.env}"
+      NOTIFY_URL: "http://notifications:8102"
+      IMPORT_DIR: "/data/imports"
+    volumes:
+      - imports:/data/imports
+    depends_on:
+      - postgres
+      - authz
     restart: unless-stopped
   importing-lists:
     build:
       context: ../services/features/importing-lists
     environment:
       PORT: "8111"
+      # One machine for trying things out: the worker uses the database owner. Production gives it its own login (IMPORT_DB_ROLE on crm-core).
+      DATABASE_URL: "${CRM_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_crm?sslmode=disable}"
+      IMPORT_DIR: "/data/imports"
+    volumes:
+      - imports:/data/imports
+    depends_on:
+      - crm-core
+    # No memory or CPU cap: a large list may use what the machine has.
     restart: unless-stopped
   skip-tracing:
     build:
@@ -112,3 +137,4 @@ services:
     restart: unless-stopped
 volumes:
   postgres-data:
+  imports:

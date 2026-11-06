@@ -14,6 +14,7 @@ AUTHZ_SIGNING_KEY=<paste a new-key output>
 #   $bytes = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes); -join ($bytes | ForEach-Object { $_.ToString('x2') })
 # Copy only the 64-character result after auth=. It must differ from billing's token; authz refuses duplicate tokens.
 # Then put that same result (without the auth= prefix) in the auth application's AUTHZ_TOKEN. Save and redeploy authz before auth.
+# crm-core joins with its own token: append ,core-api=<core-api token> and put the same value (without core-api=) in crm-core's AUTHZ_TOKEN. Deploy authz first.
 # Secret caller tokens, caller=token comma-separated, 32+ characters each; auth reads account memberships, billing updates standing. Each caller gets only its own rights.
 AUTHZ_TOKENS=billing=<billing token>,auth=<auth token>
 # How long a grant lasts, 5 to 600 seconds; default 60. Shorter means faster revocation and more calls.

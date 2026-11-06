@@ -1,6 +1,6 @@
 # CRM core and list imports (web CRM first)
 
-**Status:** agreed with the owner on 2026-11-06, nothing built yet. Scope: the web CRM at `app.callerwhale.com` only; the desktop app keeps its local import.
+**Status:** agreed with the owner on 2026-11-06; steps 1 to 3 of the build order are built and tested (see "Built so far" at the end); steps 4 to 6 are the owner's Coolify work and the CRM's import screen. Scope: the web CRM at `app.callerwhale.com` only; the desktop app keeps its local import.
 
 ## Why
 
@@ -66,13 +66,13 @@ The import worker's database login writes only to the holding tables and reads o
 | Everything running today | about 2 GB |
 | CRM PostgreSQL | up to 1 to 1.5 GB |
 | crm-core | about 100 MB |
-| Import worker | capped at 768 MB to 1 GB, at most 1 core, lower CPU priority |
+| Import worker | **no cap** (owner's decision, 2026-11-06): it uses what a list needs. Measured: a 500,000-row, 20-column file peaked at about 600 MB |
 | Coolify builds | 1 to 2 GB for a few minutes (until images are built on GitHub) |
-| Spare | about 2 GB |
+| Spare | about 1 to 2 GB, less while a very large list is being cleaned |
 
 - **Excel has no size limit:** sheets are read row by row, so memory stays small; big Excel files are slower than CSV, not refused.
 - **Deploys are allowed during imports:** images will be built on GitHub instead of the server, and an import saves its progress after every batch and continues after a restart.
-- **One big import at a time** across the server; others wait in the queue (agreed).
+- **One big import at a time** across the server; others wait in the queue (agreed). With no cap on the worker, this is also what keeps it from taking the whole machine twice over.
 - **Growth:** upgrade the VPS or move the import worker to its own small server, with no code change (agreed).
 - A 1 GB CSV is expected to take about 5 to 15 minutes on this server, with progress and Cancel.
 
@@ -90,3 +90,18 @@ The web CRM keeps every visible lead in the browser (snapshot plus sync). That s
 6. Images built on GitHub.
 
 Secrets (database passwords, the `core-api` token for authz) are set by the owner in Coolify; they are never typed by an assistant.
+
+## Built so far (2026-11-06)
+
+- **crm-core** (`services/crm-core`, Go, port 8107): `/api/v1/me`, `/account`, `/directory`, `/admin/teams`, `/projects`, `/ops`, `/credits/use`; `/sync/snapshot`, `/pull`, `/push` with every operation kind the web CRM sends except `message.draft` (refused until messaging exists); the `/events` WebSocket over PostgreSQL `LISTEN/NOTIFY`; the contact-form pass-through; CORS for the listed pages. Database tables and row security are created at start by numbered, checksummed scripts. Tested against a real PostgreSQL, including that a workspace never sees another's records.
+- **Imports, crm-core side:** pieces with SHA-256 fingerprints and resume, mapping confirmation, repeat decisions, and the merge into leads in batches of 50,000 (resumes after a restart; cancel stops between batches).
+- **importing-lists** (`services/features/importing-lists`, Python and polars): assembly, load, exact duplicates, column suggestions, cleaning, repeats inside the file and against existing leads, resume after a restart, one import at a time. 500,000 rows by 20 columns: about 18 s to load, about 70 s to clean and find repeats, peak memory about 600 MB.
+- **Decided while building:** a workspace the CRM has never seen is named after the person who opened it until an administrator renames it (`PATCH /api/v1/organization`); a person's access revision is derived from what authz grants them, so a change in roles resets their devices without a counter to keep; pieces are joined into one file as they are used and the file is kept until the load finishes (a restart needs it), then deleted.
+- **Not built:** messaging, notifications and followers (the tables are not created yet), rules and reports, the lead paging for very large workspaces, the CRM's import screen, images built on GitHub, and the Coolify setup. The original rows of a finished import stay in the holding table; a clean-up after some days is still to be decided.
+
+### What the owner does in Coolify (step 4)
+
+1. Create the CRM PostgreSQL resource, a login `crm_core` for crm-core, and (after crm-core has started once) `CREATE ROLE importer LOGIN PASSWORD '...'`.
+2. Add `core-api=<token>` to authz's `AUTHZ_TOKENS`; redeploy authz.
+3. Create `crm-core` and `importing-lists` from their production branches, one persistent volume at `/data/imports` in both, using `env/crm-core.production.example` and `env/importing-lists.production.example`. Leave the worker uncapped.
+4. In the gateway's `ROUTES` change `gate.callerwhale.com=http://notifications:8102` to `gate.callerwhale.com=http://crm-core:8107`, and redeploy it.

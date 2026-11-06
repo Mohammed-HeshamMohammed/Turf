@@ -219,6 +219,35 @@
         "MCP_AUTH_URL": "The auth service's private address on the shared Docker network (http://auth:8101), used to ask who a token belongs to. Never a public address.",
         "MCP_AUTH_TOKEN": "Secret shared with auth (its AUTH_MCP_TOKEN), 32+ characters. Rotate both together; a mismatch refuses every connection."
       }
+    },
+    "importing-lists": {
+      "description": "The import worker: loads uploaded lists into the CRM database, drops identical rows, matches columns, cleans data and finds repeats. Idle until a list is queued. No domain; no memory or CPU limit.",
+      "sources": [
+        "services/features/importing-lists/server.py"
+      ],
+      "variables": {
+        "PORT": "HTTP port for the health check; default 8111.",
+        "DATABASE_URL": "Secret PostgreSQL URI with the worker's own login (importer): the importing schema and a view of a few lead fields, nothing else.",
+        "IMPORT_DIR": "The folder shared with crm-core where upload pieces wait; default /data/imports. The same persistent volume at the same path in both applications."
+      }
+    },
+    "crm-core": {
+      "description": "The CRM's backend: leads, tasks, notes, calls, deals and handoffs, synced to the web CRM and the desktop app, plus uploaded lists. No domain; the gateway routes gate.callerwhale.com to it.",
+      "sources": [
+        "services/crm-core/main.go"
+      ],
+      "variables": {
+        "PORT": "HTTP port; default 8107. Match Coolify's container port and the gateway's ROUTES.",
+        "DATABASE_URL": "Secret PostgreSQL URI of the CRM database with crm-core's login. The service creates its own tables (schemas crm and importing) at start.",
+        "AUTH_JWKS_URL": "The auth service's public keys at its private address (http://auth:8101/.well-known/jwks.json); sign-in tokens are checked with them locally.",
+        "AUTHZ_URL": "The authorization service's private address, like http://authz:8104.",
+        "AUTHZ_TOKEN": "Secret crm-core token: the value after core-api= in authz's AUTHZ_TOKENS, 32+ characters.",
+        "NOTIFY_URL": "The notification service's private address; the website's contact form is passed on to it. Empty turns the form off.",
+        "CORS_ORIGINS": "Pages that may call crm-core from a browser, comma-separated origins like https://app.callerwhale.com. Keep it the same as the gateway's CORS_ORIGINS: the gateway passes a browser's preflight on and leaves the answer to this service.",
+        "IMPORT_DIR": "The folder shared with the import worker, where upload pieces wait; default /data/imports. One persistent volume mounted at the same path in crm-core and importing-lists.",
+        "IMPORT_DB_ROLE": "The import worker's database login, given the holding tables at start. Empty until the worker is deployed.",
+        "MAX_IMPORT_MB": "Largest list accepted, in megabytes; default 20480."
+      }
     }
   }
 }

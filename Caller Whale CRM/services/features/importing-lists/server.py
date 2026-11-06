@@ -1,11 +1,12 @@
-"""Importing lists (server). Scaffold: it answers /healthz and /version using only the standard library."""
+"""Importing lists (server): answers /healthz and /version, and runs the import worker (worker.py) beside them."""
 import json
 import os
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 SERVICE = "importing-lists"
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 
 def route(method: str, path: str) -> tuple[int, dict]:
@@ -49,6 +50,12 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     port = int(os.environ.get("PORT", "8111"))
+    url = os.environ.get("DATABASE_URL", "")
+    if not url:
+        raise SystemExit("set DATABASE_URL: the import worker's own login on the CRM database")
+    import worker  # imported here so the health tests need neither polars nor a database
+
+    threading.Thread(target=worker.run_forever, args=(url,), daemon=True).start()
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     print(f"{SERVICE} listening on http://localhost:{port}")
     server.serve_forever()
