@@ -115,3 +115,14 @@ func TestTheMCPSecretCanBeRotated(t *testing.T) {
 		t.Fatal("a secret under 32 characters is never accepted")
 	}
 }
+
+func TestAssistantNamesArePlainText(t *testing.T) {
+	for name, ok := range map[string]bool{
+		"Claude": true, "ChatGPT (work)": true, "Gemini-2 & co": true, "Café Bot": true, "O'Brien's helper": true,
+		"<img src=x onerror=alert(1)>": false, "Claude‮": false, "Bot\x00": false, "a\"b": false, "{{7*7}}": false,
+	} {
+		if plainName(name) != ok {
+			t.Errorf("plainName(%q) should be %v", name, ok)
+		}
+	}
+}

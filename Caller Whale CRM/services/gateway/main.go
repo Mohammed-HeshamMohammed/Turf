@@ -232,6 +232,7 @@ func newGateway(cfg config) *gateway {
 			},
 			ModifyResponse: func(res *http.Response) error {
 				scrub(res)
+				harden(res, r == cfg.monitoring)
 				if g.human != nil && r.host == g.human.authHost {
 					return g.human.announce(res)
 				}

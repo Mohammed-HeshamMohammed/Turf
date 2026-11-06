@@ -1,14 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Auth } from "./auth/auth-client.js";
+import { askedFrom, returnKind } from "./connect-check.ts";
 
-type Asked = { clientId: string; redirectUri: string; scope: string; state: string; challenge: string };
-
-/** The parts of an assistant's request that arrive in the address when it sends someone here (see auth's /v1/connectors/authorize). */
-export function askedFrom(search: string): Asked | null {
-  const q = new URLSearchParams(search);
-  const asked = { clientId: q.get("client_id") ?? "", redirectUri: q.get("redirect_uri") ?? "", scope: q.get("scope") ?? "account:read", state: q.get("state") ?? "", challenge: q.get("code_challenge") ?? "" };
-  return asked.clientId && asked.redirectUri && asked.challenge ? asked : null;
-}
 
 const SCOPE_TEXT: Record<string, string> = { "account:read": "See your name, your email, your role and your workspaces, and how much of your plan you have used" };
 
@@ -66,6 +59,8 @@ export function Connect({ auth, authBase, search }: { auth: Auth; authBase: stri
               <p><strong>It will not be able to:</strong></p>
               <ul className="connect-list"><li>Change anything in your account</li><li>See or change leads, calls, messages or payments</li></ul>
             </div>
+            {returnKind(client.return_host) === "unknown" && <p className="notice bad" role="alert"><strong>Caller Whale does not recognise this app.</strong> Its name is chosen by whoever made it, so it may not be what it says. Only allow it if you started this yourself from an app you trust.</p>}
+            {returnKind(client.return_host) === "local" && <p className="notice">This app runs on your own computer. Only allow it if you started it yourself.</p>}
             <p className="muted">You can end this connection any time in Settings → Connections.</p>
           </>
         ) : !error && <p className="muted" role="status"><span className="spinner" aria-hidden="true" />Checking the request…</p>}
