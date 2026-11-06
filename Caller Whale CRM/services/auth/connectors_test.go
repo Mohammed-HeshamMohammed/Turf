@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"crypto/sha256"
 	"encoding/base64"
 	"strings"
@@ -39,8 +41,23 @@ func TestConnectorRedirectsAndScopes(t *testing.T) {
 	}
 }
 
+// fakeAuthz answers the authorization service's person lookup: a person in one workspace, or in none.
+func fakeAuthz(member *bool) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		spaces := `[]`
+		if *member {
+			spaces = `[{"org_id":"11111111-1111-1111-1111-111111111111","roles":["owner"],"business_owner":true}]`
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"user_id":"x","platform_role":"","workspaces":` + spaces + `}`))
+	}))
+}
+
 func TestConnectorFlow(t *testing.T) {
-	w := newWorld(t, func(c *config) { c.mcpToken = strings.Repeat("m", 40) })
+	member := true
+	authz := fakeAuthz(&member)
+	defer authz.Close()
+	w := newWorld(t, func(c *config) { c.mcpToken = strings.Repeat("m", 40); c.authzURL = authz.URL; c.authzToken = "token" })
 	account := w.signUp("assistant@example.com")
 	registered := w.call("POST", "/v1/connectors/register", map[string]any{"client_name": "Claude", "redirect_uris": []string{"https://claude.ai/cb"}}, "")
 	if registered.status != 201 {
@@ -66,5 +83,10 @@ func TestConnectorFlow(t *testing.T) {
 	}
 	if list := w.call("GET", "/v1/me/connections", nil, account.access()); list.status != 200 {
 		t.Fatalf("list connections: %d", list.status)
+	}
+	// Someone with no staff role and no workspace has nothing for an assistant to act on.
+	member = false
+	if refused := w.call("POST", "/v1/connectors/consent", map[string]any{"client_id": clientID, "redirect_uri": "https://claude.ai/cb", "scope": "account:read", "code_challenge": challenge}, account.access()); refused.status != 403 {
+		t.Fatalf("a person with no role cannot connect an assistant: %d %v", refused.status, refused.body)
 	}
 }
