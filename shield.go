@@ -35,7 +35,7 @@ var authRoutes = []string{
 	"GET /v1/admin/invitations", "POST /v1/admin/invitations",
 	"GET /v1/roles", "GET /v1/admin/members", "GET /v1/admin/overview", "GET /v1/admin/costs", "POST /v1/admin/costs", "DELETE /v1/admin/costs/{id}", "GET /v1/admin/plans", "POST /v1/admin/memberships", "GET /v1/admin/rates", "POST /v1/admin/rates", "DELETE /v1/admin/rates/{id}",
 	"GET /v1/orgs/{org}/members", "PUT /v1/orgs/{org}/members/{user}",
-	"GET /v1/orgs/{org}/roles",
+	"GET /v1/orgs/{org}/roles", "GET /v1/orgs/{org}/standing",
 	"GET /v1/orgs/{org}/invitations", "POST /v1/orgs/{org}/invitations",
 	"DELETE /v1/invitations/{id}",
 	"GET /v1/me/invitations", "POST /v1/me/invitations/{id}/accept",
@@ -49,6 +49,9 @@ var authRoutes = []string{
 	"POST /v1/mfa/setup", "POST /v1/mfa/totp/setup", "POST /v1/mfa/confirm", "POST /v1/mfa/totp/confirm", "POST /v1/mfa/verify",
 	"POST /v1/mfa/challenge/start", "POST /v1/mfa/challenge/send", "POST /v1/mfa/challenge/status", "POST /v1/mfa/challenge/answer",
 	"GET /v1/mfa/approvals", "POST /v1/mfa/approvals/{id}",
+	"GET /.well-known/oauth-authorization-server",
+	"POST /v1/connectors/register", "GET /v1/connectors/authorize", "GET /v1/connectors/clients/{id}", "POST /v1/connectors/consent", "POST /v1/connectors/token",
+	"GET /v1/me/connections", "DELETE /v1/me/connections/{id}",
 	"POST /v1/mfa/email", "POST /v1/mfa/telegram/link", "POST /v1/mfa/telegram/webhook/{secret}",
 }
 
