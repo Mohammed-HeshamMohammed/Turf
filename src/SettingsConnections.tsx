@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Auth } from "./auth/auth-client.js";
 import { mcpUrl } from "./crm-url.ts";
+import { hasCrmAccess } from "./crm-access.ts";
 
 // Settings, Connections. AI assistants connect FROM the assistant (it is given the address below and sends the person back here to
 // allow it), so this page shows that address, how to add it, and what is connected, with an End button. The tools (ClickUp, Google
@@ -27,6 +28,8 @@ export function SettingsConnections({ auth, authBase }: { auth: Auth; authBase: 
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [ending, setEnding] = useState("");
+  // Assistants are for staff and people in a workspace; anyone else is told so instead of being shown the address.
+  const [allowed, setAllowed] = useState<boolean | null>(null);
 
   const call = useCallback(async (method: string, path: string) => {
     const token = await auth.accessToken();
@@ -41,6 +44,7 @@ export function SettingsConnections({ auth, authBase }: { auth: Auth; authBase: 
     call("GET", "/v1/me/connections").then(body => { setList(body.connections); setError(""); }).catch(reason => setError(reason instanceof Error ? reason.message : "Could not load your connections."));
   }, [call]);
   useEffect(() => load(), [load]);
+  useEffect(() => { call("GET", "/v1/me/access").then(body => setAllowed(hasCrmAccess(body))).catch(() => setAllowed(true)); }, [call]); // if it cannot be checked, the service still refuses
 
   const copy = async () => {
     try { await navigator.clipboard.writeText(mcpUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* the address is on screen to copy by hand */ }
@@ -55,6 +59,12 @@ export function SettingsConnections({ auth, authBase }: { auth: Auth; authBase: 
 
   return (
     <div className="settings-stack">
+      {allowed === false ? (
+        <section className="card profile-card" aria-labelledby="assistants-title">
+          <h2 id="assistants-title">AI assistants</h2>
+          <p className="muted">Connecting an assistant is for Caller Whale staff and people who belong to a workspace. You will see it here once you do.</p>
+        </section>
+      ) : (
       <section className="card profile-card" aria-labelledby="assistants-title">
         <h2 id="assistants-title">AI assistants</h2>
         <p className="muted">Let Claude, ChatGPT or Gemini see your Caller Whale account. Today that means your name, role, workspaces and plan usage, read only.</p>
@@ -66,6 +76,7 @@ export function SettingsConnections({ auth, authBase }: { auth: Auth; authBase: 
           {ASSISTANTS.map(item => <li key={item.name}><span><strong>{item.name}</strong><small className="muted">{item.steps}</small></span></li>)}
         </ul>
       </section>
+      )}
 
       <section className="card profile-card" aria-labelledby="connected-title">
         <h2 id="connected-title">Connected now</h2>
