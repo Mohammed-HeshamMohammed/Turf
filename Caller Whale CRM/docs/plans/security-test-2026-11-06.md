@@ -9,7 +9,7 @@ The application layer held up. Every attempt to reach a private route, trick the
 | # | Finding | Severity | State |
 | --- | --- | --- | --- |
 | 1 | The server answers on ports 80 and 443 to anyone, so Cloudflare's protection can be skipped by talking to the address directly | High | **Needs the server**: see below |
-| 2 | Coolify's login page is on the open internet | High | **Needs Cloudflare Access** (your account) |
+| 2 | Coolify's login page is on the open internet | High | **Reduced**: a Cloudflare custom rule ("Coolify: challenge everyone except deploy webhooks") puts an interactive challenge in front of every Coolify page except `/webhooks/`, so scripts and password-guessing tools stop there. Cloudflare Access (a sign-in in front) needs the Zero Trust plan, not taken for now. Turn on two-step sign-in in Coolify (Profile → Two-factor) as the other lock |
 | 3 | SSH (port 22) is open to the world | Medium | **Needs the server** |
 | 4 | API answers through the gateway carried no HSTS, `nosniff`, framing or no-store headers | Medium | **Fixed** in the gateway |
 | 5 | An assistant could register under any name, including markup, and could call itself "Claude" | Medium | **Fixed**: names are plain text, and the consent page warns when the app does not return to a known assistant |
