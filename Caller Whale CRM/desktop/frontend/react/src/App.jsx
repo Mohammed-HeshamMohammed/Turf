@@ -230,6 +230,7 @@ export function App() {
       const sync = engine.current;
       if (!sync) return apply(action);
       if (action.type === "SYNC") return void sync.sync();
+      if (action.type === "REFRESH_LISTS") return void sync.refreshProjects();
       if (action.type === "RESOLVE") return void sync.resolve(action.id, action.discard ? "discard" : "keep");
       if (["CONFLICT", "ROLE", "RESET"].includes(action.type)) return;
       if (action.type === "CONNECT") {

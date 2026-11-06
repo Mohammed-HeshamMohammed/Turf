@@ -129,6 +129,16 @@ export class SyncEngine {
     await this.save();
   }
 
+  /** Fetches the workspace's lists again, so a list that was just uploaded shows up without signing in again. */
+  async refreshProjects() {
+    const projects = await this.api.projects().catch(() => null);
+    if (!projects || !this.store) return;
+    this.extra = { ...this.extra, projects };
+    this.store = { ...this.store, projects };
+    await this.save();
+    this.emit();
+  }
+
   async save() {
     const stored = await this.vault.put("store", this.store);
     if (!stored) this.error = "This device is out of space: records are not kept offline, but your pending changes are";

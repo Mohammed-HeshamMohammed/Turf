@@ -117,6 +117,18 @@ export const api = {
   op: operation => request("POST", "/api/v1/ops", operation),
   rules: () => request("GET", "/api/v1/rules"),
   saveRule: (id, rule) => request("PUT", "/api/v1/rules/" + id, rule),
+  /** List uploads (docs/plans/crm-core-and-imports.md). The pieces themselves go through remote/imports.ts. */
+  imports: {
+    start: (body): Promise<any> => request("POST", "/api/v1/imports", body),
+    list: (): Promise<any[]> => request("GET", "/api/v1/imports"),
+    get: (id: string): Promise<any> => request("GET", `/api/v1/imports/${id}`),
+    complete: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/complete`),
+    mapping: (id: string, body): Promise<any> => request("PUT", `/api/v1/imports/${id}/mapping`, body),
+    duplicates: (id: string, offset = 0): Promise<any> => request("GET", `/api/v1/imports/${id}/duplicates?offset=${offset}`),
+    decide: (id: string, body): Promise<any> => request("POST", `/api/v1/imports/${id}/duplicates`, body),
+    merge: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/merge`),
+    cancel: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/cancel`),
+  },
 };
 
 /** The /events WebSocket URL for an http(s) API base. */
