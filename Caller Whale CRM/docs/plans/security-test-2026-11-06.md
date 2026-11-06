@@ -10,7 +10,7 @@ The application layer held up. Every attempt to reach a private route, trick the
 | --- | --- | --- | --- |
 | 1 | The server answered on ports 80 and 443 to anyone, so Cloudflare's protection could be skipped by talking to the address directly | High | **Fixed**: the Hostinger VPS firewall now accepts 80 and 443 only from Cloudflare's published ranges (see below). Checked: direct connections to the address time out, every site still answers through Cloudflare |
 | 2 | Coolify's login page is on the open internet | High | **Reduced**: a Cloudflare custom rule ("Coolify: challenge everyone except deploy webhooks") puts an interactive challenge in front of every Coolify page except `/webhooks/`, so scripts and password-guessing tools stop there. Cloudflare Access (a sign-in in front) needs the Zero Trust plan, not taken for now. Turn on two-step sign-in in Coolify (Profile → Two-factor) as the other lock |
-| 3 | SSH (port 22) is open to the world | Medium | **Needs the server** |
+| 3 | SSH (port 22) is open to the world, with password login on | Medium | **Fixed**: key-only login, root only by key, 3 tries, fail2ban bans addresses after repeated failures (see below). The port itself stays open so the keys keep working from any address |
 | 4 | API answers through the gateway carried no HSTS, `nosniff`, framing or no-store headers | Medium | **Fixed** in the gateway |
 | 5 | An assistant could register under any name, including markup, and could call itself "Claude" | Medium | **Fixed**: names are plain text, and the consent page warns when the app does not return to a known assistant |
 | 6 | The CRM web app answered `/.env`, `/.git/config` and other scanner paths with its page (status 200), which makes scanners try harder | Low | **Fixed**: hidden files are a plain 404 |
@@ -46,9 +46,15 @@ Checked after the sync: direct connections to `93.127.202.234` on 80 and 443 tim
 
 Coolify holds every secret. In Cloudflare Zero Trust, add a self-hosted application for `coolify.callerwhale.com` with a policy that allows only your email (one-time code or Google). The Coolify login stays as a second wall. Free for up to 50 people.
 
-### 3. Close SSH to the world (Medium)
+### 3. SSH: done
 
-Allow port 22 only from your own address, or use the tunnel's SSH, and make sure password login is off (`PasswordAuthentication no`) and only keys work.
+Changed on the server (Hostinger web console, after a snapshot taken 6 Nov 05:39, which expires 7 Nov):
+
+- `/etc/ssh/sshd_config.d/00-hardening.conf`: `PasswordAuthentication no`, `KbdInteractiveAuthentication no`, `PermitRootLogin prohibit-password`, `MaxAuthTries 3`, `LoginGraceTime 30`. It is named `00-` because the first file read wins and `50-cloud-init.conf` turns passwords on.
+- `fail2ban` installed, with `/etc/fail2ban/jail.d/sshd.local`: 4 failures in 10 minutes bans the address for 1 hour.
+- Authorized keys on root: the owner's, Coolify's, and Hostinger's console key. Checked from outside: password login answers "Permission denied (publickey)".
+
+Not done, on purpose: restricting port 22 to one address (the owner's address may change) and a one-time code on top of the key (needs the PAM authenticator module and an enrolment; the key already cannot be guessed or sniffed). A Cloudflare Tunnel for SSH would be the next step if wanted. If a key is ever lost, the Hostinger web console still gets in without SSH.
 
 ## Leftovers from the test
 
