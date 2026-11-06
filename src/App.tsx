@@ -21,6 +21,7 @@ import { splitName } from "./person-name.ts";
 import { SiteFooter } from "./components/ui/site-footer.tsx";
 import { Dashboard } from "./Dashboard.tsx";
 import { Settings } from "./Settings.tsx";
+import { Connect } from "./Connect.tsx";
 import { Setup } from "./Setup.tsx";
 import { TERMS_VERSION, setupStep } from "./setup.ts";
 import { cleanPath, routeFor } from "./routes.ts";
@@ -416,7 +417,10 @@ export function App({ path: first = "/" }) {
     setNotice("");
     setMe(undefined);
     // keep() already notifies useMe, which restores the profile and handles a temporary failure.
-    if (!wantsCrm(window.location.search)) go("/dashboard");
+    let back = "";
+    try { back = window.sessionStorage.getItem("cw-after-signin") || ""; window.sessionStorage.removeItem("cw-after-signin"); } catch { /* none */ }
+    if (back.startsWith("/connect")) go(back);
+    else if (!wantsCrm(window.location.search)) go("/dashboard");
   };
   const signOut = async () => {
     leaving.current = true;
@@ -431,6 +435,7 @@ export function App({ path: first = "/" }) {
   useEffect(() => {
     if (me && fromCrm) { if (!setupStep(me)) void openCrm(); return; } // the setup steps (age, terms, work) come first
     const to = redirectFor(path, me);
+    if (to && !me && path.startsWith("/connect")) { try { window.sessionStorage.setItem("cw-after-signin", window.location.pathname + window.location.search); } catch { /* signing in then opens the dashboard */ } }
     if (to) go(to, { replace: true });
   }, [path, me]);
   // Signed in and then not, without the person asking (the session ended, or they signed out in another tab): say so.
@@ -458,6 +463,7 @@ export function App({ path: first = "/" }) {
     "/contact": <Contact getAuth={getAuth} />,
     "/privacy": <Privacy />,
     "/terms": <Terms />,
+    "/connect": me && setupStep(me) ? setup : me ? <Connect auth={auth} authBase={authBase} search={typeof window === "undefined" ? "" : window.location.search} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
     "/account": me && setupStep(me) ? setup : me ? <Settings me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
     "/dashboard": me && setupStep(me) ? setup : me ? <Dashboard me={me} auth={auth} authBase={authBase} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
   };
