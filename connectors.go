@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -96,6 +97,10 @@ func (s *server) connectorRegister(w http.ResponseWriter, r *http.Request) error
 		oauthError(w, http.StatusBadRequest, "invalid_client_metadata", "client_name is required (up to 80 characters).")
 		return nil
 	}
+	if !plainName(name) {
+		oauthError(w, http.StatusBadRequest, "invalid_client_metadata", "client_name may use letters, numbers, spaces and . , - _ ( ) & ' + only.")
+		return nil
+	}
 	if len(body.RedirectURIs) == 0 || len(body.RedirectURIs) > 5 {
 		oauthError(w, http.StatusBadRequest, "invalid_redirect_uri", "Give between one and five redirect_uris.")
 		return nil
@@ -123,6 +128,20 @@ func (s *server) connectorRegister(w http.ResponseWriter, r *http.Request) error
 		"grant_types": []string{"authorization_code", "refresh_token"}, "response_types": []string{"code"}, "token_endpoint_auth_method": "none",
 	})
 	return nil
+}
+
+// plainName keeps an assistant's name to letters, numbers, spaces and a little punctuation. The name is shown on the consent page and in
+// Settings; markup or control characters in it would only ever be an attack, even where the page escapes it.
+func plainName(name string) bool {
+	for _, r := range name {
+		switch {
+		case unicode.IsLetter(r), unicode.IsDigit(r), r == ' ':
+		case strings.ContainsRune(".,-_()&'+", r):
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 type connectorClientRow struct {
