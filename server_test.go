@@ -170,3 +170,18 @@ func TestConfigNeedsItsSettings(t *testing.T) {
 		t.Fatalf("a full set loads with defaults: %v %v", c, err)
 	}
 }
+
+func TestAnswersAreNeverCachedOrSniffed(t *testing.T) {
+	_, h, done := newTestServer(t)
+	defer done()
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/.well-known/oauth-protected-resource", nil))
+	for header, want := range map[string]string{"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer"} {
+		if rec.Header().Get(header) != want {
+			t.Errorf("%s should be %q, got %q", header, want, rec.Header().Get(header))
+		}
+	}
+	if !strings.Contains(rec.Header().Get("Content-Security-Policy"), "frame-ancestors 'none'") {
+		t.Error("the service must not be framed")
+	}
+}
