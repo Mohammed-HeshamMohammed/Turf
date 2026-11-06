@@ -90,3 +90,28 @@ func TestConnectorFlow(t *testing.T) {
 		t.Fatalf("a person with no role cannot connect an assistant: %d %v", refused.status, refused.body)
 	}
 }
+
+func TestTheMCPSecretCanBeRotated(t *testing.T) {
+	oldSecret, newSecret := strings.Repeat("o", 40), strings.Repeat("n", 40)
+	s := &server{cfg: config{mcpToken: newSecret + "," + oldSecret}}
+	call := func(token string) error {
+		r := httptest.NewRequest("POST", "/v1/connectors/introspect", nil)
+		r.Header.Set("Authorization", "Bearer "+token)
+		return s.serviceCaller(r)
+	}
+	if call(newSecret) != nil || call(oldSecret) != nil {
+		t.Fatal("both the new and the old secret work during a rotation")
+	}
+	if call(strings.Repeat("x", 40)) == nil || call("") == nil || call("short") == nil {
+		t.Fatal("any other secret is refused")
+	}
+	if (&server{cfg: config{}}).serviceCaller(httptest.NewRequest("POST", "/", nil)) == nil {
+		t.Fatal("with no secret configured nothing is accepted")
+	}
+	short := &server{cfg: config{mcpToken: "tooshort"}}
+	r := httptest.NewRequest("POST", "/", nil)
+	r.Header.Set("Authorization", "Bearer tooshort")
+	if short.serviceCaller(r) == nil {
+		t.Fatal("a secret under 32 characters is never accepted")
+	}
+}

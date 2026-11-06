@@ -2,7 +2,7 @@
 # Gateway HTTP listen port; default 8100. Match Coolify's upstream container port.
 PORT=8100
 # Comma-separated public-host=http(s)://private-upstream mappings. Changing this changes traffic destinations; do not expose internal-only services as public routes.
-ROUTES=gate.callerwhale.com=http://notifications:8102,auth.callerwhale.com=http://auth:8101
+ROUTES=gate.callerwhale.com=http://notifications:8102,auth.callerwhale.com=http://auth:8101,mcp.callerwhale.com=http://mcp:8106
 # Hostname in ROUTES that receives core-API access policy and private monitoring routing. Must match a configured route exactly.
 CORE_HOST=gate.callerwhale.com
 # Trusted auth public-key endpoint for token verification. Required when CORE_HOST is set; wrong keys block protected access.
@@ -59,3 +59,9 @@ SCAN_WINDOW_MINUTES=10
 SCAN_PAUSE_MINUTES=15
 # Sites allowed to read the gateway's own refusals (not a person, too many requests) in a browser: comma-separated origins like https://callerwhale.com. Empty: the browser shows a CORS error instead.
 CORS_ORIGINS=https://callerwhale.com,https://app.callerwhale.com
+
+# ---- AI assistants (the MCP service) ----
+# The ROUTES host that is the MCP service (AI assistants connect to it). Only its few routes are answered; everything else is Not found. Must be one of the ROUTES hosts.
+MCP_HOST=mcp.callerwhale.com
+# Requests a minute from one address on the MCP host; default 6000. Higher than for people since assistants share a few addresses; each connection also has its own limit.
+MCP_IP_PER_MINUTE=6000

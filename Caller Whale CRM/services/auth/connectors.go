@@ -392,11 +392,21 @@ func (s *server) connectorToken(w http.ResponseWriter, r *http.Request) error {
 
 // ---- the mcp service asks who a token belongs to ----
 
-// serviceCaller checks the shared secret the mcp service sends. Without one configured nothing is accepted.
+// serviceCaller checks the shared secret the mcp service sends. AUTH_MCP_TOKEN may list two (new,old) while the secret is being
+// changed. Without one configured, nothing is accepted.
 func (s *server) serviceCaller(r *http.Request) error {
 	header := r.Header.Get("Authorization")
-	if s.cfg.mcpToken == "" || len(header) < 8 || !strings.EqualFold(header[:7], "bearer ") ||
-		subtle.ConstantTimeCompare([]byte(strings.TrimSpace(header[7:])), []byte(s.cfg.mcpToken)) != 1 {
+	if s.cfg.mcpToken == "" || len(header) < 8 || !strings.EqualFold(header[:7], "bearer ") {
+		return errUnauthenticated
+	}
+	given := []byte(strings.TrimSpace(header[7:]))
+	accepted := false
+	for _, secret := range strings.Split(s.cfg.mcpToken, ",") {
+		if secret = strings.TrimSpace(secret); len(secret) >= 32 && subtle.ConstantTimeCompare(given, []byte(secret)) == 1 {
+			accepted = true // keep going: every listed secret is compared, so the time does not say which one matched
+		}
+	}
+	if !accepted {
 		return errUnauthenticated
 	}
 	return nil
