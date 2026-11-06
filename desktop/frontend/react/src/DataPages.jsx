@@ -6,6 +6,7 @@ import { capability, uid, visibleLeads } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { detectSourceFields, leadFromSource, sourceEvidence, sourceValue } from "./skiptrace-fields.ts";
 import { SourceFieldMapping } from "./SourceFieldMapping.jsx";
+import { ServerImport } from "./ServerImport.jsx";
 import { PropertyMap } from "./PropertyMap.jsx";
 import { LeadsMap } from "./LeadsMap.jsx";
 import { cancelJob, check, checkRepeats, engineAvailable, engineConfig, prepare, saveCopy } from "./engine.ts";
@@ -37,7 +38,18 @@ export function Lists({ id }) {
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [reading, setReading] = useState("");
+  // Connected to Caller Whale's server: lists are uploaded there instead of being kept on this device.
+  const [upload, setUpload] = useState(null);
+  const [running, setRunning] = useState([]);
   const input = useRef(null);
+  const remote = Boolean(state.remote);
+  useEffect(() => {
+    if (!remote || upload) return;
+    api.imports
+      .list()
+      .then(list => setRunning(list.filter(item => !["done", "failed", "cancelled"].includes(item.status))))
+      .catch(() => setRunning([]));
+  }, [remote, upload]);
   const leads = visibleLeads(state);
   const listLeads = useMemo(() => leads.filter(lead => lead.datasetId === id), [leads, id]);
   const datasetIds = new Set(leads.map(item => item.datasetId));
@@ -108,6 +120,7 @@ export function Lists({ id }) {
   }
   async function readFile(file) {
     if (!file) return;
+    if (remote) return setUpload({ file });
     if (!file.name.toLowerCase().endsWith(".csv")) {
       setError("Choose a CSV file. Save a spreadsheet as CSV first.");
       return;
@@ -223,15 +236,15 @@ export function Lists({ id }) {
     <>
       <PageHeader title="Source lists" description="Imported lists and the leads that came from them.">
         {capability(state, "import") && (
-          <Button variant="primary" icon={UploadSimple} onClick={() => input.current.click()}>
-            Import CSV
+          <Button variant="primary" icon={UploadSimple} onClick={() => (remote ? setUpload({}) : input.current.click())}>
+            {remote ? "Upload a list" : "Import CSV"}
           </Button>
         )}
       </PageHeader>
       <input
         ref={input}
         type="file"
-        accept=".csv,text/csv"
+        accept={remote ? ".csv,.txt,.xlsx,.xls" : ".csv,text/csv"}
         hidden
         onChange={event => {
           void readFile(event.target.files?.[0]);
@@ -242,6 +255,18 @@ export function Lists({ id }) {
         <p className="notice" role="alert">
           {error}
         </p>
+      )}
+      {running.length > 0 && (
+        <Card title="Imports in progress" className="imports-running">
+          {running.map(item => (
+            <div className="row" key={item.id}>
+              <span>
+                <strong>{item.name}</strong> <small className="muted">{item.status === "mapping" || item.status === "reviewing" || item.status === "ready" ? "needs you" : item.status}</small>
+              </span>
+              <Button onClick={() => setUpload({ resume: item.id })}>Continue</Button>
+            </div>
+          ))}
+        </Card>
       )}
       <div className="filter-bar">
         <Search value={search} onChange={setSearch} placeholder="Search lists" />
@@ -288,13 +313,21 @@ export function Lists({ id }) {
         >
           <UploadSimple size={28} weight="light" />
           <h3>Bring in your next opportunity list.</h3>
-          <p>Drop a CSV here, or choose a file. Imported lists are kept on this device.</p>
+          <p>{remote ? "Drop a file here, or choose one. It is sent to Caller Whale's server and added to your leads." : "Drop a CSV here, or choose a file. Imported lists are kept on this device."}</p>
           <div className="row">
-            <Button onClick={() => input.current.click()}>Choose CSV</Button>
-            <Button onClick={sample}>Try a sample import</Button>
+            <Button onClick={() => (remote ? setUpload({}) : input.current.click())}>{remote ? "Choose a file" : "Choose CSV"}</Button>
+            {!remote && <Button onClick={sample}>Try a sample import</Button>}
           </div>
-          <small>{reading ? "Reading " + reading + "…" : "CSV files up to 50 MB · every row is imported"}</small>
+          <small>{remote ? "CSV, TXT, XLSX or XLS · big lists are fine" : reading ? "Reading " + reading + "…" : "CSV files up to 50 MB · every row is imported"}</small>
         </div>
+      )}
+      {upload && (
+        <ServerImport
+          resume={upload.resume}
+          initialFile={upload.file}
+          onClose={() => setUpload(null)}
+          onFinished={() => dispatch({ type: "REFRESH_LISTS" })}
+        />
       )}
     </>
   );

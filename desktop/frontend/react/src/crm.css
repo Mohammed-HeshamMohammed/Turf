@@ -7553,3 +7553,112 @@ button.message-card:not(:disabled):hover {
 .second-step .row {
   flex-wrap: wrap;
 }
+
+/* Uploading a list to the server (ServerImport.jsx) */
+.server-import {
+  display: grid;
+  gap: 16px;
+}
+.import-file {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+.import-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.import-columns {
+  display: grid;
+  max-height: min(420px, 50dvh);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--raised);
+}
+.import-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 190px);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+}
+.import-column + .import-column {
+  border-top: 1px solid var(--line);
+}
+.import-column strong,
+.import-column small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.import-column small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.import-repeats {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.import-repeats li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--raised);
+}
+.import-repeats small {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.import-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.import-summary > div {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--raised);
+}
+.import-summary dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.import-summary dd {
+  margin: 2px 0 0;
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+.imports-running .row {
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+@media (max-width: 560px) {
+  .import-column {
+    grid-template-columns: 1fr;
+  }
+  .import-summary {
+    grid-template-columns: 1fr;
+  }
+}
+.import-repeats li > .badge {
+  justify-self: start;
+  margin-top: 4px;
+}
