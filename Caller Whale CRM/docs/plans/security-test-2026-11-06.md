@@ -4,11 +4,11 @@
 
 ## Summary
 
-The application layer held up. Every attempt to reach a private route, trick the gateway's path checks, forge a token, misuse the assistant sign-in or read another site's data was refused. The weak points are around the application: the server can be reached without going through Cloudflare, SSH is open to the world, and Coolify's login is public.
+The application layer held up. Every attempt to reach a private route, trick the gateway's path checks, forge a token, misuse the assistant sign-in or read another site's data was refused. The weak points were around the application: the server could be reached without going through Cloudflare (now closed), SSH is open to the world, and Coolify's login is public (now behind a Cloudflare challenge).
 
 | # | Finding | Severity | State |
 | --- | --- | --- | --- |
-| 1 | The server answers on ports 80 and 443 to anyone, so Cloudflare's protection can be skipped by talking to the address directly | High | **Needs the server**: see below |
+| 1 | The server answered on ports 80 and 443 to anyone, so Cloudflare's protection could be skipped by talking to the address directly | High | **Fixed**: the Hostinger VPS firewall now accepts 80 and 443 only from Cloudflare's published ranges (see below). Checked: direct connections to the address time out, every site still answers through Cloudflare |
 | 2 | Coolify's login page is on the open internet | High | **Reduced**: a Cloudflare custom rule ("Coolify: challenge everyone except deploy webhooks") puts an interactive challenge in front of every Coolify page except `/webhooks/`, so scripts and password-guessing tools stop there. Cloudflare Access (a sign-in in front) needs the Zero Trust plan, not taken for now. Turn on two-step sign-in in Coolify (Profile → Two-factor) as the other lock |
 | 3 | SSH (port 22) is open to the world | Medium | **Needs the server** |
 | 4 | API answers through the gateway carried no HSTS, `nosniff`, framing or no-store headers | Medium | **Fixed** in the gateway |
@@ -30,13 +30,17 @@ The application layer held up. Every attempt to reach a private route, trick the
 
 ## What needs you, and how
 
-### 1. Make the server answer only Cloudflare (High)
+### 1. Make the server answer only Cloudflare (High): done
 
-Anyone who knows the address `93.127.202.234` can talk to Traefik directly with any host name, skipping Cloudflare's firewall, bot protection and DDoS shield. The application still checks everything, but the edge protection is lost. Pick one:
+The Hostinger VPS firewall ("Caller Whale - block direct Coolify 8000", in hPanel → VPS → Security → Firewall) sits in front of the server, so Docker cannot skip it the way it skips `ufw`. Its rules are now:
 
-- **Cloudflare Tunnel (best):** run `cloudflared` on the server and close ports 80 and 443 completely. Nothing on the server listens to the internet any more. Coolify has a guide for this.
-- **Firewall to Cloudflare's addresses:** allow 80 and 443 only from Cloudflare's published IP ranges. Docker skips `ufw`, so the rule must go in the `DOCKER-USER` chain (or use the hosting provider's firewall in front of the server).
-- **Authenticated origin pulls:** Cloudflare presents a client certificate and Traefik refuses connections without it.
+- Accept TCP 22 from anywhere (SSH, see 3).
+- Accept TCP 80:443 from each of Cloudflare's 15 IPv4 ranges (https://www.cloudflare.com/ips-v4): `173.245.48.0/20`, `103.21.244.0/22`, `103.22.200.0/22`, `103.31.4.0/22`, `141.101.64.0/18`, `108.162.192.0/18`, `190.93.240.0/20`, `188.114.96.0/20`, `197.234.240.0/22`, `198.41.128.0/17`, `162.158.0.0/15`, `104.16.0.0/13`, `104.24.0.0/14`, `172.64.0.0/13`, `131.0.72.0/22`.
+- Drop everything else. The old "80, 443 and UDP 443 from anywhere" rules are gone.
+
+Checked after the sync: direct connections to `93.127.202.234` on 80 and 443 time out for every host name; the website, CRM, auth, MCP and gateway answer through Cloudflare; GitHub deploy webhooks still reach Coolify.
+
+**Keep in mind:** a DNS record switched to "DNS only" (grey cloud) will stop working, since only Cloudflare can connect now. If Cloudflare adds ranges, add them here too (the list changes rarely). A Cloudflare Tunnel would remove the open ports entirely, if you want to go further later.
 
 ### 2. Put Coolify behind Cloudflare Access (High)
 
