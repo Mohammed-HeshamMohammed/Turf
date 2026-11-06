@@ -35,20 +35,22 @@ type route struct {
 }
 
 type config struct {
-	monitoring    *route
-	routes        map[string]*route
-	authJWKS      string // the auth service's public keys: the only thing the gateway knows about sign-in
-	staffSecond   bool   // staff paths need the authenticator step in the token
-	ipPerMinute   int
-	userPerMinute int
-	maxBody       int64
-	hops          int            // proxies in front of this one (Coolify's Traefik: 1), to find the caller's address
-	human         *humanSettings // the human check in front of the auth service (nil: off)
-	authHost      string         // the ROUTES host of the auth service: only its real routes are answered
-	scanLimit     int            // requests for things that are not there, from one address, before it is paused
-	scanWindow    time.Duration
-	scanPause     time.Duration
-	corsOrigins   map[string]bool // pages (like https://callerwhale.com) that may read the gateway's own replies from a browser
+	monitoring     *route
+	routes         map[string]*route
+	authJWKS       string // the auth service's public keys: the only thing the gateway knows about sign-in
+	staffSecond    bool   // staff paths need the authenticator step in the token
+	ipPerMinute    int
+	userPerMinute  int
+	maxBody        int64
+	hops           int            // proxies in front of this one (Coolify's Traefik: 1), to find the caller's address
+	human          *humanSettings // the human check in front of the auth service (nil: off)
+	authHost       string         // the ROUTES host of the auth service: only its real routes are answered
+	mcpHost        string         // the ROUTES host of the MCP service (AI assistants): only its few routes are answered, with limits of its own
+	mcpIPPerMinute int            // per address on the MCP host: assistants call from a few shared addresses, so it is higher than for people
+	scanLimit      int            // requests for things that are not there, from one address, before it is paused
+	scanWindow     time.Duration
+	scanPause      time.Duration
+	corsOrigins    map[string]bool // pages (like https://callerwhale.com) that may read the gateway's own replies from a browser
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -104,6 +106,9 @@ func loadConfig(getenv func(string) string) (config, error) {
 	if c.authHost = strings.ToLower(strings.TrimSpace(getenv("AUTH_HOST"))); c.authHost != "" && c.routes[c.authHost] == nil {
 		return c, errors.New("AUTH_HOST is not one of the ROUTES hosts")
 	}
+	if c.mcpHost = strings.ToLower(strings.TrimSpace(getenv("MCP_HOST"))); c.mcpHost != "" && c.routes[c.mcpHost] == nil {
+		return c, errors.New("MCP_HOST is not one of the ROUTES hosts")
+	}
 	if c.human, err = loadHuman(getenv, c.routes); err != nil {
 		return c, err
 	}
@@ -130,6 +135,9 @@ func loadConfig(getenv func(string) string) (config, error) {
 		return c, err
 	}
 	c.maxBody = int64(mb) << 20
+	if c.mcpIPPerMinute, err = number("MCP_IP_PER_MINUTE", 6000); err != nil {
+		return c, err
+	}
 	if c.hops, err = number("PROXY_HOPS", 1); err != nil {
 		return c, err
 	}
@@ -178,6 +186,7 @@ type gateway struct {
 	cfg      config
 	keys     *keyset
 	ips      *limiter
+	mcpIPs   *limiter // addresses calling the MCP host
 	people   *limiter
 	human    *humanCheck // nil when the check is off
 	scans    *scanners
@@ -186,7 +195,7 @@ type gateway struct {
 }
 
 func newGateway(cfg config) *gateway {
-	g := &gateway{cfg: cfg, ips: newLimiter(cfg.ipPerMinute), people: newLimiter(cfg.userPerMinute), now: time.Now,
+	g := &gateway{cfg: cfg, ips: newLimiter(cfg.ipPerMinute), mcpIPs: newLimiter(cfg.mcpIPPerMinute), people: newLimiter(cfg.userPerMinute), now: time.Now,
 		scans: newScanners(cfg.scanLimit, cfg.scanWindow, cfg.scanPause)}
 	if cfg.human != nil {
 		g.human = newHumanCheck(*cfg.human)
@@ -302,7 +311,11 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "Bad request."})
 		return
 	}
-	if !g.ips.allow(caller, g.now()) {
+	limit := g.ips
+	if g.cfg.mcpHost != "" && rt.host == g.cfg.mcpHost {
+		limit = g.mcpIPs
+	}
+	if !limit.allow(caller, g.now()) {
 		tooMany(w)
 		return
 	}
@@ -321,6 +334,15 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		g.scans.miss(caller, g.now())
 		notFound(w)
 		return
+	}
+	// The MCP service answers only its own few routes, and takes only small requests (a tool call is a few lines of JSON).
+	if g.cfg.mcpHost != "" && rt.host == g.cfg.mcpHost {
+		if !mcpAllowed(r.Method, r.URL.Path) {
+			g.scans.miss(caller, g.now())
+			notFound(w)
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	}
 	// The first leg of signing in is proven human here, once; the auth service behind does not check it again.
 	if g.human != nil && rt.host == g.human.authHost {

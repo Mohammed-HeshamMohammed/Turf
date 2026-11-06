@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"io"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -465,5 +466,39 @@ func TestPrivateMonitoringPath(t *testing.T) {
 	g.ServeHTTP(rec, r)
 	if rec.Code != 404 {
 		t.Fatalf("unconfigured monitoring not closed: %d", rec.Code)
+	}
+}
+
+func TestTheMCPHostAnswersOnlyItsRoutesAndTakesSmallBodies(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		_ = json.NewEncoder(rw).Encode(map[string]any{"path": r.URL.Path, "bytes": len(b)})
+	}))
+	defer backend.Close()
+	w := newWorld(t, map[string]string{"ROUTES": appHost + "=" + backend.URL + ",mcp.example=" + backend.URL, "MCP_HOST": "mcp.example"})
+	if rec := w.do("mcp.example", "POST", "/mcp", ""); rec.Code != 200 {
+		t.Fatalf("the protocol endpoint reaches the service: %d", rec.Code)
+	}
+	if rec := w.do("mcp.example", "GET", "/.well-known/oauth-protected-resource", ""); rec.Code != 200 {
+		t.Fatalf("the discovery document reaches the service: %d", rec.Code)
+	}
+	for _, path := range []string{"/", "/healthz", "/v1/connectors/introspect", "/api/v1/me", "/mcp/extra"} {
+		if rec := w.do("mcp.example", "POST", path, ""); rec.Code != 404 {
+			t.Errorf("%s on the MCP host should be Not found, got %d", path, rec.Code)
+		}
+	}
+	big := func(r *http.Request) { r.Body = io.NopCloser(strings.NewReader(strings.Repeat("x", 2<<20))); r.ContentLength = 2 << 20 }
+	rec := w.do("mcp.example", "POST", "/mcp", "", big)
+	var out map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &out)
+	if rec.Code == 200 && out["bytes"] == float64(2<<20) {
+		t.Fatal("a 2 MiB body must not reach the MCP service")
+	}
+}
+
+func TestMCPHostMustBeOneOfTheRoutes(t *testing.T) {
+	env := map[string]string{"ROUTES": "a.example=http://a:1", "CORE_HOST": "a.example", "AUTH_JWKS_URL": "http://auth:8101/.well-known/jwks.json", "MCP_HOST": "other.example"}
+	if _, err := loadConfig(func(k string) string { return env[k] }); err == nil {
+		t.Fatal("MCP_HOST outside ROUTES must stop the gateway starting")
 	}
 }

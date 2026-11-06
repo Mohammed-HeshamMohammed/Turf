@@ -170,3 +170,15 @@ func scrub(res *http.Response) {
 		res.Header.Del(name)
 	}
 }
+
+// mcpAllowed is true for the routes the MCP service has: the protocol endpoint, and the document that tells an assistant where to sign the
+// person in. A browser's preflight (OPTIONS) is let through for those paths only; everything else on that host is a plain "Not found".
+func mcpAllowed(method, path string) bool {
+	switch path {
+	case "/mcp":
+		return method == http.MethodPost || method == http.MethodGet || method == http.MethodOptions
+	case "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp":
+		return method == http.MethodGet || method == http.MethodOptions
+	}
+	return false
+}

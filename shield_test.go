@@ -207,3 +207,27 @@ func TestTheAllowListMatchesTheAuthSource(t *testing.T) {
 		}
 	}
 }
+
+func TestMCPHostAnswersOnlyItsOwnRoutes(t *testing.T) {
+	for _, c := range []struct {
+		method, path string
+		want         bool
+	}{
+		{"POST", "/mcp", true},
+		{"GET", "/mcp", true}, // answered 405 by the service: no event stream
+		{"OPTIONS", "/mcp", true},
+		{"GET", "/.well-known/oauth-protected-resource", true},
+		{"GET", "/.well-known/oauth-protected-resource/mcp", true},
+		{"POST", "/.well-known/oauth-protected-resource", false},
+		{"GET", "/healthz", false},
+		{"GET", "/version", false},
+		{"POST", "/mcp/extra", false},
+		{"DELETE", "/mcp", false},
+		{"GET", "/", false},
+		{"POST", "/v1/connectors/introspect", false},
+	} {
+		if mcpAllowed(c.method, c.path) != c.want {
+			t.Errorf("%s %s: allowed should be %v", c.method, c.path, c.want)
+		}
+	}
+}
