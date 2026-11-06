@@ -34,7 +34,7 @@ export function Settings({ me, auth, authBase, onSaved }: { me: Me; auth: Auth; 
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === "profile" && <Profile me={me} auth={auth} authBase={authBase} onSaved={onSaved} />}
         {tab === "security" && <SettingsSecurity me={me} auth={auth} onChanged={onSaved} />}
-        {tab === "connections" && <SettingsConnections />}
+        {tab === "connections" && <SettingsConnections auth={auth} authBase={authBase} />}
       </div>
     </div>
   );

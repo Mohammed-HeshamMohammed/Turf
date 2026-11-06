@@ -35,7 +35,8 @@
         "AUTH_TELEGRAM_BOT_NAME": "Telegram bot's public name used for account linking; must identify the bot whose token auth uses. Optional when Telegram is disabled.",
         "AUTH_TELEGRAM_WEBHOOK_SECRET": "Secret URL path component protecting the Telegram webhook. Coordinate rotation with Telegram's registered webhook URL.",
         "AUTH_ACCESS_MINUTES": "Access-token lifetime in minutes; default 15. Changing it affects newly issued tokens and the frequency of refresh.",
-        "AUTH_REFRESH_DAYS": "Refresh-session lifetime in days; default 30. Changing it affects newly created session expiry, not the signing key."
+        "AUTH_REFRESH_DAYS": "Refresh-session lifetime in days; default 30. Changing it affects newly created session expiry, not the signing key.",
+        "AUTH_MCP_TOKEN": "Secret shared with the MCP service (its MCP_AUTH_TOKEN), 32+ characters. The MCP service sends it to ask who an AI assistant's access token belongs to. Empty turns assistant connections off; rotate both together."
       }
     },
     "gateway": {
@@ -202,6 +203,19 @@
         "PADDLE_WEBHOOK_TOLERANCE_SECONDS": "How old a signed webhook may be, 5 to 3600 seconds; default 300. Redeliveries are harmless: each event applies once.",
         "AUTHZ_URL": "The authorization service's private address, like http://authz:8104, told of every standing change. Set with AUTHZ_TOKEN.",
         "AUTHZ_TOKEN": "Secret billing token from authz's AUTHZ_TOKENS. Set with AUTHZ_URL."
+      }
+    },
+    "mcp": {
+      "description": "The address AI assistants (Claude, ChatGPT, Gemini) connect to. Keeps no data; asks auth who each access token belongs to and runs the few tools that person allowed.",
+      "sources": [
+        "services/mcp/main.go"
+      ],
+      "variables": {
+        "PORT": "MCP HTTP listening port; default 8106. Match Coolify's container port and the domain's upstream.",
+        "MCP_PUBLIC_URL": "This service's own public address as assistants reach it (https, no trailing slash). It is the resource an assistant asks permission for; a wrong value breaks sign-in discovery.",
+        "MCP_AUTH_PUBLIC_URL": "The auth service's public address, where assistants send the person to allow the connection. Keep it the same as AUTH_PUBLIC_URL on auth.",
+        "MCP_AUTH_URL": "The auth service's private address on the shared Docker network (http://auth:8101), used to ask who a token belongs to. Never a public address.",
+        "MCP_AUTH_TOKEN": "Secret shared with auth (its AUTH_MCP_TOKEN), 32+ characters. Rotate both together; a mismatch refuses every connection."
       }
     }
   }

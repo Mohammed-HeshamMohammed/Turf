@@ -60,3 +60,5 @@ AUTH_TELEGRAM_WEBHOOK_SECRET=<a long random string, or empty>
 # Human check. The Go gateway does it now (env/gateway.env.example: HUMAN_CHECK and RECAPTCHA_*), because Google accepts a token once and
 # a second check here would refuse every real sign-in. Auth has no reCAPTCHA settings. It must be reachable only through the
 # gateway. Any AUTH_TURNSTILE_* variable left in Coolify from an older setup is ignored and can be deleted.
+# Secret shared with the MCP service (its MCP_AUTH_TOKEN), 32+ characters. The MCP service sends it to ask who an AI assistant's access token belongs to. Empty turns assistant connections off; rotate both together.
+AUTH_MCP_TOKEN=<32+ random characters>

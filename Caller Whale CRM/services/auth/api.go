@@ -65,6 +65,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("GET /v1/fx", serve(s.publicFX))
 	mux.Handle("POST /v1/me/currency", serve(s.setCurrency))
 	mux.Handle("GET /v1/roles", serve(s.roleCatalog))
+	mux.Handle("GET /v1/orgs/{org}/standing", serve(s.workspaceStanding))
 	mux.Handle("GET /v1/orgs/{org}/roles", serve(s.workspaceRoles))
 	mux.Handle("PUT /v1/orgs/{org}/members/{user}", serve(s.changeWorkspaceMember))
 	mux.Handle("GET /v1/orgs/{org}/invitations", serve(s.listWorkspaceInvitations))
@@ -75,6 +76,7 @@ func (s *server) handler() http.Handler {
 	s.accountRoutes(mux)
 	s.mfaRoutes(mux)
 	s.oauthRoutes(mux)
+	s.connectorRoutes(mux)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]any{"error": "Not found."})
 	})

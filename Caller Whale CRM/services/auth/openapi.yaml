@@ -216,6 +216,12 @@ paths:
       security: [{ bearer: [] }]
       parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
       responses: { "200": { description: Removed }, "403": { description: Owner or cofounder with second step required } }
+  /v1/orgs/{org}/standing:
+    get:
+      summary: A workspace's plan and usage (plan, status, period end, seats, minutes used against the minutes included); any member of that workspace
+      security: [{ bearer: [] }]
+      parameters: [{ name: org, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { "200": { description: Plan and usage }, "403": { description: Not your workspace }, "503": { description: Billing not available } }
   /v1/orgs/{org}/members:
     get:
       summary: List workspace members; agency owner with a second step only

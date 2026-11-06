@@ -394,3 +394,7 @@
 .settings-stack .button:not(.primary) { background: var(--raised); }
 .settings-stack .text-button { padding: 6px 10px; border: 0; background: transparent; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
 .settings-stack .check { align-items: center; }
+.connect-card { gap: 14px; }
+.connect-list { margin: 4px 0 12px; padding-left: 20px; display: grid; gap: 4px; }
+.connect-address { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; border-radius: 12px; background: var(--raised); }
+.connect-address code { flex: 1 1 220px; overflow-wrap: anywhere; font-size: 15px; }

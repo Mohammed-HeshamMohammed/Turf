@@ -7,7 +7,7 @@ export const containers = [
  ["landing/site", "Landing"],
  ["landing/dashboard-web", "Dashboard"],
  ["services/auth", "Auth"], ["services/authz", "Authorization"], ["services/billing", "Billing"],
- ["services/gateway", "Gateway"], ["services/grafana-proxy", "Grafana proxy"], ["services/notifications", "Notifications"],
+ ["services/gateway", "Gateway"], ["services/mcp", "MCP"], ["services/grafana-proxy", "Grafana proxy"], ["services/notifications", "Notifications"],
  ["services/features/ai-campaigns", "AI campaigns"], ["services/features/backup-restore", "Backup restore", true],
  ["services/features/crm", "CRM", true], ["services/features/dialer-sms", "Dialer SMS"],
  ["services/features/exports", "Exports"], ["services/features/importing-lists", "Importing lists"],

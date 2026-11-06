@@ -80,6 +80,11 @@ class AppTest(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()["remaining"], 95)
 
+    def test_the_auth_service_may_read_a_workspaces_standing_for_its_members(self):
+        url = f"/v1/orgs/{uuid4()}/standing"
+        self.assertEqual(self.client.get(url).status_code, 401)
+        self.assertEqual(self.client.get(url, headers={"Authorization": f"Bearer {AUTH}"}).status_code, 200)
+
     def test_the_summary_is_for_the_auth_service_only(self):
         url = "/v1/admin/summary"
         self.assertEqual(self.client.get(url).status_code, 401)
