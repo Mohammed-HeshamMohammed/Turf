@@ -27,6 +27,8 @@ import (
 const (
 	chunkSize  = 8 << 20 // the pieces are about 8 MB, far under the proxy's request limit
 	mergeBatch = 50000
+	// A workspace may have this many imports under way at once, so one person cannot fill the disk with uploads.
+	maxActiveImports = 3
 )
 
 var importExtensions = []string{".csv", ".txt", ".xlsx", ".xls"}
@@ -113,6 +115,13 @@ func (s *server) importStart(q *req) error {
 		return bad("Name the list in 200 characters or fewer.")
 	}
 	ctx := q.r.Context()
+	var active int
+	if err := s.st.db.QueryRow(ctx, `SELECT count(*) FROM importing.jobs WHERE org_id = $1 AND status NOT IN ('done', 'failed', 'cancelled')`, q.sc.orgID).Scan(&active); err != nil {
+		return err
+	}
+	if active >= maxActiveImports {
+		return &apiError{http.StatusTooManyRequests, "too_many_imports", "You already have " + strconv.Itoa(maxActiveImports) + " imports in progress. Finish or cancel one before starting another."}
+	}
 	tx, err := s.st.begin(ctx, q.sc)
 	if err != nil {
 		return err
