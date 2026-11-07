@@ -663,9 +663,25 @@ func (s *server) resumeMerges(ctx context.Context) {
 	}
 }
 
-// sweepUploads removes pieces of uploads nobody finished.
+// keepRows is how many days the rows of a finished, failed or cancelled import stay in the holding table (the person's file is long
+// gone by then; the rows are only there for support to look at). The import's own record stays.
+const keepRows = 14
+
+// sweepRows deletes the holding rows of imports that ended more than keepRows days ago, and says how many it removed.
+func (s *server) sweepRows(ctx context.Context) (int64, error) {
+	tag, err := s.st.db.Exec(ctx, `DELETE FROM importing.rows WHERE job_id IN
+		(SELECT id FROM importing.jobs WHERE status IN ('done', 'failed', 'cancelled') AND updated_at < now() - make_interval(days => $1))`, keepRows)
+	return tag.RowsAffected(), err
+}
+
+// sweepUploads removes pieces of uploads nobody finished, and old holding rows.
 func (s *server) sweepUploads(ctx context.Context) {
 	for {
+		if n, err := s.sweepRows(ctx); err != nil {
+			log.Printf("WARN clearing old import rows: %v", err)
+		} else if n > 0 {
+			log.Printf("INFO cleared %d old import rows", n)
+		}
 		rows, err := s.st.db.Query(ctx, `UPDATE importing.jobs SET status = 'cancelled', error = 'The upload was not finished in time.', updated_at = now()
 			WHERE status = 'uploading' AND updated_at < now() - interval '48 hours' RETURNING id::text`)
 		if err == nil {

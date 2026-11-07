@@ -97,7 +97,18 @@ Secrets (database passwords, the `core-api` token for authz) are set by the owne
 - **Imports, crm-core side:** pieces with SHA-256 fingerprints and resume, mapping confirmation, repeat decisions, and the merge into leads in batches of 50,000 (resumes after a restart; cancel stops between batches).
 - **importing-lists** (`services/features/importing-lists`, Python and polars): assembly, load, exact duplicates, column suggestions, cleaning, repeats inside the file and against existing leads, resume after a restart, one import at a time. 500,000 rows by 20 columns: about 18 s to load, about 70 s to clean and find repeats, peak memory about 600 MB.
 - **Decided while building:** a workspace the CRM has never seen is named after the person who opened it until an administrator renames it (`PATCH /api/v1/organization`); a person's access revision is derived from what authz grants them, so a change in roles resets their devices without a counter to keep; pieces are joined into one file as they are used and the file is kept until the load finishes (a restart needs it), then deleted.
-- **Not built:** messaging, notifications and followers (the tables are not created yet), rules and reports, the lead paging for very large workspaces, the CRM's import screen, images built on GitHub, and the Coolify setup. The original rows of a finished import stay in the holding table; a clean-up after some days is still to be decided.
+- **Also built since:** the CRM's import screen (`ServerImport.jsx`), a limit of 3 imports in progress per workspace, a guard against spreadsheets that unpack absurdly, refusal of XML entity tricks (`defusedxml`), and a clean-up that deletes the holding rows of finished, failed or cancelled imports after 14 days (the import's own record stays).
+- **Checked against the real thing:** the worker's database login can do its job and nothing else (it cannot read or change leads, or change structure); crm-core's client reads the real authz service's answers correctly (`CRM_TEST_AUTHZ_URL`, `CRM_TEST_AUTHZ_TOKEN`).
+
+### Left for later (none of it blocks deploying)
+
+- **Lead paging for very large workspaces.** The web CRM keeps every visible lead in the browser; that suits thousands of leads, not millions. Lead lists must page from the server (a CRM screen change).
+- **Messaging, notifications and followers.** `message.draft` is refused until messaging exists; their tables are not created yet.
+- **Rules and reports** (the old core API had them).
+- **Per-group decisions on repeats.** The screen settles all repeats at once (merge, keep all, leave out); the endpoint already takes a decision per group.
+- **Images built on GitHub** instead of on the server (step 6 of the build order).
+- **Formula safety in exports.** When exports of imported data exist, cells starting with `=`, `+`, `-` or `@` must be written with a leading quote.
+- **Server disk alert.** An alert in Coolify, or a separate disk for the imports volume, covers many large uploads filling the disk.
 
 ### What the owner does in Coolify (step 4)
 
