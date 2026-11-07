@@ -6,6 +6,8 @@ import { MemoryVault, Vault } from "./remote/vault.ts";
 import { inDesktopApp } from "./popout.ts";
 import { Button, Card, Field } from "./ui.jsx";
 import { SecondStep } from "./SecondStep.jsx";
+import { DevicePasswordHelp } from "./DevicePasswordHelp.jsx";
+import { assess, MAX_LENGTH } from "./remote/password-check.ts";
 import { HumanCheck } from "./remote/human-check.jsx";
 
 /**
@@ -522,11 +524,12 @@ export function RemoteGate({ onReady, onLeave }) {
               without internet for up to a day. This is not your Caller Whale password: make up a new one just for this device. If you skip it, everything stays
               on our server, and changes you make while offline are lost if you close this tab.
             </p>
-            <Field label="Password for this device" help="At least 8 characters. Use the same one each time on this computer. We cannot recover it, but your leads stay safe on our server if you forget it.">
-              <input type="password" autoComplete="new-password" minLength={8} value={form.passphrase} onChange={field("passphrase")} />
+            <Field label="Password for this device" help="Use the same one each time on this computer. We cannot recover it, but your leads stay safe on our server if you forget it.">
+              <input type="password" autoComplete="new-password" maxLength={MAX_LENGTH} value={form.passphrase} onChange={field("passphrase")} />
             </Field>
+            <DevicePasswordHelp value={form.passphrase} />
             <div className="row">
-              <Button type="submit" variant="primary" icon={Lock} disabled={busy || form.passphrase.length < 8}>
+              <Button type="submit" variant="primary" icon={Lock} disabled={busy || !assess(form.passphrase).ok}>
                 Use this password
               </Button>
               <Button type="button" disabled={busy} onClick={() => unlock(null, false)}>

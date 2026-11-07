@@ -7662,3 +7662,92 @@ button.message-card:not(:disabled):hover {
   justify-self: start;
   margin-top: 4px;
 }
+
+/* The offline password's guidance and strength meter (DevicePasswordHelp.jsx) */
+.device-password-help {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 4px 0 6px;
+}
+.device-password-help > div {
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: var(--raised);
+  font-size: 13px;
+}
+.device-password-help p {
+  margin: 8px 0;
+}
+.device-password-help ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+.device-password-help li + li {
+  margin-top: 4px;
+}
+.dph-tips em {
+  font-style: normal;
+  font-weight: 600;
+}
+.dph-meter {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+  margin: 10px 0 12px;
+}
+.dph-meter span {
+  height: 7px;
+  border-radius: 99px;
+  background: var(--well);
+}
+.dph-meter span.on.weak {
+  background-color: var(--danger-ink);
+}
+.dph-meter span.on.fair {
+  background-color: #d89a3c;
+}
+.dph-meter span.on.good,
+.dph-meter span.on.strong {
+  background-color: var(--good-ink);
+}
+.dph-label {
+  background: none;
+}
+.dph-label.weak {
+  color: var(--danger-ink);
+}
+.dph-label.fair {
+  color: var(--accent-ink);
+}
+.dph-label.good,
+.dph-label.strong {
+  color: var(--good-ink);
+}
+.dph-checks {
+  list-style: none;
+  padding: 0 !important;
+  display: grid;
+  gap: 6px;
+}
+.dph-checks li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--muted);
+}
+.dph-checks li svg {
+  flex: none;
+  margin-top: 3px;
+}
+.dph-checks li.pass {
+  color: var(--good-ink);
+}
+.dph-problem {
+  color: var(--danger-ink);
+}
+@media (max-width: 640px) {
+  .device-password-help {
+    grid-template-columns: 1fr;
+  }
+}
