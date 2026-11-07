@@ -71,6 +71,25 @@ class ReadersTest(unittest.TestCase):
             (_, frame), = list(readers.read_batches(utf8, True))
             self.assertEqual(frame.rows(), [("José Müller", "5551234")])
 
+    def test_a_spreadsheet_that_unpacks_into_something_absurd_is_refused_before_it_is_opened(self) -> None:
+        import zipfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            bomb = Path(tmp) / "bomb.xlsx"
+            with zipfile.ZipFile(bomb, "w", zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("xl/worksheets/sheet1.xml", b"0" * (60 << 20))  # 60 MB that squashes to a few KB
+            with self.assertRaises(readers.UnsafeFile):
+                list(readers.read_batches(bomb, True))
+            big = Path(tmp) / "big.xlsx"
+            with zipfile.ZipFile(big, "w", zipfile.ZIP_STORED) as archive:
+                archive.writestr("xl/a.xml", b"x" * 2048)
+            old, readers.MAX_UNPACKED = readers.MAX_UNPACKED, 1024
+            try:
+                with self.assertRaises(readers.UnsafeFile):
+                    readers.check_unpacked(big)
+            finally:
+                readers.MAX_UNPACKED = old
+
     def test_spreadsheet_numbers_do_not_grow_a_point_zero(self) -> None:
         from openpyxl import Workbook
 

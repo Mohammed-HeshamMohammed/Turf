@@ -163,8 +163,31 @@ def _frame(headers: list[str], rows: list[list[str]]) -> pl.DataFrame:
     return pl.DataFrame({h: list(c) for h, c in zip(headers, columns)}, schema={h: pl.String for h in headers})
 
 
+MAX_UNPACKED = int(os.environ.get("IMPORT_MAX_UNPACKED_MB", "8192")) << 20  # a spreadsheet may not unpack to more than this
+MAX_SQUASH = 200  # nor have a big part squashed more than this many times: that is a zip bomb, not a spreadsheet
+
+
+class UnsafeFile(ValueError):
+    """The file would use far more memory than a real spreadsheet; it is refused before it is opened."""
+
+
+def check_unpacked(path: Path) -> None:
+    import zipfile
+
+    with zipfile.ZipFile(path) as archive:
+        total = 0
+        for part in archive.infolist():
+            total += part.file_size
+            if part.file_size > (50 << 20) and part.compress_size and part.file_size / part.compress_size > MAX_SQUASH:
+                raise UnsafeFile(f"{part.filename} is squashed {part.file_size // part.compress_size} times")
+        if total > MAX_UNPACKED:
+            raise UnsafeFile(f"unpacks to {total >> 20} MB")
+
+
 def _xlsx_rows(path: Path):
     from openpyxl import load_workbook
+
+    check_unpacked(path)
 
     book = load_workbook(path, read_only=True, data_only=True)
     try:
