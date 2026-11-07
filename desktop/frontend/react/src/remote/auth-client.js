@@ -48,14 +48,30 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
 
   async function call(method, path, body, token) {
     let response;
-    try {
-      response = await fetchImpl(base + path, {
+    const send = () =>
+      fetchImpl(base + path, {
         method,
         headers: { ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
+    try {
+      try {
+        response = await send();
+      } catch (first) {
+        // A read can safely be asked again: a flaky connection or proxy often answers the second time. A write is never repeated here.
+        if (method !== "GET") throw first;
+        await new Promise(resolve => setTimeout(resolve, 600));
+        response = await send();
+      }
     } catch {
-      throw new AuthError(0, "offline", "The sign-in service cannot be reached. Check your connection.");
+      // The browser reports a blocked address, a proxy's block page and a dropped connection the same way, so say all of them.
+      let host = "the sign-in service";
+      try {
+        host = new URL(base).host;
+      } catch {
+        /* the plain words will do */
+      }
+      throw new AuthError(0, "offline", `Cannot reach ${host}. Check your connection. On a work or school network it may be blocked: try another network, or ask whoever runs it to allow ${host}.`);
     }
     const text = await response.text();
     let data = null;
