@@ -6,7 +6,7 @@ import { MemoryVault, Vault } from "./remote/vault.ts";
 import { inDesktopApp } from "./popout.ts";
 import { Button, Card, Field } from "./ui.jsx";
 import { SecondStep } from "./SecondStep.jsx";
-import { DevicePasswordHelp } from "./DevicePasswordHelp.jsx";
+import { PasswordStrength, PasswordTips } from "./DevicePasswordHelp.jsx";
 import { assess, MAX_LENGTH } from "./remote/password-check.ts";
 import { HumanCheck } from "./remote/human-check.jsx";
 
@@ -283,7 +283,8 @@ export function RemoteGate({ onReady, onLeave }) {
   );
 
   return (
-    <div className="remote-gate">
+    <div className={"remote-gate" + (step === "unlock" ? " with-help" : "")}>
+      {step === "unlock" && <PasswordTips />}
       <Card
         title={step === "unlock" ? "Work offline on this device?" : step === "notinvited" ? "You are not invited" : step === "age" ? "Confirm your age" : step === "setup" ? "Finish setting up your account" : "Sign in to your Caller Whale workspace"}
         subtitle={
@@ -527,7 +528,6 @@ export function RemoteGate({ onReady, onLeave }) {
             <Field label="Password for this device" help="Use the same one each time on this computer. We cannot recover it, but your leads stay safe on our server if you forget it.">
               <input type="password" autoComplete="new-password" maxLength={MAX_LENGTH} value={form.passphrase} onChange={field("passphrase")} />
             </Field>
-            <DevicePasswordHelp value={form.passphrase} />
             <div className="row">
               <Button type="submit" variant="primary" icon={Lock} disabled={busy || !assess(form.passphrase).ok}>
                 Use this password
@@ -549,6 +549,7 @@ export function RemoteGate({ onReady, onLeave }) {
           </button>
         )}
       </Card>
+      {step === "unlock" && <PasswordStrength value={form.passphrase} />}
     </div>
   );
 }
