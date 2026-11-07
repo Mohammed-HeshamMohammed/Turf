@@ -17,6 +17,8 @@ ENV PORT=8111
 ENV IMPORT_DIR=/data/imports
 EXPOSE 8111
 USER 65532:65532
+# The image has no curl or wget, so it checks itself; in Coolify turn its own Health Check off and this one is used.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8111/healthz', timeout=3)"]
 CMD ["python", "server.py"]
 
 ENTRYPOINT ["/usr/local/bin/callerwhale-log"]
