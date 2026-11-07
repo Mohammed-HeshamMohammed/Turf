@@ -7663,27 +7663,54 @@ button.message-card:not(:disabled):hover {
   margin-top: 4px;
 }
 
-/* The offline password's guidance and strength meter (DevicePasswordHelp.jsx) */
-.device-password-help {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  margin: 4px 0 6px;
+/* The offline password's guidance (left of the card) and strength meter (right of it), DevicePasswordHelp.jsx */
+.remote-gate.with-help {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 460px) minmax(0, 1fr);
+  gap: 22px;
 }
-.device-password-help > div {
+.dph-side {
+  align-self: center;
+  width: min(300px, 100%);
   padding: 14px 16px;
   border-radius: 18px;
   background: var(--raised);
   font-size: 13px;
 }
-.device-password-help p {
+.dph-tips {
+  justify-self: end;
+  order: -1;
+}
+.dph-strength {
+  justify-self: start;
+}
+@media (max-width: 1100px) {
+  .remote-gate.with-help {
+    grid-template-columns: minmax(0, 460px);
+    justify-content: center;
+    align-content: center;
+  }
+  .remote-gate.with-help > .card {
+    order: 1;
+  }
+  .dph-strength {
+    order: 2;
+    justify-self: center;
+    width: min(460px, 100%);
+  }
+  .dph-tips {
+    order: 3;
+    justify-self: center;
+    width: min(460px, 100%);
+  }
+}
+.dph-side p {
   margin: 8px 0;
 }
-.device-password-help ul {
+.dph-side ul {
   margin: 8px 0 0;
   padding-left: 18px;
 }
-.device-password-help li + li {
+.dph-side li + li {
   margin-top: 4px;
 }
 .dph-tips em {
@@ -7745,9 +7772,4 @@ button.message-card:not(:disabled):hover {
 }
 .dph-problem {
   color: var(--danger-ink);
-}
-@media (max-width: 640px) {
-  .device-password-help {
-    grid-template-columns: 1fr;
-  }
 }
