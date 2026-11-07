@@ -23,6 +23,7 @@ import { Dashboard } from "./Dashboard.tsx";
 import { Settings } from "./Settings.tsx";
 import { Connect } from "./Connect.tsx";
 import { Setup } from "./Setup.tsx";
+import { Assistant } from "./Assistant.tsx";
 import { TERMS_VERSION, setupStep } from "./setup.ts";
 import { cleanPath, routeFor } from "./routes.ts";
 
@@ -253,8 +254,16 @@ function SignUp({ onDone }: { onDone: () => void }) {
   const mismatch = again !== "" && again !== password;
   const started = Boolean(name || email || password || again);
   const birthProblem = ageProblem(birth);
-  const taken = state.code === "conflict";
+  // The server says an email is taken only when the account is made, on the last step: the person is brought back to the email
+  // field with the answer beside it, and it clears when they type another address.
+  const [usedEmail, setUsedEmail] = useState("");
+  const taken = usedEmail !== "" && usedEmail === email.trim().toLowerCase();
   const mine = encodeURIComponent(email.trim());
+  useEffect(() => {
+    if (state.code !== "conflict") return;
+    setUsedEmail(email.trim().toLowerCase());
+    setStep(1);
+  }, [state.code]);
 
   const next = (e: FormEvent) => {
     e.preventDefault();
@@ -300,12 +309,19 @@ function SignUp({ onDone }: { onDone: () => void }) {
         <form className="form card" onSubmit={next}>
           <h1>Create your account</h1>
           <Field label="Display name" autoComplete="nickname" required value={name} onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)} />
-          <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} />
+          <Field label="Email" type="email" autoComplete="email" required aria-invalid={taken || undefined} aria-describedby={taken ? "email-used" : undefined} value={email} onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} />
+          {taken && (
+            <div className="notice" id="email-used" role="alert">
+              <strong>This email already has an account.</strong>
+              <p>Sign in instead, or reset your password if you forgot it. If you signed up with Google or Apple, use that button on the sign-in page.</p>
+              <div className="notice-actions"><Link className="button primary" to={`/signin?email=${mine}`}>Sign in</Link><Link className="button" to={`/forgot?email=${mine}`}>Reset my password</Link></div>
+            </div>
+          )}
           <Field label="Password" type="password" autoComplete="new-password" minLength={8} required value={password} onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)} />
           <Field label="Confirm password" type="password" autoComplete="new-password" minLength={8} required value={again} onChange={(e: ChangeEvent<HTMLInputElement>) => setAgain(e.target.value)} />
           {mismatch && <p className="notice bad" role="alert">The two passwords are not the same.</p>}
           <label className="check"><input type="checkbox" required checked={agreed} onChange={(e: ChangeEvent<HTMLInputElement>) => setAgreed(e.target.checked)} /> <span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
-          <button className="button primary" disabled={mismatch || !agreed}>{started ? "Continue" : "Sign up"}</button>
+          <button className="button primary" disabled={mismatch || !agreed || taken}>{started ? "Continue" : "Sign up"}</button>
           <Providers action="signup" human={human} />
           <div className="alt">
             <span className="muted">Already have an account?</span>
@@ -325,13 +341,7 @@ function SignUp({ onDone }: { onDone: () => void }) {
           <Field label="Phone number" type="tel" autoComplete="tel" placeholder="Optional" value={phone} onChange={(e: ChangeEvent<HTMLInputElement>) => setPhone(e.target.value)} />
           {choosing && <AvatarCropper file={choosing} confirmLabel="Use this picture" onCancel={() => setChoosing(null)} onDone={async dataUrl => { setPicture(dataUrl); setChoosing(null); }} />}
           <HumanCheck getAuth={getAuth} action="signup" onToken={setHuman} notice={false} onEnabled={setProtectedByGoogle} />
-          {taken ? (
-            <div className="notice" role="alert">
-              <strong>You already have an account with this email.</strong>
-              <p>Sign in instead. If you forgot your password, we can email you a link to choose a new one. If you signed up with Google or Apple, use that button on the sign-in page.</p>
-              <div className="notice-actions"><Link className="button primary" to={`/signin?email=${mine}`}>Sign in</Link><Link className="button" to={`/forgot?email=${mine}`}>Reset my password</Link></div>
-            </div>
-          ) : state.error && <p className="notice bad" role="alert">{state.error}</p>}
+          {state.error && !taken && <p className="notice bad" role="alert">{state.error}</p>}
           <button className="button primary" disabled={state.busy || !birth || Boolean(birthProblem) || !first.trim()}>{state.busy ? <><span className="spinner" aria-hidden="true" />Creating…</> : "Create account"}</button>
           <button type="button" className="text-button" disabled={state.busy} onClick={() => setStep(1)}>Back</button>
         </form>
@@ -473,6 +483,7 @@ export function App({ path: first = "/" }) {
       <SiteHeader path={path} me={me} onSignOut={signOut} savedSession={savedSession} cached={cached} openCrm={crmLink ? openCrm : undefined} />
       <main>{pages[cleanPath(path)] || (routeFor(path).key.startsWith("feature:") ? <FeaturePage slug={featureSlug} /> : <NotFound />)}</main>
       <SiteFooter compact={cleanPath(path) === "/dashboard"} />
+      <Assistant signedIn={me === undefined ? undefined : Boolean(me)} path={cleanPath(path)} />
     </div>
   );
 }

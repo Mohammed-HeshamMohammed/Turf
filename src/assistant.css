@@ -1,0 +1,23 @@
+/* The helper chat (Assistant.tsx): a round button at the bottom right, a hint above it, and a small chat panel. */
+.assistant { position: fixed; right: 18px; bottom: 18px; z-index: 40; display: grid; justify-items: end; gap: 10px; }
+.assistant-button { width: 56px; height: 56px; border: 0; border-radius: 50%; display: grid; place-items: center; background: var(--dark); color: var(--accent); cursor: pointer; box-shadow: 0 6px 24px #0003; transition: transform 160ms ease-out; }
+.assistant-button:hover { transform: scale(1.06); }
+.assistant-hint { position: relative; max-width: min(300px, calc(100vw - 36px)); display: flex; align-items: flex-start; border-radius: 18px 18px 6px 18px; background: var(--raised); box-shadow: 0 6px 24px #0002; animation: assistant-in 220ms ease-out; }
+.assistant-hint-text { flex: 1; padding: 12px 6px 12px 14px; border: 0; background: none; font: inherit; text-align: left; color: var(--ink); cursor: pointer; }
+.assistant-hint-close { width: 30px; height: 30px; margin: 4px 4px 0 0; border: 0; border-radius: 50%; background: none; font-size: 20px; line-height: 1; color: var(--muted); cursor: pointer; }
+.assistant-panel { width: min(380px, calc(100vw - 36px)); height: min(560px, calc(100dvh - 110px)); display: grid; grid-template-rows: auto 1fr auto auto auto; border-radius: 24px; background: var(--card); box-shadow: 0 12px 48px #0003; overflow: hidden; animation: assistant-in 200ms ease-out; }
+.assistant-panel header { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 16px; background: var(--dark); color: #fff; }
+.assistant-panel header strong { display: block; }
+.assistant-panel header small { color: #ffffffb3; font-size: 12px; }
+.assistant-close { width: 32px; height: 32px; border: 0; border-radius: 50%; background: #ffffff1f; color: #fff; font-size: 20px; line-height: 1; cursor: pointer; }
+.assistant-log { display: grid; align-content: start; gap: 8px; padding: 14px; overflow-y: auto; }
+.assistant-log .bubble { max-width: 92%; }
+.assistant-link { display: flex; width: fit-content; margin-top: 10px; height: 34px; }
+.assistant-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 10px; }
+.assistant-chips .button { height: auto; min-height: 34px; padding: 6px 14px; font-size: 13px; text-align: left; }
+.assistant-form { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.assistant-form input { flex: 1; min-width: 0; height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; font: inherit; background: var(--raised); color: var(--ink); }
+.assistant-note { margin: 0; padding: 0 14px 10px; font-size: 12px; color: var(--muted); }
+@keyframes assistant-in { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { .assistant-hint, .assistant-panel { animation: none; } .assistant-button { transition: none; } }
+@media (max-width: 520px) { .assistant { right: 12px; bottom: 12px; } .assistant-panel { height: min(560px, calc(100dvh - 90px)); } }

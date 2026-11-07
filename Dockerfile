@@ -13,6 +13,8 @@ ARG VITE_CALLERWHALE_AUTH_URL
 ENV VITE_CALLERWHALE_AUTH_URL=$VITE_CALLERWHALE_AUTH_URL
 ARG VITE_CALLERWHALE_GATEWAY_URL=https://gate.callerwhale.com
 ENV VITE_CALLERWHALE_GATEWAY_URL=$VITE_CALLERWHALE_GATEWAY_URL
+ARG VITE_CALLERWHALE_ASSISTANT_URL=https://assistant.callerwhale.com
+ENV VITE_CALLERWHALE_ASSISTANT_URL=$VITE_CALLERWHALE_ASSISTANT_URL
 RUN npm test && npm run build && node scripts/security-headers.mjs /app/security-headers.conf /app/dist
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine
