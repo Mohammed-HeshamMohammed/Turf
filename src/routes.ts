@@ -28,7 +28,6 @@ export const routes = [
   { path: "/terms", key: "terms", title: "Terms draft · Caller Whale", description: "Draft terms awaiting review.", indexable: false, sitemap: false },
   { path: "/signin", key: "signin", title: "Sign in · Caller Whale", description: "Sign in to your Caller Whale account.", indexable: false, sitemap: false },
   { path: "/signup", key: "signup", title: "Create your account · Caller Whale", description: "Create your Caller Whale account.", indexable: false, sitemap: false },
-  { path: "/test", key: "test", title: "Try-out sign-up · Caller Whale", description: "A try-out of a conversational sign-up. Nothing is saved.", indexable: false, sitemap: false },
   { path: "/forgot", key: "forgot", title: "Reset your password · Caller Whale", description: "Reset your Caller Whale password.", indexable: false, sitemap: false },
   { path: "/account", key: "account", title: "Settings · Caller Whale", description: "Your Caller Whale settings.", indexable: false, sitemap: false },
   { path: "/connect", key: "connect", title: "Connect an assistant · Caller Whale", description: "Allow an AI assistant to use your Caller Whale account.", indexable: false, sitemap: false },
