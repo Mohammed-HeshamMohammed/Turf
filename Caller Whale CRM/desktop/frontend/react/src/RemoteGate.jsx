@@ -283,10 +283,10 @@ export function RemoteGate({ onReady, onLeave }) {
   return (
     <div className="remote-gate">
       <Card
-        title={step === "unlock" ? "Keep an offline copy on this device?" : step === "notinvited" ? "You are not invited" : step === "age" ? "Confirm your age" : step === "setup" ? "Finish setting up your account" : "Sign in to your Caller Whale workspace"}
+        title={step === "unlock" ? "Work offline on this device?" : step === "notinvited" ? "You are not invited" : step === "age" ? "Confirm your age" : step === "setup" ? "Finish setting up your account" : "Sign in to your Caller Whale workspace"}
         subtitle={
           step === "unlock"
-            ? "Records and pending changes are encrypted with a passphrase only you know."
+            ? "Choose a password to lock a copy of your leads on this computer."
             : step === "notinvited"
               ? "Only the owner, admins and people they invite can use Caller Whale."
               : step === "age"
@@ -518,18 +518,19 @@ export function RemoteGate({ onReady, onLeave }) {
         {step === "unlock" && (
           <form className="remote-step" onSubmit={event => unlock(event, true)}>
             <p className="body-copy">
-              Signed in as <strong>{me.user.name}</strong>. With a passphrase, this device keeps an encrypted copy so you can keep working without a connection
-              for up to a day. Without one, pending changes last only while this tab is open.
+              Signed in as <strong>{me.user.name}</strong>. If you set a password, this device keeps a locked copy of your leads, so you can keep working
+              without internet for up to a day. This is not your Caller Whale password: make up a new one just for this device. If you skip it, everything stays
+              on our server, and changes you make while offline are lost if you close this tab.
             </p>
-            <Field label="Offline passphrase" help="Use the same passphrase each time on this device.">
+            <Field label="Password for this device" help="At least 8 characters. Use the same one each time on this computer. We cannot recover it, but your leads stay safe on our server if you forget it.">
               <input type="password" autoComplete="new-password" minLength={8} value={form.passphrase} onChange={field("passphrase")} />
             </Field>
             <div className="row">
               <Button type="submit" variant="primary" icon={Lock} disabled={busy || form.passphrase.length < 8}>
-                Unlock offline copy
+                Use this password
               </Button>
               <Button type="button" disabled={busy} onClick={() => unlock(null, false)}>
-                Continue without one
+                Skip, work online only
               </Button>
             </div>
           </form>
