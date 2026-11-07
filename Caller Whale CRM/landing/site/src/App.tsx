@@ -23,7 +23,6 @@ import { Dashboard } from "./Dashboard.tsx";
 import { Settings } from "./Settings.tsx";
 import { Connect } from "./Connect.tsx";
 import { Setup } from "./Setup.tsx";
-import { ChatSignup } from "./ChatSignup.tsx";
 import { TERMS_VERSION, setupStep } from "./setup.ts";
 import { cleanPath, routeFor } from "./routes.ts";
 
@@ -457,7 +456,6 @@ export function App({ path: first = "/" }) {
     "/signin": me && fromCrm ? (setupStep(me) ? setup : <div className="form-wrap"><p className="muted" role="status">Opening the CRM…</p></div>) : <SignIn onDone={signedIn} notice={notice} me={me} />,
     "/signup": <SignUp onDone={signedIn} />,
     "/forgot": <Forgot />,
-    "/test": <ChatSignup />,
     "/pricing": <Pricing />,
     "/features": <FeaturesIndex />,
     "/why-caller-whale": <WhyCallerWhale />,
