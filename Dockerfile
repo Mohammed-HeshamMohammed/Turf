@@ -9,6 +9,8 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY server.py worker.py readers.py matching.py ./
+# The shared folder belongs to the app user (65532), like crm-core, so a new volume mounted here starts writable.
+RUN mkdir -p /data/imports && chown -R 65532:65532 /data
 ENV PORT=8111
 # The folder shared with crm-core, where upload pieces wait: one persistent volume mounted at the same path in both applications.
 # The user id matches crm-core's (distroless "nonroot"), so both can write to it.
