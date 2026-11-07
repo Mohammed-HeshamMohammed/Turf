@@ -514,3 +514,45 @@ func TestTheWorkersLoginCanDoItsJobAndNothingElse(t *testing.T) {
 		}
 	}
 }
+
+func TestPlatformStaffGetTheirOwnWorkspaceOnceAndOnlyAfterTheSecondStep(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	const staff, plain = "66666666-6666-4666-8666-666666666666", "77777777-7777-4777-8777-777777777777"
+	e.rules.people_[staff] = peopleReply{UserID: staff, PlatformRole: "owner"}
+	e.rules.people_[plain] = peopleReply{UserID: plain}
+	// e.token signs with the second step passed, so a staff member without it is tested through the claims directly.
+	_, me := e.call(staff, "", "GET", "/api/v1/me", nil)
+	if me["organization_id"] != staffWorkspaceID(staff) || len(e.rules.opened) != 1 {
+		t.Fatalf("the platform owner gets a workspace: %v opened=%v", me, e.rules.opened)
+	}
+	if len(me["capabilities"].([]any)) == 0 {
+		t.Fatalf("and may work in it: %v", me)
+	}
+	e.call(staff, "", "GET", "/api/v1/me", nil)
+	if len(e.rules.opened) != 1 {
+		t.Fatalf("asking again opens nothing more: %v", e.rules.opened)
+	}
+	// Without the second step nothing is opened, even for the owner.
+	const later = "88888888-8888-4888-8888-888888888888"
+	e.rules.people_[later] = peopleReply{UserID: later, PlatformRole: "cofounder"}
+	noSecondStep := e.fx.sign("k1", "EdDSA", func(m map[string]any) {
+		m["sub"] = later
+		m["mfa"] = false
+		m["name"] = "Later"
+		m["email"] = "later@example.com"
+	})
+	req, _ := http.NewRequest("GET", e.ts.URL+"/api/v1/me", nil)
+	req.Header.Set("Authorization", "Bearer "+noSecondStep)
+	if res, err := http.DefaultClient.Do(req); err != nil || res.StatusCode != 200 || len(e.rules.opened) != 1 {
+		t.Fatalf("a staff member without the second step: %v %v opened=%v", res, err, e.rules.opened)
+	}
+	// An ordinary person without an invitation still gets nothing.
+	_, me = e.call(plain, "", "GET", "/api/v1/me", nil)
+	if me["organization_id"] != nil || len(e.rules.opened) != 1 {
+		t.Fatalf("an uninvited person: %v opened=%v", me, e.rules.opened)
+	}
+	if id := staffWorkspaceID(staff); !validID(id) || id != staffWorkspaceID(staff) || id == staffWorkspaceID(plain) {
+		t.Fatalf("the workspace id is a stable, valid id of its own: %s", id)
+	}
+}

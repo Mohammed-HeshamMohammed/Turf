@@ -23,6 +23,7 @@ type fakeRules struct {
 	people_ map[string]peopleReply
 	grants  map[string]grantReply // user|org
 	roster  map[string][]member
+	opened  []string
 	down    bool
 }
 
@@ -45,6 +46,17 @@ func (f *fakeRules) grant(_ context.Context, user, org string, _ bool) (grantRep
 		return g, nil
 	}
 	return grantReply{Code: "not_member", Reason: "You are not in this workspace."}, nil
+}
+
+func (f *fakeRules) open(_ context.Context, org, user, role string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.opened = append(f.opened, org+"|"+user+"|"+role)
+	p := f.people_[user]
+	p.Workspaces = append(p.Workspaces, workspaceRoles{OrgID: org, Roles: []string{role}, BusinessOwner: true})
+	f.people_[user] = p
+	f.grants[user+"|"+org] = owner()
+	return nil
 }
 
 func (f *fakeRules) members(_ context.Context, org string) ([]member, error) {

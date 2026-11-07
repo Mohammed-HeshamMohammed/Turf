@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 )
@@ -19,6 +21,7 @@ type rules interface {
 	people(ctx context.Context, user string) (peopleReply, error)
 	grant(ctx context.Context, user, org string, secondStep bool) (grantReply, error)
 	members(ctx context.Context, org string) ([]member, error)
+	open(ctx context.Context, org, user, role string) error
 }
 
 type workspaceRoles struct {
@@ -107,6 +110,12 @@ func (a *authzClient) people(ctx context.Context, user string) (peopleReply, err
 	return r, a.call(ctx, http.MethodGet, "/v1/people/"+url.PathEscape(user), nil, &r)
 }
 
+// open sets up a workspace with its owner. Asking again for the same owner changes nothing.
+func (a *authzClient) open(ctx context.Context, org, user, role string) error {
+	var out map[string]any
+	return a.call(ctx, http.MethodPut, "/v1/orgs/"+url.PathEscape(org)+"/owner", map[string]string{"user_id": user, "role": role}, &out)
+}
+
 func (a *authzClient) members(ctx context.Context, org string) ([]member, error) {
 	var r struct {
 		Members []member `json:"members"`
@@ -136,6 +145,15 @@ func (a *authzClient) grant(ctx context.Context, user, org string, secondStep bo
 	a.cache[key] = cached{r, time.Now().Add(a.ttl)}
 	a.mu.Unlock()
 	return r, nil
+}
+
+// staffWorkspaceID is the workspace id of a platform staff member's own workspace: made from their account id, so asking twice
+// finds the same one.
+func staffWorkspaceID(user string) string {
+	h := sha1.Sum([]byte("callerwhale-staff-workspace:" + strings.ToLower(user)))
+	h[6] = h[6]&0x0f | 0x50 // version 5
+	h[8] = h[8]&0x3f | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", h[0:4], h[4:6], h[6:8], h[8:10], h[10:16])
 }
 
 // scope is one person acting in one workspace: what their transactions run as.
