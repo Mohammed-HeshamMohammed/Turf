@@ -78,7 +78,8 @@
       ],
       "variables": {
         "VITE_CALLERWHALE_AUTH_URL": "Build-time public auth service address embedded in the browser JavaScript, like https://auth.callerwhale.com. Rebuild to change; it is not a secret. Wrong value breaks every sign-in.",
-        "VITE_CALLERWHALE_GATEWAY_URL": "Public gateway address for the contact form. Available during build."
+        "VITE_CALLERWHALE_GATEWAY_URL": "Public gateway address for the contact form. Available during build.",
+        "VITE_CALLERWHALE_ASSISTANT_URL": "Public address of the website assistant, like https://assistant.callerwhale.com. Available during build; the content security policy allows only this address."
       }
     },
     "notifications": {
@@ -229,6 +230,22 @@
         "PORT": "HTTP port for the health check; default 8111.",
         "DATABASE_URL": "Secret PostgreSQL URI with the worker's own login (importer): the importing schema and a view of a few lead fields, nothing else.",
         "IMPORT_DIR": "The folder shared with crm-core where upload pieces wait; default /data/imports. The same persistent volume at the same path in both applications."
+      }
+    },
+    "assistant": {
+      "description": "The helper chat on the website: answers common questions from a script and the rest through an AI (OpenRouter), within limits. Keeps no data.",
+      "sources": [
+        "services/assistant/main.go"
+      ],
+      "variables": {
+        "PORT": "HTTP port; default 8109. Match Coolify's container port and the gateway's ROUTES.",
+        "CORS_ORIGINS": "Pages that may call the assistant from a browser, comma-separated origins like https://callerwhale.com. Keep it the same as the gateway's CORS_ORIGINS.",
+        "SITE_URL": "The website's address (https, no trailing slash); the only web address an AI reply may keep. Default https://callerwhale.com.",
+        "OPENROUTER_API_KEY": "Secret OpenRouter key. Empty runs the assistant from its script only.",
+        "OPENROUTER_MODEL": "The OpenRouter model name, like openai/gpt-4o-mini. A cheap, fast model is enough.",
+        "ASSISTANT_MESSAGES_PER_MINUTE": "Messages one visitor may send a minute; default 12.",
+        "ASSISTANT_AI_PER_VISITOR_PER_DAY": "AI answers one visitor may get a day; default 30. After that they get the script.",
+        "ASSISTANT_AI_PER_DAY": "AI answers for all visitors together a day; default 2000. The ceiling on the bill."
       }
     },
     "crm-core": {

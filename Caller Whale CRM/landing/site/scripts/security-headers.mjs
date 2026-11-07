@@ -47,9 +47,10 @@ export function authOrigin(value, setting = "VITE_CALLERWHALE_AUTH_URL") {
 }
 
 /** The headers, one `add_header` per line. Included again in every nginx location that sets a header of its own. */
-export function securityHeaders(authUrl, gatewayUrl = "https://gate.callerwhale.com", inlineHashes = []) {
+export function securityHeaders(authUrl, gatewayUrl = "https://gate.callerwhale.com", inlineHashes = [], assistantUrl = "https://assistant.callerwhale.com") {
   const origin = authOrigin(authUrl);
   const gateway = authOrigin(gatewayUrl, "VITE_CALLERWHALE_GATEWAY_URL");
+  const assistant = authOrigin(assistantUrl, "VITE_CALLERWHALE_ASSISTANT_URL");
   const scripts = ["'self'", "'nonce-$request_id'", ...inlineHashes, "https://www.google.com/recaptcha/", "https://www.gstatic.com/recaptcha/", "https://static.cloudflareinsights.com"];
   const policy = [
     "default-src 'none'",
@@ -60,7 +61,7 @@ export function securityHeaders(authUrl, gatewayUrl = "https://gate.callerwhale.
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self'",
-    `connect-src 'self' ${origin} ${gateway} https://www.google.com/recaptcha/`,
+    `connect-src 'self' ${origin} ${gateway} ${assistant} https://www.google.com/recaptcha/`,
     `frame-src ${gateway} https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/`,
     `form-action 'self' ${gateway}`,
     "base-uri 'none'",
@@ -81,5 +82,5 @@ export function securityHeaders(authUrl, gatewayUrl = "https://gate.callerwhale.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [file, dist] = process.argv.slice(2);
   if (!file || !dist) throw new Error("Usage: node scripts/security-headers.mjs <output file> <built HTML directory>");
-  writeFileSync(file, securityHeaders(process.env.VITE_CALLERWHALE_AUTH_URL, process.env.VITE_CALLERWHALE_GATEWAY_URL || "https://gate.callerwhale.com", builtJsonLdHashes(dist)));
+  writeFileSync(file, securityHeaders(process.env.VITE_CALLERWHALE_AUTH_URL, process.env.VITE_CALLERWHALE_GATEWAY_URL || "https://gate.callerwhale.com", builtJsonLdHashes(dist), process.env.VITE_CALLERWHALE_ASSISTANT_URL || "https://assistant.callerwhale.com"));
 }

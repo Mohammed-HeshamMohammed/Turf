@@ -76,6 +76,15 @@ services:
       - postgres
       - authz
     restart: unless-stopped
+  assistant:
+    build:
+      context: ../services/assistant
+    environment:
+      PORT: "8109"
+      CORS_ORIGINS: "${SITE_ORIGIN:-http://localhost:5200}"
+      # Empty runs the script only; set it in env/compose.env to try the AI.
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+    restart: unless-stopped
   importing-lists:
     build:
       context: ../services/features/importing-lists

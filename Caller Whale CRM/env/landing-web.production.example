@@ -3,3 +3,5 @@
 VITE_CALLERWHALE_AUTH_URL=https://auth.callerwhale.com
 # Public gateway address for the contact form. Available during build.
 VITE_CALLERWHALE_GATEWAY_URL=https://gate.callerwhale.com
+# Public address of the website assistant, like https://assistant.callerwhale.com. Available during build; the content security policy allows only this address.
+VITE_CALLERWHALE_ASSISTANT_URL=https://assistant.callerwhale.com
