@@ -53,7 +53,7 @@ export class Vault {
       try {
         await open(key, check.value);
       } catch {
-        throw new Error("That passphrase does not unlock this device's offline copy");
+        throw new Error("That password does not unlock this device's offline copy");
       }
     } else {
       await db.meta.put({ key: "check", value: await seal(key, "callerwhale") });
