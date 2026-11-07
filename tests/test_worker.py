@@ -90,6 +90,28 @@ class ReadersTest(unittest.TestCase):
             finally:
                 readers.MAX_UNPACKED = old
 
+    def test_a_spreadsheet_with_an_xml_entity_trick_inside_is_refused(self) -> None:
+        import zipfile
+
+        from openpyxl import Workbook
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            honest, tricky = Path(tmp) / "honest.xlsx", Path(tmp) / "tricky.xlsx"
+            book = Workbook()
+            book.active.append(["Name", "Phone"])
+            book.active.append(["A", "5551234"])
+            book.save(honest)
+            with zipfile.ZipFile(honest) as src, zipfile.ZipFile(tricky, "w", zipfile.ZIP_DEFLATED) as out:
+                for part in src.infolist():
+                    data = src.read(part.filename)
+                    if part.filename == "xl/worksheets/sheet1.xml":
+                        marker = data.index(b"<worksheet")
+                        data = data[:marker] + b'<!DOCTYPE x [<!ENTITY a "aaaaaaaaaa"><!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;">]>' + data[marker:]
+                    out.writestr(part.filename, data)
+            self.assertEqual(len(list(readers.read_batches(honest, True))), 1)
+            with self.assertRaises(ValueError):  # openpyxl reports the refused XML as an unreadable workbook
+                list(readers.read_batches(tricky, True))
+
     def test_spreadsheet_numbers_do_not_grow_a_point_zero(self) -> None:
         from openpyxl import Workbook
 
