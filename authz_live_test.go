@@ -1,10 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"net/http"
 	"os"
 	"slices"
 	"testing"
@@ -19,16 +16,14 @@ func TestTheRealAuthzAnswersAsTheClientExpects(t *testing.T) {
 	}
 	const owner, org = "44444444-4444-4444-8444-444444444444", "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
 	ctx := context.Background()
-	// A workspace opens with its owner, as the auth service does when it gives someone a membership.
-	body, _ := json.Marshal(map[string]string{"user_id": owner, "role": "owner"})
-	req, _ := http.NewRequest(http.MethodPut, url+"/v1/orgs/"+org+"/owner", bytes.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-	if res, err := http.DefaultClient.Do(req); err != nil || res.StatusCode != 200 {
-		t.Fatalf("opening the workspace: %v %v", res, err)
+	a := newAuthz(url, token, 0)
+	// A workspace opens with its owner (the same call the first sign-in of Caller Whale's own owner makes); asking twice is harmless.
+	for i := 0; i < 2; i++ {
+		if err := a.open(ctx, org, owner, "owner"); err != nil {
+			t.Fatalf("opening the workspace (attempt %d): %v", i+1, err)
+		}
 	}
 
-	a := newAuthz(url, token, 0)
 	people, err := a.people(ctx, owner)
 	if err != nil || len(people.Workspaces) != 1 || people.Workspaces[0].OrgID != org || !people.Workspaces[0].BusinessOwner || !slices.Contains(people.Workspaces[0].Roles, "owner") {
 		t.Fatalf("people: %+v %v", people, err)
