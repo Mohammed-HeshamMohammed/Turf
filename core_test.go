@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/jackc/pgx/v5"
 )
 
 const (
@@ -426,5 +427,90 @@ func TestOnlyThreeImportsMayBeUnderWayPerWorkspace(t *testing.T) {
 	}
 	if status, _ = e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "list.csv", "size": 100}); status != 200 {
 		t.Fatalf("after cancelling: %d", status)
+	}
+}
+
+func TestOldHoldingRowsAreClearedButTheImportRecordStays(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	ctx := context.Background()
+	_, a := e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "old.csv", "size": 100})
+	_, b := e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "fresh.csv", "size": 100})
+	for i, job := range []map[string]any{a, b} {
+		id := job["id"].(string)
+		if _, err := e.admin.Exec(ctx, `INSERT INTO importing.rows (job_id, row_no, fp, cells) VALUES ($1, 1, sha256('x'::bytea), ARRAY['x'])`, id); err != nil {
+			t.Fatal(err)
+		}
+		age := []string{"20 days", "2 days"}[i]
+		if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'done', updated_at = now() - $2::interval WHERE id = $1`, id, age); err != nil {
+			t.Fatal(err)
+		}
+	}
+	n, err := e.s.sweepRows(ctx)
+	if err != nil || n != 1 {
+		t.Fatalf("one old row should go: %d %v", n, err)
+	}
+	var rows, jobs int
+	_ = e.admin.QueryRow(ctx, `SELECT count(*) FROM importing.rows`).Scan(&rows)
+	_ = e.admin.QueryRow(ctx, `SELECT count(*) FROM importing.jobs`).Scan(&jobs)
+	if rows != 1 || jobs != 2 {
+		t.Fatalf("the fresh import keeps its rows, and both records stay: rows=%d jobs=%d", rows, jobs)
+	}
+}
+
+// The worker's own login, as it will be in production: an ordinary role given its rights by crm-core at start.
+func TestTheWorkersLoginCanDoItsJobAndNothingElse(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	ctx := context.Background()
+	const role = "importer_test"
+	if _, err := e.admin.Exec(ctx, `DROP ROLE IF EXISTS `+role); err != nil {
+		// the role may own nothing in this database yet; a leftover from a failed run is removed below
+		t.Log(err)
+	}
+	if _, err := e.admin.Exec(ctx, `CREATE ROLE `+role+` LOGIN PASSWORD 'worker-test'`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = e.admin.Exec(ctx, `REASSIGN OWNED BY `+role+` TO CURRENT_USER`)
+		_, _ = e.admin.Exec(ctx, `DROP OWNED BY `+role)
+		_, _ = e.admin.Exec(ctx, `DROP ROLE IF EXISTS `+role)
+	})
+	if err := e.s.st.grantImporter(ctx, role); err != nil {
+		t.Fatal(err)
+	}
+	cfg, _ := pgx.ParseConfig(os.Getenv("CRM_TEST_DATABASE_URL"))
+	cfg.User, cfg.Password = role, "worker-test"
+	conn, err := pgx.ConnectConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+
+	// What the worker does: temp staging, rows in the holding table, the job's progress, matching against the lead view.
+	steps := []string{
+		`CREATE TEMP TABLE _stage (row_no bigint, cells text[], fp bytea)`,
+		`INSERT INTO _stage VALUES (1, ARRAY['Pat'], sha256('a'::bytea))`,
+		`SET cw.matching = 'on'`,
+		`SELECT id, org_id, name, phone, email, addr_key FROM importing.lead_match LIMIT 1`,
+		`SELECT importing.norm_phone('(512) 555-0100'), importing.addr_key('1 Main St', '78701')`,
+		`SELECT count(*) FROM importing.jobs`,
+		`UPDATE importing.jobs SET heartbeat_at = now() WHERE false`,
+		`DELETE FROM importing.rows WHERE false`,
+	}
+	for _, sql := range steps {
+		if _, err := conn.Exec(ctx, sql); err != nil {
+			t.Fatalf("the worker must be able to run %q: %v", sql, err)
+		}
+	}
+	// What it must never do: read or change the leads themselves, or the rest of the CRM, or change structure.
+	for _, sql := range []string{
+		`SELECT * FROM crm.leads`, `UPDATE crm.leads SET name = 'x'`, `DELETE FROM crm.leads`, `SELECT * FROM crm.people`,
+		`SELECT * FROM crm.operations`, `INSERT INTO crm.leads (org_id, name) VALUES (gen_random_uuid(), 'x')`,
+		`CREATE TABLE importing.evil (x int)`, `CREATE TABLE crm.evil (x int)`, `DROP TABLE importing.rows`,
+	} {
+		if _, err := conn.Exec(ctx, sql); err == nil {
+			t.Fatalf("the worker must not be able to run %q", sql)
+		}
 	}
 }

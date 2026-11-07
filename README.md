@@ -30,6 +30,8 @@ Every request inside a workspace carries `Authorization: Bearer <token>` and `x-
 go test ./...
 ```
 
+One more test checks crm-core's client against a real authz service; set `CRM_TEST_AUTHZ_URL` and `CRM_TEST_AUTHZ_TOKEN` (a `core-api` token of that authz) to run it.
+
 The database tests need a disposable PostgreSQL: `CRM_TEST_ADMIN_URL` (a superuser, to reset the schemas) and `CRM_TEST_DATABASE_URL` (an ordinary login, as production runs, so row security applies). Without them those tests are skipped.
 
 ## Coolify
