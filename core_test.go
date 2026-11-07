@@ -401,3 +401,30 @@ func TestAConfirmedListIsMergedIntoLeadsInBatches(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+func TestOnlyThreeImportsMayBeUnderWayPerWorkspace(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	for i := 0; i < maxActiveImports; i++ {
+		if status, out := e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "list.csv", "size": 100}); status != 200 {
+			t.Fatalf("import %d: %d %v", i, status, out)
+		}
+	}
+	status, out := e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "list.csv", "size": 100})
+	if status != http.StatusTooManyRequests || out["error"].(map[string]any)["code"] != "too_many_imports" {
+		t.Fatalf("a fourth import: %d %v", status, out)
+	}
+	// Another workspace is not held back by this one, and cancelling frees a place.
+	if status, _ = e.call(carol, orgB, "POST", "/api/v1/imports", map[string]any{"filename": "list.csv", "size": 100}); status != 200 {
+		t.Fatalf("another workspace: %d", status)
+	}
+	_, list := e.raw(alice, orgA, "GET", "/api/v1/imports", nil, nil)
+	var jobs []map[string]any
+	_ = json.Unmarshal(list, &jobs)
+	if status, _ = e.call(alice, orgA, "POST", "/api/v1/imports/"+jobs[0]["id"].(string)+"/cancel", nil); status != 200 {
+		t.Fatalf("cancel: %d", status)
+	}
+	if status, _ = e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "list.csv", "size": 100}); status != 200 {
+		t.Fatalf("after cancelling: %d", status)
+	}
+}
