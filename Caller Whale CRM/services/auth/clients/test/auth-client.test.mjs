@@ -276,3 +276,15 @@ test("a failed /v1/me is never remembered", async () => {
   assert.equal((await auth.me()).mfa_enrolled, true);
   assert.equal(asked, 2);
 });
+
+test("a read is asked again once when the connection drops; a sign-in is never repeated; the message names the address", async () => {
+  let reads = 0;
+  const flaky = createAuth({ base: "https://auth.example.com", storage: memoryStorage(), fetchImpl: async () => { reads += 1; if (reads === 1) throw new TypeError("Failed to fetch"); return { ok: true, status: 200, text: async () => '{"google":true}' }; } });
+  assert.deepEqual(await flaky.providers(), { google: true });
+  assert.equal(reads, 2);
+
+  let attempts = 0;
+  const down = createAuth({ base: "https://auth.example.com", storage: memoryStorage(), fetchImpl: async () => { attempts += 1; throw new TypeError("Failed to fetch"); } });
+  await assert.rejects(down.signIn("a@example.com", "pw", undefined, "browser"), error => error instanceof AuthError && error.code === "offline" && /auth\.example\.com/.test(error.message) && /work or school network/.test(error.message));
+  assert.equal(attempts, 1, "a password is never sent twice behind the person's back");
+});
