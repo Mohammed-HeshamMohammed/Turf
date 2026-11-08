@@ -3,6 +3,7 @@ import { Bell, CalendarBlank, CheckCircle, SlidersHorizontal, UserCircle } from 
 import { ROLES } from "./data.ts";
 import { AVATAR_PRESETS, squareAvatar } from "./avatars.ts";
 import { EmailChange } from "./EmailChange.jsx";
+import { SITE } from "./remote/api.ts";
 import { personalProfile } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { Avatar, Badge, Breadcrumb, Button, Card, Field, PageHeader, usePresence } from "./ui.jsx";
@@ -127,7 +128,25 @@ export function PersonalPage({ section = "profile" }) {
       </div>
       {section === "profile" ? (
         <div className="two-columns">
-          <Card title="Personal details" subtitle={state.remote ? "Your sign-in identity and picture on this device." : "Your picture, display name and contact email."}>
+          <Card title="Personal details" subtitle={state.remote ? "From your Caller Whale account." : "Your picture, display name and contact email."}>
+            {state.remote ? (
+              <div className="personal-account-details">
+                <div className="personal-profile-identity">
+                  <Avatar name={profile.name} avatar={profile.avatar} large />
+                  <div><h3>{profile.name}</h3><small>{profile.email}</small></div>
+                </div>
+                <div className="definition-list">
+                  {profile.firstName && <div><small>First name</small><strong>{profile.firstName}</strong></div>}
+                  {profile.middleName && <div><small>Middle name</small><strong>{profile.middleName}</strong></div>}
+                  {profile.lastName && <div><small>Last name</small><strong>{profile.lastName}</strong></div>}
+                  {profile.phone && <div><small>Phone</small><strong>{profile.phone}</strong></div>}
+                  {profile.username && <div><small>Username</small><strong>{profile.username}</strong></div>}
+                  {profile.currency && <div><small>Account currency</small><strong>{profile.currency}</strong></div>}
+                </div>
+                <a className="button" href={`${SITE}/account`} target="_blank" rel="noopener noreferrer">Edit account profile</a>
+              </div>
+            ) : (
+              <>
             <div className="avatar-picker">
               <div className="avatar-grid" role="group" aria-label="Choose an avatar">
                 <button
@@ -177,7 +196,7 @@ export function PersonalPage({ section = "profile" }) {
                 {profile.avatar && <Button onClick={() => dispatch({ type: "PERSONAL", profile: { avatar: "" } })}>Remove picture</Button>}
               </div>
             </div>
-            {!state.remote && <form
+            <form
               key={role.person}
               onSubmit={event => {
                 event.preventDefault();
@@ -192,8 +211,10 @@ export function PersonalPage({ section = "profile" }) {
               <button className="button primary" type="submit">
                 Save name
               </button>
-            </form>}
-            {state.remote ? <div className="email-current"><small>Sign-in email</small><strong>{profile.email}</strong></div> : <EmailChange profile={profile} dispatch={dispatch} notify={notify} />}
+            </form>
+            <EmailChange profile={profile} dispatch={dispatch} notify={notify} />
+              </>
+            )}
           </Card>
           <Card title="Your workspace identity">
             <div className="personal-profile-identity">
@@ -217,7 +238,7 @@ export function PersonalPage({ section = "profile" }) {
                 <strong>{role.scope}</strong>
               </div>
             </div>
-            <p className="body-copy">Changing your display name keeps existing lead ownership and history intact.</p>
+            <p className="body-copy">{state.remote ? "Your account profile is shared with Caller Whale. Workspace access and lead history remain attached to your account." : "Changing your display name keeps existing lead ownership and history intact."}</p>
           </Card>
         </div>
       ) : (

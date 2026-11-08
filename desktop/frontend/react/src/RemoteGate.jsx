@@ -4,6 +4,7 @@ import { AppleMark, GoogleMark } from "./SignInMarks.jsx";
 import { api, apiBase, auth, organization, SERVER, SITE, setApiBase, setOrganization } from "./remote/api.ts";
 import { MemoryVault, Vault } from "./remote/vault.ts";
 import { preferredWorkspace, readWorkspaceChoice, saveWorkspaceChoice } from "./remote/workspace-choice.ts";
+import { mergeAuthProfile } from "./remote/profile.ts";
 import { inDesktopApp } from "./popout.ts";
 import { Button, Card, DatePicker, Field, Select } from "./ui.jsx";
 import { SecondStep } from "./SecondStep.jsx";
@@ -118,6 +119,7 @@ export function RemoteGate({ onReady, onLeave }) {
       if (identity.organization_id !== chosen || stored !== chosen) {
         identity = await api.me(true);
       }
+      identity = { ...identity, user: mergeAuthProfile(identity.user, sessionPerson) };
       setMe(identity);
       if (identity.mfa.required && !identity.mfa.passed) {
         // Auth knows whether two-step sign-in is on; Caller Whale's server only knows whether this session passed it.

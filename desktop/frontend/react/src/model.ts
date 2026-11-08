@@ -8,7 +8,9 @@ export function personalProfile(state) {
   if (state.remote) {
     const user = state.remote.user;
     return { taskReminders: true, replyReminders: true, ...state.personal?.[person],
-      name: user.name || person, email: user.email || "" };
+      name: user.name || person, email: user.email || "", avatar: user.avatar || "",
+      phone: user.phone || "", username: user.username || "", currency: user.currency || "",
+      firstName: user.first_name || "", middleName: user.middle_name || "", lastName: user.last_name || "" };
   }
   return {
     name: person,

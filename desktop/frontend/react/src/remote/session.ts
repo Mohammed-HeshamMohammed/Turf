@@ -4,6 +4,7 @@
 import { reducer } from "../model.ts";
 import { seedState } from "../data.ts";
 import { collectionsFromStore } from "./translate.ts";
+import { mergeAuthProfile } from "./profile.ts";
 
 /** The prototype reducer, plus the actions that bring server state in. */
 export function remoteReducer(state, action) {
@@ -33,6 +34,8 @@ export function remoteReducer(state, action) {
       for (const pending of action.pending) next = reducer(next, pending);
       return { ...next, queue: action.queue, remoteStatus: action.status, remoteError: action.error };
     }
+    case "REMOTE_PROFILE":
+      return state.remote ? { ...state, remote: { ...state.remote, user: mergeAuthProfile(state.remote.user, action.profile) } } : state;
     case "REMOTE_END":
       return seedState();
     default:

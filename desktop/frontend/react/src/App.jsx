@@ -80,6 +80,25 @@ export function App() {
   const engine = useRef(null);
   const latest = useRef(state);
   latest.current = state;
+  useEffect(() => {
+    if (connection !== "remote") return;
+    const refreshProfile = async () => {
+      try {
+        const profile = await auth.me({ fresh: true });
+        if (profile.id === latest.current.remote?.user.id) apply({ type: "REMOTE_PROFILE", profile });
+      } catch {
+        // Keep the profile already shown until auth can be reached again.
+      }
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") void refreshProfile(); };
+    void refreshProfile();
+    window.addEventListener("focus", refreshProfile);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", refreshProfile);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [connection]);
   const [route, setRoute] = useState(readRoute);
   const [toast, setToast] = useState("");
   const [query, setQuery] = useState("");
