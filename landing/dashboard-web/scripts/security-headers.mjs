@@ -22,6 +22,8 @@ export function originOf(value, setting) {
 export function securityHeaders(authUrl, apiUrl) {
   const auth = originOf(authUrl, "VITE_CALLERWHALE_AUTH_URL");
   const api = originOf(apiUrl, "VITE_CALLERWHALE_API_URL");
+  const events = new URL(api);
+  events.protocol = events.protocol === "https:" ? "wss:" : "ws:";
   const policy = [
     "default-src 'none'",
     // The human check, when the auth service turns it on, loads Google's script and frame. Cloudflare injects its analytics beacon at the edge.
@@ -32,7 +34,7 @@ export function securityHeaders(authUrl, apiUrl) {
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
     "media-src 'self' blob: data:",
-    `connect-src 'self' ${auth} ${api} https://www.google.com/recaptcha/ https://api.giphy.com https://cloudflareinsights.com`,
+    `connect-src 'self' ${auth} ${api} ${events.origin} https://www.google.com/recaptcha/ https://api.giphy.com https://cloudflareinsights.com`,
     "frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/",
     "worker-src 'self' blob:",
     "form-action 'self'",
