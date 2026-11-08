@@ -1,6 +1,5 @@
 import {
   ArrowUpRight,
-  CalendarBlank,
   CaretDown,
   CaretLeft,
   CaretRight,
@@ -18,6 +17,8 @@ import { createPortal } from "react-dom";
 import { useCrm } from "./context.jsx";
 import { avatarSources } from "./avatars.ts";
 import { TODAY } from "./data.ts";
+import { DatePicker as SharedDatePicker } from "./calendar/calendar.jsx";
+import "./calendar/calendar.css";
 
 export const money = value => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
 /** Bedrooms, bathrooms, area, units and year built, leaving out what the source did not supply. */
@@ -819,209 +820,20 @@ export function Select({ children, value, defaultValue, onChange, name, id, disa
 }
 
 const pad = number => String(number).padStart(2, "0");
-const isoOf = date => date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate());
-const parseIso = text => {
-  const found = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text || "");
-  return found ? new Date(Number(found[1]), Number(found[2]) - 1, Number(found[3])) : null;
-};
-const readableDate = text => parseIso(text)?.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) ?? "";
-const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
-
 /**
- * Themed replacement for <input type="date">: the calendar is drawn by the app, not the browser.
+ * Themed replacement for <input type="date">: Caller Whale's calendar (shared/calendar), drawn by the app, not the browser.
  * Same props as Select (value / defaultValue / onChange / name / disabled), values are "YYYY-MM-DD", plus min and max.
  * onChange receives an event-like { target: { value, name } }.
  */
-export function DatePicker({ value, defaultValue, onChange, name, min, max, disabled, required, id, "aria-label": ariaLabel }) {
-  const controlled = value !== undefined;
-  const [inner, setInner] = useState(defaultValue ?? "");
-  const current = controlled ? value : inner;
-  const [open, setOpen] = useState(false);
-  const [month, setMonth] = useState(() => parseIso(current) || parseIso(TODAY));
-  const [focused, setFocused] = useState(current || TODAY);
-  const [place, setPlace] = useState(null);
-  const trigger = useRef(null);
-  const panel = useRef(null);
-  const presence = usePresence(open);
-  const hostRef = useRef(null);
-  if (open) hostRef.current = trigger.current?.closest("dialog, .callerwhale-menu, .personal-menu") || document.body;
-  const host = presence.mounted ? hostRef.current : null;
-  const blocked = day => (min && day < min) || (max && day > max);
-
-  function choose(day) {
-    if (blocked(day)) return;
-    if (!controlled) setInner(day);
-    onChange?.({ target: { value: day, name }, currentTarget: { value: day, name } });
-    setOpen(false);
-    trigger.current?.focus();
-  }
-  function show() {
-    if (disabled) return;
-    const start = parseIso(current) || parseIso(TODAY);
-    setMonth(new Date(start.getFullYear(), start.getMonth(), 1));
-    setFocused(isoOf(start));
-    setPlace(null);
-    setOpen(true);
-  }
-  function focusDay(day) {
-    const date = parseIso(day);
-    setFocused(day);
-    setMonth(new Date(date.getFullYear(), date.getMonth(), 1));
-  }
-  function shift(days) {
-    const date = parseIso(focused);
-    focusDay(isoOf(new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)));
-  }
-  function jumpMonths(count) {
-    const date = parseIso(focused);
-    const last = new Date(date.getFullYear(), date.getMonth() + count + 1, 0).getDate();
-    focusDay(isoOf(new Date(date.getFullYear(), date.getMonth() + count, Math.min(date.getDate(), last))));
-  }
-
-  useLayoutEffect(() => {
-    if (!open || !panel.current || !trigger.current) return;
-    const box = trigger.current.getBoundingClientRect();
-    const height = panel.current.offsetHeight;
-    const width = panel.current.offsetWidth;
-    const below = window.innerHeight - box.bottom - 12;
-    const up = below < height && box.top > below;
-    setPlace({
-      left: Math.max(8, Math.min(box.left, window.innerWidth - width - 8)),
-      top: up ? Math.max(8, box.top - height - 6) : box.bottom + 6,
-    });
-  }, [open]);
-  useEffect(() => {
-    if (!open) return undefined;
-    const outside = event => {
-      if (!trigger.current?.contains(event.target) && !panel.current?.contains(event.target)) setOpen(false);
-    };
-    const close = () => setOpen(false);
-    document.addEventListener("pointerdown", outside, true);
-    window.addEventListener("resize", close);
-    return () => {
-      document.removeEventListener("pointerdown", outside, true);
-      window.removeEventListener("resize", close);
-    };
-  }, [open]);
-  useEffect(() => {
-    if (open && place) panel.current?.querySelector('[data-day="' + focused + '"]')?.focus({ preventScroll: true });
-  }, [open, place, focused]);
-
-  const first = new Date(month.getFullYear(), month.getMonth(), 1);
-  const cells = Array.from({ length: 42 }, (_, index) => new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay() + index));
-  const label = month.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-
-  function onKeyDown(event) {
-    const moves = {
-      ArrowLeft: () => shift(-1),
-      ArrowRight: () => shift(1),
-      ArrowUp: () => shift(-7),
-      ArrowDown: () => shift(7),
-      PageUp: () => jumpMonths(-1),
-      PageDown: () => jumpMonths(1),
-    };
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      setOpen(false);
-      trigger.current?.focus();
-    } else if (event.key === "Tab") {
-      setOpen(false);
-    } else if (event.key in moves) {
-      event.preventDefault();
-      moves[event.key]();
-    }
-  }
-
+export function DatePicker(props) {
   return (
-    <span className="select">
-      <button
-        type="button"
-        ref={trigger}
-        id={id}
-        className="select-trigger"
-        aria-label={ariaLabel}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        disabled={disabled}
-        onClick={() => (open ? setOpen(false) : show())}
-        onKeyDown={event => {
-          if (!open && ["ArrowDown", "Enter", " "].includes(event.key)) {
-            event.preventDefault();
-            show();
-          }
-        }}
-      >
-        <span className="select-value">{readableDate(current) || <span className="muted">Pick a date</span>}</span>
-        <CalendarBlank size={15} className="select-caret" />
-      </button>
-      {name && <input type="hidden" name={name} value={current} />}
-      {host &&
-        createPortal(
-          <div
-            ref={panel}
-            role="dialog"
-            aria-label="Choose a date"
-            className={"select-menu date-menu" + (presence.leaving ? " leaving" : "")}
-            style={place ? { left: place.left, top: place.top } : { visibility: "hidden", left: 0, top: 0 }}
-            onPointerDown={event => event.target.closest("button") || event.preventDefault()}
-            onKeyDown={onKeyDown}
-          >
-            <div className="date-head">
-              <strong aria-live="polite">{label}</strong>
-              <span>
-                <button type="button" aria-label="Previous month" onClick={() => jumpMonths(-1)}>
-                  <CaretLeft size={15} weight="bold" />
-                </button>
-                <button type="button" aria-label="Next month" onClick={() => jumpMonths(1)}>
-                  <CaretRight size={15} weight="bold" />
-                </button>
-              </span>
-            </div>
-            <div className="date-grid" role="grid" aria-label={label}>
-              {WEEKDAYS.map(day => (
-                <span key={day} className="date-dow" role="columnheader">
-                  {day}
-                </span>
-              ))}
-              {cells.map(date => {
-                const day = isoOf(date);
-                return (
-                  <button
-                    key={day}
-                    type="button"
-                    role="gridcell"
-                    data-day={day}
-                    tabIndex={day === focused ? 0 : -1}
-                    aria-selected={day === current}
-                    aria-current={day === TODAY ? "date" : undefined}
-                    aria-label={date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
-                    disabled={blocked(day)}
-                    className={"date-day" + (date.getMonth() !== month.getMonth() ? " is-outside" : "")}
-                    onClick={() => choose(day)}
-                  >
-                    {date.getDate()}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="date-foot">
-              {!required && (
-                <button
-                  type="button"
-                  onClick={() => (!controlled && setInner(""), onChange?.({ target: { value: "", name }, currentTarget: { value: "", name } }), setOpen(false))}
-                >
-                  Clear
-                </button>
-              )}
-              <button type="button" disabled={blocked(TODAY)} onClick={() => choose(TODAY)}>
-                Today
-              </button>
-            </div>
-          </div>,
-          host,
-        )}
-    </span>
+    <SharedDatePicker
+      today={TODAY}
+      className="select"
+      triggerClassName="select-trigger"
+      portalHost="dialog, .callerwhale-menu, .personal-menu"
+      {...props}
+    />
   );
 }
 

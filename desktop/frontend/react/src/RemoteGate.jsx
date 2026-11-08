@@ -4,7 +4,7 @@ import { AppleMark, GoogleMark } from "./SignInMarks.jsx";
 import { api, apiBase, auth, organization, SERVER, SITE, setApiBase, setOrganization } from "./remote/api.ts";
 import { MemoryVault, Vault } from "./remote/vault.ts";
 import { inDesktopApp } from "./popout.ts";
-import { Button, Card, Field } from "./ui.jsx";
+import { Button, Card, DatePicker, Field } from "./ui.jsx";
 import { SecondStep } from "./SecondStep.jsx";
 import { PasswordStrength, PasswordTips } from "./DevicePasswordHelp.jsx";
 import { assess, MAX_LENGTH } from "./remote/password-check.ts";
@@ -410,7 +410,15 @@ export function RemoteGate({ onReady, onLeave }) {
             }}
           >
             <Field label="Date of birth" help="It is kept on your account and cannot be changed later.">
-              <input type="date" required autoComplete="bday" min="1900-01-01" max={new Date(Date.now() - 18 * 365.2425 * 86400000).toISOString().slice(0, 10)} value={birthDate} onChange={event => setBirthDate(event.target.value)} />
+              <DatePicker
+                aria-label="Date of birth"
+                required
+                min="1900-01-01"
+                max={new Date(Date.now() - 18 * 365.2425 * 86400000).toISOString().slice(0, 10)}
+                initialView="years"
+                value={birthDate}
+                onChange={event => setBirthDate(event.target.value)}
+              />
             </Field>
             <Button type="submit" variant="primary" icon={ShieldCheck} disabled={busy || !birthDate}>
               Continue
