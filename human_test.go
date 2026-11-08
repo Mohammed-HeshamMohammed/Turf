@@ -361,6 +361,7 @@ func TestSettingsAreChecked(t *testing.T) {
 		"auth host not routed": {"AUTH_HOST": "elsewhere.example"},
 		"score out of range":   {"RECAPTCHA_MIN_SCORE": "1.5"},
 		"score not a number":   {"RECAPTCHA_MIN_SCORE": "high"},
+		"unknown kind":         {"RECAPTCHA_KIND": "invisible-v4"},
 		"limit not a number":   {"HUMAN_PER_MINUTE": "-1"},
 	} {
 		if err := with(change); err == nil {
@@ -435,5 +436,59 @@ func TestOtherCorePathsAreNotAskedForAHumanToken(t *testing.T) {
 	}
 	if w.asked.Load() != before {
 		t.Fatal("Google was asked about a path that is not a form")
+	}
+}
+
+// The visible "I'm not a robot" box (v2): Google answers with no score and no action, so only success and the site count.
+func TestTheCheckboxKind(t *testing.T) {
+	w := newHumanWorld(t, map[string]string{"RECAPTCHA_KIND": "checkbox"})
+	ticked := func(url.Values) (int, any) {
+		return 200, map[string]any{"success": true, "hostname": "callerwhale.com"}
+	}
+	w.answer.Store(ticked)
+	for _, path := range []string{"/v1/sessions", "/v1/accounts"} {
+		if rec := w.call("POST", path, `{"email":"a@example.com","human_token":"tok"}`); rec.Code != 200 {
+			t.Fatalf("%s with a ticked box: %d %s", path, rec.Code, rec.Body)
+		}
+	}
+	if rec := w.call("POST", "/v1/oauth/google/start", `{"target":"landing","human_token":"tok","action":"signup"}`); rec.Code != 200 {
+		t.Fatalf("Google start with a ticked box: %d %s", rec.Code, rec.Body)
+	}
+	reached := w.reached.Load()
+	for name, answer := range map[string]map[string]any{
+		"not ticked":     {"success": false, "error-codes": []string{"invalid-input-response"}},
+		"another site":   {"success": true, "hostname": "evil.example"},
+		"v3 keys in use": {"success": true, "hostname": "callerwhale.com", "score": 0.9, "action": "signin"},
+	} {
+		answer := answer
+		w.answer.Store(func(url.Values) (int, any) { return 200, answer })
+		if rec := w.call("POST", "/v1/sessions", `{"human_token":"tok"}`); rec.Code != 403 || code(t, rec) != "human_required" {
+			t.Fatalf("%s: %d %s", name, rec.Code, rec.Body)
+		}
+	}
+	if rec := w.call("POST", "/v1/sessions", `{"email":"a"}`); rec.Code != 403 {
+		t.Fatalf("no token: %d", rec.Code)
+	}
+	if w.reached.Load() != reached {
+		t.Fatal("a refused request reached auth")
+	}
+	// The pages are told to show the box.
+	rec := w.call("GET", "/v1/security", "")
+	if !strings.Contains(rec.Body.String(), `"kind":"checkbox"`) {
+		t.Fatalf("security answer: %s", rec.Body)
+	}
+}
+
+func TestTheScoreKindIsTheDefaultAndSaysSo(t *testing.T) {
+	w := newHumanWorld(t, nil)
+	if rec := w.call("GET", "/v1/security", ""); !strings.Contains(rec.Body.String(), `"kind":"score"`) {
+		t.Fatalf("security answer: %s", rec.Body)
+	}
+	// A v2 answer (no score) is still refused when the gateway expects v3.
+	w.answer.Store(func(url.Values) (int, any) {
+		return 200, map[string]any{"success": true, "hostname": "callerwhale.com"}
+	})
+	if rec := w.call("POST", "/v1/sessions", `{"human_token":"tok"}`); rec.Code != 403 {
+		t.Fatalf("v2 answer in score mode: %d", rec.Code)
 	}
 }
