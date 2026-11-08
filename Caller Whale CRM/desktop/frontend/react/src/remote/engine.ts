@@ -131,8 +131,8 @@ export class SyncEngine {
 
   /** Fetches the workspace's lists again, so a list that was just uploaded shows up without signing in again. */
   async refreshProjects() {
-    const projects = await this.api.projects().catch(() => null);
-    if (!projects || !this.store) return;
+    const projects = await this.api.projects();
+    if (!this.store) return;
     this.extra = { ...this.extra, projects };
     this.store = { ...this.store, projects };
     await this.save();
@@ -178,7 +178,7 @@ export class SyncEngine {
   }
 
   async pull() {
-    for (let page = 0; page < 50; page += 1) {
+    while (true) {
       const answer = await this.api.pull(this.store.cursor, this.store.accessRevision);
       if (answer.reset) {
         // Permissions changed: nothing cached before may be trusted.
@@ -186,6 +186,7 @@ export class SyncEngine {
         await this.snapshot();
         return;
       }
+      if (answer.more && answer.cursor === this.store.cursor) throw new Error("The server did not advance the sync cursor");
       this.store = { ...applyChanges(this.store, answer.changes), cursor: answer.cursor };
       await this.save();
       if (!answer.more) return;

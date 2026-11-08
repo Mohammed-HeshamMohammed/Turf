@@ -296,7 +296,7 @@ export function RemoteGate({ onReady, onLeave }) {
       const vault = withPassphrase ? await Vault.unlock(form.passphrase, owner) : new MemoryVault();
       writeChoice(owner, withPassphrase ? "" : "online");
       setForm(current => ({ ...current, passphrase: "" }));
-      onReady({ me, vault, persistent: withPassphrase });
+      await onReady({ me, vault, persistent: withPassphrase });
     });
   };
 

@@ -5,6 +5,11 @@ import { phoneNumberKey, validPhoneNumber } from "./phone.ts";
 export const uid = () => crypto.randomUUID();
 export function personalProfile(state) {
   const person = ROLES[state.role].person;
+  if (state.remote) {
+    const user = state.remote.user;
+    return { taskReminders: true, replyReminders: true, ...state.personal?.[person],
+      name: user.name || person, email: user.email || "" };
+  }
   return {
     name: person,
     email: person.toLowerCase().replaceAll(" ", ".") + "@example.com",

@@ -99,7 +99,7 @@ export function PersonalMenu({ onOpen }) {
           </div>
           <div className="personal-menu-footer">
             <Badge>{role.name}</Badge>
-            <span>Sample account</span>
+            <span>{state.remote ? "Signed in" : "Sample account"}</span>
           </div>
         </div>
       )}
@@ -127,7 +127,7 @@ export function PersonalPage({ section = "profile" }) {
       </div>
       {section === "profile" ? (
         <div className="two-columns">
-          <Card title="Personal details" subtitle="Your picture, display name and contact email.">
+          <Card title="Personal details" subtitle={state.remote ? "Your sign-in identity and picture on this device." : "Your picture, display name and contact email."}>
             <div className="avatar-picker">
               <div className="avatar-grid" role="group" aria-label="Choose an avatar">
                 <button
@@ -177,7 +177,7 @@ export function PersonalPage({ section = "profile" }) {
                 {profile.avatar && <Button onClick={() => dispatch({ type: "PERSONAL", profile: { avatar: "" } })}>Remove picture</Button>}
               </div>
             </div>
-            <form
+            {!state.remote && <form
               key={role.person}
               onSubmit={event => {
                 event.preventDefault();
@@ -192,8 +192,8 @@ export function PersonalPage({ section = "profile" }) {
               <button className="button primary" type="submit">
                 Save name
               </button>
-            </form>
-            <EmailChange profile={profile} dispatch={dispatch} notify={notify} />
+            </form>}
+            {state.remote ? <div className="email-current"><small>Sign-in email</small><strong>{profile.email}</strong></div> : <EmailChange profile={profile} dispatch={dispatch} notify={notify} />}
           </Card>
           <Card title="Your workspace identity">
             <div className="personal-profile-identity">

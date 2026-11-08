@@ -53,7 +53,7 @@ export function Lists({ id }) {
   const leads = visibleLeads(state);
   const listLeads = useMemo(() => leads.filter(lead => lead.datasetId === id), [leads, id]);
   const datasetIds = new Set(leads.map(item => item.datasetId));
-  const datasets = state.datasets.filter(item => datasetIds.has(item.id) || (capability(state, "import") && item.team === (ROLES[state.role].team || "Tampa")));
+  const datasets = state.remote ? state.datasets : state.datasets.filter(item => datasetIds.has(item.id) || (capability(state, "import") && item.team === (ROLES[state.role].team || "Tampa")));
   const dataset = datasets.find(item => item.id === id);
   const table = useTableView(
     leads.filter(lead => lead.datasetId === id),

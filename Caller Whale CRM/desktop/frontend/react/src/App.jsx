@@ -230,7 +230,7 @@ export function App() {
       const sync = engine.current;
       if (!sync) return apply(action);
       if (action.type === "SYNC") return void sync.sync();
-      if (action.type === "REFRESH_LISTS") return void sync.refreshProjects();
+      if (action.type === "REFRESH_LISTS") return void sync.refreshProjects().catch(error => notify("Lists could not be refreshed: " + error.message));
       if (action.type === "RESOLVE") return void sync.resolve(action.id, action.discard ? "discard" : "keep");
       if (["CONFLICT", "ROLE", "RESET"].includes(action.type)) return;
       if (action.type === "CONNECT") {
@@ -254,8 +254,7 @@ export function App() {
   useEffect(() => subscribeCallLog(call => apply({ type: "CALL_LOG", call })), []);
   const connect = useCallback(async ({ me, vault }) => {
     const role = applyIdentity(me);
-    const quiet = promise => promise.catch(() => []);
-    const [directory, teams, projects] = await Promise.all([quiet(api.directory()), quiet(api.teams()), quiet(api.projects())]);
+    const [directory, teams, projects] = await Promise.all([api.directory(), api.teams(), api.projects()]);
     const organization = me.organizations.find(item => item.id === me.organization_id)?.name || "";
     // `people`: the workspace's members from the server, with how each signs in.
     apply({ type: "REMOTE_START", role, remote: { user: me.user, capabilities: me.capabilities, organization, roles: me.roles, people: directory } });

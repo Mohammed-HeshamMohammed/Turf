@@ -43,7 +43,7 @@ export function remoteReducer(state, action) {
 /** The REMOTE_SYNC action for an engine snapshot. */
 export function syncAction(snapshot, person) {
   const collections = snapshot.store
-    ? { ...collectionsFromStore(snapshot.store), threads: [], activities: [] }
+    ? { ...collectionsFromStore(snapshot.store), threads: [] }
     : { leads: [], tasks: [], deals: [], handoffs: [] };
   return {
     type: "REMOTE_SYNC",
