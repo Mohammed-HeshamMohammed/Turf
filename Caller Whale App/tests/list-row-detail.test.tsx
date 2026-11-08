@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ListRowDetail } from "../src/components/ListRowDetail";
 import { ownerColumns } from "../src/lib/owners";
@@ -85,7 +85,12 @@ describe("expanded list rows", () => {
     await user.click(screen.getByRole("button", { name: "Do not call", exact: true }));
     expect(props.onMark).toHaveBeenCalledWith("+17135554455", "do_not_call");
     view.rerender(<ListRowDetail {...props} manual={{ "+17135554455": { mark: "do_not_call", at: "2026-10-12" } }} />);
-    fireEvent.change(screen.getByLabelText("Do-not-call end date (optional)"), { target: { value: "2026-11-01" } });
+    // The end date is Caller Whale's calendar: open it, jump to the year and month, pick the day.
+    await user.click(screen.getByRole("button", { name: /^Do-not-call end date/ }));
+    await user.click(screen.getByRole("button", { name: /^Choose a year/ }));
+    await user.click(screen.getByRole("button", { name: "2026" }));
+    await user.click(screen.getByRole("button", { name: "Nov" }));
+    await user.click(screen.getByRole("button", { name: /^Sunday, November 1, 2026/ }));
     expect(props.onMark).toHaveBeenLastCalledWith("+17135554455", "do_not_call", "2026-11-01");
     await user.click(screen.getByRole("button", { name: "Do not call", exact: true }));
     expect(props.onMark).toHaveBeenLastCalledWith("+17135554455", null);

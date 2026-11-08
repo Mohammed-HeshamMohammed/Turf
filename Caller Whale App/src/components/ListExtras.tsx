@@ -21,6 +21,7 @@ import {
 import { Check } from "./Bits";
 import { Icon } from "./Icon";
 import { Select } from "./Select";
+import { DatePicker } from "../calendar/calendar.jsx";
 
 const leftOut = (left: Record<string, number>, words: Record<string, string>) =>
   Object.entries(left)
@@ -364,7 +365,14 @@ export function ManyAtOnce({
           </option>
         ))}
       </select>
-      <input className="input" type="date" aria-label="Call the chosen leads back on" value={day} onChange={event => setDay(event.target.value)} />
+      <DatePicker
+        className="input-date is-inline"
+        triggerClassName="input"
+        aria-label="Call the chosen leads back on"
+        placeholder="Call back on…"
+        value={day}
+        onChange={event => setDay(event.target.value)}
+      />
       <button type="button" className="button ghost small" disabled={busy || !day} onClick={() => void change({ callback_on: day })}>
         Set callback
       </button>

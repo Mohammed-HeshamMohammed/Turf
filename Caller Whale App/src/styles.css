@@ -3859,3 +3859,31 @@ tbody tr:first-child th[scope="row"] {
 .many-at-once .input {
   width: auto;
 }
+
+/* ---------------------------------------------------------------- date fields (src/calendar, shared with the CRM) */
+
+.cal-field.input-date {
+  width: min(420px, 100%);
+}
+.cal-field.input-date.is-inline {
+  width: auto;
+  min-width: 170px;
+}
+.cal-trigger.input {
+  width: 100%;
+  cursor: pointer;
+}
+.cal-trigger.input[aria-expanded="true"] {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.date-time {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.date-time .input-date {
+  flex: 1 1 200px;
+}
+.date-time .input[type="time"] {
+  width: 130px;
+}

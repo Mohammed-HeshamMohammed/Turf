@@ -49,6 +49,9 @@ a { color: var(--accent-ink); }
 .field { display: grid; gap: 6px; }
 .field label { font-weight: 550; }
 .field input { height: 44px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--inner); font: inherit; background: var(--raised); color: var(--ink); }
+.field .cal-field { display: flex; width: 100%; margin-top: 6px; }
+.date-input { height: 44px; width: 100%; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--inner); background: var(--raised); color: var(--ink); font-weight: 400; }
+.date-input[aria-expanded="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .form .button { width: 100%; height: 44px; }
 .notice { margin: 0; padding: 10px 14px; border-radius: var(--inner); background: var(--accent-soft); color: var(--accent-ink); }
 .notice.bad { background: #f6dcd8; color: var(--danger-ink); }

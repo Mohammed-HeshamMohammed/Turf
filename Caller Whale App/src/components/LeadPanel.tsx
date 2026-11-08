@@ -16,6 +16,7 @@ import {
   type Stage,
 } from "../lib/service";
 import { Segmented } from "./Bits";
+import { DatePicker } from "../calendar/calendar.jsx";
 
 const later = (days: number) => {
   const day = new Date();
@@ -89,10 +90,11 @@ export function LeadPanel({
       </div>
       <div className="lead-line">
         <span className="lead-label">Call back</span>
-        <input
-          className="input"
-          type="date"
+        <DatePicker
+          className="input-date is-inline"
+          triggerClassName="input"
           aria-label="Call back on"
+          placeholder="No callback"
           value={day}
           onChange={event =>
             change({ callback_on: event.target.value ? (time ? `${event.target.value}T${time}` : event.target.value) : null, callback_note: about })

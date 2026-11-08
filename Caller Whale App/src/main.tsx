@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "@fontsource-variable/schibsted-grotesk";
 import "./styles.css";
+import "./calendar/calendar.css";
 import { App } from "./App";
 
 // Scrollbars stay hidden until their area is scrolled or pointed at (see styles.css).

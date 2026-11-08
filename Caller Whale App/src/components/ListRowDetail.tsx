@@ -12,6 +12,7 @@ import { AreaPanel } from "./AreaPanel";
 import { FloodLine } from "./FloodLine";
 import { OwnerPanel, type MailCheck } from "./OwnerPanel";
 import { LeadOfRow } from "./LeadPanel";
+import { DatePicker } from "../calendar/calendar.jsx";
 
 const photoCount = (count: number) => (count ? `${count} ${count === 1 ? "photo" : "photos"}, shown above` : "No photo");
 
@@ -127,9 +128,11 @@ export function ListRowDetail({
               {mark === "do_not_call" && (
                 <label className="field">
                   <span>Do-not-call end date (optional)</span>
-                  <input
-                    className="input"
-                    type="date"
+                  <DatePicker
+                    className="input-date"
+                    triggerClassName="input"
+                    aria-label="Do-not-call end date"
+                    placeholder="No end date"
                     value={manual[activeNumber]?.until ?? ""}
                     onChange={event => onMark(activeNumber, "do_not_call", event.target.value || null)}
                   />

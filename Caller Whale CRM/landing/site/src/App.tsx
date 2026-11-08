@@ -15,7 +15,8 @@ import { SiteHeader } from "./components/ui/site-header.tsx";
 import { hasCrmAccess, type CrmAccess } from "./crm-access.ts";
 import { crmUrl } from "./crm-url.ts";
 import { paramOf, wantsCrm } from "./links.ts";
-import { ageProblem, latestBirthDate } from "./age.ts";
+import { ageProblem } from "./age.ts";
+import { BirthDateField } from "./BirthDate.tsx";
 import { AvatarCropper } from "./AvatarCropper.tsx";
 import { splitName } from "./person-name.ts";
 import { SiteFooter } from "./components/ui/site-footer.tsx";
@@ -334,7 +335,7 @@ function SignUp({ onDone }: { onDone: () => void }) {
         <form className="form card" onSubmit={create}>
           <h1>Verify your age</h1>
           <p className="muted">Caller Whale is for people aged 18 or older. Your date of birth is kept on your account and cannot be changed later.</p>
-          <Field label="Date of birth" type="date" autoComplete="bday" required max={latestBirthDate()} min="1900-01-01" value={birth} onChange={(e: ChangeEvent<HTMLInputElement>) => setBirth(e.target.value)} />
+          <BirthDateField value={birth} onChange={setBirth} />
           {birthProblem && <p className="notice bad" role="alert">{birthProblem}</p>}
           <div className="two-fields">
             <Field label="First name" autoComplete="given-name" required maxLength={60} value={first} onChange={(e: ChangeEvent<HTMLInputElement>) => setFirst(e.target.value)} />

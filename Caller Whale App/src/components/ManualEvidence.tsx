@@ -5,6 +5,7 @@ import { Empty, SearchBox } from "./Bits";
 import { markHistory } from "../lib/service";
 import { MANUAL_LABELS, formatDate, formatPhone } from "../lib/marks";
 import { CallOutcomeLog } from "./PhoneChoices";
+import { DatePicker } from "../calendar/calendar.jsx";
 
 export function ManualEvidence({ callerwhale }: { callerwhale: CallerWhale }) {
   const menu = useContextMenu();
@@ -101,10 +102,11 @@ export function ManualEvidence({ callerwhale }: { callerwhale: CallerWhale }) {
                 {entry.mark === "do_not_call" && (
                   <label className="field">
                     <span>DNC end date (optional)</span>
-                    <input
-                      className="input"
-                      type="date"
+                    <DatePicker
+                      className="input-date"
+                      triggerClassName="input"
                       aria-label={`Do-not-call end date for ${number}`}
+                      placeholder="No end date"
                       value={entry.until ?? ""}
                       onChange={event => callerwhale.setMark(number, "do_not_call", event.target.value || null)}
                     />

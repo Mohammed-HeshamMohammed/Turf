@@ -3,6 +3,7 @@ import { call } from "../lib/service";
 import { formatPhone } from "../lib/marks";
 import type { PhoneChoice, Raw } from "../lib/types";
 import { Field, VerdictPill } from "./Bits";
+import { DatePicker } from "../calendar/calendar.jsx";
 
 export function phoneChoices(raw: Raw): PhoneChoice[] {
   try {
@@ -133,7 +134,31 @@ export function CallOutcomeLog({
             />
             <label className="field">
               <span>Call date and time (blank means now)</span>
-              <input className="input" type="datetime-local" value={when} onChange={event => setWhen(event.target.value)} />
+              <span className="date-time">
+                <DatePicker
+                  className="input-date"
+                  triggerClassName="input"
+                  aria-label="Call date"
+                  placeholder="Now"
+                  value={when.slice(0, 10)}
+                  onChange={event => {
+                    const day = event.target.value;
+                    // A day picked without a time keeps the time already there, else takes the current time.
+                    const now = new Date();
+                    const time = when.slice(11, 16) || `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+                    setWhen(day ? `${day}T${time}` : "");
+                  }}
+                />
+                {when && (
+                  <input
+                    className="input"
+                    type="time"
+                    aria-label="Call time"
+                    value={when.slice(11, 16)}
+                    onChange={event => event.target.value && setWhen(`${when.slice(0, 10)}T${event.target.value}`)}
+                  />
+                )}
+              </span>
             </label>
             <label className="field">
               <span>Notes (optional)</span>
