@@ -290,7 +290,7 @@ export function RemoteGate({ onReady, onLeave }) {
         title={step === "unlock" ? "Work offline on this device?" : step === "notinvited" ? "You are not invited" : step === "age" ? "Confirm your age" : step === "setup" ? "Finish setting up your account" : "Sign in to your Caller Whale workspace"}
         subtitle={
           step === "unlock"
-            ? "Choose a password to lock a copy of your leads on this computer."
+            ? "Lock a copy of your leads on this computer."
             : step === "notinvited"
               ? "Only the owner, admins and people they invite can use Caller Whale."
               : step === "age"
@@ -530,11 +530,23 @@ export function RemoteGate({ onReady, onLeave }) {
         {step === "unlock" && (
           <form className="remote-step" onSubmit={event => unlock(event, true)}>
             <p className="body-copy">
-              Signed in as <strong>{me.user.name}</strong>. If you set a password, this device keeps a locked copy of your leads, so you can keep working
-              without internet for up to a day. This is not your Caller Whale password: make up a new one just for this device. If you skip it, everything stays
-              on our server, and changes you make while offline are lost if you close this tab.
+              Signed in as <strong>{me.user.name}</strong>.
             </p>
-            <Field label="Password for this device" help="Use the same one each time on this computer. We cannot recover it, but your leads stay safe on our server if you forget it.">
+            <ul className="offline-points">
+              <li>
+                <strong>Your workspace is safe on our server.</strong> Already have one from another device? It is here too, nothing to move.
+              </li>
+              <li>
+                <strong>This password only locks a copy on this computer,</strong> so you can keep working without internet for up to a day.
+              </li>
+              <li>
+                <strong>Make up a new one.</strong> It is not your Caller Whale password.
+              </li>
+              <li>
+                <strong>Skip it</strong> and you work online only. Changes made offline are lost when you close this tab.
+              </li>
+            </ul>
+            <Field label="Password for this device" help="Use the same one each time on this computer. Forgot it? Your leads stay safe on our server.">
               <PasswordInput autoComplete="new-password" maxLength={MAX_LENGTH} value={form.passphrase} onChange={field("passphrase")} />
             </Field>
             <div className="row">
