@@ -80,7 +80,13 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
     } catch {
       data = null;
     }
-    if (!response.ok) throw new AuthError(response.status, data?.code || "error", data?.error || "Sign-in was refused.", data);
+    if (!response.ok) {
+      // The invisible human check could not vouch for this person, and the server has a box for them: tell the page to show it.
+      if (data?.code === "human_required" && data.fallback && typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+        window.dispatchEvent(new Event("callerwhale:human-fallback"));
+      }
+      throw new AuthError(response.status, data?.code || "error", data?.error || "Sign-in was refused.", data);
+    }
     return data;
   }
 
