@@ -394,6 +394,38 @@ func TestTheWebsiteFormsNeedAHumanToken(t *testing.T) {
 	}
 }
 
+// The browser asks before it posts a form as JSON. The gateway answers that itself for the website, so a service behind with
+// a missing or different origin list cannot stop the form being sent (it did: the live contact form never left the browser).
+func TestTheWebsiteFormsPreflightIsAnsweredByTheGateway(t *testing.T) {
+	preflight := func(w *humanWorld, path, origin string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodOptions, "http://"+coreHost+path, nil)
+		req.Header.Set("Origin", origin)
+		req.Header.Set("Access-Control-Request-Method", "POST")
+		req.Header.Set("Access-Control-Request-Headers", "content-type")
+		req.RemoteAddr = "10.0.0.9:4444"
+		req.Header.Set("X-Forwarded-For", "203.0.113.9")
+		rec := httptest.NewRecorder()
+		logHTTP(w.g).ServeHTTP(rec, req)
+		return rec
+	}
+	for _, path := range []string{"/api/v1/public/contact", "/api/v1/public/waitlist"} {
+		w := newHumanWorld(t, map[string]string{"CORS_ORIGINS": "https://callerwhale.com"})
+		rec := preflight(w, path, "https://callerwhale.com")
+		h := rec.Header()
+		if rec.Code != http.StatusNoContent || h.Get("Access-Control-Allow-Origin") != "https://callerwhale.com" || h.Get("Access-Control-Allow-Methods") != "POST" || !strings.Contains(h.Get("Access-Control-Allow-Headers"), "content-type") {
+			t.Fatalf("%s preflight from the site: %d %v", path, rec.Code, h)
+		}
+		if w.coreHit.Load() != 0 || w.asked.Load() != 0 {
+			t.Fatalf("%s preflight reached the core API (%d) or Google (%d)", path, w.coreHit.Load(), w.asked.Load())
+		}
+		// Another site gets no permission at all.
+		rec = preflight(w, path, "https://evil.example")
+		if rec.Header().Get("Access-Control-Allow-Origin") != "" || rec.Header().Get("Access-Control-Allow-Methods") != "" {
+			t.Fatalf("%s preflight from another site was allowed: %v", path, rec.Header())
+		}
+	}
+}
+
 func TestOtherCorePathsAreNotAskedForAHumanToken(t *testing.T) {
 	w := newHumanWorld(t, nil)
 	before := w.asked.Load()
