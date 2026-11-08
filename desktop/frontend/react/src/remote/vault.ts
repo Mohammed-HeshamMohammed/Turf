@@ -4,8 +4,14 @@
 
 import Dexie from "dexie";
 
-const db = new Dexie("callerwhale-crm-offline") as Dexie & Record<"meta" | "sealed" | "queue", any>;
-db.version(1).stores({ meta: "key", sealed: "key", queue: "id, seq" });
+type OfflineDb = Dexie & Record<"meta" | "sealed" | "queue", any>;
+const makeDb = name => {
+  const db = new Dexie(name) as OfflineDb;
+  db.version(1).stores({ meta: "key", sealed: "key", queue: "id, seq" });
+  return db;
+};
+const legacyDb = makeDb("callerwhale-crm-offline");
+const dbFor = userId => makeDb("callerwhale-crm-offline-user-" + encodeURIComponent(userId));
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -29,21 +35,46 @@ async function open(key, box) {
 }
 
 export class Vault {
-  key: any; owner: any;
-  constructor(key, owner) {
+  key: any; owner: any; db: OfflineDb; legacyOrg: string;
+  constructor(key, owner, db, legacyOrg = "") {
     this.key = key;
     this.owner = owner;
+    this.db = db;
+    this.legacyOrg = legacyOrg;
   }
 
   /**
-   * Unlocks (or creates) the vault for one account. A wrong passphrase fails; a vault that belongs to another
-   * account is emptied first, so one person's offline records never show to the next.
+   * One encrypted copy per user on this device. The older shared copy is moved only after its password succeeds.
    */
   static async unlock(passphrase, owner) {
+    const db = dbFor(owner);
     let salt = (await db.meta.get("salt"))?.value;
-    const holder = (await db.meta.get("owner"))?.value;
-    if (holder && holder !== owner) await Vault.wipe();
-    if (!salt || holder !== owner) {
+    let legacyOrg = (await db.meta.get("legacy_org"))?.value || "";
+    let migrated = false;
+    if (!salt) {
+      const holder = (await legacyDb.meta.get("owner"))?.value || "";
+      const oldSalt = (await legacyDb.meta.get("salt"))?.value;
+      const oldCheck = (await legacyDb.meta.get("check"))?.value;
+      if ((holder === owner || holder.startsWith(owner + ":")) && oldSalt && oldCheck) {
+        const oldKey = await deriveKey(passphrase, fromBase64(oldSalt));
+        try {
+          await open(oldKey, oldCheck);
+        } catch {
+          throw new Error("That password does not unlock this device's offline copy");
+        }
+        legacyOrg = holder.startsWith(owner + ":") ? holder.slice(owner.length + 1) : "";
+        const [meta, sealed, queue] = await Promise.all([legacyDb.meta.toArray(), legacyDb.sealed.toArray(), legacyDb.queue.toArray()]);
+        await db.transaction("rw", db.meta, db.sealed, db.queue, async () => {
+          await db.meta.bulkPut(meta);
+          await db.meta.bulkPut([{ key: "owner", value: owner }, { key: "legacy_org", value: legacyOrg }]);
+          await db.sealed.bulkPut(sealed);
+          await db.queue.bulkPut(queue);
+        });
+        salt = oldSalt;
+        migrated = true;
+      }
+    }
+    if (!salt) {
       salt = toBase64(crypto.getRandomValues(new Uint8Array(16)));
       await db.meta.bulkPut([{ key: "salt", value: salt }, { key: "owner", value: owner }]);
     }
@@ -58,30 +89,43 @@ export class Vault {
     } else {
       await db.meta.put({ key: "check", value: await seal(key, "callerwhale") });
     }
-    return new Vault(key, owner);
+    if (migrated) await Promise.all([legacyDb.meta.clear(), legacyDb.sealed.clear(), legacyDb.queue.clear()]);
+    return new Vault(key, owner, db, legacyOrg);
   }
 
   /** Whether this device already holds an offline copy for this account (made earlier with a password). */
   static async has(owner) {
     try {
-      return (await db.meta.get("owner"))?.value === owner && !!(await db.meta.get("check"));
+      const db = dbFor(owner);
+      if ((await db.meta.get("check"))?.value) return true;
+      const holder = (await legacyDb.meta.get("owner"))?.value || "";
+      return (holder === owner || holder.startsWith(owner + ":")) && !!(await legacyDb.meta.get("check"));
     } catch {
       return false;
     }
   }
 
-  static async wipe() {
+  static async wipe(owner) {
+    if (!owner) throw new Error("Choose the offline copy to remove");
+    const db = dbFor(owner);
     await Promise.all([db.meta.clear(), db.sealed.clear(), db.queue.clear()]);
+    const holder = (await legacyDb.meta.get("owner"))?.value || "";
+    if (holder === owner || holder.startsWith(owner + ":")) {
+      await Promise.all([legacyDb.meta.clear(), legacyDb.sealed.clear(), legacyDb.queue.clear()]);
+    }
   }
 
   async get(name) {
-    const row = await db.sealed.get(name);
-    return row ? open(this.key, row.value) : null;
+    const row = await this.db.sealed.get(name);
+    if (!row) return null;
+    const value = await open(this.key, row.value);
+    return name === "store" && value && !value.organizationId && this.legacyOrg
+      ? { ...value, organizationId: this.legacyOrg } : value;
   }
 
   async put(name, value) {
     try {
-      await db.sealed.put({ key: name, value: await seal(this.key, value) });
+      await this.db.sealed.put({ key: name, value: await seal(this.key, value) });
       return true;
     } catch (error) {
       // Quota exhausted: pending edits matter more than cached records, so the caller is told (plan 2.6).
@@ -91,27 +135,27 @@ export class Vault {
   }
 
   async queue() {
-    const rows = await db.queue.orderBy("seq").toArray();
+    const rows = await this.db.queue.orderBy("seq").toArray();
     return Promise.all(rows.map(async row => ({ ...(await open(this.key, row.value)), seq: row.seq })));
   }
 
   async enqueue(op) {
     const seq = Date.now() * 1000 + Math.floor(Math.random() * 1000);
-    await db.queue.put({ id: op.id, seq, value: await seal(this.key, op) });
+    await this.db.queue.put({ id: op.id, seq, value: await seal(this.key, op) });
   }
 
   async update(op) {
-    const row = await db.queue.get(op.id);
-    if (row) await db.queue.put({ ...row, value: await seal(this.key, op) });
+    const row = await this.db.queue.get(op.id);
+    if (row) await this.db.queue.put({ ...row, value: await seal(this.key, op) });
   }
 
   async remove(id) {
-    await db.queue.delete(id);
+    await this.db.queue.delete(id);
   }
 
   /** Drops synchronized records but keeps pending operations (access changed, or the lease expired). */
   async dropRecords() {
-    await db.sealed.clear();
+    await this.db.sealed.clear();
   }
 }
 

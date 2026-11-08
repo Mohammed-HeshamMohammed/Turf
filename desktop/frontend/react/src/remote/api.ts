@@ -53,7 +53,7 @@ export const auth = createAuth({ base: remembered("callerwhale.auth.url") || AUT
 export const organization = () => remembered("callerwhale.org");
 export const setOrganization = id => remember("callerwhale.org", id || "");
 
-export async function request(method: string, path: string, body?: unknown, { base = apiBase(), timeout = 15000, retried = false }: { base?: string; timeout?: number; retried?: boolean } = {}): Promise<any> {
+export async function request(method: string, path: string, body?: unknown, { base = apiBase(), timeout = 15000, retried = false, includeOrganization = true }: { base?: string; timeout?: number; retried?: boolean; includeOrganization?: boolean } = {}): Promise<any> {
   const token = await auth.accessToken().catch(() => null);
   const org = organization();
   const controller = new AbortController();
@@ -65,7 +65,7 @@ export async function request(method: string, path: string, body?: unknown, { ba
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(token && org ? { "x-callerwhale-org": org } : {}),
+        ...(token && org && includeOrganization ? { "x-callerwhale-org": org } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
@@ -79,7 +79,7 @@ export async function request(method: string, path: string, body?: unknown, { ba
   // A token that expired in flight: refresh once and try again.
   if (response.status === 401 && token && !retried) {
     const renewed = await auth.refresh().catch(() => null);
-    if (renewed) return request(method, path, body, { base, timeout, retried: true });
+    if (renewed) return request(method, path, body, { base, timeout, retried: true, includeOrganization });
   }
   const text = await response.text();
   let data = null;
@@ -93,7 +93,7 @@ export async function request(method: string, path: string, body?: unknown, { ba
 }
 
 export const api = {
-  me: () => request("GET", "/api/v1/me"),
+  me: (select = false) => request("GET", "/api/v1/me", undefined, { includeOrganization: select }),
   /** The person's invitation from Caller Whale (activated on the first visit with a confirmed email), credits and download. */
   account: () => request("GET", "/api/v1/account"),
   /**

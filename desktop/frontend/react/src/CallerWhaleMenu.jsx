@@ -7,7 +7,7 @@ import { Badge, Select, usePresence } from "./ui.jsx";
 import { SignInMark } from "./SignInMarks.jsx";
 
 export function CallerWhaleMenu({ collapsed, onToggleSidebar, onReset, onOpen, demoNotes, onDemoNotes }) {
-  const { state, dispatch, navigate, notify, connect, signOut } = useCrm();
+  const { state, dispatch, navigate, notify, connect, signOut, switchWorkspace } = useCrm();
   const [open, setOpen] = useState(false);
   const panel = usePresence(open);
   const root = useRef(null);
@@ -69,6 +69,14 @@ export function CallerWhaleMenu({ collapsed, onToggleSidebar, onReset, onOpen, d
               {personalProfile(state).name} · {role.name}
             </span>
           </div>
+          {state.remote?.organizations?.length > 1 && (
+            <div className="callerwhale-menu-workspace">
+              <label htmlFor="current-workspace">Switch workspace</label>
+              <Select id="current-workspace" value={state.remote.organizationId} onChange={event => run(() => switchWorkspace(event.target.value))}>
+                {state.remote.organizations.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </Select>
+            </div>
+          )}
           <div className="callerwhale-menu-actions">
             <button onClick={() => run(() => navigate("dashboard"))}>
               <SquaresFour size={19} />
