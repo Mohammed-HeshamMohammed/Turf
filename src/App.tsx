@@ -136,7 +136,9 @@ function Providers({ action }: { action: string }) {
   useEffect(() => {
     auth.providers().then(setList, () => {});
   }, []);
-  if (!list.google) return null;
+  // Hidden only when the server says Google is off. When the question cannot be answered (a blocker, a privacy setting, a
+  // network that stops auth.callerwhale.com), the button stays, and pressing it says what is wrong instead of vanishing.
+  if (list.google === false) return null;
   return (
     <>
       <button type="button" className="button raised" disabled={state.busy} onClick={() => run(async () => void (await auth.startProvider("google", "landing", await humanToken(getAuth, action), action)))}>
@@ -320,8 +322,9 @@ function SignUp({ onDone }: { onDone: () => void }) {
           {mismatch && <p className="notice bad" role="alert">The two passwords are not the same.</p>}
           <label className="check"><input type="checkbox" required checked={agreed} onChange={(e: ChangeEvent<HTMLInputElement>) => setAgreed(e.target.checked)} /> <span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
           <button className="button primary" disabled={mismatch || !agreed || taken}>{started ? "Continue" : "Sign up"}</button>
-          <Providers action="signup" />
+          {/* Only Google is sent from this step (Sign up goes on to the second step, which has its own check), so the check sits just above it. */}
           <HumanCheck getAuth={getAuth} />
+          <Providers action="signup" />
           <div className="alt">
             <span className="muted">Already have an account?</span>
             <Link to="/signin">Sign in</Link>
