@@ -1641,6 +1641,7 @@ input[type="checkbox"] {
   color: #636363;
 }
 .field > input:not([type="checkbox"]),
+.field > .password-input input,
 .field > textarea,
 .field > .select .select-trigger {
   width: 100%;
@@ -7683,4 +7684,33 @@ button.message-card:not(:disabled):hover {
 }
 .dph-problem {
   color: var(--danger-ink);
+}
+
+/* The eye on a password box (PasswordInput.jsx) */
+.password-input {
+  position: relative;
+  display: block;
+}
+.password-input input {
+  padding-right: 44px !important;
+}
+.password-eye {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.password-eye:hover,
+.password-eye:focus-visible {
+  background: var(--well);
+  color: var(--ink);
 }
