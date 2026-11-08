@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"slices"
 	"strings"
 )
@@ -24,6 +25,8 @@ func (s *server) me(q *req) error {
 		}
 	}
 	chosen := q.r.Header.Get("x-callerwhale-org")
+	var lastOrg sql.NullString
+	var lastAt sql.NullTime
 	var current *workspaceRoles
 	for i := range ppl.Workspaces {
 		w := &ppl.Workspaces[i]
@@ -49,6 +52,17 @@ func (s *server) me(q *req) error {
 		}
 		orgs = append(orgs, map[string]any{"id": id, "name": name})
 	}
+	if err = s.st.db.QueryRow(ctx, `SELECT last_org_id::text, last_org_at FROM people WHERE user_id = $1`, q.c.sub).Scan(&lastOrg, &lastAt); err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	if chosen == "" && lastOrg.Valid {
+		chosen = lastOrg.String
+		for i := range ppl.Workspaces {
+			if ppl.Workspaces[i].OrgID == chosen {
+				current = &ppl.Workspaces[i]
+			}
+		}
+	}
 	if current == nil && len(orgs) > 0 {
 		first := orgs[0]["id"].(string)
 		for i := range ppl.Workspaces {
@@ -57,14 +71,24 @@ func (s *server) me(q *req) error {
 			}
 		}
 	}
+	if current != nil && q.r.Header.Get("x-callerwhale-org") == current.OrgID {
+		if _, err = s.st.db.Exec(ctx, `UPDATE people SET last_org_id = $2, last_org_at = now() WHERE user_id = $1`, q.c.sub, current.OrgID); err != nil {
+			return err
+		}
+		lastAt = sql.NullTime{Time: s.now(), Valid: true}
+	}
 	body := map[string]any{
-		"user":          map[string]any{"id": q.c.sub, "email": q.c.email, "name": label(q.c), "sign_in": q.c.provider},
-		"organizations": orgs,
-		"platform_role": nilIfEmpty(ppl.PlatformRole), "platform_admin": ppl.PlatformRole != "",
+		"user":              map[string]any{"id": q.c.sub, "email": q.c.email, "name": label(q.c), "sign_in": q.c.provider},
+		"organizations":     orgs,
+		"last_workspace_at": nil,
+		"platform_role":     nilIfEmpty(ppl.PlatformRole), "platform_admin": ppl.PlatformRole != "",
 		"organization_id": nil, "roles": []string{}, "capabilities": []string{}, "scopes": []string{}, "team_ids": []string{},
 		"access_revision": 0,
 		"mfa":             map[string]any{"required": false, "enrolled": false, "passed": q.c.secondFactor},
 		"subscription":    map[string]any{"plan": "", "status": "active", "usable": true, "reason": nil},
+	}
+	if lastAt.Valid {
+		body["last_workspace_at"] = lastAt.Time
 	}
 	if current != nil {
 		g, err := s.rules.grant(ctx, q.c.sub, current.OrgID, q.c.secondFactor)
