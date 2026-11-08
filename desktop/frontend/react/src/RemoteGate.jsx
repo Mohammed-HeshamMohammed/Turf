@@ -73,17 +73,20 @@ export function RemoteGate({ onReady, onLeave }) {
   const [form, setForm] = useState({ email: "", password: "", code: "", passphrase: "" });
   // This device already holds an offline copy for this person: it only needs its password, not a new one.
   const [hasCopy, setHasCopy] = useState(false);
+  const [authSessionId, setAuthSessionId] = useState("");
   const field = name => event => setForm({ ...form, [name]: event.target.value });
   const kind = inDesktopApp() ? "desktop" : "browser";
 
   async function check() {
     try {
       if (!auth.signedIn()) {
+        Vault.clearSession();
         if (!inDesktopApp() && goToWebsiteSignIn(true)) return setStep("checking");
         return setStep("signin");
       }
       // Caller Whale is for adults: an account that has not given its date of birth gives it before anything else.
       const sessionPerson = await auth.me({ fresh: true }).catch(() => null);
+      setAuthSessionId(sessionPerson?.session_id || "");
       if (sessionPerson && !sessionPerson.setup_exempt && sessionPerson.age_confirmed === false) {
         setMe({ user: sessionPerson });
         return setStep("age");
@@ -137,11 +140,24 @@ export function RemoteGate({ onReady, onLeave }) {
       // The choice made on this device the first time is remembered: no question on every visit.
       const owner = identity.user.id + ":" + identity.organization_id;
       if (readChoice(owner) === "online") return onReady({ me: identity, vault: new MemoryVault(), persistent: false });
+      const resumed = await Vault.resume(identity.user.id, sessionPerson?.session_id);
+      if (resumed) {
+        try {
+          await onReady({ me: identity, vault: resumed, persistent: true });
+          return;
+        } catch (reason) {
+          Vault.clearSession();
+          setError(reason.message);
+        }
+      }
       setHasCopy(await Vault.has(identity.user.id));
       setStep("unlock");
     } catch (reason) {
       if (reason?.code === "offline") return setStep("offline");
-      if (reason?.status === 401) await auth.signOut();
+      if (reason?.status === 401) {
+        await auth.signOut();
+        Vault.clearSession();
+      }
       else if (reason?.message) setError(reason.message);
       setStep("signin");
     }
@@ -289,6 +305,7 @@ export function RemoteGate({ onReady, onLeave }) {
   const switchAccount = () =>
     attempt(async () => {
       await auth.signOut();
+      Vault.clearSession();
       setOrganization("");
       setMe(null);
       setStep("signin");
@@ -297,7 +314,7 @@ export function RemoteGate({ onReady, onLeave }) {
     event?.preventDefault();
     attempt(async () => {
       const owner = me.user.id + ":" + me.organization_id;
-      const vault = withPassphrase ? await Vault.unlock(form.passphrase, me.user.id) : new MemoryVault();
+      const vault = withPassphrase ? await Vault.unlock(form.passphrase, me.user.id, authSessionId) : new MemoryVault();
       writeChoice(owner, withPassphrase ? "" : "online");
       setForm(current => ({ ...current, passphrase: "" }));
       await onReady({ me, vault, persistent: withPassphrase });
@@ -596,7 +613,7 @@ export function RemoteGate({ onReady, onLeave }) {
             )}
             <Field
               label="Password for this device"
-              help={hasCopy ? "The one you made up for this computer, not your Caller Whale password." : "Use the same one each time on this computer. Forgot it? Your leads stay safe on our server."}
+              help={hasCopy ? "Your device password, not your Caller Whale sign-in password. Refreshing this tab keeps it unlocked." : "Use this when you start a new browser session. Refreshing this tab will not ask again."}
             >
               <PasswordInput autoComplete={hasCopy ? "current-password" : "new-password"} maxLength={MAX_LENGTH} value={form.passphrase} onChange={field("passphrase")} />
             </Field>

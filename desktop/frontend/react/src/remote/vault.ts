@@ -18,9 +18,18 @@ const decoder = new TextDecoder();
 const toBase64 = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes)));
 const fromBase64 = text => Uint8Array.from(atob(text), c => c.charCodeAt(0));
 
-async function deriveKey(passphrase, salt) {
+async function deriveKey(passphrase, salt, extractable = false) {
   const material = await crypto.subtle.importKey("raw", encoder.encode(passphrase), "PBKDF2", false, ["deriveKey"]);
-  return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: 310000, hash: "SHA-256" }, material, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: 310000, hash: "SHA-256" }, material, { name: "AES-GCM", length: 256 }, extractable, ["encrypt", "decrypt"]);
+}
+
+// The tab keeps an unlocked copy of the AES key, never the device password. It ends with the tab or auth session.
+const sessionKey = "cw-device-unlock";
+function sessionUnlock() {
+  try { return JSON.parse(sessionStorage.getItem(sessionKey) || "null"); } catch { return null; }
+}
+function rememberSession(owner, sessionId, raw) {
+  try { sessionStorage.setItem(sessionKey, JSON.stringify({ owner, sessionId, key: toBase64(raw) })); } catch { /* Ask for the password after reload. */ }
 }
 
 async function seal(key, value) {
@@ -46,7 +55,7 @@ export class Vault {
   /**
    * One encrypted copy per user on this device. The older shared copy is moved only after its password succeeds.
    */
-  static async unlock(passphrase, owner) {
+  static async unlock(passphrase, owner, sessionId = "") {
     const db = dbFor(owner);
     let salt = (await db.meta.get("salt"))?.value;
     let legacyOrg = (await db.meta.get("legacy_org"))?.value || "";
@@ -78,19 +87,44 @@ export class Vault {
       salt = toBase64(crypto.getRandomValues(new Uint8Array(16)));
       await db.meta.bulkPut([{ key: "salt", value: salt }, { key: "owner", value: owner }]);
     }
-    const key = await deriveKey(passphrase, fromBase64(salt));
+    const derived = await deriveKey(passphrase, fromBase64(salt), Boolean(sessionId));
     const check = await db.meta.get("check");
     if (check) {
       try {
-        await open(key, check.value);
+        await open(derived, check.value);
       } catch {
         throw new Error("That password does not unlock this device's offline copy");
       }
     } else {
-      await db.meta.put({ key: "check", value: await seal(key, "callerwhale") });
+      await db.meta.put({ key: "check", value: await seal(derived, "callerwhale") });
     }
     if (migrated) await Promise.all([legacyDb.meta.clear(), legacyDb.sealed.clear(), legacyDb.queue.clear()]);
+    if (!sessionId) return new Vault(derived, owner, db, legacyOrg);
+    const raw = await crypto.subtle.exportKey("raw", derived);
+    const key = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
+    rememberSession(owner, sessionId, raw);
     return new Vault(key, owner, db, legacyOrg);
+  }
+
+  /** Reopen this user's encrypted copy only for the same signed-in tab session. */
+  static async resume(owner, sessionId) {
+    const saved = sessionUnlock();
+    if (!sessionId || saved?.owner !== owner || saved?.sessionId !== sessionId || typeof saved.key !== "string") return null;
+    try {
+      const db = dbFor(owner);
+      const check = (await db.meta.get("check"))?.value;
+      if (!check) throw new Error("No offline copy");
+      const key = await crypto.subtle.importKey("raw", fromBase64(saved.key), "AES-GCM", false, ["encrypt", "decrypt"]);
+      await open(key, check);
+      return new Vault(key, owner, db, (await db.meta.get("legacy_org"))?.value || "");
+    } catch {
+      Vault.clearSession();
+      return null;
+    }
+  }
+
+  static clearSession() {
+    try { sessionStorage.removeItem(sessionKey); } catch { /* No browser session storage. */ }
   }
 
   /** Whether this device already holds an offline copy for this account (made earlier with a password). */
@@ -107,6 +141,7 @@ export class Vault {
 
   static async wipe(owner) {
     if (!owner) throw new Error("Choose the offline copy to remove");
+    if (sessionUnlock()?.owner === owner) Vault.clearSession();
     const db = dbFor(owner);
     await Promise.all([db.meta.clear(), db.sealed.clear(), db.queue.clear()]);
     const holder = (await legacyDb.meta.get("owner"))?.value || "";

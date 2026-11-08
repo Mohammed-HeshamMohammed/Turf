@@ -6,6 +6,7 @@ import { setLearnedHeaders } from "./skiptrace-fields.ts";
 import { capability, conversationPath, loadState, navCounts, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.ts";
 import { api, apiBase, auth, setApiBase, setOrganization } from "./remote/api.ts";
 import { SyncEngine } from "./remote/engine.ts";
+import { Vault } from "./remote/vault.ts";
 import { LOCAL_ONLY, remoteReducer, syncAction } from "./remote/session.ts";
 import { applyIdentity, labelFor, operationFor } from "./remote/translate.ts";
 import { saveWorkspaceChoice } from "./remote/workspace-choice.ts";
@@ -293,6 +294,7 @@ export function App() {
   const signOut = useCallback(async () => {
     engine.current?.stop();
     engine.current = null;
+    Vault.clearSession();
     // Signing out ends the session at the auth service; the organization is chosen again at the next sign-in.
     await auth.signOut().catch(() => {});
     setOrganization("");
