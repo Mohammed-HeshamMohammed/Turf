@@ -7714,3 +7714,18 @@ button.message-card:not(:disabled):hover {
   background: var(--well);
   color: var(--ink);
 }
+
+/* The few short points on the offline password screen */
+.offline-points {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.offline-points strong {
+  color: var(--ink);
+}

@@ -61,6 +61,15 @@ export class Vault {
     return new Vault(key, owner);
   }
 
+  /** Whether this device already holds an offline copy for this account (made earlier with a password). */
+  static async has(owner) {
+    try {
+      return (await db.meta.get("owner"))?.value === owner && !!(await db.meta.get("check"));
+    } catch {
+      return false;
+    }
+  }
+
   static async wipe() {
     await Promise.all([db.meta.clear(), db.sealed.clear(), db.queue.clear()]);
   }
