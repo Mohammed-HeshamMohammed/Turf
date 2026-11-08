@@ -38,6 +38,10 @@ RECAPTCHA_SITE_KEY=<key ID, or empty while the check is off>
 # The key's legacy secret key (Google Cloud: open the key, Integrate with a third party service or plugin). Secret: Coolify only.
 # Secret legacy reCAPTCHA key for the same key ID. Coolify only; never in GitHub, build variables or chat. Missing it with HUMAN_CHECK true prevents startup.
 RECAPTCHA_SECRET_KEY=<legacy secret key, or empty while the check is off>
+# Public v2 checkbox key ID (starts with 6L), a different key from RECAPTCHA_SITE_KEY. With RECAPTCHA_KIND=score it shows the box to people the invisible check cannot vouch for. Set with the secret.
+RECAPTCHA_FALLBACK_SITE_KEY=
+# Secret v2 checkbox key matching RECAPTCHA_FALLBACK_SITE_KEY; enter it only in Coolify. Set both fallback keys or neither.
+RECAPTCHA_FALLBACK_SECRET_KEY=
 # Sites a token may come from, comma separated, as Google reports them. Must match the key's domains (not tauri.localhost: the desktop app signs in through the browser).
 # Comma-separated sites a token may come from, as Google reports them; must match the key's domains. A wrong list refuses real people.
 RECAPTCHA_HOSTNAMES=callerwhale.com,auth.callerwhale.com

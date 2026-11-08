@@ -35,13 +35,17 @@ const (
 
 // humanSettings is what the environment says: nothing here is a secret except the secret key.
 type humanSettings struct {
-	kind      string // "score" (v3) or "checkbox" (v2); the pages are told which, through /v1/security
-	siteKey   string
-	secret    string
-	hostnames []string // the sites a token may come from, as Google reports them
-	minScore  float64  // 0 (bot) to 1 (human); Google's default is 0.5
-	authHost  string   // the ROUTES host of the auth service
-	perMinute int      // guarded requests a minute from one address, before any of them reaches Google
+	kind    string // "score" (v3) or "checkbox" (v2); the pages are told which, through /v1/security
+	siteKey string
+	secret  string
+	// The checkbox (v2) keys kept for people the invisible check cannot vouch for: with them, a visitor whose score is too low is shown
+	// the "I'm not a robot" box instead of being stuck. Only with kind "score"; both keys or neither.
+	fallbackSiteKey string
+	fallbackSecret  string
+	hostnames       []string // the sites a token may come from, as Google reports them
+	minScore        float64  // 0 (bot) to 1 (human); Google's default is 0.5
+	authHost        string   // the ROUTES host of the auth service
+	perMinute       int      // guarded requests a minute from one address, before any of them reaches Google
 }
 
 func loadHuman(getenv func(string) string, routes map[string]*route) (*humanSettings, error) {
@@ -63,6 +67,14 @@ func loadHuman(getenv func(string) string, routes map[string]*route) (*humanSett
 	}
 	if h.siteKey == "" || h.secret == "" {
 		return nil, errors.New("HUMAN_CHECK=true needs RECAPTCHA_SITE_KEY and RECAPTCHA_SECRET_KEY")
+	}
+	h.fallbackSiteKey = strings.TrimSpace(getenv("RECAPTCHA_FALLBACK_SITE_KEY"))
+	h.fallbackSecret = strings.TrimSpace(getenv("RECAPTCHA_FALLBACK_SECRET_KEY"))
+	if (h.fallbackSiteKey == "") != (h.fallbackSecret == "") {
+		return nil, errors.New("RECAPTCHA_FALLBACK_SITE_KEY and RECAPTCHA_FALLBACK_SECRET_KEY go together: set both or neither")
+	}
+	if h.fallbackSecret != "" && (h.kind != kindScore || h.fallbackSiteKey == h.siteKey || h.fallbackSecret == h.secret) {
+		return nil, errors.New("the RECAPTCHA_FALLBACK_* keys are the v2 checkbox keys for RECAPTCHA_KIND=score (v3), and must be different keys from the v3 ones")
 	}
 	for _, host := range strings.Split(getenv("RECAPTCHA_HOSTNAMES"), ",") {
 		if host = strings.ToLower(strings.TrimSpace(host)); host != "" {
@@ -149,6 +161,9 @@ func formRuleFor(method, path string) (humanRule, bool) {
 	return humanRule{}, false
 }
 
+// fallbackPrefix marks a token that came from the fallback checkbox, so the gateway checks it with the checkbox keys.
+const fallbackPrefix = "v2:"
+
 type humanBody struct {
 	Token  string `json:"human_token"`
 	Action string `json:"action"`
@@ -157,7 +172,7 @@ type humanBody struct {
 // guard answers false after writing the refusal. The body is read to find the token and put back for the service behind.
 func (h *humanCheck) guard(w http.ResponseWriter, r *http.Request, rule humanRule) bool {
 	if rule.refuse {
-		humanRequired(w)
+		h.refuse(w, false)
 		return false
 	}
 	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxCheckedBody))
@@ -189,15 +204,28 @@ func (h *humanCheck) guard(w http.ResponseWriter, r *http.Request, rule humanRul
 		min = h.minScore
 	}
 	if !h.verify(r.Context(), body.Token, action, min) {
-		humanRequired(w)
+		h.refuse(w, true)
 		return false
 	}
 	return true
 }
 
-// verify is true only when Google says the token is good, for this action, from one of our sites, with a high enough score.
-// Anything else, including Google not answering, is a refusal.
+// verify checks a token the way its page produced it: a token from the fallback checkbox (marked "v2:") with the checkbox keys, any other
+// with the main keys. A "v2:" token is refused when no fallback is set up, so the prefix cannot be used to step around the main check.
 func (h *humanCheck) verify(ctx context.Context, token, action string, minScore float64) bool {
+	if rest, ok := strings.CutPrefix(token, fallbackPrefix); ok {
+		if h.fallbackSecret == "" {
+			log.Print("WARN human check refused: a fallback checkbox token arrived, but no RECAPTCHA_FALLBACK_* keys are set")
+			return false
+		}
+		return h.verifyWith(ctx, rest, h.fallbackSecret, kindCheckbox, action, minScore)
+	}
+	return h.verifyWith(ctx, token, h.secret, h.kind, action, minScore)
+}
+
+// verifyWith is true only when Google says the token is good, for this action, from one of our sites, with a high enough score.
+// Anything else, including Google not answering, is a refusal.
+func (h *humanCheck) verifyWith(ctx context.Context, token, secret, kind, action string, minScore float64) bool {
 	// Every refusal says why in the log (never the secret or the token), because from the page it only looks like "verify you are human".
 	if strings.TrimSpace(token) == "" {
 		log.Print("WARN human check refused: the request carried no token")
@@ -208,7 +236,7 @@ func (h *humanCheck) verify(ctx context.Context, token, action string, minScore 
 		return false
 	}
 	// No remoteip: an address from a header or a body is not trusted, and Google does not need it.
-	form := url.Values{"secret": {h.secret}, "response": {token}}
+	form := url.Values{"secret": {secret}, "response": {token}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		return false
@@ -240,10 +268,10 @@ func (h *humanCheck) verify(ctx context.Context, token, action string, minScore 
 		// invalid-input-secret: the secret key is wrong or is for another site key. browser-error or timeout-or-duplicate: the token is bad or used twice.
 		log.Printf("WARN human check refused: Google does not accept the token (error codes: %v)", out.ErrorCodes)
 		return false
-	case h.kind == kindCheckbox:
+	case kind == kindCheckbox:
 		// A ticked box has no score and no action: the person passed Google's own test (and its pictures when it asked for them).
 		if out.Score != nil {
-			log.Printf("WARN human check refused: Google sent a score, so the keys are v3 keys but RECAPTCHA_KIND is checkbox")
+			log.Printf("WARN human check refused: Google sent a score, so these keys are v3 keys but a checkbox (v2) check was expected")
 			return false
 		}
 	case out.Score == nil:
@@ -265,8 +293,14 @@ func (h *humanCheck) verify(ctx context.Context, token, action string, minScore 
 	return false
 }
 
-func humanRequired(w http.ResponseWriter) {
-	writeJSON(w, http.StatusForbidden, map[string]any{"error": "Verify you are human and try again.", "code": "human_required"})
+// refuse answers a failed check. When a fallback checkbox is set up and the request could use it, the answer says so ("fallback": true),
+// and the page shows the box.
+func (h *humanCheck) refuse(w http.ResponseWriter, mayFallback bool) {
+	body := map[string]any{"error": "Verify you are human and try again.", "code": "human_required"}
+	if mayFallback && h.fallbackSecret != "" {
+		body["fallback"] = true
+	}
+	writeJSON(w, http.StatusForbidden, body)
 }
 
 // announce makes the auth service's GET /v1/security tell the pages that the check is on, and which site key to use.
@@ -284,7 +318,11 @@ func (h *humanCheck) announce(res *http.Response) error {
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return fmt.Errorf("security answer: %w", err)
 	}
-	doc["bot_protection"], _ = json.Marshal(map[string]any{"enabled": true, "site_key": h.siteKey, "kind": h.kind})
+	protection := map[string]any{"enabled": true, "site_key": h.siteKey, "kind": h.kind}
+	if h.fallbackSiteKey != "" {
+		protection["fallback_site_key"] = h.fallbackSiteKey
+	}
+	doc["bot_protection"], _ = json.Marshal(protection)
 	out, _ := json.Marshal(doc)
 	res.Body = io.NopCloser(bytes.NewReader(out))
 	res.ContentLength = int64(len(out))

@@ -61,6 +61,8 @@
         "RECAPTCHA_SITE_KEY": "Public reCAPTCHA key ID, of the kind RECAPTCHA_KIND names (starts with 6L). The sign-in pages receive it from auth's /v1/security answer through the gateway.",
         "RECAPTCHA_SECRET_KEY": "Secret legacy reCAPTCHA key for the same key ID. Coolify only; never in GitHub, build variables or chat. Missing it with HUMAN_CHECK true prevents startup.",
         "RECAPTCHA_HOSTNAMES": "Comma-separated sites a token may come from, as Google reports them; must match the key's domains. A wrong list refuses real people.",
+        "RECAPTCHA_FALLBACK_SITE_KEY": "Public v2 checkbox key ID (starts with 6L), a different key from RECAPTCHA_SITE_KEY. With RECAPTCHA_KIND=score it shows the box to people the invisible check cannot vouch for. Set with the secret.",
+        "RECAPTCHA_FALLBACK_SECRET_KEY": "Secret v2 checkbox key matching RECAPTCHA_FALLBACK_SITE_KEY; enter it only in Coolify. Set both fallback keys or neither.",
         "RECAPTCHA_MIN_SCORE": "Lowest Google score (0 bot to 1 human) accepted; default 0.5. Raise it if bots get through, lower it if real people are refused. Score kind only.",
         "HUMAN_PER_MINUTE": "Guarded requests (sign-up, sign-in, provider start) a minute from one address, counted before Google is asked; default 30.",
         "SCAN_LIMIT": "Requests for things that do not exist, from one address within SCAN_WINDOW_MINUTES, before that address is paused; default 20.",

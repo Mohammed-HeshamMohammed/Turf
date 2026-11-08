@@ -26,7 +26,9 @@ async function protection(getAuth) {
     settings.set(auth, auth.security().then(
       config => {
         const bot = config?.bot_protection || {};
-        return { enabled: Boolean(bot.enabled && bot.site_key), siteKey: bot.site_key || "", kind: bot.kind === "checkbox" ? "checkbox" : "score" };
+        const kind = bot.kind === "checkbox" ? "checkbox" : "score";
+        // The box kept for people the invisible check cannot vouch for (only with the invisible kind).
+        return { enabled: Boolean(bot.enabled && bot.site_key), siteKey: bot.site_key || "", kind, fallbackKey: kind === "score" ? bot.fallback_site_key || "" : "" };
       },
       error => { settings.delete(auth); throw error; },
     ));
@@ -36,6 +38,18 @@ async function protection(getAuth) {
 
 // The "I'm not a robot" box on the page now. A page shows one at a time.
 let box = null;
+
+// With the invisible check, a person it cannot vouch for gets the box too (the server says so in its refusal, and auth-client.js turns that
+// into this event). From then on this page takes its token from the box until it is ticked.
+let fallbackBox = null;
+let fallbackWanted = false;
+const fallbackListeners = new Set();
+if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+  window.addEventListener("callerwhale:human-fallback", () => {
+    fallbackWanted = true;
+    fallbackListeners.forEach(listener => listener());
+  });
+}
 
 /**
  * The token for one request, taken the moment it is sent: Google accepts a token once.
@@ -51,6 +65,13 @@ export async function humanToken(getAuth, action) {
     if (!token) throw new Error("Tick “I'm not a robot” first.");
     box.api.reset(box.id); // the token is spent by this request; a second try needs a new tick
     return token;
+  }
+  if (fallbackWanted && config.fallbackKey) {
+    if (!fallbackBox) throw new Error("The human check is still loading. Wait a moment, then try again.");
+    const token = fallbackBox.api.getResponse(fallbackBox.id);
+    if (!token) throw new Error("Tick “I'm not a robot” first.");
+    fallbackBox.api.reset(fallbackBox.id); // spent by this request; a second try needs a new tick
+    return "v2:" + token;
   }
   const api = await recaptcha(config.siteKey, "score");
   try {
@@ -76,7 +97,39 @@ export function HumanCheck({ getAuth, notice = true, onEnabled }) {
   const callbacks = useRef({ getAuth, onEnabled });
   callbacks.current = { getAuth, onEnabled };
   const holder = useRef(null);
+  const boxHolder = useRef(null);
   const [status, setStatus] = useState({ kind: "", error: "" });
+  const [needBox, setNeedBox] = useState(fallbackWanted);
+  useEffect(() => {
+    const listener = () => setNeedBox(true);
+    fallbackListeners.add(listener);
+    return () => fallbackListeners.delete(listener);
+  }, []);
+  // The invisible check could not vouch for this person: draw the box, using the same Google script (it can draw both kinds).
+  useEffect(() => {
+    if (!needBox) return undefined;
+    let live = true, mine = null;
+    (async () => {
+      const config = await protection(callbacks.current.getAuth);
+      if (!live || !config.enabled || !config.fallbackKey) return;
+      const api = await recaptcha(config.siteKey, "score");
+      if (!live || !boxHolder.current) return;
+      const narrow = boxHolder.current.clientWidth > 0 && boxHolder.current.clientWidth < 304;
+      const id = api.render(boxHolder.current, {
+        sitekey: config.fallbackKey,
+        theme: "light",
+        size: narrow ? "compact" : "normal",
+        "error-callback": () => live && setStatus(current => ({ ...current, error: "The human check lost its connection to Google. Check your connection, then reload." })),
+        callback: () => live && setStatus(current => ({ ...current, error: "" })),
+      });
+      mine = { api, id };
+      fallbackBox = mine;
+    })().catch(error => live && setStatus(current => ({ ...current, error: error.message })));
+    return () => {
+      live = false;
+      if (fallbackBox === mine) fallbackBox = null;
+    };
+  }, [needBox]);
   useEffect(() => {
     let live = true, mine = null;
     (async () => {
@@ -103,11 +156,13 @@ export function HumanCheck({ getAuth, notice = true, onEnabled }) {
   }, []);
   const needsNotice = status.kind === "score";
   useEffect(() => { callbacks.current.onEnabled?.(needsNotice); }, [needsNotice]);
-  return <div className="human-check" hidden={!status.kind && !status.error}>
+  return <div className="human-check" hidden={!status.kind && !status.error && !needBox}>
     {needsNotice && <style>{".grecaptcha-badge{visibility:hidden}"}</style>}
     {needsNotice && notice && <HumanNotice />}
     {/* Always there, so the box can be drawn the moment Google's script is ready; empty until then. */}
     <div className="human-box" ref={holder} hidden={status.kind !== "checkbox"} />
+    {needBox && status.kind === "score" && <p className="fine">We could not confirm you automatically. Tick the box below, then try again.</p>}
+    <div className="human-box" ref={boxHolder} hidden={!needBox || status.kind !== "score"} />
     {status.error && <p role="alert">{status.error}</p>}
   </div>;
 }

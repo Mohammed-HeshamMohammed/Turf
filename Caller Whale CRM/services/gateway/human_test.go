@@ -492,3 +492,101 @@ func TestTheScoreKindIsTheDefaultAndSaysSo(t *testing.T) {
 		t.Fatalf("v2 answer in score mode: %d", rec.Code)
 	}
 }
+
+// The "I am not a robot" box for people the invisible check cannot vouch for.
+func TestTheCheckboxIsTheFallbackForTheInvisibleCheck(t *testing.T) {
+	w := newHumanWorld(t, map[string]string{"RECAPTCHA_FALLBACK_SITE_KEY": "box-site", "RECAPTCHA_FALLBACK_SECRET_KEY": "box-secret"})
+	var secrets []string
+	// The invisible keys say "looks like a bot" (score 0.1); the box keys say "ticked".
+	w.answer.Store(func(form url.Values) (int, any) {
+		secrets = append(secrets, form.Get("secret"))
+		if form.Get("secret") == "box-secret" {
+			return 200, map[string]any{"success": true, "hostname": "callerwhale.com"}
+		}
+		return 200, map[string]any{"success": true, "score": 0.1, "action": "signin", "hostname": "callerwhale.com"}
+	})
+
+	rec := w.call("POST", "/v1/sessions", `{"email":"a@example.com","human_token":"low-score-token"}`)
+	var refusal map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &refusal)
+	if rec.Code != 403 || refusal["code"] != "human_required" || refusal["fallback"] != true {
+		t.Fatalf("a low score must say the box can be used: %d %s", rec.Code, rec.Body)
+	}
+	if rec := w.call("POST", "/v1/sessions", `{"email":"a@example.com","human_token":"v2:ticked-token"}`); rec.Code != 200 {
+		t.Fatalf("a ticked box passes: %d %s", rec.Code, rec.Body)
+	}
+	if rec := w.call("POST", "/v1/accounts", `{"email":"a@example.com","human_token":"v2:ticked-token"}`); rec.Code != 200 {
+		t.Fatalf("and for sign-up too, whatever action the page names: %d %s", rec.Code, rec.Body)
+	}
+	if secrets[len(secrets)-1] != "box-secret" {
+		t.Fatalf("a box token is checked with the box keys: %v", secrets)
+	}
+	// A box that was not ticked, or a box token from the wrong site, is still refused.
+	w.answer.Store(func(url.Values) (int, any) {
+		return 200, map[string]any{"success": true, "hostname": "evil.example"}
+	})
+	if rec := w.call("POST", "/v1/sessions", `{"human_token":"v2:tok"}`); rec.Code != 403 {
+		t.Fatalf("the wrong site: %d", rec.Code)
+	}
+	w.answer.Store(func(url.Values) (int, any) {
+		return 200, map[string]any{"success": true, "score": 0.9, "action": "signin", "hostname": "callerwhale.com"}
+	})
+	if rec := w.call("POST", "/v1/sessions", `{"human_token":"v2:tok"}`); rec.Code != 403 {
+		t.Fatalf("a v3 answer for a box token is not a ticked box: %d", rec.Code)
+	}
+	if rec := w.call("POST", "/v1/sessions", `{"human_token":"v2:"}`); rec.Code != 403 {
+		t.Fatalf("an empty box token: %d", rec.Code)
+	}
+	// The pages learn the box's key.
+	if rec := w.call("GET", "/v1/security", ""); !strings.Contains(rec.Body.String(), `"fallback_site_key":"box-site"`) {
+		t.Fatalf("security answer: %s", rec.Body)
+	}
+	// A Google start by address can never carry a token, so it never offers the box.
+	rec = w.call("GET", "/v1/oauth/google/start?target=landing", "")
+	refusal = nil
+	_ = json.Unmarshal(rec.Body.Bytes(), &refusal)
+	if rec.Code != 403 || refusal["fallback"] == true {
+		t.Fatalf("start by address: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestWithoutAFallbackABoxTokenIsRefusedAndTheAnswerOffersNoBox(t *testing.T) {
+	w := newHumanWorld(t, nil)
+	w.answer.Store(func(url.Values) (int, any) {
+		return 200, map[string]any{"success": true, "hostname": "callerwhale.com"}
+	})
+	rec := w.call("POST", "/v1/sessions", `{"human_token":"v2:tok"}`)
+	var out map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &out)
+	if rec.Code != 403 || out["fallback"] != nil {
+		t.Fatalf("no fallback set up: %d %s", rec.Code, rec.Body)
+	}
+	if w.asked.Load() != 0 {
+		t.Fatal("Google was asked about a box token that can never be accepted")
+	}
+	if strings.Contains(w.call("GET", "/v1/security", "").Body.String(), "fallback_site_key") {
+		t.Fatal("no box key to announce")
+	}
+}
+
+func TestTheFallbackKeysAreChecked(t *testing.T) {
+	cases := map[string]map[string]string{
+		"only the site key":      {"RECAPTCHA_FALLBACK_SITE_KEY": "box"},
+		"only the secret":        {"RECAPTCHA_FALLBACK_SECRET_KEY": "box"},
+		"with the checkbox kind": {"RECAPTCHA_KIND": "checkbox", "RECAPTCHA_FALLBACK_SITE_KEY": "box", "RECAPTCHA_FALLBACK_SECRET_KEY": "box-s"},
+		"the same site key":      {"RECAPTCHA_FALLBACK_SITE_KEY": "site-key-1", "RECAPTCHA_FALLBACK_SECRET_KEY": "box-s"},
+		"the same secret key":    {"RECAPTCHA_FALLBACK_SITE_KEY": "box", "RECAPTCHA_FALLBACK_SECRET_KEY": "secret-key-1"},
+	}
+	for name, extra := range cases {
+		env := map[string]string{
+			"ROUTES": authHost + "=http://127.0.0.1:1", "HUMAN_CHECK": "true", "AUTH_HOST": authHost,
+			"RECAPTCHA_SITE_KEY": "site-key-1", "RECAPTCHA_SECRET_KEY": "secret-key-1", "RECAPTCHA_HOSTNAMES": "callerwhale.com",
+		}
+		for k, v := range extra {
+			env[k] = v
+		}
+		if _, err := loadConfig(func(k string) string { return env[k] }); err == nil {
+			t.Errorf("%s must be refused at start", name)
+		}
+	}
+}

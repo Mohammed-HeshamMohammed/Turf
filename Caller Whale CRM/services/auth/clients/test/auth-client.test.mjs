@@ -288,3 +288,22 @@ test("a read is asked again once when the connection drops; a sign-in is never r
   await assert.rejects(down.signIn("a@example.com", "pw", undefined, "browser"), error => error instanceof AuthError && error.code === "offline" && /auth\.example\.com/.test(error.message) && /work or school network/.test(error.message));
   assert.equal(attempts, 1, "a password is never sent twice behind the person's back");
 });
+
+test("when the human check refuses and a box is on offer, the page is told; otherwise it is not", async () => {
+  const heard = [];
+  const had = globalThis.window;
+  globalThis.window = new EventTarget();
+  window.addEventListener("callerwhale:human-fallback", () => heard.push("box"));
+  try {
+    const answer = body => ({ ok: false, status: 403, text: async () => JSON.stringify(body) });
+    const asking = body => createAuth({ base: "https://auth.example.com", storage: memoryStorage(), fetchImpl: async () => answer(body) });
+    await assert.rejects(asking({ error: "Verify you are human and try again.", code: "human_required", fallback: true }).signIn("a@example.com", "pw", undefined, "browser", "tok"), error => error.code === "human_required");
+    assert.deepEqual(heard, ["box"]);
+    await assert.rejects(asking({ error: "Verify you are human and try again.", code: "human_required" }).signIn("a@example.com", "pw"), error => error.code === "human_required");
+    await assert.rejects(asking({ error: "Wrong password.", code: "unauthorized", fallback: true }).signIn("a@example.com", "pw"), AuthError);
+    assert.deepEqual(heard, ["box"], "only a refusal that offers the box shows it");
+  } finally {
+    if (had === undefined) delete globalThis.window;
+    else globalThis.window = had;
+  }
+});
