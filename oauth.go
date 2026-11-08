@@ -417,6 +417,7 @@ type idClaims struct {
 	EmailVerified any    `json:"email_verified"`
 	Nonce         string `json:"nonce"`
 	Name          string `json:"name"`
+	Picture       string `json:"picture"`
 }
 
 func (c idClaims) verifiedEmail() string {
@@ -462,7 +463,7 @@ func (s *server) providerSignIn(ctx context.Context, name string, got returned, 
 		if linkUser != "" {
 			return s.linkedFirebaseAccount(ctx, login, linkUser)
 		}
-		return s.firebaseAccount(ctx, login, "")
+		return s.firebaseAccount(ctx, login, "", "")
 	}
 	p, err := s.providerFor(name)
 	if err != nil {
@@ -525,7 +526,7 @@ func (s *server) providerSignIn(ctx context.Context, name string, got returned, 
 	if linkUser != "" {
 		return s.linkedFirebaseAccount(ctx, login, linkUser)
 	}
-	return s.firebaseAccount(ctx, login, display)
+	return s.firebaseAccount(ctx, login, display, claims.Picture)
 }
 
 func (s *server) linkedFirebaseAccount(ctx context.Context, login fbLogin, userID string) (string, string, error) {
@@ -543,7 +544,7 @@ func (s *server) linkedFirebaseAccount(ctx context.Context, login fbLogin, userI
 	return userID, login.refreshToken, nil
 }
 
-func (s *server) firebaseAccount(ctx context.Context, login fbLogin, display string) (string, string, error) {
+func (s *server) firebaseAccount(ctx context.Context, login fbLogin, display, picture string) (string, string, error) {
 	profile, err := s.fb.profile(ctx, login.idToken)
 	if err != nil {
 		return "", "", asAPI(err)
@@ -560,6 +561,13 @@ func (s *server) firebaseAccount(ctx context.Context, login fbLogin, display str
 	}
 	if u.disabled {
 		return "", "", forbidden("This account is disabled.")
+	}
+	// Google people start with their Google picture (only when they have none).
+	if picture == "" {
+		picture = profile.photo
+	}
+	if picture != "" && contains(profile.providers, "google") {
+		s.takeProviderPicture(ctx, u.id, picture)
 	}
 	return u.id, login.refreshToken, nil
 }
