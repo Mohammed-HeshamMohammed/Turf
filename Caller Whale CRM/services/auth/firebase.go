@@ -40,6 +40,7 @@ type fbProfile struct {
 	uid           string
 	email         string
 	name          string
+	photo         string // the picture address Google gave (empty for Apple and for passwords)
 	providers     []string
 	emailVerified bool
 	disabled      bool
@@ -252,6 +253,7 @@ func (f *firebase) profile(ctx context.Context, idToken string) (fbProfile, erro
 			LocalID          string `json:"localId"`
 			Email            string `json:"email"`
 			DisplayName      string `json:"displayName"`
+			PhotoURL         string `json:"photoUrl"`
 			EmailVerified    bool   `json:"emailVerified"`
 			Disabled         bool   `json:"disabled"`
 			ProviderUserInfo []struct {
@@ -269,7 +271,7 @@ func (f *firebase) profile(ctx context.Context, idToken string) (fbProfile, erro
 			providers = append(providers, strings.TrimSuffix(provider.ProviderID, ".com"))
 		}
 	}
-	return fbProfile{uid: u.LocalID, email: strings.ToLower(u.Email), name: u.DisplayName, emailVerified: u.EmailVerified, disabled: u.Disabled, providers: providers}, nil
+	return fbProfile{uid: u.LocalID, email: strings.ToLower(u.Email), name: u.DisplayName, photo: u.PhotoURL, emailVerified: u.EmailVerified, disabled: u.Disabled, providers: providers}, nil
 }
 
 func (f *firebase) linkedProviders(ctx context.Context, idToken string) ([]string, error) {
