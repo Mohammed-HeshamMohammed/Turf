@@ -7,6 +7,7 @@ import { inDesktopApp } from "./popout.ts";
 import { Button, Card, DatePicker, Field } from "./ui.jsx";
 import { SecondStep } from "./SecondStep.jsx";
 import { PasswordStrength, PasswordTips } from "./DevicePasswordHelp.jsx";
+import { PasswordInput } from "./PasswordInput.jsx";
 import { assess, MAX_LENGTH } from "./remote/password-check.ts";
 import { HumanCheck, humanToken } from "./remote/human-check.jsx";
 
@@ -349,7 +350,7 @@ export function RemoteGate({ onReady, onLeave }) {
                   <input type="email" autoComplete="username" value={form.email} onChange={field("email")} required />
                 </Field>
                 <Field label="Password">
-                  <input type="password" autoComplete="current-password" value={form.password} onChange={field("password")} required />
+                  <PasswordInput autoComplete="current-password" value={form.password} onChange={field("password")} required />
                 </Field>
               </>
             )}
@@ -534,7 +535,7 @@ export function RemoteGate({ onReady, onLeave }) {
               on our server, and changes you make while offline are lost if you close this tab.
             </p>
             <Field label="Password for this device" help="Use the same one each time on this computer. We cannot recover it, but your leads stay safe on our server if you forget it.">
-              <input type="password" autoComplete="new-password" maxLength={MAX_LENGTH} value={form.passphrase} onChange={field("passphrase")} />
+              <PasswordInput autoComplete="new-password" maxLength={MAX_LENGTH} value={form.passphrase} onChange={field("passphrase")} />
             </Field>
             <div className="row">
               <Button type="submit" variant="primary" icon={Lock} disabled={busy || !assess(form.passphrase).ok}>
