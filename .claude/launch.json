@@ -73,6 +73,20 @@
       "port": 5200
     },
     {
+      "name": "landing-site-human-check",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "Caller Whale CRM/landing/site",
+        "run",
+        "dev"
+      ],
+      "env": {
+        "VITE_CALLERWHALE_AUTH_URL": "http://localhost:8100"
+      },
+      "port": 5200
+    },
+    {
       "name": "landing-site",
       "runtimeExecutable": "npm",
       "runtimeArgs": [

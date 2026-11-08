@@ -34,6 +34,22 @@ Setup still to do, by the owner:
 
 The token is the body's `human_token`. A good token must also come from one of `RECAPTCHA_HOSTNAMES` and score at least the minimum. Everything else, including Google not answering, is a 403 `human_required`, and nothing reaches auth. Each address may make `HUMAN_PER_MINUTE` guarded requests a minute, counted before Google is asked. The browser's preflight for the two website forms is answered by the gateway itself, for the origins in `CORS_ORIGINS`, so the form does not depend on the service behind having the same list. `GET /v1/security` is edited on the way out so the pages learn the check is on and which site key to use. Auth must not be reachable except through the gateway.
 
+## The visible box ("I'm not a robot")
+
+Added 2026-11-08 at the owner's request: people should see a check, not only the small reCAPTCHA notice. `RECAPTCHA_KIND` on the gateway picks the kind:
+
+- `checkbox`: Google's reCAPTCHA **v2** "I'm not a robot" box. The person ticks it (Google sometimes asks for pictures as well). Needs a **v2 Checkbox** key; Google's answer for it has no score and no action, so the gateway checks only that Google accepts the token and that it came from one of `RECAPTCHA_HOSTNAMES`.
+- `score` (the default): the invisible v3 check described above. Needs a v3 key.
+
+A key of the other kind is refused with a line in the gateway log that says so. `/v1/security` tells the pages the kind (`bot_protection.kind`). With the box, the sign-in, sign-up (both steps), contact page and the CRM web app's sign-in draw it above their buttons; a request sent without a tick says "Tick “I'm not a robot” first." and sends nothing, and each request uses up the tick, so a second try needs a new one.
+
+To switch production to the box:
+1. At google.com/recaptcha/admin, create a key: reCAPTCHA **v2**, **"I'm not a robot" Checkbox**, domain `callerwhale.com`.
+2. In Coolify, on the **gateway**: `RECAPTCHA_KIND=checkbox`, `RECAPTCHA_SITE_KEY` = the new site key, `RECAPTCHA_SECRET_KEY` = the new secret key (privately, never in GitHub or chat). Leave `RECAPTCHA_HOSTNAMES=callerwhale.com,auth.callerwhale.com`. Redeploy the gateway.
+3. Going back is the same with `RECAPTCHA_KIND=score` and the v3 keys.
+
+Tried locally with Google's published v2 test keys against the real gateway: no tick is refused on the page; a tick passes Google and the gateway and reaches auth; after each try the box is cleared. (The test key reports the site `testkey.google.com`, so that name had to be in `RECAPTCHA_HOSTNAMES` for the test; a real key reports `callerwhale.com`.)
+
 ## Desktop sign-in
 
 The desktop app has no password form and no human check of its own. "Sign in with your browser" does this:

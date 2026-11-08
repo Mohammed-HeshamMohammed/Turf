@@ -1,6 +1,7 @@
 package main
 
-// The human check: Google reCAPTCHA v3 (invisible, scored) in front of the auth service's first-leg requests. The auth
+// The human check: Google reCAPTCHA in front of the auth service's first-leg requests. RECAPTCHA_KIND picks the kind: "score"
+// (v3, invisible, the default) or "checkbox" (v2, the visible "I'm not a robot" box). The two need different keys from Google. The auth
 // service does not check it any more: this is the one place a token is verified, because
 // Google accepts a token only once. The same check will guard payment routes, each with its own minimum score.
 //
@@ -22,6 +23,11 @@ import (
 )
 
 const (
+	kindScore    = "score"
+	kindCheckbox = "checkbox"
+)
+
+const (
 	siteverifyURL  = "https://www.google.com/recaptcha/api/siteverify"
 	maxHumanToken  = 8192     // bytes; a real reCAPTCHA token is about 2.3 KB today and has grown before, so this is a limit on abuse, not on size
 	maxCheckedBody = 64 << 10 // a sign-in, sign-up or provider start is a few hundred bytes
@@ -29,6 +35,7 @@ const (
 
 // humanSettings is what the environment says: nothing here is a secret except the secret key.
 type humanSettings struct {
+	kind      string // "score" (v3) or "checkbox" (v2); the pages are told which, through /v1/security
 	siteKey   string
 	secret    string
 	hostnames []string // the sites a token may come from, as Google reports them
@@ -45,7 +52,14 @@ func loadHuman(getenv func(string) string, routes map[string]*route) (*humanSett
 		siteKey:  strings.TrimSpace(getenv("RECAPTCHA_SITE_KEY")),
 		secret:   strings.TrimSpace(getenv("RECAPTCHA_SECRET_KEY")),
 		authHost: strings.ToLower(strings.TrimSpace(getenv("AUTH_HOST"))),
-		minScore: 0.5, perMinute: 30,
+		minScore: 0.5, perMinute: 30, kind: kindScore,
+	}
+	switch kind := strings.ToLower(strings.TrimSpace(getenv("RECAPTCHA_KIND"))); kind {
+	case "", kindScore:
+	case kindCheckbox:
+		h.kind = kindCheckbox
+	default:
+		return nil, errors.New(`RECAPTCHA_KIND is "score" (v3, invisible) or "checkbox" (v2, the "I'm not a robot" box)`)
 	}
 	if h.siteKey == "" || h.secret == "" {
 		return nil, errors.New("HUMAN_CHECK=true needs RECAPTCHA_SITE_KEY and RECAPTCHA_SECRET_KEY")
@@ -226,6 +240,12 @@ func (h *humanCheck) verify(ctx context.Context, token, action string, minScore 
 		// invalid-input-secret: the secret key is wrong or is for another site key. browser-error or timeout-or-duplicate: the token is bad or used twice.
 		log.Printf("WARN human check refused: Google does not accept the token (error codes: %v)", out.ErrorCodes)
 		return false
+	case h.kind == kindCheckbox:
+		// A ticked box has no score and no action: the person passed Google's own test (and its pictures when it asked for them).
+		if out.Score != nil {
+			log.Printf("WARN human check refused: Google sent a score, so the keys are v3 keys but RECAPTCHA_KIND is checkbox")
+			return false
+		}
 	case out.Score == nil:
 		log.Printf("WARN human check refused: Google sent no score, so the keys are not reCAPTCHA v3 keys")
 		return false
@@ -264,7 +284,7 @@ func (h *humanCheck) announce(res *http.Response) error {
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return fmt.Errorf("security answer: %w", err)
 	}
-	doc["bot_protection"], _ = json.Marshal(map[string]any{"enabled": true, "site_key": h.siteKey})
+	doc["bot_protection"], _ = json.Marshal(map[string]any{"enabled": true, "site_key": h.siteKey, "kind": h.kind})
 	out, _ := json.Marshal(doc)
 	res.Body = io.NopCloser(bytes.NewReader(out))
 	res.ContentLength = int64(len(out))
