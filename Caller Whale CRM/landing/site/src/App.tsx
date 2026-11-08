@@ -478,7 +478,7 @@ export function App({ path: first = "/" }) {
     "/terms": <Terms />,
     "/connect": me && setupStep(me) ? setup : me ? <Connect auth={auth} authBase={authBase} search={typeof window === "undefined" ? "" : window.location.search} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
     "/account": me && setupStep(me) ? setup : me ? <Settings me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
-    "/dashboard": me && setupStep(me) ? setup : me ? <Dashboard me={me} auth={auth} authBase={authBase} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
+    "/dashboard": me && setupStep(me) ? setup : me ? <Dashboard me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
   };
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
   return (

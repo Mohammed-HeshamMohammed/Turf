@@ -7,6 +7,7 @@ import { ApiError, needsSecondStep, useSecondStep } from "./SecondStep.tsx";
 import { CostsManager, MembersTable, PlatformOverview } from "./OwnerViews.tsx";
 import { InviteManager, PendingInvitations, WorkspaceManager, WorkspaceSecondStep } from "./AccessManagement.tsx";
 import { MonitoringPanel } from "./MonitoringPanel.tsx";
+import { Settings } from "./Settings.tsx";
 
 type StaffMember = { name: string; email?: string; role: string };
 /** Up to two capital letters from a name or an email address: "Mohammed Hesham" is MH. */
@@ -60,7 +61,7 @@ function UsageOverview({ access, auth, authBase, me }: { access: Access; auth: A
   </div>;
 }
 
-function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: Auth; authBase: string; me: Me }) {
+function StaffDashboard({ access, auth, authBase, me, onSaved }: { access: Access; auth: Auth; authBase: string; me: Me; onSaved: () => void }) {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error" | "verify">(me.mfa_passed === false ? "verify" : "loading");
   const [email, setEmail] = useState("");
@@ -252,11 +253,11 @@ function StaffDashboard({ access, auth, authBase, me }: { access: Access; auth: 
       </section>}
     {canManage && status === "ready" && shownView === "team" && <section id="staff-role-form" className="admin-manage card" aria-labelledby="admin-manage-title"><div><span className="eyebrow">Role management</span><h2 id="admin-manage-title">Change current staff roles</h2><p className="muted">Select a person in the staff directory, or enter the email of an account that has already signed in. Founder roles are permanent.</p></div>{second.prompt}<form className="staff-form" onSubmit={assign}><div className="staff-fields"><label>Account email<input type="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="person@example.com" /></label><label>Role<select value={role} onChange={event => setRole(event.target.value)}><option value="system_admin">System admin</option><option value="tester">Tester</option><option value="">Remove role</option></select></label><button className="button primary" disabled={busy}>{busy ? "Saving…" : "Save access"}</button></div>{message && <p className={message.includes("saved") || message.includes("removed") ? "notice" : "notice bad"} role="status">{message}</p>}</form></section>}
     {canManage && status === "ready" && shownView === "access" && <InviteManager auth={auth} authBase={authBase} scope="platform" />}
-    {shownView === "account" && <section className="admin-account card" aria-labelledby="admin-account-title"><div><span className="eyebrow">Your profile</span><h2 id="admin-account-title">{me.name || me.email}</h2><p className="muted">{me.email}</p><RoleBadges access={{ ...access, workspaces: [] }} /><Link to="/account">Manage your profile and security →</Link></div></section>}
+    {shownView === "account" && <Settings embedded me={me} auth={auth} authBase={authBase} onSaved={onSaved} />}
   </section></div></div>;
 }
 
-export function Dashboard({ me, auth, authBase }: { me: Me | null | undefined; auth: Auth; authBase: string }) {
+export function Dashboard({ me, auth, authBase, onSaved = () => {} }: { me: Me | null | undefined; auth: Auth; authBase: string; onSaved?: () => void }) {
   const [access, setAccess] = useState<Access | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "unavailable">("loading");
   const [retry, setRetry] = useState(0);
@@ -286,7 +287,7 @@ export function Dashboard({ me, auth, authBase }: { me: Me | null | undefined; a
   if (!me) return <div className="form-wrap"><p className="muted">Loading your dashboard…</p></div>;
   if (status === "loading") return <div className="admin-feedback card" role="status"><h1>Preparing your dashboard</h1><p>Checking your account and access…</p></div>;
   if (status === "unavailable" || !access) return <div className="admin-feedback card" role="alert"><h1>We couldn’t load your dashboard</h1><p>Your account is signed in, but access details are unavailable right now.</p><button type="button" className="button primary" onClick={() => setRetry(value => value + 1)}>Try again</button></div>;
-  if (staffRoles.has(access.platform_role)) return <StaffDashboard access={access} auth={auth} authBase={authBase} me={me} />;
+  if (staffRoles.has(access.platform_role)) return <StaffDashboard access={access} auth={auth} authBase={authBase} me={me} onSaved={onSaved} />;
   return <div className="dashboard-page">
     <header className="page-head">
       <span className="eyebrow">Your Caller Whale account</span>

@@ -17,11 +17,12 @@ const fromAddress = (): Tab => {
 };
 
 /** The account page: Profile (as before), Security (the second step) and Connections. */
-export function Settings({ me, auth, authBase, onSaved }: { me: Me; auth: Auth; authBase: string; onSaved: () => void }) {
+export function Settings({ me, auth, authBase, onSaved, embedded = false }: { me: Me; auth: Auth; authBase: string; onSaved: () => void; embedded?: boolean }) {
   const [tab, setTab] = useState<Tab>("profile");
-  useEffect(() => setTab(fromAddress()), []);
+  useEffect(() => { if (!embedded) setTab(fromAddress()); }, [embedded]);
   const choose = (next: Tab) => {
     setTab(next);
+    if (embedded) return; // inside the dashboard the address already says which page this is
     try { window.history.replaceState(null, "", next === "profile" ? window.location.pathname : `#${next}`); } catch { /* the tab still changes */ }
   };
   return (
