@@ -5,6 +5,7 @@ import { applyChanges, collectionsFromStore, isoFromLocal, labelFor, localParts,
 import { remoteReducer, syncAction } from "../src/remote/session.ts";
 import { SyncEngine } from "../src/remote/engine.ts";
 import { MemoryVault } from "../src/remote/vault.ts";
+import { mergeAuthProfile } from "../src/remote/profile.ts";
 import { personalProfile } from "../src/model.ts";
 
 const directory = [
@@ -74,6 +75,17 @@ test("connected identity and empty server projects remain visible", () => {
   assert.equal(personalProfile(state).name, "Real Owner");
   const store = storeFromSnapshot({ ...snapshot, leads: [], calls: [], notes: [] }, { projects: [{ id: "empty", name: "Empty list" }] });
   assert.deepEqual(collectionsFromStore(store).datasets.map(item => item.name), ["Empty list"]);
+});
+
+test("CRM profile follows the auth account and ignores a different account", () => {
+  const account = { id: "u-owner", name: "Mohammed Hesham", email: "owner@callerwhale.com", avatar: "data:image/png;base64,abc", phone: "+201234567890", first_name: "Mohammed", last_name: "Hesham" };
+  const coreUser = { id: "u-owner", name: "Old name", email: "owner@callerwhale.com" };
+  const state = remoteReducer(seedState(), { type: "REMOTE_START", role: "owner", remote: { user: mergeAuthProfile(coreUser, account), capabilities: [], organization: "Workspace" } });
+  assert.deepEqual([personalProfile(state).name, personalProfile(state).avatar, personalProfile(state).phone], [account.name, account.avatar, account.phone]);
+  const changed = remoteReducer(state, { type: "REMOTE_PROFILE", profile: { ...account, name: "Updated name" } });
+  assert.equal(personalProfile(changed).name, "Updated name");
+  const refused = remoteReducer(changed, { type: "REMOTE_PROFILE", profile: { ...account, id: "another-user", name: "Wrong account" } });
+  assert.equal(personalProfile(refused).name, "Updated name");
 });
 
 test("one device copy is replaced on a workspace switch after its queue is clear", async () => {
