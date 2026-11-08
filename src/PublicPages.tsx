@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { PageHead } from "./ui.tsx";
 import { Link } from "./nav.tsx";
-import { HumanCheck } from "./auth/human-check.jsx";
+import { HumanCheck, humanToken } from "./auth/human-check.jsx";
 import type { Auth } from "./auth/auth-client.js";
 
 const contactBase = import.meta.env.VITE_CALLERWHALE_GATEWAY_URL || "https://gate.callerwhale.com";
@@ -11,7 +11,6 @@ export function Contact({ getAuth }: { getAuth: () => Promise<Auth> }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
-  const [human, setHuman] = useState("");
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -22,7 +21,7 @@ export function Contact({ getAuth }: { getAuth: () => Promise<Auth> }) {
       const response = await fetch(`${contactBase}/api/v1/public/contact`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: data.get("name"), email: data.get("email"), message, website: data.get("website"), human_token: human }),
+        body: JSON.stringify({ name: data.get("name"), email: data.get("email"), message, website: data.get("website"), human_token: await humanToken(getAuth, "contact") }),
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
@@ -44,7 +43,7 @@ export function Contact({ getAuth }: { getAuth: () => Promise<Auth> }) {
       <label>Email <input name="email" type="email" required autoComplete="email" /></label>
       <label>Message <textarea name="message" required maxLength={4000} rows={8} value={message} onChange={event => setMessage(event.target.value)} /></label>
       <div className="contact-trap" aria-hidden="true"><label>Website <input name="website" tabIndex={-1} autoComplete="off" /></label></div>
-      <HumanCheck getAuth={getAuth} action="contact" onToken={setHuman} />
+      <HumanCheck getAuth={getAuth} />
       {error && <p className="notice bad" role="alert">{error}</p>}
       {sent && <p className="notice" role="status">Your message was sent. Thank you.</p>}
       <button className="button primary" disabled={busy}>{busy ? "Sending…" : "Send message"}</button>

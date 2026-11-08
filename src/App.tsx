@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes } from "react";
 import { createAuth, type AuthError, type Me } from "./auth/auth-client.js";
-import { HumanCheck, HumanNotice } from "./auth/human-check.jsx";
+import { HumanCheck, HumanNotice, humanToken } from "./auth/human-check.jsx";
 import { redirectFor, waitingForSecondStep } from "./guard.ts";
 import { readProfile, writeProfile, type CachedProfile } from "./profile-cache.ts";
 import { applyMetadata, metadataFor } from "./metadata.ts";
@@ -130,7 +130,7 @@ function useAction() {
   return [state, run] as const;
 }
 
-function Providers({ action, human }: { action: string; human: string }) {
+function Providers({ action }: { action: string }) {
   const [list, setList] = useState<{ google?: boolean; apple?: boolean }>({});
   const [state, run] = useAction();
   useEffect(() => {
@@ -139,7 +139,7 @@ function Providers({ action, human }: { action: string; human: string }) {
   if (!list.google) return null;
   return (
     <>
-      <button type="button" className="button raised" disabled={state.busy} onClick={() => run(async () => void (await auth.startProvider("google", "landing", human, action)))}>
+      <button type="button" className="button raised" disabled={state.busy} onClick={() => run(async () => void (await auth.startProvider("google", "landing", await humanToken(getAuth, action), action)))}>
         Continue with Google
       </button>
       {state.error && <p className="notice bad" role="alert">{state.error}</p>}
@@ -155,14 +155,13 @@ function SignIn({ onDone, notice, me }: { onDone: () => void; notice: string; me
   const [code, setCode] = useState("");
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const resumed = Boolean(me && waitingForSecondStep(me)); // signed in already (Google, or an older session), second step not done
-  const [human, setHuman] = useState("");
   const [state, run] = useAction();
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     let next: Challenge | null = null;
     const ok = await run(async () => {
       try {
-        await auth.signIn(email, password, undefined, "browser", human);
+        await auth.signIn(email, password, undefined, "browser", await humanToken(getAuth, "signin"));
       } catch (error) {
         if ((error as AuthError).code !== "mfa_required") throw error;
         const data = (error as AuthError).data as { challenge?: string; methods?: string[] } | null;
@@ -220,10 +219,10 @@ function SignIn({ onDone, notice, me }: { onDone: () => void; notice: string; me
         {notice && <p className="notice" role="status">{notice}</p>}
         <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} />
         <Field label="Password" type="password" autoComplete="current-password" required value={password} onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)} />
-        <HumanCheck getAuth={getAuth} action="signin" onToken={setHuman} />
+        <HumanCheck getAuth={getAuth} />
         {state.error && <p className="notice bad" role="alert">{state.error}</p>}
         <button className="button primary" disabled={state.busy}>{state.busy ? "Signing in…" : "Sign in"}</button>
-        <Providers action="signin" human={human} />
+        <Providers action="signin" />
         <div className="alt">
           <Link to="/forgot">Forgot your password?</Link>
           <Link to="/signup">Create an account</Link>
@@ -247,7 +246,6 @@ function SignUp({ onDone }: { onDone: () => void }) {
   const [phone, setPhone] = useState("");
   const [picture, setPicture] = useState("");
   const [choosing, setChoosing] = useState<File | null>(null);
-  const [human, setHuman] = useState("");
   const [protectedByGoogle, setProtectedByGoogle] = useState(false);
   const [state, run] = useAction();
   const filePicker = useRef<HTMLInputElement>(null);
@@ -275,7 +273,7 @@ function SignUp({ onDone }: { onDone: () => void }) {
     e.preventDefault();
     if (birthProblem || !birth) return;
     const made = await run(async () => {
-      await auth.signUp(name.trim(), email, password, "browser", human, birth, TERMS_VERSION);
+      await auth.signUp(name.trim(), email, password, "browser", await humanToken(getAuth, "signup"), birth, TERMS_VERSION);
       // The account exists now. Its names, phone and picture are saved with it; if that fails, the profile page can do it later.
       try {
         const token = await auth.accessToken();
@@ -322,7 +320,8 @@ function SignUp({ onDone }: { onDone: () => void }) {
           {mismatch && <p className="notice bad" role="alert">The two passwords are not the same.</p>}
           <label className="check"><input type="checkbox" required checked={agreed} onChange={(e: ChangeEvent<HTMLInputElement>) => setAgreed(e.target.checked)} /> <span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
           <button className="button primary" disabled={mismatch || !agreed || taken}>{started ? "Continue" : "Sign up"}</button>
-          <Providers action="signup" human={human} />
+          <Providers action="signup" />
+          <HumanCheck getAuth={getAuth} />
           <div className="alt">
             <span className="muted">Already have an account?</span>
             <Link to="/signin">Sign in</Link>
@@ -340,7 +339,7 @@ function SignUp({ onDone }: { onDone: () => void }) {
           </div>
           <Field label="Phone number" type="tel" autoComplete="tel" placeholder="Optional" value={phone} onChange={(e: ChangeEvent<HTMLInputElement>) => setPhone(e.target.value)} />
           {choosing && <AvatarCropper file={choosing} confirmLabel="Use this picture" onCancel={() => setChoosing(null)} onDone={async dataUrl => { setPicture(dataUrl); setChoosing(null); }} />}
-          <HumanCheck getAuth={getAuth} action="signup" onToken={setHuman} notice={false} onEnabled={setProtectedByGoogle} />
+          <HumanCheck getAuth={getAuth} notice={false} onEnabled={setProtectedByGoogle} />
           {state.error && !taken && <p className="notice bad" role="alert">{state.error}</p>}
           <button className="button primary" disabled={state.busy || !birth || Boolean(birthProblem) || !first.trim()}>{state.busy ? <><span className="spinner" aria-hidden="true" />Creating…</> : "Create account"}</button>
           <button type="button" className="text-button" disabled={state.busy} onClick={() => setStep(1)}>Back</button>
