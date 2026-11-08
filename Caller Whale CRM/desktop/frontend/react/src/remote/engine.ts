@@ -43,6 +43,11 @@ export class SyncEngine {
     this.extra = extra;
     this.store = await this.vault.get("store");
     this.ops = await this.vault.queue();
+    if (this.store && this.store.organizationId !== extra.organizationId) {
+      if (this.ops.length) throw new Error("This device has pending changes for its previous workspace. Open that workspace and sync them before switching.");
+      // Keep the previous offline copy until the new workspace's snapshot has arrived.
+      await this.snapshot();
+    }
     const expired = this.store?.leaseExpiresAt && new Date(this.store.leaseExpiresAt) < new Date();
     if (expired) {
       // Offline access must be renewed online within a day (plan 2.7).

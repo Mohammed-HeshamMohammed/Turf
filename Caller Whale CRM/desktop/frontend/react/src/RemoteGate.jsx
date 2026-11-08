@@ -3,8 +3,9 @@ import { Lock, ShieldCheck, SignIn, UserCircleMinus, WifiSlash } from "@phosphor
 import { AppleMark, GoogleMark } from "./SignInMarks.jsx";
 import { api, apiBase, auth, organization, SERVER, SITE, setApiBase, setOrganization } from "./remote/api.ts";
 import { MemoryVault, Vault } from "./remote/vault.ts";
+import { preferredWorkspace, readWorkspaceChoice, saveWorkspaceChoice } from "./remote/workspace-choice.ts";
 import { inDesktopApp } from "./popout.ts";
-import { Button, Card, DatePicker, Field } from "./ui.jsx";
+import { Button, Card, DatePicker, Field, Select } from "./ui.jsx";
 import { SecondStep } from "./SecondStep.jsx";
 import { PasswordStrength, PasswordTips } from "./DevicePasswordHelp.jsx";
 import { PasswordInput } from "./PasswordInput.jsx";
@@ -101,7 +102,6 @@ export function RemoteGate({ onReady, onLeave }) {
       const organizations = identity.organizations || [];
       // Access to the workspace this device last used was removed or has ended: its offline copy goes too.
       if (organization() && !organizations.some(item => item.id === organization())) {
-        await Vault.wipe();
         setOrganization("");
       }
       if (!organizations.length) {
@@ -111,10 +111,12 @@ export function RemoteGate({ onReady, onLeave }) {
         return setStep("notinvited");
       }
       // The organization this device used last, if the person is still in it; otherwise their first.
-      const chosen = organizations.find(item => item.id === organization())?.id || organizations[0].id;
-      if (identity.organization_id !== chosen) {
-        setOrganization(chosen);
-        identity = await api.me();
+      const localChoice = readWorkspaceChoice(identity.user.id) || (organization() ? { id: organization(), at: 1 } : null);
+      const chosen = preferredWorkspace(organizations, identity.organization_id, identity.last_workspace_at, localChoice);
+      const stored = organization();
+      setOrganization(chosen);
+      if (identity.organization_id !== chosen || stored !== chosen) {
+        identity = await api.me(true);
       }
       setMe(identity);
       if (identity.mfa.required && !identity.mfa.passed) {
@@ -133,7 +135,7 @@ export function RemoteGate({ onReady, onLeave }) {
       // The choice made on this device the first time is remembered: no question on every visit.
       const owner = identity.user.id + ":" + identity.organization_id;
       if (readChoice(owner) === "online") return onReady({ me: identity, vault: new MemoryVault(), persistent: false });
-      setHasCopy(await Vault.has(owner));
+      setHasCopy(await Vault.has(identity.user.id));
       setStep("unlock");
     } catch (reason) {
       if (reason?.code === "offline") return setStep("offline");
@@ -293,11 +295,18 @@ export function RemoteGate({ onReady, onLeave }) {
     event?.preventDefault();
     attempt(async () => {
       const owner = me.user.id + ":" + me.organization_id;
-      const vault = withPassphrase ? await Vault.unlock(form.passphrase, owner) : new MemoryVault();
+      const vault = withPassphrase ? await Vault.unlock(form.passphrase, me.user.id) : new MemoryVault();
       writeChoice(owner, withPassphrase ? "" : "online");
       setForm(current => ({ ...current, passphrase: "" }));
       await onReady({ me, vault, persistent: withPassphrase });
     });
+  };
+
+  const chooseWorkspace = id => {
+    saveWorkspaceChoice(me.user.id, id);
+    setOrganization(id);
+    setForm(current => ({ ...current, passphrase: "" }));
+    attempt(check);
   };
 
   const signedInAs = me?.user && (
@@ -560,6 +569,13 @@ export function RemoteGate({ onReady, onLeave }) {
             <p className="body-copy">
               Signed in as <strong>{me.user.name}</strong>.
             </p>
+            {me.organizations?.length > 1 && (
+              <Field label="Workspace">
+                <Select value={me.organization_id} onChange={event => chooseWorkspace(event.target.value)} disabled={busy}>
+                  {me.organizations.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </Select>
+              </Field>
+            )}
             {!hasCopy && (
               <ul className="offline-points">
                 <li>
@@ -598,7 +614,7 @@ export function RemoteGate({ onReady, onLeave }) {
                   className="text-button"
                   onClick={() =>
                     attempt(async () => {
-                      await Vault.wipe();
+                      await Vault.wipe(me.user.id);
                       setHasCopy(false);
                     })
                   }

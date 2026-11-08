@@ -71,6 +71,28 @@ func TestMeListsWorkspacesAndWhatThePersonMayDo(t *testing.T) {
 	}
 }
 
+func TestMeRemembersSelectedWorkspace(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	e.rules.grants[alice+"|"+orgB] = owner()
+	e.rules.people_[alice] = peopleReply{UserID: alice, Workspaces: []workspaceRoles{
+		{OrgID: orgA, Roles: []string{"owner"}, BusinessOwner: true},
+		{OrgID: orgB, Roles: []string{"owner"}, BusinessOwner: true},
+	}}
+	status, me := e.call(alice, orgB, "GET", "/api/v1/me", nil)
+	if status != 200 || me["organization_id"] != orgB || me["last_workspace_at"] == nil {
+		t.Fatalf("select second workspace: %d %v", status, me)
+	}
+	status, me = e.call(alice, "", "GET", "/api/v1/me", nil)
+	if status != 200 || me["organization_id"] != orgB {
+		t.Fatalf("remember second workspace: %d %v", status, me)
+	}
+	status, me = e.call(alice, orgA, "GET", "/api/v1/me", nil)
+	if status != 200 || me["organization_id"] != orgA {
+		t.Fatalf("switch back: %d %v", status, me)
+	}
+}
+
 func TestNothingWithoutAGoodTokenOrAMembership(t *testing.T) {
 	e := newEnv(t)
 	e.seed()

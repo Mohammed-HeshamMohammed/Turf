@@ -8,6 +8,7 @@ import { api, apiBase, auth, setApiBase, setOrganization } from "./remote/api.ts
 import { SyncEngine } from "./remote/engine.ts";
 import { LOCAL_ONLY, remoteReducer, syncAction } from "./remote/session.ts";
 import { applyIdentity, labelFor, operationFor } from "./remote/translate.ts";
+import { saveWorkspaceChoice } from "./remote/workspace-choice.ts";
 import { CrmContext } from "./context.jsx";
 import { Button, CountBadge, Empty, Modal, PageTransition, Search, money, useHeld, usePresence } from "./ui.jsx";
 import { LiveCaptions } from "./LiveCaptions.jsx";
@@ -257,11 +258,18 @@ export function App() {
     const [directory, teams, projects] = await Promise.all([api.directory(), api.teams(), api.projects()]);
     const organization = me.organizations.find(item => item.id === me.organization_id)?.name || "";
     // `people`: the workspace's members from the server, with how each signs in.
-    apply({ type: "REMOTE_START", role, remote: { user: me.user, capabilities: me.capabilities, organization, roles: me.roles, people: directory } });
+    apply({ type: "REMOTE_START", role, remote: { user: me.user, capabilities: me.capabilities, organization, organizationId: me.organization_id, organizations: me.organizations, roles: me.roles, people: directory } });
     const sync = new SyncEngine({ vault, onChange: snapshot => apply(syncAction(snapshot, me.user.name)) });
     engine.current = sync;
-    setConnection("remote");
-    await sync.start({ directory, teams, projects });
+    try {
+      await sync.start({ directory, teams, projects, organizationId: me.organization_id });
+      setConnection("remote");
+    } catch (error) {
+      sync.stop();
+      engine.current = null;
+      apply({ type: "REMOTE_END" });
+      throw error;
+    }
   }, []);
   const signOut = useCallback(async () => {
     engine.current?.stop();
@@ -272,6 +280,24 @@ export function App() {
     apply({ type: "REMOTE_END" });
     setConnection("gate");
   }, []);
+  const switchWorkspace = useCallback(async id => {
+    const current = latest.current.remote;
+    if (!current || !current.organizations?.some(item => item.id === id) || current.organizationId === id) return;
+    const sync = engine.current;
+    if (sync) {
+      await sync.sync();
+      if (sync.status !== "synced" || sync.ops.length) {
+        notify(sync.error || "Sync or resolve the pending changes before switching workspaces.");
+        return;
+      }
+    }
+    sync?.stop();
+    engine.current = null;
+    saveWorkspaceChoice(current.user.id, id);
+    setOrganization(id);
+    apply({ type: "REMOTE_END" });
+    setConnection("gate");
+  }, [notify]);
   const useSample = useCallback(() => {
     engine.current?.stop();
     engine.current = null;
@@ -340,8 +366,8 @@ export function App() {
   const showGate = useCallback(() => setConnection("gate"), []);
   // Memoised so typing in search, opening a panel or a toast does not re-render every page.
   const context = useMemo(
-    () => ({ state, dispatch, navigate, notify, route, connection, connect: showGate, signOut }),
-    [state, dispatch, navigate, notify, route, connection, showGate, signOut],
+    () => ({ state, dispatch, navigate, notify, route, connection, connect: showGate, signOut, switchWorkspace }),
+    [state, dispatch, navigate, notify, route, connection, showGate, signOut, switchWorkspace],
   );
   const pageElement = useMemo(() => {
     if (!accessible)

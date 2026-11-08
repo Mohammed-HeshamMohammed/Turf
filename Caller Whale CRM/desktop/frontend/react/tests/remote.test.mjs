@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { seedState } from "../src/data.ts";
 import { applyChanges, collectionsFromStore, isoFromLocal, labelFor, localParts, operationFor, roleKey, storeFromSnapshot } from "../src/remote/translate.ts";
 import { remoteReducer, syncAction } from "../src/remote/session.ts";
+import { SyncEngine } from "../src/remote/engine.ts";
+import { MemoryVault } from "../src/remote/vault.ts";
 import { personalProfile } from "../src/model.ts";
 
 const directory = [
@@ -72,6 +74,30 @@ test("connected identity and empty server projects remain visible", () => {
   assert.equal(personalProfile(state).name, "Real Owner");
   const store = storeFromSnapshot({ ...snapshot, leads: [], calls: [], notes: [] }, { projects: [{ id: "empty", name: "Empty list" }] });
   assert.deepEqual(collectionsFromStore(store).datasets.map(item => item.name), ["Empty list"]);
+});
+
+test("one device copy is replaced on a workspace switch after its queue is clear", async () => {
+  const vault = new MemoryVault();
+  await vault.put("store", { organizationId: "old", cursor: 1, leads: { stale: { id: "stale" } } });
+  const api = { snapshot: async () => ({ ...snapshot, leads: [] }), pull: async () => ({ cursor: 10, changes: [], more: false }) };
+  const engine = new SyncEngine({ vault, api, socket: false });
+  await engine.start({ organizationId: "new", directory: [], teams: [], projects: [] });
+  assert.equal(engine.store.organizationId, "new");
+  assert.deepEqual(Object.keys(engine.store.leads), []);
+  engine.stop();
+
+  await vault.put("store", { organizationId: "old", cursor: 1 });
+  await vault.enqueue({ id: "pending", status: "Pending" });
+  const guarded = new SyncEngine({ vault, api, socket: false });
+  await assert.rejects(guarded.start({ organizationId: "new" }), /pending changes/);
+  assert.equal((await vault.get("store")).organizationId, "old");
+  guarded.stop();
+
+  await vault.remove("pending");
+  const unavailable = new SyncEngine({ vault, api: { snapshot: async () => { throw new Error("network unavailable"); } }, socket: false });
+  await assert.rejects(unavailable.start({ organizationId: "new" }), /network unavailable/);
+  assert.equal((await vault.get("store")).organizationId, "old", "an unavailable new workspace leaves the existing offline copy intact");
+  unavailable.stop();
 });
 
 test("pulled changes replace records and removals take a lead's children with it", () => {
