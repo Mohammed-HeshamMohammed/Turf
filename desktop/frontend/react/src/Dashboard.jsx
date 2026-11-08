@@ -33,19 +33,21 @@ export function Dashboard() {
       <>
         <PageHeader title="Overview" description="Access, connections and services." />
         <div className="metrics-grid">
-          {[
+          {(state.remote ? [
+            ["Workspace members", String(state.remote.people?.length || 0), Users],
+          ] : [
             ["Workspace members", "6", Users],
             ["Role presets", "8", ShieldCheck],
             ["Language services", "6", HardDrives],
             ["Connected providers", String(Object.values(state.integrations).filter(Boolean).length), GearSix],
-          ].map(([label, value, Icon]) => (
+          ]).map(([label, value, Icon]) => (
             <Card key={label} className="metric">
               <div className="metric-label">
                 <Icon size={20} />
                 {label}
               </div>
               <strong>{value}</strong>
-              <small>Prototype configuration</small>
+              {!state.remote && <small>Prototype configuration</small>}
             </Card>
           ))}
         </div>
@@ -82,7 +84,7 @@ export function Dashboard() {
           isClient ? "Your approved records, updates, and next steps in one place." : active.length + " active leads · " + tasks.length + " open next steps"
         }
       >
-        <span className="date-label">Thursday, October 15</span>
+        <span className="date-label">{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date())}</span>
         {capability(state, "edit") && (
           <Button variant="primary" icon={Plus} onClick={() => navigate("work/leads/new")}>
             New lead
@@ -101,7 +103,7 @@ export function Dashboard() {
         <Metric
           label={isClient ? "Approved briefs" : state.role === "researcher" ? "Ready to call" : "Open handoffs"}
           value={isClient ? leads.length : state.role === "researcher" ? leads.filter(lead => lead.verdict === "Ready to call").length : handoffs.length}
-          detail={isClient ? "Shared by your team" : state.role === "researcher" ? "From the sample checks" : "Waiting for acceptance"}
+          detail={isClient ? "Shared by your team" : state.role === "researcher" ? state.remote ? "From recorded checks" : "From the sample checks" : "Waiting for acceptance"}
           icon={Handshake}
           onClick={() => navigate(isClient ? "work/leads" : state.role === "researcher" ? "skip" : "work/handoffs")}
         />
@@ -172,7 +174,7 @@ export function Dashboard() {
             <Card
               title={state.role === "researcher" ? "Contact quality" : "Conversations, over time"}
               subtitle={
-                state.role === "researcher" ? "Ready, unverified, and blocked numbers in your visible records." : "Illustrative call activity · last seven days"
+                state.role === "researcher" ? "Ready, unverified, and blocked numbers in your visible records." : state.remote ? "Calls recorded in your visible records." : "Illustrative call activity · last seven days"
               }
               action={
                 <Button onClick={() => navigate(role.pages.includes("reports") ? "reports" : "work/calls")}>
@@ -193,6 +195,8 @@ export function Dashboard() {
                     );
                   })}
                 </div>
+              ) : state.remote ? (
+                <p className="body-copy">{leads.reduce((count, lead) => count + (lead.calls?.length || 0), 0)} recorded calls in this workspace.</p>
               ) : (
                 <Suspense fallback={<div className="chart-placeholder" aria-busy="true" />}>
                   <CallActivityChart />

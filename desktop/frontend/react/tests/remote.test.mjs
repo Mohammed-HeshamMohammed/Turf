@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { seedState } from "../src/data.ts";
 import { applyChanges, collectionsFromStore, isoFromLocal, labelFor, localParts, operationFor, roleKey, storeFromSnapshot } from "../src/remote/translate.ts";
 import { remoteReducer, syncAction } from "../src/remote/session.ts";
+import { personalProfile } from "../src/model.ts";
 
 const directory = [
   { id: "u-maya", name: "Maya Chen" },
@@ -59,9 +60,18 @@ test("server records become prototype records with local callback times", () => 
   assert.equal(leads[0].notes[0].text, "Open to an offer");
   assert.equal(tasks[0].assignee, "Maya Chen");
   assert.equal(datasets[0].rows, 1);
+  assert.equal(collectionsFromStore(store).activities[0].text, "Added a note");
   assert.deepEqual(localParts(null), ["", ""]);
   assert.equal(roleKey(["owner", "admin"]), "owner");
   assert.equal(roleKey(["admin"]), "admin");
+});
+
+test("connected identity and empty server projects remain visible", () => {
+  const state = remoteReducer(seedState(), { type: "REMOTE_START", role: "owner", remote: { user: { name: "Real Owner", email: "real@callerwhale.com" }, capabilities: ["import"], organization: "Real workspace" } });
+  assert.equal(personalProfile(state).email, "real@callerwhale.com");
+  assert.equal(personalProfile(state).name, "Real Owner");
+  const store = storeFromSnapshot({ ...snapshot, leads: [], calls: [], notes: [] }, { projects: [{ id: "empty", name: "Empty list" }] });
+  assert.deepEqual(collectionsFromStore(store).datasets.map(item => item.name), ["Empty list"]);
 });
 
 test("pulled changes replace records and removals take a lead's children with it", () => {

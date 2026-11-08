@@ -142,6 +142,10 @@ export function handoffFromServer(handoff, directory = []) {
 export function collectionsFromStore(store) {
   const records = (kind: string): any[] => Object.values(store[kind] || {});
   const context = { directory: store.directory || [], teams: store.teams || [], calls: records("calls"), notes: records("notes") };
+  const activities = [
+    ...context.calls.map(call => ({ id: "call-" + call.id, leadId: call.lead_id, actor: call.agent_label || nameOf(context.directory, call.agent_id), text: "Recorded call: " + (call.outcome || "Outcome not recorded"), time: call.occurred_at ? new Date(call.occurred_at).toLocaleString() : "", kind: "Call", occurredAt: call.occurred_at || "" })),
+    ...context.notes.map(note => ({ id: "note-" + note.id, leadId: note.lead_id, actor: note.author_label || "Team member", text: "Added a note", time: note.occurred_at ? new Date(note.occurred_at).toLocaleString() : "", kind: "Note", occurredAt: note.occurred_at || "" })),
+  ].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
   return {
     leads: records("leads")
       .map(lead => leadFromServer(lead, context))
@@ -149,6 +153,7 @@ export function collectionsFromStore(store) {
     tasks: records("tasks").map(task => taskFromServer(task, context.directory)),
     deals: records("deals").map(dealFromServer),
     handoffs: records("handoffs").map(handoff => handoffFromServer(handoff, context.directory)),
+    activities,
     datasets: (store.projects || []).map(project => ({
       id: project.id,
       name: project.name,
