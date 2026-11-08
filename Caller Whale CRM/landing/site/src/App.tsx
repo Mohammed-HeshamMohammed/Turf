@@ -136,7 +136,9 @@ function Providers({ action }: { action: string }) {
   useEffect(() => {
     auth.providers().then(setList, () => {});
   }, []);
-  if (!list.google) return null;
+  // Hidden only when the server says Google is off. When the question cannot be answered (a blocker, a privacy setting, a
+  // network that stops auth.callerwhale.com), the button stays, and pressing it says what is wrong instead of vanishing.
+  if (list.google === false) return null;
   return (
     <>
       <button type="button" className="button raised" disabled={state.busy} onClick={() => run(async () => void (await auth.startProvider("google", "landing", await humanToken(getAuth, action), action)))}>
