@@ -385,6 +385,18 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					notFound(w)
 					return
 				}
+				// The website's public forms are answered here, for the pages in CORS_ORIGINS, so the form does not depend on
+				// the service behind having the same list (when it did not, the browser refused to send the form at all).
+				if _, form := formRuleFor(requested, r.URL.Path); form {
+					if g.cfg.corsOrigins[r.Header.Get("Origin")] {
+						h := w.Header()
+						h.Set("Access-Control-Allow-Methods", "POST")
+						h.Set("Access-Control-Allow-Headers", "content-type")
+						h.Set("Access-Control-Max-Age", "600")
+					}
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
 				rt.proxy.ServeHTTP(w, r)
 				return
 			}

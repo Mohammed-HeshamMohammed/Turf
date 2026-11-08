@@ -9,7 +9,7 @@ Auth alone verifies reCAPTCHA tokens. Off by default. Set AUTH_BOT_PROTECTION=tr
 
 GET /v1/security publicly returns bot_protection {enabled,site_key} and password_policy {minimum:8,maximum:4096,uppercase:true,lowercase:true,number:true,special:true}. Disabled site_key is an empty string.
 
-Frontend contract: include human_token:string in SignUp (POST /v1/accounts) and SignIn (POST /v1/sessions). The token's action must be signup or signin respectively. The client asks Google for a token when the page opens, again every 90 seconds (tokens last 2 minutes) and again after each submission. All password submissions, including legacy code submissions, are checked; sending an empty or arbitrary code cannot bypass verification. Challenge-based /v1/mfa responses retain their existing authentication checks and do not repeat the first-leg check.
+Frontend contract: include human_token:string in SignUp (POST /v1/accounts) and SignIn (POST /v1/sessions). The token's action must be signup or signin respectively. The page loads Google's script when it opens and asks for a new token at the moment each request is sent (`humanToken(getAuth, action)` in human-check.jsx), because Google accepts a token once: a token kept from earlier made every second try, and the Google button on the first sign-up step (which had no token at all), fail with "Verify you are human". All password submissions, including legacy code submissions, are checked; sending an empty or arbitrary code cannot bypass verification. Challenge-based /v1/mfa responses retain their existing authentication checks and do not repeat the first-leg check.
 
 The backend posts to the fixed HTTPS Google siteverify endpoint (`https://www.google.com/recaptcha/api/siteverify`) with an eight-second timeout and no redirects. Tokens must be nonblank and at most 2048 bytes. Failure, timeout, wrong action, hostname mismatch or a score below AUTH_RECAPTCHA_MIN_SCORE returns 403 with code human_required. No user-supplied IP is trusted or forwarded. Google handles token expiry and replay rejection; every submission is verified remotely.
 
@@ -32,7 +32,7 @@ Setup still to do, by the owner:
 | `POST /v1/oauth/{provider}/start` | `signin` or `signup`, as the body says (default `signin`) |
 | `GET /v1/oauth/{provider}/start` | refused: an address cannot carry a token |
 
-The token is the body's `human_token`. A good token must also come from one of `RECAPTCHA_HOSTNAMES` and score at least the minimum. Everything else, including Google not answering, is a 403 `human_required`, and nothing reaches auth. Each address may make `HUMAN_PER_MINUTE` guarded requests a minute, counted before Google is asked. `GET /v1/security` is edited on the way out so the pages learn the check is on and which site key to use. Auth must not be reachable except through the gateway.
+The token is the body's `human_token`. A good token must also come from one of `RECAPTCHA_HOSTNAMES` and score at least the minimum. Everything else, including Google not answering, is a 403 `human_required`, and nothing reaches auth. Each address may make `HUMAN_PER_MINUTE` guarded requests a minute, counted before Google is asked. The browser's preflight for the two website forms is answered by the gateway itself, for the origins in `CORS_ORIGINS`, so the form does not depend on the service behind having the same list. `GET /v1/security` is edited on the way out so the pages learn the check is on and which site key to use. Auth must not be reachable except through the gateway.
 
 ## Desktop sign-in
 
