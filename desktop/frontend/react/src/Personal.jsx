@@ -5,6 +5,7 @@ import { AVATAR_PRESETS, squareAvatar } from "./avatars.ts";
 import { EmailChange } from "./EmailChange.jsx";
 import { SITE } from "./remote/api.ts";
 import { personalProfile } from "./model.ts";
+import { START_PAGES } from "./personal-preferences.ts";
 import { useCrm } from "./context.jsx";
 import { Avatar, Badge, Breadcrumb, Button, Card, Field, PageHeader, usePresence } from "./ui.jsx";
 
@@ -83,7 +84,7 @@ export function PersonalMenu({ onOpen }) {
             </button>
             <button onClick={() => go("personal/preferences")}>
               <Bell size={19} />
-              <span>Notification preferences</span>
+              <span>Preferences</span>
             </button>
             {role.pages.includes("tasks") && (
               <button onClick={() => go("work/tasks?mine=1")}>
@@ -109,7 +110,7 @@ export function PersonalMenu({ onOpen }) {
 }
 
 export function PersonalPage({ section = "profile" }) {
-  const { state, dispatch, notify, navigate } = useCrm();
+  const { state, dispatch, notify, navigate, sidebarCollapsed, setSidebarPreference } = useCrm();
   const profile = personalProfile(state);
   const role = ROLES[state.role];
   return (
@@ -242,30 +243,57 @@ export function PersonalPage({ section = "profile" }) {
           </Card>
         </div>
       ) : (
-        <Card title="Notifications, your way" subtitle="Choose what appears in your personal notification panel.">
-          <div className="personal-preferences">
-            {[
-              ["taskReminders", "Task reminders", "Your next steps and open tasks."],
-              ["replyReminders", "Unread conversations", "Unread messages in the conversations you can access."],
-            ].map(([key, label, description]) => (
-              <label key={key}>
-                <div>
-                  <strong>{label}</strong>
-                  <small>{description}</small>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={profile[key]}
-                  onChange={event => {
+        <div className="preferences-sections">
+          <Card title="Notifications" subtitle="Choose what appears under the bell in this CRM.">
+            <div className="personal-preferences">
+              {[
+                ["taskReminders", "Open tasks", "Remind me about my open tasks and callbacks.", "tasks"],
+                ["replyReminders", "Unread conversations", "Show unread messages I can access.", "inbox"],
+                ["handoffReminders", "Pending handoffs", "Show handoffs waiting in the leads I can access.", "handoffs"],
+              ].filter(([, , , page]) => role.pages.includes(page)).map(([key, label, description]) => (
+                <label key={key}>
+                  <div><strong>{label}</strong><small>{description}</small></div>
+                  <input type="checkbox" checked={profile[key]} onChange={event => {
                     dispatch({ type: "PERSONAL", profile: { [key]: event.target.checked } });
-                    notify("Personal preference saved");
-                  }}
-                />
+                    notify("Preference saved on this device");
+                  }} />
+                </label>
+              ))}
+            </div>
+            {role.pages.includes("tasks") && (
+              <Field label="Tasks shown in the bell" help="The Tasks page still shows every task.">
+                <select value={profile.taskNoticeScope} disabled={!profile.taskReminders} onChange={event => dispatch({ type: "PERSONAL", profile: { taskNoticeScope: event.target.value } })}>
+                  <option value="all">All open tasks</option>
+                  <option value="due">Due today or overdue</option>
+                </select>
+              </Field>
+            )}
+            <p className="muted">These settings control in-app notices only. They do not send email or SMS.</p>
+          </Card>
+          <Card title="Workspace and navigation" subtitle="Choose how the CRM opens on this device.">
+            <Field label="Opening page" help="Used when you open the CRM without a page in the link. Bookmarked pages still open directly.">
+              <select value={role.pages.includes(profile.startPage) ? profile.startPage : "dashboard"} onChange={event => dispatch({ type: "PERSONAL", profile: { startPage: event.target.value } })}>
+                {START_PAGES.filter(page => role.pages.includes(page.id)).map(page => <option key={page.id} value={page.id}>{page.label}</option>)}
+              </select>
+            </Field>
+            <div className="personal-preferences">
+              <label>
+                <div><strong>Compact sidebar</strong><small>Keep navigation collapsed until you open it.</small></div>
+                <input type="checkbox" checked={sidebarCollapsed} onChange={event => setSidebarPreference(event.target.checked)} />
               </label>
-            ))}
-          </div>
-          <p className="muted">Saved for {profile.name}. These preview preferences control in-app notices; they do not send email or SMS.</p>
-        </Card>
+            </div>
+          </Card>
+          <Card title="Display and accessibility" subtitle="Make movement in the CRM more comfortable.">
+            <div className="personal-preferences">
+              <label>
+                <div><strong>Reduce motion</strong><small>Shorten animations and page transitions in the CRM.</small></div>
+                <input type="checkbox" checked={profile.reduceMotion} onChange={event => dispatch({ type: "PERSONAL", profile: { reduceMotion: event.target.checked } })} />
+              </label>
+            </div>
+            <p className="muted">Your device’s reduced-motion setting is also respected.</p>
+          </Card>
+          <p className="muted">Preferences are saved for {profile.name} on this device.</p>
+        </div>
       )}
     </>
   );

@@ -244,6 +244,19 @@ svg {
   gap: 12px;
   margin-bottom: 20px;
 }
+.preferences-sections {
+  display: grid;
+  gap: 20px;
+  max-width: 900px;
+}
+.crm-window.reduce-motion *,
+.crm-window.reduce-motion *::before,
+.crm-window.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.01ms !important;
+}
 .personal-preferences > label {
   display: flex;
   gap: 20px;
