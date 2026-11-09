@@ -12,7 +12,7 @@ VOCABULARY = {
                    "customer first name", "client first name", "contact first name", "seller first name"],
     "last_name": ["last name", "last", "lname", "surname", "family name", "owner last name", "owner 1 last name", "last name owner",
                   "customer last name", "client last name", "contact last name", "seller last name"],
-    "phone": ["phone", "phone number", "phone 1", "phone #", "telephone", "tel", "mobile", "mobile phone", "mobile number", "cell", "cell phone",
+    "phone": ["phone", "phone number", "phone 1", "phone #", "alt phone", "alternate phone", "alternative phone", "telephone", "tel", "mobile", "mobile phone", "mobile number", "cell", "cell phone",
               "cellphone", "wireless", "landline", "contact number", "contact phone", "owner phone", "primary phone", "best phone", "home phone",
               "work phone", "number", "whatsapp"],
     "email": ["email", "e mail", "email address", "owner email", "contact email", "primary email"],
@@ -35,6 +35,25 @@ _MAILING = {"mailing", "mail"}  # the mailing address is another address than th
 
 _lookup = {phrase: field for field, phrases in VOCABULARY.items() for phrase in phrases}
 
+# Recognized headings whose values remain in the original PostgreSQL source rows.
+# They are not offered as lead fields until the Core schema and merge support them.
+SOURCE_DETAILS = {
+    "id": "Source record ID", "county": "County", "living square feet": "Living area", "year built": "Year built",
+    "lot acres": "Lot size (acres)", "lot square feet": "Lot size (square feet)", "land use": "Land use",
+    "property type": "Property type", "property use": "Property use", "subdivision": "Subdivision",
+    "legal description": "Legal description", "units count": "Units", "bedrooms": "Bedrooms", "bathrooms": "Bathrooms",
+    "# of stories": "Stories", "garage type": "Garage type", "garage square feet": "Garage area",
+    "carport": "Carport", "carport area": "Carport area", "air conditioning type": "Cooling",
+    "heating type": "Heating", "# of fireplaces": "Fireplaces",
+    "owner mailing address": "Owner mailing address", "owner mailing city": "Owner mailing city",
+    "owner mailing state": "Owner mailing state", "owner mailing zip": "Owner mailing ZIP",
+    "ownership length months": "Ownership length", "owner type": "Owner type",
+    "owner occupied": "Owner occupied", "vacant": "Vacancy",
+    "batch name": "Batch name", "original file name": "Original file name", "upload date": "Upload date",
+    "status": "Status", "original status": "Original status", "status time": "Status time",
+    "status agent": "Status agent", "lead file campaign": "Lead file campaign",
+}
+
 
 def normalize_header(header: str) -> str:
     """Lower-case words separated by single spaces; camelCase is split."""
@@ -55,6 +74,15 @@ def suggest(header: str) -> str | None:
     if stem != words and _lookup.get(stem) in MULTIPLE:
         return _lookup[stem]
     return None
+
+
+def source_detail(header: str) -> str | None:
+    """A recognized source-only title, distinct from a CRM field suggestion."""
+    words = normalize_header(header)
+    owner = re.fullmatch(r"owner ((?:[2-9]|[1-9][0-9]+)) (first|last|full) name", words)
+    if owner:
+        return f"Owner {owner[1]} {owner[2]} name"
+    return SOURCE_DETAILS.get(words)
 
 
 def suggest_all(headers: list[str]) -> list[str | None]:
