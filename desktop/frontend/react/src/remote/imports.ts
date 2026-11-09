@@ -25,6 +25,7 @@ export type ImportColumn = {
   idx: number;
   header: string;
   suggested: string | null;
+  source_detail?: string | null;
   field: string | null;
   used: boolean | null;
   populated: number;
