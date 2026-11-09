@@ -15,7 +15,12 @@ const dbFor = userId => makeDb("callerwhale-crm-offline-user-" + encodeURICompon
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
-const toBase64 = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes)));
+const toBase64 = bytes => {
+  const data = new Uint8Array(bytes);
+  const parts: string[] = [];
+  for (let i = 0; i < data.length; i += 8192) parts.push(String.fromCharCode(...data.subarray(i, i + 8192)));
+  return btoa(parts.join(""));
+};
 const fromBase64 = text => Uint8Array.from(atob(text), c => c.charCodeAt(0));
 
 async function deriveKey(passphrase, salt, extractable = false) {
