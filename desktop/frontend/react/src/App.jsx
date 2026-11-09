@@ -331,10 +331,11 @@ export function App() {
   const connect = useCallback(async ({ me, vault }) => {
     const role = applyIdentity(me);
     const [directory, teams, projects] = await Promise.all([api.directory(), api.teams(), api.projects()]);
-    const organization = me.organizations.find(item => item.id === me.organization_id)?.name || "";
+    const selectedWorkspace = me.organizations.find(item => item.id === me.organization_id);
+    const organization = selectedWorkspace?.name || "";
     // `people`: the workspace's members from the server, with how each signs in.
     const preferences = loadPersonalPreferences(me.user.id);
-    apply({ type: "REMOTE_START", role, preferences, remote: { user: me.user, capabilities: me.capabilities, organization, organizationId: me.organization_id, organizations: me.organizations, roles: me.roles, people: directory } });
+    apply({ type: "REMOTE_START", role, preferences, remote: { user: me.user, capabilities: me.capabilities, organization, organizationId: me.organization_id, organizations: me.organizations, roles: me.roles, people: directory, timezone: selectedWorkspace?.timezone || "UTC" } });
     setSidebarCollapsed(preferences.sidebarCollapsed);
     if (!window.location.hash) {
       const preferred = START_PAGES.find(page => page.id === preferences.startPage && ROLES[role].pages.includes(page.id));

@@ -5,6 +5,7 @@ import { beginDemoCall, useCallSession } from "./callSession.ts";
 import { dialerTarget } from "./dialer.ts";
 import { callDuration, visibleCallLog } from "./callLog.ts";
 import { Button, Empty, Search } from "./ui.jsx";
+import { capability } from "./model.ts";
 
 export function CallLog({ onCall }) {
   const { state, navigate, notify } = useCrm();
@@ -13,6 +14,7 @@ export function CallLog({ onCall }) {
   const entries = visibleCallLog(state).filter(call => [call.name, call.phone, call.outcome].join(" ").toLowerCase().includes(search.toLowerCase()));
   const busy = session.active || session.awaitingOutcome;
   return <div className="call-log">
+    {state.remote && capability(state, "import") && <div className="import-actions"><Button onClick={() => navigate("work/calls?view=import")}>Import ReadyMode history</Button></div>}
     <Search label="Search call log" placeholder="Search calls…" value={search} onChange={setSearch} />
     <div className="call-log-entries">
       {entries.map(call => {
@@ -23,6 +25,8 @@ export function CallLog({ onCall }) {
           <div className="call-log-details">
             <div className="call-log-person"><strong>{call.name || call.phone}</strong>{call.name && call.phone && <span>{call.phone}</span>}</div>
             <div className="call-log-result"><span>{call.outcome}{duration && " · " + duration}</span>{call.endedBy === "contact" && <span>Contact hung up</span>}</div>
+            {call.notes && <p className="muted">{call.notes}</p>}
+            {call.source === "readymode" && <span className="muted">ReadyMode{call.details?.phones?.length > 1 ? " · Other numbers: " + call.details.phones.slice(1).join(", ") : ""}</span>}
             <div className="call-log-when"><time>{new Date(call.startedAt || call.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</time><span>{call.agent}</span></div>
             <div className="call-log-actions">
               <Button icon={Phone} disabled={busy || !state.online || Boolean(target.error)} title={busy ? "Finish the current call and its outcome first" : target.error} onClick={() => {

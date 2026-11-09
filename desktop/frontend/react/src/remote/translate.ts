@@ -83,6 +83,10 @@ export function leadFromServer(lead, { directory = [], teams = [], calls = [], n
         code: call.code,
         agent: call.agent_label || nameOf(directory, call.agent_id),
         scheduled: call.scheduled_at ? localParts(call.scheduled_at).join("T") : "",
+        notes: call.notes || "",
+        phone: call.phone || "",
+        source: call.source || "",
+        details: call.details || {},
       })),
     notes: notes
       .filter(note => note.lead_id === lead.id)
