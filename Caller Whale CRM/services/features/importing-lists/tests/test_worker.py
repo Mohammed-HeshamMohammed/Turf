@@ -348,6 +348,8 @@ class EndToEndTest(unittest.TestCase):
         columns = self.job(job_id)["columns"]
         self.assertEqual([c["standard_key"] for c in columns],
                          ["owner_1_first_name", "owner_1_last_name", "address", "county", "living_area", "bedrooms", "bathrooms", "year_built", "vacancy"])
+        self.assertEqual([c["suggested"] for c in columns],
+                         ["first_name", "last_name", "address", "county", "living_area", "bedrooms", "bathrooms", "year_built", "vacancy"])
         for column in columns:
             column["field"], column["used"] = column["suggested"], column["suggested"] is not None
         with self.conn.cursor() as cur:
@@ -362,6 +364,23 @@ class EndToEndTest(unittest.TestCase):
         self.assertEqual(source["owner_1_first_name"], "Pat")
         self.assertEqual(details["area"], 1234)
         self.assertEqual((details["beds"], details["baths"], details["county"], details["year_built"]), (3, 2, "Travis", "1980"))
+
+    def test_manual_property_mapping_uses_confirmed_field_in_source_data(self) -> None:
+        job_id = self.queue(b"First Name,Last Name,Address,Unfamiliar Area Title\nPat,Owner,1 Main St,1234\n")
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        columns = self.job(job_id)["columns"]
+        for column in columns:
+            column["field"], column["used"] = column["suggested"], column["suggested"] is not None
+        columns[3]["field"], columns[3]["used"] = "living_area", True
+        self.conn.execute("UPDATE importing.jobs SET columns = %s::jsonb, status = 'cleaning' WHERE id = %s", (json.dumps(columns), job_id))
+        self.conn.commit()
+        self.worker.clean(self.conn, self.worker.claim(self.conn))
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT cells[4], source_data, importing.property_details(source_data) FROM importing.rows WHERE job_id = %s", (job_id,))
+            original, source, details = cur.fetchone()
+        self.assertEqual(original, "1234")
+        self.assertEqual(source["living_area"], "1234")
+        self.assertEqual(details["area"], 1234)
 
     def test_exact_prior_rows_are_linked_without_review_but_changed_rows_still_need_a_choice(self) -> None:
         original = b"Name,Phone,Address\nPat Owner,5125550100,1 Main St\n"

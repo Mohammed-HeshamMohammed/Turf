@@ -244,7 +244,7 @@ def drop_empty_columns(cur: psycopg.Cursor, job_id: str, headers: list[str]) -> 
 
 def describe_columns(cur: psycopg.Cursor, job_id: str, headers: list[str], populated: list[int] | None = None) -> list[dict]:
     """What the person is shown to confirm: each column's header, how many rows have something in it, a few examples, and the
-    CRM field it looks like (or none: the CRM does not use it)."""
+    lead or structured source field it looks like."""
     if populated is None:
         populated = column_population(cur, job_id, headers)
     cur.execute("SELECT cells FROM importing.rows WHERE job_id = %s ORDER BY row_no LIMIT 300", (job_id,))
@@ -260,7 +260,8 @@ def describe_columns(cur: psycopg.Cursor, job_id: str, headers: list[str], popul
                 seen.append(value[:80])
             if len(seen) == 3:
                 break
-        out.append({"idx": i, "header": header, "suggested": suggestions[i], "source_detail": matching.source_detail(header),
+        detail = matching.source_detail(header)
+        out.append({"idx": i, "header": header, "suggested": suggestions[i] or (standard_keys[i] if detail else None), "source_detail": detail,
                     "standard_key": standard_keys[i],
                     "field": None, "used": None, "populated": populated[i], "samples": seen})
     return out
@@ -307,8 +308,25 @@ def cleaning_sql(columns: list[dict]) -> str:
 
 
 def source_data_sql(columns: list[dict]) -> str:
-    """Original nonempty values under stable keys, independently of the chosen CRM lead mapping."""
-    recognized = [(c["standard_key"], c["idx"] + 1) for c in columns if c.get("standard_key")]
+    """Original nonempty values under stable keys, including manually identified source fields."""
+    lead_fields = {"name", "first_name", "last_name", "phone", "email", "address", "unit", "city", "region", "zip",
+                   "country", "latitude", "longitude", "parcel", "value", "source"}
+    recognized = []
+    used = set()
+    for column in columns:
+        if not column.get("used"):
+            continue  # The original cell remains in cells; it was not confirmed as structured data.
+        field = column.get("field")
+        base = field if field and field not in lead_fields else column.get("standard_key") or field
+        if not base:
+            continue
+        key = base
+        suffix = 2
+        while key in used:
+            key = f"{base}_{suffix}"
+            suffix += 1
+        used.add(key)
+        recognized.append((key, column["idx"] + 1))
     if not recognized:
         return "'{}'::jsonb"
     keys = ", ".join("'" + key.replace("'", "''") + "'" for key, _ in recognized)

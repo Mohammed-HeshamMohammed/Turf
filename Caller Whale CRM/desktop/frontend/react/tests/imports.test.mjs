@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { ApiError } from "../src/remote/api.ts";
-import { follow, mappingBody, mappingProblem, sha256Hex, uploadFile } from "../src/remote/imports.ts";
+import { SOURCE_IMPORT_FIELDS, follow, mappingBody, mappingProblem, sha256Hex, uploadFile } from "../src/remote/imports.ts";
 
 const file = (size, name = "owners.csv") =>
   Object.assign(new Blob([new Uint8Array(size).map((_, i) => i % 251)]), {
@@ -144,6 +144,19 @@ test("the columns are answered with the suggestions unless the person chose othe
     { idx: 1, use: false },
     { idx: 2, field: "city", use: true },
   ]);
+});
+
+test("property and mailing fields from supplied lists can be confirmed as structured source data", () => {
+  const available = new Set(SOURCE_IMPORT_FIELDS.map(([key]) => key));
+  for (const key of ["county", "living_area", "year_built", "lot_size_acres", "lot_size_square_feet", "bedrooms", "bathrooms", "stories", "garage_area", "owner_2_first_name", "owner_mailing_address", "owner_mailing_zip", "ownership_length", "vacancy", "status_time"]) {
+    assert.ok(available.has(key), key);
+  }
+  const sourceColumns = [
+    { idx: 0, suggested: "first_name" }, { idx: 1, suggested: "address" },
+    { idx: 2, suggested: null, source_detail: "Living area", standard_key: "living_area" },
+  ];
+  assert.deepEqual(mappingBody(sourceColumns, {}).columns[2], { idx: 2, field: "living_area", use: true });
+  assert.equal(mappingProblem(sourceColumns, {}), "");
 });
 
 test("the person is told what is missing before anything is sent", () => {
