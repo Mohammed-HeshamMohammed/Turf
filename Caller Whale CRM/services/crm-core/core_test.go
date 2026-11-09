@@ -2,12 +2,9 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -277,7 +274,7 @@ func TestFailedImportCleanupRemovesEmptyListsButKeepsExistingLeads(t *testing.T)
 	e.seed()
 	ctx := context.Background()
 	start := func() (string, string) {
-		status, job := e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "owners.csv", "size": 100, "name": "Owners"})
+		status, job := e.startImport(alice, orgA, map[string]any{"filename": "owners.csv", "size": 100, "name": "Owners"})
 		if status != 200 {
 			t.Fatalf("start import: %d %v", status, job)
 		}
@@ -388,45 +385,13 @@ func TestLiveEventsReachOnlyTheSameWorkspace(t *testing.T) {
 	}
 }
 
-func sha(b []byte) string { h := sha256.Sum256(b); return hex.EncodeToString(h[:]) }
-
-func TestUploadingInPiecesResumesAndRejectsDamage(t *testing.T) {
+func TestUploadEndpointsBelongToWorker(t *testing.T) {
 	e := newEnv(t)
 	e.seed()
-	file := []byte("name,phone\nPat,555-0100\n")
-	status, job := e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "owners.csv", "size": len(file)})
-	if status != 200 || job["status"] != "uploading" || job["total_chunks"] != float64(1) {
-		t.Fatalf("start: %d %v", status, job)
-	}
-	id := job["id"].(string)
-	header := func(sum string) http.Header { return http.Header{"X-Chunk-Sha256": {sum}} }
-	if status, _ := e.raw(alice, orgA, "PUT", "/api/v1/imports/"+id+"/chunks/0", file, header(sha([]byte("other")))); status != 422 {
-		t.Fatalf("a damaged piece: %d", status)
-	}
-	if status, _ := e.raw(alice, orgA, "PUT", "/api/v1/imports/"+id+"/chunks/0", file[:5], header(sha(file[:5]))); status != 400 {
-		t.Fatalf("a short piece: %d", status)
-	}
-	if status, _ := e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/complete", nil); status != 400 {
-		t.Fatalf("completing with a piece missing: %d", status)
-	}
-	if status, _ := e.raw(alice, orgA, "PUT", "/api/v1/imports/"+id+"/chunks/0", file, header(sha(file))); status != 200 {
-		t.Fatalf("a good piece: %d", status)
-	}
-	if _, again := e.call(alice, orgA, "GET", "/api/v1/imports/"+id, nil); len(again["received"].([]any)) != 1 {
-		t.Fatalf("resume must list the pieces held: %v", again)
-	}
-	if _, err := os.Stat(filepath.Join(e.s.cfg.importDir, id, "0.part")); err != nil {
-		t.Fatalf("the piece is in the shared folder: %v", err)
-	}
-	if _, done := e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/complete", nil); done["status"] != "queued" {
-		t.Fatalf("complete: %v", done)
-	}
-	// Other people cannot see it, and a bad file type is refused up front.
-	if status, _ := e.call(bob, orgA, "GET", "/api/v1/imports/"+id, nil); status != 404 {
-		t.Fatalf("someone else's import: %d", status)
-	}
-	if status, _ := e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "run.exe", "size": 10}); status != 400 {
-		t.Fatalf("file type: %d", status)
+	for _, test := range []struct{ method, path string }{{"POST", "/api/v1/imports"}, {"PUT", "/api/v1/imports/11111111-1111-4111-8111-111111111111/chunks/0"}, {"POST", "/api/v1/imports/11111111-1111-4111-8111-111111111111/complete"}} {
+		if status, _ := e.call(alice, orgA, test.method, test.path, nil); status != 404 && status != 405 {
+			t.Fatalf("core handled %s %s: %d", test.method, test.path, status)
+		}
 	}
 }
 
@@ -435,7 +400,7 @@ func TestAConfirmedListIsMergedIntoLeadsInBatches(t *testing.T) {
 	e := newEnv(t)
 	e.seed()
 	ctx := context.Background()
-	_, job := e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "owners.csv", "size": 100, "name": "Austin"})
+	_, job := e.startImport(alice, orgA, map[string]any{"filename": "owners.csv", "size": 100, "name": "Austin"})
 	id := job["id"].(string)
 	columns := `[{"idx":0,"header":"Owner","suggested":"name"},{"idx":1,"header":"Cell","suggested":"phone"},{"idx":2,"header":"Bathroom style","suggested":null}]`
 	if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'mapping', columns = $2::jsonb WHERE id = $1`, id, columns); err != nil {
@@ -519,39 +484,12 @@ func TestAConfirmedListIsMergedIntoLeadsInBatches(t *testing.T) {
 
 func ptr[T any](v T) *T { return &v }
 
-func TestOnlyThreeImportsMayBeUnderWayPerWorkspace(t *testing.T) {
-	e := newEnv(t)
-	e.seed()
-	for i := 0; i < maxActiveImports; i++ {
-		if status, out := e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "list.csv", "size": 100}); status != 200 {
-			t.Fatalf("import %d: %d %v", i, status, out)
-		}
-	}
-	status, out := e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "list.csv", "size": 100})
-	if status != http.StatusTooManyRequests || out["error"].(map[string]any)["code"] != "too_many_imports" {
-		t.Fatalf("a fourth import: %d %v", status, out)
-	}
-	// Another workspace is not held back by this one, and cancelling frees a place.
-	if status, _ = e.call(carol, orgB, "POST", "/api/v1/imports", map[string]any{"filename": "list.csv", "size": 100}); status != 200 {
-		t.Fatalf("another workspace: %d", status)
-	}
-	_, list := e.raw(alice, orgA, "GET", "/api/v1/imports", nil, nil)
-	var jobs []map[string]any
-	_ = json.Unmarshal(list, &jobs)
-	if status, _ = e.call(alice, orgA, "POST", "/api/v1/imports/"+jobs[0]["id"].(string)+"/cancel", nil); status != 200 {
-		t.Fatalf("cancel: %d", status)
-	}
-	if status, _ = e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "list.csv", "size": 100}); status != 200 {
-		t.Fatalf("after cancelling: %d", status)
-	}
-}
-
 func TestCompletedSourceRowsStayWhileFailedHoldingRowsExpire(t *testing.T) {
 	e := newEnv(t)
 	e.seed()
 	ctx := context.Background()
-	_, a := e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "old.csv", "size": 100})
-	_, b := e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "fresh.csv", "size": 100})
+	_, a := e.startImport(alice, orgA, map[string]any{"filename": "old.csv", "size": 100})
+	_, b := e.startImport(alice, orgA, map[string]any{"filename": "fresh.csv", "size": 100})
 	for i, job := range []map[string]any{a, b} {
 		id := job["id"].(string)
 		if _, err := e.admin.Exec(ctx, `INSERT INTO importing.rows (job_id, row_no, fp, cells) VALUES ($1, 1, sha256('x'::bytea), ARRAY['x'])`, id); err != nil {

@@ -1,37 +1,23 @@
 package main
 
-// List imports, the crm-core half (docs/plans/crm-core-and-imports.md). The browser cuts a file into pieces and sends them here;
-// the import worker (services/features/importing-lists) loads them into the holding tables, finds repeats and matches columns;
-// the person confirms; this service then merges the rows into leads in batches, so the CRM stays usable while a big list lands.
+// List imports, the crm-core half (docs/plans/crm-core-and-imports.md). The import worker receives and parses files into SQL rows;
+// the person confirms mapping and duplicates; this service merges those rows into leads in batches.
 // The holding tables belong to the "importing" schema: the worker's login can reach only those, never the leads.
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
-	"io"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 )
 
-const (
-	chunkSize  = 8 << 20 // the pieces are about 8 MB, far under the proxy's request limit
-	mergeBatch = 50000
-	// A workspace may have this many imports under way at once, so one person cannot fill the disk with uploads.
-	maxActiveImports = 3
-)
-
-var importExtensions = []string{".csv", ".txt", ".xlsx", ".xls"}
+const mergeBatch = 50000
 
 // importFields are the CRM fields a source column can be matched to. Phones and emails may repeat (phone 1, phone 2).
 var importFields = []string{"name", "first_name", "last_name", "phone", "email", "address", "unit", "city", "region", "zip", "country", "latitude", "longitude", "parcel", "value", "source"}
@@ -44,8 +30,6 @@ func (s *server) importRights(q *req) error {
 	}
 	return nil
 }
-
-func (s *server) jobPath(id string) string { return filepath.Join(s.cfg.importDir, id) }
 
 // job is one of this person's uploads (or any in the workspace, for an administrator).
 func (s *server) job(ctx context.Context, q *req, id string) (map[string]any, error) {
@@ -84,86 +68,6 @@ func scanJobs(rows pgx.Rows) ([]map[string]any, error) {
 			"project_id": project, "created_at": created, "updated_at": updated})
 	}
 	return out, rows.Err()
-}
-
-func (s *server) importStart(q *req) error {
-	if err := s.importRights(q); err != nil {
-		return err
-	}
-	var body struct {
-		Name      string `json:"name"`
-		Filename  string `json:"filename"`
-		Size      int64  `json:"size"`
-		ProjectID string `json:"project_id"`
-		HasHeader *bool  `json:"has_header"`
-	}
-	if err := readJSON(q.w, q.r, &body); err != nil {
-		return err
-	}
-	filename := filepath.Base(strings.TrimSpace(body.Filename))
-	if !slices.Contains(importExtensions, strings.ToLower(filepath.Ext(filename))) {
-		return bad("Lists can be CSV, TXT, XLSX or XLS files.")
-	}
-	if body.Size < 1 || body.Size > s.cfg.maxImportMB<<20 {
-		return bad("That file is empty or larger than " + strconv.FormatInt(s.cfg.maxImportMB, 10) + " MB.")
-	}
-	name := strings.TrimSpace(body.Name)
-	if name == "" {
-		name = strings.TrimSuffix(filename, filepath.Ext(filename))
-	}
-	if len([]rune(name)) > 200 {
-		return bad("Name the list in 200 characters or fewer.")
-	}
-	ctx := q.r.Context()
-	var active int
-	if err := s.st.db.QueryRow(ctx, `SELECT count(*) FROM importing.jobs WHERE org_id = $1 AND status NOT IN ('done', 'failed', 'cancelled')`, q.sc.orgID).Scan(&active); err != nil {
-		return err
-	}
-	if active >= maxActiveImports {
-		return &apiError{http.StatusTooManyRequests, "too_many_imports", "You already have " + strconv.Itoa(maxActiveImports) + " imports in progress. Finish or cancel one before starting another."}
-	}
-	tx, err := s.st.begin(ctx, q.sc)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-	var project *string
-	if body.ProjectID != "" {
-		if !validID(body.ProjectID) {
-			return bad("That list does not exist.")
-		}
-		var found string
-		if err = tx.QueryRow(ctx, `SELECT id::text FROM projects WHERE id = $1 FOR KEY SHARE`, body.ProjectID).Scan(&found); err != nil {
-			return bad("That list does not exist.")
-		}
-		project = &found
-	} else {
-		var created string
-		if err = tx.QueryRow(ctx, `INSERT INTO projects (org_id, name) VALUES (cw_org(), $1) RETURNING id::text`, name).Scan(&created); err != nil {
-			return err
-		}
-		project = &created
-	}
-	var team *string
-	if len(q.sc.teamIDs) > 0 && validID(q.sc.teamIDs[0]) {
-		team = &q.sc.teamIDs[0]
-	}
-	total := int((body.Size + chunkSize - 1) / chunkSize)
-	header := body.HasHeader == nil || *body.HasHeader
-	var id string
-	err = tx.QueryRow(ctx, `INSERT INTO importing.jobs (org_id, user_id, project_id, team_id, name, filename, size, chunk_size, total_chunks, has_header, progress)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, '{"phase":"uploading","done":0}') RETURNING id::text`,
-		q.sc.orgID, q.sc.userID, project, team, name, filename, body.Size, chunkSize, total, header).Scan(&id)
-	if err != nil {
-		return err
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return err
-	}
-	if err = os.MkdirAll(s.jobPath(id), 0o755); err != nil {
-		return err
-	}
-	return s.importReply(q, id)
 }
 
 // importReply answers with the job as it stands, plus (while uploading) which pieces the server already holds, so an
@@ -212,98 +116,6 @@ func (s *server) importList(q *req) error {
 	}
 	writeJSON(q.w, http.StatusOK, list)
 	return nil
-}
-
-// importChunk stores one piece. The browser sends the piece's SHA-256 fingerprint; a piece that does not match is refused and
-// sent again. Sending a piece again is harmless.
-func (s *server) importChunk(q *req) error {
-	if err := s.importRights(q); err != nil {
-		return err
-	}
-	id := q.r.PathValue("id")
-	n, err := strconv.Atoi(q.r.PathValue("n"))
-	job, jerr := s.job(q.r.Context(), q, id)
-	if jerr != nil {
-		return jerr
-	}
-	total := int(job["total_chunks"].(int))
-	if err != nil || n < 0 || n >= total {
-		return bad("That piece number is not part of this file.")
-	}
-	if job["status"] != "uploading" {
-		return bad("This import is no longer receiving pieces.")
-	}
-	want := int64(chunkSize)
-	if n == total-1 {
-		want = job["size"].(int64) - int64(total-1)*chunkSize
-	}
-	fingerprint := strings.ToLower(q.r.Header.Get("x-chunk-sha256"))
-	if len(fingerprint) != 64 {
-		return bad("Send the piece's SHA-256 in x-chunk-sha256.")
-	}
-	dir := s.jobPath(id)
-	if err = os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(dir, "incoming-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	hash := sha256.New()
-	q.r.Body = http.MaxBytesReader(q.w, q.r.Body, want+1)
-	written, err := io.Copy(io.MultiWriter(tmp, hash), q.r.Body)
-	if cerr := tmp.Close(); err == nil {
-		err = cerr
-	}
-	if err != nil {
-		return bad("The piece did not arrive whole; send it again.")
-	}
-	if written != want {
-		return bad("That piece has the wrong size; send it again.")
-	}
-	if hex.EncodeToString(hash.Sum(nil)) != fingerprint {
-		return &apiError{http.StatusUnprocessableEntity, "fingerprint_mismatch", "The piece was damaged on the way; send it again."}
-	}
-	if err = os.Rename(tmp.Name(), filepath.Join(dir, strconv.Itoa(n)+".part")); err != nil {
-		return err
-	}
-	_, err = s.st.db.Exec(q.r.Context(), `INSERT INTO importing.chunks (job_id, n, size, sha256) VALUES ($1, $2, $3, $4)
-		ON CONFLICT (job_id, n) DO UPDATE SET size = EXCLUDED.size, sha256 = EXCLUDED.sha256`, id, n, written, fingerprint)
-	if err == nil {
-		_, err = s.st.db.Exec(q.r.Context(), `UPDATE importing.jobs SET updated_at = now() WHERE id = $1`, id)
-	}
-	if err != nil {
-		return err
-	}
-	writeJSON(q.w, http.StatusOK, map[string]any{"n": n, "stored": true})
-	return nil
-}
-
-func (s *server) importComplete(q *req) error {
-	if err := s.importRights(q); err != nil {
-		return err
-	}
-	id := q.r.PathValue("id")
-	job, err := s.job(q.r.Context(), q, id)
-	if err != nil {
-		return err
-	}
-	if job["status"] != "uploading" {
-		return writeJob(q, job)
-	}
-	var have int
-	var bytes int64
-	if err = s.st.db.QueryRow(q.r.Context(), `SELECT count(*), coalesce(sum(size), 0) FROM importing.chunks WHERE job_id = $1`, id).Scan(&have, &bytes); err != nil {
-		return err
-	}
-	if have != job["total_chunks"].(int) || bytes != job["size"].(int64) {
-		return bad("Some pieces are missing; send them first.")
-	}
-	if _, err = s.st.db.Exec(q.r.Context(), `UPDATE importing.jobs SET status = 'queued', progress = '{"phase":"queued","done":0}', updated_at = now() WHERE id = $1 AND status = 'uploading'`, id); err != nil {
-		return err
-	}
-	return s.importReply(q, id)
 }
 
 func writeJob(q *req, job map[string]any) error {
@@ -527,7 +339,6 @@ func (s *server) importCancel(q *req) error {
 	if _, err = s.st.db.Exec(q.r.Context(), `UPDATE importing.jobs SET cancel_requested = true, status = 'cancelled', updated_at = now() WHERE id = $1`, id); err != nil {
 		return err
 	}
-	s.dropUpload(id)
 	return s.importReply(q, id)
 }
 
@@ -581,15 +392,8 @@ func (s *server) importDelete(q *req) error {
 	if err = tx.Commit(ctx); err != nil {
 		return err
 	}
-	s.dropUpload(id)
 	writeJSON(q.w, 200, map[string]any{"removed": id, "removed_project": removedProject})
 	return nil
-}
-
-func (s *server) dropUpload(id string) {
-	if err := os.RemoveAll(s.jobPath(id)); err != nil {
-		log.Printf("WARN removing the upload of import %s: %v", id, err)
-	}
 }
 
 // ------------------------------------------------------------------------------------------------------- merge
@@ -636,7 +440,6 @@ func (s *server) runMerge(ctx context.Context, id string) {
 		_, _ = s.st.db.Exec(ctx, `UPDATE importing.jobs SET merged_rows = merged_rows + $2, progress = jsonb_build_object('phase', 'merging', 'done', merged_rows + $2, 'total', $3::bigint), updated_at = now() WHERE id = $1`, id, n, total)
 	}
 	_, _ = s.st.db.Exec(ctx, `UPDATE importing.jobs SET status = 'done', progress = jsonb_build_object('phase', 'done', 'done', merged_rows, 'total', $2::bigint), updated_at = now() WHERE id = $1 AND status = 'merging'`, id, total)
-	s.dropUpload(id)
 	s.hub.publish(org, []byte(`{"kind":"import.done","entity":"lead","seq":0}`))
 }
 
@@ -729,24 +532,13 @@ func (s *server) sweepRows(ctx context.Context) (int64, error) {
 	return tag.RowsAffected(), err
 }
 
-// sweepUploads removes pieces of uploads nobody finished, and old holding rows.
-func (s *server) sweepUploads(ctx context.Context) {
+// sweepRowsPeriodically removes old failed holding rows. The worker owns the upload files.
+func (s *server) sweepRowsPeriodically(ctx context.Context) {
 	for {
 		if n, err := s.sweepRows(ctx); err != nil {
 			log.Printf("WARN clearing old import rows: %v", err)
 		} else if n > 0 {
 			log.Printf("INFO cleared %d old import rows", n)
-		}
-		rows, err := s.st.db.Query(ctx, `UPDATE importing.jobs SET status = 'cancelled', error = 'The upload was not finished in time.', updated_at = now()
-			WHERE status = 'uploading' AND updated_at < now() - interval '48 hours' RETURNING id::text`)
-		if err == nil {
-			for rows.Next() {
-				var id string
-				if rows.Scan(&id) == nil {
-					s.dropUpload(id)
-				}
-			}
-			rows.Close()
 		}
 		select {
 		case <-ctx.Done():

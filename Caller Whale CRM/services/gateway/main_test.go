@@ -5,10 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"io"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -137,6 +137,41 @@ func TestAnUnknownHostIsNotFound(t *testing.T) {
 	w := newWorld(t, nil)
 	if rec := w.do("other.example", "GET", "/api/v1/me", w.token(nil)); rec.Code != 404 {
 		t.Fatalf("got %d", rec.Code)
+	}
+}
+
+func TestImportUploadRoutesToWorkerAfterTokenCheck(t *testing.T) {
+	var reached atomic.Int32
+	worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reached.Add(1)
+		_ = json.NewEncoder(w).Encode(map[string]string{"path": r.URL.Path, "method": r.Method})
+	}))
+	defer worker.Close()
+	w := newWorld(t, map[string]string{"IMPORT_WORKER_URL": worker.URL})
+	id := "11111111-1111-4111-8111-111111111111"
+	for _, call := range []struct {
+		method, path string
+		worker       bool
+	}{
+		{"POST", "/api/v1/imports", true},
+		{"PUT", "/api/v1/imports/" + id + "/chunks/0", true},
+		{"POST", "/api/v1/imports/" + id + "/complete", true},
+		{"GET", "/api/v1/imports/" + id, true},
+		{"GET", "/api/v1/imports", false},
+		{"PUT", "/api/v1/imports/" + id + "/mapping", false},
+		{"POST", "/api/v1/imports/" + id + "/merge", false},
+	} {
+		before := reached.Load()
+		if rec := w.do(appHost, call.method, call.path, w.token(nil)); rec.Code != 200 {
+			t.Fatalf("%s %s: %d %s", call.method, call.path, rec.Code, rec.Body.String())
+		}
+		if (reached.Load() > before) != call.worker {
+			t.Fatalf("wrong upstream for %s %s", call.method, call.path)
+		}
+	}
+	before := reached.Load()
+	if rec := w.do(appHost, "POST", "/api/v1/imports", ""); rec.Code != 401 || reached.Load() != before {
+		t.Fatalf("upload reached worker without a valid token: %d", rec.Code)
 	}
 }
 
@@ -487,7 +522,10 @@ func TestTheMCPHostAnswersOnlyItsRoutesAndTakesSmallBodies(t *testing.T) {
 			t.Errorf("%s on the MCP host should be Not found, got %d", path, rec.Code)
 		}
 	}
-	big := func(r *http.Request) { r.Body = io.NopCloser(strings.NewReader(strings.Repeat("x", 2<<20))); r.ContentLength = 2 << 20 }
+	big := func(r *http.Request) {
+		r.Body = io.NopCloser(strings.NewReader(strings.Repeat("x", 2<<20)))
+		r.ContentLength = 2 << 20
+	}
 	rec := w.do("mcp.example", "POST", "/mcp", "", big)
 	var out map[string]any
 	_ = json.Unmarshal(rec.Body.Bytes(), &out)

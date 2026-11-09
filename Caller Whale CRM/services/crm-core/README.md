@@ -1,6 +1,6 @@
 # crm-core
 
-The CRM's backend: leads, tasks, notes, calls, deals and handoffs, synced to the web CRM and the desktop app, plus uploaded lists. Plan: [docs/plans/crm-core-and-imports.md](../../docs/plans/crm-core-and-imports.md).
+The CRM's backend: leads, tasks, notes, calls and deals, synced to the web CRM and desktop app. The import worker receives files and stores their rows in PostgreSQL; Core reviews and merges those rows. Plan: [docs/plans/crm-core-and-imports.md](../../docs/plans/crm-core-and-imports.md).
 
 | | |
 | --- | --- |
@@ -19,12 +19,12 @@ Every request inside a workspace carries `Authorization: Bearer <token>` and `x-
 
 ## Imports
 
-1. `POST /api/v1/imports` `{filename, size, name?, project_id?}` opens an upload. `PUT /api/v1/imports/{id}/chunks/{n}` sends each 8 MB piece with `x-chunk-sha256` (3 to 4 at a time; a damaged piece is refused with 422 and sent again). `GET /api/v1/imports/{id}` lists the pieces held, so an interrupted upload resumes. `POST .../complete` queues it.
+1. The gateway sends upload start, chunk, resume and complete requests to the import worker. Core receives no uploaded file bytes. The worker authenticates each request with Core's `/api/v1/me`, owns temporary storage, and writes upload metadata to PostgreSQL.
 2. The import worker loads it, drops identical rows and columns blank in every row, and proposes what each remaining column is (`status: mapping`). A sparse column with any value stays.
 3. `PUT .../mapping` confirms the columns; columns marked unused are left out of the leads (the originals stay in the holding table). The worker cleans the rows and finds repeats (`status: reviewing`, or `ready` when there are none).
 4. `GET/POST .../duplicates` lists and settles repeats (merge, import, skip). `POST .../merge` adds the leads in batches of 50,000.
 
-The uploaded CSV exists only as temporary chunks during processing and is removed after a successful merge. Original cells from completed imports remain as rows in PostgreSQL (`importing.rows`) linked to the resulting lead. Deleting a lead also removes its linked source rows; deleting a source list deletes its leads, related records, import jobs, and source rows. Failed or cancelled holding rows expire after 14 days. Source rows from completed imports before migration `0004` may lack a lead link; deleting their source list still removes them.
+The uploaded CSV exists only in the worker volume during processing and is removed after its rows are loaded. Original cells from completed imports remain as rows in PostgreSQL (`importing.rows`) linked to the resulting lead. Deleting a lead also removes its linked source rows; deleting a source list deletes its leads, related records, import jobs, and source rows. Failed or cancelled holding rows expire after 14 days. Source rows from completed imports before migration `0004` may lack a lead link; deleting their source list still removes them.
 
 ## Run and test
 
@@ -38,4 +38,4 @@ The database tests need a disposable PostgreSQL: `CRM_TEST_ADMIN_URL` (a superus
 
 ## Coolify
 
-Branch `crm-core-backend-production`, Dockerfile `/Dockerfile`, port 8107, network alias `crm-core`, no domain. Settings: [env/crm-core.production.example](../../env/crm-core.production.example). One persistent volume at `/data/imports`, shared with `importing-lists` (user id 65532 must be able to write to it).
+Branch `crm-core-backend-production`, Dockerfile `/Dockerfile`, port 8107, network alias `crm-core`, no domain. Settings: [env/crm-core.production.example](../../env/crm-core.production.example). Core needs no upload volume.

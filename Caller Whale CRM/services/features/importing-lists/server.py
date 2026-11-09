@@ -3,7 +3,10 @@ import json
 import os
 import threading
 import time
+import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+import upload_api
 
 SERVICE = "importing-lists"
 VERSION = "0.2.0"
@@ -19,9 +22,36 @@ def route(method: str, path: str) -> tuple[int, dict]:
 
 
 class Handler(BaseHTTPRequestHandler):
-    def _reply(self, method: str) -> None:
+    def _upload(self, method: str) -> bool:
+        path = self.path.split("?", 1)[0]
+        if not path.startswith("/api/v1/imports"):
+            return False
         self._cw_started = time.perf_counter()
-        status, body = route(method, self.path.split("?", 1)[0])
+        try:
+            me = upload_api.principal(self)
+            if method == "POST" and path == "/api/v1/imports":
+                body = upload_api.start(self, me)
+            elif method == "GET" and (match := re.fullmatch(r"/api/v1/imports/([0-9a-fA-F-]{36})", path)):
+                with upload_api.database() as conn:
+                    body = upload_api.reply(conn, me, match.group(1))
+            elif method == "PUT" and (match := re.fullmatch(r"/api/v1/imports/([0-9a-fA-F-]{36})/chunks/(\d+)", path)):
+                body = upload_api.chunk(self, me, *match.groups())
+            elif method == "POST" and (match := re.fullmatch(r"/api/v1/imports/([0-9a-fA-F-]{36})/complete", path)):
+                body = upload_api.complete(me, match.group(1))
+            else:
+                raise upload_api.APIError(404, "Not found.", "not_found")
+            status = 200
+        except upload_api.APIError as error:
+            status, body = error.status, {"error": {"code": error.code, "message": str(error)}}
+        except Exception:
+            # A traceback stays in the worker log, never in the browser response.
+            import traceback
+            traceback.print_exc()
+            status, body = 500, {"error": {"code": "import_unavailable", "message": "The import service could not finish that request. Try again."}}
+        self._send(status, body)
+        return True
+
+    def _send(self, status: int, body: dict) -> None:
         data = json.dumps(body).encode("utf-8")
         self.send_response(status)
         self.send_header("content-type", "application/json; charset=utf-8")
@@ -30,11 +60,25 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _reply(self, method: str) -> None:
+        self._cw_started = time.perf_counter()
+        status, body = route(method, self.path.split("?", 1)[0])
+        self._send(status, body)
+
     def do_GET(self) -> None:  # noqa: N802 (the name the standard library calls)
+        if self._upload("GET"):
+            return
         self._reply("GET")
 
     def do_POST(self) -> None:  # noqa: N802
+        if self._upload("POST"):
+            return
         self._reply("POST")
+
+    def do_PUT(self) -> None:  # noqa: N802
+        if self._upload("PUT"):
+            return
+        self._reply("PUT")
 
     def log_message(self, format: str, *args) -> None:  # noqa: A002
         if format.startswith('"%s" %s %s') and len(args) >= 2:

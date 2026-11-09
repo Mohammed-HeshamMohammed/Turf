@@ -346,22 +346,7 @@ func (s *server) deleteProject(q *req) error {
 		AND NOT EXISTS (SELECT 1 FROM deals d WHERE d.property_id = p.id)`); err != nil {
 		return err
 	}
-	rows, err := tx.Query(ctx, `DELETE FROM importing.jobs WHERE project_id = $1 RETURNING id::text`, id)
-	if err != nil {
-		return err
-	}
-	var imports []string
-	for rows.Next() {
-		var jobID string
-		if err = rows.Scan(&jobID); err != nil {
-			rows.Close()
-			return err
-		}
-		imports = append(imports, jobID)
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
+	if _, err = tx.Exec(ctx, `DELETE FROM importing.jobs WHERE project_id = $1`, id); err != nil {
 		return err
 	}
 	if _, err = tx.Exec(ctx, `DELETE FROM projects WHERE id = $1`, id); err != nil {
@@ -372,9 +357,6 @@ func (s *server) deleteProject(q *req) error {
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return err
-	}
-	for _, jobID := range imports {
-		s.dropUpload(jobID)
 	}
 	writeJSON(q.w, 200, map[string]any{"removed": id, "deleted_leads": deleted.RowsAffected()})
 	return nil

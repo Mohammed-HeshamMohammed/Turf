@@ -47,7 +47,7 @@ Agreed requirements: files up to 1 GB and more (CSV, TXT, XLSX, XLS), for exampl
 
 | Step | What happens | Where |
 | --- | --- | --- |
-| 1. Upload | The browser cuts the file into many pieces of about 8 MB, sends 3 to 4 at a time, each checked by its fingerprint; a broken piece is sent again and a dropped connection resumes. Each request stays far under Cloudflare's 100 MB limit | Browser to crm-core, into a folder both apps share |
+| 1. Upload | The browser cuts the file into many pieces of about 8 MB, sends 3 to 4 at a time, each checked by its fingerprint; a broken piece is sent again and a dropped connection resumes. Each request stays far under Cloudflare's 100 MB limit | Browser through gateway to the import worker, into its own persistent volume |
 | 2. Into SQL | The worker reads the pieces in order as one stream and loads rows into a holding table in bulk; each piece is deleted once used | Import worker |
 | 3. Exact duplicates | Identical rows are dropped as they load (one fingerprint per row) and reported with examples. No consent needed: nothing is lost | Import worker |
 | 4. Simple processing | Columns are matched to CRM fields (`field-vocabulary.ts`, `skiptrace-fields.ts`); columns the CRM does not use (for example "Bathroom style", "Relative 6") are marked "not used" and dropped only after the person confirms; phones and addresses are cleaned | Import worker |
@@ -85,7 +85,7 @@ The web CRM keeps every visible lead in the browser (snapshot plus sync). That s
 1. crm-core: identity, sync and the operation kinds, with tests. Gateway route and env examples. Production branch.
 2. importing-lists: queue, upload assembly, load and exact duplicates, column matching, cleaning, near duplicates, resume after restart, with tests.
 3. crm-core import endpoints and the merge into leads.
-4. Coolify: CRM PostgreSQL, the two apps, the shared folder, resource caps, then point `gate` at crm-core and check the CRM opens.
+4. Coolify: CRM PostgreSQL, the two apps, the worker's persistent upload volume, resource caps, then point `gate` at crm-core and check the CRM opens.
 5. The CRM's import screen for the web (pieces, progress, review).
 6. Images built on GitHub.
 
@@ -94,7 +94,7 @@ Secrets (database passwords, the `core-api` token for authz) are set by the owne
 ## Built so far (2026-11-06)
 
 - **crm-core** (`services/crm-core`, Go, port 8107): `/api/v1/me`, `/account`, `/directory`, `/admin/teams`, `/projects`, `/ops`, `/credits/use`; `/sync/snapshot`, `/pull`, `/push` with every operation kind the web CRM sends except `message.draft` (refused until messaging exists); the `/events` WebSocket over PostgreSQL `LISTEN/NOTIFY`; the contact-form pass-through; CORS for the listed pages. Database tables and row security are created at start by numbered, checksummed scripts. Tested against a real PostgreSQL, including that a workspace never sees another's records.
-- **Imports, crm-core side:** pieces with SHA-256 fingerprints and resume, mapping confirmation, repeat decisions, and the merge into leads in batches of 50,000 (resumes after a restart; cancel stops between batches).
+- **Imports, crm-core side:** mapping confirmation, repeat decisions, and the merge into leads in batches of 50,000 (resumes after a restart; cancel stops between batches).
 - **importing-lists** (`services/features/importing-lists`, Python and polars): assembly, load, exact duplicates, column suggestions, cleaning, repeats inside the file and against existing leads, resume after a restart, one import at a time. 500,000 rows by 20 columns: about 18 s to load, about 70 s to clean and find repeats, peak memory about 600 MB.
 - **Decided while building:** a workspace the CRM has never seen is named after the person who opened it until an administrator renames it (`PATCH /api/v1/organization`); a person's access revision is derived from what authz grants them, so a change in roles resets their devices without a counter to keep; pieces are joined into one file as they are used and the file is kept until the load finishes (a restart needs it), then deleted.
 - **Also built since:** the CRM's import screen (`ServerImport.jsx`), a limit of 3 imports in progress per workspace, a guard against spreadsheets that unpack absurdly, refusal of XML entity tricks (`defusedxml`), and a clean-up that deletes the holding rows of finished, failed or cancelled imports after 14 days (the import's own record stays).

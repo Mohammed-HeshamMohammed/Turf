@@ -102,8 +102,7 @@ func newEnv(t *testing.T) *env {
 	fx := newVerifyFixture(t)
 	jwks := fx.jwks("k1")
 	rules := &fakeRules{people_: map[string]peopleReply{}, grants: map[string]grantReply{}, roster: map[string][]member{}}
-	dir := t.TempDir()
-	s := &server{cfg: config{importDir: dir, maxImportMB: 100}, keys: serveVerifyKeys(t, &jwks, nil), rules: rules, st: st, hub: newHub(), now: time.Now}
+	s := &server{cfg: config{}, keys: serveVerifyKeys(t, &jwks, nil), rules: rules, st: st, hub: newHub(), now: time.Now}
 	hubCtx, stop := context.WithCancel(ctx)
 	t.Cleanup(stop)
 	go s.hub.listen(hubCtx, appURL)
@@ -121,6 +120,31 @@ func (e *env) token(user string) string {
 }
 
 // call makes a signed-in request and returns the status and the decoded JSON body.
+// startImport seeds an upload owned by the worker, so Core's SQL mapping and
+// merge tests do not depend on Core accepting file uploads.
+func (e *env) startImport(user, org string, body map[string]any) (int, map[string]any) {
+	e.t.Helper()
+	name, _ := body["name"].(string)
+	if name == "" {
+		name = "Imported list"
+	}
+	status, project := e.call(user, org, "POST", "/api/v1/projects", map[string]any{"name": name})
+	if status != 200 {
+		e.t.Fatalf("create source list: %d %v", status, project)
+	}
+	filename, _ := body["filename"].(string)
+	size, _ := body["size"].(int)
+	var id string
+	err := e.admin.QueryRow(context.Background(), `INSERT INTO importing.jobs
+		(org_id, user_id, project_id, name, filename, size, chunk_size, total_chunks)
+		VALUES ($1, $2, $3, $4, $5, $6, 8388608, 1) RETURNING id::text`,
+		org, user, project["id"], name, filename, size).Scan(&id)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	return 200, map[string]any{"id": id, "project_id": project["id"], "status": "uploading"}
+}
+
 func (e *env) call(user, org, method, path string, body any) (int, map[string]any) {
 	e.t.Helper()
 	status, raw := e.raw(user, org, method, path, body, nil)
