@@ -7,6 +7,7 @@ import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import psycopg
 from psycopg.rows import dict_row
@@ -16,7 +17,7 @@ MAX_ACTIVE = 3
 ID = re.compile(r"^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$", re.I)
 SHA = re.compile(r"^[0-9a-f]{64}$", re.I)
 EXTENSIONS = {".csv", ".txt", ".xlsx", ".xls"}
-JOB_COLUMNS = "id::text, name, filename, size, chunk_size, total_chunks, status, progress, columns, report, error, loaded_rows, merged_rows, project_id::text, created_at, updated_at"
+JOB_COLUMNS = "id::text, name, filename, size, chunk_size, total_chunks, status, progress, columns, report, error, loaded_rows, merged_rows, project_id::text, created_at, updated_at, kind, source_timezone"
 
 
 class APIError(Exception):
@@ -117,6 +118,18 @@ def start(handler, me):
     header = body.get("has_header", True)
     if type(header) is not bool:
         raise APIError(400, "Choose whether the list has a header row.")
+    kind = body.get("kind", "lead_list")
+    if not isinstance(kind, str) or kind not in {"lead_list", "readymode_calls"}:
+        raise APIError(400, "Choose a supported import type.")
+    timezone = body.get("source_timezone", "UTC")
+    if not isinstance(timezone, str) or len(timezone) > 64:
+        raise APIError(400, "Choose the time zone used in the export.")
+    try:
+        ZoneInfo(timezone)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise APIError(400, "Choose a valid time zone for the export.")
+    if kind == "readymode_calls" and (extension != ".csv" or not header or body.get("project_id")):
+        raise APIError(400, "ReadyMode call history needs a CSV with headings and no source list.")
     with database() as conn:
         active = conn.execute("SELECT count(*) AS n FROM importing.jobs WHERE org_id = %s AND status NOT IN ('done', 'failed', 'cancelled')",
                               (me["organization_id"],)).fetchone()["n"]
@@ -129,14 +142,14 @@ def start(handler, me):
             projects = core_request(handler, "GET", "/api/v1/projects")
             if not any(p.get("id") == project for p in projects):
                 raise APIError(400, "That list does not exist.")
-        else:
+        elif kind == "lead_list":
             project = core_request(handler, "POST", "/api/v1/projects", {"name": name})["id"]
         team_ids = me.get("team_ids") or []
         team = team_ids[0] if team_ids and ID.fullmatch(team_ids[0]) else None
-        row = conn.execute("""INSERT INTO importing.jobs (org_id, user_id, project_id, team_id, name, filename, size, chunk_size, total_chunks, has_header, progress)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '{"phase":"uploading","done":0}') RETURNING id::text""",
+        row = conn.execute("""INSERT INTO importing.jobs (org_id, user_id, project_id, team_id, name, filename, size, chunk_size, total_chunks, has_header, kind, source_timezone, progress)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '{"phase":"uploading","done":0}') RETURNING id::text""",
             (me["organization_id"], me["user"]["id"], project, team, name, filename, size, CHUNK_SIZE,
-             (size + CHUNK_SIZE - 1) // CHUNK_SIZE, header)).fetchone()
+             (size + CHUNK_SIZE - 1) // CHUNK_SIZE, header, kind, timezone)).fetchone()
         job_id = row["id"]
         (Path(os.environ.get("IMPORT_DIR", "/data/imports")) / job_id).mkdir(parents=True, exist_ok=True)
         return reply(conn, me, job_id)
