@@ -276,6 +276,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
         {status === "reviewing" && (
           <>
             <p className="muted">
+              {report.exact_existing > 0 && `${number(report.exact_existing)} rows already in your CRM were linked automatically. `}
               {number(report.near_groups)} {report.near_groups === 1 ? "group may contain" : "groups may contain"} repeat leads.
               Names match along with a phone number, email, or address. Choose what happens to these rows.
             </p>
@@ -338,6 +339,10 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
                 <dd>{number(report.exact_duplicates)}</dd>
               </div>
               <div>
+                <dt>Identical rows already in CRM</dt>
+                <dd>{number(report.exact_existing)}</dd>
+              </div>
+              <div>
                 <dt>Rows with nothing usable</dt>
                 <dd>{number((report.empty_rows || 0) + (report.unusable_rows || 0))}</dd>
               </div>
@@ -367,7 +372,8 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
         {status === "done" && (
           <>
             <p>
-              {number(job.merged_rows)} rows were added to <strong>{job.name}</strong>. They appear in your leads as they arrive.
+              {number(job.merged_rows)} rows were added or merged for <strong>{job.name}</strong>.
+              {report.exact_existing > 0 && ` ${number(report.exact_existing)} identical rows were already in the CRM and linked automatically.`}
             </p>
             <div className="import-actions">
               <Button variant="primary" onClick={() => onClose(job)}>
