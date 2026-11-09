@@ -167,8 +167,9 @@ export function ServerImport({ resume = "", initialFile = null, onClose, onFinis
         {status === "mapping" && (
           <>
             <p className="muted">
-              We matched what we could from the headings. Columns set to Not used are left out of your leads; your file is not changed.
+              We matched what we could from the headings. Columns set to Not used stay in the source rows but are left out of your leads.
               {report.exact_duplicates > 0 && ` ${number(report.exact_duplicates)} identical rows were removed.`}
+              {(report.empty_columns_removed || []).length > 0 && ` ${number(report.empty_columns_removed.length)} completely empty columns were removed from the source rows.`}
             </p>
             <div className="import-columns" role="table" aria-label="Columns in your list">
               {columns.map((column) => (
@@ -272,8 +273,12 @@ export function ServerImport({ resume = "", initialFile = null, onClose, onFinis
                 <dd>{number((report.empty_rows || 0) + (report.unusable_rows || 0))}</dd>
               </div>
               <div>
-                <dt>Columns left out</dt>
+                <dt>Columns not mapped to leads</dt>
                 <dd>{number((report.dropped_columns || []).length)}</dd>
+              </div>
+              <div>
+                <dt>Empty columns removed</dt>
+                <dd>{number((report.empty_columns_removed || []).length)}</dd>
               </div>
             </dl>
             {error && (
