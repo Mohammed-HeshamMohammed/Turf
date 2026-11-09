@@ -34,7 +34,7 @@ import {
 
 const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
 
-export function Lists({ id }) {
+export function Lists({ id, importId = null }) {
   const { state, dispatch, navigate, notify } = useCrm();
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
@@ -65,6 +65,7 @@ export function Lists({ id }) {
   const filledDatasets = searchedDatasets.filter(item => datasetIds.has(item.id));
   const emptyDatasets = searchedDatasets.filter(item => !datasetIds.has(item.id));
   const dataset = datasets.find(item => item.id === id);
+  const activeImportId = importId || (id && running.find(item => item.project_id === id && ["reviewing", "ready"].includes(item.status))?.id);
   const attention = [...running, ...recentFailures].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
   const groups = new Map();
   attention.forEach(item => {
@@ -204,7 +205,26 @@ export function Lists({ id }) {
       "Tampa new opportunities",
       ["Owner", "Address", "City", "Phone", "Email"],
     );
-  if (id && !dataset) return <Empty title="This list is outside your view">Return to the lists available to your role.</Empty>;
+  const importReview = activeImportId && remote && (
+    <ServerImport
+      key={activeImportId}
+      inline
+      resume={activeImportId}
+      onClose={() => navigate(id ? "lists/" + id : "lists")}
+      onFinished={() => {
+        setRunning(current => current.filter(item => item.id !== activeImportId));
+        dispatch({ type: "REFRESH_LISTS" });
+        dispatch({ type: "SYNC" });
+        notify("List added to your leads");
+      }}
+    />
+  );
+  if (id && !dataset && !activeImportId) return <Empty title="This list is outside your view">Return to the lists available to your role.</Empty>;
+  if (id && !dataset && activeImportId) return <>
+    <Breadcrumb items={[{ label: "Lists", path: "lists" }, { label: "Import review" }]} />
+    <PageHeader title="Source list import" description="Review this list before its leads are added." />
+    {importReview}
+  </>;
   if (dataset)
     return (
       <>
@@ -245,6 +265,7 @@ export function Lists({ id }) {
           <Badge>{dataset.team} project</Badge>
           <span>Fields: {dataset.columns.join(" · ")}</span>
         </div>
+        {importReview}
         <LeadsMap leads={listLeads} />
         <Card className="table-card">
           <DataTable
@@ -320,7 +341,9 @@ export function Lists({ id }) {
                     {item.status === "failed" && <p>{item.error || "This import could not be completed."}</p>}
                   </div>
                   <div className="import-history-actions">
-                    <Button onClick={() => setUpload({ resume: item.id })}>{item.status === "failed" ? "Details" : "Continue"}</Button>
+                    <Button onClick={() => ["reviewing", "ready"].includes(item.status) && item.project_id
+                      ? navigate(`lists/${item.project_id}/imports/${item.id}`)
+                      : setUpload({ resume: item.id })}>{item.status === "failed" ? "Details" : "Continue"}</Button>
                     {item.status === "failed" && capability(state, "import") && (
                       <button className="text-button" onClick={() => setRemoveTarget({ kind: "import", item })}><Trash size={16} /> Remove</button>
                     )}
@@ -406,6 +429,11 @@ export function Lists({ id }) {
           initialFile={upload.file}
           onClose={() => setUpload(null)}
           onFinished={() => dispatch({ type: "REFRESH_LISTS" })}
+          onContinueInList={job => {
+            setUpload(null);
+            dispatch({ type: "REFRESH_LISTS" });
+            navigate(`lists/${job.project_id}/imports/${job.id}`);
+          }}
         />
       )}
       {removeTarget && (

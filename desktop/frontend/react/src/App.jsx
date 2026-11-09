@@ -443,7 +443,7 @@ export function App() {
       case "mail":
         return <Mail />;
       case "lists":
-        return <Lists id={parts[1]} />;
+        return <Lists id={parts[1]} importId={parts[2] === "imports" ? parts[3] : null} />;
       case "skip":
         return <SkipTracing />;
       case "reports":
