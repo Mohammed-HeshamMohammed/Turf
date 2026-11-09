@@ -28,6 +28,7 @@ export type ImportColumn = {
   header: string;
   suggested: string | null;
   source_detail?: string | null;
+  standard_key?: string | null;
   field: string | null;
   used: boolean | null;
   populated: number;
