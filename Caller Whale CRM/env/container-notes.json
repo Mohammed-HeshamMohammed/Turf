@@ -266,7 +266,23 @@
         "CORS_ORIGINS": "Pages that may call crm-core from a browser, comma-separated origins like https://app.callerwhale.com. Keep it the same as the gateway's CORS_ORIGINS: the gateway passes a browser's preflight on and leaves the answer to this service.",
         "IMPORT_DIR": "The folder shared with the import worker, where upload pieces wait; default /data/imports. One persistent volume mounted at the same path in crm-core and importing-lists.",
         "IMPORT_DB_ROLE": "The import worker's database login, given the holding tables at start. Empty until the worker is deployed.",
-        "MAX_IMPORT_MB": "Largest list accepted, in megabytes; default 20480."
+        "MAX_IMPORT_MB": "Largest list accepted, in megabytes; default 20480.",
+        "LEARNING_URL": "The learning store's private address, like http://learning:8112. Empty turns the learning copy off: no list leaves crm-core.",
+        "LEARNING_TOKEN": "The learning store's LEARNING_TOKEN (at least 32 characters). Needed when LEARNING_URL is set."
+      }
+    },
+    "learning": {
+      "description": "The learning store: keyed hashes and shapes of imported leads (never the leads), and the flags people gave them, in its own database. Takes nothing in until LEARNING_ENABLED is true.",
+      "sources": [
+        "services/learning/main.go"
+      ],
+      "variables": {
+        "PORT": "HTTP port; default 8112. Match Coolify's container port.",
+        "DATABASE_URL": "This service's own database (the learning-postgres resource's internal URL, database \"learning\", its own login). Never the CRM's or the auth database.",
+        "LEARNING_TOKEN": "The token crm-core sends (at least 32 characters). The same value is crm-core's LEARNING_TOKEN.",
+        "LEARNING_HASH_KEY": "The key the phone and email hashes are made with: 64 hex characters (32 bytes). Held only by the platform owners; losing it makes the stored hashes unusable, and changing it breaks matching of old rows with new ones.",
+        "LEARNING_ENABLED": "true lets lists in and flags be recorded. Leave it false (nothing is taken in) until the terms and privacy notice say what is kept.",
+        "LEARNING_RETENTION_DAYS": "Days a learned row is kept before it is deleted; default 730 (two years)."
       }
     }
   }

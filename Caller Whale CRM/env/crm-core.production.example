@@ -19,3 +19,7 @@ CORS_ORIGINS=https://app.callerwhale.com,https://callerwhale.com
 # Create the worker's login once in the CRM PostgreSQL (CREATE ROLE importer LOGIN PASSWORD '<long random password>';); crm-core grants it its tables at each start.
 # The import worker's database login, given the holding tables at start. Empty until the worker is deployed.
 IMPORT_DB_ROLE=importer
+# The learning store's private address, like http://learning:8112. Empty turns the learning copy off: no list leaves crm-core.
+LEARNING_URL=
+# The learning store's LEARNING_TOKEN (at least 32 characters). Needed when LEARNING_URL is set.
+LEARNING_TOKEN=

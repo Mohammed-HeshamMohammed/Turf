@@ -423,7 +423,7 @@ def group_source_candidates(rows: list[tuple]) -> Groups:
 def skip_identical_prior_rows(conn: psycopg.Connection, job: dict) -> int:
     """Link an unchanged source row to its existing lead without asking for a repeat decision.
 
-    The fingerprint narrows the search; original values and ordered column headings must also agree.
+    The fingerprint is a SHA-256 of the original cells (equal fingerprints mean equal rows, so the old values may be blanked later); the ordered column headings must also agree.
     Only completed imports with a surviving lead in this organization can supply a match.
     """
     headers = [column["header"] for column in job["columns"]]
@@ -432,7 +432,7 @@ def skip_identical_prior_rows(conn: psycopg.Connection, job: dict) -> int:
             WITH identical AS (
                 SELECT DISTINCT ON (r.row_no) r.row_no, old.lead_id
                 FROM importing.rows r
-                JOIN importing.rows old ON old.fp = r.fp AND old.cells = r.cells
+                JOIN importing.rows old ON old.fp = r.fp
                     AND old.lead_id IS NOT NULL AND old.job_id <> r.job_id
                 JOIN importing.jobs previous ON previous.id = old.job_id
                     AND previous.org_id = %s::uuid AND previous.user_id = %s::uuid AND previous.status = 'done'

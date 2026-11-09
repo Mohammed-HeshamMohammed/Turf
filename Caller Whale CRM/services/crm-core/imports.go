@@ -522,6 +522,11 @@ func (s *server) runMerge(ctx context.Context, id string) {
 	}
 	_, _ = s.st.db.Exec(ctx, `UPDATE importing.jobs SET status = 'done', progress = jsonb_build_object('phase', 'done', 'done', merged_rows, 'total', $2::bigint), updated_at = now() WHERE id = $1 AND status = 'merging'`, id, total)
 	s.hub.publish(org, []byte(`{"kind":"import.done","entity":"lead","seq":0}`))
+	go func() {
+		if err := s.learnJob(context.WithoutCancel(ctx), id); err != nil && !errors.Is(err, errLearningOff) {
+			log.Printf("WARN learning copy of import %s will be retried: %v", id, err)
+		}
+	}()
 }
 
 // mergeBatch adds up to 50,000 new leads (and folds rows into the leads they matched), in one transaction. It returns how

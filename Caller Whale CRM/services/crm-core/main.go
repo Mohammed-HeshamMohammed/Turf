@@ -17,28 +17,32 @@ import (
 )
 
 type config struct {
-	port        string
-	databaseURL string
-	jwksURL     string          // the auth service's public keys
-	authzURL    string          // the authorization service, private
-	authzToken  string          // crm-core's own token there (AUTHZ_TOKENS "core-api=...")
-	notifyURL   string          // where the website's contact form goes on to; empty turns it off
-	importRole  string          // the import worker's database login, to be given the holding tables
-	origins     map[string]bool // pages that may call from a browser (CORS_ORIGINS)
-	grantTTL    time.Duration
+	port          string
+	databaseURL   string
+	jwksURL       string          // the auth service's public keys
+	authzURL      string          // the authorization service, private
+	authzToken    string          // crm-core's own token there (AUTHZ_TOKENS "core-api=...")
+	notifyURL     string          // where the website's contact form goes on to; empty turns it off
+	importRole    string          // the import worker's database login, to be given the holding tables
+	origins       map[string]bool // pages that may call from a browser (CORS_ORIGINS)
+	grantTTL      time.Duration
+	learningURL   string // the learning service (private); empty turns the learning copy off
+	learningToken string
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
 	trim := func(v string) string { return strings.TrimRight(strings.TrimSpace(v), "/") }
 	c := config{
-		port:        strings.TrimSpace(getenv("PORT")),
-		databaseURL: strings.TrimSpace(getenv("DATABASE_URL")),
-		jwksURL:     trim(getenv("AUTH_JWKS_URL")),
-		authzURL:    trim(getenv("AUTHZ_URL")),
-		authzToken:  strings.TrimSpace(getenv("AUTHZ_TOKEN")),
-		notifyURL:   trim(getenv("NOTIFY_URL")),
-		importRole:  strings.TrimSpace(getenv("IMPORT_DB_ROLE")),
-		grantTTL:    5 * time.Second,
+		port:          strings.TrimSpace(getenv("PORT")),
+		databaseURL:   strings.TrimSpace(getenv("DATABASE_URL")),
+		jwksURL:       trim(getenv("AUTH_JWKS_URL")),
+		authzURL:      trim(getenv("AUTHZ_URL")),
+		authzToken:    strings.TrimSpace(getenv("AUTHZ_TOKEN")),
+		notifyURL:     trim(getenv("NOTIFY_URL")),
+		importRole:    strings.TrimSpace(getenv("IMPORT_DB_ROLE")),
+		grantTTL:      5 * time.Second,
+		learningURL:   trim(getenv("LEARNING_URL")),
+		learningToken: strings.TrimSpace(getenv("LEARNING_TOKEN")),
 	}
 	if c.port == "" {
 		c.port = "8107"
@@ -52,6 +56,9 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	if len(c.authzToken) < 32 {
 		return c, errors.New("AUTHZ_TOKEN must be at least 32 characters: crm-core's token in authz's AUTHZ_TOKENS (core-api=...)")
+	}
+	if c.learningURL != "" && len(c.learningToken) < 32 {
+		return c, errors.New("LEARNING_TOKEN must be at least 32 characters when LEARNING_URL is set")
 	}
 	return c, nil
 }
@@ -96,6 +103,7 @@ func main() {
 	go s.hub.listen(ctx, cfg.databaseURL)
 	go s.resumeMerges(ctx)
 	go s.sweepRowsPeriodically(ctx)
+	go s.learnPendingPeriodically(ctx)
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 5 * time.Minute, WriteTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute}
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)

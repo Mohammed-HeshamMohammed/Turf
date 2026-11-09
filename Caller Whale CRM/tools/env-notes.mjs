@@ -16,6 +16,7 @@ const examples = {
   'mcp.production.example': 'mcp',
   'crm-core.production.example': 'crm-core',
   'assistant.production.example': 'assistant',
+  'learning.production.example': 'learning',
   'importing-lists.production.example': 'importing-lists',
   // Pointer-only example; actual monitoring settings are in deploy/grafana.
   'grafana.production.example': 'callerwhale-monitoring',

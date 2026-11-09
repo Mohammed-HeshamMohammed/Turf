@@ -28,7 +28,9 @@ Done: 7 (lock file `requirements.lock`, used by the Dockerfile), 9 (tests for th
 - **Formula safety in exports** (cells starting with `=`, `+`, `-`, `@`) when exports of imported data exist.
 - **Server disk alert** in Coolify, or a separate disk for the imports volume.
 
-## D. Learning store (proposed 2026-11-10, waiting for the owner to confirm)
+## D. Learning store (built 2026-11-10, switched off; see learning-store-compliance.md)
+
+Built: `services/learning` with its own database, crm-core copies a finished import to it (off until `LEARNING_URL` is set), the holding rows lose their personal details a week later, opt-out and erasure routes. NOT built, on purpose: the encrypted readable copy (tier 2) until a lawyer agrees. The text below is the original proposal.
 
 The owner's wishes: imported data is not deleted by the system (only when the customer deletes it); the system learns from it, so it moves out of the working database into a separate store; what it learns is how leads were handled (the flags callers and users give), column mapping, data quality rules and models for early feedback on new leads; everything stored is masked and hashed; only the platform owners can read it back; when a customer deletes, only a derived copy that helps suggestions stays, not the full data.
 
