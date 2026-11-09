@@ -455,6 +455,11 @@ func TestAConfirmedListIsMergedIntoLeadsInBatches(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if _, err := e.admin.Exec(ctx, `UPDATE importing.rows SET address = '1 Main St', zip = '78701',
+		source_data = '{"county":"Travis","living_area":"1,234","bedrooms":"3","bathrooms":"2","year_built":"1980"}'::jsonb
+		WHERE job_id = $1 AND row_no = 1`, id); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'reviewing' WHERE id = $1`, id); err != nil {
 		t.Fatal(err)
 	}
@@ -502,6 +507,13 @@ func TestAConfirmedListIsMergedIntoLeadsInBatches(t *testing.T) {
 	var importedLead string
 	if err := e.admin.QueryRow(ctx, `SELECT lead_id::text FROM importing.rows WHERE job_id = $1 AND row_no = 1`, id).Scan(&importedLead); err != nil {
 		t.Fatal(err)
+	}
+	var details map[string]any
+	if err := e.admin.QueryRow(ctx, `SELECT p.details FROM crm.leads l JOIN crm.properties p ON p.id = l.property_id WHERE l.id = $1`, importedLead).Scan(&details); err != nil {
+		t.Fatal(err)
+	}
+	if details["county"] != "Travis" || details["year_built"] != "1980" || details["area"] == nil || details["beds"] == nil || details["baths"] == nil {
+		t.Fatalf("recognized source details did not reach the property: %v", details)
 	}
 	e.want(e.op(alice, orgA, "lead.delete", map[string]any{"id": importedLead}), "applied")
 	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM importing.rows WHERE job_id = $1 AND row_no = 1`, id).Scan(&linked); err != nil || linked != 0 {

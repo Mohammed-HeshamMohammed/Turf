@@ -219,7 +219,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
         {status === "mapping" && (
           <>
             <p className="muted">
-              We matched what we could from the headings. Source row only columns keep their original values in this list, without adding them to lead fields.
+              {number(columns.filter(column => column.standard_key).length)} of {number(columns.length)} remaining columns recognized. Source row only columns keep their original values in this list; recognized property details also appear on new properties.
               {report.exact_duplicates > 0 && ` ${number(report.exact_duplicates)} identical rows were removed.`}
               {(report.empty_columns_removed || []).length > 0 && ` ${number(report.empty_columns_removed.length)} completely empty columns were removed from the source rows.`}
             </p>

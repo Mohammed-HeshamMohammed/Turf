@@ -117,7 +117,7 @@ func (s *server) importRows(q *req) error {
 	if err = tx.QueryRow(ctx, `SELECT count(*) FROM importing.rows WHERE job_id = $1`, id).Scan(&total); err != nil {
 		return err
 	}
-	rows, err := queryJSON(ctx, tx, `SELECT jsonb_build_object('row_no', row_no, 'cells', cells, 'state', state, 'lead_id', lead_id)
+	rows, err := queryJSON(ctx, tx, `SELECT jsonb_build_object('row_no', row_no, 'cells', cells, 'state', state, 'lead_id', lead_id, 'source_data', source_data)
 		FROM importing.rows WHERE job_id = $1 ORDER BY row_no OFFSET $2 LIMIT 50`, id, max(offset, 0))
 	if err != nil {
 		return err
@@ -522,10 +522,11 @@ func (s *server) mergeBatch(ctx context.Context, sc scope, id string, project, t
 			SELECT r.*, gen_random_uuid() AS new_lead_id, gen_random_uuid() AS prop_id FROM importing.rows r
 			WHERE r.job_id = $1 AND r.state IN ('clean', 'import') ORDER BY r.row_no LIMIT $2 FOR UPDATE SKIP LOCKED
 		), props AS (
-			INSERT INTO properties (id, org_id, address, unit, city, region, postal_code, country, parcel, latitude, longitude, location_source)
+			INSERT INTO properties (id, org_id, address, unit, city, region, postal_code, country, parcel, latitude, longitude, location_source, details)
 			SELECT prop_id, cw_org(), coalesce(address, ''), coalesce(unit, ''), coalesce(city, ''), coalesce(region, ''), coalesce(zip, ''), coalesce(country, ''), coalesce(parcel, ''),
 				CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL THEN latitude END, CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL THEN longitude END,
-				CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL THEN 'supplied' ELSE 'none' END
+				CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL THEN 'supplied' ELSE 'none' END,
+				importing.property_details(source_data)
 			FROM batch WHERE address IS NOT NULL OR zip IS NOT NULL OR city IS NOT NULL OR latitude IS NOT NULL RETURNING id
 		), ins AS (
 			INSERT INTO leads (id, org_id, project_id, team_id, property_id, assignee_id, name, phone, email, source, value_amount, stage)
