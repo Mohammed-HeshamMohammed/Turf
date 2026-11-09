@@ -110,6 +110,21 @@ Secrets (database passwords, the `core-api` token for authz) are set by the owne
 - **Formula safety in exports.** When exports of imported data exist, cells starting with `=`, `+`, `-` or `@` must be written with a leading quote.
 - **Server disk alert.** An alert in Coolify, or a separate disk for the imports volume, covers many large uploads filling the disk.
 
+## Reorganising imports and lists (decided 2026-11-10)
+
+Problem: the import itself runs on the server, but `/sync/snapshot` sends every visible lead in one response, and the browser then holds them all in memory and in the encrypted offline copy. Big lists and weak PCs crash. (Sources: `services/crm-core/sync.go` snapshot, `desktop/frontend/react/src/remote/engine.ts`.)
+
+Decisions:
+
+- **Leads stay on the server.** Lists, search, filters and sort are server queries that return one page (about 50 rows) and a total count. The browser holds only the page in view.
+- **The snapshot no longer carries leads.** It keeps the small collections (tasks, notes, deals, team) and the leads come in pages.
+- **Offline is small and optional.** The offline copy covers only the person's own work (their assigned leads, notes and tasks), with a size cap, never the whole workspace. Skipping the offline copy costs nothing.
+- **No calls can be made offline.** Starting a call needs the connection: the call buttons are off while the CRM is offline, and the offline copy needs no call queue. Notes, tasks and outcomes of earlier calls can still be written offline and sync later.
+- **A finished import does not touch devices.** Devices show a "new list ready" notice and pull leads only when the list is opened.
+- **Import dialog:** pick the file, check the column suggestions, one "Add to workspace" button; progress survives closing the tab. Repeat handling and cleaning stay on the server.
+
+First piece to build: server-side paged lead lists (the rest depends on it).
+
 ### What the owner does in Coolify (step 4)
 
 1. Create the CRM PostgreSQL resource, a login `crm_core` for crm-core, and (after crm-core has started once) `CREATE ROLE importer LOGIN PASSWORD '...'`.
