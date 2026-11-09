@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Me } from "../../auth/auth-client.js";
 import { Link } from "../../nav.tsx";
+import { profilePath } from "../../profile-path.ts";
 
 const links = [
   { label: "Features", to: "/features" },
@@ -10,7 +11,7 @@ const links = [
   { label: "Contact", to: "/contact" },
 ];
 
-type Shown = { name?: string; email?: string; avatar?: unknown };
+type Shown = { name?: string; email?: string; avatar?: unknown; username?: unknown };
 
 export function SiteHeader({ path, me, onSignOut, savedSession = false, cached = null, openCrm }: { path: string; me: Me | null | undefined; onSignOut: () => void; savedSession?: boolean; cached?: Shown | null; openCrm?: () => void }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -37,7 +38,7 @@ export function SiteHeader({ path, me, onSignOut, savedSession = false, cached =
   const nav = links.map(link => <Link key={link.to} to={link.to} aria-current={path === link.to || (link.to === "/features" && path.startsWith("/features/")) ? "page" : undefined}>{link.label}</Link>);
   const menu = (known: Shown) => <details className="account-menu" ref={accountMenu}>
     <summary aria-label={`Account menu for ${known.name || known.email}`} title="Account menu"><span className="avatar" aria-hidden="true">{known.avatar ? <img src={String(known.avatar)} alt="" /> : (known.name || known.email || "C").trim().charAt(0).toUpperCase()}</span></summary>
-    <div className="account-popover"><span className="account-identity">{known.name || "Your account"}<small>{known.email}</small></span><Link to="/dashboard" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; }}>Dashboard</Link>{openCrm && <button type="button" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; openCrm(); }}>Open CRM</button>}<Link to="/account" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; }}>Settings</Link><button type="button" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; onSignOut(); }}>Sign out</button></div>
+    <div className="account-popover"><span className="account-identity">{known.name || "Your account"}<small>{known.email}</small></span><Link to="/dashboard" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; }}>Dashboard</Link>{openCrm && <button type="button" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; openCrm(); }}>Open CRM</button>}<Link to={profilePath(known)} onClick={() => { if (accountMenu.current) accountMenu.current.open = false; }}>Settings</Link><button type="button" onClick={() => { if (accountMenu.current) accountMenu.current.open = false; onSignOut(); }}>Sign out</button></div>
   </details>;
   // What is known at once: the person, or (while the session is still being checked) the last-known profile kept on this device.
   const known = me || (me === undefined && savedSession ? cached : null);

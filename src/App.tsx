@@ -22,6 +22,7 @@ import { splitName } from "./person-name.ts";
 import { SiteFooter } from "./components/ui/site-footer.tsx";
 import { Dashboard } from "./Dashboard.tsx";
 import { Settings } from "./Settings.tsx";
+import { profilePath, usernameInPath } from "./profile-path.ts";
 import { Connect } from "./Connect.tsx";
 import { Setup } from "./Setup.tsx";
 import { Assistant } from "./Assistant.tsx";
@@ -442,15 +443,21 @@ export function App({ path: first = "/" }) {
     go("/");
   };
   // The title, description and canonical address follow the page (the build writes them into each page's HTML).
-  useEffect(() => applyMetadata(metadataFor(routeFor(path).key)), [path]);
+  // An address that is not a page of the site may be a person's own page (callerwhale.com/their-username).
+  const knownPage = routeFor(path).key !== "notfound";
+  const ownPageName = !knownPage ? usernameInPath(cleanPath(path)) : "";
+  useEffect(() => applyMetadata(metadataFor(ownPageName ? "account" : routeFor(path).key)), [path, ownPageName]);
   // Pages are for the right state: signed in, nobody sees the sign-in forms; signed out, nobody sees the account page.
   const fromCrm = typeof window !== "undefined" && wantsCrm(window.location.search);
   useEffect(() => {
     if (me && fromCrm) { if (!setupStep(me)) void openCrm(); return; } // the setup steps (age, terms, work) come first
+    // /account is the older address of the same page: it goes to the person's own address once it is known.
+    if (me && cleanPath(path) === "/account" && !setupStep(me) && profilePath(me) !== "/account") { go(profilePath(me), { replace: true }); return; }
+    if (me === null && ownPageName) { go("/signin", { replace: true }); return; }
     const to = redirectFor(path, me);
     if (to && !me && path.startsWith("/connect")) { try { window.sessionStorage.setItem("cw-after-signin", window.location.pathname + window.location.search); } catch { /* signing in then opens the dashboard */ } }
     if (to) go(to, { replace: true });
-  }, [path, me]);
+  }, [path, me, ownPageName]);
   // Signed in and then not, without the person asking (the session ended, or they signed out in another tab): say so.
   useEffect(() => {
     if (me) {
@@ -480,11 +487,12 @@ export function App({ path: first = "/" }) {
     "/account": me && setupStep(me) ? setup : me ? <Settings me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
     "/dashboard": me && setupStep(me) ? setup : me ? <Dashboard me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
   };
+  const ownPage = me === undefined || me === null ? <AccountPending error={restoreError} onRetry={retrySession} /> : setupStep(me) ? setup : String(me.username || "") === ownPageName ? pages["/account"] : <NotFound />;
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
   return (
     <div className={`page${cleanPath(path) === "/" ? " home-page" : ""}${cleanPath(path) === "/dashboard" ? " dashboard-shell" : ""}`}>
       <SiteHeader path={path} me={me} onSignOut={signOut} savedSession={savedSession} cached={cached} openCrm={crmLink ? openCrm : undefined} />
-      <main>{pages[cleanPath(path)] || (routeFor(path).key.startsWith("feature:") ? <FeaturePage slug={featureSlug} /> : <NotFound />)}</main>
+      <main>{pages[cleanPath(path)] || (ownPageName ? ownPage : null) || (routeFor(path).key.startsWith("feature:") ? <FeaturePage slug={featureSlug} /> : <NotFound />)}</main>
       <SiteFooter compact={cleanPath(path) === "/dashboard"} />
       <Assistant signedIn={me === undefined ? undefined : Boolean(me)} path={cleanPath(path)} />
     </div>

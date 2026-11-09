@@ -398,3 +398,8 @@
 .connect-list { margin: 4px 0 12px; padding-left: 20px; display: grid; gap: 4px; }
 .connect-address { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; border-radius: 12px; background: var(--raised); }
 .connect-address code { flex: 1 1 220px; overflow-wrap: anywhere; font-size: 15px; }
+
+/* The username box: the address in front, the name to type */
+.username-field { display: flex; align-items: center; gap: 0; border-radius: 12px; box-shadow: 0 0 0 1px var(--line); background: var(--card, #fff); overflow: hidden; }
+.username-field > span { padding: 0 0 0 14px; color: var(--muted, #595959); white-space: nowrap; }
+.username-field input { flex: 1; min-width: 0; border: 0; box-shadow: none; background: transparent; padding-left: 2px; }
