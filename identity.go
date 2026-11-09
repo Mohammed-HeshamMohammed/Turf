@@ -301,8 +301,8 @@ func (s *server) createProject(q *req) error {
 	return nil
 }
 
-// An empty list can be removed without affecting leads. A populated list needs a separate, explicit lead policy.
-func (s *server) deleteEmptyProject(q *req) error {
+// Deleting a source list removes the leads and related CRM records in the same database transaction.
+func (s *server) deleteProject(q *req) error {
 	if !q.sc.can("admin") {
 		return forbidden("Only a workspace administrator can delete source lists.")
 	}
@@ -323,13 +323,28 @@ func (s *server) deleteEmptyProject(q *req) error {
 		}
 		return err
 	}
-	var linked bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM leads WHERE project_id = $1)
-		OR EXISTS (SELECT 1 FROM importing.jobs WHERE project_id = $1 AND status NOT IN ('failed', 'cancelled', 'done'))`, id).Scan(&linked); err != nil {
+	var active bool
+	if err = tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM importing.jobs WHERE project_id = $1 AND status NOT IN ('failed', 'cancelled', 'done'))`, id).Scan(&active); err != nil {
 		return err
 	}
-	if linked {
-		return bad("This source list still has leads or an import in progress. Finish or cancel the import first; lists with leads cannot be deleted here.")
+	if active {
+		return bad("Finish or cancel this source list's import before deleting it.")
+	}
+	if _, err = tx.Exec(ctx, `CREATE TEMP TABLE _project_leads ON COMMIT DROP AS SELECT id, property_id FROM leads WHERE project_id = $1`, id); err != nil {
+		return err
+	}
+	deleted, err := tx.Exec(ctx, `DELETE FROM leads WHERE id IN (SELECT id FROM _project_leads)`)
+	if err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO change_log (org_id, entity, entity_id, lead_id, op)
+		SELECT cw_org(), 'lead', id, id, 'delete' FROM _project_leads`); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM properties p WHERE p.id IN (SELECT property_id FROM _project_leads)
+		AND NOT EXISTS (SELECT 1 FROM leads l WHERE l.property_id = p.id)
+		AND NOT EXISTS (SELECT 1 FROM deals d WHERE d.property_id = p.id)`); err != nil {
+		return err
 	}
 	rows, err := tx.Query(ctx, `DELETE FROM importing.jobs WHERE project_id = $1 RETURNING id::text`, id)
 	if err != nil {
@@ -361,7 +376,7 @@ func (s *server) deleteEmptyProject(q *req) error {
 	for _, jobID := range imports {
 		s.dropUpload(jobID)
 	}
-	writeJSON(q.w, 200, map[string]any{"removed": id})
+	writeJSON(q.w, 200, map[string]any{"removed": id, "deleted_leads": deleted.RowsAffected()})
 	return nil
 }
 
