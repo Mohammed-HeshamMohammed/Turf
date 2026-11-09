@@ -122,6 +122,16 @@ func (s *server) pull(q *req) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
+	// Far behind (a big import landed, or the device was away): a fresh snapshot is a few thousand records; paging through the
+	// changes would be one per imported lead.
+	var behind int64
+	if err = tx.QueryRow(ctx, `SELECT count(*) FROM (SELECT 1 FROM change_log WHERE seq > $1 LIMIT $2) t`, cursor, maxPullBehind+1).Scan(&behind); err != nil {
+		return err
+	}
+	if behind > maxPullBehind {
+		writeJSON(q.w, http.StatusOK, map[string]any{"reset": true, "access_revision": q.rev})
+		return nil
+	}
 	type entry struct {
 		seq             int64
 		entity, id, op_ string
@@ -180,6 +190,11 @@ func (s *server) pull(q *req) error {
 }
 
 // snapshot is everything the person may see, for a first sync or after a reset, with the cursor to continue from.
+const (
+	snapshotLeads = 3000 // leads in a snapshot; the rest are found by search
+	maxPullBehind = 5000 // changes a device may be behind and still page through them
+)
+
 func (s *server) snapshot(q *req) error {
 	ctx := q.r.Context()
 	tx, err := s.st.begin(ctx, q.sc)
@@ -192,7 +207,33 @@ func (s *server) snapshot(q *req) error {
 	if err = tx.QueryRow(ctx, `SELECT coalesce(max(seq), 0) FROM change_log`).Scan(&cursor); err != nil {
 		return err
 	}
-	leads, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) FROM leads l LEFT JOIN properties p ON p.id = l.property_id WHERE cw_visible_lead(l.id)`)
+	// Not every lead: a workspace can hold hundreds of thousands, and a browser cannot. The window is the person's own leads first, then
+	// the most recently changed; the totals say how many there are, and /api/v1/leads/search reaches the rest.
+	if _, err = tx.Exec(ctx, `CREATE TEMP TABLE win ON COMMIT DROP AS
+		SELECT l.id FROM leads l WHERE cw_visible_lead(l.id)
+		ORDER BY (l.assignee_id::text = $1) DESC, l.updated_at DESC LIMIT $2`, q.sc.userID, snapshotLeads); err != nil {
+		return err
+	}
+	var total int64
+	if err = tx.QueryRow(ctx, `SELECT count(*) FROM leads l WHERE cw_visible_lead(l.id)`).Scan(&total); err != nil {
+		return err
+	}
+	counts := map[string]int64{}
+	countRows, err := tx.Query(ctx, `SELECT project_id::text, count(*) FROM leads l WHERE project_id IS NOT NULL AND cw_visible_lead(l.id) GROUP BY project_id`)
+	if err != nil {
+		return err
+	}
+	for countRows.Next() {
+		var id string
+		var n int64
+		if err = countRows.Scan(&id, &n); err != nil {
+			countRows.Close()
+			return err
+		}
+		counts[id] = n
+	}
+	countRows.Close()
+	leads, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) FROM leads l JOIN win ON win.id = l.id LEFT JOIN properties p ON p.id = l.property_id`)
 	if err != nil {
 		return err
 	}
@@ -201,19 +242,19 @@ func (s *server) snapshot(q *req) error {
 			return err
 		}
 	}
-	body := map[string]any{"cursor": cursor, "access_revision": q.rev, "leads": leads, "deals": []json.RawMessage{}}
+	body := map[string]any{"cursor": cursor, "access_revision": q.rev, "leads": leads, "leads_total": total, "project_counts": counts, "deals": []json.RawMessage{}}
 	for name, sql := range map[string]string{
-		"tasks":    taskVisible,
-		"notes":    `SELECT to_jsonb(n) FROM notes n WHERE cw_visible_lead(n.lead_id) AND (NOT cw_external() OR n.visibility = 'shared')`,
-		"calls":    `SELECT to_jsonb(c) FROM call_events c WHERE cw_visible_lead(c.lead_id) AND NOT cw_external()`,
-		"handoffs": `SELECT to_jsonb(h) FROM handoffs h WHERE cw_visible_lead(h.lead_id) AND NOT cw_external()`,
+		"tasks":    taskVisible + ` AND (t.lead_id IS NULL OR t.lead_id IN (SELECT id FROM win))`,
+		"notes":    `SELECT to_jsonb(n) FROM notes n WHERE n.lead_id IN (SELECT id FROM win) AND (NOT cw_external() OR n.visibility = 'shared')`,
+		"calls":    `SELECT to_jsonb(c) FROM call_events c WHERE c.lead_id IN (SELECT id FROM win) AND NOT cw_external()`,
+		"handoffs": `SELECT to_jsonb(h) FROM handoffs h WHERE h.lead_id IN (SELECT id FROM win) AND NOT cw_external()`,
 	} {
 		if body[name], err = queryJSON(ctx, tx, sql); err != nil {
 			return err
 		}
 	}
 	if q.sc.can("finance") {
-		if body["deals"], err = queryJSON(ctx, tx, `SELECT to_jsonb(d) FROM deals d WHERE cw_visible_lead(d.lead_id) AND NOT cw_external()`); err != nil {
+		if body["deals"], err = queryJSON(ctx, tx, `SELECT to_jsonb(d) FROM deals d WHERE d.lead_id IN (SELECT id FROM win) AND NOT cw_external()`); err != nil {
 			return err
 		}
 	}
