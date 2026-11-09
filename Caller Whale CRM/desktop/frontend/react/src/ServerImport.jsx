@@ -389,6 +389,11 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
             {status === "failed" && <p className="muted">Import ID: <code>{job.id}</code></p>}
             <div className="import-actions">
               <Button onClick={() => onClose(job)}>Back to source lists</Button>
+              {status === "failed" && job.progress?.phase === "merging" && (
+                <Button variant="primary" disabled={busy} onClick={() => act(() => api.imports.retry(job.id), "Adding stored source rows to CRM leads again.")}>
+                  Retry adding leads
+                </Button>
+              )}
             </div>
           </>
         )}

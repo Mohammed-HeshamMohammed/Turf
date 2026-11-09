@@ -107,7 +107,9 @@ export function PropertyMap({ rows: current, title = "Property map", mappings: g
           else map.setView([25, 0], 2, { animate: false });
         };
         fit.current();
-        observer = new ResizeObserver(() => map.invalidateSize({ animate: false }));
+        observer = new ResizeObserver(() => {
+          if (!disposed && mapRef.current === map && map.getPane("mapPane")) map.invalidateSize({ animate: false });
+        });
         observer.observe(host.current);
       })
       .catch(() => !disposed && setStatus("Map could not load · records remain available below"));

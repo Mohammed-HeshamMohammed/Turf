@@ -511,6 +511,46 @@ func TestAConfirmedListIsMergedIntoLeadsInBatches(t *testing.T) {
 
 func ptr[T any](v T) *T { return &v }
 
+func TestFailedMergeCanResumeStoredRows(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	ctx := context.Background()
+	_, job := e.startImport(alice, orgA, map[string]any{"filename": "owners.csv", "size": 100})
+	id := job["id"].(string)
+	if _, err := e.admin.Exec(ctx, `INSERT INTO importing.rows (job_id, row_no, fp, cells, name, state)
+		VALUES ($1, 1, sha256('owner'::bytea), ARRAY['Owner'], 'Owner', 'clean')`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'failed', progress = '{"phase":"merging","done":0}', error = 'Merge failed' WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ := e.call(bob, orgA, "POST", "/api/v1/imports/"+id+"/retry", nil); status != 403 {
+		t.Fatalf("another member could retry this upload: %d", status)
+	}
+	if status, _ := e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/retry", nil); status != 200 {
+		t.Fatalf("retry failed merge: %d", status)
+	}
+	deadline := time.Now().Add(15 * time.Second)
+	var state string
+	for time.Now().Before(deadline) {
+		_ = e.admin.QueryRow(ctx, `SELECT status FROM importing.jobs WHERE id = $1`, id).Scan(&state)
+		if state == "done" || state == "failed" {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if state != "done" {
+		t.Fatalf("retried merge finished as %q", state)
+	}
+	var linked int
+	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM importing.rows WHERE job_id = $1 AND state = 'merged' AND lead_id IS NOT NULL`, id).Scan(&linked); err != nil || linked != 1 {
+		t.Fatalf("stored row did not become a lead: %d %v", linked, err)
+	}
+	if status, _ := e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/retry", nil); status != 400 {
+		t.Fatalf("completed import could be retried: %d", status)
+	}
+}
+
 func TestCompletedSourceRowsStayWhileFailedHoldingRowsExpire(t *testing.T) {
 	e := newEnv(t)
 	e.seed()
