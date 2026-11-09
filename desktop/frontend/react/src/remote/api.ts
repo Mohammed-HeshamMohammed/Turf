@@ -110,6 +110,7 @@ export const api = {
   directory: () => request("GET", "/api/v1/directory"),
   teams: () => request("GET", "/api/v1/admin/teams"),
   projects: () => request("GET", "/api/v1/projects"),
+  deleteProject: (id: string): Promise<any> => request("DELETE", `/api/v1/projects/${id}`),
   settings: () => request("GET", "/api/v1/settings"),
   snapshot: () => request("GET", "/sync/snapshot", undefined, { timeout: 60000 }),
   pull: (cursor, accessRevision) => request("GET", `/sync/pull?cursor=${cursor}&access_revision=${accessRevision}`),
@@ -128,6 +129,7 @@ export const api = {
     decide: (id: string, body): Promise<any> => request("POST", `/api/v1/imports/${id}/duplicates`, body),
     merge: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/merge`),
     cancel: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/cancel`),
+    remove: (id: string): Promise<any> => request("DELETE", `/api/v1/imports/${id}`),
   },
 };
 

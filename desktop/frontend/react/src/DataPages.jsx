@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
-import { ArrowRight, ArrowUpRight, CheckCircle, Phone, Cloud, DownloadSimple, FileCsv, HardDrives, ShieldCheck, UploadSimple } from "@phosphor-icons/react";
+import { ArrowRight, ArrowUpRight, CheckCircle, Phone, Cloud, DownloadSimple, FileCsv, HardDrives, ShieldCheck, Trash, UploadSimple } from "@phosphor-icons/react";
 import { LEAD_STAGES, ROLES } from "./data.ts";
 import { capability, uid, visibleLeads } from "./model.ts";
 import { useCrm } from "./context.jsx";
@@ -28,6 +28,7 @@ import {
   useShowMore,
   downloadCsv,
   Breadcrumb,
+  ConfirmDialog,
   useTableView,
 } from "./ui.jsx";
 
@@ -42,6 +43,8 @@ export function Lists({ id }) {
   const [upload, setUpload] = useState(null);
   const [running, setRunning] = useState([]);
   const [recentFailures, setRecentFailures] = useState([]);
+  const [removeTarget, setRemoveTarget] = useState(null);
+  const [removing, setRemoving] = useState(false);
   const input = useRef(null);
   const remote = Boolean(state.remote);
   useEffect(() => {
@@ -58,7 +61,41 @@ export function Lists({ id }) {
   const listLeads = useMemo(() => leads.filter(lead => lead.datasetId === id), [leads, id]);
   const datasetIds = new Set(leads.map(item => item.datasetId));
   const datasets = state.remote ? state.datasets : state.datasets.filter(item => datasetIds.has(item.id) || (capability(state, "import") && item.team === (ROLES[state.role].team || "Tampa")));
+  const searchedDatasets = datasets.filter(item => item.name.toLowerCase().includes(search.toLowerCase()));
+  const filledDatasets = searchedDatasets.filter(item => datasetIds.has(item.id));
+  const emptyDatasets = searchedDatasets.filter(item => !datasetIds.has(item.id));
   const dataset = datasets.find(item => item.id === id);
+  const attention = [...running, ...recentFailures].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  const groups = new Map();
+  attention.forEach(item => {
+    const key = item.filename || item.name;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  });
+  const attentionGroups = [...groups.values()];
+  async function removeSelected() {
+    if (!removeTarget || removing) return;
+    setRemoving(true);
+    try {
+      if (removeTarget.kind === "import") {
+        await api.imports.remove(removeTarget.item.id);
+        setRunning(current => current.filter(item => item.id !== removeTarget.item.id));
+        setRecentFailures(current => current.filter(item => item.id !== removeTarget.item.id));
+      } else {
+        await api.deleteProject(removeTarget.item.id);
+        setRunning(current => current.filter(item => item.project_id !== removeTarget.item.id));
+        setRecentFailures(current => current.filter(item => item.project_id !== removeTarget.item.id));
+      }
+      dispatch({ type: "REFRESH_LISTS" });
+      notify(removeTarget.kind === "import" ? "Import and its uploaded file removed" : "Empty source list removed");
+      setRemoveTarget(null);
+    } catch (reason) {
+      setError(reason.message || "This could not be removed. Try again.");
+      setRemoveTarget(null);
+    } finally {
+      setRemoving(false);
+    }
+  }
   const table = useTableView(
     leads.filter(lead => lead.datasetId === id),
     {
@@ -260,25 +297,30 @@ export function Lists({ id }) {
           {error}
         </p>
       )}
-      {running.length > 0 && (
-        <Card title="Imports in progress" className="imports-running">
-          {running.map(item => (
-            <div className="row" key={item.id}>
-              <span>
-                <strong>{item.name}</strong> <small className="muted">{item.status === "mapping" || item.status === "reviewing" || item.status === "ready" ? "needs you" : item.status}</small>
-              </span>
-              <Button onClick={() => setUpload({ resume: item.id })}>Continue</Button>
-            </div>
-          ))}
-        </Card>
-      )}
-      {recentFailures.length > 0 && (
-        <Card title="Imports that need attention" className="imports-running">
-          {recentFailures.map(item => (
-            <div className="row" key={item.id}>
-              <span><strong>{item.name}</strong> <small className="muted">Import failed</small></span>
-              <Button onClick={() => setUpload({ resume: item.id })}>See details</Button>
-            </div>
+      {attentionGroups.length > 0 && (
+        <Card title="Import activity" subtitle="Each upload attempt is shown under its file." className="import-history">
+          {attentionGroups.map(group => (
+            <section className="import-history-group" key={group[0].filename || group[0].name}>
+              <header>
+                <strong>{group[0].name}</strong>
+                <small>{group.length} {group.length === 1 ? "attempt" : "attempts"}</small>
+              </header>
+              {group.map(item => (
+                <div className="import-history-attempt" key={item.id}>
+                  <div>
+                    <Badge tone={item.status === "failed" ? "danger" : "peach"}>{item.status === "failed" ? "Failed" : item.status === "mapping" || item.status === "reviewing" || item.status === "ready" ? "Needs you" : "In progress"}</Badge>
+                    <small>{new Date(item.created_at).toLocaleString()}</small>
+                    {item.status === "failed" && <p>{item.error || "This import could not be completed."}</p>}
+                  </div>
+                  <div className="import-history-actions">
+                    <Button onClick={() => setUpload({ resume: item.id })}>{item.status === "failed" ? "Details" : "Continue"}</Button>
+                    {item.status === "failed" && capability(state, "import") && (
+                      <button className="text-button" onClick={() => setRemoveTarget({ kind: "import", item })}><Trash size={16} /> Remove</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </section>
           ))}
         </Card>
       )}
@@ -287,9 +329,7 @@ export function Lists({ id }) {
         <span className="result-count">{datasets.length} source lists</span>
       </div>
       <div className="dataset-grid">
-        {datasets
-          .filter(item => item.name.toLowerCase().includes(search.toLowerCase()))
-          .map(item => (
+        {filledDatasets.map(item => (
             <Card key={item.id} className="dataset-card">
               <div className="dataset-top">
                 <span className="file-icon">
@@ -308,7 +348,7 @@ export function Lists({ id }) {
                 <small>{item.date}</small>
               </div>
               <footer>
-                <Badge>{item.team}</Badge>
+                {item.team && <Badge>{item.team}</Badge>}
                 <Button onClick={() => navigate("lists/" + item.id)}>
                   Open list <ArrowRight size={16} />
                 </Button>
@@ -316,6 +356,21 @@ export function Lists({ id }) {
             </Card>
           ))}
       </div>
+      {emptyDatasets.length > 0 && (
+        <Card title="Empty source lists" subtitle="These lists have no leads in your current view." className="empty-source-lists">
+          {emptyDatasets.map(item => (
+            <div className="empty-source-list" key={item.id}>
+              <div><strong>{item.name}</strong><small>No leads imported</small></div>
+              <div className="import-history-actions">
+                <Button onClick={() => navigate("lists/" + item.id)}>Open</Button>
+                {remote && capability(state, "admin") && (
+                  <button className="text-button" onClick={() => setRemoveTarget({ kind: "project", item })}><Trash size={16} /> Delete</button>
+                )}
+              </div>
+            </div>
+          ))}
+        </Card>
+      )}
       {capability(state, "import") && (
         <div
           className="import-zone"
@@ -342,6 +397,19 @@ export function Lists({ id }) {
           onClose={() => setUpload(null)}
           onFinished={() => dispatch({ type: "REFRESH_LISTS" })}
         />
+      )}
+      {removeTarget && (
+        <ConfirmDialog
+          title={removeTarget.kind === "import" ? "Remove this import?" : "Delete this empty source list?"}
+          confirmLabel={removing ? "Removing…" : "Remove"}
+          danger
+          onClose={() => !removing && setRemoveTarget(null)}
+          onConfirm={removeSelected}
+        >
+          {removeTarget.kind === "import"
+            ? "The uploaded file, import history and unfinished rows will be removed. Its empty source list will also disappear if nothing else uses it. Leads already added to the CRM stay."
+            : "This empty source list and its finished or failed import attempts will be removed. No leads will be deleted."}
+        </ConfirmDialog>
       )}
     </>
   );

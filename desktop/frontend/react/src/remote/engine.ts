@@ -220,6 +220,7 @@ export class SyncEngine {
         return;
       }
       if (event.kind === "hello") return;
+      if (event.kind === "project.changed") void this.refreshProjects().catch(() => {});
       // Coalesce bursts of changes into one pull.
       clearTimeout(timer);
       timer = setTimeout(() => this.sync(), event.kind === "access.changed" ? 0 : 250);
