@@ -118,11 +118,8 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /api/v1/ops", s.member(s.oneOp))
 	mux.HandleFunc("GET /events", s.events)
 
-	mux.Handle("POST /api/v1/imports", s.member(s.importStart))
 	mux.Handle("GET /api/v1/imports", s.member(s.importList))
 	mux.Handle("GET /api/v1/imports/{id}", s.member(s.importGet))
-	mux.Handle("PUT /api/v1/imports/{id}/chunks/{n}", s.member(s.importChunk))
-	mux.Handle("POST /api/v1/imports/{id}/complete", s.member(s.importComplete))
 	mux.Handle("PUT /api/v1/imports/{id}/mapping", s.member(s.importMapping))
 	mux.Handle("GET /api/v1/imports/{id}/duplicates", s.member(s.importDuplicates))
 	mux.Handle("POST /api/v1/imports/{id}/duplicates", s.member(s.importDecide))

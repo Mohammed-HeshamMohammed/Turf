@@ -1,5 +1,5 @@
 // crm-core: the CRM's backend. The web CRM (app.callerwhale.com) and the desktop app sync their leads, tasks, notes, calls, deals and
-// handoffs here, and upload their lists here. Who someone is comes from the auth service's signed tokens (checked locally); what they
+// handoffs here. The import worker receives lists and writes SQL source rows for Core to merge. Who someone is comes from the auth service's signed tokens (checked locally); what they
 // may do comes from the authorization service. Plan: docs/plans/crm-core-and-imports.md.
 package main
 
@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -24,11 +23,9 @@ type config struct {
 	authzURL    string          // the authorization service, private
 	authzToken  string          // crm-core's own token there (AUTHZ_TOKENS "core-api=...")
 	notifyURL   string          // where the website's contact form goes on to; empty turns it off
-	importDir   string          // the folder shared with the import worker, where upload pieces wait
 	importRole  string          // the import worker's database login, to be given the holding tables
 	origins     map[string]bool // pages that may call from a browser (CORS_ORIGINS)
 	grantTTL    time.Duration
-	maxImportMB int64
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -40,23 +37,11 @@ func loadConfig(getenv func(string) string) (config, error) {
 		authzURL:    trim(getenv("AUTHZ_URL")),
 		authzToken:  strings.TrimSpace(getenv("AUTHZ_TOKEN")),
 		notifyURL:   trim(getenv("NOTIFY_URL")),
-		importDir:   strings.TrimSpace(getenv("IMPORT_DIR")),
 		importRole:  strings.TrimSpace(getenv("IMPORT_DB_ROLE")),
 		grantTTL:    5 * time.Second,
-		maxImportMB: 20 * 1024,
 	}
 	if c.port == "" {
 		c.port = "8107"
-	}
-	if c.importDir == "" {
-		c.importDir = "/data/imports"
-	}
-	if v := strings.TrimSpace(getenv("MAX_IMPORT_MB")); v != "" {
-		n, err := strconv.ParseInt(v, 10, 64)
-		if err != nil || n < 1 {
-			return c, errors.New("MAX_IMPORT_MB must be a number of megabytes")
-		}
-		c.maxImportMB = n
 	}
 	var err error
 	if c.origins, err = parseOrigins(getenv("CORS_ORIGINS")); err != nil {
@@ -101,7 +86,7 @@ func main() {
 	s := &server{cfg: cfg, keys: newKeyset(cfg.jwksURL), rules: newAuthz(cfg.authzURL, cfg.authzToken, cfg.grantTTL), st: st, hub: newHub(), now: time.Now}
 	go s.hub.listen(ctx, cfg.databaseURL)
 	go s.resumeMerges(ctx)
-	go s.sweepUploads(ctx)
+	go s.sweepRowsPeriodically(ctx)
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 5 * time.Minute, WriteTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute}
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
