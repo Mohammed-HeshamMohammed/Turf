@@ -20,5 +20,5 @@ COPY --from=build /out/service /service
 ENV PORT=8107
 EXPOSE 8107
 USER nonroot
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD ["/service", "health"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=6 CMD ["/service", "health"]
 ENTRYPOINT ["/usr/local/bin/callerwhale-log","/service"]
