@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { UploadSimple } from "@phosphor-icons/react";
 import { api } from "./remote/api.ts";
+import { importStatusMessage } from "./remote/source-list-imports.js";
 import { IMPORT_FIELDS, follow, mappingBody, mappingProblem, uploadFile } from "./remote/imports.ts";
+import { useCrm } from "./context.jsx";
+import { SourceRows } from "./SourceRows.jsx";
 import { Badge, Breadcrumb, Button, Card, Checkbox, Field, PageHeader, Select } from "./ui.jsx";
 
 // One page for every step of a server import. The upload's project ID ties this page to its source list.
@@ -17,6 +20,7 @@ const number = (value) => Number(value || 0).toLocaleString();
 const megabytes = (bytes) => (bytes / 1048576 >= 10 ? Math.round(bytes / 1048576).toLocaleString() : (bytes / 1048576).toFixed(1)) + " MB";
 
 export function ServerImport({ resume = "", initialFile = null, projectId = null, projectName = "", onClose, onFinished, onStarted }) {
+  const { navigate, notify, refreshImports } = useCrm();
   const [file, setFile] = useState(initialFile);
   const [name, setName] = useState(initialFile ? initialFile.name.replace(/\.[^.]+$/, "") : "");
   const [header, setHeader] = useState(true);
@@ -32,15 +36,22 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
   const stop = useRef(new AbortController());
   const uploading = useRef(false);
   const startedRoute = useRef(false);
+  const lastStatus = useRef(null);
   useEffect(() => () => stop.current.abort(), []);
 
   async function track(id) {
     try {
       const next = await follow(id, setJob, { signal: stop.current.signal });
+      if (lastStatus.current && lastStatus.current !== next.status && importStatusMessage(next)) notify(importStatusMessage(next));
+      lastStatus.current = next.status;
+      void refreshImports?.().catch(() => {});
       if (next.status === "reviewing") setRepeats(await api.imports.duplicates(id));
       if (next.status === "done") onFinished?.(next);
     } catch (reason) {
-      if (reason?.name !== "AbortError") setError(reason.message || "The server cannot be reached.");
+      if (reason?.name !== "AbortError") {
+        setError(reason.message || "The server cannot be reached.");
+        notify(reason.message || "The import needs attention.");
+      }
     }
   }
   useEffect(() => {
@@ -76,25 +87,30 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
       });
       setSent(null);
       setJob(queued);
+      lastStatus.current = queued.status;
+      notify("Upload received. Source rows are being read.");
       await track(queued.id);
     } catch (reason) {
       if (reason?.name === "AbortError") return;
       setSent(null);
       setError(reason.message || "The list could not be sent.");
+      notify(reason.message || "The list could not be sent.");
     } finally {
       uploading.current = false;
     }
   }
 
-  async function act(work) {
+  async function act(work, message) {
     setBusy(true);
     setError("");
     try {
       const next = await work();
       setJob(next);
+      if (message) notify(message);
       await track(next.id);
     } catch (reason) {
       setError(reason.message || "That did not work. Try again.");
+      notify(reason.message || "That action needs attention.");
     } finally {
       setBusy(false);
     }
@@ -104,6 +120,8 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
     stop.current.abort();
     stop.current = new AbortController();
     if (job) await api.imports.cancel(job.id).catch(() => {});
+    if (job) notify("Import cancelled.");
+    void refreshImports?.().catch(() => {});
     onClose(job);
   }
 
@@ -247,7 +265,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
               <Button
                 variant="primary"
                 disabled={Boolean(problem) || busy}
-                onClick={() => act(() => api.imports.mapping(job.id, mappingBody(columns, choices)))}
+                onClick={() => act(() => api.imports.mapping(job.id, mappingBody(columns, choices)), "Column mapping saved. Preparing source rows.")}
               >
                 Continue
               </Button>
@@ -277,9 +295,9 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
                     ))}
                   </ul>
                   <div className="import-repeat-actions">
-                    <Button disabled={busy || (repeats.rows.length < repeats.total && group[0].group_id === lastLoadedGroup)} onClick={() => act(() => api.imports.decide(job.id, { decisions: [{ group_id: group[0].group_id, action: "skip" }] }))}>Leave out</Button>
-                    <Button disabled={busy || (repeats.rows.length < repeats.total && group[0].group_id === lastLoadedGroup)} onClick={() => act(() => api.imports.decide(job.id, { decisions: [{ group_id: group[0].group_id, action: "import" }] }))}>Keep separate</Button>
-                    <Button disabled={busy || (repeats.rows.length < repeats.total && group[0].group_id === lastLoadedGroup)} onClick={() => act(() => api.imports.decide(job.id, { decisions: [{ group_id: group[0].group_id, action: "merge" }] }))}>Merge</Button>
+                    <Button disabled={busy || (repeats.rows.length < repeats.total && group[0].group_id === lastLoadedGroup)} onClick={() => act(() => api.imports.decide(job.id, { decisions: [{ group_id: group[0].group_id, action: "skip" }] }), "Repeat group left out.")}>Leave out</Button>
+                    <Button disabled={busy || (repeats.rows.length < repeats.total && group[0].group_id === lastLoadedGroup)} onClick={() => act(() => api.imports.decide(job.id, { decisions: [{ group_id: group[0].group_id, action: "import" }] }), "Repeat group kept as separate leads.")}>Keep separate</Button>
+                    <Button disabled={busy || (repeats.rows.length < repeats.total && group[0].group_id === lastLoadedGroup)} onClick={() => act(() => api.imports.decide(job.id, { decisions: [{ group_id: group[0].group_id, action: "merge" }] }), "Repeat group marked to merge.")}>Merge</Button>
                   </div>
                 </section>
               ))}
@@ -294,13 +312,13 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
               </p>
             )}
             <div className="import-actions">
-              <Button disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "skip" }))}>
+              <Button disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "skip" }), "Remaining repeat groups left out.")}>
                 Leave them out
               </Button>
-              <Button disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "import" }))}>
+              <Button disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "import" }), "Remaining repeat groups kept as separate leads.")}>
                 Keep all as separate leads
               </Button>
-              <Button variant="primary" disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "merge" }))}>
+              <Button variant="primary" disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "merge" }), "Remaining repeat groups marked to merge.")}>
                 Merge repeats
               </Button>
             </div>
@@ -339,7 +357,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
             )}
             <div className="import-actions">
               <Button onClick={cancel}>Cancel import</Button>
-              <Button variant="primary" disabled={busy} onClick={() => act(() => api.imports.merge(job.id))}>
+              <Button variant="primary" disabled={busy} onClick={() => act(() => api.imports.merge(job.id), "Adding source rows to CRM leads.")}>
                 Add to my leads
               </Button>
             </div>
@@ -380,5 +398,6 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
     <Breadcrumb items={[{ label: "Source lists", path: "lists" }, ...(sourceListId ? [{ label: projectName || job?.name || "Source list", path: `lists/${sourceListId}` }] : []), { label: "Import" }]} />
     <PageHeader title={job?.name || projectName || name || "New source list"} description="Add and review rows for this source list." />
     <Card title={title} className="source-import-review">{content}</Card>
+    {job?.id && job.status !== "cancelled" && <SourceRows jobs={[job]} navigate={navigate} />}
   </>;
 }

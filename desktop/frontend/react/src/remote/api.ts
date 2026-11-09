@@ -123,6 +123,7 @@ export const api = {
     start: (body): Promise<any> => request("POST", "/api/v1/imports", body),
     list: (): Promise<any[]> => request("GET", "/api/v1/imports"),
     get: (id: string): Promise<any> => request("GET", `/api/v1/imports/${id}`),
+    rows: (id: string, offset = 0): Promise<any> => request("GET", `/api/v1/imports/${id}/rows?offset=${offset}`),
     complete: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/complete`),
     mapping: (id: string, body): Promise<any> => request("PUT", `/api/v1/imports/${id}/mapping`, body),
     duplicates: (id: string, offset = 0): Promise<any> => request("GET", `/api/v1/imports/${id}/duplicates?offset=${offset}`),
