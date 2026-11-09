@@ -43,6 +43,11 @@ export class SyncEngine {
     this.extra = extra;
     this.store = await this.vault.get("store");
     this.ops = await this.vault.queue();
+    if (this.store && this.store.organizationId !== extra.organizationId) {
+      if (this.ops.length) throw new Error("This device has pending changes for its previous workspace. Open that workspace and sync them before switching.");
+      // Keep the previous offline copy until the new workspace's snapshot has arrived.
+      await this.snapshot();
+    }
     const expired = this.store?.leaseExpiresAt && new Date(this.store.leaseExpiresAt) < new Date();
     if (expired) {
       // Offline access must be renewed online within a day (plan 2.7).
@@ -129,6 +134,16 @@ export class SyncEngine {
     await this.save();
   }
 
+  /** Fetches the workspace's lists again, so a list that was just uploaded shows up without signing in again. */
+  async refreshProjects() {
+    const projects = await this.api.projects();
+    if (!this.store) return;
+    this.extra = { ...this.extra, projects };
+    this.store = { ...this.store, projects };
+    await this.save();
+    this.emit();
+  }
+
   async save() {
     const stored = await this.vault.put("store", this.store);
     if (!stored) this.error = "This device is out of space: records are not kept offline, but your pending changes are";
@@ -168,7 +183,7 @@ export class SyncEngine {
   }
 
   async pull() {
-    for (let page = 0; page < 50; page += 1) {
+    while (true) {
       const answer = await this.api.pull(this.store.cursor, this.store.accessRevision);
       if (answer.reset) {
         // Permissions changed: nothing cached before may be trusted.
@@ -176,6 +191,7 @@ export class SyncEngine {
         await this.snapshot();
         return;
       }
+      if (answer.more && answer.cursor === this.store.cursor) throw new Error("The server did not advance the sync cursor");
       this.store = { ...applyChanges(this.store, answer.changes), cursor: answer.cursor };
       await this.save();
       if (!answer.more) return;
@@ -204,6 +220,7 @@ export class SyncEngine {
         return;
       }
       if (event.kind === "hello") return;
+      if (event.kind === "project.changed") void this.refreshProjects().catch(() => {});
       // Coalesce bursts of changes into one pull.
       clearTimeout(timer);
       timer = setTimeout(() => this.sync(), event.kind === "access.changed" ? 0 : 250);

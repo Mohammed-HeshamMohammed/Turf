@@ -3,10 +3,15 @@ import { Lock, ShieldCheck, SignIn, UserCircleMinus, WifiSlash } from "@phosphor
 import { AppleMark, GoogleMark } from "./SignInMarks.jsx";
 import { api, apiBase, auth, organization, SERVER, SITE, setApiBase, setOrganization } from "./remote/api.ts";
 import { MemoryVault, Vault } from "./remote/vault.ts";
+import { preferredWorkspace, readWorkspaceChoice, saveWorkspaceChoice } from "./remote/workspace-choice.ts";
+import { mergeAuthProfile } from "./remote/profile.ts";
 import { inDesktopApp } from "./popout.ts";
-import { Button, Card, Field } from "./ui.jsx";
+import { Button, Card, DatePicker, Field, Select } from "./ui.jsx";
 import { SecondStep } from "./SecondStep.jsx";
-import { HumanCheck } from "./remote/human-check.jsx";
+import { PasswordStrength, PasswordTips } from "./DevicePasswordHelp.jsx";
+import { PasswordInput } from "./PasswordInput.jsx";
+import { assess, MAX_LENGTH } from "./remote/password-check.ts";
+import { HumanCheck, humanToken } from "./remote/human-check.jsx";
 
 /**
  * Signs in with the auth service, opens the person's workspace on Caller Whale's server, and unlocks this device's offline
@@ -33,13 +38,32 @@ function goToWebsiteSignIn(automatic) {
   return true;
 }
 
+// The human check asks the same auth client for its settings.
+const getAuth = async () => auth;
+
+// What the person chose on this device the first time: "online" means they skipped the offline copy, and are not asked again.
+const choiceKey = owner => "cw-device-choice:" + owner;
+const readChoice = owner => {
+  try {
+    return window.localStorage.getItem(choiceKey(owner));
+  } catch {
+    return null;
+  }
+};
+const writeChoice = (owner, value) => {
+  try {
+    if (value) window.localStorage.setItem(choiceKey(owner), value);
+    else window.localStorage.removeItem(choiceKey(owner));
+  } catch {
+    /* without storage they are simply asked again */
+  }
+};
+
 export function RemoteGate({ onReady, onLeave }) {
   const [step, setStep] = useState("checking");
   // A Google sign-in that did not work comes back with its reason in the address.
   const [error, setError] = useState(() => new URLSearchParams(window.location.search).get("oauth_error") || "");
   const [busy, setBusy] = useState(false);
-  const [humanToken, setHumanToken] = useState("");
-  const [humanReset, setHumanReset] = useState(0);
   const [me, setMe] = useState(null);
   const [birthDate, setBirthDate] = useState("");
   const [enrolment, setEnrolment] = useState(null);
@@ -47,17 +71,22 @@ export function RemoteGate({ onReady, onLeave }) {
   // The second step: the challenge the server handed over, and the ways it may be answered.
   const [second, setSecond] = useState(null);
   const [form, setForm] = useState({ email: "", password: "", code: "", passphrase: "" });
+  // This device already holds an offline copy for this person: it only needs its password, not a new one.
+  const [hasCopy, setHasCopy] = useState(false);
+  const [authSessionId, setAuthSessionId] = useState("");
   const field = name => event => setForm({ ...form, [name]: event.target.value });
   const kind = inDesktopApp() ? "desktop" : "browser";
 
   async function check() {
     try {
       if (!auth.signedIn()) {
+        Vault.clearSession();
         if (!inDesktopApp() && goToWebsiteSignIn(true)) return setStep("checking");
         return setStep("signin");
       }
       // Caller Whale is for adults: an account that has not given its date of birth gives it before anything else.
       const sessionPerson = await auth.me({ fresh: true }).catch(() => null);
+      setAuthSessionId(sessionPerson?.session_id || "");
       if (sessionPerson && !sessionPerson.setup_exempt && sessionPerson.age_confirmed === false) {
         setMe({ user: sessionPerson });
         return setStep("age");
@@ -77,7 +106,6 @@ export function RemoteGate({ onReady, onLeave }) {
       const organizations = identity.organizations || [];
       // Access to the workspace this device last used was removed or has ended: its offline copy goes too.
       if (organization() && !organizations.some(item => item.id === organization())) {
-        await Vault.wipe();
         setOrganization("");
       }
       if (!organizations.length) {
@@ -87,11 +115,14 @@ export function RemoteGate({ onReady, onLeave }) {
         return setStep("notinvited");
       }
       // The organization this device used last, if the person is still in it; otherwise their first.
-      const chosen = organizations.find(item => item.id === organization())?.id || organizations[0].id;
-      if (identity.organization_id !== chosen) {
-        setOrganization(chosen);
-        identity = await api.me();
+      const localChoice = readWorkspaceChoice(identity.user.id) || (organization() ? { id: organization(), at: 1 } : null);
+      const chosen = preferredWorkspace(organizations, identity.organization_id, identity.last_workspace_at, localChoice);
+      const stored = organization();
+      setOrganization(chosen);
+      if (identity.organization_id !== chosen || stored !== chosen) {
+        identity = await api.me(true);
       }
+      identity = { ...identity, user: mergeAuthProfile(identity.user, sessionPerson) };
       setMe(identity);
       if (identity.mfa.required && !identity.mfa.passed) {
         // Auth knows whether two-step sign-in is on; Caller Whale's server only knows whether this session passed it.
@@ -105,11 +136,28 @@ export function RemoteGate({ onReady, onLeave }) {
         return setStep((await auth.me()).mfa_enrolled ? "stepup" : "enroll");
       }
       // The trial or plan has run out: the server refuses CRM records until it is renewed on the website.
-      if (identity.subscription && !identity.subscription.usable) setStep("plan");
-      else setStep("unlock");
+      if (identity.subscription && !identity.subscription.usable) return setStep("plan");
+      // The choice made on this device the first time is remembered: no question on every visit.
+      const owner = identity.user.id + ":" + identity.organization_id;
+      if (readChoice(owner) === "online") return onReady({ me: identity, vault: new MemoryVault(), persistent: false });
+      const resumed = await Vault.resume(identity.user.id, sessionPerson?.session_id);
+      if (resumed) {
+        try {
+          await onReady({ me: identity, vault: resumed, persistent: true });
+          return;
+        } catch (reason) {
+          Vault.clearSession();
+          setError(reason.message);
+        }
+      }
+      setHasCopy(await Vault.has(identity.user.id));
+      setStep("unlock");
     } catch (reason) {
       if (reason?.code === "offline") return setStep("offline");
-      if (reason?.status === 401) await auth.signOut();
+      if (reason?.status === 401) {
+        await auth.signOut();
+        Vault.clearSession();
+      }
       else if (reason?.message) setError(reason.message);
       setStep("signin");
     }
@@ -143,7 +191,7 @@ export function RemoteGate({ onReady, onLeave }) {
    */
   const continueWith = provider =>
     attempt(async () => {
-      if (!inDesktopApp()) return auth.startProvider(provider, "app", humanToken);
+      if (!inDesktopApp()) return auth.startProvider(provider, "app", await humanToken(getAuth, "signin"));
       const { invoke } = await import("@tauri-apps/api/core");
       const { listen } = await import("@tauri-apps/api/event");
       waiting.current?.();
@@ -161,7 +209,7 @@ export function RemoteGate({ onReady, onLeave }) {
         });
       });
       waiting.current = stop;
-      await invoke("open_in_browser", { url: await auth.providerUrl(provider, "desktop", port, humanToken) });
+      await invoke("open_in_browser", { url: await auth.providerUrl(provider, "desktop", port, await humanToken(getAuth, "signin")) });
       setStep("browser");
     });
   /**
@@ -208,7 +256,6 @@ export function RemoteGate({ onReady, onLeave }) {
     try {
       await work();
     } catch (reason) {
-      setHumanReset(value => value + 1);
       if (reason.code === "mfa_required" && reason.data?.challenge) {
         setSecond({ challenge: reason.data.challenge, methods: reason.data.methods });
         setStep("second");
@@ -224,7 +271,7 @@ export function RemoteGate({ onReady, onLeave }) {
     attempt(async () => {
       if (!apiBase()) setApiBase(SERVER);
       try {
-        await auth.signIn(form.email.trim(), form.password, step === "code" ? form.code.trim() : undefined, kind, humanToken);
+        await auth.signIn(form.email.trim(), form.password, step === "code" ? form.code.trim() : undefined, kind, await humanToken(getAuth, "signin"));
       } catch (reason) {
         // Two-step sign-in is on: the server hands over a challenge and the ways to answer it.
         if (reason.code === "mfa_required" && reason.data?.challenge) {
@@ -258,6 +305,7 @@ export function RemoteGate({ onReady, onLeave }) {
   const switchAccount = () =>
     attempt(async () => {
       await auth.signOut();
+      Vault.clearSession();
       setOrganization("");
       setMe(null);
       setStep("signin");
@@ -265,10 +313,19 @@ export function RemoteGate({ onReady, onLeave }) {
   const unlock = (event, withPassphrase) => {
     event?.preventDefault();
     attempt(async () => {
-      const vault = withPassphrase ? await Vault.unlock(form.passphrase, me.user.id + ":" + me.organization_id) : new MemoryVault();
+      const owner = me.user.id + ":" + me.organization_id;
+      const vault = withPassphrase ? await Vault.unlock(form.passphrase, me.user.id, authSessionId) : new MemoryVault();
+      writeChoice(owner, withPassphrase ? "" : "online");
       setForm(current => ({ ...current, passphrase: "" }));
-      onReady({ me, vault, persistent: withPassphrase });
+      await onReady({ me, vault, persistent: withPassphrase });
     });
+  };
+
+  const chooseWorkspace = id => {
+    saveWorkspaceChoice(me.user.id, id);
+    setOrganization(id);
+    setForm(current => ({ ...current, passphrase: "" }));
+    attempt(check);
   };
 
   const signedInAs = me?.user && (
@@ -281,12 +338,15 @@ export function RemoteGate({ onReady, onLeave }) {
   );
 
   return (
-    <div className="remote-gate">
+    <div className={"remote-gate" + (step === "unlock" && !hasCopy ? " with-help" : "")}>
+      {step === "unlock" && !hasCopy && <PasswordTips />}
       <Card
-        title={step === "unlock" ? "Keep an offline copy on this device?" : step === "notinvited" ? "You are not invited" : step === "age" ? "Confirm your age" : step === "setup" ? "Finish setting up your account" : "Sign in to your Caller Whale workspace"}
+        title={step === "unlock" ? (hasCopy ? "Unlock this device" : "Work offline on this device?") : step === "notinvited" ? "You are not invited" : step === "age" ? "Confirm your age" : step === "setup" ? "Finish setting up your account" : "Sign in to your Caller Whale workspace"}
         subtitle={
           step === "unlock"
-            ? "Records and pending changes are encrypted with a passphrase only you know."
+            ? hasCopy
+              ? "Enter the password you chose for this computer."
+              : "Lock a copy of your leads on this computer."
             : step === "notinvited"
               ? "Only the owner, admins and people they invite can use Caller Whale."
               : step === "age"
@@ -346,7 +406,7 @@ export function RemoteGate({ onReady, onLeave }) {
                   <input type="email" autoComplete="username" value={form.email} onChange={field("email")} required />
                 </Field>
                 <Field label="Password">
-                  <input type="password" autoComplete="current-password" value={form.password} onChange={field("password")} required />
+                  <PasswordInput autoComplete="current-password" value={form.password} onChange={field("password")} required />
                 </Field>
               </>
             )}
@@ -358,7 +418,7 @@ export function RemoteGate({ onReady, onLeave }) {
                 </Field>
               </>
             )}
-            <HumanCheck getAuth={() => auth} action="signin" resetKey={humanReset} onToken={setHumanToken} />
+            <HumanCheck getAuth={getAuth} />
             <Button type="submit" variant="primary" icon={SignIn} disabled={busy}>
               {busy ? "Signing in…" : step === "code" ? "Confirm" : "Sign in"}
             </Button>
@@ -407,7 +467,15 @@ export function RemoteGate({ onReady, onLeave }) {
             }}
           >
             <Field label="Date of birth" help="It is kept on your account and cannot be changed later.">
-              <input type="date" required autoComplete="bday" min="1900-01-01" max={new Date(Date.now() - 18 * 365.2425 * 86400000).toISOString().slice(0, 10)} value={birthDate} onChange={event => setBirthDate(event.target.value)} />
+              <DatePicker
+                aria-label="Date of birth"
+                required
+                min="1900-01-01"
+                max={new Date(Date.now() - 18 * 365.2425 * 86400000).toISOString().slice(0, 10)}
+                initialView="years"
+                value={birthDate}
+                onChange={event => setBirthDate(event.target.value)}
+              />
             </Field>
             <Button type="submit" variant="primary" icon={ShieldCheck} disabled={busy || !birthDate}>
               Continue
@@ -518,20 +586,63 @@ export function RemoteGate({ onReady, onLeave }) {
         {step === "unlock" && (
           <form className="remote-step" onSubmit={event => unlock(event, true)}>
             <p className="body-copy">
-              Signed in as <strong>{me.user.name}</strong>. With a passphrase, this device keeps an encrypted copy so you can keep working without a connection
-              for up to a day. Without one, pending changes last only while this tab is open.
+              Signed in as <strong>{me.user.name}</strong>.
             </p>
-            <Field label="Offline passphrase" help="Use the same passphrase each time on this device.">
-              <input type="password" autoComplete="new-password" minLength={8} value={form.passphrase} onChange={field("passphrase")} />
+            {me.organizations?.length > 1 && (
+              <Field label="Workspace">
+                <Select value={me.organization_id} onChange={event => chooseWorkspace(event.target.value)} disabled={busy}>
+                  {me.organizations.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </Select>
+              </Field>
+            )}
+            {!hasCopy && (
+              <ul className="offline-points">
+                <li>
+                  <strong>Your workspace is safe on our server.</strong> Already have one from another device? It is here too, nothing to move.
+                </li>
+                <li>
+                  <strong>This password only locks a copy on this computer,</strong> so you can keep working without internet for up to a day.
+                </li>
+                <li>
+                  <strong>Make up a new one.</strong> It is not your Caller Whale password.
+                </li>
+                <li>
+                  <strong>Skip it</strong> and you work online only. We will not ask again on this computer.
+                </li>
+              </ul>
+            )}
+            <Field
+              label="Password for this device"
+              help={hasCopy ? "Your device password, not your Caller Whale sign-in password. Refreshing this tab keeps it unlocked." : "Use this when you start a new browser session. Refreshing this tab will not ask again."}
+            >
+              <PasswordInput autoComplete={hasCopy ? "current-password" : "new-password"} maxLength={MAX_LENGTH} value={form.passphrase} onChange={field("passphrase")} />
             </Field>
             <div className="row">
-              <Button type="submit" variant="primary" icon={Lock} disabled={busy || form.passphrase.length < 8}>
-                Unlock offline copy
+              <Button type="submit" variant="primary" icon={Lock} disabled={busy || (hasCopy ? !form.passphrase : !assess(form.passphrase).ok)}>
+                {hasCopy ? "Unlock" : "Use this password"}
               </Button>
               <Button type="button" disabled={busy} onClick={() => unlock(null, false)}>
-                Continue without one
+                Skip, work online only
               </Button>
             </div>
+            {hasCopy && (
+              <p className="muted">
+                Forgot it?{" "}
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() =>
+                    attempt(async () => {
+                      await Vault.wipe(me.user.id);
+                      setHasCopy(false);
+                    })
+                  }
+                >
+                  Remove the copy on this computer
+                </button>{" "}
+                and start again. Your leads stay on our server.
+              </p>
+            )}
           </form>
         )}
         {error && (
@@ -545,6 +656,7 @@ export function RemoteGate({ onReady, onLeave }) {
           </button>
         )}
       </Card>
+      {step === "unlock" && !hasCopy && <PasswordStrength value={form.passphrase} />}
     </div>
   );
 }

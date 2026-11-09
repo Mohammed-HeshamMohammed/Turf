@@ -244,6 +244,19 @@ svg {
   gap: 12px;
   margin-bottom: 20px;
 }
+.preferences-sections {
+  display: grid;
+  gap: 20px;
+  max-width: 900px;
+}
+.crm-window.reduce-motion *,
+.crm-window.reduce-motion *::before,
+.crm-window.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.01ms !important;
+}
 .personal-preferences > label {
   display: flex;
   gap: 20px;
@@ -1641,6 +1654,7 @@ input[type="checkbox"] {
   color: #636363;
 }
 .field > input:not([type="checkbox"]),
+.field > .password-input input,
 .field > textarea,
 .field > .select .select-trigger {
   width: 100%;
@@ -5735,96 +5749,7 @@ html.demo-quiet .demo-note {
   margin-left: -6px;
 }
 
-/* Date and time pickers: drawn by the app, built on the same menu surface as Select. */
-.date-menu {
-  width: 292px;
-  padding: 14px 14px 10px;
-  overflow: visible;
-}
-.date-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 0 2px 10px;
-}
-.date-head strong {
-  font-size: 14px;
-  font-weight: 500;
-}
-.date-head span {
-  display: inline-flex;
-  gap: 4px;
-}
-.date-head button {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-}
-.date-head button:hover {
-  background: var(--well);
-}
-.date-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
-}
-.date-dow {
-  display: grid;
-  place-items: center;
-  height: 28px;
-  font-size: 12px;
-  color: var(--muted);
-}
-.date-day {
-  display: grid;
-  place-items: center;
-  height: 36px;
-  border-radius: 50%;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-.date-day:hover:not(:disabled) {
-  background: var(--well);
-}
-.date-day.is-outside {
-  color: var(--muted);
-}
-.date-day[aria-current="date"] {
-  box-shadow: inset 0 0 0 1.5px var(--accent);
-}
-.date-day[aria-selected="true"] {
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 550;
-}
-.date-day:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-.date-foot {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
-}
-.date-foot button {
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  color: var(--accent-ink);
-}
-.date-foot button:hover:not(:disabled) {
-  background: var(--well);
-}
-.date-foot button:disabled {
-  opacity: 0.4;
-}
-.date-foot button:only-child {
-  margin-left: auto;
-}
+/* Date and time pickers: the calendar is shared/calendar (calendar.css); the date and time sit side by side. */
 .datetime {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
@@ -7552,4 +7477,341 @@ button.message-card:not(:disabled):hover {
 }
 .second-step .row {
   flex-wrap: wrap;
+}
+
+/* Uploading a list to the server (ServerImport.jsx) */
+.server-import {
+  display: grid;
+  gap: 16px;
+}
+.import-file {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+.import-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.import-columns {
+  display: grid;
+  max-height: min(420px, 50dvh);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--raised);
+}
+.import-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 190px);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+}
+.import-column + .import-column {
+  border-top: 1px solid var(--line);
+}
+.import-column strong,
+.import-column small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.import-column small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.import-repeats {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.import-repeats li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--raised);
+}
+.import-repeats small {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.import-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.import-summary > div {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--raised);
+}
+.import-summary dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.import-summary dd {
+  margin: 2px 0 0;
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+.imports-running .row {
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.import-history {
+  margin-bottom: 18px;
+}
+.import-history-group {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-top: 14px;
+}
+.import-history-group > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  background: var(--well);
+}
+.import-history-group > header small,
+.import-history-attempt small {
+  color: var(--muted);
+}
+.import-history-attempt {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--line);
+}
+.import-history-attempt > div:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.import-history-attempt p {
+  width: 100%;
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.import-history-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.empty-source-lists {
+  margin-top: 18px;
+}
+.empty-source-list {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 0;
+  border-top: 1px solid var(--line);
+}
+.empty-source-list > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+.empty-source-list small {
+  color: var(--muted);
+}
+@media (max-width: 650px) {
+  .import-history-attempt,
+  .empty-source-list {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+@media (max-width: 560px) {
+  .import-column {
+    grid-template-columns: 1fr;
+  }
+  .import-summary {
+    grid-template-columns: 1fr;
+  }
+}
+.import-repeats li > .badge {
+  justify-self: start;
+  margin-top: 4px;
+}
+
+/* The offline password's guidance (left of the card) and strength meter (right of it), DevicePasswordHelp.jsx */
+.remote-gate.with-help {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 460px) minmax(0, 1fr);
+  gap: 22px;
+}
+.dph-side {
+  align-self: center;
+  width: min(300px, 100%);
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: var(--raised);
+  font-size: 13px;
+}
+.dph-tips {
+  justify-self: end;
+  order: -1;
+}
+.dph-strength {
+  justify-self: start;
+}
+@media (max-width: 1100px) {
+  .remote-gate.with-help {
+    grid-template-columns: minmax(0, 460px);
+    justify-content: center;
+    align-content: center;
+  }
+  .remote-gate.with-help > .card {
+    order: 1;
+  }
+  .dph-strength {
+    order: 2;
+    justify-self: center;
+    width: min(460px, 100%);
+  }
+  .dph-tips {
+    order: 3;
+    justify-self: center;
+    width: min(460px, 100%);
+  }
+}
+.dph-side p {
+  margin: 8px 0;
+}
+.dph-side ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+.dph-side li + li {
+  margin-top: 4px;
+}
+.dph-tips em {
+  font-style: normal;
+  font-weight: 600;
+}
+.dph-meter {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+  margin: 10px 0 12px;
+}
+.dph-meter span {
+  height: 7px;
+  border-radius: 99px;
+  background: var(--well);
+}
+.dph-meter span.on.weak {
+  background-color: var(--danger-ink);
+}
+.dph-meter span.on.fair {
+  background-color: #d89a3c;
+}
+.dph-meter span.on.good,
+.dph-meter span.on.strong {
+  background-color: var(--good-ink);
+}
+.dph-label {
+  background: none;
+}
+.dph-label.weak {
+  color: var(--danger-ink);
+}
+.dph-label.fair {
+  color: var(--accent-ink);
+}
+.dph-label.good,
+.dph-label.strong {
+  color: var(--good-ink);
+}
+.dph-checks {
+  list-style: none;
+  padding: 0 !important;
+  display: grid;
+  gap: 6px;
+}
+.dph-checks li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--muted);
+}
+.dph-checks li svg {
+  flex: none;
+  margin-top: 3px;
+}
+.dph-checks li.pass {
+  color: var(--good-ink);
+}
+.dph-problem {
+  color: var(--danger-ink);
+}
+
+/* The eye on a password box (PasswordInput.jsx) */
+.password-input {
+  position: relative;
+  display: block;
+}
+.password-input input {
+  padding-right: 44px !important;
+}
+.password-eye {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.password-eye:hover,
+.password-eye:focus-visible {
+  background: var(--well);
+  color: var(--ink);
+}
+
+/* The few short points on the offline password screen */
+.offline-points {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.offline-points strong {
+  color: var(--ink);
 }

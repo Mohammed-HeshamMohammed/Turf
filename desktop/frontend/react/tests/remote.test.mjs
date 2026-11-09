@@ -3,6 +3,11 @@ import assert from "node:assert/strict";
 import { seedState } from "../src/data.ts";
 import { applyChanges, collectionsFromStore, isoFromLocal, labelFor, localParts, operationFor, roleKey, storeFromSnapshot } from "../src/remote/translate.ts";
 import { remoteReducer, syncAction } from "../src/remote/session.ts";
+import { SyncEngine } from "../src/remote/engine.ts";
+import { MemoryVault } from "../src/remote/vault.ts";
+import { mergeAuthProfile } from "../src/remote/profile.ts";
+import { personalProfile } from "../src/model.ts";
+import { loadPersonalPreferences, savePersonalPreferences } from "../src/personal-preferences.ts";
 
 const directory = [
   { id: "u-maya", name: "Maya Chen" },
@@ -59,9 +64,72 @@ test("server records become prototype records with local callback times", () => 
   assert.equal(leads[0].notes[0].text, "Open to an offer");
   assert.equal(tasks[0].assignee, "Maya Chen");
   assert.equal(datasets[0].rows, 1);
+  assert.equal(collectionsFromStore(store).activities[0].text, "Added a note");
   assert.deepEqual(localParts(null), ["", ""]);
   assert.equal(roleKey(["owner", "admin"]), "owner");
   assert.equal(roleKey(["admin"]), "admin");
+});
+
+test("connected identity and empty server projects remain visible", () => {
+  const state = remoteReducer(seedState(), { type: "REMOTE_START", role: "owner", remote: { user: { name: "Real Owner", email: "real@callerwhale.com" }, capabilities: ["import"], organization: "Real workspace" } });
+  assert.equal(personalProfile(state).email, "real@callerwhale.com");
+  assert.equal(personalProfile(state).name, "Real Owner");
+  const store = storeFromSnapshot({ ...snapshot, leads: [], calls: [], notes: [] }, { projects: [{ id: "empty", name: "Empty list" }] });
+  assert.deepEqual(collectionsFromStore(store).datasets.map(item => item.name), ["Empty list"]);
+});
+
+test("CRM profile follows the auth account and ignores a different account", () => {
+  const account = { id: "u-owner", name: "Mohammed Hesham", email: "owner@callerwhale.com", avatar: "data:image/png;base64,abc", phone: "+201234567890", first_name: "Mohammed", last_name: "Hesham" };
+  const coreUser = { id: "u-owner", name: "Old name", email: "owner@callerwhale.com" };
+  const state = remoteReducer(seedState(), { type: "REMOTE_START", role: "owner", remote: { user: mergeAuthProfile(coreUser, account), capabilities: [], organization: "Workspace" } });
+  assert.deepEqual([personalProfile(state).name, personalProfile(state).avatar, personalProfile(state).phone], [account.name, account.avatar, account.phone]);
+  const changed = remoteReducer(state, { type: "REMOTE_PROFILE", profile: { ...account, name: "Updated name" } });
+  assert.equal(personalProfile(changed).name, "Updated name");
+  const refused = remoteReducer(changed, { type: "REMOTE_PROFILE", profile: { ...account, id: "another-user", name: "Wrong account" } });
+  assert.equal(personalProfile(refused).name, "Updated name");
+});
+
+test("connected preferences survive a restart and stay with the signed-in account", () => {
+  const records = new Map();
+  const storage = { getItem: key => records.get(key) ?? null, setItem: (key, value) => records.set(key, value) };
+  assert.equal(savePersonalPreferences("u-one", { taskReminders: false, startPage: "tasks", reduceMotion: true, name: "Never store" }, storage), true);
+  assert.equal(records.size, 1);
+  assert.equal(records.values().next().value.includes("Never store"), false);
+  const preferences = loadPersonalPreferences("u-one", storage);
+  const user = { id: "u-one", name: "A", email: "a@example.com" };
+  const start = remoteReducer(seedState(), { type: "REMOTE_START", role: "owner", remote: { user, capabilities: [], organization: "Workspace" }, preferences });
+  assert.equal(personalProfile(start).taskReminders, false);
+  assert.equal(personalProfile(start).startPage, "tasks");
+  const changed = remoteReducer(start, { type: "PERSONAL", profile: { handoffReminders: false } });
+  savePersonalPreferences(user.id, personalProfile(changed), storage);
+  const restarted = remoteReducer(seedState(), { type: "REMOTE_START", role: "owner", remote: { user, capabilities: [], organization: "Workspace" }, preferences: loadPersonalPreferences(user.id, storage) });
+  assert.equal(personalProfile(restarted).handoffReminders, false);
+  assert.equal(loadPersonalPreferences("u-two", storage).handoffReminders, true);
+  assert.equal(loadPersonalPreferences("u-two", storage).startPage, "dashboard");
+});
+
+test("one device copy is replaced on a workspace switch after its queue is clear", async () => {
+  const vault = new MemoryVault();
+  await vault.put("store", { organizationId: "old", cursor: 1, leads: { stale: { id: "stale" } } });
+  const api = { snapshot: async () => ({ ...snapshot, leads: [] }), pull: async () => ({ cursor: 10, changes: [], more: false }) };
+  const engine = new SyncEngine({ vault, api, socket: false });
+  await engine.start({ organizationId: "new", directory: [], teams: [], projects: [] });
+  assert.equal(engine.store.organizationId, "new");
+  assert.deepEqual(Object.keys(engine.store.leads), []);
+  engine.stop();
+
+  await vault.put("store", { organizationId: "old", cursor: 1 });
+  await vault.enqueue({ id: "pending", status: "Pending" });
+  const guarded = new SyncEngine({ vault, api, socket: false });
+  await assert.rejects(guarded.start({ organizationId: "new" }), /pending changes/);
+  assert.equal((await vault.get("store")).organizationId, "old");
+  guarded.stop();
+
+  await vault.remove("pending");
+  const unavailable = new SyncEngine({ vault, api: { snapshot: async () => { throw new Error("network unavailable"); } }, socket: false });
+  await assert.rejects(unavailable.start({ organizationId: "new" }), /network unavailable/);
+  assert.equal((await vault.get("store")).organizationId, "old", "an unavailable new workspace leaves the existing offline copy intact");
+  unavailable.stop();
 });
 
 test("pulled changes replace records and removals take a lead's children with it", () => {

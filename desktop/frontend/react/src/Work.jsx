@@ -288,7 +288,7 @@ export function Calls({ target }) {
                 <div className="call-person-top">
                   <div className="row">
                     <Badge tone="good" className="demo-note">
-                      Sample phone workspace
+                      {state.remote ? "Call preview · no number dialed" : "Sample phone workspace"}
                     </Badge>
                     <Status value={lead.stage} />
                   </div>

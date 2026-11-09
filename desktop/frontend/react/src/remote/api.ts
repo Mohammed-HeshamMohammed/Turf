@@ -53,7 +53,7 @@ export const auth = createAuth({ base: remembered("callerwhale.auth.url") || AUT
 export const organization = () => remembered("callerwhale.org");
 export const setOrganization = id => remember("callerwhale.org", id || "");
 
-export async function request(method: string, path: string, body?: unknown, { base = apiBase(), timeout = 15000, retried = false }: { base?: string; timeout?: number; retried?: boolean } = {}): Promise<any> {
+export async function request(method: string, path: string, body?: unknown, { base = apiBase(), timeout = 15000, retried = false, includeOrganization = true }: { base?: string; timeout?: number; retried?: boolean; includeOrganization?: boolean } = {}): Promise<any> {
   const token = await auth.accessToken().catch(() => null);
   const org = organization();
   const controller = new AbortController();
@@ -65,7 +65,7 @@ export async function request(method: string, path: string, body?: unknown, { ba
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(token && org ? { "x-callerwhale-org": org } : {}),
+        ...(token && org && includeOrganization ? { "x-callerwhale-org": org } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
@@ -79,7 +79,7 @@ export async function request(method: string, path: string, body?: unknown, { ba
   // A token that expired in flight: refresh once and try again.
   if (response.status === 401 && token && !retried) {
     const renewed = await auth.refresh().catch(() => null);
-    if (renewed) return request(method, path, body, { base, timeout, retried: true });
+    if (renewed) return request(method, path, body, { base, timeout, retried: true, includeOrganization });
   }
   const text = await response.text();
   let data = null;
@@ -93,7 +93,7 @@ export async function request(method: string, path: string, body?: unknown, { ba
 }
 
 export const api = {
-  me: () => request("GET", "/api/v1/me"),
+  me: (select = false) => request("GET", "/api/v1/me", undefined, { includeOrganization: select }),
   /** The person's invitation from Caller Whale (activated on the first visit with a confirmed email), credits and download. */
   account: () => request("GET", "/api/v1/account"),
   /**
@@ -110,6 +110,7 @@ export const api = {
   directory: () => request("GET", "/api/v1/directory"),
   teams: () => request("GET", "/api/v1/admin/teams"),
   projects: () => request("GET", "/api/v1/projects"),
+  deleteProject: (id: string): Promise<any> => request("DELETE", `/api/v1/projects/${id}`, undefined, { timeout: 120000 }),
   settings: () => request("GET", "/api/v1/settings"),
   snapshot: () => request("GET", "/sync/snapshot", undefined, { timeout: 60000 }),
   pull: (cursor, accessRevision) => request("GET", `/sync/pull?cursor=${cursor}&access_revision=${accessRevision}`),
@@ -117,6 +118,19 @@ export const api = {
   op: operation => request("POST", "/api/v1/ops", operation),
   rules: () => request("GET", "/api/v1/rules"),
   saveRule: (id, rule) => request("PUT", "/api/v1/rules/" + id, rule),
+  /** List uploads (docs/plans/crm-core-and-imports.md). The pieces themselves go through remote/imports.ts. */
+  imports: {
+    start: (body): Promise<any> => request("POST", "/api/v1/imports", body),
+    list: (): Promise<any[]> => request("GET", "/api/v1/imports"),
+    get: (id: string): Promise<any> => request("GET", `/api/v1/imports/${id}`),
+    complete: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/complete`),
+    mapping: (id: string, body): Promise<any> => request("PUT", `/api/v1/imports/${id}/mapping`, body),
+    duplicates: (id: string, offset = 0): Promise<any> => request("GET", `/api/v1/imports/${id}/duplicates?offset=${offset}`),
+    decide: (id: string, body): Promise<any> => request("POST", `/api/v1/imports/${id}/duplicates`, body),
+    merge: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/merge`),
+    cancel: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/cancel`),
+    remove: (id: string): Promise<any> => request("DELETE", `/api/v1/imports/${id}`),
+  },
 };
 
 /** The /events WebSocket URL for an http(s) API base. */

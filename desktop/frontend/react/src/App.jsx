@@ -1,13 +1,16 @@
 import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Bell, CalendarBlank, ChatCircle, CheckCircle, HouseLine, List, MagnifyingGlass, WifiSlash, X } from "@phosphor-icons/react";
 import { ROLES } from "./data.ts";
+import { loadPersonalPreferences, savePersonalPreferences, START_PAGES } from "./personal-preferences.ts";
 import { loadWorkspace, saveWorkspace } from "./workspace-store.ts";
 import { setLearnedHeaders } from "./skiptrace-fields.ts";
 import { capability, conversationPath, loadState, navCounts, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.ts";
 import { api, apiBase, auth, setApiBase, setOrganization } from "./remote/api.ts";
 import { SyncEngine } from "./remote/engine.ts";
+import { Vault } from "./remote/vault.ts";
 import { LOCAL_ONLY, remoteReducer, syncAction } from "./remote/session.ts";
 import { applyIdentity, labelFor, operationFor } from "./remote/translate.ts";
+import { saveWorkspaceChoice } from "./remote/workspace-choice.ts";
 import { CrmContext } from "./context.jsx";
 import { Button, CountBadge, Empty, Modal, PageTransition, Search, money, useHeld, usePresence } from "./ui.jsx";
 import { LiveCaptions } from "./LiveCaptions.jsx";
@@ -79,6 +82,25 @@ export function App() {
   const engine = useRef(null);
   const latest = useRef(state);
   latest.current = state;
+  useEffect(() => {
+    if (connection !== "remote") return;
+    const refreshProfile = async () => {
+      try {
+        const profile = await auth.me({ fresh: true });
+        if (profile.id === latest.current.remote?.user.id) apply({ type: "REMOTE_PROFILE", profile });
+      } catch {
+        // Keep the profile already shown until auth can be reached again.
+      }
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") void refreshProfile(); };
+    void refreshProfile();
+    window.addEventListener("focus", refreshProfile);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", refreshProfile);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [connection]);
   const [route, setRoute] = useState(readRoute);
   const [toast, setToast] = useState("");
   const [query, setQuery] = useState("");
@@ -130,12 +152,21 @@ export function App() {
   const accessible = ["sync", "personal"].includes(page) || role.pages.includes(page);
   const leads = useMemo(() => visibleLeads(state), [state]);
   const tasks = useMemo(() => visibleTasks(state).filter(item => !item.done), [state]);
-  const taskNotices = profile.taskReminders ? tasks : [];
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const taskNotices = profile.taskReminders && role.pages.includes("tasks")
+    ? tasks.filter(task => profile.taskNoticeScope !== "due" || (task.date && task.date <= today))
+    : [];
   const replyNotices = useMemo(
     () => (profile.replyReminders && role.pages.includes("inbox") ? visibleThreads(state).filter(thread => thread.unread) : []),
     [state, profile.replyReminders, role],
   );
-  const noticeCount = taskNotices.length + replyNotices.length;
+  const handoffNotices = useMemo(() => {
+    if (!profile.handoffReminders || !role.pages.includes("handoffs")) return [];
+    const leadIds = new Set(leads.map(lead => lead.id));
+    return state.handoffs.filter(item => item.status === "Requested" && leadIds.has(item.leadId));
+  }, [state.handoffs, leads, profile.handoffReminders, role]);
+  const noticeCount = taskNotices.length + replyNotices.length + handoffNotices.length;
   const shownQuery = useHeld(query.trim());
   const searchPanel = usePresence(Boolean(query));
   const notePanel = usePresence(notifications);
@@ -230,13 +261,20 @@ export function App() {
       const sync = engine.current;
       if (!sync) return apply(action);
       if (action.type === "SYNC") return void sync.sync();
+      if (action.type === "REFRESH_LISTS") return void sync.refreshProjects().catch(error => notify("Lists could not be refreshed: " + error.message));
       if (action.type === "RESOLVE") return void sync.resolve(action.id, action.discard ? "discard" : "keep");
       if (["CONFLICT", "ROLE", "RESET"].includes(action.type)) return;
       if (action.type === "CONNECT") {
         sync.setOnline(action.online);
         return apply(action);
       }
-      if (LOCAL_ONLY.has(action.type)) return apply(action);
+      if (LOCAL_ONLY.has(action.type)) {
+        if (action.type === "PERSONAL" && latest.current.remote?.user.id) {
+          const current = personalProfile(latest.current);
+          savePersonalPreferences(latest.current.remote.user.id, { ...current, ...action.profile });
+        }
+        return apply(action);
+      }
       const before = latest.current;
       const operation = operationFor(action, before, sync.store || {});
       if (!operation) return apply(action);
@@ -253,25 +291,59 @@ export function App() {
   useEffect(() => subscribeCallLog(call => apply({ type: "CALL_LOG", call })), []);
   const connect = useCallback(async ({ me, vault }) => {
     const role = applyIdentity(me);
-    const quiet = promise => promise.catch(() => []);
-    const [directory, teams, projects] = await Promise.all([quiet(api.directory()), quiet(api.teams()), quiet(api.projects())]);
+    const [directory, teams, projects] = await Promise.all([api.directory(), api.teams(), api.projects()]);
     const organization = me.organizations.find(item => item.id === me.organization_id)?.name || "";
     // `people`: the workspace's members from the server, with how each signs in.
-    apply({ type: "REMOTE_START", role, remote: { user: me.user, capabilities: me.capabilities, organization, roles: me.roles, people: directory } });
+    const preferences = loadPersonalPreferences(me.user.id);
+    apply({ type: "REMOTE_START", role, preferences, remote: { user: me.user, capabilities: me.capabilities, organization, organizationId: me.organization_id, organizations: me.organizations, roles: me.roles, people: directory } });
+    setSidebarCollapsed(preferences.sidebarCollapsed);
+    if (!window.location.hash) {
+      const preferred = START_PAGES.find(page => page.id === preferences.startPage && ROLES[role].pages.includes(page.id));
+      if (preferred) {
+        window.location.hash = "/" + preferred.path;
+        setRoute(preferred.path);
+      }
+    }
     const sync = new SyncEngine({ vault, onChange: snapshot => apply(syncAction(snapshot, me.user.name)) });
     engine.current = sync;
-    setConnection("remote");
-    await sync.start({ directory, teams, projects });
+    try {
+      await sync.start({ directory, teams, projects, organizationId: me.organization_id });
+      setConnection("remote");
+    } catch (error) {
+      sync.stop();
+      engine.current = null;
+      apply({ type: "REMOTE_END" });
+      throw error;
+    }
   }, []);
   const signOut = useCallback(async () => {
     engine.current?.stop();
     engine.current = null;
+    Vault.clearSession();
     // Signing out ends the session at the auth service; the organization is chosen again at the next sign-in.
     await auth.signOut().catch(() => {});
     setOrganization("");
     apply({ type: "REMOTE_END" });
     setConnection("gate");
   }, []);
+  const switchWorkspace = useCallback(async id => {
+    const current = latest.current.remote;
+    if (!current || !current.organizations?.some(item => item.id === id) || current.organizationId === id) return;
+    const sync = engine.current;
+    if (sync) {
+      await sync.sync();
+      if (sync.status !== "synced" || sync.ops.length) {
+        notify(sync.error || "Sync or resolve the pending changes before switching workspaces.");
+        return;
+      }
+    }
+    sync?.stop();
+    engine.current = null;
+    saveWorkspaceChoice(current.user.id, id);
+    setOrganization(id);
+    apply({ type: "REMOTE_END" });
+    setConnection("gate");
+  }, [notify]);
   const useSample = useCallback(() => {
     engine.current?.stop();
     engine.current = null;
@@ -314,17 +386,15 @@ export function App() {
     return () => (window.cancelIdleCallback || clearTimeout)(handle);
   }, []);
   useEffect(() => () => clearTimeout(timer.current), []);
-  function toggleSidebar() {
-    setSidebarCollapsed(current => {
-      const next = !current;
-      try {
-        window.localStorage.setItem("callerwhale.full-crm.sidebar-minimized", String(next));
-      } catch {
-        /* This session still supports the preference. */
-      }
-      return next;
-    });
-  }
+  const setSidebarPreference = useCallback(next => {
+    setSidebarCollapsed(next);
+    if (state.remote) dispatch({ type: "PERSONAL", profile: { sidebarCollapsed: next } });
+    else {
+      dispatch({ type: "PERSONAL", profile: { sidebarCollapsed: next } });
+      try { window.localStorage.setItem("callerwhale.full-crm.sidebar-minimized", String(next)); } catch { /* Applies for this session. */ }
+    }
+  }, [dispatch, state.remote]);
+  function toggleSidebar() { setSidebarPreference(!sidebarCollapsed); }
   const counts = useMemo(() => navCounts(state, role), [state, role]);
   // The most used sections, also in the top bar. The sidebar keeps the full list.
   const topSections = [
@@ -340,8 +410,8 @@ export function App() {
   const showGate = useCallback(() => setConnection("gate"), []);
   // Memoised so typing in search, opening a panel or a toast does not re-render every page.
   const context = useMemo(
-    () => ({ state, dispatch, navigate, notify, route, connection, connect: showGate, signOut }),
-    [state, dispatch, navigate, notify, route, connection, showGate, signOut],
+    () => ({ state, dispatch, navigate, notify, route, connection, connect: showGate, signOut, switchWorkspace, sidebarCollapsed, setSidebarPreference }),
+    [state, dispatch, navigate, notify, route, connection, showGate, signOut, switchWorkspace, sidebarCollapsed, setSidebarPreference],
   );
   const pageElement = useMemo(() => {
     if (!accessible)
@@ -411,7 +481,7 @@ export function App() {
     );
   return (
     <CrmContext.Provider value={context}>
-      <div className="crm-window">
+      <div className={"crm-window" + (profile.reduceMotion ? " reduce-motion" : "")}>
         {state.remote && (
           <Suspense fallback={null}>
             <Approvals auth={auth} />
@@ -520,8 +590,14 @@ export function App() {
                       </div>
                     </button>
                   ))}
+                  {handoffNotices.slice(0, 2).map(handoff => (
+                    <button key={handoff.id} onClick={() => { navigate("work/handoffs"); setNotifications(false); }}>
+                      <CheckCircle size={19} />
+                      <div><strong>Handoff waiting</strong><small>{handoff.from} · {handoff.note || "Review this handoff"}</small></div>
+                    </button>
+                  ))}
                   {!noticeCount && (
-                    <p>{!profile.taskReminders && !profile.replyReminders ? "Your personal notifications are paused." : "You're all caught up."}</p>
+                    <p>{!profile.taskReminders && !profile.replyReminders && !profile.handoffReminders ? "Your personal notifications are paused." : "You're all caught up."}</p>
                   )}
                 </div>
               )}
