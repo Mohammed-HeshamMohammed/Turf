@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { UploadSimple } from "@phosphor-icons/react";
 import { api } from "./remote/api.ts";
 import { importStatusMessage } from "./remote/source-list-imports.js";
-import { IMPORT_FIELDS, follow, mappingBody, mappingProblem, uploadFile } from "./remote/imports.ts";
+import { IMPORT_FIELDS, SOURCE_IMPORT_FIELDS, follow, mappingBody, mappingProblem, uploadFile } from "./remote/imports.ts";
 import { useCrm } from "./context.jsx";
 import { SourceRows } from "./SourceRows.jsx";
 import { Badge, Breadcrumb, Button, Card, Checkbox, Field, PageHeader, Select } from "./ui.jsx";
@@ -133,6 +133,9 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
       ? Math.round((job.merged_rows / job.progress.total) * 100)
       : null;
   const columns = job?.columns ?? [];
+  const knownFields = new Set([...IMPORT_FIELDS, ...SOURCE_IMPORT_FIELDS].map(([key]) => key));
+  const additionalFields = [...new Map(columns.filter(column => column.source_detail && column.standard_key && !knownFields.has(column.standard_key))
+    .map(column => [column.standard_key, [column.standard_key, column.source_detail]])).values()];
   const problem = status === "mapping" ? mappingProblem(columns, choices) : "";
   const report = job?.report ?? {};
   const repeatGroups = Object.values((repeats?.rows ?? []).reduce((groups, row) => {
@@ -219,7 +222,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
         {status === "mapping" && (
           <>
             <p className="muted">
-              {number(columns.filter(column => column.standard_key).length)} of {number(columns.length)} remaining columns recognized. Source row only columns keep their original values in this list; recognized property details also appear on new properties.
+              {number(columns.filter(column => column.standard_key).length)} of {number(columns.length)} remaining columns recognized. Source fields keep their original values in this list; recognized property details also appear on new properties.
               {report.exact_duplicates > 0 && ` ${number(report.exact_duplicates)} identical rows were removed.`}
               {(report.empty_columns_removed || []).length > 0 && ` ${number(report.empty_columns_removed.length)} completely empty columns were removed from the source rows.`}
             </p>
@@ -237,7 +240,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
                   <div role="cell">
                     <Select
                       aria-label={`What ${column.header} is`}
-                      value={(choices[column.idx] === undefined ? column.suggested : choices[column.idx]) || ""}
+                      value={(choices[column.idx] === undefined ? (column.suggested ?? (column.source_detail ? column.standard_key : null)) : choices[column.idx]) || ""}
                       onChange={(event) =>
                         setChoices({
                           ...choices,
@@ -246,10 +249,15 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
                       }
                     >
                       <option value="">Source row only</option>
+                      <option value="" disabled>Lead fields</option>
                       {IMPORT_FIELDS.map(([key, label]) => (
                         <option key={key} value={key}>
                           {label}
                         </option>
+                      ))}
+                      <option value="" disabled>Source and property fields</option>
+                      {[...SOURCE_IMPORT_FIELDS, ...additionalFields].map(([key, label]) => (
+                        <option key={key} value={key}>{label}</option>
                       ))}
                     </Select>
                   </div>

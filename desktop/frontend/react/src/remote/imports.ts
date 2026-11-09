@@ -62,6 +62,28 @@ export const IMPORT_FIELDS: [string, string][] = [
   ["source", "Source"],
 ];
 
+/** Additional columns kept as structured source data and, where applicable, property details. */
+export const SOURCE_IMPORT_FIELDS: [string, string][] = [
+  ["source_record_id", "Source record ID"], ["county", "County"], ["living_area", "Living area"],
+  ["year_built", "Year built"], ["lot_size_acres", "Lot size (acres)"], ["lot_size_square_feet", "Lot size (square feet)"],
+  ["land_use", "Land use"], ["property_type", "Property type"], ["property_use", "Property use"],
+  ["subdivision", "Subdivision"], ["legal_description", "Legal description"], ["units", "Units"],
+  ["bedrooms", "Bedrooms"], ["bathrooms", "Bathrooms"], ["stories", "Stories"],
+  ["garage_type", "Garage type"], ["garage_area", "Garage area"], ["carport", "Carport"],
+  ["carport_area", "Carport area"], ["cooling", "Air conditioning"], ["heating", "Heating"],
+  ["fireplaces", "Fireplaces"], ["owner_1_first_name", "Owner 1 first name"], ["owner_1_last_name", "Owner 1 last name"],
+  ["owner_2_first_name", "Owner 2 first name"], ["owner_2_last_name", "Owner 2 last name"],
+  ["owner_3_first_name", "Owner 3 first name"], ["owner_3_last_name", "Owner 3 last name"],
+  ["owner_4_first_name", "Owner 4 first name"], ["owner_4_last_name", "Owner 4 last name"],
+  ["owner_mailing_address", "Owner mailing address"], ["owner_mailing_city", "Owner mailing city"],
+  ["owner_mailing_state", "Owner mailing state"], ["owner_mailing_zip", "Owner mailing ZIP"],
+  ["ownership_length", "Ownership length"], ["owner_type", "Owner type"],
+  ["owner_occupied", "Owner occupied"], ["vacancy", "Vacancy"],
+  ["batch_name", "Batch name"], ["original_file_name", "Original file name"],
+  ["upload_date", "Upload date"], ["status", "Status"], ["original_status", "Original status"],
+  ["status_time", "Status time"], ["status_agent", "Status agent"], ["lead_file_campaign", "Lead file campaign"],
+];
+
 /** The statuses where the server waits for the person (or has finished), so following the import can pause. */
 export const WAITING = ["mapping", "reviewing", "ready", "call_ready", "done", "failed", "cancelled"];
 
@@ -200,7 +222,7 @@ export async function follow(
 export function mappingBody(columns: ImportColumn[], choices: Record<number, string | null | undefined>) {
   return {
     columns: columns.map((column) => {
-      const field = choices[column.idx] === undefined ? column.suggested : choices[column.idx];
+      const field = choices[column.idx] === undefined ? (column.suggested ?? (column.source_detail ? column.standard_key : null)) : choices[column.idx];
       return field ? { idx: column.idx, field, use: true } : { idx: column.idx, use: false };
     }),
   };
@@ -213,7 +235,7 @@ export function mappingProblem(columns: ImportColumn[], choices: Record<number, 
   const once = fields.filter((f) => f !== "phone" && f !== "email");
   const repeated = once.find((f, i) => once.indexOf(f) !== i);
   if (repeated)
-    return `Two columns are set to ${IMPORT_FIELDS.find(([key]) => key === repeated)?.[1] ?? repeated}. Only phone and email can come from more than one.`;
+    return `Two columns are set to ${[...IMPORT_FIELDS, ...SOURCE_IMPORT_FIELDS].find(([key]) => key === repeated)?.[1] ?? repeated}. Only phone and email can come from more than one.`;
   if (!fields.some((f) => ["name", "first_name", "last_name"].includes(f))) return "Keep a name column: leads need a name.";
   if (!fields.some((f) => ["phone", "email", "address"].includes(f))) return "Keep at least one phone, email or address column.";
   return "";
