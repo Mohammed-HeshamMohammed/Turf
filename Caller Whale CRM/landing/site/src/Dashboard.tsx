@@ -8,6 +8,7 @@ import { CostsManager, MembersTable, PlatformOverview } from "./OwnerViews.tsx";
 import { InviteManager, PendingInvitations, WorkspaceManager, WorkspaceSecondStep } from "./AccessManagement.tsx";
 import { MonitoringPanel } from "./MonitoringPanel.tsx";
 import { Settings } from "./Settings.tsx";
+import { profilePath } from "./profile-path.ts";
 
 type StaffMember = { name: string; email?: string; role: string };
 /** Up to two capital letters from a name or an email address: "Mohammed Hesham" is MH. */
@@ -40,7 +41,7 @@ function UsageOverview({ access, auth, authBase, me }: { access: Access; auth: A
       <section className="card" aria-labelledby="dashboard-account">
         <h2 id="dashboard-account">Account</h2>
         <p><strong>{me.name || me.email}</strong><br /><span className="muted">{me.email}</span></p>
-        <Link to="/account">Your profile →</Link>
+        <Link to={profilePath(me)}>Your profile →</Link>
       </section>
       <section className="card" aria-labelledby="dashboard-memberships">
         <h2 id="dashboard-memberships">Memberships</h2>

@@ -43,6 +43,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/sessions/revoke", serve(s.revoke))
 	mux.Handle("GET /v1/me", serve(s.me))
 	mux.Handle("POST /v1/me/profile", serve(s.updateProfile))
+	mux.Handle("POST /v1/me/username", serve(s.updateUsername))
 	mux.Handle("POST /v1/me/birth-date", serve(s.setBirthDate))
 	mux.Handle("POST /v1/me/terms", serve(s.acceptTerms))
 	mux.Handle("POST /v1/me/work", serve(s.setWorkProfile))
@@ -502,9 +503,9 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	var phone, avatar, currency, first, middle, last string
+	var phone, avatar, currency, first, middle, last, username string
 	var ageConfirmed int64
-	if err := s.db.QueryRow(r.Context(), "SELECT phone, avatar, currency, first_name, middle_name, last_name, age_confirmed_at FROM users WHERE id = $1", u.id).Scan(&phone, &avatar, &currency, &first, &middle, &last, &ageConfirmed); err != nil {
+	if err := s.db.QueryRow(r.Context(), "SELECT phone, avatar, currency, first_name, middle_name, last_name, age_confirmed_at, COALESCE(username, '') FROM users WHERE id = $1", u.id).Scan(&phone, &avatar, &currency, &first, &middle, &last, &ageConfirmed, &username); err != nil {
 		return err
 	}
 	termsAccepted, workAnswers, err := s.onboarding(r, u.id)
@@ -519,7 +520,7 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) error {
 		"id": u.id, "email": u.email, "name": u.name, "mfa_enrolled": enrolled, "email_verified": u.emailVerified,
 		"mfa_passed": c.MFA, "session_id": c.SID,
 		"phone": phone, "avatar": avatar, "currency": currency,
-		"first_name": first, "middle_name": middle, "last_name": last,
+		"first_name": first, "middle_name": middle, "last_name": last, "username": username,
 		"age_confirmed":  ageConfirmed > 0,
 		"terms_accepted": termsAccepted, "terms_version": termsVersion, "work_profile": workAnswers, "setup_exempt": exempt,
 	})
