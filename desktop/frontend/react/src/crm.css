@@ -7535,6 +7535,35 @@ button.message-card:not(:disabled):hover {
   padding: 0;
   list-style: none;
 }
+.source-import-review {
+  margin: 20px 0 24px;
+}
+.import-repeat-groups {
+  display: grid;
+  gap: 14px;
+}
+.import-repeat-group {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--well);
+}
+.import-repeat-group > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.import-repeat-group > header small {
+  color: var(--muted);
+}
+.import-repeat-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
 .import-repeats li {
   display: grid;
   gap: 2px;
