@@ -190,7 +190,8 @@ def describe_columns(cur: psycopg.Cursor, job_id: str, headers: list[str], popul
                 seen.append(value[:80])
             if len(seen) == 3:
                 break
-        out.append({"idx": i, "header": header, "suggested": suggestions[i], "field": None, "used": None, "populated": populated[i], "samples": seen})
+        out.append({"idx": i, "header": header, "suggested": suggestions[i], "source_detail": matching.source_detail(header),
+                    "field": None, "used": None, "populated": populated[i], "samples": seen})
     return out
 
 

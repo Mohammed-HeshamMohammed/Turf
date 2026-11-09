@@ -26,6 +26,32 @@ Lee Existing,+1 512 555 0199,,,,,,
 
 
 class MatchingTest(unittest.TestCase):
+    def test_example_export_titles_are_classified_without_guessing_lead_fields(self) -> None:
+        exports = [
+            ["Phone", "Alt. Phone", "First Name", "Last Name", "Address", "City", "State", "Country", "Zip", "Email",
+             "Batch Name", "Original File Name", "Upload Date", "Status", "Original Status", "Status (time)",
+             "Status (agent)", "Lead File Campaign"],
+            ["Id", "Address", "City", "State", "Zip", "County", "Living Square Feet", "Year Built", "Lot (Acres)",
+             "Lot (Square Feet)", "Land Use", "Property Type", "Property Use", "Subdivision", "APN", "Legal Description",
+             "Units Count", "Bedrooms", "Bathrooms", "# of Stories", "Garage Type", "Garage Square Feet", "Carport",
+             "Carport Area", "Air Conditioning Type", "Heating Type", "# of Fireplaces", "Owner 1 First Name",
+             "Owner 1 Last Name", "Owner 2 First Name", "Owner 2 Last Name", "Owner 3 First Name", "Owner 3 Last Name",
+             "Owner 4 First Name", "Owner 4 Last Name", "Owner Mailing Address", "Owner Mailing City", "Owner Mailing State",
+             "Owner Mailing Zip", "Ownership Length (Months)", "Owner Type", "Owner Occupied", "Vacant?"],
+            ["Address", "City", "", "State", "Zip", "", "", "First Name", "Last Name"],
+        ]
+        for headers in exports:
+            with self.subTest(columns=len(headers)):
+                suggested = matching.suggest_all(headers)
+                unknown = [header for header, field in zip(headers, suggested)
+                           if header and not field and not matching.source_detail(header)]
+                self.assertEqual(unknown, [])
+        self.assertEqual(matching.suggest("Alt. Phone"), "phone")
+        self.assertIsNone(matching.suggest("Owner 2 First Name"))
+        self.assertEqual(matching.source_detail("Owner 2 First Name"), "Owner 2 first name")
+        self.assertIsNone(matching.suggest("Owner Mailing Address"))
+        self.assertEqual(matching.source_detail("Owner Mailing Address"), "Owner mailing address")
+
     def test_shared_address_or_phone_with_different_names_is_not_a_repeat(self) -> None:
         import worker
 

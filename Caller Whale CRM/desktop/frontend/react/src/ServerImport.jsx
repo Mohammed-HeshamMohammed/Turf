@@ -219,7 +219,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
         {status === "mapping" && (
           <>
             <p className="muted">
-              We matched what we could from the headings. Columns set to Not used stay in the source rows but are left out of your leads.
+              We matched what we could from the headings. Source row only columns keep their original values in this list, without adding them to lead fields.
               {report.exact_duplicates > 0 && ` ${number(report.exact_duplicates)} identical rows were removed.`}
               {(report.empty_columns_removed || []).length > 0 && ` ${number(report.empty_columns_removed.length)} completely empty columns were removed from the source rows.`}
             </p>
@@ -228,6 +228,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
                 <div className="import-column" role="row" key={column.idx}>
                   <div role="cell">
                     <strong>{column.header}</strong>
+                    {column.source_detail && <small>Recognized as {column.source_detail} · saved in source rows</small>}
                     <small>{column.samples.length ? column.samples.slice(0, 2).join(" · ") : "Empty"}</small>
                     <small>
                       {number(column.populated)} of {number(report.rows)} rows filled
@@ -244,7 +245,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
                         })
                       }
                     >
-                      <option value="">Not used</option>
+                      <option value="">Source row only</option>
                       {IMPORT_FIELDS.map(([key, label]) => (
                         <option key={key} value={key}>
                           {label}
