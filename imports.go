@@ -348,6 +348,33 @@ func (s *server) importMerge(q *req) error {
 	return s.importReply(q, id)
 }
 
+// Retry only a failed merge. Worker upload and cleaning failures need their own recovery path.
+// Rows already marked merged are skipped by mergeBatch, so a partial merge resumes safely.
+func (s *server) importRetryMerge(q *req) error {
+	if err := s.importRights(q); err != nil {
+		return err
+	}
+	id := q.r.PathValue("id")
+	job, err := s.job(q.r.Context(), q, id)
+	if err != nil {
+		return err
+	}
+	progress, _ := job["progress"].(map[string]any)
+	if job["status"] != "failed" || progress["phase"] != "merging" {
+		return bad("Only a failed lead merge can be retried here.")
+	}
+	result, err := s.st.db.Exec(q.r.Context(), `UPDATE importing.jobs SET status = 'merging', error = '', cancel_requested = false, updated_at = now()
+		WHERE id = $1 AND status = 'failed' AND progress->>'phase' = 'merging'`, id)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() != 1 {
+		return bad("This import has already changed. Refresh it and try again.")
+	}
+	go s.runMerge(context.Background(), id)
+	return s.importReply(q, id)
+}
+
 func (s *server) importCancel(q *req) error {
 	if err := s.importRights(q); err != nil {
 		return err
@@ -480,7 +507,7 @@ func (s *server) mergeBatch(ctx context.Context, sc scope, id string, project, t
 	var created int64
 	err = tx.QueryRow(ctx, `
 		WITH batch AS (
-			SELECT r.*, gen_random_uuid() AS lead_id, gen_random_uuid() AS prop_id FROM importing.rows r
+			SELECT r.*, gen_random_uuid() AS new_lead_id, gen_random_uuid() AS prop_id FROM importing.rows r
 			WHERE r.job_id = $1 AND r.state IN ('clean', 'import') ORDER BY r.row_no LIMIT $2 FOR UPDATE SKIP LOCKED
 		), props AS (
 			INSERT INTO properties (id, org_id, address, unit, city, region, postal_code, country, parcel, latitude, longitude, location_source)
@@ -490,13 +517,13 @@ func (s *server) mergeBatch(ctx context.Context, sc scope, id string, project, t
 			FROM batch WHERE address IS NOT NULL OR zip IS NOT NULL OR city IS NOT NULL OR latitude IS NOT NULL RETURNING id
 		), ins AS (
 			INSERT INTO leads (id, org_id, project_id, team_id, property_id, assignee_id, name, phone, email, source, value_amount, stage)
-			SELECT lead_id, cw_org(), $3::uuid, $4::uuid, p.id, $5::uuid, coalesce(nullif(b.name, ''), nullif(b.phone, ''), nullif(b.email, ''), nullif(b.address, ''), 'Unnamed lead'),
+			SELECT new_lead_id, cw_org(), $3::uuid, $4::uuid, p.id, $5::uuid, coalesce(nullif(b.name, ''), nullif(b.phone, ''), nullif(b.email, ''), nullif(b.address, ''), 'Unnamed lead'),
 				coalesce(b.phone, ''), coalesce(b.email, ''), coalesce(nullif(b.source, ''), $6), b.value, 'New'
 			FROM batch b LEFT JOIN props p ON p.id = b.prop_id RETURNING id
 		), feed AS (
 			INSERT INTO change_log (org_id, entity, entity_id, lead_id, op) SELECT cw_org(), 'lead', id, id, 'upsert' FROM ins RETURNING 1
 		), settled AS (
-			UPDATE importing.rows r SET state = 'merged', lead_id = b.lead_id FROM batch b WHERE r.job_id = $1 AND r.row_no = b.row_no RETURNING 1
+			UPDATE importing.rows r SET state = 'merged', lead_id = b.new_lead_id FROM batch b WHERE r.job_id = $1 AND r.row_no = b.row_no RETURNING 1
 		) SELECT (SELECT count(*) FROM settled)`, id, mergeBatch, project, team, sc.userID, "Import").Scan(&created)
 	if err != nil {
 		return 0, err
