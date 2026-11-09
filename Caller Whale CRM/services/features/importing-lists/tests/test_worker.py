@@ -14,6 +14,7 @@ import polars as pl  # noqa: E402
 
 import matching  # noqa: E402
 import readers  # noqa: E402
+import readymode  # noqa: E402
 
 CSV = """Owner Name,Cell,Email,Address,City,State,Zip,Bathroom style
 Pat Owner,(512) 555-0100,pat@example.com,1 Main St,Austin,tx,78701,modern
@@ -65,6 +66,17 @@ class MatchingTest(unittest.TestCase):
         self.assertNotEqual(grouped.find(("r", 1)), grouped.find(("r", 2)))
         self.assertNotEqual(grouped.find(("r", 3)), grouped.find(("r", 4)))
         self.assertEqual(grouped.find(("r", 1)), grouped.find(("r", 5)))
+
+    def test_readymode_export_keeps_local_time_and_ignores_zero_phones(self) -> None:
+        from zoneinfo import ZoneInfo
+        headers = ["a", "Log Time", "Scheduled time", "Phone", "Ph#2", "Log Type", "First Name", "Last Name"]
+        columns = readymode.columns(headers)
+        event = readymode.event(["12345", "10/15/2026 20:47", "Not scheduled", "0", "(512) 555-0100",
+                                 "Spanish Speaker", "Pat", "Owner"], columns, ZoneInfo("America/Chicago"))
+        self.assertEqual(event["phone"], "5125550100")
+        self.assertEqual(event["scheduled_at"], None)
+        self.assertEqual(event["occurred_at"], "2026-10-16T01:47:00+00:00")
+        self.assertEqual((event["outcome"], event["raw_outcome"]), ("Language barrier", "Spanish Speaker"))
 
     def test_headers_are_read_however_they_are_written(self) -> None:
         for header, field in [("Owner Name", "name"), ("OWNER_NAME", "name"), ("ownerName", "name"), ("Cell Phone", "phone"), ("Phone 3", "phone"),
@@ -241,6 +253,29 @@ class EndToEndTest(unittest.TestCase):
             cur.execute("SELECT cells FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
             self.assertEqual([row[0] for row in cur.fetchall()], [["A", "5551111", ""], ["B", "5552222", "kept"]])
         self.conn.commit()
+
+    def test_readymode_calls_are_staged_before_any_lead_changes(self) -> None:
+        data = ("a,Agent name,Log Time,Scheduled time,Phone,Log Type,Call Notes,First Name,Last Name,Address,Ph#2,Ph#6\n"
+                "12345,Old agent,10/15/2026 20:47,Not scheduled,5125550100,Voicemail,Left message,Pat,Owner,1 Main St,0,0\n"
+                "12346,Old agent,10/15/2026 21:00,Not scheduled,0,Wrong Number,,Pat,Owner,1 Main St,0,0\n").encode()
+        job_id = self.queue(data, "calls.csv")
+        self.conn.execute("UPDATE importing.jobs SET kind = 'readymode_calls', source_timezone = 'America/Chicago' WHERE id = %s", (job_id,))
+        self.conn.commit()
+        self.worker.load_calls(self.conn, self.worker.claim(self.conn))
+        job = self.job(job_id)
+        self.assertEqual(job["status"], "call_ready")
+        self.assertEqual((job["report"]["valid_calls"], job["report"]["unusable_calls"]), (1, 1))
+        self.assertIn("Ph#6", job["report"]["empty_columns_removed"])
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT state, call_data, lead_id FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            rows = cur.fetchall()
+            cur.execute("SELECT count(*) FROM crm.call_events")
+            calls = cur.fetchone()[0]
+        self.conn.commit()
+        self.assertEqual([row[0] for row in rows], ["loaded", "skip"])
+        self.assertEqual(rows[0][1]["notes"], "Left message")
+        self.assertTrue(all(row[2] is None for row in rows))
+        self.assertEqual(calls, 0)
 
     def test_an_upload_is_loaded_confirmed_cleaned_and_its_repeats_found(self) -> None:
         job_id = self.queue(CSV.encode())

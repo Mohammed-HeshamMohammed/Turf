@@ -551,6 +551,87 @@ func TestFailedMergeCanResumeStoredRows(t *testing.T) {
 	}
 }
 
+func TestReadyModeHistoryLinksCallsAndPreservesDoNotCall(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	ctx := context.Background()
+	var id string
+	err := e.admin.QueryRow(ctx, `INSERT INTO importing.jobs
+		(org_id,user_id,name,filename,size,chunk_size,total_chunks,kind,source_timezone,status,report,progress)
+		VALUES ($1,$2,'ReadyMode history','calls.csv',100,100,1,'readymode_calls','America/Chicago','call_ready',
+		'{"valid_calls":2}'::jsonb,'{"phase":"call_ready","done":2}'::jsonb) RETURNING id::text`, orgA, alice).Scan(&id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, outcome := range []string{"Voicemail", "Do not call"} {
+		meaning := "voicemail"
+		if i == 1 {
+			meaning = "do_not_call"
+		}
+		data, _ := json.Marshal(map[string]any{"source_record_id": strconv.Itoa(i + 1), "agent": "Previous agent", "phone": "5125550100",
+			"name": "Pat Owner", "address": "1 Main St", "city": "Austin", "region": "TX", "zip": "78701",
+			"outcome": outcome, "code": "VM", "meaning": meaning, "occurred_at": "2026-10-15T20:00:00Z", "notes": "Historical note"})
+		if _, err = e.admin.Exec(ctx, `INSERT INTO importing.rows (job_id,row_no,fp,cells,call_data)
+			VALUES ($1,$2,sha256($3::bytea),ARRAY['source row'],$4::jsonb)`, id, i+1, []byte(strconv.Itoa(i)), data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if status, _ := e.call(bob, orgA, "POST", "/api/v1/imports/"+id+"/apply-calls", nil); status != 403 {
+		t.Fatalf("caller imported another member's history: %d", status)
+	}
+	if status, reply := e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/apply-calls", nil); status != 200 {
+		t.Fatalf("apply calls: %d %v", status, reply)
+	}
+	deadline := time.Now().Add(15 * time.Second)
+	var state string
+	for time.Now().Before(deadline) {
+		_ = e.admin.QueryRow(ctx, `SELECT status FROM importing.jobs WHERE id = $1`, id).Scan(&state)
+		if state == "done" || state == "failed" {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if state != "done" {
+		t.Fatalf("call import finished as %q", state)
+	}
+	var leads, calls, linked, blocked int
+	_ = e.admin.QueryRow(ctx, `SELECT count(*), count(*) FILTER (WHERE do_not_call) FROM crm.leads WHERE source = 'ReadyMode'`).Scan(&leads, &blocked)
+	_ = e.admin.QueryRow(ctx, `SELECT count(*) FROM crm.call_events WHERE import_job_id = $1`, id).Scan(&calls)
+	_ = e.admin.QueryRow(ctx, `SELECT count(*) FROM importing.rows WHERE job_id = $1 AND state = 'merged' AND lead_id IS NOT NULL`, id).Scan(&linked)
+	if leads != 1 || calls != 2 || linked != 2 || blocked != 1 {
+		t.Fatalf("history not linked safely: leads=%d calls=%d rows=%d dnc=%d", leads, calls, linked, blocked)
+	}
+	if status, _ := e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/apply-calls", nil); status != 400 {
+		t.Fatalf("completed history imported again: %d", status)
+	}
+	var again string
+	err = e.admin.QueryRow(ctx, `INSERT INTO importing.jobs
+		(org_id,user_id,name,filename,size,chunk_size,total_chunks,kind,status,report)
+		VALUES ($1,$2,'Same export','calls.csv',100,100,1,'readymode_calls','call_ready','{"valid_calls":1}'::jsonb)
+		RETURNING id::text`, orgA, alice).Scan(&again)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = e.admin.Exec(ctx, `INSERT INTO importing.rows (job_id,row_no,fp,cells,call_data)
+		SELECT $2,1,sha256('repeat'::bytea),ARRAY['source row'],call_data FROM importing.rows WHERE job_id = $1 AND row_no = 1`, id, again)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.call(alice, orgA, "POST", "/api/v1/imports/"+again+"/apply-calls", nil)
+	deadline = time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		_ = e.admin.QueryRow(ctx, `SELECT status FROM importing.jobs WHERE id = $1`, again).Scan(&state)
+		if state == "done" || state == "failed" {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	_ = e.admin.QueryRow(ctx, `SELECT count(*) FROM crm.call_events WHERE source = 'readymode'`).Scan(&calls)
+	if state != "done" || calls != 2 {
+		t.Fatalf("reimport duplicated history: status=%s calls=%d", state, calls)
+	}
+}
+
 func TestCompletedSourceRowsStayWhileFailedHoldingRowsExpire(t *testing.T) {
 	e := newEnv(t)
 	e.seed()

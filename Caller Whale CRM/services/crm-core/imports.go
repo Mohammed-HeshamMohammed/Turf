@@ -22,7 +22,7 @@ const mergeBatch = 50000
 // importFields are the CRM fields a source column can be matched to. Phones and emails may repeat (phone 1, phone 2).
 var importFields = []string{"name", "first_name", "last_name", "phone", "email", "address", "unit", "city", "region", "zip", "country", "latitude", "longitude", "parcel", "value", "source"}
 
-const jobColumns = `id::text, name, filename, size, chunk_size, total_chunks, status, progress, columns, report, error, loaded_rows, merged_rows, project_id::text, created_at, updated_at`
+const jobColumns = `id::text, name, filename, size, chunk_size, total_chunks, status, progress, columns, report, error, loaded_rows, merged_rows, project_id::text, created_at, updated_at, kind, source_timezone`
 
 func (s *server) importRights(q *req) error {
 	if !q.sc.can("import") {
@@ -54,18 +54,18 @@ func (s *server) job(ctx context.Context, q *req, id string) (map[string]any, er
 func scanJobs(rows pgx.Rows) ([]map[string]any, error) {
 	out := []map[string]any{}
 	for rows.Next() {
-		var id, name, filename, status, errText string
+		var id, name, filename, status, errText, kind, sourceTimezone string
 		var size, loaded, merged int64
 		var chunk, total int
 		var progress, columns, report any
 		var project *string
 		var created, updated time.Time
-		if err := rows.Scan(&id, &name, &filename, &size, &chunk, &total, &status, &progress, &columns, &report, &errText, &loaded, &merged, &project, &created, &updated); err != nil {
+		if err := rows.Scan(&id, &name, &filename, &size, &chunk, &total, &status, &progress, &columns, &report, &errText, &loaded, &merged, &project, &created, &updated, &kind, &sourceTimezone); err != nil {
 			return nil, err
 		}
 		out = append(out, map[string]any{"id": id, "name": name, "filename": filename, "size": size, "chunk_size": chunk, "total_chunks": total,
 			"status": status, "progress": progress, "columns": columns, "report": report, "error": errText, "loaded_rows": loaded, "merged_rows": merged,
-			"project_id": project, "created_at": created, "updated_at": updated})
+			"project_id": project, "created_at": created, "updated_at": updated, "kind": kind, "source_timezone": sourceTimezone})
 	}
 	return out, rows.Err()
 }
@@ -127,8 +127,15 @@ func (s *server) importRows(q *req) error {
 }
 
 func (s *server) importList(q *req) error {
-	rows, err := s.st.db.Query(q.r.Context(), `SELECT `+jobColumns+` FROM importing.jobs WHERE org_id = $1 AND (user_id = $2 OR $3) ORDER BY created_at DESC LIMIT 50`,
-		q.sc.orgID, q.sc.userID, q.sc.can("admin"))
+	kind := q.r.URL.Query().Get("kind")
+	if kind == "" {
+		kind = "lead_list"
+	}
+	if kind != "lead_list" && kind != "readymode_calls" {
+		return bad("Choose a supported import type.")
+	}
+	rows, err := s.st.db.Query(q.r.Context(), `SELECT `+jobColumns+` FROM importing.jobs WHERE org_id = $1 AND (user_id = $2 OR $3) AND kind = $4 ORDER BY created_at DESC LIMIT 50`,
+		q.sc.orgID, q.sc.userID, q.sc.can("admin"), kind)
 	if err != nil {
 		return err
 	}
@@ -338,7 +345,7 @@ func (s *server) importMerge(q *req) error {
 	if err != nil {
 		return err
 	}
-	if job["status"] != "ready" {
+	if job["kind"] != "lead_list" || job["status"] != "ready" {
 		return bad("This import is not ready to be added to your leads yet.")
 	}
 	if _, err = s.st.db.Exec(q.r.Context(), `UPDATE importing.jobs SET status = 'merging', progress = '{"phase":"merging","done":0}', updated_at = now() WHERE id = $1 AND status = 'ready'`, id); err != nil {
@@ -360,18 +367,23 @@ func (s *server) importRetryMerge(q *req) error {
 		return err
 	}
 	progress, _ := job["progress"].(map[string]any)
-	if job["status"] != "failed" || progress["phase"] != "merging" {
+	if job["status"] != "failed" || (progress["phase"] != "merging" && progress["phase"] != "call_merging") {
 		return bad("Only a failed lead merge can be retried here.")
 	}
-	result, err := s.st.db.Exec(q.r.Context(), `UPDATE importing.jobs SET status = 'merging', error = '', cancel_requested = false, updated_at = now()
-		WHERE id = $1 AND status = 'failed' AND progress->>'phase' = 'merging'`, id)
+	phase := progress["phase"].(string)
+	result, err := s.st.db.Exec(q.r.Context(), `UPDATE importing.jobs SET status = $2, error = '', cancel_requested = false, updated_at = now()
+		WHERE id = $1 AND status = 'failed' AND progress->>'phase' = $2`, id, phase)
 	if err != nil {
 		return err
 	}
 	if result.RowsAffected() != 1 {
 		return bad("This import has already changed. Refresh it and try again.")
 	}
-	go s.runMerge(context.Background(), id)
+	if phase == "call_merging" {
+		go s.runCallMerge(context.Background(), id)
+	} else {
+		go s.runMerge(context.Background(), id)
+	}
 	return s.importReply(q, id)
 }
 
@@ -556,21 +568,26 @@ func (s *server) mergeBatch(ctx context.Context, sc scope, id string, project, t
 
 // resumeMerges continues imports that were merging when the service last stopped.
 func (s *server) resumeMerges(ctx context.Context) {
-	rows, err := s.st.db.Query(ctx, `SELECT id::text FROM importing.jobs WHERE status = 'merging' AND NOT cancel_requested`)
+	rows, err := s.st.db.Query(ctx, `SELECT id::text, status FROM importing.jobs WHERE status IN ('merging', 'call_merging') AND NOT cancel_requested`)
 	if err != nil {
 		log.Printf("WARN looking for imports to continue: %v", err)
 		return
 	}
-	var ids []string
+	type pending struct{ id, status string }
+	var ids []pending
 	for rows.Next() {
-		var id string
-		if rows.Scan(&id) == nil {
-			ids = append(ids, id)
+		var item pending
+		if rows.Scan(&item.id, &item.status) == nil {
+			ids = append(ids, item)
 		}
 	}
 	rows.Close()
-	for _, id := range ids {
-		go s.runMerge(ctx, id)
+	for _, item := range ids {
+		if item.status == "call_merging" {
+			go s.runCallMerge(ctx, item.id)
+		} else {
+			go s.runMerge(ctx, item.id)
+		}
 	}
 }
 

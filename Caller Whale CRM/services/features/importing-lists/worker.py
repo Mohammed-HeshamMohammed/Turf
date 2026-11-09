@@ -20,6 +20,8 @@ import psycopg
 
 import matching
 import readers
+import readymode
+from zoneinfo import ZoneInfo
 
 IMPORT_DIR = Path(os.environ.get("IMPORT_DIR", "/data/imports"))
 WORKER = f"{socket.gethostname()}-{os.getpid()}"
@@ -51,7 +53,7 @@ def claim(conn: psycopg.Connection) -> dict | None:
                   AND (status = 'queued' OR (status IN ('loading', 'cleaning') AND (heartbeat_at IS NULL OR heartbeat_at < now() - {STALE})))
                   AND NOT EXISTS (SELECT 1 FROM importing.jobs busy WHERE busy.status IN ('loading', 'cleaning') AND busy.heartbeat_at >= now() - {STALE})
                 ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
-            RETURNING id::text, org_id::text, user_id::text, filename, size, total_chunks, has_header, status, loaded_rows, report, columns""", (WORKER,))
+            RETURNING id::text, org_id::text, user_id::text, filename, size, total_chunks, has_header, status, loaded_rows, report, columns, kind, source_timezone""", (WORKER,))
         job = cur.fetchone()
     conn.commit()
     return job
@@ -153,6 +155,73 @@ def load(conn: psycopg.Connection, job: dict) -> None:
     for leftover in (*folder.glob("source*"), *folder.glob("*.part")):
         leftover.unlink(missing_ok=True)
     log("INFO", "loaded", job=job_id, rows=consumed, duplicates=dropped)
+
+
+def load_calls(conn: psycopg.Connection, job: dict) -> None:
+    """Stage historical calls as source rows. CRM Core links them to leads only after confirmation."""
+    job_id = job["id"]
+    folder = IMPORT_DIR / job_id
+    with conn.cursor() as cur:
+        cur.execute("SELECT size FROM importing.chunks WHERE job_id = %s ORDER BY n", (job_id,))
+        sizes = [r[0] for r in cur.fetchall()]
+    conn.commit()
+    if len(sizes) != job["total_chunks"]:
+        raise RuntimeError("the upload is incomplete")
+    source = readers.prepare(folder, sizes, ".csv")
+    zone = ZoneInfo(job["source_timezone"])
+    consumed = job["loaded_rows"]
+    report = dict(job["report"] or {})
+    accepted, skipped = report.get("valid_calls", 0), report.get("unusable_calls", 0)
+    outcomes = dict(report.get("outcomes") or {})
+    headers = []
+    for headers, frame in readers.read_batches(source, True, skip_rows=consumed):
+        check_cancel(conn, job_id)
+        positions = readymode.columns(headers)
+        entries = []
+        for index, cells in enumerate(frame.iter_rows()):
+            event = readymode.event(list(cells), positions, zone)
+            entries.append((consumed + index + 1, event))
+            if event:
+                accepted += 1
+                outcomes[event["outcome"]] = outcomes.get(event["outcome"], 0) + 1
+            else:
+                skipped += 1
+        with conn.cursor() as cur:
+            stage_and_insert(cur, job_id, frame, consumed + 1)
+            cur.execute("CREATE TEMP TABLE IF NOT EXISTS _call_data (row_no bigint, data jsonb)")
+            cur.execute("TRUNCATE _call_data")
+            with cur.copy("COPY _call_data (row_no, data) FROM STDIN") as copy:
+                for row_no, event in entries:
+                    copy.write_row((row_no, json.dumps(event) if event else None))
+            cur.execute("""UPDATE importing.rows r SET call_data = d.data,
+                        state = CASE WHEN d.data IS NULL THEN 'skip' ELSE 'loaded' END
+                        FROM _call_data d WHERE r.job_id = %s AND r.row_no = d.row_no""", (job_id,))
+            consumed += frame.height
+            report.update(source_rows=consumed, valid_calls=accepted, unusable_calls=skipped, outcomes=outcomes)
+            cur.execute("UPDATE importing.jobs SET loaded_rows = %s, report = %s::jsonb WHERE id = %s", (consumed, json.dumps(report), job_id))
+            beat(cur, job_id, "loading", consumed)
+        conn.commit()
+    headers = headers or readers.headers_of(source, True)
+    readymode.columns(headers)
+    if accepted == 0:
+        raise readers.UnreadableFile("the export has no usable calls")
+    with conn.cursor() as cur:
+        populated = column_population(cur, job_id, headers)
+        kept = [i for i, header in enumerate(headers) if populated[i] and
+                (not readymode.key(header).startswith("ph ") or cur.execute(
+                    f"SELECT count(*) FROM importing.rows WHERE job_id = %s AND btrim(cells[{i + 1}]) NOT IN ('', '0')",
+                    (job_id,)).fetchone()[0])]
+        if len(kept) != len(headers):
+            cur.execute(f"UPDATE importing.rows SET cells = ARRAY[{', '.join(f'cells[{i + 1}]' for i in kept)}] WHERE job_id = %s", (job_id,))
+        report["empty_columns_removed"] = [header for i, header in enumerate(headers) if i not in kept]
+        cur.execute("""UPDATE importing.jobs SET status = 'call_ready', columns = %s::jsonb, report = %s::jsonb,
+                       worker = NULL, heartbeat_at = NULL, progress = %s::jsonb, updated_at = now()
+                       WHERE id = %s AND status = 'loading'""", (json.dumps([{"header": headers[i], "idx": n} for n, i in enumerate(kept)]),
+                            json.dumps(report), json.dumps({"phase": "call_ready", "done": accepted}), job_id))
+    conn.commit()
+    for leftover in (*folder.glob("source*"), *folder.glob("*.part")):
+        leftover.unlink(missing_ok=True)
+    log("INFO", "call history staged", job=job_id, calls=accepted, unusable=skipped)
 
 
 def column_population(cur: psycopg.Cursor, job_id: str, headers: list[str]) -> list[int]:
@@ -396,7 +465,9 @@ def forget(conn: psycopg.Connection, job_id: str) -> None:
 
 def process(conn: psycopg.Connection, job: dict) -> None:
     try:
-        if job["status"] == "cleaning":
+        if job.get("kind") == "readymode_calls":
+            load_calls(conn, job)
+        elif job["status"] == "cleaning":
             clean(conn, job)
         else:
             load(conn, job)
@@ -434,7 +505,7 @@ def sweep_uploads(conn: psycopg.Connection) -> None:
             cur.execute("SELECT status FROM importing.jobs WHERE id::text = %s", (folder.name,))
             row = cur.fetchone()
         conn.commit()
-        if row is None or row[0] in {"cancelled", "failed", "done", "mapping", "reviewing", "ready", "merging"}:
+        if row is None or row[0] in {"cancelled", "failed", "done", "mapping", "reviewing", "ready", "merging", "call_ready", "call_merging"}:
             shutil.rmtree(folder, ignore_errors=True)
 
 
