@@ -22,6 +22,7 @@ import { splitName } from "./person-name.ts";
 import { SiteFooter } from "./components/ui/site-footer.tsx";
 import { Dashboard } from "./Dashboard.tsx";
 import { Settings } from "./Settings.tsx";
+import { Profile } from "./Profile.tsx";
 import { profilePath, usernameInPath } from "./profile-path.ts";
 import { Connect } from "./Connect.tsx";
 import { Setup } from "./Setup.tsx";
@@ -446,13 +447,13 @@ export function App({ path: first = "/" }) {
   // An address that is not a page of the site may be a person's own page (callerwhale.com/their-username).
   const knownPage = routeFor(path).key !== "notfound";
   const ownPageName = !knownPage ? usernameInPath(cleanPath(path)) : "";
-  useEffect(() => applyMetadata(metadataFor(ownPageName ? "account" : routeFor(path).key)), [path, ownPageName]);
+  useEffect(() => applyMetadata(metadataFor(ownPageName ? "profile" : routeFor(path).key)), [path, ownPageName]);
   // Pages are for the right state: signed in, nobody sees the sign-in forms; signed out, nobody sees the account page.
   const fromCrm = typeof window !== "undefined" && wantsCrm(window.location.search);
   useEffect(() => {
     if (me && fromCrm) { if (!setupStep(me)) void openCrm(); return; } // the setup steps (age, terms, work) come first
     // /account is the older address of the same page: it goes to the person's own address once it is known.
-    if (me && cleanPath(path) === "/account" && !setupStep(me) && profilePath(me) !== "/account") { go(profilePath(me), { replace: true }); return; }
+    if (me && cleanPath(path) === "/profile" && !setupStep(me) && profilePath(me) !== "/account") { go(profilePath(me), { replace: true }); return; }
     if (me === null && ownPageName) { go("/signin", { replace: true }); return; }
     const to = redirectFor(path, me);
     if (to && !me && path.startsWith("/connect")) { try { window.sessionStorage.setItem("cw-after-signin", window.location.pathname + window.location.search); } catch { /* signing in then opens the dashboard */ } }
@@ -485,9 +486,10 @@ export function App({ path: first = "/" }) {
     "/terms": <Terms />,
     "/connect": me && setupStep(me) ? setup : me ? <Connect auth={auth} authBase={authBase} search={typeof window === "undefined" ? "" : window.location.search} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
     "/account": me && setupStep(me) ? setup : me ? <Settings me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
+    "/profile": me && setupStep(me) ? setup : me ? <Profile me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
     "/dashboard": me && setupStep(me) ? setup : me ? <Dashboard me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
   };
-  const ownPage = me === undefined || me === null ? <AccountPending error={restoreError} onRetry={retrySession} /> : setupStep(me) ? setup : String(me.username || "") === ownPageName ? pages["/account"] : <NotFound />;
+  const ownPage = me === undefined || me === null ? <AccountPending error={restoreError} onRetry={retrySession} /> : setupStep(me) ? setup : String(me.username || "") === ownPageName ? pages["/profile"] : <NotFound />;
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
   return (
     <div className={`page${cleanPath(path) === "/" ? " home-page" : ""}${cleanPath(path) === "/dashboard" ? " dashboard-shell" : ""}`}>

@@ -4,7 +4,7 @@ import { cleanPath } from "./routes.ts";
 // Which pages are for whom, so a page never shows the wrong state (a sign-in form to someone already signed in, or an
 // account page to nobody). `me` is undefined while the sign-in state is still being asked, null when nobody is signed in.
 const SIGNED_OUT_ONLY = ["/signin", "/signup", "/forgot"];
-const SIGNED_IN_ONLY = ["/account", "/dashboard", "/connect"];
+const SIGNED_IN_ONLY = ["/account", "/profile", "/dashboard", "/connect"];
 
 /** True when this person set up a second step and this sign-in has not passed it yet (after Google, or a session older than it). */
 export function waitingForSecondStep(me: Me): boolean {
