@@ -190,6 +190,18 @@ class EndToEndTest(unittest.TestCase):
         self.conn.commit()
         return row
 
+    def test_only_columns_blank_across_every_row_are_removed(self) -> None:
+        job_id = self.queue(b"Name,Blank,Phone,Sparse\nA,  ,5551111,\nB,,5552222,kept\n")
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        job = self.job(job_id)
+        self.assertEqual([column["header"] for column in job["columns"]], ["Name", "Phone", "Sparse"])
+        self.assertEqual([column["idx"] for column in job["columns"]], [0, 1, 2])
+        self.assertEqual(job["report"]["empty_columns_removed"], ["Blank"])
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT cells FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            self.assertEqual([row[0] for row in cur.fetchall()], [["A", "5551111", ""], ["B", "5552222", "kept"]])
+        self.conn.commit()
+
     def test_an_upload_is_loaded_confirmed_cleaned_and_its_repeats_found(self) -> None:
         job_id = self.queue(CSV.encode())
         claimed = self.worker.claim(self.conn)

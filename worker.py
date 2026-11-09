@@ -139,7 +139,9 @@ def load(conn: psycopg.Connection, job: dict) -> None:
     if not headers:
         raise readers.UnreadableFile("the file has no data rows")
     with conn.cursor() as cur:
-        columns = describe_columns(cur, job_id, headers)
+        headers, populated, empty_columns = drop_empty_columns(cur, job_id, headers)
+        columns = describe_columns(cur, job_id, headers, populated)
+        report["empty_columns_removed"] = empty_columns
         report.update(rows=consumed - dropped - empty, source_rows=consumed)
         cur.execute("""UPDATE importing.jobs SET status = 'mapping', columns = %s::jsonb, report = %s::jsonb, worker = NULL, heartbeat_at = NULL,
                        progress = %s::jsonb, updated_at = now() WHERE id = %s AND status = 'loading'""",
@@ -150,12 +152,29 @@ def load(conn: psycopg.Connection, job: dict) -> None:
     log("INFO", "loaded", job=job_id, rows=consumed, duplicates=dropped)
 
 
-def describe_columns(cur: psycopg.Cursor, job_id: str, headers: list[str]) -> list[dict]:
-    """What the person is shown to confirm: each column's header, how many rows have something in it, a few examples, and the
-    CRM field it looks like (or none: the CRM does not use it)."""
+def column_population(cur: psycopg.Cursor, job_id: str, headers: list[str]) -> list[int]:
     counts = ", ".join(f"count(*) FILTER (WHERE btrim(cells[{i + 1}]) <> '')" for i in range(len(headers)))
     cur.execute(f"SELECT {counts} FROM importing.rows WHERE job_id = %s", (job_id,))
-    populated = cur.fetchone() or [0] * len(headers)
+    return list(cur.fetchone() or [0] * len(headers))
+
+
+def drop_empty_columns(cur: psycopg.Cursor, job_id: str, headers: list[str]) -> tuple[list[str], list[int], list[str]]:
+    """Remove columns with no nonblank cell from every stored source row and reindex the remaining headers."""
+    populated = column_population(cur, job_id, headers)
+    kept = [i for i, count in enumerate(populated) if count > 0]
+    if not kept:
+        raise readers.UnreadableFile("the file has no populated columns")
+    if len(kept) != len(headers):
+        cells = ", ".join(f"cells[{i + 1}]" for i in kept)
+        cur.execute(f"UPDATE importing.rows SET cells = ARRAY[{cells}] WHERE job_id = %s", (job_id,))
+    return [headers[i] for i in kept], [populated[i] for i in kept], [headers[i] for i, count in enumerate(populated) if count == 0]
+
+
+def describe_columns(cur: psycopg.Cursor, job_id: str, headers: list[str], populated: list[int] | None = None) -> list[dict]:
+    """What the person is shown to confirm: each column's header, how many rows have something in it, a few examples, and the
+    CRM field it looks like (or none: the CRM does not use it)."""
+    if populated is None:
+        populated = column_population(cur, job_id, headers)
     cur.execute("SELECT cells FROM importing.rows WHERE job_id = %s ORDER BY row_no LIMIT 300", (job_id,))
     sample_rows = [r[0] for r in cur.fetchall()]
     suggestions = matching.suggest_all(headers)
