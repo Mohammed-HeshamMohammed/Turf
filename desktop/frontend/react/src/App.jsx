@@ -625,7 +625,7 @@ export function App() {
                 <span>You're viewing cached records. CRM edits will queue; local Skip Tracing stays available.</span>
               </div>
             )}
-            <PageTransition key={current + ":" + state.role}>
+            <PageTransition key={(current === "lists" || current.startsWith("lists/")) ? "lists:" + state.role : current + ":" + state.role}>
               <Suspense fallback={null}>{pageElement}</Suspense>
             </PageTransition>
           </main>
