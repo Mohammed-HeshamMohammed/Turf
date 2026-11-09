@@ -8,6 +8,7 @@ Every batch is committed together with the count of rows consumed, so a restart 
 import json
 import os
 import socket
+import shutil
 import time
 import traceback
 from pathlib import Path
@@ -349,6 +350,7 @@ def process(conn: psycopg.Connection, job: dict) -> None:
             load(conn, job)
     except Cancelled:
         forget(conn, job["id"])
+        shutil.rmtree(IMPORT_DIR / job["id"], ignore_errors=True)
         log("INFO", "cancelled", job=job["id"])
     except Exception as error:  # the person is told in plain words; the details stay in the log
         conn.rollback()
@@ -363,6 +365,25 @@ def process(conn: psycopg.Connection, job: dict) -> None:
             cur.execute("""UPDATE importing.jobs SET status = 'failed', worker = NULL, heartbeat_at = NULL, updated_at = now(),
                            error = %s WHERE id = %s""", (message, job["id"]))
         conn.commit()
+        shutil.rmtree(IMPORT_DIR / job["id"], ignore_errors=True)
+
+
+def sweep_uploads(conn: psycopg.Connection) -> None:
+    """Clear abandoned uploads and worker-owned files after cancellation, failure or merge."""
+    conn.execute("""UPDATE importing.jobs SET status = 'cancelled', error = 'The upload was not finished in time.', updated_at = now()
+                    WHERE status = 'uploading' AND updated_at < now() - interval '48 hours'""")
+    conn.commit()
+    if not IMPORT_DIR.exists():
+        return
+    for folder in IMPORT_DIR.iterdir():
+        if not folder.is_dir():
+            continue
+        with conn.cursor() as cur:
+            cur.execute("SELECT status FROM importing.jobs WHERE id::text = %s", (folder.name,))
+            row = cur.fetchone()
+        conn.commit()
+        if row is None or row[0] in {"cancelled", "failed", "done", "mapping", "reviewing", "ready", "merging"}:
+            shutil.rmtree(folder, ignore_errors=True)
 
 
 def run_forever(url: str) -> None:
@@ -371,7 +392,14 @@ def run_forever(url: str) -> None:
         try:
             with psycopg.connect(url) as conn:
                 conn.execute("SET search_path = importing, public")
+                last_sweep = 0.0
                 while True:
+                    if time.monotonic() - last_sweep > 60:
+                        try:
+                            sweep_uploads(conn)
+                        except OSError as error:
+                            log("WARN", "upload cleanup could not finish", error=str(error))
+                        last_sweep = time.monotonic()
                     job = claim(conn)
                     if job is None:
                         time.sleep(POLL_SECONDS)

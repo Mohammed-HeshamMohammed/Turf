@@ -1,30 +1,9 @@
 # Importing lists (server)
 
-Feature 1: server-side list imports, column mapping and repeat merging for lists kept on the server.
+Python service on port 8111. The gateway sends upload start, chunk, resume and completion requests here, under the existing `gate.callerwhale.com` hostname. The worker keeps temporary pieces in its own persistent volume at `IMPORT_DIR` (default `/data/imports`) and writes original source rows plus processed values to PostgreSQL `importing` tables. CRM Core reads those tables for mapping, duplicate decisions and lead merge; it does not receive file bytes.
 
-| | |
-| --- | --- |
-| Part | Feature service (server) |
-| Language | Python 3.13 or newer (standard library only for now) |
-| Default port | 8111 |
-| Owns data | Yes, its own database schema (`importing_lists`) |
-| Status | Scaffold: it starts, answers `/healthz` and `/version`, and has one test. No business logic yet |
+Set `DATABASE_URL` to the importer role, `CORE_URL` to the private CRM Core origin (default `http://crm-core:8107`), and mount a worker-only volume at `/data/imports`. The worker checks the bearer token, workspace and import capability against Core `/api/v1/me` for each upload request. The importer role cannot write CRM leads.
 
-## Run and test
+The upload is 8 MiB chunks with SHA-256 checks. Resume reports only pieces still present on worker storage; completion checks every piece before queueing. Loaded files are removed after their rows are stored. Cancelled, failed and abandoned uploads are swept from the worker volume.
 
-```bash
-python -m unittest discover -s services/features/importing-lists/tests
-PORT=8111 python services/features/importing-lists/server.py
-```
-
-## What it must do
-
-- Answer `GET /healthz` with `{"ok":true,"service":"importing-lists"}` and `GET /version`.
-- Read its port from `PORT` and everything else from environment variables (no files with secrets).
-- Keep its API in `openapi.yaml` and change that file in the same pull request as the code.
-- Talk to other services only through the gateway or the event bus (`contracts/events.md`), never to their databases.
-- Verify the signed-in person from the token's public keys (`/.well-known/jwks.json` of the auth service), never by calling auth on every request.
-
-## Data
-
-This service owns its own PostgreSQL schema and its own database login. Database setup and updates live in `database_setup/` and only this service applies them. No other service may read or write these tables.
+Run `python -m unittest discover -s tests` after installing `requirements.txt`; database integration tests require a disposable PostgreSQL configured through `CRM_TEST_ADMIN_URL`.
