@@ -39,7 +39,7 @@ export function Lists({ id, importId = null }) {
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [reading, setReading] = useState("");
-  // Connected to Caller Whale's server: lists are uploaded there instead of being kept on this device.
+  // Connected to Caller Whale's server: each import has a page under its source list.
   const [upload, setUpload] = useState(null);
   const [running, setRunning] = useState([]);
   const [recentFailures, setRecentFailures] = useState([]);
@@ -56,7 +56,7 @@ export function Lists({ id, importId = null }) {
         setRecentFailures(list.filter(item => item.status === "failed").slice(0, 5));
       })
       .catch(() => { setRunning([]); setRecentFailures([]); });
-  }, [remote, upload]);
+  }, [remote, upload, id, importId]);
   const leads = visibleLeads(state);
   const listLeads = useMemo(() => leads.filter(lead => lead.datasetId === id), [leads, id]);
   const datasetIds = new Set(leads.map(item => item.datasetId));
@@ -65,11 +65,15 @@ export function Lists({ id, importId = null }) {
   const filledDatasets = searchedDatasets.filter(item => datasetIds.has(item.id));
   const emptyDatasets = searchedDatasets.filter(item => !datasetIds.has(item.id));
   const dataset = datasets.find(item => item.id === id);
-  const activeImportId = importId || (id && running.find(item => item.project_id === id && ["reviewing", "ready"].includes(item.status))?.id);
+  const listImports = [...running, ...recentFailures].filter(item => item.project_id === id);
+  const openNewImport = () => {
+    setUpload(null);
+    navigate("lists/new");
+  };
   const attention = [...running, ...recentFailures].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
   const groups = new Map();
   attention.forEach(item => {
-    const key = item.filename || item.name;
+    const key = item.project_id || item.name;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(item);
   });
@@ -166,7 +170,11 @@ export function Lists({ id, importId = null }) {
   }
   async function readFile(file) {
     if (!file) return;
-    if (remote) return setUpload({ file });
+    if (remote) {
+      setUpload({ file });
+      navigate("lists/new");
+      return;
+    }
     if (!file.name.toLowerCase().endsWith(".csv")) {
       setError("Choose a CSV file. Save a spreadsheet as CSV first.");
       return;
@@ -205,26 +213,30 @@ export function Lists({ id, importId = null }) {
       "Tampa new opportunities",
       ["Owner", "Address", "City", "Phone", "Email"],
     );
-  const importReview = activeImportId && remote && (
+  if (remote && (id === "new" || importId)) return (
     <ServerImport
-      key={activeImportId}
-      inline
-      resume={activeImportId}
-      onClose={() => navigate(id ? "lists/" + id : "lists")}
-      onFinished={() => {
-        setRunning(current => current.filter(item => item.id !== activeImportId));
+      resume={importId === "new" ? "" : importId || ""}
+      initialFile={upload?.file}
+      projectId={id === "new" ? null : id}
+      projectName={dataset?.name}
+      onStarted={job => {
+        setUpload(null);
+        dispatch({ type: "REFRESH_LISTS" });
+        navigate(`lists/${job.project_id}/imports/${job.id}`);
+      }}
+      onClose={job => {
+        setUpload(null);
+        navigate(job?.project_id ? `lists/${job.project_id}` : id !== "new" ? `lists/${id}` : "lists");
+      }}
+      onFinished={job => {
+        setRunning(current => current.filter(item => item.id !== job.id));
         dispatch({ type: "REFRESH_LISTS" });
         dispatch({ type: "SYNC" });
         notify("List added to your leads");
       }}
     />
   );
-  if (id && !dataset && !activeImportId) return <Empty title="This list is outside your view">Return to the lists available to your role.</Empty>;
-  if (id && !dataset && activeImportId) return <>
-    <Breadcrumb items={[{ label: "Lists", path: "lists" }, { label: "Import review" }]} />
-    <PageHeader title="Source list import" description="Review this list before its leads are added." />
-    {importReview}
-  </>;
+  if (id && !dataset) return <Empty title="This list is outside your view">Return to the lists available to your role.</Empty>;
   if (dataset)
     return (
       <>
@@ -256,6 +268,7 @@ export function Lists({ id, importId = null }) {
               Open in Skip Tracing
             </Button>
           )}
+          {remote && capability(state, "import") && <Button icon={UploadSimple} onClick={() => navigate(`lists/${id}/imports/new`)}>Upload to this list</Button>}
           {remote && capability(state, "admin") && (
             <button className="text-button" onClick={() => setRemoveTarget({ kind: "project", item: dataset })}><Trash size={16} /> Delete list</button>
           )}
@@ -265,7 +278,12 @@ export function Lists({ id, importId = null }) {
           <Badge>{dataset.team} project</Badge>
           <span>Fields: {dataset.columns.join(" · ")}</span>
         </div>
-        {importReview}
+        {listImports.length > 0 && <Card title="Imports for this list" subtitle="Continue an upload or finish reviewing it here." className="import-history">
+          {listImports.map(item => <div className="import-history-attempt" key={item.id}>
+            <div><strong>{item.filename}</strong><Badge tone={item.status === "failed" ? "danger" : "peach"}>{item.status === "failed" ? "Failed" : item.status === "mapping" || item.status === "reviewing" || item.status === "ready" ? "Needs you" : "In progress"}</Badge></div>
+            <Button onClick={() => navigate(`lists/${id}/imports/${item.id}`)}>{item.status === "failed" ? "Details" : "Continue"}</Button>
+          </div>)}
+        </Card>}
         <LeadsMap leads={listLeads} />
         <Card className="table-card">
           <DataTable
@@ -305,7 +323,7 @@ export function Lists({ id, importId = null }) {
     <>
       <PageHeader title="Source lists" description="Imported lists and the leads that came from them.">
         {capability(state, "import") && (
-          <Button variant="primary" icon={UploadSimple} onClick={() => (remote ? setUpload({}) : input.current.click())}>
+          <Button variant="primary" icon={UploadSimple} onClick={() => (remote ? openNewImport() : input.current.click())}>
             {remote ? "Upload a list" : "Import CSV"}
           </Button>
         )}
@@ -326,9 +344,9 @@ export function Lists({ id, importId = null }) {
         </p>
       )}
       {attentionGroups.length > 0 && (
-        <Card title="Import activity" subtitle="Each upload attempt is shown under its file." className="import-history">
+        <Card title="Import activity" subtitle="Each upload attempt is shown under its source list." className="import-history">
           {attentionGroups.map(group => (
-            <section className="import-history-group" key={group[0].filename || group[0].name}>
+            <section className="import-history-group" key={group[0].project_id || group[0].name}>
               <header>
                 <strong>{group[0].name}</strong>
                 <small>{group.length} {group.length === 1 ? "attempt" : "attempts"}</small>
@@ -336,14 +354,13 @@ export function Lists({ id, importId = null }) {
               {group.map(item => (
                 <div className="import-history-attempt" key={item.id}>
                   <div>
+                    <strong>{item.filename}</strong>
                     <Badge tone={item.status === "failed" ? "danger" : "peach"}>{item.status === "failed" ? "Failed" : item.status === "mapping" || item.status === "reviewing" || item.status === "ready" ? "Needs you" : "In progress"}</Badge>
                     <small>{new Date(item.created_at).toLocaleString()}</small>
                     {item.status === "failed" && <p>{item.error || "This import could not be completed."}</p>}
                   </div>
                   <div className="import-history-actions">
-                    <Button onClick={() => ["reviewing", "ready"].includes(item.status) && item.project_id
-                      ? navigate(`lists/${item.project_id}/imports/${item.id}`)
-                      : setUpload({ resume: item.id })}>{item.status === "failed" ? "Details" : "Continue"}</Button>
+                    <Button onClick={() => navigate(`lists/${item.project_id || "new"}/imports/${item.id}`)}>{item.status === "failed" ? "Details" : "Continue"}</Button>
                     {item.status === "failed" && capability(state, "import") && (
                       <button className="text-button" onClick={() => setRemoveTarget({ kind: "import", item })}><Trash size={16} /> Remove</button>
                     )}
@@ -417,24 +434,11 @@ export function Lists({ id, importId = null }) {
           <h3>Bring in your next opportunity list.</h3>
           <p>{remote ? "Drop a file here, or choose one. It is sent to Caller Whale's server and added to your leads." : "Drop a CSV here, or choose a file. Imported lists are kept on this device."}</p>
           <div className="row">
-            <Button onClick={() => (remote ? setUpload({}) : input.current.click())}>{remote ? "Choose a file" : "Choose CSV"}</Button>
+            <Button onClick={() => (remote ? openNewImport() : input.current.click())}>{remote ? "Choose a file" : "Choose CSV"}</Button>
             {!remote && <Button onClick={sample}>Try a sample import</Button>}
           </div>
           <small>{remote ? "CSV, TXT, XLSX or XLS · big lists are fine" : reading ? "Reading " + reading + "…" : "CSV files up to 50 MB · every row is imported"}</small>
         </div>
-      )}
-      {upload && (
-        <ServerImport
-          resume={upload.resume}
-          initialFile={upload.file}
-          onClose={() => setUpload(null)}
-          onFinished={() => dispatch({ type: "REFRESH_LISTS" })}
-          onContinueInList={job => {
-            setUpload(null);
-            dispatch({ type: "REFRESH_LISTS" });
-            navigate(`lists/${job.project_id}/imports/${job.id}`);
-          }}
-        />
       )}
       {removeTarget && (
         <ConfirmDialog
