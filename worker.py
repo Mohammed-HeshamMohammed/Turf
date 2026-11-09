@@ -7,6 +7,7 @@ Heavy steps run inside polars (parsing, building rows) or PostgreSQL (fingerprin
 Every batch is committed together with the count of rows consumed, so a restart carries on from the last batch."""
 import json
 import os
+import re
 import socket
 import shutil
 import time
@@ -269,7 +270,7 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
 
 
 class Groups:
-    """Rows and existing leads that share a phone, an email or an address end up in one group (connected components)."""
+    """Connected rows that share a contact or address and the same person name."""
 
     def __init__(self) -> None:
         self.parent: dict = {}
@@ -287,25 +288,39 @@ class Groups:
             self.parent[max(ra, rb)] = min(ra, rb)
 
 
+def name_key(name: str | None) -> str:
+    """Ignore only case, spacing and punctuation; distinct people stay distinct."""
+    return re.sub(r"[^a-z0-9]", "", (name or "").lower())
+
+
+def group_source_candidates(rows: list[tuple]) -> Groups:
+    """A shared household, family phone or inbox alone is not a repeated lead."""
+    groups = Groups()
+    first_with: dict = {}
+    for row_no, name, phone, email, address_key in rows:
+        person = name_key(name)
+        for kind, key in (("p", phone), ("e", email), ("a", address_key if person else None)):
+            if key is not None:
+                groups.union(("r", row_no), first_with.setdefault((kind, key, person), ("r", row_no)))
+    return groups
+
+
 def find_repeats(conn: psycopg.Connection, job: dict) -> int:
     """Marks rows that match each other, or a lead already in the CRM, after cleaning. Returns how many groups the person must decide."""
     job_id, org = job["id"], job["org_id"]
-    groups = Groups()
     with conn.cursor() as cur:
         cur.execute("""
-            SELECT row_no, phone, email, importing.addr_key(address, zip) AS ak FROM (
+            SELECT row_no, name, phone, email, importing.addr_key(address, zip) AS ak FROM (
                 SELECT *, count(*) OVER (PARTITION BY phone) AS cp, count(*) OVER (PARTITION BY email) AS ce,
                        count(*) OVER (PARTITION BY importing.addr_key(address, zip)) AS ca
                 FROM importing.rows WHERE job_id = %s AND state = 'clean') x
             WHERE (phone IS NOT NULL AND cp > 1) OR (email IS NOT NULL AND ce > 1) OR (importing.addr_key(address, zip) IS NOT NULL AND ca > 1)""", (job_id,))
-        first_with: dict = {}
-        for row_no, phone, email, ak in cur.fetchall():
-            for kind, key in (("p", phone), ("e", email), ("a", ak)):
-                if key is not None:
-                    groups.union(("r", row_no), first_with.setdefault((kind, key), ("r", row_no)))
+        groups = group_source_candidates(cur.fetchall())
         cur.execute("SET cw.matching = 'on'")
         cur.execute("""
             SELECT r.row_no, min(m.id::text) FROM importing.rows r JOIN importing.lead_match m ON m.org_id = %s::uuid
+                AND nullif(regexp_replace(lower(coalesce(r.name, '')), '[^a-z0-9]', '', 'g'), '') =
+                    nullif(regexp_replace(lower(coalesce(m.name, '')), '[^a-z0-9]', '', 'g'), '')
                 AND ((r.phone IS NOT NULL AND m.phone = r.phone) OR (r.email IS NOT NULL AND m.email = r.email)
                      OR (importing.addr_key(r.address, r.zip) IS NOT NULL AND m.addr_key = importing.addr_key(r.address, r.zip)))
             WHERE r.job_id = %s AND r.state = 'clean' GROUP BY r.row_no""", (org, job_id))
