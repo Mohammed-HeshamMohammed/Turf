@@ -14,6 +14,7 @@ export function remoteReducer(state, action) {
         ...state,
         role: action.role,
         remote: action.remote,
+        personal: { ...state.personal, [action.remote.user.id]: action.preferences || {} },
         online: true,
         settings: { ...state.settings, workspace: action.remote.organization || state.settings.workspace },
         leads: [],

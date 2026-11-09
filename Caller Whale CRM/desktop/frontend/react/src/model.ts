@@ -1,13 +1,14 @@
 import { CALL_OUTCOMES, PEOPLE, ROLES, TODAY, seedState } from "./data.ts";
 import { detectSourceFields, headerKey, leadFromSource, SOURCE_FIELDS } from "./skiptrace-fields.ts";
 import { phoneNumberKey, validPhoneNumber } from "./phone.ts";
+import { DEFAULT_PERSONAL_PREFERENCES } from "./personal-preferences.ts";
 
 export const uid = () => crypto.randomUUID();
 export function personalProfile(state) {
   const person = ROLES[state.role].person;
   if (state.remote) {
     const user = state.remote.user;
-    return { taskReminders: true, replyReminders: true, ...state.personal?.[person],
+    return { ...DEFAULT_PERSONAL_PREFERENCES, ...state.personal?.[user.id],
       name: user.name || person, email: user.email || "", avatar: user.avatar || "",
       phone: user.phone || "", username: user.username || "", currency: user.currency || "",
       firstName: user.first_name || "", middleName: user.middle_name || "", lastName: user.last_name || "" };
@@ -15,8 +16,7 @@ export function personalProfile(state) {
   return {
     name: person,
     email: person.toLowerCase().replaceAll(" ", ".") + "@example.com",
-    taskReminders: true,
-    replyReminders: true,
+    ...DEFAULT_PERSONAL_PREFERENCES,
     ...state.personal?.[person],
   };
 }
@@ -197,7 +197,7 @@ export function reducer(state, action) {
     case "ROLE":
       return ROLES[action.role] ? { ...state, role: action.role } : state;
     case "PERSONAL": {
-      const person = ROLES[state.role].person;
+      const person = state.remote?.user.id || ROLES[state.role].person;
       return { ...state, personal: { ...state.personal, [person]: { ...personalProfile(state), ...action.profile } } };
     }
     case "CONNECT":

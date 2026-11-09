@@ -7,6 +7,7 @@ import { SyncEngine } from "../src/remote/engine.ts";
 import { MemoryVault } from "../src/remote/vault.ts";
 import { mergeAuthProfile } from "../src/remote/profile.ts";
 import { personalProfile } from "../src/model.ts";
+import { loadPersonalPreferences, savePersonalPreferences } from "../src/personal-preferences.ts";
 
 const directory = [
   { id: "u-maya", name: "Maya Chen" },
@@ -86,6 +87,25 @@ test("CRM profile follows the auth account and ignores a different account", () 
   assert.equal(personalProfile(changed).name, "Updated name");
   const refused = remoteReducer(changed, { type: "REMOTE_PROFILE", profile: { ...account, id: "another-user", name: "Wrong account" } });
   assert.equal(personalProfile(refused).name, "Updated name");
+});
+
+test("connected preferences survive a restart and stay with the signed-in account", () => {
+  const records = new Map();
+  const storage = { getItem: key => records.get(key) ?? null, setItem: (key, value) => records.set(key, value) };
+  assert.equal(savePersonalPreferences("u-one", { taskReminders: false, startPage: "tasks", reduceMotion: true, name: "Never store" }, storage), true);
+  assert.equal(records.size, 1);
+  assert.equal(records.values().next().value.includes("Never store"), false);
+  const preferences = loadPersonalPreferences("u-one", storage);
+  const user = { id: "u-one", name: "A", email: "a@example.com" };
+  const start = remoteReducer(seedState(), { type: "REMOTE_START", role: "owner", remote: { user, capabilities: [], organization: "Workspace" }, preferences });
+  assert.equal(personalProfile(start).taskReminders, false);
+  assert.equal(personalProfile(start).startPage, "tasks");
+  const changed = remoteReducer(start, { type: "PERSONAL", profile: { handoffReminders: false } });
+  savePersonalPreferences(user.id, personalProfile(changed), storage);
+  const restarted = remoteReducer(seedState(), { type: "REMOTE_START", role: "owner", remote: { user, capabilities: [], organization: "Workspace" }, preferences: loadPersonalPreferences(user.id, storage) });
+  assert.equal(personalProfile(restarted).handoffReminders, false);
+  assert.equal(loadPersonalPreferences("u-two", storage).handoffReminders, true);
+  assert.equal(loadPersonalPreferences("u-two", storage).startPage, "dashboard");
 });
 
 test("one device copy is replaced on a workspace switch after its queue is clear", async () => {

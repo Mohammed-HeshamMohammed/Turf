@@ -234,7 +234,7 @@ export function DataTable({ view, columns, rowKey, leading, trailing }) {
   useLayoutEffect(() => {
     const from = before.current;
     before.current = null;
-    if (!from || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!from || reducedMotion()) return;
     tableRef.current.querySelectorAll("[data-cell]").forEach(cell => {
       const shift = from.get(cell.dataset.cell) - cell.getBoundingClientRect().left;
       if (Math.abs(shift) > 1)
@@ -433,7 +433,8 @@ export function Breadcrumb({ items }) {
     </nav>
   );
 }
-const reducedMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+const reducedMotion = () => typeof window !== "undefined" &&
+  (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || Boolean(document.querySelector(".crm-window.reduce-motion")));
 export const EXIT_MS = 190;
 
 /**
