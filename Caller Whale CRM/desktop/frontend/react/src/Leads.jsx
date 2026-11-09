@@ -977,9 +977,7 @@ export function LeadDetail({ id }) {
           }}
         >
           <p>
-            {state.remote
-              ? lead.name + " is removed from every list for everyone on the team. The server keeps a record of it in its audit trail."
-              : "This removes " + lead.name + " together with their notes, deals, tasks, conversations and history. It cannot be undone."}
+            {"This removes " + lead.name + " from the CRM and its source list, together with related notes, deals, tasks, conversations and call history. It cannot be undone."}
           </p>
         </ConfirmDialog>
       )}

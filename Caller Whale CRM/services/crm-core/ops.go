@@ -733,10 +733,18 @@ func (r *run) leadDelete(p map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = r.exec(`UPDATE leads SET deleted_at = now(), version = version + 1 WHERE id = $1`, id); err != nil {
+	propertyID := asString(before["property_id"])
+	if err = r.exec(`DELETE FROM leads WHERE id = $1`, id); err != nil {
 		return nil, err
 	}
-	if err = r.record(change{entity: "lead", kind: "lead.deleted", id: id, leadID: id, before: before, deleted: true}); err != nil {
+	if propertyID != "" {
+		if err = r.exec(`DELETE FROM properties p WHERE p.id = $1
+			AND NOT EXISTS (SELECT 1 FROM leads l WHERE l.property_id = p.id)
+			AND NOT EXISTS (SELECT 1 FROM deals d WHERE d.property_id = p.id)`, propertyID); err != nil {
+			return nil, err
+		}
+	}
+	if err = r.record(change{entity: "lead", kind: "lead.deleted", id: id, leadID: id, deleted: true}); err != nil {
 		return nil, err
 	}
 	return map[string]any{"id": id, "deleted": true}, nil

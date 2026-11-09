@@ -167,6 +167,10 @@ func TestALeadsWholeLifeThroughSync(t *testing.T) {
 	deal := e.want(e.op(alice, orgA, "deal.create", map[string]any{"lead_id": leadID, "amount": 120000, "fee": 8000}), "applied")
 	e.want(e.op(alice, orgA, "deal.update", map[string]any{"id": deal["id"], "changes": map[string]any{"stage": "Closed lost"}, "base": map[string]any{"stage": "Qualified"}}), "rejected")
 	e.want(e.op(alice, orgA, "lead.delete", map[string]any{"id": leadID}), "applied")
+	var stored int
+	if err := e.admin.QueryRow(context.Background(), `SELECT count(*) FROM crm.leads WHERE id = $1`, leadID).Scan(&stored); err != nil || stored != 0 {
+		t.Fatalf("deleted lead still stored: %d %v", stored, err)
+	}
 	_, after := e.call(alice, orgA, "GET", "/sync/pull?cursor="+strconv.FormatInt(int64(pulled["cursor"].(float64)), 10)+"&access_revision="+strconv.FormatInt(int64(rev), 10), nil)
 	removed := false
 	for _, c := range after["changes"].([]any) {
@@ -298,7 +302,11 @@ func TestFailedImportCleanupRemovesEmptyListsButKeepsExistingLeads(t *testing.T)
 		t.Fatalf("empty list remained: %d %v", count, err)
 	}
 	second, populated := start()
-	if _, err := e.admin.Exec(ctx, `INSERT INTO crm.leads (org_id, project_id, name) VALUES ($1, $2, 'Keep me')`, orgA, populated); err != nil {
+	var leadID string
+	if err := e.admin.QueryRow(ctx, `INSERT INTO crm.leads (org_id, project_id, name) VALUES ($1, $2, 'Remove me') RETURNING id::text`, orgA, populated).Scan(&leadID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.admin.Exec(ctx, `INSERT INTO crm.notes (org_id, lead_id, body) VALUES ($1, $2, 'Related note')`, orgA, leadID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'failed' WHERE id = $1`, second); err != nil {
@@ -308,11 +316,18 @@ func TestFailedImportCleanupRemovesEmptyListsButKeepsExistingLeads(t *testing.T)
 	if status != 200 || removed["removed_project"] != "" {
 		t.Fatalf("populated list removed with import: %d %v", status, removed)
 	}
-	if status, _ = e.call(alice, orgA, "DELETE", "/api/v1/projects/"+populated, nil); status != 400 {
-		t.Fatalf("populated list deleted: %d", status)
+	status, removed = e.call(alice, orgA, "DELETE", "/api/v1/projects/"+populated, nil)
+	if status != 200 || removed["deleted_leads"] != float64(1) {
+		t.Fatalf("populated list deletion: %d %v", status, removed)
 	}
-	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM crm.leads WHERE project_id = $1`, populated).Scan(&count); err != nil || count != 1 {
-		t.Fatalf("lead was lost: %d %v", count, err)
+	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM crm.leads WHERE id = $1`, leadID).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("lead remained after source list deletion: %d %v", count, err)
+	}
+	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM crm.notes WHERE lead_id = $1`, leadID).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("related note remained after source list deletion: %d %v", count, err)
+	}
+	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM crm.change_log WHERE entity = 'lead' AND entity_id = $1 AND op = 'delete'`, leadID).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("other devices cannot learn of the deletion: %d %v", count, err)
 	}
 	third, emptyAgain := start()
 	if status, _ := e.call(alice, orgA, "DELETE", "/api/v1/projects/"+emptyAgain, nil); status != 400 {
@@ -475,6 +490,9 @@ func TestAConfirmedListIsMergedIntoLeadsInBatches(t *testing.T) {
 	if state != "done" {
 		t.Fatalf("merge finished as %q", state)
 	}
+	if status, _ := e.call(alice, orgA, "DELETE", "/api/v1/imports/"+id, nil); status != 400 {
+		t.Fatalf("completed source rows were removable without deleting the list: %d", status)
+	}
 	// Three leads: two clean rows and one of the repeat pair; and the project holds them, visible through sync.
 	_, snap := e.call(alice, orgA, "GET", "/sync/snapshot", nil)
 	if n := len(snap["leads"].([]any)); n != 3 {
@@ -484,6 +502,18 @@ func TestAConfirmedListIsMergedIntoLeadsInBatches(t *testing.T) {
 	_ = e.admin.QueryRow(ctx, `SELECT count(*) FROM crm.change_log WHERE entity = 'lead'`).Scan(&feed)
 	if feed != 3 {
 		t.Fatalf("every new lead reaches the pull feed: %d", feed)
+	}
+	var linked int
+	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM importing.rows WHERE job_id = $1 AND state = 'merged' AND lead_id IS NOT NULL`, id).Scan(&linked); err != nil || linked != 3 {
+		t.Fatalf("completed source rows must link to leads: %d %v", linked, err)
+	}
+	var importedLead string
+	if err := e.admin.QueryRow(ctx, `SELECT lead_id::text FROM importing.rows WHERE job_id = $1 AND row_no = 1`, id).Scan(&importedLead); err != nil {
+		t.Fatal(err)
+	}
+	e.want(e.op(alice, orgA, "lead.delete", map[string]any{"id": importedLead}), "applied")
+	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM importing.rows WHERE job_id = $1 AND row_no = 1`, id).Scan(&linked); err != nil || linked != 0 {
+		t.Fatalf("deleted lead retained its source row: %d %v", linked, err)
 	}
 }
 
@@ -516,7 +546,7 @@ func TestOnlyThreeImportsMayBeUnderWayPerWorkspace(t *testing.T) {
 	}
 }
 
-func TestOldHoldingRowsAreClearedButTheImportRecordStays(t *testing.T) {
+func TestCompletedSourceRowsStayWhileFailedHoldingRowsExpire(t *testing.T) {
 	e := newEnv(t)
 	e.seed()
 	ctx := context.Background()
@@ -527,20 +557,20 @@ func TestOldHoldingRowsAreClearedButTheImportRecordStays(t *testing.T) {
 		if _, err := e.admin.Exec(ctx, `INSERT INTO importing.rows (job_id, row_no, fp, cells) VALUES ($1, 1, sha256('x'::bytea), ARRAY['x'])`, id); err != nil {
 			t.Fatal(err)
 		}
-		age := []string{"20 days", "2 days"}[i]
-		if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'done', updated_at = now() - $2::interval WHERE id = $1`, id, age); err != nil {
+		status := []string{"failed", "done"}[i]
+		if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = $2, updated_at = now() - interval '20 days' WHERE id = $1`, id, status); err != nil {
 			t.Fatal(err)
 		}
 	}
 	n, err := e.s.sweepRows(ctx)
 	if err != nil || n != 1 {
-		t.Fatalf("one old row should go: %d %v", n, err)
+		t.Fatalf("only a failed import's old row should go: %d %v", n, err)
 	}
 	var rows, jobs int
 	_ = e.admin.QueryRow(ctx, `SELECT count(*) FROM importing.rows`).Scan(&rows)
 	_ = e.admin.QueryRow(ctx, `SELECT count(*) FROM importing.jobs`).Scan(&jobs)
 	if rows != 1 || jobs != 2 {
-		t.Fatalf("the fresh import keeps its rows, and both records stay: rows=%d jobs=%d", rows, jobs)
+		t.Fatalf("completed source rows and both records must stay: rows=%d jobs=%d", rows, jobs)
 	}
 }
 

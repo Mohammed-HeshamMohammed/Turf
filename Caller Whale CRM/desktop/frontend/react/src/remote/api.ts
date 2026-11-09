@@ -110,7 +110,7 @@ export const api = {
   directory: () => request("GET", "/api/v1/directory"),
   teams: () => request("GET", "/api/v1/admin/teams"),
   projects: () => request("GET", "/api/v1/projects"),
-  deleteProject: (id: string): Promise<any> => request("DELETE", `/api/v1/projects/${id}`),
+  deleteProject: (id: string): Promise<any> => request("DELETE", `/api/v1/projects/${id}`, undefined, { timeout: 120000 }),
   settings: () => request("GET", "/api/v1/settings"),
   snapshot: () => request("GET", "/sync/snapshot", undefined, { timeout: 60000 }),
   pull: (cursor, accessRevision) => request("GET", `/sync/pull?cursor=${cursor}&access_revision=${accessRevision}`),

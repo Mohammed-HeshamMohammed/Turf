@@ -24,6 +24,8 @@ Every request inside a workspace carries `Authorization: Bearer <token>` and `x-
 3. `PUT .../mapping` confirms the columns; columns marked unused are left out of the leads (the originals stay in the holding table). The worker cleans the rows and finds repeats (`status: reviewing`, or `ready` when there are none).
 4. `GET/POST .../duplicates` lists and settles repeats (merge, import, skip). `POST .../merge` adds the leads in batches of 50,000.
 
+The uploaded CSV exists only as temporary chunks during processing and is removed after a successful merge. Original cells from completed imports remain as rows in PostgreSQL (`importing.rows`) linked to the resulting lead. Deleting a lead also removes its linked source rows; deleting a source list deletes its leads, related records, import jobs, and source rows. Failed or cancelled holding rows expire after 14 days. Source rows from completed imports before migration `0004` may lack a lead link; deleting their source list still removes them.
+
 ## Run and test
 
 ```bash

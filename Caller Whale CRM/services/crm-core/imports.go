@@ -133,7 +133,7 @@ func (s *server) importStart(q *req) error {
 			return bad("That list does not exist.")
 		}
 		var found string
-		if err = tx.QueryRow(ctx, `SELECT id::text FROM projects WHERE id = $1`, body.ProjectID).Scan(&found); err != nil {
+		if err = tx.QueryRow(ctx, `SELECT id::text FROM projects WHERE id = $1 FOR KEY SHARE`, body.ProjectID).Scan(&found); err != nil {
 			return bad("That list does not exist.")
 		}
 		project = &found
@@ -531,8 +531,8 @@ func (s *server) importCancel(q *req) error {
 	return s.importReply(q, id)
 }
 
-// Remove a finished import's uploaded file, holding rows and history. Its source list is removed too when it is empty
-// and no other import uses it. Leads that were already added are never deleted by this operation.
+// Remove a failed or cancelled import. Completed imports retain their source rows
+// until the source list is deleted.
 func (s *server) importDelete(q *req) error {
 	if err := s.importRights(q); err != nil {
 		return err
@@ -557,8 +557,8 @@ func (s *server) importDelete(q *req) error {
 	if err != nil {
 		return err
 	}
-	if !slices.Contains([]string{"failed", "cancelled", "done"}, status) {
-		return bad("Finish or cancel this import before removing it.")
+	if !slices.Contains([]string{"failed", "cancelled"}, status) {
+		return bad("Only failed or cancelled imports can be removed. Delete the source list to remove a completed import and its leads.")
 	}
 	if _, err = tx.Exec(ctx, `DELETE FROM importing.jobs WHERE id = $1`, id); err != nil {
 		return err
@@ -667,7 +667,7 @@ func (s *server) mergeBatch(ctx context.Context, sc scope, id string, project, t
 		), feed AS (
 			INSERT INTO change_log (org_id, entity, entity_id, lead_id, op) SELECT cw_org(), 'lead', id, id, 'upsert' FROM ins RETURNING 1
 		), settled AS (
-			UPDATE importing.rows r SET state = 'merged' FROM batch b WHERE r.job_id = $1 AND r.row_no = b.row_no RETURNING 1
+			UPDATE importing.rows r SET state = 'merged', lead_id = b.lead_id FROM batch b WHERE r.job_id = $1 AND r.row_no = b.row_no RETURNING 1
 		) SELECT (SELECT count(*) FROM settled)`, id, mergeBatch, project, team, sc.userID, "Import").Scan(&created)
 	if err != nil {
 		return 0, err
@@ -685,7 +685,7 @@ func (s *server) mergeBatch(ctx context.Context, sc scope, id string, project, t
 		), feed AS (
 			INSERT INTO change_log (org_id, entity, entity_id, lead_id, op) SELECT cw_org(), 'lead', id, id, 'upsert' FROM upd RETURNING 1
 		), settled AS (
-			UPDATE importing.rows r SET state = 'merged' FROM batch b WHERE r.job_id = $1 AND r.row_no = b.row_no RETURNING 1
+			UPDATE importing.rows r SET state = 'merged', lead_id = b.match_lead FROM batch b WHERE r.job_id = $1 AND r.row_no = b.row_no RETURNING 1
 		) SELECT (SELECT count(*) FROM settled)`, id, mergeBatch).Scan(&folded)
 	if err != nil {
 		return 0, err
@@ -718,14 +718,14 @@ func (s *server) resumeMerges(ctx context.Context) {
 	}
 }
 
-// keepRows is how many days the rows of a finished, failed or cancelled import stay in the holding table (the person's file is long
-// gone by then; the rows are only there for support to look at). The import's own record stays.
+// keepRows is how many days failed or cancelled imports retain their holding rows.
+// Completed imports keep their original source rows in PostgreSQL until the list is deleted.
 const keepRows = 14
 
-// sweepRows deletes the holding rows of imports that ended more than keepRows days ago, and says how many it removed.
+// sweepRows deletes abandoned holding rows while retaining completed source rows.
 func (s *server) sweepRows(ctx context.Context) (int64, error) {
 	tag, err := s.st.db.Exec(ctx, `DELETE FROM importing.rows WHERE job_id IN
-		(SELECT id FROM importing.jobs WHERE status IN ('done', 'failed', 'cancelled') AND updated_at < now() - make_interval(days => $1))`, keepRows)
+		(SELECT id FROM importing.jobs WHERE status IN ('failed', 'cancelled') AND updated_at < now() - make_interval(days => $1))`, keepRows)
 	return tag.RowsAffected(), err
 }
 
