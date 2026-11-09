@@ -39,7 +39,7 @@ class FakeConnection:
             return FakeResult(list(self.pieces.values()))
         elif query.startswith("SELECT id::text"):
             return FakeResult([self.job])
-        elif query.startswith("SELECT count(*) AS n"):
+        elif query.startswith(("SELECT count(*) AS n", "SELECT coalesce(sum(size)")):
             return FakeResult([{"n": 0}])
         elif query.startswith("INSERT INTO importing.jobs"):
             return FakeResult([{"id": JOB_ID}])
@@ -67,6 +67,26 @@ class Handler:
 
 
 class UploadTest(unittest.TestCase):
+    def test_a_list_the_disk_could_not_hold_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"IMPORT_DIR": tmp}),                 patch.object(upload_api.shutil, "disk_usage", return_value=type("U", (), {"free": 1 << 20})()):
+            with self.assertRaises(upload_api.APIError) as caught:
+                upload_api.check_space(10 << 20)
+        self.assertEqual(caught.exception.status, 507)
+
+    def test_a_full_disk_while_a_piece_arrives_is_a_clear_refusal(self):
+        import errno
+
+        class Full(Handler):
+            def __init__(self):
+                super().__init__(b"abc")
+                self.rfile = type("R", (), {"read": lambda self, n: (_ for _ in ()).throw(OSError(errno.ENOSPC, "full"))})()
+
+        conn = FakeConnection(3)
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"IMPORT_DIR": tmp}),                 patch.object(upload_api, "database", return_value=conn),                 patch.object(upload_api, "get_job", side_effect=lambda *_: dict(conn.job)):
+            with self.assertRaises(upload_api.APIError) as caught:
+                upload_api.chunk(Full(), {"organization_id": ORG_ID, "user": {"id": USER_ID}}, JOB_ID, "0")
+        self.assertEqual(caught.exception.status, 507)
+
     def test_start_creates_project_through_core_and_job_in_worker_database(self):
         body = json.dumps({"filename": "owners.csv", "size": 42, "name": "Owners"}).encode()
         handler = Handler(body)

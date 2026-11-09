@@ -483,6 +483,20 @@ class EndToEndTest(unittest.TestCase):
             self.assertEqual(cur.fetchone()[0], 0)
         self.conn.commit()
 
+    def test_a_file_that_keeps_stopping_the_worker_is_failed_after_a_few_tries(self) -> None:
+        job_id = self.queue(CSV.encode())
+        for _ in range(self.worker.MAX_RECLAIMS + 1):
+            claimed = self.worker.claim(self.conn)
+            self.assertIsNotNone(claimed)
+            # the worker "stops": its heartbeat goes stale and nothing finishes the job
+            with self.conn.cursor() as cur:
+                cur.execute("UPDATE importing.jobs SET heartbeat_at = now() - interval '10 minutes' WHERE id = %s", (job_id,))
+            self.conn.commit()
+        self.assertIsNone(self.worker.claim(self.conn))
+        failed = self.job(job_id)
+        self.assertEqual(failed["status"], "failed")
+        self.assertIn("stopped several times", failed["error"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,8 +6,8 @@ FROM python:3.13-slim
 COPY --from=runtime-log-build /runtime-log /usr/local/bin/callerwhale-log
 ENV CALLERWHALE_LOG_SERVICE="Importing lists"
 WORKDIR /app
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt requirements.lock ./
+RUN pip install --no-cache-dir -r requirements.lock
 COPY server.py upload_api.py worker.py readers.py matching.py readymode.py ./
 RUN python -c "import worker"
 # The worker's own persistent upload folder belongs to its app user.
