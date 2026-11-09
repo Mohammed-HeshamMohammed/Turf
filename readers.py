@@ -5,12 +5,16 @@ import csv
 import datetime
 import itertools
 import os
+import zipfile
 from pathlib import Path
 from typing import Iterator
 
 import polars as pl
+from openpyxl.utils.exceptions import InvalidFileException
+from xlrd import XLRDError
 
-BATCH_ROWS = 50_000
+# Keep each database transaction small enough for ordinary hosted PostgreSQL limits.
+BATCH_ROWS = 5_000
 _PROGRESS = "assembled.progress"
 _PARTIAL = "assembled.part"
 
@@ -123,12 +127,18 @@ def cell_text(value) -> str:
 def read_batches(path: Path, has_header: bool, skip_rows: int = 0) -> Iterator[tuple[list[str], pl.DataFrame]]:
     """(headers, a batch of rows as text) until the file ends. The first `skip_rows` data rows are passed over (a restart)."""
     suffix = path.suffix.lower()
-    if suffix in (".xlsx", ".xlsm"):
-        yield from _row_batches(_xlsx_rows(path), has_header, skip_rows)
-    elif suffix == ".xls":
-        yield from _row_batches(_xls_rows(path), has_header, skip_rows)
-    else:
-        yield from _csv_batches(path, has_header, skip_rows)
+    try:
+        if suffix in (".xlsx", ".xlsm"):
+            yield from _row_batches(_xlsx_rows(path), has_header, skip_rows)
+        elif suffix == ".xls":
+            yield from _row_batches(_xls_rows(path), has_header, skip_rows)
+        else:
+            yield from _csv_batches(path, has_header, skip_rows)
+    except UnsafeFile:
+        raise
+    except (pl.exceptions.PolarsError, zipfile.BadZipFile, UnicodeError, csv.Error, ValueError,
+            InvalidFileException, XLRDError) as error:
+        raise UnreadableFile(str(error)) from error
 
 
 def _row_batches(rows, has_header: bool, skip_rows: int):
@@ -169,6 +179,10 @@ MAX_SQUASH = 200  # nor have a big part squashed more than this many times: that
 
 class UnsafeFile(ValueError):
     """The file would use far more memory than a real spreadsheet; it is refused before it is opened."""
+
+
+class UnreadableFile(ValueError):
+    """The source file has an invalid or unsupported structure."""
 
 
 def check_unpacked(path: Path) -> None:

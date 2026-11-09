@@ -63,6 +63,26 @@ class ReadersTest(unittest.TestCase):
             (_, rest), = list(readers.read_batches(path, True, skip_rows=1))
             self.assertEqual(rest.rows()[0][0], "B")
 
+    def test_large_csv_is_read_in_resumable_database_sized_batches(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "list.csv"
+            path.write_text("Address,City,,State,Zip,,,First Name,Last Name\n" +
+                            "1 Main St,Austin,,TX,78701,,,A,B\n" * 12_005)
+            batches = list(readers.read_batches(path, True))
+            self.assertEqual(sum(frame.height for _, frame in batches), 12_005)
+            self.assertGreater(len(batches), 1)
+            self.assertLessEqual(max(frame.height for _, frame in batches), readers.BATCH_ROWS)
+            self.assertEqual(batches[0][0][2], "Column 3")
+            resumed = list(readers.read_batches(path, True, skip_rows=10_000))
+            self.assertEqual(sum(frame.height for _, frame in resumed), 2_005)
+
+    def test_invalid_spreadsheet_is_reported_as_a_file_problem(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "broken.xlsx"
+            path.write_bytes(b"not an Excel workbook")
+            with self.assertRaises(readers.UnreadableFile):
+                list(readers.read_batches(path, True))
+
     def test_a_semicolon_list_in_windows_1252_is_read(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "source.csv"
