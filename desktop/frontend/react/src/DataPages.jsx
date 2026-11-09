@@ -7,10 +7,12 @@ import { useCrm } from "./context.jsx";
 import { detectSourceFields, leadFromSource, sourceEvidence, sourceValue } from "./skiptrace-fields.ts";
 import { SourceFieldMapping } from "./SourceFieldMapping.jsx";
 import { ServerImport } from "./ServerImport.jsx";
+import { SourceRows } from "./SourceRows.jsx";
 import { PropertyMap } from "./PropertyMap.jsx";
 import { LeadsMap } from "./LeadsMap.jsx";
 import { cancelJob, check, checkRepeats, engineAvailable, engineConfig, prepare, saveCopy } from "./engine.ts";
 import { api } from "./remote/api.ts";
+import { importPath, needsImportAction, sourceListProgress } from "./remote/source-list-imports.js";
 import {
   Badge,
   Select,
@@ -35,42 +37,31 @@ import {
 const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
 
 export function Lists({ id, importId = null }) {
-  const { state, dispatch, navigate, notify } = useCrm();
+  const { state, dispatch, navigate, notify, importJobs = [], refreshImports } = useCrm();
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [reading, setReading] = useState("");
   // Connected to Caller Whale's server: each import has a page under its source list.
   const [upload, setUpload] = useState(null);
-  const [running, setRunning] = useState([]);
-  const [recentFailures, setRecentFailures] = useState([]);
   const [removeTarget, setRemoveTarget] = useState(null);
   const [removing, setRemoving] = useState(false);
   const input = useRef(null);
   const remote = Boolean(state.remote);
-  useEffect(() => {
-    if (!remote || upload) return;
-    api.imports
-      .list()
-      .then(list => {
-        setRunning(list.filter(item => !["done", "failed", "cancelled"].includes(item.status)));
-        setRecentFailures(list.filter(item => item.status === "failed").slice(0, 5));
-      })
-      .catch(() => { setRunning([]); setRecentFailures([]); });
-  }, [remote, upload, id, importId]);
   const leads = visibleLeads(state);
   const listLeads = useMemo(() => leads.filter(lead => lead.datasetId === id), [leads, id]);
   const datasetIds = new Set(leads.map(item => item.datasetId));
   const datasets = state.remote ? state.datasets : state.datasets.filter(item => datasetIds.has(item.id) || (capability(state, "import") && item.team === (ROLES[state.role].team || "Tampa")));
   const searchedDatasets = datasets.filter(item => item.name.toLowerCase().includes(search.toLowerCase()));
-  const filledDatasets = searchedDatasets.filter(item => datasetIds.has(item.id));
-  const emptyDatasets = searchedDatasets.filter(item => !datasetIds.has(item.id));
+  const jobsFor = projectId => importJobs.filter(item => item.project_id === projectId && item.status !== "cancelled");
+  const filledDatasets = searchedDatasets.filter(item => datasetIds.has(item.id) || (remote && jobsFor(item.id).length > 0));
+  const emptyDatasets = searchedDatasets.filter(item => !datasetIds.has(item.id) && (!remote || jobsFor(item.id).length === 0));
   const dataset = datasets.find(item => item.id === id);
-  const listImports = [...running, ...recentFailures].filter(item => item.project_id === id);
+  const listImports = importJobs.filter(item => item.project_id === id).slice(0, 10);
   const openNewImport = () => {
     setUpload(null);
     navigate("lists/new");
   };
-  const attention = [...running, ...recentFailures].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  const attention = [...importJobs].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
   const groups = new Map();
   attention.forEach(item => {
     const key = item.project_id || item.name;
@@ -85,21 +76,19 @@ export function Lists({ id, importId = null }) {
       let removedLeads = 0;
       if (removeTarget.kind === "import") {
         await api.imports.remove(removeTarget.item.id);
-        setRunning(current => current.filter(item => item.id !== removeTarget.item.id));
-        setRecentFailures(current => current.filter(item => item.id !== removeTarget.item.id));
       } else {
         const result = await api.deleteProject(removeTarget.item.id);
         removedLeads = result.deleted_leads || 0;
-        setRunning(current => current.filter(item => item.project_id !== removeTarget.item.id));
-        setRecentFailures(current => current.filter(item => item.project_id !== removeTarget.item.id));
         if (id === removeTarget.item.id) navigate("lists");
       }
+      void refreshImports?.().catch(() => {});
       dispatch({ type: "REFRESH_LISTS" });
       dispatch({ type: "SYNC" });
       notify(removeTarget.kind === "import" ? "Import and its uploaded file removed" : `Source list and ${removedLeads.toLocaleString()} leads deleted`);
       setRemoveTarget(null);
     } catch (reason) {
       setError(reason.message || "This could not be removed. Try again.");
+      notify(reason.message || "This could not be removed. Try again.");
       setRemoveTarget(null);
     } finally {
       setRemoving(false);
@@ -213,6 +202,17 @@ export function Lists({ id, importId = null }) {
       "Tampa new opportunities",
       ["Owner", "Address", "City", "Phone", "Email"],
     );
+  const removeDialog = removeTarget && <ConfirmDialog
+    title={removeTarget.kind === "import" ? "Remove this import?" : "Delete this source list and its leads?"}
+    confirmLabel={removing ? "Removing…" : "Remove"}
+    danger
+    onClose={() => !removing && setRemoveTarget(null)}
+    onConfirm={removeSelected}
+  >
+    {removeTarget.kind === "import"
+      ? "The uploaded file, import history and unfinished rows will be removed. Its empty source list will also disappear if nothing else uses it. Leads already added to the CRM stay."
+      : `This permanently deletes every lead in ${removeTarget.item.name}, its source rows, related CRM records, and finished or failed import attempts. It cannot be undone.`}
+  </ConfirmDialog>;
   if (remote && (id === "new" || importId)) return (
     <ServerImport
       resume={importId === "new" ? "" : importId || ""}
@@ -222,20 +222,43 @@ export function Lists({ id, importId = null }) {
       onStarted={job => {
         setUpload(null);
         dispatch({ type: "REFRESH_LISTS" });
+        void refreshImports?.().catch(() => {});
         navigate(`lists/${job.project_id}/imports/${job.id}`);
       }}
       onClose={job => {
         setUpload(null);
         navigate(job?.project_id ? `lists/${job.project_id}` : id !== "new" ? `lists/${id}` : "lists");
       }}
-      onFinished={job => {
-        setRunning(current => current.filter(item => item.id !== job.id));
+      onFinished={() => {
+        void refreshImports?.().catch(() => {});
         dispatch({ type: "REFRESH_LISTS" });
         dispatch({ type: "SYNC" });
-        notify("List added to your leads");
       }}
     />
   );
+  if (remote && id === "activity") return <>
+    <Breadcrumb items={[{ label: "Source lists", path: "lists" }, { label: "Import activity" }]} />
+    <PageHeader title="Import activity" description="Every upload attempt, grouped by source list.">
+      {capability(state, "import") && <Button variant="primary" icon={UploadSimple} onClick={openNewImport}>Upload a list</Button>}
+    </PageHeader>
+    {error && <p className="notice" role="alert">{error}</p>}
+    {attentionGroups.length === 0 ? <Empty title="No uploads yet">Upload a list to see its progress here.</Empty> :
+      <Card className="import-history">
+        {attentionGroups.map(group => <section className="import-history-group" key={group[0].project_id || group[0].name}>
+          <header><strong>{group[0].name}</strong><small>{group.length} {group.length === 1 ? "attempt" : "attempts"}</small></header>
+          {group.map(item => <div className="import-history-attempt" key={item.id}>
+            <div><strong>{item.filename}</strong> <Badge tone={item.status === "failed" ? "danger" : needsImportAction(item) ? "peach" : undefined}>{item.status === "failed" ? "Failed" : needsImportAction(item) ? "Needs you" : item.status === "done" ? "Finished" : item.status === "cancelled" ? "Cancelled" : "In progress"}</Badge>
+              <small>{new Date(item.created_at).toLocaleString()}</small>
+              {item.status === "failed" && <p>{item.error || "This import could not be completed."}</p>}</div>
+            <div className="import-history-actions">
+              <Button onClick={() => navigate(importPath(item))}>{needsImportAction(item) ? "Continue" : "View"}</Button>
+              {item.status === "failed" && capability(state, "import") && <button className="text-button" onClick={() => setRemoveTarget({ kind: "import", item })}><Trash size={16} /> Remove</button>}
+            </div>
+          </div>)}
+        </section>)}
+      </Card>}
+    {removeDialog}
+  </>;
   if (id && !dataset) return <Empty title="This list is outside your view">Return to the lists available to your role.</Empty>;
   if (dataset)
     return (
@@ -243,7 +266,7 @@ export function Lists({ id, importId = null }) {
         <Breadcrumb items={[{ label: "Lists", path: "lists" }, { label: dataset.name }]} />
         <PageHeader
           title={dataset.name}
-          description={leads.filter(lead => lead.datasetId === id).length + " visible records · original source kept separate from CRM changes."}
+          description={remote && jobsFor(id).length ? `${sourceListProgress(jobsFor(id)).sourceRows.toLocaleString()} source rows · ${sourceListProgress(jobsFor(id)).unprocessedRows.toLocaleString()} unprocessed · ${listLeads.length.toLocaleString()} CRM leads` : `${listLeads.length.toLocaleString()} CRM leads`}
         >
           {capability(state, "export") && (
             <Button
@@ -278,13 +301,15 @@ export function Lists({ id, importId = null }) {
           <Badge>{dataset.team} project</Badge>
           <span>Fields: {dataset.columns.join(" · ")}</span>
         </div>
+        {remote && jobsFor(id).length > 0 && <SourceRows jobs={jobsFor(id)} navigate={navigate} />}
         {listImports.length > 0 && <Card title="Imports for this list" subtitle="Continue an upload or finish reviewing it here." className="import-history">
           {listImports.map(item => <div className="import-history-attempt" key={item.id}>
-            <div><strong>{item.filename}</strong><Badge tone={item.status === "failed" ? "danger" : "peach"}>{item.status === "failed" ? "Failed" : item.status === "mapping" || item.status === "reviewing" || item.status === "ready" ? "Needs you" : "In progress"}</Badge></div>
-            <Button onClick={() => navigate(`lists/${id}/imports/${item.id}`)}>{item.status === "failed" ? "Details" : "Continue"}</Button>
+            <div><strong>{item.filename}</strong><Badge tone={item.status === "failed" ? "danger" : needsImportAction(item) ? "peach" : undefined}>{item.status === "failed" ? "Failed" : needsImportAction(item) ? "Needs you" : item.status === "done" ? "Finished" : "In progress"}</Badge></div>
+            <Button onClick={() => navigate(importPath(item))}>{needsImportAction(item) ? "Continue" : "View"}</Button>
           </div>)}
+          <Button onClick={() => navigate("lists/activity")}>All import activity</Button>
         </Card>}
-        <LeadsMap leads={listLeads} />
+        {listLeads.length > 0 && <LeadsMap leads={listLeads} />}
         <Card className="table-card">
           <DataTable
             view={table}
@@ -317,11 +342,13 @@ export function Lists({ id, importId = null }) {
             }}
           />
         </Card>
+        {removeDialog}
       </>
     );
   return (
     <>
       <PageHeader title="Source lists" description="Imported lists and the leads that came from them.">
+        {remote && <Button onClick={() => navigate("lists/activity")}>Import activity{importJobs.some(needsImportAction) ? ` (${importJobs.filter(needsImportAction).length})` : ""}</Button>}
         {capability(state, "import") && (
           <Button variant="primary" icon={UploadSimple} onClick={() => (remote ? openNewImport() : input.current.click())}>
             {remote ? "Upload a list" : "Import CSV"}
@@ -343,34 +370,6 @@ export function Lists({ id, importId = null }) {
           {error}
         </p>
       )}
-      {attentionGroups.length > 0 && (
-        <Card title="Import activity" subtitle="Each upload attempt is shown under its source list." className="import-history">
-          {attentionGroups.map(group => (
-            <section className="import-history-group" key={group[0].project_id || group[0].name}>
-              <header>
-                <strong>{group[0].name}</strong>
-                <small>{group.length} {group.length === 1 ? "attempt" : "attempts"}</small>
-              </header>
-              {group.map(item => (
-                <div className="import-history-attempt" key={item.id}>
-                  <div>
-                    <strong>{item.filename}</strong>
-                    <Badge tone={item.status === "failed" ? "danger" : "peach"}>{item.status === "failed" ? "Failed" : item.status === "mapping" || item.status === "reviewing" || item.status === "ready" ? "Needs you" : "In progress"}</Badge>
-                    <small>{new Date(item.created_at).toLocaleString()}</small>
-                    {item.status === "failed" && <p>{item.error || "This import could not be completed."}</p>}
-                  </div>
-                  <div className="import-history-actions">
-                    <Button onClick={() => navigate(`lists/${item.project_id || "new"}/imports/${item.id}`)}>{item.status === "failed" ? "Details" : "Continue"}</Button>
-                    {item.status === "failed" && capability(state, "import") && (
-                      <button className="text-button" onClick={() => setRemoveTarget({ kind: "import", item })}><Trash size={16} /> Remove</button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </section>
-          ))}
-        </Card>
-      )}
       <div className="filter-bar">
         <Search value={search} onChange={setSearch} placeholder="Search lists" />
         <span className="result-count">{datasets.length} source lists</span>
@@ -387,9 +386,10 @@ export function Lists({ id, importId = null }) {
               <h2>{item.name}</h2>
               <p className="muted">{item.description}</p>
               <div className="dataset-count">
-                {leads.filter(lead => lead.datasetId === item.id).length}
-                <small>visible records</small>
+                {remote && jobsFor(item.id).length ? sourceListProgress(jobsFor(item.id)).sourceRows.toLocaleString() : leads.filter(lead => lead.datasetId === item.id).length.toLocaleString()}
+                <small>{remote && jobsFor(item.id).length ? "uploaded source rows" : "CRM leads"}</small>
               </div>
+              {remote && jobsFor(item.id).length > 0 && <p className="muted">{sourceListProgress(jobsFor(item.id)).unprocessedRows.toLocaleString()} unprocessed · {sourceListProgress(jobsFor(item.id)).processedRows.toLocaleString()} processed · {leads.filter(lead => lead.datasetId === item.id).length.toLocaleString()} CRM leads</p>}
               <div className="row">
                 <Status value={item.status} />
                 <small>{item.date}</small>
@@ -407,7 +407,7 @@ export function Lists({ id, importId = null }) {
           ))}
       </div>
       {emptyDatasets.length > 0 && (
-        <Card title="Empty source lists" subtitle="These lists have no leads in your current view." className="empty-source-lists">
+        <Card title="Empty source lists" subtitle="These lists have no uploaded source rows or CRM leads." className="empty-source-lists">
           {emptyDatasets.map(item => (
             <div className="empty-source-list" key={item.id}>
               <div><strong>{item.name}</strong><small>No leads imported</small></div>
@@ -440,19 +440,7 @@ export function Lists({ id, importId = null }) {
           <small>{remote ? "CSV, TXT, XLSX or XLS · big lists are fine" : reading ? "Reading " + reading + "…" : "CSV files up to 50 MB · every row is imported"}</small>
         </div>
       )}
-      {removeTarget && (
-        <ConfirmDialog
-          title={removeTarget.kind === "import" ? "Remove this import?" : "Delete this source list and its leads?"}
-          confirmLabel={removing ? "Removing…" : "Remove"}
-          danger
-          onClose={() => !removing && setRemoveTarget(null)}
-          onConfirm={removeSelected}
-        >
-          {removeTarget.kind === "import"
-            ? "The uploaded file, import history and unfinished rows will be removed. Its empty source list will also disappear if nothing else uses it. Leads already added to the CRM stay."
-            : `This permanently deletes every lead in ${removeTarget.item.name}, its source rows, related CRM records, and finished or failed import attempts. It cannot be undone.`}
-        </ConfirmDialog>
-      )}
+      {removeDialog}
     </>
   );
 }

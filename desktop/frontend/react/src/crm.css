@@ -7538,6 +7538,52 @@ button.message-card:not(:disabled):hover {
 .source-import-review {
   margin: 20px 0 24px;
 }
+.source-rows-card {
+  margin: 20px 0 24px;
+}
+.source-rows-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.source-rows-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+.source-rows-table th,
+.source-rows-table td {
+  min-width: 120px;
+  max-width: 260px;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.source-rows-table th:first-child {
+  min-width: 70px;
+}
+.source-rows-table td:last-child {
+  min-width: 150px;
+}
+.source-rows-table td:last-child .text-button {
+  margin-left: 8px;
+}
+.source-rows-pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.source-rows-pager span {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
 .import-repeat-groups {
   display: grid;
   gap: 14px;

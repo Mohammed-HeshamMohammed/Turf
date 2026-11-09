@@ -10,6 +10,7 @@ import { SyncEngine } from "./remote/engine.ts";
 import { Vault } from "./remote/vault.ts";
 import { LOCAL_ONLY, remoteReducer, syncAction } from "./remote/session.ts";
 import { applyIdentity, labelFor, operationFor } from "./remote/translate.ts";
+import { importPath, importStatusMessage, needsImportAction } from "./remote/source-list-imports.js";
 import { saveWorkspaceChoice } from "./remote/workspace-choice.ts";
 import { CrmContext } from "./context.jsx";
 import { Button, CountBadge, Empty, Modal, PageTransition, Search, money, useHeld, usePresence } from "./ui.jsx";
@@ -113,6 +114,8 @@ export function App() {
     }
   });
   const [notifications, setNotifications] = useState(false);
+  const [importJobs, setImportJobs] = useState([]);
+  const importSeen = useRef(null);
   const [reset, setReset] = useState(false);
   const [cacheError, setCacheError] = useState(false);
   // One switch for every note that only exists to explain the demo ("sample photo", "no number is dialled" and so on).
@@ -166,7 +169,8 @@ export function App() {
     const leadIds = new Set(leads.map(lead => lead.id));
     return state.handoffs.filter(item => item.status === "Requested" && leadIds.has(item.leadId));
   }, [state.handoffs, leads, profile.handoffReminders, role]);
-  const noticeCount = taskNotices.length + replyNotices.length + handoffNotices.length;
+  const importActionNotices = connection === "remote" && role.pages.includes("lists") ? importJobs.filter(needsImportAction) : [];
+  const noticeCount = taskNotices.length + replyNotices.length + handoffNotices.length + importActionNotices.length;
   const shownQuery = useHeld(query.trim());
   const searchPanel = usePresence(Boolean(query));
   const notePanel = usePresence(notifications);
@@ -245,12 +249,47 @@ export function App() {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setToast(""), options.undo ? 7000 : 4500);
   }, []);
+  const refreshImports = useCallback(async () => {
+    const jobs = await api.imports.list();
+    setImportJobs(jobs);
+    return jobs;
+  }, []);
+  useEffect(() => {
+    if (connection !== "remote" || !state.remote?.organizationId) {
+      importSeen.current = null;
+      setImportJobs([]);
+      return;
+    }
+    importSeen.current = null;
+    let active = true;
+    let timerId;
+    const poll = async () => {
+      try {
+        const jobs = await api.imports.list();
+        if (!active) return;
+        const previous = importSeen.current;
+        if (previous) for (const job of jobs) {
+          const before = previous.get(job.id);
+          const message = importStatusMessage(job);
+          if (message && before !== job.status && !window.location.hash.includes(`/imports/${job.id}`)) notify(message);
+        }
+        importSeen.current = new Map(jobs.map(job => [job.id, job.status]));
+        setImportJobs(jobs);
+      } catch {
+        // Keep the last known import status while the connection recovers.
+      } finally {
+        if (active) timerId = window.setTimeout(poll, 5000);
+      }
+    };
+    void poll();
+    return () => { active = false; window.clearTimeout(timerId); };
+  }, [connection, state.remote?.organizationId, state.remote?.user?.id, notify]);
   // Every exported file says where it went (the desktop window saves to Downloads and shows it in the file manager).
   useEffect(() => {
     const saved = event => {
       const { path, error, browser } = event.detail || {};
       if (error) notify("The file could not be saved: " + error);
-      else if (!browser) notify("Saved to " + path);
+      else notify(browser ? "Download started: " + path : "Saved to " + path);
     };
     window.addEventListener("callerwhale-saved", saved);
     return () => window.removeEventListener("callerwhale-saved", saved);
@@ -410,8 +449,8 @@ export function App() {
   const showGate = useCallback(() => setConnection("gate"), []);
   // Memoised so typing in search, opening a panel or a toast does not re-render every page.
   const context = useMemo(
-    () => ({ state, dispatch, navigate, notify, route, connection, connect: showGate, signOut, switchWorkspace, sidebarCollapsed, setSidebarPreference }),
-    [state, dispatch, navigate, notify, route, connection, showGate, signOut, switchWorkspace, sidebarCollapsed, setSidebarPreference],
+    () => ({ state, dispatch, navigate, notify, route, connection, importJobs, refreshImports, connect: showGate, signOut, switchWorkspace, sidebarCollapsed, setSidebarPreference }),
+    [state, dispatch, navigate, notify, route, connection, importJobs, refreshImports, showGate, signOut, switchWorkspace, sidebarCollapsed, setSidebarPreference],
   );
   const pageElement = useMemo(() => {
     if (!accessible)
@@ -594,6 +633,12 @@ export function App() {
                     <button key={handoff.id} onClick={() => { navigate("work/handoffs"); setNotifications(false); }}>
                       <CheckCircle size={19} />
                       <div><strong>Handoff waiting</strong><small>{handoff.from} · {handoff.note || "Review this handoff"}</small></div>
+                    </button>
+                  ))}
+                  {importActionNotices.slice(0, 4).map(job => (
+                    <button key={job.id} onClick={() => { navigate(importPath(job)); setNotifications(false); }}>
+                      <List size={19} />
+                      <div><strong>{job.name}</strong><small>{importStatusMessage(job)}</small></div>
                     </button>
                   ))}
                   {!noticeCount && (
