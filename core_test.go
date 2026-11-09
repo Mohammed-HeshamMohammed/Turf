@@ -268,6 +268,70 @@ func TestDirectoryNamesPeopleAndProjectsAreListed(t *testing.T) {
 	}
 }
 
+func TestFailedImportCleanupRemovesEmptyListsButKeepsExistingLeads(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	ctx := context.Background()
+	start := func() (string, string) {
+		status, job := e.call(alice, orgA, "POST", "/api/v1/imports", map[string]any{"filename": "owners.csv", "size": 100, "name": "Owners"})
+		if status != 200 {
+			t.Fatalf("start import: %d %v", status, job)
+		}
+		return job["id"].(string), job["project_id"].(string)
+	}
+	first, empty := start()
+	if status, _ := e.call(alice, orgA, "DELETE", "/api/v1/imports/"+first, nil); status != 400 {
+		t.Fatalf("active import removed: %d", status)
+	}
+	if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'failed' WHERE id = $1`, first); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ := e.call(bob, orgA, "DELETE", "/api/v1/imports/"+first, nil); status != 403 {
+		t.Fatalf("caller removed import: %d", status)
+	}
+	status, removed := e.call(alice, orgA, "DELETE", "/api/v1/imports/"+first, nil)
+	if status != 200 || removed["removed_project"] != empty {
+		t.Fatalf("failed import cleanup: %d %v", status, removed)
+	}
+	var count int
+	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM crm.projects WHERE id = $1`, empty).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("empty list remained: %d %v", count, err)
+	}
+	second, populated := start()
+	if _, err := e.admin.Exec(ctx, `INSERT INTO crm.leads (org_id, project_id, name) VALUES ($1, $2, 'Keep me')`, orgA, populated); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'failed' WHERE id = $1`, second); err != nil {
+		t.Fatal(err)
+	}
+	status, removed = e.call(alice, orgA, "DELETE", "/api/v1/imports/"+second, nil)
+	if status != 200 || removed["removed_project"] != "" {
+		t.Fatalf("populated list removed with import: %d %v", status, removed)
+	}
+	if status, _ = e.call(alice, orgA, "DELETE", "/api/v1/projects/"+populated, nil); status != 400 {
+		t.Fatalf("populated list deleted: %d", status)
+	}
+	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM crm.leads WHERE project_id = $1`, populated).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("lead was lost: %d %v", count, err)
+	}
+	third, emptyAgain := start()
+	if status, _ := e.call(alice, orgA, "DELETE", "/api/v1/projects/"+emptyAgain, nil); status != 400 {
+		t.Fatalf("active list deleted: %d", status)
+	}
+	if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'failed' WHERE id = $1`, third); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ := e.call(bob, orgA, "DELETE", "/api/v1/projects/"+emptyAgain, nil); status != 403 {
+		t.Fatalf("caller deleted list: %d", status)
+	}
+	if status, _ := e.call(alice, orgA, "DELETE", "/api/v1/projects/"+emptyAgain, nil); status != 200 {
+		t.Fatalf("empty list with failed import not removed: %d", status)
+	}
+	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM importing.jobs WHERE id = $1`, third).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("failed import remained after list deletion: %d %v", count, err)
+	}
+}
+
 func TestLiveEventsReachOnlyTheSameWorkspace(t *testing.T) {
 	e := newEnv(t)
 	e.seed()
