@@ -100,6 +100,32 @@ func (s *server) importReply(q *req, id string) error {
 
 func (s *server) importGet(q *req) error { return s.importReply(q, q.r.PathValue("id")) }
 
+// importRows shows the source rows as soon as the worker stores them, before they become CRM leads.
+func (s *server) importRows(q *req) error {
+	id := q.r.PathValue("id")
+	if _, err := s.job(q.r.Context(), q, id); err != nil {
+		return err
+	}
+	offset, _ := strconv.Atoi(q.r.URL.Query().Get("offset"))
+	ctx := q.r.Context()
+	tx, err := s.st.begin(ctx, q.sc)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var total int64
+	if err = tx.QueryRow(ctx, `SELECT count(*) FROM importing.rows WHERE job_id = $1`, id).Scan(&total); err != nil {
+		return err
+	}
+	rows, err := queryJSON(ctx, tx, `SELECT jsonb_build_object('row_no', row_no, 'cells', cells, 'state', state, 'lead_id', lead_id)
+		FROM importing.rows WHERE job_id = $1 ORDER BY row_no OFFSET $2 LIMIT 50`, id, max(offset, 0))
+	if err != nil {
+		return err
+	}
+	writeJSON(q.w, http.StatusOK, map[string]any{"total": total, "rows": rows})
+	return nil
+}
+
 func (s *server) importList(q *req) error {
 	rows, err := s.st.db.Query(q.r.Context(), `SELECT `+jobColumns+` FROM importing.jobs WHERE org_id = $1 AND (user_id = $2 OR $3) ORDER BY created_at DESC LIMIT 50`,
 		q.sc.orgID, q.sc.userID, q.sc.can("admin"))

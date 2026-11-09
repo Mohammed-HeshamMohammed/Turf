@@ -269,6 +269,33 @@ func TestDirectoryNamesPeopleAndProjectsAreListed(t *testing.T) {
 	}
 }
 
+func TestSourceRowsAreVisibleBeforeLeadMergeOnlyToTheirImporter(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	_, job := e.startImport(alice, orgA, map[string]any{"filename": "owners.csv", "size": 100, "name": "Owners"})
+	id := job["id"].(string)
+	for n, name := range []string{"Mary Randel", "Maricela Moreno"} {
+		if _, err := e.admin.Exec(context.Background(), `INSERT INTO importing.rows (job_id, row_no, fp, cells, state)
+			VALUES ($1, $2, sha256($3::bytea), ARRAY[$4, '3307 Lily St'], 'loaded')`, id, n+1, []byte(name), name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	status, page := e.call(alice, orgA, "GET", "/api/v1/imports/"+id+"/rows?offset=1", nil)
+	rows, _ := page["rows"].([]any)
+	if status != 200 || page["total"] != float64(2) || len(rows) != 1 || rows[0].(map[string]any)["state"] != "loaded" {
+		t.Fatalf("unprocessed source row: %d %v", status, page)
+	}
+	for _, user := range []string{bob, carol} {
+		org := orgA
+		if user == carol {
+			org = orgB
+		}
+		if status, _ := e.call(user, org, "GET", "/api/v1/imports/"+id+"/rows", nil); status != 404 {
+			t.Fatalf("another person's source rows: %d", status)
+		}
+	}
+}
+
 func TestFailedImportCleanupRemovesEmptyListsButKeepsExistingLeads(t *testing.T) {
 	e := newEnv(t)
 	e.seed()

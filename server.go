@@ -120,6 +120,7 @@ func (s *server) handler() http.Handler {
 
 	mux.Handle("GET /api/v1/imports", s.member(s.importList))
 	mux.Handle("GET /api/v1/imports/{id}", s.member(s.importGet))
+	mux.Handle("GET /api/v1/imports/{id}/rows", s.member(s.importRows))
 	mux.Handle("PUT /api/v1/imports/{id}/mapping", s.member(s.importMapping))
 	mux.Handle("GET /api/v1/imports/{id}/duplicates", s.member(s.importDuplicates))
 	mux.Handle("POST /api/v1/imports/{id}/duplicates", s.member(s.importDecide))
