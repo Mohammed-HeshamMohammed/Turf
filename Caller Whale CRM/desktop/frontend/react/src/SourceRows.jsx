@@ -61,7 +61,7 @@ export function SourceRows({ jobs, navigate }) {
       <tbody>{rows.map(row => <tr key={row.row_no}>
         <th scope="row">{row.row_no}</th>
         {Array.from({ length: width }, (_, i) => <td key={i} title={row.cells?.[i] || ""}>{row.cells?.[i] || <span className="muted">—</span>}</td>)}
-        <td><Badge tone={row.state === "near_duplicate" ? "peach" : row.state === "skip" ? "danger" : undefined}>{label[row.state] || row.state}</Badge>
+        <td><Badge tone={row.state === "near_duplicate" ? "peach" : row.state === "skip" && !row.lead_id ? "danger" : undefined}>{row.state === "skip" && row.lead_id ? "Already in CRM" : label[row.state] || row.state}</Badge>
           {row.lead_id && <button className="text-button" onClick={() => navigate(`work/leads/${row.lead_id}`)}>Open lead</button>}</td>
       </tr>)}</tbody>
     </table></div>}
