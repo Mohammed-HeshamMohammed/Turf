@@ -147,13 +147,14 @@ func (s *store) blocked(ctx context.Context, org string) (bool, error) {
 // add stores a batch. A batch sent twice (a retry) stores nothing the second time. Returns how many were stored.
 func (s *store) add(ctx context.Context, in ingest) (int64, error) {
 	expires := time.Now().Add(s.retention)
+	h := s.h.forOrg(in.OrgID)
 	batch := &pgx.Batch{}
 	for _, r := range in.Rows {
 		batch.Queue(`INSERT INTO learning.leads (org_id, job_id, row_no, project_id, phone_hash, email_hash, name_shape, city, region, zip5, country,
 				has_address, has_unit, has_location, completeness, details, flags, expires_at)
 			VALUES ($1, $2, $3, nullif($4, '')::uuid, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 			ON CONFLICT (job_id, row_no) DO NOTHING`,
-			in.OrgID, in.JobID, r.RowNo, in.ProjectID, s.h.phone(r.Phone), s.h.email(r.Email), nameShape(r.Name), short(r.City, 60), short(r.Region, 40), zip5(r.Zip), short(r.Country, 40),
+			in.OrgID, in.JobID, r.RowNo, in.ProjectID, h.phone(r.Phone), h.email(r.Email), nameShape(r.Name), short(r.City, 60), short(r.Region, 40), zip5(r.Zip), short(r.Country, 40),
 			strings.TrimSpace(r.Address) != "", strings.TrimSpace(r.Unit) != "", r.HasGeo, completeness(r), jsonOf(cleanDetails(r.Details)), jsonOf(cleanFlags(r.Flags)), expires)
 	}
 	for _, m := range in.Mapping {
@@ -192,18 +193,47 @@ func (s *store) flag(ctx context.Context, org, phone, email string, flags map[st
 	}
 	tag, err := s.db.Exec(ctx, `UPDATE learning.leads SET flags = flags || $4::jsonb, flagged_at = now()
 		WHERE org_id = $1 AND (($2::bytea IS NOT NULL AND phone_hash = $2) OR ($3::bytea IS NOT NULL AND email_hash = $3))`,
-		org, s.h.phone(phone), s.h.email(email), jsonOf(flags))
+		org, s.h.forOrg(org).phone(phone), s.h.forOrg(org).email(email), jsonOf(flags))
 	return tag.RowsAffected(), err
 }
 
 // erasePerson removes the rows of one person (by phone or email) in one workspace.
 func (s *store) erasePerson(ctx context.Context, org, phone, email string) (int64, error) {
 	tag, err := s.db.Exec(ctx, `DELETE FROM learning.leads WHERE org_id = $1 AND (($2::bytea IS NOT NULL AND phone_hash = $2) OR ($3::bytea IS NOT NULL AND email_hash = $3))`,
-		org, s.h.phone(phone), s.h.email(email))
+		org, s.h.forOrg(org).phone(phone), s.h.forOrg(org).email(email))
 	if err == nil {
 		s.audit(ctx, "erase_person", org, tag.RowsAffected())
 	}
 	return tag.RowsAffected(), err
+}
+
+// eraseEverywhere removes one person from every workspace. The hashes differ per workspace, so each workspace is tried with its own.
+func (s *store) eraseEverywhere(ctx context.Context, phone, email string) (int64, error) {
+	rows, err := s.db.Query(ctx, `SELECT DISTINCT org_id::text FROM learning.leads`)
+	if err != nil {
+		return 0, err
+	}
+	var orgs []string
+	for rows.Next() {
+		var org string
+		if err = rows.Scan(&org); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		orgs = append(orgs, org)
+	}
+	rows.Close()
+	var total int64
+	for _, org := range orgs {
+		h := s.h.forOrg(org)
+		tag, err := s.db.Exec(ctx, `DELETE FROM learning.leads WHERE org_id = $1 AND (($2::bytea IS NOT NULL AND phone_hash = $2) OR ($3::bytea IS NOT NULL AND email_hash = $3))`, org, h.phone(phone), h.email(email))
+		if err != nil {
+			return total, err
+		}
+		total += tag.RowsAffected()
+	}
+	s.audit(ctx, "erase_person_everywhere", "", total)
+	return total, nil
 }
 
 // eraseWorkspace removes everything taken from a workspace and stops any more being taken.

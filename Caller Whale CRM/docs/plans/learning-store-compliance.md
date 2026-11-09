@@ -47,10 +47,12 @@ The owner's earlier idea of an encrypted copy of the raw row that the owners cou
 - [ ] Terms and privacy notice updated and read by a lawyer.
 - [ ] Customer agreement (DPA) allows the use.
 - [ ] A data protection impact assessment written.
-- [ ] The opt-out visible to workspace administrators in the CRM (the route exists; the screen does not yet).
-- [ ] A way to receive and act on a person's request to be removed (an address in the notice, and someone who runs erase-person).
+- [x] The opt-out is visible to workspace administrators in the CRM (Settings, workspace: "Improving Caller Whale with your lists"). Built 2026-11-10.
+- [x] The tool to act on a person's request exists (`POST /v1/erase-everywhere`, see learning-store-us-law.md section 8). [ ] Still to do: an address or form in the privacy notice where a person can ask, and someone who answers.
 - [ ] `LEARNING_HASH_KEY` backed up away from Coolify, with two owners holding it.
 - [ ] A breach plan covering this database.
+
+The US legal research and the design rules that came from it (per-workspace learning, never sold or shared, no eligibility use) are in [learning-store-us-law.md](learning-store-us-law.md). Hashes use a per-workspace key (a change made 2026-11-10: rows copied before it cannot be matched or erased by phone or email and should be erased by workspace and copied again).
 
 ## Not built yet
 

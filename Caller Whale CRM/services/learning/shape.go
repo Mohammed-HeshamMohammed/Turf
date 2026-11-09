@@ -17,6 +17,12 @@ import (
 // hasher makes the keyed hashes. A different word goes in front of each kind of value, so a phone and an email can never collide.
 type hasher struct{ key []byte }
 
+// forOrg gives the hasher of one workspace: its key is derived from the master key and the workspace, so the same phone number hashes
+// differently in every workspace and rows can never be matched across workspaces.
+func (h hasher) forOrg(org string) hasher {
+	return hasher{key: h.sum("workspace", org)}
+}
+
 func (h hasher) sum(kind, value string) []byte {
 	m := hmac.New(sha256.New, h.key)
 	m.Write([]byte(kind))

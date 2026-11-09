@@ -35,7 +35,72 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/workspaces/{org}/opt-out", s.guard(func(w http.ResponseWriter, r *http.Request) { s.optOut(w, r, true) }))
 	mux.Handle("POST /v1/workspaces/{org}/opt-in", s.guard(func(w http.ResponseWriter, r *http.Request) { s.optOut(w, r, false) }))
 	mux.Handle("DELETE /v1/workspaces/{org}", s.guard(s.eraseWorkspace))
-	return mux
+	mux.Handle("GET /v1/workspaces/{org}", s.guard(s.workspaceStatus))
+	mux.Handle("POST /v1/erase-everywhere", s.guard(s.eraseEverywhere))
+	mux.Handle("GET /v1/stats", s.guard(s.stats))
+	return logged(mux)
+}
+
+// logged writes one line per request: method, path, status. Never a body, a query or a header, so no value can reach a log.
+func logged(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(rec, r)
+		if r.URL.Path != "/healthz" {
+			log.Printf("INFO %s %s %d", r.Method, r.URL.Path, rec.status)
+		}
+	})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (s *statusRecorder) WriteHeader(code int) {
+	s.status = code
+	s.ResponseWriter.WriteHeader(code)
+}
+
+// workspaceStatus says whether a workspace's lists are being taken (for the opt-out screen).
+func (s *server) workspaceStatus(w http.ResponseWriter, r *http.Request) {
+	org := r.PathValue("org")
+	if !uuidRe.MatchString(org) {
+		fail(w, 400, "that is not a workspace id")
+		return
+	}
+	blocked, err := s.st.blocked(r.Context(), org)
+	if err != nil {
+		s.problem(w, err)
+		return
+	}
+	reply(w, 200, map[string]any{"enabled": s.enabled, "opted_out": blocked})
+}
+
+// eraseEverywhere removes one person (by phone or email) from every workspace: the answer to a person's own request to be removed.
+func (s *server) eraseEverywhere(w http.ResponseWriter, r *http.Request) {
+	var in outcome
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || (phoneKey(in.Phone) == "" && emailKey(in.Email) == "") {
+		fail(w, 400, "send a phone or an email")
+		return
+	}
+	n, err := s.st.eraseEverywhere(r.Context(), in.Phone, in.Email)
+	if err != nil {
+		s.problem(w, err)
+		return
+	}
+	reply(w, 200, map[string]any{"erased": n})
+}
+
+// stats is counts only, so the owners can see that the store works without reading anyone's details.
+func (s *server) stats(w http.ResponseWriter, r *http.Request) {
+	var rows, orgs, imports, flagged int64
+	err := s.st.db.QueryRow(r.Context(), `SELECT count(*), count(DISTINCT org_id), count(DISTINCT job_id), count(*) FILTER (WHERE flagged_at IS NOT NULL) FROM learning.leads`).Scan(&rows, &orgs, &imports, &flagged)
+	if err != nil {
+		s.problem(w, err)
+		return
+	}
+	reply(w, 200, map[string]any{"rows": rows, "workspaces": orgs, "imports": imports, "with_flags": flagged, "enabled": s.enabled})
 }
 
 // guard answers only to crm-core's token (compared in constant time), reads at most 8 MB, and never logs a body.
