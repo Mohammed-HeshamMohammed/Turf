@@ -2,8 +2,11 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"slices"
 	"strings"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // me is who the person is here: their workspaces, what they may do in the one they are working in, and whether it is usable.
@@ -295,6 +298,70 @@ func (s *server) createProject(q *req) error {
 		return err
 	}
 	writeJSON(q.w, 200, rec[0])
+	return nil
+}
+
+// An empty list can be removed without affecting leads. A populated list needs a separate, explicit lead policy.
+func (s *server) deleteEmptyProject(q *req) error {
+	if !q.sc.can("admin") {
+		return forbidden("Only a workspace administrator can delete source lists.")
+	}
+	id := q.r.PathValue("id")
+	if !validID(id) {
+		return notFound("That source list does not exist.")
+	}
+	ctx := q.r.Context()
+	tx, err := s.st.begin(ctx, q.sc)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var found string
+	if err = tx.QueryRow(ctx, `SELECT id::text FROM projects WHERE id = $1 FOR UPDATE`, id).Scan(&found); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return notFound("That source list does not exist.")
+		}
+		return err
+	}
+	var linked bool
+	if err = tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM leads WHERE project_id = $1)
+		OR EXISTS (SELECT 1 FROM importing.jobs WHERE project_id = $1 AND status NOT IN ('failed', 'cancelled', 'done'))`, id).Scan(&linked); err != nil {
+		return err
+	}
+	if linked {
+		return bad("This source list still has leads or an import in progress. Finish or cancel the import first; lists with leads cannot be deleted here.")
+	}
+	rows, err := tx.Query(ctx, `DELETE FROM importing.jobs WHERE project_id = $1 RETURNING id::text`, id)
+	if err != nil {
+		return err
+	}
+	var imports []string
+	for rows.Next() {
+		var jobID string
+		if err = rows.Scan(&jobID); err != nil {
+			rows.Close()
+			return err
+		}
+		imports = append(imports, jobID)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM projects WHERE id = $1`, id); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `SELECT pg_notify('cw_events', jsonb_build_object('org_id', cw_org(), 'kind', 'project.changed')::text)`); err != nil {
+		return err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return err
+	}
+	for _, jobID := range imports {
+		s.dropUpload(jobID)
+	}
+	writeJSON(q.w, 200, map[string]any{"removed": id})
 	return nil
 }
 

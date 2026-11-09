@@ -108,6 +108,9 @@ func TestOnlyListedPagesMayCallFromABrowser(t *testing.T) {
 		!strings.Contains(pre.Header().Get("Access-Control-Allow-Headers"), "x-callerwhale-org") {
 		t.Fatalf("preflight: %d %v", pre.Code, pre.Header())
 	}
+	if got := ask(http.MethodOptions, "https://app.callerwhale.com", "/api/v1/projects/123"); !strings.Contains(got.Header().Get("Access-Control-Allow-Methods"), "DELETE") {
+		t.Fatalf("source-list deletion must be allowed by browser preflight: %v", got.Header())
+	}
 	if got := ask(http.MethodGet, "https://evil.example", "/sync/snapshot"); got.Header().Get("Access-Control-Allow-Origin") != "" || got.Code != http.StatusTeapot {
 		t.Fatalf("a page that is not listed gets no permission: %v", got.Header())
 	}

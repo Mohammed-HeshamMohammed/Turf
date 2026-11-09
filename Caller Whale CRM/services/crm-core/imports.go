@@ -531,6 +531,61 @@ func (s *server) importCancel(q *req) error {
 	return s.importReply(q, id)
 }
 
+// Remove a finished import's uploaded file, holding rows and history. Its source list is removed too when it is empty
+// and no other import uses it. Leads that were already added are never deleted by this operation.
+func (s *server) importDelete(q *req) error {
+	if err := s.importRights(q); err != nil {
+		return err
+	}
+	id := q.r.PathValue("id")
+	if !validID(id) {
+		return notFound("That import does not exist.")
+	}
+	ctx := q.r.Context()
+	tx, err := s.st.begin(ctx, q.sc)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var project *string
+	var status string
+	err = tx.QueryRow(ctx, `SELECT project_id::text, status FROM importing.jobs
+		WHERE id = $1 AND org_id = cw_org() AND (user_id = $2 OR $3) FOR UPDATE`, id, q.sc.userID, q.sc.can("admin")).Scan(&project, &status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return notFound("That import does not exist.")
+	}
+	if err != nil {
+		return err
+	}
+	if !slices.Contains([]string{"failed", "cancelled", "done"}, status) {
+		return bad("Finish or cancel this import before removing it.")
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM importing.jobs WHERE id = $1`, id); err != nil {
+		return err
+	}
+	var removedProject string
+	if project != nil {
+		err = tx.QueryRow(ctx, `DELETE FROM projects p WHERE p.id = $1
+			AND NOT EXISTS (SELECT 1 FROM leads l WHERE l.project_id = p.id)
+			AND NOT EXISTS (SELECT 1 FROM importing.jobs j WHERE j.project_id = p.id)
+			RETURNING id::text`, *project).Scan(&removedProject)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+	}
+	if removedProject != "" {
+		if _, err = tx.Exec(ctx, `SELECT pg_notify('cw_events', jsonb_build_object('org_id', cw_org(), 'kind', 'project.changed')::text)`); err != nil {
+			return err
+		}
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return err
+	}
+	s.dropUpload(id)
+	writeJSON(q.w, 200, map[string]any{"removed": id, "removed_project": removedProject})
+	return nil
+}
+
 func (s *server) dropUpload(id string) {
 	if err := os.RemoveAll(s.jobPath(id)); err != nil {
 		log.Printf("WARN removing the upload of import %s: %v", id, err)

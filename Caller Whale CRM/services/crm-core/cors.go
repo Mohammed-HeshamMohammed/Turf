@@ -34,7 +34,7 @@ func withCORS(origins map[string]bool, next http.Handler) http.Handler {
 			h.Set("Access-Control-Allow-Origin", origin)
 			h.Add("Vary", "Origin")
 			if r.Method == http.MethodOptions {
-				h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, OPTIONS")
+				h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 				h.Set("Access-Control-Allow-Headers", "authorization, content-type, x-callerwhale-org, x-chunk-sha256")
 				h.Set("Access-Control-Max-Age", "600")
 				w.WriteHeader(http.StatusNoContent)
