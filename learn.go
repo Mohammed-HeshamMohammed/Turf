@@ -67,7 +67,7 @@ func (s *server) learnJob(ctx context.Context, id string) error {
 			maps = append(maps, mapping{c.Header, c.Field})
 		}
 	}
-	var last int64 = -1
+	var last, sent int64 = -1, 0
 	first := true
 	for {
 		rows, err := s.st.db.Query(ctx, `SELECT row_no, coalesce(name, ''), coalesce(phone, ''), coalesce(email, ''), coalesce(address, ''), coalesce(unit, ''), coalesce(city, ''),
@@ -106,9 +106,39 @@ func (s *server) learnJob(ctx context.Context, id string) error {
 		if err = s.sendLearning(ctx, "/v1/ingest", body); err != nil {
 			return err
 		}
+		sent += int64(len(batch))
 	}
+	log.Printf("INFO copied import %s to the learning store: %d rows", id, sent)
 	_, err = s.st.db.Exec(ctx, `UPDATE importing.jobs SET learned_at = now() WHERE id = $1`, id)
 	return err
+}
+
+// learningStatus asks the learning store about this workspace: whether it is switched on and whether the workspace opted out.
+func (s *server) learningStatus(q *req) error {
+	if s.cfg.learningURL == "" {
+		writeJSON(q.w, http.StatusOK, map[string]any{"available": false})
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(q.r.Context(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.cfg.learningURL+"/v1/workspaces/"+q.sc.orgID, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+s.cfg.learningToken)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil || res.StatusCode != http.StatusOK {
+		writeJSON(q.w, http.StatusOK, map[string]any{"available": false})
+		return nil
+	}
+	defer res.Body.Close()
+	var out struct {
+		Enabled  bool `json:"enabled"`
+		OptedOut bool `json:"opted_out"`
+	}
+	_ = json.NewDecoder(res.Body).Decode(&out)
+	writeJSON(q.w, http.StatusOK, map[string]any{"available": true, "enabled": out.Enabled, "opted_out": out.OptedOut})
+	return nil
 }
 
 func (s *server) sendLearning(ctx context.Context, path string, body any) error {

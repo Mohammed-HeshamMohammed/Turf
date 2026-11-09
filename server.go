@@ -113,6 +113,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("PATCH /api/v1/organization", s.member(s.renameOrg))
 
 	mux.Handle("GET /api/v1/leads/search", s.member(s.searchLeads))
+	mux.Handle("GET /api/v1/learning", s.member(s.learningStatus))
 	mux.Handle("POST /api/v1/learning/opt-out", s.member(s.learningChoice(true)))
 	mux.Handle("POST /api/v1/learning/opt-in", s.member(s.learningChoice(false)))
 	mux.Handle("GET /sync/snapshot", s.member(s.snapshot))
