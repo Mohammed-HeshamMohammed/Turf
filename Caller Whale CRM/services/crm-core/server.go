@@ -112,6 +112,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("DELETE /api/v1/projects/{id}", s.member(s.deleteProject))
 	mux.Handle("PATCH /api/v1/organization", s.member(s.renameOrg))
 
+	mux.Handle("GET /api/v1/leads/search", s.member(s.searchLeads))
 	mux.Handle("GET /sync/snapshot", s.member(s.snapshot))
 	mux.Handle("GET /sync/pull", s.member(s.pull))
 	mux.Handle("POST /sync/push", s.member(s.push))

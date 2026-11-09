@@ -124,7 +124,7 @@ Decisions:
 - **A finished import does not touch devices.** Devices show a "new list ready" notice and pull leads only when the list is opened.
 - **Import dialog:** pick the file, check the column suggestions, one "Add to workspace" button; progress survives closing the tab. Repeat handling and cleaning stay on the server.
 
-First piece to build: server-side paged lead lists (the rest depends on it).
+Built 2026-11-10: the snapshot sends a window of 3,000 leads (the person's own first, then the most recently changed) with the real totals and per-list counts; `GET /api/v1/leads/search` (name, phone, email, address; 100 a page) reaches the rest and the Leads page searches it as you type; a device more than 5,000 changes behind is told to take a fresh snapshot instead of paging; a device holds at most 5,000 leads and ignores notes, calls and the like for leads it does not hold. Still to do: the lead list paging itself (a real page of 50 with sorting by the server), the offline copy of the desktop app, and switching call buttons off offline.
 
 ### What the owner does in Coolify (step 4)
 

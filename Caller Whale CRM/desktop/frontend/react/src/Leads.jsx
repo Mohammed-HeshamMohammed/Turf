@@ -54,6 +54,13 @@ export function Leads() {
   const BOARD_STEP = 50;
   const justDragged = useRef(false);
   const client = state.role === "client";
+  // A big workspace sends this device a window of its leads: searching asks the server for the rest.
+  const heldAll = !state.remote || !(state.leadsTotal > state.leads.length);
+  useEffect(() => {
+    if (heldAll || search.trim().length < 2) return;
+    const timer = setTimeout(() => dispatch({ type: "SEARCH_LEADS", term: search.trim() }), 400);
+    return () => clearTimeout(timer);
+  }, [search, heldAll, dispatch]);
   const archivedCount = archivedLeads(state).length;
   const leads = (showArchived && archivedCount ? archivedLeads(state) : visibleLeads(state)).filter(
     lead =>
@@ -138,6 +145,11 @@ export function Leads() {
           </Button>
         )}
       </PageHeader>
+      {!heldAll && (
+        <p className="muted">
+          Showing {state.leads.length.toLocaleString()} of {state.leadsTotal.toLocaleString()} leads. Search by name, phone, email or address to find any lead.
+        </p>
+      )}
       <div className="filter-bar">
         <Search value={search} onChange={setSearch} placeholder={client ? "Search shared properties" : "Search owner, property, or phone"} />
         {!client && (
