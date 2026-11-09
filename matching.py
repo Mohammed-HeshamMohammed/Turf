@@ -53,6 +53,23 @@ SOURCE_DETAILS = {
     "status": "Status", "original status": "Original status", "status time": "Status time",
     "status agent": "Status agent", "lead file campaign": "Lead file campaign",
 }
+SOURCE_DETAILS.update({
+    "record id": "Source record ID", "property id": "Source record ID", "lead id": "Source record ID",
+    "parish": "County", "living sq ft": "Living area", "living area": "Living area",
+    "building square feet": "Living area", "building area": "Living area", "square footage": "Living area",
+    "beds": "Bedrooms", "bedroom count": "Bedrooms", "baths": "Bathrooms", "bathroom count": "Bathrooms",
+    "lot size acres": "Lot size (acres)", "acreage": "Lot size (acres)",
+    "lot sq ft": "Lot size (square feet)", "lot sqft": "Lot size (square feet)",
+    "number of stories": "Stories", "stories": "Stories", "# stories": "Stories",
+    "garage area": "Garage area", "carport square feet": "Carport area",
+    "cooling": "Cooling", "air conditioning": "Cooling", "heating": "Heating",
+    "fireplaces": "Fireplaces", "number of fireplaces": "Fireplaces",
+    "mailing address": "Owner mailing address", "mailing city": "Owner mailing city",
+    "mailing state": "Owner mailing state", "mailing zip": "Owner mailing ZIP",
+    "vacant": "Vacancy", "vacancy": "Vacancy", "is vacant": "Vacancy",
+    "owner occupancy": "Owner occupied", "ownership type": "Owner type",
+    "months owned": "Ownership length", "ownership length": "Ownership length",
+})
 
 
 def normalize_header(header: str) -> str:
@@ -83,6 +100,44 @@ def source_detail(header: str) -> str | None:
     if owner:
         return f"Owner {owner[1]} {owner[2]} name"
     return SOURCE_DETAILS.get(words)
+
+
+def standard_key(header: str) -> str | None:
+    """Stable key for an understood column, including columns kept only in source rows."""
+    words = normalize_header(header)
+    detail = source_detail(header)
+    if detail:
+        return re.sub(r"[^a-z0-9]+", "_", detail.lower()).strip("_")
+    field = suggest(header)
+    if not field:
+        return None
+    if words.startswith("owner 1 "):
+        return "owner_1_" + field
+    if words in {"alt phone", "alternate phone", "alternative phone"}:
+        return "alternate_phone"
+    numbered = re.search(r"\s(\d+)$", words)
+    if numbered and field in MULTIPLE:
+        return f"{field}_{numbered[1]}"
+    return field
+
+
+def standard_keys(headers: list[str]) -> list[str | None]:
+    """Keep distinct columns even when two different headings mean the same field."""
+    used: set[str] = set()
+    result: list[str | None] = []
+    for header in headers:
+        base = standard_key(header)
+        if not base:
+            result.append(None)
+            continue
+        key = base
+        suffix = 2
+        while key in used:
+            key = f"{base}_{suffix}"
+            suffix += 1
+        used.add(key)
+        result.append(key)
+    return result
 
 
 def suggest_all(headers: list[str]) -> list[str | None]:

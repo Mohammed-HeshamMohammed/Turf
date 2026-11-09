@@ -250,6 +250,7 @@ def describe_columns(cur: psycopg.Cursor, job_id: str, headers: list[str], popul
     cur.execute("SELECT cells FROM importing.rows WHERE job_id = %s ORDER BY row_no LIMIT 300", (job_id,))
     sample_rows = [r[0] for r in cur.fetchall()]
     suggestions = matching.suggest_all(headers)
+    standard_keys = matching.standard_keys(headers)
     out = []
     for i, header in enumerate(headers):
         seen: list[str] = []
@@ -260,6 +261,7 @@ def describe_columns(cur: psycopg.Cursor, job_id: str, headers: list[str], popul
             if len(seen) == 3:
                 break
         out.append({"idx": i, "header": header, "suggested": suggestions[i], "source_detail": matching.source_detail(header),
+                    "standard_key": standard_keys[i],
                     "field": None, "used": None, "populated": populated[i], "samples": seen})
     return out
 
@@ -304,10 +306,21 @@ def cleaning_sql(columns: list[dict]) -> str:
     ])
 
 
+def source_data_sql(columns: list[dict]) -> str:
+    """Original nonempty values under stable keys, independently of the chosen CRM lead mapping."""
+    recognized = [(c["standard_key"], c["idx"] + 1) for c in columns if c.get("standard_key")]
+    if not recognized:
+        return "'{}'::jsonb"
+    keys = ", ".join("'" + key.replace("'", "''") + "'" for key, _ in recognized)
+    values = ", ".join(f"nullif(btrim(cells[{index}]), '')" for _, index in recognized)
+    return f"jsonb_strip_nulls(jsonb_object(ARRAY[{keys}]::text[], ARRAY[{values}]::text[]))"
+
+
 def clean(conn: psycopg.Connection, job: dict) -> None:
     job_id = job["id"]
     columns = job["columns"]
     expressions = cleaning_sql(columns)
+    source_data = source_data_sql(columns)
     with conn.cursor() as cur:
         cur.execute("SELECT coalesce(min(row_no), 0), coalesce(max(row_no), 0) FROM importing.rows WHERE job_id = %s", (job_id,))
         low, high = cur.fetchone()
@@ -317,10 +330,10 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
         check_cancel(conn, job_id)
         with conn.cursor() as cur:
             cur.execute(f"""
-                WITH c AS (SELECT row_no, {expressions} FROM importing.rows WHERE job_id = %(job)s AND state = 'loaded' AND row_no >= %(a)s AND row_no < %(b)s)
+                WITH c AS (SELECT row_no, {expressions}, {source_data} AS source_data FROM importing.rows WHERE job_id = %(job)s AND state = 'loaded' AND row_no >= %(a)s AND row_no < %(b)s)
                 UPDATE importing.rows r SET name = c.name, phone = c.phone, email = c.email, address = c.address, unit = c.unit, city = c.city,
                        region = c.region, zip = c.zip, country = c.country, latitude = c.latitude, longitude = c.longitude, parcel = c.parcel,
-                       value = c.value, source = c.source,
+                       value = c.value, source = c.source, source_data = c.source_data,
                        state = CASE WHEN c.name IS NULL AND c.phone IS NULL AND c.email IS NULL AND c.address IS NULL THEN 'skip' ELSE 'clean' END
                 FROM c WHERE r.job_id = %(job)s AND r.row_no = c.row_no""", {"job": job_id, "a": start, "b": start + CLEAN_RANGE})
             done += cur.rowcount

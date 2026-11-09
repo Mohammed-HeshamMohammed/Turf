@@ -47,11 +47,20 @@ class MatchingTest(unittest.TestCase):
                 unknown = [header for header, field in zip(headers, suggested)
                            if header and not field and not matching.source_detail(header)]
                 self.assertEqual(unknown, [])
+                keys = [matching.standard_key(header) for header in headers if header]
+                self.assertTrue(all(keys))
+                self.assertEqual(len(keys), len(set(keys)))
         self.assertEqual(matching.suggest("Alt. Phone"), "phone")
         self.assertIsNone(matching.suggest("Owner 2 First Name"))
         self.assertEqual(matching.source_detail("Owner 2 First Name"), "Owner 2 first name")
         self.assertIsNone(matching.suggest("Owner Mailing Address"))
         self.assertEqual(matching.source_detail("Owner Mailing Address"), "Owner mailing address")
+        self.assertEqual(matching.standard_key("OWNER_2_FIRST_NAME"), "owner_2_first_name")
+        self.assertEqual(matching.standard_key("Status (time)"), "status_time")
+        self.assertEqual(matching.standard_key("Alt. Phone"), "alternate_phone")
+        self.assertEqual(matching.standard_key("Living Square Feet"), "living_area")
+        self.assertEqual(matching.standard_keys(["Phone", "Phone Number", "Phone 2"]), ["phone", "phone_2", "phone_2_2"])
+        self.assertEqual(matching.standard_key("Living Sq Ft"), "living_area")
 
     def test_shared_address_or_phone_with_different_names_is_not_a_repeat(self) -> None:
         import worker
@@ -295,6 +304,7 @@ class EndToEndTest(unittest.TestCase):
         columns = job["columns"]
         self.assertEqual([c["suggested"] for c in columns], ["name", "phone", "email", "address", "city", "region", "zip", None])
         self.assertEqual(columns[1]["populated"], 4)
+        self.assertEqual(columns[1]["standard_key"], "phone")
         self.assertEqual(list(self.worker.IMPORT_DIR.joinpath(job_id).glob("*")), [])
 
         # The person keeps what the CRM uses and sets "Bathroom style" aside; crm-core then moves the job on.
@@ -318,11 +328,40 @@ class EndToEndTest(unittest.TestCase):
         self.assertEqual((by_no[1][7], by_no[3][7], by_no[1][8] == by_no[3][8]), ("near_duplicate", "near_duplicate", True))
         self.assertEqual((by_no[6][7], by_no[6][9]), ("near_duplicate", True))
         self.assertEqual(by_no[4][7], "clean")
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT source_data FROM importing.rows WHERE job_id = %s AND row_no = 1", (job_id,))
+            self.assertEqual(cur.fetchone()[0]["name"], "Pat Owner")
+        self.conn.commit()
         job = self.job(job_id)
         self.assertEqual((job["status"], job["report"]["near_groups"], job["report"]["dropped_columns"]), ("reviewing", 2, ["Bathroom style"]))
 
         # The queue moves on to the next import.
         self.assertEqual(self.worker.claim(self.conn)["id"], second)
+
+    def test_source_only_property_headers_gain_stable_keys_and_usable_property_details(self) -> None:
+        data = (b"Owner 1 First Name,Owner 1 Last Name,Address,County,Living Square Feet,Bedrooms,Bathrooms,Year Built,Vacant?\n"
+                b"Pat,Owner,1 Main St,Travis,1,234,3,2,1980,No\n")
+        # Quote the comma inside the area cell so it stays one original value.
+        data = data.replace(b",1,234,3,", b',"1,234",3,')
+        job_id = self.queue(data)
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        columns = self.job(job_id)["columns"]
+        self.assertEqual([c["standard_key"] for c in columns],
+                         ["owner_1_first_name", "owner_1_last_name", "address", "county", "living_area", "bedrooms", "bathrooms", "year_built", "vacancy"])
+        for column in columns:
+            column["field"], column["used"] = column["suggested"], column["suggested"] is not None
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE importing.jobs SET columns = %s::jsonb, status = 'cleaning' WHERE id = %s", (json.dumps(columns), job_id))
+        self.conn.commit()
+        self.worker.clean(self.conn, self.worker.claim(self.conn))
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT source_data, importing.property_details(source_data) FROM importing.rows WHERE job_id = %s", (job_id,))
+            source, details = cur.fetchone()
+        self.conn.commit()
+        self.assertEqual(source["living_area"], "1,234")
+        self.assertEqual(source["owner_1_first_name"], "Pat")
+        self.assertEqual(details["area"], 1234)
+        self.assertEqual((details["beds"], details["baths"], details["county"], details["year_built"]), (3, 2, "Travis", "1980"))
 
     def test_exact_prior_rows_are_linked_without_review_but_changed_rows_still_need_a_choice(self) -> None:
         original = b"Name,Phone,Address\nPat Owner,5125550100,1 Main St\n"
