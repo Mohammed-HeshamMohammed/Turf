@@ -30,6 +30,7 @@ export const routes = [
   { path: "/signup", key: "signup", title: "Create your account · Caller Whale", description: "Create your Caller Whale account.", indexable: false, sitemap: false },
   { path: "/forgot", key: "forgot", title: "Reset your password · Caller Whale", description: "Reset your Caller Whale password.", indexable: false, sitemap: false },
   { path: "/account", key: "account", title: "Settings · Caller Whale", description: "Your Caller Whale settings.", indexable: false, sitemap: false },
+  { path: "/profile", key: "profile", title: "Profile · Caller Whale", description: "Your Caller Whale profile.", indexable: false, sitemap: false },
   { path: "/connect", key: "connect", title: "Connect an assistant · Caller Whale", description: "Allow an AI assistant to use your Caller Whale account.", indexable: false, sitemap: false },
   { path: "/dashboard", key: "dashboard", title: "Dashboard · Caller Whale", description: "Your Caller Whale membership and platform access.", indexable: false, sitemap: false },
 ];
