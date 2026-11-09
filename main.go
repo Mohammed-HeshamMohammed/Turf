@@ -36,6 +36,7 @@ type route struct {
 
 type config struct {
 	monitoring     *route
+	importWorker   *route // upload admission and pieces stay in the import worker's own container
 	routes         map[string]*route
 	authJWKS       string // the auth service's public keys: the only thing the gateway knows about sign-in
 	staffSecond    bool   // staff paths need the authenticator step in the token
@@ -90,6 +91,17 @@ func loadConfig(getenv func(string) string) (config, error) {
 		if c.authJWKS = strings.TrimSpace(getenv("AUTH_JWKS_URL")); c.authJWKS == "" {
 			return c, errors.New("set AUTH_JWKS_URL, the auth service's /.well-known/jwks.json: the core API's tokens are checked with it")
 		}
+	}
+	importTarget := strings.TrimSpace(getenv("IMPORT_WORKER_URL"))
+	if importTarget == "" && core != "" {
+		importTarget = "http://importing-lists:8111"
+	}
+	if target := importTarget; target != "" {
+		u, err := url.Parse(target)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || core == "" {
+			return c, errors.New("IMPORT_WORKER_URL needs an http(s) origin and CORE_HOST")
+		}
+		c.importWorker = &route{host: core, upstream: u}
 	}
 	if target := strings.TrimSpace(getenv("MONITORING_UPSTREAM")); target != "" {
 		u, err := url.Parse(target)
@@ -211,6 +223,9 @@ func newGateway(cfg config) *gateway {
 	if cfg.monitoring != nil {
 		routes = append(routes, cfg.monitoring)
 	}
+	if cfg.importWorker != nil {
+		routes = append(routes, cfg.importWorker)
+	}
 	for _, r := range routes {
 		r := r
 		r.proxy = &httputil.ReverseProxy{
@@ -330,6 +345,8 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// signed token, MFA and staff role with Auth on every request.
 		rt = g.cfg.monitoring
 	}
+	// Upload requests switch upstream only after the normal core-host token and
+	// rate-limit checks below. Mapping, review and merge read database rows in Core.
 	// The auth service answers only the routes it has; everything else looks the same as nothing at all.
 	if g.cfg.authHost != "" && rt.host == g.cfg.authHost && !authAllowed(r.Method, r.URL.Path) {
 		g.scans.miss(caller, g.now())
@@ -423,7 +440,25 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if rt.core && g.cfg.importWorker != nil && uploadRoute(r.Method, r.URL.Path) {
+		g.cfg.importWorker.proxy.ServeHTTP(w, r)
+		return
+	}
 	rt.proxy.ServeHTTP(w, r)
+}
+
+func uploadRoute(method, path string) bool {
+	if method == http.MethodPost && path == "/api/v1/imports" {
+		return true
+	}
+	parts := strings.Split(path, "/")
+	if len(parts) == 5 && parts[1] == "api" && parts[2] == "v1" && parts[3] == "imports" && method == http.MethodGet {
+		return true
+	}
+	if len(parts) == 7 && parts[1] == "api" && parts[2] == "v1" && parts[3] == "imports" && parts[5] == "chunks" && method == http.MethodPut {
+		return true
+	}
+	return len(parts) == 6 && parts[1] == "api" && parts[2] == "v1" && parts[3] == "imports" && parts[5] == "complete" && method == http.MethodPost
 }
 
 // identify reads the token from the Authorization header, or from the subprotocol list a browser WebSocket uses
