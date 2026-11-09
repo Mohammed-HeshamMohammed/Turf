@@ -137,7 +137,7 @@ def load(conn: psycopg.Connection, job: dict) -> None:
 
     headers = headers or readers.headers_of(source, job["has_header"])  # a restart after the last batch has none from the loop
     if not headers:
-        raise RuntimeError("the file has no rows")
+        raise readers.UnreadableFile("the file has no data rows")
     with conn.cursor() as cur:
         columns = describe_columns(cur, job_id, headers)
         report.update(rows=consumed - dropped - empty, source_rows=consumed)
@@ -333,11 +333,16 @@ def process(conn: psycopg.Connection, job: dict) -> None:
         log("INFO", "cancelled", job=job["id"])
     except Exception as error:  # the person is told in plain words; the details stay in the log
         conn.rollback()
-        log("ERROR", "import failed", job=job["id"], error=str(error), trace=traceback.format_exc())
+        log("ERROR", "import failed", job=job["id"], phase=job["status"], error_type=type(error).__name__, error=str(error), trace=traceback.format_exc())
+        if isinstance(error, readers.UnsafeFile):
+            message = "This spreadsheet expands beyond the safe import limit. Save a smaller file and try again."
+        elif isinstance(error, readers.UnreadableFile):
+            message = "This list could not be read. Check the file format and make sure it has at least one data row."
+        else:
+            message = "Your file reached Caller Whale, but the import service could not finish processing it. Try again; if it repeats, contact support with the import ID."
         with conn.cursor() as cur:
             cur.execute("""UPDATE importing.jobs SET status = 'failed', worker = NULL, heartbeat_at = NULL, updated_at = now(),
-                           error = 'This list could not be read. Check that it is a CSV, TXT or Excel file with a header row, then try again.'
-                           WHERE id = %s""", (job["id"],))
+                           error = %s WHERE id = %s""", (message, job["id"]))
         conn.commit()
 
 

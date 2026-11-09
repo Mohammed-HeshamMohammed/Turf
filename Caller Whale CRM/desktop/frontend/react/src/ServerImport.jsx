@@ -306,6 +306,7 @@ export function ServerImport({ resume = "", initialFile = null, onClose, onFinis
         {(status === "failed" || status === "cancelled") && (
           <>
             <p role="alert">{job.error || (status === "cancelled" ? "This import was cancelled." : "This import could not be finished.")}</p>
+            {status === "failed" && <p className="muted">Import ID: <code>{job.id}</code></p>}
             <div className="import-actions">
               <Button onClick={onClose}>Close</Button>
             </div>

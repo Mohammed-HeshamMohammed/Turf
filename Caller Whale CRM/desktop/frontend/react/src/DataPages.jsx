@@ -41,14 +41,18 @@ export function Lists({ id }) {
   // Connected to Caller Whale's server: lists are uploaded there instead of being kept on this device.
   const [upload, setUpload] = useState(null);
   const [running, setRunning] = useState([]);
+  const [recentFailures, setRecentFailures] = useState([]);
   const input = useRef(null);
   const remote = Boolean(state.remote);
   useEffect(() => {
     if (!remote || upload) return;
     api.imports
       .list()
-      .then(list => setRunning(list.filter(item => !["done", "failed", "cancelled"].includes(item.status))))
-      .catch(() => setRunning([]));
+      .then(list => {
+        setRunning(list.filter(item => !["done", "failed", "cancelled"].includes(item.status)));
+        setRecentFailures(list.filter(item => item.status === "failed").slice(0, 5));
+      })
+      .catch(() => { setRunning([]); setRecentFailures([]); });
   }, [remote, upload]);
   const leads = visibleLeads(state);
   const listLeads = useMemo(() => leads.filter(lead => lead.datasetId === id), [leads, id]);
@@ -264,6 +268,16 @@ export function Lists({ id }) {
                 <strong>{item.name}</strong> <small className="muted">{item.status === "mapping" || item.status === "reviewing" || item.status === "ready" ? "needs you" : item.status}</small>
               </span>
               <Button onClick={() => setUpload({ resume: item.id })}>Continue</Button>
+            </div>
+          ))}
+        </Card>
+      )}
+      {recentFailures.length > 0 && (
+        <Card title="Imports that need attention" className="imports-running">
+          {recentFailures.map(item => (
+            <div className="row" key={item.id}>
+              <span><strong>{item.name}</strong> <small className="muted">Import failed</small></span>
+              <Button onClick={() => setUpload({ resume: item.id })}>See details</Button>
             </div>
           ))}
         </Card>
