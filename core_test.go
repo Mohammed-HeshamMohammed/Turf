@@ -22,6 +22,20 @@ const (
 	missing = "99999999-9999-4999-8999-999999999999"
 )
 
+func TestImportMappingAcceptsPropertyAndMailingFields(t *testing.T) {
+	for _, field := range []string{"living_area", "bedrooms", "owner_mailing_address", "owner_2_first_name", "status_time"} {
+		if !validImportField(field, map[string]any{}) {
+			t.Errorf("missing source field %s", field)
+		}
+	}
+	if !validImportField("owner_5_first_name", map[string]any{"source_detail": "Owner 5 first name", "standard_key": "owner_5_first_name"}) {
+		t.Fatal("numbered owners from later lists should remain selectable")
+	}
+	if validImportField("invented_field", map[string]any{}) {
+		t.Fatal("unknown import field accepted")
+	}
+}
+
 func (e *env) seed() {
 	e.rules.grants[alice+"|"+orgA] = owner()
 	e.rules.grants[bob+"|"+orgA] = grantReply{Allowed: true, Scopes: []string{"own"}, Capabilities: []string{"edit", "call", "handoff", "accept"}}

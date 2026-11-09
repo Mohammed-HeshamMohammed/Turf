@@ -21,6 +21,22 @@ const mergeBatch = 50000
 
 // importFields are the CRM fields a source column can be matched to. Phones and emails may repeat (phone 1, phone 2).
 var importFields = []string{"name", "first_name", "last_name", "phone", "email", "address", "unit", "city", "region", "zip", "country", "latitude", "longitude", "parcel", "value", "source"}
+var sourceImportFields = []string{
+	"source_record_id", "county", "living_area", "year_built", "lot_size_acres", "lot_size_square_feet",
+	"land_use", "property_type", "property_use", "subdivision", "legal_description", "units",
+	"bedrooms", "bathrooms", "stories", "garage_type", "garage_area", "carport", "carport_area",
+	"cooling", "heating", "fireplaces", "owner_1_first_name", "owner_1_last_name",
+	"owner_2_first_name", "owner_2_last_name", "owner_3_first_name", "owner_3_last_name",
+	"owner_4_first_name", "owner_4_last_name", "owner_mailing_address", "owner_mailing_city",
+	"owner_mailing_state", "owner_mailing_zip", "ownership_length", "owner_type", "owner_occupied",
+	"vacancy", "batch_name", "original_file_name", "upload_date", "status", "original_status",
+	"status_time", "status_agent", "lead_file_campaign",
+}
+
+func validImportField(field string, column map[string]any) bool {
+	return slices.Contains(importFields, field) || slices.Contains(sourceImportFields, field) ||
+		(column["source_detail"] != nil && column["standard_key"] == field && roleName.MatchString(field))
+}
 
 const jobColumns = `id::text, name, filename, size, chunk_size, total_chunks, status, progress, columns, report, error, loaded_rows, merged_rows, project_id::text, created_at, updated_at, kind, source_timezone`
 
@@ -162,8 +178,8 @@ type columnChoice struct {
 	Use   bool    `json:"use"`
 }
 
-// importMapping records the person's answer: which CRM field each source column is, and which columns the CRM does not use.
-// Unused columns are left out of the new leads only now, after they said so; the file's original values stay in the holding table.
+// importMapping records the person's answer: lead fields and structured source-only fields.
+// Original values stay in the holding table even for columns that were not mapped.
 func (s *server) importMapping(q *req) error {
 	if err := s.importRights(q); err != nil {
 		return err
@@ -195,8 +211,8 @@ func (s *server) importMapping(q *req) error {
 		if !ok {
 			return bad("Say what every column is, or that it is not used.")
 		}
-		if c.Use && (c.Field == nil || !slices.Contains(importFields, *c.Field)) {
-			return bad("Choose a CRM field for every column you keep.")
+		if c.Use && (c.Field == nil || !validImportField(*c.Field, col)) {
+			return bad("Choose a field for every column you keep.")
 		}
 		if c.Use && (*c.Field != "phone" && *c.Field != "email") && mapped[*c.Field] {
 			return bad("Two columns are set to " + *c.Field + "; only phone and email can come from more than one.")
