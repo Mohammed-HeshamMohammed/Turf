@@ -20,7 +20,7 @@ Every request inside a workspace carries `Authorization: Bearer <token>` and `x-
 ## Imports
 
 1. `POST /api/v1/imports` `{filename, size, name?, project_id?}` opens an upload. `PUT /api/v1/imports/{id}/chunks/{n}` sends each 8 MB piece with `x-chunk-sha256` (3 to 4 at a time; a damaged piece is refused with 422 and sent again). `GET /api/v1/imports/{id}` lists the pieces held, so an interrupted upload resumes. `POST .../complete` queues it.
-2. The import worker loads it, drops identical rows and proposes what each column is (`status: mapping`).
+2. The import worker loads it, drops identical rows and columns blank in every row, and proposes what each remaining column is (`status: mapping`). A sparse column with any value stays.
 3. `PUT .../mapping` confirms the columns; columns marked unused are left out of the leads (the originals stay in the holding table). The worker cleans the rows and finds repeats (`status: reviewing`, or `ready` when there are none).
 4. `GET/POST .../duplicates` lists and settles repeats (merge, import, skip). `POST .../merge` adds the leads in batches of 50,000.
 
