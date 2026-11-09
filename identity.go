@@ -43,19 +43,19 @@ func (s *server) me(q *req) error {
 		}
 	}
 	orgs := []map[string]any{}
-	rows, err := s.st.db.Query(ctx, `SELECT id::text, name FROM orgs WHERE id = ANY($1::uuid[]) ORDER BY name`, orgIDs(ppl.Workspaces))
+	rows, err := s.st.db.Query(ctx, `SELECT id::text, name, timezone FROM orgs WHERE id = ANY($1::uuid[]) ORDER BY name`, orgIDs(ppl.Workspaces))
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var id, name string
-		if err = rows.Scan(&id, &name); err != nil {
+		var id, name, timezone string
+		if err = rows.Scan(&id, &name, &timezone); err != nil {
 			return err
 		}
-		orgs = append(orgs, map[string]any{"id": id, "name": name})
+		orgs = append(orgs, map[string]any{"id": id, "name": name, "timezone": timezone})
 	}
-	if err = s.st.db.QueryRow(ctx, `SELECT last_org_id::text, last_org_at FROM people WHERE user_id = $1`, q.c.sub).Scan(&lastOrg, &lastAt); err != nil && err != sql.ErrNoRows {
+	if err = s.st.db.QueryRow(ctx, `SELECT last_org_id::text, last_org_at FROM people WHERE user_id = $1`, q.c.sub).Scan(&lastOrg, &lastAt); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
 	if chosen == "" && lastOrg.Valid {
