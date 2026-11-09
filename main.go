@@ -64,7 +64,13 @@ func main() {
 	// "service health" is the container's health check: the image has no shell or curl.
 	if len(os.Args) > 1 && os.Args[1] == "health" {
 		res, err := (&http.Client{Timeout: 3 * time.Second}).Get("http://127.0.0.1:" + port + "/healthz")
-		if err != nil || res.StatusCode != http.StatusOK {
+		if err != nil {
+			log.Printf("health probe: %v", err)
+			os.Exit(1)
+		}
+		defer res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			log.Printf("health probe: HTTP %d", res.StatusCode)
 			os.Exit(1)
 		}
 		os.Exit(0)
@@ -75,14 +81,17 @@ func main() {
 	}
 	ctx, stopAll := context.WithCancel(context.Background())
 	defer stopAll()
+	log.Print("INFO opening CRM database and applying migrations")
 	st, err := openStore(ctx, cfg.databaseURL)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer st.close()
+	log.Print("INFO CRM database ready; granting importer access")
 	if err = st.grantImporter(ctx, cfg.importRole); err != nil {
 		log.Fatal(err)
 	}
+	log.Print("INFO importer access ready")
 	s := &server{cfg: cfg, keys: newKeyset(cfg.jwksURL), rules: newAuthz(cfg.authzURL, cfg.authzToken, cfg.grantTTL), st: st, hub: newHub(), now: time.Now}
 	go s.hub.listen(ctx, cfg.databaseURL)
 	go s.resumeMerges(ctx)
