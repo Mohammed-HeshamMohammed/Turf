@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	mrand "math/rand/v2"
 	"strings"
 	"sync"
 
@@ -156,14 +157,32 @@ func (s *server) upsertFirebaseUser(ctx context.Context, p fbProfile) (*user, er
 			}
 		}
 		id := uuid.NewString()
+		base := usernameFrom(name, email)
+		username, err := s.freeUsername(ctx, base)
+		if err != nil {
+			return nil, err
+		}
 		tx, err := s.db.Begin(ctx)
 		if err != nil {
 			return nil, err
 		}
 		defer tx.Rollback(ctx)
-		if _, err := tx.Exec(ctx, "INSERT INTO users (id, email, display_name, password_hash, created_at, email_verified_at, firebase_uid) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-			id, email, name, noPassword, t, verified, p.uid); err != nil {
-			return nil, err
+		// Two people signing up at once with the same name can pick the same username: the one who loses tries another (the table's
+		// unique index decides, not this code).
+		inserted := false
+		for attempt := 0; attempt < 8 && !inserted; attempt++ {
+			if attempt > 0 {
+				username = fmt.Sprintf("%s-%d", base, 1000+mrand.IntN(9000))
+			}
+			tag, err := tx.Exec(ctx, "INSERT INTO users (id, email, display_name, password_hash, created_at, email_verified_at, firebase_uid, username) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (username) DO NOTHING",
+				id, email, name, noPassword, t, verified, p.uid, username)
+			if err != nil {
+				return nil, err
+			}
+			inserted = tag.RowsAffected() == 1
+		}
+		if !inserted {
+			return nil, errors.New("no free username")
 		}
 		if err := outbox(ctx, tx, "user.signed_up", map[string]any{"user_id": id, "version": 1}); err != nil {
 			return nil, err
