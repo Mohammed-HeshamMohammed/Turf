@@ -224,8 +224,8 @@ export function ServerImport({ resume = "", initialFile = null, onClose, onFinis
         {status === "reviewing" && (
           <>
             <p className="muted">
-              {number(report.near_groups)} {report.near_groups === 1 ? "group of rows matches" : "groups of rows match"} each other, or a lead you already have,
-              after tidying phone numbers and addresses. Choose what happens to all of them.
+              {number(report.near_groups)} {report.near_groups === 1 ? "group may contain" : "groups may contain"} repeat leads.
+              Names match along with a phone number, email, or address. Choose what happens to these rows.
             </p>
             <ul className="import-repeats">
               {(repeats?.rows ?? []).slice(0, 8).map((row) => (

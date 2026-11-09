@@ -18,7 +18,7 @@ import readers  # noqa: E402
 CSV = """Owner Name,Cell,Email,Address,City,State,Zip,Bathroom style
 Pat Owner,(512) 555-0100,pat@example.com,1 Main St,Austin,tx,78701,modern
 Pat Owner,(512) 555-0100,pat@example.com,1 Main St,Austin,tx,78701,modern
-Pat O.,512.555.0100,,,,,,
+Pat Owner,512.555.0100,,,,,,
 Sam Seller,5125550101,SAM@Example.com,2 Oak Ave,Austin,TX,78702,rustic
 ,,,,,,,
 Lee Existing,+1 512 555 0199,,,,,,
@@ -26,6 +26,20 @@ Lee Existing,+1 512 555 0199,,,,,,
 
 
 class MatchingTest(unittest.TestCase):
+    def test_shared_address_or_phone_with_different_names_is_not_a_repeat(self) -> None:
+        import worker
+
+        grouped = worker.group_source_candidates([
+            (1, "Mary Randel", None, None, "3307lilyst|77505"),
+            (2, "Maricela Moreno", None, None, "3307lilyst|77505"),
+            (3, "Irfana Hussain", "5550100", None, "2118hadley|77003"),
+            (4, "Charanjit Narula", "5550100", None, "2118hadley|77003"),
+            (5, "Mary Randel", None, None, "3307lilyst|77505"),
+        ])
+        self.assertNotEqual(grouped.find(("r", 1)), grouped.find(("r", 2)))
+        self.assertNotEqual(grouped.find(("r", 3)), grouped.find(("r", 4)))
+        self.assertEqual(grouped.find(("r", 1)), grouped.find(("r", 5)))
+
     def test_headers_are_read_however_they_are_written(self) -> None:
         for header, field in [("Owner Name", "name"), ("OWNER_NAME", "name"), ("ownerName", "name"), ("Cell Phone", "phone"), ("Phone 3", "phone"),
                               ("ZIP Code", "zip"), ("Bathroom style", None), ("Relative 6", None), ("Mailing Address", None), ("State", "region")]:
@@ -239,7 +253,7 @@ class EndToEndTest(unittest.TestCase):
         by_no = {r[0]: r for r in rows}
         self.assertEqual(by_no[1][1:7], ("Pat Owner", "5125550100", "pat@example.com", "1 Main St", "TX", "78701"))
         self.assertEqual(by_no[4][3], "sam@example.com")  # lower-cased
-        # Pat O. shares Pat Owner's phone: one group of two. Lee matches the lead already in the CRM.
+        # Pat Owner's two distinct source rows share a phone. Lee matches a lead already in the CRM.
         self.assertEqual((by_no[1][7], by_no[3][7], by_no[1][8] == by_no[3][8]), ("near_duplicate", "near_duplicate", True))
         self.assertEqual((by_no[6][7], by_no[6][9]), ("near_duplicate", True))
         self.assertEqual(by_no[4][7], "clean")
@@ -248,6 +262,31 @@ class EndToEndTest(unittest.TestCase):
 
         # The queue moves on to the next import.
         self.assertEqual(self.worker.claim(self.conn)["id"], second)
+
+    def test_shared_household_with_different_names_needs_no_repeat_review(self) -> None:
+        with self.conn.cursor() as cur:
+            cur.execute("""INSERT INTO crm.properties (org_id, address, city, postal_code)
+                           VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '3307 Lily St', 'Pasadena', '77505')
+                           RETURNING id""")
+            property_id = cur.fetchone()[0]
+            cur.execute("""INSERT INTO crm.leads (org_id, name, property_id)
+                           VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'John Tenant', %s)""", (property_id,))
+        self.conn.commit()
+        job_id = self.queue(b"Name,Address,City,Zip\nMary Randel,3307 Lily St,Pasadena,77505\nMaricela Moreno,3307 Lily St,Pasadena,77505\n")
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        columns = self.job(job_id)["columns"]
+        for column in columns:
+            column["field"], column["used"] = column["suggested"], column["suggested"] is not None
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE importing.jobs SET columns = %s::jsonb, status = 'cleaning' WHERE id = %s", (json.dumps(columns), job_id))
+        self.conn.commit()
+        self.worker.clean(self.conn, self.worker.claim(self.conn))
+        job = self.job(job_id)
+        self.assertEqual((job["status"], job["report"]["near_groups"]), ("ready", 0))
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT name, state FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            self.assertEqual(cur.fetchall(), [("Mary Randel", "clean"), ("Maricela Moreno", "clean")])
+        self.conn.commit()
 
     def test_a_cancelled_import_leaves_no_rows(self) -> None:
         job_id = self.queue(CSV.encode())
