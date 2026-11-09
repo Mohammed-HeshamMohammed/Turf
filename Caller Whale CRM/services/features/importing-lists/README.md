@@ -8,4 +8,4 @@ The upload is 8 MiB chunks with SHA-256 checks. Resume reports only pieces still
 
 Column review maps supported contact and property location headings into CRM fields. It also labels recognized source-only headings, such as building facts, mailing addresses, extra owners and export activity, while retaining their original values in PostgreSQL source rows. Source-only fields are not silently presented as populated CRM lead fields.
 
-Run `python -m unittest discover -s tests` after installing `requirements.txt`; database integration tests require a disposable PostgreSQL configured through `CRM_TEST_ADMIN_URL`.
+Run `python -m unittest discover -s tests` after installing `requirements.lock` (the exact versions the image uses; `requirements.txt` holds the allowed ranges); database integration tests require a disposable PostgreSQL configured through `CRM_TEST_ADMIN_URL`.

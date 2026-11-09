@@ -27,6 +27,8 @@ IMPORT_DIR = Path(os.environ.get("IMPORT_DIR", "/data/imports"))
 WORKER = f"{socket.gethostname()}-{os.getpid()}"
 STALE = "interval '2 minutes'"
 POLL_SECONDS = 2.0
+# A job whose worker stopped is picked up again this many times; the next stop fails it (a file that keeps stopping the worker).
+MAX_RECLAIMS = 2
 CLEAN_RANGE = 100_000
 
 
@@ -45,7 +47,12 @@ def claim(conn: psycopg.Connection) -> dict | None:
     stopped (no heartbeat for two minutes) is picked up again where it left off."""
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
         cur.execute(f"""
+            UPDATE importing.jobs SET status = 'failed', worker = NULL, heartbeat_at = NULL, updated_at = now(),
+                   error = 'The import service stopped several times while reading this list. Try a smaller file, or contact support with the import ID.'
+            WHERE status IN ('loading', 'cleaning') AND heartbeat_at IS NOT NULL AND heartbeat_at < now() - {STALE} AND attempts >= {MAX_RECLAIMS}""")
+        cur.execute(f"""
             UPDATE importing.jobs SET worker = %s, heartbeat_at = now(),
+                   attempts = CASE WHEN status IN ('loading', 'cleaning') AND heartbeat_at IS NOT NULL THEN attempts + 1 ELSE attempts END,
                    status = CASE WHEN status = 'queued' THEN 'loading' ELSE status END, updated_at = now()
             WHERE id = (
                 SELECT id FROM importing.jobs
@@ -561,4 +568,7 @@ def run_forever(url: str) -> None:
                         process(conn, job)
         except psycopg.Error as error:
             log("WARN", "database unavailable, trying again", error=str(error))
+            time.sleep(5)
+        except Exception as error:  # anything else must not end the thread: the service would look healthy and never work again
+            log("ERROR", "the worker loop failed, trying again", error_type=type(error).__name__, error=str(error), trace=traceback.format_exc())
             time.sleep(5)

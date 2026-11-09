@@ -27,6 +27,22 @@ class ServerTest(unittest.TestCase):
             self.assertEqual(res.status, 200)
             self.assertEqual(json.load(res), {"ok": True, "service": "importing-lists"})
 
+    def test_health_fails_when_the_worker_thread_has_stopped(self) -> None:
+        class Gone:
+            def is_alive(self) -> bool:
+                return False
+
+        server.worker_thread = Gone()
+        try:
+            status, body = server.route("GET", "/healthz")
+        finally:
+            server.worker_thread = None
+        self.assertEqual(status, 503)
+        self.assertFalse(body["ok"])
+
+    def test_a_stalled_sender_is_cut_off(self) -> None:
+        self.assertEqual(server.Handler.timeout, 60)
+
     def test_version_is_reported(self) -> None:
         status, body = server.route("GET", "/version")
         self.assertEqual(status, 200)
