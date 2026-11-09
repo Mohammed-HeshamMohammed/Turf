@@ -33,6 +33,7 @@ import { useCrm } from "./context.jsx";
 import { CallAssistant } from "./CallAssistant.jsx";
 import { CallTimer } from "./CallTimer.jsx";
 import { CallLog } from "./CallLog.jsx";
+import { ReadyModeImport } from "./ReadyModeImport.jsx";
 import { smsRecipient } from "./sms.ts";
 import { beginDemoCall, clearCallOutcome, endDemoCall, getCallSession, setCallSession, useCallSession } from "./callSession.ts";
 import {
@@ -134,6 +135,7 @@ export function Calls({ target }) {
   const smsDraft = smsDrafts[smsLeadId] || "";
   const autoEligible = leads.filter(item => item.phone?.trim() && canEditLead(state, item.id));
   if (!capability(state, "call")) return <Empty title="Calling is outside this role">Your workspace only shows the actions available to you.</Empty>;
+  if (new URLSearchParams(route.split("?")[1]).get("view") === "import" && state.remote && capability(state, "import")) return <ReadyModeImport />;
   function sendCallSms(event) {
     event.preventDefault();
     if (!smsLead || !smsDraft.trim() || !capability(state, "message")) return;
@@ -471,6 +473,12 @@ export function Calls({ target }) {
 function callTime(at) {
   return at ? new Date(at + ":00Z").toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" }) : "";
 }
+function CallHistoryDetail({ item }) {
+  return <>
+    {item.notes && <p className="muted">{item.notes}</p>}
+    {item.source === "readymode" && <small>ReadyMode{item.phone ? " · " + item.phone : ""}{item.details?.phones?.length > 1 ? " · Other numbers: " + item.details.phones.slice(1).join(", ") : ""}{item.details?.recording_started_at ? " · Recording logged " + new Date(item.details.recording_started_at).toLocaleString() : ""}</small>}
+  </>;
+}
 /** The call history rows on their own, for places that already have a card around them. */
 function CallHistoryList({ calls }) {
   if (!calls.length) return <Empty title="Not called yet">Outcomes you record appear here with their time and next call.</Empty>;
@@ -485,6 +493,7 @@ function CallHistoryList({ calls }) {
           {callTime(item.at)} · {item.agent}
           {item.scheduled ? " · next call " + callTime(item.scheduled) : ""}
         </small>
+        <CallHistoryDetail item={item} />
       </div>
     </div>
   ));
@@ -507,6 +516,7 @@ export function CallHistory({ calls }) {
               {callTime(item.at)} · {item.agent}
               {item.scheduled ? " · next call " + callTime(item.scheduled) : ""}
             </small>
+            <CallHistoryDetail item={item} />
           </div>
         </div>
       ))}

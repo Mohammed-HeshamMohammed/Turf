@@ -18,6 +18,8 @@ export type ImportJob = {
   error: string;
   loaded_rows: number;
   merged_rows: number;
+  kind?: "lead_list" | "readymode_calls";
+  source_timezone?: string;
   received?: number[];
 };
 
@@ -33,7 +35,7 @@ export type ImportColumn = {
 };
 
 export type ImportApi = {
-  start(body: { filename: string; size: number; name?: string; project_id?: string; has_header?: boolean }): Promise<ImportJob>;
+  start(body: { filename: string; size: number; name?: string; project_id?: string; has_header?: boolean; kind?: string; source_timezone?: string }): Promise<ImportJob>;
   get(id: string): Promise<ImportJob>;
   piece(id: string, n: number, bytes: ArrayBuffer, sha256: string, signal?: AbortSignal): Promise<unknown>;
   complete(id: string): Promise<ImportJob>;
@@ -60,7 +62,7 @@ export const IMPORT_FIELDS: [string, string][] = [
 ];
 
 /** The statuses where the server waits for the person (or has finished), so following the import can pause. */
-export const WAITING = ["mapping", "reviewing", "ready", "done", "failed", "cancelled"];
+export const WAITING = ["mapping", "reviewing", "ready", "call_ready", "done", "failed", "cancelled"];
 
 export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
@@ -111,6 +113,8 @@ export const importApi: ImportApi = {
 export type UploadOptions = {
   name?: string;
   projectId?: string;
+  kind?: "lead_list" | "readymode_calls";
+  sourceTimezone?: string;
   hasHeader?: boolean;
   /** Carry on an upload that was interrupted. */
   resumeId?: string;
@@ -134,6 +138,8 @@ export async function uploadFile(file: Blob & { name: string }, options: UploadO
         name: options.name,
         project_id: options.projectId,
         has_header: options.hasHeader,
+        kind: options.kind,
+        source_timezone: options.sourceTimezone,
       });
   if (job.status !== "uploading") return job;
   const held = new Set(job.received ?? []);

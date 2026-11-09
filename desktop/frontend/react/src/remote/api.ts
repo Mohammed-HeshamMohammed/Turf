@@ -121,7 +121,7 @@ export const api = {
   /** List uploads (docs/plans/crm-core-and-imports.md). The pieces themselves go through remote/imports.ts. */
   imports: {
     start: (body): Promise<any> => request("POST", "/api/v1/imports", body),
-    list: (): Promise<any[]> => request("GET", "/api/v1/imports"),
+    list: (kind = "lead_list"): Promise<any[]> => request("GET", `/api/v1/imports?kind=${encodeURIComponent(kind)}`),
     get: (id: string): Promise<any> => request("GET", `/api/v1/imports/${id}`),
     rows: (id: string, offset = 0): Promise<any> => request("GET", `/api/v1/imports/${id}/rows?offset=${offset}`),
     complete: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/complete`),
@@ -129,6 +129,7 @@ export const api = {
     duplicates: (id: string, offset = 0): Promise<any> => request("GET", `/api/v1/imports/${id}/duplicates?offset=${offset}`),
     decide: (id: string, body): Promise<any> => request("POST", `/api/v1/imports/${id}/duplicates`, body),
     merge: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/merge`),
+    applyCalls: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/apply-calls`),
     retry: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/retry`),
     cancel: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/cancel`),
     remove: (id: string): Promise<any> => request("DELETE", `/api/v1/imports/${id}`),
