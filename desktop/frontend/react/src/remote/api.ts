@@ -93,6 +93,10 @@ export async function request(method: string, path: string, body?: unknown, { ba
 }
 
 export const api = {
+  /** The learning copy of imported lists: whether it is on for this workspace, and the administrator's choice. */
+  learningStatus: (): Promise<any> => request("GET", "/api/v1/learning"),
+  learningOptOut: (): Promise<any> => request("POST", "/api/v1/learning/opt-out", {}),
+  learningOptIn: (): Promise<any> => request("POST", "/api/v1/learning/opt-in", {}),
   me: (select = false) => request("GET", "/api/v1/me", undefined, { includeOrganization: select }),
   /** The person's invitation from Caller Whale (activated on the first visit with a confirmed email), credits and download. */
   account: () => request("GET", "/api/v1/account"),

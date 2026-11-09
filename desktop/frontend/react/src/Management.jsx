@@ -15,6 +15,7 @@ import {
 import { ROLES } from "./data.ts";
 import { capability, visibleLeads, visibleTasks } from "./model.ts";
 import { useCrm } from "./context.jsx";
+import { LearningChoice } from "./LearningChoice.jsx";
 import { Badge, Select, Button, Card, Empty, Field, Modal, PageHeader, Person, Segmented, DataTable, Status, downloadCsv, money, useTableView } from "./ui.jsx";
 
 export function Reports() {
@@ -374,6 +375,7 @@ export function Settings({ section = "workspace" }) {
           </Button>
         ))}
       </div>
+      {section === "workspace" && state.remote && capability(state, "admin") && <LearningChoice notify={notify} />}
       {section === "workspace" && (
         <div className="two-columns">
           <Card title="Workspace details">
