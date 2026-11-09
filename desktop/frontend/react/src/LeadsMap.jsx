@@ -74,7 +74,7 @@ export function LeadsMap({ leads }) {
   // The map itself, once.
   useEffect(() => {
     if (!state.online || !host.current) return undefined;
-    let map,
+    let map, observer,
       disposed = false;
     const pins = pinsRef.current;
     import("leaflet")
@@ -103,12 +103,16 @@ export function LeadsMap({ leads }) {
           ]);
         };
         map.on("moveend zoomend", report);
-        new ResizeObserver(() => map.invalidateSize({ animate: false })).observe(host.current);
+        observer = new ResizeObserver(() => {
+          if (!disposed && mapRef.current === map && map.getPane("mapPane")) map.invalidateSize({ animate: false });
+        });
+        observer.observe(host.current);
         report();
       })
       .catch(() => !disposed && setMapState("The map could not load · the list still works"));
     return () => {
       disposed = true;
+      observer?.disconnect();
       map?.remove();
       mapRef.current = null;
       layerRef.current = null;
