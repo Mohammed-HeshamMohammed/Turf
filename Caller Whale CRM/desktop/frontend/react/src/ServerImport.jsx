@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { UploadSimple } from "@phosphor-icons/react";
 import { api } from "./remote/api.ts";
 import { IMPORT_FIELDS, follow, mappingBody, mappingProblem, uploadFile } from "./remote/imports.ts";
-import { Badge, Button, Checkbox, Field, Modal, Select } from "./ui.jsx";
+import { Badge, Button, Card, Checkbox, Field, Modal, Select } from "./ui.jsx";
 
 // A list kept on Caller Whale's server (web CRM): sent in pieces, read and cleaned there, confirmed here, then added to the leads.
 // Big lists take minutes, so closing this window does not stop anything; the list shows up under "Imports in progress" to continue.
@@ -17,7 +17,7 @@ const WORKING = {
 const number = (value) => Number(value || 0).toLocaleString();
 const megabytes = (bytes) => (bytes / 1048576 >= 10 ? Math.round(bytes / 1048576).toLocaleString() : (bytes / 1048576).toFixed(1)) + " MB";
 
-export function ServerImport({ resume = "", initialFile = null, onClose, onFinished }) {
+export function ServerImport({ resume = "", initialFile = null, inline = false, onClose, onFinished, onContinueInList }) {
   const [file, setFile] = useState(initialFile);
   const [name, setName] = useState(initialFile ? initialFile.name.replace(/\.[^.]+$/, "") : "");
   const [header, setHeader] = useState(true);
@@ -26,6 +26,8 @@ export function ServerImport({ resume = "", initialFile = null, onClose, onFinis
   const [error, setError] = useState("");
   const [choices, setChoices] = useState({});
   const [repeats, setRepeats] = useState(null);
+  const [repeatLimit, setRepeatLimit] = useState(12);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [busy, setBusy] = useState(false);
   const input = useRef(null);
   const stop = useRef(new AbortController());
@@ -34,6 +36,10 @@ export function ServerImport({ resume = "", initialFile = null, onClose, onFinis
   async function track(id) {
     try {
       const next = await follow(id, setJob, { signal: stop.current.signal });
+      if (["reviewing", "ready"].includes(next.status) && onContinueInList && next.project_id) {
+        onContinueInList(next);
+        return;
+      }
       if (next.status === "reviewing") setRepeats(await api.imports.duplicates(id));
       if (next.status === "done") onFinished?.(next);
     } catch (reason) {
@@ -95,24 +101,31 @@ export function ServerImport({ resume = "", initialFile = null, onClose, onFinis
   const columns = job?.columns ?? [];
   const problem = status === "mapping" ? mappingProblem(columns, choices) : "";
   const report = job?.report ?? {};
+  const repeatGroups = Object.values((repeats?.rows ?? []).reduce((groups, row) => {
+    (groups[row.group_id] ??= []).push(row);
+    return groups;
+  }, {}));
+  const lastLoadedGroup = repeats?.rows?.at(-1)?.group_id;
+  async function showMoreRepeats() {
+    if (!repeats || loadingMore) return;
+    if (repeatLimit < repeatGroups.length) return setRepeatLimit(current => current + 12);
+    if (repeats.rows.length >= repeats.total) return;
+    setLoadingMore(true);
+    try {
+      const page = await api.imports.duplicates(job.id, repeats.rows.length);
+      setRepeats(current => ({ ...current, total: page.total, rows: [...current.rows, ...page.rows] }));
+      setRepeatLimit(current => current + 12);
+    } catch (reason) {
+      setError(reason.message || "More rows could not be loaded.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
-  return (
-    <Modal
-      title={
-        status === "mapping"
-          ? "What is in each column?"
-          : status === "reviewing"
-            ? "Some rows repeat"
-            : status === "ready"
-              ? "Ready to add"
-              : status === "done"
-                ? "List added"
-                : "Upload a list"
-      }
-      onClose={status === "uploading" || sent ? cancel : onClose}
-    >
+  const title = status === "mapping" ? "What is in each column?" : status === "reviewing" ? "Review possible repeats" : status === "ready" ? "Ready to add" : status === "done" ? "List added" : "Upload a list";
+  const content = (
       <div className="server-import">
-        {!job && !sent && (
+        {!job && !sent && !resume && (
           <>
             <p className="muted">CSV, TXT, XLSX or XLS. Big lists are fine: they are sent in pieces and read on Caller Whale's server, one at a time.</p>
             <input
@@ -147,6 +160,7 @@ export function ServerImport({ resume = "", initialFile = null, onClose, onFinis
             </div>
           </>
         )}
+        {!job && resume && !error && <p className="muted">Loading this source list import…</p>}
 
         {working && (
           <div className="job-progress">
@@ -227,16 +241,33 @@ export function ServerImport({ resume = "", initialFile = null, onClose, onFinis
               {number(report.near_groups)} {report.near_groups === 1 ? "group may contain" : "groups may contain"} repeat leads.
               Names match along with a phone number, email, or address. Choose what happens to these rows.
             </p>
-            <ul className="import-repeats">
-              {(repeats?.rows ?? []).slice(0, 8).map((row) => (
-                <li key={row.row_no}>
-                  <strong>{row.name || row.phone || row.email || "Row " + row.row_no}</strong>
-                  <small>{[row.phone, row.email, row.address].filter(Boolean).join(" · ")}</small>
-                  {row.match_lead && <Badge>{row.match_name ? "Already a lead: " + row.match_name : "Matches a lead"}</Badge>}
-                </li>
+            <div className="import-repeat-groups">
+              {repeatGroups.slice(0, repeatLimit).map(group => (
+                <section className="import-repeat-group" key={group[0].group_id}>
+                  <header><strong>Possible repeat {group[0].group_id}</strong><small>{group.length} {group.length === 1 ? "row" : "rows"}</small></header>
+                  {repeats.rows.length < repeats.total && group[0].group_id === lastLoadedGroup &&
+                    <p className="muted">More rows in this group may be on the next page. Load them before deciding.</p>}
+                  <ul className="import-repeats">
+                    {group.map(row => (
+                      <li key={row.row_no}>
+                        <strong>{row.name || row.phone || row.email || "Row " + row.row_no}</strong>
+                        <small>{[row.phone, row.email, row.address].filter(Boolean).join(" · ")}</small>
+                        {row.match_lead && <Badge>{row.match_name ? "Already a lead: " + row.match_name : "Matches a lead"}</Badge>}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="import-repeat-actions">
+                    <Button disabled={busy || (repeats.rows.length < repeats.total && group[0].group_id === lastLoadedGroup)} onClick={() => act(() => api.imports.decide(job.id, { decisions: [{ group_id: group[0].group_id, action: "skip" }] }))}>Leave out</Button>
+                    <Button disabled={busy || (repeats.rows.length < repeats.total && group[0].group_id === lastLoadedGroup)} onClick={() => act(() => api.imports.decide(job.id, { decisions: [{ group_id: group[0].group_id, action: "import" }] }))}>Keep separate</Button>
+                    <Button disabled={busy || (repeats.rows.length < repeats.total && group[0].group_id === lastLoadedGroup)} onClick={() => act(() => api.imports.decide(job.id, { decisions: [{ group_id: group[0].group_id, action: "merge" }] }))}>Merge</Button>
+                  </div>
+                </section>
               ))}
-            </ul>
-            {repeats && repeats.total > 8 && <small className="muted">and {number(repeats.total - 8)} more rows</small>}
+            </div>
+            {!repeats && <p className="muted">Loading possible repeats…</p>}
+            {repeats && (repeatLimit < repeatGroups.length || repeats.rows.length < repeats.total) &&
+              <Button disabled={loadingMore} onClick={showMoreRepeats}>{loadingMore ? "Loading…" : "Show more possible repeats"}</Button>}
+            {repeats && <small className="muted">Showing {number(Math.min(repeats.rows.length, repeats.total))} of {number(repeats.total)} rows needing a decision.</small>}
             {error && (
               <p className="notice" role="alert">
                 {error}
@@ -302,7 +333,7 @@ export function ServerImport({ resume = "", initialFile = null, onClose, onFinis
             </p>
             <div className="import-actions">
               <Button variant="primary" onClick={onClose}>
-                Done
+                {inline ? "View source list" : "Done"}
               </Button>
             </div>
           </>
@@ -324,6 +355,8 @@ export function ServerImport({ resume = "", initialFile = null, onClose, onFinis
           </p>
         )}
       </div>
-    </Modal>
   );
+  return inline
+    ? <Card title={title} subtitle={job?.name ? `Importing into ${job.name}` : undefined} className="source-import-review">{content}</Card>
+    : <Modal title={title} onClose={status === "uploading" || sent ? cancel : onClose}>{content}</Modal>;
 }
