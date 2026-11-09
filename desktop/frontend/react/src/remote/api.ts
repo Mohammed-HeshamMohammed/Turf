@@ -113,6 +113,8 @@ export const api = {
   deleteProject: (id: string): Promise<any> => request("DELETE", `/api/v1/projects/${id}`, undefined, { timeout: 120000 }),
   settings: () => request("GET", "/api/v1/settings"),
   snapshot: () => request("GET", "/sync/snapshot", undefined, { timeout: 60000 }),
+  /** Leads of a big workspace beyond the snapshot's window: by name, phone, email or address. */
+  searchLeads: (term: string): Promise<any> => request("GET", `/api/v1/leads/search?q=${encodeURIComponent(term)}&limit=100`),
   pull: (cursor, accessRevision) => request("GET", `/sync/pull?cursor=${cursor}&access_revision=${accessRevision}`),
   push: (operations, accessRevision) => request("POST", "/sync/push", { operations, access_revision: accessRevision }, { timeout: 60000 }),
   op: operation => request("POST", "/api/v1/ops", operation),

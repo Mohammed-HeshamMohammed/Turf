@@ -134,6 +134,16 @@ export class SyncEngine {
     await this.save();
   }
 
+  /** Looks a lead up on the server and holds what it finds, so a workspace bigger than this device's window can still be searched. */
+  async searchLeads(term) {
+    const found = await this.api.searchLeads(term);
+    if (!this.store) return;
+    const leads = { ...this.store.leads };
+    for (const lead of found.leads || []) leads[lead.id] = lead;
+    this.store = { ...this.store, leads };
+    this.emit();
+  }
+
   /** Fetches the workspace's lists again, so a list that was just uploaded shows up without signing in again. */
   async refreshProjects() {
     const projects = await this.api.projects();
