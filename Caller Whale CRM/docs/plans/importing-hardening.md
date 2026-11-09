@@ -28,6 +28,20 @@ Done: 7 (lock file `requirements.lock`, used by the Dockerfile), 9 (tests for th
 - **Formula safety in exports** (cells starting with `=`, `+`, `-`, `@`) when exports of imported data exist.
 - **Server disk alert** in Coolify, or a separate disk for the imports volume.
 
+## D. Learning store (proposed 2026-11-10, waiting for the owner to confirm)
+
+The owner's wishes: imported data is not deleted by the system (only when the customer deletes it); the system learns from it, so it moves out of the working database into a separate store; what it learns is how leads were handled (the flags callers and users give), column mapping, data quality rules and models for early feedback on new leads; everything stored is masked and hashed; only the platform owners can read it back; when a customer deletes, only a derived copy that helps suggestions stays, not the full data.
+
+Open point: "hashed" and "decrypted by the owners" are different things. A hash cannot be turned back; encryption can. Proposed design that keeps both wishes:
+
+- **A separate PostgreSQL database `learning`** in its own container with its own login. Neither crm-core nor the importing worker can read it; the worker may only add to it. Backed up apart.
+- **Tier 1, always kept (learned copy):** per imported lead a keyed hash (HMAC with a secret only the platform owners hold) of phone and email, the shape of the name and address (street number removed; city, state, ZIP kept), field completeness, the property details, which list and which column mapping, and later the flags: stage, verdict, call outcomes, do-not-call. No real phone, email or street address. This is what suggestions and models learn from; nothing has to be decrypted.
+- **Tier 2, only if wanted (readable by owners):** the raw row encrypted with a key held only by the platform owners. It is deleted when the customer deletes the list, the lead or the workspace; tier 1 stays.
+- **Moving:** when an import is merged, its holding rows are copied to the learning store, then deleted from the working database after a short grace period (so a failed copy can be retried). The working database keeps the leads and the import report only.
+- **Customer deletes:** tier 2 goes, tier 1 stays (as the owner asked), and the customer's copy in the working database goes.
+
+Risk to settle before launch (not legal advice): the leads are other people's personal details (phone, address). Keeping even hashed copies for our own learning makes Caller Whale more than a processor for them. The terms and privacy notice must say so, say what is kept after deletion and for what, and a customer must be able to ask for the learned copy to be removed (tier 1 rows carry a workspace id so they can be). A lawyer should read the terms before this ships.
+
 ## Order
 
 A1 to A4 together (one change, one test each), then B5 and B6, then B7 to B10, then the decisions in C.
