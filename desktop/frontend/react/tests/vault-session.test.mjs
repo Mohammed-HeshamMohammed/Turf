@@ -14,6 +14,10 @@ test("an encrypted device copy resumes only in its signed-in tab session", async
   try {
     const first = await Vault.unlock("a long device password for this test", user, "auth-session-one");
     await first.put("store", { organizationId: "workspace-one", leads: { one: { id: "one" } } });
+    const large = { organizationId: "workspace-one", notes: Array.from({ length: 20_000 }, (_, n) => ({ id: n, text: "Call note and imported row " + n })) };
+    await first.put("store", large);
+    assert.equal((await first.get("store")).notes.length, 20_000);
+    await first.put("store", { organizationId: "workspace-one", leads: { one: { id: "one" } } });
     await first.enqueue({ id: "pending-one", status: "Pending" });
 
     const resumed = await Vault.resume(user, "auth-session-one");
