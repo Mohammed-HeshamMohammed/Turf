@@ -77,17 +77,21 @@ export function Lists({ id }) {
     if (!removeTarget || removing) return;
     setRemoving(true);
     try {
+      let removedLeads = 0;
       if (removeTarget.kind === "import") {
         await api.imports.remove(removeTarget.item.id);
         setRunning(current => current.filter(item => item.id !== removeTarget.item.id));
         setRecentFailures(current => current.filter(item => item.id !== removeTarget.item.id));
       } else {
-        await api.deleteProject(removeTarget.item.id);
+        const result = await api.deleteProject(removeTarget.item.id);
+        removedLeads = result.deleted_leads || 0;
         setRunning(current => current.filter(item => item.project_id !== removeTarget.item.id));
         setRecentFailures(current => current.filter(item => item.project_id !== removeTarget.item.id));
+        if (id === removeTarget.item.id) navigate("lists");
       }
       dispatch({ type: "REFRESH_LISTS" });
-      notify(removeTarget.kind === "import" ? "Import and its uploaded file removed" : "Empty source list removed");
+      dispatch({ type: "SYNC" });
+      notify(removeTarget.kind === "import" ? "Import and its uploaded file removed" : `Source list and ${removedLeads.toLocaleString()} leads deleted`);
       setRemoveTarget(null);
     } catch (reason) {
       setError(reason.message || "This could not be removed. Try again.");
@@ -232,6 +236,9 @@ export function Lists({ id }) {
               Open in Skip Tracing
             </Button>
           )}
+          {remote && capability(state, "admin") && (
+            <button className="text-button" onClick={() => setRemoveTarget({ kind: "project", item: dataset })}><Trash size={16} /> Delete list</button>
+          )}
         </PageHeader>
         <div className="list-context">
           <Status value={dataset.status} />
@@ -349,6 +356,9 @@ export function Lists({ id }) {
               </div>
               <footer>
                 {item.team && <Badge>{item.team}</Badge>}
+                {remote && capability(state, "admin") && (
+                  <button className="text-button" onClick={() => setRemoveTarget({ kind: "project", item })}><Trash size={16} /> Delete list</button>
+                )}
                 <Button onClick={() => navigate("lists/" + item.id)}>
                   Open list <ArrowRight size={16} />
                 </Button>
@@ -400,7 +410,7 @@ export function Lists({ id }) {
       )}
       {removeTarget && (
         <ConfirmDialog
-          title={removeTarget.kind === "import" ? "Remove this import?" : "Delete this empty source list?"}
+          title={removeTarget.kind === "import" ? "Remove this import?" : "Delete this source list and its leads?"}
           confirmLabel={removing ? "Removing…" : "Remove"}
           danger
           onClose={() => !removing && setRemoveTarget(null)}
@@ -408,7 +418,7 @@ export function Lists({ id }) {
         >
           {removeTarget.kind === "import"
             ? "The uploaded file, import history and unfinished rows will be removed. Its empty source list will also disappear if nothing else uses it. Leads already added to the CRM stay."
-            : "This empty source list and its finished or failed import attempts will be removed. No leads will be deleted."}
+            : `This permanently deletes every lead in ${removeTarget.item.name}, its source rows, related CRM records, and finished or failed import attempts. It cannot be undone.`}
         </ConfirmDialog>
       )}
     </>
