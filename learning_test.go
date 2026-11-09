@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -167,5 +168,66 @@ func TestTheStoreHoldsHashesAndShapesAndHonoursErasure(t *testing.T) {
 	}
 	if status, _ := call("DELETE", "/v1/workspaces/"+org, nil, good); status != 200 {
 		t.Fatalf("erase while off: %d", status)
+	}
+}
+
+func TestStatsStatusAndErasingAPersonEverywhere(t *testing.T) {
+	url := os.Getenv("LEARNING_TEST_URL")
+	if url == "" {
+		t.Skip("set LEARNING_TEST_URL to run the database test")
+	}
+	ctx := context.Background()
+	st, err := openStore(ctx, url, hasher{key: bytes.Repeat([]byte{9}, 32)}, 24*time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.db.Close()
+	if _, err = st.db.Exec(ctx, `TRUNCATE learning.leads, learning.workspaces, learning.mappings, learning.audit`); err != nil {
+		t.Fatal(err)
+	}
+	s := &server{st: st, token: strings.Repeat("t", 32), enabled: true}
+	ts := httptest.NewServer(s.handler())
+	defer ts.Close()
+	call := func(method, path string, body any) map[string]any {
+		raw, _ := json.Marshal(body)
+		req, _ := http.NewRequest(method, ts.URL+path, bytes.NewReader(raw))
+		req.Header.Set("Authorization", "Bearer "+strings.Repeat("t", 32))
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		out := map[string]any{}
+		_ = json.NewDecoder(res.Body).Decode(&out)
+		return out
+	}
+	orgA, orgB := "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+	for i, org := range []string{orgA, orgB} {
+		job := fmt.Sprintf("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb0%d", i)
+		call("POST", "/v1/ingest", map[string]any{"org_id": org, "job_id": job, "rows": []map[string]any{{"row_no": 1, "phone": "512-555-0100"}, {"row_no": 2, "phone": "512-555-0199"}}})
+	}
+	if out := call("GET", "/v1/stats", nil); out["rows"] != float64(4) || out["workspaces"] != float64(2) || out["imports"] != float64(2) {
+		t.Fatalf("stats: %v", out)
+	}
+	if out := call("GET", "/v1/workspaces/"+orgA, nil); out["opted_out"] != false || out["enabled"] != true {
+		t.Fatalf("status: %v", out)
+	}
+	if out := call("POST", "/v1/erase-everywhere", map[string]any{"phone": "(512) 555-0100"}); out["erased"] != float64(2) {
+		t.Fatalf("erase everywhere: %v", out)
+	}
+	if out := call("GET", "/v1/stats", nil); out["rows"] != float64(2) {
+		t.Fatalf("after: %v", out)
+	}
+	call("POST", "/v1/workspaces/"+orgA+"/opt-out", nil)
+	if out := call("GET", "/v1/workspaces/"+orgA, nil); out["opted_out"] != true {
+		t.Fatalf("status after opt-out: %v", out)
+	}
+}
+
+func TestTheSamePhoneHashesDifferentlyInEveryWorkspace(t *testing.T) {
+	h := hasher{key: bytes.Repeat([]byte{7}, 32)}
+	a, b := h.forOrg("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"), h.forOrg("cccccccc-cccc-4ccc-8ccc-cccccccccccc")
+	if bytes.Equal(a.phone("5125550100"), b.phone("5125550100")) || !bytes.Equal(a.phone("5125550100"), a.phone("(512) 555-0100")) {
+		t.Fatal("hashes must differ between workspaces and agree within one")
 	}
 }
