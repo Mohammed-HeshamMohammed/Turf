@@ -1,6 +1,7 @@
 """The import worker. It takes one queued upload at a time, loads it into the holding tables in the CRM database (rows as text, exactly as
-they came), drops identical rows, tells the person which column is which, and after they confirm, cleans phones, emails and addresses
-and finds rows that repeat each other or a lead already in the CRM. Merging into leads is crm-core's job, not this program's: the
+they came), drops identical rows within the upload, tells the person which column is which, and after they confirm, cleans phones,
+emails and addresses. Rows identical to a prior completed import are linked automatically; changed rows can still need a decision.
+Merging into leads is crm-core's job, not this program's: the
 database login this runs under can write only the holding tables and read only the few lead fields repeats are matched on.
 
 Heavy steps run inside polars (parsing, building rows) or PostgreSQL (fingerprints, cleaning, joins); Python only moves batches.
@@ -50,7 +51,7 @@ def claim(conn: psycopg.Connection) -> dict | None:
                   AND (status = 'queued' OR (status IN ('loading', 'cleaning') AND (heartbeat_at IS NULL OR heartbeat_at < now() - {STALE})))
                   AND NOT EXISTS (SELECT 1 FROM importing.jobs busy WHERE busy.status IN ('loading', 'cleaning') AND busy.heartbeat_at >= now() - {STALE})
                 ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
-            RETURNING id::text, org_id::text, filename, size, total_chunks, has_header, status, loaded_rows, report, columns""", (WORKER,))
+            RETURNING id::text, org_id::text, user_id::text, filename, size, total_chunks, has_header, status, loaded_rows, report, columns""", (WORKER,))
         job = cur.fetchone()
     conn.commit()
     return job
@@ -255,16 +256,22 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
             done += cur.rowcount
             beat(cur, job_id, "cleaning", done)
         conn.commit()
+    exact_existing = skip_identical_prior_rows(conn, job)
     groups = find_repeats(conn, job)
     dropped = [c["header"] for c in columns if not c.get("used")]
     with conn.cursor() as cur:
-        cur.execute("SELECT count(*) FILTER (WHERE state = 'skip'), count(*) FILTER (WHERE state = 'clean' AND phone IS NULL AND email IS NULL) FROM importing.rows WHERE job_id = %s", (job_id,))
+        cur.execute("""SELECT count(*) FILTER (WHERE state = 'skip' AND lead_id IS NULL),
+                              count(*) FILTER (WHERE state = 'clean' AND phone IS NULL AND email IS NULL),
+                              count(*) FILTER (WHERE state IN ('clean', 'import', 'merge'))
+                       FROM importing.rows WHERE job_id = %s""", (job_id,))
         no_contact_row = cur.fetchone()
         report = dict(job["report"] or {})
-        report.update(unusable_rows=no_contact_row[0], without_phone_or_email=no_contact_row[1], near_groups=groups, dropped_columns=dropped)
+        report.update(unusable_rows=no_contact_row[0], without_phone_or_email=no_contact_row[1], near_groups=groups,
+                      exact_existing=exact_existing, dropped_columns=dropped)
+        status = "reviewing" if groups else "done" if exact_existing and no_contact_row[0] == 0 and no_contact_row[2] == 0 else "ready"
         cur.execute("""UPDATE importing.jobs SET status = %s, report = %s::jsonb, worker = NULL, heartbeat_at = NULL, progress = %s::jsonb, updated_at = now()
                        WHERE id = %s AND status = 'cleaning'""",
-                    ("reviewing" if groups else "ready", json.dumps(report), json.dumps({"phase": "reviewing" if groups else "ready", "done": done}), job_id))
+                    (status, json.dumps(report), json.dumps({"phase": status, "done": done}), job_id))
     conn.commit()
     log("INFO", "cleaned", job=job_id, rows=done, repeat_groups=groups)
 
@@ -303,6 +310,35 @@ def group_source_candidates(rows: list[tuple]) -> Groups:
             if key is not None:
                 groups.union(("r", row_no), first_with.setdefault((kind, key, person), ("r", row_no)))
     return groups
+
+
+def skip_identical_prior_rows(conn: psycopg.Connection, job: dict) -> int:
+    """Link an unchanged source row to its existing lead without asking for a repeat decision.
+
+    The fingerprint narrows the search; original values and ordered column headings must also agree.
+    Only completed imports with a surviving lead in this organization can supply a match.
+    """
+    headers = [column["header"] for column in job["columns"]]
+    with conn.cursor() as cur:
+        cur.execute("""
+            WITH identical AS (
+                SELECT DISTINCT ON (r.row_no) r.row_no, old.lead_id
+                FROM importing.rows r
+                JOIN importing.rows old ON old.fp = r.fp AND old.cells = r.cells
+                    AND old.lead_id IS NOT NULL AND old.job_id <> r.job_id
+                JOIN importing.jobs previous ON previous.id = old.job_id
+                    AND previous.org_id = %s::uuid AND previous.user_id = %s::uuid AND previous.status = 'done'
+                WHERE r.job_id = %s AND r.state = 'clean'
+                    AND (SELECT array_agg(c->>'header' ORDER BY n)
+                         FROM jsonb_array_elements(previous.columns) WITH ORDINALITY AS x(c, n)) = %s::text[]
+                ORDER BY r.row_no, previous.created_at DESC, old.row_no
+            )
+            UPDATE importing.rows r SET state = 'skip', lead_id = i.lead_id, match_lead = i.lead_id
+            FROM identical i WHERE r.job_id = %s AND r.row_no = i.row_no
+        """, (job["org_id"], job["user_id"], job["id"], headers, job["id"]))
+        count = cur.rowcount
+    conn.commit()
+    return count
 
 
 def find_repeats(conn: psycopg.Connection, job: dict) -> int:

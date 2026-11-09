@@ -263,6 +263,70 @@ class EndToEndTest(unittest.TestCase):
         # The queue moves on to the next import.
         self.assertEqual(self.worker.claim(self.conn)["id"], second)
 
+    def test_exact_prior_rows_are_linked_without_review_but_changed_rows_still_need_a_choice(self) -> None:
+        original = b"Name,Phone,Address\nPat Owner,5125550100,1 Main St\n"
+        prior = self.queue(original)
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        with self.conn.cursor() as cur:
+            cur.execute("""INSERT INTO crm.leads (org_id, name, phone)
+                           VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Pat Owner', '5125550100') RETURNING id""")
+            lead_id = cur.fetchone()[0]
+            cur.execute("UPDATE importing.rows SET state = 'merged', lead_id = %s WHERE job_id = %s", (lead_id, prior))
+            cur.execute("UPDATE importing.jobs SET status = 'done' WHERE id = %s", (prior,))
+        self.conn.commit()
+
+        current = self.queue(original + b"Pat Owner,5125550100,2 Main St\n")
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        columns = self.job(current)["columns"]
+        for column in columns:
+            column["field"], column["used"] = column["suggested"], column["suggested"] is not None
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE importing.jobs SET columns = %s::jsonb, status = 'cleaning' WHERE id = %s",
+                        (json.dumps(columns), current))
+        self.conn.commit()
+        self.worker.clean(self.conn, self.worker.claim(self.conn))
+
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT state, lead_id FROM importing.rows WHERE job_id = %s ORDER BY row_no", (current,))
+            rows = cur.fetchall()
+        self.conn.commit()
+        self.assertEqual(rows[0], ("skip", lead_id))
+        self.assertEqual(rows[1][0], "near_duplicate")
+        job = self.job(current)
+        self.assertEqual((job["status"], job["report"]["exact_existing"], job["report"]["near_groups"]),
+                         ("reviewing", 1, 1))
+        self.assertEqual(job["report"]["unusable_rows"], 0)
+
+        only_exact = self.queue(original)
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        columns = self.job(only_exact)["columns"]
+        for column in columns:
+            column["field"], column["used"] = column["suggested"], column["suggested"] is not None
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE importing.jobs SET columns = %s::jsonb, status = 'cleaning' WHERE id = %s",
+                        (json.dumps(columns), only_exact))
+        self.conn.commit()
+        self.worker.clean(self.conn, self.worker.claim(self.conn))
+        job = self.job(only_exact)
+        self.assertEqual((job["status"], job["report"]["exact_existing"], job["report"]["near_groups"]),
+                         ("done", 1, 0))
+
+        another_person = self.queue(original)
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE importing.jobs SET user_id = '22222222-2222-4222-8222-222222222222' WHERE id = %s",
+                        (another_person,))
+        self.conn.commit()
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        columns = self.job(another_person)["columns"]
+        for column in columns:
+            column["field"], column["used"] = column["suggested"], column["suggested"] is not None
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE importing.jobs SET columns = %s::jsonb, status = 'cleaning' WHERE id = %s",
+                        (json.dumps(columns), another_person))
+        self.conn.commit()
+        self.worker.clean(self.conn, self.worker.claim(self.conn))
+        self.assertEqual(self.job(another_person)["report"]["exact_existing"], 0)
+
     def test_shared_household_with_different_names_needs_no_repeat_review(self) -> None:
         with self.conn.cursor() as cur:
             cur.execute("""INSERT INTO crm.properties (org_id, address, city, postal_code)
