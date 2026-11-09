@@ -47,6 +47,9 @@ export async function call(command, payload = {}) {
 let available;
 /** Whether the engine can be reached. Asked once per page load. */
 export function engineAvailable() {
+  // Hosted CRM has no Python bridge. Its web server rejects /rpc with 405.
+  if (!inDesktop && typeof window !== "undefined" && !["localhost", "127.0.0.1"].includes(window.location.hostname))
+    return Promise.resolve(false);
   available ??= call("health.check").then(
     () => true,
     () => false,

@@ -129,6 +129,7 @@ export const api = {
     duplicates: (id: string, offset = 0): Promise<any> => request("GET", `/api/v1/imports/${id}/duplicates?offset=${offset}`),
     decide: (id: string, body): Promise<any> => request("POST", `/api/v1/imports/${id}/duplicates`, body),
     merge: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/merge`),
+    retry: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/retry`),
     cancel: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/cancel`),
     remove: (id: string): Promise<any> => request("DELETE", `/api/v1/imports/${id}`),
   },
