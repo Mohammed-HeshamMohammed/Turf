@@ -118,7 +118,8 @@ Decisions:
 
 - **Leads stay on the server.** Lists, search, filters and sort are server queries that return one page (about 50 rows) and a total count. The browser holds only the page in view.
 - **The snapshot no longer carries leads.** It keeps the small collections (tasks, notes, deals, team) and the leads come in pages.
-- **Offline is small and optional.** The offline copy covers only the person's own work (their assigned leads, notes and tasks), with a size cap, never the whole workspace. Skipping the offline copy costs nothing.
+- **The web CRM has no offline mode** (decided 2026-11-10): no device password, nothing kept on the computer; the screen is skipped (`RemoteGate.jsx`). Offline stays in the desktop app only.
+- **In the desktop app, offline is small and optional.** The offline copy covers only the person's own work (their assigned leads, notes and tasks), with a size cap, never the whole workspace. Skipping the offline copy costs nothing.
 - **No calls can be made offline.** Starting a call needs the connection: the call buttons are off while the CRM is offline, and the offline copy needs no call queue. Notes, tasks and outcomes of earlier calls can still be written offline and sync later.
 - **A finished import does not touch devices.** Devices show a "new list ready" notice and pull leads only when the list is opened.
 - **Import dialog:** pick the file, check the column suggestions, one "Add to workspace" button; progress survives closing the tab. Repeat handling and cleaning stay on the server.

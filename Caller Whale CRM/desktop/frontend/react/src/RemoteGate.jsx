@@ -139,6 +139,8 @@ export function RemoteGate({ onReady, onLeave }) {
       if (identity.subscription && !identity.subscription.usable) return setStep("plan");
       // The choice made on this device the first time is remembered: no question on every visit.
       const owner = identity.user.id + ":" + identity.organization_id;
+      // The web CRM has no offline mode: nothing is kept on this computer, so there is no password to ask for. Only the desktop app offers it.
+      if (!inDesktopApp()) return onReady({ me: identity, vault: new MemoryVault(), persistent: false });
       if (readChoice(owner) === "online") return onReady({ me: identity, vault: new MemoryVault(), persistent: false });
       const resumed = await Vault.resume(identity.user.id, sessionPerson?.session_id);
       if (resumed) {
