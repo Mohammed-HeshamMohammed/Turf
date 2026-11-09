@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { UploadSimple } from "@phosphor-icons/react";
 import { api } from "./remote/api.ts";
 import { IMPORT_FIELDS, follow, mappingBody, mappingProblem, uploadFile } from "./remote/imports.ts";
-import { Badge, Button, Card, Checkbox, Field, Modal, Select } from "./ui.jsx";
+import { Badge, Breadcrumb, Button, Card, Checkbox, Field, PageHeader, Select } from "./ui.jsx";
 
-// A list kept on Caller Whale's server (web CRM): sent in pieces, read and cleaned there, confirmed here, then added to the leads.
-// Big lists take minutes, so closing this window does not stop anything; the list shows up under "Imports in progress" to continue.
+// One page for every step of a server import. The upload's project ID ties this page to its source list.
 
 const WORKING = {
   queued: "Waiting for its turn. One list is read at a time.",
@@ -17,7 +16,7 @@ const WORKING = {
 const number = (value) => Number(value || 0).toLocaleString();
 const megabytes = (bytes) => (bytes / 1048576 >= 10 ? Math.round(bytes / 1048576).toLocaleString() : (bytes / 1048576).toFixed(1)) + " MB";
 
-export function ServerImport({ resume = "", initialFile = null, inline = false, onClose, onFinished, onContinueInList }) {
+export function ServerImport({ resume = "", initialFile = null, projectId = null, projectName = "", onClose, onFinished, onStarted }) {
   const [file, setFile] = useState(initialFile);
   const [name, setName] = useState(initialFile ? initialFile.name.replace(/\.[^.]+$/, "") : "");
   const [header, setHeader] = useState(true);
@@ -31,15 +30,13 @@ export function ServerImport({ resume = "", initialFile = null, inline = false, 
   const [busy, setBusy] = useState(false);
   const input = useRef(null);
   const stop = useRef(new AbortController());
+  const uploading = useRef(false);
+  const startedRoute = useRef(false);
   useEffect(() => () => stop.current.abort(), []);
 
   async function track(id) {
     try {
       const next = await follow(id, setJob, { signal: stop.current.signal });
-      if (["reviewing", "ready"].includes(next.status) && onContinueInList && next.project_id) {
-        onContinueInList(next);
-        return;
-      }
       if (next.status === "reviewing") setRepeats(await api.imports.duplicates(id));
       if (next.status === "done") onFinished?.(next);
     } catch (reason) {
@@ -47,17 +44,35 @@ export function ServerImport({ resume = "", initialFile = null, inline = false, 
     }
   }
   useEffect(() => {
-    if (resume) void track(resume);
+    if (!resume || uploading.current) return;
+    void api.imports.get(resume).then(current => {
+      setJob(current);
+      if (current.status !== "uploading") void track(resume);
+    }).catch(reason => setError(reason.message || "This import could not be loaded."));
   }, [resume]);
 
   async function upload() {
     setError("");
+    if (job?.status === "uploading" && (file?.name !== job.filename || file?.size !== job.size)) {
+      setError("Choose the same file to resume this upload.");
+      return;
+    }
+    uploading.current = true;
     try {
       const queued = await uploadFile(file, {
         name: name.trim() || undefined,
         hasHeader: header,
+        projectId: projectId || undefined,
+        resumeId: job?.status === "uploading" ? job.id : undefined,
         signal: stop.current.signal,
-        onProgress: ({ sent: bytes, total, job: started }) => (setSent({ bytes, total }), setJob((current) => current ?? started)),
+        onProgress: ({ sent: bytes, total, job: started }) => {
+          setSent({ bytes, total });
+          setJob(current => current ?? started);
+          if (!resume && !startedRoute.current) {
+            startedRoute.current = true;
+            onStarted?.(started);
+          }
+        },
       });
       setSent(null);
       setJob(queued);
@@ -65,8 +80,9 @@ export function ServerImport({ resume = "", initialFile = null, inline = false, 
     } catch (reason) {
       if (reason?.name === "AbortError") return;
       setSent(null);
-      setJob(null);
       setError(reason.message || "The list could not be sent.");
+    } finally {
+      uploading.current = false;
     }
   }
 
@@ -88,11 +104,11 @@ export function ServerImport({ resume = "", initialFile = null, inline = false, 
     stop.current.abort();
     stop.current = new AbortController();
     if (job) await api.imports.cancel(job.id).catch(() => {});
-    onClose();
+    onClose(job);
   }
 
   const status = job?.status;
-  const working = sent || WORKING[status];
+  const working = sent || (status === "uploading" && !uploading.current ? null : WORKING[status]);
   const percent = sent
     ? Math.round((sent.bytes / sent.total) * 100)
     : status === "merging" && job.progress?.total
@@ -123,11 +139,13 @@ export function ServerImport({ resume = "", initialFile = null, inline = false, 
   }
 
   const title = status === "mapping" ? "What is in each column?" : status === "reviewing" ? "Review possible repeats" : status === "ready" ? "Ready to add" : status === "done" ? "List added" : "Upload a list";
+  const sourceListId = job?.project_id || projectId;
+  const canResumeUpload = status === "uploading" && !sent && !uploading.current;
   const content = (
       <div className="server-import">
-        {!job && !sent && !resume && (
+        {((!job && !resume) || canResumeUpload) && !sent && (
           <>
-            <p className="muted">CSV, TXT, XLSX or XLS. Big lists are fine: they are sent in pieces and read on Caller Whale's server, one at a time.</p>
+            <p className="muted">{canResumeUpload ? "Choose the same file to resume sending this list." : "CSV, TXT, XLSX or XLS. Big lists are sent in pieces and read on Caller Whale's server."}</p>
             <input
               ref={input}
               type="file"
@@ -149,13 +167,15 @@ export function ServerImport({ resume = "", initialFile = null, inline = false, 
                 </span>
               )}
             </div>
-            <Field label="List name">
+            {!canResumeUpload && <Field label="List name">
               <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Austin owners" maxLength={200} />
-            </Field>
-            <Checkbox checked={header} onChange={(event) => setHeader(event.target.checked)} label="The first row names each column" />
+            </Field>}
+            {!canResumeUpload && <Checkbox checked={header} onChange={(event) => setHeader(event.target.checked)} label="The first row names each column" />}
             <div className="import-actions">
+              <Button onClick={() => onClose(job)}>Back to source lists</Button>
+              {canResumeUpload && <Button onClick={cancel}>Cancel import</Button>}
               <Button variant="primary" disabled={!file} onClick={upload}>
-                Upload
+                {canResumeUpload ? "Resume upload" : "Upload"}
               </Button>
             </div>
           </>
@@ -168,11 +188,11 @@ export function ServerImport({ resume = "", initialFile = null, inline = false, 
             {percent === null ? <progress aria-label="Working" /> : <progress value={percent} max="100" aria-label={`${percent} percent`} />}
             <p>
               {sent &&
-                `${megabytes(sent.bytes)} of ${megabytes(sent.total)}. You can keep this window open or come back to it: nothing is lost if the connection drops.`}
+                `${megabytes(sent.bytes)} of ${megabytes(sent.total)}. You can leave this page and resume with the same file if the connection drops.`}
               {!sent && status === "loading" && job.loaded_rows > 0 && `${number(job.loaded_rows)} rows read so far.`}
               {!sent && status === "cleaning" && job.progress?.done > 0 && `${number(job.progress.done)} rows tidied so far.`}
-              {!sent && status === "merging" && `${number(job.merged_rows)} of ${number(job.progress?.total)} added. You can close this window; it carries on.`}
-              {!sent && ["queued", "loading", "cleaning"].includes(status) && " You can close this window; it carries on and shows under Imports in progress."}
+              {!sent && status === "merging" && `${number(job.merged_rows)} of ${number(job.progress?.total)} added. You can leave this page; it carries on.`}
+              {!sent && ["queued", "loading", "cleaning"].includes(status) && " You can leave this page; processing carries on in the background."}
             </p>
             <Button onClick={cancel}>{status === "merging" ? "Stop adding" : "Cancel this import"}</Button>
           </div>
@@ -332,8 +352,8 @@ export function ServerImport({ resume = "", initialFile = null, inline = false, 
               {number(job.merged_rows)} rows were added to <strong>{job.name}</strong>. They appear in your leads as they arrive.
             </p>
             <div className="import-actions">
-              <Button variant="primary" onClick={onClose}>
-                {inline ? "View source list" : "Done"}
+              <Button variant="primary" onClick={() => onClose(job)}>
+                View source list
               </Button>
             </div>
           </>
@@ -344,7 +364,7 @@ export function ServerImport({ resume = "", initialFile = null, inline = false, 
             <p role="alert">{job.error || (status === "cancelled" ? "This import was cancelled." : "This import could not be finished.")}</p>
             {status === "failed" && <p className="muted">Import ID: <code>{job.id}</code></p>}
             <div className="import-actions">
-              <Button onClick={onClose}>Close</Button>
+              <Button onClick={() => onClose(job)}>Back to source lists</Button>
             </div>
           </>
         )}
@@ -356,7 +376,9 @@ export function ServerImport({ resume = "", initialFile = null, inline = false, 
         )}
       </div>
   );
-  return inline
-    ? <Card title={title} subtitle={job?.name ? `Importing into ${job.name}` : undefined} className="source-import-review">{content}</Card>
-    : <Modal title={title} onClose={status === "uploading" || sent ? cancel : onClose}>{content}</Modal>;
+  return <>
+    <Breadcrumb items={[{ label: "Source lists", path: "lists" }, ...(sourceListId ? [{ label: projectName || job?.name || "Source list", path: `lists/${sourceListId}` }] : []), { label: "Import" }]} />
+    <PageHeader title={job?.name || projectName || name || "New source list"} description="Add and review rows for this source list." />
+    <Card title={title} className="source-import-review">{content}</Card>
+  </>;
 }
