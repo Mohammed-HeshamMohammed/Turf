@@ -87,6 +87,16 @@ class MatchingTest(unittest.TestCase):
         self.assertEqual(event["occurred_at"], "2026-10-16T01:47:00+00:00")
         self.assertEqual((event["outcome"], event["raw_outcome"]), ("Language barrier", "Spanish Speaker"))
 
+    def test_a_column_with_no_telling_heading_is_suggested_from_what_its_cells_look_like(self) -> None:
+        phones = ["(512) 555-0100", "512.555.0101", "+1 512 555 0102", "5125550103", "512-555-0104"]
+        self.assertEqual(matching.suggest_from_values(phones), "phone")
+        self.assertEqual(matching.suggest_from_values(["a@x.com"] * 5), "email")
+        self.assertEqual(matching.suggest_from_values(["TX", "tx", "CA", "NY", "FL"]), "region")
+        self.assertEqual(matching.suggest_from_values(["78701", "78702", "78701-1234", "10001", "90210"]), "zip")
+        self.assertIsNone(matching.suggest_from_values(["happy", "sad", "ok", "fine", "good"]))
+        self.assertIsNone(matching.suggest_from_values(phones[:3]))  # too few to be sure
+        self.assertIsNone(matching.suggest_from_values(phones[:4] + ["not a phone", "also not"]))
+
     def test_headers_are_read_however_they_are_written(self) -> None:
         for header, field in [("Owner Name", "name"), ("OWNER_NAME", "name"), ("ownerName", "name"), ("Cell Phone", "phone"), ("Phone 3", "phone"),
                               ("ZIP Code", "zip"), ("Bathroom style", None), ("Relative 6", None), ("Mailing Address", None), ("State", "region")]:
@@ -208,6 +218,83 @@ class ReadersTest(unittest.TestCase):
             self.assertEqual(frame.rows(), [("A", "5125550100", "250000.5"), ("B", "", "")])
 
 
+    def test_a_title_line_above_the_header_and_a_wider_data_row_lose_nothing_in_a_csv(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "list.csv"
+            path.write_text("Leads export\n\nName,Phone,Email\nA,1,a@x.com,extra\n")
+            (headers, frame), = list(readers.read_batches(path, True))
+            self.assertEqual(headers, ["Name", "Phone", "Email", "Column 4"])
+            self.assertEqual(frame.rows(), [("A", "1", "a@x.com", "extra")])
+            (_, rest), = list(readers.read_batches(path, True, skip_rows=0))
+            self.assertEqual(rest.height, 1)
+
+    def test_a_row_far_down_a_csv_wider_than_the_top_keeps_its_extra_cells(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "list.csv"
+            path.write_text("Name,Phone"+"\n"+"A,1"+"\n"+"B,2"+"\n"*1 + ("C,3"+"\n") * 5000 + "D,4,x@y.com,extra"+"\n"+'"Smith, John",5,,'+"\n")
+            frames = list(readers.read_batches(path, True))
+            headers = frames[0][0]
+            rows = [row for _, frame in frames for row in frame.rows()]
+            self.assertEqual(headers, ["Name", "Phone", "Column 3", "Column 4"])
+            self.assertIn(("D", "4", "x@y.com", "extra"), rows)
+            self.assertIn(("Smith, John", "5", "", ""), rows)
+
+    def test_a_spreadsheet_that_does_not_say_how_big_it_is_is_measured_by_reading_it(self) -> None:
+        import re
+        import zipfile
+
+        from openpyxl import Workbook
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            plain, bare = Path(tmp) / "plain.xlsx", Path(tmp) / "bare.xlsx"
+            book = Workbook()
+            book.active.append(["Name", "Phone"])
+            book.active.append(["A", "5551234"])
+            book.active["E5"] = "far"
+            book.save(plain)
+            with zipfile.ZipFile(plain) as src, zipfile.ZipFile(bare, "w", zipfile.ZIP_DEFLATED) as out:
+                for part in src.infolist():
+                    data = src.read(part.filename)
+                    if part.filename == "xl/worksheets/sheet1.xml":
+                        data = re.sub(rb"<dimension[^>]*/>", b"", data)
+                    out.writestr(part.filename, data)
+            (headers, _), = list(readers.read_batches(bare, True))
+            self.assertEqual(len(headers), 5)
+
+    def test_a_one_column_list_keeps_its_first_line_as_the_header(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "list.csv"
+            path.write_text("Phone\n5551234\n")
+            (headers, frame), = list(readers.read_batches(path, True))
+            self.assertEqual((headers, frame.rows()), (["Phone"], [("5551234",)]))
+
+    def test_a_workbook_opens_on_its_first_sheet_with_data_and_names_the_others(self) -> None:
+        from openpyxl import Workbook
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            path = Path(tmp) / "list.xlsx"
+            book = Workbook()
+            book.active.title = "Cover"
+            data = book.create_sheet("Leads")
+            data.append(["Leads export"])
+            data.append(["Name", "Phone"])
+            data.append(["A", "5551234"])
+            data["E5"] = "far"  # a cell past the first rows, outside the first 200 only by being declared in the sheet's width
+            book.save(path)
+            (headers, frame), = list(readers.read_batches(path, True))
+            self.assertEqual(headers[:2], ["Name", "Phone"])
+            self.assertEqual(len(headers), 5)
+            self.assertEqual(frame.rows()[0][:2], ("A", "5551234"))
+            self.assertEqual(readers.other_sheets(path), ["Cover"])
+
+    def test_a_text_list_whose_bad_byte_comes_after_the_first_sample_is_still_windows_1252(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "source.csv"
+            path.write_bytes(b"Name,Phone\n" + b"Ann,5551234\n" * 30_000 + "José,5550000\n".encode("cp1252"))
+            (_, frame), = list(readers.read_batches(readers.to_utf8(path), True, skip_rows=30_000))
+            self.assertEqual(frame.rows(), [("José", "5550000")])
+
+
 @unittest.skipUnless(os.environ.get("CRM_TEST_ADMIN_URL"), "set CRM_TEST_ADMIN_URL to run the database test")
 class EndToEndTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -251,16 +338,214 @@ class EndToEndTest(unittest.TestCase):
         self.conn.commit()
         return row
 
-    def test_only_columns_blank_across_every_row_are_removed(self) -> None:
-        job_id = self.queue(b"Name,Blank,Phone,Sparse\nA,  ,5551111,\nB,,5552222,kept\n")
+    def confirm(self, job_id: str, keep=lambda column: column["suggested"] is not None) -> dict:
+        """What crm-core does when the person answers: each column gets its field and whether it is kept; then the worker loads and tidies."""
+        columns = self.job(job_id)["columns"]
+        for c in columns:
+            c["used"] = bool(keep(c))
+            c["field"] = c["suggested"] if c["used"] else None
+        self.conn.execute("UPDATE importing.jobs SET columns = %s::jsonb, status = 'cleaning', heartbeat_at = NULL WHERE id = %s", (json.dumps(columns), job_id))
+        self.conn.commit()
+        self.worker.clean(self.conn, self.worker.claim(self.conn))
+        return self.job(job_id)
+
+    def test_the_columns_are_asked_about_before_any_row_is_stored_and_only_the_kept_ones_are_loaded(self) -> None:
+        job_id = self.queue(b"Name,Blank,Phone,Sparse,Relative 1 MOBILE 1,Relative 1 First Name\nA,  ,5125551111,,5125559999,Zed\nB,,5125552222,kept,,\n")
         self.worker.load(self.conn, self.worker.claim(self.conn))
         job = self.job(job_id)
+        # Empty columns and the relatives' columns are not offered; a column is known by its place in the file.
         self.assertEqual([column["header"] for column in job["columns"]], ["Name", "Phone", "Sparse"])
-        self.assertEqual([column["idx"] for column in job["columns"]], [0, 1, 2])
-        self.assertEqual(job["report"]["empty_columns_removed"], ["Blank"])
+        self.assertEqual([column["idx"] for column in job["columns"]], [0, 2, 3])
+        self.assertEqual((job["report"]["empty_columns_removed"], job["report"]["relatives_left_out"], job["report"]["rows"]), (["Blank"], 2, 2))
+        self.assertEqual(job["columns"][1]["populated"], 2)
         with self.conn.cursor() as cur:
-            cur.execute("SELECT cells FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
-            self.assertEqual([row[0] for row in cur.fetchall()], [["A", "5551111", ""], ["B", "5552222", "kept"]])
+            cur.execute("SELECT count(*) FROM importing.rows WHERE job_id = %s", (job_id,))
+            self.assertEqual(cur.fetchone()[0], 0)
+        self.conn.commit()
+        # The file stays, to be read once the person has answered, and the person is told until when.
+        self.assertTrue(list(self.worker.IMPORT_DIR.joinpath(job_id).glob("source*")))
+        self.assertRegex(job["report"]["file_kept_until"], r"^\d{4}-\d{2}-\d{2}$")
+
+        job = self.confirm(job_id)  # Name and Phone are kept; "Sparse" says nothing the CRM uses
+        self.assertEqual([(c["header"], c["idx"], c["file_idx"]) for c in job["columns"]], [("Name", 0, 0), ("Phone", 1, 2)])
+        self.assertEqual(job["report"]["dropped_columns"], ["Sparse"])
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT cells, name, phone, state FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            self.assertEqual(cur.fetchall(), [(["A", "5125551111"], "A", "5125551111", "clean"), (["B", "5125552222"], "B", "5125552222", "clean")])
+        self.conn.commit()
+
+    def loaded(self, content: bytes) -> tuple[str, dict]:
+        job_id = self.queue(content)
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        return job_id, self.confirm(job_id)
+
+    def test_a_lead_gets_the_best_phone_and_keeps_every_owner_phone_and_email_beside_it(self) -> None:
+        job_id, job = self.loaded(b"Name,Owner LANDLINE 1,Owner MOBILE 1,Owner 2 Full Name,Owner Email 1,Owner Email 2\n"
+                                  b"John & Mary Smith,5125550111,(512) 555-0100,Pat Smith,a@x.com,B@x.com\n"
+                                  b"Smith and Sons LLC,5125550122,,,,\n")
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT name, phone, contacts, source_data->>'phone_line_type' FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            (name, phone, contacts, kind), company = cur.fetchall()
+        self.conn.commit()
+        # The mobile is the one to call, though the landline column comes first in the file.
+        self.assertEqual((name, phone, kind), ("John & Mary Smith", "5125550100", "mobile"))
+        self.assertEqual(contacts["owners"], ["John Smith", "Mary Smith", "Pat Smith"])
+        self.assertEqual(contacts["phones"], [{"number": "5125550100", "type": "mobile"}, {"number": "5125550111", "type": "landline"}])
+        self.assertEqual(contacts["emails"], ["a@x.com", "b@x.com"])
+        self.assertEqual((company[1], company[2]["owners"], company[3]), ("5125550122", ["Smith and Sons LLC"], "landline"))
+        self.assertEqual(job["report"]["line_types"], {"mobile": 1, "landline": 1})
+
+    def test_a_number_with_an_area_code_nobody_has_is_left_out(self) -> None:
+        job_id, job = self.loaded(b"Name,Phone\nAnn,5125550100\nZed,0125550100\nLocal,5551234\n")
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT name, phone FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            self.assertEqual(cur.fetchall(), [("Ann", "5125550100"), ("Zed", None), ("Local", "5551234")])
+        self.conn.commit()
+        self.assertEqual(job["report"]["cleared_cells"], {"phone_made_up": 1})
+
+    def test_an_owner_with_several_properties_is_several_leads_and_street_words_do_not_split_one_property(self) -> None:
+        job_id, job = self.loaded(b"Name,Phone,Address,Zip\n"
+                                  b"Pat Owner,5125550100,1 Main Street,78701\n"   # 1 and 2: one property written two ways, a repeat
+                                  b"Pat Owner,5125550100,1 Main St,78701\n"
+                                  b"Pat Owner,5125550100,9 North Oak Avenue,78702\n"  # 3: the same owner's other property, its own lead
+                                  b"Sam Other,5125550100,1 Main St,78701\n")        # 4: another name on the phone and address, not a repeat
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT row_no, state, group_id, addr_key FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            rows = cur.fetchall()
+        self.conn.commit()
+        self.assertEqual([r[1] for r in rows], ["near_duplicate", "near_duplicate", "clean", "clean"])
+        self.assertEqual((rows[0][2], rows[0][3]), (rows[1][2], rows[1][3]))
+        self.assertEqual(rows[2][3], "9noakave|78702")
+        self.assertEqual(job["report"]["near_groups"], 1)
+
+    def test_the_address_key_worked_out_in_the_worker_is_the_one_the_database_works_out(self) -> None:
+        addresses = ["1 Main Street", "1 MAIN ST.", "9 North Oak Avenue, Apartment 4", "12-B West Elm Rd #3", "PO Box 12", "No Number Lane", "", None,
+                     "44 S.E. Parkway/Suite 9", "7 Streetman Court"]
+        zips = ["78701", "78701-1234", " 78 702 ", "", None, "K1A 0B1", "78701", "78701", "78701", "78701"]
+        frame = pl.DataFrame({"a": addresses, "z": zips})
+        ours = frame.select(self.worker.address_key(pl.col("a"), pl.col("z")).alias("k"))["k"].to_list()
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT coalesce(importing.addr_key(a, z), '') FROM unnest(%s::text[], %s::text[]) WITH ORDINALITY AS t(a, z, i) ORDER BY i", (addresses, zips))
+            theirs = [row[0] for row in cur.fetchall()]
+        self.conn.commit()
+        self.assertEqual(ours, theirs)
+        self.assertEqual(ours[:2], ["1mainst|78701", "1mainst|78701"])
+
+    def test_names_that_are_nearly_the_same_on_one_phone_are_asked_about(self) -> None:
+        job_id, job = self.loaded(b"Name,Phone,Address,Zip\n"
+                                  b"Jon Smith,5125550100,1 Main St,78701\n"
+                                  b"John Smith,5125550100,1 Main St,78701\n"
+                                  b"Maria Lopez,5125550100,1 Main St,78701\n")
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT name, state FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            self.assertEqual(cur.fetchall(), [("Jon Smith", "near_duplicate"), ("John Smith", "near_duplicate"), ("Maria Lopez", "clean")])
+        self.conn.commit()
+
+    def test_a_list_whose_file_is_gone_says_so(self) -> None:
+        import shutil
+
+        job_id = self.queue(b"Name,Phone\nAnn,5125550100\n")
+        shutil.rmtree(self.worker.IMPORT_DIR / job_id)
+        self.worker.process(self.conn, self.worker.claim(self.conn))
+        job = self.job(job_id)
+        self.assertEqual(job["status"], "failed")
+        self.assertIn("no longer kept", job["error"])
+
+    def test_the_uploaded_file_is_deleted_after_its_days_and_an_unanswered_list_is_cancelled_with_it(self) -> None:
+        job_id = self.queue(b"Name,Phone\nA,5125551111\n")
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        folder = self.worker.IMPORT_DIR / job_id
+        self.worker.sweep_uploads(self.conn)
+        self.assertTrue(folder.exists())
+        self.conn.execute("UPDATE importing.jobs SET created_at = now() - make_interval(days => %s) WHERE id = %s", (self.worker.KEEP_FILE_DAYS + 1, job_id))
+        self.conn.commit()
+        self.worker.sweep_uploads(self.conn)
+        self.assertFalse(folder.exists())
+        job = self.job(job_id)
+        self.assertEqual(job["status"], "cancelled")
+        self.assertIn("Upload the list again", job["error"])
+
+    def test_columns_are_suggested_from_what_the_workspace_decided_before_then_the_heading_then_the_cells(self) -> None:
+        self.conn.execute("""INSERT INTO importing.mapping_memory (org_id, header_key, field, used) VALUES
+            ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'mood', 'source', true), ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'owner name', NULL, false)""")
+        self.conn.commit()
+        job_id = self.queue('Owner Name,Contact 1,Mood,Zip Code,Misc\nPerson 0,(512) 555-0100,happy,78700,x0\nPerson 1,(512) 555-0101,happy,78701,x1\nPerson 2,(512) 555-0102,happy,78702,x2\nPerson 3,(512) 555-0103,happy,78703,x3\nPerson 4,(512) 555-0104,happy,78704,x4\nPerson 5,(512) 555-0105,happy,78705,x5\n'.encode())
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        columns = {c["header"]: c for c in self.job(job_id)["columns"]}
+        self.assertEqual({h: c["suggested"] for h, c in columns.items()},
+                         {"Owner Name": None, "Contact 1": "phone", "Mood": "source", "Zip Code": "zip", "Misc": None})
+        self.assertEqual((columns["Owner Name"]["remembered"], columns["Mood"]["remembered"], columns["Contact 1"]["remembered"]), ("unused", "used", None))
+        self.assertEqual(columns["Mood"]["key"], "mood")
+
+    def test_a_call_dated_in_the_future_shows_in_the_report_so_a_wrong_time_zone_is_noticed(self) -> None:
+        header = "a,Agent name,Log Time,Scheduled time,Phone,Log Type,Call Notes,First Name,Last Name,Address\n"
+        job_id = self.queue((header + "1,A,10/15/2099 20:47:30,Not scheduled,5125550100,Voicemail,,Pat,Owner,1 Main St\n").encode(), "calls.csv")
+        self.conn.execute("UPDATE importing.jobs SET kind = 'readymode_calls', source_timezone = 'UTC' WHERE id = %s", (job_id,))
+        self.conn.commit()
+        self.worker.load_calls(self.conn, self.worker.claim(self.conn))
+        report = self.job(job_id)["report"]
+        self.assertEqual((report["future_calls"], report["last_call"]), (1, "2099-10-15T20:47:30+00:00"))
+
+    def test_made_up_phones_are_left_out_names_are_set_right_and_the_report_counts_what_was_cleared(self) -> None:
+        job_id = self.queue('Owner Name,Phone,Email\n"SMITH, JOHN",5125550100,john@example.com\nJANE DOE,5555555555,not an email\nAnna McDonald,1234567890,\nACME PROPERTIES LLC,(512) 555-0111,\n"Smith, Jr",5125550122,\nBob,abc,\n'.encode())
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        columns = self.job(job_id)["columns"]
+        for c in columns:
+            c["field"], c["used"] = c["suggested"], True
+        self.conn.execute("UPDATE importing.jobs SET columns = %s::jsonb, status = 'cleaning', heartbeat_at = NULL WHERE id = %s", (json.dumps(columns), job_id))
+        self.conn.commit()
+        self.worker.clean(self.conn, self.worker.claim(self.conn))
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT name, phone, email FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            rows = cur.fetchall()
+        self.conn.commit()
+        self.assertEqual(rows, [("John Smith", "5125550100", "john@example.com"), ("Jane Doe", None, None), ("Anna McDonald", None, None),
+                                ("ACME PROPERTIES LLC", "5125550111", None), ("Smith, Jr", "5125550122", None), ("Bob", None, None)])
+        self.assertEqual(self.job(job_id)["report"]["cleared_cells"], {"phone": 1, "phone_made_up": 2, "email": 1})
+
+    def clean_phone_list(self, content: bytes) -> tuple[str, dict]:
+        job_id = self.queue(content)
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        columns = self.job(job_id)["columns"]
+        for c in columns:
+            c["field"], c["used"] = c["suggested"], True
+        self.conn.execute("UPDATE importing.jobs SET columns = %s::jsonb, status = 'cleaning', heartbeat_at = NULL WHERE id = %s", (json.dumps(columns), job_id))
+        self.conn.commit()
+        self.worker.clean(self.conn, self.worker.claim(self.conn))
+        return job_id, self.job(job_id)
+
+    def test_phone_line_types_are_added_only_when_a_lookup_is_set_up_and_never_stop_the_import(self) -> None:
+        import linetype
+
+        data = b'Name,Phone\nAnn,5125550100\nBen,5125550111\n'
+        job_id, job = self.clean_phone_list(data)  # no lookup set up: nothing happens
+        self.assertNotIn("line_types", job["report"])
+        self.assertEqual(job["status"], "ready")
+
+        linetype.PROVIDERS["fake"] = lambda numbers: {n: "mobile" if n.endswith("0") else "landline" for n in numbers}
+        self.addCleanup(linetype.PROVIDERS.clear)
+        os.environ["LINE_TYPE_PROVIDER"] = "fake"
+        self.addCleanup(os.environ.pop, "LINE_TYPE_PROVIDER", None)
+        job_id, job = self.clean_phone_list(data)
+        self.assertEqual(job["report"]["line_types"], {"mobile": 1, "landline": 1})
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT phone, source_data->>'phone_line_type' FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            self.assertEqual(cur.fetchall(), [("5125550100", "mobile"), ("5125550111", "landline")])
+        self.conn.commit()
+
+        def broken(numbers):
+            raise RuntimeError("service down")
+        linetype.PROVIDERS["fake"] = broken
+        job_id, job = self.clean_phone_list(data)
+        self.assertEqual((job["status"], job["report"]["line_types"]), ("ready", "unavailable"))
+
+    def test_a_phone_alone_matching_a_lead_with_another_name_is_asked_about_never_merged(self) -> None:
+        # "Lee Existing" is in the CRM with (512) 555-0199. Another name on the same phone may be someone else at a shared number.
+        job_id, job = self.clean_phone_list(b'Name,Phone\nPat Other,5125550199\nSam New,5125550222\n')
+        self.assertEqual((job["status"], job["report"]["near_groups"], job["report"]["certain_matches_merged"]), ("reviewing", 1, 0))
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT name, state, match_lead IS NOT NULL FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            self.assertEqual(cur.fetchall(), [("Pat Other", "near_duplicate", True), ("Sam New", "clean", False)])
         self.conn.commit()
 
     def test_readymode_calls_are_staged_before_any_lead_changes(self) -> None:
@@ -275,6 +560,7 @@ class EndToEndTest(unittest.TestCase):
         self.assertEqual(job["status"], "call_ready")
         self.assertEqual((job["report"]["valid_calls"], job["report"]["unusable_calls"]), (1, 1))
         self.assertIn("Ph#6", job["report"]["empty_columns_removed"])
+        self.assertEqual((job["report"]["first_call"], job["report"]["future_calls"]), ("2026-10-16T01:47:00+00:00", 0))
         with self.conn.cursor() as cur:
             cur.execute("SELECT state, call_data, lead_id FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
             rows = cur.fetchall()
@@ -299,15 +585,12 @@ class EndToEndTest(unittest.TestCase):
 
         job = self.job(job_id)
         self.assertEqual(job["status"], "mapping")
-        self.assertEqual(job["report"]["exact_duplicates"], 1)
         self.assertEqual(job["report"]["empty_rows"], 1)
-        self.assertEqual(job["report"]["exact_examples"], [{"row": 2, "same_as": 1}])
-        self.assertEqual(job["report"]["rows"], 4)
+        self.assertEqual(job["report"]["rows"], 5)  # identical rows are found when the rows are loaded, after the columns are confirmed
         columns = job["columns"]
         self.assertEqual([c["suggested"] for c in columns], ["name", "phone", "email", "address", "city", "region", "zip", None])
-        self.assertEqual(columns[1]["populated"], 4)
+        self.assertEqual(columns[1]["populated"], 5)
         self.assertEqual(columns[1]["standard_key"], "phone")
-        self.assertEqual(list(self.worker.IMPORT_DIR.joinpath(job_id).glob("*")), [])
 
         # The person keeps what the CRM uses and sets "Bathroom style" aside; crm-core then moves the job on.
         for c in columns:
@@ -336,6 +619,7 @@ class EndToEndTest(unittest.TestCase):
         self.conn.commit()
         job = self.job(job_id)
         self.assertEqual((job["status"], job["report"]["near_groups"], job["report"]["dropped_columns"]), ("reviewing", 2, ["Bathroom style"]))
+        self.assertEqual((job["report"]["exact_duplicates"], job["report"]["exact_examples"]), (1, [{"row": 2, "same_as": 1}]))
 
         # The second import was taken on by another worker while the first was running.
         self.assertEqual(self.job(second)["status"], "loading")
@@ -388,6 +672,7 @@ class EndToEndTest(unittest.TestCase):
         original = b"Name,Phone,Address\nPat Owner,5125550100,1 Main St\n"
         prior = self.queue(original)
         self.worker.load(self.conn, self.worker.claim(self.conn))
+        self.confirm(prior)
         with self.conn.cursor() as cur:
             cur.execute("""INSERT INTO crm.leads (org_id, name, phone)
                            VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Pat Owner', '5125550100') RETURNING id""")

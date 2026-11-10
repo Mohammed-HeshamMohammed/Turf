@@ -30,9 +30,13 @@ def moment(value: str, zone: ZoneInfo):
     value = (value or "").strip()
     if not value or key(value) in {"not scheduled", "n a", "none", "0"}:
         return None
-    try:
-        parsed = datetime.strptime(value, "%m/%d/%Y %H:%M")
-    except ValueError:
+    for pattern in ("%m/%d/%Y %H:%M", "%m/%d/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            parsed = datetime.strptime(value, pattern)
+            break
+        except ValueError:
+            continue
+    else:
         return None
     return parsed.replace(tzinfo=zone).astimezone(timezone.utc).isoformat()
 
