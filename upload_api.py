@@ -34,7 +34,7 @@ def check_space(size: int) -> None:
 ID = re.compile(r"^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$", re.I)
 SHA = re.compile(r"^[0-9a-f]{64}$", re.I)
 EXTENSIONS = {".csv", ".txt", ".xlsx", ".xls"}
-JOB_COLUMNS = "id::text, name, filename, size, chunk_size, total_chunks, status, progress, columns, report, error, loaded_rows, merged_rows, project_id::text, created_at, updated_at, kind, source_timezone"
+JOB_COLUMNS = "id::text, name, filename, size, chunk_size, total_chunks, status, progress, columns, report, error, loaded_rows, merged_rows, project_id::text, created_at, updated_at, kind, source_timezone, for_skip_tracing"
 
 
 class APIError(Exception):
@@ -157,6 +157,9 @@ def start(handler, me):
     header = body.get("has_header", True)
     if type(header) is not bool:
         raise APIError(400, "Choose whether the list has a header row.")
+    skip_tracing = body.get("skip_tracing", False)
+    if type(skip_tracing) is not bool:
+        raise APIError(400, "Say whether this list is for skip tracing.")
     kind = body.get("kind", "lead_list")
     if not isinstance(kind, str) or kind not in {"lead_list", "readymode_calls"}:
         raise APIError(400, "Choose a supported import type.")
@@ -190,10 +193,10 @@ def start(handler, me):
             project = core_request(handler, "POST", "/api/v1/projects", {"name": name})["id"]
         team_ids = me.get("team_ids") or []
         team = team_ids[0] if team_ids and ID.fullmatch(team_ids[0]) else None
-        row = conn.execute("""INSERT INTO importing.jobs (org_id, user_id, project_id, team_id, name, filename, size, chunk_size, total_chunks, has_header, kind, source_timezone, progress)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '{"phase":"uploading","done":0}') RETURNING id::text""",
+        row = conn.execute("""INSERT INTO importing.jobs (org_id, user_id, project_id, team_id, name, filename, size, chunk_size, total_chunks, has_header, kind, source_timezone, for_skip_tracing, progress)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '{"phase":"uploading","done":0}') RETURNING id::text""",
             (me["organization_id"], me["user"]["id"], project, team, name, filename, size, CHUNK_SIZE,
-             (size + CHUNK_SIZE - 1) // CHUNK_SIZE, header, kind, timezone)).fetchone()
+             (size + CHUNK_SIZE - 1) // CHUNK_SIZE, header, kind, timezone, skip_tracing and kind == "lead_list")).fetchone()
         job_id = row["id"]
         (Path(os.environ.get("IMPORT_DIR", "/data/imports")) / job_id).mkdir(parents=True, exist_ok=True)
         return reply(conn, me, job_id)

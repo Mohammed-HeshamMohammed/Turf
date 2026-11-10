@@ -473,8 +473,11 @@ class EndToEndTest(unittest.TestCase):
             self.assertEqual(cur.fetchall(), [("Mary Randel", "clean"), ("Maricela Moreno", "clean")])
         self.conn.commit()
 
-    def _clean(self, data: bytes) -> tuple:
+    def _clean(self, data: bytes, skip_tracing: bool = False) -> tuple:
         job_id = self.queue(data)
+        if skip_tracing:
+            self.conn.execute("UPDATE importing.jobs SET for_skip_tracing = true WHERE id = %s", (job_id,))
+            self.conn.commit()
         self.worker.load(self.conn, self.worker.claim(self.conn))
         columns = self.job(job_id)["columns"]
         for column in columns:
@@ -524,6 +527,14 @@ class EndToEndTest(unittest.TestCase):
         with self.conn.cursor() as cur:
             cur.execute("SELECT count(*) FROM importing.rows WHERE job_id = %s", (job_id,))
             self.assertEqual(cur.fetchone()[0], 0)
+        self.conn.commit()
+
+    def test_a_list_of_addresses_is_let_in_when_it_is_for_skip_tracing(self) -> None:
+        job_id, job = self._clean(b"Name,Address,City,Zip\nGene Ortega,21820 Grace Ave,Carson,90745\nSol Shoumer,10912 Crenshaw Blvd,Inglewood,90303\n", skip_tracing=True)
+        self.assertEqual(job["status"], "ready")
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM importing.rows WHERE job_id = %s AND state = 'clean'", (job_id,))
+            self.assertEqual(cur.fetchone()[0], 2)
         self.conn.commit()
 
     def test_a_cancelled_import_leaves_no_rows(self) -> None:
