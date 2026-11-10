@@ -194,3 +194,27 @@ A script that builds a list of N rows with a known share of repeats, runs load a
 - Pandas, Polars and DuckDB on a 1.2M-row CSV: https://www.besthub.dev/articles/pandas-vs-polars-vs-duckdb-benchmarking-performance-on-a-1-2m-row-csv-2f0e65581b9d
 
 Most of these are vendor or personal write-ups. The numbers in them are other people's hardware; the table above is ours.
+
+---
+
+## Opening the workspace after a big import (the snapshot)
+
+**What the snapshot is.** The first time a browser opens a workspace, and again whenever its copy cannot be brought up to date, it asks the server for a snapshot: up to 3,000 leads (the person's own first, then the most recently changed) with their tasks, notes, calls, handoffs and deals, the list totals, and a cursor. After that the browser only asks for what changed since the cursor (a pull). A snapshot is therefore the one request that grows with the workspace.
+
+**What went wrong (2026-11-10).** On a workspace with the 482,888-lead import in it, `/sync/snapshot` did not answer within Cloudflare's 100 seconds (error 524, which carries no CORS header, so the browser reported it as a CORS error). Measured with 100,000 leads it took 35 seconds, however few leads were asked for: three statements (the window, the total and the per-list counts) ran the `cw_visible_lead` function once per lead of the whole workspace, and the function runs a query of its own each time. Extrapolated to 500,000 leads that is about three minutes.
+
+**What was changed.**
+
+| Workspace | Before | After |
+| --- | --- | --- |
+| 100,000 leads | 35 s | 2.4 s |
+| 500,000 leads | about 175 s (extrapolated) | 4.5 s |
+
+- The bulk statements use the person's scopes as a condition on the lead row (`leadVisible`) instead of calling the function per lead; a test checks it shows exactly what the function shows for every mix of scopes.
+- The window is read as two halves (the person's own leads, then the rest) from a new index `leads_recent` (`org_id, updated_at DESC, id DESC`), each stopping after the first few hundred, instead of sorting every lead.
+- The totals and the per-list counts come from one pass, not two.
+- `/sync/snapshot?limit=N&after=TOKEN` gives the leads a page at a time; the browser shows the first 250 at once and adds the rest as they arrive.
+- A copy kept from the last session is no longer thrown away when its day has passed: the records stay sealed until the server has confirmed the person's access, then only the difference is fetched. The offline permission used to be set once, at the snapshot, and never renewed, so a copy was discarded a day after it was first downloaded however often it was used; every pull now renews it. If the person's access changed, or more than 5,000 changes happened while the browser was away (a big import does that), the records are taken again, which is now quick.
+
+**Still true.** Counting a workspace's leads is one pass over them (about 4 seconds at 500,000); a table of counts kept up to date would remove it. A big import still sends every device back to a full snapshot once, because the change record is not paged past 5,000 entries. The offline copy is only written to the device when the person has set an unlock passphrase (the copy is sealed with a key made from it); without one nothing is kept on disk and every visit starts with a snapshot.
+

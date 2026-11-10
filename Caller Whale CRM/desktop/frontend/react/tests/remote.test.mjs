@@ -315,3 +315,81 @@ test("a copy whose first load was cut short is thrown away and taken again", asy
   assert.deepEqual(Object.keys(engine.store.leads), []);
   engine.stop();
 });
+
+const past = () => new Date(Date.now() - 3 * 86400000).toISOString();
+const soon = () => new Date(Date.now() + 86400000).toISOString();
+const held = () => ({ organizationId: "o", cursor: 5, accessRevision: 2, leaseExpiresAt: past(), leads: { "lead-a": { id: "lead-a", name: "A" } }, tasks: {}, notes: {}, calls: {}, deals: {}, handoffs: {} });
+
+test("a copy kept from the last session is brought up to date with only what changed, even after its day has passed", async () => {
+  const vault = new MemoryVault();
+  await vault.put("store", held());
+  let snapshots = 0;
+  const api = {
+    snapshot: async () => (snapshots++, { ...snapshot, leads: [] }),
+    push: async () => ({ results: [] }),
+    pull: async cursor => (cursor === 5
+      ? { cursor: 9, changes: [{ entity: "lead", id: "lead-b", op: "upsert", record: { id: "lead-b", name: "B" } }], more: false, access_revision: 2, offline_lease_expires_at: soon() }
+      : { cursor, changes: [], more: false, access_revision: 2, offline_lease_expires_at: soon() }),
+  };
+  const shown = [];
+  const engine = new SyncEngine({ vault, api, socket: false, onChange: change => shown.push(change.store ? Object.keys(change.store.leads).length : null) });
+  await engine.start({ organizationId: "o", directory: [], teams: [], projects: [] });
+  assert.equal(shown[0], null, "the old records are not shown before the server has confirmed the person's access");
+  await engine.sync();
+  assert.equal(snapshots, 0, "nothing was downloaded again");
+  assert.deepEqual(Object.keys(engine.store.leads).sort(), ["lead-a", "lead-b"]);
+  assert.ok(new Date(engine.store.leaseExpiresAt) > new Date(), "the day starts again once the server has said yes");
+  assert.ok(new Date((await vault.get("store")).leaseExpiresAt) > new Date());
+  engine.stop();
+});
+
+test("a kept copy is dropped and the records taken again when the person's access has changed", async () => {
+  const vault = new MemoryVault();
+  await vault.put("store", held());
+  let snapshots = 0;
+  const api = {
+    snapshot: async () => (snapshots++, { ...snapshot, leads: [] }),
+    push: async () => ({ results: [] }),
+    pull: async cursor => (cursor === 5 ? { reset: true, access_revision: 3 } : { cursor, changes: [], more: false }),
+  };
+  const engine = new SyncEngine({ vault, api, socket: false });
+  await engine.start({ organizationId: "o", directory: [], teams: [], projects: [] });
+  await engine.sync();
+  assert.equal(snapshots, 1);
+  assert.deepEqual(Object.keys(engine.store.leads), [], "what the person could see before is gone");
+  engine.stop();
+});
+
+test("a kept copy survives a connection that drops while it is being renewed", async () => {
+  const vault = new MemoryVault();
+  await vault.put("store", held());
+  let online = false;
+  const api = {
+    snapshot: async () => ({ ...snapshot, leads: [] }),
+    push: async () => ({ results: [] }),
+    pull: async cursor => {
+      if (!online) throw Object.assign(new Error("offline"), { code: "offline" });
+      return { cursor: cursor + 1, changes: [], more: false, access_revision: 2, offline_lease_expires_at: soon() };
+    },
+  };
+  const engine = new SyncEngine({ vault, api, socket: false });
+  await engine.start({ organizationId: "o", directory: [], teams: [], projects: [] });
+  await engine.sync();
+  assert.equal(engine.store, null, "still sealed while the server cannot be asked");
+  online = true;
+  engine.reachable = true;
+  await engine.sync();
+  assert.deepEqual(Object.keys(engine.store.leads), ["lead-a"], "the copy from the last session came back without a new download");
+  engine.stop();
+});
+
+test("every pull renews the offline permission, so a copy in daily use never runs out", async () => {
+  const vault = new MemoryVault();
+  await vault.put("store", { ...held(), leaseExpiresAt: new Date(Date.now() + 60000).toISOString() });
+  const api = { snapshot: async () => snapshot, push: async () => ({ results: [] }), pull: async cursor => ({ cursor, changes: [], more: false, access_revision: 2, offline_lease_expires_at: soon() }) };
+  const engine = new SyncEngine({ vault, api, socket: false });
+  await engine.start({ organizationId: "o", directory: [], teams: [], projects: [] });
+  await engine.sync();
+  assert.ok(new Date(engine.store.leaseExpiresAt) - Date.now() > 20 * 3600000);
+  engine.stop();
+});

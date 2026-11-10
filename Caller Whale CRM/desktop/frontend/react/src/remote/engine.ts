@@ -13,7 +13,7 @@ const SNAPSHOT_PAGE = 250;
 
 export class SyncEngine {
   vault: any; api: any; onChange: any; useSocket: any; store: any; ops: any[]; online: boolean; reachable: boolean; status: string;
-  error: string; running: any; again: boolean; channel: any; socket: any; stopped: any; connecting: any; extra: any; retryTimer: any; progress: any;
+  error: string; running: any; again: boolean; channel: any; socket: any; stopped: any; connecting: any; extra: any; retryTimer: any; progress: any; held: any;
   constructor({ vault, api = defaultApi, onChange = () => {}, socket = true }: any) {
     this.vault = vault;
     this.api = api;
@@ -55,8 +55,10 @@ export class SyncEngine {
     }
     const expired = this.store?.leaseExpiresAt && new Date(this.store.leaseExpiresAt) < new Date();
     if (expired) {
-      // Offline access must be renewed online within a day (plan 2.7).
-      await this.vault.dropRecords();
+      // Offline access must be renewed online within a day (plan 2.7): the records are not shown until the server has confirmed the
+      // person's access. They are not thrown away: when it has, only what changed since is fetched (see renew), and only if access
+      // changed, or too much happened to page through, are the records taken again.
+      this.held = this.store;
       this.store = null;
     }
     if (this.store) this.store = { ...this.store, ...extra };
@@ -125,6 +127,7 @@ export class SyncEngine {
     this.status = "syncing";
     this.emit();
     try {
+      if (!this.store && this.held) await this.renew();
       if (!this.store) await this.snapshot();
       await this.push();
       await this.pull();
@@ -148,6 +151,30 @@ export class SyncEngine {
     clearTimeout(this.retryTimer);
     if (this.reachable || !this.online || this.stopped) return;
     this.retryTimer = setTimeout(() => this.sync(), 5000);
+  }
+
+  /**
+   * The copy kept from the last session, whose offline permission ran out: asks the server whether it is still good. If the person's
+   * access is as it was and the server's record of changes still reaches back that far, the copy is brought up to date with only the
+   * difference and is shown again; otherwise it is dropped and the records are taken again.
+   */
+  async renew() {
+    // The copy is kept until the server has answered: a connection that drops here leaves it for the next try.
+    let store = { ...this.held };
+    for (;;) {
+      const answer = await this.api.pull(store.cursor, store.accessRevision);
+      if (answer.reset) {
+        this.held = null;
+        await this.vault.dropRecords();
+        return;
+      }
+      store = { ...applyChanges(store, answer.changes), cursor: answer.cursor, leaseExpiresAt: answer.offline_lease_expires_at ?? store.leaseExpiresAt };
+      if (!answer.more) break;
+    }
+    this.held = null;
+    this.store = { ...store, ...this.extra };
+    await this.save();
+    this.emit();
   }
 
   /**
@@ -250,7 +277,7 @@ export class SyncEngine {
         return;
       }
       if (answer.more && answer.cursor === this.store.cursor) throw new Error("The server did not advance the sync cursor");
-      this.store = { ...applyChanges(this.store, answer.changes), cursor: answer.cursor };
+      this.store = { ...applyChanges(this.store, answer.changes), cursor: answer.cursor, leaseExpiresAt: answer.offline_lease_expires_at ?? this.store.leaseExpiresAt };
       await this.save();
       if (!answer.more) return;
     }

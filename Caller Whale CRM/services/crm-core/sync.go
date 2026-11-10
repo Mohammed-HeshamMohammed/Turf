@@ -10,7 +10,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -186,7 +188,8 @@ func (s *server) pull(q *req) error {
 	for i, j := 0, len(changes)-1; i < j; i, j = i+1, j-1 {
 		changes[i], changes[j] = changes[j], changes[i]
 	}
-	writeJSON(q.w, http.StatusOK, map[string]any{"cursor": cursor, "changes": changes, "more": more, "access_revision": q.rev})
+	// The server has just confirmed this person's access, so the device's offline permission is renewed for another day.
+	writeJSON(q.w, http.StatusOK, map[string]any{"cursor": cursor, "changes": changes, "more": more, "access_revision": q.rev, "offline_lease_expires_at": s.now().Add(offlineLease)})
 	return nil
 }
 
@@ -195,6 +198,53 @@ const (
 	snapshotLeads = 3000 // leads in a snapshot; the rest are found by search
 	maxPullBehind = 5000 // changes a device may be behind and still page through them
 )
+
+// offlineLease is how long a device may show its offline copy after the server last confirmed the person's access. Every sync renews it.
+const offlineLease = 24 * time.Hour
+
+// leadVisible is the same test as the cw_visible_lead function, written out as a condition on the lead's own row for a query that looks
+// at many leads. The function runs a query of its own for every lead it is asked about, and the snapshot asked it about every lead of the
+// workspace three times over: with a hundred thousand leads that was thirty-five seconds, and past a hundred seconds the proxy in front
+// gives up. Here the person's own scopes are put into the query, so only the branches that apply are in it, and a person who sees the
+// whole workspace has no test beyond the workspace and "not deleted". A test holds the two together.
+// The values are added to args (numbered from len(args)+1) and the condition and the longer list come back.
+func leadVisible(sc scope, alias string, args []any) (string, []any) {
+	add := func(v any) string {
+		args = append(args, v)
+		return "$" + strconv.Itoa(len(args))
+	}
+	var branches []string
+	for _, kind := range sc.scopes {
+		switch kind {
+		case "organization":
+			branches = []string{"TRUE"}
+		case "team":
+			if len(sc.teamIDs) > 0 && !slices.Contains(branches, "TRUE") {
+				branches = append(branches, alias+".team_id = ANY("+add(sc.teamIDs)+"::uuid[])")
+			}
+		case "project":
+			if len(sc.projectIDs) > 0 && !slices.Contains(branches, "TRUE") {
+				branches = append(branches, alias+".project_id = ANY("+add(sc.projectIDs)+"::uuid[])")
+			}
+		case "own":
+			if sc.userID != "" && !slices.Contains(branches, "TRUE") {
+				me := add(sc.userID) + "::uuid"
+				branches = append(branches, "("+alias+".assignee_id = "+me+" OR EXISTS (SELECT 1 FROM handoffs h WHERE h.lead_id = "+alias+".id AND h.to_user = "+me+" AND h.status = 'Requested'))")
+			}
+		case "shared":
+			if sc.userID != "" && !slices.Contains(branches, "TRUE") {
+				branches = append(branches, "EXISTS (SELECT 1 FROM lead_shares s WHERE s.lead_id = "+alias+".id AND s.user_id = "+add(sc.userID)+"::uuid)")
+			}
+		}
+		if slices.Contains(branches, "TRUE") {
+			branches = []string{"TRUE"}
+		}
+	}
+	if len(branches) == 0 {
+		return "FALSE", args
+	}
+	return "(" + alias + ".deleted_at IS NULL AND " + alias + ".org_id = cw_org() AND (" + strings.Join(branches, " OR ") + "))", args
+}
 
 // snapshotAfter is where the next page of a snapshot starts: the last lead of the page before, in the snapshot's order (the person's own
 // leads first, then the most recently changed), and how many leads the snapshot has given so far. Keyed on that lead rather than counted,
@@ -259,10 +309,21 @@ func (s *server) snapshot(q *req) error {
 	if after != nil {
 		afterMine, afterAt, afterID = after.Mine, after.At, after.ID
 	}
+	// The window is the person's own leads, newest first, then everyone else's, newest first. Each half is read from an index in that order
+	// and stops after `limit` leads (leads_recent), so a workspace of hundreds of thousands costs no more than a small one; the halves are
+	// then put together. The page after another starts below the last lead of the one before in this same order.
+	winArgs := []any{q.sc.userID, limit, afterMine, afterAt, afterID}
+	visible, winArgs := leadVisible(q.sc, "l", winArgs)
 	if _, err = tx.Exec(ctx, `CREATE TEMP TABLE win ON COMMIT DROP AS
-		SELECT l.id, coalesce(l.assignee_id::text = $1, false) AS mine, l.updated_at FROM leads l
-		WHERE cw_visible_lead(l.id) AND ($3::boolean IS NULL OR (coalesce(l.assignee_id::text = $1, false)::int, l.updated_at, l.id) < ($3::boolean::int, $4::timestamptz, $5::uuid))
-		ORDER BY coalesce(l.assignee_id::text = $1, false) DESC, l.updated_at DESC, l.id DESC LIMIT $2`, q.sc.userID, limit, afterMine, afterAt, afterID); err != nil {
+		SELECT id, mine, updated_at FROM (
+			(SELECT l.id, true AS mine, l.updated_at FROM leads l
+				WHERE `+visible+` AND l.assignee_id = nullif($1, '')::uuid AND ($3::boolean IS NULL OR ($3::boolean AND (l.updated_at, l.id) < ($4::timestamptz, $5::uuid)))
+				ORDER BY l.updated_at DESC, l.id DESC LIMIT $2)
+			UNION ALL
+			(SELECT l.id, false, l.updated_at FROM leads l
+				WHERE `+visible+` AND l.assignee_id IS DISTINCT FROM nullif($1, '')::uuid AND ($3::boolean IS NULL OR $3::boolean OR (l.updated_at, l.id) < ($4::timestamptz, $5::uuid))
+				ORDER BY l.updated_at DESC, l.id DESC LIMIT $2)
+		) both_halves ORDER BY mine DESC, updated_at DESC, id DESC LIMIT $2`, winArgs...); err != nil {
 		return err
 	}
 	var winRows int
@@ -283,27 +344,32 @@ func (s *server) snapshot(q *req) error {
 	if after != nil { // a later page: only leads, and what belongs to them
 		return s.snapshotPage(q, ctx, tx, next)
 	}
+	// One pass over the leads the person sees gives the total and, for each list, how many leads it has and how many of them can be contacted.
+	countWhere, countArgs := leadVisible(q.sc, "l", nil)
 	var total int64
-	if err = tx.QueryRow(ctx, `SELECT count(*) FROM leads l WHERE cw_visible_lead(l.id)`).Scan(&total); err != nil {
-		return err
-	}
 	counts := map[string]int64{}
 	contactable := map[string]int64{} // leads of each list with a phone number or an email: a list with none is a useless list
 	countRows, err := tx.Query(ctx, `SELECT l.project_id::text, count(*), count(*) FILTER (WHERE l.phone <> '' OR l.email <> '' OR p.skip_tracing)
-		FROM leads l JOIN projects p ON p.id = l.project_id WHERE cw_visible_lead(l.id) GROUP BY l.project_id`)
+		FROM leads l LEFT JOIN projects p ON p.id = l.project_id WHERE `+countWhere+` GROUP BY l.project_id`, countArgs...)
 	if err != nil {
 		return err
 	}
 	for countRows.Next() {
-		var id string
+		var id *string
 		var n, withContact int64
 		if err = countRows.Scan(&id, &n, &withContact); err != nil {
 			countRows.Close()
 			return err
 		}
-		counts[id], contactable[id] = n, withContact
+		total += n
+		if id != nil {
+			counts[*id], contactable[*id] = n, withContact
+		}
 	}
 	countRows.Close()
+	if err = countRows.Err(); err != nil {
+		return err
+	}
 	leads, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) FROM leads l JOIN win ON win.id = l.id LEFT JOIN properties p ON p.id = l.property_id`)
 	if err != nil {
 		return err
@@ -330,7 +396,7 @@ func (s *server) snapshot(q *req) error {
 		}
 	}
 	// Offline copies must be renewed online within a day.
-	body["offline_lease_expires_at"] = s.now().Add(24 * time.Hour)
+	body["offline_lease_expires_at"] = s.now().Add(offlineLease)
 	writeJSON(q.w, http.StatusOK, body)
 	return nil
 }
