@@ -128,7 +128,7 @@ func (s *server) learningStatus(q *req) error {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+s.cfg.learningToken)
-	res, err := http.DefaultClient.Do(req)
+	res, err := learningClient.Do(req)
 	if err != nil || res.StatusCode != http.StatusOK {
 		writeJSON(q.w, http.StatusOK, map[string]any{"available": false})
 		return nil
@@ -156,7 +156,7 @@ func (s *server) sendLearning(ctx context.Context, path string, body any) error 
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+s.cfg.learningToken)
-	res, err := http.DefaultClient.Do(req)
+	res, err := learningClient.Do(req)
 	if err != nil {
 		return errors.New("the learning store is not reachable")
 	}
@@ -260,7 +260,7 @@ func (s *server) eraseLearnedList(ctx context.Context, org, project string) {
 		return
 	}
 	req.Header.Set("Authorization", "Bearer "+s.cfg.learningToken)
-	res, err := http.DefaultClient.Do(req)
+	res, err := learningClient.Do(req)
 	if err != nil || res.StatusCode != http.StatusOK {
 		log.Printf("WARN the learning copy of list %s could not be erased now", project)
 		return
@@ -354,3 +354,6 @@ func (s *server) removeMyInformation(w http.ResponseWriter, r *http.Request) {
 	log.Printf("INFO removal request taken")
 	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true})
 }
+
+// learningClient is the one client for the learning store; each call also has its own, shorter, deadline.
+var learningClient = &http.Client{Timeout: 90 * time.Second}

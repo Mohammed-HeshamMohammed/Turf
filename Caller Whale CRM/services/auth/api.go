@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -388,7 +389,9 @@ func (s *server) freshFirebaseUser(ctx context.Context, sid string) *user {
 		return nil
 	}
 	if login.refreshToken != "" && login.refreshToken != *fbRefresh {
-		_, _ = s.db.Exec(ctx, "UPDATE sessions SET fb_refresh = $1 WHERE id = $2", login.refreshToken, sid)
+		if _, err := s.db.Exec(ctx, "UPDATE sessions SET fb_refresh = $1 WHERE id = $2", login.refreshToken, sid); err != nil {
+			log.Printf("WARN could not save the renewed sign-in token for session %s: %v", sid, err) // the next renewal would fail and sign the person out
+		}
 	}
 	profile, err := s.fb.profile(ctx, login.idToken)
 	if err != nil {

@@ -522,8 +522,8 @@ func main() {
 		log.Printf("%s -> %s (core: %v)", r.host, r.upstream, r.core)
 	}
 	log.Printf("%s listening on http://localhost:%s", service, port)
-	srv := &http.Server{Addr: ":" + port, Handler: logHTTP(g), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
-	log.Fatal(srv.ListenAndServe())
+	srv := &http.Server{Addr: ":" + port, Handler: logHTTP(g), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute}
+	serveUntilStopped(srv) // no write timeout: event streams stay open
 }
 
 // limiter counts requests per key in one-minute windows.

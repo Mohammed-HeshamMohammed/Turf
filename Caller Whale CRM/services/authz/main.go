@@ -128,7 +128,7 @@ func run() error {
 		}
 	}
 	s := &server{cfg: cfg, rules: rules, keys: k, now: time.Now}
-	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
+	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 60 * time.Second, WriteTimeout: 2 * time.Minute, IdleTimeout: 2 * time.Minute}
 	failed := make(chan error, 1)
 	go func() { failed <- srv.ListenAndServe() }()
 	log.Printf("authz listening on http://localhost:%s", cfg.port)
