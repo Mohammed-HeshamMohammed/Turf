@@ -8,6 +8,7 @@ Heavy steps run inside polars (parsing, building rows) or PostgreSQL (fingerprin
 Every batch is committed together with the count of rows consumed, so a restart carries on from the last batch."""
 import json
 import os
+import queue
 import re
 import socket
 import threading
@@ -16,8 +17,11 @@ import time
 import traceback
 from pathlib import Path
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import polars as pl
 import psycopg
+import psycopg.conninfo
 
 import linetype
 import matching
@@ -33,6 +37,9 @@ POLL_SECONDS = 2.0
 # A job whose worker stopped is picked up again this many times; the next stop fails it (a file that keeps stopping the worker).
 MAX_RECLAIMS = 2
 CLEAN_RANGE = int(os.environ.get("IMPORT_CLEAN_ROWS", "5000"))  # rows tidied between two reports of progress
+# Connections one import uses at the same time to tidy its rows. The ranges of rows are independent, so they run side by side; 1 runs them
+# one after another on the worker's own connection.
+PARALLEL = max(1, int(os.environ.get("IMPORT_PARALLEL", str(min(4, os.cpu_count() or 1)))))
 WORK_MEM = os.environ.get("IMPORT_WORK_MEM", "256MB")  # memory one sort or hash in the matching steps may use before spilling to disk
 MATCH_RANGE = int(os.environ.get("IMPORT_MATCH_ROWS", "5000"))  # rows compared with the existing leads between two reports
 
@@ -137,7 +144,7 @@ def load(conn: psycopg.Connection, job: dict) -> None:
     empty = report.get("empty_rows", 0)
     examples: list[dict] = report.get("exact_examples", [])
     headers: list[str] = []
-    for headers, frame in readers.read_batches(source, job["has_header"], skip_rows=consumed):
+    for headers, frame in prefetch(readers.read_batches(source, job["has_header"], skip_rows=consumed)):
         check_cancel(conn, job_id)
         with conn.cursor() as cur:
             kept, nonblank = stage_and_insert(cur, job_id, frame, consumed + 1)
@@ -463,6 +470,87 @@ def cleared_cells(cur: psycopg.Cursor, job_id: str, columns: list[dict]) -> dict
     return {name: n for name, n in zip(checks, cur.fetchone()) if n}
 
 
+def tune(cur: psycopg.Cursor) -> None:
+    """For the heavy statements of the current transaction: time allowed, and memory per sort or hash."""
+    cur.execute("SET LOCAL statement_timeout = '10min'")
+    cur.execute(f"SET LOCAL work_mem = '{WORK_MEM}'")
+
+
+def run_ranges(conn: psycopg.Connection, job_id: str, low: int, high: int, size: int, work, on_result, parallel: bool = True) -> None:
+    """Calls work(connection, a, b) for each range of `size` row numbers from low to high and hands each answer to on_result in this thread,
+    as they finish. With PARALLEL > 1 (and parallel=True) the ranges run on that many connections of their own; the person
+    cancelling is noticed after each range, and then ranges not yet started are dropped."""
+    ranges = [(a, a + size) for a in range(low, high + 1, size)]
+    threads = min(PARALLEL, len(ranges)) if parallel else 1
+    if threads <= 1:
+        for a, b in ranges:
+            check_cancel(conn, job_id)
+            on_result(work(conn, a, b))
+        return
+    dsn = psycopg.conninfo.make_conninfo(conn.info.dsn, password=conn.info.password)
+    mine = threading.local()
+    opened: list[psycopg.Connection] = []
+
+    def open_connection() -> None:
+        own = psycopg.connect(dsn)
+        opened.append(own)
+        own.execute("SET search_path = importing, public")
+        own.commit()
+        mine.conn = own
+
+    pool = ThreadPoolExecutor(max_workers=threads, initializer=open_connection)
+    try:
+        futures = [pool.submit(lambda a=a, b=b: work(mine.conn, a, b)) for a, b in ranges]
+        for future in as_completed(futures):
+            check_cancel(conn, job_id)
+            on_result(future.result())
+    finally:
+        pool.shutdown(wait=True, cancel_futures=True)
+        for own in opened:
+            own.close()
+
+
+def prefetch(batches, depth: int = 2):
+    """Reads the file's batches in another thread while this one inserts the last, so neither waits for the other. Order is kept."""
+    ready: queue.Queue = queue.Queue(depth)
+    stop = threading.Event()
+    end = object()
+
+    def feed() -> None:
+        try:
+            for item in batches:
+                while not stop.is_set():
+                    try:
+                        ready.put(item, timeout=0.5)
+                        break
+                    except queue.Full:
+                        continue
+                if stop.is_set():
+                    return
+        except BaseException as error:  # handed to the reader of the queue, who raises it
+            item = error
+        else:
+            item = end
+        while not stop.is_set():
+            try:
+                ready.put(item, timeout=0.5)
+                return
+            except queue.Full:
+                continue
+
+    threading.Thread(target=feed, daemon=True).start()
+    try:
+        while True:
+            item = ready.get()
+            if item is end:
+                return
+            if isinstance(item, BaseException):
+                raise item
+            yield item
+    finally:
+        stop.set()
+
+
 def clean(conn: psycopg.Connection, job: dict) -> None:
     job_id = job["id"]
     columns = job["columns"]
@@ -475,20 +563,30 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
     done = 0
     total = int(job.get("loaded_rows") or 0)
     started = time.monotonic()
-    for start in range(low, high + 1, CLEAN_RANGE):
-        check_cancel(conn, job_id)
+    update = f"""
+        WITH c AS (SELECT row_no, {expressions}, {source_data} AS source_data FROM importing.rows{lateral} WHERE job_id = %(job)s AND state = 'loaded' AND row_no >= %(a)s AND row_no < %(b)s)
+        UPDATE importing.rows r SET name = c.name, phone = c.phone, email = c.email, address = c.address, unit = c.unit, city = c.city,
+               region = c.region, zip = c.zip, country = c.country, latitude = c.latitude, longitude = c.longitude, parcel = c.parcel,
+               value = c.value, source = c.source, source_data = c.source_data,
+               state = CASE WHEN c.name IS NULL AND c.phone IS NULL AND c.email IS NULL AND c.address IS NULL THEN 'skip' ELSE 'clean' END
+        FROM c WHERE r.job_id = %(job)s AND r.row_no = c.row_no"""
+
+    def tidy_range(own: psycopg.Connection, a: int, b: int) -> int:
+        with own.cursor() as cur:
+            cur.execute(update, {"job": job_id, "a": a, "b": b})
+            changed = cur.rowcount
+        own.commit()
+        return changed
+
+    def tidied(changed: int) -> None:
+        nonlocal done
+        done += changed
         with conn.cursor() as cur:
-            cur.execute(f"""
-                WITH c AS (SELECT row_no, {expressions}, {source_data} AS source_data FROM importing.rows{lateral} WHERE job_id = %(job)s AND state = 'loaded' AND row_no >= %(a)s AND row_no < %(b)s)
-                UPDATE importing.rows r SET name = c.name, phone = c.phone, email = c.email, address = c.address, unit = c.unit, city = c.city,
-                       region = c.region, zip = c.zip, country = c.country, latitude = c.latitude, longitude = c.longitude, parcel = c.parcel,
-                       value = c.value, source = c.source, source_data = c.source_data,
-                       state = CASE WHEN c.name IS NULL AND c.phone IS NULL AND c.email IS NULL AND c.address IS NULL THEN 'skip' ELSE 'clean' END
-                FROM c WHERE r.job_id = %(job)s AND r.row_no = c.row_no""", {"job": job_id, "a": start, "b": start + CLEAN_RANGE})
-            done += cur.rowcount
             beat(cur, job_id, "cleaning", done, total=total, pct=min(40, int(40 * done / total)) if total else 0)
         conn.commit()
         log("INFO", "cleaning batch", job=job_id, rows=done, seconds=round(time.monotonic() - started, 1))
+
+    run_ranges(conn, job_id, low, high, CLEAN_RANGE, tidy_range, tidied)
     with conn.cursor() as cur:
         cleared = cleared_cells(cur, job_id, columns)
     conn.commit()
@@ -586,8 +684,7 @@ def merge_identical_rows(conn: psycopg.Connection, job_id: str) -> int:
     """Rows that are the same in every field that was kept (after tidying) are one lead: the first is kept and the others are dropped, with
     no question to the person. Returns how many were dropped."""
     with conn.cursor() as cur:
-        cur.execute("SET LOCAL statement_timeout = '10min'")
-        cur.execute(f"SET LOCAL work_mem = '{WORK_MEM}'")
+        tune(cur)
         cur.execute("""
             WITH d AS (
                 SELECT row_no, row_number() OVER (PARTITION BY lower(name), phone, lower(email), lower(address), lower(unit), lower(city), lower(region), lower(zip),
@@ -610,8 +707,7 @@ def skip_identical_prior_rows(conn: psycopg.Connection, job: dict) -> int:
     """
     headers = [column["header"] for column in job["columns"]]
     with conn.cursor() as cur:
-        cur.execute("SET LOCAL statement_timeout = '10min'")
-        cur.execute(f"SET LOCAL work_mem = '{WORK_MEM}'")
+        tune(cur)
         cur.execute("""
             WITH identical AS (
                 SELECT DISTINCT ON (r.row_no) r.row_no, old.lead_id
@@ -640,17 +736,31 @@ def say(conn: psycopg.Connection, job_id: str, step: str, done: int, total: int,
     conn.commit()
 
 
+def build_lead_keys(cur: psycopg.Cursor, org: str) -> None:
+    """The keys of the leads already in the account, in a small temporary table with indexes (one per connection)."""
+    cur.execute("SET cw.matching = 'on'")
+    cur.execute("DROP TABLE IF EXISTS _lead_keys")
+    cur.execute("""
+        CREATE TEMP TABLE _lead_keys AS
+        SELECT id::text AS lead, phone, email, addr_key AS ak, nullif(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]', '', 'g'), '') AS nk
+        FROM importing.lead_match WHERE org_id = %s::uuid""", (org,))
+    cur.execute("CREATE INDEX ON _lead_keys (phone, nk)")
+    cur.execute("CREATE INDEX ON _lead_keys (email, nk)")
+    cur.execute("CREATE INDEX ON _lead_keys (ak, nk)")
+    cur.execute("ANALYZE _lead_keys")
+
+
 def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> tuple[int, int]:
     """Marks rows that match each other, or a lead already in the CRM, after cleaning. Returns how many groups the person must decide.
     Every step reports to the screen: the work is done in chunks of MATCH_RANGE rows so the count moves in real time.
     A row that matches a lead already in the account on every key it has (at least two of phone, email, address, and the same name) is a
     certain repeat: it is merged into that lead without asking. Returns (groups to decide, rows merged without asking)."""
     job_id, org = job["id"], job["org_id"]
+    began = time.monotonic()
     check_cancel(conn, job_id)
     say(conn, job_id, "Looking for repeats inside your list", 0, total, 45)
     with conn.cursor() as cur:
-        cur.execute("SET LOCAL statement_timeout = '10min'")
-        cur.execute(f"SET LOCAL work_mem = '{WORK_MEM}'")
+        tune(cur)
         cur.execute("""
             SELECT row_no, name, phone, email, importing.addr_key(address, zip) AS ak FROM (
                 SELECT *, count(*) OVER (PARTITION BY phone) AS cp, count(*) OVER (PARTITION BY email) AS ce,
@@ -659,65 +769,71 @@ def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> tuple[i
             WHERE (phone IS NOT NULL AND cp > 1) OR (email IS NOT NULL AND ce > 1) OR (importing.addr_key(address, zip) IS NOT NULL AND ca > 1)""", (job_id,))
         groups = group_source_candidates(cur.fetchall())
     conn.commit()
+    log("INFO", "repeats inside the list found", job=job_id, seconds=round(time.monotonic() - began, 1))
 
     # The keys of the leads already in the account, read once into a small table with indexes, so each chunk of the list is looked up in it.
     check_cancel(conn, job_id)
     say(conn, job_id, "Reading the leads already in your account", 0, total, 50)
     with conn.cursor() as cur:
-        cur.execute("SET cw.matching = 'on'")
-        cur.execute("DROP TABLE IF EXISTS _lead_keys")
-        cur.execute("""
-            CREATE TEMP TABLE _lead_keys AS
-            SELECT id::text AS lead, phone, email, addr_key AS ak, nullif(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]', '', 'g'), '') AS nk
-            FROM importing.lead_match WHERE org_id = %s::uuid""", (org,))
-        cur.execute("CREATE INDEX ON _lead_keys (phone, nk)")
-        cur.execute("CREATE INDEX ON _lead_keys (email, nk)")
-        cur.execute("CREATE INDEX ON _lead_keys (ak, nk)")
-        cur.execute("ANALYZE _lead_keys")
+        build_lead_keys(cur, org)
         cur.execute("SELECT count(*) FROM _lead_keys")
         existing = cur.fetchone()[0]
         cur.execute("SELECT coalesce(min(row_no), 0), coalesce(max(row_no), 0), count(*) FROM importing.rows WHERE job_id = %s AND state = 'clean'", (job_id,))
         low, high, to_compare = cur.fetchone()
     conn.commit()
 
+    log("INFO", "lead keys read", job=job_id, leads=existing, seconds=round(time.monotonic() - began, 1))
     # A row matches a lead when the names are the same and the phone, the email or the address is: three lookups, each on one key (strong).
     # A phone or an email alone, with another name or none, may be a different person at a shared number: such a row (weak) is only ever
     # put to the person as "is this the same person?", never merged without asking.
     matches: list[tuple] = []
     certain: set = set()
-    for start in range(low, high + 1, MATCH_RANGE):
-        check_cancel(conn, job_id)
-        with conn.cursor() as cur:
-            cur.execute("SET LOCAL statement_timeout = '10min'")
-            cur.execute(f"SET LOCAL work_mem = '{WORK_MEM}'")
-            cur.execute("""
-                WITH r AS (
-                    SELECT row_no, phone, email, importing.addr_key(address, zip) AS ak,
-                           nullif(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]', '', 'g'), '') AS nk,
-                           (phone IS NOT NULL)::int + (email IS NOT NULL)::int + (importing.addr_key(address, zip) IS NOT NULL)::int AS nkeys
-                    FROM importing.rows WHERE job_id = %(job)s AND state = 'clean' AND row_no >= %(a)s AND row_no < %(b)s)
-                SELECT x.row_no, x.lead, sum(x.strong)::int AS hits, max(r.nkeys) AS nkeys FROM (
-                    SELECT r.row_no, k.lead, 1 AS strong FROM r JOIN _lead_keys k ON k.phone = r.phone AND k.nk = r.nk
-                    UNION ALL SELECT r.row_no, k.lead, 1 FROM r JOIN _lead_keys k ON k.email = r.email AND k.nk = r.nk
-                    UNION ALL SELECT r.row_no, k.lead, 1 FROM r JOIN _lead_keys k ON k.ak = r.ak AND k.nk = r.nk
-                    UNION ALL SELECT r.row_no, k.lead, 0 FROM r JOIN _lead_keys k ON k.phone = r.phone
-                    UNION ALL SELECT r.row_no, k.lead, 0 FROM r JOIN _lead_keys k ON k.email = r.email
-                ) x JOIN r ON r.row_no = x.row_no GROUP BY x.row_no, x.lead""", {"job": job_id, "a": start, "b": start + MATCH_RANGE})
-            best: dict = {}
+    # The range of rows is written out in each branch rather than named once and joined back to itself: a freshly loaded table has no
+    # statistics yet, PostgreSQL then takes the range for one row and joins it to itself row by row, which on thousands of rows takes minutes.
+    rng = """(SELECT row_no, phone, email, importing.addr_key(address, zip) AS ak,
+                     nullif(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]', '', 'g'), '') AS nk,
+                     (phone IS NOT NULL)::int + (email IS NOT NULL)::int + (importing.addr_key(address, zip) IS NOT NULL)::int AS nkeys
+              FROM importing.rows WHERE job_id = %(job)s AND state = 'clean' AND row_no >= %(a)s AND row_no < %(b)s)"""
+    compare = f"""
+        SELECT row_no, lead, sum(strong)::int AS hits, max(nkeys) AS nkeys FROM (
+            SELECT r.row_no, k.lead, 1 AS strong, r.nkeys FROM {rng} r JOIN _lead_keys k ON k.phone = r.phone AND k.nk = r.nk
+            UNION ALL SELECT r.row_no, k.lead, 1, r.nkeys FROM {rng} r JOIN _lead_keys k ON k.email = r.email AND k.nk = r.nk
+            UNION ALL SELECT r.row_no, k.lead, 1, r.nkeys FROM {rng} r JOIN _lead_keys k ON k.ak = r.ak AND k.nk = r.nk
+            UNION ALL SELECT r.row_no, k.lead, 0, r.nkeys FROM {rng} r JOIN _lead_keys k ON k.phone = r.phone
+            UNION ALL SELECT r.row_no, k.lead, 0, r.nkeys FROM {rng} r JOIN _lead_keys k ON k.email = r.email
+        ) x GROUP BY row_no, lead"""
+
+    def compare_range(own: psycopg.Connection, a: int, b: int) -> dict:
+        """The best lead for each row of the range: (lead, strong hits, keys the row has)."""
+        best: dict = {}
+        with own.cursor() as cur:
+            tune(cur)
+            cur.execute(compare, {"job": job_id, "a": a, "b": b})
             for row_no, lead, hits, nkeys in cur.fetchall():
                 if row_no not in best or (hits, lead) > (best[row_no][1], best[row_no][0]):
                     best[row_no] = (lead, hits, nkeys)
-            for row_no, (lead, hits, nkeys) in best.items():
-                matches.append((row_no, lead))
-                if nkeys >= 2 and hits == nkeys:  # weak matches have no hits, so they are never certain
-                    certain.add(row_no)
-        conn.commit()
-        share = min(1.0, (start + MATCH_RANGE - low) / max(1, high - low + 1))
+        own.commit()
+        return best
+
+    compared = 0
+
+    def compared_range(best: dict) -> None:
+        nonlocal compared
+        compared += 1
+        for row_no, (lead, hits, nkeys) in best.items():
+            matches.append((row_no, lead))
+            if nkeys >= 2 and hits == nkeys:  # weak matches have no hits, so they are never certain
+                certain.add(row_no)
+        share = min(1.0, compared * MATCH_RANGE / max(1, high - low + 1))
         say(conn, job_id, "Comparing your list with the leads already in your account", round(share * to_compare), to_compare, 55 + int(37 * share),
             existing_leads=existing, found=len(matches))
+
+    # One connection: each extra one would build its own copy of the lead keys, which costs more than the comparing it shares out.
+    run_ranges(conn, job_id, low, high, MATCH_RANGE, compare_range, compared_range, parallel=False)
     with conn.cursor() as cur:
         cur.execute("DROP TABLE IF EXISTS _lead_keys")
     conn.commit()
+    log("INFO", "compared", job=job_id, seconds=round(time.monotonic() - began, 1))
     log("INFO", "matched against existing leads", job=job_id, rows_with_a_match=len(matches), certain=len(certain), existing_leads=existing)
 
     check_cancel(conn, job_id)

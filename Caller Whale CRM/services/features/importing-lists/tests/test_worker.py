@@ -424,6 +424,22 @@ class EndToEndTest(unittest.TestCase):
         job_id, job = self.clean_phone_list(data)
         self.assertEqual((job["status"], job["report"]["line_types"]), ("ready", "unavailable"))
 
+    def test_tidying_and_matching_in_parallel_give_the_same_answer_as_one_after_another(self) -> None:
+        rows = "Name,Phone"+"\n"+"".join(f"Person {i},51255501{i:02d}"+"\n" for i in range(60)) + "Lee Existing,5125550199"+"\n"
+        results = []
+        for name in ("PARALLEL", "CLEAN_RANGE", "MATCH_RANGE"):
+            self.addCleanup(setattr, self.worker, name, getattr(self.worker, name))
+        for parallel in (1, 4):
+            self.worker.PARALLEL, self.worker.CLEAN_RANGE, self.worker.MATCH_RANGE = parallel, 7, 7
+            job_id, job = self.clean_phone_list(rows.encode())
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT row_no, state, phone, match_lead IS NOT NULL FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+                results.append((job["status"], job["report"]["near_groups"], cur.fetchall()))
+            self.conn.commit()
+        self.assertEqual(results[0], results[1])
+        self.assertEqual((results[1][0], results[1][1]), ("reviewing", 1))  # the row that is Lee Existing is asked about, the other 60 are clean
+        self.assertEqual(sum(1 for r in results[1][2] if r[1] == "clean"), 60)
+
     def test_a_phone_alone_matching_a_lead_with_another_name_is_asked_about_never_merged(self) -> None:
         # "Lee Existing" is in the CRM with (512) 555-0199. Another name on the same phone may be someone else at a shared number.
         job_id, job = self.clean_phone_list(b'Name,Phone\nPat Other,5125550199\nSam New,5125550222\n')
