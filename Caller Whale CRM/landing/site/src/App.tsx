@@ -8,7 +8,7 @@ import { Link, go, useRoute } from "./nav.tsx";
 import { Pricing } from "./Pricing.tsx";
 import { FeaturesIndex, FeaturePage } from "./Features.tsx";
 import { Security } from "./Security.tsx";
-import { Contact, Privacy, Terms } from "./PublicPages.tsx";
+import { Contact, Privacy, RemoveMyInformation, Terms } from "./PublicPages.tsx";
 import { WhyCallerWhale } from "./WhyCallerWhale.tsx";
 import { HeroDemo } from "./components/ui/demo.tsx";
 import { SiteHeader } from "./components/ui/site-header.tsx";
@@ -482,6 +482,7 @@ export function App({ path: first = "/" }) {
     "/why-caller-whale": <WhyCallerWhale />,
     "/security": <Security />,
     "/contact": <Contact getAuth={getAuth} />,
+    "/remove-my-information": <RemoveMyInformation getAuth={getAuth} />,
     "/privacy": <Privacy />,
     "/terms": <Terms />,
     "/connect": me && setupStep(me) ? setup : me ? <Connect auth={auth} authBase={authBase} search={typeof window === "undefined" ? "" : window.location.search} /> : <AccountPending error={restoreError} onRetry={retrySession} />,

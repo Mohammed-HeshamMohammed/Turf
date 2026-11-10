@@ -25,6 +25,7 @@ var authRoutes = []string{
 	"POST /v1/sessions/refresh", "POST /v1/sessions/sign-out", "POST /v1/sessions/revoke",
 	"GET /v1/me",
 	"POST /v1/me/profile",
+	"POST /v1/me/username",
 	"POST /v1/me/birth-date",
 	"POST /v1/me/terms",
 	"POST /v1/me/work",

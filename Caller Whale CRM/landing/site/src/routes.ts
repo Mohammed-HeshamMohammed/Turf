@@ -24,6 +24,7 @@ export const routes = [
   ...features.map(feature => ({ path: `/features/${feature.slug}`, key: `feature:${feature.slug}`, title: `${feature.title} · Caller Whale`, description: feature.short, indexable: true, sitemap: true })),
   { path: "/security", key: "security", title: "Security · Caller Whale", description: "How Caller Whale protects accounts and data, and what is still in preview.", indexable: true, sitemap: true },
   { path: "/contact", key: "contact", title: "Contact · Caller Whale", description: "Send the Caller Whale team a message.", indexable: true, sitemap: true },
+  { path: "/remove-my-information", key: "remove", title: "Remove my information · Caller Whale", description: "Ask Caller Whale to remove a phone number or an email address from what it has learned.", indexable: true, sitemap: true },
   { path: "/privacy", key: "privacy", title: "Privacy draft · Caller Whale", description: "Draft privacy notice awaiting review.", indexable: false, sitemap: false },
   { path: "/terms", key: "terms", title: "Terms draft · Caller Whale", description: "Draft terms awaiting review.", indexable: false, sitemap: false },
   { path: "/signin", key: "signin", title: "Sign in · Caller Whale", description: "Sign in to your Caller Whale account.", indexable: false, sitemap: false },

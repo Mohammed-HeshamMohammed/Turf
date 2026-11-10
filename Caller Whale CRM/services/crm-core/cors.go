@@ -29,7 +29,7 @@ func parseOrigins(text string) (map[string]bool, error) {
 func withCORS(origins map[string]bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		if origin != "" && origins[origin] && !strings.HasPrefix(r.URL.Path, "/api/v1/public/") {
+		if origin != "" && origins[origin] && (!strings.HasPrefix(r.URL.Path, "/api/v1/public/") || r.URL.Path == "/api/v1/public/remove-my-information") {
 			h := w.Header()
 			h.Set("Access-Control-Allow-Origin", origin)
 			h.Add("Vary", "Origin")

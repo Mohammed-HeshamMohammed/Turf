@@ -48,7 +48,7 @@ The owner's earlier idea of an encrypted copy of the raw row that the owners cou
 - [ ] Customer agreement (DPA) allows the use.
 - [ ] A data protection impact assessment written.
 - [x] The opt-out is visible to workspace administrators in the CRM (Settings, workspace: "Improving Caller Whale with your lists"). Built 2026-11-10.
-- [x] The tool to act on a person's request exists (`POST /v1/erase-everywhere`, see learning-store-us-law.md section 8). [ ] Still to do: an address or form in the privacy notice where a person can ask, and someone who answers.
+- [x] The tool to act on a person's request exists (`POST /v1/erase-everywhere`, see learning-store-us-law.md section 8). [ ] The privacy notice and footer link to the public **Remove my information** page (built 2026-11-10); someone should still read the Contact messages that mention it.
 - [ ] `LEARNING_HASH_KEY` backed up away from Coolify, with two owners holding it.
 - [ ] A breach plan covering this database.
 
