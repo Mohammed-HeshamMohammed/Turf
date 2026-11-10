@@ -153,3 +153,23 @@ def suggest_all(headers: list[str]) -> list[str | None]:
                 taken.add(field)
         out.append(field)
     return out
+
+
+US_STATES = set("AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY DC".split())
+_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_PHONE = re.compile(r"^\+?1?[\s.-]*\(?\d{3}\)?[\s.-]*\d{3}[\s.-]*\d{4}$")
+_ZIP = re.compile(r"^\d{5}(-\d{4})?$")
+
+
+def suggest_from_values(values: list[str]) -> str | None:
+    """For a column whose heading says nothing ("Contact 1", "Col7"): the field its cells look like, when nearly all of them do.
+    Only emails, phone numbers, US state codes and ZIP codes are recognised; anything else stays "not used" until the person says."""
+    cells = [v.strip() for v in values if v and v.strip()]
+    if len(cells) < 5:
+        return None
+    for field, test in (("email", lambda v: bool(_EMAIL.match(v))), ("phone", lambda v: bool(_PHONE.match(v)) and not _ZIP.match(v)),
+                        ("region", lambda v: v.upper() in US_STATES), ("zip", lambda v: bool(_ZIP.match(v)))):
+        if sum(test(v) for v in cells) >= 0.9 * len(cells):
+            return field
+    return None
+

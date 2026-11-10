@@ -139,3 +139,34 @@ func TestDecidingAllRepeatsCanKeepTheLastRowAndReachOnlyOneKind(t *testing.T) {
 		t.Fatalf("states: %v", states)
 	}
 }
+
+func TestConfirmedColumnAnswersAreRememberedByHeading(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	ctx := context.Background()
+	_, job := e.startImport(alice, orgA, map[string]any{"filename": "owners.csv", "size": 100, "name": "Austin"})
+	id := job["id"].(string)
+	columns := `[{"idx":0,"header":"Owner","key":"owner","suggested":"name"},{"idx":1,"header":"Cell","key":"cell","suggested":"phone"},{"idx":2,"header":"Mood","key":"mood","suggested":null}]`
+	if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'mapping', columns = $2::jsonb WHERE id = $1`, id, columns); err != nil {
+		t.Fatal(err)
+	}
+	status, _ := e.call(alice, orgA, "PUT", "/api/v1/imports/"+id+"/mapping", map[string]any{"columns": []any{
+		map[string]any{"idx": 0, "field": "name", "use": true}, map[string]any{"idx": 1, "field": "phone", "use": true}, map[string]any{"idx": 2, "use": false}}})
+	if status != 200 {
+		t.Fatalf("mapping: %d", status)
+	}
+	got := map[string]string{}
+	rows, err := e.admin.Query(ctx, `SELECT header_key, coalesce(field, '') || '/' || used::text FROM importing.mapping_memory WHERE org_id = $1`, orgA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var key, answer string
+		_ = rows.Scan(&key, &answer)
+		got[key] = answer
+	}
+	rows.Close()
+	if got["owner"] != "name/true" || got["cell"] != "phone/true" || got["mood"] != "/false" || len(got) != 3 {
+		t.Fatalf("remembered: %v", got)
+	}
+}

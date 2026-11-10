@@ -87,6 +87,16 @@ class MatchingTest(unittest.TestCase):
         self.assertEqual(event["occurred_at"], "2026-10-16T01:47:00+00:00")
         self.assertEqual((event["outcome"], event["raw_outcome"]), ("Language barrier", "Spanish Speaker"))
 
+    def test_a_column_with_no_telling_heading_is_suggested_from_what_its_cells_look_like(self) -> None:
+        phones = ["(512) 555-0100", "512.555.0101", "+1 512 555 0102", "5125550103", "512-555-0104"]
+        self.assertEqual(matching.suggest_from_values(phones), "phone")
+        self.assertEqual(matching.suggest_from_values(["a@x.com"] * 5), "email")
+        self.assertEqual(matching.suggest_from_values(["TX", "tx", "CA", "NY", "FL"]), "region")
+        self.assertEqual(matching.suggest_from_values(["78701", "78702", "78701-1234", "10001", "90210"]), "zip")
+        self.assertIsNone(matching.suggest_from_values(["happy", "sad", "ok", "fine", "good"]))
+        self.assertIsNone(matching.suggest_from_values(phones[:3]))  # too few to be sure
+        self.assertIsNone(matching.suggest_from_values(phones[:4] + ["not a phone", "also not"]))
+
     def test_headers_are_read_however_they_are_written(self) -> None:
         for header, field in [("Owner Name", "name"), ("OWNER_NAME", "name"), ("ownerName", "name"), ("Cell Phone", "phone"), ("Phone 3", "phone"),
                               ("ZIP Code", "zip"), ("Bathroom style", None), ("Relative 6", None), ("Mailing Address", None), ("State", "region")]:
@@ -306,6 +316,18 @@ class EndToEndTest(unittest.TestCase):
             cur.execute("SELECT cells FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
             self.assertEqual([row[0] for row in cur.fetchall()], [["A", "5551111", ""], ["B", "5552222", "kept"]])
         self.conn.commit()
+
+    def test_columns_are_suggested_from_what_the_workspace_decided_before_then_the_heading_then_the_cells(self) -> None:
+        self.conn.execute("""INSERT INTO importing.mapping_memory (org_id, header_key, field, used) VALUES
+            ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'mood', 'source', true), ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'owner name', NULL, false)""")
+        self.conn.commit()
+        job_id = self.queue('Owner Name,Contact 1,Mood,Zip Code,Misc\nPerson 0,(512) 555-0100,happy,78700,x0\nPerson 1,(512) 555-0101,happy,78701,x1\nPerson 2,(512) 555-0102,happy,78702,x2\nPerson 3,(512) 555-0103,happy,78703,x3\nPerson 4,(512) 555-0104,happy,78704,x4\nPerson 5,(512) 555-0105,happy,78705,x5\n'.encode())
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        columns = {c["header"]: c for c in self.job(job_id)["columns"]}
+        self.assertEqual({h: c["suggested"] for h, c in columns.items()},
+                         {"Owner Name": None, "Contact 1": "phone", "Mood": "source", "Zip Code": "zip", "Misc": None})
+        self.assertEqual((columns["Owner Name"]["remembered"], columns["Mood"]["remembered"], columns["Contact 1"]["remembered"]), ("unused", "used", None))
+        self.assertEqual(columns["Mood"]["key"], "mood")
 
     def test_a_call_dated_in_the_future_shows_in_the_report_so_a_wrong_time_zone_is_noticed(self) -> None:
         header = "a,Agent name,Log Time,Scheduled time,Phone,Log Type,Call Notes,First Name,Last Name,Address\n"

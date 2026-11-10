@@ -249,6 +249,20 @@ func (s *server) importMapping(q *req) error {
 			return err
 		}
 	}
+	// Remember the answers by heading, so the next list from this workspace with the same headings arrives already answered.
+	for _, raw := range columns {
+		col, _ := raw.(map[string]any)
+		key, _ := col["key"].(string)
+		if key == "" {
+			continue
+		}
+		field, _ := col["field"].(string)
+		used, _ := col["used"].(bool)
+		if _, err = s.st.db.Exec(q.r.Context(), `INSERT INTO importing.mapping_memory (org_id, header_key, field, used) VALUES ($1, $2, NULLIF($3, ''), $4)
+			ON CONFLICT (org_id, header_key) DO UPDATE SET field = EXCLUDED.field, used = EXCLUDED.used, updated_at = now()`, q.sc.orgID, key, field, used); err != nil {
+			return err
+		}
+	}
 	_, err = s.st.db.Exec(q.r.Context(), `UPDATE importing.jobs SET columns = $2, status = 'cleaning', progress = '{"phase":"cleaning","done":0}', updated_at = now() WHERE id = $1 AND status = 'mapping'`, id, columns)
 	if err != nil {
 		return err

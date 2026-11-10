@@ -267,20 +267,50 @@ def describe_columns(cur: psycopg.Cursor, job_id: str, headers: list[str], popul
         populated = column_population(cur, job_id, headers)
     cur.execute("SELECT cells FROM importing.rows WHERE job_id = %s ORDER BY row_no LIMIT 300", (job_id,))
     sample_rows = [r[0] for r in cur.fetchall()]
-    suggestions = matching.suggest_all(headers)
     standard_keys = matching.standard_keys(headers)
+    keys = [matching.normalize_header(h) for h in headers]
+    # What this workspace decided before for the same heading comes first, then what the heading says, then what the cells look like.
+    cur.execute("""SELECT m.header_key, m.field, m.used FROM importing.mapping_memory m JOIN importing.jobs j ON j.org_id = m.org_id
+                   WHERE j.id = %s AND m.header_key = ANY(%s)""", (job_id, keys))
+    memory = {key: (field, used) for key, field, used in cur.fetchall()}
+    chosen: list[str | None] = [None] * len(headers)
+    note: list[str | None] = [None] * len(headers)
+    taken: set[str] = set()
+
+    def free(field: str | None) -> bool:
+        return bool(field) and (field in matching.MULTIPLE or field not in taken)
+
+    for i, key in enumerate(keys):
+        if key in memory:
+            field, used = memory[key]
+            note[i] = "used" if used else "unused"
+            if used and free(field):
+                chosen[i] = field
+                taken.add(field)
+    for i, header in enumerate(headers):
+        if note[i] is None:
+            field = matching.suggest(header)
+            if free(field):
+                chosen[i] = field
+                taken.add(field)
     out = []
     for i, header in enumerate(headers):
+        values = [(cells[i] if i < len(cells) else "") for cells in sample_rows]
         seen: list[str] = []
-        for cells in sample_rows:
-            value = (cells[i] if i < len(cells) else "").strip()
+        for value in map(str.strip, values):
             if value and value not in seen:
                 seen.append(value[:80])
             if len(seen) == 3:
                 break
         detail = matching.source_detail(header)
-        out.append({"idx": i, "header": header, "suggested": suggestions[i] or (standard_keys[i] if detail else None), "source_detail": detail,
-                    "standard_key": standard_keys[i],
+        suggested = chosen[i] or (standard_keys[i] if detail and note[i] != "unused" else None)
+        if suggested is None and note[i] is None and not detail:
+            guess = matching.suggest_from_values(values)
+            if free(guess):
+                suggested = guess
+                taken.add(guess)
+        out.append({"idx": i, "header": header, "key": keys[i], "suggested": suggested, "source_detail": detail,
+                    "standard_key": standard_keys[i], "remembered": note[i],
                     "field": None, "used": None, "populated": populated[i], "samples": seen})
     return out
 
