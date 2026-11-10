@@ -261,9 +261,12 @@ func (s *server) importDuplicates(q *req) error {
 	if err = tx.QueryRow(ctx, `SELECT count(*) FROM importing.rows WHERE job_id = $1 AND state = 'near_duplicate'`, id).Scan(&total); err != nil {
 		return err
 	}
+	// The whole row as it was in the file (cells, in the order of the file's columns), and, for a lead already in the account, what it holds,
+	// so the person compares complete rows and not a name and an address.
 	rows, err := queryJSON(ctx, tx, `SELECT jsonb_build_object('row_no', r.row_no, 'group_id', r.group_id, 'name', r.name, 'phone', r.phone, 'email', r.email,
-			'address', r.address, 'city', r.city, 'zip', r.zip, 'match_lead', r.match_lead, 'match_name', l.name)
-		FROM importing.rows r LEFT JOIN leads l ON l.id = r.match_lead AND cw_visible_lead(l.id)
+			'address', r.address, 'city', r.city, 'zip', r.zip, 'cells', to_jsonb(r.cells), 'match_lead', r.match_lead, 'match_name', l.name,
+			'match_phone', l.phone, 'match_email', l.email, 'match_address', p.address, 'match_city', p.city, 'match_zip', p.postal_code)
+		FROM importing.rows r LEFT JOIN leads l ON l.id = r.match_lead AND cw_visible_lead(l.id) LEFT JOIN properties p ON p.id = l.property_id
 		WHERE r.job_id = $1 AND r.state = 'near_duplicate' ORDER BY r.group_id, r.row_no OFFSET $2 LIMIT 200`, id, max(offset, 0))
 	if err != nil {
 		return err
