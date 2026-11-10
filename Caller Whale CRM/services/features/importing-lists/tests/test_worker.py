@@ -360,6 +360,15 @@ class EndToEndTest(unittest.TestCase):
         job_id, job = self.clean_phone_list(data)
         self.assertEqual((job["status"], job["report"]["line_types"]), ("ready", "unavailable"))
 
+    def test_a_phone_alone_matching_a_lead_with_another_name_is_asked_about_never_merged(self) -> None:
+        # "Lee Existing" is in the CRM with (512) 555-0199. Another name on the same phone may be someone else at a shared number.
+        job_id, job = self.clean_phone_list(b'Name,Phone\nPat Other,5125550199\nSam New,5125550222\n')
+        self.assertEqual((job["status"], job["report"]["near_groups"], job["report"]["certain_matches_merged"]), ("reviewing", 1, 0))
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT name, state, match_lead IS NOT NULL FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            self.assertEqual(cur.fetchall(), [("Pat Other", "near_duplicate", True), ("Sam New", "clean", False)])
+        self.conn.commit()
+
     def test_readymode_calls_are_staged_before_any_lead_changes(self) -> None:
         data = ("a,Agent name,Log Time,Scheduled time,Phone,Log Type,Call Notes,First Name,Last Name,Address,Ph#2,Ph#6\n"
                 "12345,Old agent,10/15/2026 20:47,Not scheduled,5125550100,Voicemail,Left message,Pat,Owner,1 Main St,0,0\n"

@@ -629,7 +629,6 @@ def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> tuple[i
             CREATE TEMP TABLE _lead_keys AS
             SELECT id::text AS lead, phone, email, addr_key AS ak, nullif(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]', '', 'g'), '') AS nk
             FROM importing.lead_match WHERE org_id = %s::uuid""", (org,))
-        cur.execute("DELETE FROM _lead_keys WHERE nk IS NULL")
         cur.execute("CREATE INDEX ON _lead_keys (phone, nk)")
         cur.execute("CREATE INDEX ON _lead_keys (email, nk)")
         cur.execute("CREATE INDEX ON _lead_keys (ak, nk)")
@@ -640,7 +639,9 @@ def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> tuple[i
         low, high, to_compare = cur.fetchone()
     conn.commit()
 
-    # A row matches a lead when the names are the same and the phone, the email or the address is: three lookups, each on one key.
+    # A row matches a lead when the names are the same and the phone, the email or the address is: three lookups, each on one key (strong).
+    # A phone or an email alone, with another name or none, may be a different person at a shared number: such a row (weak) is only ever
+    # put to the person as "is this the same person?", never merged without asking.
     matches: list[tuple] = []
     certain: set = set()
     for start in range(low, high + 1, MATCH_RANGE):
@@ -653,10 +654,12 @@ def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> tuple[i
                            nullif(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]', '', 'g'), '') AS nk,
                            (phone IS NOT NULL)::int + (email IS NOT NULL)::int + (importing.addr_key(address, zip) IS NOT NULL)::int AS nkeys
                     FROM importing.rows WHERE job_id = %(job)s AND state = 'clean' AND row_no >= %(a)s AND row_no < %(b)s)
-                SELECT x.row_no, x.lead, count(*) AS hits, max(r.nkeys) AS nkeys FROM (
-                    SELECT r.row_no, k.lead FROM r JOIN _lead_keys k ON k.phone = r.phone AND k.nk = r.nk
-                    UNION ALL SELECT r.row_no, k.lead FROM r JOIN _lead_keys k ON k.email = r.email AND k.nk = r.nk
-                    UNION ALL SELECT r.row_no, k.lead FROM r JOIN _lead_keys k ON k.ak = r.ak AND k.nk = r.nk
+                SELECT x.row_no, x.lead, sum(x.strong)::int AS hits, max(r.nkeys) AS nkeys FROM (
+                    SELECT r.row_no, k.lead, 1 AS strong FROM r JOIN _lead_keys k ON k.phone = r.phone AND k.nk = r.nk
+                    UNION ALL SELECT r.row_no, k.lead, 1 FROM r JOIN _lead_keys k ON k.email = r.email AND k.nk = r.nk
+                    UNION ALL SELECT r.row_no, k.lead, 1 FROM r JOIN _lead_keys k ON k.ak = r.ak AND k.nk = r.nk
+                    UNION ALL SELECT r.row_no, k.lead, 0 FROM r JOIN _lead_keys k ON k.phone = r.phone
+                    UNION ALL SELECT r.row_no, k.lead, 0 FROM r JOIN _lead_keys k ON k.email = r.email
                 ) x JOIN r ON r.row_no = x.row_no GROUP BY x.row_no, x.lead""", {"job": job_id, "a": start, "b": start + MATCH_RANGE})
             best: dict = {}
             for row_no, lead, hits, nkeys in cur.fetchall():
@@ -664,7 +667,7 @@ def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> tuple[i
                     best[row_no] = (lead, hits, nkeys)
             for row_no, (lead, hits, nkeys) in best.items():
                 matches.append((row_no, lead))
-                if nkeys >= 2 and hits == nkeys:
+                if nkeys >= 2 and hits == nkeys:  # weak matches have no hits, so they are never certain
                     certain.add(row_no)
         conn.commit()
         share = min(1.0, (start + MATCH_RANGE - low) / max(1, high - low + 1))
