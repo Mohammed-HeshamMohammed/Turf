@@ -61,7 +61,7 @@ def claim(conn: psycopg.Connection, name: str = WORKER) -> dict | None:
                 WHERE NOT cancel_requested
                   AND (status = 'queued' OR (status IN ('loading', 'cleaning') AND (heartbeat_at IS NULL OR heartbeat_at < now() - {STALE})))
                 ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
-            RETURNING id::text, org_id::text, user_id::text, filename, size, total_chunks, has_header, status, loaded_rows, report, columns, kind, source_timezone""", (name,))
+            RETURNING id::text, org_id::text, user_id::text, filename, size, total_chunks, has_header, status, loaded_rows, report, columns, kind, source_timezone, for_skip_tracing""", (name,))
         job = cur.fetchone()
     conn.commit()
     return job
@@ -396,12 +396,14 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
                        FROM importing.rows WHERE job_id = %s""", (job_id,))
         no_contact_row = cur.fetchone()
         # A list in which not one row has a phone number or an email cannot be called or written to: it is refused, and nothing of it is kept.
+        # A list brought in for skip tracing has addresses and no phone numbers yet: it needs an address in at least one row instead.
+        skipping = bool(job.get("for_skip_tracing"))
         cur.execute("""SELECT count(*) FROM importing.rows WHERE job_id = %s AND state IN ('clean', 'near_duplicate', 'merge', 'import')
-                       AND (phone IS NOT NULL OR email IS NOT NULL)""", (job_id,))
+                       AND (phone IS NOT NULL OR email IS NOT NULL OR (%s AND address IS NOT NULL))""", (job_id, skipping))
         contactable = cur.fetchone()[0]
         if contactable == 0 and not exact_existing:
             cur.execute("""UPDATE importing.jobs SET status = 'failed', worker = NULL, heartbeat_at = NULL, updated_at = now(),
-                           error = 'None of the rows in this list has a phone number or an email, so nobody can be contacted and it was not added. Check that the right columns are chosen, or use a list that has them.'
+                           error = 'None of the rows in this list has a phone number or an email, so nobody can be contacted and it was not added. Check that the right columns are chosen, or use a list that has them. A list of addresses only can be added when it is marked as being for skip tracing.'
                            WHERE id = %s AND status = 'cleaning'""", (job_id,))
             cur.execute("DELETE FROM importing.rows WHERE job_id = %s", (job_id,))
             conn.commit()

@@ -165,4 +165,9 @@ test("the person is told what is missing before anything is sent", () => {
   assert.match(mappingProblem(columns, { 1: null }), /phone or an email column/);
   assert.match(mappingProblem(columns, { 2: "name" }), /Two columns are set to Name/);
   assert.equal(mappingProblem(columns, { 2: "phone" }), "", "phone and email may come from several columns");
+  // A list for skip tracing may have addresses and no phone or email.
+  const addresses = [{ idx: 0, suggested: "name" }, { idx: 1, suggested: "address" }];
+  assert.equal(mappingProblem(addresses, {}, true), "");
+  assert.match(mappingProblem(addresses, {}, false), /phone or an email column/);
+  assert.match(mappingProblem(addresses, { 1: null }, true), /needs an address column/);
 });

@@ -69,3 +69,37 @@ func TestTheSnapshotSaysHowManyLeadsOfEachListCanBeContacted(t *testing.T) {
 		t.Fatalf("contactable: %v", contactable)
 	}
 }
+
+// A list of addresses (no phone, no email) is refused, unless it was brought in for skip tracing; then its list is not called useless.
+func TestAListOfAddressesIsLetInOnlyForSkipTracing(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	ctx := context.Background()
+	e.call(alice, orgA, "GET", "/sync/snapshot", nil) // the workspace is made when it is first used
+	project := "33333333-3333-4333-8333-333333333333"
+	if _, err := e.admin.Exec(ctx, fmt.Sprintf(`INSERT INTO crm.projects (id, org_id, name) VALUES ('%s', '%s', 'addresses')`, project, orgA)); err != nil {
+		t.Fatal(err)
+	}
+	makeJob := func(skip bool) string {
+		var id string
+		if err := e.admin.QueryRow(ctx, fmt.Sprintf(`INSERT INTO importing.jobs (org_id, user_id, project_id, name, filename, size, chunk_size, total_chunks, status, kind, for_skip_tracing, columns)
+			VALUES ('%s', '%s', '%s', 'a', 'a.csv', 10, 10, 1, 'mapping', 'lead_list', %v, '[{"idx":0,"header":"Name"},{"idx":1,"header":"Address"}]') RETURNING id::text`, orgA, alice, project, skip)).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	answer := map[string]any{"columns": []map[string]any{{"idx": 0, "field": "name", "use": true}, {"idx": 1, "field": "address", "use": true}}}
+	if status, _ := e.call(alice, orgA, "PUT", "/api/v1/imports/"+makeJob(false)+"/mapping", answer); status != http.StatusBadRequest {
+		t.Fatalf("addresses only, not for skip tracing: %d", status)
+	}
+	if status, body := e.call(alice, orgA, "PUT", "/api/v1/imports/"+makeJob(true)+"/mapping", answer); status != http.StatusOK {
+		t.Fatalf("addresses only, for skip tracing: %d %v", status, body)
+	}
+	if _, err := e.admin.Exec(ctx, fmt.Sprintf(`INSERT INTO crm.leads (org_id, project_id, name) VALUES ('%s', '%s', 'no phone')`, orgA, project)); err != nil {
+		t.Fatal(err)
+	}
+	_, snap := e.call(alice, orgA, "GET", "/sync/snapshot", nil)
+	if got := snap["project_contactable"].(map[string]any)[project]; got != float64(1) {
+		t.Fatalf("a list for skip tracing must not count as useless: %v", got)
+	}
+}

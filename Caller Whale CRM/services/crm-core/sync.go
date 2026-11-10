@@ -220,7 +220,8 @@ func (s *server) snapshot(q *req) error {
 	}
 	counts := map[string]int64{}
 	contactable := map[string]int64{} // leads of each list with a phone number or an email: a list with none is a useless list
-	countRows, err := tx.Query(ctx, `SELECT project_id::text, count(*), count(*) FILTER (WHERE l.phone <> '' OR l.email <> '') FROM leads l WHERE project_id IS NOT NULL AND cw_visible_lead(l.id) GROUP BY project_id`)
+	countRows, err := tx.Query(ctx, `SELECT l.project_id::text, count(*), count(*) FILTER (WHERE l.phone <> '' OR l.email <> '' OR p.skip_tracing)
+		FROM leads l JOIN projects p ON p.id = l.project_id WHERE cw_visible_lead(l.id) GROUP BY l.project_id`)
 	if err != nil {
 		return err
 	}
