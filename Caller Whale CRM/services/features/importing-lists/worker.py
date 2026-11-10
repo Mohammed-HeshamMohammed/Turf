@@ -155,6 +155,7 @@ def load(conn: psycopg.Connection, job: dict) -> None:
         headers, populated, empty_columns = drop_empty_columns(cur, job_id, headers)
         columns = describe_columns(cur, job_id, headers, populated)
         report["empty_columns_removed"] = empty_columns
+        report["other_sheets"] = readers.other_sheets(source)  # not imported: the person is told so
         report.update(rows=consumed - dropped - empty, source_rows=consumed)
         cur.execute("""UPDATE importing.jobs SET status = 'mapping', columns = %s::jsonb, report = %s::jsonb, worker = NULL, heartbeat_at = NULL,
                        progress = %s::jsonb, updated_at = now() WHERE id = %s AND status = 'loading'""",

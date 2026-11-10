@@ -77,10 +77,25 @@ def detect_encoding(sample: bytes) -> str:
     return "utf-8"
 
 
+def is_utf8(path: Path) -> bool:
+    """Whether the whole file is valid UTF-8; a bad byte far past the first sample is what makes a list Windows-1252."""
+    decoder = codecs.getincrementaldecoder("utf-8")()
+    try:
+        with open(path, "rb") as f:
+            while block := f.read(1 << 20):
+                decoder.decode(block)
+        decoder.decode(b"", final=True)
+    except UnicodeDecodeError:
+        return False
+    return True
+
+
 def to_utf8(path: Path) -> Path:
     """The same text as UTF-8: lists exported from Excel are often Windows-1252 or UTF-16."""
     with open(path, "rb") as f:
         encoding = detect_encoding(f.read(1 << 18))
+    if encoding == "utf-8" and not is_utf8(path):
+        encoding = "cp1252"
     if encoding == "utf-8":
         return path
     target = path.with_suffix(".utf8" + path.suffix)
@@ -129,9 +144,9 @@ def read_batches(path: Path, has_header: bool, skip_rows: int = 0) -> Iterator[t
     suffix = path.suffix.lower()
     try:
         if suffix in (".xlsx", ".xlsm"):
-            yield from _row_batches(_xlsx_rows(path), has_header, skip_rows)
+            yield from _spreadsheet(_xlsx_rows(path), has_header, skip_rows)
         elif suffix == ".xls":
-            yield from _row_batches(_xls_rows(path), has_header, skip_rows)
+            yield from _spreadsheet(_xls_rows(path), has_header, skip_rows)
         else:
             yield from _csv_batches(path, has_header, skip_rows)
     except UnsafeFile:
@@ -141,14 +156,28 @@ def read_batches(path: Path, has_header: bool, skip_rows: int = 0) -> Iterator[t
         raise UnreadableFile(str(error)) from error
 
 
-def _row_batches(rows, has_header: bool, skip_rows: int):
-    first = next(rows, None)
-    if first is None:
+def _spreadsheet(sheet: tuple[int, Iterator], has_header: bool, skip_rows: int):
+    width, rows = sheet
+    yield from _row_batches(rows, has_header, skip_rows, width)
+
+
+def leading_junk(rows: list) -> int:
+    """How many rows at the top are blank or a lone title line ("Leads export"), before the real header row. A file that is one column
+    wide has no such rows."""
+    filled = [sum(1 for v in row if cell_text(v)) for row in rows[:30]]
+    if max(filled, default=0) < 2:
+        return 0
+    return next(i for i, n in enumerate(filled) if n >= 2)
+
+
+def _row_batches(rows, has_header: bool, skip_rows: int, min_width: int = 0):
+    lead = list(itertools.islice(rows, 230))
+    lead = lead[leading_junk(lead) if has_header else 0:]
+    if not lead:
         return
-    # The columns are the widest of the header and the first 200 rows; a later, wider row loses its extra cells.
-    # ponytail: a spreadsheet with a stray cell far to the right in row 5,000 drops it; widen by scanning the sheet if that matters.
-    head = list(itertools.islice(rows, 200))
-    width = max([len(first)] + [len(r) for r in head])
+    first, head = lead[0], lead[1:]
+    # shortcut: the columns are the widest of the sheet's declared width and the first 200 rows; a CSV's stray wider row after that loses its extra cells.
+    width = max([len(first), min_width] + [len(r) for r in head])
     headers = clean_headers(list(first) + [None] * (width - len(first))) if has_header else [f"Column {i + 1}" for i in range(width)]
     data = itertools.chain(head, rows) if has_header else itertools.chain([first], head, rows)
     batch: list[list[str]] = []
@@ -198,34 +227,93 @@ def check_unpacked(path: Path) -> None:
             raise UnsafeFile(f"unpacks to {total >> 20} MB")
 
 
-def _xlsx_rows(path: Path):
+def _data_sheet(book):
+    """The first visible sheet that has anything in it (a workbook often opens on an empty cover sheet), and its rows from the first
+    nonblank one. Returns (sheet, rows)."""
+    for sheet in book.worksheets:
+        if sheet.sheet_state != "visible":
+            continue
+        rows = sheet.iter_rows(values_only=True)
+        for row in rows:
+            if any(cell_text(v) for v in row):
+                return sheet, itertools.chain([row], rows)
+    return book.worksheets[0], iter(())
+
+
+def _xlsx_rows(path: Path) -> tuple[int, Iterator]:
+    """(the width the sheet declares, its rows). The declared width catches a wide cell far down that the first 200 rows do not show."""
     from openpyxl import load_workbook
 
     check_unpacked(path)
-
     book = load_workbook(path, read_only=True, data_only=True)
-    try:
-        yield from book.worksheets[0].iter_rows(values_only=True)
-    finally:
-        book.close()
+    sheet, rows = _data_sheet(book)
+
+    def generate():
+        try:
+            yield from rows
+        finally:
+            book.close()
+
+    return sheet.max_column or 0, generate()
 
 
-def _xls_rows(path: Path):
+def _xls_rows(path: Path) -> tuple[int, Iterator]:
     import xlrd
 
     book = xlrd.open_workbook(path, on_demand=True)
+    sheet = next((s for s in book.sheets() if s.nrows and s.visibility == 0), book.sheet_by_index(0))
+
+    def generate():
+        try:
+            for r in range(sheet.nrows):
+                yield sheet.row_values(r)
+        finally:
+            book.release_resources()
+
+    return sheet.ncols, generate()
+
+
+def other_sheets(path: Path) -> list[str]:
+    """Names of the workbook's other sheets, which are not imported; empty for a CSV or a one-sheet workbook."""
+    suffix = path.suffix.lower()
     try:
-        sheet = book.sheet_by_index(0)
-        for r in range(sheet.nrows):
-            yield sheet.row_values(r)
-    finally:
-        book.release_resources()
+        if suffix in (".xlsx", ".xlsm"):
+            from openpyxl import load_workbook
+
+            book = load_workbook(path, read_only=True)
+            try:
+                used = _data_sheet(book)[0].title
+                return [n for n in book.sheetnames if n != used]
+            finally:
+                book.close()
+        if suffix == ".xls":
+            import xlrd
+
+            book = xlrd.open_workbook(path, on_demand=True)
+            try:
+                used = next((s for s in book.sheets() if s.nrows and s.visibility == 0), book.sheet_by_index(0)).name
+                return [n for n in book.sheet_names() if n != used]
+            finally:
+                book.release_resources()
+    except (zipfile.BadZipFile, ValueError, InvalidFileException, XLRDError):
+        pass
+    return []
 
 
 def _csv_batches(path: Path, has_header: bool, skip_rows: int):
     sep = delimiter(path)
+    # polars takes the column count from the first line it reads, so a title line above the header, or a data row wider than the
+    # header, would lose cells. Look at the top of the file here and give it the skip and the width.
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace", newline="") as f:
+            top = list(itertools.islice(csv.reader(f, delimiter=sep), 230))
+    except csv.Error:  # a cell over the csv module's size limit: read the file as it comes
+        top = []
+    junk = leading_junk(top) if has_header else 0
+    width = max((len(r) for r in top[junk:]), default=1) or 1
     # Read without a header row and take the first line as the header here, so the names are made unique the same way for every format.
-    lazy = pl.scan_csv(path, separator=sep, has_header=False, infer_schema=False, encoding="utf8-lossy", truncate_ragged_lines=True, quote_char='"')
+    lazy = pl.scan_csv(path, separator=sep, has_header=False, schema={f"c{i}": pl.String for i in range(width)}, skip_rows=junk,
+                       encoding="utf8-lossy", truncate_ragged_lines=True, quote_char='"')
     headers: list[str] | None = None
     skipped = 0
     for frame in lazy.collect_batches(chunk_size=BATCH_ROWS):

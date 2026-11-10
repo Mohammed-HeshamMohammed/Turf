@@ -208,6 +208,50 @@ class ReadersTest(unittest.TestCase):
             self.assertEqual(frame.rows(), [("A", "5125550100", "250000.5"), ("B", "", "")])
 
 
+    def test_a_title_line_above_the_header_and_a_wider_data_row_lose_nothing_in_a_csv(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "list.csv"
+            path.write_text("Leads export\n\nName,Phone,Email\nA,1,a@x.com,extra\n")
+            (headers, frame), = list(readers.read_batches(path, True))
+            self.assertEqual(headers, ["Name", "Phone", "Email", "Column 4"])
+            self.assertEqual(frame.rows(), [("A", "1", "a@x.com", "extra")])
+            (_, rest), = list(readers.read_batches(path, True, skip_rows=0))
+            self.assertEqual(rest.height, 1)
+
+    def test_a_one_column_list_keeps_its_first_line_as_the_header(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "list.csv"
+            path.write_text("Phone\n5551234\n")
+            (headers, frame), = list(readers.read_batches(path, True))
+            self.assertEqual((headers, frame.rows()), (["Phone"], [("5551234",)]))
+
+    def test_a_workbook_opens_on_its_first_sheet_with_data_and_names_the_others(self) -> None:
+        from openpyxl import Workbook
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            path = Path(tmp) / "list.xlsx"
+            book = Workbook()
+            book.active.title = "Cover"
+            data = book.create_sheet("Leads")
+            data.append(["Leads export"])
+            data.append(["Name", "Phone"])
+            data.append(["A", "5551234"])
+            data["E5"] = "far"  # a cell past the first rows, outside the first 200 only by being declared in the sheet's width
+            book.save(path)
+            (headers, frame), = list(readers.read_batches(path, True))
+            self.assertEqual(headers[:2], ["Name", "Phone"])
+            self.assertEqual(len(headers), 5)
+            self.assertEqual(frame.rows()[0][:2], ("A", "5551234"))
+            self.assertEqual(readers.other_sheets(path), ["Cover"])
+
+    def test_a_text_list_whose_bad_byte_comes_after_the_first_sample_is_still_windows_1252(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "source.csv"
+            path.write_bytes(b"Name,Phone\n" + b"Ann,5551234\n" * 30_000 + "José,5550000\n".encode("cp1252"))
+            (_, frame), = list(readers.read_batches(readers.to_utf8(path), True, skip_rows=30_000))
+            self.assertEqual(frame.rows(), [("José", "5550000")])
+
+
 @unittest.skipUnless(os.environ.get("CRM_TEST_ADMIN_URL"), "set CRM_TEST_ADMIN_URL to run the database test")
 class EndToEndTest(unittest.TestCase):
     def setUp(self) -> None:
