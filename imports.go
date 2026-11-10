@@ -38,7 +38,7 @@ func validImportField(field string, column map[string]any) bool {
 		(column["source_detail"] != nil && column["standard_key"] == field && roleName.MatchString(field))
 }
 
-const jobColumns = `id::text, name, filename, size, chunk_size, total_chunks, status, progress, columns, report, error, loaded_rows, merged_rows, project_id::text, created_at, updated_at, kind, source_timezone`
+const jobColumns = `id::text, name, filename, size, chunk_size, total_chunks, status, progress, columns, report, error, loaded_rows, merged_rows, project_id::text, created_at, updated_at, kind, source_timezone, for_skip_tracing`
 
 func (s *server) importRights(q *req) error {
 	if !q.sc.can("import") {
@@ -71,17 +71,18 @@ func scanJobs(rows pgx.Rows) ([]map[string]any, error) {
 	out := []map[string]any{}
 	for rows.Next() {
 		var id, name, filename, status, errText, kind, sourceTimezone string
+		var forSkipTracing bool
 		var size, loaded, merged int64
 		var chunk, total int
 		var progress, columns, report any
 		var project *string
 		var created, updated time.Time
-		if err := rows.Scan(&id, &name, &filename, &size, &chunk, &total, &status, &progress, &columns, &report, &errText, &loaded, &merged, &project, &created, &updated, &kind, &sourceTimezone); err != nil {
+		if err := rows.Scan(&id, &name, &filename, &size, &chunk, &total, &status, &progress, &columns, &report, &errText, &loaded, &merged, &project, &created, &updated, &kind, &sourceTimezone, &forSkipTracing); err != nil {
 			return nil, err
 		}
 		out = append(out, map[string]any{"id": id, "name": name, "filename": filename, "size": size, "chunk_size": chunk, "total_chunks": total,
 			"status": status, "progress": progress, "columns": columns, "report": report, "error": errText, "loaded_rows": loaded, "merged_rows": merged,
-			"project_id": project, "created_at": created, "updated_at": updated, "kind": kind, "source_timezone": sourceTimezone})
+			"project_id": project, "created_at": created, "updated_at": updated, "kind": kind, "source_timezone": sourceTimezone, "for_skip_tracing": forSkipTracing})
 	}
 	return out, rows.Err()
 }
@@ -227,8 +228,26 @@ func (s *server) importMapping(q *req) error {
 	if !mapped["name"] && !mapped["first_name"] && !mapped["last_name"] {
 		return bad("Keep a name column: leads need a name.")
 	}
-	if !mapped["phone"] && !mapped["email"] {
-		return bad("Keep a phone or an email column: a list that nobody can contact is not added.")
+	skipping, _ := job["for_skip_tracing"].(bool)
+	if !mapped["phone"] && !mapped["email"] && !(skipping && mapped["address"]) {
+		if skipping {
+			return bad("A list for skip tracing needs an address column (or a phone or an email column).")
+		}
+		return bad("Keep a phone or an email column: a list that nobody can contact is not added. A list of addresses only can be added when it is marked as being for skip tracing.")
+	}
+	if skipping {
+		// The list is marked, so a list of addresses is not called useless later.
+		tx, err := s.st.begin(q.r.Context(), q.sc)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback(q.r.Context())
+		if _, err = tx.Exec(q.r.Context(), `UPDATE projects SET skip_tracing = true WHERE id = $1`, job["project_id"]); err != nil {
+			return err
+		}
+		if err = tx.Commit(q.r.Context()); err != nil {
+			return err
+		}
 	}
 	_, err = s.st.db.Exec(q.r.Context(), `UPDATE importing.jobs SET columns = $2, status = 'cleaning', progress = '{"phase":"cleaning","done":0}', updated_at = now() WHERE id = $1 AND status = 'mapping'`, id, columns)
 	if err != nil {
