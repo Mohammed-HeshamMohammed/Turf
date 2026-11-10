@@ -8,6 +8,50 @@ Code: `services/features/importing-lists` (Python worker), `services/crm-core/im
 
 ---
 
+## Decisions (2026-11-10)
+
+1. **The database stays PostgreSQL.** The slowness is in how the importer uses it. MySQL and MariaDB are the same kind of database (no gain, a full rewrite); Redis, KeyDB and Dragonfly are caches and queues; MongoDB is weaker at the joins repeat-matching needs; SQLite has one writer; ClickHouse is for analytics, is poor at updates and removes duplicates in the background at times nobody controls. ClickHouse may be added later beside PostgreSQL for reporting over calls; it is not an import fix.
+2. **Relatives' columns are ignored.** Skip-traced lists carry phones and names for up to 20 relatives of the owner; that data is often wrong and is not the lead. Columns whose heading starts with "Relative N" are left out while the file is read: not stored, not offered at the column step, listed in the report as left out. An owner with no phone stays without one; a relative's number is never used in its place.
+
+## What a real list showed (2026-11-10)
+
+One skip-traced property list: 482,887 rows, **407 columns**, 520 MB. The synthetic lists used for the measurements in Part B have 5 columns, so they hide what follows.
+
+| Step | Seconds |
+| --- | --- |
+| Load | 815 |
+| Clean (tidy 74, merge identical rows 25, repeats inside the list 19, compare with existing leads 205, the rest 33) | 356 |
+| **Total** | **about 1,170 (19.5 minutes)**, worker memory 1.35 GB |
+
+Profile of the load on the first 50,000 rows (114.5 seconds):
+
+| Part | Seconds | Share |
+| --- | --- | --- |
+| Counting which columns are empty (`column_population`) | 56.7 | 50% |
+| Rewriting every row to drop the empty columns (`drop_empty_columns`) | 48.1 | 42% |
+| Reading the file and storing the rows | 9.6 | 8% |
+
+Why: a row's cells are one `text[]`, and the SQL reaches into it by position once per column (`cells[1]` ... `cells[407]`). Finding element N of a text array means walking the N-1 before it, so the work per row grows with the square of the number of columns. 10 empty columns of 407 were removed at the cost of 92% of the load.
+
+Also seen:
+
+- **The comparison with existing leads took 205 seconds with no leads in the account.** It runs, and re-reads the wide rows five times per range, even when there is nothing to compare with.
+- **Only 41 of about 240 phone columns were recognised**, by what their cells look like and not by headings such as `Owner MOBILE 1`. With decision 2 the relatives' ones no longer matter; the owner's (`Owner MOBILE 1..5`, `Owner LANDLINE 1..5`, `Owner VOIP 1..5`, `Owner PAGER 1..2`) must be recognised by heading.
+- **The headings carry the line type.** MOBILE, LANDLINE, VOIP and PAGER are in the column names: for lists like this the line type needs no lookup at all.
+- **4,839 rows in 2,400 groups were sent to review as possible repeats.** Not inspected row by row; the likely cause is one owner with several properties, the same name and phone on different addresses. In a property list those are separate leads.
+
+What this adds to the plan:
+
+- **B0 (new, first).** Leave relatives' and empty columns out while reading; count filled cells per column in polars as the batches pass; never rewrite stored rows to remove a column, and never reach into `cells` by position for every column in SQL. Expected: load from about 815 seconds to about 100. Changing how columns are numbered touches every reader of `cells` (`SourceRows.jsx`, the merge in `imports.go`, the learning copy): check each.
+- **B3 (changed).** Skip the comparison when the account has no leads, and read each range of rows once, not five times.
+- **A1 (added to).** Read the line type from the heading when it says MOBILE, LANDLINE, VOIP or PAGER; keep every owner phone with its type instead of the first one only. Needs a place to store more than one phone per lead: a product decision.
+- **A8 (new).** A lead is an owner and a property. Two rows with the same owner and phone but different property addresses are not repeats: the property address becomes part of what makes a repeat. Confirm on the real list before changing the rule.
+- **Search formulas for A4**, all built into PostgreSQL: trigram similarity (`pg_trgm`, indexable, default threshold 0.3, to be tuned), Levenshtein distance for "within two edits", and phonetic codes (Daitch-Mokotoff rather than Soundex, which is weak outside English names). Always in two stages: find candidates by an exact key (same phone, email or address), then score the names.
+
+The target in Part B (under 60 seconds for 1,000,000 narrow rows) stands; add a second one: **the 482,887-row, 407-column list under 3 minutes from file to "ready to add"**.
+
+---
+
 ## Part A: data quality
 
 Ordered by value. Each item says what "done" is.
