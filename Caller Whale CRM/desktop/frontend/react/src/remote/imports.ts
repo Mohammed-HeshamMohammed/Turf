@@ -29,6 +29,9 @@ export type ImportColumn = {
   suggested: string | null;
   source_detail?: string | null;
   standard_key?: string | null;
+  /** The heading as the server compares it, and whether this workspace answered for it before. */
+  key?: string;
+  remembered?: "used" | "unused" | null;
   field: string | null;
   used: boolean | null;
   populated: number;

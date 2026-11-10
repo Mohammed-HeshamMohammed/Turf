@@ -48,9 +48,47 @@ function RepeatRow({ row, group, columns }) {
         <div className="repeat-lead">
           <Badge>{row.match_name ? "Already a lead: " + row.match_name : "Matches a lead"}</Badge>
           <small>{[row.match_phone, row.match_email, [row.match_address, row.match_city, row.match_zip].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}</small>
+          {row.match_name && !same(row.name, row.match_name) && <small>The name is different. Only a phone number or email is the same: is this the same person?</small>}
         </div>
       )}
     </li>
+  );
+}
+
+const CLEARED = {
+  phone: "Phone cells that were not a phone number",
+  phone_made_up: "Phone numbers that were made up (such as 5555555555), left out",
+  email: "Emails that were not valid, left out",
+  value: "Values that were not a number, left out",
+  latitude: "Latitudes outside the map, left out",
+  longitude: "Longitudes outside the map, left out",
+};
+
+/** What the tidying did to the data, in counts: cells it could not use, sheets it did not read, mobile and landline numbers. */
+function CleaningNotes({ report }) {
+  const cleared = Object.entries(report.cleared_cells || {});
+  const types = report.line_types;
+  if (!cleared.length && !(report.other_sheets || []).length && !types) return null;
+  return (
+    <div className="cleaning-notes">
+      {(report.other_sheets || []).length > 0 && (
+        <p className="muted">Only one sheet of this workbook was read. Not imported: {report.other_sheets.join(", ")}.</p>
+      )}
+      {cleared.length > 0 && (
+        <dl className="import-summary">
+          {cleared.map(([key, count]) => (
+            <div key={key}>
+              <dt>{CLEARED[key] || key}</dt>
+              <dd>{number(count)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {types === "unavailable" && <p className="muted">Mobile and landline numbers could not be checked this time. The list was tidied without it.</p>}
+      {types && types !== "unavailable" && (
+        <p className="muted">Phone line types: {Object.entries(types).map(([kind, count]) => `${kind} ${number(count)}`).join(" · ")}.</p>
+      )}
+    </div>
   );
 }
 
@@ -99,6 +137,9 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
   const [repeatLimit, setRepeatLimit] = useState(12);
   const [loadingMore, setLoadingMore] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [merges, setMerges] = useState(null);
+  const [keepLast, setKeepLast] = useState(false);
   const input = useRef(null);
   const stop = useRef(new AbortController());
   const uploading = useRef(false);
@@ -113,7 +154,11 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
       lastStatus.current = next.status;
       void refreshImports?.().catch(() => {});
       if (next.status === "reviewing") setRepeats(await api.imports.duplicates(id));
-      if (next.status === "done") onFinished?.(next);
+      if (next.status === "ready") setPreview(await api.imports.preview(id).catch(() => null));
+      if (next.status === "done") {
+        setMerges(await api.imports.merges(id).catch(() => null));
+        onFinished?.(next);
+      }
     } catch (reason) {
       if (reason?.name !== "AbortError") {
         setError(reason.message || "The server cannot be reached.");
@@ -179,6 +224,20 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
     } catch (reason) {
       setError(reason.message || "That did not work. Try again.");
       notify(reason.message || "That action needs attention.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function undoMerge(row) {
+    setBusy(true);
+    try {
+      await api.imports.undoMerge(job.id, row.row_no);
+      notify(`${row.name || "That row"} is now a lead of its own.`);
+      setMerges(await api.imports.merges(job.id));
+      void refreshImports?.().catch(() => {});
+    } catch (reason) {
+      setError(reason.message || "That merge could not be undone.");
     } finally {
       setBusy(false);
     }
@@ -325,12 +384,15 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
               {report.exact_duplicates > 0 && ` ${number(report.exact_duplicates)} identical rows were removed.`}
               {(report.empty_columns_removed || []).length > 0 && ` ${number(report.empty_columns_removed.length)} completely empty columns were removed from the source rows.`}
             </p>
+            {(report.other_sheets || []).length > 0 && <p className="muted">Only one sheet of this workbook was read. Not imported: {report.other_sheets.join(", ")}.</p>}
             <div className="import-columns" role="table" aria-label="Columns in your list">
               {columns.map((column) => (
                 <div className="import-column" role="row" key={column.idx}>
                   <div role="cell">
                     <strong>{column.header}</strong>
                     {column.source_detail && <small>Recognized as {column.source_detail} · saved in source rows</small>}
+                    {column.remembered === "used" && <small>Same as your last list with this heading</small>}
+                    {column.remembered === "unused" && <small>You left this out last time</small>}
                     <small>{column.samples.length ? column.samples.slice(0, 2).join(" · ") : "Empty"}</small>
                     <small>
                       {number(column.populated)} of {number(report.rows)} rows filled
@@ -418,14 +480,21 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
                 {error}
               </p>
             )}
+            <Checkbox checked={keepLast} onChange={(event) => setKeepLast(event.target.checked)} label="When repeats are merged, keep the last row of each group instead of the first" />
             <div className="import-actions">
+              <Button disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "merge", only: "existing", keep: keepLast ? "last" : "first" }), "Matches with leads you already have marked to merge.")}>
+                Merge only those matching my leads
+              </Button>
+              <Button disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "import", only: "inside" }), "Repeats inside this list kept as separate leads.")}>
+                Keep repeats inside the list separate
+              </Button>
               <Button disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "skip" }), "Remaining repeat groups left out.")}>
                 Leave them out
               </Button>
               <Button disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "import" }), "Remaining repeat groups kept as separate leads.")}>
                 Keep all as separate leads
               </Button>
-              <Button variant="primary" disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "merge" }), "Remaining repeat groups marked to merge.")}>
+              <Button variant="primary" disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "merge", keep: keepLast ? "last" : "first" }), "Remaining repeat groups marked to merge.")}>
                 Merge repeats
               </Button>
             </div>
@@ -435,6 +504,24 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
         {status === "ready" && (
           <>
             <p className="muted">Your list is ready to add to your leads.</p>
+            {preview?.counts && (
+              <div className="import-preview">
+                <p>
+                  <strong>{number(preview.counts.new_leads)}</strong> new {preview.counts.new_leads === 1 ? "lead" : "leads"} will be added.{" "}
+                  {number(preview.counts.fill_existing)} {preview.counts.fill_existing === 1 ? "row fills" : "rows fill"} gaps in leads you already have.{" "}
+                  {number(preview.counts.left_out)} {preview.counts.left_out === 1 ? "row is" : "rows are"} left out.
+                </p>
+                {(preview.new_sample || []).length > 0 && (
+                  <small className="muted">First new leads: {preview.new_sample.map((row) => row.name || row.phone || row.email || `Row ${row.row_no}`).join(" · ")}</small>
+                )}
+                {(preview.fill_sample || []).length > 0 && (
+                  <small className="muted">
+                    Adds to: {preview.fill_sample.map((row) => `${row.lead_name || "a lead"} (${(row.would_fill || []).join(" and ") || "nothing new"})`).join(" · ")}
+                  </small>
+                )}
+              </div>
+            )}
+            <CleaningNotes report={report} />
             <dl className="import-summary">
               <div>
                 <dt>Rows in your file</dt>
@@ -481,6 +568,24 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
               {number(job.merged_rows)} rows were added or merged for <strong>{job.name}</strong>.
               {report.exact_existing > 0 && ` ${number(report.exact_existing)} identical rows were already in the CRM and linked automatically.`}
             </p>
+            {(merges?.rows || []).length > 0 && (
+              <div className="merge-log">
+                <h3>Rows added to leads you already had</h3>
+                <p className="muted">If one of these was not the same person, undo it: what it filled in is removed and the row becomes a lead of its own.</p>
+                <ul className="import-repeats">
+                  {merges.rows.map((row) => (
+                    <li key={row.row_no}>
+                      <strong>{row.name || row.phone || row.email || `Row ${row.row_no}`}</strong>
+                      <small>
+                        into {row.lead_name || "a lead"}
+                        {(row.filled || []).length > 0 ? ` · filled in ${row.filled.join(" and ")}` : " · nothing new to fill"}
+                      </small>
+                      <Button disabled={busy} onClick={() => undoMerge(row)}>Undo</Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="import-actions">
               <Button variant="primary" onClick={() => onClose(job)}>
                 View source list
