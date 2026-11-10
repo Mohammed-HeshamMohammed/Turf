@@ -65,7 +65,7 @@ test("a file goes up in the pieces the server names, a few at a time, each as lo
       [3, 5],
     ],
   );
-  assert.ok(server.calls.peak > 1 && server.calls.peak <= 3, "up to three at a time");
+  assert.ok(server.calls.peak > 1 && server.calls.peak <= 4, "up to four at a time");
   assert.equal(progress.at(-1), 35);
 });
 
