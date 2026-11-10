@@ -60,6 +60,13 @@ CREATE TABLE IF NOT EXISTS learning.mappings (
   PRIMARY KEY (header_key, field)
 );
 
+-- People who asked to be removed: a keyed hash of the phone or email (one key for all workspaces), so that what they asked for is kept
+-- to: they are not taken in again from a later list. Nothing else about them is kept.
+CREATE TABLE IF NOT EXISTS learning.suppressed (
+  hash bytea PRIMARY KEY,
+  at timestamptz NOT NULL DEFAULT now()
+);
+
 -- What was done and when, with counts only: the record that an erasure or a purge happened.
 CREATE TABLE IF NOT EXISTS learning.audit (
   at timestamptz NOT NULL DEFAULT now(),
@@ -149,7 +156,14 @@ func (s *store) add(ctx context.Context, in ingest) (int64, error) {
 	expires := time.Now().Add(s.retention)
 	h := s.h.forOrg(in.OrgID)
 	batch := &pgx.Batch{}
-	for _, r := range in.Rows {
+	blocked, err := s.suppressedAmong(ctx, in.Rows)
+	if err != nil {
+		return 0, err
+	}
+	for i, r := range in.Rows {
+		if blocked[i] {
+			continue
+		}
 		batch.Queue(`INSERT INTO learning.leads (org_id, job_id, row_no, project_id, phone_hash, email_hash, name_shape, city, region, zip5, country,
 				has_address, has_unit, has_location, completeness, details, flags, expires_at)
 			VALUES ($1, $2, $3, nullif($4, '')::uuid, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
@@ -165,7 +179,10 @@ func (s *store) add(ctx context.Context, in ingest) (int64, error) {
 	results := s.db.SendBatch(ctx, batch)
 	defer results.Close()
 	var stored int64
-	for range in.Rows {
+	for i := range in.Rows {
+		if blocked[i] {
+			continue
+		}
 		tag, err := results.Exec()
 		if err != nil {
 			return stored, err
@@ -207,8 +224,57 @@ func (s *store) erasePerson(ctx context.Context, org, phone, email string) (int6
 	return tag.RowsAffected(), err
 }
 
-// eraseEverywhere removes one person from every workspace. The hashes differ per workspace, so each workspace is tried with its own.
+// suppressHashes are the keyed hashes (one key for every workspace) a removal request is remembered by.
+func (s *store) suppressHashes(phone, email string) [][]byte {
+	var out [][]byte
+	if k := phoneKey(phone); k != "" {
+		out = append(out, s.h.sum("suppress-phone", k))
+	}
+	if k := emailKey(email); k != "" {
+		out = append(out, s.h.sum("suppress-email", k))
+	}
+	return out
+}
+
+// suppressedAmong says which of the rows are people who asked to be removed.
+func (s *store) suppressedAmong(ctx context.Context, rows []row) ([]bool, error) {
+	blocked := make([]bool, len(rows))
+	var all [][]byte
+	owner := map[string][]int{}
+	for i, r := range rows {
+		for _, h := range s.suppressHashes(r.Phone, r.Email) {
+			all = append(all, h)
+			owner[string(h)] = append(owner[string(h)], i)
+		}
+	}
+	if len(all) == 0 {
+		return blocked, nil
+	}
+	found, err := s.db.Query(ctx, `SELECT hash FROM learning.suppressed WHERE hash = ANY($1)`, all)
+	if err != nil {
+		return nil, err
+	}
+	defer found.Close()
+	for found.Next() {
+		var h []byte
+		if err = found.Scan(&h); err != nil {
+			return nil, err
+		}
+		for _, i := range owner[string(h)] {
+			blocked[i] = true
+		}
+	}
+	return blocked, found.Err()
+}
+
+// eraseEverywhere removes one person from every workspace, and remembers the request so they are not taken in again. The hashes differ per
+// workspace, so each workspace is tried with its own.
 func (s *store) eraseEverywhere(ctx context.Context, phone, email string) (int64, error) {
+	for _, h := range s.suppressHashes(phone, email) {
+		if _, err := s.db.Exec(ctx, `INSERT INTO learning.suppressed (hash) VALUES ($1) ON CONFLICT DO NOTHING`, h); err != nil {
+			return 0, err
+		}
+	}
 	rows, err := s.db.Query(ctx, `SELECT DISTINCT org_id::text FROM learning.leads`)
 	if err != nil {
 		return 0, err

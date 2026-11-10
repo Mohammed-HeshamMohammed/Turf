@@ -231,3 +231,31 @@ func TestTheSamePhoneHashesDifferentlyInEveryWorkspace(t *testing.T) {
 		t.Fatal("hashes must differ between workspaces and agree within one")
 	}
 }
+
+func TestAPersonWhoAskedToBeRemovedIsNotTakenInAgain(t *testing.T) {
+	url := os.Getenv("LEARNING_TEST_URL")
+	if url == "" {
+		t.Skip("set LEARNING_TEST_URL to run the database test")
+	}
+	ctx := context.Background()
+	st, err := openStore(ctx, url, hasher{key: bytes.Repeat([]byte{9}, 32)}, 24*time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.db.Close()
+	if _, err = st.db.Exec(ctx, `TRUNCATE learning.leads, learning.workspaces, learning.mappings, learning.audit, learning.suppressed`); err != nil {
+		t.Fatal(err)
+	}
+	org, job := "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+	batch := ingest{OrgID: org, JobID: job, Rows: []row{{RowNo: 1, Phone: "(512) 555-0100"}, {RowNo: 2, Phone: "512-555-0222"}}}
+	if n, err := st.add(ctx, batch); err != nil || n != 2 {
+		t.Fatalf("first: %d %v", n, err)
+	}
+	if n, err := st.eraseEverywhere(ctx, "+1 512 555 0100", ""); err != nil || n != 1 {
+		t.Fatalf("erase: %d %v", n, err)
+	}
+	later := ingest{OrgID: org, JobID: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", Rows: []row{{RowNo: 1, Phone: "5125550100"}, {RowNo: 2, Phone: "512-555-0333"}}}
+	if n, err := st.add(ctx, later); err != nil || n != 1 {
+		t.Fatalf("a later list must skip the person who asked to be removed: %d %v", n, err)
+	}
+}
