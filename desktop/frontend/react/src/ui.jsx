@@ -224,16 +224,22 @@ export function useShowMore(items, step = 100) {
  * `paged`: the table shows as many rows as fit the window (never fewer than 5) and pages through the rest with Previous and
  * Next, instead of growing with "Show more". A taller or wider window shows more rows at once.
  */
-export function DataTable({ view, columns, rowKey, leading, trailing, paged = false }) {
+export function DataTable({ view, columns, rowKey, leading, trailing, paged = false, remote = null }) {
   const ordered = view.arrange(columns);
   const [shown, more] = useShowMore(view.rows);
   const [page, setPage] = useState(0);
   const [fit, setFit] = useState(10);
   const hasRows = view.rows.length > 0;
   const size = paged ? fit : 0;
-  const pages = paged ? Math.max(1, Math.ceil(view.rows.length / size)) : 1;
-  const at = Math.min(page, pages - 1);
-  const rows = paged ? view.rows.slice(at * size, (at + 1) * size) : shown;
+  // `remote` { total, page, onPage, onSize }: the rows given are already the one page the server sent; the pager only steps through it.
+  const total = remote ? remote.total : view.rows.length;
+  const pages = paged ? Math.max(1, Math.ceil(total / size)) : 1;
+  const at = Math.min(remote ? remote.page : page, pages - 1);
+  const setAt = remote ? remote.onPage : setPage;
+  const rows = remote ? view.rows : paged ? view.rows.slice(at * size, (at + 1) * size) : shown;
+  useEffect(() => {
+    if (remote && paged) remote.onSize(fit);
+  }, [fit, paged, Boolean(remote)]); // eslint-disable-line react-hooks/exhaustive-deps
   const [drag, setDrag] = useState(null);
   const justDragged = useRef(false);
   const ids = ordered.map(column => column.id);
@@ -356,19 +362,19 @@ export function DataTable({ view, columns, rowKey, leading, trailing, paged = fa
         </tbody>
       </table>
       {paged ? (
-        view.rows.length > size && (
+        total > size && (
           <div className="show-more pager">
             <span>
-              {(at * size + 1).toLocaleString()}–{Math.min((at + 1) * size, view.rows.length).toLocaleString()} of {view.rows.length.toLocaleString()}
+              {(at * size + 1).toLocaleString()}–{Math.min((at + 1) * size, total).toLocaleString()} of {total.toLocaleString()}
             </span>
             <span className="pager-buttons">
-              <Button disabled={at === 0} onClick={() => setPage(at - 1)}>
+              <Button disabled={at === 0} onClick={() => setAt(at - 1)}>
                 Previous
               </Button>
               <span>
                 Page {at + 1} of {pages.toLocaleString()}
               </span>
-              <Button disabled={at >= pages - 1} onClick={() => setPage(at + 1)}>
+              <Button disabled={at >= pages - 1} onClick={() => setAt(at + 1)}>
                 Next
               </Button>
             </span>

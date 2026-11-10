@@ -219,6 +219,18 @@ export class SyncEngine {
     this.emit();
   }
 
+  /** One page of leads from the server, held with the rest so the page can show them. Answers their ids and the total (when asked for). */
+  async browseLeads(params) {
+    const found = await this.api.browseLeads(params);
+    if (this.store) {
+      const leads = { ...this.store.leads };
+      for (const lead of found.leads || []) leads[lead.id] = lead;
+      this.store = { ...this.store, leads };
+      this.emit();
+    }
+    return { ids: (found.leads || []).map(lead => lead.id), total: found.total ?? null };
+  }
+
   /** Fetches the workspace's lists again, so a list that was just uploaded shows up without signing in again. */
   async refreshProjects() {
     const projects = await this.api.projects();
