@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
+import { LiquidProgress } from "./LiquidProgress.jsx";
 import { ArrowRight, ArrowUpRight, CheckCircle, Phone, Cloud, DownloadSimple, FileCsv, HardDrives, ShieldCheck, Trash, UploadSimple } from "@phosphor-icons/react";
 import { LEAD_STAGES, ROLES } from "./data.ts";
 import { capability, uid, visibleLeads } from "./model.ts";
@@ -157,6 +158,47 @@ export function Lists({ id, importId = null }) {
     notify("Imported " + imported.length.toLocaleString() + " rows from " + name);
     navigate("lists/" + datasetId);
   }
+  // A file dragged over this page lights up the upload box, and dropping it anywhere on the page sends it there (the browser would
+  // otherwise open the file in the tab). Nothing covers the page.
+  const [fileOver, setFileOver] = useState(false);
+  const dropped = useRef(null);
+  dropped.current = readFile;
+  const canImport = capability(state, "import");
+  useEffect(() => {
+    if (!canImport) return undefined;
+    const hasFiles = event => Array.from(event.dataTransfer?.types || []).includes("Files");
+    let depth = 0;
+    const enter = event => {
+      if (!hasFiles(event)) return;
+      depth += 1;
+      setFileOver(true);
+    };
+    const over = event => {
+      if (hasFiles(event)) event.preventDefault();
+    };
+    const leave = event => {
+      if (!hasFiles(event)) return;
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) setFileOver(false);
+    };
+    const drop = event => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      depth = 0;
+      setFileOver(false);
+      void dropped.current(event.dataTransfer.files?.[0]);
+    };
+    window.addEventListener("dragenter", enter);
+    window.addEventListener("dragover", over);
+    window.addEventListener("dragleave", leave);
+    window.addEventListener("drop", drop);
+    return () => {
+      window.removeEventListener("dragenter", enter);
+      window.removeEventListener("dragover", over);
+      window.removeEventListener("dragleave", leave);
+      window.removeEventListener("drop", drop);
+    };
+  }, [canImport]);
   async function readFile(file) {
     if (!file) return;
     if (remote) {
@@ -423,12 +465,7 @@ export function Lists({ id, importId = null }) {
       )}
       {capability(state, "import") && (
         <div
-          className="import-zone"
-          onDragOver={event => event.preventDefault()}
-          onDrop={event => {
-            event.preventDefault();
-            void readFile(event.dataTransfer.files?.[0]);
-          }}
+          className={"import-zone" + (fileOver ? " is-over" : "")}
         >
           <UploadSimple size={28} weight="light" />
           <h3>Bring in your next opportunity list.</h3>
@@ -532,6 +569,8 @@ export function SkipTracing() {
       running.current?.abort();
     };
   }, []);
+  // The hosted web CRM has no engine and no "this device": no Local/Cloud choice and no demo check there.
+  const web = Boolean(state.remote) && engine === false;
   const dataset = datasets.find(item => item.id === datasetId);
   // Worked out again only when the list, its rows or the mapping change, not on every render: a list can hold tens of
   // thousands of rows.
@@ -699,26 +738,32 @@ export function SkipTracing() {
   return (
     <div className="skip-workspace">
       <PageHeader title="Skip Tracing" description="Map a list, check its contact details, and review the results.">
-        <Segmented
-          label="Skip Tracing execution mode"
-          value={mode}
-          options={["Local", "Cloud"]}
-          onChange={value => {
-            if (value === "Cloud" && !state.online) notify("Cloud checks need a connection. Local mode remains available.");
-            else setMode(value);
-          }}
-        />
+        {!web && (
+          <Segmented
+            label="Skip Tracing execution mode"
+            value={mode}
+            options={["Local", "Cloud"]}
+            onChange={value => {
+              if (value === "Cloud" && !state.online) notify("Cloud checks need a connection. Local mode remains available.");
+              else setMode(value);
+            }}
+          />
+        )}
       </PageHeader>
-      <div className="execution-card">
-        <span className="execution-icon">{mode === "Local" ? <HardDrives size={23} /> : <Cloud size={23} />}</span>
-        <div>
-          <strong>{mode === "Local" ? "Local workspace · works offline" : "Cloud workspace · shared job"} </strong>
-          <p>
-            {mode === "Local" ? "Your source stays on this device until you choose to publish it." : "Your team can follow the job and review its results."}
-          </p>
+      {web ? (
+        <p className="notice">Checks run in the Caller Whale desktop app. Here you can map a list's source fields.</p>
+      ) : (
+        <div className="execution-card">
+          <span className="execution-icon">{mode === "Local" ? <HardDrives size={23} /> : <Cloud size={23} />}</span>
+          <div>
+            <strong>{mode === "Local" ? "Local workspace · works offline" : "Cloud workspace · shared job"} </strong>
+            <p>
+              {mode === "Local" ? "Your source stays on this device until you choose to publish it." : "Your team can follow the job and review its results."}
+            </p>
+          </div>
+          <Badge tone={engine ? "good" : ""}>{engine === null ? "Connecting…" : engine ? "Caller Whale engine" : "Demo check"}</Badge>
         </div>
-        <Badge tone={engine ? "good" : ""}>{engine === null ? "Connecting…" : engine ? "Caller Whale engine" : "Demo check"}</Badge>
-      </div>
+      )}
       <nav ref={stepNavigation} className="wizard-steps" aria-label="Skip Tracing steps">
         {stages.map(
           (label, index) =>
@@ -930,7 +975,7 @@ export function SkipTracing() {
                   );
                 })}
               </div>
-              <Button variant="primary" icon={ShieldCheck} disabled={!primary || engine === null || (!state.online && mode === "Cloud")} onClick={run}>
+              <Button variant="primary" icon={ShieldCheck} disabled={!primary || engine === null || web || (!state.online && mode === "Cloud")} onClick={run}>
                 {engine ? "Run check" : "Run demo check"}
               </Button>
             </>
@@ -941,7 +986,7 @@ export function SkipTracing() {
                 <div className="job-progress">
                   <ShieldCheck size={40} weight="light" />
                   <h3>{progress.label}</h3>
-                  <progress value={progress.value} max={progress.max} />
+                  <LiquidProgress value={progress.max ? (progress.value / progress.max) * 100 : null} label={progress.label} />
                   <p>
                     {engine ? "Caller Whale engine" : "Simulated " + mode.toLowerCase() + " check"} · {rows.length} rows
                   </p>
@@ -1133,13 +1178,15 @@ export function SkipTracing() {
                 <small>Starting evidence</small>
                 <strong>{primary ? `${primary.label} · ${primary.column}` : "Needs a field mapping"}</strong>
               </div>
-              <div>
-                <small>Execution</small>
-                <strong>
-                  {mode === "Local" ? "This device" : "Shared cloud job"}
-                  {engine ? " · Caller Whale engine" : ""}
-                </strong>
-              </div>
+              {!web && (
+                <div>
+                  <small>Execution</small>
+                  <strong>
+                    {mode === "Local" ? "This device" : "Shared cloud job"}
+                    {engine ? " · Caller Whale engine" : ""}
+                  </strong>
+                </div>
+              )}
               <div>
                 <small>Source safety</small>
                 <strong>Original data preserved</strong>

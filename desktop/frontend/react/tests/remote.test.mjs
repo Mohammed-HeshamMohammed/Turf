@@ -242,3 +242,30 @@ test("archiving, restoring and note changes become server operations, and the se
   const back = operationFor({ type: "RESTORE_NOTE", leadId: "lead-1", note: { id: "n1", text: "Open to an offer", visibility: "internal" } }, before, store);
   assert.deepEqual([back.kind, back.payload.id, back.payload.body], ["note.add", "n1", "Open to an offer"]);
 });
+
+test("a device holding a window of a big workspace does not take in what hangs off leads it does not hold", () => {
+  const store = storeFromSnapshot({ cursor: 1, access_revision: 1, leads: [serverLead], leads_total: 400000, project_counts: { p1: 400000 } });
+  assert.equal(store.leadsTotal, 400000);
+  const next = applyChanges(store, [
+    { entity: "note", id: "n-held", op: "upsert", record: { id: "n-held", lead_id: "lead-1" } },
+    { entity: "note", id: "n-away", op: "upsert", record: { id: "n-away", lead_id: "lead-elsewhere" } },
+  ]);
+  assert.ok(next.notes["n-held"]);
+  assert.equal(next.notes["n-away"], undefined);
+  assert.equal(collectionsFromStore(store).datasets.length, 0);
+  assert.equal(collectionsFromStore(store).leadsTotal, 400000);
+});
+
+test("a source list whose leads have no phone number and no email is marked as a useless list", () => {
+  const store = storeFromSnapshot({ cursor: 1, access_revision: 1, leads: [], leads_total: 3, project_counts: { good: 2, none: 5 }, project_contactable: { good: 2, none: 0 }, projects: [] });
+  store.projects = [{ id: "good", name: "Good" }, { id: "none", name: "None" }, { id: "empty", name: "Empty" }];
+  const lists = collectionsFromStore(store).datasets;
+  const status = id => lists.find(list => list.id === id).status;
+  assert.equal(status("good"), "Checked");
+  assert.equal(status("none"), "Useless list");
+  assert.equal(status("empty"), "Empty");
+  // A server that does not send the numbers yet leaves lists unmarked.
+  const old = storeFromSnapshot({ cursor: 1, access_revision: 1, leads: [], project_counts: { none: 5 } });
+  old.projects = [{ id: "none", name: "None" }];
+  assert.equal(collectionsFromStore(old).datasets[0].status, "Checked");
+});

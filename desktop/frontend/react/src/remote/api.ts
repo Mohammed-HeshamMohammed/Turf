@@ -93,6 +93,10 @@ export async function request(method: string, path: string, body?: unknown, { ba
 }
 
 export const api = {
+  /** The learning copy of imported lists: whether it is on for this workspace, and the administrator's choice. */
+  learningStatus: (): Promise<any> => request("GET", "/api/v1/learning"),
+  learningOptOut: (): Promise<any> => request("POST", "/api/v1/learning/opt-out", {}),
+  learningOptIn: (): Promise<any> => request("POST", "/api/v1/learning/opt-in", {}),
   me: (select = false) => request("GET", "/api/v1/me", undefined, { includeOrganization: select }),
   /** The person's invitation from Caller Whale (activated on the first visit with a confirmed email), credits and download. */
   account: () => request("GET", "/api/v1/account"),
@@ -113,6 +117,8 @@ export const api = {
   deleteProject: (id: string): Promise<any> => request("DELETE", `/api/v1/projects/${id}`, undefined, { timeout: 120000 }),
   settings: () => request("GET", "/api/v1/settings"),
   snapshot: () => request("GET", "/sync/snapshot", undefined, { timeout: 60000 }),
+  /** Leads of a big workspace beyond the snapshot's window: by name, phone, email or address. */
+  searchLeads: (term: string): Promise<any> => request("GET", `/api/v1/leads/search?q=${encodeURIComponent(term)}&limit=100`),
   pull: (cursor, accessRevision) => request("GET", `/sync/pull?cursor=${cursor}&access_revision=${accessRevision}`),
   push: (operations, accessRevision) => request("POST", "/sync/push", { operations, access_revision: accessRevision }, { timeout: 60000 }),
   op: operation => request("POST", "/api/v1/ops", operation),
@@ -129,6 +135,9 @@ export const api = {
     duplicates: (id: string, offset = 0): Promise<any> => request("GET", `/api/v1/imports/${id}/duplicates?offset=${offset}`),
     decide: (id: string, body): Promise<any> => request("POST", `/api/v1/imports/${id}/duplicates`, body),
     merge: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/merge`),
+    preview: (id: string): Promise<any> => request("GET", `/api/v1/imports/${id}/preview`),
+    merges: (id: string, offset = 0): Promise<any> => request("GET", `/api/v1/imports/${id}/merges?offset=${offset}`),
+    undoMerge: (id: string, row: number): Promise<any> => request("POST", `/api/v1/imports/${id}/rows/${row}/undo-merge`),
     applyCalls: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/apply-calls`),
     retry: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/retry`),
     cancel: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/cancel`),

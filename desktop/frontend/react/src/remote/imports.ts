@@ -29,6 +29,9 @@ export type ImportColumn = {
   suggested: string | null;
   source_detail?: string | null;
   standard_key?: string | null;
+  /** The heading as the server compares it, and whether this workspace answered for it before. */
+  key?: string;
+  remembered?: "used" | "unused" | null;
   field: string | null;
   used: boolean | null;
   populated: number;
@@ -36,7 +39,7 @@ export type ImportColumn = {
 };
 
 export type ImportApi = {
-  start(body: { filename: string; size: number; name?: string; project_id?: string; has_header?: boolean; kind?: string; source_timezone?: string }): Promise<ImportJob>;
+  start(body: { filename: string; size: number; name?: string; project_id?: string; has_header?: boolean; kind?: string; source_timezone?: string; skip_tracing?: boolean }): Promise<ImportJob>;
   get(id: string): Promise<ImportJob>;
   piece(id: string, n: number, bytes: ArrayBuffer, sha256: string, signal?: AbortSignal): Promise<unknown>;
   complete(id: string): Promise<ImportJob>;
@@ -139,6 +142,8 @@ export type UploadOptions = {
   kind?: "lead_list" | "readymode_calls";
   sourceTimezone?: string;
   hasHeader?: boolean;
+  /** The list has addresses but no phone numbers or emails yet: it is for skip tracing, so it is let in. */
+  skipTracing?: boolean;
   /** Carry on an upload that was interrupted. */
   resumeId?: string;
   parallel?: number;
@@ -161,6 +166,7 @@ export async function uploadFile(file: Blob & { name: string }, options: UploadO
         name: options.name,
         project_id: options.projectId,
         has_header: options.hasHeader,
+        skip_tracing: options.skipTracing,
         kind: options.kind,
         source_timezone: options.sourceTimezone,
       });
@@ -192,7 +198,7 @@ export async function uploadFile(file: Blob & { name: string }, options: UploadO
       options.onProgress?.({ sent, total: file.size, job });
     }
   };
-  await Promise.all(Array.from({ length: Math.min(options.parallel ?? 3, pieces.length) }, lane));
+  await Promise.all(Array.from({ length: Math.min(options.parallel ?? 4, pieces.length) }, lane));
   return api.complete(job.id);
 }
 
@@ -229,7 +235,7 @@ export function mappingBody(columns: ImportColumn[], choices: Record<number, str
 }
 
 /** Why the mapping cannot be sent yet, or "". */
-export function mappingProblem(columns: ImportColumn[], choices: Record<number, string | null | undefined>): string {
+export function mappingProblem(columns: ImportColumn[], choices: Record<number, string | null | undefined>, skipTracing = false): string {
   const body = mappingBody(columns, choices).columns as { field?: string }[];
   const fields = body.map((c) => c.field).filter(Boolean) as string[];
   const once = fields.filter((f) => f !== "phone" && f !== "email");
@@ -237,6 +243,8 @@ export function mappingProblem(columns: ImportColumn[], choices: Record<number, 
   if (repeated)
     return `Two columns are set to ${[...IMPORT_FIELDS, ...SOURCE_IMPORT_FIELDS].find(([key]) => key === repeated)?.[1] ?? repeated}. Only phone and email can come from more than one.`;
   if (!fields.some((f) => ["name", "first_name", "last_name"].includes(f))) return "Keep a name column: leads need a name.";
-  if (!fields.some((f) => ["phone", "email", "address"].includes(f))) return "Keep at least one phone, email or address column.";
+  if (skipTracing) {
+    if (!fields.some((f) => ["phone", "email", "address"].includes(f))) return "A list for skip tracing needs an address column (or a phone or an email column).";
+  } else if (!fields.some((f) => ["phone", "email"].includes(f))) return "Keep a phone or an email column: a list that nobody can contact is not added. A list of addresses only can be added when it is marked as being for skip tracing.";
   return "";
 }

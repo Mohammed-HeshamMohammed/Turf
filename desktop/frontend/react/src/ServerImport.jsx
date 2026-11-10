@@ -6,17 +6,127 @@ import { IMPORT_FIELDS, SOURCE_IMPORT_FIELDS, follow, mappingBody, mappingProble
 import { useCrm } from "./context.jsx";
 import { SourceRows } from "./SourceRows.jsx";
 import { Badge, Breadcrumb, Button, Card, Checkbox, Field, PageHeader, Select } from "./ui.jsx";
+import { LiquidProgress } from "./LiquidProgress.jsx";
 
 // One page for every step of a server import. The upload's project ID ties this page to its source list.
 
 const WORKING = {
-  queued: "Waiting for its turn. One list is read at a time.",
+  queued: "Waiting for a free worker. Several lists are read at the same time.",
   loading: "Reading your list",
   cleaning: "Tidying phone numbers, emails and addresses, and looking for repeats",
   merging: "Adding leads to your account",
   uploading: "Sending your list",
 };
 const number = (value) => Number(value || 0).toLocaleString();
+const PHASES = { loading: "reading", cleaning: "tidying", matching: "looking for repeats" };
+
+/** One row of a possible repeat, complete: every column of the file that has something in it, with the values that differ from the other rows
+ *  of the group marked, so two rows can be told apart at a glance. */
+function RepeatRow({ row, group, columns }) {
+  const same = (a, b) => String(a || "").trim().toLowerCase().replace(/\s+/g, " ") === String(b || "").trim().toLowerCase().replace(/\s+/g, " ");
+  const cells = row.cells || [];
+  const shown = columns.map((column, i) => ({ column, value: cells[column.idx ?? i] })).filter(item => String(item.value || "").trim());
+  return (
+    <li>
+      <strong>{row.name || row.phone || row.email || "Row " + row.row_no}</strong>
+      {shown.length ? (
+        <dl className="repeat-cells">
+          {shown.map(({ column, value }) => {
+            const differs = group.some(other => other !== row && !same((other.cells || [])[column.idx], value));
+            return (
+              <div key={column.idx} className={differs ? "differs" : ""}>
+                <dt>{column.header}</dt>
+                <dd>{value}</dd>
+              </div>
+            );
+          })}
+        </dl>
+      ) : (
+        <small>{[row.phone, row.email, row.address].filter(Boolean).join(" · ")}</small>
+      )}
+      {row.match_lead && (
+        <div className="repeat-lead">
+          <Badge>{row.match_name ? "Already a lead: " + row.match_name : "Matches a lead"}</Badge>
+          <small>{[row.match_phone, row.match_email, [row.match_address, row.match_city, row.match_zip].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}</small>
+          {row.match_name && !same(row.name, row.match_name) && <small>The name is different. Only a phone number or email is the same: is this the same person?</small>}
+        </div>
+      )}
+    </li>
+  );
+}
+
+const CLEARED = {
+  phone: "Phone cells that were not a phone number",
+  phone_made_up: "Phone numbers that were made up (such as 5555555555), left out",
+  email: "Emails that were not valid, left out",
+  value: "Values that were not a number, left out",
+  latitude: "Latitudes outside the map, left out",
+  longitude: "Longitudes outside the map, left out",
+};
+
+/** What the tidying did to the data, in counts: cells it could not use, sheets it did not read, mobile and landline numbers. */
+function CleaningNotes({ report }) {
+  const cleared = Object.entries(report.cleared_cells || {});
+  const types = report.line_types;
+  if (!cleared.length && !(report.other_sheets || []).length && !types) return null;
+  return (
+    <div className="cleaning-notes">
+      {(report.other_sheets || []).length > 0 && (
+        <p className="muted">Only one sheet of this workbook was read. Not imported: {report.other_sheets.join(", ")}.</p>
+      )}
+      {cleared.length > 0 && (
+        <dl className="import-summary">
+          {cleared.map(([key, count]) => (
+            <div key={key}>
+              <dt>{CLEARED[key] || key}</dt>
+              <dd>{number(count)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {types === "unavailable" && <p className="muted">Mobile and landline numbers could not be checked this time. The list was tidied without it.</p>}
+      {types && types !== "unavailable" && (
+        <p className="muted">Phone line types: {Object.entries(types).map(([kind, count]) => `${kind} ${number(count)}`).join(" · ")}.</p>
+      )}
+    </div>
+  );
+}
+
+/** What a waiting import is waiting for: how many lists are ahead, the one being worked on, and, if it has gone quiet, a way to stop it. */
+function QueueNote({ queue, onStopFront, stopping }) {
+  if (!queue || !queue.ahead) return null;
+  const front = queue.running;
+  const quiet = front && front.idle_seconds > 180;
+  return (
+    <div className="queue-note">
+      <p>
+        <strong>{queue.ahead === 1 ? "1 list is" : `${queue.ahead} lists are`} ahead of yours.</strong>
+        {front?.other_workspace && " One from another workspace is being read."}
+        {front?.name &&
+          ` Now ${PHASES[front.phase || front.status] || "working on"} “${front.name}”${front.total ? `: ${number(front.done || 0)} of ${number(front.total)} rows` : ""}${front.step ? ` (${front.step})` : ""}.`}
+      </p>
+      {quiet && (
+        <p>
+          {front.name ? "That import" : "The list in front"} has not reported for {Math.round(front.idle_seconds / 60)} minutes and may be stuck.
+          {front.id && (
+            <>
+              {" "}
+              <Button disabled={stopping} onClick={() => onStopFront(front.id)}>
+                {stopping ? "Stopping…" : "Stop that import"}
+              </Button>
+            </>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+/** Until when the uploaded file is kept; the person is always told that it is deleted after. */
+function FileKept({ report }) {
+  if (!report.file_kept_until) return null;
+  const day = new Date(report.file_kept_until + "T00:00:00").toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return <p className="muted">The file you uploaded is kept until {day} and is then deleted. Only the columns you keep are stored in this list.</p>;
+}
 const megabytes = (bytes) => (bytes / 1048576 >= 10 ? Math.round(bytes / 1048576).toLocaleString() : (bytes / 1048576).toFixed(1)) + " MB";
 
 export function ServerImport({ resume = "", initialFile = null, projectId = null, projectName = "", onClose, onFinished, onStarted }) {
@@ -24,6 +134,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
   const [file, setFile] = useState(initialFile);
   const [name, setName] = useState(initialFile ? initialFile.name.replace(/\.[^.]+$/, "") : "");
   const [header, setHeader] = useState(true);
+  const [skipTracing, setSkipTracing] = useState(false);
   const [job, setJob] = useState(null);
   const [sent, setSent] = useState(null);
   const [error, setError] = useState("");
@@ -32,6 +143,9 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
   const [repeatLimit, setRepeatLimit] = useState(12);
   const [loadingMore, setLoadingMore] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [merges, setMerges] = useState(null);
+  const [keepLast, setKeepLast] = useState(false);
   const input = useRef(null);
   const stop = useRef(new AbortController());
   const uploading = useRef(false);
@@ -46,7 +160,11 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
       lastStatus.current = next.status;
       void refreshImports?.().catch(() => {});
       if (next.status === "reviewing") setRepeats(await api.imports.duplicates(id));
-      if (next.status === "done") onFinished?.(next);
+      if (next.status === "ready") setPreview(await api.imports.preview(id).catch(() => null));
+      if (next.status === "done") {
+        setMerges(await api.imports.merges(id).catch(() => null));
+        onFinished?.(next);
+      }
     } catch (reason) {
       if (reason?.name !== "AbortError") {
         setError(reason.message || "The server cannot be reached.");
@@ -73,6 +191,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
       const queued = await uploadFile(file, {
         name: name.trim() || undefined,
         hasHeader: header,
+        skipTracing,
         projectId: projectId || undefined,
         resumeId: job?.status === "uploading" ? job.id : undefined,
         signal: stop.current.signal,
@@ -116,6 +235,20 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
     }
   }
 
+  async function undoMerge(row) {
+    setBusy(true);
+    try {
+      await api.imports.undoMerge(job.id, row.row_no);
+      notify(`${row.name || "That row"} is now a lead of its own.`);
+      setMerges(await api.imports.merges(job.id));
+      void refreshImports?.().catch(() => {});
+    } catch (reason) {
+      setError(reason.message || "That merge could not be undone.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function cancel() {
     stop.current.abort();
     stop.current = new AbortController();
@@ -131,12 +264,37 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
     ? Math.round((sent.bytes / sent.total) * 100)
     : status === "merging" && job.progress?.total
       ? Math.round((job.merged_rows / job.progress.total) * 100)
-      : null;
+      : status === "cleaning" && typeof job.progress?.pct === "number"
+        ? Math.min(99, job.progress.pct)
+        : null;
+  // The steps after the tidying compare rows with each other and with the leads already in the account; the worker says which one it is on.
+  const matching = status === "cleaning" && job?.progress?.phase === "matching";
+  // How long the tidying has been going and how much is left, worked out from the worker's percentage as it moves.
+  const clock = useRef({ id: null, since: 0, from: 0 });
+  const working_pct = status === "cleaning" && typeof job?.progress?.pct === "number" ? job.progress.pct : null;
+  if (working_pct === null) clock.current = { id: null, since: 0, from: 0 };
+  else if (clock.current.id !== job.id) clock.current = { id: job.id, since: Date.now(), from: working_pct };
+  const seconds = working_pct === null ? 0 : Math.round((Date.now() - clock.current.since) / 1000);
+  const moved = working_pct === null ? 0 : working_pct - clock.current.from;
+  const remaining = moved >= 4 && seconds >= 10 ? Math.round((seconds / moved) * (100 - working_pct)) : null;
+  const minutes = (secs) => (secs < 90 ? `${Math.max(5, Math.round(secs / 5) * 5)} seconds` : `${Math.round(secs / 60)} minutes`);
+  const [stopping, setStopping] = useState(false);
+  async function stopFront(frontId) {
+    setStopping(true);
+    try {
+      await api.imports.cancel(frontId);
+      notify("Stopped. Your list moves up.");
+      void refreshImports?.().catch(() => {});
+    } catch (reason) {
+      notify(reason.message || "That import could not be stopped.");
+    }
+    setStopping(false);
+  }
   const columns = job?.columns ?? [];
   const knownFields = new Set([...IMPORT_FIELDS, ...SOURCE_IMPORT_FIELDS].map(([key]) => key));
   const additionalFields = [...new Map(columns.filter(column => column.source_detail && column.standard_key && !knownFields.has(column.standard_key))
     .map(column => [column.standard_key, [column.standard_key, column.source_detail]])).values()];
-  const problem = status === "mapping" ? mappingProblem(columns, choices) : "";
+  const problem = status === "mapping" ? mappingProblem(columns, choices, Boolean(job?.for_skip_tracing)) : "";
   const report = job?.report ?? {};
   const repeatGroups = Object.values((repeats?.rows ?? []).reduce((groups, row) => {
     (groups[row.group_id] ??= []).push(row);
@@ -167,6 +325,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
         {((!job && !resume) || canResumeUpload) && !sent && (
           <>
             <p className="muted">{canResumeUpload ? "Choose the same file to resume sending this list." : "CSV, TXT, XLSX or XLS. Big lists are sent in pieces and read on Caller Whale's server."}</p>
+            {!canResumeUpload && <p className="muted">The file you upload is kept on Caller Whale's server for a limited time and is then deleted. You are shown the date once it has been read.</p>}
             <input
               ref={input}
               type="file"
@@ -192,6 +351,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
               <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Austin owners" maxLength={200} />
             </Field>}
             {!canResumeUpload && <Checkbox checked={header} onChange={(event) => setHeader(event.target.checked)} label="The first row names each column" />}
+            {!canResumeUpload && <Checkbox checked={skipTracing} onChange={(event) => setSkipTracing(event.target.checked)} label="This list is for skip tracing: it has addresses but no phone numbers or emails yet" />}
             <div className="import-actions">
               <Button onClick={() => onClose(job)}>Back to source lists</Button>
               {canResumeUpload && <Button onClick={cancel}>Cancel import</Button>}
@@ -205,16 +365,21 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
 
         {working && (
           <div className="job-progress">
-            <h3>{sent ? `Sending your list · ${percent}%` : working}</h3>
-            {percent === null ? <progress aria-label="Working" /> : <progress value={percent} max="100" aria-label={`${percent} percent`} />}
+            <h3>{sent ? `Sending your list · ${percent}%` : status === "cleaning" ? (matching ? job.progress.step : "Tidying phone numbers, emails and addresses") : working}{status === "cleaning" && percent !== null ? ` · ${percent}%` : ""}</h3>
+            <LiquidProgress value={percent} label={percent === null ? "Working" : `${percent} percent`} />
             <p>
               {sent &&
                 `${megabytes(sent.bytes)} of ${megabytes(sent.total)}. You can leave this page and resume with the same file if the connection drops.`}
               {!sent && status === "loading" && job.loaded_rows > 0 && `${number(job.loaded_rows)} rows read so far.`}
-              {!sent && status === "cleaning" && job.progress?.done > 0 && `${number(job.progress.done)} rows tidied so far.`}
+              {!sent && status === "cleaning" && !matching && `${number(job.progress?.done)} of ${number(job.progress?.total || job.loaded_rows)} rows tidied.`}
+              {!sent && matching && job.progress.total > 0 && `${number(job.progress.done)} of ${number(job.progress.total)} rows checked.`}
+              {!sent && matching && job.progress.existing_leads > 0 && ` ${number(job.progress.existing_leads)} leads already in your account to compare with.`}
+              {!sent && matching && job.progress.found > 0 && ` ${number(job.progress.found)} possible repeats found so far.`}
+              {!sent && status === "cleaning" && ` Running for ${seconds < 90 ? `${seconds} seconds` : `${Math.round(seconds / 60)} minutes`}${remaining !== null ? `, about ${minutes(remaining)} to go` : ""}.`}
               {!sent && status === "merging" && `${number(job.merged_rows)} of ${number(job.progress?.total)} added. You can leave this page; it carries on.`}
               {!sent && ["queued", "loading", "cleaning"].includes(status) && " You can leave this page; processing carries on in the background."}
             </p>
+            {!sent && status === "queued" && <QueueNote queue={job.queue} onStopFront={stopFront} stopping={stopping} />}
             <Button onClick={cancel}>{status === "merging" ? "Stop adding" : "Cancel this import"}</Button>
           </div>
         )}
@@ -223,15 +388,20 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
           <>
             <p className="muted">
               {number(columns.filter(column => column.standard_key).length)} of {number(columns.length)} remaining columns recognized. Source fields keep their original values in this list; recognized property details also appear on new properties.
-              {report.exact_duplicates > 0 && ` ${number(report.exact_duplicates)} identical rows were removed.`}
               {(report.empty_columns_removed || []).length > 0 && ` ${number(report.empty_columns_removed.length)} completely empty columns were removed from the source rows.`}
             </p>
+            {(report.other_sheets || []).length > 0 && <p className="muted">Only one sheet of this workbook was read. Not imported: {report.other_sheets.join(", ")}.</p>}
+            {report.relatives_left_out > 0 && <p className="muted">{number(report.relatives_left_out)} columns about the owner's relatives were left out: that data is often wrong and is not the lead.</p>}
+            <p className="muted">Columns you set to "Not used" are not stored in this list.</p>
+            <FileKept report={report} />
             <div className="import-columns" role="table" aria-label="Columns in your list">
               {columns.map((column) => (
                 <div className="import-column" role="row" key={column.idx}>
                   <div role="cell">
                     <strong>{column.header}</strong>
                     {column.source_detail && <small>Recognized as {column.source_detail} · saved in source rows</small>}
+                    {column.remembered === "used" && <small>Same as your last list with this heading</small>}
+                    {column.remembered === "unused" && <small>You left this out last time</small>}
                     <small>{column.samples.length ? column.samples.slice(0, 2).join(" · ") : "Empty"}</small>
                     <small>
                       {number(column.populated)} of {number(report.rows)} rows filled
@@ -248,7 +418,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
                         })
                       }
                     >
-                      <option value="">Source row only</option>
+                      <option value="">Not used (not stored)</option>
                       <option value="" disabled>Lead fields</option>
                       {IMPORT_FIELDS.map(([key, label]) => (
                         <option key={key} value={key}>
@@ -286,8 +456,10 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
           <>
             <p className="muted">
               {report.exact_existing > 0 && `${number(report.exact_existing)} rows already in your CRM were linked automatically. `}
+              {report.identical_merged > 0 && `${number(report.identical_merged)} rows that were exactly the same as another were merged. `}
+              {report.certain_matches_merged > 0 && `${number(report.certain_matches_merged)} rows that match a lead you already have on everything were merged into it. `}
               {number(report.near_groups)} {report.near_groups === 1 ? "group may contain" : "groups may contain"} repeat leads.
-              Names match along with a phone number, email, or address. Choose what happens to these rows.
+              Names match along with a phone number, email, or address, but the rows are not exactly the same (rows that are exactly the same were merged for you). Whole rows are shown, with what differs marked.
             </p>
             <div className="import-repeat-groups">
               {repeatGroups.slice(0, repeatLimit).map(group => (
@@ -297,11 +469,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
                     <p className="muted">More rows in this group may be on the next page. Load them before deciding.</p>}
                   <ul className="import-repeats">
                     {group.map(row => (
-                      <li key={row.row_no}>
-                        <strong>{row.name || row.phone || row.email || "Row " + row.row_no}</strong>
-                        <small>{[row.phone, row.email, row.address].filter(Boolean).join(" · ")}</small>
-                        {row.match_lead && <Badge>{row.match_name ? "Already a lead: " + row.match_name : "Matches a lead"}</Badge>}
-                      </li>
+                      <RepeatRow key={row.row_no} row={row} group={group} columns={columns} />
                     ))}
                   </ul>
                   <div className="import-repeat-actions">
@@ -321,14 +489,21 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
                 {error}
               </p>
             )}
+            <Checkbox checked={keepLast} onChange={(event) => setKeepLast(event.target.checked)} label="When repeats are merged, keep the last row of each group instead of the first" />
             <div className="import-actions">
+              <Button disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "merge", only: "existing", keep: keepLast ? "last" : "first" }), "Matches with leads you already have marked to merge.")}>
+                Merge only those matching my leads
+              </Button>
+              <Button disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "import", only: "inside" }), "Repeats inside this list kept as separate leads.")}>
+                Keep repeats inside the list separate
+              </Button>
               <Button disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "skip" }), "Remaining repeat groups left out.")}>
                 Leave them out
               </Button>
               <Button disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "import" }), "Remaining repeat groups kept as separate leads.")}>
                 Keep all as separate leads
               </Button>
-              <Button variant="primary" disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "merge" }), "Remaining repeat groups marked to merge.")}>
+              <Button variant="primary" disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "merge", keep: keepLast ? "last" : "first" }), "Remaining repeat groups marked to merge.")}>
                 Merge repeats
               </Button>
             </div>
@@ -338,6 +513,25 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
         {status === "ready" && (
           <>
             <p className="muted">Your list is ready to add to your leads.</p>
+            {preview?.counts && (
+              <div className="import-preview">
+                <p>
+                  <strong>{number(preview.counts.new_leads)}</strong> new {preview.counts.new_leads === 1 ? "lead" : "leads"} will be added.{" "}
+                  {number(preview.counts.fill_existing)} {preview.counts.fill_existing === 1 ? "row fills" : "rows fill"} gaps in leads you already have.{" "}
+                  {number(preview.counts.left_out)} {preview.counts.left_out === 1 ? "row is" : "rows are"} left out.
+                </p>
+                {(preview.new_sample || []).length > 0 && (
+                  <small className="muted">First new leads: {preview.new_sample.map((row) => row.name || row.phone || row.email || `Row ${row.row_no}`).join(" · ")}</small>
+                )}
+                {(preview.fill_sample || []).length > 0 && (
+                  <small className="muted">
+                    Adds to: {preview.fill_sample.map((row) => `${row.lead_name || "a lead"} (${(row.would_fill || []).join(" and ") || "nothing new"})`).join(" · ")}
+                  </small>
+                )}
+              </div>
+            )}
+            <CleaningNotes report={report} />
+            <FileKept report={report} />
             <dl className="import-summary">
               <div>
                 <dt>Rows in your file</dt>
@@ -384,6 +578,25 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
               {number(job.merged_rows)} rows were added or merged for <strong>{job.name}</strong>.
               {report.exact_existing > 0 && ` ${number(report.exact_existing)} identical rows were already in the CRM and linked automatically.`}
             </p>
+            <FileKept report={report} />
+            {(merges?.rows || []).length > 0 && (
+              <div className="merge-log">
+                <h3>Rows added to leads you already had</h3>
+                <p className="muted">If one of these was not the same person, undo it: what it filled in is removed and the row becomes a lead of its own.</p>
+                <ul className="import-repeats">
+                  {merges.rows.map((row) => (
+                    <li key={row.row_no}>
+                      <strong>{row.name || row.phone || row.email || `Row ${row.row_no}`}</strong>
+                      <small>
+                        into {row.lead_name || "a lead"}
+                        {(row.filled || []).length > 0 ? ` · filled in ${row.filled.join(" and ")}` : " · nothing new to fill"}
+                      </small>
+                      <Button disabled={busy} onClick={() => undoMerge(row)}>Undo</Button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="import-actions">
               <Button variant="primary" onClick={() => onClose(job)}>
                 View source list

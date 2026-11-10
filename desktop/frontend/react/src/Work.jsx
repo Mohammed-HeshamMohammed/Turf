@@ -65,6 +65,9 @@ import {
   usePresence,
 } from "./ui.jsx";
 
+/** A lead can be called only if it has a phone number with digits in it. */
+const hasPhone = lead => /\d{7}/.test(String(lead.phone || "").replace(/\D/g, ""));
+
 export function Calls({ target }) {
   const { state, dispatch, navigate, notify, route } = useCrm();
   // A call in progress belongs to the app, not this page, so it carries on (with its captions) while you look around.
@@ -100,7 +103,8 @@ export function Calls({ target }) {
   useEffect(() => setListId(listParam), [listParam]);
   const toggleCaptions = (next = !captions) => setCallSession({ captions: next });
   const callable = useMemo(
-    () => visibleLeads(state).filter(item => item.stage !== "Closed" && item.verdict !== "Do not call" && item.verdict !== "Wrong number"),
+    // Nobody can be called without a phone number, so a lead with none is not in the queue (it stays in Leads).
+    () => visibleLeads(state).filter(item => hasPhone(item) && item.stage !== "Closed" && item.verdict !== "Do not call" && item.verdict !== "Wrong number"),
     [state],
   );
   const lists = useMemo(

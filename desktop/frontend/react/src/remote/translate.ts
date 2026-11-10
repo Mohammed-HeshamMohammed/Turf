@@ -148,12 +148,15 @@ export function collectionsFromStore(store) {
   const sourceLeads = records("leads");
   const projectCounts = new Map();
   sourceLeads.forEach(lead => projectCounts.set(lead.project_id, (projectCounts.get(lead.project_id) || 0) + 1));
+  // A list whose leads have no phone number and no email cannot be called or written to: it is marked as a useless list.
+  const useless = id => (store.projectCounts?.[id] ?? 0) > 0 && store.projectContactable != null && (store.projectContactable[id] ?? 0) === 0;
   const context = { directory: store.directory || [], teams: store.teams || [], calls: records("calls"), notes: records("notes") };
   const activities = [
     ...context.calls.map(call => ({ id: "call-" + call.id, leadId: call.lead_id, actor: call.agent_label || nameOf(context.directory, call.agent_id), text: "Recorded call: " + (call.outcome || "Outcome not recorded"), time: call.occurred_at ? new Date(call.occurred_at).toLocaleString() : "", kind: "Call", occurredAt: call.occurred_at || "" })),
     ...context.notes.map(note => ({ id: "note-" + note.id, leadId: note.lead_id, actor: note.author_label || "Team member", text: "Added a note", time: note.occurred_at ? new Date(note.occurred_at).toLocaleString() : "", kind: "Note", occurredAt: note.occurred_at || "" })),
   ].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
   return {
+    leadsTotal: Math.max(store.leadsTotal || 0, sourceLeads.length),
     leads: sourceLeads
       .map(lead => leadFromServer(lead, context))
       .sort((a, b) => a.name.localeCompare(b.name)),
@@ -164,15 +167,17 @@ export function collectionsFromStore(store) {
     datasets: (store.projects || []).map(project => ({
       id: project.id,
       name: project.name,
-      description: projectCounts.has(project.id) ? "Source list" : "No leads imported yet",
-      status: projectCounts.has(project.id) ? "Checked" : "Empty",
+      description: useless(project.id) ? "No phone numbers or emails" : (store.projectCounts?.[project.id] ?? projectCounts.get(project.id)) ? "Source list" : "No leads imported yet",
+      status: useless(project.id) ? "Useless list" : (store.projectCounts?.[project.id] ?? projectCounts.get(project.id)) ? "Checked" : "Empty",
       team: "",
       date: "",
       columns: [],
-      rows: projectCounts.get(project.id) || 0,
+      rows: store.projectCounts?.[project.id] ?? (projectCounts.get(project.id) || 0),
     })),
   };
 }
+
+const MAX_HELD_LEADS = 5000;
 
 /** Applies a /sync/pull page to the raw store. Removals drop records no longer visible. */
 export function applyChanges(store, changes) {
@@ -181,6 +186,13 @@ export function applyChanges(store, changes) {
   for (const change of changes) {
     const kind = plural[change.entity];
     if (!kind) continue;
+    // This device holds a window of a big workspace: what hangs off a lead it does not hold is left on the server, and no more leads
+    // are taken in once the window is full (they are found by search).
+    if (change.op !== "remove") {
+      const parent = change.entity === "lead" ? null : change.record?.lead_id;
+      if (parent && !(next.leads || {})[parent]) continue;
+      if (change.entity === "lead" && !(next.leads || {})[change.id] && Object.keys(next.leads || {}).length >= MAX_HELD_LEADS) continue;
+    }
     next[kind] = { ...(next[kind] || {}) };
     if (change.op === "remove") {
       delete next[kind][change.id];
@@ -207,6 +219,9 @@ export function storeFromSnapshot(snapshot, extra = {}) {
     cursor: snapshot.cursor,
     accessRevision: snapshot.access_revision,
     leaseExpiresAt: snapshot.offline_lease_expires_at,
+    leadsTotal: snapshot.leads_total ?? Object.keys(byId(snapshot.leads)).length,
+    projectCounts: snapshot.project_counts || {},
+    projectContactable: snapshot.project_contactable || null,
     leads: byId(snapshot.leads),
     tasks: byId(snapshot.tasks),
     notes: byId(snapshot.notes),
