@@ -3,10 +3,12 @@ package main
 import (
 	"database/sql"
 	"errors"
+	"net/http"
 	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // me is who the person is here: their workspaces, what they may do in the one they are working in, and whether it is usable.
@@ -323,19 +325,20 @@ func (s *server) deleteProject(q *req) error {
 		}
 		return err
 	}
-	var active bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM importing.jobs WHERE project_id = $1 AND status NOT IN ('failed', 'cancelled', 'done'))`, id).Scan(&active); err != nil {
+	// Deleting a list is a clear choice: an import still running into it is stopped first (the worker and the merge look at the flag between
+	// batches), and the list is deleted with it. A statement that holds the rows for too long makes this wait ten seconds, then say so.
+	if _, err = tx.Exec(ctx, `SET LOCAL lock_timeout = '10s'`); err != nil {
 		return err
 	}
-	if active {
-		return bad("Finish or cancel this source list's import before deleting it.")
+	if _, err = tx.Exec(ctx, `UPDATE importing.jobs SET cancel_requested = true, status = 'cancelled', updated_at = now() WHERE project_id = $1 AND status NOT IN ('failed', 'cancelled', 'done')`, id); err != nil {
+		return busyOrErr(err)
 	}
 	if _, err = tx.Exec(ctx, `CREATE TEMP TABLE _project_leads ON COMMIT DROP AS SELECT id, property_id FROM leads WHERE project_id = $1`, id); err != nil {
 		return err
 	}
 	deleted, err := tx.Exec(ctx, `DELETE FROM leads WHERE id IN (SELECT id FROM _project_leads)`)
 	if err != nil {
-		return err
+		return busyOrErr(err)
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO change_log (org_id, entity, entity_id, lead_id, op)
 		SELECT cw_org(), 'lead', id, id, 'delete' FROM _project_leads`); err != nil {
@@ -347,7 +350,7 @@ func (s *server) deleteProject(q *req) error {
 		return err
 	}
 	if _, err = tx.Exec(ctx, `DELETE FROM importing.jobs WHERE project_id = $1`, id); err != nil {
-		return err
+		return busyOrErr(err)
 	}
 	if _, err = tx.Exec(ctx, `DELETE FROM projects WHERE id = $1`, id); err != nil {
 		return err
@@ -362,6 +365,15 @@ func (s *server) deleteProject(q *req) error {
 	s.eraseLearnedList(ctx, q.sc.orgID, id)
 	writeJSON(q.w, 200, map[string]any{"removed": id, "deleted_leads": deleted.RowsAffected()})
 	return nil
+}
+
+// busyOrErr turns "could not get a lock in time" into a plain answer: the import is still stopping.
+func busyOrErr(err error) error {
+	var pg *pgconn.PgError
+	if errors.As(err, &pg) && pg.Code == "55P03" {
+		return &apiError{http.StatusConflict, "busy", "An import into this list is still stopping. Wait a minute and delete it again."}
+	}
+	return err
 }
 
 func (s *server) renameOrg(q *req) error {

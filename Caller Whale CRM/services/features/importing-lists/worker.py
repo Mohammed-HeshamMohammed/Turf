@@ -351,6 +351,8 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
         low, high = cur.fetchone()
     conn.commit()
     done = 0
+    total = int(job.get("loaded_rows") or 0)
+    started = time.monotonic()
     for start in range(low, high + 1, CLEAN_RANGE):
         check_cancel(conn, job_id)
         with conn.cursor() as cur:
@@ -362,10 +364,25 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
                        state = CASE WHEN c.name IS NULL AND c.phone IS NULL AND c.email IS NULL AND c.address IS NULL THEN 'skip' ELSE 'clean' END
                 FROM c WHERE r.job_id = %(job)s AND r.row_no = c.row_no""", {"job": job_id, "a": start, "b": start + CLEAN_RANGE})
             done += cur.rowcount
-            beat(cur, job_id, "cleaning", done)
+            beat(cur, job_id, "cleaning", done, total=total)
         conn.commit()
+        log("INFO", "cleaning batch", job=job_id, rows=done, seconds=round(time.monotonic() - started, 1))
+    # The two steps after the tidying compare rows with each other and with the leads already in the CRM; each says so, so a slow one
+    # is seen in the log and on the screen instead of looking stuck.
+    check_cancel(conn, job_id)
+    with conn.cursor() as cur:
+        beat(cur, job_id, "matching", done, total=total, step="exact repeats of earlier lists")
+    conn.commit()
+    step = time.monotonic()
     exact_existing = skip_identical_prior_rows(conn, job)
+    log("INFO", "exact repeats checked", job=job_id, found=exact_existing, seconds=round(time.monotonic() - step, 1))
+    check_cancel(conn, job_id)
+    with conn.cursor() as cur:
+        beat(cur, job_id, "matching", done, total=total, step="repeats inside the list and against your leads")
+    conn.commit()
+    step = time.monotonic()
     groups = find_repeats(conn, job)
+    log("INFO", "repeats found", job=job_id, groups=groups, seconds=round(time.monotonic() - step, 1))
     dropped = [c["header"] for c in columns if not c.get("used")]
     with conn.cursor() as cur:
         cur.execute("""SELECT count(*) FILTER (WHERE state = 'skip' AND lead_id IS NULL),
@@ -428,6 +445,7 @@ def skip_identical_prior_rows(conn: psycopg.Connection, job: dict) -> int:
     """
     headers = [column["header"] for column in job["columns"]]
     with conn.cursor() as cur:
+        cur.execute("SET LOCAL statement_timeout = '30min'")
         cur.execute("""
             WITH identical AS (
                 SELECT DISTINCT ON (r.row_no) r.row_no, old.lead_id
@@ -453,6 +471,7 @@ def find_repeats(conn: psycopg.Connection, job: dict) -> int:
     """Marks rows that match each other, or a lead already in the CRM, after cleaning. Returns how many groups the person must decide."""
     job_id, org = job["id"], job["org_id"]
     with conn.cursor() as cur:
+        cur.execute("SET LOCAL statement_timeout = '30min'")
         cur.execute("""
             SELECT row_no, name, phone, email, importing.addr_key(address, zip) AS ak FROM (
                 SELECT *, count(*) OVER (PARTITION BY phone) AS cp, count(*) OVER (PARTITION BY email) AS ce,

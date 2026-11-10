@@ -368,17 +368,12 @@ func TestFailedImportCleanupRemovesEmptyListsButKeepsExistingLeads(t *testing.T)
 		t.Fatalf("other devices cannot learn of the deletion: %d %v", count, err)
 	}
 	third, emptyAgain := start()
-	if status, _ := e.call(alice, orgA, "DELETE", "/api/v1/projects/"+emptyAgain, nil); status != 400 {
-		t.Fatalf("active list deleted: %d", status)
-	}
-	if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'failed' WHERE id = $1`, third); err != nil {
-		t.Fatal(err)
-	}
 	if status, _ := e.call(bob, orgA, "DELETE", "/api/v1/projects/"+emptyAgain, nil); status != 403 {
 		t.Fatalf("caller deleted list: %d", status)
 	}
+	// Deleting a list stops an import still running into it, and goes ahead.
 	if status, _ := e.call(alice, orgA, "DELETE", "/api/v1/projects/"+emptyAgain, nil); status != 200 {
-		t.Fatalf("empty list with failed import not removed: %d", status)
+		t.Fatalf("a list with an import still running was not removed: %d", status)
 	}
 	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM importing.jobs WHERE id = $1`, third).Scan(&count); err != nil || count != 0 {
 		t.Fatalf("failed import remained after list deletion: %d %v", count, err)

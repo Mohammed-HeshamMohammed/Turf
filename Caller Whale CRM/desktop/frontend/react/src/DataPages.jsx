@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
+import { LiquidProgress } from "./LiquidProgress.jsx";
 import { ArrowRight, ArrowUpRight, CheckCircle, Phone, Cloud, DownloadSimple, FileCsv, HardDrives, ShieldCheck, Trash, UploadSimple } from "@phosphor-icons/react";
 import { LEAD_STAGES, ROLES } from "./data.ts";
 import { capability, uid, visibleLeads } from "./model.ts";
@@ -941,7 +942,7 @@ export function SkipTracing() {
                 <div className="job-progress">
                   <ShieldCheck size={40} weight="light" />
                   <h3>{progress.label}</h3>
-                  <progress value={progress.value} max={progress.max} />
+                  <LiquidProgress value={progress.max ? (progress.value / progress.max) * 100 : null} label={progress.label} />
                   <p>
                     {engine ? "Caller Whale engine" : "Simulated " + mode.toLowerCase() + " check"} · {rows.length} rows
                   </p>

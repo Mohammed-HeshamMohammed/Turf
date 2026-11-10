@@ -6,6 +6,7 @@ import { IMPORT_FIELDS, SOURCE_IMPORT_FIELDS, follow, mappingBody, mappingProble
 import { useCrm } from "./context.jsx";
 import { SourceRows } from "./SourceRows.jsx";
 import { Badge, Breadcrumb, Button, Card, Checkbox, Field, PageHeader, Select } from "./ui.jsx";
+import { LiquidProgress } from "./LiquidProgress.jsx";
 
 // One page for every step of a server import. The upload's project ID ties this page to its source list.
 
@@ -131,7 +132,11 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
     ? Math.round((sent.bytes / sent.total) * 100)
     : status === "merging" && job.progress?.total
       ? Math.round((job.merged_rows / job.progress.total) * 100)
-      : null;
+      : status === "cleaning" && job.progress?.phase === "cleaning" && job.progress?.total > 0
+        ? Math.min(99, Math.round((job.progress.done / job.progress.total) * 100))
+        : null;
+  // The steps after the tidying compare rows with each other and with the leads already in the account; the worker says which one it is on.
+  const matching = status === "cleaning" && job?.progress?.phase === "matching";
   const columns = job?.columns ?? [];
   const knownFields = new Set([...IMPORT_FIELDS, ...SOURCE_IMPORT_FIELDS].map(([key]) => key));
   const additionalFields = [...new Map(columns.filter(column => column.source_detail && column.standard_key && !knownFields.has(column.standard_key))
@@ -205,13 +210,14 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
 
         {working && (
           <div className="job-progress">
-            <h3>{sent ? `Sending your list · ${percent}%` : working}</h3>
-            {percent === null ? <progress aria-label="Working" /> : <progress value={percent} max="100" aria-label={`${percent} percent`} />}
+            <h3>{sent ? `Sending your list · ${percent}%` : matching ? "Looking for repeats" : working}</h3>
+            <LiquidProgress value={percent} label={percent === null ? "Working" : `${percent} percent`} />
             <p>
               {sent &&
                 `${megabytes(sent.bytes)} of ${megabytes(sent.total)}. You can leave this page and resume with the same file if the connection drops.`}
               {!sent && status === "loading" && job.loaded_rows > 0 && `${number(job.loaded_rows)} rows read so far.`}
-              {!sent && status === "cleaning" && job.progress?.done > 0 && `${number(job.progress.done)} rows tidied so far.`}
+              {!sent && status === "cleaning" && !matching && job.progress?.done > 0 && `${number(job.progress.done)} rows tidied so far.`}
+              {!sent && matching && `${number(job.progress.done)} rows tidied. Now comparing them: ${job.progress.step || "repeats"}. A big list can take a few minutes.`}
               {!sent && status === "merging" && `${number(job.merged_rows)} of ${number(job.progress?.total)} added. You can leave this page; it carries on.`}
               {!sent && ["queued", "loading", "cleaning"].includes(status) && " You can leave this page; processing carries on in the background."}
             </p>
