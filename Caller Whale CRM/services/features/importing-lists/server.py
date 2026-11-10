@@ -10,6 +10,7 @@ import upload_api
 
 SERVICE = "importing-lists"
 worker_thread = None  # set by main()
+worker_alive = None  # set by main(): False when one of the worker loops has gone
 VERSION = "0.2.0"
 
 
@@ -17,7 +18,7 @@ def route(method: str, path: str) -> tuple[int, dict]:
     """The status and JSON body for a request."""
     if method == "GET" and path == "/healthz":
         # The worker is a thread beside the web server: if it is gone, uploads still work but nothing is ever processed, so say so.
-        if worker_thread is not None and not worker_thread.is_alive():
+        if worker_thread is not None and (not worker_thread.is_alive() or (worker_alive is not None and not worker_alive())):
             return 503, {"ok": False, "service": SERVICE, "error": "The import worker has stopped."}
         return 200, {"ok": True, "service": SERVICE}
     if method == "GET" and path == "/version":
@@ -106,9 +107,10 @@ def main() -> None:
         raise SystemExit("set DATABASE_URL: the import worker's own login on the CRM database")
     import worker  # imported here so the health tests need neither polars nor a database
 
-    global worker_thread
+    global worker_thread, worker_alive
     worker_thread = threading.Thread(target=worker.run_forever, args=(url,), daemon=True)
     worker_thread.start()
+    worker_alive = worker.loops_alive
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     print(f"{SERVICE} listening on http://localhost:{port}")
     server.serve_forever()

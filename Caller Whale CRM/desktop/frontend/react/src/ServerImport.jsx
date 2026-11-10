@@ -11,7 +11,7 @@ import { LiquidProgress } from "./LiquidProgress.jsx";
 // One page for every step of a server import. The upload's project ID ties this page to its source list.
 
 const WORKING = {
-  queued: "Waiting for its turn. One list is read at a time.",
+  queued: "Waiting for a free worker. Several lists are read at the same time.",
   loading: "Reading your list",
   cleaning: "Tidying phone numbers, emails and addresses, and looking for repeats",
   merging: "Adding leads to your account",

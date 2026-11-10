@@ -290,8 +290,10 @@ class EndToEndTest(unittest.TestCase):
         job_id = self.queue(CSV.encode())
         claimed = self.worker.claim(self.conn)
         self.assertEqual(claimed["id"], job_id)
-        # Only one import works at a time: a second waits.
+        # Imports work at the same time: a second one is taken on by another worker, and a third finds nothing left.
         second = self.queue(b"Name,Phone\nX,5550000\n")
+        other = self.worker.claim(self.conn, "another-worker")
+        self.assertEqual(other["id"], second)
         self.assertIsNone(self.worker.claim(self.conn))
         self.worker.load(self.conn, claimed)
 
@@ -335,8 +337,8 @@ class EndToEndTest(unittest.TestCase):
         job = self.job(job_id)
         self.assertEqual((job["status"], job["report"]["near_groups"], job["report"]["dropped_columns"]), ("reviewing", 2, ["Bathroom style"]))
 
-        # The queue moves on to the next import.
-        self.assertEqual(self.worker.claim(self.conn)["id"], second)
+        # The second import was taken on by another worker while the first was running.
+        self.assertEqual(self.job(second)["status"], "loading")
 
     def test_source_only_property_headers_gain_stable_keys_and_usable_property_details(self) -> None:
         data = (b"Owner 1 First Name,Owner 1 Last Name,Address,County,Living Square Feet,Bedrooms,Bathrooms,Year Built,Vacant?\n"
