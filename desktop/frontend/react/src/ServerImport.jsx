@@ -18,6 +18,37 @@ const WORKING = {
   uploading: "Sending your list",
 };
 const number = (value) => Number(value || 0).toLocaleString();
+const PHASES = { loading: "reading", cleaning: "tidying", matching: "looking for repeats" };
+
+/** What a waiting import is waiting for: how many lists are ahead, the one being worked on, and, if it has gone quiet, a way to stop it. */
+function QueueNote({ queue, onStopFront, stopping }) {
+  if (!queue || !queue.ahead) return null;
+  const front = queue.running;
+  const quiet = front && front.idle_seconds > 180;
+  return (
+    <div className="queue-note">
+      <p>
+        <strong>{queue.ahead === 1 ? "1 list is" : `${queue.ahead} lists are`} ahead of yours.</strong>
+        {front?.other_workspace && " One from another workspace is being read."}
+        {front?.name &&
+          ` Now ${PHASES[front.phase || front.status] || "working on"} “${front.name}”${front.total ? `: ${number(front.done || 0)} of ${number(front.total)} rows` : ""}${front.step ? ` (${front.step})` : ""}.`}
+      </p>
+      {quiet && (
+        <p>
+          {front.name ? "That import" : "The list in front"} has not reported for {Math.round(front.idle_seconds / 60)} minutes and may be stuck.
+          {front.id && (
+            <>
+              {" "}
+              <Button disabled={stopping} onClick={() => onStopFront(front.id)}>
+                {stopping ? "Stopping…" : "Stop that import"}
+              </Button>
+            </>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
 const megabytes = (bytes) => (bytes / 1048576 >= 10 ? Math.round(bytes / 1048576).toLocaleString() : (bytes / 1048576).toFixed(1)) + " MB";
 
 export function ServerImport({ resume = "", initialFile = null, projectId = null, projectName = "", onClose, onFinished, onStarted }) {
@@ -137,6 +168,18 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
         : null;
   // The steps after the tidying compare rows with each other and with the leads already in the account; the worker says which one it is on.
   const matching = status === "cleaning" && job?.progress?.phase === "matching";
+  const [stopping, setStopping] = useState(false);
+  async function stopFront(frontId) {
+    setStopping(true);
+    try {
+      await api.imports.cancel(frontId);
+      notify("Stopped. Your list moves up.");
+      void refreshImports?.().catch(() => {});
+    } catch (reason) {
+      notify(reason.message || "That import could not be stopped.");
+    }
+    setStopping(false);
+  }
   const columns = job?.columns ?? [];
   const knownFields = new Set([...IMPORT_FIELDS, ...SOURCE_IMPORT_FIELDS].map(([key]) => key));
   const additionalFields = [...new Map(columns.filter(column => column.source_detail && column.standard_key && !knownFields.has(column.standard_key))
@@ -221,6 +264,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
               {!sent && status === "merging" && `${number(job.merged_rows)} of ${number(job.progress?.total)} added. You can leave this page; it carries on.`}
               {!sent && ["queued", "loading", "cleaning"].includes(status) && " You can leave this page; processing carries on in the background."}
             </p>
+            {!sent && status === "queued" && <QueueNote queue={job.queue} onStopFront={stopFront} stopping={stopping} />}
             <Button onClick={cancel}>{status === "merging" ? "Stop adding" : "Cancel this import"}</Button>
           </div>
         )}
