@@ -909,7 +909,15 @@ export function LeadDetail({ id }) {
                 ) : (
                   <span>{lead.phone || "No phone supplied"}</span>
                 )}
+                {lead.phoneType && <small className="muted">{lead.phoneType}</small>}
               </div>
+              {(lead.otherPhones || []).map(item => (
+                <div className="contact-line" key={item.number}>
+                  <Phone size={18} />
+                  <span>{item.number}</span>
+                  <small className="muted">{item.type || "other phone"}</small>
+                </div>
+              ))}
               <div className="contact-line">
                 <Envelope size={18} />
                 {capability(state, "message") && lead.email ? (
@@ -920,6 +928,13 @@ export function LeadDetail({ id }) {
                   <span>{lead.email || "No email supplied"}</span>
                 )}
               </div>
+              {(lead.otherEmails || []).map(item => (
+                <div className="contact-line" key={item}>
+                  <Envelope size={18} />
+                  <span>{item}</span>
+                </div>
+              ))}
+              {(lead.owners || []).length > 1 && <p className="muted">Owners: {lead.owners.join(", ")}</p>}
               {capability(state, "message") && <Button onClick={() => navigate("work/inbox?lead=" + id)}>Open conversation</Button>}
               <Status value={lead.verdict} />
             </Card>

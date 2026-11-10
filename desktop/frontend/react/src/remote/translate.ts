@@ -64,6 +64,11 @@ export function leadFromServer(lead, { directory = [], teams = [], calls = [], n
     verdict: lead.do_not_call ? "Do not call" : lead.verdict || "Unverified",
     phone: lead.phone || "",
     email: lead.email || "",
+    // Beside the one name and the one phone: the owners a list named, and every other phone (with its line type) and email.
+    owners: lead.contacts?.owners || [],
+    otherPhones: (lead.contacts?.phones || []).filter((item: any) => item.number !== lead.phone),
+    phoneType: (lead.contacts?.phones || []).find((item: any) => item.number === lead.phone)?.type || "",
+    otherEmails: (lead.contacts?.emails || []).filter((item: string) => item !== lead.email),
     source: lead.source || "",
     priority: lead.priority || "Normal",
     sentTo: lead.sent_to || "",
@@ -210,6 +215,24 @@ export function applyChanges(store, changes) {
     }
   }
   return next;
+}
+
+/** A later page of a snapshot added to what the first page gave: the leads of the page and what belongs to them. */
+export function addSnapshotPage(store, page) {
+  const add = (current, list) => {
+    const next = { ...current };
+    for (const record of list || []) next[record.id] = record;
+    return next;
+  };
+  return {
+    ...store,
+    leads: add(store.leads, page.leads),
+    tasks: add(store.tasks, page.tasks),
+    notes: add(store.notes, page.notes),
+    calls: add(store.calls, page.calls),
+    deals: add(store.deals, page.deals),
+    handoffs: add(store.handoffs, page.handoffs),
+  };
 }
 
 export function storeFromSnapshot(snapshot, extra = {}) {
