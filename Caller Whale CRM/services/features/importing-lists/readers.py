@@ -247,6 +247,8 @@ def _xlsx_rows(path: Path) -> tuple[int, Iterator]:
     check_unpacked(path)
     book = load_workbook(path, read_only=True, data_only=True)
     sheet, rows = _data_sheet(book)
+    if sheet.max_column is None:  # a writer that left out the sheet's size: ask the sheet by reading it through once
+        sheet.calculate_dimension(force=True)
 
     def generate():
         try:
@@ -300,6 +302,16 @@ def other_sheets(path: Path) -> list[str]:
     return []
 
 
+def widest_line(path: Path, sep: str) -> int:
+    """The most fields any line of a text list has, counted by polars over the whole file without parsing it. Quoted text is taken out of
+    each line first; a quoted value that runs over several lines can still make the answer too big, and the extra columns, which are empty,
+    are dropped after loading. Too small is the loss to avoid: a wide row far down the file would lose its extra cells."""
+    counts = pl.scan_csv(path, has_header=False, separator="\x1f", quote_char=None, infer_schema=False, truncate_ragged_lines=True,
+                         encoding="utf8-lossy").select(
+        pl.col("column_1").str.replace_all('"[^"]*"', "").str.count_matches(sep, literal=True).max())
+    return int(counts.collect(engine="streaming").item() or 0) + 1
+
+
 def _csv_batches(path: Path, has_header: bool, skip_rows: int):
     sep = delimiter(path)
     # polars takes the column count from the first line it reads, so a title line above the header, or a data row wider than the
@@ -310,7 +322,7 @@ def _csv_batches(path: Path, has_header: bool, skip_rows: int):
     except csv.Error:  # a cell over the csv module's size limit: read the file as it comes
         top = []
     junk = leading_junk(top) if has_header else 0
-    width = max((len(r) for r in top[junk:]), default=1) or 1
+    width = max(max((len(r) for r in top[junk:]), default=1), widest_line(path, sep)) or 1
     # Read without a header row and take the first line as the header here, so the names are made unique the same way for every format.
     lazy = pl.scan_csv(path, separator=sep, has_header=False, schema={f"c{i}": pl.String for i in range(width)}, skip_rows=junk,
                        encoding="utf8-lossy", truncate_ragged_lines=True, quote_char='"')

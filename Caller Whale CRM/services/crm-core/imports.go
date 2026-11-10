@@ -620,15 +620,20 @@ func mergeBatchIn(ctx context.Context, tx pgx.Tx, sc scope, id string, project, 
 	// written down (filled), so the merge can be looked at and undone.
 	var folded int64
 	err = tx.QueryRow(ctx, `
-		WITH batch AS (
-			SELECT r.row_no, r.match_lead, r.phone, r.email,
-				array_remove(ARRAY[CASE WHEN l.phone = '' AND r.phone IS NOT NULL THEN 'phone' END, CASE WHEN l.email = '' AND r.email IS NOT NULL THEN 'email' END], NULL) AS filled
-			FROM importing.rows r LEFT JOIN leads l ON l.id = r.match_lead
-			WHERE r.job_id = $1 AND r.state = 'merge' ORDER BY r.row_no LIMIT $2 FOR UPDATE OF r SKIP LOCKED
+		WITH picked AS (
+			SELECT r.row_no, r.match_lead, r.phone, r.email FROM importing.rows r
+			WHERE r.job_id = $1 AND r.state = 'merge' ORDER BY r.row_no LIMIT $2 FOR UPDATE SKIP LOCKED
+		), batch AS (
+			-- Several rows of one batch may match the same lead; only the first writes (an update takes one row per lead), so only it is
+			-- written down as having filled something, and the others as having filled nothing.
+			SELECT p.row_no, p.match_lead, p.rn, CASE WHEN p.rn = 1 THEN p.phone END AS phone, CASE WHEN p.rn = 1 THEN p.email END AS email,
+				CASE WHEN p.rn = 1 THEN array_remove(ARRAY[CASE WHEN l.phone = '' AND p.phone IS NOT NULL THEN 'phone' END, CASE WHEN l.email = '' AND p.email IS NOT NULL THEN 'email' END], NULL)
+					ELSE ARRAY[]::text[] END AS filled
+			FROM (SELECT picked.*, row_number() OVER (PARTITION BY match_lead ORDER BY row_no) AS rn FROM picked) p LEFT JOIN leads l ON l.id = p.match_lead
 		), upd AS (
 			UPDATE leads l SET phone = CASE WHEN l.phone = '' THEN coalesce(b.phone, '') ELSE l.phone END,
 				email = CASE WHEN l.email = '' THEN coalesce(b.email, '') ELSE l.email END, version = l.version + 1, updated_at = now()
-			FROM batch b WHERE l.id = b.match_lead AND l.org_id = cw_org() AND l.deleted_at IS NULL RETURNING l.id
+			FROM batch b WHERE b.rn = 1 AND l.id = b.match_lead AND l.org_id = cw_org() AND l.deleted_at IS NULL RETURNING l.id
 		), feed AS (
 			INSERT INTO change_log (org_id, entity, entity_id, lead_id, op) SELECT cw_org(), 'lead', id, id, 'upsert' FROM upd RETURNING 1
 		), settled AS (

@@ -170,3 +170,30 @@ func TestConfirmedColumnAnswersAreRememberedByHeading(t *testing.T) {
 		t.Fatalf("remembered: %v", got)
 	}
 }
+
+func TestTwoRowsFoldedIntoOneLeadInOneBatchAreLoggedHonestly(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	ctx := context.Background()
+	var lead string
+	e.want(e.op(alice, orgA, "lead.create", map[string]any{"name": "Lee Existing"}), "applied")
+	if err := e.admin.QueryRow(ctx, `SELECT id::text FROM crm.leads WHERE name = 'Lee Existing'`).Scan(&lead); err != nil {
+		t.Fatal(err)
+	}
+	_, job := e.startImport(alice, orgA, map[string]any{"filename": "owners.csv", "size": 100, "name": "Austin"})
+	id := job["id"].(string)
+	e.seedRows(id, []seedRow{{1, "Lee Existing", "5550177", "merge", nil, &lead}, {2, "Lee E.", "5550188", "merge", nil, &lead}})
+	if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'ready' WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+	e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/merge", nil)
+	e.waitDone(id)
+	var phone string
+	_ = e.admin.QueryRow(ctx, `SELECT phone FROM crm.leads WHERE id = $1`, lead).Scan(&phone)
+	var first, second []string
+	_ = e.admin.QueryRow(ctx, `SELECT filled FROM importing.rows WHERE job_id = $1 AND row_no = 1`, id).Scan(&first)
+	_ = e.admin.QueryRow(ctx, `SELECT filled FROM importing.rows WHERE job_id = $1 AND row_no = 2`, id).Scan(&second)
+	if phone != "5550177" || len(first) != 1 || len(second) != 0 {
+		t.Fatalf("phone %q, first filled %v, second filled %v", phone, first, second)
+	}
+}

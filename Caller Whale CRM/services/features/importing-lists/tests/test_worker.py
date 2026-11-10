@@ -228,6 +228,39 @@ class ReadersTest(unittest.TestCase):
             (_, rest), = list(readers.read_batches(path, True, skip_rows=0))
             self.assertEqual(rest.height, 1)
 
+    def test_a_row_far_down_a_csv_wider_than_the_top_keeps_its_extra_cells(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "list.csv"
+            path.write_text("Name,Phone"+"\n"+"A,1"+"\n"+"B,2"+"\n"*1 + ("C,3"+"\n") * 5000 + "D,4,x@y.com,extra"+"\n"+'"Smith, John",5,,'+"\n")
+            frames = list(readers.read_batches(path, True))
+            headers = frames[0][0]
+            rows = [row for _, frame in frames for row in frame.rows()]
+            self.assertEqual(headers, ["Name", "Phone", "Column 3", "Column 4"])
+            self.assertIn(("D", "4", "x@y.com", "extra"), rows)
+            self.assertIn(("Smith, John", "5", "", ""), rows)
+
+    def test_a_spreadsheet_that_does_not_say_how_big_it_is_is_measured_by_reading_it(self) -> None:
+        import re
+        import zipfile
+
+        from openpyxl import Workbook
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            plain, bare = Path(tmp) / "plain.xlsx", Path(tmp) / "bare.xlsx"
+            book = Workbook()
+            book.active.append(["Name", "Phone"])
+            book.active.append(["A", "5551234"])
+            book.active["E5"] = "far"
+            book.save(plain)
+            with zipfile.ZipFile(plain) as src, zipfile.ZipFile(bare, "w", zipfile.ZIP_DEFLATED) as out:
+                for part in src.infolist():
+                    data = src.read(part.filename)
+                    if part.filename == "xl/worksheets/sheet1.xml":
+                        data = re.sub(rb"<dimension[^>]*/>", b"", data)
+                    out.writestr(part.filename, data)
+            (headers, _), = list(readers.read_batches(bare, True))
+            self.assertEqual(len(headers), 5)
+
     def test_a_one_column_list_keeps_its_first_line_as_the_header(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "list.csv"
