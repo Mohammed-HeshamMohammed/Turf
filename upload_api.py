@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import psycopg
 from psycopg.rows import dict_row
 
-CHUNK_SIZE = 8 << 20
+CHUNK_SIZE = int(os.environ.get("IMPORT_CHUNK_KB", "1024")) << 10  # 1 MiB pieces: a dropped connection loses little, and progress moves smoothly
 MAX_ACTIVE = 3
 # A list needs room for the pieces, the joined file and (for text) its UTF-8 copy: this many times its size must be free, plus a reserve.
 SPACE_FACTOR = 3
