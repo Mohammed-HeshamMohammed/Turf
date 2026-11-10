@@ -3,7 +3,7 @@ import { Link } from "../../nav.tsx";
 export function SiteFooter({ compact = false }: { compact?: boolean }) {
   if (compact) return <footer className="site-footer site-footer-compact">
     <span>© {new Date().getFullYear()} Caller Whale</span>
-    <nav aria-label="Dashboard footer"><Link to="/contact">Contact</Link><Link to="/privacy">Privacy</Link><Link to="/remove-my-information">Remove my information</Link><Link to="/terms">Terms</Link></nav>
+    <nav aria-label="Dashboard footer"><Link to="/contact">Contact</Link><Link to="/privacy">Privacy</Link><Link to="/remove-my-information">Remove my information</Link><Link to="/terms">Terms</Link><Link to="/dpa">DPA</Link><Link to="/acceptable-use">Calling policy</Link></nav>
   </footer>;
   return <footer className="site-footer">
     <div className="footer-top">

@@ -358,6 +358,8 @@ func (s *server) deleteProject(q *req) error {
 	if err = tx.Commit(ctx); err != nil {
 		return err
 	}
+	// The learning copy of the list goes with it (docs: the customer deletes a list, its learned rows are erased).
+	s.eraseLearnedList(ctx, q.sc.orgID, id)
 	writeJSON(q.w, 200, map[string]any{"removed": id, "deleted_leads": deleted.RowsAffected()})
 	return nil
 }

@@ -3,6 +3,11 @@ import { PageHead } from "./ui.tsx";
 import { Link } from "./nav.tsx";
 import { HumanCheck, humanToken } from "./auth/human-check.jsx";
 import type { Auth } from "./auth/auth-client.js";
+import { parseLegal, versionOf, type Inline } from "./legal.ts";
+import termsText from "./legal/terms.md?raw";
+import privacyText from "./legal/privacy.md?raw";
+import dpaText from "./legal/dpa.md?raw";
+import acceptableUseText from "./legal/acceptable-use.md?raw";
 
 const contactBase = import.meta.env.VITE_CALLERWHALE_GATEWAY_URL || "https://gate.callerwhale.com";
 
@@ -100,23 +105,38 @@ export function RemoveMyInformation({ getAuth }: { getAuth: () => Promise<Auth> 
   </>;
 }
 
-function Draft({ title, children }: { title: string; children: React.ReactNode }) {
-  return <><PageHead eyebrow="Draft · review before launch" title={title} lead="This page is a working draft and is not yet an approved policy." /><section className="section legal card">{children}<p>Questions about this draft? <Link to="/contact">Contact the team</Link>.</p></section></>;
+function InlineText({ parts }: { parts: Inline[] }) {
+  return <>{parts.map((part, index) => {
+    if (part.kind === "bold") return <strong key={index}>{part.text}</strong>;
+    if (part.kind === "placeholder") return <mark key={index} className="legal-fill" title="To be filled in by the company before this is relied on">[{part.text}]</mark>;
+    if (part.kind === "link") return part.href?.startsWith("/") ? <Link key={index} to={part.href}>{part.text}</Link> : <a key={index} href={part.href} rel="noopener noreferrer" target="_blank">{part.text}</a>;
+    return <span key={index}>{part.text}</span>;
+  })}</>;
 }
 
-export function Privacy() {
-  return <Draft title="Privacy notice">
-    <h2>Information we handle</h2><p>When you contact us, you provide a name, email address and message. The contact form sends that information to our team inbox so we can respond. Account sign-in uses a third-party identity provider. Product use may involve lead, call and team records that you add to the workspace.</p>
-    <h2>How we use it</h2><p>We use contact details to answer requests and account details to operate access to the service. Workspace records support the features you choose to use. We do not need payment card numbers on this site.</p>
-    <h2>Lists added by businesses</h2><p>Businesses that use Caller Whale add lists of people to their workspaces. After a list is added, Caller Whale keeps a scrambled copy of some details, only to improve its service: phone numbers and emails as one-way codes, the kind of name (person or company), city, state and ZIP, a few property facts, and what the business decides about each lead. It does not keep names, phone numbers, emails, street addresses, notes or recordings, does not sell or share this copy, and deletes it after two years. A person can have it removed at any time with <Link to="/remove-my-information">Remove my information</Link>. This section is a draft that needs legal review.</p>
-    <h2>Service providers and requests</h2><p>Identity, email and hosting providers may process information needed to run the service. To ask about your information, use the <Link to="/contact">contact form</Link>. To have a phone number or an email address removed from what Caller Whale has learned from business lists, use <Link to="/remove-my-information">Remove my information</Link>. This draft needs an owner, provider list, retention periods, legal basis, region and rights review before publication.</p>
-  </Draft>;
+/** A legal text written in Markdown (src/legal/*.md), drawn as a page. */
+function LegalPage({ source, eyebrow, lead }: { source: string; eyebrow: string; lead: string }) {
+  const blocks = parseLegal(source);
+  const title = blocks.find(block => block.kind === "h1");
+  const version = versionOf(source);
+  return <>
+    <PageHead eyebrow={eyebrow} title={title && "inline" in title ? title.inline.map(part => part.text).join("") : eyebrow} lead={lead} />
+    <section className="section legal card">
+      {blocks.filter(block => block.kind !== "h1").map((block, index) => {
+        if (block.kind === "h2") return <h2 key={index}><InlineText parts={block.inline} /></h2>;
+        if (block.kind === "h3") return <h3 key={index}><InlineText parts={block.inline} /></h3>;
+        if (block.kind === "p") return <p key={index}><InlineText parts={block.inline} /></p>;
+        if (block.kind === "ul") return <ul key={index}>{block.items.map((item, i) => <li key={i}><InlineText parts={item} /></li>)}</ul>;
+        if (block.kind === "ol") return <ol key={index}>{block.items.map((item, i) => <li key={i}><InlineText parts={item} /></li>)}</ol>;
+        if (block.kind === "table") return <div className="legal-table" key={index}><table><thead><tr>{block.head.map((cell, i) => <th key={i}><InlineText parts={cell} /></th>)}</tr></thead><tbody>{block.rows.map((row, r) => <tr key={r}>{row.map((cell, c) => <td key={c}><InlineText parts={cell} /></td>)}</tr>)}</tbody></table></div>;
+        return null;
+      })}
+      <p className="fine">Version {version}. Questions? <Link to="/contact">Contact the team</Link>.</p>
+    </section>
+  </>;
 }
 
-export function Terms() {
-  return <Draft title="Terms of service">
-    <h2>Using Caller Whale</h2><p>Use the service only for lawful work and only with information you are allowed to process. Keep account access secure and give teammates access appropriate to their work. Calling, texting and outreach must follow applicable rules and consent requirements.</p>
-    <h2>Plans and availability</h2><p>Features marked preview or coming at launch are not yet generally available. Pricing shown on the site is a launch draft; checkout is not open. A final agreement must describe billing, cancellation, data handling, support and service availability before paid plans begin.</p>
-    <h2>Review required</h2><p>This draft does not yet establish a contract. It needs company identity, governing law, liability, dispute, payment and termination terms reviewed before publication.</p>
-  </Draft>;
-}
+export const Privacy = () => <LegalPage source={privacyText} eyebrow="Privacy" lead="What Caller Whale handles about you, why, and your choices." />;
+export const Terms = () => <LegalPage source={termsText} eyebrow="Terms" lead="The agreement for using Caller Whale." />;
+export const DataProcessing = () => <LegalPage source={dpaText} eyebrow="Customers" lead="How Caller Whale handles the lists and records you add." />;
+export const AcceptableUse = () => <LegalPage source={acceptableUseText} eyebrow="Policy" lead="What we expect when you call, text and email with Caller Whale." />;

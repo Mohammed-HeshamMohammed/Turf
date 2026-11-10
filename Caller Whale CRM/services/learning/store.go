@@ -302,6 +302,15 @@ func (s *store) eraseEverywhere(ctx context.Context, phone, email string) (int64
 	return total, nil
 }
 
+// eraseProject removes the learning copy of one list (the customer deleted the list).
+func (s *store) eraseProject(ctx context.Context, org, project string) (int64, error) {
+	tag, err := s.db.Exec(ctx, `DELETE FROM learning.leads WHERE org_id = $1 AND project_id = $2`, org, project)
+	if err == nil {
+		s.audit(ctx, "erase_list", org, tag.RowsAffected())
+	}
+	return tag.RowsAffected(), err
+}
+
 // eraseWorkspace removes everything taken from a workspace and stops any more being taken.
 func (s *store) eraseWorkspace(ctx context.Context, org string) (int64, error) {
 	tx, err := s.db.Begin(ctx)

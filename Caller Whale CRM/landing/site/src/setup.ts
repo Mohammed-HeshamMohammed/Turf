@@ -2,7 +2,7 @@
 // notice, and a few answers about its work. The lists below are exactly what the auth service accepts (services/auth/onboarding.go).
 
 /** The version of the terms and privacy notice people agree to. The auth service holds the same text and refuses an old one. */
-export const TERMS_VERSION = "2026-11";
+export const TERMS_VERSION = "2026-11-10";
 
 export const WORK_ROLES = [
   { key: "business_owner", label: "Business owner", help: "I sell my own product or service" },

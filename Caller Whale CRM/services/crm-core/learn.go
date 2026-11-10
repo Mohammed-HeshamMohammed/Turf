@@ -247,6 +247,27 @@ func (s *server) scrubLearned(ctx context.Context) (int64, error) {
 	return total, nil
 }
 
+// eraseLearnedList asks the learning store to erase what it learned from a list the customer just deleted. It never stops the deletion; a failure
+// is logged and the daily purge of expired rows is the backstop.
+func (s *server) eraseLearnedList(ctx context.Context, org, project string) {
+	if s.cfg.learningURL == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, s.cfg.learningURL+"/v1/workspaces/"+org+"/projects/"+project, nil)
+	if err != nil {
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+s.cfg.learningToken)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil || res.StatusCode != http.StatusOK {
+		log.Printf("WARN the learning copy of list %s could not be erased now", project)
+		return
+	}
+	res.Body.Close()
+}
+
 // learningChoice is a workspace administrator's choice about the learning copy of their lists: opting out stops anything more being taken
 // and erases what was (POST /api/v1/learning/opt-out); opting back in allows it again (POST /api/v1/learning/opt-in).
 func (s *server) learningChoice(out bool) func(q *req) error {

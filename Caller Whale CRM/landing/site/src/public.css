@@ -403,3 +403,10 @@
 .username-field { display: flex; align-items: center; gap: 0; border-radius: 12px; box-shadow: 0 0 0 1px var(--line); background: var(--card, #fff); overflow: hidden; }
 .username-field > span { padding: 0 0 0 14px; color: var(--muted, #595959); white-space: nowrap; }
 .username-field input { flex: 1; min-width: 0; border: 0; box-shadow: none; background: transparent; padding-left: 2px; }
+
+/* The legal pages (src/legal/*.md): a placeholder the company still has to fill in is marked, and tables scroll on a phone */
+.legal-fill { background: var(--accent-soft, #fbe8cf); color: inherit; padding: 0 4px; border-radius: 4px; }
+.legal-table { overflow-x: auto; }
+.legal-table table { width: 100%; border-collapse: collapse; }
+.legal-table th, .legal-table td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.legal ol, .legal ul { padding-left: 1.4em; }
