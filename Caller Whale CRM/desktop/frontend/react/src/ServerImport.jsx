@@ -163,11 +163,20 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
     ? Math.round((sent.bytes / sent.total) * 100)
     : status === "merging" && job.progress?.total
       ? Math.round((job.merged_rows / job.progress.total) * 100)
-      : status === "cleaning" && job.progress?.phase === "cleaning" && job.progress?.total > 0
-        ? Math.min(99, Math.round((job.progress.done / job.progress.total) * 100))
+      : status === "cleaning" && typeof job.progress?.pct === "number"
+        ? Math.min(99, job.progress.pct)
         : null;
   // The steps after the tidying compare rows with each other and with the leads already in the account; the worker says which one it is on.
   const matching = status === "cleaning" && job?.progress?.phase === "matching";
+  // How long the tidying has been going and how much is left, worked out from the worker's percentage as it moves.
+  const clock = useRef({ id: null, since: 0, from: 0 });
+  const working_pct = status === "cleaning" && typeof job?.progress?.pct === "number" ? job.progress.pct : null;
+  if (working_pct === null) clock.current = { id: null, since: 0, from: 0 };
+  else if (clock.current.id !== job.id) clock.current = { id: job.id, since: Date.now(), from: working_pct };
+  const seconds = working_pct === null ? 0 : Math.round((Date.now() - clock.current.since) / 1000);
+  const moved = working_pct === null ? 0 : working_pct - clock.current.from;
+  const remaining = moved >= 4 && seconds >= 10 ? Math.round((seconds / moved) * (100 - working_pct)) : null;
+  const minutes = (secs) => (secs < 90 ? `${Math.max(5, Math.round(secs / 5) * 5)} seconds` : `${Math.round(secs / 60)} minutes`);
   const [stopping, setStopping] = useState(false);
   async function stopFront(frontId) {
     setStopping(true);
@@ -253,14 +262,17 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
 
         {working && (
           <div className="job-progress">
-            <h3>{sent ? `Sending your list · ${percent}%` : matching ? "Looking for repeats" : working}</h3>
+            <h3>{sent ? `Sending your list · ${percent}%` : status === "cleaning" ? (matching ? job.progress.step : "Tidying phone numbers, emails and addresses") : working}{status === "cleaning" && percent !== null ? ` · ${percent}%` : ""}</h3>
             <LiquidProgress value={percent} label={percent === null ? "Working" : `${percent} percent`} />
             <p>
               {sent &&
                 `${megabytes(sent.bytes)} of ${megabytes(sent.total)}. You can leave this page and resume with the same file if the connection drops.`}
               {!sent && status === "loading" && job.loaded_rows > 0 && `${number(job.loaded_rows)} rows read so far.`}
-              {!sent && status === "cleaning" && !matching && job.progress?.done > 0 && `${number(job.progress.done)} rows tidied so far.`}
-              {!sent && matching && `${number(job.progress.done)} rows tidied. Now comparing them: ${job.progress.step || "repeats"}. A big list can take a few minutes.`}
+              {!sent && status === "cleaning" && !matching && `${number(job.progress?.done)} of ${number(job.progress?.total || job.loaded_rows)} rows tidied.`}
+              {!sent && matching && job.progress.total > 0 && `${number(job.progress.done)} of ${number(job.progress.total)} rows checked.`}
+              {!sent && matching && job.progress.existing_leads > 0 && ` ${number(job.progress.existing_leads)} leads already in your account to compare with.`}
+              {!sent && matching && job.progress.found > 0 && ` ${number(job.progress.found)} possible repeats found so far.`}
+              {!sent && status === "cleaning" && ` Running for ${seconds < 90 ? `${seconds} seconds` : `${Math.round(seconds / 60)} minutes`}${remaining !== null ? `, about ${minutes(remaining)} to go` : ""}.`}
               {!sent && status === "merging" && `${number(job.merged_rows)} of ${number(job.progress?.total)} added. You can leave this page; it carries on.`}
               {!sent && ["queued", "loading", "cleaning"].includes(status) && " You can leave this page; processing carries on in the background."}
             </p>
