@@ -30,7 +30,8 @@ STALE = "interval '2 minutes'"
 POLL_SECONDS = 2.0
 # A job whose worker stopped is picked up again this many times; the next stop fails it (a file that keeps stopping the worker).
 MAX_RECLAIMS = 2
-CLEAN_RANGE = 100_000
+CLEAN_RANGE = int(os.environ.get("IMPORT_CLEAN_ROWS", "5000"))  # rows tidied between two reports of progress
+MATCH_RANGE = int(os.environ.get("IMPORT_MATCH_ROWS", "5000"))  # rows compared with the existing leads between two reports
 
 
 def log(level: str, message: str, **fields) -> None:
@@ -364,24 +365,21 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
                        state = CASE WHEN c.name IS NULL AND c.phone IS NULL AND c.email IS NULL AND c.address IS NULL THEN 'skip' ELSE 'clean' END
                 FROM c WHERE r.job_id = %(job)s AND r.row_no = c.row_no""", {"job": job_id, "a": start, "b": start + CLEAN_RANGE})
             done += cur.rowcount
-            beat(cur, job_id, "cleaning", done, total=total)
+            beat(cur, job_id, "cleaning", done, total=total, pct=min(40, int(40 * done / total)) if total else 0)
         conn.commit()
         log("INFO", "cleaning batch", job=job_id, rows=done, seconds=round(time.monotonic() - started, 1))
     # The two steps after the tidying compare rows with each other and with the leads already in the CRM; each says so, so a slow one
     # is seen in the log and on the screen instead of looking stuck.
     check_cancel(conn, job_id)
     with conn.cursor() as cur:
-        beat(cur, job_id, "matching", done, total=total, step="exact repeats of earlier lists")
+        beat(cur, job_id, "matching", done, total=total, step="Checking for rows already added from an earlier list", pct=41)
     conn.commit()
     step = time.monotonic()
     exact_existing = skip_identical_prior_rows(conn, job)
     log("INFO", "exact repeats checked", job=job_id, found=exact_existing, seconds=round(time.monotonic() - step, 1))
     check_cancel(conn, job_id)
-    with conn.cursor() as cur:
-        beat(cur, job_id, "matching", done, total=total, step="repeats inside the list and against your leads")
-    conn.commit()
     step = time.monotonic()
-    groups = find_repeats(conn, job)
+    groups = find_repeats(conn, job, total=total)
     log("INFO", "repeats found", job=job_id, groups=groups, seconds=round(time.monotonic() - step, 1))
     dropped = [c["header"] for c in columns if not c.get("used")]
     with conn.cursor() as cur:
@@ -467,9 +465,19 @@ def skip_identical_prior_rows(conn: psycopg.Connection, job: dict) -> int:
     return count
 
 
-def find_repeats(conn: psycopg.Connection, job: dict) -> int:
-    """Marks rows that match each other, or a lead already in the CRM, after cleaning. Returns how many groups the person must decide."""
+def say(conn: psycopg.Connection, job_id: str, step: str, done: int, total: int, pct: int, **extra) -> None:
+    """Tells the screen which step the job is on and how far it is, right away (its own short transaction)."""
+    with conn.cursor() as cur:
+        beat(cur, job_id, "matching", done, total=total, step=step, pct=pct, **extra)
+    conn.commit()
+
+
+def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> int:
+    """Marks rows that match each other, or a lead already in the CRM, after cleaning. Returns how many groups the person must decide.
+    Every step reports to the screen: the work is done in chunks of MATCH_RANGE rows so the count moves in real time."""
     job_id, org = job["id"], job["org_id"]
+    check_cancel(conn, job_id)
+    say(conn, job_id, "Looking for repeats inside your list", 0, total, 45)
     with conn.cursor() as cur:
         cur.execute("SET LOCAL statement_timeout = '10min'")
         cur.execute("""
@@ -479,25 +487,57 @@ def find_repeats(conn: psycopg.Connection, job: dict) -> int:
                 FROM importing.rows WHERE job_id = %s AND state = 'clean') x
             WHERE (phone IS NOT NULL AND cp > 1) OR (email IS NOT NULL AND ce > 1) OR (importing.addr_key(address, zip) IS NOT NULL AND ca > 1)""", (job_id,))
         groups = group_source_candidates(cur.fetchall())
+    conn.commit()
+
+    # The keys of the leads already in the account, read once into a small table with indexes, so each chunk of the list is looked up in it.
+    check_cancel(conn, job_id)
+    say(conn, job_id, "Reading the leads already in your account", 0, total, 50)
+    with conn.cursor() as cur:
         cur.execute("SET cw.matching = 'on'")
-        # A row matches a lead when the names are the same and the phone, the email or the address is. Written as three joins that each
-        # compare one key (so each can be a hash join), not one join with "phone or email or address" (which compares every row of the
-        # list with every lead that has the same name, and a list full of "Current Resident" never finishes).
+        cur.execute("DROP TABLE IF EXISTS _lead_keys")
         cur.execute("""
-            WITH r AS (
-                SELECT row_no, phone, email, importing.addr_key(address, zip) AS ak,
-                       nullif(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]', '', 'g'), '') AS nk
-                FROM importing.rows WHERE job_id = %(job)s AND state = 'clean'),
-            m AS (
-                SELECT id::text AS lead, phone, email, addr_key AS ak,
-                       nullif(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]', '', 'g'), '') AS nk
-                FROM importing.lead_match WHERE org_id = %(org)s::uuid)
-            SELECT row_no, min(lead) FROM (
-                SELECT r.row_no, m.lead FROM r JOIN m ON m.phone = r.phone AND m.nk = r.nk
-                UNION ALL SELECT r.row_no, m.lead FROM r JOIN m ON m.email = r.email AND m.nk = r.nk
-                UNION ALL SELECT r.row_no, m.lead FROM r JOIN m ON m.ak = r.ak AND m.nk = r.nk
-            ) x GROUP BY row_no""", {"job": job_id, "org": org})
-        matches = cur.fetchall()
+            CREATE TEMP TABLE _lead_keys AS
+            SELECT id::text AS lead, phone, email, addr_key AS ak, nullif(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]', '', 'g'), '') AS nk
+            FROM importing.lead_match WHERE org_id = %s::uuid""", (org,))
+        cur.execute("DELETE FROM _lead_keys WHERE nk IS NULL")
+        cur.execute("CREATE INDEX ON _lead_keys (phone, nk)")
+        cur.execute("CREATE INDEX ON _lead_keys (email, nk)")
+        cur.execute("CREATE INDEX ON _lead_keys (ak, nk)")
+        cur.execute("ANALYZE _lead_keys")
+        cur.execute("SELECT count(*) FROM _lead_keys")
+        existing = cur.fetchone()[0]
+        cur.execute("SELECT coalesce(min(row_no), 0), coalesce(max(row_no), 0), count(*) FROM importing.rows WHERE job_id = %s AND state = 'clean'", (job_id,))
+        low, high, to_compare = cur.fetchone()
+    conn.commit()
+
+    # A row matches a lead when the names are the same and the phone, the email or the address is: three lookups, each on one key.
+    matches: list[tuple] = []
+    for start in range(low, high + 1, MATCH_RANGE):
+        check_cancel(conn, job_id)
+        with conn.cursor() as cur:
+            cur.execute("SET LOCAL statement_timeout = '10min'")
+            cur.execute("""
+                WITH r AS (
+                    SELECT row_no, phone, email, importing.addr_key(address, zip) AS ak,
+                           nullif(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]', '', 'g'), '') AS nk
+                    FROM importing.rows WHERE job_id = %(job)s AND state = 'clean' AND row_no >= %(a)s AND row_no < %(b)s)
+                SELECT row_no, min(lead) FROM (
+                    SELECT r.row_no, k.lead FROM r JOIN _lead_keys k ON k.phone = r.phone AND k.nk = r.nk
+                    UNION ALL SELECT r.row_no, k.lead FROM r JOIN _lead_keys k ON k.email = r.email AND k.nk = r.nk
+                    UNION ALL SELECT r.row_no, k.lead FROM r JOIN _lead_keys k ON k.ak = r.ak AND k.nk = r.nk
+                ) x GROUP BY row_no""", {"job": job_id, "a": start, "b": start + MATCH_RANGE})
+            matches.extend(cur.fetchall())
+        conn.commit()
+        share = min(1.0, (start + MATCH_RANGE - low) / max(1, high - low + 1))
+        say(conn, job_id, "Comparing your list with the leads already in your account", round(share * to_compare), to_compare, 55 + int(37 * share),
+            existing_leads=existing, found=len(matches))
+    with conn.cursor() as cur:
+        cur.execute("DROP TABLE IF EXISTS _lead_keys")
+    conn.commit()
+
+    check_cancel(conn, job_id)
+    say(conn, job_id, "Putting the repeats into groups for you to decide", to_compare, to_compare, 94)
+    with conn.cursor() as cur:
         for row_no, lead in matches:
             groups.union(("r", row_no), ("l", lead))
         members: dict = {}
