@@ -20,6 +20,40 @@ const WORKING = {
 const number = (value) => Number(value || 0).toLocaleString();
 const PHASES = { loading: "reading", cleaning: "tidying", matching: "looking for repeats" };
 
+/** One row of a possible repeat, complete: every column of the file that has something in it, with the values that differ from the other rows
+ *  of the group marked, so two rows can be told apart at a glance. */
+function RepeatRow({ row, group, columns }) {
+  const same = (a, b) => String(a || "").trim().toLowerCase().replace(/\s+/g, " ") === String(b || "").trim().toLowerCase().replace(/\s+/g, " ");
+  const cells = row.cells || [];
+  const shown = columns.map((column, i) => ({ column, value: cells[column.idx ?? i] })).filter(item => String(item.value || "").trim());
+  return (
+    <li>
+      <strong>{row.name || row.phone || row.email || "Row " + row.row_no}</strong>
+      {shown.length ? (
+        <dl className="repeat-cells">
+          {shown.map(({ column, value }) => {
+            const differs = group.some(other => other !== row && !same((other.cells || [])[column.idx], value));
+            return (
+              <div key={column.idx} className={differs ? "differs" : ""}>
+                <dt>{column.header}</dt>
+                <dd>{value}</dd>
+              </div>
+            );
+          })}
+        </dl>
+      ) : (
+        <small>{[row.phone, row.email, row.address].filter(Boolean).join(" · ")}</small>
+      )}
+      {row.match_lead && (
+        <div className="repeat-lead">
+          <Badge>{row.match_name ? "Already a lead: " + row.match_name : "Matches a lead"}</Badge>
+          <small>{[row.match_phone, row.match_email, [row.match_address, row.match_city, row.match_zip].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}</small>
+        </div>
+      )}
+    </li>
+  );
+}
+
 /** What a waiting import is waiting for: how many lists are ahead, the one being worked on, and, if it has gone quiet, a way to stop it. */
 function QueueNote({ queue, onStopFront, stopping }) {
   if (!queue || !queue.ahead) return null;
@@ -348,8 +382,10 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
           <>
             <p className="muted">
               {report.exact_existing > 0 && `${number(report.exact_existing)} rows already in your CRM were linked automatically. `}
+              {report.identical_merged > 0 && `${number(report.identical_merged)} rows that were exactly the same as another were merged. `}
+              {report.certain_matches_merged > 0 && `${number(report.certain_matches_merged)} rows that match a lead you already have on everything were merged into it. `}
               {number(report.near_groups)} {report.near_groups === 1 ? "group may contain" : "groups may contain"} repeat leads.
-              Names match along with a phone number, email, or address. Choose what happens to these rows.
+              Names match along with a phone number, email, or address, but the rows are not exactly the same (rows that are exactly the same were merged for you). Whole rows are shown, with what differs marked.
             </p>
             <div className="import-repeat-groups">
               {repeatGroups.slice(0, repeatLimit).map(group => (
@@ -359,11 +395,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
                     <p className="muted">More rows in this group may be on the next page. Load them before deciding.</p>}
                   <ul className="import-repeats">
                     {group.map(row => (
-                      <li key={row.row_no}>
-                        <strong>{row.name || row.phone || row.email || "Row " + row.row_no}</strong>
-                        <small>{[row.phone, row.email, row.address].filter(Boolean).join(" · ")}</small>
-                        {row.match_lead && <Badge>{row.match_name ? "Already a lead: " + row.match_name : "Matches a lead"}</Badge>}
-                      </li>
+                      <RepeatRow key={row.row_no} row={row} group={group} columns={columns} />
                     ))}
                   </ul>
                   <div className="import-repeat-actions">
