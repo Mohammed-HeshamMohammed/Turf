@@ -473,6 +473,50 @@ class EndToEndTest(unittest.TestCase):
             self.assertEqual(cur.fetchall(), [("Mary Randel", "clean"), ("Maricela Moreno", "clean")])
         self.conn.commit()
 
+    def _clean(self, data: bytes) -> tuple:
+        job_id = self.queue(data)
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        columns = self.job(job_id)["columns"]
+        for column in columns:
+            column["field"], column["used"] = column["suggested"], column["suggested"] is not None
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE importing.jobs SET columns = %s::jsonb, status = 'cleaning' WHERE id = %s", (json.dumps(columns), job_id))
+        self.conn.commit()
+        self.worker.clean(self.conn, self.worker.claim(self.conn))
+        return job_id, self.job(job_id)
+
+    def test_rows_that_are_the_same_after_tidying_are_merged_without_asking(self) -> None:
+        job_id, job = self._clean(
+            b"Name,Phone,Address,City,Zip\n"
+            b"GENE ORTEGA,(310) 555-0101,21820 GRACE AVE,Carson,90745\n"
+            b"Gene Ortega,310.555.0101,21820  Grace Ave,Carson,90745\n"
+            b"SOL SHOUMER,(310) 555-0102,10912 CRENSHAW BLVD,Inglewood,90303\n")
+        self.assertEqual((job["status"], job["report"]["near_groups"], job["report"]["identical_merged"]), ("ready", 0, 1))
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT state FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            self.assertEqual([row[0] for row in cur.fetchall()], ["clean", "skip", "clean"])
+        self.conn.commit()
+
+    def test_a_row_that_matches_a_lead_on_everything_is_merged_into_it_without_asking(self) -> None:
+        with self.conn.cursor() as cur:
+            cur.execute("INSERT INTO crm.properties (org_id, address, city, postal_code) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '21820 Grace Ave', 'Carson', '90745') RETURNING id")
+            property_id = cur.fetchone()[0]
+            cur.execute("INSERT INTO crm.leads (org_id, name, phone, property_id) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Gene Ortega', '3105550101', %s)", (property_id,))
+        self.conn.commit()
+        job_id, job = self._clean(b"Name,Phone,Address,City,Zip\nGene Ortega,(310) 555-0101,21820 Grace Ave,Carson,90745\n")
+        self.assertEqual((job["status"], job["report"]["near_groups"], job["report"]["certain_matches_merged"]), ("ready", 0, 1))
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT state, match_lead IS NOT NULL FROM importing.rows WHERE job_id = %s", (job_id,))
+            self.assertEqual(cur.fetchall(), [("merge", True)])
+        self.conn.commit()
+
+    def test_a_row_that_matches_a_lead_on_only_some_keys_is_asked_about(self) -> None:
+        with self.conn.cursor() as cur:
+            cur.execute("INSERT INTO crm.leads (org_id, name, phone) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Gene Ortega', '3105550101')")
+        self.conn.commit()
+        job_id, job = self._clean(b"Name,Phone,Address,City,Zip\nGene Ortega,(310) 555-0101,21820 Grace Ave,Carson,90745\n")
+        self.assertEqual((job["report"]["near_groups"], job["report"]["certain_matches_merged"]), (1, 0))
+
     def test_a_cancelled_import_leaves_no_rows(self) -> None:
         job_id = self.queue(CSV.encode())
         claimed = self.worker.claim(self.conn)
