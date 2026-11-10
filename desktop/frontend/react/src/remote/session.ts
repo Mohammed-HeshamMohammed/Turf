@@ -17,6 +17,7 @@ export function remoteReducer(state, action) {
         personal: { ...state.personal, [action.remote.user.id]: action.preferences || {} },
         online: true,
         settings: { ...state.settings, workspace: action.remote.organization || state.settings.workspace, timezone: action.remote.timezone || state.settings.timezone },
+        remoteLoading: true,
         leads: [],
         tasks: [],
         deals: [],
@@ -31,7 +32,7 @@ export function remoteReducer(state, action) {
     case "REMOTE_SYNC": {
       if (!state.remote) return state;
       // Server state first, then what this person changed and the server has not confirmed yet.
-      let next = { ...state, ...action.collections, online: action.online };
+      let next = { ...state, ...action.collections, online: action.online, remoteLoading: action.loading };
       for (const pending of action.pending) next = reducer(next, pending);
       return { ...next, queue: action.queue, remoteStatus: action.status, remoteError: action.error };
     }
@@ -66,6 +67,7 @@ export function syncAction(snapshot, person) {
       at: op.claimed_at,
     })),
     online: snapshot.online,
+    loading: !snapshot.store && snapshot.status !== "error" && snapshot.status !== "offline",
     status: snapshot.status,
     error: snapshot.error,
   };
