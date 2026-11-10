@@ -281,8 +281,29 @@ def describe_columns(cur: psycopg.Cursor, job_id: str, headers: list[str], popul
 EMAIL_OK = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
 
-def cleaning_sql(columns: list[dict]) -> str:
-    """The expressions that turn a row's cells into the CRM's fields, from the columns the person kept."""
+BUSINESS_WORDS = "llc|inc|ltd|llp|lp|corp|co|company|trust|estate|bank|properties|holdings"
+NAME_SUFFIXES = "jr|sr|ii|iii|iv|" + BUSINESS_WORDS
+# Digits that are not a real number: one digit repeated (5555555555), or a run up or down (1234567890, 9876543210).
+FAKE_PHONE = r"{d} ~ '^(.)\1+$' OR position({d} in '01234567890123456789') > 0 OR position({d} in '98765432109876543210') > 0"
+
+
+def real_phone(cell: str) -> str:
+    """A phone number as digits, or NULL when the cell has none or the digits are plainly made up."""
+    d = f"importing.norm_phone({cell})"
+    return f"CASE WHEN NOT ({FAKE_PHONE.format(d=d)}) THEN {d} END"
+
+
+def tidy_name(n: str) -> str:
+    """A person's name as written normally: "SMITH, JOHN" becomes "JOHN SMITH", and a name in all capitals or all lower case gets capitals
+    only where a name has them. Names that are already mixed case, and company names, are left as they are."""
+    word = "[A-Za-z''.-]+"
+    flipped = (rf"CASE WHEN {n} ~ '^{word}( {word})?, {word}( {word})?$' AND lower(split_part({n}, ', ', 2)) !~ '^({NAME_SUFFIXES})\.?$' "
+               rf"THEN split_part({n}, ', ', 2) || ' ' || split_part({n}, ', ', 1) ELSE {n} END")
+    return flipped
+
+
+def cleaning_sql(columns: list[dict]) -> tuple[str, str]:
+    """(the expressions that turn a row's cells into the CRM's fields, the LATERAL parts they read from), from the columns the person kept."""
     by_field: dict[str, list[int]] = {}
     for col in columns:
         if col.get("used") and col.get("field"):
@@ -297,7 +318,7 @@ def cleaning_sql(columns: list[dict]) -> str:
 
     text = lambda i: f"nullif(regexp_replace(btrim(cells[{i}]), '\\s+', ' ', 'g'), '')"
     email = lambda i: f"CASE WHEN lower(btrim(cells[{i}])) ~ '{EMAIL_OK}' THEN lower(btrim(cells[{i}])) END"
-    phone = lambda i: f"importing.norm_phone(cells[{i}])"
+    phone = lambda i: real_phone(f"cells[{i}]")
     number = lambda low, high: lambda i: f"CASE WHEN btrim(cells[{i}]) ~ '^-?[0-9]+(\\.[0-9]+)?$' AND btrim(cells[{i}])::float8 BETWEEN {low} AND {high} THEN btrim(cells[{i}])::float8 END"
     money = lambda i: (f"CASE WHEN regexp_replace(cells[{i}], '[$, ]', '', 'g') ~ '^[0-9]+(\\.[0-9]+)?$' "
                        f"AND length(regexp_replace(cells[{i}], '[$, .].*', '')) < 12 THEN regexp_replace(cells[{i}], '[$, ]', '', 'g')::numeric END")
@@ -307,13 +328,16 @@ def cleaning_sql(columns: list[dict]) -> str:
     given = first("first_name", cell)
     family = first("last_name", cell)
     name = f"coalesce({first('name', text)}, nullif(btrim(coalesce({given}, '') || ' ' || coalesce({family}, '')), ''))"
+    # Two LATERAL steps so the name is worked out once: n is the name as the cells give it, f the same with "LAST, FIRST" turned around.
+    lateral = f", LATERAL (SELECT {name} AS n) x, LATERAL (SELECT {tidy_name('x.n')} AS f) y"
+    shown = (rf"CASE WHEN y.f ~ '[a-z]' AND y.f ~ '[A-Z]' OR lower(y.f) ~ '\m({BUSINESS_WORDS})\M' THEN y.f ELSE initcap(y.f) END")
     return ", ".join([
-        f"{name} AS name", f"{first('phone', phone)} AS phone", f"{first('email', email)} AS email", f"{first('address', text)} AS address",
+        f"{shown} AS name", f"{first('phone', phone)} AS phone", f"{first('email', email)} AS email", f"{first('address', text)} AS address",
         f"{first('unit', text)} AS unit", f"{first('city', text)} AS city", f"{first('region', region)} AS region", f"{first('zip', zip5)} AS zip",
         f"{first('country', text)} AS country", f"{first('latitude', number(-90, 90))}::float8 AS latitude",
         f"{first('longitude', number(-180, 180))}::float8 AS longitude", f"{first('parcel', text)} AS parcel",
         f"{first('value', money)}::numeric AS value", f"{first('source', text)} AS source",
-    ])
+    ]), lateral
 
 
 def source_data_sql(columns: list[dict]) -> str:
@@ -343,10 +367,34 @@ def source_data_sql(columns: list[dict]) -> str:
     return f"jsonb_strip_nulls(jsonb_object(ARRAY[{keys}]::text[], ARRAY[{values}]::text[]))"
 
 
+CHECKED_FIELDS = ("phone", "email", "value", "latitude", "longitude")
+
+
+def cleared_cells(cur: psycopg.Cursor, job_id: str, columns: list[dict]) -> dict[str, int]:
+    """How many rows had something in a field's column(s) that tidying could not use and so left empty: an email without an @, a
+    number that is not a phone number, digits that are made up. The person is told, with the counts, instead of the values going quietly."""
+    cells: dict[str, list[int]] = {}
+    for col in columns:
+        if col.get("used") and col.get("field") in CHECKED_FIELDS:
+            cells.setdefault(col["field"], []).append(col["idx"] + 1)
+    checks = {}
+    for field, indexes in cells.items():
+        filled = " OR ".join(f"btrim(cells[{i}]) <> ''" for i in indexes)
+        checks[field] = f"({filled}) AND {field} IS NULL"
+    if "phone" in cells:
+        digits = " OR ".join(f"importing.norm_phone(cells[{i}]) IS NOT NULL" for i in cells["phone"])
+        checks["phone_made_up"] = f"({digits}) AND phone IS NULL"
+        checks["phone"] = f"({checks['phone']}) AND NOT ({digits})"
+    if not checks:
+        return {}
+    cur.execute("SELECT " + ", ".join(f"count(*) FILTER (WHERE {c})" for c in checks.values()) + " FROM importing.rows WHERE job_id = %s", (job_id,))
+    return {name: n for name, n in zip(checks, cur.fetchone()) if n}
+
+
 def clean(conn: psycopg.Connection, job: dict) -> None:
     job_id = job["id"]
     columns = job["columns"]
-    expressions = cleaning_sql(columns)
+    expressions, lateral = cleaning_sql(columns)
     source_data = source_data_sql(columns)
     with conn.cursor() as cur:
         cur.execute("SELECT coalesce(min(row_no), 0), coalesce(max(row_no), 0) FROM importing.rows WHERE job_id = %s", (job_id,))
@@ -359,7 +407,7 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
         check_cancel(conn, job_id)
         with conn.cursor() as cur:
             cur.execute(f"""
-                WITH c AS (SELECT row_no, {expressions}, {source_data} AS source_data FROM importing.rows WHERE job_id = %(job)s AND state = 'loaded' AND row_no >= %(a)s AND row_no < %(b)s)
+                WITH c AS (SELECT row_no, {expressions}, {source_data} AS source_data FROM importing.rows{lateral} WHERE job_id = %(job)s AND state = 'loaded' AND row_no >= %(a)s AND row_no < %(b)s)
                 UPDATE importing.rows r SET name = c.name, phone = c.phone, email = c.email, address = c.address, unit = c.unit, city = c.city,
                        region = c.region, zip = c.zip, country = c.country, latitude = c.latitude, longitude = c.longitude, parcel = c.parcel,
                        value = c.value, source = c.source, source_data = c.source_data,
@@ -369,6 +417,9 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
             beat(cur, job_id, "cleaning", done, total=total, pct=min(40, int(40 * done / total)) if total else 0)
         conn.commit()
         log("INFO", "cleaning batch", job=job_id, rows=done, seconds=round(time.monotonic() - started, 1))
+    with conn.cursor() as cur:
+        cleared = cleared_cells(cur, job_id, columns)
+    conn.commit()
     # The two steps after the tidying compare rows with each other and with the leads already in the CRM; each says so, so a slow one
     # is seen in the log and on the screen instead of looking stuck.
     check_cancel(conn, job_id)
@@ -413,7 +464,7 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
             return
         report = dict(job["report"] or {})
         report.update(unusable_rows=max(0, no_contact_row[0] - identical), without_phone_or_email=no_contact_row[1], near_groups=groups,
-                      exact_existing=exact_existing, dropped_columns=dropped, identical_merged=identical, certain_matches_merged=auto_merged)
+                      exact_existing=exact_existing, dropped_columns=dropped, identical_merged=identical, certain_matches_merged=auto_merged, cleared_cells=cleared)
         status = "reviewing" if groups else "done" if exact_existing and no_contact_row[0] == 0 and no_contact_row[2] == 0 else "ready"
         cur.execute("""UPDATE importing.jobs SET status = %s, report = %s::jsonb, worker = NULL, heartbeat_at = NULL, progress = %s::jsonb, updated_at = now()
                        WHERE id = %s AND status = 'cleaning'""",

@@ -307,6 +307,23 @@ class EndToEndTest(unittest.TestCase):
             self.assertEqual([row[0] for row in cur.fetchall()], [["A", "5551111", ""], ["B", "5552222", "kept"]])
         self.conn.commit()
 
+    def test_made_up_phones_are_left_out_names_are_set_right_and_the_report_counts_what_was_cleared(self) -> None:
+        job_id = self.queue('Owner Name,Phone,Email\n"SMITH, JOHN",5125550100,john@example.com\nJANE DOE,5555555555,not an email\nAnna McDonald,1234567890,\nACME PROPERTIES LLC,(512) 555-0111,\n"Smith, Jr",5125550122,\nBob,abc,\n'.encode())
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        columns = self.job(job_id)["columns"]
+        for c in columns:
+            c["field"], c["used"] = c["suggested"], True
+        self.conn.execute("UPDATE importing.jobs SET columns = %s::jsonb, status = 'cleaning', heartbeat_at = NULL WHERE id = %s", (json.dumps(columns), job_id))
+        self.conn.commit()
+        self.worker.clean(self.conn, self.worker.claim(self.conn))
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT name, phone, email FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            rows = cur.fetchall()
+        self.conn.commit()
+        self.assertEqual(rows, [("John Smith", "5125550100", "john@example.com"), ("Jane Doe", None, None), ("Anna McDonald", None, None),
+                                ("ACME PROPERTIES LLC", "5125550111", None), ("Smith, Jr", "5125550122", None), ("Bob", None, None)])
+        self.assertEqual(self.job(job_id)["report"]["cleared_cells"], {"phone": 1, "phone_made_up": 2, "email": 1})
+
     def test_readymode_calls_are_staged_before_any_lead_changes(self) -> None:
         data = ("a,Agent name,Log Time,Scheduled time,Phone,Log Type,Call Notes,First Name,Last Name,Address,Ph#2,Ph#6\n"
                 "12345,Old agent,10/15/2026 20:47,Not scheduled,5125550100,Voicemail,Left message,Pat,Owner,1 Main St,0,0\n"
