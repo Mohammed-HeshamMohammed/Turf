@@ -50,6 +50,8 @@ export function Lists({ id, importId = null }) {
   const remote = Boolean(state.remote);
   const leads = visibleLeads(state);
   const listLeads = useMemo(() => leads.filter(lead => lead.datasetId === id), [leads, id]);
+  // This device holds only a window of a big workspace's leads: the server's count says how many a list really has.
+  const crmLeads = (projectId, held) => (remote ? Math.max(held, Number(state.datasets.find(item => item.id === projectId)?.rows) || 0) : held);
   const datasetIds = new Set(leads.map(item => item.datasetId));
   const datasets = state.remote ? state.datasets : state.datasets.filter(item => datasetIds.has(item.id) || (capability(state, "import") && item.team === (ROLES[state.role].team || "Tampa")));
   const searchedDatasets = datasets.filter(item => item.name.toLowerCase().includes(search.toLowerCase()));
@@ -308,7 +310,7 @@ export function Lists({ id, importId = null }) {
         <Breadcrumb items={[{ label: "Lists", path: "lists" }, { label: dataset.name }]} />
         <PageHeader
           title={dataset.name}
-          description={remote && jobsFor(id).length ? `${sourceListProgress(jobsFor(id)).sourceRows.toLocaleString()} source rows · ${sourceListProgress(jobsFor(id)).unprocessedRows.toLocaleString()} unprocessed · ${listLeads.length.toLocaleString()} CRM leads` : `${listLeads.length.toLocaleString()} CRM leads`}
+          description={remote && jobsFor(id).length ? `${sourceListProgress(jobsFor(id)).sourceRows.toLocaleString()} source rows · ${sourceListProgress(jobsFor(id)).unprocessedRows.toLocaleString()} unprocessed · ${crmLeads(id, listLeads.length).toLocaleString()} CRM leads` : `${crmLeads(id, listLeads.length).toLocaleString()} CRM leads`}
         >
           {capability(state, "export") && (
             <Button
@@ -428,10 +430,10 @@ export function Lists({ id, importId = null }) {
               <h2>{item.name}</h2>
               <p className="muted">{item.description}</p>
               <div className="dataset-count">
-                {remote && jobsFor(item.id).length ? sourceListProgress(jobsFor(item.id)).sourceRows.toLocaleString() : leads.filter(lead => lead.datasetId === item.id).length.toLocaleString()}
+                {remote && jobsFor(item.id).length ? sourceListProgress(jobsFor(item.id)).sourceRows.toLocaleString() : crmLeads(item.id, leads.filter(lead => lead.datasetId === item.id).length).toLocaleString()}
                 <small>{remote && jobsFor(item.id).length ? "uploaded source rows" : "CRM leads"}</small>
               </div>
-              {remote && jobsFor(item.id).length > 0 && <p className="muted">{sourceListProgress(jobsFor(item.id)).unprocessedRows.toLocaleString()} unprocessed · {sourceListProgress(jobsFor(item.id)).processedRows.toLocaleString()} processed · {leads.filter(lead => lead.datasetId === item.id).length.toLocaleString()} CRM leads</p>}
+              {remote && jobsFor(item.id).length > 0 && <p className="muted">{sourceListProgress(jobsFor(item.id)).unprocessedRows.toLocaleString()} unprocessed · {sourceListProgress(jobsFor(item.id)).processedRows.toLocaleString()} processed · {crmLeads(item.id, leads.filter(lead => lead.datasetId === item.id).length).toLocaleString()} CRM leads</p>}
               <div className="row">
                 <Status value={item.status} />
                 <small>{item.date}</small>
