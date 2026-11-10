@@ -35,6 +35,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/workspaces/{org}/opt-out", s.guard(func(w http.ResponseWriter, r *http.Request) { s.optOut(w, r, true) }))
 	mux.Handle("POST /v1/workspaces/{org}/opt-in", s.guard(func(w http.ResponseWriter, r *http.Request) { s.optOut(w, r, false) }))
 	mux.Handle("DELETE /v1/workspaces/{org}", s.guard(s.eraseWorkspace))
+	mux.Handle("DELETE /v1/workspaces/{org}/projects/{project}", s.guard(s.eraseProject))
 	mux.Handle("GET /v1/workspaces/{org}", s.guard(s.workspaceStatus))
 	mux.Handle("POST /v1/erase-everywhere", s.guard(s.eraseEverywhere))
 	mux.Handle("GET /v1/stats", s.guard(s.stats))
@@ -216,6 +217,20 @@ func (s *server) optOut(w http.ResponseWriter, r *http.Request, out bool) {
 		return
 	}
 	reply(w, 200, map[string]any{"opted_out": out, "erased": n})
+}
+
+func (s *server) eraseProject(w http.ResponseWriter, r *http.Request) {
+	org, project := r.PathValue("org"), r.PathValue("project")
+	if !uuidRe.MatchString(org) || !uuidRe.MatchString(project) {
+		fail(w, 400, "that is not a workspace or list id")
+		return
+	}
+	n, err := s.st.eraseProject(r.Context(), org, project)
+	if err != nil {
+		s.problem(w, err)
+		return
+	}
+	reply(w, 200, map[string]any{"erased": n})
 }
 
 func (s *server) eraseWorkspace(w http.ResponseWriter, r *http.Request) {

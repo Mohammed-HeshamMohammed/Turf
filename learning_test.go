@@ -259,3 +259,33 @@ func TestAPersonWhoAskedToBeRemovedIsNotTakenInAgain(t *testing.T) {
 		t.Fatalf("a later list must skip the person who asked to be removed: %d %v", n, err)
 	}
 }
+
+func TestDeletingAListErasesWhatWasLearnedFromIt(t *testing.T) {
+	url := os.Getenv("LEARNING_TEST_URL")
+	if url == "" {
+		t.Skip("set LEARNING_TEST_URL to run the database test")
+	}
+	ctx := context.Background()
+	st, err := openStore(ctx, url, hasher{key: bytes.Repeat([]byte{9}, 32)}, 24*time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.db.Close()
+	if _, err = st.db.Exec(ctx, `TRUNCATE learning.leads, learning.workspaces, learning.mappings, learning.audit, learning.suppressed`); err != nil {
+		t.Fatal(err)
+	}
+	org, listA, listB := "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", "ffffffff-ffff-4fff-8fff-ffffffffffff"
+	for i, list := range []string{listA, listB} {
+		if _, err := st.add(ctx, ingest{OrgID: org, JobID: fmt.Sprintf("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb0%d", i), ProjectID: list, Rows: []row{{RowNo: 1, Phone: fmt.Sprintf("512-555-010%d", i)}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n, err := st.eraseProject(ctx, org, listA); err != nil || n != 1 {
+		t.Fatalf("erase list: %d %v", n, err)
+	}
+	var left int
+	_ = st.db.QueryRow(ctx, `SELECT count(*) FROM learning.leads`).Scan(&left)
+	if left != 1 {
+		t.Fatalf("the other list must stay: %d rows left", left)
+	}
+}
