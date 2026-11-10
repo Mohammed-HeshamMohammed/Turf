@@ -255,3 +255,17 @@ test("a device holding a window of a big workspace does not take in what hangs o
   assert.equal(collectionsFromStore(store).datasets.length, 0);
   assert.equal(collectionsFromStore(store).leadsTotal, 400000);
 });
+
+test("a source list whose leads have no phone number and no email is marked as a useless list", () => {
+  const store = storeFromSnapshot({ cursor: 1, access_revision: 1, leads: [], leads_total: 3, project_counts: { good: 2, none: 5 }, project_contactable: { good: 2, none: 0 }, projects: [] });
+  store.projects = [{ id: "good", name: "Good" }, { id: "none", name: "None" }, { id: "empty", name: "Empty" }];
+  const lists = collectionsFromStore(store).datasets;
+  const status = id => lists.find(list => list.id === id).status;
+  assert.equal(status("good"), "Checked");
+  assert.equal(status("none"), "Useless list");
+  assert.equal(status("empty"), "Empty");
+  // A server that does not send the numbers yet leaves lists unmarked.
+  const old = storeFromSnapshot({ cursor: 1, access_revision: 1, leads: [], project_counts: { none: 5 } });
+  old.projects = [{ id: "none", name: "None" }];
+  assert.equal(collectionsFromStore(old).datasets[0].status, "Checked");
+});

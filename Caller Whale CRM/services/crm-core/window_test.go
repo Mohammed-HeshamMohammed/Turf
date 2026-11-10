@@ -47,3 +47,25 @@ func TestABigWorkspaceSendsAWindowAndSearchFindsTheRest(t *testing.T) {
 		t.Fatalf("pull far behind: %v", pulled)
 	}
 }
+
+// A list whose leads have no phone number and no email is told apart in the snapshot, so it can be marked as a useless list.
+func TestTheSnapshotSaysHowManyLeadsOfEachListCanBeContacted(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	ctx := context.Background()
+	e.call(alice, orgA, "GET", "/sync/snapshot", nil) // the workspace is made when it is first used
+	good, empty := "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"
+	for _, id := range []string{good, empty} {
+		if _, err := e.admin.Exec(ctx, fmt.Sprintf(`INSERT INTO crm.projects (id, org_id, name) VALUES ('%s', '%s', 'list')`, id, orgA)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := e.admin.Exec(ctx, fmt.Sprintf(`INSERT INTO crm.leads (org_id, project_id, name, phone) VALUES ('%s', '%s', 'a', '5125550100'), ('%s', '%s', 'b', ''), ('%s', '%s', 'c', '')`, orgA, good, orgA, good, orgA, empty)); err != nil {
+		t.Fatal(err)
+	}
+	_, snap := e.call(alice, orgA, "GET", "/sync/snapshot", nil)
+	contactable := snap["project_contactable"].(map[string]any)
+	if contactable[good] != float64(1) || contactable[empty] != float64(0) {
+		t.Fatalf("contactable: %v", contactable)
+	}
+}

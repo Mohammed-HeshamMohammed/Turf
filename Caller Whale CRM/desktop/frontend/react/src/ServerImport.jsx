@@ -382,6 +382,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
           <>
             <p className="muted">
               {report.exact_existing > 0 && `${number(report.exact_existing)} rows already in your CRM were linked automatically. `}
+              {report.rows > 0 && report.without_phone_or_email >= report.rows && "None of these rows has a phone number or an email, so this will be marked as a useless list. "}
               {report.identical_merged > 0 && `${number(report.identical_merged)} rows that were exactly the same as another were merged. `}
               {report.certain_matches_merged > 0 && `${number(report.certain_matches_merged)} rows that match a lead you already have on everything were merged into it. `}
               {number(report.near_groups)} {report.near_groups === 1 ? "group may contain" : "groups may contain"} repeat leads.
@@ -477,6 +478,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
             <p>
               {number(job.merged_rows)} rows were added or merged for <strong>{job.name}</strong>.
               {report.exact_existing > 0 && ` ${number(report.exact_existing)} identical rows were already in the CRM and linked automatically.`}
+              {report.rows > 0 && report.without_phone_or_email >= report.rows && " None of these rows has a phone number or an email, so this list will be marked as a useless list."}
             </p>
             <div className="import-actions">
               <Button variant="primary" onClick={() => onClose(job)}>
