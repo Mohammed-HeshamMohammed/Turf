@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { PropertyMap } from "./PropertyMap.jsx";
 import { LeadsMap } from "./LeadsMap.jsx";
 import { coordinates } from "./skiptrace-fields.ts";
@@ -9,8 +9,6 @@ import { CallHistory, NewDealModal } from "./Work.jsx";
 import { useCrm } from "./context.jsx";
 import {
   Badge,
-  BoardColumn,
-  useBoardColumns,
   Select,
   Button,
   Card,
@@ -48,11 +46,6 @@ export function Leads() {
   useEffect(() => setAssignee(assigneeParam), [assigneeParam]);
   const [hideEmpty, setHideEmpty] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
-  const [drag, setDrag] = useState(null);
-  // A board column shows this many cards per stage until "Show more" (a list of thousands stays quick).
-  const [boardShown, setBoardShown] = useState({});
-  const BOARD_STEP = 50;
-  const justDragged = useRef(false);
   const client = state.role === "client";
   // A big workspace sends this device a window of its leads: searching asks the server for the rest.
   const heldAll = !state.remote || !(state.leadsTotal > state.leads.length);
@@ -69,7 +62,6 @@ export function Leads() {
       [lead.name, lead.address, lead.city, ...(client ? [] : [lead.phone, lead.email])].join(" ").toLowerCase().includes(search.toLowerCase()),
   );
   const editable = capability(state, "edit");
-  const board = useBoardColumns(LEAD_STAGES, Object.fromEntries(LEAD_STAGES.map(column => [column, leads.filter(lead => lead.stage === column).length])));
   const assigned = lead => lead.assignee && lead.assignee !== "Unassigned";
   const hasColumn = {
     verdict: !hideEmpty || leads.some(lead => lead.verdict),
@@ -88,37 +80,6 @@ export function Leads() {
     },
     "leads",
   );
-  // Pointer-based drag so cards move the same way in browsers and the desktop webview, which swallows native drag and drop.
-  function startDrag(event, lead) {
-    if (event.button !== 0 || event.target.closest(".select") || !canEditLead(state, lead.id)) return;
-    const card = event.currentTarget.getBoundingClientRect();
-    const start = { x: event.clientX, y: event.clientY };
-    const offset = { x: event.clientX - card.left, y: event.clientY - card.top };
-    let active = false;
-    let over = null;
-    const move = e => {
-      if (!active && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 6) return;
-      active = true;
-      over = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-stage]")?.dataset.stage ?? null;
-      setDrag({ id: lead.id, label: lead.name, address: lead.address, width: card.width, x: e.clientX - offset.x, y: e.clientY - offset.y, over });
-    };
-    const finish = e => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", finish);
-      window.removeEventListener("pointercancel", finish);
-      setDrag(null);
-      if (!active) return;
-      justDragged.current = true;
-      setTimeout(() => (justDragged.current = false), 0);
-      if (e.type !== "pointercancel" && over && over !== lead.stage) {
-        dispatch({ type: "UPDATE_LEAD", id: lead.id, change: { stage: over } });
-        notify("Lead moved to " + over);
-      }
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", finish);
-    window.addEventListener("pointercancel", finish);
-  }
   function exportRows() {
     downloadCsv("callerwhale-visible-leads.csv", [
       ["Owner", "Property", "City", "Stage", "Assigned to"],
@@ -130,9 +91,7 @@ export function Leads() {
     <>
       <PageHeader
         title={client ? "Shared properties" : "Leads"}
-        description={
-          client ? "Only records explicitly shared with your partner workspace." : "Keep the property, the person, and the next conversation together."
-        }
+        description={client ? "Only records explicitly shared with your partner workspace." : undefined}
       >
         {capability(state, "export") && (
           <Button icon={Export} onClick={exportRows}>
@@ -145,11 +104,6 @@ export function Leads() {
           </Button>
         )}
       </PageHeader>
-      {!heldAll && (
-        <p className="muted">
-          Showing {state.leads.length.toLocaleString()} of {state.leadsTotal.toLocaleString()} leads. Search by name, phone, email or address to find any lead.
-        </p>
-      )}
       <div className="filter-bar">
         <Search value={search} onChange={setSearch} placeholder={client ? "Search shared properties" : "Search owner, property, or phone"} />
         {!client && (
@@ -168,7 +122,7 @@ export function Leads() {
             </Select>
           </>
         )}
-        <Segmented label="Lead view" value={view} options={client ? ["List", "Map"] : ["List", "Board", "Map"]} onChange={setView} />
+        <Segmented label="Lead view" value={view} options={["List", "Map"]} onChange={setView} />
         <Checkbox label="Hide empty fields" checked={hideEmpty} onChange={event => setHideEmpty(event.target.checked)} />
         {!client && archivedCount > 0 && (
           <Checkbox label={"Archived (" + archivedCount + ")"} checked={showArchived} onChange={event => setShowArchived(event.target.checked)} />
@@ -205,63 +159,10 @@ export function Leads() {
         ) : (
           <LeadsMap leads={leads} />
         )
-      ) : view === "Board" && !client ? (
-        <div className="kanban lead-board view-in" ref={board.ref}>
-          {board.arrange(LEAD_STAGES).map(column => (
-            <BoardColumn key={column} board={board} id={column} count={leads.filter(lead => lead.stage === column).length} unit="leads" over={drag?.over === column}>
-              {leads
-                .filter(lead => lead.stage === column)
-                .slice(0, boardShown[column] || BOARD_STEP)
-                .map(lead => (
-                  <article
-                    className={"kanban-card" + (drag?.id === lead.id ? " dragging" : "") + (canEditLead(state, lead.id) ? "" : " locked")}
-                    key={lead.id}
-                    onPointerDown={event => startDrag(event, lead)}
-                  >
-                    <button
-                      onClick={() => {
-                        if (!justDragged.current) navigate("work/leads/" + lead.id);
-                      }}
-                    >
-                      <strong>{lead.name}</strong>
-                      <span>{lead.address}</span>
-                      <small>
-                        {lead.city}, {lead.region}
-                      </small>
-                    </button>
-                    {!(hideEmpty && !lead.verdict) && <Status value={lead.verdict} />}
-                    {!(hideEmpty && !assigned(lead)) && <Person name={lead.assignee} />}
-                    {canEditLead(state, lead.id) && (
-                      <Select
-                        aria-label={"Move " + lead.name + " to stage"}
-                        value={lead.stage}
-                        onChange={event => dispatch({ type: "UPDATE_LEAD", id: lead.id, change: { stage: event.target.value } })}
-                      >
-                        {LEAD_STAGES.map(item => (
-                          <option key={item}>{item}</option>
-                        ))}
-                      </Select>
-                    )}
-                  </article>
-                ))}
-              {!leads.some(lead => lead.stage === column) && <p className="column-empty">No leads here</p>}
-              {leads.filter(lead => lead.stage === column).length > (boardShown[column] || BOARD_STEP) && (
-                <Button onClick={() => setBoardShown({ ...boardShown, [column]: (boardShown[column] || BOARD_STEP) + BOARD_STEP })}>
-                  Show more ({(leads.filter(lead => lead.stage === column).length - (boardShown[column] || BOARD_STEP)).toLocaleString()} left)
-                </Button>
-              )}
-            </BoardColumn>
-          ))}
-          {drag && (
-            <div className="kanban-ghost" style={{ width: drag.width, transform: `translate(${drag.x}px, ${drag.y}px)` }}>
-              <strong>{drag.label}</strong>
-              <span>{drag.address}</span>
-            </div>
-          )}
-        </div>
       ) : (
         <div className="card table-card">
           <DataTable
+            paged
             view={table}
             rowKey={lead => lead.id}
             leading={
