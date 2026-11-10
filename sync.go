@@ -219,18 +219,19 @@ func (s *server) snapshot(q *req) error {
 		return err
 	}
 	counts := map[string]int64{}
-	countRows, err := tx.Query(ctx, `SELECT project_id::text, count(*) FROM leads l WHERE project_id IS NOT NULL AND cw_visible_lead(l.id) GROUP BY project_id`)
+	contactable := map[string]int64{} // leads of each list with a phone number or an email: a list with none is a useless list
+	countRows, err := tx.Query(ctx, `SELECT project_id::text, count(*), count(*) FILTER (WHERE l.phone <> '' OR l.email <> '') FROM leads l WHERE project_id IS NOT NULL AND cw_visible_lead(l.id) GROUP BY project_id`)
 	if err != nil {
 		return err
 	}
 	for countRows.Next() {
 		var id string
-		var n int64
-		if err = countRows.Scan(&id, &n); err != nil {
+		var n, withContact int64
+		if err = countRows.Scan(&id, &n, &withContact); err != nil {
 			countRows.Close()
 			return err
 		}
-		counts[id] = n
+		counts[id], contactable[id] = n, withContact
 	}
 	countRows.Close()
 	leads, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) FROM leads l JOIN win ON win.id = l.id LEFT JOIN properties p ON p.id = l.property_id`)
@@ -242,7 +243,7 @@ func (s *server) snapshot(q *req) error {
 			return err
 		}
 	}
-	body := map[string]any{"cursor": cursor, "access_revision": q.rev, "leads": leads, "leads_total": total, "project_counts": counts, "deals": []json.RawMessage{}}
+	body := map[string]any{"cursor": cursor, "access_revision": q.rev, "leads": leads, "leads_total": total, "project_counts": counts, "project_contactable": contactable, "deals": []json.RawMessage{}}
 	for name, sql := range map[string]string{
 		"tasks":    taskVisible + ` AND (t.lead_id IS NULL OR t.lead_id IN (SELECT id FROM win))`,
 		"notes":    `SELECT to_jsonb(n) FROM notes n WHERE n.lead_id IN (SELECT id FROM win) AND (NOT cw_external() OR n.visibility = 'shared')`,
