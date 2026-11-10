@@ -220,9 +220,20 @@ export function useShowMore(items, step = 100) {
   ];
 }
 
-export function DataTable({ view, columns, rowKey, leading, trailing }) {
+/**
+ * `paged`: the table shows as many rows as fit the window (never fewer than 5) and pages through the rest with Previous and
+ * Next, instead of growing with "Show more". A taller or wider window shows more rows at once.
+ */
+export function DataTable({ view, columns, rowKey, leading, trailing, paged = false }) {
   const ordered = view.arrange(columns);
-  const [rows, more] = useShowMore(view.rows);
+  const [shown, more] = useShowMore(view.rows);
+  const [page, setPage] = useState(0);
+  const [fit, setFit] = useState(10);
+  const hasRows = view.rows.length > 0;
+  const size = paged ? fit : 0;
+  const pages = paged ? Math.max(1, Math.ceil(view.rows.length / size)) : 1;
+  const at = Math.min(page, pages - 1);
+  const rows = paged ? view.rows.slice(at * size, (at + 1) * size) : shown;
   const [drag, setDrag] = useState(null);
   const justDragged = useRef(false);
   const ids = ordered.map(column => column.id);
@@ -241,6 +252,23 @@ export function DataTable({ view, columns, rowKey, leading, trailing }) {
         cell.animate([{ transform: `translateX(${shift}px)` }, { transform: "none" }], { duration: 240, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
     });
   }, [layout]);
+  // How many rows fit between the table's top and the bottom of the window, leaving room for the pager.
+  useLayoutEffect(() => {
+    if (!paged) return;
+    const measure = () => {
+      const table = tableRef.current;
+      if (!table) return;
+      const pane = table.closest(".main-content");
+      const height = pane?.clientHeight || window.innerHeight;
+      const top = table.getBoundingClientRect().top - (pane ? pane.getBoundingClientRect().top - pane.scrollTop : 0);
+      const head = table.tHead?.offsetHeight || 40;
+      const row = table.tBodies[0]?.rows[0]?.offsetHeight || 58;
+      setFit(Math.max(5, Math.min(100, Math.floor((height - top - head - 130) / row))));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [paged, hasRows]);
   function moveColumn(id, over) {
     if (!over || over === id) return;
     before.current = cellLefts();
@@ -327,7 +355,28 @@ export function DataTable({ view, columns, rowKey, leading, trailing }) {
           ))}
         </tbody>
       </table>
-      {more}
+      {paged ? (
+        view.rows.length > size && (
+          <div className="show-more pager">
+            <span>
+              {(at * size + 1).toLocaleString()}–{Math.min((at + 1) * size, view.rows.length).toLocaleString()} of {view.rows.length.toLocaleString()}
+            </span>
+            <span className="pager-buttons">
+              <Button disabled={at === 0} onClick={() => setPage(at - 1)}>
+                Previous
+              </Button>
+              <span>
+                Page {at + 1} of {pages.toLocaleString()}
+              </span>
+              <Button disabled={at >= pages - 1} onClick={() => setPage(at + 1)}>
+                Next
+              </Button>
+            </span>
+          </div>
+        )
+      ) : (
+        more
+      )}
       {drag && (
         <div className="column-ghost" style={{ transform: `translate(${drag.x + 12}px, ${drag.y + 12}px)` }}>
           {drag.label}
