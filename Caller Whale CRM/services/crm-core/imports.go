@@ -227,8 +227,8 @@ func (s *server) importMapping(q *req) error {
 	if !mapped["name"] && !mapped["first_name"] && !mapped["last_name"] {
 		return bad("Keep a name column: leads need a name.")
 	}
-	if !mapped["phone"] && !mapped["email"] && !mapped["address"] {
-		return bad("Keep at least one phone, email or address column.")
+	if !mapped["phone"] && !mapped["email"] {
+		return bad("Keep a phone or an email column: a list that nobody can contact is not added.")
 	}
 	_, err = s.st.db.Exec(q.r.Context(), `UPDATE importing.jobs SET columns = $2, status = 'cleaning', progress = '{"phase":"cleaning","done":0}', updated_at = now() WHERE id = $1 AND status = 'mapping'`, id, columns)
 	if err != nil {

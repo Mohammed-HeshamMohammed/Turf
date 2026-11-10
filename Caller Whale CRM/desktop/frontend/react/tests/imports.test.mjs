@@ -152,17 +152,17 @@ test("property and mailing fields from supplied lists can be confirmed as struct
     assert.ok(available.has(key), key);
   }
   const sourceColumns = [
-    { idx: 0, suggested: "first_name" }, { idx: 1, suggested: "address" },
+    { idx: 0, suggested: "first_name" }, { idx: 1, suggested: "address" }, { idx: 3, suggested: "phone" },
     { idx: 2, suggested: null, source_detail: "Living area", standard_key: "living_area" },
   ];
-  assert.deepEqual(mappingBody(sourceColumns, {}).columns[2], { idx: 2, field: "living_area", use: true });
+  assert.deepEqual(mappingBody(sourceColumns, {}).columns.find((column) => column.idx === 2), { idx: 2, field: "living_area", use: true });
   assert.equal(mappingProblem(sourceColumns, {}), "");
 });
 
 test("the person is told what is missing before anything is sent", () => {
   assert.equal(mappingProblem(columns, {}), "");
   assert.match(mappingProblem(columns, { 0: null }), /name column/);
-  assert.match(mappingProblem(columns, { 1: null }), /phone, email or address/);
+  assert.match(mappingProblem(columns, { 1: null }), /phone or an email column/);
   assert.match(mappingProblem(columns, { 2: "name" }), /Two columns are set to Name/);
   assert.equal(mappingProblem(columns, { 2: "phone" }), "", "phone and email may come from several columns");
 });
