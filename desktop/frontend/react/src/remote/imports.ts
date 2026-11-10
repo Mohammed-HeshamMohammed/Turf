@@ -237,6 +237,6 @@ export function mappingProblem(columns: ImportColumn[], choices: Record<number, 
   if (repeated)
     return `Two columns are set to ${[...IMPORT_FIELDS, ...SOURCE_IMPORT_FIELDS].find(([key]) => key === repeated)?.[1] ?? repeated}. Only phone and email can come from more than one.`;
   if (!fields.some((f) => ["name", "first_name", "last_name"].includes(f))) return "Keep a name column: leads need a name.";
-  if (!fields.some((f) => ["phone", "email", "address"].includes(f))) return "Keep at least one phone, email or address column.";
+  if (!fields.some((f) => ["phone", "email"].includes(f))) return "Keep a phone or an email column: a list that nobody can contact is not added.";
   return "";
 }
