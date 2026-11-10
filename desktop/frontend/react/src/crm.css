@@ -7890,3 +7890,44 @@ button.message-card:not(:disabled):hover {
 .offline-points strong {
   color: var(--ink);
 }
+
+/* LiquidProgress.jsx: a bar whose fill grows with a soft glow moving through it; with no value, a band travels along it */
+.liquid-progress {
+  position: relative;
+  width: min(350px, 100%);
+  margin: 20px auto;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--well, #e5e5e5);
+}
+.liquid-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 86%, white));
+  transition: width 0.9s ease-out;
+  overflow: hidden;
+}
+.liquid-progress-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.55), transparent 70%);
+  animation: liquid-glow 1.5s ease-in-out infinite;
+}
+.liquid-progress.is-unknown .liquid-progress-fill {
+  width: 38%;
+  transition: none;
+  animation: liquid-travel 1.4s ease-in-out infinite;
+}
+@keyframes liquid-glow {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.2); opacity: 0.8; }
+}
+@keyframes liquid-travel {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(263%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .liquid-progress-glow, .liquid-progress.is-unknown .liquid-progress-fill { animation: none; }
+  .liquid-progress-fill { transition: none; }
+}
