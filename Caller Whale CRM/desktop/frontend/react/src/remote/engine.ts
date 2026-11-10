@@ -10,7 +10,7 @@ import { applyChanges, storeFromSnapshot } from "./translate.ts";
 
 export class SyncEngine {
   vault: any; api: any; onChange: any; useSocket: any; store: any; ops: any[]; online: boolean; reachable: boolean; status: string;
-  error: string; running: any; again: boolean; channel: any; socket: any; stopped: any; connecting: any; extra: any;
+  error: string; running: any; again: boolean; channel: any; socket: any; stopped: any; connecting: any; extra: any; retryTimer: any;
   constructor({ vault, api = defaultApi, onChange = () => {}, socket = true }: any) {
     this.vault = vault;
     this.api = api;
@@ -58,6 +58,13 @@ export class SyncEngine {
     this.emit();
     await this.sync();
     if (this.useSocket) this.connect();
+    if (typeof window !== "undefined") {
+      const again = () => {
+        if (!this.reachable && !document.hidden) this.sync();
+      };
+      window.addEventListener("online", again);
+      document.addEventListener("visibilitychange", again);
+    }
   }
 
   setOnline(online) {
@@ -126,6 +133,14 @@ export class SyncEngine {
     }
     this.emit();
     this.channel?.postMessage("changed");
+    this.retryWhenUnreachable();
+  }
+
+  /** An unreachable server is tried again every few seconds (and when the browser or tab comes back), so the records are never left stale. */
+  retryWhenUnreachable() {
+    clearTimeout(this.retryTimer);
+    if (this.reachable || !this.online || this.stopped) return;
+    this.retryTimer = setTimeout(() => this.sync(), 5000);
   }
 
   async snapshot() {
@@ -243,6 +258,7 @@ export class SyncEngine {
 
   stop() {
     this.stopped = true;
+    clearTimeout(this.retryTimer);
     this.socket?.close();
     this.channel?.close();
   }
