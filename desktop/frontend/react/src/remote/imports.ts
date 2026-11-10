@@ -195,7 +195,7 @@ export async function uploadFile(file: Blob & { name: string }, options: UploadO
       options.onProgress?.({ sent, total: file.size, job });
     }
   };
-  await Promise.all(Array.from({ length: Math.min(options.parallel ?? 3, pieces.length) }, lane));
+  await Promise.all(Array.from({ length: Math.min(options.parallel ?? 4, pieces.length) }, lane));
   return api.complete(job.id);
 }
 
