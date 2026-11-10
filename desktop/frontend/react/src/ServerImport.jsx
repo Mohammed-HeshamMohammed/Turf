@@ -90,6 +90,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
   const [file, setFile] = useState(initialFile);
   const [name, setName] = useState(initialFile ? initialFile.name.replace(/\.[^.]+$/, "") : "");
   const [header, setHeader] = useState(true);
+  const [skipTracing, setSkipTracing] = useState(false);
   const [job, setJob] = useState(null);
   const [sent, setSent] = useState(null);
   const [error, setError] = useState("");
@@ -139,6 +140,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
       const queued = await uploadFile(file, {
         name: name.trim() || undefined,
         hasHeader: header,
+        skipTracing,
         projectId: projectId || undefined,
         resumeId: job?.status === "uploading" ? job.id : undefined,
         signal: stop.current.signal,
@@ -227,7 +229,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
   const knownFields = new Set([...IMPORT_FIELDS, ...SOURCE_IMPORT_FIELDS].map(([key]) => key));
   const additionalFields = [...new Map(columns.filter(column => column.source_detail && column.standard_key && !knownFields.has(column.standard_key))
     .map(column => [column.standard_key, [column.standard_key, column.source_detail]])).values()];
-  const problem = status === "mapping" ? mappingProblem(columns, choices) : "";
+  const problem = status === "mapping" ? mappingProblem(columns, choices, Boolean(job?.for_skip_tracing)) : "";
   const report = job?.report ?? {};
   const repeatGroups = Object.values((repeats?.rows ?? []).reduce((groups, row) => {
     (groups[row.group_id] ??= []).push(row);
@@ -283,6 +285,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
               <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Austin owners" maxLength={200} />
             </Field>}
             {!canResumeUpload && <Checkbox checked={header} onChange={(event) => setHeader(event.target.checked)} label="The first row names each column" />}
+            {!canResumeUpload && <Checkbox checked={skipTracing} onChange={(event) => setSkipTracing(event.target.checked)} label="This list is for skip tracing: it has addresses but no phone numbers or emails yet" />}
             <div className="import-actions">
               <Button onClick={() => onClose(job)}>Back to source lists</Button>
               {canResumeUpload && <Button onClick={cancel}>Cancel import</Button>}
