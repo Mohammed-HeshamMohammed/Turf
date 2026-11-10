@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // A finished import goes once to the learning store, and a week later the holding rows lose their personal details but keep their fingerprint.
@@ -109,5 +110,35 @@ func TestAnAdministratorCanOptTheWorkspaceOutOfTheLearningCopy(t *testing.T) {
 	}
 	if len(paths) != 1 || paths[0] != "POST /v1/workspaces/"+orgA+"/opt-out" {
 		t.Fatalf("sent: %v", paths)
+	}
+}
+
+func TestTheRemovalFormPassesTheRequestOnAndAnswersTheSameWay(t *testing.T) {
+	var got []string
+	learning := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		got = append(got, r.URL.Path+" "+string(raw))
+		_, _ = w.Write([]byte(`{"erased":0}`))
+	}))
+	defer learning.Close()
+	s := &server{cfg: config{learningURL: learning.URL, learningToken: strings.Repeat("t", 32)}, now: time.Now}
+	ask := func(body, ip string) int {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/public/remove-my-information", strings.NewReader(body))
+		req.Header.Set("X-Forwarded-For", ip)
+		rec := httptest.NewRecorder()
+		s.handler().ServeHTTP(rec, req)
+		return rec.Code
+	}
+	if code := ask(`{"phone":"(512) 555-0100"}`, "198.51.100.1"); code != http.StatusAccepted || len(got) != 1 || !strings.HasPrefix(got[0], "/v1/erase-everywhere ") {
+		t.Fatalf("request: %d %v", code, got)
+	}
+	if code := ask(`{"phone":"12","email":"nope"}`, "198.51.100.2"); code != http.StatusBadRequest {
+		t.Fatalf("something that is neither a phone nor an email: %d", code)
+	}
+	for i := 0; i < 5; i++ {
+		ask(`{"email":"a@b.co"}`, "198.51.100.3")
+	}
+	if code := ask(`{"email":"a@b.co"}`, "198.51.100.3"); code != http.StatusTooManyRequests {
+		t.Fatalf("the sixth request in an hour: %d", code)
 	}
 }

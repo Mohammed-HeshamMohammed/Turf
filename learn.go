@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -266,4 +268,68 @@ func (s *server) learningChoice(out bool) func(q *req) error {
 		writeJSON(q.w, http.StatusOK, map[string]any{"opted_out": out})
 		return nil
 	}
+}
+
+// The website's "Remove my information" form (POST /api/v1/public/remove-my-information). A person gives a phone number or an email; it is
+// removed from the learning store in every workspace and remembered, so a later list does not take it in again. The answer is always the
+// same, whether or not anything was found, and nothing the person typed is logged. The same address may ask five times an hour.
+var removalAsks = struct {
+	sync.Mutex
+	at map[string][]time.Time
+}{at: map[string][]time.Time{}}
+
+func removalAllowed(ip string, now time.Time) bool {
+	removalAsks.Lock()
+	defer removalAsks.Unlock()
+	recent := removalAsks.at[ip][:0]
+	for _, t := range removalAsks.at[ip] {
+		if now.Sub(t) < time.Hour {
+			recent = append(recent, t)
+		}
+	}
+	if len(recent) >= 5 {
+		removalAsks.at[ip] = recent
+		return false
+	}
+	removalAsks.at[ip] = append(recent, now)
+	return true
+}
+
+func (s *server) removeMyInformation(w http.ResponseWriter, r *http.Request) {
+	ip := strings.TrimSpace(strings.SplitN(r.Header.Get("X-Forwarded-For"), ",", 2)[0])
+	if ip == "" {
+		ip = r.RemoteAddr
+	}
+	if !removalAllowed(ip, s.now()) {
+		writeJSON(w, http.StatusTooManyRequests, map[string]any{"error": "Too many requests from this address. Try again in an hour."})
+		return
+	}
+	var in struct {
+		Phone string `json:"phone"`
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "Send a phone number or an email address."})
+		return
+	}
+	digits := 0
+	for _, c := range in.Phone {
+		if c >= '0' && c <= '9' {
+			digits++
+		}
+	}
+	at := strings.Index(in.Email, "@")
+	if (digits < 7 || digits > 20) && (at < 1 || at >= len(in.Email)-1 || len(in.Email) > 254) {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "Enter a phone number or an email address."})
+		return
+	}
+	if s.cfg.learningURL != "" {
+		if err := s.sendLearning(r.Context(), "/v1/erase-everywhere", map[string]any{"phone": in.Phone, "email": in.Email}); err != nil && !errors.Is(err, errLearningOff) {
+			log.Printf("ERROR removal request could not be passed on: %v", err)
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "We could not take your request just now. Please try again in a few minutes."})
+			return
+		}
+	}
+	log.Printf("INFO removal request taken")
+	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true})
 }
