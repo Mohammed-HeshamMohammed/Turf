@@ -13,7 +13,11 @@ import (
 // version is asked again) and a few answers about their work, so Caller Whale can be set up to fit them.
 
 // termsVersion names the terms and privacy notice people agree to. Change it when they change: everyone is asked again.
-const termsVersion = "2026-11"
+const termsVersion = "2026-11-10"
+
+// previousTermsVersions are still taken from a page that has not been updated yet (the website and this service are deployed one after
+// the other). A person who accepts one is asked again for the current one.
+var previousTermsVersions = map[string]bool{"2026-11": true}
 
 // Answers a person can give about their work. The website offers exactly these; anything else is refused.
 var (
@@ -81,10 +85,10 @@ func (s *server) acceptTerms(w http.ResponseWriter, r *http.Request) error {
 	if err := readJSON(w, r, &body); err != nil {
 		return err
 	}
-	if body.Version != termsVersion {
+	if body.Version != termsVersion && !previousTermsVersions[body.Version] {
 		return bad("These terms have changed. Reload the page and read them again.")
 	}
-	if _, err := s.db.Exec(r.Context(), "UPDATE users SET terms_version = $1, terms_accepted_at = $2 WHERE id = $3", termsVersion, now(), c.Sub); err != nil {
+	if _, err := s.db.Exec(r.Context(), "UPDATE users SET terms_version = $1, terms_accepted_at = $2 WHERE id = $3", body.Version, now(), c.Sub); err != nil {
 		return err
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"terms_accepted": true})

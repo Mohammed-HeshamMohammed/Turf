@@ -161,7 +161,7 @@ func (s *server) signUp(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
-	if body.TermsVersion != termsVersion {
+	if body.TermsVersion != termsVersion && !previousTermsVersions[body.TermsVersion] {
 		return bad("Accept the Terms and the Privacy Policy to create an account.")
 	}
 	kind, err := kindOf(body.Kind)
@@ -187,7 +187,7 @@ func (s *server) signUp(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	if _, err := s.db.Exec(ctx, "UPDATE users SET terms_version = $1, terms_accepted_at = $2 WHERE id = $3", termsVersion, now(), u.id); err != nil {
+	if _, err := s.db.Exec(ctx, "UPDATE users SET terms_version = $1, terms_accepted_at = $2 WHERE id = $3", body.TermsVersion, now(), u.id); err != nil {
 		return err
 	}
 	if !birth.IsZero() {
