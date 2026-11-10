@@ -12,3 +12,5 @@ IMPORT_DIR=/data/imports
 CORE_URL=http://crm-core:8107
 # Maximum accepted list size in MiB; default 20480.
 MAX_IMPORT_MB=20480
+# Memory one sort or hash in the repeat-finding steps may use before spilling to disk; default 256MB. Raise it on a big server for faster very large lists.
+# IMPORT_WORK_MEM=256MB

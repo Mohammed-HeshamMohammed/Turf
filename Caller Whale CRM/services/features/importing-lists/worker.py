@@ -23,6 +23,7 @@ import linetype
 import matching
 import readers
 import readymode
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 IMPORT_DIR = Path(os.environ.get("IMPORT_DIR", "/data/imports"))
@@ -32,6 +33,7 @@ POLL_SECONDS = 2.0
 # A job whose worker stopped is picked up again this many times; the next stop fails it (a file that keeps stopping the worker).
 MAX_RECLAIMS = 2
 CLEAN_RANGE = int(os.environ.get("IMPORT_CLEAN_ROWS", "5000"))  # rows tidied between two reports of progress
+WORK_MEM = os.environ.get("IMPORT_WORK_MEM", "256MB")  # memory one sort or hash in the matching steps may use before spilling to disk
 MATCH_RANGE = int(os.environ.get("IMPORT_MATCH_ROWS", "5000"))  # rows compared with the existing leads between two reports
 
 
@@ -183,6 +185,8 @@ def load_calls(conn: psycopg.Connection, job: dict) -> None:
     report = dict(job["report"] or {})
     accepted, skipped = report.get("valid_calls", 0), report.get("unusable_calls", 0)
     outcomes = dict(report.get("outcomes") or {})
+    first_call, last_call, future = report.get("first_call"), report.get("last_call"), report.get("future_calls", 0)
+    tomorrow = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
     headers = []
     for headers, frame in readers.read_batches(source, True, skip_rows=consumed):
         check_cancel(conn, job_id)
@@ -194,6 +198,9 @@ def load_calls(conn: psycopg.Connection, job: dict) -> None:
             if event:
                 accepted += 1
                 outcomes[event["outcome"]] = outcomes.get(event["outcome"], 0) + 1
+                at = event["occurred_at"]
+                first_call, last_call = min(first_call or at, at), max(last_call or at, at)
+                future += at > tomorrow  # a call dated in the future means the export's time zone was chosen wrong
             else:
                 skipped += 1
         with conn.cursor() as cur:
@@ -207,7 +214,8 @@ def load_calls(conn: psycopg.Connection, job: dict) -> None:
                         state = CASE WHEN d.data IS NULL THEN 'skip' ELSE 'loaded' END
                         FROM _call_data d WHERE r.job_id = %s AND r.row_no = d.row_no""", (job_id,))
             consumed += frame.height
-            report.update(source_rows=consumed, valid_calls=accepted, unusable_calls=skipped, outcomes=outcomes)
+            report.update(source_rows=consumed, valid_calls=accepted, unusable_calls=skipped, outcomes=outcomes,
+                          first_call=first_call, last_call=last_call, future_calls=future)
             cur.execute("UPDATE importing.jobs SET loaded_rows = %s, report = %s::jsonb WHERE id = %s", (consumed, json.dumps(report), job_id))
             beat(cur, job_id, "loading", consumed)
         conn.commit()
@@ -549,6 +557,7 @@ def merge_identical_rows(conn: psycopg.Connection, job_id: str) -> int:
     no question to the person. Returns how many were dropped."""
     with conn.cursor() as cur:
         cur.execute("SET LOCAL statement_timeout = '10min'")
+        cur.execute(f"SET LOCAL work_mem = '{WORK_MEM}'")
         cur.execute("""
             WITH d AS (
                 SELECT row_no, row_number() OVER (PARTITION BY lower(name), phone, lower(email), lower(address), lower(unit), lower(city), lower(region), lower(zip),
@@ -572,6 +581,7 @@ def skip_identical_prior_rows(conn: psycopg.Connection, job: dict) -> int:
     headers = [column["header"] for column in job["columns"]]
     with conn.cursor() as cur:
         cur.execute("SET LOCAL statement_timeout = '10min'")
+        cur.execute(f"SET LOCAL work_mem = '{WORK_MEM}'")
         cur.execute("""
             WITH identical AS (
                 SELECT DISTINCT ON (r.row_no) r.row_no, old.lead_id
@@ -610,6 +620,7 @@ def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> tuple[i
     say(conn, job_id, "Looking for repeats inside your list", 0, total, 45)
     with conn.cursor() as cur:
         cur.execute("SET LOCAL statement_timeout = '10min'")
+        cur.execute(f"SET LOCAL work_mem = '{WORK_MEM}'")
         cur.execute("""
             SELECT row_no, name, phone, email, importing.addr_key(address, zip) AS ak FROM (
                 SELECT *, count(*) OVER (PARTITION BY phone) AS cp, count(*) OVER (PARTITION BY email) AS ce,
@@ -648,6 +659,7 @@ def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> tuple[i
         check_cancel(conn, job_id)
         with conn.cursor() as cur:
             cur.execute("SET LOCAL statement_timeout = '10min'")
+            cur.execute(f"SET LOCAL work_mem = '{WORK_MEM}'")
             cur.execute("""
                 WITH r AS (
                     SELECT row_no, phone, email, importing.addr_key(address, zip) AS ak,

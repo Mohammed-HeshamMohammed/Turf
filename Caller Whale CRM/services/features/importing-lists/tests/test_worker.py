@@ -307,6 +307,15 @@ class EndToEndTest(unittest.TestCase):
             self.assertEqual([row[0] for row in cur.fetchall()], [["A", "5551111", ""], ["B", "5552222", "kept"]])
         self.conn.commit()
 
+    def test_a_call_dated_in_the_future_shows_in_the_report_so_a_wrong_time_zone_is_noticed(self) -> None:
+        header = "a,Agent name,Log Time,Scheduled time,Phone,Log Type,Call Notes,First Name,Last Name,Address\n"
+        job_id = self.queue((header + "1,A,10/15/2099 20:47:30,Not scheduled,5125550100,Voicemail,,Pat,Owner,1 Main St\n").encode(), "calls.csv")
+        self.conn.execute("UPDATE importing.jobs SET kind = 'readymode_calls', source_timezone = 'UTC' WHERE id = %s", (job_id,))
+        self.conn.commit()
+        self.worker.load_calls(self.conn, self.worker.claim(self.conn))
+        report = self.job(job_id)["report"]
+        self.assertEqual((report["future_calls"], report["last_call"]), (1, "2099-10-15T20:47:30+00:00"))
+
     def test_made_up_phones_are_left_out_names_are_set_right_and_the_report_counts_what_was_cleared(self) -> None:
         job_id = self.queue('Owner Name,Phone,Email\n"SMITH, JOHN",5125550100,john@example.com\nJANE DOE,5555555555,not an email\nAnna McDonald,1234567890,\nACME PROPERTIES LLC,(512) 555-0111,\n"Smith, Jr",5125550122,\nBob,abc,\n'.encode())
         self.worker.load(self.conn, self.worker.claim(self.conn))
@@ -381,6 +390,7 @@ class EndToEndTest(unittest.TestCase):
         self.assertEqual(job["status"], "call_ready")
         self.assertEqual((job["report"]["valid_calls"], job["report"]["unusable_calls"]), (1, 1))
         self.assertIn("Ph#6", job["report"]["empty_columns_removed"])
+        self.assertEqual((job["report"]["first_call"], job["report"]["future_calls"]), ("2026-10-16T01:47:00+00:00", 0))
         with self.conn.cursor() as cur:
             cur.execute("SELECT state, call_data, lead_id FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
             rows = cur.fetchall()
