@@ -396,7 +396,7 @@ export function Status({ value }) {
     ? "good"
     : /Interested|Requested|Pending|High|Under contract|Draft/.test(value)
       ? "peach"
-      : /Closed|Wrong|Conflict|Do not call|Declined|Failed/.test(value)
+      : /Closed|Wrong|Conflict|Do not call|Declined|Failed|Useless/.test(value)
         ? "danger"
         : "";
   return <Badge tone={tone}>{value}</Badge>;

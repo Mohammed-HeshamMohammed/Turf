@@ -148,6 +148,8 @@ export function collectionsFromStore(store) {
   const sourceLeads = records("leads");
   const projectCounts = new Map();
   sourceLeads.forEach(lead => projectCounts.set(lead.project_id, (projectCounts.get(lead.project_id) || 0) + 1));
+  // A list whose leads have no phone number and no email cannot be called or written to: it is marked as a useless list.
+  const useless = id => (store.projectCounts?.[id] ?? 0) > 0 && store.projectContactable != null && (store.projectContactable[id] ?? 0) === 0;
   const context = { directory: store.directory || [], teams: store.teams || [], calls: records("calls"), notes: records("notes") };
   const activities = [
     ...context.calls.map(call => ({ id: "call-" + call.id, leadId: call.lead_id, actor: call.agent_label || nameOf(context.directory, call.agent_id), text: "Recorded call: " + (call.outcome || "Outcome not recorded"), time: call.occurred_at ? new Date(call.occurred_at).toLocaleString() : "", kind: "Call", occurredAt: call.occurred_at || "" })),
@@ -165,8 +167,8 @@ export function collectionsFromStore(store) {
     datasets: (store.projects || []).map(project => ({
       id: project.id,
       name: project.name,
-      description: (store.projectCounts?.[project.id] ?? projectCounts.get(project.id)) ? "Source list" : "No leads imported yet",
-      status: (store.projectCounts?.[project.id] ?? projectCounts.get(project.id)) ? "Checked" : "Empty",
+      description: useless(project.id) ? "No phone numbers or emails" : (store.projectCounts?.[project.id] ?? projectCounts.get(project.id)) ? "Source list" : "No leads imported yet",
+      status: useless(project.id) ? "Useless list" : (store.projectCounts?.[project.id] ?? projectCounts.get(project.id)) ? "Checked" : "Empty",
       team: "",
       date: "",
       columns: [],
@@ -219,6 +221,7 @@ export function storeFromSnapshot(snapshot, extra = {}) {
     leaseExpiresAt: snapshot.offline_lease_expires_at,
     leadsTotal: snapshot.leads_total ?? Object.keys(byId(snapshot.leads)).length,
     projectCounts: snapshot.project_counts || {},
+    projectContactable: snapshot.project_contactable || null,
     leads: byId(snapshot.leads),
     tasks: byId(snapshot.tasks),
     notes: byId(snapshot.notes),
