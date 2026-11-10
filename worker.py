@@ -445,7 +445,7 @@ def skip_identical_prior_rows(conn: psycopg.Connection, job: dict) -> int:
     """
     headers = [column["header"] for column in job["columns"]]
     with conn.cursor() as cur:
-        cur.execute("SET LOCAL statement_timeout = '30min'")
+        cur.execute("SET LOCAL statement_timeout = '10min'")
         cur.execute("""
             WITH identical AS (
                 SELECT DISTINCT ON (r.row_no) r.row_no, old.lead_id
@@ -471,7 +471,7 @@ def find_repeats(conn: psycopg.Connection, job: dict) -> int:
     """Marks rows that match each other, or a lead already in the CRM, after cleaning. Returns how many groups the person must decide."""
     job_id, org = job["id"], job["org_id"]
     with conn.cursor() as cur:
-        cur.execute("SET LOCAL statement_timeout = '30min'")
+        cur.execute("SET LOCAL statement_timeout = '10min'")
         cur.execute("""
             SELECT row_no, name, phone, email, importing.addr_key(address, zip) AS ak FROM (
                 SELECT *, count(*) OVER (PARTITION BY phone) AS cp, count(*) OVER (PARTITION BY email) AS ce,
@@ -480,13 +480,23 @@ def find_repeats(conn: psycopg.Connection, job: dict) -> int:
             WHERE (phone IS NOT NULL AND cp > 1) OR (email IS NOT NULL AND ce > 1) OR (importing.addr_key(address, zip) IS NOT NULL AND ca > 1)""", (job_id,))
         groups = group_source_candidates(cur.fetchall())
         cur.execute("SET cw.matching = 'on'")
+        # A row matches a lead when the names are the same and the phone, the email or the address is. Written as three joins that each
+        # compare one key (so each can be a hash join), not one join with "phone or email or address" (which compares every row of the
+        # list with every lead that has the same name, and a list full of "Current Resident" never finishes).
         cur.execute("""
-            SELECT r.row_no, min(m.id::text) FROM importing.rows r JOIN importing.lead_match m ON m.org_id = %s::uuid
-                AND nullif(regexp_replace(lower(coalesce(r.name, '')), '[^a-z0-9]', '', 'g'), '') =
-                    nullif(regexp_replace(lower(coalesce(m.name, '')), '[^a-z0-9]', '', 'g'), '')
-                AND ((r.phone IS NOT NULL AND m.phone = r.phone) OR (r.email IS NOT NULL AND m.email = r.email)
-                     OR (importing.addr_key(r.address, r.zip) IS NOT NULL AND m.addr_key = importing.addr_key(r.address, r.zip)))
-            WHERE r.job_id = %s AND r.state = 'clean' GROUP BY r.row_no""", (org, job_id))
+            WITH r AS (
+                SELECT row_no, phone, email, importing.addr_key(address, zip) AS ak,
+                       nullif(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]', '', 'g'), '') AS nk
+                FROM importing.rows WHERE job_id = %(job)s AND state = 'clean'),
+            m AS (
+                SELECT id::text AS lead, phone, email, addr_key AS ak,
+                       nullif(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]', '', 'g'), '') AS nk
+                FROM importing.lead_match WHERE org_id = %(org)s::uuid)
+            SELECT row_no, min(lead) FROM (
+                SELECT r.row_no, m.lead FROM r JOIN m ON m.phone = r.phone AND m.nk = r.nk
+                UNION ALL SELECT r.row_no, m.lead FROM r JOIN m ON m.email = r.email AND m.nk = r.nk
+                UNION ALL SELECT r.row_no, m.lead FROM r JOIN m ON m.ak = r.ak AND m.nk = r.nk
+            ) x GROUP BY row_no""", {"job": job_id, "org": org})
         matches = cur.fetchall()
         for row_no, lead in matches:
             groups.union(("r", row_no), ("l", lead))

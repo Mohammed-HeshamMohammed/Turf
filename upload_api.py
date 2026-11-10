@@ -105,7 +105,29 @@ def reply(conn, me, job_id):
         # A database record alone is not proof the worker still has the piece.
         job["received"] = [r["n"] for r in conn.execute("SELECT n, size FROM importing.chunks WHERE job_id = %s ORDER BY n", (job_id,))
                            if (folder / f'{r["n"]}.part').is_file() and (folder / f'{r["n"]}.part').stat().st_size == r["size"]]
+    if job["status"] == "queued":
+        job["queue"] = queue_info(conn, me, job)
     return job
+
+
+def queue_info(conn, me, job):
+    """What a waiting import is waiting for: how many lists are ahead, and the one being worked on (its name and progress when it is the
+    same workspace's, so a stuck one can be seen and cancelled; only that something is running when it is another workspace's)."""
+    rows = conn.execute("""SELECT id::text, org_id::text, name, status, progress, loaded_rows,
+                                  extract(epoch FROM now() - coalesce(heartbeat_at, updated_at))::int AS idle
+                           FROM importing.jobs
+                           WHERE id::text <> %s AND NOT cancel_requested
+                             AND (status IN ('loading', 'cleaning') OR (status = 'queued' AND created_at < (SELECT created_at FROM importing.jobs WHERE id::text = %s)))
+                           ORDER BY (status IN ('loading', 'cleaning')) DESC, created_at""", (job["id"], job["id"])).fetchall()
+    running = next((r for r in rows if r["status"] in ("loading", "cleaning")), None)
+    info = {"ahead": len(rows), "running": None}
+    if running:
+        mine = running["org_id"] == me["organization_id"]
+        progress = running["progress"] or {}
+        info["running"] = ({"id": running["id"], "name": running["name"], "status": running["status"], "phase": progress.get("phase"), "step": progress.get("step"),
+                            "done": progress.get("done"), "total": progress.get("total") or running["loaded_rows"], "idle_seconds": running["idle"]}
+                           if mine else {"other_workspace": True, "idle_seconds": running["idle"]})
+    return info
 
 
 def start(handler, me):

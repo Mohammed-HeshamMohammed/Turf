@@ -37,6 +37,8 @@ class FakeConnection:
             self.queued = True
         elif query.startswith("SELECT n, size"):
             return FakeResult(list(self.pieces.values()))
+        elif query.startswith("SELECT id::text, org_id::text"):
+            return FakeResult([])  # nothing ahead in the queue
         elif query.startswith("SELECT id::text"):
             return FakeResult([self.job])
         elif query.startswith(("SELECT count(*) AS n", "SELECT coalesce(sum(size)")):

@@ -497,6 +497,29 @@ class EndToEndTest(unittest.TestCase):
         self.assertEqual(failed["status"], "failed")
         self.assertIn("stopped several times", failed["error"])
 
+    def test_a_waiting_import_can_see_the_one_in_front_of_it(self) -> None:
+        import upload_api
+
+        front = self.queue(CSV.encode())
+        waiting = self.queue(CSV.encode())
+        self.worker.claim(self.conn)  # the first becomes the one being worked on
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE importing.jobs SET progress = '{\"phase\":\"matching\",\"done\":10000,\"total\":10000,\"step\":\"repeats\"}'::jsonb WHERE id = %s", (front,))
+        self.conn.commit()
+        import psycopg
+        from psycopg.rows import dict_row
+
+        me = {"organization_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}
+        reader = psycopg.connect(os.environ["CRM_TEST_ADMIN_URL"], row_factory=dict_row)  # the upload API reads with dict rows
+        self.addCleanup(reader.close)
+        info = upload_api.queue_info(reader, me, {"id": waiting})
+        self.assertEqual(info["ahead"], 1)
+        self.assertEqual(info["running"]["id"], front)
+        self.assertEqual(info["running"]["phase"], "matching")
+        self.assertEqual(info["running"]["done"], 10000)
+        other = upload_api.queue_info(reader, {"organization_id": "99999999-9999-4999-8999-999999999999"}, {"id": waiting})
+        self.assertEqual(other["running"], {"other_workspace": True, "idle_seconds": other["running"]["idle_seconds"]})
+
 
 if __name__ == "__main__":
     unittest.main()
