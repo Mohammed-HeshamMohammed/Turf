@@ -336,6 +336,10 @@ func (s *server) deleteProject(q *req) error {
 	if _, err = tx.Exec(ctx, `CREATE TEMP TABLE _project_leads ON COMMIT DROP AS SELECT id, property_id FROM leads WHERE project_id = $1`, id); err != nil {
 		return err
 	}
+	// The planner knows nothing of a table just made: without this it compares every property with every lead (20,000 leads took 35 seconds).
+	if _, err = tx.Exec(ctx, `ANALYZE _project_leads`); err != nil {
+		return err
+	}
 	deleted, err := tx.Exec(ctx, `DELETE FROM leads WHERE id IN (SELECT id FROM _project_leads)`)
 	if err != nil {
 		return busyOrErr(err)
@@ -344,7 +348,8 @@ func (s *server) deleteProject(q *req) error {
 		SELECT cw_org(), 'lead', id, id, 'delete' FROM _project_leads`); err != nil {
 		return err
 	}
-	if _, err = tx.Exec(ctx, `DELETE FROM properties p WHERE p.id IN (SELECT property_id FROM _project_leads)
+	if _, err = tx.Exec(ctx, `DELETE FROM properties p USING (SELECT DISTINCT property_id FROM _project_leads WHERE property_id IS NOT NULL) t
+		WHERE p.id = t.property_id
 		AND NOT EXISTS (SELECT 1 FROM leads l WHERE l.property_id = p.id)
 		AND NOT EXISTS (SELECT 1 FROM deals d WHERE d.property_id = p.id)`); err != nil {
 		return err

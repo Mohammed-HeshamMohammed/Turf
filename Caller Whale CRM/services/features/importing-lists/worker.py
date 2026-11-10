@@ -374,12 +374,19 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
     with conn.cursor() as cur:
         beat(cur, job_id, "matching", done, total=total, step="Checking for rows already added from an earlier list", pct=41)
     conn.commit()
+    with conn.cursor() as cur:
+        beat(cur, job_id, "matching", done, total=total, step="Merging rows that are exactly the same", pct=41)
+    conn.commit()
+    step = time.monotonic()
+    identical = merge_identical_rows(conn, job_id)
+    log("INFO", "identical rows merged", job=job_id, merged=identical, seconds=round(time.monotonic() - step, 1))
+    check_cancel(conn, job_id)
     step = time.monotonic()
     exact_existing = skip_identical_prior_rows(conn, job)
     log("INFO", "exact repeats checked", job=job_id, found=exact_existing, seconds=round(time.monotonic() - step, 1))
     check_cancel(conn, job_id)
     step = time.monotonic()
-    groups = find_repeats(conn, job, total=total)
+    groups, auto_merged = find_repeats(conn, job, total=total)
     log("INFO", "repeats found", job=job_id, groups=groups, seconds=round(time.monotonic() - step, 1))
     dropped = [c["header"] for c in columns if not c.get("used")]
     with conn.cursor() as cur:
@@ -389,8 +396,8 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
                        FROM importing.rows WHERE job_id = %s""", (job_id,))
         no_contact_row = cur.fetchone()
         report = dict(job["report"] or {})
-        report.update(unusable_rows=no_contact_row[0], without_phone_or_email=no_contact_row[1], near_groups=groups,
-                      exact_existing=exact_existing, dropped_columns=dropped)
+        report.update(unusable_rows=max(0, no_contact_row[0] - identical), without_phone_or_email=no_contact_row[1], near_groups=groups,
+                      exact_existing=exact_existing, dropped_columns=dropped, identical_merged=identical, certain_matches_merged=auto_merged)
         status = "reviewing" if groups else "done" if exact_existing and no_contact_row[0] == 0 and no_contact_row[2] == 0 else "ready"
         cur.execute("""UPDATE importing.jobs SET status = %s, report = %s::jsonb, worker = NULL, heartbeat_at = NULL, progress = %s::jsonb, updated_at = now()
                        WHERE id = %s AND status = 'cleaning'""",
@@ -435,6 +442,25 @@ def group_source_candidates(rows: list[tuple]) -> Groups:
     return groups
 
 
+def merge_identical_rows(conn: psycopg.Connection, job_id: str) -> int:
+    """Rows that are the same in every field that was kept (after tidying) are one lead: the first is kept and the others are dropped, with
+    no question to the person. Returns how many were dropped."""
+    with conn.cursor() as cur:
+        cur.execute("SET LOCAL statement_timeout = '10min'")
+        cur.execute("""
+            WITH d AS (
+                SELECT row_no, row_number() OVER (PARTITION BY lower(name), phone, lower(email), lower(address), lower(unit), lower(city), lower(region), lower(zip),
+                                                              lower(country), latitude, longitude, lower(parcel), value, lower(source),
+                                                              regexp_replace(lower((source_data - ARRAY['name', 'first_name', 'last_name', 'phone', 'email', 'address', 'unit', 'city', 'region', 'zip',
+                                                                                         'country', 'latitude', 'longitude', 'parcel', 'value', 'source'])::text), '\s+', ' ', 'g')
+                                                              ORDER BY row_no) AS rn
+                FROM importing.rows WHERE job_id = %(job)s AND state = 'clean')
+            UPDATE importing.rows r SET state = 'skip' FROM d WHERE r.job_id = %(job)s AND r.row_no = d.row_no AND d.rn > 1""", {"job": job_id})
+        count = cur.rowcount
+    conn.commit()
+    return count
+
+
 def skip_identical_prior_rows(conn: psycopg.Connection, job: dict) -> int:
     """Link an unchanged source row to its existing lead without asking for a repeat decision.
 
@@ -472,9 +498,11 @@ def say(conn: psycopg.Connection, job_id: str, step: str, done: int, total: int,
     conn.commit()
 
 
-def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> int:
+def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> tuple[int, int]:
     """Marks rows that match each other, or a lead already in the CRM, after cleaning. Returns how many groups the person must decide.
-    Every step reports to the screen: the work is done in chunks of MATCH_RANGE rows so the count moves in real time."""
+    Every step reports to the screen: the work is done in chunks of MATCH_RANGE rows so the count moves in real time.
+    A row that matches a lead already in the account on every key it has (at least two of phone, email, address, and the same name) is a
+    certain repeat: it is merged into that lead without asking. Returns (groups to decide, rows merged without asking)."""
     job_id, org = job["id"], job["org_id"]
     check_cancel(conn, job_id)
     say(conn, job_id, "Looking for repeats inside your list", 0, total, 45)
@@ -512,6 +540,7 @@ def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> int:
 
     # A row matches a lead when the names are the same and the phone, the email or the address is: three lookups, each on one key.
     matches: list[tuple] = []
+    certain: set = set()
     for start in range(low, high + 1, MATCH_RANGE):
         check_cancel(conn, job_id)
         with conn.cursor() as cur:
@@ -519,14 +548,22 @@ def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> int:
             cur.execute("""
                 WITH r AS (
                     SELECT row_no, phone, email, importing.addr_key(address, zip) AS ak,
-                           nullif(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]', '', 'g'), '') AS nk
+                           nullif(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]', '', 'g'), '') AS nk,
+                           (phone IS NOT NULL)::int + (email IS NOT NULL)::int + (importing.addr_key(address, zip) IS NOT NULL)::int AS nkeys
                     FROM importing.rows WHERE job_id = %(job)s AND state = 'clean' AND row_no >= %(a)s AND row_no < %(b)s)
-                SELECT row_no, min(lead) FROM (
+                SELECT x.row_no, x.lead, count(*) AS hits, max(r.nkeys) AS nkeys FROM (
                     SELECT r.row_no, k.lead FROM r JOIN _lead_keys k ON k.phone = r.phone AND k.nk = r.nk
                     UNION ALL SELECT r.row_no, k.lead FROM r JOIN _lead_keys k ON k.email = r.email AND k.nk = r.nk
                     UNION ALL SELECT r.row_no, k.lead FROM r JOIN _lead_keys k ON k.ak = r.ak AND k.nk = r.nk
-                ) x GROUP BY row_no""", {"job": job_id, "a": start, "b": start + MATCH_RANGE})
-            matches.extend(cur.fetchall())
+                ) x JOIN r ON r.row_no = x.row_no GROUP BY x.row_no, x.lead""", {"job": job_id, "a": start, "b": start + MATCH_RANGE})
+            best: dict = {}
+            for row_no, lead, hits, nkeys in cur.fetchall():
+                if row_no not in best or (hits, lead) > (best[row_no][1], best[row_no][0]):
+                    best[row_no] = (lead, hits, nkeys)
+            for row_no, (lead, hits, nkeys) in best.items():
+                matches.append((row_no, lead))
+                if nkeys >= 2 and hits == nkeys:
+                    certain.add(row_no)
         conn.commit()
         share = min(1.0, (start + MATCH_RANGE - low) / max(1, high - low + 1))
         say(conn, job_id, "Comparing your list with the leads already in your account", round(share * to_compare), to_compare, 55 + int(37 * share),
@@ -534,6 +571,7 @@ def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> int:
     with conn.cursor() as cur:
         cur.execute("DROP TABLE IF EXISTS _lead_keys")
     conn.commit()
+    log("INFO", "matched against existing leads", job=job_id, rows_with_a_match=len(matches), certain=len(certain), existing_leads=existing)
 
     check_cancel(conn, job_id)
     say(conn, job_id, "Putting the repeats into groups for you to decide", to_compare, to_compare, 94)
@@ -547,6 +585,9 @@ def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> int:
         lead_of = {groups.find(("r", row_no)): lead for row_no, lead in matches}
         # A group needs a decision when it holds two rows, or a row and a lead. A row alone with nothing to match is no group.
         decided = {root: rows for root, rows in members.items() if len(rows) > 1 or root in lead_of}
+        # A row alone with a certain match to one lead needs no decision: it is merged into that lead.
+        certain_rows = {rows[0]: lead_of[root] for root, rows in decided.items() if len(rows) == 1 and rows[0] in certain and root in lead_of}
+        decided = {root: rows for root, rows in decided.items() if not (len(rows) == 1 and rows[0] in certain_rows)}
         cur.execute("CREATE TEMP TABLE IF NOT EXISTS _groups (row_no bigint, group_id bigint, match_lead uuid)")
         cur.execute("TRUNCATE _groups")
         numbered = {root: n for n, root in enumerate(sorted(decided, key=str), start=1)}
@@ -556,8 +597,12 @@ def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> int:
                     copy.write_row((row_no, numbered[root], lead_of.get(root)))
         cur.execute("""UPDATE importing.rows r SET state = 'near_duplicate', group_id = g.group_id, match_lead = g.match_lead
                        FROM _groups g WHERE r.job_id = %s AND r.row_no = g.row_no""", (job_id,))
+        if certain_rows:
+            cur.execute("""UPDATE importing.rows r SET state = 'merge', match_lead = c.lead::uuid
+                           FROM (SELECT unnest(%s::bigint[]) AS row_no, unnest(%s::text[]) AS lead) c WHERE r.job_id = %s AND r.row_no = c.row_no""",
+                        (list(certain_rows), list(certain_rows.values()), job_id))
     conn.commit()
-    return len(decided)
+    return len(decided), len(certain_rows)
 
 
 # ------------------------------------------------------------------------------------------------------------- loop
