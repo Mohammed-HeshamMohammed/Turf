@@ -6,11 +6,14 @@
 // on a BroadcastChannel. Client clocks never decide anything: the server answers each operation.
 
 import { api as defaultApi, ApiError, auth, eventsUrl, socketProtocols } from "./api.ts";
-import { applyChanges, storeFromSnapshot } from "./translate.ts";
+import { addSnapshotPage, applyChanges, storeFromSnapshot } from "./translate.ts";
+
+/** Leads per page when the first load of the records is read a page at a time, so the first ones show while the rest arrive. */
+const SNAPSHOT_PAGE = 250;
 
 export class SyncEngine {
   vault: any; api: any; onChange: any; useSocket: any; store: any; ops: any[]; online: boolean; reachable: boolean; status: string;
-  error: string; running: any; again: boolean; channel: any; socket: any; stopped: any; connecting: any; extra: any; retryTimer: any;
+  error: string; running: any; again: boolean; channel: any; socket: any; stopped: any; connecting: any; extra: any; retryTimer: any; progress: any; held: any;
   constructor({ vault, api = defaultApi, onChange = () => {}, socket = true }: any) {
     this.vault = vault;
     this.api = api;
@@ -29,7 +32,7 @@ export class SyncEngine {
   }
 
   emit() {
-    this.onChange({ store: this.store, ops: this.ops, status: this.status, error: this.error, online: this.online && this.reachable });
+    this.onChange({ store: this.store, ops: this.ops, status: this.status, error: this.error, online: this.online && this.reachable, progress: this.progress });
   }
 
   async reload() {
@@ -42,6 +45,8 @@ export class SyncEngine {
   async start(extra) {
     this.extra = extra;
     this.store = await this.vault.get("store");
+    // A copy whose first load was cut short (the tab closed) has the cursor of its first page and not the rest of the leads: start again.
+    if (this.store?.partial) this.store = null;
     this.ops = await this.vault.queue();
     if (this.store && this.store.organizationId !== extra.organizationId) {
       if (this.ops.length) throw new Error("This device has pending changes for its previous workspace. Open that workspace and sync them before switching.");
@@ -50,8 +55,10 @@ export class SyncEngine {
     }
     const expired = this.store?.leaseExpiresAt && new Date(this.store.leaseExpiresAt) < new Date();
     if (expired) {
-      // Offline access must be renewed online within a day (plan 2.7).
-      await this.vault.dropRecords();
+      // Offline access must be renewed online within a day (plan 2.7): the records are not shown until the server has confirmed the
+      // person's access. They are not thrown away: when it has, only what changed since is fetched (see renew), and only if access
+      // changed, or too much happened to page through, are the records taken again.
+      this.held = this.store;
       this.store = null;
     }
     if (this.store) this.store = { ...this.store, ...extra };
@@ -120,6 +127,7 @@ export class SyncEngine {
     this.status = "syncing";
     this.emit();
     try {
+      if (!this.store && this.held) await this.renew();
       if (!this.store) await this.snapshot();
       await this.push();
       await this.pull();
@@ -145,10 +153,60 @@ export class SyncEngine {
     this.retryTimer = setTimeout(() => this.sync(), 5000);
   }
 
-  async snapshot() {
-    const snapshot = await this.api.snapshot();
-    this.store = storeFromSnapshot(snapshot, this.extra);
+  /**
+   * The copy kept from the last session, whose offline permission ran out: asks the server whether it is still good. If the person's
+   * access is as it was and the server's record of changes still reaches back that far, the copy is brought up to date with only the
+   * difference and is shown again; otherwise it is dropped and the records are taken again.
+   */
+  async renew() {
+    // The copy is kept until the server has answered: a connection that drops here leaves it for the next try.
+    let store = { ...this.held };
+    for (;;) {
+      const answer = await this.api.pull(store.cursor, store.accessRevision);
+      if (answer.reset) {
+        this.held = null;
+        await this.vault.dropRecords();
+        return;
+      }
+      store = { ...applyChanges(store, answer.changes), cursor: answer.cursor, leaseExpiresAt: answer.offline_lease_expires_at ?? store.leaseExpiresAt };
+      if (!answer.more) break;
+    }
+    this.held = null;
+    this.store = { ...store, ...this.extra };
     await this.save();
+    this.emit();
+  }
+
+  /**
+   * Takes the workspace's records a page of leads at a time. The first page has the totals, the lists and the cursor, and is shown at
+   * once; each later page is added and shown as it arrives. The copy kept on the device is marked partial until the last page is in.
+   */
+  async snapshot() {
+    const first = await this.api.snapshot({ limit: SNAPSHOT_PAGE });
+    this.store = storeFromSnapshot(first, this.extra);
+    let next = first.next;
+    const total = Math.min(this.store.leadsTotal ?? 0, 3000);
+    try {
+      if (next) {
+        this.store = { ...this.store, partial: true };
+        await this.save();
+      }
+      while (next && !this.stopped) {
+        this.progress = { loaded: Object.keys(this.store.leads).length, total };
+        this.emit();
+        const page = await this.api.snapshot({ limit: SNAPSHOT_PAGE, after: next });
+        this.store = addSnapshotPage(this.store, page);
+        next = page.next;
+      }
+    } finally {
+      this.progress = null;
+    }
+    if (next) throw new Error("The records were not all loaded");
+    const whole = { ...this.store };
+    delete whole.partial;
+    this.store = whole;
+    await this.save();
+    this.emit();
   }
 
   /** Looks a lead up on the server and holds what it finds, so a workspace bigger than this device's window can still be searched. */
@@ -219,7 +277,7 @@ export class SyncEngine {
         return;
       }
       if (answer.more && answer.cursor === this.store.cursor) throw new Error("The server did not advance the sync cursor");
-      this.store = { ...applyChanges(this.store, answer.changes), cursor: answer.cursor };
+      this.store = { ...applyChanges(this.store, answer.changes), cursor: answer.cursor, leaseExpiresAt: answer.offline_lease_expires_at ?? this.store.leaseExpiresAt };
       await this.save();
       if (!answer.more) return;
     }

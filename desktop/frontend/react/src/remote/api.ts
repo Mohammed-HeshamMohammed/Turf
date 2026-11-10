@@ -117,7 +117,13 @@ export const api = {
   deleteProject: (id: string): Promise<any> => request("DELETE", `/api/v1/projects/${id}`, undefined, { timeout: 120000 }),
   settings: () => request("GET", "/api/v1/settings"),
   // Not cut off at a minute: giving up and asking again made the server start the same heavy read over and over.
-  snapshot: () => request("GET", "/sync/snapshot", undefined, { timeout: 300000 }),
+  /** The workspace's records; with `limit` a page of the leads, and `after` (the "next" of the page before) the page that follows. */
+  snapshot: (page?: { limit?: number; after?: string }) => {
+    const query = new URLSearchParams();
+    if (page?.limit) query.set("limit", String(page.limit));
+    if (page?.after) query.set("after", page.after);
+    return request("GET", "/sync/snapshot" + (query.size ? "?" + query : ""), undefined, { timeout: 300000 });
+  },
   /** Leads of a big workspace beyond the snapshot's window: by name, phone, email or address. */
   searchLeads: (term: string): Promise<any> => request("GET", `/api/v1/leads/search?q=${encodeURIComponent(term)}&limit=100`),
   pull: (cursor, accessRevision) => request("GET", `/sync/pull?cursor=${cursor}&access_revision=${accessRevision}`),
@@ -137,6 +143,8 @@ export const api = {
     decide: (id: string, body): Promise<any> => request("POST", `/api/v1/imports/${id}/duplicates`, body),
     merge: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/merge`),
     preview: (id: string): Promise<any> => request("GET", `/api/v1/imports/${id}/preview`),
+    cleared: (id: string, field: string, offset = 0): Promise<any> => request("GET", `/api/v1/imports/${id}/cleared?field=${encodeURIComponent(field)}&offset=${offset}`),
+    columnsAgain: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/columns-again`),
     merges: (id: string, offset = 0): Promise<any> => request("GET", `/api/v1/imports/${id}/merges?offset=${offset}`),
     undoMerge: (id: string, row: number): Promise<any> => request("POST", `/api/v1/imports/${id}/rows/${row}/undo-merge`),
     applyCalls: (id: string): Promise<any> => request("POST", `/api/v1/imports/${id}/apply-calls`),

@@ -666,6 +666,11 @@ export function App() {
                 Loading your workspace… your leads and lists appear here as soon as they arrive.
               </p>
             )}
+            {!state.remoteLoading && state.remoteProgress && (
+              <p className="notice" role="status">
+                Loading your leads… {state.remoteProgress.loaded.toLocaleString()} of {state.remoteProgress.total.toLocaleString()} so far. They can be used while the rest arrive.
+              </p>
+            )}
             {cacheError && (
               <p className="notice" role="alert">
                 Browser storage is full or unavailable. Current edits work in this session but cannot survive a refresh.
