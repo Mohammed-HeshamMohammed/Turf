@@ -10,6 +10,7 @@ import json
 import os
 import re
 import socket
+import threading
 import shutil
 import time
 import traceback
@@ -42,9 +43,9 @@ class Cancelled(Exception):
 
 # ------------------------------------------------------------------------------------------------------------- queue
 
-def claim(conn: psycopg.Connection) -> dict | None:
-    """The next job to work on, or None. Only one import loads or cleans at a time, so a second waits in the queue; a job whose worker
-    stopped (no heartbeat for two minutes) is picked up again where it left off."""
+def claim(conn: psycopg.Connection, name: str = WORKER) -> dict | None:
+    """The next job to work on, or None. Several imports run at the same time (IMPORT_WORKERS of them); a job whose worker stopped (no
+    heartbeat for two minutes, and a running worker beats every 30 seconds) is picked up again where it left off."""
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
         cur.execute(f"""
             UPDATE importing.jobs SET status = 'failed', worker = NULL, heartbeat_at = NULL, updated_at = now(),
@@ -58,9 +59,8 @@ def claim(conn: psycopg.Connection) -> dict | None:
                 SELECT id FROM importing.jobs
                 WHERE NOT cancel_requested
                   AND (status = 'queued' OR (status IN ('loading', 'cleaning') AND (heartbeat_at IS NULL OR heartbeat_at < now() - {STALE})))
-                  AND NOT EXISTS (SELECT 1 FROM importing.jobs busy WHERE busy.status IN ('loading', 'cleaning') AND busy.heartbeat_at >= now() - {STALE})
                 ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
-            RETURNING id::text, org_id::text, user_id::text, filename, size, total_chunks, has_header, status, loaded_rows, report, columns, kind, source_timezone""", (WORKER,))
+            RETURNING id::text, org_id::text, user_id::text, filename, size, total_chunks, has_header, status, loaded_rows, report, columns, kind, source_timezone""", (name,))
         job = cur.fetchone()
     conn.commit()
     return job
@@ -530,7 +530,21 @@ def forget(conn: psycopg.Connection, job_id: str) -> None:
     conn.commit()
 
 
+_active: set[str] = set()
+_active_lock = threading.Lock()
+
+
 def process(conn: psycopg.Connection, job: dict) -> None:
+    with _active_lock:
+        _active.add(job["id"])
+    try:
+        _process(conn, job)
+    finally:
+        with _active_lock:
+            _active.discard(job["id"])
+
+
+def _process(conn: psycopg.Connection, job: dict) -> None:
     try:
         if job.get("kind") == "readymode_calls":
             load_calls(conn, job)
@@ -576,28 +590,65 @@ def sweep_uploads(conn: psycopg.Connection) -> None:
             shutil.rmtree(folder, ignore_errors=True)
 
 
-def run_forever(url: str) -> None:
-    """Waits for work and does it. The connection is opened again after any database trouble."""
+def keep_alive(url: str) -> None:
+    """Says every 30 seconds that the jobs being worked on are still alive, even while one long statement runs. Without it a job working
+    for more than two minutes between its own beats would look abandoned to the other workers and be started a second time."""
+    while True:
+        time.sleep(30)
+        with _active_lock:
+            ids = list(_active)
+        if not ids:
+            continue
+        try:
+            with psycopg.connect(url, autocommit=True) as conn:
+                conn.execute("UPDATE importing.jobs SET heartbeat_at = now() WHERE id::text = ANY(%s) AND status IN ('loading', 'cleaning')", (ids,))
+        except psycopg.Error as error:
+            log("WARN", "could not say that the jobs are alive", error=str(error))
+
+
+def work_loop(url: str, name: str, sweeps: bool) -> None:
+    """One worker: waits for work and does it. The connection is opened again after any database trouble."""
     while True:
         try:
             with psycopg.connect(url) as conn:
                 conn.execute("SET search_path = importing, public")
                 last_sweep = 0.0
                 while True:
-                    if time.monotonic() - last_sweep > 60:
+                    if sweeps and time.monotonic() - last_sweep > 60:
                         try:
                             sweep_uploads(conn)
                         except OSError as error:
                             log("WARN", "upload cleanup could not finish", error=str(error))
                         last_sweep = time.monotonic()
-                    job = claim(conn)
+                    job = claim(conn, name)
                     if job is None:
                         time.sleep(POLL_SECONDS)
                     else:
                         process(conn, job)
         except psycopg.Error as error:
-            log("WARN", "database unavailable, trying again", error=str(error))
+            log("WARN", "database unavailable, trying again", error=str(error), worker=name)
             time.sleep(5)
         except Exception as error:  # anything else must not end the thread: the service would look healthy and never work again
-            log("ERROR", "the worker loop failed, trying again", error_type=type(error).__name__, error=str(error), trace=traceback.format_exc())
+            log("ERROR", "the worker loop failed, trying again", error_type=type(error).__name__, error=str(error), trace=traceback.format_exc(), worker=name)
             time.sleep(5)
+
+
+_loops: list[threading.Thread] = []
+
+
+def loops_alive() -> bool:
+    """False when a worker loop has gone: the service answers /healthz with that."""
+    return bool(_loops) and all(thread.is_alive() for thread in _loops)
+
+
+def run_forever(url: str) -> None:
+    """Runs IMPORT_WORKERS imports at the same time (default 3). Memory is not capped: a big list may use what the machine has."""
+    count = max(1, min(8, int(os.environ.get("IMPORT_WORKERS", "3") or 3)))
+    for number in range(count):
+        thread = threading.Thread(target=work_loop, args=(url, f"{WORKER}-{number + 1}", number == 0), daemon=True)
+        thread.start()
+        _loops.append(thread)
+    threading.Thread(target=keep_alive, args=(url,), daemon=True).start()
+    log("INFO", "import workers started", workers=count)
+    for thread in _loops:
+        thread.join()
