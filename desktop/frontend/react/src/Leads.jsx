@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PropertyMap } from "./PropertyMap.jsx";
 import { LeadsMap } from "./LeadsMap.jsx";
 import { coordinates } from "./skiptrace-fields.ts";
@@ -49,24 +49,71 @@ export function Leads() {
   const client = state.role === "client";
   // A big workspace sends this device a window of its leads: searching asks the server for the rest.
   const heldAll = !state.remote || !(state.leadsTotal > state.leads.length);
+  // A workspace bigger than this device's window of it: the list pages through the server, a page at a time.
+  // If the server cannot page (an older version), the list falls back to the window this device holds.
+  const [serverFailed, setServerFailed] = useState(false);
+  const serverMode = Boolean(state.remote) && !heldAll && !serverFailed;
+  const [term, setTerm] = useState("");
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(10);
+  const [served, setServed] = useState({ ids: [], total: 0 });
+  const counted = useRef({ key: "", total: null });
   useEffect(() => {
-    if (heldAll || search.trim().length < 2) return;
-    const timer = setTimeout(() => dispatch({ type: "SEARCH_LEADS", term: search.trim() }), 400);
+    const timer = setTimeout(() => setTerm(search.trim().length >= 2 ? search.trim() : ""), 350);
     return () => clearTimeout(timer);
-  }, [search, heldAll, dispatch]);
+  }, [search]);
+  useEffect(() => setPage(0), [term, stage, size]);
+  useEffect(() => {
+    if (!serverMode) return;
+    let live = true;
+    const key = term + "|" + stage;
+    const known = counted.current.key === key ? counted.current.total : null;
+    Promise.resolve(dispatch({ type: "BROWSE_LEADS", term, stage: stage === "All stages" ? "" : stage, offset: page * size, limit: size, count: known == null }))
+      .then(found => {
+        if (!live || !found) return;
+        counted.current = { key, total: found.total ?? known };
+        setServed({ ids: found.ids, total: found.total ?? known ?? 0 });
+      })
+      .catch(() => live && setServerFailed(true));
+    return () => {
+      live = false;
+    };
+  }, [serverMode, term, stage, page, size, dispatch]);
+  const byId = useMemo(() => new Map(state.leads.map(lead => [lead.id, lead])), [state.leads]);
   const archivedCount = archivedLeads(state).length;
-  const leads = (showArchived && archivedCount ? archivedLeads(state) : visibleLeads(state)).filter(
+  const windowLeads = (showArchived && archivedCount ? archivedLeads(state) : visibleLeads(state)).filter(
     lead =>
       (stage === "All stages" || lead.stage === stage) &&
       (assignee === "All people" || lead.assignee === assignee) &&
       [lead.name, lead.address, lead.city, ...(client ? [] : [lead.phone, lead.email])].join(" ").toLowerCase().includes(search.toLowerCase()),
   );
+  const leads = serverMode ? served.ids.map(id => byId.get(id)).filter(Boolean) : windowLeads;
   const editable = capability(state, "edit");
+  // The window's width decides how many details each row carries.
+  const card = useRef(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const element = card.current;
+    if (!element) return;
+    const measure = () => setWidth(element.clientWidth);
+    measure();
+    window.addEventListener("resize", measure);
+    const watch = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
+    watch?.observe(element);
+    return () => {
+      window.removeEventListener("resize", measure);
+      watch?.disconnect();
+    };
+  }, [view]);
   const assigned = lead => lead.assignee && lead.assignee !== "Unassigned";
   const hasColumn = {
     verdict: !hideEmpty || leads.some(lead => lead.verdict),
     assignee: !hideEmpty || leads.some(assigned),
     next: !hideEmpty || client || leads.some(lead => lead.callback),
+    phone: !client && width >= 1050 && (!hideEmpty || leads.some(lead => lead.phone)),
+    email: !client && width >= 1250 && (!hideEmpty || leads.some(lead => lead.email)),
+    value: !client && width >= 1450 && (!hideEmpty || leads.some(lead => lead.value)),
+    priority: !client && width >= 1650,
   };
   const table = useTableView(
     leads,
@@ -76,6 +123,10 @@ export function Leads() {
       verdict: { value: lead => lead.verdict || "" },
       stage: { value: lead => LEAD_STAGES.indexOf(lead.stage) },
       assignee: { value: lead => lead.assignee || "" },
+      phone: { value: lead => lead.phone || "" },
+      email: { value: lead => lead.email || "" },
+      value: { value: lead => lead.value || 0 },
+      priority: { value: lead => lead.priority || "" },
       next: { value: lead => (lead.callback ? (lead.callbackDate || "") + " " + lead.callback : "￿") },
     },
     "leads",
@@ -114,21 +165,23 @@ export function Leads() {
                 <option key={item}>{item}</option>
               ))}
             </Select>
-            <Select aria-label="Filter by assigned person" value={assignee} onChange={event => setAssignee(event.target.value)}>
-              <option>All people</option>
-              {[...PEOPLE, "Unassigned"].map(item => (
-                <option key={item}>{item}</option>
-              ))}
-            </Select>
+            {!serverMode && (
+              <Select aria-label="Filter by assigned person" value={assignee} onChange={event => setAssignee(event.target.value)}>
+                <option>All people</option>
+                {[...PEOPLE, "Unassigned"].map(item => (
+                  <option key={item}>{item}</option>
+                ))}
+              </Select>
+            )}
           </>
         )}
         <Segmented label="Lead view" value={view} options={["List", "Map"]} onChange={setView} />
         <Checkbox label="Hide empty fields" checked={hideEmpty} onChange={event => setHideEmpty(event.target.checked)} />
-        {!client && archivedCount > 0 && (
+        {!client && !serverMode && archivedCount > 0 && (
           <Checkbox label={"Archived (" + archivedCount + ")"} checked={showArchived} onChange={event => setShowArchived(event.target.checked)} />
         )}
         <span className="result-count">
-          {leads.length} {client ? "properties" : "leads"}
+          {(serverMode ? served.total : leads.length).toLocaleString()} {client ? "properties" : "leads"}
         </span>
       </div>
       {selected.length > 0 && (
@@ -155,14 +208,15 @@ export function Leads() {
       )}
       {view === "Map" ? (
         client ? (
-          <PropertyMap rows={leads} title="Shared property map" />
+          <PropertyMap rows={windowLeads} title="Shared property map" />
         ) : (
-          <LeadsMap leads={leads} />
+          <LeadsMap leads={windowLeads} />
         )
       ) : (
-        <div className="card table-card">
+        <div className="card table-card" ref={card}>
           <DataTable
             paged
+            remote={serverMode ? { total: served.total, page, onPage: setPage, onSize: setSize } : null}
             view={table}
             rowKey={lead => lead.id}
             leading={
@@ -213,6 +267,10 @@ export function Leads() {
                   </>
                 ),
               },
+              ...(hasColumn.phone ? [{ id: "phone", label: "Phone", cell: lead => lead.phone || <span className="muted">—</span> }] : []),
+              ...(hasColumn.email ? [{ id: "email", label: "Email", cell: lead => lead.email || <span className="muted">—</span> }] : []),
+              ...(hasColumn.value ? [{ id: "value", label: "Value", className: "num", cell: lead => (lead.value ? money(lead.value) : <span className="muted">—</span>) }] : []),
+              ...(hasColumn.priority ? [{ id: "priority", label: "Priority", cell: lead => lead.priority }] : []),
               ...(!client && hasColumn.verdict ? [{ id: "verdict", label: "Phone quality", cell: lead => <Status value={lead.verdict} /> }] : []),
               { id: "stage", label: "Stage", cell: lead => <Status value={lead.stage} /> },
               ...(!client && hasColumn.assignee ? [{ id: "assignee", label: "Responsible person", cell: lead => <Person name={lead.assignee} link /> }] : []),
@@ -244,7 +302,7 @@ export function Leads() {
           {!table.rows.length && <Empty title="No leads match this view">Try another stage or search term.</Empty>}
           <footer className="table-footer">
             <span>{ROLES[state.role].scope}</span>
-            <span>{leads.length} records · sample workspace</span>
+            <span>{(serverMode ? served.total : leads.length).toLocaleString()} records{state.remote ? "" : " · sample workspace"}</span>
           </footer>
         </div>
       )}
