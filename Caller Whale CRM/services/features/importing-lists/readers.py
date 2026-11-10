@@ -63,6 +63,24 @@ def headers_of(path: Path, has_header: bool) -> list[str]:
     return []
 
 
+def survey(path: Path, has_header: bool, sample: int = 300) -> tuple[list[str], list[int], int, int, list[tuple]]:
+    """What the list holds, without storing any of it: (headers, cells filled per column, rows, blank rows, the first `sample` rows).
+    One pass over the file; the person is then asked what each column is before a single row is loaded."""
+    headers: list[str] = []
+    filled: list[int] = []
+    rows = blank = 0
+    first: list[tuple] = []
+    for headers, frame in read_batches(path, has_header):
+        has_text = frame.select(pl.all().str.strip_chars() != "")
+        counts = has_text.sum().row(0)
+        filled = [a + b for a, b in zip(filled, counts)] if filled else list(counts)
+        blank += frame.height - has_text.select(pl.any_horizontal(pl.all())).to_series().sum()
+        rows += frame.height
+        if len(first) < sample:
+            first += frame.head(sample - len(first)).rows()
+    return headers, filled, rows, blank, first
+
+
 def detect_encoding(sample: bytes) -> str:
     if sample.startswith(codecs.BOM_UTF8):
         return "utf-8-sig"

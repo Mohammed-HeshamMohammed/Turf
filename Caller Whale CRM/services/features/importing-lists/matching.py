@@ -14,7 +14,7 @@ VOCABULARY = {
                   "customer last name", "client last name", "contact last name", "seller last name"],
     "phone": ["phone", "phone number", "phone 1", "phone #", "alt phone", "alternate phone", "alternative phone", "telephone", "tel", "mobile", "mobile phone", "mobile number", "cell", "cell phone",
               "cellphone", "wireless", "landline", "contact number", "contact phone", "owner phone", "primary phone", "best phone", "home phone",
-              "work phone", "number", "whatsapp"],
+              "work phone", "number", "whatsapp", "owner mobile", "owner landline", "owner voip", "owner cell", "voip"],
     "email": ["email", "e mail", "email address", "owner email", "contact email", "primary email"],
     "address": ["address", "street address", "property address", "site address", "situs address", "address 1", "address line 1", "street",
                 "location", "house address", "home address", "subject property address", "property street"],
@@ -70,6 +70,12 @@ SOURCE_DETAILS.update({
     "owner occupancy": "Owner occupied", "ownership type": "Owner type",
     "months owned": "Ownership length", "ownership length": "Ownership length",
 })
+
+
+def is_relative(header: str) -> bool:
+    """A column about a relative of the owner ("Relative 3 MOBILE 2"): skip-traced lists carry many, the data is often wrong and it is
+    not the lead, so such columns are left out before anything is read."""
+    return bool(re.match(r"relative \d+( |$)", normalize_header(header)))
 
 
 def normalize_header(header: str) -> str:

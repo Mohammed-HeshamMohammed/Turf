@@ -17,11 +17,8 @@ import time
 import traceback
 from pathlib import Path
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
 import polars as pl
 import psycopg
-import psycopg.conninfo
 
 import linetype
 import matching
@@ -37,9 +34,8 @@ POLL_SECONDS = 2.0
 # A job whose worker stopped is picked up again this many times; the next stop fails it (a file that keeps stopping the worker).
 MAX_RECLAIMS = 2
 CLEAN_RANGE = int(os.environ.get("IMPORT_CLEAN_ROWS", "5000"))  # rows tidied between two reports of progress
-# Connections one import uses at the same time to tidy its rows. The ranges of rows are independent, so they run side by side; 1 runs them
-# one after another on the worker's own connection.
-PARALLEL = max(1, int(os.environ.get("IMPORT_PARALLEL", str(min(4, os.cpu_count() or 1)))))
+# Days the uploaded file is kept after it arrives (so a list can be read again with other columns), then deleted. The person is told the date.
+KEEP_FILE_DAYS = int(os.environ.get("IMPORT_KEEP_FILE_DAYS", "30"))
 WORK_MEM = os.environ.get("IMPORT_WORK_MEM", "256MB")  # memory one sort or hash in the matching steps may use before spilling to disk
 MATCH_RANGE = int(os.environ.get("IMPORT_MATCH_ROWS", "5000"))  # rows compared with the existing leads between two reports
 
@@ -102,9 +98,11 @@ def array_literals(frame: pl.DataFrame) -> pl.Series:
     return frame.select((pl.lit("{") + pl.concat_str(quoted, separator=",") + pl.lit("}")).alias("cells")).to_series()
 
 
-def stage_and_insert(cur: psycopg.Cursor, job_id: str, frame: pl.DataFrame, first_row_no: int) -> tuple[int, int]:
+def stage_and_insert(cur: psycopg.Cursor, job_id: str, frame: pl.DataFrame, first_row_no: int, tidy: tuple[str, str, str] | None = None) -> tuple[int, int]:
     """Puts one batch in the holding table. Row numbers follow the file, blank lines included, so a row can be found again in the
-    original; blank lines are left out and identical rows (same fingerprint) are dropped. Returns (rows kept, rows that were not blank)."""
+    original; blank lines are left out and identical rows (same fingerprint) are dropped. With `tidy` (the cleaning expressions, their
+    LATERAL parts and the source-data expression) each row is written once, already tidied, instead of being stored and updated later.
+    Returns (rows kept, rows that were not blank)."""
     numbered = frame.with_row_index("n").filter(~pl.all_horizontal(pl.exclude("n").str.strip_chars() == ""))
     cur.execute("CREATE TEMP TABLE IF NOT EXISTS _stage (row_no bigint, cells text[], fp bytea)")
     cur.execute("TRUNCATE _stage")
@@ -112,7 +110,17 @@ def stage_and_insert(cur: psycopg.Cursor, job_id: str, frame: pl.DataFrame, firs
     with cur.copy("COPY _stage (row_no, cells) FROM STDIN (FORMAT csv)") as copy:
         copy.write(staged.write_csv(include_header=False))
     cur.execute("UPDATE _stage SET fp = sha256(convert_to(array_to_string(cells, chr(31)), 'UTF8'))")
-    cur.execute("INSERT INTO importing.rows (job_id, row_no, fp, cells) SELECT %s, row_no, fp, cells FROM _stage ON CONFLICT DO NOTHING", (job_id,))
+    if tidy is None:
+        cur.execute("INSERT INTO importing.rows (job_id, row_no, fp, cells) SELECT %s, row_no, fp, cells FROM _stage ON CONFLICT DO NOTHING", (job_id,))
+    else:
+        expressions, lateral, source_data = tidy
+        cur.execute(f"""
+            INSERT INTO importing.rows (job_id, row_no, fp, cells, name, phone, email, address, unit, city, region, zip, country, latitude, longitude,
+                                        parcel, value, source, source_data, state)
+            SELECT %(job)s, row_no, fp, cells, name, phone, email, address, unit, city, region, zip, country, latitude, longitude, parcel, value, source,
+                   source_data, CASE WHEN name IS NULL AND phone IS NULL AND email IS NULL AND address IS NULL THEN 'skip' ELSE 'clean' END
+            FROM (SELECT row_no, fp, cells, {expressions}, {source_data} AS source_data FROM _stage{lateral}) c
+            ON CONFLICT DO NOTHING""", {"job": job_id})
     return cur.rowcount, numbered.height
 
 
@@ -123,57 +131,48 @@ def duplicate_examples(cur: psycopg.Cursor, job_id: str, limit: int) -> list[dic
     return [{"row": a, "same_as": b} for a, b in cur.fetchall()]
 
 
-def load(conn: psycopg.Connection, job: dict) -> None:
-    job_id = job["id"]
-    folder = IMPORT_DIR / job_id
+def source_file(conn: psycopg.Connection, job: dict) -> Path:
+    """The uploaded file, joined from its pieces (once; it is kept, see KEEP_FILE_DAYS)."""
     with conn.cursor() as cur:
-        cur.execute("SELECT size FROM importing.chunks WHERE job_id = %s ORDER BY n", (job_id,))
+        cur.execute("SELECT size FROM importing.chunks WHERE job_id = %s ORDER BY n", (job["id"],))
         sizes = [r[0] for r in cur.fetchall()]
     conn.commit()
     if len(sizes) != job["total_chunks"]:
         raise RuntimeError("the upload is incomplete")
-    extension = Path(job["filename"]).suffix.lower()
+    return readers.prepare(IMPORT_DIR / job["id"], sizes, Path(job["filename"]).suffix.lower())
+
+
+def load(conn: psycopg.Connection, job: dict) -> None:
+    """Reads what the list holds and asks the person what each column is. No row is stored yet: the rows are loaded after the answer,
+    only the columns that were kept, already tidied (see clean). Columns with nothing in them, and columns about the owner's relatives,
+    are not offered."""
+    job_id = job["id"]
     with conn.cursor() as cur:
         beat(cur, job_id, "assembling", 0)
     conn.commit()
-    source = readers.prepare(folder, sizes, extension)
-
-    report = dict(job["report"] or {})
-    consumed = job["loaded_rows"]
-    dropped = report.get("exact_duplicates", 0)
-    empty = report.get("empty_rows", 0)
-    examples: list[dict] = report.get("exact_examples", [])
-    headers: list[str] = []
-    for headers, frame in prefetch(readers.read_batches(source, job["has_header"], skip_rows=consumed)):
-        check_cancel(conn, job_id)
-        with conn.cursor() as cur:
-            kept, nonblank = stage_and_insert(cur, job_id, frame, consumed + 1)
-            empty += frame.height - nonblank
-            dropped += nonblank - kept
-            if len(examples) < 10 and kept < nonblank:
-                examples += duplicate_examples(cur, job_id, 10 - len(examples))
-            consumed += frame.height
-            report.update(exact_duplicates=dropped, empty_rows=empty, exact_examples=examples[:10])
-            cur.execute("UPDATE importing.jobs SET loaded_rows = %s, report = %s::jsonb WHERE id = %s", (consumed, json.dumps(report), job_id))
-            beat(cur, job_id, "loading", consumed)
-        conn.commit()
-
-    headers = headers or readers.headers_of(source, job["has_header"])  # a restart after the last batch has none from the loop
-    if not headers:
-        raise readers.UnreadableFile("the file has no data rows")
+    source = source_file(conn, job)
     with conn.cursor() as cur:
-        headers, populated, empty_columns = drop_empty_columns(cur, job_id, headers)
-        columns = describe_columns(cur, job_id, headers, populated)
-        report["empty_columns_removed"] = empty_columns
-        report["other_sheets"] = readers.other_sheets(source)  # not imported: the person is told so
-        report.update(rows=consumed - dropped - empty, source_rows=consumed)
-        cur.execute("""UPDATE importing.jobs SET status = 'mapping', columns = %s::jsonb, report = %s::jsonb, worker = NULL, heartbeat_at = NULL,
-                       progress = %s::jsonb, updated_at = now() WHERE id = %s AND status = 'loading'""",
-                    (json.dumps(columns), json.dumps(report), json.dumps({"phase": "mapping", "done": consumed}), job_id))
+        beat(cur, job_id, "loading", 0)
     conn.commit()
-    for leftover in (*folder.glob("source*"), *folder.glob("*.part")):
-        leftover.unlink(missing_ok=True)
-    log("INFO", "loaded", job=job_id, rows=consumed, duplicates=dropped)
+    headers, filled, rows, blank, sample = readers.survey(source, job["has_header"])
+    if not headers or rows == blank:
+        raise readers.UnreadableFile("the file has no data rows")
+    relatives = [i for i, header in enumerate(headers) if matching.is_relative(header)]
+    offered = [i for i, count in enumerate(filled) if count > 0 and i not in relatives]
+    if not offered:
+        raise readers.UnreadableFile("the file has no populated columns")
+    columns = describe_columns(conn, job_id, headers, filled, sample, offered)
+    report = dict(job["report"] or {})
+    report.update(source_rows=rows, rows=rows - blank, empty_rows=blank,
+                  empty_columns_removed=[headers[i] for i, count in enumerate(filled) if count == 0 and i not in relatives],
+                  relatives_left_out=len(relatives), other_sheets=readers.other_sheets(source),
+                  file_kept_until=(datetime.now(timezone.utc) + timedelta(days=KEEP_FILE_DAYS)).date().isoformat())
+    with conn.cursor() as cur:
+        cur.execute("""UPDATE importing.jobs SET status = 'mapping', columns = %s::jsonb, report = %s::jsonb, worker = NULL, heartbeat_at = NULL,
+                       loaded_rows = 0, progress = %s::jsonb, updated_at = now() WHERE id = %s AND status = 'loading'""",
+                    (json.dumps(columns), json.dumps(report), json.dumps({"phase": "mapping", "done": rows}), job_id))
+    conn.commit()
+    log("INFO", "surveyed", job=job_id, rows=rows, columns=len(headers), offered=len(offered), relatives=len(relatives))
 
 
 def load_calls(conn: psycopg.Connection, job: dict) -> None:
@@ -255,70 +254,58 @@ def column_population(cur: psycopg.Cursor, job_id: str, headers: list[str]) -> l
     return list(cur.fetchone() or [0] * len(headers))
 
 
-def drop_empty_columns(cur: psycopg.Cursor, job_id: str, headers: list[str]) -> tuple[list[str], list[int], list[str]]:
-    """Remove columns with no nonblank cell from every stored source row and reindex the remaining headers."""
-    populated = column_population(cur, job_id, headers)
-    kept = [i for i, count in enumerate(populated) if count > 0]
-    if not kept:
-        raise readers.UnreadableFile("the file has no populated columns")
-    if len(kept) != len(headers):
-        cells = ", ".join(f"cells[{i + 1}]" for i in kept)
-        cur.execute(f"UPDATE importing.rows SET cells = ARRAY[{cells}] WHERE job_id = %s", (job_id,))
-    return [headers[i] for i in kept], [populated[i] for i in kept], [headers[i] for i, count in enumerate(populated) if count == 0]
-
-
-def describe_columns(cur: psycopg.Cursor, job_id: str, headers: list[str], populated: list[int] | None = None) -> list[dict]:
-    """What the person is shown to confirm: each column's header, how many rows have something in it, a few examples, and the
-    lead or structured source field it looks like."""
-    if populated is None:
-        populated = column_population(cur, job_id, headers)
-    cur.execute("SELECT cells FROM importing.rows WHERE job_id = %s ORDER BY row_no LIMIT 300", (job_id,))
-    sample_rows = [r[0] for r in cur.fetchall()]
-    standard_keys = matching.standard_keys(headers)
-    keys = [matching.normalize_header(h) for h in headers]
+def describe_columns(conn: psycopg.Connection, job_id: str, headers: list[str], filled: list[int], sample: list[tuple], offered: list[int]) -> list[dict]:
+    """What the person is shown to confirm: each offered column's header, how many rows have something in it, a few examples, and the lead
+    or structured source field it looks like. `idx` is the column's place in the file; once the person has answered, it becomes its place
+    among the columns that were kept (see keep_columns)."""
+    names = [headers[i] for i in offered]
+    standard_keys = matching.standard_keys(names)
+    keys = [matching.normalize_header(h) for h in names]
     # What this workspace decided before for the same heading comes first, then what the heading says, then what the cells look like.
-    cur.execute("""SELECT m.header_key, m.field, m.used FROM importing.mapping_memory m JOIN importing.jobs j ON j.org_id = m.org_id
-                   WHERE j.id = %s AND m.header_key = ANY(%s)""", (job_id, keys))
-    memory = {key: (field, used) for key, field, used in cur.fetchall()}
-    chosen: list[str | None] = [None] * len(headers)
-    note: list[str | None] = [None] * len(headers)
+    with conn.cursor() as cur:
+        cur.execute("""SELECT m.header_key, m.field, m.used FROM importing.mapping_memory m JOIN importing.jobs j ON j.org_id = m.org_id
+                       WHERE j.id = %s AND m.header_key = ANY(%s)""", (job_id, keys))
+        memory = {key: (field, used) for key, field, used in cur.fetchall()}
+    conn.commit()
+    chosen: list[str | None] = [None] * len(names)
+    note: list[str | None] = [None] * len(names)
     taken: set[str] = set()
 
     def free(field: str | None) -> bool:
         return bool(field) and (field in matching.MULTIPLE or field not in taken)
 
-    for i, key in enumerate(keys):
+    for n, key in enumerate(keys):
         if key in memory:
             field, used = memory[key]
-            note[i] = "used" if used else "unused"
+            note[n] = "used" if used else "unused"
             if used and free(field):
-                chosen[i] = field
+                chosen[n] = field
                 taken.add(field)
-    for i, header in enumerate(headers):
-        if note[i] is None:
+    for n, header in enumerate(names):
+        if note[n] is None:
             field = matching.suggest(header)
             if free(field):
-                chosen[i] = field
+                chosen[n] = field
                 taken.add(field)
     out = []
-    for i, header in enumerate(headers):
-        values = [(cells[i] if i < len(cells) else "") for cells in sample_rows]
+    for n, i in enumerate(offered):
+        values = [(cells[i] if i < len(cells) else "") or "" for cells in sample]
         seen: list[str] = []
         for value in map(str.strip, values):
             if value and value not in seen:
                 seen.append(value[:80])
             if len(seen) == 3:
                 break
-        detail = matching.source_detail(header)
-        suggested = chosen[i] or (standard_keys[i] if detail and note[i] != "unused" else None)
-        if suggested is None and note[i] is None and not detail:
+        detail = matching.source_detail(names[n])
+        suggested = chosen[n] or (standard_keys[n] if detail and note[n] != "unused" else None)
+        if suggested is None and note[n] is None and not detail:
             guess = matching.suggest_from_values(values)
             if free(guess):
                 suggested = guess
                 taken.add(guess)
-        out.append({"idx": i, "header": header, "key": keys[i], "suggested": suggested, "source_detail": detail,
-                    "standard_key": standard_keys[i], "remembered": note[i],
-                    "field": None, "used": None, "populated": populated[i], "samples": seen})
+        out.append({"idx": i, "header": names[n], "key": keys[n], "suggested": suggested, "source_detail": detail,
+                    "standard_key": standard_keys[n], "remembered": note[n],
+                    "field": None, "used": None, "populated": filled[i], "samples": seen})
     return out
 
 
@@ -476,38 +463,12 @@ def tune(cur: psycopg.Cursor) -> None:
     cur.execute(f"SET LOCAL work_mem = '{WORK_MEM}'")
 
 
-def run_ranges(conn: psycopg.Connection, job_id: str, low: int, high: int, size: int, work, on_result, parallel: bool = True) -> None:
-    """Calls work(connection, a, b) for each range of `size` row numbers from low to high and hands each answer to on_result in this thread,
-    as they finish. With PARALLEL > 1 (and parallel=True) the ranges run on that many connections of their own; the person
-    cancelling is noticed after each range, and then ranges not yet started are dropped."""
-    ranges = [(a, a + size) for a in range(low, high + 1, size)]
-    threads = min(PARALLEL, len(ranges)) if parallel else 1
-    if threads <= 1:
-        for a, b in ranges:
-            check_cancel(conn, job_id)
-            on_result(work(conn, a, b))
-        return
-    dsn = psycopg.conninfo.make_conninfo(conn.info.dsn, password=conn.info.password)
-    mine = threading.local()
-    opened: list[psycopg.Connection] = []
-
-    def open_connection() -> None:
-        own = psycopg.connect(dsn)
-        opened.append(own)
-        own.execute("SET search_path = importing, public")
-        own.commit()
-        mine.conn = own
-
-    pool = ThreadPoolExecutor(max_workers=threads, initializer=open_connection)
-    try:
-        futures = [pool.submit(lambda a=a, b=b: work(mine.conn, a, b)) for a, b in ranges]
-        for future in as_completed(futures):
-            check_cancel(conn, job_id)
-            on_result(future.result())
-    finally:
-        pool.shutdown(wait=True, cancel_futures=True)
-        for own in opened:
-            own.close()
+def run_ranges(conn: psycopg.Connection, job_id: str, low: int, high: int, size: int, work, on_result) -> None:
+    """Calls work(connection, a, b) for each range of `size` row numbers from low to high and hands each answer to on_result. The person
+    cancelling is noticed between ranges."""
+    for a in range(low, high + 1, size):
+        check_cancel(conn, job_id)
+        on_result(work(conn, a, a + size))
 
 
 def prefetch(batches, depth: int = 2):
@@ -551,42 +512,60 @@ def prefetch(batches, depth: int = 2):
         stop.set()
 
 
+def keep_columns(conn: psycopg.Connection, job: dict) -> list[dict]:
+    """After the person's answer: the columns that were kept, numbered by their place among the kept ones (which is their place in the
+    stored cells), each remembering its place in the file. The others are named in the report and are not loaded. Running it again
+    (a restart) gives the same answer."""
+    columns = job["columns"]
+    report = dict(job["report"] or {})
+    report.setdefault("dropped_columns", [c["header"] for c in columns if not c.get("used")])
+    kept = [dict(c) for c in columns if c.get("used")]
+    for position, column in enumerate(kept):
+        column["file_idx"] = column.get("file_idx", column["idx"])
+        column["idx"] = position
+    with conn.cursor() as cur:
+        cur.execute("UPDATE importing.jobs SET columns = %s::jsonb, report = %s::jsonb WHERE id = %s", (json.dumps(kept), json.dumps(report), job["id"]))
+    conn.commit()
+    job["columns"], job["report"] = kept, report
+    return kept
+
+
+def load_tidied(conn: psycopg.Connection, job: dict, columns: list[dict]) -> int:
+    """Reads the file and stores the kept columns of each row, already tidied: one write per row. Every batch is committed with the count
+    of rows consumed, so a restart carries on from the last batch. Returns the rows read."""
+    job_id = job["id"]
+    source = source_file(conn, job)
+    tidy = (*cleaning_sql(columns), source_data_sql(columns))
+    places = [c["file_idx"] for c in columns]
+    report = dict(job["report"] or {})
+    total = int(report.get("source_rows") or 0)
+    consumed = int(job.get("loaded_rows") or 0)
+    dropped = report.get("exact_duplicates", 0)
+    examples: list[dict] = report.get("exact_examples", [])
+    started = time.monotonic()
+    for _, frame in prefetch(readers.read_batches(source, job["has_header"], skip_rows=consumed)):
+        check_cancel(conn, job_id)
+        frame = frame.select([frame.columns[i] for i in places])
+        with conn.cursor() as cur:
+            kept, nonblank = stage_and_insert(cur, job_id, frame, consumed + 1, tidy)
+            dropped += nonblank - kept
+            if len(examples) < 10 and kept < nonblank:
+                examples += duplicate_examples(cur, job_id, 10 - len(examples))
+            consumed += frame.height
+            report.update(exact_duplicates=dropped, exact_examples=examples[:10])
+            cur.execute("UPDATE importing.jobs SET loaded_rows = %s, report = %s::jsonb WHERE id = %s", (consumed, json.dumps(report), job_id))
+            beat(cur, job_id, "cleaning", consumed, total=total, pct=min(40, int(40 * consumed / total)) if total else 0)
+        conn.commit()
+    job["report"] = report
+    log("INFO", "loaded and tidied", job=job_id, rows=consumed, duplicates=dropped, seconds=round(time.monotonic() - started, 1))
+    return consumed
+
+
 def clean(conn: psycopg.Connection, job: dict) -> None:
     job_id = job["id"]
-    columns = job["columns"]
-    expressions, lateral = cleaning_sql(columns)
-    source_data = source_data_sql(columns)
-    with conn.cursor() as cur:
-        cur.execute("SELECT coalesce(min(row_no), 0), coalesce(max(row_no), 0) FROM importing.rows WHERE job_id = %s", (job_id,))
-        low, high = cur.fetchone()
-    conn.commit()
-    done = 0
-    total = int(job.get("loaded_rows") or 0)
-    started = time.monotonic()
-    update = f"""
-        WITH c AS (SELECT row_no, {expressions}, {source_data} AS source_data FROM importing.rows{lateral} WHERE job_id = %(job)s AND state = 'loaded' AND row_no >= %(a)s AND row_no < %(b)s)
-        UPDATE importing.rows r SET name = c.name, phone = c.phone, email = c.email, address = c.address, unit = c.unit, city = c.city,
-               region = c.region, zip = c.zip, country = c.country, latitude = c.latitude, longitude = c.longitude, parcel = c.parcel,
-               value = c.value, source = c.source, source_data = c.source_data,
-               state = CASE WHEN c.name IS NULL AND c.phone IS NULL AND c.email IS NULL AND c.address IS NULL THEN 'skip' ELSE 'clean' END
-        FROM c WHERE r.job_id = %(job)s AND r.row_no = c.row_no"""
-
-    def tidy_range(own: psycopg.Connection, a: int, b: int) -> int:
-        with own.cursor() as cur:
-            cur.execute(update, {"job": job_id, "a": a, "b": b})
-            changed = cur.rowcount
-        own.commit()
-        return changed
-
-    def tidied(changed: int) -> None:
-        nonlocal done
-        done += changed
-        with conn.cursor() as cur:
-            beat(cur, job_id, "cleaning", done, total=total, pct=min(40, int(40 * done / total)) if total else 0)
-        conn.commit()
-        log("INFO", "cleaning batch", job=job_id, rows=done, seconds=round(time.monotonic() - started, 1))
-
-    run_ranges(conn, job_id, low, high, CLEAN_RANGE, tidy_range, tidied)
+    columns = keep_columns(conn, job)
+    done = load_tidied(conn, job, columns)
+    total = done
     with conn.cursor() as cur:
         cleared = cleared_cells(cur, job_id, columns)
     conn.commit()
@@ -611,7 +590,7 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
     step = time.monotonic()
     groups, auto_merged = find_repeats(conn, job, total=total)
     log("INFO", "repeats found", job=job_id, groups=groups, seconds=round(time.monotonic() - step, 1))
-    dropped = [c["header"] for c in columns if not c.get("used")]
+    dropped = job["report"].get("dropped_columns", [])
     with conn.cursor() as cur:
         cur.execute("""SELECT count(*) FILTER (WHERE state = 'skip' AND lead_id IS NULL),
                               count(*) FILTER (WHERE state = 'clean' AND phone IS NULL AND email IS NULL),
@@ -828,8 +807,8 @@ def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> tuple[i
         say(conn, job_id, "Comparing your list with the leads already in your account", round(share * to_compare), to_compare, 55 + int(37 * share),
             existing_leads=existing, found=len(matches))
 
-    # One connection: each extra one would build its own copy of the lead keys, which costs more than the comparing it shares out.
-    run_ranges(conn, job_id, low, high, MATCH_RANGE, compare_range, compared_range, parallel=False)
+    if existing:  # an account with no leads has nothing to compare with
+        run_ranges(conn, job_id, low, high, MATCH_RANGE, compare_range, compared_range)
     with conn.cursor() as cur:
         cur.execute("DROP TABLE IF EXISTS _lead_keys")
     conn.commit()
@@ -921,9 +900,13 @@ def _process(conn: psycopg.Connection, job: dict) -> None:
 
 
 def sweep_uploads(conn: psycopg.Connection) -> None:
-    """Clear abandoned uploads and worker-owned files after cancellation, failure or merge."""
+    """Clears abandoned uploads, the files of cancelled and failed imports, and every file older than KEEP_FILE_DAYS. An import still
+    waiting for its columns when its file goes is cancelled, since it can no longer be read."""
     conn.execute("""UPDATE importing.jobs SET status = 'cancelled', error = 'The upload was not finished in time.', updated_at = now()
                     WHERE status = 'uploading' AND updated_at < now() - interval '48 hours'""")
+    conn.execute("""UPDATE importing.jobs SET status = 'cancelled', updated_at = now(),
+                           error = 'The columns of this list were not confirmed in time and its file has been deleted. Upload the list again.'
+                    WHERE status = 'mapping' AND created_at < now() - make_interval(days => %s)""", (KEEP_FILE_DAYS,))
     conn.commit()
     if not IMPORT_DIR.exists():
         return
@@ -931,10 +914,10 @@ def sweep_uploads(conn: psycopg.Connection) -> None:
         if not folder.is_dir():
             continue
         with conn.cursor() as cur:
-            cur.execute("SELECT status FROM importing.jobs WHERE id::text = %s", (folder.name,))
+            cur.execute("SELECT status, created_at < now() - make_interval(days => %s) FROM importing.jobs WHERE id::text = %s", (KEEP_FILE_DAYS, folder.name))
             row = cur.fetchone()
         conn.commit()
-        if row is None or row[0] in {"cancelled", "failed", "done", "mapping", "reviewing", "ready", "merging", "call_ready", "call_merging"}:
+        if row is None or row[0] in {"cancelled", "failed"} or row[1]:
             shutil.rmtree(folder, ignore_errors=True)
 
 

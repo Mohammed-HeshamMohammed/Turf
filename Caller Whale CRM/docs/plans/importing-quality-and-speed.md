@@ -1,6 +1,8 @@
 # Importing lists: data quality and speed
 
-**Status:** Plan (2026-11-10). Nothing in this document is built yet. It follows the work already in `main` (reader fixes, cleaning report, same-person questions, merge log, preview, column memory, parallel tidying).
+**Status:** Partly built (2026-11-10). Built: the columns are asked about first and only the kept ones are loaded, tidied, in one write (this replaces B0, B5 and B6 below); relatives' columns are left out; the uploaded file is kept 30 days and then deleted, and the person is told the date; the comparison is skipped when the account has no leads; `Owner MOBILE/LANDLINE/VOIP n` headings are recognised as phones. On the real 407-column list: 1,170 seconds before, 162 after (survey 8, load and tidy 98, merge identical rows 25, repeats 19, the rest 12). Not built: everything else in Part A, B1 to B4, reading a list again from its kept file to add a column, and more than one phone per lead.
+
+What follows is the plan as written before that work. It follows the work already in `main` (reader fixes, cleaning report, same-person questions, merge log, preview, column memory, parallel tidying).
 
 Two parts: **A** brings the tidying and matching up to published practice; **B** makes a 1,000,000-row list fast. B changes how rows are written, so do B before the parts of A that touch the same statements (A1, A3, A4).
 

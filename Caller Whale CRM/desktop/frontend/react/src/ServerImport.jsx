@@ -121,6 +121,12 @@ function QueueNote({ queue, onStopFront, stopping }) {
     </div>
   );
 }
+/** Until when the uploaded file is kept; the person is always told that it is deleted after. */
+function FileKept({ report }) {
+  if (!report.file_kept_until) return null;
+  const day = new Date(report.file_kept_until + "T00:00:00").toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return <p className="muted">The file you uploaded is kept until {day} and is then deleted. Only the columns you keep are stored in this list.</p>;
+}
 const megabytes = (bytes) => (bytes / 1048576 >= 10 ? Math.round(bytes / 1048576).toLocaleString() : (bytes / 1048576).toFixed(1)) + " MB";
 
 export function ServerImport({ resume = "", initialFile = null, projectId = null, projectName = "", onClose, onFinished, onStarted }) {
@@ -319,6 +325,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
         {((!job && !resume) || canResumeUpload) && !sent && (
           <>
             <p className="muted">{canResumeUpload ? "Choose the same file to resume sending this list." : "CSV, TXT, XLSX or XLS. Big lists are sent in pieces and read on Caller Whale's server."}</p>
+            {!canResumeUpload && <p className="muted">The file you upload is kept on Caller Whale's server for a limited time and is then deleted. You are shown the date once it has been read.</p>}
             <input
               ref={input}
               type="file"
@@ -381,10 +388,12 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
           <>
             <p className="muted">
               {number(columns.filter(column => column.standard_key).length)} of {number(columns.length)} remaining columns recognized. Source fields keep their original values in this list; recognized property details also appear on new properties.
-              {report.exact_duplicates > 0 && ` ${number(report.exact_duplicates)} identical rows were removed.`}
               {(report.empty_columns_removed || []).length > 0 && ` ${number(report.empty_columns_removed.length)} completely empty columns were removed from the source rows.`}
             </p>
             {(report.other_sheets || []).length > 0 && <p className="muted">Only one sheet of this workbook was read. Not imported: {report.other_sheets.join(", ")}.</p>}
+            {report.relatives_left_out > 0 && <p className="muted">{number(report.relatives_left_out)} columns about the owner's relatives were left out: that data is often wrong and is not the lead.</p>}
+            <p className="muted">Columns you set to "Not used" are not stored in this list.</p>
+            <FileKept report={report} />
             <div className="import-columns" role="table" aria-label="Columns in your list">
               {columns.map((column) => (
                 <div className="import-column" role="row" key={column.idx}>
@@ -409,7 +418,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
                         })
                       }
                     >
-                      <option value="">Source row only</option>
+                      <option value="">Not used (not stored)</option>
                       <option value="" disabled>Lead fields</option>
                       {IMPORT_FIELDS.map(([key, label]) => (
                         <option key={key} value={key}>
@@ -522,6 +531,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
               </div>
             )}
             <CleaningNotes report={report} />
+            <FileKept report={report} />
             <dl className="import-summary">
               <div>
                 <dt>Rows in your file</dt>
@@ -568,6 +578,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
               {number(job.merged_rows)} rows were added or merged for <strong>{job.name}</strong>.
               {report.exact_existing > 0 && ` ${number(report.exact_existing)} identical rows were already in the CRM and linked automatically.`}
             </p>
+            <FileKept report={report} />
             {(merges?.rows || []).length > 0 && (
               <div className="merge-log">
                 <h3>Rows added to leads you already had</h3>

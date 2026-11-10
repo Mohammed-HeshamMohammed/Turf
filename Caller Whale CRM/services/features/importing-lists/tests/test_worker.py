@@ -338,17 +338,55 @@ class EndToEndTest(unittest.TestCase):
         self.conn.commit()
         return row
 
-    def test_only_columns_blank_across_every_row_are_removed(self) -> None:
-        job_id = self.queue(b"Name,Blank,Phone,Sparse\nA,  ,5551111,\nB,,5552222,kept\n")
+    def confirm(self, job_id: str, keep=lambda column: column["suggested"] is not None) -> dict:
+        """What crm-core does when the person answers: each column gets its field and whether it is kept; then the worker loads and tidies."""
+        columns = self.job(job_id)["columns"]
+        for c in columns:
+            c["used"] = bool(keep(c))
+            c["field"] = c["suggested"] if c["used"] else None
+        self.conn.execute("UPDATE importing.jobs SET columns = %s::jsonb, status = 'cleaning', heartbeat_at = NULL WHERE id = %s", (json.dumps(columns), job_id))
+        self.conn.commit()
+        self.worker.clean(self.conn, self.worker.claim(self.conn))
+        return self.job(job_id)
+
+    def test_the_columns_are_asked_about_before_any_row_is_stored_and_only_the_kept_ones_are_loaded(self) -> None:
+        job_id = self.queue(b"Name,Blank,Phone,Sparse,Relative 1 MOBILE 1,Relative 1 First Name\nA,  ,5125551111,,5125559999,Zed\nB,,5125552222,kept,,\n")
         self.worker.load(self.conn, self.worker.claim(self.conn))
         job = self.job(job_id)
+        # Empty columns and the relatives' columns are not offered; a column is known by its place in the file.
         self.assertEqual([column["header"] for column in job["columns"]], ["Name", "Phone", "Sparse"])
-        self.assertEqual([column["idx"] for column in job["columns"]], [0, 1, 2])
-        self.assertEqual(job["report"]["empty_columns_removed"], ["Blank"])
+        self.assertEqual([column["idx"] for column in job["columns"]], [0, 2, 3])
+        self.assertEqual((job["report"]["empty_columns_removed"], job["report"]["relatives_left_out"], job["report"]["rows"]), (["Blank"], 2, 2))
+        self.assertEqual(job["columns"][1]["populated"], 2)
         with self.conn.cursor() as cur:
-            cur.execute("SELECT cells FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
-            self.assertEqual([row[0] for row in cur.fetchall()], [["A", "5551111", ""], ["B", "5552222", "kept"]])
+            cur.execute("SELECT count(*) FROM importing.rows WHERE job_id = %s", (job_id,))
+            self.assertEqual(cur.fetchone()[0], 0)
         self.conn.commit()
+        # The file stays, to be read once the person has answered, and the person is told until when.
+        self.assertTrue(list(self.worker.IMPORT_DIR.joinpath(job_id).glob("source*")))
+        self.assertRegex(job["report"]["file_kept_until"], r"^\d{4}-\d{2}-\d{2}$")
+
+        job = self.confirm(job_id)  # Name and Phone are kept; "Sparse" says nothing the CRM uses
+        self.assertEqual([(c["header"], c["idx"], c["file_idx"]) for c in job["columns"]], [("Name", 0, 0), ("Phone", 1, 2)])
+        self.assertEqual(job["report"]["dropped_columns"], ["Sparse"])
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT cells, name, phone, state FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            self.assertEqual(cur.fetchall(), [(["A", "5125551111"], "A", "5125551111", "clean"), (["B", "5125552222"], "B", "5125552222", "clean")])
+        self.conn.commit()
+
+    def test_the_uploaded_file_is_deleted_after_its_days_and_an_unanswered_list_is_cancelled_with_it(self) -> None:
+        job_id = self.queue(b"Name,Phone\nA,5125551111\n")
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        folder = self.worker.IMPORT_DIR / job_id
+        self.worker.sweep_uploads(self.conn)
+        self.assertTrue(folder.exists())
+        self.conn.execute("UPDATE importing.jobs SET created_at = now() - make_interval(days => %s) WHERE id = %s", (self.worker.KEEP_FILE_DAYS + 1, job_id))
+        self.conn.commit()
+        self.worker.sweep_uploads(self.conn)
+        self.assertFalse(folder.exists())
+        job = self.job(job_id)
+        self.assertEqual(job["status"], "cancelled")
+        self.assertIn("Upload the list again", job["error"])
 
     def test_columns_are_suggested_from_what_the_workspace_decided_before_then_the_heading_then_the_cells(self) -> None:
         self.conn.execute("""INSERT INTO importing.mapping_memory (org_id, header_key, field, used) VALUES
@@ -424,22 +462,6 @@ class EndToEndTest(unittest.TestCase):
         job_id, job = self.clean_phone_list(data)
         self.assertEqual((job["status"], job["report"]["line_types"]), ("ready", "unavailable"))
 
-    def test_tidying_and_matching_in_parallel_give_the_same_answer_as_one_after_another(self) -> None:
-        rows = "Name,Phone"+"\n"+"".join(f"Person {i},51255501{i:02d}"+"\n" for i in range(60)) + "Lee Existing,5125550199"+"\n"
-        results = []
-        for name in ("PARALLEL", "CLEAN_RANGE", "MATCH_RANGE"):
-            self.addCleanup(setattr, self.worker, name, getattr(self.worker, name))
-        for parallel in (1, 4):
-            self.worker.PARALLEL, self.worker.CLEAN_RANGE, self.worker.MATCH_RANGE = parallel, 7, 7
-            job_id, job = self.clean_phone_list(rows.encode())
-            with self.conn.cursor() as cur:
-                cur.execute("SELECT row_no, state, phone, match_lead IS NOT NULL FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
-                results.append((job["status"], job["report"]["near_groups"], cur.fetchall()))
-            self.conn.commit()
-        self.assertEqual(results[0], results[1])
-        self.assertEqual((results[1][0], results[1][1]), ("reviewing", 1))  # the row that is Lee Existing is asked about, the other 60 are clean
-        self.assertEqual(sum(1 for r in results[1][2] if r[1] == "clean"), 60)
-
     def test_a_phone_alone_matching_a_lead_with_another_name_is_asked_about_never_merged(self) -> None:
         # "Lee Existing" is in the CRM with (512) 555-0199. Another name on the same phone may be someone else at a shared number.
         job_id, job = self.clean_phone_list(b'Name,Phone\nPat Other,5125550199\nSam New,5125550222\n')
@@ -486,15 +508,12 @@ class EndToEndTest(unittest.TestCase):
 
         job = self.job(job_id)
         self.assertEqual(job["status"], "mapping")
-        self.assertEqual(job["report"]["exact_duplicates"], 1)
         self.assertEqual(job["report"]["empty_rows"], 1)
-        self.assertEqual(job["report"]["exact_examples"], [{"row": 2, "same_as": 1}])
-        self.assertEqual(job["report"]["rows"], 4)
+        self.assertEqual(job["report"]["rows"], 5)  # identical rows are found when the rows are loaded, after the columns are confirmed
         columns = job["columns"]
         self.assertEqual([c["suggested"] for c in columns], ["name", "phone", "email", "address", "city", "region", "zip", None])
-        self.assertEqual(columns[1]["populated"], 4)
+        self.assertEqual(columns[1]["populated"], 5)
         self.assertEqual(columns[1]["standard_key"], "phone")
-        self.assertEqual(list(self.worker.IMPORT_DIR.joinpath(job_id).glob("*")), [])
 
         # The person keeps what the CRM uses and sets "Bathroom style" aside; crm-core then moves the job on.
         for c in columns:
@@ -523,6 +542,7 @@ class EndToEndTest(unittest.TestCase):
         self.conn.commit()
         job = self.job(job_id)
         self.assertEqual((job["status"], job["report"]["near_groups"], job["report"]["dropped_columns"]), ("reviewing", 2, ["Bathroom style"]))
+        self.assertEqual((job["report"]["exact_duplicates"], job["report"]["exact_examples"]), (1, [{"row": 2, "same_as": 1}]))
 
         # The second import was taken on by another worker while the first was running.
         self.assertEqual(self.job(second)["status"], "loading")
@@ -575,6 +595,7 @@ class EndToEndTest(unittest.TestCase):
         original = b"Name,Phone,Address\nPat Owner,5125550100,1 Main St\n"
         prior = self.queue(original)
         self.worker.load(self.conn, self.worker.claim(self.conn))
+        self.confirm(prior)
         with self.conn.cursor() as cur:
             cur.execute("""INSERT INTO crm.leads (org_id, name, phone)
                            VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Pat Owner', '5125550100') RETURNING id""")

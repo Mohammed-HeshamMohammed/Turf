@@ -180,7 +180,7 @@ type columnChoice struct {
 }
 
 // importMapping records the person's answer: lead fields and structured source-only fields.
-// Original values stay in the holding table even for columns that were not mapped.
+// The worker then loads only the columns that were kept; the others are not stored (the uploaded file is kept for a set time).
 func (s *server) importMapping(q *req) error {
 	if err := s.importRights(q); err != nil {
 		return err
