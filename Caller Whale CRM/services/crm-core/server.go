@@ -130,6 +130,8 @@ func (s *server) handler() http.Handler {
 	mux.Handle("GET /api/v1/imports/{id}/duplicates", s.member(s.importDuplicates))
 	mux.Handle("POST /api/v1/imports/{id}/duplicates", s.member(s.importDecide))
 	mux.Handle("GET /api/v1/imports/{id}/preview", s.member(s.importPreview))
+	mux.Handle("GET /api/v1/imports/{id}/cleared", s.member(s.importCleared))
+	mux.Handle("POST /api/v1/imports/{id}/columns-again", s.member(s.importColumnsAgain))
 	mux.Handle("GET /api/v1/imports/{id}/merges", s.member(s.importMerges))
 	mux.Handle("POST /api/v1/imports/{id}/rows/{row}/undo-merge", s.member(s.importUndoMerge))
 	mux.Handle("POST /api/v1/imports/{id}/merge", s.member(s.importMerge))

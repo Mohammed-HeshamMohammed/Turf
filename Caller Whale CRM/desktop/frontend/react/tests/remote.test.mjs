@@ -270,3 +270,48 @@ test("a source list whose leads have no phone number and no email is marked as a
   old.projects = [{ id: "none", name: "None" }];
   assert.equal(collectionsFromStore(old).datasets[0].status, "Checked");
 });
+
+test("the first load of the records shows the first leads at once and each later page as it arrives", async () => {
+  const lead = n => ({ ...serverLead, id: `lead-${n}`, name: `Lead ${n}` });
+  const pages = [
+    { ...snapshot, leads: [lead(1), lead(2)], leads_total: 5, next: "page-2" },
+    { leads: [lead(3), lead(4)], next: "page-3" },
+    { leads: [lead(5)], next: "" },
+  ];
+  const asked = [];
+  const api = {
+    snapshot: async page => {
+      asked.push(page);
+      return pages[asked.length - 1];
+    },
+    push: async () => ({ results: [] }),
+    pull: async () => ({ cursor: 10, changes: [], more: false }),
+  };
+  const shown = [];
+  const vault = new MemoryVault();
+  const engine = new SyncEngine({ vault, api, socket: false, onChange: change => shown.push([change.store ? Object.keys(change.store.leads).length : 0, change.progress]) });
+  await engine.start({ organizationId: "o", directory, teams: [], projects: [] });
+  await engine.sync();
+  assert.deepEqual(asked.map(page => page.after || null), [null, "page-2", "page-3"]);
+  assert.equal(Object.keys(engine.store.leads).length, 5);
+  assert.equal(engine.store.partial, undefined, "the copy is whole once the last page is in");
+  assert.equal((await vault.get("store")).partial, undefined);
+  // Two leads were on the screen before the third arrived, and the screen was told how far it had got.
+  assert.ok(shown.some(([count, progress]) => count === 2 && progress?.loaded === 2 && progress.total === 5));
+  assert.ok(shown.some(([count, progress]) => count === 4 && progress?.loaded === 4));
+  assert.equal(engine.progress, null);
+  engine.stop();
+});
+
+test("a copy whose first load was cut short is thrown away and taken again", async () => {
+  const vault = new MemoryVault();
+  await vault.put("store", { organizationId: "o", cursor: 1, partial: true, leads: { half: { id: "half" } } });
+  let taken = 0;
+  const api = { snapshot: async () => (taken++, { ...snapshot, leads: [] }), push: async () => ({ results: [] }), pull: async () => ({ cursor: 10, changes: [], more: false }) };
+  const engine = new SyncEngine({ vault, api, socket: false });
+  await engine.start({ organizationId: "o", directory: [], teams: [], projects: [] });
+  await engine.sync();
+  assert.equal(taken, 1);
+  assert.deepEqual(Object.keys(engine.store.leads), []);
+  engine.stop();
+});

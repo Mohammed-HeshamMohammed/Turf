@@ -604,9 +604,9 @@ func mergeBatchIn(ctx context.Context, tx pgx.Tx, sc scope, id string, project, 
 				importing.property_details(source_data)
 			FROM batch WHERE address IS NOT NULL OR zip IS NOT NULL OR city IS NOT NULL OR latitude IS NOT NULL RETURNING id
 		), ins AS (
-			INSERT INTO leads (id, org_id, project_id, team_id, property_id, assignee_id, name, phone, email, source, value_amount, stage)
+			INSERT INTO leads (id, org_id, project_id, team_id, property_id, assignee_id, name, phone, email, source, value_amount, stage, contacts)
 			SELECT new_lead_id, cw_org(), $3::uuid, $4::uuid, p.id, $5::uuid, coalesce(nullif(b.name, ''), nullif(b.phone, ''), nullif(b.email, ''), nullif(b.address, ''), 'Unnamed lead'),
-				coalesce(b.phone, ''), coalesce(b.email, ''), coalesce(nullif(b.source, ''), $6), b.value, 'New'
+				coalesce(b.phone, ''), coalesce(b.email, ''), coalesce(nullif(b.source, ''), $6), b.value, 'New', coalesce(b.contacts, '{}')
 			FROM batch b LEFT JOIN props p ON p.id = b.prop_id RETURNING id
 		), feed AS (
 			INSERT INTO change_log (org_id, entity, entity_id, lead_id, op) SELECT cw_org(), 'lead', id, id, 'upsert' FROM ins RETURNING 1
@@ -621,18 +621,19 @@ func mergeBatchIn(ctx context.Context, tx pgx.Tx, sc scope, id string, project, 
 	var folded int64
 	err = tx.QueryRow(ctx, `
 		WITH picked AS (
-			SELECT r.row_no, r.match_lead, r.phone, r.email FROM importing.rows r
+			SELECT r.row_no, r.match_lead, r.phone, r.email, r.contacts FROM importing.rows r
 			WHERE r.job_id = $1 AND r.state = 'merge' ORDER BY r.row_no LIMIT $2 FOR UPDATE SKIP LOCKED
 		), batch AS (
 			-- Several rows of one batch may match the same lead; only the first writes (an update takes one row per lead), so only it is
 			-- written down as having filled something, and the others as having filled nothing.
-			SELECT p.row_no, p.match_lead, p.rn, CASE WHEN p.rn = 1 THEN p.phone END AS phone, CASE WHEN p.rn = 1 THEN p.email END AS email,
+			SELECT p.row_no, p.match_lead, p.rn, p.contacts, CASE WHEN p.rn = 1 THEN p.phone END AS phone, CASE WHEN p.rn = 1 THEN p.email END AS email,
 				CASE WHEN p.rn = 1 THEN array_remove(ARRAY[CASE WHEN l.phone = '' AND p.phone IS NOT NULL THEN 'phone' END, CASE WHEN l.email = '' AND p.email IS NOT NULL THEN 'email' END], NULL)
 					ELSE ARRAY[]::text[] END AS filled
 			FROM (SELECT picked.*, row_number() OVER (PARTITION BY match_lead ORDER BY row_no) AS rn FROM picked) p LEFT JOIN leads l ON l.id = p.match_lead
 		), upd AS (
 			UPDATE leads l SET phone = CASE WHEN l.phone = '' THEN coalesce(b.phone, '') ELSE l.phone END,
-				email = CASE WHEN l.email = '' THEN coalesce(b.email, '') ELSE l.email END, version = l.version + 1, updated_at = now()
+				email = CASE WHEN l.email = '' THEN coalesce(b.email, '') ELSE l.email END,
+				contacts = CASE WHEN l.contacts = '{}' THEN coalesce(b.contacts, '{}') ELSE l.contacts END, version = l.version + 1, updated_at = now()
 			FROM batch b WHERE b.rn = 1 AND l.id = b.match_lead AND l.org_id = cw_org() AND l.deleted_at IS NULL RETURNING l.id
 		), feed AS (
 			INSERT INTO change_log (org_id, entity, entity_id, lead_id, op) SELECT cw_org(), 'lead', id, id, 'upsert' FROM upd RETURNING 1

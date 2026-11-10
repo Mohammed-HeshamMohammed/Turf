@@ -57,15 +57,63 @@ function RepeatRow({ row, group, columns }) {
 
 const CLEARED = {
   phone: "Phone cells that were not a phone number",
-  phone_made_up: "Phone numbers that were made up (such as 5555555555), left out",
+  phone_made_up: "Phone numbers that do not exist (an area code nobody has, or made up like 5555555555), left out",
   email: "Emails that were not valid, left out",
   value: "Values that were not a number, left out",
   latitude: "Latitudes outside the map, left out",
   longitude: "Longitudes outside the map, left out",
 };
 
+/** The rows behind one count: what was in the cell and could not be used, with a file of them to fix and send again. */
+function ClearedRows({ jobId, field, label }) {
+  const [page, setPage] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState("");
+  async function load(offset) {
+    setBusy(true);
+    setFailed("");
+    try {
+      const next = await api.imports.cleared(jobId, field, offset);
+      setPage(current => (offset && current ? { ...next, rows: [...current.rows, ...next.rows] } : next));
+    } catch (reason) {
+      setFailed(reason.message || "The rows could not be loaded.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  function download() {
+    const quote = value => `"${String(value ?? "").replaceAll('"', '""')}"`;
+    const lines = [["Row", "Name", ...page.headers], ...page.rows.map(row => [row.row_no, row.name, ...row.values])].map(line => line.map(quote).join(","));
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv" }));
+    link.download = `${field}-rows.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+  if (!page) return <Button disabled={busy} onClick={() => load(0)}>{busy ? "Loading…" : "Show the rows"}</Button>;
+  return (
+    <div className="cleared-rows">
+      <p className="muted">{label}: {number(page.total)} {page.total === 1 ? "row" : "rows"}. The row number is the row's place in your file.</p>
+      <ul className="import-repeats">
+        {page.rows.map(row => (
+          <li key={row.row_no}>
+            <strong>Row {number(row.row_no)}{row.name ? ` · ${row.name}` : ""}</strong>
+            <small>{page.headers.map((header, i) => (row.values[i] ? `${header}: ${row.values[i]}` : "")).filter(Boolean).join(" · ")}</small>
+          </li>
+        ))}
+      </ul>
+      {failed && <p className="notice" role="alert">{failed}</p>}
+      <div className="import-actions">
+        {page.rows.length < page.total && <Button disabled={busy} onClick={() => load(page.rows.length)}>{busy ? "Loading…" : "Show more"}</Button>}
+        <Button onClick={download}>Download these rows</Button>
+        <Button onClick={() => setPage(null)}>Hide</Button>
+      </div>
+    </div>
+  );
+}
+
 /** What the tidying did to the data, in counts: cells it could not use, sheets it did not read, mobile and landline numbers. */
-function CleaningNotes({ report }) {
+function CleaningNotes({ report, jobId }) {
   const cleared = Object.entries(report.cleared_cells || {});
   const types = report.line_types;
   if (!cleared.length && !(report.other_sheets || []).length && !types) return null;
@@ -84,6 +132,7 @@ function CleaningNotes({ report }) {
           ))}
         </dl>
       )}
+      {jobId && cleared.map(([key]) => <ClearedRows key={key} jobId={jobId} field={key} label={CLEARED[key] || key} />)}
       {types === "unavailable" && <p className="muted">Mobile and landline numbers could not be checked this time. The list was tidied without it.</p>}
       {types && types !== "unavailable" && (
         <p className="muted">Phone line types: {Object.entries(types).map(([kind, count]) => `${kind} ${number(count)}`).join(" · ")}.</p>
@@ -235,6 +284,14 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
     }
   }
 
+  // Back to "What is in each column?": the rows loaded so far are dropped and the kept file is read again, with the last answers remembered.
+  function chooseColumnsAgain() {
+    setChoices({});
+    setRepeats(null);
+    setPreview(null);
+    return act(() => api.imports.columnsAgain(job.id), "Reading the list again. Your last answers are remembered.");
+  }
+
   async function undoMerge(row) {
     setBusy(true);
     try {
@@ -347,6 +404,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
                 </span>
               )}
             </div>
+            {!canResumeUpload && <p className="muted">Starting a list from nothing? <a className="text-link" href="/caller-whale-list-template.csv" download>Download a template</a> with the headings Caller Whale recognises.</p>}
             {!canResumeUpload && <Field label="List name">
               <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Austin owners" maxLength={200} />
             </Field>}
@@ -459,7 +517,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
               {report.identical_merged > 0 && `${number(report.identical_merged)} rows that were exactly the same as another were merged. `}
               {report.certain_matches_merged > 0 && `${number(report.certain_matches_merged)} rows that match a lead you already have on everything were merged into it. `}
               {number(report.near_groups)} {report.near_groups === 1 ? "group may contain" : "groups may contain"} repeat leads.
-              Names match along with a phone number, email, or address, but the rows are not exactly the same (rows that are exactly the same were merged for you). Whole rows are shown, with what differs marked.
+              The name and the property are the same, or the names are nearly the same, along with a phone number, email or address; the rows are not exactly the same (those were merged for you). The same owner with another property is a separate lead and is not listed. Whole rows are shown, with what differs marked.
             </p>
             <div className="import-repeat-groups">
               {repeatGroups.slice(0, repeatLimit).map(group => (
@@ -491,6 +549,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
             )}
             <Checkbox checked={keepLast} onChange={(event) => setKeepLast(event.target.checked)} label="When repeats are merged, keep the last row of each group instead of the first" />
             <div className="import-actions">
+              <Button disabled={busy} onClick={chooseColumnsAgain}>Choose the columns again</Button>
               <Button disabled={busy} onClick={() => act(() => api.imports.decide(job.id, { all: "merge", only: "existing", keep: keepLast ? "last" : "first" }), "Matches with leads you already have marked to merge.")}>
                 Merge only those matching my leads
               </Button>
@@ -530,7 +589,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
                 )}
               </div>
             )}
-            <CleaningNotes report={report} />
+            <CleaningNotes report={report} jobId={job.id} />
             <FileKept report={report} />
             <dl className="import-summary">
               <div>
@@ -565,6 +624,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
             )}
             <div className="import-actions">
               <Button onClick={cancel}>Cancel import</Button>
+              <Button disabled={busy} onClick={chooseColumnsAgain}>Choose the columns again</Button>
               <Button variant="primary" disabled={busy} onClick={() => act(() => api.imports.merge(job.id), "Adding source rows to CRM leads.")}>
                 Add to my leads
               </Button>

@@ -16,3 +16,6 @@ MAX_IMPORT_MB=20480
 # IMPORT_WORK_MEM=256MB
 # Days the uploaded file is kept after it arrives, then deleted; default 30. The person is shown the date. Plan the volume for it.
 # IMPORT_KEEP_FILE_DAYS=30
+# The country a phone number written without a country code belongs to (ISO code); default US. Ten-digit North American numbers are
+# checked against the area codes that exist.
+# IMPORT_PHONE_REGION=US

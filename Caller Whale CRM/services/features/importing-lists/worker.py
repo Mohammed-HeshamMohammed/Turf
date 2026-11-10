@@ -6,6 +6,7 @@ database login this runs under can write only the holding tables and read only t
 
 Heavy steps run inside polars (parsing, building rows) or PostgreSQL (fingerprints, cleaning, joins); Python only moves batches.
 Every batch is committed together with the count of rows consumed, so a restart carries on from the last batch."""
+import difflib
 import json
 import os
 import queue
@@ -17,6 +18,7 @@ import time
 import traceback
 from pathlib import Path
 
+import phonenumbers
 import polars as pl
 import psycopg
 
@@ -36,6 +38,9 @@ MAX_RECLAIMS = 2
 CLEAN_RANGE = int(os.environ.get("IMPORT_CLEAN_ROWS", "5000"))  # rows tidied between two reports of progress
 # Days the uploaded file is kept after it arrives (so a list can be read again with other columns), then deleted. The person is told the date.
 KEEP_FILE_DAYS = int(os.environ.get("IMPORT_KEEP_FILE_DAYS", "30"))
+# The country a phone number written without a country code belongs to (ISO code). Numbers of that country's length are checked against
+# its numbering plan, as Google's libphonenumber knows it.
+PHONE_REGION = os.environ.get("IMPORT_PHONE_REGION", "US").upper()
 WORK_MEM = os.environ.get("IMPORT_WORK_MEM", "256MB")  # memory one sort or hash in the matching steps may use before spilling to disk
 MATCH_RANGE = int(os.environ.get("IMPORT_MATCH_ROWS", "5000"))  # rows compared with the existing leads between two reports
 
@@ -98,36 +103,45 @@ def array_literals(frame: pl.DataFrame) -> pl.Series:
     return frame.select((pl.lit("{") + pl.concat_str(quoted, separator=",") + pl.lit("}")).alias("cells")).to_series()
 
 
-def stage_and_insert(cur: psycopg.Cursor, job_id: str, frame: pl.DataFrame, first_row_no: int, tidy: tuple[str, str, str] | None = None) -> tuple[int, int]:
+FINGERPRINT = "sha256(convert_to(array_to_string(cells, chr(31)), 'UTF8'))"
+
+
+def stage_and_insert(cur: psycopg.Cursor, job_id: str, frame: pl.DataFrame, first_row_no: int, tidy: tuple | None = None) -> tuple[int, int]:
     """Puts one batch in the holding table. Row numbers follow the file, blank lines included, so a row can be found again in the
     original; blank lines are left out and identical rows (same fingerprint) are dropped. With `tidy` (the cleaning expressions, their
-    LATERAL parts and the source-data expression) each row is written once, already tidied, instead of being stored and updated later.
+    LATERAL parts, the source-data expression, and where the phone, email, address and ZIP cells are) each row is written once, already tidied,
+    instead of being stored and updated later.
     Returns (rows kept, rows that were not blank)."""
     numbered = frame.with_row_index("n").filter(~pl.all_horizontal(pl.exclude("n").str.strip_chars() == ""))
-    cur.execute("CREATE TEMP TABLE IF NOT EXISTS _stage (row_no bigint, cells text[], fp bytea)")
+    kept = numbered.drop("n")
+    cur.execute("CREATE TEMP TABLE IF NOT EXISTS _stage (row_no bigint, cells text[], ph text[], pj text, ej text, ak text)")
     cur.execute("TRUNCATE _stage")
-    staged = pl.DataFrame({"row_no": numbered["n"].cast(pl.Int64) + first_row_no, "cells": array_literals(numbered.drop("n"))})
-    with cur.copy("COPY _stage (row_no, cells) FROM STDIN (FORMAT csv)") as copy:
-        copy.write(staged.write_csv(include_header=False))
-    cur.execute("UPDATE _stage SET fp = sha256(convert_to(array_to_string(cells, chr(31)), 'UTF8'))")
+    staged = pl.DataFrame({"row_no": numbered["n"].cast(pl.Int64) + first_row_no, "cells": array_literals(kept)})
     if tidy is None:
-        cur.execute("INSERT INTO importing.rows (job_id, row_no, fp, cells) SELECT %s, row_no, fp, cells FROM _stage ON CONFLICT DO NOTHING", (job_id,))
+        with cur.copy("COPY _stage (row_no, cells) FROM STDIN (FORMAT csv)") as copy:
+            copy.write(staged.write_csv(include_header=False))
+        cur.execute(f"INSERT INTO importing.rows (job_id, row_no, fp, cells) SELECT %s, row_no, {FINGERPRINT}, cells FROM _stage ON CONFLICT DO NOTHING", (job_id,))
     else:
-        expressions, lateral, source_data = tidy
+        expressions, lateral, source_data, places = tidy
+        staged = pl.concat([staged, contact_columns(kept, *places)], how="horizontal")
+        with cur.copy("COPY _stage (row_no, cells, ph, pj, ej, ak) FROM STDIN (FORMAT csv)") as copy:
+            copy.write(staged.write_csv(include_header=False))
         cur.execute(f"""
             INSERT INTO importing.rows (job_id, row_no, fp, cells, name, phone, email, address, unit, city, region, zip, country, latitude, longitude,
-                                        parcel, value, source, source_data, state)
+                                        parcel, value, source, contacts, source_data, addr_key, state)
             SELECT %(job)s, row_no, fp, cells, name, phone, email, address, unit, city, region, zip, country, latitude, longitude, parcel, value, source,
-                   source_data, CASE WHEN name IS NULL AND phone IS NULL AND email IS NULL AND address IS NULL THEN 'skip' ELSE 'clean' END
-            FROM (SELECT row_no, fp, cells, {expressions}, {source_data} AS source_data FROM _stage{lateral}) c
+                   contacts, source_data, nullif(ak, ''),
+                   CASE WHEN name IS NULL AND phone IS NULL AND email IS NULL AND address IS NULL THEN 'skip' ELSE 'clean' END
+            FROM (SELECT row_no, {FINGERPRINT} AS fp, cells, ak, {expressions}, {source_data} AS source_data FROM _stage{lateral}) c
             ON CONFLICT DO NOTHING""", {"job": job_id})
     return cur.rowcount, numbered.height
 
 
 def duplicate_examples(cur: psycopg.Cursor, job_id: str, limit: int) -> list[dict]:
     """Rows of the batch just staged that were dropped, with the row that stayed in their place."""
-    cur.execute("""SELECT s.row_no, o.row_no FROM _stage s JOIN importing.rows o ON o.job_id = %s AND o.fp = s.fp
-                   WHERE o.row_no <> s.row_no ORDER BY s.row_no LIMIT %s""", (job_id, limit))
+    cur.execute(f"""SELECT s.row_no, o.row_no FROM (SELECT row_no, {FINGERPRINT} AS fp FROM _stage) s
+                    JOIN importing.rows o ON o.job_id = %s AND o.fp = s.fp
+                    WHERE o.row_no <> s.row_no ORDER BY s.row_no LIMIT %s""", (job_id, limit))
     return [{"row": a, "same_as": b} for a, b in cur.fetchall()]
 
 
@@ -316,14 +330,82 @@ EMAIL_OK = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
 BUSINESS_WORDS = "llc|inc|ltd|llp|lp|corp|co|company|trust|estate|bank|properties|holdings"
 NAME_SUFFIXES = "jr|sr|ii|iii|iv|" + BUSINESS_WORDS
-# Digits that are not a real number: one digit repeated (5555555555), or a run up or down (1234567890, 9876543210).
-FAKE_PHONE = r"{d} ~ '^(.)\1+$' OR position({d} in '01234567890123456789') > 0 OR position({d} in '98765432109876543210') > 0"
+def area_codes(region: str) -> list[str]:
+    """The area codes that exist, for a country in the North American plan (country code 1), from libphonenumber's numbering plans;
+    none for any other country (its numbers are then not checked against a plan)."""
+    if phonenumbers.country_code_for_region(region) != 1:
+        return []
+    return [str(code) for code in range(200, 1000) if phonenumbers.is_valid_number(phonenumbers.parse(f"+1{code}2345678"))]
 
 
-def real_phone(cell: str) -> str:
-    """A phone number as digits, or NULL when the cell has none or the digits are plainly made up."""
-    d = f"importing.norm_phone({cell})"
-    return f"CASE WHEN NOT ({FAKE_PHONE.format(d=d)}) THEN {d} END"
+AREA_CODES = area_codes(PHONE_REGION)
+
+
+def checked_phone(cell: pl.Expr) -> pl.Expr:
+    """A phone number as digits (a leading 1 on eleven digits dropped, as importing.norm_phone does), or null when the cell has none or
+    the number cannot exist: one digit repeated (5555555555), a run up or down (1234567890), or, for a ten-digit North American number,
+    an area code nobody has or an exchange starting with 0 or 1."""
+    d = cell.str.replace_all(r"\D", "")
+    d = pl.when((d.str.len_chars() == 11) & d.str.starts_with("1")).then(d.str.slice(1)).otherwise(d)
+    ok = d.str.len_chars().is_between(7, 15) & ~d.str.contains(r"^(?:0+|1+|2+|3+|4+|5+|6+|7+|8+|9+)$")
+    ok = ok & ~pl.lit("01234567890123456789").str.contains(d, literal=True) & ~pl.lit("98765432109876543210").str.contains(d, literal=True)
+    if AREA_CODES:
+        ok = ok & ((d.str.len_chars() != 10) | (d.str.slice(3, 1).is_between(pl.lit("2"), pl.lit("9")) & d.str.slice(0, 3).is_in(AREA_CODES)))
+    return pl.when(ok).then(d).otherwise(None)
+
+
+STREET_WORDS = {"street": "st", "avenue": "ave", "boulevard": "blvd", "drive": "dr", "road": "rd", "lane": "ln", "court": "ct", "place": "pl",
+                "circle": "cir", "highway": "hwy", "parkway": "pkwy", "terrace": "ter", "trail": "trl", "square": "sq", "northeast": "ne",
+                "northwest": "nw", "southeast": "se", "southwest": "sw", "north": "n", "south": "s", "east": "e", "west": "w",
+                "apartment": "apt", "suite": "ste"}
+
+
+def address_key(address: pl.Expr, zip_code: pl.Expr) -> pl.Expr:
+    """What two rows for the same property share, however the address is written: importing.addr_key, worked out here for a whole batch
+    at once (in SQL it is a subquery per row). The two must give the same key, since the leads' keys come from the SQL one: a test holds
+    them together. "" when the address has no number in it."""
+    words = address.fill_null("").str.to_lowercase().str.replace_all(r"[.,#/-]", " ").str.split(" ")
+    a = words.list.eval(pl.element().replace(STREET_WORDS)).list.join("").str.replace_all(r"[^0-9a-z]", "")
+    z = zip_code.fill_null("").str.replace_all(r"[^0-9a-zA-Z]", "").str.slice(0, 5)
+    return pl.when(a.str.contains(r"[0-9]")).then(a + pl.lit("|") + z).otherwise(pl.lit(""))
+
+
+def contact_columns(frame: pl.DataFrame, phones: list[tuple[int, str]], emails: list[int], address: int | None = None, zip_code: int | None = None) -> pl.DataFrame:
+    """For one batch of kept cells: ph, the checked phones as a text[] literal in the order best-to-call first ("" where there is none);
+    pj, every phone with its line type as a JSON list, each number once; ej, every valid email as a JSON list, each once; ak, the
+    address key ("" for none)."""
+    names = frame.columns
+    checked = frame.select([checked_phone(pl.col(names[i - 1])).alias(f"p{n}") for n, (i, _) in enumerate(phones)])
+    entries = [pl.when(pl.col(f"p{n}").is_not_null()).then(pl.lit('{"number":"') + pl.col(f"p{n}") + pl.lit('","type":"' + kind + '"}' if kind else '"}'))
+               for n, (_, kind) in enumerate(phones)]
+    # shortcut: a number is listed once per line type; the same number under two types (a list that repeats it) shows twice.
+    pj = (pl.lit("[") + pl.concat_list(entries).list.drop_nulls().list.unique(maintain_order=True).list.join(",") + pl.lit("]")) if entries else pl.lit("[]")
+    good = [pl.col(names[i - 1]).str.strip_chars().str.to_lowercase() for i in emails]
+    quoted = [pl.when(e.str.contains(EMAIL_OK)).then(pl.lit('"') + e.str.replace_all("\\", "\\\\", literal=True).str.replace_all('"', '\\"', literal=True) + pl.lit('"'))
+              for e in good]
+    ej = (pl.lit("[") + pl.concat_list(quoted).list.drop_nulls().list.unique(maintain_order=True).list.join(",") + pl.lit("]")) if quoted else pl.lit("[]")
+    ph = array_literals(checked.fill_null("")) if phones else pl.Series("cells", ["{}"] * frame.height)
+    ak = address_key(pl.col(names[address - 1]), pl.col(names[zip_code - 1]) if zip_code else pl.lit("")) if address else pl.lit("")
+    return pl.concat([frame, checked], how="horizontal").with_columns(pj.alias("pj"), ej.alias("ej"), ph.alias("ph"), ak.alias("ak")).select("ph", "pj", "ej", "ak")
+
+
+LINE_ORDER = {"mobile": 0, "landline": 1, "voip": 2, "": 3}
+
+
+def line_type(header: str) -> str:
+    """What a phone column's heading says about the line: skip-traced lists name their columns "Owner MOBILE 1", "Owner LANDLINE 2"."""
+    words = set(matching.normalize_header(header).split())
+    if words & {"mobile", "cell", "cellphone", "wireless"}:
+        return "mobile"
+    if words & {"landline", "home"}:
+        return "landline"
+    return "voip" if "voip" in words else ""
+
+
+def phone_columns(columns: list[dict]) -> list[tuple[int, str]]:
+    """The kept phone columns as (place in the cells, line type), best to call first: mobiles, then landlines, then VoIP, then the rest."""
+    found = [(c["idx"] + 1, line_type(c["header"])) for c in columns if c.get("used") and c.get("field") == "phone"]
+    return sorted(found, key=lambda item: (LINE_ORDER[item[1]], item[0]))
 
 
 def tidy_name(n: str) -> str:
@@ -351,7 +433,6 @@ def cleaning_sql(columns: list[dict]) -> tuple[str, str]:
 
     text = lambda i: f"nullif(regexp_replace(btrim(cells[{i}]), '\\s+', ' ', 'g'), '')"
     email = lambda i: f"CASE WHEN lower(btrim(cells[{i}])) ~ '{EMAIL_OK}' THEN lower(btrim(cells[{i}])) END"
-    phone = lambda i: real_phone(f"cells[{i}]")
     number = lambda low, high: lambda i: f"CASE WHEN btrim(cells[{i}]) ~ '^-?[0-9]+(\\.[0-9]+)?$' AND btrim(cells[{i}])::float8 BETWEEN {low} AND {high} THEN btrim(cells[{i}])::float8 END"
     money = lambda i: (f"CASE WHEN regexp_replace(cells[{i}], '[$, ]', '', 'g') ~ '^[0-9]+(\\.[0-9]+)?$' "
                        f"AND length(regexp_replace(cells[{i}], '[$, .].*', '')) < 12 THEN regexp_replace(cells[{i}], '[$, ]', '', 'g')::numeric END")
@@ -361,15 +442,40 @@ def cleaning_sql(columns: list[dict]) -> tuple[str, str]:
     given = first("first_name", cell)
     family = first("last_name", cell)
     name = f"coalesce({first('name', text)}, nullif(btrim(coalesce({given}, '') || ' ' || coalesce({family}, '')), ''))"
-    # Two LATERAL steps so the name is worked out once: n is the name as the cells give it, f the same with "LAST, FIRST" turned around.
-    lateral = f", LATERAL (SELECT {name} AS n) x, LATERAL (SELECT {tidy_name('x.n')} AS f) y"
     shown = (rf"CASE WHEN y.f ~ '[a-z]' AND y.f ~ '[A-Z]' OR lower(y.f) ~ '\m({BUSINESS_WORDS})\M' THEN y.f ELSE initcap(y.f) END")
+
+    # The lead's phone is the best one to call: the phone columns in the order mobiles, landlines, VoIP, the rest.
+    phones = phone_columns(columns)
+    # The phones were checked before the batch was staged (contact_columns): ph holds them in that order, "" where there is none.
+    staged_phones = [f"nullif(ph[{n}], '')" for n in range(1, len(phones) + 1)]
+    phone = f"coalesce({', '.join(staged_phones)})" if phones else "NULL::text"
+
+    # Everyone and every way to reach them, beside the one name and the one phone a lead has: the owners (a name cell that holds two,
+    # "John & Mary Smith", is two owners of one lead; so are the "Owner 2" columns), every phone with its line type, every email.
+    def other_owner(n: int) -> str:
+        whole = first(f"owner_{n}_full_name", text)
+        parts = f"nullif(btrim(coalesce({first(f'owner_{n}_first_name', cell)}, '') || ' ' || coalesce({first(f'owner_{n}_last_name', cell)}, '')), '')"
+        return f"coalesce({whole}, {parts})"
+
+    joint = (rf"CASE WHEN lower({shown}) ~ '\m({BUSINESS_WORDS})\M' THEN ARRAY[{shown}] ELSE regexp_split_to_array({shown}, '\s+(&|and)\s+', 'i') END")
+    both = ("CASE WHEN array_length(z.parts, 1) = 2 AND z.parts[1] !~ ' ' AND z.parts[2] ~ ' ' "
+            "THEN ARRAY[z.parts[1] || ' ' || regexp_replace(z.parts[2], '^.* ', ''), z.parts[2]] ELSE z.parts END")
+    others = [other_owner(n) for n in (2, 3, 4)]
+    owners = (f"CASE WHEN array_length(z.parts, 1) = 1 AND coalesce({', '.join(others)}) IS NULL THEN to_jsonb(z.parts) ELSE "
+              f"(SELECT coalesce(jsonb_agg(q.n ORDER BY q.o), '[]'::jsonb) FROM (SELECT DISTINCT ON (lower(u.n)) u.n, u.o "
+              f"FROM unnest({both} || ARRAY[{', '.join(others)}]) WITH ORDINALITY u(n, o) "
+              f"WHERE u.n IS NOT NULL ORDER BY lower(u.n), u.o) q) END")
+    contacts = f"jsonb_build_object('owners', {owners}, 'phones', pj::jsonb, 'emails', ej::jsonb)"
+
+    # LATERAL steps so the name is worked out once: n is the name as the cells give it, f the same with "LAST, FIRST" turned around,
+    # parts the owners a joint name holds.
+    lateral = f", LATERAL (SELECT {name} AS n) x, LATERAL (SELECT {tidy_name('x.n')} AS f) y, LATERAL (SELECT {joint} AS parts) z"
     return ", ".join([
-        f"{shown} AS name", f"{first('phone', phone)} AS phone", f"{first('email', email)} AS email", f"{first('address', text)} AS address",
+        f"{shown} AS name", f"{phone} AS phone", f"{first('email', email)} AS email", f"{first('address', text)} AS address",
         f"{first('unit', text)} AS unit", f"{first('city', text)} AS city", f"{first('region', region)} AS region", f"{first('zip', zip5)} AS zip",
         f"{first('country', text)} AS country", f"{first('latitude', number(-90, 90))}::float8 AS latitude",
         f"{first('longitude', number(-180, 180))}::float8 AS longitude", f"{first('parcel', text)} AS parcel",
-        f"{first('value', money)}::numeric AS value", f"{first('source', text)} AS source",
+        f"{first('value', money)}::numeric AS value", f"{first('source', text)} AS source", f"{contacts} AS contacts",
     ]), lateral
 
 
@@ -394,10 +500,20 @@ def source_data_sql(columns: list[dict]) -> str:
         used.add(key)
         recognized.append((key, column["idx"] + 1))
     if not recognized:
-        return "'{}'::jsonb"
+        return "'{}'::jsonb" + chosen_line_type(columns)
     keys = ", ".join("'" + key.replace("'", "''") + "'" for key, _ in recognized)
     values = ", ".join(f"nullif(btrim(cells[{index}]), '')" for _, index in recognized)
-    return f"jsonb_strip_nulls(jsonb_object(ARRAY[{keys}]::text[], ARRAY[{values}]::text[]))"
+    return f"jsonb_strip_nulls(jsonb_object(ARRAY[{keys}]::text[], ARRAY[{values}]::text[])){chosen_line_type(columns)}"
+
+
+def chosen_line_type(columns: list[dict]) -> str:
+    """Appends the line type of the phone the lead was given (phone_line_type), when the phone columns' headings say what they are.
+    Reads the checked phones staged with the batch (ph), in the same order."""
+    typed = [(i, kind) for i, kind in phone_columns(columns)]
+    if not any(kind for _, kind in typed):
+        return ""
+    cases = " ".join(f"WHEN ph[{n}] <> '' THEN {repr(kind) if kind else 'NULL'}" for n, (_, kind) in enumerate(typed, start=1))
+    return f" || jsonb_strip_nulls(jsonb_build_object('phone_line_type', CASE {cases} END))"
 
 
 def add_line_types(conn: psycopg.Connection, job_id: str) -> dict:
@@ -405,9 +521,14 @@ def add_line_types(conn: psycopg.Connection, job_id: str) -> dict:
     answer goes into the row's source data as phone_line_type. A service that fails must never fail the import: the list goes on
     without line types and the report says so. Returns what to add to the report."""
     lookup = linetype.provider()
-    if lookup is None:
-        return {}
     try:
+        if lookup is None:  # no service: what the headings said, if they said anything
+            with conn.cursor() as cur:
+                cur.execute("""SELECT source_data->>'phone_line_type', count(*) FROM importing.rows
+                               WHERE job_id = %s AND state = 'clean' AND source_data ? 'phone_line_type' GROUP BY 1""", (job_id,))
+                counts = dict(cur.fetchall())
+            conn.commit()
+            return {"line_types": counts} if counts else {}
         with conn.cursor() as cur:
             cur.execute("SELECT DISTINCT phone FROM importing.rows WHERE job_id = %s AND state = 'clean' AND phone IS NOT NULL", (job_id,))
             numbers = [r[0] for r in cur.fetchall()]
@@ -535,7 +656,9 @@ def load_tidied(conn: psycopg.Connection, job: dict, columns: list[dict]) -> int
     of rows consumed, so a restart carries on from the last batch. Returns the rows read."""
     job_id = job["id"]
     source = source_file(conn, job)
-    tidy = (*cleaning_sql(columns), source_data_sql(columns))
+    place = lambda field: next((c["idx"] + 1 for c in columns if c.get("used") and c.get("field") == field), None)
+    tidy = (*cleaning_sql(columns), source_data_sql(columns),
+            (phone_columns(columns), [c["idx"] + 1 for c in columns if c.get("used") and c.get("field") == "email"], place("address"), place("zip")))
     places = [c["file_idx"] for c in columns]
     report = dict(job["report"] or {})
     total = int(report.get("source_rows") or 0)
@@ -566,6 +689,10 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
     columns = keep_columns(conn, job)
     done = load_tidied(conn, job, columns)
     total = done
+    # A freshly loaded table has no statistics, and PostgreSQL then plans the matching blind. A login that may not analyze the table gets a
+    # warning from PostgreSQL, not an error, and the matching still works, more slowly.
+    conn.execute("ANALYZE importing.rows")
+    conn.commit()
     with conn.cursor() as cur:
         cleared = cleared_cells(cur, job_id, columns)
     conn.commit()
@@ -647,32 +774,71 @@ def name_key(name: str | None) -> str:
     return re.sub(r"[^a-z0-9]", "", (name or "").lower())
 
 
+NEAR_NAME = 0.84  # how alike two names must be (0 to 1) to be asked about as possibly the same person: "Jon Smith" and "John Smith" are 0.95
+MANY_NAMES = 25   # a phone or an address with more names than this is an office or a building, not a person: its names are not compared
+
+
+def near(a: str, b: str) -> bool:
+    return a != b and bool(a) and bool(b) and difflib.SequenceMatcher(None, a, b).ratio() >= NEAR_NAME
+
+
 def group_source_candidates(rows: list[tuple]) -> Groups:
-    """A shared household, family phone or inbox alone is not a repeated lead."""
+    """Which rows of the list may be the same lead. A lead is an owner and a property:
+
+    - the same name with the same phone, email or address is a repeat, unless the two rows are for different properties (an owner with
+      several properties is several leads). A row with no address goes with the others when they are all for one property;
+    - a shared household, family phone or inbox alone (different names) is not a repeat;
+    - names that are nearly the same on the same phone, email or address are put together too, to be asked about."""
     groups = Groups()
-    first_with: dict = {}
+    buckets: dict = {}
     for row_no, name, phone, email, address_key in rows:
         person = name_key(name)
         for kind, key in (("p", phone), ("e", email), ("a", address_key if person else None)):
             if key is not None:
-                groups.union(("r", row_no), first_with.setdefault((kind, key, person), ("r", row_no)))
+                buckets.setdefault((kind, key), {}).setdefault(person, []).append((row_no, address_key))
+    for people in buckets.values():
+        firsts: dict = {}  # per person: the first row for each property (None: rows with no address)
+        for person, members in people.items():
+            by_property: dict = {}
+            for row_no, address_key in members:
+                by_property.setdefault(address_key, []).append(row_no)
+            properties = [k for k in by_property if k is not None]
+            for address_key, same in by_property.items():
+                for row_no in same[1:]:
+                    groups.union(("r", same[0]), ("r", row_no))
+            if None in by_property and len(properties) == 1:  # the unaddressed rows can only be that one property
+                groups.union(("r", by_property[None][0]), ("r", by_property[properties[0]][0]))
+            firsts[person] = {k: v[0] for k, v in by_property.items()}
+        if 1 < len(firsts) <= MANY_NAMES:
+            names = sorted(n for n in firsts if n)
+            for i, a in enumerate(names):
+                for b in names[i + 1:]:
+                    if near(a, b):
+                        for address_key, row_no in firsts[a].items():
+                            other = firsts[b].get(address_key, firsts[b].get(None) if address_key is not None else None)
+                            if other is None and address_key is None and firsts[b]:
+                                other = next(iter(firsts[b].values()))
+                            if other is not None:
+                                groups.union(("r", row_no), ("r", other))
     return groups
 
 
 def merge_identical_rows(conn: psycopg.Connection, job_id: str) -> int:
     """Rows that are the same in every field that was kept (after tidying) are one lead: the first is kept and the others are dropped, with
-    no question to the person. Returns how many were dropped."""
+    no question to the person. Returns how many were dropped. Each row gets one hash of those fields and the first row of each hash stays:
+    grouping by a hash took a third of the time that sorting the rows by sixteen fields did, on a list of a hundred thousand wide rows."""
     with conn.cursor() as cur:
         tune(cur)
         cur.execute("""
-            WITH d AS (
-                SELECT row_no, row_number() OVER (PARTITION BY lower(name), phone, lower(email), lower(address), lower(unit), lower(city), lower(region), lower(zip),
-                                                              lower(country), latitude, longitude, lower(parcel), value, lower(source),
-                                                              regexp_replace(lower((source_data - ARRAY['name', 'first_name', 'last_name', 'phone', 'email', 'address', 'unit', 'city', 'region', 'zip',
-                                                                                         'country', 'latitude', 'longitude', 'parcel', 'value', 'source'])::text), '\s+', ' ', 'g')
-                                                              ORDER BY row_no) AS rn
-                FROM importing.rows WHERE job_id = %(job)s AND state = 'clean')
-            UPDATE importing.rows r SET state = 'skip' FROM d WHERE r.job_id = %(job)s AND r.row_no = d.row_no AND d.rn > 1""", {"job": job_id})
+            WITH k AS (
+                SELECT row_no, md5(ROW(lower(name), phone, lower(email), lower(address), lower(unit), lower(city), lower(region), lower(zip),
+                                       lower(country), latitude, longitude, lower(parcel), value, lower(source),
+                                       lower((source_data - ARRAY['name', 'first_name', 'last_name', 'phone', 'email', 'address', 'unit', 'city', 'region', 'zip',
+                                                                  'country', 'latitude', 'longitude', 'parcel', 'value', 'source'])::text))::text) AS h
+                FROM importing.rows WHERE job_id = %(job)s AND state = 'clean'
+            ), first AS (SELECT h, min(row_no) AS keep FROM k GROUP BY h)
+            UPDATE importing.rows r SET state = 'skip' FROM k JOIN first USING (h)
+            WHERE r.job_id = %(job)s AND r.row_no = k.row_no AND k.row_no <> first.keep""", {"job": job_id})
         count = cur.rowcount
     conn.commit()
     return count
@@ -741,11 +907,11 @@ def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> tuple[i
     with conn.cursor() as cur:
         tune(cur)
         cur.execute("""
-            SELECT row_no, name, phone, email, importing.addr_key(address, zip) AS ak FROM (
+            SELECT row_no, name, phone, email, addr_key FROM (
                 SELECT *, count(*) OVER (PARTITION BY phone) AS cp, count(*) OVER (PARTITION BY email) AS ce,
-                       count(*) OVER (PARTITION BY importing.addr_key(address, zip)) AS ca
+                       count(*) OVER (PARTITION BY addr_key) AS ca
                 FROM importing.rows WHERE job_id = %s AND state = 'clean') x
-            WHERE (phone IS NOT NULL AND cp > 1) OR (email IS NOT NULL AND ce > 1) OR (importing.addr_key(address, zip) IS NOT NULL AND ca > 1)""", (job_id,))
+            WHERE (phone IS NOT NULL AND cp > 1) OR (email IS NOT NULL AND ce > 1) OR (addr_key IS NOT NULL AND ca > 1)""", (job_id,))
         groups = group_source_candidates(cur.fetchall())
     conn.commit()
     log("INFO", "repeats inside the list found", job=job_id, seconds=round(time.monotonic() - began, 1))
@@ -769,17 +935,19 @@ def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> tuple[i
     certain: set = set()
     # The range of rows is written out in each branch rather than named once and joined back to itself: a freshly loaded table has no
     # statistics yet, PostgreSQL then takes the range for one row and joins it to itself row by row, which on thousands of rows takes minutes.
-    rng = """(SELECT row_no, phone, email, importing.addr_key(address, zip) AS ak,
+    rng = """(SELECT row_no, phone, email, addr_key AS ak,
                      nullif(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]', '', 'g'), '') AS nk,
-                     (phone IS NOT NULL)::int + (email IS NOT NULL)::int + (importing.addr_key(address, zip) IS NOT NULL)::int AS nkeys
+                     (phone IS NOT NULL)::int + (email IS NOT NULL)::int + (addr_key IS NOT NULL)::int AS nkeys
               FROM importing.rows WHERE job_id = %(job)s AND state = 'clean' AND row_no >= %(a)s AND row_no < %(b)s)"""
+    # A lead is an owner and a property: the same phone or email on a lead for another property is another lead, not a repeat.
+    one_property = "(k.ak IS NULL OR r.ak IS NULL OR k.ak = r.ak)"
     compare = f"""
         SELECT row_no, lead, sum(strong)::int AS hits, max(nkeys) AS nkeys FROM (
-            SELECT r.row_no, k.lead, 1 AS strong, r.nkeys FROM {rng} r JOIN _lead_keys k ON k.phone = r.phone AND k.nk = r.nk
-            UNION ALL SELECT r.row_no, k.lead, 1, r.nkeys FROM {rng} r JOIN _lead_keys k ON k.email = r.email AND k.nk = r.nk
+            SELECT r.row_no, k.lead, 1 AS strong, r.nkeys FROM {rng} r JOIN _lead_keys k ON k.phone = r.phone AND k.nk = r.nk AND {one_property}
+            UNION ALL SELECT r.row_no, k.lead, 1, r.nkeys FROM {rng} r JOIN _lead_keys k ON k.email = r.email AND k.nk = r.nk AND {one_property}
             UNION ALL SELECT r.row_no, k.lead, 1, r.nkeys FROM {rng} r JOIN _lead_keys k ON k.ak = r.ak AND k.nk = r.nk
-            UNION ALL SELECT r.row_no, k.lead, 0, r.nkeys FROM {rng} r JOIN _lead_keys k ON k.phone = r.phone
-            UNION ALL SELECT r.row_no, k.lead, 0, r.nkeys FROM {rng} r JOIN _lead_keys k ON k.email = r.email
+            UNION ALL SELECT r.row_no, k.lead, 0, r.nkeys FROM {rng} r JOIN _lead_keys k ON k.phone = r.phone AND {one_property}
+            UNION ALL SELECT r.row_no, k.lead, 0, r.nkeys FROM {rng} r JOIN _lead_keys k ON k.email = r.email AND {one_property}
         ) x GROUP BY row_no, lead"""
 
     def compare_range(own: psycopg.Connection, a: int, b: int) -> dict:
@@ -886,7 +1054,9 @@ def _process(conn: psycopg.Connection, job: dict) -> None:
     except Exception as error:  # the person is told in plain words; the details stay in the log
         conn.rollback()
         log("ERROR", "import failed", job=job["id"], phase=job["status"], error_type=type(error).__name__, error=str(error), trace=traceback.format_exc())
-        if isinstance(error, readers.UnsafeFile):
+        if isinstance(error, FileNotFoundError):
+            message = "The file of this list is no longer kept, so it cannot be read again. Upload the list again."
+        elif isinstance(error, readers.UnsafeFile):
             message = "This spreadsheet expands beyond the safe import limit. Save a smaller file and try again."
         elif isinstance(error, readers.UnreadableFile):
             message = "This list could not be read. Check the file format and make sure it has at least one data row."

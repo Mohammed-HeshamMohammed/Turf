@@ -197,3 +197,93 @@ func TestTwoRowsFoldedIntoOneLeadInOneBatchAreLoggedHonestly(t *testing.T) {
 		t.Fatalf("phone %q, first filled %v, second filled %v", phone, first, second)
 	}
 }
+
+func TestTheRowsBehindACountAndChoosingTheColumnsAgain(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	ctx := context.Background()
+	_, job := e.startImport(alice, orgA, map[string]any{"filename": "owners.csv", "size": 100, "name": "Austin"})
+	id := job["id"].(string)
+	columns := `[{"idx":0,"header":"Owner","field":"name","used":true},{"idx":1,"header":"Cell","field":"phone","used":true},{"idx":2,"header":"Mail","field":"email","used":true}]`
+	if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'ready', columns = $2::jsonb, report = '{"rows":3}' WHERE id = $1`, id, columns); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range []struct {
+		no                 int
+		cells              []string
+		phone, email, name *string
+	}{
+		{1, []string{"Ann", "5125550100", "ann@example.com"}, ptr("5125550100"), ptr("ann@example.com"), ptr("Ann")},
+		{2, []string{"Bob", "call me", "not an email"}, nil, nil, ptr("Bob")},
+		{3, []string{"Cy", "5555555555", ""}, nil, nil, ptr("Cy")},
+	} {
+		if _, err := e.admin.Exec(ctx, `INSERT INTO importing.rows (job_id, row_no, fp, cells, name, phone, email, state) VALUES ($1, $2, sha256($3::bytea), $4, $5, $6, $7, 'clean')`,
+			id, r.no, []byte(strconv.Itoa(r.no)), r.cells, r.name, r.phone, r.email); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rowsOf := func(field string) (float64, []any) {
+		_, out := e.call(alice, orgA, "GET", "/api/v1/imports/"+id+"/cleared?field="+field, nil)
+		total, _ := out["total"].(float64)
+		rows, _ := out["rows"].([]any)
+		return total, rows
+	}
+	if total, rows := rowsOf("phone"); total != 1 || rows[0].(map[string]any)["values"].([]any)[0] != "call me" {
+		t.Fatalf("phones that were not numbers: %v %v", total, rows)
+	}
+	if total, rows := rowsOf("phone_made_up"); total != 1 || rows[0].(map[string]any)["name"] != "Cy" {
+		t.Fatalf("made-up phones: %v %v", total, rows)
+	}
+	if total, rows := rowsOf("email"); total != 1 || rows[0].(map[string]any)["values"].([]any)[0] != "not an email" {
+		t.Fatalf("emails: %v %v", total, rows)
+	}
+	if status, _ := e.call(alice, orgA, "GET", "/api/v1/imports/"+id+"/cleared?field=anything", nil); status != 400 {
+		t.Fatalf("an unknown count: %d", status)
+	}
+
+	// Back to the column step: the rows go, the list waits for the worker to read its file again.
+	status, again := e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/columns-again", nil)
+	if status != 200 || again["status"] != "queued" {
+		t.Fatalf("columns again: %d %v", status, again)
+	}
+	var left int
+	_ = e.admin.QueryRow(ctx, `SELECT count(*) FROM importing.rows WHERE job_id = $1`, id).Scan(&left)
+	if left != 0 {
+		t.Fatalf("rows left after going back: %d", left)
+	}
+	if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'done' WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ := e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/columns-again", nil); status != 400 {
+		t.Fatalf("columns again after the list was added: %d", status)
+	}
+}
+
+func TestANewLeadCarriesItsOwnersAndOtherPhones(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	ctx := context.Background()
+	_, job := e.startImport(alice, orgA, map[string]any{"filename": "owners.csv", "size": 100, "name": "Austin"})
+	id := job["id"].(string)
+	e.seedRows(id, []seedRow{{1, "John Smith", "5125550100", "clean", nil, nil}})
+	contacts := `{"owners":["John Smith","Mary Smith"],"phones":[{"number":"5125550100","type":"mobile"},{"number":"5125550111","type":"landline"}],"emails":[]}`
+	if _, err := e.admin.Exec(ctx, `UPDATE importing.rows SET contacts = $2::jsonb WHERE job_id = $1`, id, contacts); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'ready' WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+	e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/merge", nil)
+	e.waitDone(id)
+	_, snap := e.call(alice, orgA, "GET", "/sync/snapshot", nil)
+	leads, _ := snap["leads"].([]any)
+	if len(leads) != 1 {
+		t.Fatalf("leads: %d", len(leads))
+	}
+	got, _ := leads[0].(map[string]any)["contacts"].(map[string]any)
+	owners, _ := got["owners"].([]any)
+	phones, _ := got["phones"].([]any)
+	if len(owners) != 2 || owners[1] != "Mary Smith" || len(phones) != 2 || phones[1].(map[string]any)["type"] != "landline" {
+		t.Fatalf("contacts on the lead: %v", got)
+	}
+}

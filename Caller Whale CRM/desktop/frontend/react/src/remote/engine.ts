@@ -6,11 +6,14 @@
 // on a BroadcastChannel. Client clocks never decide anything: the server answers each operation.
 
 import { api as defaultApi, ApiError, auth, eventsUrl, socketProtocols } from "./api.ts";
-import { applyChanges, storeFromSnapshot } from "./translate.ts";
+import { addSnapshotPage, applyChanges, storeFromSnapshot } from "./translate.ts";
+
+/** Leads per page when the first load of the records is read a page at a time, so the first ones show while the rest arrive. */
+const SNAPSHOT_PAGE = 250;
 
 export class SyncEngine {
   vault: any; api: any; onChange: any; useSocket: any; store: any; ops: any[]; online: boolean; reachable: boolean; status: string;
-  error: string; running: any; again: boolean; channel: any; socket: any; stopped: any; connecting: any; extra: any; retryTimer: any;
+  error: string; running: any; again: boolean; channel: any; socket: any; stopped: any; connecting: any; extra: any; retryTimer: any; progress: any;
   constructor({ vault, api = defaultApi, onChange = () => {}, socket = true }: any) {
     this.vault = vault;
     this.api = api;
@@ -29,7 +32,7 @@ export class SyncEngine {
   }
 
   emit() {
-    this.onChange({ store: this.store, ops: this.ops, status: this.status, error: this.error, online: this.online && this.reachable });
+    this.onChange({ store: this.store, ops: this.ops, status: this.status, error: this.error, online: this.online && this.reachable, progress: this.progress });
   }
 
   async reload() {
@@ -42,6 +45,8 @@ export class SyncEngine {
   async start(extra) {
     this.extra = extra;
     this.store = await this.vault.get("store");
+    // A copy whose first load was cut short (the tab closed) has the cursor of its first page and not the rest of the leads: start again.
+    if (this.store?.partial) this.store = null;
     this.ops = await this.vault.queue();
     if (this.store && this.store.organizationId !== extra.organizationId) {
       if (this.ops.length) throw new Error("This device has pending changes for its previous workspace. Open that workspace and sync them before switching.");
@@ -145,10 +150,36 @@ export class SyncEngine {
     this.retryTimer = setTimeout(() => this.sync(), 5000);
   }
 
+  /**
+   * Takes the workspace's records a page of leads at a time. The first page has the totals, the lists and the cursor, and is shown at
+   * once; each later page is added and shown as it arrives. The copy kept on the device is marked partial until the last page is in.
+   */
   async snapshot() {
-    const snapshot = await this.api.snapshot();
-    this.store = storeFromSnapshot(snapshot, this.extra);
+    const first = await this.api.snapshot({ limit: SNAPSHOT_PAGE });
+    this.store = storeFromSnapshot(first, this.extra);
+    let next = first.next;
+    const total = Math.min(this.store.leadsTotal ?? 0, 3000);
+    try {
+      if (next) {
+        this.store = { ...this.store, partial: true };
+        await this.save();
+      }
+      while (next && !this.stopped) {
+        this.progress = { loaded: Object.keys(this.store.leads).length, total };
+        this.emit();
+        const page = await this.api.snapshot({ limit: SNAPSHOT_PAGE, after: next });
+        this.store = addSnapshotPage(this.store, page);
+        next = page.next;
+      }
+    } finally {
+      this.progress = null;
+    }
+    if (next) throw new Error("The records were not all loaded");
+    const whole = { ...this.store };
+    delete whole.partial;
+    this.store = whole;
     await this.save();
+    this.emit();
   }
 
   /** Looks a lead up on the server and holds what it finds, so a workspace bigger than this device's window can still be searched. */

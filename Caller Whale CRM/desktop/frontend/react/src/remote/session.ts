@@ -32,7 +32,7 @@ export function remoteReducer(state, action) {
     case "REMOTE_SYNC": {
       if (!state.remote) return state;
       // Server state first, then what this person changed and the server has not confirmed yet.
-      let next = { ...state, ...action.collections, online: action.online, remoteLoading: action.loading };
+      let next = { ...state, ...action.collections, online: action.online, remoteLoading: action.loading, remoteProgress: action.progress || null };
       for (const pending of action.pending) next = reducer(next, pending);
       return { ...next, queue: action.queue, remoteStatus: action.status, remoteError: action.error };
     }
@@ -67,6 +67,7 @@ export function syncAction(snapshot, person) {
       at: op.claimed_at,
     })),
     online: snapshot.online,
+    progress: snapshot.progress || null,
     loading: !snapshot.store && snapshot.status !== "error" && snapshot.status !== "offline",
     status: snapshot.status,
     error: snapshot.error,

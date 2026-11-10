@@ -374,6 +374,83 @@ class EndToEndTest(unittest.TestCase):
             self.assertEqual(cur.fetchall(), [(["A", "5125551111"], "A", "5125551111", "clean"), (["B", "5125552222"], "B", "5125552222", "clean")])
         self.conn.commit()
 
+    def loaded(self, content: bytes) -> tuple[str, dict]:
+        job_id = self.queue(content)
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        return job_id, self.confirm(job_id)
+
+    def test_a_lead_gets_the_best_phone_and_keeps_every_owner_phone_and_email_beside_it(self) -> None:
+        job_id, job = self.loaded(b"Name,Owner LANDLINE 1,Owner MOBILE 1,Owner 2 Full Name,Owner Email 1,Owner Email 2\n"
+                                  b"John & Mary Smith,5125550111,(512) 555-0100,Pat Smith,a@x.com,B@x.com\n"
+                                  b"Smith and Sons LLC,5125550122,,,,\n")
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT name, phone, contacts, source_data->>'phone_line_type' FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            (name, phone, contacts, kind), company = cur.fetchall()
+        self.conn.commit()
+        # The mobile is the one to call, though the landline column comes first in the file.
+        self.assertEqual((name, phone, kind), ("John & Mary Smith", "5125550100", "mobile"))
+        self.assertEqual(contacts["owners"], ["John Smith", "Mary Smith", "Pat Smith"])
+        self.assertEqual(contacts["phones"], [{"number": "5125550100", "type": "mobile"}, {"number": "5125550111", "type": "landline"}])
+        self.assertEqual(contacts["emails"], ["a@x.com", "b@x.com"])
+        self.assertEqual((company[1], company[2]["owners"], company[3]), ("5125550122", ["Smith and Sons LLC"], "landline"))
+        self.assertEqual(job["report"]["line_types"], {"mobile": 1, "landline": 1})
+
+    def test_a_number_with_an_area_code_nobody_has_is_left_out(self) -> None:
+        job_id, job = self.loaded(b"Name,Phone\nAnn,5125550100\nZed,0125550100\nLocal,5551234\n")
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT name, phone FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            self.assertEqual(cur.fetchall(), [("Ann", "5125550100"), ("Zed", None), ("Local", "5551234")])
+        self.conn.commit()
+        self.assertEqual(job["report"]["cleared_cells"], {"phone_made_up": 1})
+
+    def test_an_owner_with_several_properties_is_several_leads_and_street_words_do_not_split_one_property(self) -> None:
+        job_id, job = self.loaded(b"Name,Phone,Address,Zip\n"
+                                  b"Pat Owner,5125550100,1 Main Street,78701\n"   # 1 and 2: one property written two ways, a repeat
+                                  b"Pat Owner,5125550100,1 Main St,78701\n"
+                                  b"Pat Owner,5125550100,9 North Oak Avenue,78702\n"  # 3: the same owner's other property, its own lead
+                                  b"Sam Other,5125550100,1 Main St,78701\n")        # 4: another name on the phone and address, not a repeat
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT row_no, state, group_id, addr_key FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            rows = cur.fetchall()
+        self.conn.commit()
+        self.assertEqual([r[1] for r in rows], ["near_duplicate", "near_duplicate", "clean", "clean"])
+        self.assertEqual((rows[0][2], rows[0][3]), (rows[1][2], rows[1][3]))
+        self.assertEqual(rows[2][3], "9noakave|78702")
+        self.assertEqual(job["report"]["near_groups"], 1)
+
+    def test_the_address_key_worked_out_in_the_worker_is_the_one_the_database_works_out(self) -> None:
+        addresses = ["1 Main Street", "1 MAIN ST.", "9 North Oak Avenue, Apartment 4", "12-B West Elm Rd #3", "PO Box 12", "No Number Lane", "", None,
+                     "44 S.E. Parkway/Suite 9", "7 Streetman Court"]
+        zips = ["78701", "78701-1234", " 78 702 ", "", None, "K1A 0B1", "78701", "78701", "78701", "78701"]
+        frame = pl.DataFrame({"a": addresses, "z": zips})
+        ours = frame.select(self.worker.address_key(pl.col("a"), pl.col("z")).alias("k"))["k"].to_list()
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT coalesce(importing.addr_key(a, z), '') FROM unnest(%s::text[], %s::text[]) WITH ORDINALITY AS t(a, z, i) ORDER BY i", (addresses, zips))
+            theirs = [row[0] for row in cur.fetchall()]
+        self.conn.commit()
+        self.assertEqual(ours, theirs)
+        self.assertEqual(ours[:2], ["1mainst|78701", "1mainst|78701"])
+
+    def test_names_that_are_nearly_the_same_on_one_phone_are_asked_about(self) -> None:
+        job_id, job = self.loaded(b"Name,Phone,Address,Zip\n"
+                                  b"Jon Smith,5125550100,1 Main St,78701\n"
+                                  b"John Smith,5125550100,1 Main St,78701\n"
+                                  b"Maria Lopez,5125550100,1 Main St,78701\n")
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT name, state FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            self.assertEqual(cur.fetchall(), [("Jon Smith", "near_duplicate"), ("John Smith", "near_duplicate"), ("Maria Lopez", "clean")])
+        self.conn.commit()
+
+    def test_a_list_whose_file_is_gone_says_so(self) -> None:
+        import shutil
+
+        job_id = self.queue(b"Name,Phone\nAnn,5125550100\n")
+        shutil.rmtree(self.worker.IMPORT_DIR / job_id)
+        self.worker.process(self.conn, self.worker.claim(self.conn))
+        job = self.job(job_id)
+        self.assertEqual(job["status"], "failed")
+        self.assertIn("no longer kept", job["error"])
+
     def test_the_uploaded_file_is_deleted_after_its_days_and_an_unanswered_list_is_cancelled_with_it(self) -> None:
         job_id = self.queue(b"Name,Phone\nA,5125551111\n")
         self.worker.load(self.conn, self.worker.claim(self.conn))

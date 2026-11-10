@@ -127,6 +127,7 @@ func (s *store) grantImporter(ctx context.Context, role string) error {
 		`REVOKE ALL ON importing.lead_match FROM ` + q,
 		`GRANT SELECT ON importing.lead_match TO ` + q,
 		`REVOKE ALL ON SCHEMA crm FROM ` + q,
+		`DO $$ BEGIN IF current_setting('server_version_num')::int >= 170000 THEN EXECUTE 'GRANT MAINTAIN ON importing.rows TO ` + q + `'; END IF; END $$`,
 	} {
 		if _, err := s.db.Exec(ctx, stmt); err != nil {
 			return fmt.Errorf("granting %s: %w", role, err)

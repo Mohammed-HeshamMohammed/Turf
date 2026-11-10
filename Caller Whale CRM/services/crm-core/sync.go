@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -195,8 +196,53 @@ const (
 	maxPullBehind = 5000 // changes a device may be behind and still page through them
 )
 
+// snapshotAfter is where the next page of a snapshot starts: the last lead of the page before, in the snapshot's order (the person's own
+// leads first, then the most recently changed), and how many leads the snapshot has given so far. Keyed on that lead rather than counted,
+// so a lead that changes or goes away between two pages cannot make the next page skip or repeat another.
+type snapshotAfter struct {
+	Mine  bool      `json:"m"`
+	At    time.Time `json:"t"`
+	ID    string    `json:"i"`
+	Taken int       `json:"n"`
+}
+
+func (a snapshotAfter) token() string {
+	raw, _ := json.Marshal(a)
+	return base64.RawURLEncoding.EncodeToString(raw)
+}
+
+func parseSnapshotAfter(token string) (*snapshotAfter, error) {
+	if token == "" {
+		return nil, nil
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(token)
+	var a snapshotAfter
+	if err == nil {
+		err = json.Unmarshal(raw, &a)
+	}
+	if err != nil || !validID(a.ID) || a.Taken < 0 || a.Taken >= snapshotLeads {
+		return nil, bad("That page of the snapshot does not exist.")
+	}
+	return &a, nil
+}
+
 func (s *server) snapshot(q *req) error {
 	ctx := q.r.Context()
+	// ?limit=N gives the first N leads of the window, and "next" in the answer is the token (?after=...) for the following N: a screen can
+	// show the first leads at once and fill the rest in as the pages arrive. Without them the whole window comes in one answer.
+	limit, _ := strconv.Atoi(q.r.URL.Query().Get("limit"))
+	if limit < 1 || limit > snapshotLeads {
+		limit = snapshotLeads
+	}
+	after, err := parseSnapshotAfter(q.r.URL.Query().Get("after"))
+	if err != nil {
+		return err
+	}
+	taken := 0
+	if after != nil {
+		taken = after.Taken
+	}
+	limit = min(limit, snapshotLeads-taken)
 	tx, err := s.st.begin(ctx, q.sc)
 	if err != nil {
 		return err
@@ -209,10 +255,33 @@ func (s *server) snapshot(q *req) error {
 	}
 	// Not every lead: a workspace can hold hundreds of thousands, and a browser cannot. The window is the person's own leads first, then
 	// the most recently changed; the totals say how many there are, and /api/v1/leads/search reaches the rest.
+	var afterMine, afterAt, afterID any // all null on the first page, which `$3 IS NULL` lets through
+	if after != nil {
+		afterMine, afterAt, afterID = after.Mine, after.At, after.ID
+	}
 	if _, err = tx.Exec(ctx, `CREATE TEMP TABLE win ON COMMIT DROP AS
-		SELECT l.id FROM leads l WHERE cw_visible_lead(l.id)
-		ORDER BY (l.assignee_id::text = $1) DESC, l.updated_at DESC LIMIT $2`, q.sc.userID, snapshotLeads); err != nil {
+		SELECT l.id, coalesce(l.assignee_id::text = $1, false) AS mine, l.updated_at FROM leads l
+		WHERE cw_visible_lead(l.id) AND ($3::boolean IS NULL OR (coalesce(l.assignee_id::text = $1, false)::int, l.updated_at, l.id) < ($3::boolean::int, $4::timestamptz, $5::uuid))
+		ORDER BY coalesce(l.assignee_id::text = $1, false) DESC, l.updated_at DESC, l.id DESC LIMIT $2`, q.sc.userID, limit, afterMine, afterAt, afterID); err != nil {
 		return err
+	}
+	var winRows int
+	var last snapshotAfter
+	if err = tx.QueryRow(ctx, `SELECT count(*) FROM win`).Scan(&winRows); err != nil {
+		return err
+	}
+	if winRows > 0 { // the last lead of the page is the smallest in the window's order
+		if err = tx.QueryRow(ctx, `SELECT id::text, mine, updated_at FROM win ORDER BY mine, updated_at, id LIMIT 1`).Scan(&last.ID, &last.Mine, &last.At); err != nil {
+			return err
+		}
+	}
+	next := ""
+	if winRows == limit && taken+winRows < snapshotLeads {
+		last.Taken = taken + winRows
+		next = last.token()
+	}
+	if after != nil { // a later page: only leads, and what belongs to them
+		return s.snapshotPage(q, ctx, tx, next)
 	}
 	var total int64
 	if err = tx.QueryRow(ctx, `SELECT count(*) FROM leads l WHERE cw_visible_lead(l.id)`).Scan(&total); err != nil {
@@ -244,7 +313,7 @@ func (s *server) snapshot(q *req) error {
 			return err
 		}
 	}
-	body := map[string]any{"cursor": cursor, "access_revision": q.rev, "leads": leads, "leads_total": total, "project_counts": counts, "project_contactable": contactable, "deals": []json.RawMessage{}}
+	body := map[string]any{"cursor": cursor, "access_revision": q.rev, "leads": leads, "leads_total": total, "project_counts": counts, "project_contactable": contactable, "deals": []json.RawMessage{}, "next": next}
 	for name, sql := range map[string]string{
 		"tasks":    taskVisible + ` AND (t.lead_id IS NULL OR t.lead_id IN (SELECT id FROM win))`,
 		"notes":    `SELECT to_jsonb(n) FROM notes n WHERE n.lead_id IN (SELECT id FROM win) AND (NOT cw_external() OR n.visibility = 'shared')`,
@@ -262,6 +331,38 @@ func (s *server) snapshot(q *req) error {
 	}
 	// Offline copies must be renewed online within a day.
 	body["offline_lease_expires_at"] = s.now().Add(24 * time.Hour)
+	writeJSON(q.w, http.StatusOK, body)
+	return nil
+}
+
+// snapshotPage answers a later page of a snapshot: the leads of the window table and what belongs to them. The totals, the lists and the
+// cursor came with the first page.
+func (s *server) snapshotPage(q *req, ctx context.Context, tx pgx.Tx, next string) error {
+	leads, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) FROM leads l JOIN win ON win.id = l.id LEFT JOIN properties p ON p.id = l.property_id`)
+	if err != nil {
+		return err
+	}
+	for i, raw := range leads {
+		if leads[i], err = redactRaw(raw, q.sc); err != nil {
+			return err
+		}
+	}
+	body := map[string]any{"leads": leads, "deals": []json.RawMessage{}, "next": next}
+	for name, sql := range map[string]string{
+		"tasks":    taskVisible + ` AND t.lead_id IN (SELECT id FROM win)`,
+		"notes":    `SELECT to_jsonb(n) FROM notes n WHERE n.lead_id IN (SELECT id FROM win) AND (NOT cw_external() OR n.visibility = 'shared')`,
+		"calls":    `SELECT to_jsonb(c) FROM call_events c WHERE c.lead_id IN (SELECT id FROM win) AND NOT cw_external()`,
+		"handoffs": `SELECT to_jsonb(h) FROM handoffs h WHERE h.lead_id IN (SELECT id FROM win) AND NOT cw_external()`,
+	} {
+		if body[name], err = queryJSON(ctx, tx, sql); err != nil {
+			return err
+		}
+	}
+	if q.sc.can("finance") {
+		if body["deals"], err = queryJSON(ctx, tx, `SELECT to_jsonb(d) FROM deals d WHERE d.lead_id IN (SELECT id FROM win) AND NOT cw_external()`); err != nil {
+			return err
+		}
+	}
 	writeJSON(q.w, http.StatusOK, body)
 	return nil
 }
