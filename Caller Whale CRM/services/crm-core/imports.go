@@ -314,9 +314,16 @@ func (s *server) importDecide(q *req) error {
 			Action  string `json:"action"`
 		} `json:"decisions"`
 		All string `json:"all"`
+		// With "all": which groups it reaches ("existing" = rows that match a lead already in the account, "inside" = rows that
+		// repeat inside this list; empty = both), and for merge which row of a group stays ("first" in the file, or "last").
+		Only string `json:"only"`
+		Keep string `json:"keep"`
 	}
 	if err = readJSON(q.w, q.r, &body); err != nil {
 		return err
+	}
+	if !slices.Contains([]string{"", "existing", "inside"}, body.Only) || !slices.Contains([]string{"", "first", "last"}, body.Keep) {
+		return bad("only is existing or inside; keep is first or last.")
 	}
 	byAction := map[string][]int64{}
 	for _, d := range body.Decisions {
@@ -331,19 +338,21 @@ func (s *server) importDecide(q *req) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
+	// reach picks the rows an action touches: the listed groups, or with "all" every waiting group (narrowed by "only").
+	const reach = `(($3 AND ($4 = '' OR (match_lead IS NOT NULL) = ($4 = 'existing'))) OR group_id = ANY($2))`
 	apply := func(action string, groups []int64, every bool) error {
 		switch action {
 		case "skip":
-			_, err := tx.Exec(ctx, `UPDATE importing.rows SET state = 'skip' WHERE job_id = $1 AND state = 'near_duplicate' AND ($3 OR group_id = ANY($2))`, id, groups, every)
+			_, err := tx.Exec(ctx, `UPDATE importing.rows SET state = 'skip' WHERE job_id = $1 AND state = 'near_duplicate' AND `+reach, id, groups, every, body.Only)
 			return err
 		case "import":
-			_, err := tx.Exec(ctx, `UPDATE importing.rows SET state = 'import' WHERE job_id = $1 AND state = 'near_duplicate' AND ($3 OR group_id = ANY($2))`, id, groups, every)
+			_, err := tx.Exec(ctx, `UPDATE importing.rows SET state = 'import' WHERE job_id = $1 AND state = 'near_duplicate' AND `+reach, id, groups, every, body.Only)
 			return err
 		}
 		_, err := tx.Exec(ctx, `UPDATE importing.rows r SET state = CASE WHEN x.rn = 1 THEN CASE WHEN r.match_lead IS NOT NULL THEN 'merge' ELSE 'import' END ELSE 'skip' END
-			FROM (SELECT row_no, row_number() OVER (PARTITION BY group_id ORDER BY row_no) AS rn FROM importing.rows
-				WHERE job_id = $1 AND state = 'near_duplicate' AND ($3 OR group_id = ANY($2))) x
-			WHERE r.job_id = $1 AND r.row_no = x.row_no`, id, groups, every)
+			FROM (SELECT row_no, row_number() OVER (PARTITION BY group_id ORDER BY CASE WHEN $5 = 'last' THEN -row_no ELSE row_no END) AS rn FROM importing.rows
+				WHERE job_id = $1 AND state = 'near_duplicate' AND `+reach+`) x
+			WHERE r.job_id = $1 AND r.row_no = x.row_no`, id, groups, every, body.Only, body.Keep)
 		return err
 	}
 	for action, groups := range byAction {
@@ -559,8 +568,17 @@ func (s *server) mergeBatch(ctx context.Context, sc scope, id string, project, t
 		return 0, err
 	}
 	defer tx.Rollback(ctx)
+	n, err := mergeBatchIn(ctx, tx, sc, id, project, team)
+	if err != nil {
+		return 0, err
+	}
+	return n, tx.Commit(ctx)
+}
+
+// mergeBatchIn does the work of mergeBatch inside a transaction the caller owns and commits.
+func mergeBatchIn(ctx context.Context, tx pgx.Tx, sc scope, id string, project, team *string) (int64, error) {
 	var created int64
-	err = tx.QueryRow(ctx, `
+	err := tx.QueryRow(ctx, `
 		WITH batch AS (
 			SELECT r.*, gen_random_uuid() AS new_lead_id, gen_random_uuid() AS prop_id FROM importing.rows r
 			WHERE r.job_id = $1 AND r.state IN ('clean', 'import') ORDER BY r.row_no LIMIT $2 FOR UPDATE SKIP LOCKED
@@ -584,12 +602,15 @@ func (s *server) mergeBatch(ctx context.Context, sc scope, id string, project, t
 	if err != nil {
 		return 0, err
 	}
-	// Rows that matched an existing lead only fill what that lead is missing; nothing it already holds is replaced.
+	// Rows that matched an existing lead only fill what that lead is missing; nothing it already holds is replaced. What each row filled is
+	// written down (filled), so the merge can be looked at and undone.
 	var folded int64
 	err = tx.QueryRow(ctx, `
 		WITH batch AS (
-			SELECT r.row_no, r.match_lead, r.phone, r.email FROM importing.rows r
-			WHERE r.job_id = $1 AND r.state = 'merge' ORDER BY r.row_no LIMIT $2 FOR UPDATE SKIP LOCKED
+			SELECT r.row_no, r.match_lead, r.phone, r.email,
+				array_remove(ARRAY[CASE WHEN l.phone = '' AND r.phone IS NOT NULL THEN 'phone' END, CASE WHEN l.email = '' AND r.email IS NOT NULL THEN 'email' END], NULL) AS filled
+			FROM importing.rows r LEFT JOIN leads l ON l.id = r.match_lead
+			WHERE r.job_id = $1 AND r.state = 'merge' ORDER BY r.row_no LIMIT $2 FOR UPDATE OF r SKIP LOCKED
 		), upd AS (
 			UPDATE leads l SET phone = CASE WHEN l.phone = '' THEN coalesce(b.phone, '') ELSE l.phone END,
 				email = CASE WHEN l.email = '' THEN coalesce(b.email, '') ELSE l.email END, version = l.version + 1, updated_at = now()
@@ -597,7 +618,7 @@ func (s *server) mergeBatch(ctx context.Context, sc scope, id string, project, t
 		), feed AS (
 			INSERT INTO change_log (org_id, entity, entity_id, lead_id, op) SELECT cw_org(), 'lead', id, id, 'upsert' FROM upd RETURNING 1
 		), settled AS (
-			UPDATE importing.rows r SET state = 'merged', lead_id = b.match_lead FROM batch b WHERE r.job_id = $1 AND r.row_no = b.row_no RETURNING 1
+			UPDATE importing.rows r SET state = 'merged', lead_id = b.match_lead, filled = b.filled FROM batch b WHERE r.job_id = $1 AND r.row_no = b.row_no RETURNING 1
 		) SELECT (SELECT count(*) FROM settled)`, id, mergeBatch).Scan(&folded)
 	if err != nil {
 		return 0, err
@@ -607,7 +628,7 @@ func (s *server) mergeBatch(ctx context.Context, sc scope, id string, project, t
 			return 0, err
 		}
 	}
-	return created + folded, tx.Commit(ctx)
+	return created + folded, nil
 }
 
 // resumeMerges continues imports that were merging when the service last stopped.
