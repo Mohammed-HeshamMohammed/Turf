@@ -85,7 +85,13 @@ export function RemoteGate({ onReady, onLeave }) {
         return setStep("signin");
       }
       // Caller Whale is for adults: an account that has not given its date of birth gives it before anything else.
-      const sessionPerson = await auth.me({ fresh: true }).catch(() => null);
+      // The three lookups do not depend on each other, so they go out together instead of one after another.
+      const sessionLookup = auth.me({ fresh: true }).catch(() => null);
+      const accountLookup = api.account();
+      const identityLookup = api.me();
+      accountLookup.catch(() => {});
+      identityLookup.catch(() => {});
+      const sessionPerson = await sessionLookup;
       setAuthSessionId(sessionPerson?.session_id || "");
       if (sessionPerson && !sessionPerson.setup_exempt && sessionPerson.age_confirmed === false) {
         setMe({ user: sessionPerson });
@@ -97,12 +103,12 @@ export function RemoteGate({ onReady, onLeave }) {
         return setStep("setup");
       }
       // An invitation from Caller Whale opens the person's workspace the first time they arrive with its email confirmed.
-      const account = await api.account();
+      const account = await accountLookup;
       if (account.access?.status === "unverified") {
         setMe({ user: account.person });
         return setStep("verify");
       }
-      let identity = await api.me();
+      let identity = await identityLookup;
       const organizations = identity.organizations || [];
       // Access to the workspace this device last used was removed or has ended: its offline copy goes too.
       if (organization() && !organizations.some(item => item.id === organization())) {
@@ -358,7 +364,7 @@ export function RemoteGate({ onReady, onLeave }) {
                 : "Your records stay on your organization's server."
         }
       >
-        {step === "checking" && <p className="muted">Checking your session…</p>}
+        {step === "checking" && <p className="muted">Checking your session and loading your workspace…</p>}
         {step === "browser" && (
           <div className="remote-step" role="status">
             <p className="body-copy">Finish signing in in your browser. Caller Whale continues here by itself when you're done.</p>
