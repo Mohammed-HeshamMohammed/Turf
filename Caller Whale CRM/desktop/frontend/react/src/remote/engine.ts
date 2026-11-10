@@ -56,7 +56,8 @@ export class SyncEngine {
     }
     if (this.store) this.store = { ...this.store, ...extra };
     this.emit();
-    await this.sync();
+    // The workspace opens at once: the first load of the records (which can be large) runs behind it, and the page shows it is loading.
+    void this.sync();
     if (this.useSocket) this.connect();
     if (typeof window !== "undefined") {
       const again = () => {
@@ -131,6 +132,7 @@ export class SyncEngine {
       this.error = error.message;
       if (error instanceof ApiError && error.status === 401) this.status = "signed-out";
     }
+    if (this.stopped) return;
     this.emit();
     this.channel?.postMessage("changed");
     this.retryWhenUnreachable();

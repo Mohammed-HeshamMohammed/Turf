@@ -114,6 +114,7 @@ test("one device copy is replaced on a workspace switch after its queue is clear
   const api = { snapshot: async () => ({ ...snapshot, leads: [] }), pull: async () => ({ cursor: 10, changes: [], more: false }) };
   const engine = new SyncEngine({ vault, api, socket: false });
   await engine.start({ organizationId: "new", directory: [], teams: [], projects: [] });
+  await engine.sync();
   assert.equal(engine.store.organizationId, "new");
   assert.deepEqual(Object.keys(engine.store.leads), []);
   engine.stop();

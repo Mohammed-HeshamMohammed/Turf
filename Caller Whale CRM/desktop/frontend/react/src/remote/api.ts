@@ -116,7 +116,8 @@ export const api = {
   projects: () => request("GET", "/api/v1/projects"),
   deleteProject: (id: string): Promise<any> => request("DELETE", `/api/v1/projects/${id}`, undefined, { timeout: 120000 }),
   settings: () => request("GET", "/api/v1/settings"),
-  snapshot: () => request("GET", "/sync/snapshot", undefined, { timeout: 60000 }),
+  // Not cut off at a minute: giving up and asking again made the server start the same heavy read over and over.
+  snapshot: () => request("GET", "/sync/snapshot", undefined, { timeout: 300000 }),
   /** Leads of a big workspace beyond the snapshot's window: by name, phone, email or address. */
   searchLeads: (term: string): Promise<any> => request("GET", `/api/v1/leads/search?q=${encodeURIComponent(term)}&limit=100`),
   pull: (cursor, accessRevision) => request("GET", `/sync/pull?cursor=${cursor}&access_revision=${accessRevision}`),

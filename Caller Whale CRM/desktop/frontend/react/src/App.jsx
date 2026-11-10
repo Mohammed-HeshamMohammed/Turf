@@ -661,6 +661,11 @@ export function App() {
                 {state.remoteError}
               </p>
             )}
+            {state.remoteLoading && (
+              <p className="notice" role="status">
+                Loading your workspace… your leads and lists appear here as soon as they arrive.
+              </p>
+            )}
             {cacheError && (
               <p className="notice" role="alert">
                 Browser storage is full or unavailable. Current edits work in this session but cannot survive a refresh.
