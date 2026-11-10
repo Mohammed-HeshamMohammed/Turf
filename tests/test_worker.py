@@ -341,17 +341,17 @@ class EndToEndTest(unittest.TestCase):
         self.assertEqual(self.job(second)["status"], "loading")
 
     def test_source_only_property_headers_gain_stable_keys_and_usable_property_details(self) -> None:
-        data = (b"Owner 1 First Name,Owner 1 Last Name,Address,County,Living Square Feet,Bedrooms,Bathrooms,Year Built,Vacant?\n"
-                b"Pat,Owner,1 Main St,Travis,1,234,3,2,1980,No\n")
+        data = (b"Owner 1 First Name,Owner 1 Last Name,Address,County,Living Square Feet,Bedrooms,Bathrooms,Year Built,Vacant?,Phone\n"
+                b"Pat,Owner,1 Main St,Travis,1,234,3,2,1980,No,5125550100\n")
         # Quote the comma inside the area cell so it stays one original value.
         data = data.replace(b",1,234,3,", b',"1,234",3,')
         job_id = self.queue(data)
         self.worker.load(self.conn, self.worker.claim(self.conn))
         columns = self.job(job_id)["columns"]
         self.assertEqual([c["standard_key"] for c in columns],
-                         ["owner_1_first_name", "owner_1_last_name", "address", "county", "living_area", "bedrooms", "bathrooms", "year_built", "vacancy"])
+                         ["owner_1_first_name", "owner_1_last_name", "address", "county", "living_area", "bedrooms", "bathrooms", "year_built", "vacancy", "phone"])
         self.assertEqual([c["suggested"] for c in columns],
-                         ["first_name", "last_name", "address", "county", "living_area", "bedrooms", "bathrooms", "year_built", "vacancy"])
+                         ["first_name", "last_name", "address", "county", "living_area", "bedrooms", "bathrooms", "year_built", "vacancy", "phone"])
         for column in columns:
             column["field"], column["used"] = column["suggested"], column["suggested"] is not None
         with self.conn.cursor() as cur:
@@ -368,7 +368,7 @@ class EndToEndTest(unittest.TestCase):
         self.assertEqual((details["beds"], details["baths"], details["county"], details["year_built"]), (3, 2, "Travis", "1980"))
 
     def test_manual_property_mapping_uses_confirmed_field_in_source_data(self) -> None:
-        job_id = self.queue(b"First Name,Last Name,Address,Unfamiliar Area Title\nPat,Owner,1 Main St,1234\n")
+        job_id = self.queue(b"First Name,Last Name,Address,Unfamiliar Area Title,Phone\nPat,Owner,1 Main St,1234,5125550100\n")
         self.worker.load(self.conn, self.worker.claim(self.conn))
         columns = self.job(job_id)["columns"]
         for column in columns:
@@ -457,7 +457,7 @@ class EndToEndTest(unittest.TestCase):
             cur.execute("""INSERT INTO crm.leads (org_id, name, property_id)
                            VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'John Tenant', %s)""", (property_id,))
         self.conn.commit()
-        job_id = self.queue(b"Name,Address,City,Zip\nMary Randel,3307 Lily St,Pasadena,77505\nMaricela Moreno,3307 Lily St,Pasadena,77505\n")
+        job_id = self.queue(b"Name,Address,City,Zip,Phone\nMary Randel,3307 Lily St,Pasadena,77505,5125550111\nMaricela Moreno,3307 Lily St,Pasadena,77505,5125550112\n")
         self.worker.load(self.conn, self.worker.claim(self.conn))
         columns = self.job(job_id)["columns"]
         for column in columns:
@@ -516,6 +516,15 @@ class EndToEndTest(unittest.TestCase):
         self.conn.commit()
         job_id, job = self._clean(b"Name,Phone,Address,City,Zip\nGene Ortega,(310) 555-0101,21820 Grace Ave,Carson,90745\n")
         self.assertEqual((job["report"]["near_groups"], job["report"]["certain_matches_merged"]), (1, 0))
+
+    def test_a_list_with_no_phone_numbers_or_emails_is_refused_and_nothing_is_kept(self) -> None:
+        job_id, job = self._clean(b"Name,Address,City,Zip\nGene Ortega,21820 Grace Ave,Carson,90745\nSol Shoumer,10912 Crenshaw Blvd,Inglewood,90303\n")
+        self.assertEqual(job["status"], "failed")
+        self.assertIn("phone number or an email", job["error"])
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM importing.rows WHERE job_id = %s", (job_id,))
+            self.assertEqual(cur.fetchone()[0], 0)
+        self.conn.commit()
 
     def test_a_cancelled_import_leaves_no_rows(self) -> None:
         job_id = self.queue(CSV.encode())

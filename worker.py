@@ -395,6 +395,19 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
                               count(*) FILTER (WHERE state IN ('clean', 'import', 'merge'))
                        FROM importing.rows WHERE job_id = %s""", (job_id,))
         no_contact_row = cur.fetchone()
+        # A list in which not one row has a phone number or an email cannot be called or written to: it is refused, and nothing of it is kept.
+        cur.execute("""SELECT count(*) FROM importing.rows WHERE job_id = %s AND state IN ('clean', 'near_duplicate', 'merge', 'import')
+                       AND (phone IS NOT NULL OR email IS NOT NULL)""", (job_id,))
+        contactable = cur.fetchone()[0]
+        if contactable == 0 and not exact_existing:
+            cur.execute("""UPDATE importing.jobs SET status = 'failed', worker = NULL, heartbeat_at = NULL, updated_at = now(),
+                           error = 'None of the rows in this list has a phone number or an email, so nobody can be contacted and it was not added. Check that the right columns are chosen, or use a list that has them.'
+                           WHERE id = %s AND status = 'cleaning'""", (job_id,))
+            cur.execute("DELETE FROM importing.rows WHERE job_id = %s", (job_id,))
+            conn.commit()
+            log("INFO", "refused a list with no phone numbers or emails", job=job_id)
+            shutil.rmtree(IMPORT_DIR / job_id, ignore_errors=True)
+            return
         report = dict(job["report"] or {})
         report.update(unusable_rows=max(0, no_contact_row[0] - identical), without_phone_or_email=no_contact_row[1], near_groups=groups,
                       exact_existing=exact_existing, dropped_columns=dropped, identical_merged=identical, certain_matches_merged=auto_merged)
