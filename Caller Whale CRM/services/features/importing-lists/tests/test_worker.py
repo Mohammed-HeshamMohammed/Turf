@@ -324,6 +324,42 @@ class EndToEndTest(unittest.TestCase):
                                 ("ACME PROPERTIES LLC", "5125550111", None), ("Smith, Jr", "5125550122", None), ("Bob", None, None)])
         self.assertEqual(self.job(job_id)["report"]["cleared_cells"], {"phone": 1, "phone_made_up": 2, "email": 1})
 
+    def clean_phone_list(self, content: bytes) -> tuple[str, dict]:
+        job_id = self.queue(content)
+        self.worker.load(self.conn, self.worker.claim(self.conn))
+        columns = self.job(job_id)["columns"]
+        for c in columns:
+            c["field"], c["used"] = c["suggested"], True
+        self.conn.execute("UPDATE importing.jobs SET columns = %s::jsonb, status = 'cleaning', heartbeat_at = NULL WHERE id = %s", (json.dumps(columns), job_id))
+        self.conn.commit()
+        self.worker.clean(self.conn, self.worker.claim(self.conn))
+        return job_id, self.job(job_id)
+
+    def test_phone_line_types_are_added_only_when_a_lookup_is_set_up_and_never_stop_the_import(self) -> None:
+        import linetype
+
+        data = b'Name,Phone\nAnn,5125550100\nBen,5125550111\n'
+        job_id, job = self.clean_phone_list(data)  # no lookup set up: nothing happens
+        self.assertNotIn("line_types", job["report"])
+        self.assertEqual(job["status"], "ready")
+
+        linetype.PROVIDERS["fake"] = lambda numbers: {n: "mobile" if n.endswith("0") else "landline" for n in numbers}
+        self.addCleanup(linetype.PROVIDERS.clear)
+        os.environ["LINE_TYPE_PROVIDER"] = "fake"
+        self.addCleanup(os.environ.pop, "LINE_TYPE_PROVIDER", None)
+        job_id, job = self.clean_phone_list(data)
+        self.assertEqual(job["report"]["line_types"], {"mobile": 1, "landline": 1})
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT phone, source_data->>'phone_line_type' FROM importing.rows WHERE job_id = %s ORDER BY row_no", (job_id,))
+            self.assertEqual(cur.fetchall(), [("5125550100", "mobile"), ("5125550111", "landline")])
+        self.conn.commit()
+
+        def broken(numbers):
+            raise RuntimeError("service down")
+        linetype.PROVIDERS["fake"] = broken
+        job_id, job = self.clean_phone_list(data)
+        self.assertEqual((job["status"], job["report"]["line_types"]), ("ready", "unavailable"))
+
     def test_readymode_calls_are_staged_before_any_lead_changes(self) -> None:
         data = ("a,Agent name,Log Time,Scheduled time,Phone,Log Type,Call Notes,First Name,Last Name,Address,Ph#2,Ph#6\n"
                 "12345,Old agent,10/15/2026 20:47,Not scheduled,5125550100,Voicemail,Left message,Pat,Owner,1 Main St,0,0\n"

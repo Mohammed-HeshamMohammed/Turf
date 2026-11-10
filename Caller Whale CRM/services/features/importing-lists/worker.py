@@ -19,6 +19,7 @@ from pathlib import Path
 import polars as pl
 import psycopg
 
+import linetype
 import matching
 import readers
 import readymode
@@ -367,6 +368,39 @@ def source_data_sql(columns: list[dict]) -> str:
     return f"jsonb_strip_nulls(jsonb_object(ARRAY[{keys}]::text[], ARRAY[{values}]::text[]))"
 
 
+def add_line_types(conn: psycopg.Connection, job_id: str) -> dict:
+    """Marks each row's phone as mobile, landline... when a lookup service is set up (see linetype.py); with none, nothing happens. The
+    answer goes into the row's source data as phone_line_type. A service that fails must never fail the import: the list goes on
+    without line types and the report says so. Returns what to add to the report."""
+    lookup = linetype.provider()
+    if lookup is None:
+        return {}
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT phone FROM importing.rows WHERE job_id = %s AND state = 'clean' AND phone IS NOT NULL", (job_id,))
+            numbers = [r[0] for r in cur.fetchall()]
+        for start in range(0, len(numbers), linetype.BATCH):
+            check_cancel(conn, job_id)
+            answers = {n: k for n, k in lookup(numbers[start:start + linetype.BATCH]).items() if k in linetype.KINDS}
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE importing.rows r SET source_data = r.source_data || jsonb_build_object('phone_line_type', t.kind)
+                               FROM unnest(%s::text[], %s::text[]) AS t(phone, kind)
+                               WHERE r.job_id = %s AND r.state = 'clean' AND r.phone = t.phone""", (list(answers), list(answers.values()), job_id))
+            conn.commit()
+        with conn.cursor() as cur:
+            cur.execute("""SELECT source_data->>'phone_line_type', count(*) FROM importing.rows
+                           WHERE job_id = %s AND state = 'clean' AND phone IS NOT NULL GROUP BY 1""", (job_id,))
+            counts = {kind or "unknown": n for kind, n in cur.fetchall()}
+        conn.commit()
+        return {"line_types": counts}
+    except Cancelled:
+        raise
+    except Exception as error:
+        conn.rollback()
+        log("WARN", "line type lookup failed, going on without it", job=job_id, error=str(error))
+        return {"line_types": "unavailable"}
+
+
 CHECKED_FIELDS = ("phone", "email", "value", "latitude", "longitude")
 
 
@@ -436,6 +470,7 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
     step = time.monotonic()
     exact_existing = skip_identical_prior_rows(conn, job)
     log("INFO", "exact repeats checked", job=job_id, found=exact_existing, seconds=round(time.monotonic() - step, 1))
+    line_types = add_line_types(conn, job_id)
     check_cancel(conn, job_id)
     step = time.monotonic()
     groups, auto_merged = find_repeats(conn, job, total=total)
@@ -464,7 +499,7 @@ def clean(conn: psycopg.Connection, job: dict) -> None:
             return
         report = dict(job["report"] or {})
         report.update(unusable_rows=max(0, no_contact_row[0] - identical), without_phone_or_email=no_contact_row[1], near_groups=groups,
-                      exact_existing=exact_existing, dropped_columns=dropped, identical_merged=identical, certain_matches_merged=auto_merged, cleared_cells=cleared)
+                      exact_existing=exact_existing, dropped_columns=dropped, identical_merged=identical, certain_matches_merged=auto_merged, cleared_cells=cleared, **line_types)
         status = "reviewing" if groups else "done" if exact_existing and no_contact_row[0] == 0 and no_contact_row[2] == 0 else "ready"
         cur.execute("""UPDATE importing.jobs SET status = %s, report = %s::jsonb, worker = NULL, heartbeat_at = NULL, progress = %s::jsonb, updated_at = now()
                        WHERE id = %s AND status = 'cleaning'""",

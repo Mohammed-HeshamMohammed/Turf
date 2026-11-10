@@ -8,7 +8,7 @@ ENV CALLERWHALE_LOG_SERVICE="Importing lists"
 WORKDIR /app
 COPY requirements.txt requirements.lock ./
 RUN pip install --no-cache-dir -r requirements.lock
-COPY server.py upload_api.py worker.py readers.py matching.py readymode.py ./
+COPY server.py upload_api.py worker.py readers.py matching.py readymode.py linetype.py ./
 RUN python -c "import worker"
 # The worker's own persistent upload folder belongs to its app user.
 RUN mkdir -p /data/imports && chown -R 65532:65532 /data
