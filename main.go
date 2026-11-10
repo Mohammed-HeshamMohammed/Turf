@@ -182,7 +182,7 @@ func classify(method, path string) need {
 		return private
 	case method == http.MethodGet && (path == "/api/v1/auth/service" || path == "/api/v1/plans" || strings.HasPrefix(path, "/api/v1/download/")):
 		return open
-	case method == http.MethodPost && (path == "/api/v1/public/waitlist" || path == "/api/v1/public/contact"): // the website's two forms: no sign-in, the address limit still applies
+	case method == http.MethodPost && (path == "/api/v1/public/waitlist" || path == "/api/v1/public/contact" || path == "/api/v1/public/remove-my-information"): // the website's public forms: no sign-in, the address limit still applies
 		return open
 	case method == http.MethodPost && path == "/api/v1/billing/webhook": // the payment provider's signature is checked by the core API
 		return open

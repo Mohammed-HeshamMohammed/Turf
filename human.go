@@ -157,6 +157,8 @@ func formRuleFor(method, path string) (humanRule, bool) {
 		return humanRule{action: "waitlist"}, true
 	case "/api/v1/public/contact":
 		return humanRule{action: "contact"}, true
+	case "/api/v1/public/remove-my-information":
+		return humanRule{action: "removal"}, true
 	}
 	return humanRule{}, false
 }
