@@ -123,6 +123,8 @@ export function ReadyModeImport() {
         <p><strong>{number(report.valid_calls)} calls</strong> are ready. {number(report.unusable_calls)} rows lacked a usable call time or phone and will stay in the source rows.</p>
         <p className="muted">Agent, outcome, date, notes, scheduled time and recording timestamps are retained. The export contains recording times, not audio. Past scheduled times will not become new callbacks; do-not-call outcomes block dialing.</p>
         <p>Time zone: {zones.find(([value]) => value === job.source_timezone)?.[1] || job.source_timezone}</p>
+        {report.first_call && <p className="muted">Calls run from {new Date(report.first_call).toLocaleString()} to {new Date(report.last_call).toLocaleString()}, shown in your time zone. If that is not when they happened, cancel and upload again with the right time zone.</p>}
+        {report.future_calls > 0 && <p className="notice" role="alert">{number(report.future_calls)} {report.future_calls === 1 ? "call is" : "calls are"} dated in the future, so the time zone chosen is probably wrong. Cancel and upload again with the right one.</p>}
         <div className="row">{Object.entries(report.outcomes || {}).sort((a, b) => b[1] - a[1]).map(([name, count]) => <span key={name}>{name}: {number(count)}</span>)}</div>
         {preview.length > 0 && <div className="readymode-preview"><h3>First source rows</h3>
           <p className="muted">These are the original values saved from your export. Rows without a usable call remain here.</p>
