@@ -58,7 +58,9 @@ const REQUIRE_SIGN_IN =
   import.meta.env?.VITE_CALLERWHALE_SAMPLE !== "true" &&
   (import.meta.env?.VITE_CALLERWHALE_REQUIRE_SIGN_IN === "true" || (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window));
 
-const readRoute = () => window.location.hash.slice(1).replace(/^\//, "") || "dashboard";
+// The page lives in the app, never in the address bar: a route in the URL from an old link is read once and removed.
+const openedWithRoute = typeof window !== "undefined" && window.location.hash.length > 1 && !window.location.hash.startsWith("#/captions-window");
+const readRoute = () => (openedWithRoute ? window.location.hash.slice(1).replace(/^\//, "") : "") || "dashboard";
 
 export function App() {
   const [state, apply] = useReducer(remoteReducer, undefined, () => loadState(window.localStorage));
@@ -103,6 +105,7 @@ export function App() {
     };
   }, [connection]);
   const [route, setRoute] = useState(readRoute);
+  const routeRef = useRef(route);
   const [toast, setToast] = useState("");
   const [query, setQuery] = useState("");
   const [mobileNav, setMobileNav] = useState(false);
@@ -271,7 +274,7 @@ export function App() {
         if (previous) for (const job of jobs) {
           const before = previous.get(job.id);
           const message = importStatusMessage(job);
-          if (message && before !== job.status && !window.location.hash.includes(`/imports/${job.id}`)) notify(message);
+          if (message && before !== job.status && !routeRef.current.includes(`/imports/${job.id}`)) notify(message);
         }
         importSeen.current = new Map(jobs.map(job => [job.id, job.status]));
         setImportJobs(jobs);
@@ -338,12 +341,9 @@ export function App() {
     const preferences = loadPersonalPreferences(me.user.id);
     apply({ type: "REMOTE_START", role, preferences, remote: { user: me.user, capabilities: me.capabilities, organization, organizationId: me.organization_id, organizations: me.organizations, roles: me.roles, people: directory, timezone: selectedWorkspace?.timezone || "UTC" } });
     setSidebarCollapsed(preferences.sidebarCollapsed);
-    if (!window.location.hash) {
+    if (!openedWithRoute) {
       const preferred = START_PAGES.find(page => page.id === preferences.startPage && ROLES[role].pages.includes(page.id));
-      if (preferred) {
-        window.location.hash = "/" + preferred.path;
-        setRoute(preferred.path);
-      }
+      if (preferred) setRoute(preferred.path);
     }
     const sync = new SyncEngine({ vault, onChange: snapshot => apply(syncAction(snapshot, me.user.name)) });
     engine.current = sync;
@@ -396,18 +396,18 @@ export function App() {
     if (state.remoteStatus === "signed-out") signOut();
   }, [state.remoteStatus, signOut]);
   const navigate = useCallback(path => {
-    window.location.hash = "/" + path;
+    setRoute(path.replace(/^\//, ""));
     setQuery("");
     setMobileNav(false);
   }, []);
   useEffect(() => {
-    const change = () => {
-      setRoute(readRoute());
-      setNotifications(false);
-      main.current?.scrollTo({ top: 0 });
-    };
-    window.addEventListener("hashchange", change);
-    return () => window.removeEventListener("hashchange", change);
+    routeRef.current = route;
+    setNotifications(false);
+    main.current?.scrollTo({ top: 0 });
+  }, [route]);
+  useEffect(() => {
+    // Take any route an old link left in the address bar out of it.
+    if (window.location.hash && !window.location.hash.startsWith("#/captions-window")) window.history.replaceState(null, "", window.location.pathname + window.location.search);
   }, []);
   useEffect(() => {
     // Server records are kept only in the encrypted offline copy, never in plain browser storage.
