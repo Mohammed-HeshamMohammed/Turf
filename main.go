@@ -74,7 +74,7 @@ func run() error {
 	if cfg.telegramToken != "" {
 		s.tg = newTelegram(cfg.telegramToken, cfg.telegramBot, cfg.telegramAPI)
 	}
-	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
+	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 60 * time.Second, WriteTimeout: 2 * time.Minute, IdleTimeout: 2 * time.Minute}
 	failed := make(chan error, 1)
 	go func() { failed <- srv.ListenAndServe() }()
 	log.Printf("auth listening on http://localhost:%s", cfg.port)
