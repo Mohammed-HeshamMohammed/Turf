@@ -17,6 +17,9 @@ export function Dashboard() {
   const deals = state.deals.filter(deal => leadIds.has(deal.leadId) && !deal.stage.startsWith("Closed"));
   const handoffs = state.handoffs.filter(item => item.status === "Requested" && leadIds.has(item.leadId));
   const active = leads.filter(lead => lead.stage !== "Closed");
+  // A big workspace sends this device a window of its leads: the count of all of them is the server's.
+  const partial = Boolean(state.remote) && state.leadsTotal > leads.length;
+  const activeCount = partial ? state.leadsTotal : active.length;
   const next = active.find(lead => lead.callback) || active[0];
   const finance = capability(state, "finance");
   const history = state.activities.filter(item => item.leadId && leadIds.has(item.leadId));
@@ -81,7 +84,7 @@ export function Dashboard() {
       <PageHeader
         title={isClient ? "Your properties" : "Good morning, " + personalProfile(state).name.split(" ")[0]}
         description={
-          isClient ? "Your approved records, updates, and next steps in one place." : active.length + " active leads · " + tasks.length + " open next steps"
+          isClient ? "Your approved records, updates, and next steps in one place." : activeCount.toLocaleString() + " active leads · " + tasks.length + " open next steps"
         }
       >
         <span className="date-label">{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date())}</span>
@@ -94,7 +97,7 @@ export function Dashboard() {
       <div className="metrics-grid">
         <Metric
           label={isClient ? "Shared properties" : state.role === "researcher" ? "Project leads" : "Active leads"}
-          value={isClient ? leads.length : active.length}
+          value={isClient ? leads.length : activeCount.toLocaleString()}
           detail={role.scope}
           icon={Users}
           onClick={() => navigate("work/leads")}
@@ -110,7 +113,7 @@ export function Dashboard() {
         <Metric
           label={finance ? "Acquisition pipeline" : "Qualified leads"}
           value={finance ? money(deals.reduce((sum, deal) => sum + deal.amount, 0)) : leads.filter(lead => lead.stage === "Qualified").length}
-          detail={finance ? deals.length + " active deals" : "Ready for the next conversation"}
+          detail={finance ? deals.length + " active deals" : partial ? "Among the " + leads.length.toLocaleString() + " most recent leads" : "Ready for the next conversation"}
           icon={CheckCircle}
           onClick={() => navigate(finance ? "work/deals" : "work/leads")}
         />
