@@ -107,16 +107,37 @@ export function Calls({ target }) {
     () => visibleLeads(state).filter(item => hasPhone(item) && item.stage !== "Closed" && item.verdict !== "Do not call" && item.verdict !== "Wrong number"),
     [state],
   );
+  // A big workspace sends this device only a window of its leads: the lists and their counts are the server's, and the queue is
+  // filled a page at a time from the server (see "More leads" below).
+  const bigWorkspace = Boolean(state.remote) && Boolean(state.projectCallable) && state.leadsTotal > visibleLeads(state).length;
   const lists = useMemo(
     () =>
-      [...new Set(callable.map(item => item.datasetId || ""))].map(id => ({
-        id,
-        name: state.datasets.find(item => item.id === id)?.name || "Direct leads",
-        count: callable.filter(item => (item.datasetId || "") === id).length,
-      })),
-    [callable, state.datasets],
+      bigWorkspace
+        ? Object.entries(state.projectCallable)
+            .filter(([, count]) => count > 0)
+            .map(([id, count]) => ({ id, name: state.datasets.find(item => item.id === id)?.name || "List", count }))
+        : [...new Set(callable.map(item => item.datasetId || ""))].map(id => ({
+            id,
+            name: state.datasets.find(item => item.id === id)?.name || "Direct leads",
+            count: callable.filter(item => (item.datasetId || "") === id).length,
+          })),
+    [callable, state.datasets, bigWorkspace, state.projectCallable],
   );
   const activeList = lists.some(item => item.id === listId) ? listId : "";
+  const serverCallable = bigWorkspace ? (activeList ? (state.projectCallable[activeList] ?? 0) : Object.values(state.projectCallable).reduce((sum, n) => sum + n, 0)) : 0;
+  const [pulled, setPulled] = useState({ key: "", next: 0, done: false, busy: false });
+  const pullKey = activeList + "|" + (bigWorkspace ? "big" : "");
+  const pullMore = () => {
+    if (!bigWorkspace || pulled.busy || (pulled.key === pullKey && pulled.done)) return;
+    const offset = pulled.key === pullKey ? pulled.next : 0;
+    setPulled({ key: pullKey, next: offset, done: false, busy: true });
+    Promise.resolve(dispatch({ type: "BROWSE_LEADS", term: "", stage: "", project: activeList, callable: true, offset, limit: 100, count: false }))
+      .then(found => setPulled({ key: pullKey, next: offset + 100, done: !found || found.ids.length < 100, busy: false }))
+      .catch(() => setPulled({ key: pullKey, next: offset, done: true, busy: false }));
+  };
+  useEffect(() => {
+    if (bigWorkspace && pulled.key !== pullKey) pullMore();
+  }, [pullKey, bigWorkspace]);
   // Within a list, callbacks that are due come first, then people who have never been called.
   const leads = useMemo(() => {
     const due = item => (item.callback ? (item.callbackDate || "") + item.callback : "~");
@@ -128,6 +149,11 @@ export function Calls({ target }) {
       .map(entry => entry.item);
   }, [callable, activeList, lists]);
   const lead = callLocked ? visibleLeads(state).find(item => item.id === session.lead?.id) : leads.find(item => item.id === chosen) || leads[0];
+  // Near the end of what is loaded, the next page comes by itself.
+  const position = leads.findIndex(item => item.id === lead?.id);
+  useEffect(() => {
+    if (bigWorkspace && pulled.key === pullKey && position >= leads.length - 10) pullMore();
+  }, [position, leads.length, pulled.key, pulled.busy]);
   useEffect(() => {
     setCallNote("");
     setSelectedOutcome("");
@@ -237,8 +263,8 @@ export function Calls({ target }) {
         <Card
           title="Your call queue"
           subtitle={
-            leads.length +
-            (leads.length === 1 ? " lead" : " leads") +
+            (bigWorkspace ? serverCallable.toLocaleString() : leads.length) +
+            ((bigWorkspace ? serverCallable : leads.length) === 1 ? " lead" : " leads") +
             (activeList ? " in " + (lists.find(item => item.id === activeList)?.name || "this list") : " across your lists")
           }
           className="queue-card"
@@ -246,10 +272,10 @@ export function Calls({ target }) {
           {lists.length > 1 && (
             <div className="queue-list-pick">
               <Select aria-label="Call list" value={activeList} disabled={callLocked || autoDial} onChange={event => setListId(event.target.value)}>
-                <option value="">{"All lists · " + callable.length}</option>
+                <option value="">{"All lists · " + (bigWorkspace ? Object.values(state.projectCallable).reduce((sum, n) => sum + n, 0) : callable.length).toLocaleString()}</option>
                 {lists.map(item => (
                   <option key={item.id} value={item.id}>
-                    {item.name + " · " + item.count}
+                    {item.name + " · " + item.count.toLocaleString()}
                   </option>
                 ))}
               </Select>
@@ -285,7 +311,12 @@ export function Calls({ target }) {
               </button>
             </Fragment>
           ))}
-          {!leads.length && <Empty title="No callable leads">Blocked and closed leads are left out.</Empty>}
+          {bigWorkspace && !pulled.done && (
+            <Button disabled={pulled.busy} onClick={pullMore}>
+              {pulled.busy ? "Loading…" : "More leads"}
+            </Button>
+          )}
+          {!leads.length && (bigWorkspace && !pulled.done ? <Empty title="Loading the queue…">A big list takes a moment.</Empty> : <Empty title="No callable leads">Blocked and closed leads are left out.</Empty>)}
         </Card>
         <div className="call-main">
           {lead ? (

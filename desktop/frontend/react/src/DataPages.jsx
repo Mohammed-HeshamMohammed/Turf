@@ -52,6 +52,19 @@ export function Lists({ id, importId = null }) {
   const listLeads = useMemo(() => leads.filter(lead => lead.datasetId === id), [leads, id]);
   // This device holds only a window of a big workspace's leads: the server's count says how many a list really has.
   const crmLeads = (projectId, held) => (remote ? Math.max(held, Number(state.datasets.find(item => item.id === projectId)?.rows) || 0) : held);
+  // Opening a list of a big workspace brings the first leads of that list to this device (for the map); the count says how many it has.
+  const listTotal = remote ? Number(state.datasets.find(item => item.id === id)?.rows) || 0 : 0;
+  const loadedFor = useRef("");
+  useEffect(() => {
+    if (!remote || !id || listTotal <= listLeads.length || loadedFor.current === id) return;
+    loadedFor.current = id;
+    (async () => {
+      for (let offset = 0; offset < 300; offset += 100) {
+        const found = await Promise.resolve(dispatch({ type: "BROWSE_LEADS", term: "", stage: "", project: id, offset, limit: 100, count: false })).catch(() => null);
+        if (!found || found.ids.length < 100) break;
+      }
+    })();
+  }, [id, listTotal]);
   const datasetIds = new Set(leads.map(item => item.datasetId));
   const datasets = state.remote ? state.datasets : state.datasets.filter(item => datasetIds.has(item.id) || (capability(state, "import") && item.team === (ROLES[state.role].team || "Tampa")));
   const searchedDatasets = datasets.filter(item => item.name.toLowerCase().includes(search.toLowerCase()));
@@ -353,7 +366,7 @@ export function Lists({ id, importId = null }) {
           </div>)}
           <Button onClick={() => navigate("lists/activity")}>All import activity</Button>
         </Card>}
-        {listLeads.length > 0 && <LeadsMap leads={listLeads} />}
+        {listLeads.length > 0 && <LeadsMap leads={listLeads} total={listTotal} />}
         <Card className="table-card">
           <DataTable
             view={table}

@@ -213,7 +213,7 @@ export function Leads() {
         client ? (
           <PropertyMap rows={windowLeads} title="Shared property map" />
         ) : (
-          <LeadsMap leads={windowLeads} />
+          <LeadsMap leads={windowLeads} total={state.remote ? state.leadsTotal : 0} />
         )
       ) : (
         <div className="card table-card" ref={card}>

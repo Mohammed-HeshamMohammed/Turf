@@ -47,7 +47,8 @@ function leadPopup(lead, open) {
 
 const placeOf = lead => (lead.geo && Number.isFinite(lead.geo.lat) && Number.isFinite(lead.geo.lng) ? lead.geo : null);
 
-export function LeadsMap({ leads }) {
+/** `total` is how many leads the workspace (or list) has when this device holds only some of them: the map says so. */
+export function LeadsMap({ leads, total = 0 }) {
   const { state, navigate } = useCrm();
   const host = useRef(null);
   const mapRef = useRef(null);
@@ -252,6 +253,7 @@ export function LeadsMap({ leads }) {
       <div className="leads-map-bar">
         <div className="leads-map-counts" role="status">
           <strong>{placed.length.toLocaleString()}</strong> of {leads.length.toLocaleString()} leads on the map
+          {total > leads.length && <span> · the first {leads.length.toLocaleString()} of {total.toLocaleString()} are loaded</span>}
           {exact > 0 && <span> · {exact.toLocaleString()} at their address</span>}
           {placed.length - exact > 0 && <span> · {(placed.length - exact).toLocaleString()} in their ZIP area</span>}
           {notFound > 0 && <span> · {notFound.toLocaleString()} addresses not found</span>}

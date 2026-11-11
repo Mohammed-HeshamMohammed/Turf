@@ -164,6 +164,7 @@ export function collectionsFromStore(store) {
     leadsTotal: Math.max(store.leadsTotal || 0, sourceLeads.length),
     // What the server counted over every lead the person sees (null until a snapshot has said): the pages count from these when this device holds only a window.
     stageCounts: store.stageCounts ?? null,
+    projectCallable: store.projectCallable ?? null,
     unassignedCount: store.unassignedCount ?? null,
     ownedCounts: store.assigneeCounts ? Object.fromEntries(Object.entries(store.assigneeCounts).map(([id, n]) => [nameOf(context.directory, id), n])) : null,
     leads: sourceLeads
@@ -248,6 +249,7 @@ export function storeFromSnapshot(snapshot, extra = {}) {
     leaseExpiresAt: snapshot.offline_lease_expires_at,
     leadsTotal: snapshot.leads_total ?? Object.keys(byId(snapshot.leads)).length,
     projectCounts: snapshot.project_counts || {},
+    projectCallable: snapshot.project_callable || null,
     stageCounts: snapshot.stage_counts || null,
     unassignedCount: snapshot.unassigned_count ?? null,
     assigneeCounts: snapshot.assignee_counts || null,
