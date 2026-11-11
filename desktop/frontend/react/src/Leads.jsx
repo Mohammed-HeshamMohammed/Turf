@@ -57,6 +57,7 @@ export function Leads() {
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(10);
   const [served, setServed] = useState({ ids: [], total: 0 });
+  const [waiting, setWaiting] = useState(true); // the server has not answered for this page yet: not "no leads"
   const counted = useRef({ key: "", total: null });
   useEffect(() => {
     const timer = setTimeout(() => setTerm(search.trim().length >= 2 ? search.trim() : ""), 350);
@@ -68,11 +69,13 @@ export function Leads() {
     let live = true;
     const key = term + "|" + stage;
     const known = counted.current.key === key ? counted.current.total : null;
+    setWaiting(true);
     Promise.resolve(dispatch({ type: "BROWSE_LEADS", term, stage: stage === "All stages" ? "" : stage, offset: page * size, limit: size, count: known == null }))
       .then(found => {
         if (!live || !found) return;
         counted.current = { key, total: found.total ?? known };
         setServed({ ids: found.ids, total: found.total ?? known ?? 0 });
+        setWaiting(false);
       })
       .catch(() => live && setServerFailed(true));
     return () => {
@@ -181,7 +184,7 @@ export function Leads() {
           <Checkbox label={"Archived (" + archivedCount + ")"} checked={showArchived} onChange={event => setShowArchived(event.target.checked)} />
         )}
         <span className="result-count">
-          {(serverMode ? served.total : leads.length).toLocaleString()} {client ? "properties" : "leads"}
+          {serverMode && waiting && !served.total ? "Loading…" : `${(serverMode ? served.total : leads.length).toLocaleString()} ${client ? "properties" : "leads"}`}
         </span>
       </div>
       {selected.length > 0 && (
@@ -299,7 +302,7 @@ export function Leads() {
               cell: lead => <RoundButton label={"Open " + lead.name} onClick={() => navigate("work/leads/" + lead.id)} />,
             }}
           />
-          {!table.rows.length && <Empty title="No leads match this view">Try another stage or search term.</Empty>}
+          {!table.rows.length && (serverMode && waiting ? <Empty title="Loading leads…">A big workspace takes a moment.</Empty> : <Empty title="No leads match this view">Try another stage or search term.</Empty>)}
           <footer className="table-footer">
             <span>{ROLES[state.role].scope}</span>
             <span>{(serverMode ? served.total : leads.length).toLocaleString()} records{state.remote ? "" : " · sample workspace"}</span>
