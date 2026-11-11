@@ -38,7 +38,7 @@ export interface Auth {
   acceptTerms(version: string): Promise<unknown>;
   setWorkProfile(answers: { role: string; team_size: string; uses: string[]; other: string }): Promise<unknown>;
   signOut(): Promise<void>;
-  forgotPassword(email: string): Promise<unknown>;
+  forgotPassword(email: string, humanToken?: string): Promise<unknown>;
 	factors(): Promise<{ factors: { id: string; kind: string; label: string; created_at: number; last_used_at: number | null }[]; max_totp: number; email_enabled: boolean; available: { email: boolean; telegram: boolean; push: boolean } }>;
 	removeFactor(id: string): Promise<unknown>;
 	setEmailCodes(enabled: boolean): Promise<unknown>;
