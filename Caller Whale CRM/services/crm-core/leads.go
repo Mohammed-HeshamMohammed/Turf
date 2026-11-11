@@ -24,13 +24,18 @@ func (s *server) searchLeads(q *req) error {
 	}
 	offset, _ := strconv.Atoi(query.Get("offset"))
 	offset = max(offset, 0)
-	where := `cw_visible_lead(l.id)`
+	// The person's own scopes are written into the query (leadVisible): the cw_visible_lead function runs a query for every lead it is asked
+	// about, which counted a workspace of hundreds of thousands in minutes while the page showed "0 leads".
 	args := []any{}
+	where := ""
+	if term != "" {
+		args = append(args, "%"+strings.NewReplacer(`\`, `\`, `%`, `\%`, `_`, `\_`).Replace(term)+"%")
+		where = `(l.name ILIKE $1 OR l.phone ILIKE $1 OR l.email ILIKE $1 OR p.address ILIKE $1 OR p.city ILIKE $1 OR p.postal_code ILIKE $1) AND `
+	}
+	visible, args := leadVisible(q.sc, "l", args)
+	where += visible
 	if term == "" {
 		where = `l.archived_at IS NULL AND ` + where
-	} else {
-		args = append(args, "%"+strings.NewReplacer(`\`, `\`, `%`, `\%`, `_`, `\_`).Replace(term)+"%")
-		where = `(l.name ILIKE $1 OR l.phone ILIKE $1 OR l.email ILIKE $1 OR p.address ILIKE $1 OR p.city ILIKE $1 OR p.postal_code ILIKE $1) AND ` + where
 	}
 	if stage := strings.TrimSpace(query.Get("stage")); stage != "" && len(stage) <= 40 {
 		args = append(args, stage)

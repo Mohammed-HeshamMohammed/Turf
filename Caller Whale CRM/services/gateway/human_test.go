@@ -274,6 +274,10 @@ func TestOnlyTheFirstLegIsGuarded(t *testing.T) {
 	if w.asked.Load() != 0 {
 		t.Fatal("google must not be asked for these")
 	}
+	// Asking for a password reset email is guarded: it sends mail to anyone.
+	if rule, guarded := ruleFor("POST", "/v1/password/forgot"); !guarded || rule.action != "forgot" {
+		t.Fatal("the password reset request must be checked")
+	}
 	// A path that only looks like a start is not one.
 	if _, guarded := ruleFor("POST", "/v1/oauth/google/extra/start"); guarded {
 		t.Fatal("a nested path is not a provider start")

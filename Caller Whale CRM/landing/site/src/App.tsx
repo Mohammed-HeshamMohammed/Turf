@@ -362,7 +362,7 @@ function Forgot() {
   const submit = (e: FormEvent) => {
     e.preventDefault();
     run(async () => {
-      await auth.forgotPassword(email);
+      await auth.forgotPassword(email, await humanToken(getAuth, "forgot"));
       return "If that address has an account, a reset link is on its way.";
     });
   };
@@ -373,6 +373,7 @@ function Forgot() {
         <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} />
         {state.error && <p className="notice bad" role="alert">{state.error}</p>}
         {state.info && <p className="notice" role="status">{state.info}</p>}
+        <HumanCheck getAuth={getAuth} />
         <button className="button primary" disabled={state.busy}>Send the link</button>
         <div className="alt">
           <Link to="/signin">Back to sign in</Link>

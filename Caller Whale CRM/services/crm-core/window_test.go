@@ -35,6 +35,11 @@ func TestABigWorkspaceSendsAWindowAndSearchFindsTheRest(t *testing.T) {
 	if found["total"].(float64) != 1 || len(found["leads"].([]any)) != 1 {
 		t.Fatalf("search: %v", found)
 	}
+	// The Leads list asks with no search at all: the whole workspace is counted and a page of it comes back.
+	_, page := e.call(alice, orgA, "GET", "/api/v1/leads/search?offset=10&limit=5", nil)
+	if page["total"].(float64) < float64(snapshotLeads+200) || len(page["leads"].([]any)) != 5 {
+		t.Fatalf("browse: total %v, %d leads", page["total"], len(page["leads"].([]any)))
+	}
 	if status, _ = e.call(alice, orgA, "GET", "/api/v1/leads/search?q=a", nil); status != http.StatusBadRequest {
 		t.Fatalf("one-letter search: %d", status)
 	}
