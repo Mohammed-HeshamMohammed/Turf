@@ -134,6 +134,9 @@ func ruleFor(method, path string) (humanRule, bool) {
 		return humanRule{action: "signup"}, true
 	case method == http.MethodPost && path == "/v1/sessions":
 		return humanRule{action: "signin"}, true
+	case method == http.MethodPost && path == "/v1/password/forgot":
+		// Every request can send an email from Caller Whale to anyone: a bot must not be able to do that in bulk.
+		return humanRule{action: "forgot"}, true
 	case strings.HasPrefix(path, "/v1/oauth/") && strings.HasSuffix(path, "/start") && !strings.Contains(strings.TrimSuffix(strings.TrimPrefix(path, "/v1/oauth/"), "/start"), "/"):
 		if method == http.MethodPost {
 			return humanRule{}, true
