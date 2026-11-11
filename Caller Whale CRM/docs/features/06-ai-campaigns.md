@@ -4,6 +4,8 @@
 
 The customer picks leads from their lists, Caller Whale's AI writes a message for each lead, sends it in steps over time, reads the replies and updates the CRM. **Everything runs on Caller Whale's server**, so the device doesn't matter: any computer or phone can build, approve and follow a campaign.
 
+> **Law update (2026-11-11):** the state-by-state research and the rules the build must enforce are in [`docs/plans/campaigns-law-by-state.md`](../plans/campaigns-law-by-state.md). Where it is stricter than this page it wins: cold SMS is off with no setting, texts need a recorded consent per lead, a state gate (registration and bond), quiet hours of 9 am to 7 pm local Monday to Saturday, at most 3 contacts in 24 hours, all seven stop words honoured at once, and federal plus state do-not-call scrubbing.
+
 ## How it works
 
 1. **Pick who:** a list, a filter, or leads at a stage ("absentee owners in Tampa, not yet contacted, with a good email").
