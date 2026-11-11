@@ -349,21 +349,37 @@ func (s *server) snapshot(q *req) error {
 	var total int64
 	counts := map[string]int64{}
 	contactable := map[string]int64{} // leads of each list with a phone number or an email: a list with none is a useless list
-	countRows, err := tx.Query(ctx, `SELECT l.project_id::text, count(*), count(*) FILTER (WHERE l.phone <> '' OR l.email <> '' OR p.skip_tracing)
-		FROM leads l LEFT JOIN projects p ON p.id = l.project_id WHERE `+countWhere+` GROUP BY l.project_id`, countArgs...)
+	stages := map[string]int64{} // leads of each stage that are not archived: the overview and the team page count from these, not from the window
+	var unassigned int64         // of those, the open ones with no owner
+	owned := map[string]int64{}  // and the open ones each person owns
+	countRows, err := tx.Query(ctx, `SELECT l.project_id::text, l.stage, (l.archived_at IS NOT NULL), l.assignee_id::text, count(*), count(*) FILTER (WHERE l.phone <> '' OR l.email <> '' OR p.skip_tracing)
+		FROM leads l LEFT JOIN projects p ON p.id = l.project_id WHERE `+countWhere+` GROUP BY 1, 2, 3, 4`, countArgs...)
 	if err != nil {
 		return err
 	}
 	for countRows.Next() {
 		var id *string
+		var stage string
+		var archived bool
+		var owner *string
 		var n, withContact int64
-		if err = countRows.Scan(&id, &n, &withContact); err != nil {
+		if err = countRows.Scan(&id, &stage, &archived, &owner, &n, &withContact); err != nil {
 			countRows.Close()
 			return err
 		}
 		total += n
 		if id != nil {
-			counts[*id], contactable[*id] = n, withContact
+			counts[*id], contactable[*id] = counts[*id]+n, contactable[*id]+withContact
+		}
+		if !archived {
+			stages[stage] += n
+			if stage != "Closed" {
+				if owner == nil {
+					unassigned += n
+				} else {
+					owned[*owner] += n
+				}
+			}
 		}
 	}
 	countRows.Close()
@@ -379,7 +395,7 @@ func (s *server) snapshot(q *req) error {
 			return err
 		}
 	}
-	body := map[string]any{"cursor": cursor, "access_revision": q.rev, "leads": leads, "leads_total": total, "project_counts": counts, "project_contactable": contactable, "deals": []json.RawMessage{}, "next": next}
+	body := map[string]any{"cursor": cursor, "access_revision": q.rev, "leads": leads, "leads_total": total, "project_counts": counts, "project_contactable": contactable, "stage_counts": stages, "unassigned_count": unassigned, "assignee_counts": owned, "deals": []json.RawMessage{}, "next": next}
 	for name, sql := range map[string]string{
 		"tasks":    taskVisible + ` AND (t.lead_id IS NULL OR t.lead_id IN (SELECT id FROM win))`,
 		"notes":    `SELECT to_jsonb(n) FROM notes n WHERE n.lead_id IN (SELECT id FROM win) AND (NOT cw_external() OR n.visibility = 'shared')`,

@@ -59,6 +59,20 @@ function computeScopedLeads(state) {
 export function visibleLeads(state) {
   return scope(state).visible;
 }
+/**
+ * How many leads there are, by stage, in the whole workspace the person sees. A big workspace sends this device only a window of its leads,
+ * so the server's counts are used then; otherwise (and in the sample workspace) the leads at hand are counted.
+ */
+export function leadCounts(state) {
+  const leads = visibleLeads(state);
+  const partial = Boolean(state.remote) && state.leadsTotal > leads.length && Boolean(state.stageCounts);
+  const stage = (name: string) => (partial ? (state.stageCounts[name] ?? 0) : leads.filter(lead => lead.stage === name).length);
+  const total = partial ? Object.values(state.stageCounts).reduce((sum: number, n: any) => sum + n, 0) : leads.length;
+  const active = partial ? total - stage("Closed") : leads.filter(lead => lead.stage !== "Closed").length;
+  const unassigned = partial && state.unassignedCount != null ? state.unassignedCount : leads.filter(lead => lead.stage !== "Closed" && (!lead.assignee || lead.assignee === "Unassigned")).length;
+  const owned = (name: string) => (partial && state.ownedCounts ? (state.ownedCounts[name] ?? 0) : leads.filter(lead => lead.stage !== "Closed" && lead.assignee === name).length);
+  return { partial, total, active, stage, unassigned, owned };
+}
 export const archivedLeads = state => scopedLeads(state).filter(lead => lead.archived);
 export function visibleTasks(state) {
   if (state.remote) return state.tasks;

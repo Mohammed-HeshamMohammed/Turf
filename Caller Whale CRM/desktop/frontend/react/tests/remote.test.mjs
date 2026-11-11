@@ -393,3 +393,18 @@ test("every pull renews the offline permission, so a copy in daily use never run
   assert.ok(new Date(engine.store.leaseExpiresAt) - Date.now() > 20 * 3600000);
   engine.stop();
 });
+
+test("the overview counts every lead of a big workspace from the server's counts, not from the window this device holds", async () => {
+  const { leadCounts } = await import("../src/model.ts");
+  const state = { ...seedState(), remote: {}, role: "owner" };
+  const held = state.leads.length;
+  const big = { ...state, leadsTotal: held + 1000, stageCounts: { New: held + 990, Qualified: 7, Closed: 3 }, unassignedCount: 500, ownedCounts: {} };
+  const counts = leadCounts(big);
+  assert.equal(counts.partial, true);
+  assert.equal(counts.total, held + 1000);
+  assert.equal(counts.active, held + 997);
+  assert.equal(counts.stage("Qualified"), 7);
+  assert.equal(counts.unassigned, 500);
+  // With the whole workspace on this device, the leads at hand are counted.
+  assert.equal(leadCounts({ ...state, leadsTotal: held }).partial, false);
+});
