@@ -31,6 +31,13 @@ func TestABigWorkspaceSendsAWindowAndSearchFindsTheRest(t *testing.T) {
 	if snap["leads_total"].(float64) < float64(snapshotLeads+200) {
 		t.Fatalf("total: %v", snap["leads_total"])
 	}
+	// The counts the overview shows cover every lead, not the window.
+	if stages, _ := snap["stage_counts"].(map[string]any); stages["New"] == nil || stages["New"].(float64) < float64(snapshotLeads+200) {
+		t.Fatalf("stage counts: %v", snap["stage_counts"])
+	}
+	if snap["unassigned_count"].(float64) < float64(snapshotLeads+200) {
+		t.Fatalf("unassigned: %v", snap["unassigned_count"])
+	}
 	_, found := e.call(alice, orgA, "GET", "/api/v1/leads/search?q="+url.QueryEscape("needle"), nil)
 	if found["total"].(float64) != 1 || len(found["leads"].([]any)) != 1 {
 		t.Fatalf("search: %v", found)
