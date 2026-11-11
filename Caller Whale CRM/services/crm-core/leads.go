@@ -37,6 +37,21 @@ func (s *server) searchLeads(q *req) error {
 	if term == "" {
 		where = `l.archived_at IS NULL AND ` + where
 	}
+	// What the Calls queue, a list's rows and the mail picker ask for: one list, leads that can be called (a phone number, not closed),
+	// leads with an email.
+	if project := strings.TrimSpace(query.Get("project")); project != "" {
+		if !uuidPattern.MatchString(project) {
+			return bad("That list does not exist.")
+		}
+		args = append(args, project)
+		where += ` AND l.project_id = $` + strconv.Itoa(len(args))
+	}
+	if query.Get("callable") == "1" {
+		where += ` AND l.phone <> '' AND l.stage <> 'Closed' AND l.archived_at IS NULL`
+	}
+	if query.Get("email") == "1" {
+		where += ` AND l.email <> ''`
+	}
 	if stage := strings.TrimSpace(query.Get("stage")); stage != "" && len(stage) <= 40 {
 		args = append(args, stage)
 		where += ` AND l.stage = $` + strconv.Itoa(len(args))

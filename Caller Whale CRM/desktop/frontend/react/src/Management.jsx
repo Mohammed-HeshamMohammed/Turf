@@ -87,7 +87,7 @@ export function Reports() {
       </div>
       <Card
         title={client ? "Shared property locations" : "Source effectiveness"}
-        subtitle={client ? "Only approved shared records are included." : "Which sources are producing the next conversation?"}
+        subtitle={client ? "Only approved shared records are included." : "Which sources are producing the next conversation?" + (counts.partial ? " Counted over the " + leads.length.toLocaleString() + " most recent leads this device holds." : "")}
         action={
           capability(state, "export") && (
             <Button
