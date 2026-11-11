@@ -47,6 +47,14 @@ func TestABigWorkspaceSendsAWindowAndSearchFindsTheRest(t *testing.T) {
 	if page["total"].(float64) < float64(snapshotLeads+200) || len(page["leads"].([]any)) != 5 {
 		t.Fatalf("browse: total %v, %d leads", page["total"], len(page["leads"].([]any)))
 	}
+	// The Calls queue asks for leads that can be called: none of these has a phone number yet.
+	_, calls := e.call(alice, orgA, "GET", "/api/v1/leads/search?callable=1&limit=5", nil)
+	if calls["total"].(float64) != 0 {
+		t.Fatalf("callable: %v", calls["total"])
+	}
+	if status, _ = e.call(alice, orgA, "GET", "/api/v1/leads/search?project=nope", nil); status != http.StatusBadRequest {
+		t.Fatalf("a bad list id: %d", status)
+	}
 	if status, _ = e.call(alice, orgA, "GET", "/api/v1/leads/search?q=a", nil); status != http.StatusBadRequest {
 		t.Fatalf("one-letter search: %d", status)
 	}
