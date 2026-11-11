@@ -149,7 +149,7 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
     /** With two-step sign-in on, the first try answers code "mfa_required"; try again with `code`. */
     signIn: (email, password, code, kind = "browser", human_token = "") => call("POST", "/v1/sessions", { email, password, ...(code ? { code } : {}), kind, ...(human_token ? { human_token } : {}) }).then(keep),
     /** Emails a password reset link. The answer is the same for any address. */
-    forgotPassword: email => call("POST", "/v1/password/forgot", { email }),
+    forgotPassword: (email, human_token = "") => call("POST", "/v1/password/forgot", { email, ...(human_token ? { human_token } : {}) }),
     /** A new password with the code from the reset link; every session of that person ends. */
     resetPassword: (token, password) => call("POST", "/v1/password/reset", { token, new: password }),
     /** Trades the one-time code a Google or Apple sign-in came back with. */
