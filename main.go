@@ -201,5 +201,5 @@ func main() {
 	}
 	srv := newServer(cfg.Tokens, cfg.SMTP, cfg.SMTP.Configured()).withContact(cfg.ContactTo, cfg.ContactOrigins)
 	log.Printf("%s listening on :%s", service, port)
-	log.Fatal((&http.Server{Addr: ":" + port, Handler: logHTTP(srv.mux()), ReadHeaderTimeout: 5 * time.Second}).ListenAndServe())
+	serveUntilStopped(&http.Server{Addr: ":" + port, Handler: logHTTP(srv.mux()), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 2 * time.Minute})
 }
