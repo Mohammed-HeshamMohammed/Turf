@@ -80,7 +80,7 @@ Data location: [WHERE THE SERVER IS]. Transfers: [TO CONFIRM].
 8. **Breach law** map for 50 states; whether our DPA 72-hour promise is acceptable.
 9. Whether terms re-acceptance by clickwrap (already built) is enough for the new texts for existing customers, and for the DPA (which is incorporated by reference in the Terms).
 10. **Insurance** and **entity** advice (cyber, E&O).
-11. **Email and text campaigns** (Feature 6): the eight questions in [`docs/plans/campaigns-law-by-state.md`](../plans/campaigns-law-by-state.md) section 8: the consent a text needs, state registration and bonds for a platform versus its customers, whether any first text to a skip-traced number can be allowed, our liability as the platform, quiet hours and caps by state, wholesaling disclosures, AI-drafted messages, and a full 50-state table.
+11. **Email and text campaigns** (Feature 6): the eight questions in [`docs/plans/campaigns-law-by-state.md`](../plans/campaigns-law-by-state.md) section 8: the consent a text needs, state registration and bonds for a platform versus its customers, whether any first text to a skip-traced number can be allowed, our liability as the platform, quiet hours and caps by state, wholesaling disclosures, AI-drafted messages, and a full 50-state table. Our own all-state draft, with every disagreement between sources marked, is [`docs/plans/campaigns-law-all-states.md`](../plans/campaigns-law-all-states.md): please correct it rather than start from nothing; section 6 lists what it could not settle (above all: does a state's "telephone solicitation" cover an offer to **buy** a house).
 
 ## 8. Known gaps in the product (honest list)
 

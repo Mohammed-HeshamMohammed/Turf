@@ -2,6 +2,8 @@
 
 **Status:** research, 2026-11-11. **This is not legal advice and it is not a complete 50-state audit.** It was gathered from law-firm alerts and compliance-vendor guides (no statute was read in full), and those sources disagree in places; the disagreements are listed rather than settled. Every row marked *verify* must be checked against the statute or the state regulator before any rule below is built as law. The lawyer questions are at the end and are also meant for `docs/legal/lawyer-brief.md`.
 
+**Superseded in part (same day):** the all-state table, the charges, and corrected quiet-hours and state-gate rules are in [`campaigns-law-all-states.md`](campaigns-law-all-states.md). Rule 4 below (9 am to 7 pm, Monday to Saturday) is wrong for Rhode Island and Kentucky: use the per-state table there, with Monday to Friday 10 am to 5 pm as the fallback.
+
 It updates `docs/features/06-ai-campaigns.md` (the campaign spec) and follows the same rule as the learning store: law first.
 
 ## 1. The short answer for the case
