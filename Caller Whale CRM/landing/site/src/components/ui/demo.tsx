@@ -4,9 +4,7 @@ import { ResponsiveHeroBanner } from "./responsive-hero-banner.tsx";
 export function HeroDemo({ signedIn }: { signedIn: boolean | undefined }) {
   return <ResponsiveHeroBanner
     header={null}
-    backgroundImageUrl="/screens/dashboard.webp"
-    previewImageUrl="/screens/dashboard.webp"
-    previewAlt="Caller Whale overview showing leads, next steps and pipeline value"
+    backgroundImageUrl="/hero.webp"
     navLinks={[{ label: "Features", href: "/features" }, { label: "Why Caller Whale", href: "/why-caller-whale" }, { label: "Pricing", href: "/pricing" }, { label: "Security", href: "/security" }]}
     badgeLabel="Caller Whale"
     badgeText="The calling workspace for lead teams"
