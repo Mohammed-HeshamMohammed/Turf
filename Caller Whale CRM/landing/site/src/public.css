@@ -209,6 +209,11 @@
 /* The header is the same size and place on every page. On the home page the hero is pulled up behind it, by exactly the header and the gap. */
 .home-page > main { margin-top: -102px; }
 .home-page .hero-banner { padding-top: clamp(170px, 16vw, 230px); }
+/* The home hero runs edge to edge; everything else on the page keeps the usual 14px gutter. */
+.home-page { max-width: none; padding-inline: 0; }
+.home-page > :not(main), .home-page > main > :not(.hero-banner) { margin-inline: 14px; }
+.home-page .hero-banner { border-radius: 0; }
+.home-page .hero-banner::before { border-radius: 0; }
 .site-header.is-on-hero { background: transparent; box-shadow: none; }
 .site-header.is-detached { border-color: #ffffff30; background: #171d1aee; box-shadow: 0 16px 40px #0004; backdrop-filter: blur(16px); }
 .site-brand { display: inline-flex; align-items: center; flex: 0 0 auto; gap: 10px; color: #fff; text-decoration: none; font-size: 19px; font-weight: 650; }
