@@ -307,7 +307,7 @@
 @media (max-width: 900px) { .hero-nav-desktop { display: none; } .hero-menu-toggle { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid #ffffff55; border-radius: 50%; background: #ffffff20; color: #fff; font-size: 20px; cursor: pointer; } .hero-nav-mobile:not([hidden]) { position: absolute; top: 56px; right: 0; display: grid; min-width: 210px; padding: 8px; border: 1px solid #ffffff55; border-radius: 16px; background: #26302d; box-shadow: 0 16px 30px #0007; } .hero-nav-mobile a { padding: 12px; color: #fff; text-decoration: none; border-radius: 10px; } .hero-nav-mobile a:hover { background: #ffffff20; } }
 @media (max-width: 1050px) { .site-nav { display: none; } .site-header-end { margin-left: auto; } .site-menu-toggle { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid #ffffff55; border-radius: 50%; background: #ffffff20; color: #fff; font-size: 20px; cursor: pointer; } .site-mobile-nav:not([hidden]) { position: absolute; top: calc(100% + 4px); right: 14px; display: grid; min-width: 220px; padding: 8px; border: 1px solid #ffffff55; border-radius: 16px; background: #26302d; box-shadow: 0 16px 30px #0007; } .site-mobile-nav a { padding: 12px; color: #fff; text-decoration: none; border-radius: 10px; } .site-mobile-nav a:hover, .site-mobile-nav a[aria-current="page"] { background: #ffffff20; } }
 @media (max-width: 900px) { .footer-top { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 600px) { .site-header { top: 6px; min-height: 64px; padding: 12px 16px; } .home-page > main { margin-top: -80px; } .home-page .hero-banner { padding-top: 155px; } .site-brand { font-size: 17px; } .site-auth .site-signup { display: none; } .site-auth a { padding-inline: 8px; } .footer-top { grid-template-columns: 1fr 1fr; } .footer-about { grid-column: 1 / -1; } .footer-bottom { flex-direction: column; } }
+@media (max-width: 600px) { .site-header { top: 6px; min-height: 64px; padding: 12px 16px; } .home-page > main { margin-top: -80px; } .home-page .hero-banner { padding-top: 155px; } .site-brand { font-size: 17px; } .site-auth a { padding-inline: 8px; } .footer-top { grid-template-columns: 1fr 1fr; } .footer-about { grid-column: 1 / -1; } .footer-bottom { flex-direction: column; } }
 @media (prefers-reduced-motion: no-preference) { .hero-banner-copy { animation: hero-enter .6s ease-out both; } .hero-preview { animation: hero-enter .75s .12s ease-out both; } }
 @keyframes hero-enter { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .hero-banner-bg { transform: scale(1.08); transition: none; } .hero-banner::after { background: none; } }
@@ -474,3 +474,12 @@
 /* The banner stays at the top of the window while the page scrolls, and the sticky header rests below it. */
 .page:not(.home-page):has(> .announcement) { padding-top: 58px; }
 .page:has(> .announcement) > .site-header { top: 56px; }
+
+/* The button for visitors who are not signed in (people with an account sign in from the sign-up page and the footer). */
+.site-auth .site-signup { display: inline-flex; gap: 8px; padding: 10px 18px; font-weight: 650; }
+.site-auth .site-signup:hover { background: #f4d3ab; }
+/* After a little scrolling the header narrows to a centred pill. */
+.site-header { transition: background .25s ease, box-shadow .25s ease, border-color .25s ease, margin-inline .35s cubic-bezier(.2, .8, .2, 1); }
+.page:not(.dashboard-shell) > .site-header.is-compact { margin-inline: max(14px, calc((100% - 980px) / 2)); }
+@media (max-width: 1050px) { .page:not(.dashboard-shell) > .site-header.is-compact { margin-inline: 14px; } }
+@media (prefers-reduced-motion: reduce) { .site-header { transition: none; } }
