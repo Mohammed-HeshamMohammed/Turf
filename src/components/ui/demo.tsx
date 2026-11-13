@@ -1,8 +1,8 @@
-import { Link } from "../../nav.tsx";
+import { HeroSideTab } from "../../Announcement.tsx";
 import { ResponsiveHeroBanner } from "./responsive-hero-banner.tsx";
 
 /** Caller Whale's configuration of the supplied hero component. */
-export function HeroDemo({ signedIn }: { signedIn: boolean | undefined }) {
+export function HeroDemo({ signedIn, authBase }: { signedIn: boolean | undefined; authBase: string }) {
   return <ResponsiveHeroBanner
     header={null}
     backgroundImageUrl="/hero.webp"
@@ -17,6 +17,6 @@ export function HeroDemo({ signedIn }: { signedIn: boolean | undefined }) {
     secondaryButtonText="Explore features"
     secondaryButtonHref="/features"
   >
-    {signedIn === false && <Link className="hero-side-cta" to="/signup">Start for free <span aria-hidden="true">↗</span></Link>}
+    {signedIn === false && <HeroSideTab authBase={authBase} />}
   </ResponsiveHeroBanner>;
 }
