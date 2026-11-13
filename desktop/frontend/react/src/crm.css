@@ -7992,3 +7992,38 @@ p, li, .notice { text-wrap: pretty; } /* no single word left alone on the last l
 @media (pointer: coarse) {
   button, select, input:not([type="checkbox"]):not([type="radio"]), [role="button"] { min-height: 44px; } /* a finger needs 44px */
 }
+
+/* Shared element: the lead's name in the list travels to the page title. The page itself does not cross-fade (its own enter animation runs). */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+::view-transition-group(lead-title) { animation-duration: 280ms; animation-timing-function: var(--ease-out, ease-out); }
+
+/* Interruptible: menus move by transition, not keyframes, so closing one mid-open (or reopening mid-close) reverses from where it is. */
+.callerwhale-menu-panel, .notification-panel, .search-results, .more-menu-panel, .select-menu {
+  animation: none;
+  opacity: 1;
+  transform: none;
+  transition: opacity 140ms var(--ease-out), transform 140ms var(--ease-out);
+}
+@starting-style {
+  .callerwhale-menu-panel, .notification-panel, .search-results, .more-menu-panel, .select-menu { opacity: 0; transform: translateY(-8px) scale(0.97); }
+}
+.callerwhale-menu-panel.leaving, .notification-panel.leaving, .search-results.leaving, .more-menu-panel.leaving, .select-menu.leaving {
+  animation: none;
+  opacity: 0;
+  transform: translateY(-8px) scale(0.97);
+  transition-timing-function: var(--ease-in);
+}
+/* Origin-aware: a menu grows out of the control that opened it (the select menu opens under its button, from the top left). */
+.select-menu { transform-origin: top left; }
+
+/* Stagger: the first rows of a table arrive one after another. */
+.table-scroll tbody tr:nth-child(-n+10) { animation: enter-up 260ms var(--ease-out) backwards; }
+.table-scroll tbody tr:nth-child(2) { animation-delay: 30ms; }
+.table-scroll tbody tr:nth-child(3) { animation-delay: 60ms; }
+.table-scroll tbody tr:nth-child(4) { animation-delay: 90ms; }
+.table-scroll tbody tr:nth-child(5) { animation-delay: 120ms; }
+.table-scroll tbody tr:nth-child(6) { animation-delay: 150ms; }
+.table-scroll tbody tr:nth-child(7) { animation-delay: 180ms; }
+.table-scroll tbody tr:nth-child(8) { animation-delay: 210ms; }
+.table-scroll tbody tr:nth-child(9) { animation-delay: 240ms; }
+.table-scroll tbody tr:nth-child(10) { animation-delay: 270ms; }

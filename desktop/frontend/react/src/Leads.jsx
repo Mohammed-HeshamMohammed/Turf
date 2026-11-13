@@ -252,7 +252,7 @@ export function Leads() {
                 id: "owner",
                 label: "Property owner",
                 cell: lead => (
-                  <button className="lead-link" onClick={() => navigate("work/leads/" + lead.id)}>
+                  <button className="lead-link" onClick={event => { event.currentTarget.querySelector("strong").dataset.shared = "lead-title"; navigate("work/leads/" + lead.id); }}>
                     <strong>{lead.name}</strong>
                     <small>{lead.source}</small>
                   </button>
@@ -423,7 +423,7 @@ export function LeadDetail({ id }) {
   return (
     <>
       <Breadcrumb items={[{ label: client ? "Shared properties" : "Leads", path: "work/leads" }, { label: lead.name }]} />
-      <PageHeader title={lead.name} description={lead.address + " · " + lead.city}>
+      <PageHeader title={lead.name} shared="lead-title" description={lead.address + " · " + lead.city}>
         {pending && <Badge tone="peach">Pending sync</Badge>}
         {lead.archived && <Badge tone="danger">Archived</Badge>}
         {lead.archived && editable ? (
