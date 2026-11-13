@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -80,6 +81,47 @@ func (s *server) searchLeads(q *req) error {
 		}
 	}
 	body["leads"] = leads
+	writeJSON(q.w, http.StatusOK, body)
+	return nil
+}
+
+// leadDetails answers what hangs off one lead: its tasks, notes, calls, handoffs and deals. A device holding only a window of a big workspace
+// asks for them when a lead outside the window is opened, instead of the snapshot carrying the details of every lead. The same rules as the
+// snapshot apply: a lead the person cannot see answers as if it did not exist, and an outside viewer gets only what was shared with them.
+func (s *server) leadDetails(q *req) error {
+	ctx := q.r.Context()
+	id := q.r.PathValue("id")
+	if !uuidPattern.MatchString(id) {
+		return notFound("That lead does not exist.")
+	}
+	tx, err := s.st.begin(ctx, q.sc)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var visible bool
+	if err = tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM leads l WHERE l.id = $1 AND cw_visible_lead(l.id))`, id).Scan(&visible); err != nil {
+		return err
+	}
+	if !visible {
+		return notFound("That lead does not exist.")
+	}
+	body := map[string]any{"deals": []json.RawMessage{}}
+	for name, sql := range map[string]string{
+		"tasks":    taskVisible + ` AND t.lead_id = $1`,
+		"notes":    `SELECT to_jsonb(n) FROM notes n WHERE n.lead_id = $1 AND (NOT cw_external() OR n.visibility = 'shared')`,
+		"calls":    `SELECT to_jsonb(c) FROM call_events c WHERE c.lead_id = $1 AND NOT cw_external()`,
+		"handoffs": `SELECT to_jsonb(h) FROM handoffs h WHERE h.lead_id = $1 AND NOT cw_external()`,
+	} {
+		if body[name], err = queryJSON(ctx, tx, sql, id); err != nil {
+			return err
+		}
+	}
+	if q.sc.can("finance") {
+		if body["deals"], err = queryJSON(ctx, tx, `SELECT to_jsonb(d) FROM deals d WHERE d.lead_id = $1 AND NOT cw_external()`, id); err != nil {
+			return err
+		}
+	}
 	writeJSON(q.w, http.StatusOK, body)
 	return nil
 }
