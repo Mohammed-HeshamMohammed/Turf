@@ -16,11 +16,14 @@ type Shown = { name?: string; email?: string; avatar?: unknown; username?: unkno
 export function SiteHeader({ path, me, onSignOut, savedSession = false, cached = null, openCrm }: { path: string; me: Me | null | undefined; onSignOut: () => void; savedSession?: boolean; cached?: Shown | null; openCrm?: () => void }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [detached, setDetached] = useState(false);
+  // Scrolling down the page moves the header out of the way; scrolling up brings it back.
+  const [away, setAway] = useState(false);
+  const lastY = useRef(0);
   const header = useRef<HTMLElement>(null);
   const accountMenu = useRef<HTMLDetailsElement>(null);
   useEffect(() => { setMobileOpen(false); if (accountMenu.current) accountMenu.current.open = false; }, [path]);
   useEffect(() => {
-    const sync = () => setDetached(window.scrollY > 64);
+    const sync = () => { const y = window.scrollY; setDetached(y > 64); setAway(y > 400 && y > lastY.current); lastY.current = y; };
     sync();
     window.addEventListener("scroll", sync, { passive: true });
     return () => window.removeEventListener("scroll", sync);
@@ -43,7 +46,7 @@ export function SiteHeader({ path, me, onSignOut, savedSession = false, cached =
   // What is known at once: the person, or (while the session is still being checked) the last-known profile kept on this device.
   const known = me || (me === undefined && savedSession ? cached : null);
   const account = known ? menu(known) : me === undefined && savedSession ? <span className="avatar avatar-pending" aria-hidden="true" /> : <div className="site-auth"><Link className="site-signup" to="/signup">Start calling free <span aria-hidden="true">↗</span></Link></div>;
-  return <header ref={header} className={`site-header${path === "/" ? detached ? " is-detached" : " is-on-hero" : ""}${detached ? " is-compact" : ""}`}>
+  return <header ref={header} className={`site-header${path === "/" ? detached ? " is-detached" : " is-on-hero" : ""}${detached ? " is-compact" : ""}${away && !mobileOpen ? " is-away" : ""}`}>
     <Link className="site-brand" to="/"><img src="/favicon.svg" alt="" width="34" height="34" />Caller Whale</Link>
     <nav className="site-nav" aria-label="Main">{nav}</nav>
     <div className="site-header-end">{account}<button type="button" className="site-menu-toggle" aria-label="Toggle menu" aria-controls="site-mobile-nav" aria-expanded={mobileOpen} onClick={() => setMobileOpen(open => !open)}>{mobileOpen ? "✕" : "☰"}</button></div>
