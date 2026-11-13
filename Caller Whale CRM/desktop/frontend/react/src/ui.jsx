@@ -20,6 +20,8 @@ import { TODAY } from "./data.ts";
 import { DatePicker as SharedDatePicker } from "./calendar/calendar.jsx";
 import "./calendar/calendar.css";
 
+/** A count that stays short as it grows: 9,870 stays as it is, 427,877 becomes 427.9K, 1,250,000 becomes 1.3M. */
+export const count = value => (Math.abs(value) < 10000 ? Number(value).toLocaleString("en-US") : new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value));
 export const money = value => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
 /** Bedrooms, bathrooms, area, units and year built, leaving out what the source did not supply. */
 export function propertyFacts(record) {
@@ -364,15 +366,15 @@ export function DataTable({ view, columns, rowKey, leading, trailing, paged = fa
       {paged ? (
         total > size && (
           <div className="show-more pager">
-            <span>
-              {(at * size + 1).toLocaleString()}–{Math.min((at + 1) * size, total).toLocaleString()} of {total.toLocaleString()}
+            <span className="pager-range" title={`${(at * size + 1).toLocaleString()}–${Math.min((at + 1) * size, total).toLocaleString()} of ${total.toLocaleString()}`}>
+              {count(at * size + 1)}–{count(Math.min((at + 1) * size, total))} of {count(total)}
             </span>
             <span className="pager-buttons">
               <Button disabled={at === 0} onClick={() => setAt(at - 1)}>
                 Previous
               </Button>
-              <span>
-                Page {at + 1} of {pages.toLocaleString()}
+              <span className="pager-page" title={`Page ${(at + 1).toLocaleString()} of ${pages.toLocaleString()}`}>
+                Page {count(at + 1)} of {count(pages)}
               </span>
               <Button disabled={at >= pages - 1} onClick={() => setAt(at + 1)}>
                 Next
