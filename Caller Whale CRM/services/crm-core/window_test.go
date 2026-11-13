@@ -123,3 +123,30 @@ func TestAListOfAddressesIsLetInOnlyForSkipTracing(t *testing.T) {
 		t.Fatalf("a list for skip tracing must not count as useless: %v", got)
 	}
 }
+
+// Opening a lead outside the device's window asks for what hangs off it: its tasks and notes come back, and a lead that does not exist does not.
+func TestALeadsDetailsComeWhenItIsOpened(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	ctx := context.Background()
+	e.call(alice, orgA, "GET", "/sync/snapshot", nil)
+	var lead string
+	if err := e.admin.QueryRow(ctx, fmt.Sprintf(`INSERT INTO crm.leads (org_id, name) VALUES ('%s'::uuid, 'Detail Lead') RETURNING id`, orgA)).Scan(&lead); err != nil {
+		t.Fatal(err)
+	}
+	status, details := e.call(alice, orgA, "GET", "/api/v1/leads/"+lead+"/details", nil)
+	if status != http.StatusOK {
+		t.Fatalf("details: %d", status)
+	}
+	for _, key := range []string{"tasks", "notes", "calls", "handoffs", "deals"} {
+		if _, ok := details[key].([]any); !ok {
+			t.Fatalf("details has no %s list: %v", key, details)
+		}
+	}
+	if status, _ = e.call(alice, orgA, "GET", "/api/v1/leads/00000000-0000-0000-0000-000000000000/details", nil); status != http.StatusNotFound {
+		t.Fatalf("a lead that does not exist: %d", status)
+	}
+	if status, _ = e.call(alice, orgA, "GET", "/api/v1/leads/nope/details", nil); status != http.StatusNotFound {
+		t.Fatalf("a bad id: %d", status)
+	}
+}

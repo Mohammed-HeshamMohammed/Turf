@@ -126,6 +126,8 @@ Decisions:
 
 Built 2026-11-10: the snapshot sends a window of 3,000 leads (the person's own first, then the most recently changed) with the real totals and per-list counts; `GET /api/v1/leads/search` (name, phone, email, address; 100 a page) reaches the rest and the Leads page searches it as you type; a device more than 5,000 changes behind is told to take a fresh snapshot instead of paging; a device holds at most 5,000 leads and ignores notes, calls and the like for leads it does not hold. Still to do: the lead list paging itself (a real page of 50 with sorting by the server), the offline copy of the desktop app, and switching call buttons off offline.
 
+Built 2026-11-13: `GET /api/v1/leads/{id}/details` answers one lead's tasks, notes, calls, handoffs and deals (deals only with the finance capability; a lead the person cannot see is a 404), so a lead outside the device's window shows its details when opened. On the device `lead-source.ts` is the one place that asks for pages of leads and lead details: an answer is kept, shown at once, and refreshed quietly when a sync changes leads. Not yet run against a live server: the Go handler and its test were written without a Go toolchain.
+
 ### What the owner does in Coolify (step 4)
 
 1. Create the CRM PostgreSQL resource, a login `crm_core` for crm-core, and (after crm-core has started once) `CREATE ROLE importer LOGIN PASSWORD '...'`.

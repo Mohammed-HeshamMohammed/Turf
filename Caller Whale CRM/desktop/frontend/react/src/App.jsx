@@ -307,6 +307,7 @@ export function App() {
       if (action.type === "SYNC") return void sync.sync();
       if (action.type === "REFRESH_LISTS") return void sync.refreshProjects().catch(error => notify("Lists could not be refreshed: " + error.message));
       if (action.type === "BROWSE_LEADS") return sync.browseLeads(action);
+      if (action.type === "LEAD_DETAILS") return sync.leadDetails(action.id);
       if (action.type === "SEARCH_LEADS") return void sync.searchLeads(action.term).catch(() => {});
       if (action.type === "RESOLVE") return void sync.resolve(action.id, action.discard ? "discard" : "keep");
       if (["CONFLICT", "ROLE", "RESET"].includes(action.type)) return;

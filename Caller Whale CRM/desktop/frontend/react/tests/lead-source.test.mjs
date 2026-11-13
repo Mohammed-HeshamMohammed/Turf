@@ -93,3 +93,26 @@ test("only a bounded number of pages is kept", async () => {
   for (let offset = 0; offset < 350; offset++) await source.load({ offset, limit: 1 }, answers([]));
   assert.ok(source.size() <= 300);
 });
+
+test("a lead's details are asked for once, however often it is opened", async () => {
+  const source = createLeadSource();
+  let asked = 0;
+  const ask = () => { asked++; return Promise.resolve({}); };
+  await Promise.all([source.loadDetails("lead-1", ask), source.loadDetails("lead-1", ask)]);
+  await source.loadDetails("lead-1", ask);
+  await source.loadDetails("lead-2", ask);
+  assert.equal(asked, 2);
+  assert.equal(source.detailsHeld(), 2);
+});
+
+test("details are asked for again after the records are taken again, or when the ask failed", async () => {
+  const source = createLeadSource();
+  let asked = 0;
+  await source.loadDetails("lead-1", () => { asked++; return Promise.resolve({}); });
+  source.forgetDetails();
+  await source.loadDetails("lead-1", () => { asked++; return Promise.resolve({}); });
+  assert.equal(asked, 2);
+  await assert.rejects(source.loadDetails("lead-9", () => Promise.reject(new Error("offline"))));
+  await source.loadDetails("lead-9", () => { asked++; return Promise.resolve({}); });
+  assert.equal(asked, 3);
+});
