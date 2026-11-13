@@ -4,7 +4,7 @@ import { Link } from "./nav.tsx";
 import { RoleBadges, type Access } from "./RoleBadges.tsx";
 import { PLATFORM_ROLES } from "./roles.ts";
 import { ApiError, needsSecondStep, useSecondStep } from "./SecondStep.tsx";
-import { AnnouncementManager } from "./Announcement.tsx";
+import { AnnouncementManager } from "./AnnouncementManager.tsx";
 import { CostsManager, MembersTable, PlatformOverview } from "./OwnerViews.tsx";
 import { InviteManager, PendingInvitations, WorkspaceManager, WorkspaceSecondStep } from "./AccessManagement.tsx";
 import { MonitoringPanel } from "./MonitoringPanel.tsx";
