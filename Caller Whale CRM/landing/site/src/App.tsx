@@ -10,7 +10,7 @@ import { FeaturesIndex, FeaturePage } from "./Features.tsx";
 import { Security } from "./Security.tsx";
 import { AcceptableUse, Contact, DataProcessing, Privacy, RemoveMyInformation, Terms } from "./PublicPages.tsx";
 import { WhyCallerWhale } from "./WhyCallerWhale.tsx";
-import { HeroDemo } from "./components/ui/demo.tsx";
+import { Home } from "./Home.tsx";
 import { AnnouncementBanner } from "./Announcement.tsx";
 import { SiteHeader } from "./components/ui/site-header.tsx";
 import { hasCrmAccess, type CrmAccess } from "./crm-access.ts";
@@ -93,17 +93,6 @@ function AccountPending({ error, onRetry }: { error: boolean; onRetry: () => voi
     <p className="muted">{error ? "Your account is still saved on this device. Check your connection and try again." : "Restoring your account and access…"}</p>
     {error && <button className="button primary" type="button" onClick={onRetry}>Try again</button>}
   </div></div>;
-}
-
-function Home({ me }: { me: Who }) {
-  const steps = [["Lists", "Import leads and keep the source intact."], ["Lead records", "Find the next step and the full history."], ["Calls", "Work the queue and record outcomes."], ["Handoffs", "Move a deal to the right teammate."], ["Reports", "See what moved forward and export your data."]];
-  return (
-    <>
-      <HeroDemo signedIn={me === undefined ? undefined : Boolean(me)} authBase={authBase} />
-      <section className="section" aria-labelledby="workspace-title"><h2 id="workspace-title">One flow, from list to closed deal.</h2><div className="steps five">{steps.map(([title, text], i) => <div className="card step" key={title}><span>0{i + 1}</span><b>{title}</b><span>{text}</span></div>)}</div><p><Link to="/why-caller-whale">Why keep it together →</Link></p></section>
-      <section className="cta"><h2>Build a plan around your work.</h2><p>Choose the features your team needs and see the draft monthly total as you go.</p><Link className="button primary" to="/pricing">Explore pricing</Link></section>
-    </>
-  );
 }
 
 function Field({ label, ...input }: { label: string } & InputHTMLAttributes<HTMLInputElement>) {
@@ -475,7 +464,7 @@ export function App({ path: first = "/" }) {
   // An account with a setup step still to do (its age, the terms, what its work is) does it before anything else.
   const setup = me ? <Setup me={me} auth={auth} onDone={() => { auth.me({ fresh: true }).then(setMe); }} onSignOut={signOut} /> : null;
   const pages: Record<string, React.ReactNode> = {
-    "/": <Home me={me} />,
+    "/": <Home me={me} authBase={authBase} />,
     "/signin": me && fromCrm ? (setupStep(me) ? setup : <div className="form-wrap"><p className="muted" role="status">Opening the CRM…</p></div>) : <SignIn onDone={signedIn} notice={notice} me={me} />,
     "/signup": <SignUp onDone={signedIn} />,
     "/forgot": <Forgot />,
