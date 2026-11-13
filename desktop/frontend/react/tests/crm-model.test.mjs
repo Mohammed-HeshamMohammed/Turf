@@ -296,3 +296,16 @@ test("a lead's place is kept; an exact address is never replaced by a ZIP centre
   assert.equal(missed.leads[0].geo.precision, "zip", "it stays in its ZIP area");
   assert.equal(reducer(owner, { type: "LOCATE", places: { [id]: { lat: "x", lng: 2 } } }).leads[0].geo, undefined);
 });
+
+test("what a person can see is worked out once per state and shared by every page", async () => {
+  const { navCounts } = await import("../src/model.ts");
+  const { ROLES } = await import("../src/data.ts");
+  const state = as("caller");
+  assert.equal(visibleTasks(state), visibleTasks(state));
+  assert.equal(visibleThreads(state), visibleThreads(state));
+  assert.equal(navCounts(state, ROLES.caller), navCounts(state, ROLES.caller));
+  // A changed state (the reducer never edits one in place) is worked out again, so nothing is ever stale.
+  const done = reducer(state, { type: "TASK", id: visibleTasks(state).find(task => !task.done).id });
+  assert.notEqual(visibleTasks(done), visibleTasks(state));
+  assert.equal(navCounts(done, ROLES.caller).tasks, navCounts(state, ROLES.caller).tasks - 1);
+});

@@ -74,13 +74,28 @@ export function leadCounts(state) {
   return { partial, total, active, stage, unassigned, owned };
 }
 export const archivedLeads = state => scopedLeads(state).filter(lead => lead.archived);
+// Like the leads, the tasks and conversations a person can see are worked out once per state and shared by every page that asks.
+const taskScopes = new WeakMap();
 export function visibleTasks(state) {
   if (state.remote) return state.tasks;
-  const leadIds = new Set(visibleLeads(state).map(lead => lead.id));
-  return state.tasks.filter(task => leadIds.has(task.leadId) && (state.role !== "client" || task.shared));
+  let found = taskScopes.get(state);
+  if (!found) {
+    const leadIds = new Set(visibleLeads(state).map(lead => lead.id));
+    found = state.tasks.filter(task => leadIds.has(task.leadId) && (state.role !== "client" || task.shared));
+    taskScopes.set(state, found);
+  }
+  return found;
 }
 /** Open counts per page that need the person's attention; the sidebar, top tabs and bell all read from here. */
+const navScopes = new WeakMap();
 export function navCounts(state, role) {
+  const held = navScopes.get(state);
+  if (held && held.role === role) return held.counts;
+  const counts = computeNavCounts(state, role);
+  navScopes.set(state, { role, counts });
+  return counts;
+}
+function computeNavCounts(state, role) {
   const leadIds = new Set(visibleLeads(state).map(lead => lead.id));
   const counts = {
     tasks: visibleTasks(state).filter(task => !task.done).length,
@@ -149,8 +164,17 @@ export function messagePreview(message) {
   const label = { gif: "GIF", photo: "Photo", file: "File: " + message.file?.name, location: "Location", contact: "Contact: " + message.contact?.name, poll: "Poll: " + message.poll?.question }[message.kind];
   return message.text || label || "";
 }
+const threadScopes = new WeakMap();
 export function visibleThreads(state) {
   if (state.remote) return state.threads;
+  let found = threadScopes.get(state);
+  if (!found) {
+    found = computeVisibleThreads(state);
+    threadScopes.set(state, found);
+  }
+  return found;
+}
+function computeVisibleThreads(state) {
   const leadIds = new Set(visibleLeads(state).map(lead => lead.id));
   const me = ROLES[state.role].person;
   return state.threads.filter(thread => thread.channel === "Group"
