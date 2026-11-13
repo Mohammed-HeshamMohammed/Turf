@@ -35,6 +35,9 @@ import {
   ConfirmDialog,
   useTableView,
   count,
+  RoundButton,
+  tidyCase,
+  formatPhone,
 } from "./ui.jsx";
 
 const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
@@ -373,6 +376,7 @@ export function Lists({ id, importId = null }) {
           <DataTable
             view={table}
             rowKey={lead => lead.id}
+            onRowClick={lead => navigate("work/leads/" + lead.id)}
             columns={[
               { id: "owner", label: "Owner", cell: lead => <LeadLink lead={lead} detail={false} /> },
               {
@@ -380,24 +384,20 @@ export function Lists({ id, importId = null }) {
                 label: "Property",
                 cell: lead => (
                   <>
-                    {lead.address}
+                    {tidyCase(lead.address)}
                     <small>
-                      {lead.city}, {lead.region}
+                      {tidyCase(lead.city)}, {lead.region}
                     </small>
                   </>
                 ),
               },
-              { id: "phone", label: "Best phone", cell: lead => lead.phone || <span className="muted">No phone supplied</span> },
-              { id: "quality", label: "Quality", cell: lead => <Status value={lead.verdict} /> },
-              { id: "stage", label: "CRM stage", cell: lead => <Status value={lead.stage} /> },
+              { id: "phone", label: "Best phone", cell: lead => formatPhone(lead.phone) || <span className="muted">No phone supplied</span> },
+              { id: "quality", label: "Quality", cell: lead => (lead.verdict === "Unverified" ? <span className="quiet-value">{lead.verdict}</span> : <Status value={lead.verdict} />) },
+              { id: "stage", label: "CRM stage", cell: lead => (lead.stage === "New" ? <span className="quiet-value">New</span> : <Status value={lead.stage} />) },
             ]}
             trailing={{
               head: <span className="sr-only">Open</span>,
-              cell: lead => (
-                <Button onClick={() => navigate("work/leads/" + lead.id)}>
-                  Open lead <ArrowUpRight size={14} />
-                </Button>
-              ),
+              cell: lead => <RoundButton label={"Open " + lead.name} onClick={() => navigate("work/leads/" + lead.id)} />,
             }}
           />
         </Card>

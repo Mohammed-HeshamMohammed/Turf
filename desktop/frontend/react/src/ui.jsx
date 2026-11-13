@@ -475,10 +475,10 @@ export function LeadLink({ lead, detail = true }) {
   const { navigate } = useCrm();
   return (
     <button className="lead-link" onClick={() => navigate("work/leads/" + lead.id)}>
-      <strong>{lead.name}</strong>
+      <strong>{tidyCase(lead.name)}</strong>
       {detail && (
         <small>
-          {lead.address}, {lead.city}
+          {tidyCase(lead.address)}, {tidyCase(lead.city)}
         </small>
       )}
     </button>
