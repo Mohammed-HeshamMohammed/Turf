@@ -328,6 +328,7 @@ function NeedsToday() {
   const leads = visibleLeads(state);
   const byId = Object.fromEntries(leads.map(lead => [lead.id, lead]));
   const due = visibleTasks(state).filter(task => !task.done && task.date && task.date <= TODAY);
+  const withCallbackTask = new Set(due.filter(task => task.type === "Callback").map(task => task.leadId));
   const items = [
     ...due.map(task => ({
       key: "task-" + task.id,
@@ -346,7 +347,7 @@ function NeedsToday() {
     // A callback with its own task is already listed above.
     ...leads
       .filter(lead => lead.callback && lead.callbackDate && lead.callbackDate <= TODAY && lead.stage !== "Closed")
-      .filter(lead => !due.some(task => task.leadId === lead.id && task.type === "Callback"))
+      .filter(lead => !withCallbackTask.has(lead.id))
       .map(lead => ({
         key: "call-" + lead.id,
         at: (lead.callbackDate < TODAY ? "0" : "1") + lead.callback,
