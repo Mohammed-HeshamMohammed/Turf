@@ -969,6 +969,7 @@ export function Deals({ id }) {
           <DataTable
             view={table}
             rowKey={row => row.deal.id}
+            onRowClick={({ deal }) => navigate("work/deals/" + deal.id)}
             columns={[
               { id: "property", label: "Property", cell: ({ lead }) => <LeadLink lead={lead} /> },
               {
