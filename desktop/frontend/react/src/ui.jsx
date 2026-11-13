@@ -271,7 +271,9 @@ export function DataTable({ view, columns, rowKey, leading, trailing, paged = fa
       const top = table.getBoundingClientRect().top - (pane ? pane.getBoundingClientRect().top - pane.scrollTop : 0);
       const head = table.tHead?.offsetHeight || 40;
       const row = table.tBodies[0]?.rows[0]?.offsetHeight || 58;
-      setFit(Math.max(5, Math.min(100, Math.floor((height - top - head - 130) / row))));
+      // Below the rows sit the pager and the pane's own bottom padding; everything else is for rows.
+      const below = 54 + (pane ? parseFloat(getComputedStyle(pane).paddingBottom) || 0 : 0);
+      setFit(Math.max(5, Math.min(100, Math.floor((height - top - head - below) / row))));
     };
     measure();
     window.addEventListener("resize", measure);

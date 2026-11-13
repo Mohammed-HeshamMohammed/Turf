@@ -471,6 +471,11 @@ export function App() {
   );
   // Until the first records of a signed-in workspace have arrived, a page that shows them is its grey skeleton, not a page of zeros.
   const waitingForRecords = Boolean(state.remote && state.remoteLoading) && !["settings", "personal", "sync"].includes(current.split("/")[0] === "work" ? current.split("/")[1] : current.split("/")[0]);
+  // The bar at the bottom (workspace name, "saved", "connected") is for the desktop app, where there is no browser to tell the person. In the
+  // web CRM, signed in, it only appears when there is something to know: offline, changes waiting, or a sync problem.
+  const inDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  const needsAttention = !state.online || queue.length > 0 || state.remoteStatus === "offline" || state.remoteStatus === "error";
+  const showFooter = !state.remote || inDesktop || needsAttention;
   const pageElement = useMemo(() => {
     if (!accessible)
       return (
@@ -694,6 +699,7 @@ export function App() {
             </PageTransition>
           </main>
         </div>
+        {showFooter && (
         <footer className="app-footer">
           <span>{state.settings.workspace}</span>
           <span className="footer-status">
@@ -724,6 +730,7 @@ export function App() {
             )}
           </span>
         </footer>
+        )}
         <PhoneDialer />
         <LiveCaptions />
         {toastPanel.mounted && (

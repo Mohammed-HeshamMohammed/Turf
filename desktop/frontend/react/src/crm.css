@@ -8060,3 +8060,9 @@ p, li, .notice { text-wrap: pretty; } /* no single word left alone on the last l
 .pager-buttons { display: inline-flex; align-items: center; gap: 12px; }
 .pager-page { min-width: 11ch; text-align: center; white-space: nowrap; }
 @media (max-width: 600px) { .pager { justify-content: center; } .pager-range { width: 100%; text-align: center; } }
+
+/* A page of rows ends close to the bottom of the window, so the table can use the room for one more row. The call button floats over the
+   bottom-right corner, so the pager keeps clear of it instead of the whole page leaving a gap. */
+.main-content:has(.table-card .pager) { padding-bottom: 12px; }
+.table-card .pager { padding-right: 88px; }
+@media (max-width: 720px) { .table-card .pager { padding-right: 4px; } .main-content:has(.table-card .pager) { padding-bottom: 96px; } }
