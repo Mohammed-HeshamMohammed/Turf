@@ -19,6 +19,9 @@ export function createLeadSource() {
   const totals = new Map<string, { total: number; epoch: number }>();
   const inFlight = new Map<string, Promise<LeadPage>>();
   const listeners = new Set<() => void>();
+  // What hangs off a lead (its tasks, notes, calls, deals) is asked for when the lead is opened, once. Changes that follow arrive through sync
+  // like any other, so it is only forgotten when the device's records are taken again from scratch.
+  const details = new Map<string, Promise<void>>();
 
   return {
     /** What was found for this ask, or null. `stale` means the records have changed since: show it, and ask again. */
@@ -59,6 +62,27 @@ export function createLeadSource() {
       return request;
     },
 
+    /** Asks for a lead's details once; opening the same lead again, from any screen, answers at once. A failed ask is forgotten so the next try goes out. */
+    loadDetails(id: string, fetchDetails: (_id: string) => Promise<unknown>): Promise<void> {
+      const held = details.get(id);
+      if (held) return held;
+      const request = Promise.resolve(fetchDetails(id)).then(
+        () => undefined,
+        error => {
+          details.delete(id);
+          throw error;
+        },
+      );
+      details.set(id, request);
+      while (details.size > MAX_ENTRIES) details.delete(details.keys().next().value as string);
+      return request;
+    },
+
+    /** The records were taken again from scratch: details held before are no longer in the store. */
+    forgetDetails() {
+      details.clear();
+    },
+
     /** The device's records changed: everything held is now stale, and the screens showing it ask again. */
     invalidate() {
       epoch++;
@@ -70,6 +94,7 @@ export function createLeadSource() {
       pages.clear();
       totals.clear();
       inFlight.clear();
+      details.clear();
       epoch++;
       listeners.forEach(listener => listener());
     },
@@ -80,6 +105,7 @@ export function createLeadSource() {
       return () => void listeners.delete(listener);
     },
     size: () => pages.size,
+    detailsHeld: () => details.size,
   };
 }
 

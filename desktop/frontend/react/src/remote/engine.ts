@@ -210,6 +210,7 @@ export class SyncEngine {
     delete whole.partial;
     this.store = whole;
     await this.save();
+    leadSource.forgetDetails();
     leadSource.invalidate();
     this.emit();
   }
@@ -234,6 +235,14 @@ export class SyncEngine {
       this.emit();
     }
     return { ids: (found.leads || []).map(lead => lead.id), total: found.total ?? null };
+  }
+
+  /** The tasks, notes, calls, handoffs and deals of one lead, held with the rest so its page can show them. */
+  async leadDetails(id) {
+    const found = await this.api.leadDetails(id);
+    if (!this.store) return;
+    this.store = addSnapshotPage(this.store, found);
+    this.emit();
   }
 
   /** Fetches the workspace's lists again, so a list that was just uploaded shows up without signing in again. */

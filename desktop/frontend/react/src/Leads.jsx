@@ -8,7 +8,7 @@ import { archivedLeads, callbackLabel, canEditLead, capability, scopedLeads, uid
 import { CallHistory, NewDealModal } from "./Work.jsx";
 import { useCrm } from "./context.jsx";
 import { SkeletonRows } from "./Skeleton.jsx";
-import { useLeadPage } from "./useLeadPage.js";
+import { useLeadDetails, useLeadPage } from "./useLeadPage.js";
 import {
   Badge,
   Select,
@@ -384,6 +384,8 @@ function PropertyRecord({ lead, hideEmpty }) {
 export function LeadDetail({ id }) {
   const { state, dispatch, navigate, notify } = useCrm();
   const lead = scopedLeads(state).find(item => item.id === id);
+  // A big workspace sends this device a window of its leads: the details of one outside it come when it is opened.
+  useLeadDetails(id, Boolean(state.remote) && state.leadsTotal > state.leads.length);
   const [tab, setTab] = useState("Overview");
   const [note, setNote] = useState("");
   const [visibility, setVisibility] = useState("internal");
