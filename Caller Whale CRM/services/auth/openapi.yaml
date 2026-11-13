@@ -181,7 +181,7 @@ paths:
     put:
       summary: Set the announcement banner; platform staff (owner, cofounder, system admin) after a second step
       security: [{ bearer: [] }]
-      requestBody: { content: { application/json: { schema: { type: object, required: [enabled, message, tone], properties: { enabled: { type: boolean }, message: { type: string, maxLength: 200 }, link_label: { type: string, maxLength: 30 }, link_url: { type: string, description: "A path starting with / or an https:// address" }, tone: { type: string, enum: [info, promo, warning] } } } } } }
+      requestBody: { content: { application/json: { schema: { type: object, required: [enabled, message, tone], properties: { enabled: { type: boolean }, message: { type: string, maxLength: 200 }, link_label: { type: string, maxLength: 30 }, link_url: { type: string, description: "A path starting with / or an https:// address" }, tone: { type: string, enum: [info, promo, warning] }, tab_enabled: { type: boolean }, tab_text: { type: string, maxLength: 30 }, tab_url: { type: string } } } } } }
       responses: { "200": { description: Saved }, "400": { description: Not valid }, "403": { description: Staff access with a second step required } }
   /v1/admin/costs:
     get:
