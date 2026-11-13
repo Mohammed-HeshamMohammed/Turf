@@ -3,7 +3,7 @@ import { Suspense, lazy } from "react";
 import { ROLES, TODAY } from "./data.ts";
 import { callbackLabel, capability, conversationPath, dayLabel, leadCounts, personalProfile, visibleLeads, visibleTasks, visibleThreads } from "./model.ts";
 import { useCrm } from "./context.jsx";
-import { Badge, Button, Card, Empty, LeadLink, RoundButton, Status, money, PageHeader, propertyFacts } from "./ui.jsx";
+import { Badge, Button, Card, Empty, LeadLink, RoundButton, Status, count, money, PageHeader, propertyFacts } from "./ui.jsx";
 
 // The chart library is the largest dependency, so the dashboard paints first and the chart follows.
 const CallActivityChart = lazy(() => import("./CallActivityChart.jsx").then(module => ({ default: module.CallActivityChart })));
@@ -84,7 +84,7 @@ export function Dashboard() {
       <PageHeader
         title={isClient ? "Your properties" : "Good morning, " + personalProfile(state).name.split(" ")[0]}
         description={
-          isClient ? "Your approved records, updates, and next steps in one place." : activeCount.toLocaleString() + " active leads · " + tasks.length + " open next steps"
+          isClient ? "Your approved records, updates, and next steps in one place." : count(activeCount) + " active leads · " + tasks.length + " open next steps"
         }
       >
         <span className="date-label">{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date())}</span>
@@ -97,7 +97,7 @@ export function Dashboard() {
       <div className="metrics-grid">
         <Metric
           label={isClient ? "Shared properties" : state.role === "researcher" ? "Project leads" : "Active leads"}
-          value={isClient ? leads.length : activeCount.toLocaleString()}
+          value={isClient ? leads.length : count(activeCount)}
           detail={role.scope}
           icon={Users}
           onClick={() => navigate("work/leads")}
@@ -305,7 +305,7 @@ export function Dashboard() {
                   <button key={stage} onClick={() => navigate("work/leads?stage=" + encodeURIComponent(stage))}>
                     <span>{stage}</span>
                     <meter min="0" max={Math.max(counts.total, 1)} value={counts.stage(stage)} />
-                    <strong>{counts.stage(stage).toLocaleString()}</strong>
+                    <strong>{count(counts.stage(stage))}</strong>
                   </button>
                 ))}
               </div>
