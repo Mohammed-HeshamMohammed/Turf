@@ -7,6 +7,7 @@ import { LEAD_STAGES, PEOPLE, ROLES, TODAY } from "./data.ts";
 import { archivedLeads, callbackLabel, canEditLead, capability, scopedLeads, uid, visibleLeads } from "./model.ts";
 import { CallHistory, NewDealModal } from "./Work.jsx";
 import { useCrm } from "./context.jsx";
+import { SkeletonRows } from "./Skeleton.jsx";
 import {
   Badge,
   Select,
@@ -302,7 +303,7 @@ export function Leads() {
               cell: lead => <RoundButton label={"Open " + lead.name} onClick={() => navigate("work/leads/" + lead.id)} />,
             }}
           />
-          {!table.rows.length && (serverMode && waiting ? <Empty title="Loading leads…">A big workspace takes a moment.</Empty> : <Empty title="No leads match this view">Try another stage or search term.</Empty>)}
+          {!table.rows.length && (serverMode && waiting ? <SkeletonRows rows={8} columns={6} /> : <Empty title="No leads match this view">Try another stage or search term.</Empty>)}
           <footer className="table-footer">
             <span>{ROLES[state.role].scope}</span>
             <span>{(serverMode ? served.total : leads.length).toLocaleString()} records{state.remote ? "" : " · sample workspace"}</span>
