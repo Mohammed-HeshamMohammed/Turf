@@ -248,18 +248,35 @@ export function DataTable({ view, columns, rowKey, leading, trailing, paged = fa
   const layout = ids.join("|");
   const tableRef = useRef(null);
   const before = useRef(null);
-  const cellLefts = () => new Map([...tableRef.current.querySelectorAll("[data-cell]")].map(cell => [cell.dataset.cell, cell.getBoundingClientRect().left]));
-  // Columns slide to their new place (FLIP): the cells are measured before the change, then each one starts at its old position and eases to the new one.
+  // Where each column's header sits. Every cell of a column shares its header's left edge, so the header is all that is measured.
+  const columnLefts = () => new Map([...(tableRef.current?.querySelectorAll("th[data-col]") || [])].map(cell => [cell.dataset.col, cell.getBoundingClientRect().left]));
+  const lefts = useRef(new Map());
+  const knownIds = useRef(ids);
+  // Columns slide to their new place (FLIP): measured before the change, then each cell starts at its old position and eases to the new one.
+  // A column that was not there (shown again by "Hide empty fields", or by a wider window) fades in where it lands. One that has gone is simply
+  // gone, and the others close the gap.
   useLayoutEffect(() => {
-    const from = before.current;
+    const from = before.current || (knownIds.current.join("|") !== layout ? lefts.current : null);
+    const added = ids.filter(id => !knownIds.current.includes(id));
     before.current = null;
-    if (!from || reducedMotion()) return;
-    tableRef.current.querySelectorAll("[data-cell]").forEach(cell => {
-      const shift = from.get(cell.dataset.cell) - cell.getBoundingClientRect().left;
+    knownIds.current = ids;
+    if (!from || reducedMotion() || !tableRef.current) return;
+    const now = columnLefts();
+    tableRef.current.querySelectorAll("[data-col], [data-cell]").forEach(cell => {
+      const id = cell.dataset.col || cell.dataset.cell.slice(cell.dataset.cell.lastIndexOf(":") + 1);
+      if (added.includes(id)) {
+        cell.animate([{ opacity: 0, transform: "translateX(-10px)" }, { opacity: 1, transform: "none" }], { duration: 300, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+        return;
+      }
+      const shift = (from.get(id) ?? now.get(id)) - now.get(id);
       if (Math.abs(shift) > 1)
-        cell.animate([{ transform: `translateX(${shift}px)` }, { transform: "none" }], { duration: 240, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+        cell.animate([{ transform: `translateX(${shift}px)` }, { transform: "none" }], { duration: 300, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
     });
   }, [layout]);
+  // Remembered after every change, so the next one knows where the columns were.
+  useLayoutEffect(() => {
+    lefts.current = columnLefts();
+  });
   // How many rows fit between the table's top and the bottom of the window, leaving room for the pager.
   useLayoutEffect(() => {
     if (!paged) return;
@@ -281,7 +298,7 @@ export function DataTable({ view, columns, rowKey, leading, trailing, paged = fa
   }, [paged, hasRows]);
   function moveColumn(id, over) {
     if (!over || over === id) return;
-    before.current = cellLefts();
+    before.current = columnLefts();
     const next = ids.filter(item => item !== id);
     next.splice(next.indexOf(over) + (ids.indexOf(over) > ids.indexOf(id) ? 1 : 0), 0, id);
     view.setOrder(next);
@@ -331,7 +348,6 @@ export function DataTable({ view, columns, rowKey, leading, trailing, paged = fa
                 view={view}
                 id={column.id}
                 data-col={column.id}
-                data-cell={"head:" + column.id}
                 className={
                   (column.className || "") +
                   (drag?.id === column.id ? " is-dragged" : "") +

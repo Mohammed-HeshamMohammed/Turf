@@ -8055,7 +8055,6 @@ p, li, .notice { text-wrap: pretty; } /* no single word left alone on the last l
 /* ---- Leads: actions beside the filters, and a pager that keeps its shape as the numbers grow ---- */
 .filter-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 @media (max-width: 900px) { .filter-actions { margin-left: 0; width: 100%; } }
-.pager { font-variant-numeric: tabular-nums; }
 .pager-range { white-space: nowrap; }
 .pager-buttons { display: inline-flex; align-items: center; gap: 12px; }
 .pager-page { min-width: 11ch; text-align: center; white-space: nowrap; }
@@ -8066,3 +8065,18 @@ p, li, .notice { text-wrap: pretty; } /* no single word left alone on the last l
 .main-content:has(.table-card .pager) { padding-bottom: 12px; }
 .table-card .pager { padding-right: 88px; }
 @media (max-width: 720px) { .table-card .pager { padding-right: 4px; } .main-content:has(.table-card .pager) { padding-bottom: 96px; } }
+
+/* ---- Tables: even edges and gaps ---- */
+/* One inset on both sides, shared by the header, the rows and the pager, so the checkbox, the first column's text and "1-6 of 427.9K" line up. */
+.table-card { padding: 4px 22px 0; }
+.table-card thead th { padding: 16px 12px; }
+.table-card tbody td { padding: 14px 12px; }
+.table-card th:first-child, .table-card td:first-child { padding-left: 4px; padding-right: 4px; }
+.table-card th:last-child, .table-card td:last-child { padding-right: 4px; }
+/* The pager is the table's last line, set off from the rows by a rule, with the numbers on the left and the buttons together on the right. */
+.table-card .pager { margin-top: 2px; padding: 14px 88px 16px 4px; border-top: 1px solid #e3e3e3; gap: 12px 20px; font-size: 13px; }
+.table-card .pager-buttons { gap: 14px; }
+.table-card .pager-page { color: var(--ink); }
+/* Fields that appear again with "Hide empty fields" ease in. */
+.detail-fields > div { animation: enter-fade 240ms var(--ease-out) backwards; }
+@media (max-width: 720px) { .table-card .pager { padding-right: 4px; } }
