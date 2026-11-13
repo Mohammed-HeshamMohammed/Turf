@@ -54,6 +54,8 @@ func (s *server) handler() http.Handler {
 	mux.Handle("GET /v1/admin/invitations", serve(s.listPlatformInvitations))
 	mux.Handle("GET /v1/admin/members", serve(s.adminMembers))
 	mux.Handle("GET /v1/admin/overview", serve(s.adminOverview))
+	mux.Handle("GET /v1/announcement", serve(s.getAnnouncement))
+	mux.Handle("PUT /v1/admin/announcement", serve(s.setAnnouncement))
 	mux.Handle("GET /v1/admin/costs", serve(s.listCosts))
 	mux.Handle("POST /v1/admin/costs", serve(s.addCost))
 	mux.Handle("DELETE /v1/admin/costs/{id}", serve(s.deleteCost))
