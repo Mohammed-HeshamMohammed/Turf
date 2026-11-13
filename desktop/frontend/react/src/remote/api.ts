@@ -128,6 +128,8 @@ export const api = {
   browseLeads: ({ term = "", stage = "", offset = 0, limit = 25, count = true, project = "", callable = false, email = false }: { term?: string; stage?: string; offset?: number; limit?: number; count?: boolean; project?: string; callable?: boolean; email?: boolean }): Promise<any> =>
     request("GET", `/api/v1/leads/search?q=${encodeURIComponent(term)}&stage=${encodeURIComponent(stage)}&offset=${offset}&limit=${limit}${count ? "" : "&count=0"}${project ? "&project=" + encodeURIComponent(project) : ""}${callable ? "&callable=1" : ""}${email ? "&email=1" : ""}`),
   /** Leads of a big workspace beyond the snapshot's window: by name, phone, email or address. */
+  /** What hangs off one lead (tasks, notes, calls, handoffs, deals): asked for when a lead outside this device's window is opened. */
+  leadDetails: (id: string): Promise<any> => request("GET", `/api/v1/leads/${encodeURIComponent(id)}/details`),
   searchLeads: (term: string): Promise<any> => request("GET", `/api/v1/leads/search?q=${encodeURIComponent(term)}&limit=100`),
   pull: (cursor, accessRevision) => request("GET", `/sync/pull?cursor=${cursor}&access_revision=${accessRevision}`),
   push: (operations, accessRevision) => request("POST", "/sync/push", { operations, access_revision: accessRevision }, { timeout: 60000 }),

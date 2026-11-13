@@ -29,3 +29,25 @@ export function useLeadPage(ask, enabled) {
   const failed = answer.key === key && answer.failed;
   return { ids: page?.ids || [], total: page?.total ?? null, waiting: enabled && !current && !failed, failed };
 }
+
+/**
+ * A lead's tasks, notes, calls and deals, when this device holds only a window of a big workspace and the lead is outside it: asked for once
+ * when the lead is opened (and kept), then filled in on the page as they arrive. Does nothing where the device already holds everything.
+ */
+export function useLeadDetails(id, enabled) {
+  const { dispatch } = useCrm();
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!enabled || !id) return;
+    let live = true;
+    setLoading(true);
+    leadSource
+      .loadDetails(id, () => dispatch({ type: "LEAD_DETAILS", id }))
+      .catch(() => {})
+      .finally(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+  }, [id, enabled, dispatch]);
+  return loading;
+}
