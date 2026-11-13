@@ -37,6 +37,7 @@ import { ReadyModeImport } from "./ReadyModeImport.jsx";
 import { smsRecipient } from "./sms.ts";
 import { beginDemoCall, clearCallOutcome, endDemoCall, getCallSession, setCallSession, useCallSession } from "./callSession.ts";
 import { SkeletonRows } from "./Skeleton.jsx";
+import { leadSource } from "./lead-source.ts";
 import {
   Badge,
   BoardColumn,
@@ -132,7 +133,8 @@ export function Calls({ target }) {
     if (!bigWorkspace || pulled.busy || (pulled.key === pullKey && pulled.done)) return;
     const offset = pulled.key === pullKey ? pulled.next : 0;
     setPulled({ key: pullKey, next: offset, done: false, busy: true });
-    Promise.resolve(dispatch({ type: "BROWSE_LEADS", term: "", stage: "", project: activeList, callable: true, offset, limit: 100, count: false }))
+    leadSource
+      .load({ project: activeList, callable: true, offset, limit: 100, count: false }, ask => dispatch({ type: "BROWSE_LEADS", term: "", stage: "", ...ask }))
       .then(found => setPulled({ key: pullKey, next: offset + 100, done: !found || found.ids.length < 100, busy: false }))
       .catch(() => setPulled({ key: pullKey, next: offset, done: true, busy: false }));
   };

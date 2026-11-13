@@ -7,6 +7,7 @@
 
 import { api as defaultApi, ApiError, auth, eventsUrl, socketProtocols } from "./api.ts";
 import { addSnapshotPage, applyChanges, storeFromSnapshot } from "./translate.ts";
+import { leadSource } from "../lead-source.ts";
 
 /** Leads per page when the first load of the records is read a page at a time, so the first ones show while the rest arrive. */
 const SNAPSHOT_PAGE = 250;
@@ -38,12 +39,14 @@ export class SyncEngine {
   async reload() {
     this.store = (await this.vault.get("store")) || this.store;
     this.ops = await this.vault.queue();
+    leadSource.invalidate();
     this.emit();
   }
 
   /** Loads the offline copy, refreshes the shared lists, and starts syncing. */
   async start(extra) {
     this.extra = extra;
+    leadSource.clear();
     this.store = await this.vault.get("store");
     // A copy whose first load was cut short (the tab closed) has the cursor of its first page and not the rest of the leads: start again.
     if (this.store?.partial) this.store = null;
@@ -85,6 +88,7 @@ export class SyncEngine {
     const queued = { ...op, status: "Pending" };
     this.ops = [...this.ops, queued];
     await this.vault.enqueue(queued);
+    leadSource.invalidate();
     this.emit();
     this.sync();
   }
@@ -206,6 +210,7 @@ export class SyncEngine {
     delete whole.partial;
     this.store = whole;
     await this.save();
+    leadSource.invalidate();
     this.emit();
   }
 
@@ -291,6 +296,7 @@ export class SyncEngine {
       if (answer.more && answer.cursor === this.store.cursor) throw new Error("The server did not advance the sync cursor");
       this.store = { ...applyChanges(this.store, answer.changes), cursor: answer.cursor, leaseExpiresAt: answer.offline_lease_expires_at ?? this.store.leaseExpiresAt };
       await this.save();
+      if (answer.changes?.some(change => change.entity === "lead")) leadSource.invalidate();
       if (!answer.more) return;
     }
   }

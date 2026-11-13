@@ -13,6 +13,7 @@ import { PropertyMap } from "./PropertyMap.jsx";
 import { LeadsMap } from "./LeadsMap.jsx";
 import { cancelJob, check, checkRepeats, engineAvailable, engineConfig, prepare, saveCopy } from "./engine.ts";
 import { api } from "./remote/api.ts";
+import { leadSource } from "./lead-source.ts";
 import { importPath, needsImportAction, sourceListProgress } from "./remote/source-list-imports.js";
 import {
   Badge,
@@ -60,7 +61,7 @@ export function Lists({ id, importId = null }) {
     loadedFor.current = id;
     (async () => {
       for (let offset = 0; offset < 300; offset += 100) {
-        const found = await Promise.resolve(dispatch({ type: "BROWSE_LEADS", term: "", stage: "", project: id, offset, limit: 100, count: false })).catch(() => null);
+        const found = await leadSource.load({ project: id, offset, limit: 100, count: false }, ask => dispatch({ type: "BROWSE_LEADS", term: "", stage: "", ...ask })).catch(() => null);
         if (!found || found.ids.length < 100) break;
       }
     })();
