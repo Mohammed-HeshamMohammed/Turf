@@ -216,9 +216,9 @@
 /* The photo runs to the very top of the window; the announcement bar sits on top of it and the header moves down to make room. */
 .home-page { position: relative; padding-top: 0; }
 .home-page > main { margin-top: -94px; }
-.home-page > .announcement { position: absolute; z-index: 60; top: 0; left: 0; right: 0; height: 44px; margin: 0; border-radius: 0; background: #0d110fcc; backdrop-filter: blur(10px); }
-.home-page > .announcement-promo { background: var(--accent); }
-.home-page > .announcement-warning { background: #f6dcd8; }
+.page > .announcement { position: fixed; z-index: 60; top: 0; left: 0; right: 0; height: 44px; margin: 0; border-radius: 0; background: #0d110fcc; backdrop-filter: blur(10px); }
+.page > .announcement-promo { background: var(--accent); }
+.page > .announcement-warning { background: #f6dcd8; }
 .home-page:has(> .announcement) > .site-header { margin-top: 44px; }
 .home-page:has(> .announcement) > main { margin-top: -138px; }
 @media (max-width: 600px) { .home-page > main { margin-top: -80px; } .home-page:has(> .announcement) > main { margin-top: -124px; } }
@@ -273,7 +273,7 @@
 .hero-banner { min-height: min(86vh, 760px); padding-bottom: clamp(44px, 6vw, 88px); align-content: end; }
 /* On a wide screen the hero takes the photo's own shape, so the whole picture shows and nothing is cut off. */
 @media (min-width: 901px) { .home-page .hero-banner { aspect-ratio: 1376 / 768; min-height: 0; } .home-page .hero-banner-bg { transform: none; object-position: center; } }
-.hero-side-cta { position: absolute; z-index: 3; top: 50%; right: 0; transform: translateY(-50%); padding: 22px 12px; border-radius: 14px 0 0 14px; background: var(--accent); color: var(--ink); font-weight: 650; letter-spacing: .04em; text-decoration: none; writing-mode: vertical-rl; box-shadow: 0 10px 30px #0006; transition: padding .2s ease, background .2s ease; }
+.hero-side-cta { position: fixed; z-index: 40; top: 50%; right: 0; transform: translateY(-50%); padding: 22px 12px; border-radius: 14px 0 0 14px; background: var(--accent); color: var(--ink); font-weight: 650; letter-spacing: .04em; text-decoration: none; writing-mode: vertical-rl; box-shadow: 0 10px 30px #0006; transition: padding .2s ease, background .2s ease; }
 .hero-side-cta:hover, .hero-side-cta:focus-visible { padding-inline: 18px; background: #f4d3ab; }
 .announcement { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 10px 14px; border-radius: 14px; background: #171d1a; color: #fff; font-weight: 550; }
 .announcement p { margin: 0; text-align: center; }
@@ -284,7 +284,7 @@
 .announcement-promo button { background: #00000018; }
 .announcement-warning { background: #f6dcd8; color: var(--danger-ink); }
 .announcement-warning button { background: #00000014; }
-@media (max-width: 900px) { .hero-side-cta { top: auto; bottom: 24px; transform: none; padding: 12px 16px; writing-mode: horizontal-tb; border-radius: 999px 0 0 999px; } }
+@media (max-width: 900px) { .hero-side-cta { top: auto; bottom: 96px; transform: none; padding: 12px 16px; writing-mode: horizontal-tb; border-radius: 999px 0 0 999px; } }
 .hero-banner-copy { position: relative; z-index: 1; max-width: 620px; margin: 0; text-align: left; }
 .hero-kicker { display: inline-flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; padding: 7px 14px 7px 7px; border: 1px solid #ffffff38; border-radius: 999px; background: #ffffff12; color: #f1e8dc; font-size: 13px; backdrop-filter: blur(12px); }
 .hero-kicker span { padding: 4px 10px; border-radius: 999px; background: var(--accent); color: var(--ink); font-weight: 650; }
@@ -470,3 +470,7 @@
 .ann-savebar > span { margin-right: auto; }
 @media (max-width: 980px) { .ann-grid { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .ann-row { grid-template-columns: 1fr; } }
+
+/* The banner stays at the top of the window while the page scrolls, and the sticky header rests below it. */
+.page:not(.home-page):has(> .announcement) { padding-top: 58px; }
+.page:has(> .announcement) > .site-header { top: 56px; }
