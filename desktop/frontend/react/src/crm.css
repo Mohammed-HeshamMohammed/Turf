@@ -8050,3 +8050,4 @@ p, li, .notice { text-wrap: pretty; } /* no single word left alone on the last l
 .sk-cell { border-radius: 12px; }
 @media (max-width: 900px) { .metrics-grid:has(.sk-metric) { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sk-two, .sk-detail, .sk-split { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+.sk-after { margin-top: 8px; }
