@@ -16,7 +16,7 @@ import { ROLES } from "./data.ts";
 import { capability, leadCounts, visibleLeads, visibleTasks } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { LearningChoice } from "./LearningChoice.jsx";
-import { Badge, Select, Button, Card, Empty, Field, Modal, PageHeader, Person, Segmented, DataTable, Status, downloadCsv, money, useTableView } from "./ui.jsx";
+import { Badge, Select, Button, Card, Empty, Field, Modal, PageHeader, Person, Segmented, DataTable, Status, count, downloadCsv, money, useTableView } from "./ui.jsx";
 
 export function Reports() {
   const { state, dispatch, notify } = useCrm();
@@ -70,8 +70,8 @@ export function Reports() {
       </div>
       <div className="metrics-grid">
         {[
-          [client ? "Shared properties" : "Visible leads", counts.total.toLocaleString()],
-          ["Qualified", counts.stage("Qualified").toLocaleString()],
+          [client ? "Shared properties" : "Visible leads", count(counts.total)],
+          ["Qualified", count(counts.stage("Qualified"))],
           ["Open next steps", visibleTasks(state).filter(task => !task.done).length],
           [
             finance ? "Recorded pipeline" : "Completed next steps",
@@ -134,7 +134,7 @@ export function Reports() {
               <div key={stage}>
                 <span>{stage}</span>
                 <meter min="0" max={Math.max(counts.total, 1)} value={counts.stage(stage)} />
-                <strong>{counts.stage(stage).toLocaleString()}</strong>
+                <strong>{count(counts.stage(stage))}</strong>
               </div>
             ))}
           </div>

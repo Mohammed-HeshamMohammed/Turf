@@ -3,7 +3,7 @@ import "leaflet/dist/leaflet.css";
 import { Crosshair, MapPin } from "@phosphor-icons/react";
 import { useCrm } from "./context.jsx";
 import { locateLabel, useLeadPlaces } from "./useLeadPlaces.js";
-import { Badge, Button, Checkbox, Status, money, propertyFacts, useShowMore } from "./ui.jsx";
+import { Badge, Button, Checkbox, Status, money, propertyFacts, useShowMore, count } from "./ui.jsx";
 
 // The leads map, in the manner of a property search map: a pin for every lead with its price, nearby pins grouped
 // into a count when zoomed out, and the list beside it showing what is in view. Pointing at a card lights its pin;
@@ -253,7 +253,7 @@ export function LeadsMap({ leads, total = 0 }) {
       <div className="leads-map-bar">
         <div className="leads-map-counts" role="status">
           <strong>{placed.length.toLocaleString()}</strong> of {leads.length.toLocaleString()} leads on the map
-          {total > leads.length && <span> · the first {leads.length.toLocaleString()} of {total.toLocaleString()} are loaded</span>}
+          {total > leads.length && <span> · the first {leads.length.toLocaleString()} of {count(total)} are loaded</span>}
           {exact > 0 && <span> · {exact.toLocaleString()} at their address</span>}
           {placed.length - exact > 0 && <span> · {(placed.length - exact).toLocaleString()} in their ZIP area</span>}
           {notFound > 0 && <span> · {notFound.toLocaleString()} addresses not found</span>}

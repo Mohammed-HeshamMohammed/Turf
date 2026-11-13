@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./remote/api.ts";
-import { Badge, Button, Card, Field, Select } from "./ui.jsx";
+import { Badge, Button, Card, Field, Select, count } from "./ui.jsx";
 
 const label = {
   loaded: "Not processed",
@@ -66,7 +66,7 @@ export function SourceRows({ jobs, navigate }) {
       </tr>)}</tbody>
     </table></div>}
     {page && page.total > 0 && <div className="source-rows-pager">
-      <span>{(offset + 1).toLocaleString()}–{Math.min(offset + rows.length, page.total).toLocaleString()} of {Number(page.total).toLocaleString()} source rows</span>
+      <span>{(offset + 1).toLocaleString()}–{Math.min(offset + rows.length, page.total).toLocaleString()} of {count(Number(page.total))} source rows</span>
       <Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous</Button>
       <Button disabled={offset + rows.length >= page.total} onClick={() => setOffset(offset + 50)}>Next</Button>
     </div>}
