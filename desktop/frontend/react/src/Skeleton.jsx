@@ -33,6 +33,8 @@ function Heading({ route }) {
     team: ["Team", "Who owns what, and what is waiting on them."],
     personal: [parts[1] === "preferences" ? "Preferences" : "My profile", "Only you see these."],
   }[section];
+  // The Leads list has no heading of its own: the sidebar already says where the person is.
+  if (section === "leads" && !detail) return null;
   if (!known) return <div className="page-heading"><div className="sk-stack"><Block h={26} w={220} /><Block h={13} w={300} /></div></div>;
   const [title, description] = known;
   // A description that counts records (the overview's "8 active leads") is a grey line until they arrive.

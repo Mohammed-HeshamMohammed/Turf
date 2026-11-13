@@ -131,21 +131,8 @@ export function Leads() {
   }
   return (
     <>
-      <PageHeader
-        title={client ? "Shared properties" : "Leads"}
-        description={client ? "Only records explicitly shared with your partner workspace." : undefined}
-      >
-        {capability(state, "export") && (
-          <Button icon={Export} onClick={exportRows}>
-            Export view
-          </Button>
-        )}
-        {editable && (
-          <Button variant="primary" icon={Plus} onClick={() => navigate("work/leads/new")}>
-            New lead
-          </Button>
-        )}
-      </PageHeader>
+      {/* The page's name is already in the sidebar and the tab, so it is kept for screen readers only. */}
+      <h1 className="sr-only">{client ? "Shared properties" : "Leads"}</h1>
       <div className="filter-bar">
         <Search value={search} onChange={setSearch} placeholder={client ? "Search shared properties" : "Search owner, property, or phone"} />
         {!client && (
@@ -171,9 +158,20 @@ export function Leads() {
         {!client && !serverMode && archivedCount > 0 && (
           <Checkbox label={"Archived (" + archivedCount + ")"} checked={showArchived} onChange={event => setShowArchived(event.target.checked)} />
         )}
-        <span className="result-count">
-          {serverMode && waiting && !served.total ? "Loading…" : `${(serverMode ? served.total : leads.length).toLocaleString()} ${client ? "properties" : "leads"}`}
-        </span>
+        {(capability(state, "export") || editable) && (
+          <div className="filter-actions">
+            {capability(state, "export") && (
+              <Button icon={Export} onClick={exportRows}>
+                Export view
+              </Button>
+            )}
+            {editable && (
+              <Button variant="primary" icon={Plus} onClick={() => navigate("work/leads/new")}>
+                New lead
+              </Button>
+            )}
+          </div>
+        )}
       </div>
       {selected.length > 0 && (
         <div className="bulk-bar">
@@ -291,10 +289,6 @@ export function Leads() {
             }}
           />
           {!table.rows.length && (serverMode && waiting ? <SkeletonRows rows={8} columns={6} /> : <Empty title="No leads match this view">Try another stage or search term.</Empty>)}
-          <footer className="table-footer">
-            <span>{ROLES[state.role].scope}</span>
-            <span>{(serverMode ? served.total : leads.length).toLocaleString()} records{state.remote ? "" : " · sample workspace"}</span>
-          </footer>
         </div>
       )}
     </>
