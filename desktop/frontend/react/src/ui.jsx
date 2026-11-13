@@ -6,6 +6,7 @@ import {
   CaretUp,
   CaretUpDown,
   Check,
+  Columns,
   DotsThree,
   MagnifyingGlass,
   Plus,
@@ -176,6 +177,16 @@ export function useTableView(rows, columns, tableId) {
       // The order still holds for this session.
     }
   }
+  // Columns the person has switched off, remembered per table like the order.
+  const [hidden, setHiddenState] = useState(() => readHidden(tableId));
+  function setHidden(next) {
+    setHiddenState(next);
+    try {
+      window.localStorage.setItem("callerwhale.hidden-columns." + tableId, JSON.stringify(next));
+    } catch {
+      // The choice still holds for this session.
+    }
+  }
   let shown = rows;
   if (sort && columns[sort.id]) {
     const get = columns[sort.id].value;
@@ -192,7 +203,84 @@ export function useTableView(rows, columns, tableId) {
     const known = order.map(id => list.find(column => column.id === id)).filter(Boolean);
     return [...known, ...list.filter(column => !order.includes(column.id))];
   };
-  return { rows: shown, sort, setSort, arrange, setOrder };
+  return { rows: shown, sort, setSort, arrange, setOrder, hidden, setHidden };
+}
+const readHidden = id => {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem("callerwhale.hidden-columns." + id));
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+};
+/** "Columns": which of a table's columns are shown. At least one stays; "Show all" brings the rest back. */
+function ColumnMenu({ view, columns }) {
+  const [open, setOpen] = useState(false);
+  const [at, setAt] = useState(null);
+  const button = useRef(null);
+  const panel = useRef(null);
+  const presence = usePresence(open);
+  const hidden = view.hidden || [];
+  const visible = columns.filter(column => !hidden.includes(column.id)).length;
+  useEffect(() => {
+    if (!open) return undefined;
+    const place = () => {
+      const box = button.current?.getBoundingClientRect();
+      if (box) setAt({ top: box.bottom + 6, right: Math.max(8, window.innerWidth - box.right) });
+    };
+    place();
+    const outside = event => !panel.current?.contains(event.target) && !button.current?.contains(event.target) && setOpen(false);
+    const escape = event => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      button.current?.focus();
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
+  const toggle = id => view.setHidden(hidden.includes(id) ? hidden.filter(item => item !== id) : [...hidden, id]);
+  return (
+    <>
+      <button ref={button} type="button" className="column-menu-button" aria-haspopup="true" aria-expanded={open} title="Choose columns" aria-label="Choose columns" onClick={() => setOpen(!open)}>
+        <Columns size={17} />
+      </button>
+      {presence.mounted &&
+        createPortal(
+          <div
+            ref={panel}
+            className={"column-menu-panel" + (presence.leaving ? " leaving" : "")}
+            role="dialog"
+            aria-label="Columns"
+            style={at ? { top: at.top, right: at.right } : { visibility: "hidden", top: 0, right: 0 }}
+          >
+            <header>
+              <strong>Columns</strong>
+              <button type="button" className="column-menu-reset" disabled={!hidden.length} onClick={() => view.setHidden([])}>
+                Show all
+              </button>
+            </header>
+            {columns.map(column => {
+              const shown = !hidden.includes(column.id);
+              return (
+                <label key={column.id}>
+                  <input type="checkbox" checked={shown} disabled={shown && visible <= 1} onChange={() => toggle(column.id)} />
+                  <span>{typeof column.label === "string" ? column.label : column.id}</span>
+                </label>
+              );
+            })}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
 }
 /** A column title that sorts when pressed: ascending, then descending, then back to the original order. */
 export function SortHeader({ view, id, children, label = typeof children === "string" ? children : id, ...props }) {
@@ -240,7 +328,8 @@ export function useShowMore(items, step = 100) {
  * Next, instead of growing with "Show more". A taller or wider window shows more rows at once.
  */
 export function DataTable({ view, columns, rowKey, leading, trailing, paged = false, remote = null, onRowClick = null }) {
-  const ordered = view.arrange(columns);
+  const arranged = view.arrange(columns);
+  const ordered = arranged.filter(column => !(view.hidden || []).includes(column.id));
   const [shown, more] = useShowMore(view.rows);
   const [page, setPage] = useState(0);
   const [fit, setFit] = useState(10);
@@ -350,7 +439,8 @@ export function DataTable({ view, columns, rowKey, leading, trailing, paged = fa
     requestAnimationFrame(() => document.querySelector('th[data-col="' + column.id + '"] button')?.focus());
   }
   return (
-    <div className="table-scroll">
+    <div className={"table-scroll" + (arranged.length > 1 ? " has-column-menu" : "")}>
+      {arranged.length > 1 && <ColumnMenu view={view} columns={arranged} />}
       <table ref={tableRef}>
         <thead>
           <tr>
