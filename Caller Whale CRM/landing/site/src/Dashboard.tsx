@@ -4,6 +4,7 @@ import { Link } from "./nav.tsx";
 import { RoleBadges, type Access } from "./RoleBadges.tsx";
 import { PLATFORM_ROLES } from "./roles.ts";
 import { ApiError, needsSecondStep, useSecondStep } from "./SecondStep.tsx";
+import { AnnouncementManager } from "./Announcement.tsx";
 import { CostsManager, MembersTable, PlatformOverview } from "./OwnerViews.tsx";
 import { InviteManager, PendingInvitations, WorkspaceManager, WorkspaceSecondStep } from "./AccessManagement.tsx";
 import { MonitoringPanel } from "./MonitoringPanel.tsx";
@@ -18,12 +19,13 @@ const firstNameOf = (me: { first_name?: unknown; name?: string; email: string })
 const roleNames: Record<string, string> = Object.fromEntries(PLATFORM_ROLES.map(role => [role.key, role.name]));
 
 const staffRoles = new Set(["owner", "cofounder", "system_admin"]);
-type AdminView = "overview" | "team" | "members" | "access" | "costs" | "monitoring" | "account";
+type AdminView = "overview" | "team" | "members" | "access" | "costs" | "announcement" | "monitoring" | "account";
 const viewFromHash = (hash: string): AdminView => {
   if (hash === "#team" || hash === "#admin-team") return "team";
   if (hash === "#access" || hash === "#admin-manage") return "access";
   if (hash === "#members") return "members";
   if (hash === "#costs") return "costs";
+  if (hash === "#announcement") return "announcement";
   if (hash === "#monitoring") return "monitoring";
   if (hash === "#account" || hash === "#admin-account") return "account";
   return "overview";
@@ -205,12 +207,13 @@ function StaffDashboard({ access, auth, authBase, me, onSaved }: { access: Acces
     members: "Members",
     access: "Manage access",
     costs: "Costs",
+    announcement: "Announcement",
     monitoring: "Monitoring",
     account: "Settings",
     recovery: "Save your recovery codes",
   };
   return <div className="admin-layout">
-    <div className="admin-sidebar-slot"><aside className="admin-sidebar" aria-label="Administration navigation"><div className="admin-sidebar-brand"><span className="admin-sidebar-mark" aria-hidden="true">{me.avatar ? <img src={String(me.avatar)} alt="" /> : initials(me.name || me.email)}</span><span><strong>{access.platform_role === "owner" ? "Owner" : roleNames[access.platform_role] || access.platform_label || "Staff"}</strong><small>{firstNameOf(me)}</small></span></div>{recovery.length ? <p className="admin-sidebar-note">Save your recovery codes to continue.</p> : <nav aria-label="Dashboard sections"><a href="#overview" aria-current={view === "overview" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("overview"); }}>Overview</a><a href="#team" aria-current={view === "team" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("team"); }}>Platform team</a><a href="#members" aria-current={view === "members" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("members"); }}>Members</a>{canManage && <a href="#access" aria-current={view === "access" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("access"); }}>Manage access</a>}{canManage && <a href="#costs" aria-current={view === "costs" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("costs"); }}>Costs</a>}<a href="#monitoring" aria-current={view === "monitoring" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("monitoring"); }}>Monitoring</a><Link to={profilePath(me)}>Profile</Link><a href="#account" aria-current={view === "account" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("account"); }}>Settings</a></nav>}</aside></div>
+    <div className="admin-sidebar-slot"><aside className="admin-sidebar" aria-label="Administration navigation"><div className="admin-sidebar-brand"><span className="admin-sidebar-mark" aria-hidden="true">{me.avatar ? <img src={String(me.avatar)} alt="" /> : initials(me.name || me.email)}</span><span><strong>{access.platform_role === "owner" ? "Owner" : roleNames[access.platform_role] || access.platform_label || "Staff"}</strong><small>{firstNameOf(me)}</small></span></div>{recovery.length ? <p className="admin-sidebar-note">Save your recovery codes to continue.</p> : <nav aria-label="Dashboard sections"><a href="#overview" aria-current={view === "overview" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("overview"); }}>Overview</a><a href="#team" aria-current={view === "team" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("team"); }}>Platform team</a><a href="#members" aria-current={view === "members" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("members"); }}>Members</a>{canManage && <a href="#access" aria-current={view === "access" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("access"); }}>Manage access</a>}{canManage && <a href="#costs" aria-current={view === "costs" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("costs"); }}>Costs</a>}<a href="#announcement" aria-current={view === "announcement" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("announcement"); }}>Announcement</a><a href="#monitoring" aria-current={view === "monitoring" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("monitoring"); }}>Monitoring</a><Link to={profilePath(me)}>Profile</Link><a href="#account" aria-current={view === "account" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("account"); }}>Settings</a></nav>}</aside></div>
     <div className="admin-main"><section className={`admin-workspace admin-view-${shownView}`} aria-labelledby="dashboard-administration">
     <header className="admin-view-header"><h1 id="dashboard-administration">{viewTitles[shownView]}</h1></header>
     {shownView !== "account" && !recovery.length && status === "loading" && <div className="admin-feedback card" role="status">Loading platform staff…</div>}
@@ -247,6 +250,7 @@ function StaffDashboard({ access, auth, authBase, me, onSaved }: { access: Acces
       : <UsageOverview access={access} auth={auth} authBase={authBase} me={me} />)}
     {status === "ready" && shownView === "members" && <MembersTable request={request} canGive={canManage} auth={auth} />}
     {canManage && status === "ready" && shownView === "costs" && <CostsManager request={request} auth={auth} saved={String(me.currency || "")} />}
+    {status === "ready" && shownView === "announcement" && <AnnouncementManager request={request} auth={auth} />}
     {status === "ready" && shownView === "monitoring" && <MonitoringPanel auth={auth} />}
     {status === "ready" && shownView === "team" && <section className="admin-team card" aria-labelledby="admin-team-title"><div className="admin-section-heading"><div><span className="eyebrow">Access directory</span><h2 id="admin-team-title">Staff directory</h2><p className="muted">Owner and cofounder roles are permanent. System admin and tester roles can be managed here.</p></div><span className="admin-count">{query || roleFilter !== "all" ? `${visibleStaff.length} of ${staff.length}` : staff.length} {staff.length === 1 ? "person" : "people"}</span></div>
         <div className="admin-toolbar"><label>Search people<input type="search" placeholder="Name or email" value={query} onChange={event => setQuery(event.target.value)} /></label><label>Role<select value={roleFilter} onChange={event => setRoleFilter(event.target.value)}><option value="all">All roles</option><option value="owner">Owner</option><option value="cofounder">Cofounder</option><option value="system_admin">System admin</option><option value="tester">Tester</option></select></label></div>

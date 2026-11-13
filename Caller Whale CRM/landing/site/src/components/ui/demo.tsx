@@ -1,3 +1,4 @@
+import { Link } from "../../nav.tsx";
 import { ResponsiveHeroBanner } from "./responsive-hero-banner.tsx";
 
 /** Caller Whale's configuration of the supplied hero component. */
@@ -15,5 +16,7 @@ export function HeroDemo({ signedIn }: { signedIn: boolean | undefined }) {
     primaryButtonHref={signedIn ? "/account" : "/signup"}
     secondaryButtonText="Explore features"
     secondaryButtonHref="/features"
-  />;
+  >
+    {signedIn === false && <Link className="hero-side-cta" to="/signup">Start for free <span aria-hidden="true">↗</span></Link>}
+  </ResponsiveHeroBanner>;
 }

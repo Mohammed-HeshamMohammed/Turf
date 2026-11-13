@@ -11,6 +11,7 @@ import { Security } from "./Security.tsx";
 import { AcceptableUse, Contact, DataProcessing, Privacy, RemoveMyInformation, Terms } from "./PublicPages.tsx";
 import { WhyCallerWhale } from "./WhyCallerWhale.tsx";
 import { HeroDemo } from "./components/ui/demo.tsx";
+import { AnnouncementBanner } from "./Announcement.tsx";
 import { SiteHeader } from "./components/ui/site-header.tsx";
 import { hasCrmAccess, type CrmAccess } from "./crm-access.ts";
 import { crmUrl } from "./crm-url.ts";
@@ -497,6 +498,7 @@ export function App({ path: first = "/" }) {
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
   return (
     <div className={`page${cleanPath(path) === "/" ? " home-page" : ""}${cleanPath(path) === "/dashboard" ? " dashboard-shell" : ""}`}>
+      {cleanPath(path) !== "/dashboard" && <AnnouncementBanner authBase={authBase} />}
       <SiteHeader path={path} me={me} onSignOut={signOut} savedSession={savedSession} cached={cached} openCrm={crmLink ? openCrm : undefined} />
       <main>{pages[cleanPath(path)] || (ownPageName ? ownPage : null) || (routeFor(path).key.startsWith("feature:") ? <FeaturePage slug={featureSlug} /> : <NotFound />)}</main>
       <SiteFooter compact={cleanPath(path) === "/dashboard"} />

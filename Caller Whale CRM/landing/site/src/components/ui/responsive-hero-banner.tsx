@@ -24,6 +24,7 @@ interface ResponsiveHeroBannerProps {
   secondaryButtonHref?: string;
   partnersTitle?: string;
   partners?: Partner[];
+  children?: ReactNode;
 }
 
 /** The supplied hero pattern, using Caller Whale's own routes and assets. */
@@ -47,6 +48,7 @@ export function ResponsiveHeroBanner({
   secondaryButtonHref,
   partnersTitle,
   partners = [],
+  children,
 }: ResponsiveHeroBannerProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const frame = useRef<number | null>(null);
@@ -100,6 +102,7 @@ export function ResponsiveHeroBanner({
         {secondaryButtonText && secondaryButtonHref && <Link className="button hero-secondary" to={secondaryButtonHref}>{secondaryButtonText}<span aria-hidden="true">→</span></Link>}
       </div>
     </div>
+    {children}
     {previewImageUrl && <figure className="hero-preview"><img src={previewImageUrl} alt={previewAlt} width="1280" height="800" fetchPriority="high" /></figure>}
     {partners.length > 0 && <div className="hero-partners"><p>{partnersTitle}</p><div>{partners.map(partner => <a key={partner.href} href={partner.href} aria-label={partner.name}><img src={partner.logoUrl} alt={partner.name} /></a>)}</div></div>}
   </section>;
