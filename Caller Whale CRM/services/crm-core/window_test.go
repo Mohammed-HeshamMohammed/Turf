@@ -134,9 +134,43 @@ func TestALeadsDetailsComeWhenItIsOpened(t *testing.T) {
 	if err := e.admin.QueryRow(ctx, fmt.Sprintf(`INSERT INTO crm.leads (org_id, name) VALUES ('%s'::uuid, 'Detail Lead') RETURNING id`, orgA)).Scan(&lead); err != nil {
 		t.Fatal(err)
 	}
+	var other string
+	if err := e.admin.QueryRow(ctx, fmt.Sprintf(`INSERT INTO crm.leads (org_id, name) VALUES ('%s'::uuid, 'Another Lead') RETURNING id`, orgA)).Scan(&other); err != nil {
+		t.Fatal(err)
+	}
+	for _, stmt := range []string{
+		fmt.Sprintf(`INSERT INTO crm.tasks (org_id, lead_id, title) VALUES ('%s'::uuid, '%s'::uuid, 'Call back'), ('%s'::uuid, '%s'::uuid, 'Not this lead''s')`, orgA, lead, orgA, other),
+		fmt.Sprintf(`INSERT INTO crm.notes (org_id, lead_id, body) VALUES ('%s'::uuid, '%s'::uuid, 'Said to try Friday')`, orgA, lead),
+	} {
+		if _, err := e.admin.Exec(ctx, stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
 	status, details := e.call(alice, orgA, "GET", "/api/v1/leads/"+lead+"/details", nil)
 	if status != http.StatusOK {
 		t.Fatalf("details: %d", status)
+	}
+	// Only this lead's own task and note come back, not another lead's.
+	if tasks := details["tasks"].([]any); len(tasks) != 1 || tasks[0].(map[string]any)["title"] != "Call back" {
+		t.Fatalf("tasks: %v", details["tasks"])
+	}
+	if notes := details["notes"].([]any); len(notes) != 1 || notes[0].(map[string]any)["body"] != "Said to try Friday" {
+		t.Fatalf("notes: %v", details["notes"])
+	}
+	// A lead that has been deleted answers as if it did not exist.
+	if _, err := e.admin.Exec(ctx, fmt.Sprintf(`UPDATE crm.leads SET deleted_at = now() WHERE id = '%s'::uuid`, other)); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ = e.call(alice, orgA, "GET", "/api/v1/leads/"+other+"/details", nil); status != http.StatusNotFound {
+		t.Fatalf("a deleted lead: %d", status)
+	}
+	// Another workspace's lead answers the same way: the details never cross workspaces.
+	if status, _ = e.call(carol, orgB, "GET", "/api/v1/leads/"+lead+"/details", nil); status != http.StatusNotFound {
+		t.Fatalf("a lead of another workspace: %d", status)
+	}
+	// A caller who sees only their own leads is not given the details of one that is not theirs.
+	if status, _ = e.call(bob, orgA, "GET", "/api/v1/leads/"+lead+"/details", nil); status != http.StatusNotFound {
+		t.Fatalf("a lead outside the caller's scope: %d", status)
 	}
 	for _, key := range []string{"tasks", "notes", "calls", "handoffs", "deals"} {
 		if _, ok := details[key].([]any); !ok {
