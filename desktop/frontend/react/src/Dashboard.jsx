@@ -1,7 +1,7 @@
 import { ArrowUpRight, ChatCircle, Phone, CheckCircle, Clock, Users, Handshake, ShieldCheck, Database, HardDrives, GearSix, Plus } from "@phosphor-icons/react";
 import { Suspense, lazy } from "react";
 import { ROLES, TODAY } from "./data.ts";
-import { callbackLabel, capability, conversationPath, dayLabel, personalProfile, visibleLeads, visibleTasks, visibleThreads } from "./model.ts";
+import { callbackLabel, capability, conversationPath, dayLabel, leadCounts, personalProfile, visibleLeads, visibleTasks, visibleThreads } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { Badge, Button, Card, Empty, LeadLink, RoundButton, Status, money, PageHeader, propertyFacts } from "./ui.jsx";
 
@@ -17,6 +17,9 @@ export function Dashboard() {
   const deals = state.deals.filter(deal => leadIds.has(deal.leadId) && !deal.stage.startsWith("Closed"));
   const handoffs = state.handoffs.filter(item => item.status === "Requested" && leadIds.has(item.leadId));
   const active = leads.filter(lead => lead.stage !== "Closed");
+  // A big workspace sends this device a window of its leads: the counts of all of them are the server's.
+  const counts = leadCounts(state);
+  const activeCount = counts.active;
   const next = active.find(lead => lead.callback) || active[0];
   const finance = capability(state, "finance");
   const history = state.activities.filter(item => item.leadId && leadIds.has(item.leadId));
@@ -81,7 +84,7 @@ export function Dashboard() {
       <PageHeader
         title={isClient ? "Your properties" : "Good morning, " + personalProfile(state).name.split(" ")[0]}
         description={
-          isClient ? "Your approved records, updates, and next steps in one place." : active.length + " active leads · " + tasks.length + " open next steps"
+          isClient ? "Your approved records, updates, and next steps in one place." : activeCount.toLocaleString() + " active leads · " + tasks.length + " open next steps"
         }
       >
         <span className="date-label">{new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date())}</span>
@@ -94,7 +97,7 @@ export function Dashboard() {
       <div className="metrics-grid">
         <Metric
           label={isClient ? "Shared properties" : state.role === "researcher" ? "Project leads" : "Active leads"}
-          value={isClient ? leads.length : active.length}
+          value={isClient ? leads.length : activeCount.toLocaleString()}
           detail={role.scope}
           icon={Users}
           onClick={() => navigate("work/leads")}
@@ -109,7 +112,7 @@ export function Dashboard() {
         />
         <Metric
           label={finance ? "Acquisition pipeline" : "Qualified leads"}
-          value={finance ? money(deals.reduce((sum, deal) => sum + deal.amount, 0)) : leads.filter(lead => lead.stage === "Qualified").length}
+          value={finance ? money(deals.reduce((sum, deal) => sum + deal.amount, 0)) : counts.stage("Qualified")}
           detail={finance ? deals.length + " active deals" : "Ready for the next conversation"}
           icon={CheckCircle}
           onClick={() => navigate(finance ? "work/deals" : "work/leads")}
@@ -301,8 +304,8 @@ export function Dashboard() {
                 {["New", "Contacted", "Interested", "Qualified"].map(stage => (
                   <button key={stage} onClick={() => navigate("work/leads?stage=" + encodeURIComponent(stage))}>
                     <span>{stage}</span>
-                    <meter min="0" max={Math.max(leads.length, 1)} value={leads.filter(lead => lead.stage === stage).length} />
-                    <strong>{leads.filter(lead => lead.stage === stage).length}</strong>
+                    <meter min="0" max={Math.max(counts.total, 1)} value={counts.stage(stage)} />
+                    <strong>{counts.stage(stage).toLocaleString()}</strong>
                   </button>
                 ))}
               </div>

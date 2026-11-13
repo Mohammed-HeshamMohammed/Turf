@@ -13,7 +13,7 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 import { ROLES } from "./data.ts";
-import { capability, visibleLeads, visibleTasks } from "./model.ts";
+import { capability, leadCounts, visibleLeads, visibleTasks } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { LearningChoice } from "./LearningChoice.jsx";
 import { Badge, Select, Button, Card, Empty, Field, Modal, PageHeader, Person, Segmented, DataTable, Status, downloadCsv, money, useTableView } from "./ui.jsx";
@@ -23,6 +23,7 @@ export function Reports() {
   const [range, setRange] = useState("This month");
   const [schedule, setSchedule] = useState(false);
   const leads = visibleLeads(state);
+  const counts = leadCounts(state);
   const ids = new Set(leads.map(lead => lead.id));
   const deals = state.deals.filter(item => ids.has(item.leadId));
   const finance = capability(state, "finance");
@@ -69,8 +70,8 @@ export function Reports() {
       </div>
       <div className="metrics-grid">
         {[
-          [client ? "Shared properties" : "Visible leads", leads.length],
-          ["Qualified", leads.filter(lead => lead.stage === "Qualified").length],
+          [client ? "Shared properties" : "Visible leads", counts.total.toLocaleString()],
+          ["Qualified", counts.stage("Qualified").toLocaleString()],
           ["Open next steps", visibleTasks(state).filter(task => !task.done).length],
           [
             finance ? "Recorded pipeline" : "Completed next steps",
@@ -86,7 +87,7 @@ export function Reports() {
       </div>
       <Card
         title={client ? "Shared property locations" : "Source effectiveness"}
-        subtitle={client ? "Only approved shared records are included." : "Which sources are producing the next conversation?"}
+        subtitle={client ? "Only approved shared records are included." : "Which sources are producing the next conversation?" + (counts.partial ? " Counted over the " + leads.length.toLocaleString() + " most recent leads this device holds." : "")}
         action={
           capability(state, "export") && (
             <Button
@@ -132,8 +133,8 @@ export function Reports() {
             {["New", "Contacted", "Interested", "Qualified", "Closed"].map(stage => (
               <div key={stage}>
                 <span>{stage}</span>
-                <meter min="0" max={Math.max(leads.length, 1)} value={leads.filter(lead => lead.stage === stage).length} />
-                <strong>{leads.filter(lead => lead.stage === stage).length}</strong>
+                <meter min="0" max={Math.max(counts.total, 1)} value={counts.stage(stage)} />
+                <strong>{counts.stage(stage).toLocaleString()}</strong>
               </div>
             ))}
           </div>
