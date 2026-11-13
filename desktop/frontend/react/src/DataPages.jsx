@@ -34,6 +34,7 @@ import {
   Breadcrumb,
   ConfirmDialog,
   useTableView,
+  count,
 } from "./ui.jsx";
 
 const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
@@ -324,7 +325,7 @@ export function Lists({ id, importId = null }) {
         <Breadcrumb items={[{ label: "Lists", path: "lists" }, { label: dataset.name }]} />
         <PageHeader
           title={dataset.name}
-          description={remote && jobsFor(id).length ? `${sourceListProgress(jobsFor(id)).sourceRows.toLocaleString()} source rows · ${sourceListProgress(jobsFor(id)).unprocessedRows.toLocaleString()} unprocessed · ${crmLeads(id, listLeads.length).toLocaleString()} CRM leads` : `${crmLeads(id, listLeads.length).toLocaleString()} CRM leads`}
+          description={remote && jobsFor(id).length ? `${count(sourceListProgress(jobsFor(id)).sourceRows)} source rows · ${count(sourceListProgress(jobsFor(id)).unprocessedRows)} unprocessed · ${count(crmLeads(id, listLeads.length))} CRM leads` : `${count(crmLeads(id, listLeads.length))} CRM leads`}
         >
           {capability(state, "export") && (
             <Button
@@ -444,10 +445,10 @@ export function Lists({ id, importId = null }) {
               <h2>{item.name}</h2>
               <p className="muted">{item.description}</p>
               <div className="dataset-count">
-                {remote && jobsFor(item.id).length ? sourceListProgress(jobsFor(item.id)).sourceRows.toLocaleString() : crmLeads(item.id, leads.filter(lead => lead.datasetId === item.id).length).toLocaleString()}
+                {remote && jobsFor(item.id).length ? count(sourceListProgress(jobsFor(item.id)).sourceRows) : count(crmLeads(item.id, leads.filter(lead => lead.datasetId === item.id).length))}
                 <small>{remote && jobsFor(item.id).length ? "uploaded source rows" : "CRM leads"}</small>
               </div>
-              {remote && jobsFor(item.id).length > 0 && <p className="muted">{sourceListProgress(jobsFor(item.id)).unprocessedRows.toLocaleString()} unprocessed · {sourceListProgress(jobsFor(item.id)).processedRows.toLocaleString()} processed · {crmLeads(item.id, leads.filter(lead => lead.datasetId === item.id).length).toLocaleString()} CRM leads</p>}
+              {remote && jobsFor(item.id).length > 0 && <p className="muted">{count(sourceListProgress(jobsFor(item.id)).unprocessedRows)} unprocessed · {count(sourceListProgress(jobsFor(item.id)).processedRows)} processed · {count(crmLeads(item.id, leads.filter(lead => lead.datasetId === item.id).length))} CRM leads</p>}
               <div className="row">
                 <Status value={item.status} />
                 <small>{item.date}</small>
@@ -1016,12 +1017,12 @@ export function SkipTracing() {
                 <>
                   <div className="review-metrics">
                     <div>
-                      <strong>{rows.length.toLocaleString()}</strong>
+                      <strong>{count(rows.length)}</strong>
                       <small>source rows</small>
                     </div>
                     {checked.noPhones ? (
                       <div>
-                        <strong>{(counts["No phone"] || 0).toLocaleString()}</strong>
+                        <strong>{count(counts["No phone"] || 0)}</strong>
                         <small>leads to find phone numbers for</small>
                       </div>
                     ) : (
@@ -1043,28 +1044,28 @@ export function SkipTracing() {
                     {checked.noPhones && checked.engine && (
                       <>
                         <div>
-                          <strong>{(checked.owners || 0).toLocaleString()}</strong>
+                          <strong>{count(checked.owners || 0)}</strong>
                           <small>owners</small>
                         </div>
                         <div>
-                          <strong>{(checked.sameOwner || 0).toLocaleString()}</strong>
+                          <strong>{count(checked.sameOwner || 0)}</strong>
                           <small>owner has other properties here</small>
                         </div>
                         <div>
-                          <strong>{(checked.absentee || 0).toLocaleString()}</strong>
+                          <strong>{count(checked.absentee || 0)}</strong>
                           <small>absentee owners</small>
                         </div>
                         <div>
-                          <strong>{(checked.outOfState || 0).toLocaleString()}</strong>
+                          <strong>{count(checked.outOfState || 0)}</strong>
                           <small>mail out of state</small>
                         </div>
                         <div>
-                          <strong>{(checked.vacant || 0).toLocaleString()}</strong>
+                          <strong>{count(checked.vacant || 0)}</strong>
                           <small>vacant</small>
                         </div>
                         {checked.government > 0 && (
                           <div>
-                            <strong>{checked.government.toLocaleString()}</strong>
+                            <strong>{count(checked.government)}</strong>
                             <small>government owned · not leads</small>
                           </div>
                         )}

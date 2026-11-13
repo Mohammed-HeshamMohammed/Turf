@@ -65,6 +65,7 @@ import {
   Checkbox,
   ConfirmDialog,
   usePresence,
+  count,
 } from "./ui.jsx";
 
 /** A lead can be called only if it has a phone number with digits in it. */
@@ -266,7 +267,7 @@ export function Calls({ target }) {
         <Card
           title="Your call queue"
           subtitle={
-            (bigWorkspace ? serverCallable.toLocaleString() : leads.length) +
+            (bigWorkspace ? count(serverCallable) : leads.length) +
             ((bigWorkspace ? serverCallable : leads.length) === 1 ? " lead" : " leads") +
             (activeList ? " in " + (lists.find(item => item.id === activeList)?.name || "this list") : " across your lists")
           }
@@ -275,10 +276,10 @@ export function Calls({ target }) {
           {lists.length > 1 && (
             <div className="queue-list-pick">
               <Select aria-label="Call list" value={activeList} disabled={callLocked || autoDial} onChange={event => setListId(event.target.value)}>
-                <option value="">{"All lists · " + (bigWorkspace ? Object.values(state.projectCallable).reduce((sum, n) => sum + n, 0) : callable.length).toLocaleString()}</option>
+                <option value="">{"All lists · " + count(bigWorkspace ? Object.values(state.projectCallable).reduce((sum, n) => sum + n, 0) : callable.length)}</option>
                 {lists.map(item => (
                   <option key={item.id} value={item.id}>
-                    {item.name + " · " + item.count.toLocaleString()}
+                    {item.name + " · " + count(item.count)}
                   </option>
                 ))}
               </Select>
