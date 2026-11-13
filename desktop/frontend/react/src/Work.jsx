@@ -36,6 +36,7 @@ import { CallLog } from "./CallLog.jsx";
 import { ReadyModeImport } from "./ReadyModeImport.jsx";
 import { smsRecipient } from "./sms.ts";
 import { beginDemoCall, clearCallOutcome, endDemoCall, getCallSession, setCallSession, useCallSession } from "./callSession.ts";
+import { SkeletonRows } from "./Skeleton.jsx";
 import {
   Badge,
   BoardColumn,
@@ -316,7 +317,7 @@ export function Calls({ target }) {
               {pulled.busy ? "Loading…" : "More leads"}
             </Button>
           )}
-          {!leads.length && (bigWorkspace && !pulled.done ? <Empty title="Loading the queue…">A big list takes a moment.</Empty> : <Empty title="No callable leads">Blocked and closed leads are left out.</Empty>)}
+          {!leads.length && (bigWorkspace && !pulled.done ? <SkeletonRows rows={5} columns={3} /> : <Empty title="No callable leads">Blocked and closed leads are left out.</Empty>)}
         </Card>
         <div className="call-main">
           {lead ? (

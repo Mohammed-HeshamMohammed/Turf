@@ -22,6 +22,7 @@ import { Sidebar } from "./Sidebar.jsx";
 import { WindowStrip, windowDrag } from "./WindowStrip.jsx";
 import { CallerWhaleMenu } from "./CallerWhaleMenu.jsx";
 import { PersonalMenu, PersonalPage } from "./Personal.jsx";
+import { PageSkeleton } from "./Skeleton.jsx";
 
 // Pages load on demand, so the first screen only carries what it shows; the rest are fetched quietly once the app is idle.
 const lazyPage = (load, name) => lazy(() => load().then(module => ({ default: module[name] })));
@@ -686,7 +687,7 @@ export function App() {
               </div>
             )}
             <PageTransition key={(current === "lists" || current.startsWith("lists/")) ? "lists:" + state.role : current + ":" + state.role}>
-              <Suspense fallback={null}>{pageElement}</Suspense>
+              <Suspense fallback={<PageSkeleton route={current} />}>{pageElement}</Suspense>
             </PageTransition>
           </main>
         </div>
