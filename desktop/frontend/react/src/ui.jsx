@@ -20,6 +20,19 @@ import { TODAY } from "./data.ts";
 import { DatePicker as SharedDatePicker } from "./calendar/calendar.jsx";
 import "./calendar/calendar.css";
 
+/** Source lists often arrive in capitals ("AADINA SHAREEF", "7014 SANTA RITA DR"). Shown in ordinary case; text that already has lower case is left as it is. */
+export const tidyCase = text => {
+  const value = String(text ?? "");
+  return /[A-Z]/.test(value) && value === value.toUpperCase() ? value.toLowerCase().replace(/(^|[\s\-'/(])([a-z])/g, (_, edge, letter) => edge + letter.toUpperCase()) : value;
+};
+/** A bare ten-digit (or +1 eleven-digit) number is shown as (832) 260-6117; anything already formatted is left alone. */
+export const formatPhone = value => {
+  const text = String(value ?? "").trim();
+  const digits = text.replace(/^\+/, "");
+  if (!/^\d+$/.test(digits)) return text;
+  const national = digits.length === 11 && digits[0] === "1" ? digits.slice(1) : digits;
+  return national.length === 10 ? `(${national.slice(0, 3)}) ${national.slice(3, 6)}-${national.slice(6)}` : text;
+};
 /** A count that stays short as it grows: 9,870 stays as it is, 427,877 becomes 427.9K, 1,250,000 becomes 1.3M. */
 export const count = value => (Math.abs(value) < 10000 ? Number(value).toLocaleString("en-US") : new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value));
 export const money = value => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
@@ -226,7 +239,7 @@ export function useShowMore(items, step = 100) {
  * `paged`: the table shows as many rows as fit the window (never fewer than 5) and pages through the rest with Previous and
  * Next, instead of growing with "Show more". A taller or wider window shows more rows at once.
  */
-export function DataTable({ view, columns, rowKey, leading, trailing, paged = false, remote = null }) {
+export function DataTable({ view, columns, rowKey, leading, trailing, paged = false, remote = null, onRowClick = null }) {
   const ordered = view.arrange(columns);
   const [shown, more] = useShowMore(view.rows);
   const [page, setPage] = useState(0);
@@ -369,7 +382,11 @@ export function DataTable({ view, columns, rowKey, leading, trailing, paged = fa
         </thead>
         <tbody>
           {rows.map(row => (
-            <tr key={rowKey(row)}>
+            <tr
+              key={rowKey(row)}
+              className={onRowClick ? "is-clickable" : undefined}
+              onClick={onRowClick ? event => !event.target.closest("a, button, input, select, textarea, label, summary, [role=link]") && onRowClick(row) : undefined}
+            >
               {leading && <td className={leading.className}>{leading.cell(row)}</td>}
               {ordered.map(column => (
                 <td key={column.id} className={column.className} data-cell={rowKey(row) + ":" + column.id}>
@@ -384,19 +401,12 @@ export function DataTable({ view, columns, rowKey, leading, trailing, paged = fa
       {paged ? (
         total > size && (
           <div className="show-more pager">
+            <span className="pager-buttons">
+              <RoundButton icon={CaretLeft} label="Previous page" disabled={at === 0} onClick={() => setAt(at - 1)} />
+              <RoundButton icon={CaretRight} label="Next page" disabled={at >= pages - 1} onClick={() => setAt(at + 1)} />
+            </span>
             <span className="pager-range" title={`${(at * size + 1).toLocaleString()}–${Math.min((at + 1) * size, total).toLocaleString()} of ${total.toLocaleString()}`}>
               {count(at * size + 1)}–{count(Math.min((at + 1) * size, total))} of {count(total)}
-            </span>
-            <span className="pager-buttons">
-              <Button disabled={at === 0} onClick={() => setAt(at - 1)}>
-                Previous
-              </Button>
-              <span className="pager-page" title={`Page ${(at + 1).toLocaleString()} of ${pages.toLocaleString()}`}>
-                Page {count(at + 1)} of {count(pages)}
-              </span>
-              <Button disabled={at >= pages - 1} onClick={() => setAt(at + 1)}>
-                Next
-              </Button>
             </span>
           </div>
         )
@@ -424,8 +434,16 @@ export function Avatar({ name, avatar, small = false, large = false }) {
     </span>
   );
 }
-export function Person({ name, link = false }) {
+export function Person({ name, link = false, compact = false }) {
   const crm = useCrm();
+  // When everyone in a column is the same person, the name says nothing new on each row: the face stays, the name is in the tooltip.
+  if (compact)
+    return (
+      <span className="person is-compact" title={name}>
+        <Avatar name={name} small />
+        <span className="sr-only">{name}</span>
+      </span>
+    );
   const open = link && crm && name && name !== "Unassigned" && crm.state.role !== "client" && crm.state.role !== "admin";
   if (!open)
     return (
