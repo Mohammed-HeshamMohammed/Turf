@@ -67,7 +67,7 @@ export function LeadsMap({ leads, total = 0 }) {
   // Leads sharing one spot (a ZIP centre, or one building): chosen from their bubble, they are what the list shows.
   const [spot, setSpot] = useState(null);
   const [mapState, setMapState] = useState("Loading map");
-  const places = useLeadPlaces(leads);
+  const places = useLeadPlaces(leads, { auto: true });
   const { engine, locating, locate, exact, notFound, toLocate, unplaced } = places;
   const placed = useMemo(() => leads.filter(placeOf), [leads]);
   useEffect(() => setSpot(null), [exact]);
@@ -268,11 +268,6 @@ export function LeadsMap({ leads, total = 0 }) {
           )}
         </div>
       </div>
-      {engine && exact === 0 && placed.length > 0 && toLocate.length > 0 && !locating && (
-        <p className="notice subtle">
-          Leads are on their ZIP code's centre for now, so each ZIP shows as one bubble. Find exact locations puts every lead on its own address.
-        </p>
-      )}
       {engine === false && (
         <p className="notice subtle">Placing leads by their address needs Caller Whale's engine (the desktop app). Leads with coordinates are shown.</p>
       )}
@@ -341,8 +336,8 @@ export function LeadsMap({ leads, total = 0 }) {
         </div>
       </div>
       <p className="property-map-note muted">
-        Exact places come from the US Census Bureau: only street, city, state and ZIP are sent, when you choose Find exact locations, and each address is looked
-        up once. ZIP-area pins are approximate.
+        Leads appear at once on their ZIP code's centre; their exact places then come from the US Census Bureau, found automatically as the map opens. Only street,
+        city, state and ZIP are sent, and each address is looked up once. ZIP-area pins are approximate.
       </p>
     </section>
   );
