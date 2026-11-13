@@ -8057,14 +8057,11 @@ p, li, .notice { text-wrap: pretty; } /* no single word left alone on the last l
 @media (max-width: 900px) { .filter-actions { margin-left: 0; width: 100%; } }
 .pager-range { white-space: nowrap; }
 .pager-buttons { display: inline-flex; align-items: center; gap: 12px; }
-.pager-page { min-width: 11ch; text-align: center; white-space: nowrap; }
 @media (max-width: 600px) { .pager { justify-content: center; } .pager-range { width: 100%; text-align: center; } }
 
 /* A page of rows ends close to the bottom of the window, so the table can use the room for one more row. The call button floats over the
    bottom-right corner, so the pager keeps clear of it instead of the whole page leaving a gap. */
 .main-content:has(.table-card .pager) { padding-bottom: 12px; }
-.table-card .pager { padding-right: 88px; }
-@media (max-width: 720px) { .table-card .pager { padding-right: 4px; } .main-content:has(.table-card .pager) { padding-bottom: 96px; } }
 
 /* ---- Tables: even edges and gaps ---- */
 /* One inset on both sides, shared by the header, the rows and the pager, so the checkbox, the first column's text and "1-6 of 427.9K" line up. */
@@ -8074,9 +8071,27 @@ p, li, .notice { text-wrap: pretty; } /* no single word left alone on the last l
 .table-card th:first-child, .table-card td:first-child { padding-left: 4px; padding-right: 4px; }
 .table-card th:last-child, .table-card td:last-child { padding-right: 4px; }
 /* The pager is the table's last line, set off from the rows by a rule, with the numbers on the left and the buttons together on the right. */
-.table-card .pager { margin-top: 2px; padding: 14px 88px 16px 4px; border-top: 1px solid #e3e3e3; gap: 12px 20px; font-size: 13px; }
-.table-card .pager-buttons { gap: 14px; }
-.table-card .pager-page { color: var(--ink); }
+.table-card .pager { margin-top: 2px; padding: 14px 4px 16px; border-top: 1px solid #e3e3e3; gap: 12px; font-size: 13px; justify-content: flex-start; }
+.table-card .pager-buttons { gap: 6px; }
 /* Fields that appear again with "Hide empty fields" ease in. */
 .detail-fields > div { animation: enter-fade 240ms var(--ease-out) backwards; }
-@media (max-width: 720px) { .table-card .pager { padding-right: 4px; } }
+
+/* ---- Tables, remade: quiet where nothing differs, whole rows open, a pager that leaves the corner to the call button ---- */
+/* The pager sits at the left, arrows first and the range after them. The call button owns the bottom-right corner, so nothing of the table goes there. */
+.pager .round-button { width: 34px; height: 34px; background: var(--well); color: var(--ink); transition: background 120ms, opacity 120ms; }
+.pager .round-button:hover:not(:disabled) { background: #dadada; }
+.pager .round-button:disabled { opacity: 0.35; cursor: default; }
+.pager-range { color: var(--muted); }
+.main-content:has(.table-card .pager) { padding-bottom: 12px; }
+/* Defaults (New, Unverified, the same person on every row) recede; a pill or a name appears only when it tells rows apart. */
+.quiet-value { color: var(--muted); }
+.person.is-compact { gap: 0; }
+.next-empty { display: inline-grid; color: #b4b4b4; white-space: nowrap; }
+.next-empty > * { grid-area: 1 / 1; transition: opacity 140ms; }
+.next-empty .hint { opacity: 0; color: var(--muted); }
+tbody tr:hover .next-empty .hint, tbody tr:focus-within .next-empty .hint { opacity: 1; }
+tbody tr:hover .next-empty .dash, tbody tr:focus-within .next-empty .dash { opacity: 0; }
+/* The whole row opens the lead; the arrow stays as the keyboard and screen-reader way in, and is quiet until the row is pointed at. */
+tbody tr.is-clickable { cursor: pointer; }
+.table-card tbody tr.is-clickable .round-button { background: transparent; color: #a0a0a0; transition: background 120ms, color 120ms; }
+.table-card tbody tr.is-clickable:hover .round-button, .table-card tbody tr.is-clickable .round-button:focus-visible { background: var(--ink); color: #fff; }
