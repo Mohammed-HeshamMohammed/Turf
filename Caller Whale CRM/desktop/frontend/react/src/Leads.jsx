@@ -8,6 +8,7 @@ import { archivedLeads, callbackLabel, canEditLead, capability, scopedLeads, uid
 import { CallHistory, NewDealModal } from "./Work.jsx";
 import { useCrm } from "./context.jsx";
 import { SkeletonRows } from "./Skeleton.jsx";
+import { useLeadPage } from "./useLeadPage.js";
 import {
   Badge,
   Select,
@@ -52,37 +53,23 @@ export function Leads() {
   const heldAll = !state.remote || !(state.leadsTotal > state.leads.length);
   // A workspace bigger than this device's window of it: the list pages through the server, a page at a time.
   // If the server cannot page (an older version), the list falls back to the window this device holds.
-  const [serverFailed, setServerFailed] = useState(false);
-  const serverMode = Boolean(state.remote) && !heldAll && !serverFailed;
   const [term, setTerm] = useState("");
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(10);
-  const [served, setServed] = useState({ ids: [], total: 0 });
-  const [waiting, setWaiting] = useState(true); // the server has not answered for this page yet: not "no leads"
-  const counted = useRef({ key: "", total: null });
+  const [serverFailed, setServerFailed] = useState(false);
+  const serverMode = Boolean(state.remote) && !heldAll && !serverFailed;
+  // One shared source answers (and remembers) each page, so coming back here, or opening it from another screen, is instant.
+  const found = useLeadPage({ term, stage: stage === "All stages" ? "" : stage, offset: page * size, limit: size }, serverMode);
+  const served = { ids: found.ids, total: found.total ?? 0 };
+  const waiting = found.waiting; // the server has not answered for this page yet: not "no leads"
+  useEffect(() => {
+    if (found.failed) setServerFailed(true);
+  }, [found.failed]);
   useEffect(() => {
     const timer = setTimeout(() => setTerm(search.trim().length >= 2 ? search.trim() : ""), 350);
     return () => clearTimeout(timer);
   }, [search]);
   useEffect(() => setPage(0), [term, stage, size]);
-  useEffect(() => {
-    if (!serverMode) return;
-    let live = true;
-    const key = term + "|" + stage;
-    const known = counted.current.key === key ? counted.current.total : null;
-    setWaiting(true);
-    Promise.resolve(dispatch({ type: "BROWSE_LEADS", term, stage: stage === "All stages" ? "" : stage, offset: page * size, limit: size, count: known == null }))
-      .then(found => {
-        if (!live || !found) return;
-        counted.current = { key, total: found.total ?? known };
-        setServed({ ids: found.ids, total: found.total ?? known ?? 0 });
-        setWaiting(false);
-      })
-      .catch(() => live && setServerFailed(true));
-    return () => {
-      live = false;
-    };
-  }, [serverMode, term, stage, page, size, dispatch]);
   const byId = useMemo(() => new Map(state.leads.map(lead => [lead.id, lead])), [state.leads]);
   const archivedCount = archivedLeads(state).length;
   const windowLeads = (showArchived && archivedCount ? archivedLeads(state) : visibleLeads(state)).filter(

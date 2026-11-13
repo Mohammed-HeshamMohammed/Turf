@@ -468,6 +468,8 @@ export function App() {
     () => ({ state, dispatch, navigate, notify, route, connection, importJobs, refreshImports, connect: showGate, signOut, switchWorkspace, sidebarCollapsed, setSidebarPreference }),
     [state, dispatch, navigate, notify, route, connection, importJobs, refreshImports, showGate, signOut, switchWorkspace, sidebarCollapsed, setSidebarPreference],
   );
+  // Until the first records of a signed-in workspace have arrived, a page that shows them is its grey skeleton, not a page of zeros.
+  const waitingForRecords = Boolean(state.remote && state.remoteLoading) && !["settings", "personal", "sync"].includes(current.split("/")[0] === "work" ? current.split("/")[1] : current.split("/")[0]);
   const pageElement = useMemo(() => {
     if (!accessible)
       return (
@@ -687,7 +689,7 @@ export function App() {
               </div>
             )}
             <PageTransition key={(current === "lists" || current.startsWith("lists/")) ? "lists:" + state.role : current + ":" + state.role}>
-              <Suspense fallback={<PageSkeleton route={current} />}>{pageElement}</Suspense>
+              <Suspense fallback={<PageSkeleton route={current} />}>{waitingForRecords ? <PageSkeleton route={current} /> : pageElement}</Suspense>
             </PageTransition>
           </main>
         </div>
