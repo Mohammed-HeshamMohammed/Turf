@@ -13,6 +13,8 @@ func TestAnnouncementClean(t *testing.T) {
 		"link without text":  {Message: "x", Tone: "info", LinkURL: "/pricing"},
 		"script link":        {Message: "x", Tone: "info", LinkLabel: "go", LinkURL: "javascript:alert(1)"},
 		"protocol-less link": {Message: "x", Tone: "info", LinkLabel: "go", LinkURL: "//evil.example"},
+		"tab without a link": {Message: "x", Tone: "info", TabEnabled: true, TabText: "Go", TabURL: "javascript:1"},
+		"tab without text":   {Message: "x", Tone: "info", TabEnabled: true, TabURL: "/signup"},
 		"plain http link":    {Message: "x", Tone: "info", LinkLabel: "go", LinkURL: "http://example.com"},
 	} {
 		if err := a.clean(); err == nil {
