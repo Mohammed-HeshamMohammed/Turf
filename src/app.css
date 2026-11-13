@@ -8,6 +8,7 @@
 @import "./pricing/builder.css" layer(components);
 @import "./pricing.css" layer(components);
 @import "./public.css" layer(components);
+@import "./home.css" layer(components);
 @import "./assistant.css" layer(components);
 
 /* The site's colours as Tailwind colours: bg-card, text-ink, border-line, bg-accent and so on. */

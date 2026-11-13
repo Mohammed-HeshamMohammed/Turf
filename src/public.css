@@ -483,3 +483,4 @@
 .page:not(.dashboard-shell) > .site-header.is-compact { margin-inline: max(14px, calc((100% - 980px) / 2)); }
 @media (max-width: 1050px) { .page:not(.dashboard-shell) > .site-header.is-compact { margin-inline: 14px; } }
 @media (prefers-reduced-motion: reduce) { .site-header { transition: none; } }
+@media (max-width: 600px) { .site-header { gap: 8px; } .site-auth .site-signup { padding: 8px 12px; font-size: 13px; white-space: nowrap; } .site-auth .site-signup span { display: none; } }
