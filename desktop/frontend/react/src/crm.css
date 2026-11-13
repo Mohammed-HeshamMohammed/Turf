@@ -8051,3 +8051,12 @@ p, li, .notice { text-wrap: pretty; } /* no single word left alone on the last l
 @media (max-width: 900px) { .metrics-grid:has(.sk-metric) { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sk-two, .sk-detail, .sk-split { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
 .sk-after { margin-top: 8px; }
+
+/* ---- Leads: actions beside the filters, and a pager that keeps its shape as the numbers grow ---- */
+.filter-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+@media (max-width: 900px) { .filter-actions { margin-left: 0; width: 100%; } }
+.pager { font-variant-numeric: tabular-nums; }
+.pager-range { white-space: nowrap; }
+.pager-buttons { display: inline-flex; align-items: center; gap: 12px; }
+.pager-page { min-width: 11ch; text-align: center; white-space: nowrap; }
+@media (max-width: 600px) { .pager { justify-content: center; } .pager-range { width: 100%; text-align: center; } }
