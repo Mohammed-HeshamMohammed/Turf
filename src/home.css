@@ -113,3 +113,13 @@
 @keyframes hm-rise { from { opacity: 0; translate: 0 36px; } to { opacity: 1; translate: 0 0; } }
 /* On a phone the copy climbs higher up the photo, so the shade behind it does too. */
 @media (max-width: 900px) { .home-page .hm-hero::before { background: linear-gradient(to bottom, #0d110fb3 0%, #0d110f00 20%), linear-gradient(to top, #0d110ff7 0%, #0d110fcc 45%, #0d110f00 80%); } }
+/* After scrolling the header stays bare: no bar, no capsule. Its white words are blended against the page, so they turn dark over light sections.
+   Signed-in visitors and an open phone menu keep the solid bar: a photo or a menu panel must not be colour-inverted. */
+.home-page > .site-header.is-detached:not(:has(.account-menu, .avatar, .site-mobile-nav:not([hidden]))) { border-color: transparent; background: transparent; box-shadow: none; backdrop-filter: none; mix-blend-mode: difference; }
+.home-page > .site-header.is-detached:not(:has(.account-menu, .avatar, .site-mobile-nav:not([hidden]))) .site-nav { border-color: transparent; background: transparent; }
+.home-page > .site-header .site-auth .site-signup, .home-page > .site-header .site-auth .site-signup:hover { background: #fff; color: #000; }
+.home-page > .site-header .site-auth .site-signup:hover { background: #dedede; }
+/* With no bar behind it the header would sit on top of the text being read, so it leaves while scrolling down and returns on the way up. */
+.home-page > .site-header { transition: translate .35s cubic-bezier(.2, .8, .2, 1), margin-inline .35s cubic-bezier(.2, .8, .2, 1); }
+.home-page > .site-header.is-away:not(:focus-within) { translate: 0 -160%; }
+@media (prefers-reduced-motion: reduce) { .home-page > .site-header { transition: none; } }
