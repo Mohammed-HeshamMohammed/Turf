@@ -42,11 +42,11 @@ export function SiteHeader({ path, me, onSignOut, savedSession = false, cached =
   </details>;
   // What is known at once: the person, or (while the session is still being checked) the last-known profile kept on this device.
   const known = me || (me === undefined && savedSession ? cached : null);
-  const account = known ? menu(known) : me === undefined && savedSession ? <span className="avatar avatar-pending" aria-hidden="true" /> : <div className="site-auth"><Link to="/signin">Sign in</Link><Link className="site-signup" to="/signup">Sign up</Link></div>;
-  return <header ref={header} className={`site-header${path === "/" ? detached ? " is-detached" : " is-on-hero" : ""}`}>
+  const account = known ? menu(known) : me === undefined && savedSession ? <span className="avatar avatar-pending" aria-hidden="true" /> : <div className="site-auth"><Link className="site-signup" to="/signup">Start calling free <span aria-hidden="true">↗</span></Link></div>;
+  return <header ref={header} className={`site-header${path === "/" ? detached ? " is-detached" : " is-on-hero" : ""}${detached ? " is-compact" : ""}`}>
     <Link className="site-brand" to="/"><img src="/favicon.svg" alt="" width="34" height="34" />Caller Whale</Link>
     <nav className="site-nav" aria-label="Main">{nav}</nav>
     <div className="site-header-end">{account}<button type="button" className="site-menu-toggle" aria-label="Toggle menu" aria-controls="site-mobile-nav" aria-expanded={mobileOpen} onClick={() => setMobileOpen(open => !open)}>{mobileOpen ? "✕" : "☰"}</button></div>
-    <nav id="site-mobile-nav" className="site-mobile-nav" aria-label="Mobile" hidden={!mobileOpen} onClick={() => setMobileOpen(false)}>{nav}{!me && !savedSession && <Link to="/signup">Sign up</Link>}</nav>
+    <nav id="site-mobile-nav" className="site-mobile-nav" aria-label="Mobile" hidden={!mobileOpen} onClick={() => setMobileOpen(false)}>{nav}{!me && !savedSession && <Link to="/signup">Start calling free</Link>}</nav>
   </header>;
 }
