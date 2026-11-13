@@ -273,7 +273,6 @@ svg {
 .personal-preferences input {
   width: 18px;
   height: 18px;
-  accent-color: var(--ink);
   flex: none;
 }
 .interval-tooltip {
@@ -1411,13 +1410,58 @@ td:first-child {
 .checkbox-cell {
   width: 26px;
 }
-input[type="checkbox"] {
-  accent-color: var(--ink);
-  width: 15px;
-  height: 15px;
+/* Checkboxes are drawn by the app, not the browser: a rounded box that fills with ink and draws its tick. (On/off settings are switches.) */
+input[type="checkbox"]:not([role="switch"]) {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  display: inline-grid;
+  place-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
   flex: none;
+  border: 1.5px solid #a9a9a9;
+  border-radius: 5px;
+  background: #fff;
   cursor: pointer;
   vertical-align: middle;
+  transition: background 140ms, border-color 140ms, transform 120ms var(--ease-out, ease-out);
+}
+input[type="checkbox"]:not([role="switch"])::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  clip-path: polygon(14% 52%, 0 66%, 38% 100%, 100% 22%, 86% 8%, 38% 72%);
+  transform: scale(0);
+  transition: transform 140ms var(--ease-out, ease-out);
+}
+input[type="checkbox"]:not([role="switch"]):hover:not(:disabled) {
+  border-color: var(--ink);
+}
+input[type="checkbox"]:not([role="switch"]):active:not(:disabled) {
+  transform: scale(0.9);
+}
+input[type="checkbox"]:not([role="switch"]):checked,
+input[type="checkbox"]:not([role="switch"]):indeterminate {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+input[type="checkbox"]:not([role="switch"]):checked::after {
+  transform: scale(1);
+}
+input[type="checkbox"]:not([role="switch"]):indeterminate::after {
+  clip-path: inset(40% 0 40% 0 round 1px);
+  transform: scale(1);
+}
+input[type="checkbox"]:not([role="switch"]):focus-visible {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 2px;
+}
+input[type="checkbox"]:not([role="switch"]):disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 .lead-link {
   display: grid;
