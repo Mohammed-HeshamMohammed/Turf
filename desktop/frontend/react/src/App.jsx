@@ -1,3 +1,4 @@
+import { flushSync } from "react-dom";
 import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Bell, CalendarBlank, ChatCircle, CheckCircle, HouseLine, List, MagnifyingGlass, WifiSlash, X } from "@phosphor-icons/react";
 import { ROLES } from "./data.ts";
@@ -397,9 +398,20 @@ export function App() {
     if (state.remoteStatus === "signed-out") signOut();
   }, [state.remoteStatus, signOut]);
   const navigate = useCallback(path => {
-    setRoute(path.replace(/^\//, ""));
-    setQuery("");
-    setMobileNav(false);
+    const apply = () => {
+      setRoute(path.replace(/^\//, ""));
+      setQuery("");
+      setMobileNav(false);
+    };
+    // Opening a lead: its name in the list glides into the page title (a shared-element transition). Everything else just switches.
+    const shared = document.querySelector("[data-shared]");
+    if (shared && document.startViewTransition && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      shared.style.viewTransitionName = shared.dataset.shared;
+      document.startViewTransition(() => flushSync(apply)).finished.finally(() => { shared.style.viewTransitionName = ""; delete shared.dataset.shared; });
+    } else {
+      shared?.removeAttribute("data-shared");
+      apply();
+    }
   }, []);
   useEffect(() => {
     routeRef.current = route;

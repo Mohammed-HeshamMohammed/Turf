@@ -49,11 +49,11 @@ export function RoundButton({ label, onClick, icon: Icon = ArrowUpRight, ...prop
     </button>
   );
 }
-export function PageHeader({ title, titleAside, description, children }) {
+export function PageHeader({ title, titleAside, description, children, shared }) {
   return (
     <header className="page-heading">
       <div className={titleAside ? "page-title-controls" : undefined}>
-        <h1>{title}</h1>
+        <h1 style={shared ? { viewTransitionName: shared } : undefined}>{title}</h1>
         {titleAside}
         {description && <p>{description}</p>}
       </div>
