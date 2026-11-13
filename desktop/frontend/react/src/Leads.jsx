@@ -28,6 +28,8 @@ import {
   money,
   Breadcrumb,
   ConfirmDialog,
+  tidyCase,
+  formatPhone,
   propertyFacts,
   MoreMenu,
   DataTable,
@@ -106,6 +108,10 @@ export function Leads() {
     value: !client && width >= 1450 && (!hideEmpty || leads.some(lead => lead.value)),
     priority: !client && width >= 1650,
   };
+  // A value that is the same on every row says nothing new on each one, so it is shown quietly (or once): the signal is in what differs.
+  const uniform = pick => leads.length > 1 && leads.every(lead => pick(lead) === pick(leads[0]));
+  const sameSource = uniform(lead => lead.source);
+  const sameAssignee = uniform(lead => lead.assignee);
   const table = useTableView(
     leads,
     {
@@ -238,9 +244,9 @@ export function Leads() {
                 id: "owner",
                 label: "Property owner",
                 cell: lead => (
-                  <button className="lead-link" onClick={event => { event.currentTarget.querySelector("strong").dataset.shared = "lead-title"; navigate("work/leads/" + lead.id); }}>
-                    <strong>{lead.name}</strong>
-                    <small>{lead.source}</small>
+                  <button className="lead-link" title={lead.source ? "From " + lead.source : undefined} onClick={event => { event.currentTarget.querySelector("strong").dataset.shared = "lead-title"; navigate("work/leads/" + lead.id); }}>
+                    <strong>{tidyCase(lead.name)}</strong>
+                    {!sameSource && lead.source && <small>{lead.source}</small>}
                   </button>
                 ),
               },
@@ -249,20 +255,20 @@ export function Leads() {
                 label: "Property",
                 cell: lead => (
                   <>
-                    <span>{lead.address}</span>
+                    <span>{tidyCase(lead.address)}</span>
                     <small>
-                      {lead.city}, {lead.region} {lead.zip}
+                      {tidyCase(lead.city)}, {lead.region} {lead.zip}
                     </small>
                   </>
                 ),
               },
-              ...(hasColumn.phone ? [{ id: "phone", label: "Phone", cell: lead => lead.phone || <span className="muted">—</span> }] : []),
+              ...(hasColumn.phone ? [{ id: "phone", label: "Phone", cell: lead => formatPhone(lead.phone) || <span className="muted">—</span> }] : []),
               ...(hasColumn.email ? [{ id: "email", label: "Email", cell: lead => lead.email || <span className="muted">—</span> }] : []),
               ...(hasColumn.value ? [{ id: "value", label: "Value", className: "num", cell: lead => (lead.value ? money(lead.value) : <span className="muted">—</span>) }] : []),
               ...(hasColumn.priority ? [{ id: "priority", label: "Priority", cell: lead => lead.priority }] : []),
-              ...(!client && hasColumn.verdict ? [{ id: "verdict", label: "Phone quality", cell: lead => <Status value={lead.verdict} /> }] : []),
-              { id: "stage", label: "Stage", cell: lead => <Status value={lead.stage} /> },
-              ...(!client && hasColumn.assignee ? [{ id: "assignee", label: "Responsible person", cell: lead => <Person name={lead.assignee} link /> }] : []),
+              ...(!client && hasColumn.verdict ? [{ id: "verdict", label: "Phone quality", cell: lead => (lead.verdict === "Unverified" ? <span className="quiet-value">{lead.verdict}</span> : <Status value={lead.verdict} />) }] : []),
+              { id: "stage", label: "Stage", cell: lead => (lead.stage === "New" ? <span className="quiet-value">New</span> : <Status value={lead.stage} />) },
+              ...(!client && hasColumn.assignee ? [{ id: "assignee", label: "Responsible person", cell: lead => (sameAssignee ? <Person name={lead.assignee} compact /> : <Person name={lead.assignee} link />) }] : []),
               ...(hasColumn.next
                 ? [
                     {
@@ -277,12 +283,16 @@ export function Leads() {
                             {callbackLabel(lead.callbackDate, lead.callback)}
                           </span>
                         ) : (
-                          <span className="muted">Set a next step</span>
+                          <span className="next-empty">
+                            <span className="dash">—</span>
+                            <span className="hint">Set a next step</span>
+                          </span>
                         ),
                     },
                   ]
                 : []),
             ]}
+            onRowClick={lead => navigate("work/leads/" + lead.id)}
             trailing={{
               head: <span className="sr-only">Open</span>,
               cell: lead => <RoundButton label={"Open " + lead.name} onClick={() => navigate("work/leads/" + lead.id)} />,
