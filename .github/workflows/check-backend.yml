@@ -89,7 +89,7 @@ jobs:
       PGPASSWORD: testpass
       # The tests reset the messaging schema with the superuser and run the service as an ordinary login, so row security applies.
       MESSAGING_TEST_ADMIN_URL: postgres://postgres:testpass@localhost:5432/messaging_test?sslmode=disable
-      MESSAGING_TEST_DATABASE_URL: postgres://messaging_app:apppass@localhost:5432/messaging_test?sslmode=disable
+      MESSAGING_TEST_DATABASE_URL: postgres://messaging_ci:apppass@localhost:5432/messaging_test?sslmode=disable
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -98,9 +98,9 @@ jobs:
           cache-dependency-path: "Caller Whale CRM/services/messaging/go.sum"
       - name: Create the test login and database
         run: |
-          psql -h localhost -U postgres -c "CREATE ROLE messaging_app LOGIN PASSWORD 'apppass' NOSUPERUSER NOBYPASSRLS"
+          psql -h localhost -U postgres -c "CREATE ROLE messaging_ci LOGIN PASSWORD 'apppass' NOSUPERUSER NOBYPASSRLS"
           psql -h localhost -U postgres -c "CREATE DATABASE messaging_test"
-          psql -h localhost -U postgres -d messaging_test -c "GRANT ALL ON DATABASE messaging_test TO messaging_app; GRANT ALL ON SCHEMA public TO messaging_app"
+          psql -h localhost -U postgres -d messaging_test -c "GRANT ALL ON DATABASE messaging_test TO messaging_ci; GRANT ALL ON SCHEMA public TO messaging_ci"
       - run: go vet ./...
         working-directory: "Caller Whale CRM/services/messaging"
       - run: go test ./... -count=1 -v | tee test.log

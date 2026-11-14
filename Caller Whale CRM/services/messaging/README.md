@@ -15,6 +15,10 @@ a container, against the real authorization service, or against a real Centrifug
   who only see shared records may not).
 - **Storage:** PostgreSQL, schema `messaging`, row security on every table. A request sees only its workspace, and only the
   conversations the person is in, whatever a query forgets to say.
+- **Which login:** row security does not apply to a superuser, and a database made by Coolify hands out one. So when the login is a
+  superuser, the service makes a restricted role of its own (`messaging_app`: no login, no superuser, no bypass) at every start and
+  runs each request as it. An ordinary login is used as it is. A login that bypasses row security without being a superuser makes the
+  service refuse to start.
 - **Order:** every message takes the next number in its conversation. Apps ask for "everything after number N" to catch up, so
   order never depends on clocks and a gap is visible.
 - **Sending twice:** the app makes a message's id before sending. The same id again answers with the message as first saved.
@@ -49,7 +53,7 @@ Live updates carry `type` (`conversation`, `message`, `message_changed`, `read`)
 | Variable | Meaning |
 | --- | --- |
 | `PORT` | Default 8108 |
-| `DATABASE_URL` | PostgreSQL. The login must not be a superuser, or row security does not apply |
+| `DATABASE_URL` | PostgreSQL. A superuser login works (requests run as `messaging_app`); one that bypasses row security without being a superuser is refused |
 | `AUTH_JWKS_URL` | The auth service's public keys |
 | `AUTHZ_URL`, `AUTHZ_TOKEN` | The authorization service and this service's token there (`messaging=...` in its `AUTHZ_TOKENS`) |
 | `CORS_ORIGINS` | Pages that may call from a browser |

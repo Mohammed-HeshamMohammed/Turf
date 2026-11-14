@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -383,5 +385,70 @@ func TestUpdatesReachTheLiveServerOnceAndInOrder(t *testing.T) {
 	status, where := e.call(alice, "", "GET", "/live", nil)
 	if status != 200 || where["enabled"] != true || where["channel"] != channelPrefix+alice || where["url"] == "" || len(strings.Split(where["token"].(string), ".")) != 3 {
 		t.Fatalf("live: %d %v", status, where)
+	}
+}
+
+func TestASuperuserLoginStillGetsRowSecurity(t *testing.T) {
+	e := newEnvWith(t, true)
+	if e.s.st.runAs != appRole {
+		t.Fatalf("a superuser login runs requests as %q, want %q", e.s.st.runAs, appRole)
+	}
+	org := newID()
+	alice, bob, carol := newID(), newID(), newID()
+	e.rules.join(org, alice, bob, carol)
+	id := e.must(201, alice, org, "POST", "/conversations", map[string]any{"kind": "direct", "member_ids": []string{bob}})["id"].(string)
+	e.send(alice, org, id, "between us")
+
+	// Through the API, and straight at the table with no check in the query: Carol sees nothing even though the login could see everything.
+	if e.conversation(carol, org, id) != nil {
+		t.Fatal("a teammate outside the chat lists it")
+	}
+	if status, _ := e.call(carol, org, "GET", "/conversations/"+id+"/messages", nil); status != 404 {
+		t.Fatalf("a teammate outside the chat reads it: status %d", status)
+	}
+	ctx := context.Background()
+	for user, want := range map[string]int{alice: 1, bob: 1, carol: 0} {
+		tx, err := e.s.st.begin(ctx, scope{userID: user, orgID: org})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var n int
+		if err = tx.QueryRow(ctx, `SELECT count(*) FROM messages`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		tx.Rollback(ctx)
+		if n != want {
+			t.Fatalf("%s sees %d messages, want %d", user[:4], n, want)
+		}
+	}
+	// And the live updates still go out, which the login (not the restricted role) sends.
+	if sent, err := e.s.flush(ctx); err != nil || sent != 2 {
+		t.Fatalf("flush: sent %d, err %v", sent, err)
+	}
+}
+
+func TestALoginThatBypassesRowSecurityWithoutBeingASuperuserIsRefused(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	// A superuser-owned role that bypasses row security but is not a superuser.
+	if _, err := e.admin.Exec(ctx, `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'messaging_bypass_test') THEN CREATE ROLE messaging_bypass_test LOGIN PASSWORD 'bypass' NOSUPERUSER BYPASSRLS; END IF; END $$`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = e.admin.Exec(ctx, `DROP SCHEMA IF EXISTS messaging CASCADE`)
+		_, _ = e.admin.Exec(ctx, `DROP ROLE IF EXISTS messaging_bypass_test`)
+	})
+	appURL := os.Getenv("MESSAGING_TEST_DATABASE_URL")
+	u, err := url.Parse(appURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.User = url.UserPassword("messaging_bypass_test", "bypass")
+	if _, err = e.admin.Exec(ctx, `GRANT ALL ON DATABASE messaging_test TO messaging_bypass_test; GRANT ALL ON SCHEMA public TO messaging_bypass_test`); err != nil {
+		t.Fatal(err)
+	}
+	if st, err := openStore(ctx, u.String()); err == nil {
+		st.close()
+		t.Fatal("the service started with a login that bypasses row security")
 	}
 }

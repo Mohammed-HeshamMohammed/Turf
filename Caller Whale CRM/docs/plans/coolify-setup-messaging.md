@@ -7,7 +7,7 @@ Nothing changes for people using the CRM until step 7, and step 7 is undone by c
 
 | # | Resource | Kind | What it is for | Public address |
 | --- | --- | --- | --- | --- |
-| 1 | `messaging` database | A database and login in the existing `crm-postgres` | Conversations and messages | None |
+| 1 | `Caller Whale Messaging PostgreSQL` | Database (PostgreSQL 17), its own like the others | Conversations and messages | None |
 | 2 | `authz` (exists) | Application | One more caller token, so messaging may ask who is in a workspace | None |
 | 3 | `centrifugo` | Application (Docker image) | The live server: holds the apps' sockets | None (the gateway routes `live.callerwhale.com` to it) |
 | 4 | `messaging` | Application (Dockerfile) | Team chats and groups | None (the gateway routes `chat.callerwhale.com` to it) |
@@ -24,15 +24,9 @@ Make three values of 64 random hex characters each and keep them in your passwor
 - **B:** the live server's API key.
 - **C:** the live server's token secret.
 
-And one long random password, **D**, for the database login.
 
 ## 1. The database
-In `crm-postgres`'s terminal (or with its internal URL), as the database's administrator:
-```sql
-CREATE ROLE messaging LOGIN PASSWORD '<password D>';
-CREATE DATABASE messaging OWNER messaging;
-```
-`messaging` must not be a superuser: the database's row security only applies to ordinary logins.
+Created (2026-11-14) as its own Coolify database, `Caller Whale Messaging PostgreSQL`, private, with Coolify's own generated login. Nothing to make by hand. Copy its internal connection URL into messaging's `DATABASE_URL`. The login is a superuser, which is fine: at every start the service makes a restricted role (`messaging_app`) and runs each request as it, so row security applies. Password D is not needed.
 
 ## 2. authz gets messaging's token
 - First redeploy `authz` from its branch, so it knows the caller `messaging` (the code is already on `authz-backend-production`).
