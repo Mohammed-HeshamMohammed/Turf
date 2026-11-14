@@ -100,11 +100,17 @@ type env struct {
 	admin *pgx.Conn
 }
 
-func newEnv(t *testing.T) *env {
+func newEnv(t *testing.T) *env { return newEnvWith(t, false) }
+
+// newEnvWith runs the service as an ordinary login, or (asSuperuser) as the superuser a platform's own database hands out.
+func newEnvWith(t *testing.T, asSuperuser bool) *env {
 	t.Helper()
 	appURL, adminURL := os.Getenv("MESSAGING_TEST_DATABASE_URL"), os.Getenv("MESSAGING_TEST_ADMIN_URL")
 	if appURL == "" || adminURL == "" {
 		t.Skip("set MESSAGING_TEST_DATABASE_URL and MESSAGING_TEST_ADMIN_URL to run the database tests")
+	}
+	if asSuperuser {
+		appURL = adminURL
 	}
 	ctx := context.Background()
 	admin, err := pgx.Connect(ctx, adminURL)
