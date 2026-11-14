@@ -1,6 +1,6 @@
 # Messaging, texting and calling: three containers, built on what already exists
 
-**Status:** Proposed (amends `service-architecture.md`, which has one `dialer-sms` service)
+**Status:** Carrier order decided 2026-11-14 (Telnyx first; see "Carriers, in order"). The rest is proposed. Amends `service-architecture.md`, which has one `dialer-sms` service.
 **Date:** 2026-11-14
 
 ## The short version
@@ -65,6 +65,40 @@ Rules that follow from this:
 2. **The carrier never holds the history.** `sms` keeps only what it needs to send and to prove delivery; changing carrier does not lose a conversation.
 3. **Email stays where it is** (the Mail page) for now. It can become another way a message travels later without changing the model.
 
+## Carriers, in order (decided 2026-11-14)
+
+The aim: the cheapest working route carries each call and text, and every other route is there to cover for it when it fails. Carriers are added one at a time, each only after the one before it works.
+
+| Stage | What is added | Why then |
+| --- | --- | --- |
+| A | **Telnyx**, with everything built around it: texting, browser calling, auto dial, call log | The first carrier. Nothing else starts until this works end to end |
+| B | **Twilio** as the backup | The first cover for a Telnyx failure. Dearer per text and per minute, so it only carries traffic when Telnyx cannot |
+| C | **Our own telephony** (Asterisk or a similar open source server) in its own container | Needed before wholesale carriers can be used: they sell plain phone lines (SIP), not browser calling or call control, so something of ours has to connect the app's audio to them |
+| D | **Our own answering-machine detection**, running on that server | Carriers charge per call for it (Telnyx lists $0.002 standard and $0.0065 premium; Twilio about $0.0075). On an auto dialer that is a charge on every call. Ours needs the call's audio, which is why it comes after stage C |
+| E | **Wholesale carriers** (BulkVS first, then others) and **cheapest-first routing** | The cheapest minutes. With stage C in place, adding one is mostly configuration |
+
+### What this requires from the first day
+
+These are built in stage A, so that stages B to E are additions and not rewrites:
+
+1. **One carrier interface in `sms` and one in `voice`.** The rest of each service never names Telnyx. Telnyx is the first implementation; Twilio is the second.
+2. **A route table, not a setting.** Each route has a carrier, what it can do (texts, calls, group texts, machine detection), its price and its health. Stage A has one row.
+3. **Every call and text records which route carried it and what it cost**, so cheapest-first is measured, not assumed, and a customer's usage can be billed.
+4. **Machine detection is its own step in a call**, behind its own interface: the carrier's in stage A, ours in stage D. The auto dialer asks "person or machine?" and does not care who answers.
+
+### How cover works, and its limits
+
+- **Calls** fail over freely: if the cheapest route refuses or drops a call attempt, the next route places it. The caller ID must be a number the second carrier is allowed to present, so numbers used for calling are verified with each carrier.
+- **Texts do not fail over freely.** A phone number sends texts through the one carrier it is registered with. Cover for texting means a second number, registered with the second carrier, held ready for the same workspace. That is a cost per workspace, so it is offered where texting matters, not by default.
+- **Browser calling in stages A and B uses the carrier's own kit** (each has a different one). The app loads whichever matches the route; from stage C it talks to our own server and the carrier behind it no longer matters to the app.
+- **Health:** a route is taken out after repeated failures and tried again after a pause, so a failing carrier is not asked on every call.
+
+### Not verified for this section
+
+- BulkVS's prices, its texting API and what it supports: the search found nothing from BulkVS itself. Read its rate sheet before stage E.
+- How well a detector of our own performs against the carriers' premium ones. Wrongly hanging up on a person costs more than the fee saved, so stage D is measured against the carrier's result on the same calls before it replaces it.
+- Running our own telephony means we answer for audio quality, uptime and number reputation ("spam likely" labels). Stage C is the largest piece of work in this list.
+
 ## How the containers talk
 
 ```mermaid
@@ -105,7 +139,7 @@ Calling is fourth because it has the most unknowns, but its two risks (the deskt
 
 ## Decisions needed
 
-1. **Carrier:** Telnyx (recommended) or Twilio.
+1. ~~Carrier~~ **Decided:** Telnyx first, Twilio as backup, then our own telephony, our own machine detection, and wholesale carriers with cheapest-first routing.
 2. **Build on Centrifugo, or take Twilio Conversations** and accept the price and the lock-in for a faster start.
 3. **Who registers with the carriers:** each customer's business under our account (the usual model for a product like this), which means collecting their business details at sign-up for texting.
 4. **Mixed threads** in the first release, or third as above.
@@ -128,4 +162,5 @@ Calling is fourth because it has the most unknowns, but its two risks (the deskt
 - [Chatwoot](https://github.com/chatwoot/chatwoot), [eesel: Chatwoot in 2026](https://eesel.ai/blog/chatwoot)
 - [Rework: Mattermost vs Rocket.Chat](https://resources.rework.com/tools/productivity/mattermost-vs-rocket-chat), [Open source chat platform evaluation](https://dev.to/amirtaherkhani/global-open-source-chat-platform-evaluation-469b)
 - [jambonz self-hosting licence](https://docs.jambonz.org/self-hosting/licensing), [Dograh: open source predictive dialers](https://www.dograh.com/feeds/blog/predictive-dialer-software-open-source)
+- [Telnyx Voice API pricing](https://telnyx.com/pricing/voice-api), [Twilio: answering machine detection](https://twilio.com/blog/answering-machine-detection-generally-available), [Bandwidth pricing](https://bandwidth.com/pricing)
 - [TalkJS vs Sendbird](https://talkjs.com/compare/talkjs-vs-sendbird/), [Stream: Sendbird alternatives](https://getstream.io/blog/sendbird-alternatives/)
