@@ -166,12 +166,18 @@ export function messagePreview(message) {
 }
 const threadScopes = new WeakMap();
 export function visibleThreads(state) {
-  if (state.remote) return state.threads;
+  if (state.remote) return state.chat?.length ? remoteThreads(state) : state.threads;
   let found = threadScopes.get(state);
   if (!found) {
     found = computeVisibleThreads(state);
     threadScopes.set(state, found);
   }
+  return found;
+}
+// Connected: the team chats from the messaging service first, then whatever the records hold.
+function remoteThreads(state) {
+  let found = threadScopes.get(state);
+  if (!found) threadScopes.set(state, (found = [...state.chat, ...state.threads]));
   return found;
 }
 function computeVisibleThreads(state) {
