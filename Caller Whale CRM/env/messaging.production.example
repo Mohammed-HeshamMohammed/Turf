@@ -1,0 +1,23 @@
+# The messaging service on Coolify (application "messaging", branch messaging-backend-production, port 8108, network alias messaging, NO domain of its own).
+# It keeps team chats and groups; the gateway routes chat.callerwhale.com to it. Setup: docs/plans/coolify-setup-messaging.md.
+# Paste into Environment Variables -> Developer View. Fill every <...>. Secrets stay in Coolify; never commit a filled copy.
+# HTTP port; default 8108. Match Coolify's container port and the gateway's ROUTES.
+PORT=8108
+# Secret PostgreSQL URI with the messaging login. The service creates its own tables (schema messaging) at start. The login must NOT be a superuser, or row security does not apply.
+DATABASE_URL=<postgres://messaging:password@crm-postgres:5432/messaging?sslmode=require>
+# The auth service's public keys at its private address; sign-in tokens are checked with them locally.
+AUTH_JWKS_URL=http://auth:8101/.well-known/jwks.json
+# The authorization service's private address.
+AUTHZ_URL=http://authz:8104
+# Secret: the value after messaging= in authz's AUTHZ_TOKENS, 32+ characters.
+AUTHZ_TOKEN=<the messaging token from authz's AUTHZ_TOKENS>
+# Pages that may call this service from a browser. Keep it the same as the gateway's CORS_ORIGINS.
+CORS_ORIGINS=https://app.callerwhale.com
+# The live server's (Centrifugo's) private API address.
+LIVE_API_URL=http://centrifugo:8000/api
+# Secret: the same value as Centrifugo's CENTRIFUGO_HTTP_API_KEY, 32+ characters.
+LIVE_API_KEY=<the live server's API key>
+# Secret: the same value as Centrifugo's CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY, 32+ characters.
+LIVE_TOKEN_SECRET=<the live server's token secret>
+# Where the apps open their socket: the live server's public address through the gateway.
+LIVE_PUBLIC_URL=wss://live.callerwhale.com/connection/websocket
