@@ -8,6 +8,7 @@ import { setLearnedHeaders } from "./skiptrace-fields.ts";
 import { capability, conversationPath, loadState, navCounts, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "./model.ts";
 import { api, apiBase, auth, setApiBase, setOrganization } from "./remote/api.ts";
 import { SyncEngine } from "./remote/engine.ts";
+import { Messaging, messagingBase } from "./remote/messaging.ts";
 import { Vault } from "./remote/vault.ts";
 import { LOCAL_ONLY, remoteReducer, syncAction } from "./remote/session.ts";
 import { applyIdentity, labelFor, operationFor } from "./remote/translate.ts";
@@ -299,11 +300,31 @@ export function App() {
     window.addEventListener("callerwhale-saved", saved);
     return () => window.removeEventListener("callerwhale-saved", saved);
   }, [notify]);
+  const chat = useRef(null);
+  const notifyRef = useRef(null);
+  notifyRef.current = notify;
+  const stopChat = () => {
+    chat.current?.stop();
+    chat.current = null;
+  };
   // Connected: changes apply on screen at once and queue as operations for the server, which has the last word.
   const dispatch = useCallback(
     action => {
       const sync = engine.current;
       if (!sync) return apply(action);
+      // Team chats and groups live in the messaging service: what is done to one goes there, and comes back as its new state.
+      const talk = chat.current;
+      if (talk && action.type === "CHAT_CREATE") return talk.create(action.kind, action.memberIds, action.title);
+      if (talk?.has(action.id)) {
+        if (action.type === "MESSAGE") {
+          if (action.attach && action.attach.kind !== "poll") return void notify("Photos, files and GIFs are not available in team chats yet.");
+          return void talk.send(action.id, action.text || "", { replyTo: action.replyTo, poll: action.attach?.poll });
+        }
+        if (action.type === "REACT") return void talk.react(action.id, action.index, action.emoji);
+        if (action.type === "VOTE") return void talk.vote(action.id, action.index, action.option);
+        if (action.type === "ARCHIVE") return void talk.archive(action.id, Boolean(action.archived));
+        if (action.type === "MARK_READ") return void (action.unread === true ? talk.markUnread(action.id) : talk.markRead(action.id));
+      }
       if (action.type === "SYNC") return void sync.sync();
       if (action.type === "REFRESH_LISTS") return void sync.refreshProjects().catch(error => notify("Lists could not be refreshed: " + error.message));
       if (action.type === "BROWSE_LEADS") return sync.browseLeads(action);
@@ -354,6 +375,12 @@ export function App() {
     try {
       await sync.start({ directory, teams, projects, organizationId: me.organization_id });
       setConnection("remote");
+      // Team chat is its own service and the CRM works without it: if it cannot be reached, the Inbox simply has no team chats.
+      if (messagingBase() && me.capabilities.includes("message")) {
+        const talk = new Messaging({ me: me.user.id, people: directory, onThreads: threads => apply({ type: "CHAT_THREADS", threads }), onError: message => notifyRef.current?.(message) });
+        chat.current = talk;
+        void talk.start().catch(() => {});
+      }
     } catch (error) {
       sync.stop();
       engine.current = null;
@@ -362,6 +389,7 @@ export function App() {
     }
   }, []);
   const signOut = useCallback(async () => {
+    stopChat();
     engine.current?.stop();
     engine.current = null;
     Vault.clearSession();
@@ -383,6 +411,7 @@ export function App() {
       }
     }
     sync?.stop();
+    stopChat();
     engine.current = null;
     saveWorkspaceChoice(current.user.id, id);
     setOrganization(id);
@@ -390,6 +419,7 @@ export function App() {
     setConnection("gate");
   }, [notify]);
   const useSample = useCallback(() => {
+    stopChat();
     engine.current?.stop();
     engine.current = null;
     setApiBase("");

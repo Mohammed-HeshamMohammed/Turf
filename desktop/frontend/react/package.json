@@ -25,6 +25,7 @@
     "@tauri-apps/plugin-process": "^2.4.0",
     "@tauri-apps/plugin-updater": "^2.14.1",
     "@vitejs/plugin-react": "5.0.4",
+    "centrifuge": "^5.8.0",
     "dexie": "^4.0.11",
     "leaflet": "^1.9.4",
     "papaparse": "^5.7.0",

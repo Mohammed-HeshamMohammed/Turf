@@ -1427,14 +1427,16 @@ export function Inbox() {
   const lead = leads.find(item => item.id === thread?.leadId);
   const canMessage = capability(state, "message") || capability(state, "publicComment");
   const byNumber = newChannel === "SMS" && recipientMode === "Phone number" && state.role !== "client" && !state.remote;
-  const me = ROLES[state.role].person;
+  const me = state.remote ? state.remote.user.name : ROLES[state.role].person;
+  // Connected with team chat on the server: direct chats and groups are made there, with the workspace's own people.
+  const teammates = state.chatOn ? (state.remote.people || []).filter(person => person.id !== state.remote.user.id) : [];
   // Text, an attachment (with the draft as its caption), or both; a reply keeps the message it answers.
   const send = attach => {
     if (!thread || (!attach && !draft.trim())) return;
     dispatch({ type: "MESSAGE", id: thread.id, text: draft, attach, replyTo: replyTo ?? undefined });
     setDraft("");
     setReplyTo(null);
-    notify(state.online ? "Demo message added — nothing was sent externally" : "Communication draft saved offline");
+    if (!thread.chat) notify(state.online ? "Demo message added — nothing was sent externally" : "Communication draft saved offline");
   };
   const recipient = byNumber ? smsRecipient(state, newNumber) : null;
   return (
@@ -1446,7 +1448,8 @@ export function Inbox() {
             icon={Plus}
             onClick={() => {
               setNewLeadId(requested || leads[0]?.id || "");
-              setNewChannel(state.role === "client" ? "Partner" : "SMS");
+              setNewChannel(state.role === "client" ? "Partner" : state.chatOn ? "Direct" : "SMS");
+              if (state.chatOn && state.role !== "client") setNewLeadId(teammates[0]?.id || "");
               setRecipientMode("Phone number");
               setNewNumber("");
               setGroupName("");
@@ -1529,7 +1532,7 @@ export function Inbox() {
                   </span>
                   <span className="thread-preview">{item.preview}</span>
                   <span className="thread-meta">
-                    {item.channel} · {item.channel === "Group" ? item.members.length + " members" : person?.address || "Phone number"}
+                    {item.channel} · {item.channel === "Group" ? item.members.length + " members" : item.chat ? "Direct chat" : person?.address || "Phone number"}
                   </span>
                 </span>
                 {item.unread && <span className="unread-dot" aria-label="Unread" />}
@@ -1559,7 +1562,7 @@ export function Inbox() {
           </div>
         </Card>
         <Card className="conversation">
-          {thread && (lead || thread.phone || thread.channel === "Group") ? (
+          {thread && (lead || thread.phone || thread.channel === "Group" || thread.chat) ? (
             <>
               <header>
                 <div>
@@ -1567,7 +1570,7 @@ export function Inbox() {
                   <small>
                     <Badge>{thread.channel}</Badge>
                     {thread.channel === "SMS" && (lead?.phone || thread.phone) ? <span>{lead?.phone || thread.phone}</span> : null}
-                    <span>{thread.channel === "Group" ? thread.members.join(", ") : lead?.address || "Phone number"}</span>
+                    <span>{thread.channel === "Group" ? thread.members.join(", ") : thread.chat ? "Direct chat" : lead?.address || "Phone number"}</span>
                   </small>
                 </div>
                 <div className="conversation-actions">
@@ -1592,7 +1595,7 @@ export function Inbox() {
               <div className="message-history">
                 {thread.messages.map((message, index) => (
                   <ChatMessage
-                    key={index}
+                    key={message.id || index}
                     message={message}
                     index={index}
                     thread={thread}
@@ -1624,7 +1627,7 @@ export function Inbox() {
                     send();
                   }}
                 >
-                  {["Team", "Group"].includes(thread.channel) && <MentionPicker draft={draft} onPick={setDraft} />}
+                  {["Team", "Group"].includes(thread.channel) && <MentionPicker draft={draft} onPick={setDraft} people={thread.chat ? thread.members.filter(name => name !== me) : undefined} />}
                   {replyTo !== null && thread.messages[replyTo] && <ReplyBar message={thread.messages[replyTo]} onCancel={() => setReplyTo(null)} />}
                   <div className="composer-row">
                     <AttachMenu thread={thread} lead={lead} leads={leads} onAttach={attach => send(attach)} onPoll={() => setPolling(true)} />
@@ -1662,6 +1665,17 @@ export function Inbox() {
             className="sms-conversation-form"
             onSubmit={event => {
               event.preventDefault();
+              if (state.chatOn && (newChannel === "Group" || newChannel === "Direct")) {
+                // Made on the server; the direct chat that already exists is opened, not duplicated.
+                const members = newChannel === "Group" ? teammates.filter(person => groupMembers.includes(person.name)).map(person => person.id) : [newLeadId];
+                setNewConversation(false);
+                Promise.resolve(dispatch({ type: "CHAT_CREATE", kind: newChannel === "Group" ? "group" : "direct", memberIds: members, title: groupName.trim() })).then(id => {
+                  if (!id) return;
+                  setSelected(id);
+                  setChannel("All");
+                });
+                return;
+              }
               if (newChannel === "Group") {
                 const id = uid();
                 dispatch({ type: "NEW_THREAD", thread: { id, channel: "Group", title: groupName, members: groupMembers, preview: "New group", unread: false, messages: [] } });
@@ -1703,14 +1717,25 @@ export function Inbox() {
                 </Field>
                 <fieldset className="group-members">
                   <legend>Members</legend>
-                  {PEOPLE.filter(name => name !== me).map(name => (
+                  {(state.chatOn ? teammates.map(person => person.name) : PEOPLE.filter(name => name !== me)).map(name => (
                     <Checkbox key={name} label={name} checked={groupMembers.includes(name)} onChange={event => setGroupMembers(event.target.checked ? [...groupMembers, name] : groupMembers.filter(item => item !== name))} />
                   ))}
                 </fieldset>
               </>
             )}
             {newChannel !== "Group" && newChannel === "SMS" && state.role !== "client" && !state.remote && <Segmented label="SMS recipient" value={recipientMode} options={["Phone number", "Existing lead"]} onChange={setRecipientMode} />}
-            {newChannel === "Group" ? null : byNumber ? <Field label="Phone number" help={newNumber ? recipient.error || (recipient.lead ? "Linked to " + recipient.lead.name : recipient.thread ? "Existing SMS conversation" : "Start an SMS conversation without creating a lead.") : "Include the country code for international numbers."}>
+            {newChannel === "Direct" && (
+              <Field label="Teammate">
+                <Select value={newLeadId} onChange={event => setNewLeadId(event.target.value)}>
+                  {teammates.map(person => (
+                    <option key={person.id} value={person.id}>
+                      {person.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )}
+            {newChannel === "Group" || newChannel === "Direct" ? null : byNumber ? <Field label="Phone number" help={newNumber ? recipient.error || (recipient.lead ? "Linked to " + recipient.lead.name : recipient.thread ? "Existing SMS conversation" : "Start an SMS conversation without creating a lead.") : "Include the country code for international numbers."}>
               <input type="tel" autoComplete="off" placeholder="e.g. +1 (813) 555-0101" value={newNumber} maxLength={28} onChange={event => setNewNumber(event.target.value)} required />
             </Field> : <Field label="Related lead">
               <Select value={newLeadId} onChange={event => setNewLeadId(event.target.value)}>
@@ -1722,12 +1747,20 @@ export function Inbox() {
               </Select>
             </Field>}
             <Field label="Channel">
-              <Select value={newChannel} onChange={event => setNewChannel(event.target.value)}>
+              <Select
+                value={newChannel}
+                onChange={event => {
+                  setNewChannel(event.target.value);
+                  // "Direct" chooses a teammate where the other channels choose a lead.
+                  setNewLeadId(event.target.value === "Direct" ? teammates[0]?.id || "" : requested || leads[0]?.id || "");
+                }}
+              >
+                {state.chatOn && state.role !== "client" && <option value="Direct">Direct message</option>}
                 {state.role !== "client" && (
                   <>
                     <option>SMS</option>
                     <option>Team</option>
-                    {!state.remote && <option>Group</option>}
+                    {(!state.remote || state.chatOn) && <option>Group</option>}
                   </>
                 )}
                 <option>Partner</option>

@@ -8152,3 +8152,8 @@ tbody tr.is-clickable { cursor: pointer; }
 .column-menu-reset:disabled { opacity: 0.4; cursor: default; }
 .column-menu-panel label { display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 10px; font-size: 13px; cursor: pointer; }
 .column-menu-panel label:hover { background: var(--well); }
+
+/* A line the conversation says about itself (someone was added, a message was deleted): centred and quiet, not a bubble. */
+.message.kind-system { align-self: center; max-width: 100%; background: none; box-shadow: none; padding: 2px 0; color: var(--muted); font-size: 12px; text-align: center; }
+.message.kind-system .message-from, .message.kind-system .message-time { display: none; }
+.message.kind-system p { margin: 0; }
