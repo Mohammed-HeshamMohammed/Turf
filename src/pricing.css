@@ -21,6 +21,7 @@
 .card .button { margin-top: auto; }
 .card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
 .button.small { height: 34px; padding: 0 16px; font-size: 14px; }
+.card .button.tier-cta { align-self: stretch; height: 44px; margin-top: auto; }
 .fine { color: var(--muted); font-size: 14px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .chips li { padding: 6px 14px; border-radius: 999px; background: var(--card); font-weight: 600; font-size: 14px; color: var(--ink); }
