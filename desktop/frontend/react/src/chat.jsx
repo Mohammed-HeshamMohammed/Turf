@@ -259,11 +259,13 @@ export function PollDialog({ onSend, onClose }) {
 const MENTION = new RegExp("(@(?:" + PEOPLE.map(name => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + "))", "g");
 
 /** Message text with @mentions of teammates picked out. */
-function Text({ text, me }) {
+function Text({ text, me, people }) {
   if (!text) return null;
+  // Connected, the teammates are the conversation's own members, not the sample names.
+  const pattern = people?.length ? new RegExp("(@(?:" + people.map(name => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + "))", "g") : MENTION;
   return (
     <p>
-      {text.split(MENTION).map((part, index) =>
+      {text.split(pattern).map((part, index) =>
         index % 2 ? (
           <span key={index} className={"mention" + (part === "@" + me ? " me" : "")}>
             {part}
@@ -277,10 +279,10 @@ function Text({ text, me }) {
 }
 
 /** Teammates to mention while the draft ends with "@name". */
-export function MentionPicker({ draft, onPick }) {
+export function MentionPicker({ draft, onPick, people = PEOPLE }) {
   const match = draft.match(/(?:^|\s)@([A-Za-z]*)$/);
   if (!match) return null;
-  const found = PEOPLE.filter(name => name.toLowerCase().startsWith(match[1].toLowerCase()));
+  const found = people.filter(name => name.toLowerCase().startsWith(match[1].toLowerCase()));
   if (!found.length) return null;
   return (
     <div className="mention-picker" role="listbox" aria-label="Mention a teammate">
@@ -357,7 +359,7 @@ export function ChatMessage({ message, index, thread, me, canAct, onReply, onRea
           </small>
         </div>
       )}
-      <Text text={message.text} me={me} />
+      <Text text={message.text} me={me} people={thread.chat ? thread.members : undefined} />
       {message.reactions && Object.keys(message.reactions).length > 0 && (
         <div className="message-reactions">
           {Object.entries(message.reactions).map(([emoji, people]) => (
@@ -371,7 +373,7 @@ export function ChatMessage({ message, index, thread, me, canAct, onReply, onRea
         {String(message.at).replace(/ · Demo$/, "")}
         {message.draft && " · Not sent"}
       </span>
-      {canAct && (
+      {canAct && message.kind !== "system" && !message.draft && (
         <div className="message-actions">
           <button type="button" aria-label="Reply" title="Reply" onClick={() => onReply(index)}>
             <ArrowBendUpLeft size={15} />

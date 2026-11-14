@@ -36,6 +36,9 @@ export function remoteReducer(state, action) {
       for (const pending of action.pending) next = reducer(next, pending);
       return { ...next, queue: action.queue, remoteStatus: action.status, remoteError: action.error };
     }
+    case "CHAT_THREADS":
+      // Team chats and groups from the messaging service (remote/messaging.ts); kept apart from the synced records, which each sync replaces.
+      return state.remote ? { ...state, chat: action.threads, chatOn: true } : state;
     case "REMOTE_PROFILE":
       return state.remote ? { ...state, remote: { ...state.remote, user: mergeAuthProfile(state.remote.user, action.profile) } } : state;
     case "REMOTE_END":
