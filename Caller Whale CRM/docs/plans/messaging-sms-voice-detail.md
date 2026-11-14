@@ -65,11 +65,13 @@ The customers are investors who skip trace owners and then contact them. Calling
 
 | Shape | What customers can do | Risk to the platform |
 | --- | --- | --- |
-| **A. Conversations only (recommended to start)** | Text a lead who texted or called first, who gave their number on a form with consent, or who agreed on a call (the caller records the agreement, and the first text refers to the call) | Low. This is what a campaign description can honestly say |
+| **A. Conversations only (decided 2026-11-14)** | Text a lead who texted or called first, who gave their number on a form with consent, or who agreed on a call (the caller records the agreement, and the first text refers to the call) | Low. This is what a campaign description can honestly say |
 | B. Consent-gated campaigns | As A, plus bulk sends to leads whose consent is recorded, with the source of consent kept per lead | Medium. Needs the consent record to be real and auditable |
 | C. Open sending to any list | What the cold-texting tools sell, at $0.02 to $0.03 a text | High. Campaign rejections, carrier filtering, account suspension for everyone, and per-text damages claims against customers |
 
-Whatever is chosen, these protect the account: one brand per workspace so a suspension stays with its owner; a slow daily ramp for a new workspace; automatic pause when opt-outs or carrier error codes pass a threshold; no public link shorteners; the business name and opt-out wording in the first message of a thread.
+**Decided 2026-11-14: shape A, conversations only.** `sms` sends to a lead only when one of these is on record: the lead texted or called first, the lead gave the number on a form with consent, or a caller recorded the lead's agreement on a call. There is no bulk send. Shape B can be added later on the same consent record; shape C is not planned.
+
+These protect the account as well: one brand per workspace so a suspension stays with its owner; a slow daily ramp for a new workspace; automatic pause when opt-outs or carrier error codes pass a threshold; no public link shorteners; the business name and opt-out wording in the first message of a thread.
 
 ### What `sms` does
 

@@ -95,7 +95,9 @@ These are built in stage A, so that stages B to E are additions and not rewrites
 - **Browser calling in stages A and B uses the carrier's own kit** (each has a different one). The app loads whichever matches the route; from stage C it talks to our own server and the carrier behind it no longer matters to the app.
 - **Health:** a route is taken out after repeated failures and tried again after a pause, so a failing carrier is not asked on every call.
 
-### Not verified for this section
+#5. **Decided 2026-11-14:** texting is conversations only. A lead can be texted when they made contact first, gave consent on a form, or agreed on a call. No bulk sending to lists.
+
+## Not verified for this section
 
 - BulkVS's prices, its texting API and what it supports: the search found nothing from BulkVS itself. Read its rate sheet before stage E.
 - How well a detector of our own performs against the carriers' premium ones. Wrongly hanging up on a person costs more than the fee saved, so stage D is measured against the carrier's result on the same calls before it replaces it.
