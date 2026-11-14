@@ -3,6 +3,8 @@
 **Status:** Carrier order decided 2026-11-14 (Telnyx first; see "Carriers, in order"). The rest is proposed. Amends `service-architecture.md`, which has one `dialer-sms` service.
 **Date:** 2026-11-14
 
+The rules, costs, risks and build detail behind this plan are in [messaging-sms-voice-detail.md](messaging-sms-voice-detail.md). Read its first section before building: cold texting and the cost of voicemail both change what is safe to sell.
+
 ## The short version
 
 Three containers of our own, each a thin layer over something that already exists. We write the parts that are specific to Caller Whale (who may see which conversation, leads, consent, state calling rules) and buy or reuse the hard, generic parts (live delivery to thousands of sockets, carrier connections, telephony).
