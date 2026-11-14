@@ -16,7 +16,7 @@ services:
       context: ../services/gateway
     environment:
       PORT: "8100"
-      UPSTREAMS: "auth=http://auth:8101,notifications=http://notifications:8102,billing=http://billing:8103,importing-lists=http://importing-lists:8111,skip-tracing=http://skip-tracing:8112,dialer-sms=http://dialer-sms:8113,leads-map=http://leads-map:8114,crm=http://crm:8115,ai-campaigns=http://ai-campaigns:8116,exports=http://exports:8117,backup-restore=http://backup-restore:8118"
+      UPSTREAMS: "auth=http://auth:8101,notifications=http://notifications:8102,billing=http://billing:8103,importing-lists=http://importing-lists:8111,skip-tracing=http://skip-tracing:8112,dialer-sms=http://dialer-sms:8113,leads-map=http://leads-map:8114,crm=http://crm:8115,ai-campaigns=http://ai-campaigns:8116,exports=http://exports:8117,backup-restore=http://backup-restore:8118,messaging=http://messaging:8108"
     ports:
       - "8100:8100"
     restart: unless-stopped
@@ -75,6 +75,37 @@ services:
     depends_on:
       - postgres
       - authz
+    restart: unless-stopped
+  messaging:
+    build:
+      context: ../services/messaging
+    environment:
+      PORT: "8108"
+      DATABASE_URL: "${MESSAGING_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_messaging?sslmode=disable}"
+      AUTH_JWKS_URL: "http://auth:8101/.well-known/jwks.json"
+      AUTHZ_URL: "http://authz:8104"
+      AUTHZ_TOKEN: "${AUTHZ_MESSAGING_TOKEN:?set AUTHZ_MESSAGING_TOKEN in env/compose.env (and messaging=... in authz's AUTHZ_TOKENS)}"
+      LIVE_API_URL: "http://centrifugo:8000/api"
+      LIVE_API_KEY: "${LIVE_API_KEY:?set LIVE_API_KEY in env/compose.env}"
+      LIVE_TOKEN_SECRET: "${LIVE_TOKEN_SECRET:?set LIVE_TOKEN_SECRET in env/compose.env}"
+      LIVE_PUBLIC_URL: "${LIVE_PUBLIC_URL:-ws://localhost:8000/connection/websocket}"
+    depends_on:
+      - postgres
+      - authz
+      - centrifugo
+    restart: unless-stopped
+  # The live server: holds the apps' sockets and delivers what the messaging service tells it. Only messaging calls its API.
+  centrifugo:
+    image: centrifugo/centrifugo:v6
+    command: centrifugo -c /centrifugo/config.json
+    environment:
+      CENTRIFUGO_HTTP_API_KEY: "${LIVE_API_KEY:?set LIVE_API_KEY in env/compose.env}"
+      CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY: "${LIVE_TOKEN_SECRET:?set LIVE_TOKEN_SECRET in env/compose.env}"
+      CENTRIFUGO_CLIENT_ALLOWED_ORIGINS: "${LIVE_ALLOWED_ORIGINS:-http://localhost:5190}"
+    volumes:
+      - ./centrifugo.json:/centrifugo/config.json:ro
+    ports:
+      - "8000:8000"
     restart: unless-stopped
   assistant:
     build:

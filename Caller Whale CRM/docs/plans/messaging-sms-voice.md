@@ -141,6 +141,10 @@ flowchart LR
 
 Calling is fourth because it has the most unknowns, but its two risks (the desktop window's microphone, registration lead time) are tested in step 0.
 
+## Built so far
+
+- **2026-11-14, step 1, server side:** `services/messaging` (Go): direct chats and groups, replies, mentions, reactions, polls, edits, deletes, unread counts, row security, and the outbox that feeds Centrifugo. Its tests pass against a local PostgreSQL and run in the GitHub checks. Not yet run in a container or against a real Centrifugo, and the CRM's Inbox does not use it yet. See `services/messaging/README.md`.
+
 ## Decisions needed
 
 1. ~~Carrier~~ **Decided:** Telnyx first, Twilio as backup, then our own telephony, our own machine detection, and wholesale carriers with cheapest-first routing.

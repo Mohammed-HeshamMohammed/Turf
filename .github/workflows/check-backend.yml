@@ -10,6 +10,7 @@ on:
     paths:
       - "Caller Whale CRM/services/crm-core/**"
       - "Caller Whale CRM/services/auth/**"
+      - "Caller Whale CRM/services/messaging/**"
       - "Caller Whale CRM/desktop/frontend/react/**"
       - "Caller Whale CRM/landing/site/**"
       - ".github/workflows/check-backend.yml"
@@ -17,6 +18,7 @@ on:
     paths:
       - "Caller Whale CRM/services/crm-core/**"
       - "Caller Whale CRM/services/auth/**"
+      - "Caller Whale CRM/services/messaging/**"
       - "Caller Whale CRM/desktop/frontend/react/**"
       - "Caller Whale CRM/landing/site/**"
       - ".github/workflows/check-backend.yml"
@@ -67,6 +69,47 @@ jobs:
           grep -q -- '--- PASS: TestALeadsDetailsComeWhenItIsOpened' test.log
           grep -q -- '--- PASS: TestABigWorkspaceSendsAWindowAndSearchFindsTheRest' test.log
         working-directory: "Caller Whale CRM/services/crm-core"
+
+  messaging:
+    name: messaging (Go, PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: testpass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGPASSWORD: testpass
+      # The tests reset the messaging schema with the superuser and run the service as an ordinary login, so row security applies.
+      MESSAGING_TEST_ADMIN_URL: postgres://postgres:testpass@localhost:5432/messaging_test?sslmode=disable
+      MESSAGING_TEST_DATABASE_URL: postgres://messaging_app:apppass@localhost:5432/messaging_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "Caller Whale CRM/services/messaging/go.mod"
+          cache-dependency-path: "Caller Whale CRM/services/messaging/go.sum"
+      - name: Create the test login and database
+        run: |
+          psql -h localhost -U postgres -c "CREATE ROLE messaging_app LOGIN PASSWORD 'apppass' NOSUPERUSER NOBYPASSRLS"
+          psql -h localhost -U postgres -c "CREATE DATABASE messaging_test"
+          psql -h localhost -U postgres -d messaging_test -c "GRANT ALL ON DATABASE messaging_test TO messaging_app; GRANT ALL ON SCHEMA public TO messaging_app"
+      - run: go vet ./...
+        working-directory: "Caller Whale CRM/services/messaging"
+      - run: go test ./... -count=1 -v | tee test.log
+        working-directory: "Caller Whale CRM/services/messaging"
+      - name: The database tests really ran
+        run: |
+          grep -q -- '--- PASS: TestTwoPeopleChat' test.log
+          grep -q -- '--- PASS: TestRowSecurityHidesOtherPeoplesMessages' test.log
+        working-directory: "Caller Whale CRM/services/messaging"
 
   auth:
     name: auth (Go, PostgreSQL)

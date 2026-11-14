@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { resolve, dirname } from "node:path";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const here = dirname(fileURLToPath(import.meta.url));
-export const services = ["services/gateway", "services/crm-core"];
+export const services = ["services/gateway", "services/crm-core", "services/messaging"];
 const check = process.argv.includes("--check");
 for (const folder of services) {
   for (const name of ["token.go", "token_test.go"]) {

@@ -14,6 +14,7 @@ The server side of Caller Whale CRM: one folder per service, each with its own c
 | dialer-sms | `services/features/dialer-sms/` | TypeScript | 8113 | yes | Feature 3: calling, auto dialing, texting, number health, call logs and the carrier webhooks. |
 | leads-map | `services/features/leads-map/` | Rust | 8114 | yes | Feature 4: exact locations, reverse lookups and nearby search for leads. |
 | crm-core | `services/crm-core/` | Go | 8107 | yes (PostgreSQL) | The CRM's backend (replaces the Rust `crm` row below): leads, tasks, notes, calls, deals, handoffs, sync and the live-updates socket, and list uploads. `gate.callerwhale.com` points here. |
+| messaging | `services/messaging/` | Go | 8108 | yes (PostgreSQL) | Conversations between the people of a workspace: direct chats and groups, with replies, reactions, polls and unread counts. Later, text threads with leads. Delivers live through Centrifugo. |
 | crm | `services/features/crm/` | Rust (to be folded into crm-core) | 8115 | yes | Feature 5: leads, deals, tasks, handoffs, roles and reports. Owns offline sync for records the desktop edits. |
 | ai-campaigns | `services/features/ai-campaigns/` | TypeScript | 8116 | yes | Feature 6: email and text campaigns, AI writing, reply sorting and sending limits. |
 | exports | `services/features/exports/` | Python 3.13 or newer | 8117 | yes | Feature 7: call lists, mail lists, whole-workspace exports and report files. |
