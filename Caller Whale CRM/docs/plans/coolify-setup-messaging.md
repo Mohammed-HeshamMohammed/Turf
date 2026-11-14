@@ -35,6 +35,7 @@ Created (2026-11-14) as its own Coolify database, `Caller Whale Messaging Postgr
 ## 3. The live server
 - New application from a Docker image: `centrifugo/centrifugo:v6`. Port `8000`. Network alias `centrifugo`. **No domain.**
 - Environment: paste `env/centrifugo.production.example`, then fill B and C.
+- Healthcheck tab: enable it, GET `http://localhost:8000/health`, port `8000`, expected code 200 (needs `CENTRIFUGO_HEALTH_ENABLED=true` above). Set up 2026-11-14 and passing.
 - Deploy. Its log should say it serves on port 8000.
 
 ## 4. messaging
