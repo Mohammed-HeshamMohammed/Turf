@@ -72,7 +72,7 @@ export function Pricing() {
                   </ul>
                 )}
                 <p>{t.text}</p>
-                <Link className="button small" to="/signup">Get started with {t.name}</Link>
+                <Link className="button primary tier-cta" to="/signup">Get started with {t.name}</Link>
               </li>
             ))}
         </ul>
