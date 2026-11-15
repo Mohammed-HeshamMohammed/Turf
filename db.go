@@ -29,6 +29,7 @@ type store struct {
 	// How long a migration waits for a table in use, how many times it is tried, and the pause between tries (migrate's defaults when 0).
 	lockTimeout, lockPause time.Duration
 	lockTries              int
+	advisoryWait           time.Duration // how long a start waits for another session's migrations (default 4 minutes)
 }
 
 func openStore(ctx context.Context, url string) (*store, error) {
@@ -72,7 +73,11 @@ func (s *store) migrate(ctx context.Context) error {
 		}
 		conn.Release()
 	}()
-	if _, err = conn.Exec(ctx, `SELECT pg_advisory_lock(8107)`); err != nil {
+	// When Coolify stops a copy mid-migration, its database session must stop too: PostgreSQL otherwise keeps running the query (and
+	// holding this lock) long after the container is gone, and every later start waits behind it.
+	_, _ = conn.Exec(ctx, `SET client_connection_check_interval = '5s'`)
+	defer conn.Exec(context.Background(), `RESET client_connection_check_interval`)
+	if err = s.advisoryLock(ctx, conn); err != nil {
 		return err
 	}
 	for _, ddl := range []string{
@@ -168,6 +173,8 @@ func (s *store) buildLateIndexes(ctx context.Context) error {
 		return err
 	}
 	defer conn.Exec(context.Background(), `RESET statement_timeout`)
+	_, _ = conn.Exec(ctx, `SET client_connection_check_interval = '5s'`) // a stopped copy's build stops with it
+	defer conn.Exec(context.Background(), `RESET client_connection_check_interval`)
 	for _, ix := range lateIndexes {
 		var valid bool
 		err := conn.QueryRow(ctx, `SELECT i.indisvalid FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
@@ -226,11 +233,54 @@ func (s *store) applyMigration(ctx context.Context, conn *pgxpool.Conn, name, bo
 	return who, tx.Commit(ctx)
 }
 
+// advisoryLock takes the migrations' advisory lock, waiting at most advisoryWait (default 4 minutes) and saying every 30 seconds
+// which session holds it.
+func (s *store) advisoryLock(ctx context.Context, conn *pgxpool.Conn) error {
+	wait := s.advisoryWait
+	if wait <= 0 {
+		wait = 4 * time.Minute
+	}
+	start, said := time.Now(), time.Now()
+	for {
+		var got bool
+		if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock(8107)`).Scan(&got); err != nil || got {
+			return err
+		}
+		holder := func() string {
+			return s.sessions(ctx, `a.pid IN (SELECT pid FROM pg_locks WHERE locktype = 'advisory' AND granted AND classid = 0 AND objid = 8107)`, nil)
+		}
+		if time.Since(start) >= wait {
+			return fmt.Errorf("another session kept the migrations' lock for %s: %s", wait, holder())
+		}
+		if time.Since(said) >= 30*time.Second {
+			log.Printf("WARN waiting for the migrations' lock, held by: %s", holder())
+			said = time.Now()
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+}
+
 // blockers describes the sessions that hold locks the session pid is waiting for.
 func (s *store) blockers(ctx context.Context, pid uint32) string {
-	rows, err := s.db.Query(ctx, `SELECT a.pid, coalesce(a.usename, ''), a.application_name, coalesce(host(a.client_addr), 'local'),
+	return s.sessions(ctx, `a.pid = ANY(pg_blocking_pids($1::int))`, int(pid))
+}
+
+// sessions describes the database sessions that match where (which may use $1, given as arg).
+func (s *store) sessions(ctx context.Context, where string, arg any) string {
+	q := `SELECT a.pid, coalesce(a.usename, ''), a.application_name, coalesce(host(a.client_addr), 'local'),
 			coalesce(a.state, ''), coalesce(date_trunc('second', now() - a.xact_start)::text, ''), left(coalesce(a.query, ''), 200)
-		FROM pg_stat_activity a WHERE a.pid = ANY(pg_blocking_pids($1::int))`, int(pid))
+		FROM pg_stat_activity a WHERE ` + where
+	var rows pgx.Rows
+	var err error
+	if arg == nil {
+		rows, err = s.db.Query(ctx, q)
+	} else {
+		rows, err = s.db.Query(ctx, q, arg)
+	}
 	if err != nil {
 		return "unknown (" + err.Error() + ")"
 	}
