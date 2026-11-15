@@ -189,13 +189,15 @@ func (s *server) memberStats(q *req) error {
 		return err
 	}
 	daily, err := queryJSON(ctx, tx, `
-		WITH tz AS (SELECT coalesce((SELECT timezone FROM orgs WHERE id = cw_org()), 'UTC') AS name)
-		SELECT jsonb_build_object('day', to_char((c.occurred_at AT TIME ZONE tz.name)::date, 'YYYY-MM-DD'), 'user_id', c.agent_id,
-			'dials', count(*), 'connects', count(*) FILTER (WHERE c.meaning = 'reached'))
-		FROM call_events c, tz
-		WHERE c.org_id = cw_org() AND c.agent_id = ANY($1::uuid[]) AND c.import_job_id IS NULL
-		  AND c.occurred_at >= ($2::date)::timestamp AT TIME ZONE tz.name AND c.occurred_at < ($3::date + 1)::timestamp AT TIME ZONE tz.name
-		GROUP BY 1, c.agent_id ORDER BY 1`, ids, from, to)
+		WITH tz AS (SELECT coalesce((SELECT timezone FROM orgs WHERE id = cw_org()), 'UTC') AS name),
+		per_day AS (
+			SELECT to_char((c.occurred_at AT TIME ZONE tz.name)::date, 'YYYY-MM-DD') AS day, c.agent_id,
+				count(*) AS dials, count(*) FILTER (WHERE c.meaning = 'reached') AS connects
+			FROM call_events c, tz
+			WHERE c.org_id = cw_org() AND c.agent_id = ANY($1::uuid[]) AND c.import_job_id IS NULL
+			  AND c.occurred_at >= ($2::date)::timestamp AT TIME ZONE tz.name AND c.occurred_at < ($3::date + 1)::timestamp AT TIME ZONE tz.name
+			GROUP BY 1, 2)
+		SELECT jsonb_build_object('day', day, 'user_id', agent_id, 'dials', dials, 'connects', connects) FROM per_day ORDER BY day`, ids, from, to)
 	if err != nil {
 		return err
 	}

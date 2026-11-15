@@ -143,6 +143,8 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /api/v1/imports/{id}/cancel", s.member(s.importCancel))
 	mux.Handle("DELETE /api/v1/imports/{id}", s.member(s.importDelete))
 
+	s.dialerRoutes(mux)
+
 	// The website's contact form posts here (through the gateway) and goes on to the notification service, which sends it.
 	if s.cfg.notifyURL != "" {
 		target, _ := url.Parse(s.cfg.notifyURL)
