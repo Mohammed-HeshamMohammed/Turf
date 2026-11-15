@@ -35,7 +35,7 @@ func TestPostgres(t *testing.T) {
 
 	owner, err := s.facts(ctx, ownerID, org1)
 	must(err)
-	if !owner.member || !owner.secondStep || !owner.capabilities["admin"] || !slices.Equal(owner.scopes, []string{"organization"}) {
+	if !owner.member || owner.secondStep || !owner.capabilities["admin"] || !slices.Equal(owner.scopes, []string{"organization"}) {
 		t.Errorf("owner facts: %+v", owner)
 	}
 	if ok, _ := s.check(ctx, ownerID, org1, "manage_access"); !ok {
