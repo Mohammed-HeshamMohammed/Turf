@@ -8157,3 +8157,14 @@ tbody tr.is-clickable { cursor: pointer; }
 .message.kind-system { align-self: center; max-width: 100%; background: none; box-shadow: none; padding: 2px 0; color: var(--muted); font-size: 12px; text-align: center; }
 .message.kind-system .message-from, .message.kind-system .message-time { display: none; }
 .message.kind-system p { margin: 0; }
+
+/* Team monitoring (TeamMonitor.jsx) */
+.team-monitor { margin-bottom: 19px; }
+.team-monitor-sum { margin: 4px 0 0; }
+.team-monitor td > small { display: block; color: var(--muted); }
+.team-monitor tr.selected td { background: #f6f6f4; }
+.team-activity { border-top: 1px solid var(--line); padding: 15px 9px 19px; }
+.team-activity h3 { font-size: 13px; font-weight: 500; margin: 0 0 10px; }
+.team-activity ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.team-activity li { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; }
+.team-activity li small { color: var(--muted); white-space: nowrap; }

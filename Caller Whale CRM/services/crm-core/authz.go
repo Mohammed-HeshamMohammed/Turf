@@ -47,12 +47,16 @@ type grantReply struct {
 	TeamIDs      []string `json:"team_ids"`
 	ProjectIDs   []string `json:"project_ids"`
 	Capabilities []string `json:"capabilities"`
+	// The person's workspace roles and the teams they manage (a team manager monitors those teams' callers and closers).
+	Roles          []string `json:"roles"`
+	ManagedTeamIDs []string `json:"managed_team_ids"`
 }
 
 type member struct {
-	UserID  string   `json:"user_id"`
-	Roles   []string `json:"roles"`
-	TeamIDs []string `json:"team_ids"`
+	UserID      string   `json:"user_id"`
+	Roles       []string `json:"roles"`
+	TeamIDs     []string `json:"team_ids"`
+	SuspendedAt *int64   `json:"suspended_at,omitempty"`
 }
 
 var (

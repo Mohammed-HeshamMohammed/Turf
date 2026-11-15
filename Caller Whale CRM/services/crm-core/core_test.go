@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strconv"
 	"strings"
@@ -807,5 +808,81 @@ func TestTeamsComeFromTheAuthorizationService(t *testing.T) {
 	}
 	if res, raw = e.raw(carol, orgB, "GET", "/api/v1/admin/teams", nil, nil); strings.Contains(string(raw), "Closers") {
 		t.Errorf("another workspace never sees these teams: %s", raw)
+	}
+}
+
+// Each person's numbers come from what they did, and who sees whom follows the team tree: the owner sees everyone, a team
+// manager the callers of the teams they run, a caller only themself.
+func TestTeamMonitoringCountsWorkAndFollowsTheTree(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	const teamA, dave = "aaaaaaaa-0000-4000-8000-000000000001", "44444444-4444-4444-8444-444444444444"
+	e.rules.mu.Lock()
+	e.rules.roster[orgA] = []member{{UserID: alice, Roles: []string{"owner"}}, {UserID: bob, Roles: []string{"caller"}, TeamIDs: []string{teamA}},
+		{UserID: dave, Roles: []string{"manager"}}, {UserID: missing, Roles: []string{"client"}}}
+	e.rules.teamList = map[string][]authzTeam{orgA: {{TeamID: teamA, Name: "Tampa", ManagerID: dave}}}
+	e.rules.grants[dave+"|"+orgA] = grantReply{Allowed: true, Scopes: []string{"team"}, TeamIDs: []string{teamA}, ManagedTeamIDs: []string{teamA}, Capabilities: []string{"edit", "call"}, Roles: []string{"manager"}}
+	e.rules.people_[dave] = peopleReply{UserID: dave, Workspaces: []workspaceRoles{{OrgID: orgA, Roles: []string{"manager"}}}}
+	e.rules.mu.Unlock()
+
+	lead := newID(t)
+	e.want(e.opWith(bob, orgA, "lead.create", map[string]any{"id": lead, "name": "Sam Seller", "phone": "555-0101"}, newID(t)), "applied")
+	e.want(e.op(bob, orgA, "call.record", map[string]any{"lead_id": lead, "outcome": "Voicemail"}), "applied")
+	e.want(e.op(bob, orgA, "call.record", map[string]any{"lead_id": lead, "outcome": "Callback", "callback_at": "2027-01-05T15:00:00Z"}), "applied")
+	e.want(e.op(bob, orgA, "call.record", map[string]any{"lead_id": lead, "outcome": "Wrong number"}), "applied")
+	e.want(e.op(bob, orgA, "lead.update", map[string]any{"id": lead, "changes": map[string]any{"stage": "Qualified"}, "base": map[string]any{}}), "applied")
+	e.want(e.op(bob, orgA, "note.add", map[string]any{"lead_id": lead, "body": "Wants an offer."}), "applied")
+
+	stats := func(user string) (int, map[string]any) {
+		return e.call(user, orgA, "GET", "/api/v1/stats/members", nil)
+	}
+	totalsFor := func(out map[string]any, user string) map[string]any {
+		for _, row := range out["totals"].([]any) {
+			if r := row.(map[string]any); r["user_id"] == user {
+				return r
+			}
+		}
+		return nil
+	}
+	status, out := stats(alice)
+	if status != 200 || len(out["people"].([]any)) != 3 {
+		t.Fatalf("the owner sees everyone but clients: %d %v", status, out)
+	}
+	b := totalsFor(out, bob)
+	if b == nil || b["dials"] != 3.0 || b["connects"] != 1.0 || b["callbacks"] != 1.0 || b["bad_numbers"] != 1.0 || b["qualified"] != 1.0 || b["notes"] != 1.0 || b["leads_held"] != 1.0 || b["last_active"] == nil {
+		t.Fatalf("bob's numbers: %v", b)
+	}
+	if len(out["daily"].([]any)) != 1 {
+		t.Errorf("one day of calls: %v", out["daily"])
+	}
+	_, out = stats(dave)
+	if people := out["people"].([]any); len(people) != 2 || totalsFor(out, alice) != nil || totalsFor(out, bob) == nil {
+		t.Errorf("a manager sees themself and their team's caller: %v", people)
+	}
+	_, out = stats(bob)
+	if people := out["people"].([]any); len(people) != 1 || people[0].(map[string]any)["user_id"] != bob {
+		t.Errorf("a caller sees only themself: %v", people)
+	}
+	if status, act := e.call(dave, orgA, "GET", "/api/v1/stats/members/"+bob+"/activity", nil); status != 200 || len(act["events"].([]any)) < 5 {
+		t.Errorf("the manager follows their caller's activity: %d %v", status, act)
+	}
+	if status, _ := e.call(bob, orgA, "GET", "/api/v1/stats/members/"+alice+"/activity", nil); status != 403 {
+		t.Errorf("a caller cannot follow the owner: %d", status)
+	}
+	if status, _ := e.call(alice, orgA, "GET", "/api/v1/stats/members?from=2026-01-01&to=2026-12-31", nil); status != 400 {
+		t.Errorf("at most 93 days: %d", status)
+	}
+}
+
+func TestStatsRangeDefaultsToTheLastSevenDays(t *testing.T) {
+	r := httptest.NewRequest("GET", "/api/v1/stats/members", nil)
+	from, to, err := statsRange(r, time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC))
+	if err != nil || from != "2026-11-09" || to != "2026-11-15" {
+		t.Fatalf("%s %s %v", from, to, err)
+	}
+	for _, q := range []string{"from=2026-11-10&to=2026-11-01", "from=nope", "from=2026-01-01&to=2026-06-01"} {
+		if _, _, err := statsRange(httptest.NewRequest("GET", "/x?"+q, nil), time.Now()); err == nil {
+			t.Errorf("%s was accepted", q)
+		}
 	}
 }
