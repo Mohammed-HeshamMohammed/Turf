@@ -169,6 +169,12 @@ func (s *server) startAssignment(q *req) error {
 	if err != nil {
 		return err
 	}
+	// The leads take their new holder's team: the workspace's teams (kept in authz) are copied here first, so each one exists.
+	if list, err := s.rules.teams(ctx, q.sc.orgID); err == nil {
+		if err = s.copyTeams(ctx, q.sc, list); err != nil {
+			return err
+		}
+	}
 	teams := make([]string, 0, len(body.To))
 	seen := map[string]bool{}
 	for _, id := range body.To {
@@ -379,7 +385,7 @@ func (s *server) assignBatch(ctx context.Context, sc scope, id string, sel assig
 	}
 	// One statement each: the leads, their history, their open tasks, and the change feed every device pulls.
 	if _, err := tx.Exec(ctx, `UPDATE leads l SET assignee_id = nullif(t.to_user, '')::uuid,
-			team_id = CASE WHEN t.team = '' OR t.team = $4 THEN l.team_id ELSE t.team::uuid END, version = l.version + 1, updated_at = now()
+			team_id = CASE WHEN t.team = '' OR t.team = $4 OR NOT EXISTS (SELECT 1 FROM teams k WHERE k.id = t.team::uuid) THEN l.team_id ELSE t.team::uuid END, version = l.version + 1, updated_at = now()
 		FROM unnest($1::text[], $2::text[], $3::text[]) AS t(id, to_user, team) WHERE l.id = t.id::uuid AND l.org_id = cw_org()`, ids, to, team, noTeam); err != nil {
 		return 0, "", err
 	}
