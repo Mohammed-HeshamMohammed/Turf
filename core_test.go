@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -980,7 +981,7 @@ func TestLeadSearchFindsByEveryWayPeopleType(t *testing.T) {
 	e.want(e.opWith(alice, orgA, "lead.create", map[string]any{"id": newID(t), "name": "Someone Else", "phone": "727-555-9999", "address": "1 Main St", "city": "Austin", "zip": "78701"}, newID(t)), "applied")
 	found := func(term string) []any {
 		t.Helper()
-		status, out := e.call(alice, orgA, "GET", "/api/v1/leads/search?q="+strings.ReplaceAll(term, " ", "%20")+"&limit=20", nil)
+		status, out := e.call(alice, orgA, "GET", "/api/v1/leads/search?q="+url.QueryEscape(term)+"&limit=20", nil)
 		if status != 200 {
 			t.Fatalf("%q: %d %v", term, status, out)
 		}
