@@ -24,7 +24,8 @@ class StoreTest(unittest.TestCase):
         with cls.pool.connection() as conn:
             conn.execute(
                 "INSERT INTO billing.plans (key, name, seats, monthly_minutes, price_minor, currency, provider_price_id) "
-                "VALUES ('trial', 'Trial', 2, 100, 0, 'USD', NULL), ('starter', 'Starter', 3, 1000, 4900, 'USD', 'pri_starter') ON CONFLICT DO NOTHING"
+                "VALUES ('trial', 'Trial', 2, 100, 0, 'USD', NULL), ('starter', 'Starter', 3, 1000, 4900, 'USD', 'pri_starter') "
+                "ON CONFLICT (key) DO UPDATE SET seats = excluded.seats, monthly_minutes = excluded.monthly_minutes"
             )
             conn.commit()
         cls.store = Store(cls.pool)
@@ -48,6 +49,24 @@ class StoreTest(unittest.TestCase):
             self.store.reserve("minutes", org, 10, request, "call", NOW)
         self.assertEqual(conflict.exception.code, "conflict")
         self.assertEqual(self.store.standing(org, NOW)["minutes_used"], 60)
+
+    def test_the_ready_made_plans_are_there_and_a_membership_keeps_only_the_limits_that_differ(self):
+        keys = {p["key"]: p for p in self.store.plans()}
+        self.assertTrue({"solo", "duo", "team", "pro", "custom"} <= set(keys))
+        self.assertEqual(keys["solo"]["limits"]["active_leads"], 1_000_000)
+        self.assertIsNone(keys["solo"]["limits"]["clients"], "clients are unlimited")
+        org = uuid4()
+        given = self.store.assign_membership(org, "solo", "free", 14, 12, None, NOW, {"seats": 4, "active_leads": 1_000_000, "monthly_minutes": None}, "staff")
+        self.assertEqual(given["overrides"], {"seats": 4, "monthly_minutes": None}, "a value equal to the plan's is not stored")
+        self.assertEqual(self.store.standing(org, NOW)["seats"], 4)
+        self.assertFalse(self.store.reserve("minutes", org, 50_000, uuid4(), "", NOW).limited, "unlimited minutes are not counted against")
+        again = self.store.assign_membership(org, "duo", "free", 14, 12, None, NOW, {}, "staff")
+        self.assertEqual((again["overrides"], again["limits"]["seats"]), ({}, 2), "giving a membership again replaces the overrides")
+        self.assertEqual(self.store.entitlements(uuid4())["plan"], None)
+        with self.assertRaises(Refused):
+            self.store.assign_membership(org, "solo", "free", 14, 12, None, NOW, {"seats": 0})
+        with self.assertRaises(Refused):
+            self.store.assign_membership(org, "solo", "free", 14, 12, None, NOW, {"nonsense": 1})
 
     def test_two_requests_cannot_both_take_the_last_minutes(self):
         org = uuid4()

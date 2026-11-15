@@ -40,6 +40,9 @@ class MembershipBody(BaseModel):
     days: int = Field(default=14, ge=1, le=90)  # a trial's length
     months: int = Field(default=12, ge=1, le=36)  # how long a free or manually paid plan lasts
     amount_minor: int | None = Field(default=None, ge=0, le=1_000_000_000_000)  # what was paid, when it is not the plan's price for the months
+    # The workspace's limits when they differ from the plan: {key: number, or null for unlimited}. Keys left out keep the plan's value.
+    limits: dict[str, int | None] | None = None
+    set_by: str = Field(default="", max_length=100)  # who gave it, for the record
 
 
 class TrialBody(BaseModel):
@@ -137,13 +140,17 @@ def create_app(settings: Settings, store, now: Callable[[], datetime] = lambda: 
 
     @app.put("/v1/admin/orgs/{org_id}/membership")
     def membership(org_id: UUID, body: MembershipBody, _: str = caller("assign")):
-        given = store.assign_membership(org_id, body.plan, body.payment, body.days, body.months, body.amount_minor, now())
+        given = store.assign_membership(org_id, body.plan, body.payment, body.days, body.months, body.amount_minor, now(), body.limits, body.set_by)
         notify(settings, str(org_id), store.standing(org_id, now()))
         return given
 
     @app.get("/v1/orgs/{org_id}/standing")
     def standing(org_id: UUID, _: str = caller("standing")):
         return store.standing(org_id, now())
+
+    @app.get("/v1/orgs/{org_id}/entitlements")
+    def entitlements(org_id: UUID, _: str = caller("standing")):
+        return store.entitlements(org_id)
 
     @app.put("/v1/orgs/{org_id}/trial")
     def trial(org_id: UUID, body: TrialBody, _: str = caller("subscribe")):
