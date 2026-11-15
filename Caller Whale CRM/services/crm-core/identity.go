@@ -166,22 +166,22 @@ func (s *server) directory(q *req) error {
 	if err != nil {
 		return err
 	}
-	names := map[string]string{}
+	names, avatars := map[string]string{}, map[string]string{}
 	ids := make([]string, 0, len(members))
 	for _, m := range members {
 		ids = append(ids, m.UserID)
 	}
-	rows, err := s.st.db.Query(ctx, `SELECT user_id::text, name FROM people WHERE user_id = ANY($1::uuid[])`, onlyIDs(ids))
+	rows, err := s.st.db.Query(ctx, `SELECT user_id::text, name, avatar FROM people WHERE user_id = ANY($1::uuid[])`, onlyIDs(ids))
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var id, name string
-		if err = rows.Scan(&id, &name); err != nil {
+		var id, name, avatar string
+		if err = rows.Scan(&id, &name, &avatar); err != nil {
 			return err
 		}
-		names[id] = name
+		names[id], avatars[id] = name, avatar
 	}
 	out := make([]map[string]any, 0, len(members))
 	for _, m := range members {
@@ -189,7 +189,7 @@ func (s *server) directory(q *req) error {
 		if name == "" {
 			name = "Member"
 		}
-		out = append(out, map[string]any{"id": m.UserID, "name": name, "roles": nonNil(m.Roles), "team_ids": nonNil(m.TeamIDs), "sign_in": nil})
+		out = append(out, map[string]any{"id": m.UserID, "name": name, "avatar": avatars[m.UserID], "roles": nonNil(m.Roles), "team_ids": nonNil(m.TeamIDs), "sign_in": nil})
 	}
 	slices.SortFunc(out, func(a, b map[string]any) int { return strings.Compare(a["name"].(string), b["name"].(string)) })
 	writeJSON(q.w, 200, out)
@@ -456,4 +456,32 @@ func randomID() string {
 	_, _ = rand.Read(b[:])
 	b[6], b[8] = b[6]&0x0f|0x40, b[8]&0x3f|0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+// setPicture answers PUT /api/v1/me/picture: the person's CRM sends the picture their account has, so the team sees the same face. A
+// small PNG, JPEG or WebP image (as a data address, at most 300 KB) or an https address; an empty one removes it.
+func (s *server) setPicture(q *req) error {
+	var body struct {
+		Avatar string `json:"avatar"`
+	}
+	if err := readJSON(q.w, q.r, &body); err != nil {
+		return err
+	}
+	avatar := strings.TrimSpace(body.Avatar)
+	switch {
+	case avatar == "":
+	case strings.HasPrefix(avatar, "data:image/png;base64,"), strings.HasPrefix(avatar, "data:image/jpeg;base64,"), strings.HasPrefix(avatar, "data:image/webp;base64,"):
+		if len(avatar) > 400_000 {
+			return bad("That picture is too big.")
+		}
+	case strings.HasPrefix(avatar, "https://") && len(avatar) <= 1000 && !strings.ContainsAny(avatar, " \"<>"):
+	default:
+		return bad("A picture is a PNG, JPEG or WebP image, or an https address.")
+	}
+	if _, err := s.st.db.Exec(q.r.Context(), `INSERT INTO people (user_id, name, email, avatar) VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_id) DO UPDATE SET avatar = EXCLUDED.avatar`, q.c.sub, label(q.c), q.c.email, avatar); err != nil {
+		return err
+	}
+	writeJSON(q.w, http.StatusOK, map[string]any{"ok": true})
+	return nil
 }

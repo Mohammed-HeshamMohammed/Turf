@@ -240,9 +240,11 @@ export class SyncEngine {
   /** The tasks, notes, calls, handoffs and deals of one lead, held with the rest so its page can show them. */
   async leadDetails(id) {
     const found = await this.api.leadDetails(id);
-    if (!this.store) return;
+    if (!this.store) return [];
     this.store = addSnapshotPage(this.store, found);
     this.emit();
+    // Co-owners (other leads at the same property under another name) are only shown on the lead's page, not kept in the store.
+    return found.related || [];
   }
 
   /** Fetches the workspace's lists again, so a list that was just uploaded shows up without signing in again. */

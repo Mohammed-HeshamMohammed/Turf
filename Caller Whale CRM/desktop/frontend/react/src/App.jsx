@@ -359,6 +359,8 @@ export function App() {
   useEffect(() => subscribeCallLog(call => apply({ type: "CALL_LOG", call })), []);
   const connect = useCallback(async ({ me, vault }) => {
     const role = applyIdentity(me);
+    // My account's picture goes to the CRM first, so the team list (and everyone else's screens) carry the same face.
+    if (typeof me.user.avatar === "string") await api.setPicture(me.user.avatar).catch(() => {});
     const [directory, teams, projects, targets] = await Promise.all([api.directory(), api.teams(), api.projects(), api.assignTargets().catch(() => ({ targets: [] }))]);
     const selectedWorkspace = me.organizations.find(item => item.id === me.organization_id);
     const organization = selectedWorkspace?.name || "";
