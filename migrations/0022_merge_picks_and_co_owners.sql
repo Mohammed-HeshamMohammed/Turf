@@ -19,5 +19,5 @@ ALTER TABLE lead_links FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS org_isolation ON lead_links;
 CREATE POLICY org_isolation ON lead_links USING (org_id = cw_org()) WITH CHECK (org_id = cw_org());
 
--- Finding the other leads at an address after a merge reads properties by their address key.
-CREATE INDEX IF NOT EXISTS properties_addr_key ON properties (org_id, importing.addr_key(address, postal_code));
+-- Finding the other leads at an address after a merge reads properties by their address key. That index (properties_addr_key) is built
+-- in the background after crm-core starts (db.go lateIndexes): on every property at once it took longer than a deploy may wait.

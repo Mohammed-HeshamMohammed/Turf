@@ -83,6 +83,37 @@ func TestMigrationWaitingForATableFailsFastAndKeepsLeadsFree(t *testing.T) {
 	}
 }
 
+// properties_addr_key is built after start-up, without blocking writes, and a database that applied the first 0022 (which built it
+// inside the migration) still starts.
+func TestLateIndexAndEarlier0022(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	st := e.s.st
+	for i := 0; i < 2; i++ { // the second run finds it built
+		if err := st.buildLateIndexes(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var valid bool
+	if err := e.admin.QueryRow(ctx, `SELECT i.indisvalid FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+		WHERE c.relname = 'properties_addr_key'`).Scan(&valid); err != nil || !valid {
+		t.Fatalf("properties_addr_key: valid=%v err=%v", valid, err)
+	}
+	name := "migrations/0022_merge_picks_and_co_owners.sql"
+	if _, err := e.admin.Exec(ctx, `UPDATE crm.schema_migrations SET checksum = $1 WHERE name = $2`, earlierChecksum[name], name); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.migrate(ctx); err != nil {
+		t.Fatalf("a database with the first 0022 must still start: %v", err)
+	}
+	if _, err := e.admin.Exec(ctx, `UPDATE crm.schema_migrations SET checksum = 'something else' WHERE name = $1`, name); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.migrate(ctx); err == nil || !strings.Contains(err.Error(), "was changed after it was applied") {
+		t.Fatalf("any other changed checksum must still stop the start, got %v", err)
+	}
+}
+
 func waitFor(t *testing.T, ok func() bool) {
 	t.Helper()
 	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {

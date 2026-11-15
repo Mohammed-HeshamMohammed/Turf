@@ -103,7 +103,7 @@ func (s *store) migrate(ctx context.Context) error {
 		var applied string
 		err = conn.QueryRow(ctx, `SELECT checksum FROM crm.schema_migrations WHERE name = $1`, name).Scan(&applied)
 		switch {
-		case err == nil && applied == checksum:
+		case err == nil && (applied == checksum || applied == earlierChecksum[name]):
 			continue
 		case err == nil:
 			return fmt.Errorf("%s was changed after it was applied; add a new numbered script instead", name)
@@ -130,6 +130,64 @@ func (s *store) migrate(ctx context.Context) error {
 			}
 		}
 		log.Printf("INFO applied %s", name)
+	}
+	return nil
+}
+
+// earlierChecksum accepts the one earlier version of a script that a database may already have applied, where the script was changed
+// only to take work out of it (that work is done elsewhere, e.g. in lateIndexes).
+var earlierChecksum = map[string]string{
+	// The first 0022 also built properties_addr_key, which is now a late index.
+	"migrations/0022_merge_picks_and_co_owners.sql": "91b7f50252d202a725549b531e709991f03a6a201c00eea2cdaa8bada97d7783",
+}
+
+// lateIndexes are built after crm-core is serving, one at a time and without blocking writes (CREATE INDEX CONCURRENTLY), because
+// building them takes longer than a deploy may wait for the service to answer. Until one is ready its queries are only slower.
+var lateIndexes = []struct{ name, create string }{
+	{"properties_addr_key", `CREATE INDEX CONCURRENTLY IF NOT EXISTS properties_addr_key ON crm.properties (org_id, importing.addr_key(address, postal_code))`},
+}
+
+// buildLateIndexes builds the late indexes that are missing; one left unfinished by a stopped build is dropped and built again. Only
+// one copy of crm-core builds at a time.
+func (s *store) buildLateIndexes(ctx context.Context) error {
+	conn, err := s.db.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if _, err := conn.Exec(context.Background(), `SELECT pg_advisory_unlock(8108)`); err != nil {
+			conn.Conn().Close(context.Background())
+		}
+		conn.Release()
+	}()
+	var mine bool
+	if err = conn.QueryRow(ctx, `SELECT pg_try_advisory_lock(8108)`).Scan(&mine); err != nil || !mine {
+		return err
+	}
+	if _, err = conn.Exec(ctx, `SET statement_timeout = 0`); err != nil {
+		return err
+	}
+	defer conn.Exec(context.Background(), `RESET statement_timeout`)
+	for _, ix := range lateIndexes {
+		var valid bool
+		err := conn.QueryRow(ctx, `SELECT i.indisvalid FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+			JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'crm' AND c.relname = $1`, ix.name).Scan(&valid)
+		switch {
+		case err == nil && valid:
+			continue
+		case err == nil:
+			if _, err = conn.Exec(ctx, `DROP INDEX CONCURRENTLY IF EXISTS crm.`+ix.name); err != nil {
+				return fmt.Errorf("%s: %w", ix.name, err)
+			}
+		case err != pgx.ErrNoRows:
+			return err
+		}
+		start := time.Now()
+		log.Printf("INFO building index %s in the background", ix.name)
+		if _, err = conn.Exec(ctx, ix.create); err != nil {
+			return fmt.Errorf("%s: %w", ix.name, err)
+		}
+		log.Printf("INFO built index %s in %s", ix.name, time.Since(start).Round(time.Second))
 	}
 	return nil
 }
