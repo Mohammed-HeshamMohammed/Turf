@@ -10,6 +10,7 @@ import { CallHistory, NewDealModal } from "./Work.jsx";
 import { useCrm } from "./context.jsx";
 import { SkeletonRows } from "./Skeleton.jsx";
 import { useLeadDetails, useLeadPage } from "./useLeadPage.js";
+import { leadSource } from "./lead-source.ts";
 import {
   Badge,
   Select,
@@ -64,7 +65,7 @@ export function Leads() {
   const [serverFailed, setServerFailed] = useState(false);
   const serverMode = Boolean(state.remote) && !heldAll && !serverFailed;
   // One shared source answers (and remembers) each page, so coming back here, or opening it from another screen, is instant.
-  const found = useLeadPage({ term, stage: stage === "All stages" ? "" : stage, offset: page * size, limit: size }, serverMode);
+  const found = useLeadPage({ term, stage: stage === "All stages" ? "" : stage, sort: "newest", offset: page * size, limit: size }, serverMode);
   const served = { ids: found.ids, total: found.total ?? 0 };
   const waiting = found.waiting; // the server has not answered for this page yet: not "no leads"
   useEffect(() => {
@@ -83,7 +84,33 @@ export function Leads() {
       (assignee === "All people" || lead.assignee === assignee) &&
       [lead.name, lead.address, lead.city, ...(client ? [] : [lead.phone, lead.email])].join(" ").toLowerCase().includes(search.toLowerCase()),
   );
-  const leads = serverMode ? served.ids.map(id => byId.get(id)).filter(Boolean) : windowLeads;
+  // Newest first, so an import's leads show at the top as each batch is added (the table's own sorting still applies on top).
+  const newestFirst = useMemo(() => [...windowLeads].sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))), [windowLeads]);
+  const leads = serverMode ? served.ids.map(id => byId.get(id)).filter(Boolean) : newestFirst;
+  // Refresh: the newest records now, and again every 15 seconds while the page is open and visible (when "Auto refresh" is on).
+  const [autoRefresh, setAutoRefresh] = useState(() => {
+    try {
+      return window.localStorage.getItem("callerwhale.leads.autoRefresh") !== "off";
+    } catch {
+      return true;
+    }
+  });
+  const [refreshedAt, setRefreshedAt] = useState(() => new Date());
+  const refresh = () => {
+    if (!state.remote) return;
+    dispatch({ type: "SYNC" });
+    leadSource.invalidate();
+    setRefreshedAt(new Date());
+  };
+  useEffect(() => {
+    if (!state.remote || !autoRefresh) return;
+    const timer = setInterval(() => {
+      if (!document.hidden) refresh();
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [Boolean(state.remote), autoRefresh]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The spinner: a search typed and not yet sent, or sent and not yet answered.
+  const searching = Boolean(state.remote) && ((search.trim().length >= 2 && search.trim() !== term) || (Boolean(term) && found.loading));
   const editable = capability(state, "edit");
   // The window's width decides how many details each row carries.
   const card = useRef(null);
@@ -143,7 +170,10 @@ export function Leads() {
       {/* The page's name is already in the sidebar and the tab, so it is kept for screen readers only. */}
       <h1 className="sr-only">{client ? "Shared properties" : "Leads"}</h1>
       <div className="filter-bar">
-        <Search value={search} onChange={setSearch} placeholder={client ? "Search shared properties" : "Search owner, property, or phone"} />
+        <div className="search-with-state">
+          <Search value={search} onChange={setSearch} placeholder={client ? "Search shared properties" : "Search owner, property, or phone"} />
+          {searching && <span className="spinner search-spinner" role="status" aria-label="Searching" />}
+        </div>
         {!client && (
           <>
             <Select aria-label="Filter by lead stage" value={stage} onChange={event => setStage(event.target.value)}>
@@ -166,6 +196,25 @@ export function Leads() {
         <Checkbox label="Hide empty fields" checked={hideEmpty} onChange={event => setHideEmpty(event.target.checked)} />
         {!client && !serverMode && archivedCount > 0 && (
           <Checkbox label={"Archived (" + archivedCount + ")"} checked={showArchived} onChange={event => setShowArchived(event.target.checked)} />
+        )}
+        {state.remote && (
+          <div className="refresh-controls">
+            <Button onClick={refresh} title={"Updated " + refreshedAt.toLocaleTimeString()}>
+              Refresh
+            </Button>
+            <Checkbox
+              label="Auto refresh"
+              checked={autoRefresh}
+              onChange={event => {
+                setAutoRefresh(event.target.checked);
+                try {
+                  window.localStorage.setItem("callerwhale.leads.autoRefresh", event.target.checked ? "on" : "off");
+                } catch {
+                  /* kept for this visit only */
+                }
+              }}
+            />
+          </div>
         )}
         {(capability(state, "export") || editable) && (
           <div className="filter-actions">
@@ -237,6 +286,7 @@ export function Leads() {
           <DataTable
             paged
             remote={serverMode ? { total: served.total, page, onPage: setPage, onSize: setSize } : null}
+            filler={{ loading: serverMode && waiting, empty: <span className="muted">No leads match this view. Try another stage or search term.</span> }}
             view={table}
             rowKey={lead => lead.id}
             leading={
@@ -323,7 +373,7 @@ export function Leads() {
               cell: lead => <RoundButton label={"Open " + lead.name} onClick={() => navigate("work/leads/" + lead.id)} />,
             }}
           />
-          {!table.rows.length && (serverMode && waiting ? <SkeletonRows rows={8} columns={6} /> : <Empty title="No leads match this view">Try another stage or search term.</Empty>)}
+
         </div>
       )}
     </>
@@ -413,8 +463,14 @@ function PropertyRecord({ lead, hideEmpty }) {
 export function LeadDetail({ id }) {
   const { state, dispatch, navigate, notify } = useCrm();
   const lead = scopedLeads(state).find(item => item.id === id);
-  // A big workspace sends this device a window of its leads: the details of one outside it come when it is opened.
-  useLeadDetails(id, Boolean(state.remote) && state.leadsTotal > state.leads.length);
+  // A big workspace sends this device a window of its leads: the details of one outside it come when it is opened. A lead that is not on
+  // this device at all (a fresh snapshot dropped it while its page was open) is asked for again before anything says it is out of view.
+  // Connected, the details are always asked for once (they are kept): they also name the lead's co-owners.
+  const fetching = useLeadDetails(id, Boolean(state.remote), !lead);
+  const [askedOnce, setAskedOnce] = useState(false);
+  useEffect(() => {
+    if (fetching) setAskedOnce(true);
+  }, [fetching]);
   const [tab, setTab] = useState("Overview");
   const [note, setNote] = useState("");
   const [visibility, setVisibility] = useState("internal");
@@ -426,6 +482,8 @@ export function LeadDetail({ id }) {
   const [confirm, setConfirm] = useState("");
   const [editingNote, setEditingNote] = useState(null);
   const [hideEmpty, setHideEmpty] = useState(false);
+  if (!lead && state.remote && (fetching || !askedOnce || state.remoteLoading))
+    return <SkeletonRows rows={6} columns={2} />;
   if (!lead)
     return (
       <Empty title="This record is outside your view" action={<Button onClick={() => navigate("work/leads")}>Back to visible leads</Button>}>
@@ -439,9 +497,21 @@ export function LeadDetail({ id }) {
   const tasks = state.tasks.filter(item => item.leadId === id && (!client || item.shared));
   const pending = state.queue.some(item => item.leadId === id);
   const leadDeals = state.deals.filter(deal => deal.leadId === id);
+  const coOwners = fetching ? [] : leadSource.relatedOf(id);
   return (
     <>
       <Breadcrumb items={[{ label: client ? "Shared properties" : "Leads", path: "work/leads" }, { label: lead.name }]} />
+      {coOwners.length > 0 && (
+        <p className="co-owners">
+          <Badge tone="info">Co-owners</Badge> Also at this property:{" "}
+          {coOwners.map((other, index) => (
+            <span key={other.id}>
+              {index > 0 && ", "}
+              <button type="button" className="text-link" onClick={() => navigate("work/leads/" + other.id)}>{other.name}</button>
+            </span>
+          ))}
+        </p>
+      )}
       <PageHeader title={lead.name} shared="lead-title" description={lead.address + " · " + lead.city}>
         {pending && <Badge tone="peach">Pending sync</Badge>}
         {lead.archived && <Badge tone="danger">Archived</Badge>}

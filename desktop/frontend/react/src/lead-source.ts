@@ -5,12 +5,12 @@
 // at once while the page asks again quietly (stale-while-revalidate), so nothing blinks back to a loading state and only the difference
 // is fetched. The leads themselves still live in one place, the store the engine fills; this holds only which ids answered which ask.
 
-export type LeadAsk = { term?: string; stage?: string; project?: string; callable?: boolean; offset?: number; limit?: number; count?: boolean };
+export type LeadAsk = { term?: string; stage?: string; project?: string; callable?: boolean; sort?: string; offset?: number; limit?: number; count?: boolean };
 export type LeadPage = { ids: string[]; total: number | null };
 type Ask = (_ask: LeadAsk) => Promise<LeadPage | undefined | null> | LeadPage | undefined | null;
 
 const MAX_ENTRIES = 300;
-const filterKey = (ask: LeadAsk) => [ask.term || "", ask.stage || "", ask.project || "", ask.callable ? "callable" : ""].join("|");
+const filterKey = (ask: LeadAsk) => [ask.term || "", ask.stage || "", ask.project || "", ask.callable ? "callable" : "", ask.sort || ""].join("|");
 const pageKey = (ask: LeadAsk) => filterKey(ask) + "|" + (ask.offset || 0) + "|" + (ask.limit || 0);
 
 export function createLeadSource() {
@@ -22,6 +22,7 @@ export function createLeadSource() {
   // What hangs off a lead (its tasks, notes, calls, deals) is asked for when the lead is opened, once. Changes that follow arrive through sync
   // like any other, so it is only forgotten when the device's records are taken again from scratch.
   const details = new Map<string, Promise<void>>();
+  const related = new Map<string, { id: string; name: string; kind: string }[]>();
 
   return {
     /** What was found for this ask, or null. `stale` means the records have changed since: show it, and ask again. */
@@ -67,7 +68,9 @@ export function createLeadSource() {
       const held = details.get(id);
       if (held) return held;
       const request = Promise.resolve(fetchDetails(id)).then(
-        () => undefined,
+        result => {
+          if (Array.isArray(result)) related.set(id, result);
+        },
         error => {
           details.delete(id);
           throw error;
@@ -75,7 +78,18 @@ export function createLeadSource() {
       );
       details.set(id, request);
       while (details.size > MAX_ENTRIES) details.delete(details.keys().next().value as string);
+      while (related.size > MAX_ENTRIES) related.delete(related.keys().next().value as string);
       return request;
+    },
+
+    /** The co-owners its details named: other leads at the same property under another name. */
+    relatedOf(id: string): { id: string; name: string; kind: string }[] {
+      return related.get(id) || [];
+    },
+
+    /** One lead's details are no longer in the store (a fresh snapshot dropped it): the next ask goes out again. */
+    forgetDetail(id: string) {
+      details.delete(id);
     },
 
     /** The records were taken again from scratch: details held before are no longer in the store. */

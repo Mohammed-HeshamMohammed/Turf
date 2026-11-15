@@ -112,6 +112,8 @@ export const api = {
   /** Joins the organization of an invitation for this person's email. */
   joinInvitation: token => request("POST", "/api/v1/invitations/join", { token }),
   directory: () => request("GET", "/api/v1/directory"),
+  /** My account's picture, kept with my name so the rest of the team sees the same face. */
+  setPicture: (avatar: string): Promise<any> => request("PUT", "/api/v1/me/picture", { avatar }, { includeOrganization: false }),
   teams: () => request("GET", "/api/v1/admin/teams"),
   // Giving leads to people (crm-core assign.go): who the viewer may give leads to, starting a run, and following it.
   assignTargets: (): Promise<any> => request("GET", "/api/v1/assignments/targets"),
@@ -131,8 +133,8 @@ export const api = {
     return request("GET", "/sync/snapshot" + (query.size ? "?" + query : ""), undefined, { timeout: 300000 });
   },
   /** One page of the workspace's leads (optionally of one stage, or matching a search), for the Leads list of a big workspace. */
-  browseLeads: ({ term = "", stage = "", offset = 0, limit = 25, count = true, project = "", callable = false, email = false }: { term?: string; stage?: string; offset?: number; limit?: number; count?: boolean; project?: string; callable?: boolean; email?: boolean }): Promise<any> =>
-    request("GET", `/api/v1/leads/search?q=${encodeURIComponent(term)}&stage=${encodeURIComponent(stage)}&offset=${offset}&limit=${limit}${count ? "" : "&count=0"}${project ? "&project=" + encodeURIComponent(project) : ""}${callable ? "&callable=1" : ""}${email ? "&email=1" : ""}`),
+  browseLeads: ({ term = "", stage = "", offset = 0, limit = 25, count = true, project = "", callable = false, email = false, sort = "" }: { term?: string; stage?: string; offset?: number; limit?: number; count?: boolean; project?: string; callable?: boolean; email?: boolean; sort?: string }): Promise<any> =>
+    request("GET", `/api/v1/leads/search?q=${encodeURIComponent(term)}&stage=${encodeURIComponent(stage)}&offset=${offset}&limit=${limit}${count ? "" : "&count=0"}${project ? "&project=" + encodeURIComponent(project) : ""}${callable ? "&callable=1" : ""}${email ? "&email=1" : ""}${sort ? "&sort=" + encodeURIComponent(sort) : ""}`),
   /** Leads of a big workspace beyond the snapshot's window: by name, phone, email or address. */
   /** What hangs off one lead (tasks, notes, calls, handoffs, deals): asked for when a lead outside this device's window is opened. */
   leadDetails: (id: string): Promise<any> => request("GET", `/api/v1/leads/${encodeURIComponent(id)}/details`),

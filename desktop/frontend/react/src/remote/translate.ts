@@ -70,6 +70,7 @@ export function leadFromServer(lead, { directory = [], teams = [], calls = [], n
     phoneType: (lead.contacts?.phones || []).find((item: any) => item.number === lead.phone)?.type || "",
     otherEmails: (lead.contacts?.emails || []).filter((item: string) => item !== lead.email),
     source: lead.source || "",
+    createdAt: lead.created_at || "",
     priority: lead.priority || "Normal",
     sentTo: lead.sent_to || "",
     version: lead.version,
