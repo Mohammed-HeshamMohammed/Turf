@@ -5,6 +5,7 @@ import { capability, leadCounts, visibleLeads, visibleTasks } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { Avatar, Badge, Button, Card, PageHeader, money } from "./ui.jsx";
 import { SignInMark } from "./SignInMarks.jsx";
+import { TeamMonitor } from "./TeamMonitor.jsx";
 
 /** Everyone on the team in one place: what they own, what is waiting on them and where to go next. */
 export function Team() {
@@ -44,6 +45,7 @@ export function Team() {
   return (
     <>
       <PageHeader title="Team" description="Who owns what, and what is waiting on them." />
+      {state.remote && <TeamMonitor />}
       <div className="metrics-grid">
         {[
           ["People", people.length, "On this workspace", UsersThree],
