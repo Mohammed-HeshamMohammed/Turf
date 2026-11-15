@@ -92,7 +92,50 @@ export async function request(method: string, path: string, body?: unknown, { ba
   return data;
 }
 
+// A browser sometimes leaves a file's type empty: the type is then taken from its extension.
+const FILE_TYPES: Record<string, string> = {
+  pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", gif: "image/gif", txt: "text/plain", csv: "text/csv",
+  doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+};
+export function fileType(file: { name: string; type?: string }): string {
+  return file.type || FILE_TYPES[file.name.split(".").pop()?.toLowerCase() || ""] || "application/octet-stream";
+}
+
+/** A request whose body or answer is a file rather than JSON (a lead's documents). */
+async function sendFile(method: string, path: string, file?: Blob, type?: string): Promise<Response> {
+  const token = await auth.accessToken().catch(() => null);
+  const org = organization();
+  let response;
+  try {
+    response = await fetch(apiBase() + path, {
+      method,
+      headers: {
+        ...(type ? { "Content-Type": type } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(token && org ? { "x-callerwhale-org": org } : {}),
+      },
+      body: file,
+    });
+  } catch {
+    throw new ApiError(0, "offline", "The server cannot be reached");
+  }
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new ApiError(response.status, data?.error?.code || "error", data?.error?.message || "The server refused the request");
+  }
+  return response;
+}
+
 export const api = {
+  /** A lead's documents: listed, uploaded (up to 10 MB, internal or shared with clients), downloaded and removed. */
+  files: {
+    list: (leadId: string): Promise<any> => request("GET", `/api/v1/leads/${encodeURIComponent(leadId)}/files`),
+    upload: async (leadId: string, file: File, visibility: string): Promise<any> =>
+      (await sendFile("POST", `/api/v1/leads/${encodeURIComponent(leadId)}/files?name=${encodeURIComponent(file.name)}&visibility=${encodeURIComponent(visibility)}`, file, fileType(file))).json(),
+    download: async (id: string): Promise<Blob> => (await sendFile("GET", `/api/v1/files/${encodeURIComponent(id)}`)).blob(),
+    remove: (id: string): Promise<any> => request("DELETE", `/api/v1/files/${encodeURIComponent(id)}`),
+  },
   /** The learning copy of imported lists: whether it is on for this workspace, and the administrator's choice. */
   learningStatus: (): Promise<any> => request("GET", "/api/v1/learning"),
   learningOptOut: (): Promise<any> => request("POST", "/api/v1/learning/opt-out", {}),

@@ -11,6 +11,9 @@ import { useCrm } from "./context.jsx";
 import { SkeletonRows } from "./Skeleton.jsx";
 import { useLeadDetails, useLeadPage } from "./useLeadPage.js";
 import { leadSource } from "./lead-source.ts";
+import { STEP_TYPES, nextStepOf } from "./next-step.ts";
+import { api } from "./remote/api.ts";
+import { phoneHistory } from "./phone-history.ts";
 import {
   Badge,
   Select,
@@ -132,7 +135,7 @@ export function Leads() {
   const hasColumn = {
     verdict: !hideEmpty || leads.some(lead => lead.verdict),
     assignee: !hideEmpty || leads.some(assigned),
-    next: !hideEmpty || client || leads.some(lead => lead.callback),
+    next: true,
     phone: !client && width >= 1050 && (!hideEmpty || leads.some(lead => lead.phone)),
     email: !client && width >= 1250 && (!hideEmpty || leads.some(lead => lead.email)),
     value: !client && width >= 1450 && (!hideEmpty || leads.some(lead => lead.value)),
@@ -349,20 +352,7 @@ export function Leads() {
                     {
                       id: "next",
                       label: "Next step",
-                      cell: lead =>
-                        client ? (
-                          "Review property brief"
-                        ) : lead.callback ? (
-                          <span className="inline">
-                            <Clock size={14} />
-                            {callbackLabel(lead.callbackDate, lead.callback)}
-                          </span>
-                        ) : (
-                          <span className="next-empty">
-                            <span className="dash">—</span>
-                            <span className="hint">Set a next step</span>
-                          </span>
-                        ),
+                      cell: lead => <NextStepCell step={nextStepOf(lead, state.tasks)} client={client} />,
                     },
                   ]
                 : []),
@@ -477,7 +467,6 @@ export function LeadDetail({ id }) {
   const [handoff, setHandoff] = useState(false);
   const [recipient, setRecipient] = useState("Alex Rivera");
   const [handoffNote, setHandoffNote] = useState("");
-  const [document, setDocument] = useState(false);
   const [newDeal, setNewDeal] = useState(false);
   const [confirm, setConfirm] = useState("");
   const [editingNote, setEditingNote] = useState(null);
@@ -776,58 +765,8 @@ export function LeadDetail({ id }) {
               ))}
             </Card>
           )}
-          {tab === "Documents" && (
-            <Card title="Documents" subtitle={client ? "Only approved documents are shared here." : "Briefs and files connected to this property."}>
-              <div className="document-row">
-                <FileText size={32} weight="light" />
-                <div>
-                  <strong>Property brief · {lead.address}</strong>
-                  <small>Approved summary · sample document</small>
-                </div>
-                <Badge tone="good">Approved</Badge>
-                <Button onClick={() => setDocument(true)}>Open brief</Button>
-              </div>
-              {!client && (
-                <div className="document-row">
-                  <FileText size={32} weight="light" />
-                  <div>
-                    <strong>Source lineage</strong>
-                    <small>{state.datasets.find(item => item.id === lead.datasetId)?.name || "Imported file"}</small>
-                  </div>
-                  <Badge>Internal</Badge>
-                  <Button onClick={() => navigate("lists/" + lead.datasetId)}>View source</Button>
-                </div>
-              )}
-            </Card>
-          )}
-          {tab === "Evidence" && !client && (
-            <Card title="Phone & source evidence" subtitle="Separate contact quality from permission to contact.">
-              <div className="evidence-grid">
-                <div>
-                  <small>Contact quality</small>
-                  <Status value={lead.verdict} />
-                </div>
-                <div>
-                  <small>Permission</small>
-                  <Badge tone={lead.verdict === "Do not call" ? "danger" : ""}>{lead.verdict === "Do not call" ? "Blocked" : "Review before contacting"}</Badge>
-                </div>
-                <div>
-                  <small>Source</small>
-                  <strong>{lead.source}</strong>
-                </div>
-                <div>
-                  <small>Freshness</small>
-                  <strong>Sample evidence · October 14</strong>
-                </div>
-              </div>
-              <p className="notice subtle">
-                This preview uses illustrative evidence. A real check and current contact permissions are required in the application.
-              </p>
-              <Button onClick={() => navigate("lists/" + lead.datasetId)}>
-                Open original source <ArrowUpRight size={16} />
-              </Button>
-            </Card>
-          )}
+          {tab === "Documents" && <LeadDocuments lead={lead} client={client} />}
+          {tab === "Evidence" && !client && <PhoneHistory lead={lead} />}
           {tab === "Evidence" && !client && lead.sourceValues && (
             <Card title="Original source row" subtitle="Every column exactly as imported. CRM changes never edit it.">
               <div className="detail-fields source-row">
@@ -910,26 +849,7 @@ export function LeadDetail({ id }) {
                 )}
               </>
             )}
-            {tasks
-              .filter(task => !task.done)
-              .map(task => (
-                <div className="compact-task" key={task.id}>
-                  <Clock size={17} />
-                  <div>
-                    <strong>{task.title}</strong>
-                    <small>
-                      {task.time} · {task.date}
-                    </small>
-                  </div>
-                </div>
-              ))}
-            {!tasks.length && <p className="muted">{client ? "No shared actions waiting." : "No tasks attached to this lead."}</p>}
-            <div className="row">
-              {capability(state, "edit") && <Button onClick={() => navigate("work/tasks/new?lead=" + id)}>Add a next step</Button>}
-              <Button onClick={() => navigate("work/tasks?lead=" + id)}>
-                All tasks <ArrowUpRight size={15} />
-              </Button>
-            </div>
+            <NextStepPanel lead={lead} tasks={tasks} client={client} />
           </Card>
           {!client && capability(state, "finance") && (
             <Card title="Deals" subtitle="Each transaction is tracked on its own.">
@@ -1060,24 +980,6 @@ export function LeadDetail({ id }) {
           </p>
         </ConfirmDialog>
       )}
-      {document && (
-        <Modal title="Approved property brief" onClose={() => setDocument(false)}>
-          <article className="property-brief">
-            <Badge tone="good">Shared property summary</Badge>
-            <h3>{lead.address}</h3>
-            <p>
-              {lead.city}, {lead.region} {lead.zip}
-            </p>
-            <p>{propertyFacts(lead).join(" · ") || "Property details not supplied"}</p>
-            <p>
-              This fictional property is included in the sample project. Your team will attach the approved inspection and closing documents as the transaction
-              progresses.
-            </p>
-            <strong>Project contact: Oak & Palm Partners</strong>
-          </article>
-          <Button onClick={() => window.print()}>Print brief</Button>
-        </Modal>
-      )}
     </>
   );
 }
@@ -1203,5 +1105,306 @@ export function NewLead() {
         </div>
       </form>
     </>
+  );
+}
+
+const dueLabel = step => (step.date ? callbackLabel(step.date, step.time) : "No date");
+
+/** The Leads table's Next step: the lead's earliest open task or callback (red once overdue), or what its stage suggests. */
+function NextStepCell({ step, client }) {
+  if (!step || (client && step.kind === "suggested")) return <span className="muted">—</span>;
+  if (step.kind === "suggested")
+    return (
+      <span className="next-suggested" title="Suggested from the lead's stage: open the lead to schedule it">
+        Suggested: {step.title}
+      </span>
+    );
+  return (
+    <span className={"inline next-step" + (step.overdue ? " overdue" : "")} title={step.overdue ? "Overdue" : undefined}>
+      <Clock size={14} />
+      <span>
+        {step.title} · {dueLabel(step)}
+      </span>
+    </span>
+  );
+}
+
+/** A lead's next step and how to schedule another: a call, a text, an appointment or a follow-up, for a person, on a day and time.
+ * It is a task, so it is on that person's tasks and calendar too. */
+function NextStepPanel({ lead, tasks, client }) {
+  const { state, dispatch, notify, navigate } = useCrm();
+  const step = nextStepOf(lead, tasks);
+  const me = state.remote ? state.remote.user?.name : ROLES[state.role].person;
+  const canSchedule = !client && (capability(state, "edit") || capability(state, "review"));
+  const people = capability(state, "assign") ? [...new Set([lead.assignee, me, ...assignableNames(state)].filter(name => name && name !== "Unassigned"))] : [me];
+  const [form, setForm] = useState(null);
+  const open = (type = "Call", title = "") =>
+    setForm({ type, title, date: TODAY, time: "10:00", assignee: lead.assignee && people.includes(lead.assignee) ? lead.assignee : me });
+  const later = tasks.filter(task => !task.done && task.id !== (step?.kind === "task" ? step.id : ""));
+  return (
+    <div className="next-step-panel">
+      {step && step.kind !== "suggested" && (
+        <div className={"next-step-now" + (step.overdue ? " overdue" : "")}>
+          <Clock size={18} />
+          <div>
+            <strong>{step.title}</strong>
+            <small>
+              {step.overdue ? "Overdue · " : ""}
+              {dueLabel(step)}
+              {step.kind === "task" && step.assignee ? " · " + step.assignee : ""}
+            </small>
+          </div>
+          {step.kind === "task" && canSchedule && (
+            <Button
+              onClick={() => {
+                dispatch({ type: "TASK", id: step.id });
+                notify("Step done");
+              }}
+            >
+              Done
+            </Button>
+          )}
+        </div>
+      )}
+      {step?.kind === "suggested" && !client && (
+        <div className="next-step-now suggested">
+          <div>
+            <small>Suggested from the stage</small>
+            <strong>{step.title}</strong>
+          </div>
+          {canSchedule && !form && <Button onClick={() => open(step.type, step.title)}>Schedule</Button>}
+        </div>
+      )}
+      {(!step || (client && step.kind === "suggested")) && <p className="muted">{client ? "No shared actions waiting." : "Nothing scheduled."}</p>}
+      {later.length > 0 && (
+        <ul className="next-step-later">
+          {later.map(task => (
+            <li key={task.id}>
+              {task.title} · {task.date ? callbackLabel(task.date, task.time) : "No date"}
+            </li>
+          ))}
+        </ul>
+      )}
+      {form && (
+        <form
+          className="next-step-form"
+          onSubmit={event => {
+            event.preventDefault();
+            dispatch({
+              type: "TASK",
+              task: { title: form.title.trim() || form.type + " · " + lead.name, leadId: lead.id, assignee: form.assignee, date: form.date, time: form.time, priority: "Normal", type: form.type },
+            });
+            notify("Next step scheduled");
+            setForm(null);
+          }}
+        >
+          <Field label="What">
+            <Select aria-label="Step type" value={form.type} onChange={event => setForm({ ...form, type: event.target.value })}>
+              {STEP_TYPES.map(type => (
+                <option key={type}>{type}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Note (optional)">
+            <input value={form.title} placeholder={form.type + " · " + lead.name} onChange={event => setForm({ ...form, title: event.target.value })} />
+          </Field>
+          <Field label="Day">
+            <DatePicker aria-label="Step day" min={TODAY} value={form.date} onChange={event => setForm({ ...form, date: event.target.value })} />
+          </Field>
+          <Field label="Time">
+            <TimePicker aria-label="Step time" value={form.time} onChange={event => setForm({ ...form, time: event.target.value })} />
+          </Field>
+          {people.length > 1 && (
+            <Field label="Who">
+              <Select aria-label="Who does it" value={form.assignee} onChange={event => setForm({ ...form, assignee: event.target.value })}>
+                {people.map(name => (
+                  <option key={name}>{name}</option>
+                ))}
+              </Select>
+            </Field>
+          )}
+          <div className="row">
+            <Button onClick={() => setForm(null)}>Cancel</Button>
+            <Button variant="primary" type="submit" disabled={!form.date}>
+              Schedule
+            </Button>
+          </div>
+        </form>
+      )}
+      <div className="row">
+        {canSchedule && !form && <Button onClick={() => open()}>Schedule a next step</Button>}
+        <Button onClick={() => navigate("work/tasks?lead=" + lead.id)}>
+          All tasks <ArrowUpRight size={15} />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+const fileSize = bytes => (bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(bytes / 1024)) + " KB");
+
+/** A lead's documents: files people uploaded (contracts, photos, statements), each internal or shared with the lead's clients, with
+ * who added it and when; plus the list the lead came from. Files live in the CRM's server, up to 10 MB each. */
+function LeadDocuments({ lead, client }) {
+  const { state, notify, navigate } = useCrm();
+  const remote = Boolean(state.remote);
+  const [files, setFiles] = useState(null);
+  const [canUpload, setCanUpload] = useState(false);
+  const [shared, setShared] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [removing, setRemoving] = useState("");
+  const picker = useRef(null);
+  const me = state.remote?.user?.id;
+  const load = () =>
+    api.files.list(lead.id).then(
+      found => {
+        setFiles(found.files || []);
+        setCanUpload(Boolean(found.can_upload));
+      },
+      reason => setError(reason.message || "Files could not be loaded."),
+    );
+  useEffect(() => {
+    if (remote) load();
+  }, [lead.id, remote]);
+  const upload = async chosen => {
+    const list = [...chosen];
+    if (!list.length) return;
+    const tooBig = list.find(file => file.size > 10 * 1048576);
+    if (tooBig) return setError(tooBig.name + " is over 10 MB.");
+    setBusy(true);
+    setError("");
+    try {
+      for (const file of list) await api.files.upload(lead.id, file, shared ? "shared" : "internal");
+      notify(list.length === 1 ? "File added" : list.length + " files added");
+      await load();
+    } catch (reason) {
+      setError(reason.message || "The file could not be added.");
+    } finally {
+      setBusy(false);
+      if (picker.current) picker.current.value = "";
+    }
+  };
+  const download = async file => {
+    try {
+      const blob = await api.files.download(file.id);
+      const url = URL.createObjectURL(blob);
+      const link = Object.assign(window.document.createElement("a"), { href: url, download: file.name });
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (reason) {
+      setError(reason.message || "The file could not be downloaded.");
+    }
+  };
+  const remove = async file => {
+    if (removing !== file.id) return setRemoving(file.id);
+    setRemoving("");
+    try {
+      await api.files.remove(file.id);
+      notify("File removed");
+      await load();
+    } catch (reason) {
+      setError(reason.message || "The file could not be removed.");
+    }
+  };
+  const dataset = state.datasets.find(item => item.id === lead.datasetId);
+  return (
+    <Card title="Documents" subtitle={client ? "Files your team shared with you." : "Contracts, photos and other files for this property."}>
+      {!remote && <p className="muted">Files are kept on the server: sign in to a workspace to add them.</p>}
+      {remote && files === null && !error && <SkeletonRows rows={2} columns={3} />}
+      {remote && files?.length === 0 && <p className="muted">{client ? "Nothing shared yet." : "No files yet."}</p>}
+      {(files || []).map(file => (
+        <div className="document-row" key={file.id}>
+          <FileText size={32} weight="light" />
+          <div>
+            <strong>{file.name}</strong>
+            <small>
+              {fileSize(file.size)} · {file.uploaded_label || "Someone"} · {new Date(file.created_at).toLocaleString()}
+            </small>
+          </div>
+          {!client && <Badge tone={file.visibility === "shared" ? "good" : ""}>{file.visibility === "shared" ? "Shared" : "Internal"}</Badge>}
+          <Button onClick={() => download(file)}>Download</Button>
+          {!client && (canUpload || file.uploaded_by === me) && (
+            <Button variant={removing === file.id ? "danger-button" : ""} onClick={() => remove(file)}>
+              {removing === file.id ? "Remove?" : "Remove"}
+            </Button>
+          )}
+        </div>
+      ))}
+      {remote && canUpload && (
+        <div className="document-upload">
+          <input ref={picker} type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.txt,.csv,.doc,.docx,.xls,.xlsx" onChange={event => upload(event.target.files)} />
+          <Button variant="primary" disabled={busy} onClick={() => picker.current?.click()}>
+            {busy ? "Adding…" : "Add files"}
+          </Button>
+          <Checkbox checked={shared} onChange={event => setShared(event.target.checked)} label="Share with this lead's clients" />
+          <small className="muted">PDF, images, text, Word or Excel, up to 10 MB each.</small>
+        </div>
+      )}
+      {error && <p className="field-error">{error}</p>}
+      {!client && lead.datasetId && (
+        <div className="document-row">
+          <FileText size={32} weight="light" />
+          <div>
+            <strong>Source list</strong>
+            <small>{dataset?.name || "Imported file"}</small>
+          </div>
+          <Badge>Internal</Badge>
+          <Button onClick={() => navigate("lists/" + lead.datasetId)}>View source</Button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** The Evidence tab: each of the lead's phones, how many times it was called, the last result and where the number stands now. */
+function PhoneHistory({ lead }) {
+  const phones = phoneHistory(lead);
+  return (
+    <Card title="Phone history" subtitle="What calling each number has shown so far.">
+      {!phones.length && <p className="muted">This lead has no phone number.</p>}
+      {phones.length > 0 && (
+        <div className="table-wrap">
+          <table className="phone-history">
+            <thead>
+              <tr>
+                <th scope="col">Phone</th>
+                <th scope="col">Status</th>
+                <th scope="col" className="num">Calls</th>
+                <th scope="col">Last call</th>
+              </tr>
+            </thead>
+            <tbody>
+              {phones.map(phone => (
+                <tr key={phone.number}>
+                  <td>
+                    <strong>{formatPhone(phone.number) || phone.number}</strong>
+                    <small className="muted">
+                      {[phone.primary ? "Main" : "", phone.type].filter(Boolean).join(" · ")}
+                    </small>
+                  </td>
+                  <td>
+                    <Badge tone={phone.tone}>{phone.status}</Badge>
+                  </td>
+                  <td className="num">{phone.calls}</td>
+                  <td>
+                    {phone.last ? (
+                      <>
+                        {phone.last.outcome}
+                        <small className="muted">
+                          {[phone.last.at ? new Date(phone.last.at).toLocaleString() : "", phone.last.agent].filter(Boolean).join(" · ")}
+                        </small>
+                      </>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
   );
 }
