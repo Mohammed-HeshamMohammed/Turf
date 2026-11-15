@@ -10,6 +10,7 @@ One branch per part of Caller Whale, each holding **only that part's code**, so 
 | `notifications-backend-production` | The notification service (`services/notifications`, Go) at the branch root |
 | `gateway-backend-production` | The gateway: the one public entry point (it only answers its health check so far) |
 | `messaging-backend-production` | The messaging service (`services/messaging`, Go) at the branch root: team chats and groups. No domain of its own |
+| `dialer-sms-backend-production` | The dialer (`services/features/dialer-sms`, Go) at the branch root: Telnyx calls and texts, with a built-in Telnyx simulator (`TELNYX_MODE=simulate`). No domain of its own |
 | `authz-backend-production` | The authorization service (`services/authz`, Go) at the branch root: decides what each person may do and which database rights each request gets. No domain |
 | `billing-backend-production` | The billing service (`services/billing`, Python) at the branch root. No domain; the gateway routes its public paths |
 | `desktop-app-production` | The whole desktop app: the frontend (`desktop/frontend/react`, also the CRM in a browser), the window container (Tauri) and the feature modules (`desktop/backend`) |
@@ -57,5 +58,6 @@ node tools/publish-production.mjs --push                    # and push what chan
 | `gateway-backend-production` | `/` | `/Dockerfile` | `8100` | its own health check (inside the private network only) |
 | `authz-backend-production` | `/` | `/Dockerfile` | `8104` | its own health check; no domain |
 | `billing-backend-production` | `/` | `/Dockerfile` | `8103` | `/healthz`; no domain |
+| `dialer-sms-backend-production` | `/` | `/Dockerfile` | `8113` | `/healthz`; no domain |
 
 Choose the **Dockerfile** build pack. After refreshing a source scan, replace any saved `landing/web/Dockerfile` path with `/Dockerfile`. Both paths in Coolify must start with `/`. Each Dockerfile uses its branch root as the build context. These generated branches are the release sources; do not point these applications at `main` with base directory `/`.

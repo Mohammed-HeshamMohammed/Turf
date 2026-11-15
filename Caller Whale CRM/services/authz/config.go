@@ -14,11 +14,12 @@ var callerRights = map[string][]string{
 	"core-api": {"grant", "check", "read", "manage", "manage_members", "manage_staff", "open", "standing"},
 	// "open": an owner or cofounder gives a person a membership, which opens their workspace. "standing": while no billing service
 	// runs, auth keeps those memberships and sets the workspace's seats, client places and whether its plan has ended.
-	"auth":      {"read", "manage_members", "manage_staff", "open", "standing"},
-	"billing":   {"grant", "check", "standing"},
-	"messaging": {"grant", "check", "read"}, // asks who is in a workspace; changes nothing
-	"gateway":   {"check"},
-	"worker":    {"check"},
+	"auth":       {"read", "manage_members", "manage_staff", "open", "standing"},
+	"billing":    {"grant", "check", "standing"},
+	"messaging":  {"grant", "check", "read"}, // asks who is in a workspace; changes nothing
+	"dialer-sms": {"grant"},                  // asks what the person placing a call or text may do; changes nothing
+	"gateway":    {"check"},
+	"worker":     {"check"},
 }
 
 type config struct {

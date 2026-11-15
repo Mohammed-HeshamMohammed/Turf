@@ -82,6 +82,17 @@
       "note": false
     },
     {
+      "name": "dialer-sms-backend-production",
+      "envExample": "Caller Whale CRM/env/dialer-sms.production.example",
+      "title": "Dialer and SMS (Telnyx, with a built-in simulator)",
+      "base": "Caller Whale CRM/services/features/dialer-sms",
+      "paths": [
+        "."
+      ],
+      "build": "go test ./... (the database tests are skipped without DIALER_TEST_DATABASE_URL); docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8113, network alias dialer-sms, no domain of its own",
+      "note": false
+    },
+    {
       "name": "importing-lists-backend-production",
       "envExample": "Caller Whale CRM/env/importing-lists.production.example",
       "title": "Import worker",
