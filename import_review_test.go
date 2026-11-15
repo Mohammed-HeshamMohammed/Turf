@@ -306,8 +306,10 @@ func TestARepeatGroupMergesFieldByFieldAndCoOwnersAreLinked(t *testing.T) {
 	e.seedRows(id, []seedRow{
 		{1, "Lee", "5550177", "near_duplicate", ptr(1), &lead}, {2, "Lee Q. Existing", "5550188", "near_duplicate", ptr(1), &lead},
 		{3, "Sam Sibling", "5550199", "clean", nil, nil}})
-	if _, err := e.admin.Exec(ctx, `UPDATE importing.rows SET address = '12 Oak St', zip = '78701' WHERE job_id = $1 AND row_no = 3;
-		UPDATE importing.jobs SET status = 'reviewing' WHERE id = $1`, id); err != nil {
+	if _, err := e.admin.Exec(ctx, `UPDATE importing.rows SET address = '12 Oak St', zip = '78701' WHERE job_id = $1 AND row_no = 3`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.admin.Exec(ctx, `UPDATE importing.jobs SET status = 'reviewing' WHERE id = $1`, id); err != nil {
 		t.Fatal(err)
 	}
 	if status, _ := e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/duplicates", map[string]any{"picks": []any{

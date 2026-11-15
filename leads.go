@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"unicode"
 )
 
 // searchLeads finds leads the person may see by name, phone, email or address, a page at a time. A snapshot carries only a window of a big
@@ -35,7 +34,7 @@ func (s *server) searchLeads(q *req) error {
 		escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(term)
 		args = append(args, "%"+escaped+"%", strings.ToLower(escaped)+"%")
 		phone := `x.phone ILIKE $1`
-		if digits := onlyDigits(term); len(digits) >= 3 && !strings.ContainsFunc(term, isLetter) {
+		if digits := onlyDigits(term); len(digits) >= 3 && !strings.ContainsFunc(term, isNotPhone) {
 			// A phone typed any way (813 555-0100, +1 (813)...) is compared by its digits.
 			args = append(args, "%"+digits+"%")
 			phone = `regexp_replace(x.phone, '[^0-9]', '', 'g') LIKE $3`
@@ -172,4 +171,5 @@ func onlyDigits(s string) string {
 	return b.String()
 }
 
-func isLetter(r rune) bool { return unicode.IsLetter(r) }
+// isNotPhone is a character a typed phone number does not have (digits, spaces, +, -, dots and brackets are fine).
+func isNotPhone(r rune) bool { return !strings.ContainsRune("0123456789 +-().", r) }
