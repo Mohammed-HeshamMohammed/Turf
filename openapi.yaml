@@ -244,10 +244,40 @@ paths:
       responses: { "200": { description: Editable role keys }, "403": { description: Owner with second step required } }
   /v1/orgs/{org}/members/{user}:
     put:
-      summary: Change existing member roles without changing their scopes; agency owner only
+      summary: Change a member's roles, and for a caller or closer their team (team_ids, one team); agency owner or platform owner and cofounder
       security: [{ bearer: [] }]
-      requestBody: { content: { application/json: { schema: { type: object, required: [roles], properties: { roles: { type: array, minItems: 1, maxItems: 8, items: { type: string } } } } } } }
+      requestBody: { content: { application/json: { schema: { type: object, required: [roles], properties: { roles: { type: array, minItems: 1, maxItems: 8, items: { type: string } }, team_ids: { type: array, maxItems: 1, items: { type: string } } } } } } }
       responses: { "200": { description: Role saved }, "403": { description: Owner or second step required }, "404": { description: Member absent } }
+    delete:
+      summary: Remove a member from the workspace; agency owner or platform owner and cofounder. A manager who still runs a team stays until the team is handed over
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Removed }, "403": { description: Not allowed }, "409": { description: The member still runs a team } }
+  /v1/orgs/{org}/members/{user}/suspend:
+    post:
+      summary: Suspend a member (their place and history stay, every grant is refused); the agency owner for anyone, a team manager for the callers and closers of their own teams
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { reason: { type: string, maxLength: 200 } } } } } }
+      responses: { "200": { description: Suspended }, "403": { description: Not allowed } }
+  /v1/orgs/{org}/members/{user}/restore:
+    post:
+      summary: Restore a suspended member; same people as suspend
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Restored }, "403": { description: Not allowed } }
+  /v1/orgs/{org}/teams:
+    get:
+      summary: The workspace's teams and the manager of each; the owner, team managers and platform staff
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Teams } }
+  /v1/orgs/{org}/teams/{team}:
+    put:
+      summary: Create or rename a team and name its one manager (empty for none); agency owner or platform owner and cofounder
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string, maxLength: 100 }, manager_id: { type: string } } } } } }
+      responses: { "200": { description: Team saved }, "400": { description: Not a manager of this workspace }, "403": { description: Not allowed }, "409": { description: Another team has that name } }
+    delete:
+      summary: Remove a team that has no callers or closers left in it
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Removed }, "409": { description: People are still in it } }
   /v1/orgs/{org}/invitations:
     get:
       summary: List pending invitations in a workspace; agency owner only
@@ -256,7 +286,7 @@ paths:
     post:
       summary: Invite a person to an editable workspace role; agency owner only
       security: [{ bearer: [] }]
-      requestBody: { content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string } } } } } }
+      requestBody: { content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string }, team_id: { type: string, description: The team a caller or closer joins (required for them) } } } } } }
       responses: { "201": { description: Invitation saved with delivery state }, "409": { description: Duplicate or existing member } }
   /v1/invitations/{id}:
     delete:
