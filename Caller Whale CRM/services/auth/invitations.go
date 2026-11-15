@@ -113,8 +113,8 @@ func (s *server) workspaceSeat(r *http.Request, org string) (workspaceSeat, erro
 	if !seat.owner && !seat.staff && !seat.manager {
 		return workspaceSeat{}, forbidden("Only this workspace's owner and team managers manage its people.")
 	}
-	// Owners and staff move money and access: they confirm themselves with a second step first.
-	if (seat.owner || seat.staff) && !c.MFA {
+	// Platform staff confirm themselves with a second step first; people inside a workspace do not need one.
+	if seat.staff && !seat.owner && !seat.manager && !c.MFA {
 		return workspaceSeat{}, newError(http.StatusForbidden, "mfa_required", "Confirm your identity with a second step first.")
 	}
 	return seat, nil

@@ -101,8 +101,8 @@ func TestGrantsCarryDatabaseRightsAndScope(t *testing.T) {
 	if _, out := h.grant(strangerID, "read", false); out["allowed"] != false || out["code"] != "not_member" {
 		t.Errorf("stranger: %v", out)
 	}
-	if _, out := h.grant(ownerID, "admin", false); out["code"] != "second_step_required" {
-		t.Errorf("owner without second step: %v", out)
+	if _, out := h.grant(ownerID, "admin", false); out["db_role"] != "cw_admin" {
+		t.Errorf("an agency owner needs no second step (only the platform owner and cofounder do): %v", out)
 	}
 	if _, out := h.grant(ownerID, "admin", true); out["db_role"] != "cw_admin" {
 		t.Errorf("owner admin: %v", out)
@@ -155,8 +155,8 @@ func TestMemberChangesFollowTheOwnerRules(t *testing.T) {
 	if code, _ := h.call(coreToken, "PUT", path, map[string]any{"actor_id": callerID, "roles": []string{"caller"}}); code != 403 {
 		t.Errorf("a caller cannot add members: %d", code)
 	}
-	if code, _ := h.call(coreToken, "PUT", path, map[string]any{"actor_id": ownerID, "roles": []string{"caller"}}); code != 403 {
-		t.Errorf("the owner needs the second step: %d", code)
+	if code, _ := h.call(coreToken, "PUT", path, map[string]any{"actor_id": ownerID, "roles": []string{"caller"}}); code != 400 {
+		t.Errorf("the owner needs no second step, but a caller needs a team: %d", code)
 	}
 	if code, _ := h.call(coreToken, "PUT", path, map[string]any{"actor_id": ownerID, "actor_second_step": true, "roles": []string{"owner"}}); code != 403 {
 		t.Errorf("the owner role cannot be given: %d", code)

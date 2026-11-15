@@ -107,6 +107,7 @@ func main() {
 	s := &server{cfg: cfg, keys: newKeyset(cfg.jwksURL), rules: newAuthz(cfg.authzURL, cfg.authzToken, cfg.grantTTL), st: st, hub: newHub(), now: time.Now}
 	go s.hub.listen(ctx, cfg.databaseURL)
 	go s.resumeMerges(ctx)
+	go s.resumeAssignments(ctx)
 	go s.sweepRowsPeriodically(ctx)
 	go s.learnPendingPeriodically(ctx)
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 5 * time.Minute, WriteTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute}

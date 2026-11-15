@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - "Caller Whale CRM/services/gateway/**"
+      - "Caller Whale CRM/services/auth/**" # a new auth route must be on the gateway's list (shield_test.go)
       - "Caller Whale CRM/tools/auth-verify/**"
       - ".github/workflows/check-gateway.yml"
   pull_request:
     paths:
       - "Caller Whale CRM/services/gateway/**"
+      - "Caller Whale CRM/services/auth/**" # a new auth route must be on the gateway's list (shield_test.go)
       - "Caller Whale CRM/tools/auth-verify/**"
       - ".github/workflows/check-gateway.yml"
 

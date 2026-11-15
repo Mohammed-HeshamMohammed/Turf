@@ -69,6 +69,8 @@ func (p *postgres) setup(ctx context.Context) error {
 		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS clients integer`,
 		// Presets are copied into each workspace when it opens: team managers now upload lists in every workspace.
 		`UPDATE authz_roles SET capabilities = array_append(capabilities, 'import') WHERE role_key = 'manager' AND NOT ('import' = ANY(capabilities))`,
+		// The second step (an authenticator) is for the platform owner and cofounder only, not for anyone in a workspace.
+		`UPDATE authz_roles SET second_step = false WHERE role_key IN ('owner', 'solo') AND second_step`,
 	} {
 		if _, err = tx.Exec(ctx, ddl); err != nil {
 			return err

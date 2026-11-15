@@ -23,12 +23,12 @@ type preset struct {
 }
 
 var presets = []preset{
-	{"solo", "Solo operator", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "admin", "review"}, "organization", true},
+	{"solo", "Solo operator", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "admin", "review"}, "organization", false},
 	{"researcher", "Data researcher", []string{"import", "export", "review"}, "project", false},
 	{"caller", "Caller", []string{"edit", "handoff", "call", "message"}, "own", false},
 	{"closer", "Acquisitions / closer", []string{"edit", "accept", "call", "message", "finance"}, "own", false},
 	{"manager", "Team manager", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules"}, "team", false},
-	{"owner", "Agency owner", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "review", "admin"}, "organization", true},
+	{"owner", "Agency owner", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "review", "admin"}, "organization", false},
 	{"client", "Client / partner", []string{"publicComment"}, "shared", false},
 }
 
