@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -59,11 +60,11 @@ func TestSettingsAreChecked(t *testing.T) {
 		t.Fatalf("defaults: %+v %v", c, err)
 	}
 	for name, change := range map[string]map[string]string{
-		"no database":         {"DATABASE_URL": ""},
-		"no firebase key":     {"AUTH_FIREBASE_API_KEY": ""},
-		"bad port":            {"PORT": "eighty"},
-		"bad access minutes":  {"AUTH_ACCESS_MINUTES": "0"},
-		"bad refresh days":    {"AUTH_REFRESH_DAYS": "many"},
+		"no database":        {"DATABASE_URL": ""},
+		"no firebase key":    {"AUTH_FIREBASE_API_KEY": ""},
+		"bad port":           {"PORT": "eighty"},
+		"bad access minutes": {"AUTH_ACCESS_MINUTES": "0"},
+		"bad refresh days":   {"AUTH_REFRESH_DAYS": "many"},
 	} {
 		if _, err := with(change); err == nil {
 			t.Errorf("%s: this must not start", name)
@@ -189,8 +190,9 @@ func TestTheDatabaseIsBroughtUpToDateOnceAndSafelyTogether(t *testing.T) {
 	db := testDB(t)
 	ctx := context.Background()
 	var versions int
-	if err := db.QueryRow(ctx, "SELECT COUNT(*) FROM database_setup_history").Scan(&versions); err != nil || versions != 8 {
-		t.Fatalf("history %d %v", versions, err)
+	scripts, _ := fs.Glob(updates, "database_setup/*.sql")
+	if err := db.QueryRow(ctx, "SELECT COUNT(*) FROM database_setup_history").Scan(&versions); err != nil || versions != len(scripts) || versions == 0 {
+		t.Fatalf("history %d of %d scripts %v", versions, len(scripts), err)
 	}
 	// Again, and from several instances at once: nothing runs twice and nothing fails.
 	var wg sync.WaitGroup
@@ -334,8 +336,8 @@ func TestSignUpRefusals(t *testing.T) {
 		"weak password":  {with("password", "short"), 400, "bad_request"},
 		"unknown kind":   {with("kind", "tablet"), 400, "bad_request"},
 		"missing fields": {map[string]any{}, 400, "bad_request"},
-		"no terms":      {with("terms_version", ""), 400, "bad_request"},
-		"a minor":       {with("birth_date", time.Now().AddDate(-17, 0, 0).Format("2006-01-02")), 403, "forbidden"},
+		"no terms":       {with("terms_version", ""), 400, "bad_request"},
+		"a minor":        {with("birth_date", time.Now().AddDate(-17, 0, 0).Format("2006-01-02")), 403, "forbidden"},
 	} {
 		if a := post(c.body); a.status != c.status || a.str("code") != c.code {
 			t.Errorf("%s: %d %v", name, a.status, a.body)
