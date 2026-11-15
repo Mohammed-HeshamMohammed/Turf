@@ -114,6 +114,31 @@ func TestLateIndexAndEarlier0022(t *testing.T) {
 	}
 }
 
+// A start that finds another session holding the migrations' lock waits a bounded time and names it.
+func TestMigrationLockHeldElsewhereNamesTheHolder(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	holder, err := pgx.Connect(ctx, os.Getenv("CRM_TEST_ADMIN_URL"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer holder.Close(ctx)
+	if _, err = holder.Exec(ctx, `SET application_name = 'stale-migrator'; SELECT pg_advisory_lock(8107)`); err != nil {
+		t.Fatal(err)
+	}
+	st := e.s.st
+	st.advisoryWait = 1500 * time.Millisecond
+	if err = st.migrate(ctx); err == nil || !strings.Contains(err.Error(), "stale-migrator") {
+		t.Fatalf("want a failure naming the lock holder, got %v", err)
+	}
+	if _, err = holder.Exec(ctx, `SELECT pg_advisory_unlock(8107)`); err != nil {
+		t.Fatal(err)
+	}
+	if err = st.migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func waitFor(t *testing.T, ok func() bool) {
 	t.Helper()
 	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
