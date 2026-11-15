@@ -155,6 +155,35 @@ class AppTest(unittest.TestCase):
         self.assertEqual(len(self.told), 1)
 
 
+class TellAuthorizationTest(unittest.TestCase):
+    def test_billing_sends_payment_and_seats_and_never_a_suspension(self):
+        import urllib.request
+        from callerwhale_billing.app import tell_authorization
+        sent = []
+
+        class Answer:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b"{}"
+
+        real = urllib.request.urlopen
+        urllib.request.urlopen = lambda req, timeout: sent.append(json.loads(req.data)) or Answer()
+        try:
+            settings = config.Settings(database_url="x", authz_url="http://authz", authz_token="t")
+            tell_authorization(settings, "org", {"payment_required": True, "limits": {"seats": 5, "clients": None}})
+            tell_authorization(settings, "org", {"payment_required": False})
+        finally:
+            urllib.request.urlopen = real
+        self.assertEqual(sent[0], {"payment_required": True, "seats": 5, "clients": None})
+        self.assertEqual(sent[1], {"payment_required": False}, "no plan here: the seats are not touched")
+        self.assertTrue(all("suspended" not in m for m in sent))
+
+
 class OpenApiTest(unittest.TestCase):
     def test_the_file_matches_the_code(self):
         from pathlib import Path

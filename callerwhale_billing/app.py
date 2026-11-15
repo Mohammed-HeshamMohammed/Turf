@@ -55,7 +55,12 @@ def tell_authorization(settings: Settings, org: str, standing: dict) -> None:
     retried by the next webhook or standing check; it never loses the payment record, which is already stored."""
     if not settings.authz_url:
         return
-    body = json.dumps({"suspended": False, "payment_required": bool(standing.get("payment_required"))}).encode()
+    # Billing owns payment and the plan's seats and client places; it never says anything about a staff suspension.
+    message = {"payment_required": bool(standing.get("payment_required"))}
+    limits = standing.get("limits")
+    if limits is not None:
+        message["seats"], message["clients"] = limits.get("seats"), limits.get("clients")
+    body = json.dumps(message).encode()
     req = urllib.request.Request(f"{settings.authz_url}/v1/orgs/{org}/standing", data=body, method="PUT",
                                  headers={"Authorization": f"Bearer {settings.authz_token}", "Content-Type": "application/json"})
     try:
