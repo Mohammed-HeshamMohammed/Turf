@@ -290,8 +290,18 @@ function RatesManager({ request, auth, main }: { request: Api; auth: Auth; main:
   </section>;
 }
 
-type PlanOption = { key: string; name: string; price_minor: number; currency: string; price: string };
+type PlanOption = { key: string; name: string; price_minor: number; currency: string; price: string; limits?: Record<string, number | null> };
 const paymentNames: Record<string, string> = { trial: "Trial", free: "Free", manual: "Paid manually" };
+/** The limits staff can set with a membership, in the order the form shows them. Empty means unlimited. */
+const limitFields: { key: string; label: string }[] = [
+  { key: "seats", label: "Seats (clients not counted)" },
+  { key: "clients", label: "Clients" },
+  { key: "active_leads", label: "Active leads stored" },
+  { key: "imports_monthly", label: "Imports per month" },
+  { key: "monthly_minutes", label: "Calling minutes per month" },
+  { key: "skiptrace_credits", label: "Skip-trace credits per month" },
+];
+const limitText = (value: number | null | undefined) => (value === null || value === undefined ? "" : String(value));
 
 /** An owner or cofounder gives a person a plan they arranged with them: it opens their own workspace and starts the plan in billing. */
 function GiveMembership({ request, auth, member, onClose, onGiven }: { request: Api; auth: Auth; member: Member; onClose: () => void; onGiven: (text: string) => void }) {
@@ -308,6 +318,12 @@ function GiveMembership({ request, auth, member, onClose, onGiven }: { request: 
   const [confirming, setConfirming] = useState(false);
   const plans = data?.plans || [];
   const chosen = plans.find(option => option.key === (plan || plans[0]?.key));
+  // The limits start from the chosen plan's and are filled in again whenever another plan is chosen.
+  const [limits, setLimits] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (chosen?.limits) setLimits(Object.fromEntries(limitFields.map(field => [field.key, limitText(chosen.limits?.[field.key])])));
+  }, [chosen?.key, chosen?.limits]);
+  const changed = limitFields.filter(field => chosen?.limits && limits[field.key] !== undefined && limits[field.key] !== limitText(chosen.limits[field.key]));
   // The roles that open a workspace are the ones a membership can give; the catalog says which, so nothing is listed twice or invented here.
   const roles = (catalog?.workspace || []).filter(entry => !entry.assignable);
   const submit = async (event?: FormEvent) => {
@@ -320,6 +336,7 @@ function GiveMembership({ request, auth, member, onClose, onGiven }: { request: 
         user_id: member.id, plan: chosen.key, payment, role,
         ...(payment === "trial" ? { days: Number(days) } : { months: Number(months) }),
         ...(payment === "manual" && amount.trim() ? { amount_minor: Math.round(Number(amount) * 10 ** digits) } : {}),
+        ...(chosen.limits ? { limits: Object.fromEntries(limitFields.map(field => [field.key, (limits[field.key] ?? "") === "" ? null : Number(limits[field.key])])) } : {}),
       });
       const who = member.name || member.email;
       onGiven(`${who} now has the ${answer.plan_name || chosen.name} plan (${paymentNames[payment].toLowerCase()})${answer.workspace_created ? " in a new workspace" : " in their workspace"}.`);
@@ -346,6 +363,12 @@ function GiveMembership({ request, auth, member, onClose, onGiven }: { request: 
         <button className="button primary" disabled={busy || !chosen}>{busy ? "Giving…" : "Give membership"}</button>
         <button type="button" className="button raised" disabled={busy} onClick={onClose}>Cancel</button>
       </div>
+      {chosen?.limits && <fieldset className="staff-fields" aria-describedby="limits-note">
+        <legend>Limits for this workspace</legend>
+        {limitFields.map(field => <label key={field.key}>{field.label}<input inputMode="numeric" value={limits[field.key] ?? ""} placeholder="Unlimited" onChange={event => setLimits(current => ({ ...current, [field.key]: event.target.value.replace(/\D/g, "") }))} /></label>)}
+        <button type="button" className="button raised" disabled={busy || changed.length === 0} onClick={() => setLimits(Object.fromEntries(limitFields.map(field => [field.key, limitText(chosen.limits?.[field.key])])))}>Use the plan's limits</button>
+      </fieldset>}
+      {chosen?.limits && <p className="muted" id="limits-note">These start from the {chosen.name} plan. Leave a box empty for unlimited.{changed.length > 0 ? ` Changed from the plan: ${changed.map(field => field.label.replace(/ \(.*\)/, "").toLowerCase()).join(", ")}.` : ""}</p>}
       {payment === "manual" && <p className="muted">Leave the amount empty to record the plan's price for those months. The payment counts as revenue in the overview.</p>}
       {message && <p className="notice bad" role="alert">{message}</p>}
     </form>}

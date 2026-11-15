@@ -290,6 +290,54 @@
         }
       }
     },
+    "/v1/orgs/{org_id}/entitlements": {
+      "get": {
+        "summary": "Entitlements",
+        "operationId": "entitlements_v1_orgs__org_id__entitlements_get",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Org Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/orgs/{org_id}/trial": {
       "put": {
         "summary": "Trial",
@@ -480,6 +528,33 @@
               }
             ],
             "title": "Amount Minor"
+          },
+          "limits": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limits"
+          },
+          "set_by": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Set By",
+            "default": ""
           }
         },
         "type": "object",

@@ -37,11 +37,15 @@ class FakeStore:
         self.reserved.append((kind, account_id, amount, request_id))
         return Reservation(limited=True, used=amount, allowed=100)
 
-    def assign_membership(self, org_id, plan, payment, days, months, amount_minor, now):
+    def assign_membership(self, org_id, plan, payment, days, months, amount_minor, now, limits=None, set_by=""):
         if plan != "starter":
             raise Refused(400, "bad_request", f"{plan} is not a plan.")
         self.assigned.append((org_id, plan, payment, days, months, amount_minor))
+        self.given_limits = (limits, set_by)
         return {"org_id": str(org_id), "plan": plan, "payment": payment, "status": "active"}
+
+    def entitlements(self, org_id):
+        return {"org_id": str(org_id), "plan": "starter", "limits": {"seats": 3}, "overrides": {}}
 
     def summary(self, now):
         return {"subscriptions": [], "revenue_by_month": [], "usage_this_month": {}, "top_usage": [], "allowances": []}
@@ -104,6 +108,18 @@ class AppTest(unittest.TestCase):
         for bad in ({"plan": "starter", "payment": "gift"}, {"plan": "starter", "payment": "trial", "days": 0}, {"plan": "starter", "payment": "free", "months": 99}):
             self.assertEqual(self.client.put(url, json=bad, headers={"Authorization": f"Bearer {AUTH}"}).status_code, 400)
         self.assertEqual(self.client.put(url, json={"plan": "nope", "payment": "trial"}, headers={"Authorization": f"Bearer {AUTH}"}).status_code, 400)
+
+    def test_a_membership_carries_its_limits_and_entitlements_are_private(self):
+        org = uuid4()
+        body = {"plan": "starter", "payment": "free", "limits": {"seats": 8, "active_leads": None}, "set_by": "cofounder"}
+        res = self.client.put(f"/v1/admin/orgs/{org}/membership", json=body, headers={"Authorization": f"Bearer {AUTH}"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.store.given_limits, ({"seats": 8, "active_leads": None}, "cofounder"))
+        bad = {"plan": "starter", "payment": "free", "limits": {"seats": "many"}}
+        self.assertEqual(self.client.put(f"/v1/admin/orgs/{org}/membership", json=bad, headers={"Authorization": f"Bearer {AUTH}"}).status_code, 400)
+        self.assertEqual(self.client.get(f"/v1/orgs/{org}/entitlements").status_code, 401)
+        res = self.client.get(f"/v1/orgs/{org}/entitlements", headers={"Authorization": f"Bearer {AUTH}"})
+        self.assertEqual((res.status_code, res.json()["limits"]["seats"]), (200, 3))
 
     def test_refusals_keep_their_code(self):
         body = {"kind": "minutes", "account_id": str(uuid4()), "amount": 500, "request_id": str(uuid4())}

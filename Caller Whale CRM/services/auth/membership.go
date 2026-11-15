@@ -25,6 +25,8 @@ type offeredPlan struct {
 	PriceMinor   int64  `json:"price_minor"`
 	Currency     string `json:"currency"`
 	DisplayPrice string `json:"price"`
+	// What the plan allows (seats, clients, active_leads, imports_monthly, monthly_minutes, skiptrace_credits); null is unlimited.
+	Limits map[string]*int64 `json:"limits,omitempty"`
 }
 
 // adminPlans lists the plans an owner can give, from billing.
@@ -93,7 +95,12 @@ type membershipBody struct {
 	Days        int    `json:"days"`
 	Months      int    `json:"months"`
 	AmountMinor *int64 `json:"amount_minor"`
+	// The workspace's limits where they differ from the plan: {key: number, or null for unlimited}. Keys left out keep the plan's.
+	Limits map[string]*int64 `json:"limits,omitempty"`
 }
+
+// limitKeys are the limits staff may set when they give a membership (billing.org_limit_overrides).
+var limitKeys = []string{"seats", "clients", "active_leads", "imports_monthly", "monthly_minutes", "skiptrace_credits"}
 
 // checkMembership says what is wrong with a request, or nothing. Time and money are limited to sensible amounts.
 func checkMembership(b *membershipBody) *apiError {
@@ -132,6 +139,17 @@ func checkMembership(b *membershipBody) *apiError {
 	if b.Payment != "manual" {
 		b.AmountMinor = nil
 	}
+	for key, value := range b.Limits {
+		if !slices.Contains(limitKeys, key) {
+			return bad(key + " is not a limit.")
+		}
+		if value != nil && (*value < 0 || *value > 1_000_000_000_000) {
+			return bad("Limits are whole numbers of 0 or more, or unlimited.")
+		}
+	}
+	if seats, ok := b.Limits["seats"]; ok && seats != nil && *seats < 1 {
+		return bad("A workspace needs at least one seat.")
+	}
 	return nil
 }
 
@@ -139,7 +157,8 @@ func checkMembership(b *membershipBody) *apiError {
 // billing the plan. Asking again is safe: the same workspace is found and the plan is set again.
 func (s *server) giveMembership(w http.ResponseWriter, r *http.Request) error {
 	// Giving someone a workspace and a plan moves money and access: it needs a second step done just now (ownerActor).
-	if _, err := s.ownerActor(r); err != nil {
+	actor, err := s.ownerActor(r)
+	if err != nil {
 		return err
 	}
 	var body membershipBody
@@ -178,7 +197,7 @@ func (s *server) giveMembership(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
-	given, err := s.billingAssign(ctx, org, body)
+	given, err := s.billingAssign(ctx, org, body, actor.Email)
 	if err != nil {
 		return err
 	}
@@ -190,11 +209,15 @@ func (s *server) giveMembership(w http.ResponseWriter, r *http.Request) error {
 }
 
 // billingAssign sets the workspace's plan in billing and returns what billing says. Billing's own refusals keep their words.
-func (s *server) billingAssign(ctx context.Context, org string, body membershipBody) (map[string]any, error) {
+func (s *server) billingAssign(ctx context.Context, org string, body membershipBody, givenBy string) (map[string]any, error) {
 	payload := map[string]any{"plan": body.Plan, "payment": body.Payment, "days": body.Days, "months": body.Months}
 	if body.AmountMinor != nil {
 		payload["amount_minor"] = *body.AmountMinor
 	}
+	if body.Limits != nil {
+		payload["limits"] = body.Limits
+	}
+	payload["set_by"] = givenBy
 	raw, _ := json.Marshal(payload)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, s.cfg.billingURL+"/v1/admin/orgs/"+org+"/membership", bytes.NewReader(raw))
 	if err != nil {
