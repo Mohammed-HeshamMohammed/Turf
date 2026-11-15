@@ -36,7 +36,9 @@ Add `DIALER_TOKEN=<F>`. Redeploy. (Empty or missing keeps the door shut; the res
 
 ## 4. dialer-sms
 - New application from this repository, branch `dialer-sms-backend-production`, **backend** environment. Build pack Dockerfile, base directory `/`, Dockerfile `/Dockerfile`.
-- Port `8113`. Network alias `dialer-sms`. **No domain.** Health check path `/healthz`.
+- If **Continue** does nothing, Coolify is hiding the error "The docker compose location field format is invalid": loading the repository scans `main` and keeps its compose path (with spaces) even after the branch changes. Switch the build pack to Docker Compose, set the location to `/docker-compose.yaml`, switch back to Dockerfile, then Continue.
+- Port `8113`. Network alias `dialer-sms`. **No domain** (delete the sslip address Coolify adds). Leave Coolify's Healthcheck tab off: the image is distroless (no curl or wget), and its own `HEALTHCHECK` already runs `/service health`, which checks `/healthz`.
+- Done 2026-11-15: application `Caller Whale Dialer` created with the alias, no domain, and the plain variables; the four secrets are empty (runtime only) for you to fill.
 - Environment: paste `env/dialer-sms.production.example`, then fill `DATABASE_URL` (step 1), `AUTHZ_TOKEN` (E), `CRM_TOKEN` (F) and `TELNYX_API_KEY` (G). Keep `TELNYX_MODE=simulate`. `SIM_SPEED=10` makes a test run ten times faster.
 - Deploy. The log should say it applied `0001_dialer.sql`, then `TELNYX_MODE=simulate: calls and texts go to the Telnyx simulator`.
 
