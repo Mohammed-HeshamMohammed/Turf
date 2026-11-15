@@ -110,6 +110,11 @@ func main() {
 	go s.resumeAssignments(ctx)
 	go s.sweepRowsPeriodically(ctx)
 	go s.learnPendingPeriodically(ctx)
+	go func() {
+		if err := st.buildLateIndexes(ctx); err != nil && ctx.Err() == nil {
+			log.Printf("WARN a background index could not be built (it is tried again at the next start): %v", err)
+		}
+	}()
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 5 * time.Minute, WriteTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute}
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
