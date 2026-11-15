@@ -964,3 +964,59 @@ func TestLeadsAreGivenDownTheTeamTree(t *testing.T) {
 		t.Errorf("shared in turn: %d and %d", a, b)
 	}
 }
+
+// Search finds a lead by any part of its name, email or address, by its phone whatever the format, by city and ZIP from their start;
+// a lead's details bring the lead back too.
+func TestLeadSearchFindsByEveryWayPeopleType(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	id := newID(t)
+	e.want(e.opWith(alice, orgA, "lead.create", map[string]any{"id": id, "name": "Patricia Flores", "phone": "(813) 555-0142", "email": "pat.flores@example.com",
+		"address": "905 Baywood Drive", "city": "Tampa", "zip": "33610"}, newID(t)), "applied")
+	e.want(e.opWith(alice, orgA, "lead.create", map[string]any{"id": newID(t), "name": "Someone Else", "phone": "727-555-9999", "address": "1 Main St", "city": "Austin", "zip": "78701"}, newID(t)), "applied")
+	found := func(term string) []any {
+		t.Helper()
+		status, out := e.call(alice, orgA, "GET", "/api/v1/leads/search?q="+strings.ReplaceAll(term, " ", "%20")+"&limit=20", nil)
+		if status != 200 {
+			t.Fatalf("%q: %d %v", term, status, out)
+		}
+		return out["leads"].([]any)
+	}
+	for _, term := range []string{"tricia", "FLORES", "8135550142", "813-555-0142", "555 0142", "baywood", "pat.flores", "Tam", "336"} {
+		leads := found(term)
+		if len(leads) != 1 || leads[0].(map[string]any)["id"] != id {
+			t.Errorf("%q found %d leads", term, len(leads))
+		}
+	}
+	if leads := found("555"); len(leads) != 2 {
+		t.Errorf("digits common to both phones find both: %d", len(leads))
+	}
+	if leads := found("100%"); len(leads) != 0 {
+		t.Errorf("a percent sign is a character, not a wildcard: %d", len(leads))
+	}
+	status, details := e.call(alice, orgA, "GET", "/api/v1/leads/"+id+"/details", nil)
+	if status != 200 || len(details["leads"].([]any)) != 1 {
+		t.Fatalf("details carry the lead: %d %v", status, details["leads"])
+	}
+}
+
+// A person's account picture, sent by their CRM, reaches everyone's team list; anything but a small image or an https address is refused.
+func TestAPersonsPictureReachesTheTeam(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	pic := "data:image/png;base64,iVBORw0KGgo="
+	if status, out := e.call(bob, orgA, "PUT", "/api/v1/me/picture", map[string]any{"avatar": pic}); status != 200 {
+		t.Fatalf("set picture: %d %v", status, out)
+	}
+	if status, _ := e.call(bob, orgA, "PUT", "/api/v1/me/picture", map[string]any{"avatar": "javascript:alert(1)"}); status != 400 {
+		t.Errorf("a script address is not a picture: %d", status)
+	}
+	_, raw := e.raw(alice, orgA, "GET", "/api/v1/directory", nil, nil)
+	var people []map[string]any
+	_ = json.Unmarshal(raw, &people)
+	for _, person := range people {
+		if person["id"] == bob && person["avatar"] != pic {
+			t.Errorf("the team sees bob's picture: %v", person)
+		}
+	}
+}

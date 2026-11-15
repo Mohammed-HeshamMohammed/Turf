@@ -102,6 +102,7 @@ func (s *server) handler() http.Handler {
 
 	mux.Handle("GET /api/v1/me", s.user(s.me))
 	mux.Handle("GET /api/v1/account", s.user(s.account))
+	mux.Handle("PUT /api/v1/me/picture", s.user(s.setPicture))
 	mux.Handle("POST /api/v1/credits/use", s.user(func(q *req) error { writeJSON(q.w, 200, map[string]any{"limited": false}); return nil }))
 
 	mux.Handle("GET /api/v1/directory", s.member(s.directory))

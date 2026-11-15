@@ -287,3 +287,57 @@ func TestANewLeadCarriesItsOwnersAndOtherPhones(t *testing.T) {
 		t.Fatalf("contacts on the lead: %v", got)
 	}
 }
+
+func TestARepeatGroupMergesFieldByFieldAndCoOwnersAreLinked(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	ctx := context.Background()
+	var lead string
+	e.want(e.op(alice, orgA, "lead.create", map[string]any{"name": "Lee Existing"}), "applied")
+	if err := e.admin.QueryRow(ctx, `SELECT id::text FROM crm.leads WHERE name = 'Lee Existing'`).Scan(&lead); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.admin.Exec(ctx, `WITH p AS (INSERT INTO crm.properties (org_id, address, postal_code) VALUES ($1, '12 Oak St', '78701') RETURNING id)
+		UPDATE crm.leads SET property_id = (SELECT id FROM p) WHERE id = $2`, orgA, lead); err != nil {
+		t.Fatal(err)
+	}
+	_, job := e.startImport(alice, orgA, map[string]any{"filename": "owners.csv", "size": 100, "name": "Austin"})
+	id := job["id"].(string)
+	e.seedRows(id, []seedRow{
+		{1, "Lee", "5550177", "near_duplicate", ptr(1), &lead}, {2, "Lee Q. Existing", "5550188", "near_duplicate", ptr(1), &lead},
+		{3, "Sam Sibling", "5550199", "clean", nil, nil}})
+	if _, err := e.admin.Exec(ctx, `UPDATE importing.rows SET address = '12 Oak St', zip = '78701' WHERE job_id = $1 AND row_no = 3;
+		UPDATE importing.jobs SET status = 'reviewing' WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ := e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/duplicates", map[string]any{"picks": []any{
+		map[string]any{"group_id": 1, "fields": map[string]any{"name": 9}}}}); status != 400 {
+		t.Fatalf("a row outside the group: %d", status)
+	}
+	_, decided := e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/duplicates", map[string]any{"picks": []any{
+		map[string]any{"group_id": 1, "fields": map[string]any{"name": 2, "phone": 1}, "keep_all": true}}})
+	if decided["status"] != "ready" {
+		t.Fatalf("after picking: %v", decided)
+	}
+	e.call(alice, orgA, "POST", "/api/v1/imports/"+id+"/merge", nil)
+	e.waitDone(id)
+	var name, phone string
+	var phones int
+	if err := e.admin.QueryRow(ctx, `SELECT name, phone, jsonb_array_length(contacts->'phones') FROM crm.leads WHERE id = $1`, lead).Scan(&name, &phone, &phones); err != nil {
+		t.Fatal(err)
+	}
+	if name != "Lee Q. Existing" || phone != "5550177" || phones != 2 {
+		t.Fatalf("merged lead: %q %q %d phones", name, phone, phones)
+	}
+	var links int
+	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM crm.lead_links k JOIN crm.leads b ON b.id = k.related_id WHERE k.lead_id = $1 AND b.name = 'Sam Sibling'`, lead).Scan(&links); err != nil {
+		t.Fatal(err)
+	}
+	if links != 1 {
+		t.Fatalf("co-owner links: %d", links)
+	}
+	_, details := e.call(alice, orgA, "GET", "/api/v1/leads/"+lead+"/details", nil)
+	if related, _ := details["related"].([]any); len(related) != 1 {
+		t.Fatalf("details related: %v", details["related"])
+	}
+}
