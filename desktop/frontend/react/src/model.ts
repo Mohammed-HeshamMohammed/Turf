@@ -1,4 +1,16 @@
 import { CALL_OUTCOMES, PEOPLE, ROLES, TODAY, seedState } from "./data.ts";
+
+/** The workspace's people by name: the real members when connected (clients left out), the sample team otherwise. */
+export function teamNames(state): string[] {
+  if (!state.remote) return PEOPLE;
+  return (state.remote.people || []).filter(person => !(person.roles?.length === 1 && person.roles[0] === "client")).map(person => person.name);
+}
+
+/** The people this person may give leads to: from the server when connected (owner: everyone working; manager: their team), the sample team otherwise. */
+export function assignableNames(state): string[] {
+  if (!state.remote) return PEOPLE;
+  return (state.remote.assignTargets || []).map(person => person.name);
+}
 import { detectSourceFields, headerKey, leadFromSource, SOURCE_FIELDS } from "./skiptrace-fields.ts";
 import { phoneNumberKey, validPhoneNumber } from "./phone.ts";
 import { DEFAULT_PERSONAL_PREFERENCES } from "./personal-preferences.ts";

@@ -113,6 +113,10 @@ export const api = {
   joinInvitation: token => request("POST", "/api/v1/invitations/join", { token }),
   directory: () => request("GET", "/api/v1/directory"),
   teams: () => request("GET", "/api/v1/admin/teams"),
+  // Giving leads to people (crm-core assign.go): who the viewer may give leads to, starting a run, and following it.
+  assignTargets: (): Promise<any> => request("GET", "/api/v1/assignments/targets"),
+  startAssignment: (body: unknown): Promise<any> => request("POST", "/api/v1/assignments", body),
+  assignment: (id: string): Promise<any> => request("GET", `/api/v1/assignments/${encodeURIComponent(id)}`),
   memberStats: (from: string, to: string): Promise<any> => request("GET", `/api/v1/stats/members?from=${from}&to=${to}`),
   memberActivity: (user: string, before = 0): Promise<any> => request("GET", `/api/v1/stats/members/${encodeURIComponent(user)}/activity${before ? `?before=${before}` : ""}`),
   projects: () => request("GET", "/api/v1/projects"),

@@ -27,8 +27,8 @@ import {
   PencilSimple,
   X,
 } from "@phosphor-icons/react";
-import { CALL_OUTCOMES, DEAL_STAGES, PEOPLE, ROLES, TODAY } from "./data.ts";
-import { callbackLabel, canEditLead, dayLabel, capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.ts";
+import { CALL_OUTCOMES, DEAL_STAGES, ROLES, TODAY } from "./data.ts";
+import { callbackLabel, canEditLead, dayLabel, capability, uid, visibleLeads, visibleTasks, visibleThreads, teamNames, assignableNames } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { CallAssistant } from "./CallAssistant.jsx";
 import { CallTimer } from "./CallTimer.jsx";
@@ -1062,7 +1062,7 @@ export function Tasks({ create = false }) {
             </Field>
             <Field label="Responsible person">
               <Select name="assignee" defaultValue={ROLES[state.role].person}>
-                {[...new Set([ROLES[state.role].person, ...PEOPLE])].map(name => (
+                {[...new Set([ROLES[state.role].person, ...assignableNames(state)])].map(name => (
                   <option key={name}>{name}</option>
                 ))}
               </Select>
@@ -1199,7 +1199,7 @@ export function Tasks({ create = false }) {
             <div className="form-grid">
               <Field label="Responsible person">
                 <Select name="assignee" defaultValue={editing.assignee}>
-                  {[...new Set([editing.assignee, ROLES[state.role].person, ...PEOPLE])].map(name => (
+                  {[...new Set([editing.assignee, ROLES[state.role].person, ...assignableNames(state)])].map(name => (
                     <option key={name}>{name}</option>
                   ))}
                 </Select>
@@ -1717,7 +1717,7 @@ export function Inbox() {
                 </Field>
                 <fieldset className="group-members">
                   <legend>Members</legend>
-                  {(state.chatOn ? teammates.map(person => person.name) : PEOPLE.filter(name => name !== me)).map(name => (
+                  {(state.chatOn ? teammates.map(person => person.name) : teamNames(state).filter(name => name !== me)).map(name => (
                     <Checkbox key={name} label={name} checked={groupMembers.includes(name)} onChange={event => setGroupMembers(event.target.checked ? [...groupMembers, name] : groupMembers.filter(item => item !== name))} />
                   ))}
                 </fieldset>

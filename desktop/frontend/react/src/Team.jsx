@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import { CheckCircle, Handshake, Phone, UsersThree } from "@phosphor-icons/react";
-import { PEOPLE, ROLES, SIGN_IN } from "./data.ts";
-import { capability, leadCounts, visibleLeads, visibleTasks } from "./model.ts";
+import { ROLES, SIGN_IN } from "./data.ts";
+import { capability, leadCounts, teamNames, visibleLeads, visibleTasks } from "./model.ts";
+
+const ROLE_NAMES = { owner: "Agency owner", solo: "Solo operator", manager: "Team manager", caller: "Caller", closer: "Acquisitions / closer", client: "Client" };
 import { useCrm } from "./context.jsx";
 import { Avatar, Badge, Button, Card, PageHeader, money } from "./ui.jsx";
 import { SignInMark } from "./SignInMarks.jsx";
@@ -18,8 +20,9 @@ export function Team() {
     const ids = new Set(visibleLeads(state).map(lead => lead.id));
     const tasks = visibleTasks(state).filter(task => !task.done);
     const calls = visibleLeads(state).flatMap(lead => lead.calls || []);
-    return PEOPLE.map(name => {
-      const role = Object.values(ROLES).find(item => item.person === name);
+    return teamNames(state).map(name => {
+      const member = state.remote ? (state.remote.people || []).find(person => person.name === name) : null;
+      const role = member ? { name: (member.roles || []).map(key => ROLE_NAMES[key] || key).join(", "), title: "" } : Object.values(ROLES).find(item => item.person === name);
       const owned = leads.filter(lead => lead.assignee === name);
       const ownedCount = counts.owned(name);
       const ownedIds = new Set(owned.map(lead => lead.id));
