@@ -926,6 +926,10 @@ func TestLeadsAreGivenDownTheTeamTree(t *testing.T) {
 		}
 		return n
 	}
+	// A manager's team list holds their own team and the owner, not another team's caller.
+	if _, raw := e.raw(dave, orgA, "GET", "/api/v1/directory", nil, nil); strings.Contains(string(raw), erin) || !strings.Contains(string(raw), bob) || !strings.Contains(string(raw), alice) {
+		t.Errorf("a manager sees only their tree: %s", raw)
+	}
 	// The owner sees who they can give leads to: everyone working, not clients.
 	_, targets := e.call(alice, orgA, "GET", "/api/v1/assignments/targets", nil)
 	if len(targets["targets"].([]any)) != 4 {

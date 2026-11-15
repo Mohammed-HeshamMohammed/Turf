@@ -166,6 +166,11 @@ func (s *server) directory(q *req) error {
 	if err != nil {
 		return err
 	}
+	if !slices.Contains(q.sc.scopes, "organization") {
+		if members, err = s.inMyTree(ctx, q, members); err != nil {
+			return err
+		}
+	}
 	names, avatars := map[string]string{}, map[string]string{}
 	ids := make([]string, 0, len(members))
 	for _, m := range members {
@@ -484,4 +489,28 @@ func (s *server) setPicture(q *req) error {
 	}
 	writeJSON(q.w, http.StatusOK, map[string]any{"ok": true})
 	return nil
+}
+
+// inMyTree narrows the team list for someone who does not see the whole workspace (a team manager, a caller, a closer): themselves,
+// the people in their teams and in the teams they run, the managers of their own teams, and the agency owners above them.
+func (s *server) inMyTree(ctx context.Context, q *req, members []member) ([]member, error) {
+	teams, err := s.rules.teams(ctx, q.sc.orgID)
+	if err != nil {
+		return nil, err
+	}
+	mine := append(slices.Clone(q.sc.teamIDs), q.grant.ManagedTeamIDs...)
+	managers := map[string]bool{}
+	for _, t := range teams {
+		if t.ManagerID != "" && slices.Contains(q.sc.teamIDs, t.TeamID) {
+			managers[t.ManagerID] = true
+		}
+	}
+	keep := members[:0:0]
+	for _, m := range members {
+		shares := slices.ContainsFunc(m.TeamIDs, func(team string) bool { return slices.Contains(mine, team) })
+		if m.UserID == q.sc.userID || shares || managers[m.UserID] || slices.Contains(m.Roles, "owner") {
+			keep = append(keep, m)
+		}
+	}
+	return keep, nil
 }

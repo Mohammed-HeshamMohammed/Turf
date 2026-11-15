@@ -70,7 +70,7 @@ jobs:
       - run: go vet ./...
         working-directory: "Caller Whale CRM/services/crm-core"
       # -v shows each test's name, so a database test that was skipped (the variables above missing) is visible rather than a quiet pass.
-      - run: go test ./... -count=1 -v | tee test.log
+      - run: go test ./... -count=1 -v 2>&1 | tee test.log; test ${PIPESTATUS[0]} -eq 0
         working-directory: "Caller Whale CRM/services/crm-core"
       - name: The database tests really ran
         run: |
@@ -112,7 +112,7 @@ jobs:
           psql -h localhost -U postgres -d messaging_test -c "GRANT ALL ON DATABASE messaging_test TO messaging_ci; GRANT ALL ON SCHEMA public TO messaging_ci"
       - run: go vet ./...
         working-directory: "Caller Whale CRM/services/messaging"
-      - run: go test ./... -count=1 -v | tee test.log
+      - run: go test ./... -count=1 -v 2>&1 | tee test.log; test ${PIPESTATUS[0]} -eq 0
         working-directory: "Caller Whale CRM/services/messaging"
       - name: The database tests really ran
         run: |
@@ -146,7 +146,7 @@ jobs:
           cache-dependency-path: "Caller Whale CRM/services/features/dialer-sms/go.sum"
       - run: go vet ./...
         working-directory: "Caller Whale CRM/services/features/dialer-sms"
-      - run: go test ./... -count=1 -race -v | tee test.log
+      - run: go test ./... -count=1 -race -v 2>&1 | tee test.log; test ${PIPESTATUS[0]} -eq 0
         working-directory: "Caller Whale CRM/services/features/dialer-sms"
       - name: The database tests really ran
         run: |
