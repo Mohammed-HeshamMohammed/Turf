@@ -58,6 +58,17 @@ func (p *postgres) setup(ctx context.Context) error {
 		`CREATE OR REPLACE FUNCTION authz_protect_owner() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF OLD.role IN ('owner', 'cofounder') THEN RAISE EXCEPTION 'the platform owner and cofounder cannot be changed or deleted'; END IF; IF TG_OP = 'DELETE' THEN RETURN OLD; END IF; RETURN NEW; END $$`,
 		`DROP TRIGGER IF EXISTS authz_owner_immutable ON authz_staff`,
 		`CREATE TRIGGER authz_owner_immutable BEFORE UPDATE OR DELETE ON authz_staff FOR EACH ROW EXECUTE FUNCTION authz_protect_owner()`,
+		// The team tree: one manager per team; members can be suspended; the plan's seats and client places.
+		`CREATE TABLE IF NOT EXISTS authz_teams (org_id text NOT NULL, team_id text NOT NULL, name text NOT NULL, manager_id text, PRIMARY KEY (org_id, team_id))`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS authz_teams_name_idx ON authz_teams (org_id, lower(name))`,
+		`CREATE INDEX IF NOT EXISTS authz_teams_manager_idx ON authz_teams (org_id, manager_id)`,
+		`ALTER TABLE authz_members ADD COLUMN IF NOT EXISTS suspended_at bigint`,
+		`ALTER TABLE authz_members ADD COLUMN IF NOT EXISTS suspended_by text NOT NULL DEFAULT ''`,
+		`ALTER TABLE authz_members ADD COLUMN IF NOT EXISTS suspended_reason text NOT NULL DEFAULT ''`,
+		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS seats integer`,
+		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS clients integer`,
+		// Presets are copied into each workspace when it opens: team managers now upload lists in every workspace.
+		`UPDATE authz_roles SET capabilities = array_append(capabilities, 'import') WHERE role_key = 'manager' AND NOT ('import' = ANY(capabilities))`,
 	} {
 		if _, err = tx.Exec(ctx, ddl); err != nil {
 			return err
@@ -68,7 +79,7 @@ func (p *postgres) setup(ctx context.Context) error {
 
 func (p *postgres) membership(ctx context.Context, org, user string) (membership, bool, error) {
 	var m membership
-	err := p.db.QueryRow(ctx, `SELECT user_id, roles, restrictions, team_ids, project_ids FROM authz_members WHERE org_id=$1 AND user_id=$2`, org, user).Scan(&m.UserID, &m.Roles, &m.Restrictions, &m.TeamIDs, &m.ProjectIDs)
+	err := p.db.QueryRow(ctx, `SELECT user_id, roles, restrictions, team_ids, project_ids, suspended_at, suspended_by, suspended_reason FROM authz_members WHERE org_id=$1 AND user_id=$2`, org, user).Scan(&m.UserID, &m.Roles, &m.Restrictions, &m.TeamIDs, &m.ProjectIDs, &m.SuspendedAt, &m.SuspendedBy, &m.SuspendedReason)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return membership{}, false, nil
 	}
@@ -76,7 +87,7 @@ func (p *postgres) membership(ctx context.Context, org, user string) (membership
 }
 
 func (p *postgres) members(ctx context.Context, org string) ([]membership, error) {
-	rows, err := p.db.Query(ctx, `SELECT user_id, roles, restrictions, team_ids, project_ids FROM authz_members WHERE org_id=$1 ORDER BY user_id`, org)
+	rows, err := p.db.Query(ctx, `SELECT user_id, roles, restrictions, team_ids, project_ids, suspended_at, suspended_by, suspended_reason FROM authz_members WHERE org_id=$1 ORDER BY user_id`, org)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +95,7 @@ func (p *postgres) members(ctx context.Context, org string) ([]membership, error
 	out := []membership{}
 	for rows.Next() {
 		var m membership
-		if err := rows.Scan(&m.UserID, &m.Roles, &m.Restrictions, &m.TeamIDs, &m.ProjectIDs); err != nil {
+		if err := rows.Scan(&m.UserID, &m.Roles, &m.Restrictions, &m.TeamIDs, &m.ProjectIDs, &m.SuspendedAt, &m.SuspendedBy, &m.SuspendedReason); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
@@ -159,8 +170,58 @@ func (p *postgres) openWorkspace(ctx context.Context, org, owner, ownerRole stri
 	return tx.Commit(ctx)
 }
 
-func (p *postgres) setStanding(ctx context.Context, org string, suspended, paymentRequired bool) error {
-	_, err := p.db.Exec(ctx, `INSERT INTO authz_standing (org_id,suspended,payment_required) VALUES ($1,$2,$3) ON CONFLICT (org_id) DO UPDATE SET suspended=EXCLUDED.suspended,payment_required=EXCLUDED.payment_required`, org, suspended, paymentRequired)
+// setStanding changes only the fields the change carries.
+func (p *postgres) setStanding(ctx context.Context, org string, c standingChange) error {
+	_, err := p.db.Exec(ctx, `INSERT INTO authz_standing (org_id, suspended, payment_required, seats, clients)
+		VALUES ($1, coalesce($2, false), coalesce($3, false), $5, $7)
+		ON CONFLICT (org_id) DO UPDATE SET
+			suspended = coalesce($2, authz_standing.suspended),
+			payment_required = coalesce($3, authz_standing.payment_required),
+			seats = CASE WHEN $4 THEN $5 ELSE authz_standing.seats END,
+			clients = CASE WHEN $6 THEN $7 ELSE authz_standing.clients END`,
+		org, c.Suspended, c.PaymentRequired, c.SeatsSet, c.Seats, c.ClientsSet, c.Clients)
+	return err
+}
+
+func (p *postgres) seatLimits(ctx context.Context, org string) (*int, *int, error) {
+	var seats, clients *int
+	err := p.db.QueryRow(ctx, `SELECT seats, clients FROM authz_standing WHERE org_id=$1`, org).Scan(&seats, &clients)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil, nil
+	}
+	return seats, clients, err
+}
+
+func (p *postgres) teams(ctx context.Context, org string) ([]team, error) {
+	rows, err := p.db.Query(ctx, `SELECT team_id, name, coalesce(manager_id, '') FROM authz_teams WHERE org_id=$1 ORDER BY lower(name)`, org)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []team{}
+	for rows.Next() {
+		var t team
+		if err := rows.Scan(&t.TeamID, &t.Name, &t.ManagerID); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+func (p *postgres) setTeam(ctx context.Context, org string, t team) error {
+	_, err := p.db.Exec(ctx, `INSERT INTO authz_teams (org_id, team_id, name, manager_id) VALUES ($1, $2, $3, nullif($4, ''))
+		ON CONFLICT (org_id, team_id) DO UPDATE SET name = EXCLUDED.name, manager_id = EXCLUDED.manager_id`, org, t.TeamID, t.Name, t.ManagerID)
+	return err
+}
+
+func (p *postgres) removeTeam(ctx context.Context, org, teamID string) error {
+	_, err := p.db.Exec(ctx, `DELETE FROM authz_teams WHERE org_id=$1 AND team_id=$2`, org, teamID)
+	return err
+}
+
+func (p *postgres) setSuspension(ctx context.Context, org, user string, at *int64, by, reason string) error {
+	_, err := p.db.Exec(ctx, `UPDATE authz_members SET suspended_at=$3, suspended_by=$4, suspended_reason=$5 WHERE org_id=$1 AND user_id=$2`, org, user, at, by, reason)
 	return err
 }
 
@@ -283,7 +344,7 @@ func (p *postgres) facts(ctx context.Context, user, org string) (facts, error) {
 		return facts{}, err
 	}
 	var m membership
-	err = tx.QueryRow(ctx, `SELECT roles,restrictions,team_ids,project_ids FROM authz_members WHERE org_id=$1 AND user_id=$2`, org, user).Scan(&m.Roles, &m.Restrictions, &m.TeamIDs, &m.ProjectIDs)
+	err = tx.QueryRow(ctx, `SELECT roles,restrictions,team_ids,project_ids,suspended_at FROM authz_members WHERE org_id=$1 AND user_id=$2`, org, user).Scan(&m.Roles, &m.Restrictions, &m.TeamIDs, &m.ProjectIDs, &m.SuspendedAt)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return facts{}, err
 	}
@@ -291,7 +352,26 @@ func (p *postgres) facts(ctx context.Context, user, org string) (facts, error) {
 		return f, tx.Commit(ctx)
 	}
 	f.member = true
-	rows, err := tx.Query(ctx, `SELECT capabilities,scope,second_step FROM authz_roles WHERE org_id=$1 AND role_key=ANY($2)`, org, m.Roles)
+	f.memberSuspended = m.SuspendedAt != nil
+	f.roles = activeRoles(m.Roles)
+	managed, err := tx.Query(ctx, `SELECT team_id FROM authz_teams WHERE org_id=$1 AND manager_id=$2 ORDER BY team_id`, org, user)
+	if err != nil {
+		return facts{}, err
+	}
+	for managed.Next() {
+		var id string
+		if err = managed.Scan(&id); err != nil {
+			managed.Close()
+			return facts{}, err
+		}
+		f.managed = append(f.managed, id)
+	}
+	err = managed.Err()
+	managed.Close()
+	if err != nil {
+		return facts{}, err
+	}
+	rows, err := tx.Query(ctx, `SELECT capabilities,scope,second_step FROM authz_roles WHERE org_id=$1 AND role_key=ANY($2)`, org, f.roles)
 	if err != nil {
 		return facts{}, err
 	}
@@ -329,7 +409,7 @@ func (p *postgres) facts(ctx context.Context, user, org string) (facts, error) {
 			f.scopes = append(f.scopes, sc)
 		}
 	}
-	f.teams, f.projects = m.TeamIDs, m.ProjectIDs
+	f.teams, f.projects = teamsSeen(m.TeamIDs, f.managed), m.ProjectIDs
 	return f, tx.Commit(ctx)
 }
 
@@ -340,7 +420,7 @@ func (p *postgres) check(ctx context.Context, user, org, permission string) (boo
 			return false, err
 		}
 		if permission == "staff" {
-			return r == "owner" || r == "cofounder" || r == "system_admin", nil
+			return r == "owner" || r == "cofounder", nil // system_admin is switched off for now
 		}
 		if permission == "tester" {
 			return r == "tester", nil
@@ -359,7 +439,7 @@ func (p *postgres) check(ctx context.Context, user, org, permission string) (boo
 		if err != nil {
 			return false, err
 		}
-		if r == "owner" || r == "cofounder" || r == "system_admin" {
+		if r == "owner" || r == "cofounder" {
 			return true, nil
 		}
 		m, ok, err := p.membership(ctx, org, user)

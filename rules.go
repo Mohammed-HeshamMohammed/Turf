@@ -27,7 +27,7 @@ var presets = []preset{
 	{"researcher", "Data researcher", []string{"import", "export", "review"}, "project", false},
 	{"caller", "Caller", []string{"edit", "handoff", "call", "message"}, "own", false},
 	{"closer", "Acquisitions / closer", []string{"edit", "accept", "call", "message", "finance"}, "own", false},
-	{"manager", "Team manager", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "rules"}, "team", false},
+	{"manager", "Team manager", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules"}, "team", false},
 	{"owner", "Agency owner", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "review", "admin"}, "organization", true},
 	{"client", "Client / partner", []string{"publicComment"}, "shared", false},
 }
@@ -65,6 +65,9 @@ type facts struct {
 	scopes          []string
 	secondStep      bool // one of their roles needs the second step
 	teams, projects []string
+	roles           []string // their workspace roles, switched-off ones left out
+	managed         []string // the teams they manage
+	memberSuspended bool     // this person is suspended in the workspace
 	suspended       bool
 	paymentRequired bool
 }
@@ -87,6 +90,9 @@ type decision struct {
 	TeamIDs      []string `json:"team_ids,omitempty"`
 	ProjectIDs   []string `json:"project_ids,omitempty"`
 	Capabilities []string `json:"capabilities,omitempty"`
+	// The person's workspace roles and the teams they manage, so a service can apply manager-to-agent rules itself.
+	Roles          []string `json:"roles,omitempty"`
+	ManagedTeamIDs []string `json:"managed_team_ids,omitempty"`
 }
 
 func refuse(code, reason string) decision { return decision{Code: code, Reason: reason} }
@@ -99,7 +105,7 @@ func knownAction(action string) bool {
 
 // decideStaff answers a request to act on Caller Whale's own platform pages.
 func decideStaff(staffRole string, secondStepPassed, staffSecondStep bool) decision {
-	if staffRole != "owner" && staffRole != "cofounder" && staffRole != "system_admin" {
+	if staffRole != "owner" && staffRole != "cofounder" { // system_admin is switched off for now (disabledRoles)
 		return refuse("not_staff", "This is for Caller Whale's staff.")
 	}
 	if staffSecondStep && !secondStepPassed {
@@ -117,16 +123,21 @@ func decide(f facts, req grantRequest, requireSecondStep bool) decision {
 	if f.suspended {
 		return refuse("suspended", "This workspace is suspended. Contact Caller Whale support.")
 	}
+	if f.memberSuspended {
+		return refuse("member_suspended", "Your access to this workspace is suspended. Ask the person who manages you.")
+	}
 	if requireSecondStep && f.secondStep && !req.SecondStepPassed {
 		return refuse("second_step_required", "Confirm it's you with your second step first.")
 	}
 	granted := decision{
-		Allowed:      true,
-		DBRole:       dbRoles[req.Action],
-		Scopes:       sortedCopy(f.scopes),
-		TeamIDs:      sortedCopy(f.teams),
-		ProjectIDs:   sortedCopy(f.projects),
-		Capabilities: held(f.capabilities),
+		Allowed:        true,
+		DBRole:         dbRoles[req.Action],
+		Scopes:         sortedCopy(f.scopes),
+		TeamIDs:        sortedCopy(f.teams),
+		ProjectIDs:     sortedCopy(f.projects),
+		Capabilities:   held(f.capabilities),
+		Roles:          sortedCopy(f.roles),
+		ManagedTeamIDs: sortedCopy(f.managed),
 	}
 	switch req.Action {
 	case "pay":
