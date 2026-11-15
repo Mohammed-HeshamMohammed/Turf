@@ -40,8 +40,8 @@ console.log(`${check ? "Checked" : "Synchronized"} ${containers.length} applicat
 
 const adapters = [
  ["scaffold-access.rs.txt", ["services/features/crm/src/access_log.rs", "services/features/leads-map/src/access_log.rs", "services/features/backup-restore/src/access_log.rs"]],
- ["access-log.mjs", ["services/features/ai-campaigns/src/access-log.mjs", "services/features/dialer-sms/src/access-log.mjs"]],
- ["access.go", ["services/gateway/access_log.go", "services/grafana-proxy/access_log.go", "services/notifications/access_log.go", "services/auth/access_log.go", "services/authz/access_log.go"]],
+ ["access-log.mjs", ["services/features/ai-campaigns/src/access-log.mjs"]],
+ ["access.go", ["services/gateway/access_log.go", "services/grafana-proxy/access_log.go", "services/notifications/access_log.go", "services/auth/access_log.go", "services/authz/access_log.go", "services/features/dialer-sms/access_log.go"]],
 ];
 for (const [sourceName, targets] of adapters) {
  const body = readFileSync(resolve(root, "tools/runtime-log", sourceName), "utf8");

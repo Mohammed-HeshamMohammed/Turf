@@ -11,7 +11,7 @@ The server side of Caller Whale CRM: one folder per service, each with its own c
 | authz | `services/authz/` | Go | 8104 | yes (PostgreSQL) | Decides what each person may do in each workspace and which database rights each request runs under. No public address. |
 | importing-lists | `services/features/importing-lists/` | Python 3.13 or newer (polars) | 8111 | yes | Feature 1: the import worker. Loads uploaded lists into the CRM database, drops identical rows, matches columns, cleans data and finds repeats; crm-core merges the result into leads. |
 | skip-tracing | `services/features/skip-tracing/` | Python 3.13 or newer | 8112 | yes | Feature 2: server-side phone checks, Do Not Call, number lookups and network hints. Shares its rules with the shared service/ engine. |
-| dialer-sms | `services/features/dialer-sms/` | TypeScript | 8113 | yes | Feature 3: calling, auto dialing, texting, number health, call logs and the carrier webhooks. |
+| dialer-sms | `services/features/dialer-sms/` | Go | 8113 | yes | Feature 3: calling, auto dialing, texting, number health, call logs and the carrier webhooks. |
 | leads-map | `services/features/leads-map/` | Rust | 8114 | yes | Feature 4: exact locations, reverse lookups and nearby search for leads. |
 | crm-core | `services/crm-core/` | Go | 8107 | yes (PostgreSQL) | The CRM's backend (replaces the Rust `crm` row below): leads, tasks, notes, calls, deals, handoffs, sync and the live-updates socket, and list uploads. `gate.callerwhale.com` points here. |
 | messaging | `services/messaging/` | Go | 8108 | yes (PostgreSQL) | Conversations between the people of a workspace: direct chats and groups, with replies, reactions, polls and unread counts. Later, text threads with leads. Delivers live through Centrifugo. |

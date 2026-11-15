@@ -29,6 +29,9 @@ type op struct {
 	ClaimedAt     *time.Time     `json:"claimed_at"`
 	QueuedOffline bool           `json:"queued_offline"`
 	DeviceID      string         `json:"device_id"`
+	// internal is set only for operations sent by another Caller Whale service over the private network (dialer.go), never
+	// from a device's request body: it allows the carrier's own fields on a call (details, recording, record id).
+	internal bool
 }
 
 type opResult struct {
@@ -214,6 +217,11 @@ func (r *run) dispatch() (any, error) {
 		return r.dealUpdate(p)
 	case "deal.delete":
 		return r.dealDelete(p)
+	case "call.recording":
+		if !r.op.internal {
+			return nil, reject("Unknown operation kind: %s", r.op.Kind)
+		}
+		return r.callRecording(p)
 	case "message.draft":
 		return nil, reject("Messaging is not available yet")
 	}
@@ -911,9 +919,26 @@ func (r *run) callRecord(p map[string]any) (any, error) {
 	if phone == "" {
 		phone = asString(before["phone"])
 	}
-	event, err := r.one(`INSERT INTO call_events (org_id, lead_id, agent_id, agent_label, phone, outcome, code, meaning, scheduled_at, source, occurred_at, operation_id)
-		VALUES (cw_org(), $1, $2, $3, $4, $5, $6, $7, $8, coalesce(nullif($9, ''), 'manual'), $10, $11) RETURNING to_jsonb(call_events.*)`,
-		leadID, r.sc.userID, r.sc.label, phone, out.label, out.code, out.meaning, scheduled, str(p, "source"), occurred, r.op.ID)
+	// The carrier's facts about a call (record id, durations, recording) come only from the dialer service.
+	recordID, notes, details := "", "", map[string]any{}
+	var recStart, recEnd *time.Time
+	if r.op.internal {
+		recordID, notes = str(p, "source_record_id"), str(p, "notes")
+		if d, ok := p["details"].(map[string]any); ok {
+			details = d
+		}
+		if recStart, err = optTime(p, "recording_started_at"); err != nil {
+			return nil, err
+		}
+		if recEnd, err = optTime(p, "recording_ended_at"); err != nil {
+			return nil, err
+		}
+	}
+	event, err := r.one(`INSERT INTO call_events (org_id, lead_id, agent_id, agent_label, phone, outcome, code, meaning, scheduled_at, source, occurred_at, operation_id,
+			source_record_id, notes, details, recording_started_at, recording_ended_at)
+		VALUES (cw_org(), $1, $2, $3, $4, $5, $6, $7, $8, coalesce(nullif($9, ''), 'manual'), $10, $11, $12, $13, $14, $15, $16) RETURNING to_jsonb(call_events.*)`,
+		leadID, r.sc.userID, r.sc.label, phone, out.label, out.code, out.meaning, scheduled, str(p, "source"), occurred, r.op.ID,
+		recordID, notes, details, recStart, recEnd)
 	if err != nil {
 		return nil, err
 	}

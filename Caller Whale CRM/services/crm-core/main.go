@@ -28,6 +28,7 @@ type config struct {
 	grantTTL      time.Duration
 	learningURL   string // the learning service (private); empty turns the learning copy off
 	learningToken string
+	dialerToken   string // the dialer service's token for /internal/v1/dialer (DIALER_TOKEN); empty turns those routes off
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -43,6 +44,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 		grantTTL:      5 * time.Second,
 		learningURL:   trim(getenv("LEARNING_URL")),
 		learningToken: strings.TrimSpace(getenv("LEARNING_TOKEN")),
+		dialerToken:   strings.TrimSpace(getenv("DIALER_TOKEN")),
 	}
 	if c.port == "" {
 		c.port = "8107"
@@ -59,6 +61,9 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	if c.learningURL != "" && len(c.learningToken) < 32 {
 		return c, errors.New("LEARNING_TOKEN must be at least 32 characters when LEARNING_URL is set")
+	}
+	if c.dialerToken != "" && len(c.dialerToken) < 32 {
+		return c, errors.New("DIALER_TOKEN must be at least 32 characters when set: the dialer service's CRM_TOKEN")
 	}
 	return c, nil
 }

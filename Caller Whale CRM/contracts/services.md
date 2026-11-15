@@ -8,7 +8,7 @@
 | billing | 8103 | ts | billing |
 | importing-lists | 8111 | python | importing_lists |
 | skip-tracing | 8112 | python | skip_tracing |
-| dialer-sms | 8113 | ts | dialer_sms |
+| dialer-sms | 8113 | go | dialer_sms |
 | leads-map | 8114 | rust | leads_map |
 | crm | 8115 | rust | crm |
 | ai-campaigns | 8116 | ts | ai_campaigns |

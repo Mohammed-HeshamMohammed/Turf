@@ -23,3 +23,5 @@ IMPORT_DB_ROLE=importer
 LEARNING_URL=
 # The learning store's LEARNING_TOKEN (at least 32 characters). Needed when LEARNING_URL is set.
 LEARNING_TOKEN=
+# Secret: the dialer service's CRM_TOKEN, 32+ characters. Turns on /internal/v1/dialer (private) so carrier calls are logged. Empty turns it off.
+DIALER_TOKEN=

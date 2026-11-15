@@ -268,7 +268,8 @@
         "IMPORT_DB_ROLE": "The import worker's database login, given the holding tables at start. Empty until the worker is deployed.",
         "MAX_IMPORT_MB": "Largest list accepted, in megabytes; default 20480.",
         "LEARNING_URL": "The learning store's private address, like http://learning:8112. Empty turns the learning copy off: no list leaves crm-core.",
-        "LEARNING_TOKEN": "The learning store's LEARNING_TOKEN (at least 32 characters). Needed when LEARNING_URL is set."
+        "LEARNING_TOKEN": "The learning store's LEARNING_TOKEN (at least 32 characters). Needed when LEARNING_URL is set.",
+        "DIALER_TOKEN": "Secret: the dialer service's CRM_TOKEN, 32+ characters. Turns on /internal/v1/dialer (private) so carrier calls are logged. Empty turns it off."
       }
     },
     "learning": {
@@ -283,6 +284,33 @@
         "LEARNING_HASH_KEY": "The key the phone and email hashes are made with: 64 hex characters (32 bytes). Held only by the platform owners; losing it makes the stored hashes unusable, and changing it breaks matching of old rows with new ones.",
         "LEARNING_ENABLED": "true lets lists in and flags be recorded. Leave it false (nothing is taken in) until the terms and privacy notice say what is kept.",
         "LEARNING_RETENTION_DAYS": "Days a learned row is kept before it is deleted; default 730 (two years)."
+      }
+    },
+    "dialer-sms": {
+      "description": "Calling, auto dialing and texting through Telnyx (or its simulator), and the carrier's webhooks; finished calls are logged in crm-core. Needs a public address for /webhooks/telnyx in live mode.",
+      "sources": [
+        "services/features/dialer-sms/main.go"
+      ],
+      "variables": {
+        "PORT": "HTTP port; default 8113. Match Coolify's container port and the gateway's ROUTES.",
+        "DATABASE_URL": "Secret PostgreSQL URI of the dialer database. The service creates its own tables (schema dialer_sms) at start.",
+        "AUTH_JWKS_URL": "The auth service's public keys at its private address (http://auth:8101/.well-known/jwks.json); sign-in tokens are checked with them locally.",
+        "AUTHZ_URL": "The authorization service's private address, like http://authz:8104.",
+        "AUTHZ_TOKEN": "Secret: the value after dialer-sms= in authz's AUTHZ_TOKENS, 32+ characters.",
+        "CRM_URL": "crm-core's private address, like http://crm-core:8107. Finished calls are logged there.",
+        "CRM_TOKEN": "Secret: the same value as crm-core's DIALER_TOKEN, 32+ characters.",
+        "CORS_ORIGINS": "Pages that may call this service from a browser. Keep it the same as the gateway's CORS_ORIGINS.",
+        "TELNYX_MODE": "simulate (default: the built-in Telnyx simulator, nothing reaches a phone, no cost) or live (real Telnyx, costs money).",
+        "SIM_SPEED": "Simulate mode: how many times faster than real time the simulator runs; default 1. 10 makes a 45-second call take 4.5 seconds.",
+        "TELNYX_API_KEY": "Secret. Live: the Telnyx API key (portal, Keys & Credentials). Simulate: any value; the simulator's controls need it as the Bearer token.",
+        "TELNYX_CONNECTION_ID": "Live: the Call Control application (Voice API) that outbound calls use.",
+        "TELNYX_PUBLIC_KEY": "Live: the base64 Ed25519 public key from the Telnyx portal; webhooks not signed with it are refused.",
+        "TELNYX_WEBHOOK_URL": "Live: where Telnyx sends events, like https://voice.callerwhale.com/webhooks/telnyx. Empty: the application's own setting on the portal.",
+        "TELNYX_MESSAGING_PROFILE_ID": "Live: the messaging profile texts go out on (its webhook must point at /webhooks/telnyx too).",
+        "TELNYX_SIP_CONNECTION_ID": "Live: the credential SIP connection the browser's calling kit signs in to (WebRTC). Empty turns browser calling tokens off.",
+        "TELNYX_FROM_NUMBER": "A number calls and texts go out from when the workspace has none set up (E.164, like +15125550100).",
+        "TELNYX_AMD": "Answering machine detection: detect (default), detect_beep, premium or off. Telnyx charges per answered call for it.",
+        "RECORD_CALLS": "true records every answered call (Telnyx charges per minute); otherwise only calls placed with record set."
       }
     }
   }

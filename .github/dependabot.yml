@@ -27,6 +27,7 @@ updates:
       - "/Caller Whale CRM/services/authz"
       - "/Caller Whale CRM/services/notifications"
       - "/Caller Whale CRM/services/grafana-proxy"
+      - "/Caller Whale CRM/services/features/dialer-sms"
     schedule: { interval: weekly, day: monday, time: "06:00", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5
     groups:

@@ -1,34 +1,39 @@
 openapi: 3.0.3
 info:
   title: Caller Whale Dialer, auto dialing and SMS
-  version: 0.1.0
-  description: Feature 3: calling, auto dialing, texting, number health, call logs and the carrier webhooks.
+  version: 0.2.0
+  description: >-
+    Calling and texting leads through Telnyx (or its built-in simulator), and the carrier's webhooks. Requests under /api/v1 need a
+    Caller Whale sign-in token (Authorization Bearer) and x-callerwhale-org. See README.md.
 paths:
-  /healthz:
+  /healthz: { get: { summary: Is the service running, responses: { "200": { description: Running } } } }
+  /version: { get: { summary: The running version and carrier (telnyx or telnyx-sim), responses: { "200": { description: Version } } } }
+  /webhooks/telnyx:
+    post:
+      summary: A Telnyx webhook (call.* and message.*), signed with Ed25519 (telnyx-signature-ed25519, telnyx-timestamp)
+      responses: { "200": { description: Taken (a repeat included) }, "401": { description: Not signed by Telnyx, or older than 5 minutes } }
+  /api/v1/calls:
+    post:
+      summary: Call a lead. Body lead_id, record, detect_machine (default true), voicemail_drop_url (https), scenario (simulate mode only)
+      responses: { "200": { description: The call }, "409": { description: The lead may not be called (do-not-call, not assigned, no number) }, "502": { description: The carrier refused } }
     get:
-      summary: Is the service running
-      responses:
-        "200":
-          description: Running
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [ok, service]
-                properties:
-                  ok: { type: boolean }
-                  service: { type: string, example: dialer-sms }
-  /version:
+      summary: Recent calls (the person's own, or the workspace's for a wide role); lead_id filters
+      responses: { "200": { description: "{calls: [...]}" } }
+  /api/v1/calls/{id}: { get: { summary: One call, its facts and where its report stands, responses: { "200": { description: The call } } } }
+  /api/v1/calls/{id}/hangup: { post: { summary: End or cancel the call, responses: { "200": { description: Asked } } } }
+  /api/v1/calls/{id}/transfer: { post: { summary: "Transfer to a closer. Body {to: number or sip: address}", responses: { "200": { description: Asked } } } }
+  /api/v1/calls/{id}/disposition:
+    post:
+      summary: "Wrap-up: how the call went. Body outcome (Reached, Not interested, Callback, Transfer, Language barrier, Wrong person, Wrong number, Do not call, Dead call, or auto), callback_at (for Callback), notes"
+      responses: { "200": { description: Saved; the call is logged once it has ended }, "409": { description: Already logged } }
+  /api/v1/calls/token: { post: { summary: A short-lived token for the browser's calling kit (Telnyx WebRTC), responses: { "200": { description: "{token}" } } } }
+  /api/v1/sms:
+    post:
+      summary: Text a lead. Body lead_id, text, scenario (simulate mode only)
+      responses: { "200": { description: The text }, "409": { description: STOP, do-not-call, or no conversation yet } }
     get:
-      summary: The running version
-      responses:
-        "200":
-          description: Version
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [service, version]
-                properties:
-                  service: { type: string }
-                  version: { type: string, example: 0.1.0 }
+      summary: A lead's text thread (lead_id)
+      responses: { "200": { description: "{messages: [...]}" } }
+  /api/v1/sms/consent: { post: { summary: "Record consent to texts. Body lead_id, source (form or call)", responses: { "200": { description: Saved } } } }
+  /api/v1/numbers: { get: { summary: The workspace's numbers, responses: { "200": { description: "{numbers: [...]}" } } } }
+  /api/v1/numbers/{phone}: { put: { summary: "Give a workspace number to a person (admin). Body user_id, calls, texts", responses: { "200": { description: Saved }, "409": { description: Another workspace has it } } } }
