@@ -173,7 +173,11 @@ func TestAMembershipRequestIsCheckedBeforeAnythingIsOpened(t *testing.T) {
 	if checkMembership(&trial) != nil || trial.AmountMinor != nil {
 		t.Fatalf("an amount only means something for a manual payment: %+v", trial)
 	}
-	negative := int64(-1)
+	negative, zero, eight := int64(-1), int64(0), int64(8)
+	limited := membershipBody{UserID: person, Plan: "team", Payment: "free", Limits: map[string]*int64{"seats": &eight, "monthly_minutes": nil, "imports_monthly": &zero}}
+	if problem := checkMembership(&limited); problem != nil {
+		t.Fatalf("limits, unlimited minutes and no imports were refused: %v", problem)
+	}
 	for name, bad := range map[string]membershipBody{
 		"no person":       {Plan: "starter", Payment: "trial"},
 		"not a uuid":      {UserID: "someone", Plan: "starter", Payment: "trial"},
@@ -184,6 +188,9 @@ func TestAMembershipRequestIsCheckedBeforeAnythingIsOpened(t *testing.T) {
 		"a long trial":    {UserID: person, Plan: "starter", Payment: "trial", Days: 91},
 		"years of free":   {UserID: person, Plan: "starter", Payment: "free", Months: 37},
 		"negative amount": {UserID: person, Plan: "starter", Payment: "manual", AmountMinor: &negative},
+		"unknown limit":   {UserID: person, Plan: "starter", Payment: "free", Limits: map[string]*int64{"rockets": &paid}},
+		"negative limit":  {UserID: person, Plan: "starter", Payment: "free", Limits: map[string]*int64{"active_leads": &negative}},
+		"no seats":        {UserID: person, Plan: "starter", Payment: "free", Limits: map[string]*int64{"seats": &zero}},
 	} {
 		bad := bad
 		if checkMembership(&bad) == nil {

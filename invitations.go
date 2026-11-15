@@ -26,7 +26,14 @@ type invitation struct {
 	DeliveryState string `json:"delivery_state"`
 }
 
-func invitationDeadline(createdAt int64) int64 { return createdAt + int64(time.Hour/time.Second) }
+// invitationDeadline is when an invitation stops working: a platform (staff) invitation after one hour, a workspace invitation after
+// 72 hours, long enough for a new caller to find it when email delivery is off and they are told by phone or chat.
+func invitationDeadline(scope string, createdAt int64) int64 {
+	if scope == "workspace" {
+		return createdAt + int64(72*time.Hour/time.Second)
+	}
+	return createdAt + int64(time.Hour/time.Second)
+}
 
 func (s *server) authzCall(r *http.Request, method, path string, body any, out any) (int, error) {
 	if s.cfg.authzURL == "" || s.cfg.authzToken == "" {
@@ -192,7 +199,7 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 	}
 	id := uuid.NewString()
 	createdAt := now()
-	expires := invitationDeadline(createdAt)
+	expires := invitationDeadline(scope, createdAt)
 	if _, err := s.db.Exec(r.Context(), "UPDATE access_invitations SET revoked_at=$1 WHERE scope=$2 AND org_id=$3 AND email=$4 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at<=$1", now(), scope, org, email); err != nil {
 		return err
 	}
@@ -293,7 +300,7 @@ func (s *server) acceptInvitation(w http.ResponseWriter, r *http.Request) error 
 	if err != nil {
 		return err
 	}
-	if item.Email != strings.ToLower(c.Email) || item.ExpiresAt <= now() || invitationDeadline(item.CreatedAt) <= now() {
+	if item.Email != strings.ToLower(c.Email) || item.ExpiresAt <= now() || invitationDeadline(item.Scope, item.CreatedAt) <= now() {
 		return forbidden("This invitation is unavailable for this account.")
 	}
 	profile, err := readAccess(r.Context(), s.cfg.authzURL, s.cfg.authzToken, c.Sub)
