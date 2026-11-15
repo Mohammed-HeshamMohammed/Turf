@@ -87,6 +87,7 @@ export function leadFromServer(lead, { directory = [], teams = [], calls = [], n
         at: localParts(call.occurred_at).join("T"),
         outcome: call.outcome,
         code: call.code,
+        meaning: call.meaning || "",
         agent: call.agent_label || nameOf(directory, call.agent_id),
         scheduled: call.scheduled_at ? localParts(call.scheduled_at).join("T") : "",
         notes: call.notes || "",
