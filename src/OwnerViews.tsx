@@ -47,7 +47,7 @@ function Bars({ title, data, format }: { title: string; data: { label: string; v
 type Plan = { plan: string; name: string; workspaces: number; paying: number; trialing: number; mrr_minor: number; currency: string };
 type Overview = {
   people: { accounts: number; staff: number; members: number; new_7_days: number; new_30_days: number; email_verified: number; two_step: number; active_7_days: number; active_30_days: number; signups_by_day: { day: string; count: number }[] };
-  plans: Plan[]; most_requested_plan?: Plan; billing_connected: boolean;
+  plans: Plan[]; most_requested_plan?: Plan; billing_connected: boolean; memberships_kept_here?: boolean;
   usage: { connected: boolean; minutes_this_month: number; credits_this_month: number; top: { kind: string; label: string; total: number }[] };
   finance?: { currency: string; mrr_minor: number; revenue_this_month_minor: number; revenue_last_month_minor: number; revenue_12_months_minor: number; monthly_costs_minor: number; one_off_costs_minor: number; profit_month_minor: number; roi_percent: number | null; revenue_by_month: { month: string; amount_minor: number }[]; costs_by_category: Record<string, number>; other_currency_costs: number; converted_entries: number; fx_as_of?: string; requested_currency?: string;
     variable_costs: { voip_minor: number; storage_minor: number; fees_minor: number; total_minor: number }; gross_profit_month_minor: number; gross_margin_percent: number | null;
@@ -104,7 +104,9 @@ export function PlatformOverview({ request, openCosts }: { request: Api; openCos
     </section>
     <section className="card owner-plans" aria-labelledby="owner-plans-title">
       <div className="admin-section-heading"><div><span className="eyebrow">Plans</span><h2 id="owner-plans-title">What people ask for</h2><p className="muted">{best ? `${best.name} is the most requested plan, with ${plural(best.workspaces, "workspace")}.` : "Nobody has picked a plan yet."}</p></div></div>
-      {!data.billing_connected && <p className="notice" role="note">Billing is not connected to this dashboard yet, so plans, revenue and usage are empty. Set AUTH_BILLING_URL and AUTH_BILLING_TOKEN on the auth service.</p>}
+      {!data.billing_connected && (data.memberships_kept_here
+        ? <p className="notice" role="note">No payment provider is connected yet. Plans you give in Members are kept by Caller Whale and their seats and limits apply at once; card payments, revenue and call usage appear here once billing is connected.</p>
+        : <p className="notice" role="note">Billing did not answer, so plans, revenue and usage are empty for now.</p>)}
       {plans.length > 0 && <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th scope="col">Plan</th><th scope="col">Workspaces</th><th scope="col">Paying</th><th scope="col">On trial</th><th scope="col">Monthly revenue</th></tr></thead><tbody>{plans.map(plan => <tr key={plan.plan}><td data-label="Plan"><strong>{plan.name}</strong></td><td data-label="Workspaces">{plan.workspaces}</td><td data-label="Paying">{plan.paying}</td><td data-label="On trial">{plan.trialing}</td><td data-label="Monthly revenue">{money(plan.mrr_minor, plan.currency)}</td></tr>)}</tbody></table></div>}
     </section>
     <section className="admin-overview-panels" aria-label="Usage">
@@ -303,7 +305,8 @@ const limitFields: { key: string; label: string }[] = [
 ];
 const limitText = (value: number | null | undefined) => (value === null || value === undefined ? "" : String(value));
 
-/** An owner or cofounder gives a person a plan they arranged with them: it opens their own workspace and starts the plan in billing. */
+/** An owner or cofounder gives a person a plan they arranged with them: it opens their own workspace and starts the plan (kept by
+ * Caller Whale itself until a payment provider is connected, then by billing). */
 function GiveMembership({ request, auth, member, onClose, onGiven }: { request: Api; auth: Auth; member: Member; onClose: () => void; onGiven: (text: string) => void }) {
   const { data, error } = useLoad<{ plans: PlanOption[] }>(request, "/v1/admin/plans");
   const { data: catalog } = useLoad<{ workspace: { key: string; name: string; assignable: boolean }[] }>(request, "/v1/roles");
