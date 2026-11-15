@@ -22,6 +22,8 @@ type rules interface {
 	grant(ctx context.Context, user, org string, secondStep bool) (grantReply, error)
 	members(ctx context.Context, org string) ([]member, error)
 	open(ctx context.Context, org, user, role string) error
+	teams(ctx context.Context, org string) ([]authzTeam, error)
+	putTeam(ctx context.Context, org, id, name, actor string, secondStep bool) error
 }
 
 type workspaceRoles struct {
@@ -121,6 +123,27 @@ func (a *authzClient) members(ctx context.Context, org string) ([]member, error)
 		Members []member `json:"members"`
 	}
 	return r.Members, a.call(ctx, http.MethodGet, "/v1/orgs/"+url.PathEscape(org)+"/members", nil, &r)
+}
+
+// authzTeam is one team of a workspace as authz keeps it (the single source of the team tree).
+type authzTeam struct {
+	TeamID    string `json:"team_id"`
+	Name      string `json:"name"`
+	ManagerID string `json:"manager_id"`
+}
+
+func (a *authzClient) teams(ctx context.Context, org string) ([]authzTeam, error) {
+	var r struct {
+		Teams []authzTeam `json:"teams"`
+	}
+	return r.Teams, a.call(ctx, http.MethodGet, "/v1/orgs/"+url.PathEscape(org)+"/teams", nil, &r)
+}
+
+// putTeam creates or renames a team in authz for the person asking (authz decides whether they may).
+func (a *authzClient) putTeam(ctx context.Context, org, id, name, actor string, secondStep bool) error {
+	var out map[string]any
+	return a.call(ctx, http.MethodPut, "/v1/orgs/"+url.PathEscape(org)+"/teams/"+url.PathEscape(id),
+		map[string]any{"actor_id": actor, "actor_second_step": secondStep, "name": name}, &out)
 }
 
 // grant asks for the "read" grant, which carries everything the person holds in the workspace. Answers are kept for a few
