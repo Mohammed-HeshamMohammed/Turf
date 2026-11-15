@@ -206,8 +206,8 @@ func TestTheDatabaseIsBroughtUpToDateOnceAndSafelyTogether(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if err := db.QueryRow(ctx, "SELECT COUNT(*) FROM database_setup_history").Scan(&versions); err != nil || versions != 8 {
-		t.Fatalf("history %d %v", versions, err)
+	if err := db.QueryRow(ctx, "SELECT COUNT(*) FROM database_setup_history").Scan(&versions); err != nil || versions != len(scripts) {
+		t.Fatalf("history %d of %d scripts after setting up again %v", versions, len(scripts), err)
 	}
 }
 
