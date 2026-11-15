@@ -373,6 +373,34 @@ function Forgot() {
   );
 }
 
+/** The link in the confirmation email lands here: the token is sent to auth once, and the person is told how it went. A confirmed
+ * address shows its waiting invitations in the dashboard. */
+function VerifyEmail({ me, onVerified }: { me: Me | null | undefined; onVerified: () => void }) {
+  const [state, setState] = useState<"working" | "done" | "failed">("working");
+  const [problem, setProblem] = useState("");
+  const asked = useRef(false);
+  useEffect(() => {
+    if (asked.current) return;
+    asked.current = true;
+    const token = paramOf(window.location.search, "token");
+    if (!token) { setState("failed"); setProblem("This link has no confirmation code. Open the link from the email again."); return; }
+    auth.verifyEmail(token).then(() => { setState("done"); onVerified(); }, (error: unknown) => {
+      setState("failed");
+      setProblem(error instanceof Error ? error.message : "This link is not valid or has expired.");
+    });
+  }, [onVerified]);
+  return (
+    <div className="form-wrap">
+      <div className="form card" role="status" aria-live="polite">
+        <h1>{state === "working" ? "Confirming your email…" : state === "done" ? "Your email is confirmed" : "This link did not work"}</h1>
+        {state === "done" && <p className="muted">{me ? "Invitations sent to this address are waiting in your dashboard." : "Sign in to see your dashboard and any invitations sent to this address."}</p>}
+        {state === "failed" && <p className="notice bad" role="alert">{problem} If your email is already confirmed, just sign in.</p>}
+        {state !== "working" && <div className="alt"><Link className="button primary" to={me ? "/dashboard" : "/signin"}>{me ? "Open your dashboard" : "Sign in"}</Link></div>}
+      </div>
+    </div>
+  );
+}
+
 function NotFound() {
   return (
     <div className="form-wrap">
@@ -468,6 +496,7 @@ export function App({ path: first = "/" }) {
     "/signin": me && fromCrm ? (setupStep(me) ? setup : <div className="form-wrap"><p className="muted" role="status">Opening the CRM…</p></div>) : <SignIn onDone={signedIn} notice={notice} me={me} />,
     "/signup": <SignUp onDone={signedIn} />,
     "/forgot": <Forgot />,
+    "/verify": <VerifyEmail me={me} onVerified={() => { auth.me({ fresh: true }).then(setMe, () => undefined); }} />,
     "/pricing": <Pricing />,
     "/features": <FeaturesIndex />,
     "/why-caller-whale": <WhyCallerWhale />,

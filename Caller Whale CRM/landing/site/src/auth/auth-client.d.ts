@@ -46,6 +46,7 @@ export interface Auth {
 	setupMfa(): Promise<{ secret: string; otpauth_url: string }>;
 	confirmMfa(code: string, label?: string): Promise<{ recovery_codes: string[] }>;
 	verifyMfa(code: string): Promise<unknown>;
+	verifyEmail(token: string): Promise<{ email_verified: boolean }>;
 	startStepUp(): Promise<unknown>;
 	sendCode(challenge: string, method: string, device?: string): Promise<unknown>;
 	answer(challenge: string, method: string, code?: string): Promise<unknown>;

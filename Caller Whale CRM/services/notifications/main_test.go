@@ -225,3 +225,10 @@ func TestACallerMayHoldTwoTokensWhileOneIsReplaced(t *testing.T) {
 		}
 	}
 }
+
+func TestTeamInvitationSaysTheRoleInWordsAndHowLongItWorks(t *testing.T) {
+	m, err := Render("team_invitation", "sami@example.com", map[string]any{"inviter": "Mo", "role": "manager", "role_name": "Team manager", "expires": "72 hours", "link": "https://callerwhale.com/dashboard"})
+	if err != nil || !strings.Contains(m.Text, "as Team manager.") || !strings.Contains(m.Text, "expires 72 hours after") || strings.Contains(m.Text, "one hour") || !strings.Contains(m.HTML, "<strong>Team manager</strong>") {
+		t.Fatalf("team invitation: %+v %v", m, err)
+	}
+}

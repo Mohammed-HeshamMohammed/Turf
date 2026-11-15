@@ -10,6 +10,7 @@ import { InviteManager, PendingInvitations, WorkspaceManager, WorkspaceSecondSte
 import { MonitoringPanel } from "./MonitoringPanel.tsx";
 import { Settings } from "./Settings.tsx";
 import { profilePath } from "./profile-path.ts";
+import { WorkspaceDashboard } from "./WorkspaceDashboard.tsx";
 
 type StaffMember = { name: string; email?: string; role: string };
 /** Up to two capital letters from a name or an email address: "Mohammed Hesham" is MH. */
@@ -294,6 +295,8 @@ export function Dashboard({ me, auth, authBase, onSaved = () => {} }: { me: Me |
   if (status === "loading") return <div className="admin-feedback card" role="status"><h1>Preparing your dashboard</h1><p>Checking your account and access…</p></div>;
   if (status === "unavailable" || !access) return <div className="admin-feedback card" role="alert"><h1>We couldn’t load your dashboard</h1><p>Your account is signed in, but access details are unavailable right now.</p><button type="button" className="button primary" onClick={() => setRetry(value => value + 1)}>Try again</button></div>;
   if (staffRoles.has(access.platform_role)) return <StaffDashboard access={access} auth={auth} authBase={authBase} me={me} onSaved={onSaved} />;
+  // An agency owner, solo operator or team manager runs a workspace from a dashboard of its own, with a sidebar.
+  if (access.workspaces.some(space => space.business_owner || space.roles.includes("manager"))) return <WorkspaceDashboard access={access} auth={auth} authBase={authBase} me={me} onSaved={onSaved} />;
   return <div className="dashboard-page">
     <header className="page-head">
       <span className="eyebrow">Your Caller Whale account</span>
