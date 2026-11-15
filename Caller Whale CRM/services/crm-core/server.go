@@ -120,6 +120,10 @@ func (s *server) handler() http.Handler {
 
 	mux.Handle("GET /api/v1/leads/search", s.member(s.searchLeads))
 	mux.Handle("GET /api/v1/leads/{id}/details", s.member(s.leadDetails))
+	mux.Handle("GET /api/v1/leads/{id}/files", s.member(s.listFiles))
+	mux.Handle("POST /api/v1/leads/{id}/files", s.member(s.uploadFile))
+	mux.Handle("GET /api/v1/files/{id}", s.member(s.downloadFile))
+	mux.Handle("DELETE /api/v1/files/{id}", s.member(s.deleteFile))
 	mux.HandleFunc("POST /api/v1/public/remove-my-information", s.removeMyInformation)
 	mux.Handle("GET /api/v1/learning", s.member(s.learningStatus))
 	mux.Handle("POST /api/v1/learning/opt-out", s.member(s.learningChoice(true)))

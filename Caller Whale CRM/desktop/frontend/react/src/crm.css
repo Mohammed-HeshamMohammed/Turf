@@ -8205,3 +8205,19 @@ tbody tr.is-clickable { cursor: pointer; }
 .import-pick { display: flex; gap: 6px; align-items: flex-start; cursor: pointer; }
 .import-pick span { word-break: break-word; }
 .co-owners { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 10px; font-size: 13px; }
+
+/* A lead's next step: the Leads column and the panel on the lead's page. */
+.next-step.overdue,
+.next-step-now.overdue small { color: var(--danger, #c0392b); }
+.next-suggested { color: var(--muted); font-size: 13px; }
+.next-step-panel { display: grid; gap: 10px; }
+.next-step-now { display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 10px; background: var(--well); }
+.next-step-now > div { flex: 1; display: grid; }
+.next-step-now.overdue { box-shadow: inset 3px 0 0 var(--danger, #c0392b); }
+.next-step-later { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
+.next-step-form { display: grid; gap: 8px; }
+.document-upload { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }
+.phone-history { width: 100%; border-collapse: collapse; font-size: 13px; }
+.phone-history th, .phone-history td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.phone-history td small { display: block; }
+.phone-history .num { text-align: right; }

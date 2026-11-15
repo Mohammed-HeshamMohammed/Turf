@@ -77,6 +77,8 @@ jobs:
           grep -q -- '--- PASS: TestALeadsDetailsComeWhenItIsOpened' test.log
           grep -q -- '--- PASS: TestABigWorkspaceSendsAWindowAndSearchFindsTheRest' test.log
           grep -q -- '--- PASS: TestTheDialerLogsCarrierCallsAsThePersonWhoMadeThem' test.log
+          grep -q -- '--- PASS: TestFilesOnALeadAreKeptAndOnlyForThoseWhoSeeIt' test.log
+          grep -q -- '--- PASS: TestLeadsAreGivenDownTheTeamTree' test.log
         working-directory: "Caller Whale CRM/services/crm-core"
 
   messaging:
