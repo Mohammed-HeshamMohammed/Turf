@@ -641,18 +641,26 @@ func (r *run) leadAssign(p map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if to != nil {
-		g, err := r.s.rules.grant(r.ctx, *to, r.sc.orgID, true)
-		if err != nil {
-			return nil, err
-		}
-		if !g.Allowed {
-			return nil, reject("That person is not in this workspace")
-		}
-	}
 	team, err := optUUID(p, "team_id")
 	if err != nil {
 		return nil, err
+	}
+	if to != nil {
+		mine, err := r.s.rules.grant(r.ctx, r.sc.userID, r.sc.orgID, r.sc.secondStep)
+		if err != nil {
+			return nil, err
+		}
+		targets, err := r.s.assignTargets(r.ctx, r.sc, mine.ManagedTeamIDs)
+		if err != nil {
+			return nil, err
+		}
+		target, ok := targets[*to]
+		if !ok {
+			return nil, reject("You can give leads only to the people you manage")
+		}
+		if team == nil && target.TeamID != "" {
+			team = &target.TeamID // the lead moves into the receiver's team, so their manager sees it
+		}
 	}
 	reason := str(p, "reason")
 	for _, id := range ids {

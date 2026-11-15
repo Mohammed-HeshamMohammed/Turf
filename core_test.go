@@ -886,3 +886,81 @@ func TestStatsRangeDefaultsToTheLastSevenDays(t *testing.T) {
 		}
 	}
 }
+
+// The owner gives leads to a manager, the manager shares them with a caller of their team, and nobody gives leads outside
+// their part of the tree.
+func TestLeadsAreGivenDownTheTeamTree(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	const teamT, teamU = "aaaaaaaa-0000-4000-8000-0000000000a1", "aaaaaaaa-0000-4000-8000-0000000000a2"
+	const dave, erin = "44444444-4444-4444-8444-444444444444", "55555555-5555-4555-8555-555555555555"
+	e.rules.mu.Lock()
+	e.rules.roster[orgA] = []member{{UserID: alice, Roles: []string{"owner"}}, {UserID: bob, Roles: []string{"caller"}, TeamIDs: []string{teamT}},
+		{UserID: dave, Roles: []string{"manager"}}, {UserID: erin, Roles: []string{"caller"}, TeamIDs: []string{teamU}}}
+	e.rules.teamList = map[string][]authzTeam{orgA: {{TeamID: teamT, Name: "T", ManagerID: dave}, {TeamID: teamU, Name: "U"}}}
+	e.rules.grants[dave+"|"+orgA] = grantReply{Allowed: true, Scopes: []string{"team", "own"}, TeamIDs: []string{teamT}, ManagedTeamIDs: []string{teamT}, Capabilities: []string{"edit", "assign", "call", "import"}, Roles: []string{"manager"}}
+	e.rules.people_[dave] = peopleReply{UserID: dave, Workspaces: []workspaceRoles{{OrgID: orgA, Roles: []string{"manager"}}}}
+	e.rules.mu.Unlock()
+	for i := 0; i < 5; i++ {
+		e.want(e.opWith(alice, orgA, "lead.create", map[string]any{"id": newID(t), "name": "Owner " + strconv.Itoa(i), "phone": "555-010" + strconv.Itoa(i)}, newID(t)), "applied")
+	}
+	if _, err := e.admin.Exec(context.Background(), `UPDATE crm.leads SET assignee_id = NULL`); err != nil {
+		t.Fatal(err)
+	}
+	finish := func(user string, body map[string]any) map[string]any {
+		t.Helper()
+		status, run := e.call(user, orgA, "POST", "/api/v1/assignments", body)
+		if status != 200 {
+			t.Fatalf("start: %d %v", status, run)
+		}
+		for i := 0; i < 100 && run["status"] == "running"; i++ {
+			time.Sleep(50 * time.Millisecond)
+			_, run = e.call(user, orgA, "GET", "/api/v1/assignments/"+run["id"].(string), nil)
+		}
+		return run
+	}
+	count := func(where string) int {
+		var n int
+		if err := e.admin.QueryRow(context.Background(), `SELECT count(*) FROM crm.leads WHERE `+where).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	// The owner sees who they can give leads to: everyone working, not clients.
+	_, targets := e.call(alice, orgA, "GET", "/api/v1/assignments/targets", nil)
+	if len(targets["targets"].([]any)) != 4 {
+		t.Errorf("the owner can give leads to the 4 working people: %v", targets)
+	}
+	if run := finish(alice, map[string]any{"selection": map[string]any{"assignee": "unassigned"}, "to": []string{dave}}); run["status"] != "done" || run["assigned"] != 5.0 {
+		t.Fatalf("owner to manager: %v", run)
+	}
+	if n := count(`assignee_id = '` + dave + `' AND team_id = '` + teamT + `'`); n != 5 {
+		t.Fatalf("the manager holds the 5 leads, in the team they run: %d", n)
+	}
+	// The manager gives the first 2 to their caller.
+	if run := finish(dave, map[string]any{"selection": map[string]any{"assignee": dave}, "to": []string{bob}, "limit": 2}); run["assigned"] != 2.0 {
+		t.Fatalf("manager to caller: %v", run)
+	}
+	if n := count(`assignee_id = '` + bob + `' AND team_id = '` + teamT + `'`); n != 2 {
+		t.Fatalf("the caller holds 2 leads in the team: %d", n)
+	}
+	// Not outside the tree: another team's caller, and a caller has no right to give leads at all.
+	if status, _ := e.call(dave, orgA, "POST", "/api/v1/assignments", map[string]any{"selection": map[string]any{}, "to": []string{erin}}); status != 403 {
+		t.Errorf("a manager cannot give leads to another team's caller: %d", status)
+	}
+	if status, _ := e.call(bob, orgA, "POST", "/api/v1/assignments", map[string]any{"selection": map[string]any{}, "to": []string{bob}}); status != 403 {
+		t.Errorf("a caller cannot give leads: %d", status)
+	}
+	var one string
+	_ = e.admin.QueryRow(context.Background(), `SELECT id::text FROM crm.leads WHERE assignee_id = $1 LIMIT 1`, dave).Scan(&one)
+	if out := e.op(dave, orgA, "lead.assign", map[string]any{"ids": []string{one}, "assignee_id": erin}); out["status"] != "rejected" {
+		t.Errorf("one lead to another team's caller is refused too: %v", out)
+	}
+	// Split evenly between two people.
+	if run := finish(alice, map[string]any{"selection": map[string]any{}, "to": []string{dave, bob}}); run["assigned"] != 5.0 {
+		t.Fatalf("split: %v", run)
+	}
+	if a, b := count(`assignee_id = '`+dave+`'`), count(`assignee_id = '`+bob+`'`); a+b != 5 || a < 2 || b < 2 {
+		t.Errorf("shared in turn: %d and %d", a, b)
+	}
+}

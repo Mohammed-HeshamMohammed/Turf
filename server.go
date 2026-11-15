@@ -112,6 +112,9 @@ func (s *server) handler() http.Handler {
 	mux.Handle("DELETE /api/v1/projects/{id}", s.member(s.deleteProject))
 	mux.Handle("PATCH /api/v1/organization", s.member(s.renameOrg))
 	mux.Handle("GET /api/v1/stats/members", s.member(s.memberStats))
+	mux.Handle("GET /api/v1/assignments/targets", s.member(s.listAssignTargets))
+	mux.Handle("POST /api/v1/assignments", s.member(s.startAssignment))
+	mux.Handle("GET /api/v1/assignments/{id}", s.member(s.getAssignment))
 	mux.Handle("GET /api/v1/stats/members/{user}/activity", s.member(s.memberActivity))
 
 	mux.Handle("GET /api/v1/leads/search", s.member(s.searchLeads))
