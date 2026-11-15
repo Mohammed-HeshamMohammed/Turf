@@ -16,6 +16,9 @@ type apiError struct {
 
 func (e *apiError) Error() string { return e.message }
 
+// asAPI is errors.As for a refusal.
+func asAPI(err error, into **apiError) bool { return errors.As(err, into) }
+
 func newError(status int, code, message string) *apiError {
 	return &apiError{status: status, code: code, message: message}
 }

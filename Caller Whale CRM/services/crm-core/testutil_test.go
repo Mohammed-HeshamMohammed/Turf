@@ -25,6 +25,8 @@ type fakeRules struct {
 	roster  map[string][]member
 	opened  []string
 	down    bool
+	// teams in authz, per workspace
+	teamList map[string][]authzTeam
 }
 
 func (f *fakeRules) people(_ context.Context, user string) (peopleReply, error) {
@@ -56,6 +58,22 @@ func (f *fakeRules) open(_ context.Context, org, user, role string) error {
 	p.Workspaces = append(p.Workspaces, workspaceRoles{OrgID: org, Roles: []string{role}, BusinessOwner: true})
 	f.people_[user] = p
 	f.grants[user+"|"+org] = owner()
+	return nil
+}
+
+func (f *fakeRules) teams(_ context.Context, org string) ([]authzTeam, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]authzTeam{}, f.teamList[org]...), nil
+}
+
+func (f *fakeRules) putTeam(_ context.Context, org, id, name, actor string, _ bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.teamList == nil {
+		f.teamList = map[string][]authzTeam{}
+	}
+	f.teamList[org] = append(f.teamList[org], authzTeam{TeamID: id, Name: name})
 	return nil
 }
 

@@ -20,6 +20,10 @@ type membership struct {
 	Restrictions []string `json:"restrictions"`
 	TeamIDs      []string `json:"team_ids"`
 	ProjectIDs   []string `json:"project_ids"`
+	// Set while the person is suspended: they keep their place, but every grant is refused.
+	SuspendedAt     *int64 `json:"suspended_at,omitempty"`
+	SuspendedBy     string `json:"suspended_by,omitempty"`
+	SuspendedReason string `json:"suspended_reason,omitempty"`
 }
 
 type staffMember struct {
@@ -43,7 +47,14 @@ type engine interface {
 	removeMember(ctx context.Context, org, user string) error
 	setRole(ctx context.Context, org string, r role) error
 	openWorkspace(ctx context.Context, org, owner, ownerRole string) error
-	setStanding(ctx context.Context, org string, suspended, paymentRequired bool) error
+	setStanding(ctx context.Context, org string, change standingChange) error
+	// seatLimits is how many seats and client places the workspace has (nil: unlimited).
+	seatLimits(ctx context.Context, org string) (seats, clients *int, err error)
+	teams(ctx context.Context, org string) ([]team, error)
+	setTeam(ctx context.Context, org string, t team) error
+	removeTeam(ctx context.Context, org, teamID string) error
+	// setSuspension suspends (at set) or restores (at nil) a member.
+	setSuspension(ctx context.Context, org, user string, at *int64, by, reason string) error
 	setStaff(ctx context.Context, user, staffRole string) error
 	// setPlatformOwner makes someone the Caller Whale owner. It does nothing when they already are, and refuses when someone else is.
 	setPlatformOwner(ctx context.Context, user string) error

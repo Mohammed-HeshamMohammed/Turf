@@ -35,7 +35,8 @@ func (s *server) staffActor(r *http.Request, manage bool) (claims, error) {
 	if manage && profile.PlatformRole != "owner" && profile.PlatformRole != "cofounder" {
 		return claims{}, forbidden("Only the platform owner or cofounder can manage staff.")
 	}
-	if !manage && profile.PlatformRole != "owner" && profile.PlatformRole != "cofounder" && profile.PlatformRole != "system_admin" {
+	// system_admin is switched off for now (authz disabledRoles).
+	if !manage && profile.PlatformRole != "owner" && profile.PlatformRole != "cofounder" {
 		return claims{}, forbidden("This dashboard is for Caller Whale staff.")
 	}
 	return c, nil

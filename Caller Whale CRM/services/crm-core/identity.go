@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
+	"crypto/rand"
 	"database/sql"
 	"errors"
+	"fmt"
+	"log"
 	"net/http"
 	"slices"
 	"strings"
@@ -21,7 +25,7 @@ func (s *server) me(q *req) error {
 	}
 	// Caller Whale's own owner, cofounder and system admins work in a workspace of their own, opened for them the first time (and
 	// only after their second step), the way the old server did. Everyone else is given a workspace by an owner or by an invitation.
-	if len(ppl.Workspaces) == 0 && q.c.secondFactor && slices.Contains([]string{"owner", "cofounder", "system_admin"}, ppl.PlatformRole) {
+	if len(ppl.Workspaces) == 0 && q.c.secondFactor && slices.Contains([]string{"owner", "cofounder"}, ppl.PlatformRole) { // system admin is switched off
 		if err = s.rules.open(ctx, staffWorkspaceID(q.c.sub), q.c.sub, "owner"); err != nil {
 			return err
 		}
@@ -202,13 +206,27 @@ func onlyIDs(ids []string) []string {
 	return keep
 }
 
+// teams lists the workspace's teams. authz holds the tree (each team and its manager); the CRM keeps a copy of the names so its
+// leads can point at a team, refreshed here from authz each time the list is read.
 func (s *server) teams(q *req) error {
-	tx, err := s.st.begin(q.r.Context(), q.sc)
+	ctx := q.r.Context()
+	managers := map[string]string{}
+	if listed, err := s.rules.teams(ctx, q.sc.orgID); err == nil {
+		if err := s.copyTeams(ctx, q.sc, listed); err != nil {
+			return err
+		}
+		for _, t := range listed {
+			managers[t.TeamID] = t.ManagerID
+		}
+	} else {
+		log.Printf("WARN reading the teams from authz: %v", err)
+	}
+	tx, err := s.st.begin(ctx, q.sc)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(q.r.Context())
-	rows, err := queryJSON(q.r.Context(), tx, `SELECT to_jsonb(t) FROM teams t ORDER BY name`)
+	defer tx.Rollback(ctx)
+	rows, err := queryJSON(ctx, tx, `SELECT to_jsonb(t) || jsonb_build_object('manager_id', coalesce(($1::jsonb)->>(t.id::text), '')) FROM teams t ORDER BY name`, managers)
 	if err != nil {
 		return err
 	}
@@ -230,16 +248,21 @@ func (s *server) createTeam(q *req) error {
 		return err
 	}
 	name := strings.TrimSpace(body.Name)
-	if name == "" || len(name) > 200 {
-		return bad("Name the team (up to 200 characters).")
+	if name == "" || len(name) > 100 {
+		return bad("Name the team (up to 100 characters).")
 	}
 	ctx := q.r.Context()
+	// The team is made in authz first (it holds the tree), then copied here under the same id.
+	id := randomID()
+	if err := s.rules.putTeam(ctx, q.sc.orgID, id, name, q.sc.userID, q.c.secondFactor); err != nil {
+		return err
+	}
 	tx, err := s.st.begin(ctx, q.sc)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	rec, err := queryJSON(ctx, tx, `INSERT INTO teams (org_id, name) VALUES (cw_org(), $1) ON CONFLICT (org_id, name) DO UPDATE SET name = EXCLUDED.name RETURNING to_jsonb(teams.*)`, name)
+	rec, err := queryJSON(ctx, tx, `INSERT INTO teams (id, org_id, name) VALUES ($2, cw_org(), $1) ON CONFLICT (org_id, name) DO UPDATE SET name = EXCLUDED.name RETURNING to_jsonb(teams.*)`, name, id)
 	if err != nil {
 		return err
 	}
@@ -400,4 +423,37 @@ func (s *server) renameOrg(q *req) error {
 	}
 	writeJSON(q.w, 200, map[string]any{"id": q.sc.orgID, "name": name})
 	return nil
+}
+
+// copyTeams brings the CRM's copy of the team names up to date with authz. A team is never deleted here: leads may still point at
+// it. A name already used by an older team of this workspace is left as it is.
+func (s *server) copyTeams(ctx context.Context, sc scope, teams []authzTeam) error {
+	if len(teams) == 0 {
+		return nil
+	}
+	tx, err := s.st.begin(ctx, sc)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	for _, t := range teams {
+		if !validID(t.TeamID) {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `UPDATE teams SET name = $2 WHERE id = $1 AND name <> $2 AND NOT EXISTS (SELECT 1 FROM teams o WHERE o.org_id = cw_org() AND o.name = $2 AND o.id <> $1)`, t.TeamID, t.Name); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO teams (id, org_id, name) VALUES ($1, cw_org(), $2) ON CONFLICT DO NOTHING`, t.TeamID, t.Name); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+// randomID is a random (version 4) UUID.
+func randomID() string {
+	var b [16]byte
+	_, _ = rand.Read(b[:])
+	b[6], b[8] = b[6]&0x0f|0x40, b[8]&0x3f|0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }

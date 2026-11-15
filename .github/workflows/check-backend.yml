@@ -1,7 +1,7 @@
 name: Check CRM and services
 
 # Runs the CRM's own tests where there is a real PostgreSQL: crm-core's database tests (the leads, the sync, the lead details and who may see
-# what), the auth service's and billing's, then the CRM app's and the website's tests and builds. The container builds (services/*/Dockerfile) run
+# what), the auth service's, authz's and billing's, then the CRM app's and the website's tests and builds. The container builds (services/*/Dockerfile) run
 # `go vet` and `go test` as well, without a database; this is where the database tests run.
 
 on:
@@ -11,6 +11,7 @@ on:
       - "Caller Whale CRM/services/crm-core/**"
       - "Caller Whale CRM/services/auth/**"
       - "Caller Whale CRM/services/billing/**"
+      - "Caller Whale CRM/services/authz/**"
       - "Caller Whale CRM/services/messaging/**"
       - "Caller Whale CRM/desktop/frontend/react/**"
       - "Caller Whale CRM/landing/site/**"
@@ -20,6 +21,7 @@ on:
       - "Caller Whale CRM/services/crm-core/**"
       - "Caller Whale CRM/services/auth/**"
       - "Caller Whale CRM/services/billing/**"
+      - "Caller Whale CRM/services/authz/**"
       - "Caller Whale CRM/services/messaging/**"
       - "Caller Whale CRM/desktop/frontend/react/**"
       - "Caller Whale CRM/landing/site/**"
@@ -140,6 +142,38 @@ jobs:
         working-directory: "Caller Whale CRM/services/auth"
       - run: go test ./... -count=1
         working-directory: "Caller Whale CRM/services/auth"
+
+  authz:
+    name: authz (Go, PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: testpass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      AUTHZ_TEST_DATABASE_URL: postgres://postgres:testpass@localhost:5432/postgres?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "Caller Whale CRM/services/authz/go.mod"
+          cache-dependency-path: "Caller Whale CRM/services/authz/go.sum"
+      - run: go vet ./...
+        working-directory: "Caller Whale CRM/services/authz"
+      - run: go test ./... -count=1 -v 2>&1 | tee test.log; test ${PIPESTATUS[0]} -eq 0
+        shell: bash
+        working-directory: "Caller Whale CRM/services/authz"
+      - name: The database tests ran (not skipped)
+        run: grep -q -- '--- PASS: TestPostgresTeamTree' test.log
+        working-directory: "Caller Whale CRM/services/authz"
 
   billing:
     name: billing (Python, PostgreSQL)

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -777,5 +778,34 @@ func TestPlatformStaffGetTheirOwnWorkspaceOnceAndOnlyAfterTheSecondStep(t *testi
 	}
 	if id := staffWorkspaceID(staff); !validID(id) || id != staffWorkspaceID(staff) || id == staffWorkspaceID(plain) {
 		t.Fatalf("the workspace id is a stable, valid id of its own: %s", id)
+	}
+}
+
+// authz holds the team tree; the CRM's team list is its copy, with each team's manager, and a new team is made in authz first.
+func TestTeamsComeFromTheAuthorizationService(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	const teamA, maya = "aaaaaaaa-0000-4000-8000-000000000001", "aaaaaaaa-0000-4000-8000-0000000000aa"
+	e.rules.mu.Lock()
+	e.rules.teamList = map[string][]authzTeam{orgA: {{TeamID: teamA, Name: "Closers", ManagerID: maya}}}
+	e.rules.mu.Unlock()
+	res, raw := e.raw(alice, orgA, "GET", "/api/v1/admin/teams", nil, nil)
+	var teams []map[string]any
+	_ = json.Unmarshal(raw, &teams)
+	if res != 200 || len(teams) != 1 || teams[0]["id"] != teamA || teams[0]["name"] != "Closers" || teams[0]["manager_id"] != maya {
+		t.Fatalf("teams: %d %s", res, raw)
+	}
+	status, made := e.call(alice, orgA, "POST", "/api/v1/admin/teams", map[string]any{"name": "Callers"})
+	if status != 200 || made["name"] != "Callers" {
+		t.Fatalf("new team: %d %v", status, made)
+	}
+	e.rules.mu.Lock()
+	inAuthz := len(e.rules.teamList[orgA]) == 2 && e.rules.teamList[orgA][1].TeamID == made["id"]
+	e.rules.mu.Unlock()
+	if !inAuthz {
+		t.Error("a team made in the CRM is made in authz under the same id")
+	}
+	if res, raw = e.raw(carol, orgB, "GET", "/api/v1/admin/teams", nil, nil); strings.Contains(string(raw), "Closers") {
+		t.Errorf("another workspace never sees these teams: %s", raw)
 	}
 }

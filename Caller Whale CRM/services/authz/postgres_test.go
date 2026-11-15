@@ -77,12 +77,13 @@ func TestPostgres(t *testing.T) {
 		t.Errorf("roles: %+v", roles)
 	}
 
-	must(s.setStanding(ctx, org1, false, true))
+	yes, no := true, false
+	must(s.setStanding(ctx, org1, standingChange{Suspended: &no, PaymentRequired: &yes}))
 	caller, _ = s.facts(ctx, callerID, org1)
 	if !caller.paymentRequired || caller.suspended {
 		t.Errorf("standing: %+v", caller)
 	}
-	must(s.setStanding(ctx, org1, false, false))
+	must(s.setStanding(ctx, org1, standingChange{PaymentRequired: &no}))
 
 	must(s.removeMember(ctx, org1, callerID))
 	if f, _ := s.facts(ctx, callerID, org1); f.member {
@@ -140,5 +141,75 @@ func TestPostgres(t *testing.T) {
 	}
 	if r, err := again.staffRole(ctx, callerID); err != nil || r != "cofounder" {
 		t.Errorf("cofounder after redeploy: %q %v", r, err)
+	}
+}
+
+// The team tree's SQL: teams and their manager, suspension, and standing that changes only what is sent.
+func TestPostgresTeamTree(t *testing.T) {
+	url := os.Getenv("AUTHZ_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("AUTHZ_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	s, err := newPostgres(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.close()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	org := "12121212-1212-4212-8212-121212121212"
+	must(s.openWorkspace(ctx, org, ownerID, "owner"))
+	must(s.setMembership(ctx, org, membership{UserID: managerID, Roles: []string{"manager"}}))
+	must(s.setTeam(ctx, org, team{TeamID: team1, Name: "Team one", ManagerID: managerID}))
+	must(s.setTeam(ctx, org, team{TeamID: team2, Name: "Team two"}))
+	must(s.setMembership(ctx, org, membership{UserID: callerID, Roles: []string{"caller"}, TeamIDs: []string{team1}}))
+	if err := s.setTeam(ctx, org, team{TeamID: closerID, Name: "team ONE"}); err == nil {
+		t.Error("two teams cannot share a name")
+	}
+	teams, err := s.teams(ctx, org)
+	must(err)
+	if len(teams) != 2 || teams[0].ManagerID != managerID || teams[1].ManagerID != "" {
+		t.Errorf("teams: %+v", teams)
+	}
+	m, err := s.facts(ctx, managerID, org)
+	must(err)
+	if !slices.Equal(m.managed, []string{team1}) || !slices.Contains(m.teams, team1) || !m.capabilities["import"] {
+		t.Errorf("a manager runs team one, sees its leads and uploads lists: %+v", m)
+	}
+	at := int64(1_800_000_000)
+	must(s.setSuspension(ctx, org, callerID, &at, managerID, "on leave"))
+	must(s.setMembership(ctx, org, membership{UserID: callerID, Roles: []string{"caller"}, TeamIDs: []string{team1}, Restrictions: []string{"export"}}))
+	c, ok, err := s.membership(ctx, org, callerID)
+	must(err)
+	if !ok || c.SuspendedAt == nil || *c.SuspendedAt != at || c.SuspendedBy != managerID || c.SuspendedReason != "on leave" {
+		t.Errorf("a suspension survives a change of restrictions: %+v", c)
+	}
+	if f, _ := s.facts(ctx, callerID, org); !f.memberSuspended {
+		t.Error("a suspended caller's facts say so")
+	}
+	must(s.setSuspension(ctx, org, callerID, nil, "", ""))
+	if f, _ := s.facts(ctx, callerID, org); f.memberSuspended {
+		t.Error("restored")
+	}
+	yes, two := true, 2
+	must(s.setStanding(ctx, org, standingChange{Suspended: &yes}))
+	must(s.setStanding(ctx, org, standingChange{SeatsSet: true, Seats: &two}))
+	if f, _ := s.facts(ctx, ownerID, org); !f.suspended {
+		t.Error("setting the seats leaves a suspension alone")
+	}
+	seats, clients, err := s.seatLimits(ctx, org)
+	must(err)
+	if seats == nil || *seats != 2 || clients != nil {
+		t.Errorf("seats %v clients %v", seats, clients)
+	}
+	must(s.removeTeam(ctx, org, team2))
+	if teams, _ := s.teams(ctx, org); len(teams) != 1 {
+		t.Errorf("team removed: %+v", teams)
 	}
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -57,7 +58,13 @@ func (s *server) handler() http.Handler {
 	mux.Handle("PUT /v1/orgs/{org}/roles/{key}", s.only("manage", s.putRole))
 	mux.Handle("GET /v1/orgs/{org}/members", s.only("read", s.listMembers))
 	mux.Handle("PUT /v1/orgs/{org}/members/{user}", s.only("manage_members", s.putMember))
-	mux.Handle("DELETE /v1/orgs/{org}/members/{user}", s.only("manage", s.deleteMember))
+	mux.Handle("DELETE /v1/orgs/{org}/members/{user}", s.only("manage_members", s.deleteMember))
+	mux.Handle("POST /v1/orgs/{org}/members/{user}/suspend", s.only("manage_members", s.suspendMember(false)))
+	mux.Handle("POST /v1/orgs/{org}/members/{user}/restore", s.only("manage_members", s.suspendMember(true)))
+	mux.Handle("GET /v1/orgs/{org}/teams", s.only("read", s.listTeams))
+	mux.Handle("PUT /v1/orgs/{org}/teams/{team}", s.only("manage_members", s.putTeam))
+	mux.Handle("DELETE /v1/orgs/{org}/teams/{team}", s.only("manage_members", s.deleteTeam))
+	mux.Handle("POST /v1/orgs/{org}/relations/check", s.only("read", s.checkRelation))
 	mux.Handle("PUT /v1/orgs/{org}/standing", s.only("standing", s.putStanding))
 	mux.Handle("PUT /v1/staff/{user}", s.only("manage_staff", s.putStaff))
 	mux.Handle("GET /v1/staff", s.only("read", s.listStaff))
@@ -139,7 +146,7 @@ func (s *server) grant(w http.ResponseWriter, r *http.Request) error {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"allowed": true, "grant": signed, "expires_in": s.cfg.grantSeconds, "db_role": d.DBRole, "scopes": d.Scopes,
-		"team_ids": d.TeamIDs, "project_ids": d.ProjectIDs, "capabilities": d.Capabilities,
+		"team_ids": d.TeamIDs, "project_ids": d.ProjectIDs, "capabilities": d.Capabilities, "roles": d.Roles, "managed_team_ids": d.ManagedTeamIDs,
 	})
 	return nil
 }
@@ -325,7 +332,11 @@ func (s *server) listMembers(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return store(err)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"members": members})
+	teams, err := s.rules.teams(r.Context(), org)
+	if err != nil {
+		return store(err)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"members": members, "teams": teams})
 	return nil
 }
 
@@ -368,6 +379,7 @@ func (s *server) putMember(w http.ResponseWriter, r *http.Request) error {
 			return bad(role + " is not a role.")
 		}
 	}
+	body.Roles, body.TeamIDs, body.ProjectIDs = sortedCopy(body.Roles), sortedCopy(body.TeamIDs), sortedCopy(body.ProjectIDs)
 	for _, restriction := range body.Restrictions {
 		if !validRestriction(restriction) {
 			return bad(restriction + " is not something that can be taken away.")
@@ -378,10 +390,12 @@ func (s *server) putMember(w http.ResponseWriter, r *http.Request) error {
 			return bad("Team and project ids are ids.")
 		}
 	}
-	if err := s.mayManage(r.Context(), org, body.actor); err != nil {
+	ctx := r.Context()
+	a, err := s.placeOf(ctx, org, body.actor)
+	if err != nil {
 		return err
 	}
-	existing, err := s.rules.roles(r.Context(), org)
+	existing, err := s.rules.roles(ctx, org)
 	if err != nil {
 		return store(err)
 	}
@@ -390,14 +404,57 @@ func (s *server) putMember(w http.ResponseWriter, r *http.Request) error {
 			return bad(wanted + " is not a role in this workspace.")
 		}
 	}
-	owner, err := s.isOwner(r.Context(), org, user)
+	current, isMember, err := s.rules.membership(ctx, org, user)
 	if err != nil {
-		return err
+		return store(err)
 	}
-	if owner {
+	if isMember && isHeld(current.Roles) {
 		return forbidden("The owner's role cannot be changed.")
 	}
-	m := membership{UserID: user, Roles: sortedCopy(body.Roles), Restrictions: sortedCopy(body.Restrictions), TeamIDs: sortedCopy(body.TeamIDs), ProjectIDs: sortedCopy(body.ProjectIDs)}
+	// What kind of change this is decides who may make it: adding someone, moving them, or only taking capabilities away.
+	action := actChange
+	switch {
+	case !isMember:
+		action = actInvite
+	case slices.Equal(sortedCopy(current.Roles), body.Roles) && slices.Equal(sortedCopy(current.TeamIDs), body.TeamIDs) && slices.Equal(sortedCopy(current.ProjectIDs), body.ProjectIDs):
+		action = actRestrict
+	}
+	var target *membership
+	if isMember {
+		target = &current
+	}
+	roleAsked, teamAsked := body.Roles[0], ""
+	if len(body.TeamIDs) == 1 {
+		teamAsked = body.TeamIDs[0]
+	}
+	if ok, why := mayAct(a, action, target, roleAsked, teamAsked); !ok {
+		return forbidden(why)
+	}
+	if action != actRestrict {
+		teams, err := s.rules.teams(ctx, org)
+		if err != nil {
+			return store(err)
+		}
+		if err := checkPlacement(body.Roles, body.TeamIDs, teams); err != nil {
+			return err
+		}
+	}
+	// A new seat (or a client becoming a worker) needs a free seat on the plan.
+	if !isMember || (onlyClient(current.Roles) && !onlyClient(body.Roles)) {
+		if err := s.seatsFree(ctx, org, body.Roles, 0); err != nil {
+			return err
+		}
+	}
+	if isMember && slices.Contains(current.Roles, "manager") && !slices.Contains(body.Roles, "manager") {
+		teams, err := s.rules.teams(ctx, org)
+		if err != nil {
+			return store(err)
+		}
+		if slices.ContainsFunc(teams, func(t team) bool { return t.ManagerID == user }) {
+			return newError(http.StatusConflict, "conflict", "Give this manager's teams to another manager first.")
+		}
+	}
+	m := membership{UserID: user, Roles: body.Roles, Restrictions: sortedCopy(body.Restrictions), TeamIDs: body.TeamIDs, ProjectIDs: body.ProjectIDs}
 	if err := store(s.rules.setMembership(r.Context(), org, m)); err != nil {
 		return err
 	}
@@ -418,15 +475,30 @@ func (s *server) deleteMember(w http.ResponseWriter, r *http.Request) error {
 	if err := readJSON(w, r, &body); err != nil {
 		return err
 	}
-	if err := s.mayManage(r.Context(), org, body); err != nil {
-		return err
-	}
-	owner, err := s.isOwner(r.Context(), org, user)
+	a, err := s.placeOf(r.Context(), org, body)
 	if err != nil {
 		return err
 	}
-	if owner {
+	target, isMember, err := s.rules.membership(r.Context(), org, user)
+	if err != nil {
+		return store(err)
+	}
+	if isMember && isHeld(target.Roles) {
 		return forbidden("The workspace's owner cannot be removed.")
+	}
+	if !isMember {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "access_changed": false})
+		return nil
+	}
+	if ok, why := mayAct(a, actRemove, &target, "", ""); !ok {
+		return forbidden(why)
+	}
+	teams, err := s.rules.teams(r.Context(), org)
+	if err != nil {
+		return store(err)
+	}
+	if slices.ContainsFunc(teams, func(t team) bool { return t.ManagerID == user }) {
+		return newError(http.StatusConflict, "conflict", "Give this manager's teams to another manager first.")
 	}
 	if err := store(s.rules.removeMember(r.Context(), org, user)); err != nil {
 		return err
@@ -442,17 +514,22 @@ func (s *server) putStanding(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	var body struct {
-		Suspended       bool `json:"suspended"`
-		PaymentRequired bool `json:"payment_required"`
-	}
-	if err := readJSON(w, r, &body); err != nil {
+	var raw map[string]json.RawMessage
+	if err := readJSON(w, r, &raw); err != nil {
 		return err
 	}
-	if err := store(s.rules.setStanding(r.Context(), org, body.Suspended, body.PaymentRequired)); err != nil {
+	change, err := readStanding(raw)
+	if err != nil {
 		return err
 	}
-	log.Printf("INFO workspace %s standing set by %s: suspended %t, payment required %t", org, callerOf(r), body.Suspended, body.PaymentRequired)
+	// Billing owns payment and the plan's seats; it may never lift (or set) a staff suspension.
+	if callerOf(r) == "billing" {
+		change.Suspended = nil
+	}
+	if err := store(s.rules.setStanding(r.Context(), org, change)); err != nil {
+		return err
+	}
+	log.Printf("INFO workspace %s standing changed by %s", org, callerOf(r))
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "access_changed": true})
 	return nil
 }
@@ -473,6 +550,9 @@ func (s *server) putStaff(w http.ResponseWriter, r *http.Request) error {
 	}
 	if body.Role != "" && body.Role != "system_admin" && body.Role != "tester" {
 		return bad("A staff role is system_admin, tester, or empty to take it away.")
+	}
+	if disabledRoles[body.Role] {
+		return forbidden(roleTitle(body.Role) + " is switched off for now.")
 	}
 	if !validID(body.ActorID) {
 		return bad("Send actor_id: the person asking for this change.")
