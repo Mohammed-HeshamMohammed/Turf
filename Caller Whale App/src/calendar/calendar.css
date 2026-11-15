@@ -68,9 +68,7 @@
   padding: 0;
   border-radius: 50%;
   color: var(--cal-muted) !important;
-  transition:
-    background-color 150ms,
-    color 150ms;
+  transition: background-color 150ms, color 150ms;
 }
 .cal-nav:hover:not(:disabled) {
   background: var(--cal-hover);
@@ -162,9 +160,7 @@
   padding: 0;
   border-radius: 50%;
   font-variant-numeric: tabular-nums;
-  transition:
-    background-color 150ms,
-    color 150ms;
+  transition: background-color 150ms, color 150ms;
 }
 .cal-day:hover:not(.is-selected):not([aria-disabled]) {
   background: var(--cal-hover);

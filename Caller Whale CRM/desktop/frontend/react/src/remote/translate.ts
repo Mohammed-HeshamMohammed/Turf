@@ -102,6 +102,7 @@ export function leadFromServer(lead, { directory = [], teams = [], calls = [], n
         text: note.body,
         visibility: note.visibility,
         actor: note.author_label,
+        authorId: note.author_id || "",
         at: new Date(note.occurred_at).toLocaleString(),
         ...(note.edited_at ? { edited: true } : {}),
       })),

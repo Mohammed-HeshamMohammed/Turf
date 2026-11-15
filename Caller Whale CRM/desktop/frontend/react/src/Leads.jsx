@@ -652,7 +652,8 @@ export function LeadDetail({ id }) {
                 subtitle={client ? "Visible to you and the project team." : "Keep important details attached to the lead."}
               >
                 {notes.map(item => {
-                  const mine = item.actor === ROLES[state.role].person;
+                  // Connected: my note is one I wrote (by account), whatever my role; the demo compares the persona's name.
+                  const mine = state.remote ? Boolean(item.authorId) && item.authorId === state.remote.user?.id : item.actor === ROLES[state.role].person;
                   const manage = !client && (mine || editable);
                   return (
                     <article className="note" key={item.id}>
