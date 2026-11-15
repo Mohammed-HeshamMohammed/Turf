@@ -169,7 +169,7 @@ jobs:
         shell: bash
         working-directory: "Caller Whale CRM/services/billing"
       - name: The database tests ran (not skipped)
-        run: grep -q 'test_the_ready_made_plans_are_there_and_a_membership_keeps_only_the_limits_that_differ ... ok' test.log
+        run: grep -qE '^test_the_ready_made_plans_are_there_and_a_membership_keeps_only_the_limits_that_differ .* \.\.\. ok$' test.log
         working-directory: "Caller Whale CRM/services/billing"
 
   crm-app:
