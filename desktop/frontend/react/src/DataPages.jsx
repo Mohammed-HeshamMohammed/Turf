@@ -1,3 +1,4 @@
+import { ImportStrip } from "./ImportStrip.jsx";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import { LiquidProgress } from "./LiquidProgress.jsx";
@@ -326,6 +327,7 @@ export function Lists({ id, importId = null }) {
     return (
       <>
         <Breadcrumb items={[{ label: "Lists", path: "lists" }, { label: dataset.name }]} />
+        <ImportStrip />
         <PageHeader
           title={dataset.name}
           description={remote && jobsFor(id).length ? `${count(sourceListProgress(jobsFor(id)).sourceRows)} source rows · ${count(sourceListProgress(jobsFor(id)).unprocessedRows)} unprocessed · ${count(crmLeads(id, listLeads.length))} CRM leads` : `${count(crmLeads(id, listLeads.length))} CRM leads`}
@@ -406,6 +408,7 @@ export function Lists({ id, importId = null }) {
     );
   return (
     <>
+      <ImportStrip />
       <PageHeader title="Source lists" description="Imported lists and the leads that came from them.">
         {remote && <Button onClick={() => navigate("lists/activity")}>Import activity{importJobs.some(needsImportAction) ? ` (${importJobs.filter(needsImportAction).length})` : ""}</Button>}
         {capability(state, "import") && (

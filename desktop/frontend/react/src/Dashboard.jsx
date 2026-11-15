@@ -1,3 +1,4 @@
+import { ImportStrip } from "./ImportStrip.jsx";
 import { ArrowUpRight, ChatCircle, Phone, CheckCircle, Clock, Users, Handshake, ShieldCheck, Database, HardDrives, GearSix, Plus } from "@phosphor-icons/react";
 import { Suspense, lazy } from "react";
 import { ROLES, TODAY } from "./data.ts";
@@ -81,6 +82,7 @@ export function Dashboard() {
 
   return (
     <>
+      {!isClient && <ImportStrip />}
       <PageHeader
         title={isClient ? "Your properties" : "Good morning, " + personalProfile(state).name.split(" ")[0]}
         description={
