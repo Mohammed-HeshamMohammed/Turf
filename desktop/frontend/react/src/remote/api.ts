@@ -113,6 +113,8 @@ export const api = {
   joinInvitation: token => request("POST", "/api/v1/invitations/join", { token }),
   directory: () => request("GET", "/api/v1/directory"),
   teams: () => request("GET", "/api/v1/admin/teams"),
+  memberStats: (from: string, to: string): Promise<any> => request("GET", `/api/v1/stats/members?from=${from}&to=${to}`),
+  memberActivity: (user: string, before = 0): Promise<any> => request("GET", `/api/v1/stats/members/${encodeURIComponent(user)}/activity${before ? `?before=${before}` : ""}`),
   projects: () => request("GET", "/api/v1/projects"),
   deleteProject: (id: string): Promise<any> => request("DELETE", `/api/v1/projects/${id}`, undefined, { timeout: 120000 }),
   settings: () => request("GET", "/api/v1/settings"),
