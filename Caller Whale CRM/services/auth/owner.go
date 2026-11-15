@@ -581,13 +581,17 @@ func (s *server) adminOverview(w http.ResponseWriter, r *http.Request) error {
 		}
 		usage["top"] = top
 	}
-	plans := plansFrom(b)
+	summary := b
+	if summary == nil && !s.billingConnected() {
+		summary = s.summaryHere(ctx) // memberships given while no billing service runs
+	}
+	plans := plansFrom(summary)
 	body := map[string]any{
 		"people": map[string]any{
 			"accounts": all, "staff": all - members, "members": members, "new_7_days": new7, "new_30_days": new30,
 			"email_verified": verified, "two_step": twoStep, "active_7_days": active7, "active_30_days": active30, "signups_by_day": signups,
 		},
-		"plans": plans, "usage": usage, "billing_connected": b != nil,
+		"plans": plans, "usage": usage, "billing_connected": b != nil, "memberships_kept_here": !s.billingConnected(),
 	}
 	if len(plans) > 0 {
 		body["most_requested_plan"] = plans[0]

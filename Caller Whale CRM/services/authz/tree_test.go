@@ -166,6 +166,9 @@ func TestTheTeamTreeEndToEnd(t *testing.T) {
 func TestSeatsAndClientPlacesAreLimitedByThePlan(t *testing.T) {
 	h := newHarness(t)
 	h.opened() // owner + caller: 2 seats used
+	if code, _ := h.call(authToken, "PUT", "/v1/orgs/"+org1+"/standing", map[string]any{"seats": 5}); code != 200 {
+		t.Fatal("auth sets the seats of a membership it keeps while no billing service runs")
+	}
 	if code, _ := h.call(billingToken, "PUT", "/v1/orgs/"+org1+"/standing", map[string]any{"seats": 2, "clients": 1}); code != 200 {
 		t.Fatal("billing sets the seats")
 	}

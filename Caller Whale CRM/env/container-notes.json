@@ -28,7 +28,7 @@
         "AUTH_APPLE_KEY_ID": "Apple Sign in with Apple key identifier for the optional direct flow. Must match AUTH_APPLE_PRIVATE_KEY.",
         "AUTH_APPLE_PRIVATE_KEY": "Secret Apple .p8 signing-key text for the optional direct flow; literal backslash-n sequences become line breaks. Never expose it to clients.",
         "AUTH_NOTIFY_URL": "Notification service private address (http://notifications:8102), never a public one. Set with AUTH_NOTIFY_TOKEN for email codes to be offered.",
-        "AUTH_BILLING_URL": "Billing service private address (http://billing:8103), never a public one. Lets the dashboard show plans, revenue and usage to staff. Set with AUTH_BILLING_TOKEN.",
+        "AUTH_BILLING_URL": "Optional. Billing service private address (http://billing:8103), never a public one. Leave empty until a payment provider is used: auth then keeps the memberships staff give (plans, limits, seats) itself. Set with AUTH_BILLING_TOKEN.",
         "AUTH_BILLING_TOKEN": "Secret caller token: the auth entry in billing's BILLING_TOKENS (auth=<token>), saved as a runtime variable. Without it the dashboard shows no revenue or usage.",
         "AUTH_NOTIFY_TOKEN": "Secret caller token matching auth's entry in notifications NOTIFY_TOKENS. Rotate both together; mismatches break authentication emails.",
         "AUTH_TELEGRAM_BOT_TOKEN": "Optional secret BotFather token enabling Telegram code delivery. Leave empty to disable this delivery method; never use a phone number as the token.",

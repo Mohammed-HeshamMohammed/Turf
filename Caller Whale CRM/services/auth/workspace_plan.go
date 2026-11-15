@@ -74,6 +74,12 @@ func (s *server) workspaceMember(r *http.Request, org string) (claims, error) {
 // planNames reads the plans' names from billing's public list; a failure just means the plan key is shown.
 func (s *server) planNames(ctx context.Context) map[string]string {
 	names := map[string]string{}
+	if !s.billingConnected() {
+		for _, p := range builtInPlans {
+			names[p.Key] = p.Name
+		}
+		return names
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.cfg.billingURL+"/api/v1/plans", nil)
 	if err != nil {
 		return names
@@ -100,8 +106,8 @@ func (s *server) planNames(ctx context.Context) map[string]string {
 // standingFor asks billing for a workspace's standing and keeps only what a member may see.
 func (s *server) standingFor(ctx context.Context, org string) (workspacePlan, error) {
 	unavailable := newError(http.StatusServiceUnavailable, "billing_unavailable", "Plan details are not available right now.")
-	if s.cfg.billingURL == "" || s.cfg.billingToken == "" {
-		return workspacePlan{}, unavailable
+	if !s.billingConnected() {
+		return s.standingHere(ctx, org)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.cfg.billingURL+"/v1/orgs/"+org+"/standing", nil)
 	if err != nil {
