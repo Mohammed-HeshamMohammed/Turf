@@ -3,8 +3,9 @@ import { PropertyMap } from "./PropertyMap.jsx";
 import { LeadsMap } from "./LeadsMap.jsx";
 import { coordinates } from "./skiptrace-fields.ts";
 import { Archive, ArrowUpRight, ArrowLeft, Plus, Phone, Envelope, Handshake, Clock, FileText, CheckCircle, Export, HouseLine } from "@phosphor-icons/react";
-import { LEAD_STAGES, PEOPLE, ROLES, TODAY } from "./data.ts";
-import { archivedLeads, callbackLabel, canEditLead, capability, scopedLeads, uid, visibleLeads } from "./model.ts";
+import { LEAD_STAGES, ROLES, TODAY } from "./data.ts";
+import { AssignLeadsDialog } from "./AssignLeads.jsx";
+import { archivedLeads, callbackLabel, canEditLead, capability, scopedLeads, uid, visibleLeads, teamNames, assignableNames } from "./model.ts";
 import { CallHistory, NewDealModal } from "./Work.jsx";
 import { useCrm } from "./context.jsx";
 import { SkeletonRows } from "./Skeleton.jsx";
@@ -45,6 +46,8 @@ export function Leads() {
   const [view, setView] = useState("List");
   const [selected, setSelected] = useState([]);
   const [bulkStage, setBulkStage] = useState("Contacted");
+  const [assigning, setAssigning] = useState(false);
+  const canAssign = Boolean(state.remote) && capability(state, "assign");
   const assigneeParam = new URLSearchParams(route.split("?")[1]).get("assignee") || "All people";
   const [assignee, setAssignee] = useState(assigneeParam);
   useEffect(() => setAssignee(assigneeParam), [assigneeParam]);
@@ -152,7 +155,7 @@ export function Leads() {
             {!serverMode && (
               <Select aria-label="Filter by assigned person" value={assignee} onChange={event => setAssignee(event.target.value)}>
                 <option>All people</option>
-                {[...PEOPLE, "Unassigned"].map(item => (
+                {[...teamNames(state), "Unassigned"].map(item => (
                   <option key={item}>{item}</option>
                 ))}
               </Select>
@@ -169,6 +172,11 @@ export function Leads() {
             {capability(state, "export") && (
               <Button icon={Export} onClick={exportRows}>
                 Export view
+              </Button>
+            )}
+            {canAssign && (
+              <Button onClick={() => setAssigning(true)}>
+                Give leads
               </Button>
             )}
             {editable && (
@@ -196,10 +204,27 @@ export function Leads() {
           >
             Apply stage
           </Button>
+          {canAssign && (
+            <Button onClick={() => setAssigning(true)}>
+              Give to…
+            </Button>
+          )}
           <button className="text-button" onClick={() => setSelected([])}>
             Clear selection
           </button>
         </div>
+      )}
+      {assigning && (
+        <AssignLeadsDialog
+          state={state}
+          picked={selected}
+          stage={stage === "All stages" ? "" : stage}
+          notify={notify}
+          onClose={() => {
+            setAssigning(false);
+            setSelected([]);
+          }}
+        />
       )}
       {view === "Map" ? (
         client ? (
@@ -806,7 +831,7 @@ export function LeadDetail({ id }) {
                         notify("Lead assignment updated");
                       }}
                     >
-                      {[...PEOPLE, "Unassigned"].map(name => (
+                      {[...new Set([lead.assignee, ...assignableNames(state), "Unassigned"].filter(Boolean))].map(name => (
                         <option key={name}>{name}</option>
                       ))}
                     </Select>
@@ -926,7 +951,7 @@ export function LeadDetail({ id }) {
           >
             <Field label="Send to">
               <Select aria-label="Handoff recipient" value={recipient} onChange={event => setRecipient(event.target.value)}>
-                {PEOPLE.filter(name => name !== ROLES[state.role].person).map(name => (
+                {teamNames(state).filter(name => name !== ROLES[state.role].person).map(name => (
                   <option key={name}>{name}</option>
                 ))}
               </Select>
@@ -1079,7 +1104,7 @@ export function NewLead() {
           </Field>
           <Field label="Responsible person">
             <Select name="assignee" defaultValue={ROLES[state.role].person}>
-              {(capability(state, "assign") ? [...PEOPLE, "Unassigned"] : [ROLES[state.role].person]).map(name => (
+              {(capability(state, "assign") ? [...new Set([ROLES[state.role].person, ...assignableNames(state), "Unassigned"])] : [ROLES[state.role].person]).map(name => (
                 <option key={name}>{name}</option>
               ))}
             </Select>
