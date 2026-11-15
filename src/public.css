@@ -131,6 +131,7 @@
 .admin-invite-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding: 16px 0; border-top: 1px solid var(--line); }
 .admin-invite-row span { display: grid; gap: 3px; }
 .admin-invite-row small, .admin-member-email { display: block; color: var(--muted); }
+.admin-row-actions { display: inline-flex; flex-wrap: wrap; gap: 4px 14px; }
 .admin-role-options { display: flex; flex-wrap: wrap; gap: 10px 20px; margin: 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
 .admin-role-options legend { padding: 0 6px; font-weight: 600; }
 .admin-role-options label { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
