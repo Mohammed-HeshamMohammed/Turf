@@ -289,7 +289,11 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 			return err
 		}
 		link := s.cfg.landingURL + "/dashboard"
-		if err := s.mail.sendInvitation(r.Context(), email, inviter, role, link); err == nil {
+		expiresIn := "one hour"
+		if scope == "workspace" {
+			expiresIn = "72 hours"
+		}
+		if err := s.mail.sendInvitation(r.Context(), email, inviter, role, roleWords(role), expiresIn, link); err == nil {
 			state = "sent"
 		} else {
 			state = "failed"
@@ -738,4 +742,25 @@ func (s *server) changeWorkspaceMember(w http.ResponseWriter, r *http.Request) e
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	return nil
+}
+
+// roleWords is a role as people read it in an email.
+func roleWords(role string) string {
+	switch role {
+	case "owner":
+		return "Agency owner"
+	case "solo":
+		return "Solo operator"
+	case "manager":
+		return "Team manager"
+	case "caller":
+		return "Caller"
+	case "closer":
+		return "Acquisitions / closer"
+	case "client":
+		return "Client"
+	case "tester":
+		return "Tester"
+	}
+	return strings.ReplaceAll(role, "_", " ")
 }

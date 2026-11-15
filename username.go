@@ -15,7 +15,7 @@ var usernameShape = regexp.MustCompile(`^[a-z0-9](?:-?[a-z0-9]){2,29}$`)
 
 // reservedUsernames are words the website or the services use at the first level of an address. Keep it with database_setup/0019_username.sql.
 var reservedUsernames = map[string]bool{
-	"account": true, "admin": true, "api": true, "assets": true, "auth": true, "billing": true, "connect": true, "contact": true,
+	"account": true, "verify": true, "admin": true, "api": true, "assets": true, "auth": true, "billing": true, "connect": true, "contact": true,
 	"dashboard": true, "features": true, "forgot": true, "gate": true, "help": true, "home": true, "login": true, "logout": true,
 	"mcp": true, "notifications": true, "pricing": true, "privacy": true, "profile": true, "security": true, "settings": true,
 	"signin": true, "signout": true, "signup": true, "support": true, "terms": true, "why-caller-whale": true, "screens": true,
