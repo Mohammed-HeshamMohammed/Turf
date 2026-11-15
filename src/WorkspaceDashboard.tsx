@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { Auth, Me } from "./auth/auth-client.js";
 import { Link } from "./nav.tsx";
 import type { Access } from "./RoleBadges.tsx";
-import { InviteManager, PendingInvitations, WorkspaceManager, WorkspaceSecondStep } from "./AccessManagement.tsx";
+import { InviteManager, PendingInvitations, WorkspaceManager } from "./AccessManagement.tsx";
 import { Settings } from "./Settings.tsx";
 import { profilePath } from "./profile-path.ts";
 import { crmUrl } from "./crm-url.ts";
@@ -117,8 +117,6 @@ export function WorkspaceDashboard({ access, auth, authBase, me, onSaved }: { ac
   const solo = Boolean(space?.roles.includes("solo"));
   const open = (next: View) => { window.history.replaceState(null, "", next === "overview" ? window.location.pathname : `#${next}`); setView(next); window.scrollTo(0, 0); };
   const titles: Record<View, string> = { overview: "Overview", team: owner ? (solo ? "Clients" : "Teams and members") : "Your team", invitations: "Invitations", activity: "Activity", account: "Settings" };
-  // Owners confirm themselves with a second step before managing people (managers do too when their account has one).
-  const needsStep = me.mfa_passed === false && view !== "account" && view !== "overview";
   const link = (key: View, label: string) => <a href={`#${key}`} aria-current={view === key ? "page" : undefined} onClick={event => { event.preventDefault(); open(key); }}>{label}</a>;
   return <div className="admin-layout">
     <div className="admin-sidebar-slot"><aside className="admin-sidebar" aria-label="Workspace navigation">
@@ -136,7 +134,7 @@ export function WorkspaceDashboard({ access, auth, authBase, me, onSaved }: { ac
     </aside></div>
     <div className="admin-main"><section className={`admin-workspace admin-view-${view}`} aria-labelledby="ws-title">
       <header className="admin-view-header"><h1 id="ws-title">{titles[view]}</h1></header>
-      {!space ? <p className="muted">You do not run a workspace yet.</p> : needsStep ? <WorkspaceSecondStep auth={auth} me={me} /> : <>
+      {!space ? <p className="muted">You do not run a workspace yet.</p> : <>
         {view === "overview" && <WorkspaceOverview key={space.org_id} auth={auth} authBase={authBase} orgId={space.org_id} owner={owner} open={open} />}
         {view === "team" && <WorkspaceManager key={space.org_id} auth={auth} authBase={authBase} orgId={space.org_id} />}
         {view === "invitations" && owner && <InviteManager key={space.org_id} auth={auth} authBase={authBase} scope="workspace" orgId={space.org_id} />}
