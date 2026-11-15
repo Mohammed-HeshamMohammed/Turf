@@ -172,7 +172,8 @@ jobs:
         shell: bash
         working-directory: "Caller Whale CRM/services/authz"
       - name: The database tests ran (not skipped)
-        run: grep -q -- '--- PASS: TestPostgresTeamTree' test.log
+        run: |
+          grep -q -- '--- PASS: TestPostgresTeamTree' test.log
         working-directory: "Caller Whale CRM/services/authz"
 
   billing:
