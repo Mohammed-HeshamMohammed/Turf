@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"slices"
 	"strings"
@@ -34,8 +35,10 @@ func (s *server) adminPlans(w http.ResponseWriter, r *http.Request) error {
 	if _, err := s.staffActor(r, true); err != nil {
 		return err
 	}
-	if s.cfg.billingURL == "" {
-		return newError(http.StatusServiceUnavailable, "billing_unavailable", "Billing is not connected to this dashboard yet.")
+	if !s.billingConnected() {
+		// No billing service yet: the ready-made plans are kept here (membership_local.go).
+		writeJSON(w, http.StatusOK, map[string]any{"plans": plansHere(), "kept_here": true})
+		return nil
 	}
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, s.cfg.billingURL+"/api/v1/plans", nil)
 	if err != nil {
@@ -168,9 +171,6 @@ func (s *server) giveMembership(w http.ResponseWriter, r *http.Request) error {
 	if problem := checkMembership(&body); problem != nil {
 		return problem
 	}
-	if s.cfg.billingURL == "" || s.cfg.billingToken == "" {
-		return newError(http.StatusServiceUnavailable, "billing_unavailable", "Billing is not connected to this dashboard yet.")
-	}
 	ctx := r.Context()
 	var email, name string
 	var disabled bool
@@ -197,10 +197,16 @@ func (s *server) giveMembership(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
-	given, err := s.billingAssign(ctx, org, body, actor.Email)
+	var given map[string]any
+	if s.billingConnected() {
+		given, err = s.billingAssign(ctx, org, body, actor.Email)
+	} else {
+		given, err = s.assignHere(ctx, org, body.UserID, body, actor.Email)
+	}
 	if err != nil {
 		return err
 	}
+	log.Printf("INFO membership given: workspace %s plan %s (%s) by %s", org, body.Plan, body.Payment, actor.Sub)
 	given["workspace_created"] = created
 	given["role"] = body.Role
 	given["person"] = map[string]string{"id": body.UserID, "name": name, "email": email}
