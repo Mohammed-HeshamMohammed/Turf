@@ -67,6 +67,27 @@ Second round, 2026-11-17:
 | D50 | After reviewing a report, staff can warn the person, limit their personal chats for a period, suspend the account, or dismiss. A suspension applies across Caller Whale; each affected agency owner is told the member is suspended, not why. |
 | D51 | Clients and partners see only the partner threads shared with them inside an agency, and have a Personal space like anyone else. |
 
+Third round, 2026-11-17:
+
+| # | Decision |
+| --- | --- |
+| D52 | Every team gets its own team chat automatically. Managers, deputies and agents join and leave it as they join and leave the team. |
+| D53 | Inside an agency, any member can start a chat with any other member. |
+| D54 | Every member sees who is in the agency, with role and team. Contact details follow each person's own settings. |
+| D55 | A message can be edited for 15 minutes (marked "edited") and deleted at any time (leaving "Message deleted"). A text already sent to a lead cannot be edited or unsent. |
+| D56 | A removed person can be invited back and starts fresh: nothing assigned, old chats only where they are added again. The owner sees they were a member before. |
+| D57 | A reason for a removal or suspension is optional. If one is written, the person sees it. |
+| D58 | The record of people changes: the owner sees all of it, managers see their teams', each person sees changes made to themselves. |
+| D59 | A solo operator who adds callers upgrades in place: the same workspace becomes an agency and keeps its leads, clients and history. |
+| D60 | Personal chats start with: 20 new people a day, 5 pending requests at a time, 30 messages a minute, groups up to 50 people. |
+| D61 | Reports are reviewed by the platform owner and cofounder only, with a second step, and every look is recorded. |
+| D62 | A deputy can be any member of the agency. Being a deputy shows that team's leads to them. |
+| D63 | A team's managers and the owner name and remove its deputies. The owner sees every change. |
+| D64 | Managers of a team cannot act on each other. Only the owner can. |
+| D65 | Only the owner creates, renames and deletes teams. |
+| D66 | A team can be deleted only when it has no members and no leads. The owner moves them first with the hand-on screen. |
+| D67 | An agent taken out of one of their teams leaves that team's leads and threads with the team; its managers reassign them. The agent keeps their other teams' work. |
+
 Suggested and turned down, recorded so it is not raised again: a lock that makes a person select an active team before a lead thread can be opened (the team switch is a filter, D44).
 
 ## What exists today
@@ -256,7 +277,16 @@ These change rules the authorization service enforces today (`services/authz/tre
 - **Several roles.** A person can be a manager and also a closer or caller.
 - **Manager rights with several managers.** Any manager of a team can suspend, restrict and set limits for that team's callers and closers, and invite into it. Two managers acting on the same person at once: the later change wins and both are recorded.
 - **Seats.** One person in one agency is one seat, whatever their teams and roles.
-- **To settle while building:** whether a manager can act on another manager of the same team (planned: no, only the owner can), and how "their manager" is chosen for an agent in several teams (planned: the managers of the team the lead belongs to).
+- **Managers are equal (D64).** Managers of a team cannot suspend, restrict or remove each other; only the owner can.
+- **Teams (D65, D66).** Only the owner creates, renames and deletes teams. A team with members or leads cannot be deleted; the owner empties it first with the hand-on screen. This also removes the "team deleted before acceptance" failure for an invitation into a team that still has people.
+- **Deputies (D62, D63).** Any member of the agency can be a deputy of a team. The team's managers and the owner name and remove them.
+- **Leaving one team (D67).** An agent taken out of one team leaves its leads and threads with that team.
+- **"Their manager"** for an agent in several teams means the managers of the team the lead belongs to (D49).
+- **Team chat (D52).** Each team has one automatic chat that follows the team's membership. It cannot be deleted while the team exists.
+- **Directory (D53, D54).** Every member can see who is in the agency and start a chat with any of them.
+- **Reasons and record (D57, D58).** A reason is optional and shown when written. The owner sees the whole record of people changes, managers their teams', each person their own.
+- **Coming back (D56).** A removed person can be invited again and starts fresh.
+- **Solo to agency (D59).** The same workspace is upgraded; nothing is copied or moved.
 
 ### Part 8. Notifications (D39, D40)
 
@@ -284,15 +314,14 @@ These change rules the authorization service enforces today (`services/authz/tre
 | 13 | Owner gone (agency paused) and handing over ownership | - |
 | 14 | Notification categories, Read and Unread tabs, per-category settings | 8 |
 | 15 | Sign-up inside the invitation link; shared-device choice at sign-in; name and tag change limits | 1, 4, 5 |
+| 16 | Automatic team chats, the agency directory, the 15-minute edit window, the record of people changes with its three views | 11 |
+| 17 | Solo workspace upgraded in place to an agency | 11 |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
 ## Open questions
 
-1. Who on staff reads reports? (The 90 days is decided; the lawyer may change it.)
-2. The two points marked "to settle while building" in Part 7.
-3. The exact numbers for limits: new personal chats per day, sends per minute, personal group size, name changes.
-4. For the lawyer: message retention after account deletion, report copies, and the terms forbidding lead data in personal chats.
+1. For the lawyer: message retention after account deletion, report copies, and the terms forbidding lead data in personal chats.
 
 ## Not verified
 
