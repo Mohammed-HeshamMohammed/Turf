@@ -105,6 +105,25 @@ Fourth round, 2026-11-17 (these are complete as written here; the build order na
 | D78 | An agent in several teams opens on the last team used, and has an "All my teams" view where each lead is marked with its team. | 11 |
 | D79 | The owner sets the agency's working hours and time zone. A team can have its own hours. They control the unanswered-text wait. | 10 |
 
+Fifth round, 2026-11-17 (complete as written; the step is where each is built, "new" means a step added below):
+
+| # | Decision | Step |
+| --- | --- | --- |
+| D80 | When payment fails or the plan ends, a grace period (7 days to start) keeps everything working and warns the owner. After it, members can read but not work and invitations stop, until the owner pays. | 18 |
+| D81 | Lowering the plan below the number of members cannot complete until the owner picks who keeps a seat. The others are suspended, not removed, and their work is handed on. | 18 |
+| D82 | Closing an agency: members lose access at once and are told. The owner can reopen it for 30 days and export the data. Then it is deleted, except what the law requires keeping. | 18, 9 (lawyer) |
+| D83 | Caller Whale staff can open an agency's workspace only when its owner allows it, for a set time (24 hours to start). They do not see internal chats, every action is recorded, and the owner can end it early. | 19 |
+| D84 | Outside the app, notifications can reach a person by browser notification, by email for important things (invitations, security, an unanswered lead text), and by a daily email digest. Each can be switched off; a person can choose nothing outside the app. A browser notification shows no lead details. | 14 |
+| D85 | Each person can set quiet hours. Account and security alerts still come through. Work alerts also pause outside the agency's working hours. | 14 |
+| D86 | Agency chats have `@person`, `@team`, `@everyone` and `@managers`. In large groups and announcements only the owner and managers can use `@everyone`. | 16 |
+| D87 | People can search message text, only in conversations they belong to and only in the space they are in (one agency, or Personal). Never across agencies. | 16 |
+| D88 | Personal chats have automatic protection: someone whose requests are mostly declined or reported is slowed down, then limited until staff review. It works from counts, not from reading messages. | 7 |
+| D89 | A person limited or suspended after a report can appeal once. A different reviewer decides (for now, whichever of the owner and cofounder did not make the first decision). | 7 |
+| D90 | A link from someone not yet accepted shows a warning before it opens. When files are built, only common safe types are allowed and they are scanned. | 7 |
+| D91 | A "My access" page lists every agency the person belongs to with role and teams, pending invitations, signed-in devices, and a Leave button per agency. | 15 |
+
+Note on D84: all four options were ticked, including "nothing outside the app". Recorded as: the three channels exist and the person can switch all of them off.
+
 Suggested and turned down, recorded so it is not raised again: a lock that makes a person select an active team before a lead thread can be opened (the team switch is a filter, D44).
 
 ## What exists today
@@ -333,6 +352,8 @@ These change rules the authorization service enforces today (`services/authz/tre
 | 15 | Sign-up inside the invitation link; shared-device choice at sign-in; name and tag change limits | 1, 4, 5 |
 | 16 | Automatic team chats, the agency directory, the 15-minute edit window, the record of people changes with its three views | 11 |
 | 17 | Solo workspace upgraded in place to an agency | 11 |
+| 18 | Plan and billing effects on people: grace period and read-only, choosing who keeps a seat, closing an agency with 30 days to undo, the seat request, payment on handover. *The billing service has not been read yet.* | 12, 13 |
+| 19 | Support access granted by the owner for a set time, recorded | - |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
