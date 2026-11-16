@@ -18,6 +18,7 @@ Decided by the owner:
 | D6 | Chats between people need no agency ("personal chats"). Anything with a lead or a real phone number is locked to one agency, and every participant must be in that agency. |
 | D7 | When the person who sent an invitation is removed, the invitation is cancelled and gives no access. |
 | D8 | The extra protections for personal chats (message requests, block, report, limits) are built with them, not later. |
+| D9 | A lead thread is reachable only while the person is working inside that agency's workspace. Being a member is required but not enough: from another agency's workspace or from Personal it is not shown, fetched or stored. The thread belongs to the agency. |
 
 Assumed until the owner says otherwise (each is my recommendation):
 
@@ -26,7 +27,6 @@ Assumed until the owner says otherwise (each is my recommendation):
 | A1 | Personal chats are a separate space in the Inbox, not mixed with an agency's chats. |
 | A2 | A stranger can be reached only by their full `Name#id`, and their first message is a request the other person accepts. |
 | A3 | Platform staff can read reported messages only. |
-| A4 | A one-to-one thread with a lead continues only while the person is in that agency. The thread belongs to the agency. |
 | A5 | Removing an inviter cancels pending invitations only. People who already accepted keep their access. |
 | A6 | The tag is generated automatically and the person can change it. |
 | A7 | Platform staff see a member's phone only through the person's own setting. |
@@ -131,7 +131,7 @@ Assumed until the owner says otherwise (each is my recommendation):
 - **Manual "Reload everything"** stays.
 - **Removal.** Losing access to an agency deletes that agency's slot. (Problem 20.)
 
-### Part 5. Chat separation (D6, D8, A1 to A4)
+### Part 5. Chat separation (D6, D8, D9, A1 to A3)
 
 **Three kinds of chat**
 
@@ -141,7 +141,9 @@ Assumed until the owner says otherwise (each is my recommendation):
 | Agency chat (direct or group) | The agency | Members of that agency | No |
 | Lead thread | The agency | Members of that agency with access to the lead | Yes |
 
-A lead thread belongs to the agency, not the person. When someone leaves or is removed, the history stays with the agency and they can no longer read or continue it.
+A lead thread belongs to the agency, not the person (D9). It can be opened only from inside that agency's workspace: the request must name that agency and pass its access check, which is how every agency request already works. From another agency's workspace or from Personal it does not appear in lists, search, notifications' text or the cache; only that agency's unread badge in the switcher shows something is waiting. When someone leaves or is removed, the history stays with the agency and they can no longer read or continue it.
+
+The same holds for agency chats: they are opened from inside their agency's workspace only.
 
 **Enforced in the database, not only on screen**
 - Personal chats use the same tables with the agency id empty. Constraints require an agency for a lead thread and for any message sent by text.
@@ -184,7 +186,7 @@ Each step ships on its own, with its tests, and is checked in the web app before
 ## Open questions
 
 1. Should a manager be able to invite into their own teams? (Part 1.)
-2. Confirm A1 to A7.
+2. Confirm A1 to A3 and A5 to A7 (A4 became decision D9).
 3. Should an agency be able to switch personal chats off for its own screen while people are working? Not planned.
 4. How long are reported messages kept, and who on staff reads them?
 
