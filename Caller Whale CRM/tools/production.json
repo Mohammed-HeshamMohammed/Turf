@@ -82,6 +82,17 @@
       "note": false
     },
     {
+      "name": "live-backend-production",
+      "envExample": "Caller Whale CRM/env/centrifugo.production.example",
+      "title": "Live server (Centrifugo with Caller Whale's settings)",
+      "base": "Caller Whale CRM/services/live",
+      "paths": [
+        "."
+      ],
+      "build": "node --test (config.test.mjs); docker build . Coolify: build pack Dockerfile, base directory /, Dockerfile /Dockerfile, port 8000, no domain of its own (the gateway routes live.callerwhale.com to it)",
+      "note": false
+    },
+    {
       "name": "dialer-sms-backend-production",
       "envExample": "Caller Whale CRM/env/dialer-sms.production.example",
       "title": "Dialer and SMS (Telnyx, with a built-in simulator)",

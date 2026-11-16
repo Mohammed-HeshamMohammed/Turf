@@ -1,7 +1,0 @@
-{
-  "channel": {
-    "namespaces": [
-      { "name": "chat", "allow_user_limited_channels": true }
-    ]
-  }
-}

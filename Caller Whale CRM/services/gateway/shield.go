@@ -204,3 +204,9 @@ func mcpAllowed(method, path string) bool {
 	}
 	return false
 }
+
+// liveAllowed is the live server's one public address: the WebSocket the apps listen on. Everything else it has (the API with
+// its key, the metrics, the health check) is for the private network only.
+func liveAllowed(method, path string) bool {
+	return (method == http.MethodGet || method == http.MethodOptions) && path == "/connection/websocket"
+}

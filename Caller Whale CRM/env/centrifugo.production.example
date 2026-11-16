@@ -1,4 +1,5 @@
-# The live server on Coolify (application "centrifugo", Docker image centrifugo/centrifugo:v6, port 8000, network alias centrifugo, NO domain of its own).
+# The live server on Coolify (application "centrifugo", built from branch live-backend-production = services/live, port 8000, network alias centrifugo, NO domain of its own).
+# The settings that are not secret (log level, chat channel rules, health, metrics, connection limits) are in services/live/config.json, not here.
 # It holds the apps' sockets and delivers what the messaging service tells it; the gateway routes live.callerwhale.com to it. Setup: docs/plans/coolify-setup-messaging.md.
 # Paste into Environment Variables -> Developer View. Fill every <...>. Secrets stay in Coolify; never commit a filled copy.
 # Secret: 64 random hex characters. Only the messaging service calls the API, with this key (its LIVE_API_KEY).
@@ -7,13 +8,9 @@ CENTRIFUGO_HTTP_API_KEY=<the live server's API key>
 CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY=<the live server's token secret>
 # Pages that may open a socket.
 CENTRIFUGO_CLIENT_ALLOWED_ORIGINS=https://app.callerwhale.com
-# Each person listens on a channel only they may subscribe to: chat:user#<their id>.
 # The live server's own Redis (Coolify database "Caller Whale Messaging Redis", Valkey 9, private, no persistence, 200 MB cap, 256 MB container limit).
 # Messages are never kept there: it carries live delivery and replay only, and can be wiped at any time. Copy its internal URL from its own page
 # (it holds the password Coolify made). The host is the container name, like the Postgres URLs. Both lines go in together; redeploy the live server once.
 CENTRIFUGO_ENGINE_TYPE=redis
 CENTRIFUGO_ENGINE_REDIS_ADDRESS=<the Messaging Redis internal URL, redis://default:password@host:6379>
-# Turns on the /health address that Coolify's healthcheck calls (Healthcheck tab: GET http://localhost:8000/health, expect 200).
-CENTRIFUGO_HEALTH_ENABLED=true
-# Each person listens on a channel only they may subscribe to: chat:user#<their id>.
-CENTRIFUGO_CHANNEL_NAMESPACES=[{"name":"chat","allow_user_limited_channels":true}]
+# (/health is turned on in config.json; Coolify's Healthcheck tab: GET http://localhost:8000/health, expect 200.)

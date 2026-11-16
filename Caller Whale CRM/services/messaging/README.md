@@ -75,4 +75,4 @@ ordinary login) and are skipped without them. GitHub runs them in `.github/workf
 - The CRM's Inbox still shows its sample conversations.
 - Attachments, search, and notifications when the app is closed.
 - Text threads with leads (`kind = 'lead'`, team notes): the columns exist, the requests do not.
-- The Centrifugo settings in `deploy/centrifugo.json` and `deploy/compose.yml` are written from its documentation and have not been run.
+- The Centrifugo settings in `services/live/config.json` (the live server's own folder) and `deploy/compose.yml` are written from its documentation; the container has not been built or run locally (no Docker on the build machine).

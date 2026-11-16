@@ -9,7 +9,7 @@ Background: [messaging-sms-voice.md](messaging-sms-voice.md) (decisions), [messa
 | Piece | Where | State |
 | --- | --- | --- |
 | Messaging service (Go) | `services/messaging/`, branch `messaging-backend-production` | Built, tested, **deployed and healthy** |
-| Live server (Centrifugo v6) | Coolify, environment **gateway and network management**, app "Caller Whale Live Server" | **Deployed, healthy**, health check on `/health` passing |
+| Live server (Centrifugo v6) | `services/live/` (settings in `config.json`, Dockerfile, test), branch `live-backend-production`; Coolify, environment **gateway and network management**, app "Caller Whale Live Server" | Was deployed from the stock image. **2026-11-16: moved to code**; the Coolify app must be switched to build from the branch (see "Switching the Live Server to the branch") |
 | Messaging database | Coolify, environment **database**, "Caller Whale Messaging PostgreSQL" (PostgreSQL 17, private, SSL required) | **Running**; the service made its tables |
 | Messaging Redis | Coolify, environment **database**, "Caller Whale Messaging Redis" (Valkey 9, private, no persistence, `maxmemory 200mb` with `volatile-lru`, 0.5 CPU, 256 MB, no swap) | **Running** (2026-11-16, "Ready to accept connections"). **Not wired yet:** the live server still uses its memory engine until its two engine variables are added (see `env/centrifugo.production.example`) |
 | Authorization | Existing app "Caller Whale Authorization" | Redeployed with the `messaging` caller and its token |
@@ -64,9 +64,12 @@ Gateway app → Domains: add `https://chat.callerwhale.com` and `https://live.ca
 ### 3. Redeploy the gateway
 Redeploy **Caller Whale Gateway**. This one redeploy applies the domains and the saved `ROUTES`. It carries all public traffic: wait for healthy; Coolify keeps the old copy until the new one passes.
 
+### 3b. Gateway: `LIVE_HOST`
+In the Gateway's variables add `LIVE_HOST=live.callerwhale.com` (it must be one of the `ROUTES` hosts) before the redeploy in step 3. The gateway then answers only `/connection/websocket` on that host: the live server's API, `/metrics` and `/health` look like nothing from outside.
+
 ### 4. Check from outside
 - `https://chat.callerwhale.com/healthz` answers `{"ok":true,"service":"messaging"}`.
-- `https://live.callerwhale.com/health` answers 200.
+- `https://live.callerwhale.com/health` now answers **404** (private by design; the container's own health check uses the private address).
 - The socket: the browser must be able to open `wss://live.callerwhale.com/connection/websocket`. **The gateway has never carried a WebSocket before** (`services/gateway`); if it refuses (a 400 or 426, or the connection drops at once), the fix is in the gateway's reverse proxy. Until then chat still works by the CRM asking again every 5 seconds, so a failing socket is a delay, not an outage.
 - `GET https://chat.callerwhale.com/api/v1/messaging/conversations` without a token answers 401 (not a gateway 404). The gateway's path rules (`services/gateway`, the core-API classification applies only to the `CORE_HOST`) may need `chat.callerwhale.com` added if it treats unknown hosts differently: check its log.
 
@@ -100,3 +103,9 @@ Sign in at `https://app.callerwhale.com` as two people of one workspace (two bro
 2. In Claude Code, say: "continue the team chat rollout from `Caller Whale CRM/docs/plans/messaging-rollout-status.md`, starting at step 1". Browser steps (Cloudflare, Coolify) need the Claude in Chrome extension signed in to both.
 3. Secrets come from the owner's password manager. Never ask for them in chat, and never write them in a file.
 4. After each step, update the "What exists" table here and push.
+
+## Switching the Live Server to the branch
+
+1. Publish branches (`node "Caller Whale CRM/tools/publish-production.mjs" --push`) so `live-backend-production` exists.
+2. In Coolify, Live Server app: source = the repository, branch `live-backend-production`, build pack Dockerfile, base directory `/`, Dockerfile `/Dockerfile`, port 8000. Keep the alias `centrifugo`, the health check (`GET http://localhost:8000/health`, 200) and the variables. The old `CENTRIFUGO_HEALTH_ENABLED` and `CENTRIFUGO_CHANNEL_NAMESPACES` variables are now in `config.json` and can be deleted.
+3. Paste the Redis URL (see `env/centrifugo.production.example`) and redeploy. The first build is the first time this container is built anywhere: read its build log and the Runtime Logs table.
