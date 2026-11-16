@@ -124,6 +124,21 @@ Fifth round, 2026-11-17 (complete as written; the step is where each is built, "
 
 Note on D84: all four options were ticked, including "nothing outside the app". Recorded as: the three channels exist and the person can switch all of them off.
 
+Sixth round, 2026-11-17 (complete as written):
+
+| # | Decision | Step |
+| --- | --- | --- |
+| D92 | Every invitation shows the agency's name, when it was created, and the owner's full `Name#id`, with a "Report this invitation" button that goes to staff. New agencies need no approval. | 1 |
+| D93 | Pending invitations cannot exceed the agency's free seats, and there is a daily cap. A person can block an agency so it can never invite them again, and report it. | 2 |
+| D94 | The owner invites any client or partner. A manager can invite a client only to share things belonging to their own teams. | 3 |
+| D95 | Managers and deputies must have an authenticator set up, like owners. They are asked for a code at sign-in, not at every action. | 11 |
+| D96 | Internal notes in a lead thread are read and written by everyone who can see the thread, and move with it on reassignment. | 10 |
+| D97 | An agent can be in at most 5 teams of an agency (a starting number). | 11 |
+| D98 | With several roles, including an agency's custom roles, a person can do what any of their roles allows. A restriction placed on the person always wins over a role. | 11 |
+| D99 | A person can download their profile, settings and personal chats. Agency data belongs to the agency and is exported by its owner. | 15, 9 (lawyer) |
+
+D94 replaces the limit written under D15 that a manager cannot invite a client.
+
 Suggested and turned down, recorded so it is not raised again: a lock that makes a person select an active team before a lead thread can be opened (the team switch is a filter, D44).
 
 ## What exists today
@@ -188,7 +203,7 @@ Suggested and turned down, recorded so it is not raised again: a lock that makes
 
 - **Explain the order.** The invite form and the Teams screen say what to do first, and the invite form can create a team on the spot.
 - **One invitation, everything needed.** An invitation can carry the role, the team, and for a manager the teams they will run. Those teams get their manager when the invitation is accepted. (Problems 1, 2.)
-- **Managers invite into their own teams (D15).** A manager can invite callers and closers into teams they run, counted against the agency's seats. The owner sees every invitation and can withdraw any. A manager cannot invite another manager, a client, or into a team they do not run. (Problem 4.)
+- **Managers invite into their own teams (D15).** A manager can invite callers and closers into teams they run, counted against the agency's seats. The owner sees every invitation and can withdraw any. A manager cannot invite another manager or into a team they do not run; clients follow D94. (Problem 4.)
 - **Say why the panels are hidden.** The authenticator screen says that members and invitations open after it. (Problem 5.)
 - **Name the agency.** The invitation card and the email show the agency's name and who invited. (Problem 16.)
 - **Accept and arrive.** The email link opens that invitation. After accepting, the person is taken into the new agency, and the CRM opens it at the next sign-in. The CRM's "not invited" screen shows pending invitations and lets the person accept there. (Problems 6, 11, 17.)
