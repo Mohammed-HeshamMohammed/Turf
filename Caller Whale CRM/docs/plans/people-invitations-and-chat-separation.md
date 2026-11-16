@@ -152,6 +152,21 @@ Seventh round, 2026-11-17 (complete as written):
 | D106 | Existing people learn about their tag from a one-time note in settings. No email. | 4 |
 | D107 | Each step is checked by automatic tests and in the web app, then tried by the owner in their own agency with a second account, before it is switched on for everyone. | every step |
 
+Eighth round, 2026-11-17: how leads move between people and teams (complete as written; all belong to a new step 20 unless marked):
+
+| # | Decision |
+| --- | --- |
+| D108 | The owner and admins move a lead between any teams. A manager moves a lead only between teams they run. |
+| D109 | A handoff from a caller to a closer stays inside one team. Sending a lead to another team's closer is a team move (D108). |
+| D110 | An imported list belongs to the team chosen at import. The person importing picks a team they belong to or run; the owner and admins can import into any team. The leads start unassigned in that team. |
+| D111 | Managers and deputies hand out a team's unassigned leads. Each team has a setting for whether its agents may also claim them. |
+| D112 | When the same person or property is imported into a second team, that team sees "This lead already exists in another team" without the details. The owner or an admin chooses which team keeps it, or that both keep their own copy. |
+| D113 | "Do not call" applies to the whole agency: the number is blocked for every team and for future imports. Only the owner or an admin can lift it. |
+| D114 | A manager who runs several teams gets the same team switch and "All my teams" view as agents (step 11). |
+| D115 | A manager sees reports for the teams they run. Agency-wide totals and other teams' numbers are for the owner and admins. |
+
+On D112: when both teams keep a copy, the two copies stay separate records with separate threads, and D113 still blocks both if either is marked "Do not call".
+
 Suggested and turned down, recorded so it is not raised again: a lock that makes a person select an active team before a lead thread can be opened (the team switch is a filter, D44).
 
 ## What exists today
@@ -382,6 +397,7 @@ These change rules the authorization service enforces today (`services/authz/tre
 | 17 | Solo workspace upgraded in place to an agency | 11 |
 | 18 | Plan and billing effects on people: grace period and read-only, choosing who keeps a seat, closing an agency with 30 days to undo, the seat request, payment on handover. *The billing service has not been read yet.* | 12, 13 |
 | 19 | Support access granted by the owner for a set time, recorded | - |
+| 20 | Leads and teams: moving leads, handoffs inside a team, imports into a team, unassigned leads and claiming, duplicates across teams, agency-wide "Do not call", team reports. *How the core service and the import service hold leads by team has not been read yet.* | 11 |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -390,7 +406,7 @@ Each step ships on its own, with its tests, and is checked in the web app before
 The step numbers above are names, not the order. The order is:
 
 1. Steps 1 and 2: the invitation fixes.
-2. Step 11: teams and roles, then step 3 (invitations that carry teams and roles), step 12 (hand-on) and step 16 (team chats, directory, record).
+2. Step 11: teams and roles, then step 3 (invitations that carry teams and roles), step 20 (leads and teams), step 12 (hand-on) and step 16 (team chats, directory, record).
 3. Step 4: the name tag and settings, with step 15.
 4. Step 5: the web cache.
 5. Steps 6, 7, 8 and 14: personal chats and notifications, once step 9 (the lawyer's text) is ready.
