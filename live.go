@@ -161,15 +161,32 @@ func (s *server) deliver(ctx context.Context) {
 	go s.listen(ctx, wake)
 	tick := time.NewTicker(2 * time.Second)
 	defer tick.Stop()
+	// What the Runtime Logs show about delivery: one line when it breaks (with the count so far), one when it recovers, and a
+	// one-minute total while updates flow. A healthy idle service prints nothing.
+	var failing, sentSince int
+	lastReport := time.Now()
 	for {
 		for {
 			n, err := s.flush(ctx)
+			sentSince += n
 			if err != nil && ctx.Err() == nil {
-				log.Printf("WARN live delivery: %v", err)
+				failing++
+				if failing == 1 || failing%30 == 0 {
+					log.Printf("WARN live delivery: %v (failed %d times in a row; updates wait in the database and nothing is lost)", err, failing)
+				}
+			} else if err == nil && failing > 0 {
+				log.Printf("INFO live delivery recovered after %d failed tries", failing)
+				failing = 0
 			}
 			if err != nil || n < 100 {
 				break
 			}
+		}
+		if time.Since(lastReport) >= time.Minute {
+			if sentSince > 0 {
+				log.Printf("INFO live delivery: %d updates sent in the last minute", sentSince)
+			}
+			sentSince, lastReport = 0, time.Now()
 		}
 		select {
 		case <-ctx.Done():
