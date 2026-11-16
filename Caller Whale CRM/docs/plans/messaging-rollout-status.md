@@ -57,6 +57,8 @@ Rotating one means changing it in both places and redeploying both apps.
 
 ## What is left, in order
 
+**Done 2026-11-16: steps 1 to 4.** `chat` and `live` DNS records (A, proxied, same address as `gate`) added by the owner; both domains added to the Gateway (Coolify also auto-adds `www.` copies: delete them); `LIVE_HOST=live.callerwhale.com` set; Gateway redeployed. Outside checks passed: `chat/healthz` 200, `chat/api/v1/messaging/conversations` 401 without a token, `live/health` and `live/metrics` 404, and a WebSocket upgrade on `live/connection/websocket` answers `101 Switching Protocols` through Cloudflare and the gateway. **Left: step 5 (switch the CRM on) and step 6 (two-person test).**
+
 ### 1. Cloudflare DNS (owner)
 Add two records, `chat` and `live`, with the same type, target and proxy setting as the existing `gate` record. Turn off challenges and bot protection for both hostnames (a challenge page breaks an app's requests, and `live` is a WebSocket).
 
