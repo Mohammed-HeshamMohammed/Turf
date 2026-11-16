@@ -90,8 +90,8 @@ func TestLateIndexAndEarlier0022(t *testing.T) {
 	ctx := context.Background()
 	st := e.s.st
 	for i := 0; i < 2; i++ { // the second run finds it built
-		if err := st.buildLateIndexes(ctx); err != nil {
-			t.Fatal(err)
+		if done, err := st.buildLateIndexes(ctx); err != nil || !done {
+			t.Fatalf("done=%v err=%v", done, err)
 		}
 	}
 	var valid bool
@@ -136,6 +136,41 @@ func TestMigrationLockHeldElsewhereNamesTheHolder(t *testing.T) {
 	}
 	if err = st.migrate(ctx); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// While another session holds the build lock the indexes are not done, and the next try (once it is free) builds them.
+func TestLateIndexWaitsForTheOtherBuilder(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	if _, err := e.admin.Exec(ctx, `DROP INDEX IF EXISTS crm.properties_addr_key`); err != nil {
+		t.Fatal(err)
+	}
+	other, err := pgx.Connect(ctx, os.Getenv("CRM_TEST_ADMIN_URL"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close(ctx)
+	if _, err = other.Exec(ctx, `SELECT pg_advisory_lock(8108)`); err != nil {
+		t.Fatal(err)
+	}
+	if done, err := e.s.st.buildLateIndexes(ctx); err != nil || done {
+		t.Fatalf("with another builder: want not done, got done=%v err=%v", done, err)
+	}
+	if _, err = other.Exec(ctx, `SELECT pg_advisory_unlock(8108)`); err != nil {
+		t.Fatal(err)
+	}
+	finished := make(chan struct{})
+	go func() { e.s.st.keepBuildingLateIndexes(ctx, 50*time.Millisecond); close(finished) }()
+	select {
+	case <-finished:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the index was not built")
+	}
+	var valid bool
+	if err = e.admin.QueryRow(ctx, `SELECT i.indisvalid FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+		WHERE c.relname = 'properties_addr_key'`).Scan(&valid); err != nil || !valid {
+		t.Fatalf("properties_addr_key: valid=%v err=%v", valid, err)
 	}
 }
 

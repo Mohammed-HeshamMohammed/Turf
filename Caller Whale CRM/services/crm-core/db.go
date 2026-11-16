@@ -153,11 +153,11 @@ var lateIndexes = []struct{ name, create string }{
 }
 
 // buildLateIndexes builds the late indexes that are missing; one left unfinished by a stopped build is dropped and built again. Only
-// one copy of crm-core builds at a time.
-func (s *store) buildLateIndexes(ctx context.Context) error {
+// one copy of crm-core builds at a time: done is false when another copy was building, so the caller tries again later.
+func (s *store) buildLateIndexes(ctx context.Context) (done bool, err error) {
 	conn, err := s.db.Acquire(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer func() {
 		if _, err := conn.Exec(context.Background(), `SELECT pg_advisory_unlock(8108)`); err != nil {
@@ -167,10 +167,10 @@ func (s *store) buildLateIndexes(ctx context.Context) error {
 	}()
 	var mine bool
 	if err = conn.QueryRow(ctx, `SELECT pg_try_advisory_lock(8108)`).Scan(&mine); err != nil || !mine {
-		return err
+		return false, err
 	}
 	if _, err = conn.Exec(ctx, `SET statement_timeout = 0`); err != nil {
-		return err
+		return false, err
 	}
 	defer conn.Exec(context.Background(), `RESET statement_timeout`)
 	_, _ = conn.Exec(ctx, `SET client_connection_check_interval = '5s'`) // a stopped copy's build stops with it
@@ -184,19 +184,38 @@ func (s *store) buildLateIndexes(ctx context.Context) error {
 			continue
 		case err == nil:
 			if _, err = conn.Exec(ctx, `DROP INDEX CONCURRENTLY IF EXISTS crm.`+ix.name); err != nil {
-				return fmt.Errorf("%s: %w", ix.name, err)
+				return false, fmt.Errorf("%s: %w", ix.name, err)
 			}
 		case err != pgx.ErrNoRows:
-			return err
+			return false, err
 		}
 		start := time.Now()
 		log.Printf("INFO building index %s in the background", ix.name)
 		if _, err = conn.Exec(ctx, ix.create); err != nil {
-			return fmt.Errorf("%s: %w", ix.name, err)
+			return false, fmt.Errorf("%s: %w", ix.name, err)
 		}
 		log.Printf("INFO built index %s in %s", ix.name, time.Since(start).Round(time.Second))
 	}
-	return nil
+	return true, nil
+}
+
+// keepBuildingLateIndexes tries the late indexes at start and every few minutes after until they are all built, so one another copy
+// was building when it stopped (and left unfinished) is still built without waiting for the next restart.
+func (s *store) keepBuildingLateIndexes(ctx context.Context, every time.Duration) {
+	for {
+		done, err := s.buildLateIndexes(ctx)
+		if err != nil && ctx.Err() == nil {
+			log.Printf("WARN a background index could not be built yet (tried again in %s): %v", every, err)
+		}
+		if done {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(every):
+		}
+	}
 }
 
 // applyMigration runs one script and records it, in one transaction that waits at most timeout for any lock. While it waits, the
