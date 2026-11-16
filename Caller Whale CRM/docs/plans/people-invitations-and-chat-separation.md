@@ -88,6 +88,23 @@ Third round, 2026-11-17:
 | D66 | A team can be deleted only when it has no members and no leads. The owner moves them first with the hand-on screen. |
 | D67 | An agent taken out of one of their teams leaves that team's leads and threads with the team; its managers reassign them. The agent keeps their other teams' work. |
 
+Fourth round, 2026-11-17 (these are complete as written here; the build order names the step for each):
+
+| # | Decision | Step |
+| --- | --- | --- |
+| D68 | The invited person can decline. The sender sees "Declined" and the seat is freed at once. | 2 |
+| D69 | One person can own several agencies, each with its own plan, seats, teams and data. | 13 |
+| D70 | Handing over ownership completes only after the new owner adds their own payment method. The old owner's card is removed and never charged again. | 13 |
+| D71 | A manager inviting with no free seat is blocked and can send the owner a request to add one. Nothing is charged without the owner. | 3 |
+| D72 | Agency chats always show read status and online status. In personal chats each person chooses; hiding yours hides others' from you. | 8, 16 |
+| D73 | A personal group has an owner (its creator) who can name admins. Owner and admins add and remove people; anyone can leave. Someone added by a person they do not know gets a request first. | 7 |
+| D74 | Each agency has an announcements channel with every member in it. Only the owner and managers post; everyone can react. Posts marked important cannot be muted. | 16 |
+| D75 | An agency's internal chat messages are kept while the agency exists. Lead threads follow the lead's record and the legal rules for texts. | 9 (lawyer) |
+| D76 | Takeover follows rank: owner over manager, manager over deputy, deputy over agent. Control is handed back down the same way. | 10 |
+| D77 | If the holder of a taken-over thread does not answer a new text within the agency's wait time, control returns to the agent and both are told. | 10 |
+| D78 | An agent in several teams opens on the last team used, and has an "All my teams" view where each lead is marked with its team. | 11 |
+| D79 | The owner sets the agency's working hours and time zone. A team can have its own hours. They control the unanswered-text wait. | 10 |
+
 Suggested and turned down, recorded so it is not raised again: a lock that makes a person select an active team before a lead thread can be opened (the team switch is a filter, D44).
 
 ## What exists today
