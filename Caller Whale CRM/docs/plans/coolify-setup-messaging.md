@@ -9,6 +9,7 @@ Nothing changes for people using the CRM until step 7, and step 7 is undone by c
 | --- | --- | --- | --- | --- |
 | 1 | `Caller Whale Messaging PostgreSQL` | Database (PostgreSQL 17), its own like the others | Conversations and messages | None |
 | 2 | `authz` (exists) | Application | One more caller token, so messaging may ask who is in a workspace | None |
+| 2b | `Caller Whale Messaging Redis` | Database (Valkey 9), its own, private, no persistence | The live server's engine (delivery and replay only, no message text) | None |
 | 3 | `centrifugo` | Application (Docker image) | The live server: holds the apps' sockets | None (the gateway routes `live.callerwhale.com` to it) |
 | 4 | `messaging` | Application (Dockerfile) | Team chats and groups | None (the gateway routes `chat.callerwhale.com` to it) |
 | 5 | `gateway` (exists) | Application | Routes the two new addresses | existing |

@@ -11,6 +11,7 @@ Background: [messaging-sms-voice.md](messaging-sms-voice.md) (decisions), [messa
 | Messaging service (Go) | `services/messaging/`, branch `messaging-backend-production` | Built, tested, **deployed and healthy** |
 | Live server (Centrifugo v6) | Coolify, environment **gateway and network management**, app "Caller Whale Live Server" | **Deployed, healthy**, health check on `/health` passing |
 | Messaging database | Coolify, environment **database**, "Caller Whale Messaging PostgreSQL" (PostgreSQL 17, private, SSL required) | **Running**; the service made its tables |
+| Messaging Redis | Coolify, environment **database**, "Caller Whale Messaging Redis" (Valkey 9, private, no persistence, `maxmemory 200mb` with `volatile-lru`, 0.5 CPU, 256 MB, no swap) | **Running** (2026-11-16, "Ready to accept connections"). **Not wired yet:** the live server still uses its memory engine until its two engine variables are added (see `env/centrifugo.production.example`) |
 | Authorization | Existing app "Caller Whale Authorization" | Redeployed with the `messaging` caller and its token |
 | Gateway routes | Existing "Caller Whale Gateway", `ROUTES` variable | `chat.callerwhale.com=http://messaging:8108,live.callerwhale.com=http://centrifugo:8000` **saved, not yet live** (needs a redeploy) |
 | CRM Inbox client | `desktop/frontend/react/src/remote/messaging.ts`, `Work.jsx`, `App.jsx` | Written, 8 tests pass, **off** until the build variable below is set |
@@ -81,7 +82,7 @@ Sign in at `https://app.callerwhale.com` as two people of one workspace (two bro
 - "Mark unread" is a reminder on one device only.
 - Search, attachments, and notifications when the app is closed.
 - Text threads with leads (`kind = 'lead'`) and team notes: the columns exist, the requests do not. That is the SMS stage (see the plan).
-- One Centrifugo copy and no Redis: enough for the first users. Add Redis (`CENTRIFUGO_ENGINE_TYPE=redis`, check the v6 variable names in Centrifugo's docs) only when running two or more copies.
+- Redis for the live server: created 2026-11-16 (variables `CENTRIFUGO_ENGINE_TYPE=redis` and `CENTRIFUGO_ENGINE_REDIS_ADDRESS`, names from third-party v6 examples: check the first start's log). It carries only live delivery, replay, and later send limits and presence; message text stays in the messaging Postgres only (row security is the one gate for content).
 - GitHub Actions has been blocked by a billing error, so the `messaging` job in `.github/workflows/check-backend.yml` has never run there. Locally all 15 Go tests pass against PostgreSQL 17.
 
 ## Facts worth knowing before changing things
