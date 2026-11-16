@@ -167,6 +167,19 @@ Eighth round, 2026-11-17: how leads move between people and teams (complete as w
 
 On D112: when both teams keep a copy, the two copies stay separate records with separate threads, and D113 still blocks both if either is marked "Do not call".
 
+Ninth round, 2026-11-17: numbers, calls and spending (complete as written):
+
+| # | Decision | Step |
+| --- | --- | --- |
+| D116 | Each team has its own phone numbers, given by the owner or an admin. A team without one uses the agency's default number. | 21 |
+| D117 | A lead that moves to another team keeps the number it already knows, so replies still arrive. New leads of a team use that team's number. | 21 |
+| D118 | Call recordings and transcripts are open to the same people as the lead thread, and move with the lead. | 21 |
+| D119 | A manager or deputy can join an agent's live call: listen silently, speak only to the agent, or take the call over, by rank as in D76. The agent always sees that someone joined. Whether the lead must be told depends on the law where they are. | 21, lawyer |
+| D120 | Paid usage (texts, call minutes, skip tracing credits) comes from the agency's allowance. The owner or an admin can give a team a monthly budget; a team without one draws from the pool. | 22 |
+| D121 | A manager sets usage limits for their team's agents, within the team's budget. The owner and admins set anyone's. | 22 |
+| D122 | A text or call is charged to the team that owns the lead, whoever sends it, including a takeover. | 22 |
+| D123 | When a team's budget or a person's limit runs out, paid actions stop for them and they can ask the manager or owner to raise it. Replies from leads still arrive and can be read. | 22 |
+
 Suggested and turned down, recorded so it is not raised again: a lock that makes a person select an active team before a lead thread can be opened (the team switch is a filter, D44).
 
 ## What exists today
@@ -398,6 +411,8 @@ These change rules the authorization service enforces today (`services/authz/tre
 | 18 | Plan and billing effects on people: grace period and read-only, choosing who keeps a seat, closing an agency with 30 days to undo, the seat request, payment on handover. *The billing service has not been read yet.* | 12, 13 |
 | 19 | Support access granted by the owner for a set time, recorded | - |
 | 20 | Leads and teams: moving leads, handoffs inside a team, imports into a team, unassigned leads and claiming, duplicates across teams, agency-wide "Do not call", team reports. *How the core service and the import service hold leads by team has not been read yet.* | 11 |
+| 21 | Team phone numbers, the number a moved lead keeps, recordings following the lead, joining a live call by rank. *The dialer service has not been read for this.* | 10, 20 |
+| 22 | Budgets: agency pool, optional team budgets, limits set by managers, charging the lead's team, stopping with a request to raise. *The billing and usage code has not been read for this.* | 20 |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -412,6 +427,7 @@ The step numbers above are names, not the order. The order is:
 5. Steps 6, 7, 8 and 14: personal chats and notifications, once step 9 (the lawyer's text) is ready.
 6. Steps 13, 17, 18 and 19: ownership, solo upgrade, plan effects and support access, after the billing service has been read.
 7. Step 10: lead threads, with the SMS stage.
+8. Steps 21 and 22: team numbers, live calls and budgets, with the calling and SMS stage, after the dialer and billing services have been read.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
