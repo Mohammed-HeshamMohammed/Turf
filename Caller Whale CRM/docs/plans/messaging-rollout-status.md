@@ -25,6 +25,7 @@ Evidence of health (2026-11-14): Messaging's runtime log shows `applied migratio
 - Messaging app: `…/environment/oci63bnjhbltllgzrapxyuan/application/zdmz5cyasx37hmuobw2vzgpn`
 - Live Server app: `…/environment/s9zexgncl1zhgtpwdr58jved/application/k5lqwfwbb6jxacg3royad8ot`
 - Gateway app: `…/environment/s9zexgncl1zhgtpwdr58jved/application/wigouvvmfwpdzrkqyw3marwt`
+- Live Server (code) app, built from `live-backend-production`, **created 2026-11-16, not deployed**: `…/environment/s9zexgncl1zhgtpwdr58jved/application/x37gvvpjrccr8ln9jz9v0iob`
 - Authorization app: `…/environment/oci63bnjhbltllgzrapxyuan/application/ya2vvzhtywejtybx1rnexyvr`
 - Messaging database: `…/environment/qw5frf7cksxyytctiszz4p2f/database/d5fq1zm3wxycsfnk35lz2mav`
 
@@ -108,4 +109,7 @@ Sign in at `https://app.callerwhale.com` as two people of one workspace (two bro
 
 1. Publish branches (`node "Caller Whale CRM/tools/publish-production.mjs" --push`) so `live-backend-production` exists.
 2. In Coolify, Live Server app: source = the repository, branch `live-backend-production`, build pack Dockerfile, base directory `/`, Dockerfile `/Dockerfile`, port 8000. Keep the alias `centrifugo`, the health check (`GET http://localhost:8000/health`, 200) and the variables. The old `CENTRIFUGO_HEALTH_ENABLED` and `CENTRIFUGO_CHANNEL_NAMESPACES` variables are now in `config.json` and can be deleted.
+**Done 2026-11-16:** the app "Caller Whale Live Server (code)" exists in the same environment (made with the Docker Compose build pack, then switched to Dockerfile, because the new-app form rejects the default compose path that has spaces). Dockerfile `/Dockerfile`, base `/`, port 8000, health check `GET /health` on 8000 (start period 20 s). Its five variables are saved with **placeholders** for the API key, token secret and Redis URL (the same key and secret as the old Live Server and as messaging's `LIVE_API_KEY` / `LIVE_TOKEN_SECRET`). **No network alias yet and not deployed.**
+
+Cutover (needs the owner for the secrets): fill the three placeholders; stop the old Live Server; give the new app the network alias `centrifugo` (Edit Networking) and deploy; read the build and Runtime Logs; check `https://chat.callerwhale.com`/live later per steps 3-4; then delete the old app. Two apps with the alias at once would split connections between two engines, so never run both.
 3. Paste the Redis URL (see `env/centrifugo.production.example`) and redeploy. The first build is the first time this container is built anywhere: read its build log and the Runtime Logs table.
