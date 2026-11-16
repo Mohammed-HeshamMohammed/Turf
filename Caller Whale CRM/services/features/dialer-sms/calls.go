@@ -162,7 +162,7 @@ func (s *server) placeCall(ctx context.Context, sc scope, ask dialAsk) (*callRow
 	answer, err := s.carrier.dial(ctx, dialRequest{From: from, To: to, ClientState: id, AMD: amd, TimeoutSecs: s.cfg.ringSeconds, TimeLimitSecs: 4 * 3600, Scenario: scenario})
 	if err != nil {
 		log.Printf("WARN dial %s: %v", id, err)
-		_, _ = s.st.db.Exec(ctx, `UPDATE calls SET report_state = 'skipped', crm_message = $2, updated_at = now() WHERE id = $1`, id, "The carrier refused the call: "+err.Error())
+		_, _ = s.st.db.Exec(ctx, `UPDATE calls SET report_state = 'skipped', crm_message = $2, updated_at = now() WHERE id = $1`, id, "The carrier refused the call.")
 		return nil, &apiError{502, "carrier", "The carrier did not place the call. Try again in a moment."}
 	}
 	// A webhook may have come first and set these from the call's client state: keep whatever is there.
@@ -393,7 +393,8 @@ func (s *server) hangupCall(ctx context.Context, sc scope, id string) (*callRow,
 	}
 	if c.EndedAt == nil && c.ccid() != "" {
 		if err = s.carrier.action(ctx, c.ccid(), "hangup", nil); err != nil {
-			return nil, &apiError{502, "carrier", "The carrier did not end the call: " + err.Error()}
+			log.Printf("WARN hanging up call %s: %v", id, err)
+			return nil, &apiError{502, "carrier", "The carrier did not end the call. Try again in a moment."}
 		}
 	}
 	return c, nil
@@ -419,7 +420,8 @@ func (s *server) transferCall(ctx context.Context, sc scope, id, to string) (*ca
 	}
 	if err = s.carrier.action(ctx, c.ccid(), "transfer", map[string]any{"to": target, "from": c.FromNumber,
 		"client_state": base64.StdEncoding.EncodeToString([]byte(c.ID + ":transfer"))}); err != nil {
-		return nil, &apiError{502, "carrier", "The carrier did not transfer the call: " + err.Error()}
+		log.Printf("WARN transferring call %s: %v", id, err)
+		return nil, &apiError{502, "carrier", "The carrier did not transfer the call. Try again in a moment."}
 	}
 	return s.loadCall(ctx, nil, `id = $1`, c.ID)
 }

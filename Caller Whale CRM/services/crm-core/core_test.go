@@ -1025,3 +1025,41 @@ func TestAPersonsPictureReachesTheTeam(t *testing.T) {
 		}
 	}
 }
+
+// TestWorkCannotBeGivenPastTheTree: an operation sent by hand (the browser console) cannot give a task or a lead to someone the sender
+// does not manage, nor put a lead in a team that is not theirs.
+func TestWorkCannotBeGivenPastTheTree(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	const teamT, teamU = "aaaaaaaa-0000-4000-8000-0000000000b1", "aaaaaaaa-0000-4000-8000-0000000000b2"
+	const dave, erin = "44444444-4444-4444-8444-444444444444", "55555555-5555-4555-8555-555555555555"
+	e.rules.mu.Lock()
+	e.rules.roster[orgA] = []member{{UserID: alice, Roles: []string{"owner"}}, {UserID: bob, Roles: []string{"caller"}, TeamIDs: []string{teamT}},
+		{UserID: dave, Roles: []string{"manager"}}, {UserID: erin, Roles: []string{"caller"}, TeamIDs: []string{teamU}}}
+	e.rules.teamList = map[string][]authzTeam{orgA: {{TeamID: teamT, Name: "T", ManagerID: dave}, {TeamID: teamU, Name: "U"}}}
+	e.rules.grants[dave+"|"+orgA] = grantReply{Allowed: true, Scopes: []string{"team", "own"}, TeamIDs: []string{teamT}, ManagedTeamIDs: []string{teamT}, Capabilities: []string{"edit", "assign", "call", "import"}, Roles: []string{"manager"}}
+	e.rules.mu.Unlock()
+	if status, _ := e.call(alice, orgA, "GET", "/api/v1/admin/teams", nil); status != 200 {
+		t.Fatalf("teams: %d", status)
+	}
+	// A caller gives a task only to themself.
+	e.want(e.opWith(bob, orgA, "task.create", map[string]any{"title": "Mine"}, ""), "applied")
+	e.want(e.opWith(bob, orgA, "task.create", map[string]any{"title": "Yours", "assignee_id": erin}, ""), "rejected")
+	task := e.want(e.opWith(bob, orgA, "task.create", map[string]any{"title": "Moved later"}, ""), "applied")
+	e.want(e.opWith(bob, orgA, "task.update", map[string]any{"id": task["id"], "changes": map[string]any{"assignee_id": alice}, "base": map[string]any{"assignee_id": bob}}, ""), "rejected")
+	// A manager gives a task to their own caller, not to another team's.
+	e.want(e.opWith(dave, orgA, "task.create", map[string]any{"title": "For Bob", "assignee_id": bob}, ""), "applied")
+	e.want(e.opWith(dave, orgA, "task.create", map[string]any{"title": "For Erin", "assignee_id": erin}, ""), "rejected")
+	// A lead is made for someone in the tree only, and only in a team the maker may use.
+	e.want(e.opWith(dave, orgA, "lead.create", map[string]any{"id": newID(t), "name": "For Erin", "assignee_id": erin}, ""), "rejected")
+	e.want(e.opWith(bob, orgA, "lead.create", map[string]any{"id": newID(t), "name": "Into U", "team_id": teamU}, ""), "rejected")
+	lead := newID(t)
+	e.want(e.opWith(dave, orgA, "lead.create", map[string]any{"id": lead, "name": "For Bob", "assignee_id": bob}, ""), "applied")
+	var team string
+	if err := e.admin.QueryRow(context.Background(), `SELECT coalesce(team_id::text, '') FROM crm.leads WHERE id = $1`, lead).Scan(&team); err != nil || team != teamT {
+		t.Fatalf("a lead made for Bob is in his team: %q %v", team, err)
+	}
+	// Giving leads cannot move them into a team the giver does not run.
+	e.want(e.opWith(dave, orgA, "lead.assign", map[string]any{"ids": []string{lead}, "assignee_id": bob, "team_id": teamU}, ""), "rejected")
+	e.want(e.opWith(alice, orgA, "lead.assign", map[string]any{"ids": []string{lead}, "assignee_id": erin}, ""), "applied")
+}

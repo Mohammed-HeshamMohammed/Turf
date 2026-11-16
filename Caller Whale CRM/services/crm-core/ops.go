@@ -230,6 +230,47 @@ func (r *run) dispatch() (any, error) {
 
 // ------------------------------------------------------------------------------------------------------ helpers
 
+// handTo answers whether the asking person may give work (a lead or a task) to someone: themself always; anyone else only with
+// the assign capability, and then only the people they may give leads to (assignTargets: their teams, or everyone for the whole
+// workspace). A request made by hand (the console) cannot reach past it.
+func (r *run) handTo(to string) (assignTarget, error) {
+	if to == r.sc.userID {
+		return assignTarget{UserID: to}, nil
+	}
+	if !r.sc.can("assign") {
+		return assignTarget{}, reject("You can only give this to yourself")
+	}
+	mine, err := r.s.rules.grant(r.ctx, r.sc.userID, r.sc.orgID, r.sc.secondStep)
+	if err != nil {
+		return assignTarget{}, err
+	}
+	targets, err := r.s.assignTargets(r.ctx, r.sc, mine.ManagedTeamIDs)
+	if err != nil {
+		return assignTarget{}, err
+	}
+	target, ok := targets[to]
+	if !ok {
+		return assignTarget{}, reject("You can give this only to the people you manage")
+	}
+	return target, nil
+}
+
+// teamAllowed answers whether a lead may be put in a team the request names: the receiver's own team, one of the asker's teams or the
+// teams they run, or any team for someone who sees the whole workspace.
+func (r *run) teamAllowed(team, receiverTeam string) error {
+	if team == receiverTeam || slices.Contains(r.sc.scopes, "organization") || slices.Contains(r.sc.teamIDs, team) {
+		return nil
+	}
+	mine, err := r.s.rules.grant(r.ctx, r.sc.userID, r.sc.orgID, r.sc.secondStep)
+	if err != nil {
+		return err
+	}
+	if slices.Contains(mine.ManagedTeamIDs, team) {
+		return nil
+	}
+	return reject("That team is not one of yours")
+}
+
 func (r *run) need(capability string) error {
 	if r.sc.can(capability) {
 		return nil
@@ -508,12 +549,21 @@ func (r *run) leadCreate(p map[string]any) (any, error) {
 	if assignee == nil {
 		assignee = &r.sc.userID
 	}
-	if *assignee != r.sc.userID && !r.sc.can("assign") {
-		return nil, reject("Only someone who assigns work can create a lead for another person")
+	receiver, err := r.handTo(*assignee)
+	if err != nil {
+		return nil, err
 	}
 	team, err := optUUID(p, "team_id")
 	if err != nil {
 		return nil, err
+	}
+	if team != nil {
+		if err = r.teamAllowed(*team, receiver.TeamID); err != nil {
+			return nil, err
+		}
+	}
+	if team == nil && receiver.TeamID != "" {
+		team = &receiver.TeamID
 	}
 	if team == nil && len(r.sc.teamIDs) > 0 && validID(r.sc.teamIDs[0]) {
 		team = &r.sc.teamIDs[0]
@@ -660,6 +710,17 @@ func (r *run) leadAssign(p map[string]any) (any, error) {
 		}
 		if team == nil && target.TeamID != "" {
 			team = &target.TeamID // the lead moves into the receiver's team, so their manager sees it
+		}
+	}
+	if team != nil {
+		receiverTeam := ""
+		if to != nil {
+			if t, err := r.handTo(*to); err == nil {
+				receiverTeam = t.TeamID
+			}
+		}
+		if err = r.teamAllowed(*team, receiverTeam); err != nil {
+			return nil, err
 		}
 	}
 	reason := str(p, "reason")
@@ -1146,6 +1207,9 @@ func (r *run) taskCreate(p map[string]any) (any, error) {
 	if assignee == nil {
 		assignee = &r.sc.userID
 	}
+	if _, err = r.handTo(*assignee); err != nil {
+		return nil, err
+	}
 	id, err := optUUID(p, "id")
 	if err != nil {
 		return nil, err
@@ -1191,6 +1255,14 @@ func (r *run) taskUpdate(p map[string]any) (any, error) {
 	}
 	if err = checkBase(before, changes, base); err != nil {
 		return nil, err
+	}
+	if to, ok := changes["assignee_id"]; ok && asString(to) != asString(before["assignee_id"]) {
+		if !validID(asString(to)) {
+			return nil, reject("Choose who the task is for")
+		}
+		if _, err = r.handTo(asString(to)); err != nil {
+			return nil, err
+		}
 	}
 	task, err := r.one(`UPDATE tasks t SET (title, type, priority, due_at, timezone, recurrence, assignee_id, shared_external) =
 			(SELECT x.title, x.type, x.priority, x.due_at, x.timezone, nullif(x.recurrence, ''), x.assignee_id, x.shared_external FROM jsonb_populate_record(NULL::tasks, $2::jsonb) x),

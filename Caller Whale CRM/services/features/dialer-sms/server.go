@@ -360,7 +360,8 @@ func (s *server) callingToken(q *req) error {
 	if err != nil {
 		id, username, err := s.carrier.credential(ctx, "callerwhale-"+q.sc.userID)
 		if err != nil {
-			return &apiError{502, "carrier", "The carrier did not make a calling login: " + err.Error()}
+			log.Printf("WARN making a calling login: %v", err)
+			return &apiError{502, "carrier", "The carrier did not make a calling login. Try again in a moment."}
 		}
 		if _, err = s.st.db.Exec(ctx, `INSERT INTO agent_credentials (user_id, credential_id, sip_username) VALUES ($1, $2, $3) ON CONFLICT (user_id) DO NOTHING`,
 			q.sc.userID, id, username); err != nil {
@@ -372,7 +373,8 @@ func (s *server) callingToken(q *req) error {
 	}
 	token, err := s.carrier.webrtcToken(ctx, credID)
 	if err != nil {
-		return &apiError{502, "carrier", "The carrier did not issue a calling token: " + err.Error()}
+		log.Printf("WARN issuing a calling token: %v", err)
+		return &apiError{502, "carrier", "The carrier did not issue a calling token. Try again in a moment."}
 	}
 	writeJSON(q.w, http.StatusOK, map[string]any{"token": token, "carrier": "telnyx", "simulated": s.cfg.simulate})
 	return nil
