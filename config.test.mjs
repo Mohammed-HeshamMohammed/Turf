@@ -11,7 +11,7 @@ const docker = readFileSync(resolve(here, "Dockerfile"), "utf8");
 
 test("secrets and addresses are never in the file (they stay in Coolify)", () => {
   const text = JSON.stringify(config).toLowerCase();
-  for (const word of ["secret", "api_key", "key", "password", "redis", "allowed_origins", "token"]) assert.ok(!text.includes(word), word);
+  for (const word of ["secret", "api_key", "key", "password", "address", "redis://", "rediss://", "allowed_origins", "token"]) assert.ok(!text.includes(word), word);
 });
 
 test("chat channels are only for the person they are named after", () => {
@@ -31,6 +31,12 @@ test("health is on (Coolify's check) and the API is not left open", () => {
   assert.equal(config.health.enabled, true);
   assert.ok(!config.http_api || !config.http_api.insecure);
   assert.ok(!config.admin);
+});
+
+test("the Redis link is encrypted; Coolify's own certificate authority is not trusted here, so the name check is skipped", () => {
+  const tls = config.engine.redis.tls;
+  assert.equal(tls.enabled, true);
+  assert.equal(tls.insecure_skip_verify, true);
 });
 
 test("the container uses the shared log table and pins the Centrifugo version", () => {
