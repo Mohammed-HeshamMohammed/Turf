@@ -47,6 +47,7 @@ type config struct {
 	human          *humanSettings // the human check in front of the auth service (nil: off)
 	authHost       string         // the ROUTES host of the auth service: only its real routes are answered
 	mcpHost        string         // the ROUTES host of the MCP service (AI assistants): only its few routes are answered, with limits of its own
+	liveHost       string         // the ROUTES host of the live server: only its socket address is answered (never its API, metrics or health)
 	mcpIPPerMinute int            // per address on the MCP host: assistants call from a few shared addresses, so it is higher than for people
 	scanLimit      int            // requests for things that are not there, from one address, before it is paused
 	scanWindow     time.Duration
@@ -120,6 +121,9 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	if c.mcpHost = strings.ToLower(strings.TrimSpace(getenv("MCP_HOST"))); c.mcpHost != "" && c.routes[c.mcpHost] == nil {
 		return c, errors.New("MCP_HOST is not one of the ROUTES hosts")
+	}
+	if c.liveHost = strings.ToLower(strings.TrimSpace(getenv("LIVE_HOST"))); c.liveHost != "" && c.routes[c.liveHost] == nil {
+		return c, errors.New("LIVE_HOST is not one of the ROUTES hosts")
 	}
 	if c.human, err = loadHuman(getenv, c.routes); err != nil {
 		return c, err
@@ -349,6 +353,12 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// rate-limit checks below. Mapping, review and merge read database rows in Core.
 	// The auth service answers only the routes it has; everything else looks the same as nothing at all.
 	if g.cfg.authHost != "" && rt.host == g.cfg.authHost && !authAllowed(r.Method, r.URL.Path) {
+		g.scans.miss(caller, g.now())
+		notFound(w)
+		return
+	}
+	// The live server answers only the socket address; its API (the messaging service reaches it privately), metrics and health look like nothing.
+	if g.cfg.liveHost != "" && rt.host == g.cfg.liveHost && !liveAllowed(r.Method, r.URL.Path) {
 		g.scans.miss(caller, g.now())
 		notFound(w)
 		return

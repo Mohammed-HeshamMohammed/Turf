@@ -251,3 +251,17 @@ func TestAnswersGetDefensiveHeadersUnlessTheServiceChoseItsOwn(t *testing.T) {
 		t.Error("the monitoring pages are shown in a frame on the website, so they must not be marked DENY")
 	}
 }
+
+func TestLiveHostAnswersOnlyTheSocket(t *testing.T) {
+	if !liveAllowed("GET", "/connection/websocket") {
+		t.Fatal("the socket must be open")
+	}
+	for _, p := range []string{"/api", "/api/publish", "/metrics", "/health", "/debug/pprof/", "/admin", "/connection/websocket/x", "/"} {
+		if liveAllowed("GET", p) {
+			t.Errorf("%s must not be public", p)
+		}
+	}
+	if liveAllowed("POST", "/connection/websocket") {
+		t.Fatal("the socket is opened with GET")
+	}
+}
