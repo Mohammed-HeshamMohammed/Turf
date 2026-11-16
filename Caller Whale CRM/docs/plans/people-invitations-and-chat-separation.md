@@ -32,11 +32,42 @@ Decided by the owner:
 | D20 | When an agent leaves or is removed, their lead threads go to the team's manager (to the owner if the team has none). |
 | D21 | A lead's unanswered text waits with the agent; after a time each agency sets (15 minutes by default) the team's manager is told and can take over. |
 
-Assumed until the owner says otherwise:
+Second round, 2026-11-17:
 
-| # | Assumption |
+| # | Decision |
 | --- | --- |
-| A7 | Platform staff see a member's phone only through the person's own setting. |
+| D22 | Platform staff see a member's phone only through the person's own setting. |
+| D23 | An agency owner cannot read the agency's internal chats they are not in. Lead threads are different and always visible to the owner. |
+| D24 | Agency chats cannot be blocked. A member can mute, archive or hide them. Blocking is for personal chats. |
+| D25 | A person can leave an agency at once. Their leads, tasks and threads go to their managers (or the owner), and the owner can then decide where it goes: all of it to one person, or parts to different people. The same choice applies when someone is removed. |
+| D26 | A suspended person's leads and threads are held by their managers, who can read and take over. On restore everything not reassigned returns to the person. |
+| D27 | If an owner's account is closed or disabled, the agency is paused (members read, nobody works) and Caller Whale staff hand it on or close it. |
+| D28 | An active owner can hand the agency to a member. Both confirm with a second step; the old owner becomes a manager or leaves. |
+| D29 | Name and tag changes are limited (for example twice in 30 days). An old `Name#id` is reserved for 90 days so nobody can pose as its last holder. |
+| D30 | New accounts start with: people in my agencies find me by name; anyone else needs my exact `Name#id` and sends a request. |
+| D31 | A blocked person is told ("You cannot message this person"). |
+| D32 | In a shared personal group, a blocker and the blocked both stay; each one's messages are hidden from the other and can be shown on demand. Nobody else is told. |
+| D33 | A block covers personal chats only. Work chats between the same two people in a shared agency continue; the blocker is told this when blocking. |
+| D34 | A block closes every route: direct message, request, search, and being added to a group together. A new account made to get around a block is abuse. |
+| D35 | Unblocking brings the old conversation back. Messages attempted during the block were never delivered and do not appear. |
+| D36 | Personal chats allow what agency chats allow (text, replies, reactions, polls, GIFs, and photos and files when built), minus the lead card and lead location. |
+| D37 | When an account is deleted its messages stay for the others, shown as "Deleted user". Agency chats and lead threads stay with the agency. |
+| D38 | At sign-in the person chooses "This is my device" (the encrypted copy is kept) or "Shared device" (nothing is kept after sign-out or closing the tab). |
+| D39 | Activity in an agency the person is not working in shows as a badge on the switcher and as a notification in its own category, with no details. |
+| D40 | Notifications have categories: this agency's work, other agencies, personal chats, account and security. The notification screen has Read and Unread tabs. Each person can switch a category off, except account and security. |
+| D41 | Each agency sets how long its invitations stay valid. |
+| D42 | An agency cannot limit or hide its members' personal chats. |
+| D43 | A team can have no manager, one, or several equal managers. Each manager can also name deputies, who can read and take over threads but not invite or change people. |
+| D44 | A caller or closer can be in several teams of one agency and switches the view to the team they want to work in. The switch is a filter, not a lock: alerts for another team's lead still arrive, and opening one switches the view. |
+| D45 | One person can hold several roles in an agency, for example a manager who also closes. One invitation can carry them. |
+| D46 | A seat is one person in one agency, however many teams or roles they have. The same person in two agencies is one seat in each. |
+| D47 | An invitation link lets a new person sign up inside it: email filled in and locked, opening the link confirms the email, and they land in the agency. |
+| D48 | When a team has several managers, all of them and their deputies are told about an agent's handed-on threads and unanswered texts. The first to act holds it and the others see who. |
+| D49 | A lead belongs to one team and is assigned to one agent of that team. That team's managers see it; the agent's other teams do not. |
+| D50 | After reviewing a report, staff can warn the person, limit their personal chats for a period, suspend the account, or dismiss. A suspension applies across Caller Whale; each affected agency owner is told the member is suspended, not why. |
+| D51 | Clients and partners see only the partner threads shared with them inside an agency, and have a Personal space like anyone else. |
+
+Suggested and turned down, recorded so it is not raised again: a lock that makes a person select an active team before a lead thread can be opened (the team switch is a filter, D44).
 
 ## What exists today
 
@@ -110,13 +141,21 @@ Assumed until the owner says otherwise:
 - **Blocked, not broken.** An invitation whose team is gone or whose seat is taken shows as "Blocked" with the reason; the owner can pick another team or free a seat. A seat is held for a pending invitation, so acceptance does not fail on seats. (Problems 12, 13.)
 - **Inviter removed (D7, D13).** When an inviter is removed, suspended or loses the right to invite, their pending invitations are cancelled at that moment and marked "Cancelled: inviter removed". The invited person sees "This invitation was cancelled." A restored inviter does not revive them. Acceptance still checks the inviter as a second guard. (Problem 14.)
 - **One system.** Trace the old token path and remove it if nothing uses it. (Problem 15.)
-- **Leaving.** A person can leave an agency themselves, except its owner. (Problem 19.)
+- **Leaving (D25).** A person can leave an agency themselves at once, except its owner. Their work goes to their managers (or the owner) straight away so nothing is unattended, and the owner gets a "Hand on this person's work" screen: all of it to one person, or leads, tasks and threads split between several. The same screen appears when someone is removed. (Problem 19.)
+- **Validity (D41).** Each agency sets how long its invitations last, between 1 and 30 days, 7 by default. Resend and extend use that length.
+- **New people (D47).** The invitation link opens sign-up with the email filled in and locked. Opening the link proves the address, so the person accepts and lands in the agency in one go. The link works once and only until the invitation ends.
+- **Several roles (D45).** One invitation can carry more than one role and more than one team.
 
 ### Part 2. One person, several agencies
 
-- **Profile (D2, D3, A7).** Name, email and avatar are one profile in the auth service; agencies read it and cannot edit it. Per agency there is only role, team, limits and suspension.
+- **Profile (D2, D3, D22).** Name, email and avatar are one profile in the auth service; agencies read it and cannot edit it. Per agency there is only role, team, limits and suspension.
 - **Phone setting.** In Settings, next to authentication: "Who can see my phone number": nobody (the default), my agency's owner and managers, or everyone in my agencies. The server leaves the number out unless the setting allows it; hiding it on screen is not enough.
 - **Each agency sees only itself.** No agency is told about a person's other agencies.
+- **Suspension (D26).** A suspended person keeps their place. Their leads and threads are held by their managers, who can read and take over. On restore, whatever was not reassigned returns.
+- **Owner gone (D27).** If the owner's account is closed or disabled, the agency is paused: members can read, nobody can work, invitations stop. Caller Whale staff hand it to another person or close it.
+- **Handing over ownership (D28).** An active owner picks a member; both confirm with a second step. The old owner becomes a manager or leaves. Until both confirm, nothing changes.
+- **Shared devices (D38).** At sign-in: "This is my device" keeps the encrypted copy; "Shared device" keeps nothing after sign-out or closing the tab.
+- **Seats (D46).** A seat is one person in one agency.
 
 ### Part 3. Display name tag (D5, D14)
 
@@ -124,7 +163,8 @@ Assumed until the owner says otherwise:
 - The name and tag together are unique. Look-alike letters count as the same letter, and `#` is not allowed in a name.
 - Existing people get a tag automatically; no name changes. The existing `username` (the address of a profile page, `0019_username.sql`) stays as it is.
 - **Search.** Part of a name finds only people in your own agencies. A full `Name#id` finds exactly one person anywhere, with rate limits, so nobody can list every user.
-- **Settings**, next to the phone setting: "Who can find me" and "Who can message me".
+- **Settings**, next to the phone setting: "Who can find me" and "Who can message me". A new account starts with: my agencies by name, anyone else by exact `Name#id` and a request (D30).
+- **Changes (D29).** The name and the tag can each be changed a limited number of times (twice in 30 days to start). The previous `Name#id` cannot be taken by anyone else for 90 days.
 
 ### Part 4. Web cache (D4)
 
@@ -167,6 +207,25 @@ The same holds for agency chats: they are opened from inside their agency's work
 - **Block** and **report** are in every conversation. A report stores a copy of the reported messages, with a few before and after, for platform staff, who can read nothing else (D12). Copies are deleted after 90 days.
 - **Limits:** new personal chats per day, a per-person send rate (the Redis-backed limit already on the "not built" list in `messaging-rollout-status.md`), and a smaller size for personal groups.
 
+**Blocking (D24, D31 to D35)**
+- Blocking exists in personal chats only. Agency chats can be muted, archived or hidden, never blocked; a problem with a teammate goes to a manager or the owner.
+- The blocked person is told: "You cannot message this person."
+- A block closes every route between the two: direct messages, requests, search, and being added to a new group together.
+- In a personal group both are already in, both stay. Each one's messages are hidden from the other ("Hidden message, show"), and nobody else is told.
+- If the two share an agency, their work chats continue. The person blocking is told this at the moment they block.
+- Unblocking brings the old conversation back. Messages tried during the block were never delivered.
+- A new account made to get around a block can be reported as abuse.
+
+**After a report (D50)**
+- Staff can warn, limit personal chats for a period, suspend the account, or dismiss. The reporter is told it was reviewed.
+- A suspension applies across Caller Whale. Each agency the person is in is told they are suspended, not why.
+
+**Other rules**
+- Personal chats carry what agency chats carry, minus the lead card and lead location (D36).
+- An agency owner cannot read agency chats they are not in (D23), and no agency can limit or hide personal chats (D42).
+- A deleted account's messages stay, shown as "Deleted user" (D37). *The lawyer may change this.*
+- Clients and partners see only partner threads shared with them inside an agency, and have their own Personal space (D51).
+
 **Requests and live updates**
 - Personal routes need a signed-in person with a confirmed email, and no agency.
 - The live channel stays one per person. A prompt with no agency is Personal. A prompt for the current agency fetches as today. A prompt for another agency only raises that agency's badge in the switcher; nothing is fetched or stored.
@@ -183,8 +242,28 @@ Lead threads are not built yet (the schema has the columns, no request creates t
 - **One sender (D17).** The assigned agent sends. The team's manager and the owner can read, and can leave internal notes the lead never receives (the database already refuses to send a note by text).
 - **Takeover (D17, D18).** A manager or the owner presses "Take over". From then on they send and the agent can only read. Everyone in the thread sees who holds it. The agent can press "Ask for it back", which notifies the holder; only the holder gives it back. The lead sees the same number and the same thread. Inside the app every message shows who really sent it, and each takeover and hand-back is a line in the thread and in the agency's activity record.
 - **Reassignment (D19).** Moving the lead moves the thread with all its history. The previous agent stops seeing it at once.
-- **Agent leaves (D20).** Their threads go to the team's manager, or to the owner when the team has none. This runs in the same step that removes them from the agency's conversations (roster sync).
-- **Unanswered texts (D21).** A reply from a lead waits with the agent as unread. After the agency's wait time (set in the agency's settings, 15 minutes by default, counted in working hours) the manager is notified and can take over.
+- **Agent leaves (D20, D25, D48).** Their threads go to the team's managers and deputies, or to the owner when the team has none. All are told; the first to act holds the thread and the others see who. The owner can then hand the work on as they choose. This runs in the same step that removes the person from the agency's conversations (roster sync).
+- **Unanswered texts (D21, D48).** A reply from a lead waits with the agent as unread. After the agency's wait time (set in the agency's settings, 15 minutes by default, counted in working hours) the team's managers and deputies are notified, and the first to act takes over.
+- **Lead ownership (D49).** A lead belongs to one team and one agent of that team. An agent in several teams sees each team's leads under that team; a team's managers never see the agent's leads from another team.
+
+### Part 7. Teams, roles and seats (D43 to D46)
+
+These change rules the authorization service enforces today (`services/authz/tree.go`): exactly one team per caller or closer, at most one manager per team, and a manager who is not also a caller or closer.
+
+- **Managers.** A team has no manager, one, or several with equal rights. A team with no manager is run by the owner.
+- **Deputies.** A manager or the owner can name deputies for a team. A deputy can read the team's lead threads and take them over. A deputy cannot invite, change roles, suspend or set limits.
+- **Several teams.** A caller or closer can be in more than one team of an agency. The CRM shows a team switch that filters what is on screen. It is a filter, not a lock: an alert for another team's lead still arrives, and opening it switches the view.
+- **Several roles.** A person can be a manager and also a closer or caller.
+- **Manager rights with several managers.** Any manager of a team can suspend, restrict and set limits for that team's callers and closers, and invite into it. Two managers acting on the same person at once: the later change wins and both are recorded.
+- **Seats.** One person in one agency is one seat, whatever their teams and roles.
+- **To settle while building:** whether a manager can act on another manager of the same team (planned: no, only the owner can), and how "their manager" is chosen for an agent in several teams (planned: the managers of the team the lead belongs to).
+
+### Part 8. Notifications (D39, D40)
+
+- **Categories:** this agency's work; other agencies; personal chats; account and security.
+- **Other agencies** carries no details: "New activity in Agency B", plus the badge on the switcher.
+- **The notification screen** has Read and Unread tabs, and filters by category.
+- **Settings:** each category can be switched off, except account and security (invitations, sign-ins, role changes, suspension, removal).
 
 ## Build order
 
@@ -199,16 +278,21 @@ Lead threads are not built yet (the schema has the columns, no request creates t
 | 7 | Message requests, block, report (90-day copies), limits | 6 |
 | 8 | Inbox switch, new-chat search, requests and block screens; per-agency badges in the switcher | 6, 7 |
 | 9 | Terms and privacy text for personal chats and reports (needs the lawyer) | before 8 goes live |
-| 10 | Lead threads: access by lead, one sender, takeover, reassignment, agent leaving, the unanswered-text wait | the SMS stage |
+| 10 | Lead threads: access by lead, one sender, takeover, reassignment, agent leaving, the unanswered-text wait | the SMS stage, 11 |
+| 11 | Teams and roles: several managers, deputies, agents in several teams with the team switch, several roles, seats per person. Changes the authorization rules and every screen that assumes one team | 3 |
+| 12 | Hand-on screen for a leaving, removed or suspended person's work; suspension holding | 11 |
+| 13 | Owner gone (agency paused) and handing over ownership | - |
+| 14 | Notification categories, Read and Unread tabs, per-category settings | 8 |
+| 15 | Sign-up inside the invitation link; shared-device choice at sign-in; name and tag change limits | 1, 4, 5 |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
 ## Open questions
 
-1. Confirm A7 (staff and phone numbers).
-2. Should an agency be able to switch personal chats off for its own screen while people are working? Not planned.
-3. Who on staff reads reports? (The 90 days is decided; the lawyer may change it.)
-4. Suggested and turned down by the owner, recorded so it is not raised again: requiring a person to select an "active team" before opening a lead thread.
+1. Who on staff reads reports? (The 90 days is decided; the lawyer may change it.)
+2. The two points marked "to settle while building" in Part 7.
+3. The exact numbers for limits: new personal chats per day, sends per minute, personal group size, name changes.
+4. For the lawyer: message retention after account deletion, report copies, and the terms forbidding lead data in personal chats.
 
 ## Not verified
 
