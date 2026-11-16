@@ -139,6 +139,19 @@ Sixth round, 2026-11-17 (complete as written):
 
 D94 replaces the limit written under D15 that a manager cannot invite a client.
 
+Seventh round, 2026-11-17 (complete as written):
+
+| # | Decision | Step |
+| --- | --- | --- |
+| D100 | An owner can name admins. An admin can do everything the owner can with people, teams and settings, but cannot change the plan, hand over or close the agency, or remove the owner. Wherever this plan says "the owner" for people, teams and settings, an admin can too. | 11 |
+| D101 | The owner and admins can be assigned leads in any team without being added to it, and then take a seat like anyone who works leads. | 11 |
+| D102 | Handing on a person's work covers their leads and lead threads, open tasks and callbacks (due times kept), open deals at their stage, and notes (which stay on the lead). Unsent drafts are discarded. | 12 |
+| D103 | The first thing built after the two invitation steps is teams and roles. | order |
+| D104 | Each step has its own switch: on for the owner's agency first, then for everyone, and off again without a new release if something is wrong. | every step |
+| D105 | Personal chats go live after teams and the name tag, once the lawyer's text is ready. The server's memory is checked before the second database is created. | order |
+| D106 | Existing people learn about their tag from a one-time note in settings. No email. | 4 |
+| D107 | Each step is checked by automatic tests and in the web app, then tried by the owner in their own agency with a second account, before it is switched on for everyone. | every step |
+
 Suggested and turned down, recorded so it is not raised again: a lock that makes a person select an active team before a lead thread can be opened (the team switch is a filter, D44).
 
 ## What exists today
@@ -371,6 +384,20 @@ These change rules the authorization service enforces today (`services/authz/tre
 | 19 | Support access granted by the owner for a set time, recorded | - |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
+
+### Order of work (D103, D105)
+
+The step numbers above are names, not the order. The order is:
+
+1. Steps 1 and 2: the invitation fixes.
+2. Step 11: teams and roles, then step 3 (invitations that carry teams and roles), step 12 (hand-on) and step 16 (team chats, directory, record).
+3. Step 4: the name tag and settings, with step 15.
+4. Step 5: the web cache.
+5. Steps 6, 7, 8 and 14: personal chats and notifications, once step 9 (the lawyer's text) is ready.
+6. Steps 13, 17, 18 and 19: ownership, solo upgrade, plan effects and support access, after the billing service has been read.
+7. Step 10: lead threads, with the SMS stage.
+
+Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
 ## Open questions
 
