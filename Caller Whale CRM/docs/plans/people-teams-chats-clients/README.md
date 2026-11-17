@@ -120,6 +120,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | 42 | Monitoring and alerts: Grafana checks on sign-in, calls, texts, chats and databases; urgent alerts to the on-call person's phone; the speed targets watched; web app errors collected without personal data. *The current Grafana setup has not been read for this.* | - |
 | 43 | Security: fix the high-severity library weaknesses GitHub reports (before step 1), the cross-agency tests run on every change, a written way to change each secret with a yearly change, a monthly update review, and one outside security test before opening. | - |
 | 44 | Data requests from leads: the owner enters a request, Caller Whale finds every record about that person in the agency, exports or deletes it, blocks the number if asked, and records it. | 20, 23 |
+| 45 | Shared learning by agreement: the owner's separate agreement, each client's agreement, the check that leads were told, removal of personal details with a check, the AI discount, withdrawal. *Needs the lawyer before any data is used.* | 26 |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -151,6 +152,7 @@ The step numbers above are names, not the order. The order is:
 21. Step 41: backups and recovery. The daily off-server backup and the restore test should exist before any real agency's data is on the server; the second server can follow.
 22. Step 42: monitoring and alerts, before any real agency depends on the service, alongside step 41.
 23. Step 44: the data request tool, with the lawyer's text, before opening.
+24. Step 45: shared learning by agreement, last of the AI steps, after the lawyer's review.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
@@ -172,7 +174,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-319 decisions. Each row links to the file that holds it.
+327 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -495,3 +497,11 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D317 | Every email to a lead carries an unsubscribe link and the agency's address. Unsubscribing blocks email to that address for the agency, like a text opt-out. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D318 | A lead's email reply goes into the lead's record, with the same wait-then-tell-the-team-lead rule as an unanswered text (D21). | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D319 | Agents email leads only from the agency's or a client's domain (D161), never from a personal mailbox, so lead conversations never leave the agency with a departing agent. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D320 | The in-app assistant can summarise a lead's history, draft texts and emails (the agent edits and sends them; it never sends on its own), summarise each call afterwards with a suggested outcome for the agent to confirm, and answer "how do I" questions about Caller Whale. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D321 | Only AI services contracted not to train on or keep what is sent are used. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D322 | Drafts and summaries an agent saves or sends become part of the lead's record. What the agent asked the assistant privately is not shown to anyone. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D323 | Assistant use is part of the AI feature's price (D289) and is drawn from team and client budgets, with a per-person daily cap against runaway use. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D324 | An agency can agree to let Caller Whale learn from its data. Only general patterns are used, with every name, number, address and client detail removed. Raw calls and texts never leave the agency. D146 stays the rule for every agency that has not agreed. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D325 | An agency that agrees gets a lower price on AI features for as long as it keeps agreeing. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D326 | Before any of an agency's data is used: the owner signs a separate agreement in Caller Whale (not part of the general terms) and can withdraw it at any time; each client agrees for its own part; the lawyer checks that the agency's notice to leads covers this use; and a check confirms no personal details remain in the patterns. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D327 | When an agency withdraws, nothing new of theirs is used and the discount stops. Patterns already learned stay, which the agreement says up front. | [05-calls-and-budgets](05-calls-and-budgets.md) |
