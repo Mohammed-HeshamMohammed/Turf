@@ -76,7 +76,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 
 | Step | What | Depends on |
 | --- | --- | --- |
-| 1 | Invitation fixes that need no new design: agency name, unverified hint, delivery messages, masked address, authenticator explanation, link to the invitation | - |
+| 1 | Invitation fixes that need no new design: agency name, unverified hint, delivery messages, masked address, authenticator explanation, link to the invitation. Server side now; screens built once in the CRM (D332) | - |
 | 2 | Inviter removed cancels pending invitations; blocked state; held seats; resend and extend | - |
 | 3 | Invitations that carry teams; managers inviting into their own teams; leave an agency; remove the old token path | 2 |
 | 4 | Tag (`#id`), search rules, and the three settings (phone, find me, message me) | - |
@@ -174,7 +174,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-331 decisions. Each row links to the file that holds it.
+335 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -509,3 +509,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D329 | The invitation link opens the CRM, which shows and accepts it. The website Dashboard still lists pending invitations too, so nobody gets stuck. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D330 | Clients sign in to the same CRM and see a simplified view with only their own pages, under the agency's branding (D172). | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D331 | Platform staff screens (the report queue, agencies, support access) stay in the website Dashboard's existing staff area, away from agencies' work. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D332 | Step 1's server changes (agency name, delivery states, masked address, links) are done now. Their screens are built directly in the CRM when the people screens move, so nothing is built twice. The current Dashboard screens get only small wording fixes. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D333 | In the CRM, members, teams, invitations and clients form one "Team" section in the sidebar for those who manage people. Agency settings (hours, numbers, limits, branding) go under Workspace settings in the Caller Whale menu. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D334 | An agent sees only the directory in the Team section: names, roles and teams of everyone in the agency, to start a chat. No invitations or management actions. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D335 | The Dashboard's member and invite panels keep working until the CRM screens are switched on for everyone. Then they are removed and link to the CRM. | [07-platform-and-rollout](07-platform-and-rollout.md) |

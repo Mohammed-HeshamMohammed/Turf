@@ -82,6 +82,10 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D329 | The invitation link opens the CRM, which shows and accepts it. The website Dashboard still lists pending invitations too, so nobody gets stuck. | 1, 3 |
 | D330 | Clients sign in to the same CRM and see a simplified view with only their own pages, under the agency's branding (D172). | 23 |
 | D331 | Platform staff screens (the report queue, agencies, support access) stay in the website Dashboard's existing staff area, away from agencies' work. | 7, 19, 39 |
+| D332 | Step 1's server changes (agency name, delivery states, masked address, links) are done now. Their screens are built directly in the CRM when the people screens move, so nothing is built twice. The current Dashboard screens get only small wording fixes. | 1 |
+| D333 | In the CRM, members, teams, invitations and clients form one "Team" section in the sidebar for those who manage people. Agency settings (hours, numbers, limits, branding) go under Workspace settings in the Caller Whale menu. | 3, 11 |
+| D334 | An agent sees only the directory in the Team section: names, roles and teams of everyone in the agency, to start a chat. No invitations or management actions. | 16 |
+| D335 | The Dashboard's member and invite panels keep working until the CRM screens are switched on for everyone. Then they are removed and link to the CRM. | 3, 11 |
 
 ## Notes
 
