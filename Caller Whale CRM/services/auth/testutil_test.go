@@ -289,6 +289,8 @@ type capture struct {
 	codes  []string // sign-in codes asked for, with who they went to in codeTo
 	codeTo []string
 	fail   bool
+	// agencies named in invitation emails, in the order sent
+	agencies []string
 }
 
 func (c *capture) sendConfirmation(_ context.Context, to, _ string, link string) error {
@@ -310,13 +312,13 @@ func (c *capture) sendCode(_ context.Context, to, code string) error {
 	return nil
 }
 
-func (c *capture) sendInvitation(_ context.Context, to, _, _, _, _, link string) error {
+func (c *capture) sendInvitation(_ context.Context, to, _, agency, _, _, _, link string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.fail {
 		return fmt.Errorf("down")
 	}
-	c.to, c.links = append(c.to, to), append(c.links, link)
+	c.to, c.links, c.agencies = append(c.to, to), append(c.links, link), append(c.agencies, agency)
 	return nil
 }
 

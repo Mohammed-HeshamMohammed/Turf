@@ -232,3 +232,18 @@ func TestTeamInvitationSaysTheRoleInWordsAndHowLongItWorks(t *testing.T) {
 		t.Fatalf("team invitation: %+v %v", m, err)
 	}
 }
+
+func TestTeamInvitationNamesTheAgencyAndLinksToTheInvitation(t *testing.T) {
+	link := "https://callerwhale.com/dashboard?invitation=abc"
+	m, err := Render("team_invitation", "sami@example.com", map[string]any{"inviter": "Mo", "agency": "Blue <Door> Homes", "role": "caller", "role_name": "Caller", "expires": "72 hours", "link": link})
+	if err != nil || m.Subject != "Join Blue <Door> Homes on Caller Whale" || !strings.Contains(m.Text, "join Blue <Door> Homes on Caller Whale as Caller") || !strings.Contains(m.Text, link) {
+		t.Fatalf("named agency: %+v %v", m, err)
+	}
+	if strings.Contains(m.HTML, "<Door>") || !strings.Contains(m.HTML, "Blue &lt;Door&gt; Homes") {
+		t.Fatalf("the agency name is escaped in the page: %s", m.HTML)
+	}
+	m, _ = Render("team_invitation", "sami@example.com", map[string]any{"inviter": "Mo", "agency": "Evil\r\nBcc: x@y.z", "role": "caller", "link": link})
+	if m.Subject != "Your Caller Whale invitation" || strings.Contains(m.Text, "Bcc") {
+		t.Fatalf("a name on two lines is left out: %+v", m)
+	}
+}

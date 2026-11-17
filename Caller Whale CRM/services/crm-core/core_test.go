@@ -60,6 +60,18 @@ func TestMeListsWorkspacesAndWhatThePersonMayDo(t *testing.T) {
 	if len(orgs) != 1 || orgs[0].(map[string]any)["name"] != "Person 1111's workspace" {
 		t.Fatalf("a workspace is named after the person who opened it: %v", orgs)
 	}
+	if got := e.rules.nameOf(orgA); got != "Person 1111's workspace" {
+		t.Fatalf("authz is told the owner's agency name, so invitations can name it: %q", got)
+	}
+	if status, _ := e.call(alice, orgA, "PATCH", "/api/v1/organization", map[string]any{"name": "Blue Door Homes"}); status != 200 {
+		t.Fatalf("rename: %d", status)
+	}
+	if got := e.rules.nameOf(orgA); got != "Blue Door Homes" {
+		t.Fatalf("a renamed agency is told to authz: %q", got)
+	}
+	if status, _ := e.call(alice, orgA, "PATCH", "/api/v1/organization", map[string]any{"name": "Two\nlines"}); status != 400 {
+		t.Fatalf("a name on two lines is refused: %d", status)
+	}
 	if caps := me["capabilities"].([]any); len(caps) != len(everything) {
 		t.Fatalf("capabilities: %v", caps)
 	}

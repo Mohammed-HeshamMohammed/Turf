@@ -47,6 +47,10 @@ type engine interface {
 	removeMember(ctx context.Context, org, user string) error
 	setRole(ctx context.Context, org string, r role) error
 	openWorkspace(ctx context.Context, org, owner, ownerRole string) error
+	// setWorkspaceName keeps the agency's name as the CRM shows it, so invitations can say which agency they come from.
+	setWorkspaceName(ctx context.Context, org, name string) error
+	// workspaceInfo is a workspace's owner and name; found is false when it was never opened.
+	workspaceInfo(ctx context.Context, org string) (owner, name string, found bool, err error)
 	setStanding(ctx context.Context, org string, change standingChange) error
 	// seatLimits is how many seats and client places the workspace has (nil: unlimited).
 	seatLimits(ctx context.Context, org string) (seats, clients *int, err error)

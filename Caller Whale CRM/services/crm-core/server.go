@@ -71,6 +71,20 @@ type server struct {
 
 	seenPeople sync.Map // user -> last time their name was stored
 	seenOrgs   sync.Map // workspace ids that have a row
+	sharedName sync.Map // workspace id -> the agency name authz was last told
+}
+
+// shareOrgName tells authz the agency's name once per name, so invitations can name the agency. A failure is logged and tried
+// again on the next request: the CRM keeps working either way.
+func (s *server) shareOrgName(ctx context.Context, org, name string) {
+	if told, ok := s.sharedName.Load(org); ok && told == name {
+		return
+	}
+	if err := s.rules.nameOrg(ctx, org, name); err != nil {
+		log.Printf("WARN could not tell authz the name of workspace %s: %v", org, err)
+		return
+	}
+	s.sharedName.Store(org, name)
 }
 
 // req is one signed-in request. sc is filled for requests inside a workspace.

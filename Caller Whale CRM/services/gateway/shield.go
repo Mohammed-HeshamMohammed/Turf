@@ -42,6 +42,7 @@ var authRoutes = []string{
 	"GET /v1/orgs/{org}/invitations", "POST /v1/orgs/{org}/invitations",
 	"DELETE /v1/invitations/{id}",
 	"GET /v1/me/invitations", "POST /v1/me/invitations/{id}/accept",
+	"GET /v1/me/invitations/{id}", "POST /v1/me/invitations/{id}/report", "GET /v1/admin/invitation-reports",
 	"GET /v1/security", "GET /v1/providers", "GET /v1/fx", "POST /v1/me/currency", "GET /.well-known/jwks.json",
 	"POST /v1/password", "POST /v1/password/forgot", "POST /v1/password/reset",
 	"POST /v1/email/verify", "POST /v1/email/resend",

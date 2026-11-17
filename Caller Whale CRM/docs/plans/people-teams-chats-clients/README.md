@@ -95,7 +95,7 @@ Every step uses these words. The plan itself sometimes says "agency" and "agent"
 
 | Step | What | Depends on |
 | --- | --- | --- |
-| 1 | Invitation fixes that need no new design: agency name, unverified hint, delivery messages, masked address, authenticator explanation, link to the invitation. Server side now; screens built once in the CRM (D332) | - |
+| 1 | Invitation fixes that need no new design: agency name, unverified hint, delivery messages, masked address, authenticator explanation, link to the invitation. Server side now; screens built once in the CRM (D332). **Built 2026-11-17:** the CRM tells authz the agency's name; invitations keep the agency and owner names and show who sent them; the email names the agency and links to the invitation; the link survives sign-in; reasons an invitation cannot be used (other address masked, unconfirmed, cancelled, accepted, ended); "Report this invitation" with a staff list; failed and switched-off email told apart; accepting returns the agency joined; Dashboard wording fixed. Left for later steps: the link opening the CRM (D329, D368, steps 3 and 15), the `#id` tag beside the owner's name (step 4), the staff screen for reports | - |
 | 2 | Inviter removed cancels pending invitations; blocked state; held seats; resend and extend | - |
 | 3 | Invitations that carry teams; managers inviting into their own teams; leave an agency; remove the old token path | 2 |
 | 4 | Tag (`#id`), search rules, and the three settings (phone, find me, message me) | - |

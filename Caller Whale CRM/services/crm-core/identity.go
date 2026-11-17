@@ -54,12 +54,25 @@ func (s *server) me(q *req) error {
 		return err
 	}
 	defer rows.Close()
+	owned := map[string]string{} // the agencies this person owns, by name, for invitations to name them
 	for rows.Next() {
 		var id, name, timezone string
 		if err = rows.Scan(&id, &name, &timezone); err != nil {
 			return err
 		}
 		orgs = append(orgs, map[string]any{"id": id, "name": name, "timezone": timezone})
+		for _, w := range ppl.Workspaces {
+			if w.OrgID == id && w.BusinessOwner {
+				owned[id] = name
+			}
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
+	rows.Close()
+	for id, name := range owned {
+		s.shareOrgName(ctx, id, name)
 	}
 	if err = s.st.db.QueryRow(ctx, `SELECT last_org_id::text, last_org_at FROM people WHERE user_id = $1`, q.c.sub).Scan(&lastOrg, &lastAt); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
@@ -420,12 +433,13 @@ func (s *server) renameOrg(q *req) error {
 		return err
 	}
 	name := strings.TrimSpace(body.Name)
-	if name == "" || len(name) > 200 {
-		return bad("Name the workspace (up to 200 characters).")
+	if name == "" || len(name) > 200 || strings.ContainsAny(name, "\r\n") {
+		return bad("Name the workspace (up to 200 characters, on one line).")
 	}
 	if _, err := s.st.db.Exec(q.r.Context(), `UPDATE orgs SET name = $2 WHERE id = $1`, q.sc.orgID, name); err != nil {
 		return err
 	}
+	s.shareOrgName(q.r.Context(), q.sc.orgID, name)
 	writeJSON(q.w, 200, map[string]any{"id": q.sc.orgID, "name": name})
 	return nil
 }

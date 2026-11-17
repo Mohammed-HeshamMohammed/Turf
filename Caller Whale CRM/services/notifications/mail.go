@@ -224,10 +224,19 @@ func Render(template, to string, data map[string]any) (Message, error) {
 		if expires == "" {
 			expires = "one hour"
 		}
+		// agency is the name of the agency inviting ("Blue Door Homes"); without it the email says Caller Whale, as before.
+		agency := strings.TrimSpace(str("agency"))
+		if strings.ContainsAny(agency, "\r\n") || len(agency) > 200 {
+			agency = ""
+		}
+		where, subject := "Caller Whale", "Your Caller Whale invitation"
+		if agency != "" && agency != "Caller Whale" {
+			where, subject = agency+" on Caller Whale", "Join "+agency+" on Caller Whale"
+		}
 		e := html.EscapeString
-		text := inviter + " invited you to Caller Whale as " + role + ".\n\nSign in or create an account with " + to + " at " + link + ", confirm your email, then accept the invitation in your dashboard. This invitation expires " + expires + " after it was created.\n\nOnly this email address can accept it."
-		page := `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:520px"><p><strong>` + e(inviter) + `</strong> invited you to Caller Whale as <strong>` + e(role) + `</strong>.</p><p>Sign in or create an account with ` + e(to) + `, confirm your email, then accept the invitation in your dashboard. This invitation expires ` + e(expires) + ` after it was created.</p><p><a href="` + e(link) + `">Open Caller Whale</a></p><p>Only this email address can accept it.</p></div>`
-		return Message{To: to, Subject: "Your Caller Whale invitation", Text: text, HTML: page}, nil
+		text := inviter + " invited you to join " + where + " as " + role + ".\n\nOpen the invitation: " + link + "\n\nSign in or create an account with " + to + ", confirm your email, then accept it. This invitation expires " + expires + " after it was created.\n\nOnly this email address can accept it. If you did not expect it, you can report it from the invitation page."
+		page := `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:520px"><p><strong>` + e(inviter) + `</strong> invited you to join <strong>` + e(where) + `</strong> as <strong>` + e(role) + `</strong>.</p><p>Sign in or create an account with ` + e(to) + `, confirm your email, then accept it. This invitation expires ` + e(expires) + ` after it was created.</p><p><a href="` + e(link) + `" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none">Open the invitation</a></p><p style="color:#666;font-size:13px">Only this email address can accept it. If you did not expect it, you can report it from the invitation page.</p></div>`
+		return Message{To: to, Subject: subject, Text: text, HTML: page}, nil
 	case "contact":
 		// A message from the website's contact form, sent to the team's inbox (the "to"). The writer's address is the reply address.
 		from, message := str("email"), str("message")
