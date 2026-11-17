@@ -51,6 +51,7 @@ Who can be invited, how an invitation works from sending to arriving, one person
 | D242 | A sign-in from a new device sends an email and an account notification with the device and rough place, with a "This wasn't me" button that signs it out and starts a password reset. | 35 |
 | D243 | The owner can limit their agency's members to sign in only from chosen countries, and only from chosen networks (office internet addresses). | 35 |
 | D244 | Each agency sets how long a person can stay idle before being signed out, 8 hours by default. A call in progress never times out. | 35 |
+| D336 | The old token invitation path (`#/join?token=`, `/api/v1/invitations/join`) has no server handler left. Its CRM code, test and contract line are removed in step 3, leaving one invitation system. (Problem 15.) | 3 |
 
 ## Notes
 

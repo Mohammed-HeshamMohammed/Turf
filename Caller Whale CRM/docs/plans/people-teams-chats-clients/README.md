@@ -167,14 +167,14 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 - The exact words on the Members screen for creating a team.
 - The sign-up path for an invited person with no account yet.
 - The platform-staff invitation flow.
-- Whether the old token invitation path is still used.
+- *Answered:* the old token invitation path has no server handler (D336).
 - How the Dashboard's workspace picker behaves with several agencies.
 - How the core service decides which team may see a lead (needed for Part 6).
 - The billing service, the dialer service, the import service, the assistant and MCP services, and the existing do-not-call code, each for the parts of this plan that touch them.
 
 ## Every decision
 
-335 decisions. Each row links to the file that holds it.
+338 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -513,3 +513,6 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D333 | In the CRM, members, teams, invitations and clients form one "Team" section in the sidebar for those who manage people. Agency settings (hours, numbers, limits, branding) go under Workspace settings in the Caller Whale menu. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D334 | An agent sees only the directory in the Team section: names, roles and teams of everyone in the agency, to start a chat. No invitations or management actions. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D335 | The Dashboard's member and invite panels keep working until the CRM screens are switched on for everyone. Then they are removed and link to the CRM. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D336 | The old token invitation path (`#/join?token=`, `/api/v1/invitations/join`) has no server handler left. Its CRM code, test and contract line are removed in step 3, leaving one invitation system. (Problem 15.) | [01-people-and-invitations](01-people-and-invitations.md) |
+| D337 | The researcher role is switched on in step 11. A researcher prepares leads in their teams (import, clean, merge, skip-trace within budget, tag) and hands them to the team's unassigned pool. They never call or text and never see deal money. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D338 | The switched-off "system admin" platform role is removed. The narrow staff roles (support, billing, moderation, D271) take its place when there is a team. | [07-platform-and-rollout](07-platform-and-rollout.md) |

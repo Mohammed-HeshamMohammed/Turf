@@ -86,6 +86,7 @@ How teams are built (managers, deputies, admins, agents in several teams), who h
 | D282 | A property is its own record within a client's work, and the people linked to it (owner, tenant, heir) are leads. Notes about the property are shared by everyone working any of its leads for that client. | 20 |
 | D286 | Each lead shows its own local time and whether it is inside calling hours now. Tasks, appointments and everything else show in the viewer's own time zone. | 20 |
 | D283 | When a deal closes, its lead is marked "won" and leaves the calling queues. Follow-ups happen only through tasks someone creates. It still counts for credit, reports and any commission. | 28 |
+| D337 | The researcher role is switched on in step 11. A researcher prepares leads in their teams (import, clean, merge, skip-trace within budget, tag) and hands them to the team's unassigned pool. They never call or text and never see deal money. | 11 |
 
 ## Notes
 
