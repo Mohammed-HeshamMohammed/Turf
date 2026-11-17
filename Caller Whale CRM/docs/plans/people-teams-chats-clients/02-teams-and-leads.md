@@ -82,6 +82,9 @@ How teams are built (managers, deputies, admins, agents in several teams), who h
 | D263 | A task can repeat daily, weekly or monthly. Each time is its own task, so missing one does not hide the next. | 20 |
 | D264 | Removing a person ends their access to that agency at once on every device. The records of exports and lead views show what they looked at recently. What they remember or wrote down is a matter for the agency's own contracts. | 12, 30 |
 | D265 | Agencies stay blind to each other. Caller Whale never compares one agency's leads or people with another's, even when a person moves from one to the other. | - |
+| D280 | A deal's money (offer, contract price, expected profit) is seen by the closer working it, the team's leads and deputies, admins and the owner. Callers see the deal's stage but not its figures. | 28 |
+| D282 | A property is its own record within a client's work, and the people linked to it (owner, tenant, heir) are leads. Notes about the property are shared by everyone working any of its leads for that client. | 20 |
+| D283 | When a deal closes, its lead is marked "won" and leaves the calling queues. Follow-ups happen only through tasks someone creates. It still counts for credit, reports and any commission. | 28 |
 
 ## Notes
 

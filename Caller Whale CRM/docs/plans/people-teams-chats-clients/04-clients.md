@@ -26,6 +26,7 @@ A client is the person or business that hired the agency to work for them. It is
 | D257 | Files on leads can be PDF, Word, Excel or common images, up to 25 MB each. Each file is scanned before anyone can open it, and storage counts against the agency's plan. | 38 |
 | D258 | A shared file shows who opened or downloaded it and when. A shared link stops working when withdrawn or after a set time. | 38 |
 | D259 | Signing documents is not part of this plan. Signing happens in the tools agencies already use, and signed copies are uploaded back to the lead. | - |
+| D281 | Reports show a client their deal count and total value. A single deal's figures appear to them only if the agency shares that deal. | 23, 32 |
 | D172 | The client's screens, reports and emails show the agency's name and logo, with a small "Powered by Caller Whale". | 23 |
 | D94 | The owner invites any client or partner. A manager can invite a client only to share things belonging to their own teams. | 3 |
 
