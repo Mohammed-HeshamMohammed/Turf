@@ -174,7 +174,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-327 decisions. Each row links to the file that holds it.
+331 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -505,3 +505,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D325 | An agency that agrees gets a lower price on AI features for as long as it keeps agreeing. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D326 | Before any of an agency's data is used: the owner signs a separate agreement in Caller Whale (not part of the general terms) and can withdraw it at any time; each client agrees for its own part; the lawyer checks that the agency's notice to leads covers this use; and a check confirms no personal details remain in the patterns. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D327 | When an agency withdraws, nothing new of theirs is used and the discount stops. Patterns already learned stay, which the agreement says up front. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D328 | Teams, members, invitations, clients and agency settings move into the CRM at app.callerwhale.com, where the work is. The website Dashboard keeps sign-up, the person's account, plans and billing. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D329 | The invitation link opens the CRM, which shows and accepts it. The website Dashboard still lists pending invitations too, so nobody gets stuck. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D330 | Clients sign in to the same CRM and see a simplified view with only their own pages, under the agency's branding (D172). | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D331 | Platform staff screens (the report queue, agencies, support access) stay in the website Dashboard's existing staff area, away from agencies' work. | [07-platform-and-rollout](07-platform-and-rollout.md) |

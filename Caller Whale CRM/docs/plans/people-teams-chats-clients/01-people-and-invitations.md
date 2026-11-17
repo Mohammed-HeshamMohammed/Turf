@@ -98,3 +98,7 @@ Who can be invited, how an invitation works from sending to arriving, one person
 ## Note on sign-in limits (D243, D244)
 
 A person can belong to several agencies (D1) but signs in once. When agencies set different country, network or idle limits, each agency's limit applies while the person works inside that agency: the person stays signed in, and an agency whose limit is not met is closed to them until it is (for example, outside the allowed network). The strictest idle time applies only to the agency that set it.
+
+## Note on where these screens live (D328, D329)
+
+Everything in this file about managing people (the invite form, team screens, member lists, the hand-on screen) is built in the CRM, not on the website Dashboard. Today those panels are in `landing/site/src/AccessManagement.tsx`; step 3 and step 11 move them. The Dashboard keeps the person's own account, sign-up, plans and billing, and still lists pending invitations.

@@ -78,6 +78,10 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D313 | Anyone can open a sample agency with made-up teams, leads and chats to explore every screen. Real calling, texting and imports need a paid plan and the carrier check. | 31 |
 | D314 | Before paying, an owner can create teams and clients and invite people. Nobody can call, text or import real leads until the plan is paid and the carrier check passes. | 31 |
 | D315 | The sample agency runs on made-up data inside the person's own tab, as the CRM's sample workspace does today. Nothing from it ever reaches the real databases. | 31 |
+| D328 | Teams, members, invitations, clients and agency settings move into the CRM at app.callerwhale.com, where the work is. The website Dashboard keeps sign-up, the person's account, plans and billing. | 3, 11 |
+| D329 | The invitation link opens the CRM, which shows and accepts it. The website Dashboard still lists pending invitations too, so nobody gets stuck. | 1, 3 |
+| D330 | Clients sign in to the same CRM and see a simplified view with only their own pages, under the agency's branding (D172). | 23 |
+| D331 | Platform staff screens (the report queue, agencies, support access) stay in the website Dashboard's existing staff area, away from agencies' work. | 7, 19, 39 |
 
 ## Notes
 
