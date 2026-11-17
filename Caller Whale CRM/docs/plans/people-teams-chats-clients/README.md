@@ -162,7 +162,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-275 decisions. Each row links to the file that holds it.
+279 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -441,3 +441,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D273 | Numbers outside supported countries are marked on import and cannot be called or texted until that country is supported. | [06-do-not-call](06-do-not-call.md) |
 | D274 | Caller Whale checks the federal Do Not Call list for every agency, and state lists where a state keeps one. Each agency holds its own registry access, as the law requires per business, and Caller Whale uses it on their behalf. | [06-do-not-call](06-do-not-call.md) |
 | D275 | Registry access is its own cost in each agency's plan, priced as a feature of its own. | [06-do-not-call](06-do-not-call.md) |
+| D276 | The owner switches call recording on for the agency or for chosen teams. When it is on, Caller Whale plays or prompts the notice the lead's state requires (some states need everyone's consent). The lawyer confirms the wording. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D277 | An agent can pause and resume recording during a call. The recording shows where it was paused and for how long, and captions pause with it. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D278 | Team leads, admins and the owner record voicemail messages per client or team. An agent picks one on reaching a voicemail; it plays while the agent moves to the next call. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D279 | Agents dial one lead at a time; auto dial moves to the next after each outcome. Caller Whale does not dial several numbers at once, since abandoned calls are strictly limited by law. | [05-calls-and-budgets](05-calls-and-budgets.md) |
