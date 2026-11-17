@@ -120,3 +120,13 @@ The whole-team view setting, the "already exists in another team" decision and r
 | L5 | Import a list into a team | Its new leads land unassigned in that team, for its leads to hand out. |
 | L6 | Import a list containing someone another team already holds | That row waits; the importer sees "These leads already exist in another team" with a count only. You choose: they keep it, both keep a copy, or move it here. |
 | L7 | Remove a list you imported less than 24 hours ago, before anyone worked it | Its new leads are gone. After a call, note, deal or edit on any of them, it is refused. |
+
+# Step 20, part C: tags, merging, retention (server only)
+
+No CRM screens yet; automated tests cover them. Once they have screens:
+
+| # | Do | Expect |
+|---|---|---|
+| L8 | As the owner, make an agency tag; as a team lead, make a team tag; as a caller, try to make one | The first two work; the caller can only apply existing tags. A team's tag can't go on another team's lead. |
+| L9 | As a team lead, merge two copies of the same person in your team | One lead remains with both histories, every number and email; the other disappears. Undo within 7 days brings it all back; after 7 days undo is refused. A caller can't merge. |
+| L10 | As the owner, set "keep unworked leads 30 days" | The list of leads due appears. Keeping one with a reason takes it off the list. Only the owner removes what is due; nothing goes on its own. |

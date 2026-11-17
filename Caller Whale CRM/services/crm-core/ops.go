@@ -54,7 +54,7 @@ func (conflict) Error() string { return "conflict" }
 func reject(format string, a ...any) error { return rejection(fmt.Sprintf(format, a...)) }
 
 // Changes that alter ownership, permissions or many records are never accepted from an offline queue.
-var onlineOnly = []string{"lead.assign", "lead.claim", "lead.delete", "lead.share", "handoff.decide", "task.delete", "deal.delete", "note.delete"}
+var onlineOnly = []string{"lead.assign", "lead.claim", "lead.merge", "lead.unmerge", "lead.delete", "lead.share", "handoff.decide", "task.delete", "deal.delete", "note.delete"}
 
 var (
 	leadStages = []string{"New", "Contacted", "Interested", "Qualified", "Closed"}
@@ -185,6 +185,14 @@ func (r *run) dispatch() (any, error) {
 		return r.leadAssign(p)
 	case "lead.claim":
 		return r.leadClaim(p)
+	case "lead.tag":
+		return r.leadTag(p, true)
+	case "lead.untag":
+		return r.leadTag(p, false)
+	case "lead.merge":
+		return r.leadMerge(p)
+	case "lead.unmerge":
+		return r.leadUnmerge(p)
 	case "lead.delete":
 		return r.leadDelete(p)
 	case "lead.archive":
