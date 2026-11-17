@@ -104,7 +104,7 @@ function TeamActivity({ auth, orgId }: { auth: Auth; orgId: string }) {
 /** The dashboard of an agency owner, solo operator or team manager: a sidebar with their workspace's overview, team, invitations
  * (owner), activity, profile and settings. */
 export function WorkspaceDashboard({ access, auth, authBase, me, onSaved }: { access: Access; auth: Auth; authBase: string; me: Me; onSaved: () => void }) {
-  const spaces = access.workspaces.filter(space => space.business_owner || space.roles.includes("manager"));
+  const spaces = access.workspaces.filter(space => space.business_owner || space.roles.includes("manager") || space.roles.includes("admin"));
   const [orgId, setOrgId] = useState(spaces[0]?.org_id || "");
   const [view, setView] = useState<View>(() => (typeof window === "undefined" ? "overview" : viewFromHash(window.location.hash)));
   useEffect(() => {
@@ -113,19 +113,21 @@ export function WorkspaceDashboard({ access, auth, authBase, me, onSaved }: { ac
     return () => window.removeEventListener("hashchange", follow);
   }, []);
   const space = spaces.find(item => item.org_id === orgId) || spaces[0];
-  const owner = Boolean(space?.business_owner);
+  const owner = Boolean(space?.business_owner) || Boolean(space?.roles.includes("admin"));
+  // The owner and admins invite anyone; a team lead invites callers, closers and researchers into the teams they lead (step 3).
+  const canInvite = owner || Boolean(space?.roles.includes("manager"));
   const solo = Boolean(space?.roles.includes("solo"));
   const open = (next: View) => { window.history.replaceState(null, "", next === "overview" ? window.location.pathname : `#${next}`); setView(next); window.scrollTo(0, 0); };
   const titles: Record<View, string> = { overview: "Overview", team: owner ? (solo ? "Clients" : "Teams and members") : "Your team", invitations: "Invitations", activity: "Activity", account: "Settings" };
   const link = (key: View, label: string) => <a href={`#${key}`} aria-current={view === key ? "page" : undefined} onClick={event => { event.preventDefault(); open(key); }}>{label}</a>;
   return <div className="admin-layout">
     <div className="admin-sidebar-slot"><aside className="admin-sidebar" aria-label="Workspace navigation">
-      <div className="admin-sidebar-brand"><span className="admin-sidebar-mark" aria-hidden="true">{me.avatar ? <img src={String(me.avatar)} alt="" /> : initials(me.name || me.email)}</span><span><strong>{owner ? (solo ? "Solo operator" : "Agency owner") : "Team lead"}</strong><small>{firstNameOf(me)}</small></span></div>
+      <div className="admin-sidebar-brand"><span className="admin-sidebar-mark" aria-hidden="true">{me.avatar ? <img src={String(me.avatar)} alt="" /> : initials(me.name || me.email)}</span><span><strong>{space?.business_owner ? (solo ? "Solo operator" : "Agency owner") : space?.roles.includes("admin") ? "Admin" : "Team lead"}</strong><small>{firstNameOf(me)}</small></span></div>
       {spaces.length > 1 && <label className="admin-sidebar-note">Workspace<select value={space?.org_id} onChange={event => setOrgId(event.target.value)}>{spaces.map((item, index) => <option key={item.org_id} value={item.org_id}>Workspace {index + 1}</option>)}</select></label>}
       <nav aria-label="Dashboard sections">
         {link("overview", "Overview")}
         {link("team", owner ? (solo ? "Clients" : "Teams and members") : "Your team")}
-        {owner && link("invitations", "Invitations")}
+        {canInvite && link("invitations", "Invitations")}
         {link("activity", "Activity")}
         <a href={crmUrl}>Open the CRM</a>
         <Link to={profilePath(me)}>Profile</Link>
@@ -137,7 +139,7 @@ export function WorkspaceDashboard({ access, auth, authBase, me, onSaved }: { ac
       {!space ? <p className="muted">You do not run a workspace yet.</p> : <>
         {view === "overview" && <WorkspaceOverview key={space.org_id} auth={auth} authBase={authBase} orgId={space.org_id} owner={owner} open={open} />}
         {view === "team" && <WorkspaceManager key={space.org_id} auth={auth} authBase={authBase} orgId={space.org_id} />}
-        {view === "invitations" && owner && <InviteManager key={space.org_id} auth={auth} authBase={authBase} scope="workspace" orgId={space.org_id} />}
+        {view === "invitations" && canInvite && <InviteManager key={space.org_id} auth={auth} authBase={authBase} scope="workspace" orgId={space.org_id} />}
         {view === "activity" && <TeamActivity key={space.org_id} auth={auth} orgId={space.org_id} />}
         {view === "account" && <Settings embedded me={me} auth={auth} authBase={authBase} onSaved={onSaved} />}
       </>}
