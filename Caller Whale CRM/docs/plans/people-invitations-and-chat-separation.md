@@ -180,6 +180,25 @@ Ninth round, 2026-11-17: numbers, calls and spending (complete as written):
 | D122 | A text or call is charged to the team that owns the lead, whoever sends it, including a takeover. | 22 |
 | D123 | When a team's budget or a person's limit runs out, paid actions stop for them and they can ask the manager or owner to raise it. Replies from leads still arrive and can be read. | 22 |
 
+Tenth round, 2026-11-17: visibility inside a team, clients, and AI (complete as written):
+
+**What a client is.** A client is the person or business that hired the agency to work for them. It is not a lead reached by cold calling. Everywhere in this plan "client" means that.
+
+| # | Decision | Step |
+| --- | --- | --- |
+| D124 | By default an agent sees only their own leads. Each team can switch on "agents see the whole team's leads", read-only. | 20 |
+| D125 | A team's managers can switch on a leaderboard for the team. Without it, each agent sees only their own numbers. | 20 |
+| D126 | Every list and lead belongs to a client. A list is marked at import with the client it is for and with who supplied it: the client, or the agency. An agency working only for itself has one built-in "own business" client. | 23 |
+| D127 | A client who signs in sees: results and reports for their work (no names or phone numbers), the leads or briefs the agency shared with them, a conversation with the agency, and the usage and cost of their work. | 23 |
+| D128 | A team can work for several clients. A lead carries both a team and a client. The team's agents see leads of every client the team works for; a client never sees the agency's other clients. | 23 |
+| D129 | The in-app AI assistant reaches exactly what the person can: same agency, same teams, same leads, never more. It works only in the agency the person is currently in and never in personal chats. | 24 |
+| D130 | An outside AI (ChatGPT, Claude, Gemini) connected through MCP can read and set things up for a person within that person's own rights. Inviting, removing, changing roles and deleting each need the person's confirmation inside Caller Whale. | 24 |
+| D131 | Spending money always needs the person themselves, in Caller Whale. No AI, in-app or outside, can spend, raise a budget or change a plan, and there is no way around it. | 24 |
+
+The owner named three kinds of AI, which the plan keeps apart: the outside AIs that manage the system through MCP (D130), the helpers that assist during calls, and the assistant a person asks for help with Caller Whale (D129). The call helpers follow D129 as well: they see only the call and the lead they are helping with.
+
+On D126: who supplied a list matters for who may take it away. *To settle with the owner and the lawyer: when a client leaves, what happens to lists the client supplied and to lists the agency supplied.*
+
 Suggested and turned down, recorded so it is not raised again: a lock that makes a person select an active team before a lead thread can be opened (the team switch is a filter, D44).
 
 ## What exists today
@@ -413,6 +432,8 @@ These change rules the authorization service enforces today (`services/authz/tre
 | 20 | Leads and teams: moving leads, handoffs inside a team, imports into a team, unassigned leads and claiming, duplicates across teams, agency-wide "Do not call", team reports. *How the core service and the import service hold leads by team has not been read yet.* | 11 |
 | 21 | Team phone numbers, the number a moved lead keeps, recordings following the lead, joining a live call by rank. *The dialer service has not been read for this.* | 10, 20 |
 | 22 | Budgets: agency pool, optional team budgets, limits set by managers, charging the lead's team, stopping with a request to raise. *The billing and usage code has not been read for this.* | 20 |
+| 23 | Clients: every list and lead marked with its client and who supplied it, the "own business" client, the client's view (reports, shared leads, conversation, usage and cost), teams working for several clients. *How client access and sharing work today in the core service has not been read for this.* | 20 |
+| 24 | AI limits: the assistant and call helpers reach only what the person can, outside AIs confirm risky steps inside Caller Whale, and nothing spends money without the person. *The assistant and MCP services have not been read for this.* | 11 |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -428,6 +449,7 @@ The step numbers above are names, not the order. The order is:
 6. Steps 13, 17, 18 and 19: ownership, solo upgrade, plan effects and support access, after the billing service has been read.
 7. Step 10: lead threads, with the SMS stage.
 8. Steps 21 and 22: team numbers, live calls and budgets, with the calling and SMS stage, after the dialer and billing services have been read.
+9. Steps 23 and 24: clients and AI limits, after step 20.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
