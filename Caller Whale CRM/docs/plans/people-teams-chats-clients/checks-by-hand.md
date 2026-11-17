@@ -82,3 +82,20 @@ All of this sits behind the **new team rules** switch, off until you turn it on.
 - **Authenticator:** team leads and deputies aren't asked to set up an authenticator yet (D95). That comes with the sign-in work (step 35).
 - **Team switch:** the CRM's team switch and "All my teams" view come with the CRM's people screens.
 - **Researcher seat price:** a researcher still takes a normal seat. The cheaper researcher seat comes with billing (step 22).
+
+# Step 3: invitations that carry teams, team leads inviting, leaving
+
+| # | Do | Expect |
+|---|---|---|
+| S1 | Create a team with no lead, then invite a new address as **Team lead** and pick that team under "Teams they will lead" | Sent. When the person accepts, the Teams table shows them as that team's lead, with nothing more to do. |
+| S2 | Under the old rules, pick a team that already has a lead | "… already has a team lead. A team gets several leads under the new team rules." |
+| S3 | With the new team rules on, sign in as a team lead (second account) and open **Invitations** | The panel is there. They can invite a caller, closer or researcher into a team they lead, and see only the invitations they sent. |
+| S4 | As that lead, try a team they don't lead, or the Team lead role | Refused, with the reason. |
+| S5 | As that lead, invite when every seat is taken | "Every seat is taken. Your agency owner has been asked to add one; nothing is charged until they do." On your account, the Invitations panel lists the request with a **Done** button. |
+| S6 | Take that lead off their team | Their waiting invitations into that team show **Cancelled: The person who sent it can no longer invite.** |
+| S7 | As a member (not the owner), press **Leave** next to the agency under Memberships | Asked to confirm; then the agency is gone from their dashboard. Their waiting invitations are cancelled. Your account has no Leave button for your own agency. |
+
+Not in this step:
+- **CRM screens:** the people and invitation screens in the CRM come later.
+- **Handing on work:** the screen for handing on the work of someone who left is step 12.
+- **Clients:** team leads inviting clients comes with the clients step.

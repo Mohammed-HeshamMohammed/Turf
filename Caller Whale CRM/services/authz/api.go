@@ -552,8 +552,14 @@ func (s *server) deleteMember(w http.ResponseWriter, r *http.Request) error {
 	if err := readJSON(w, r, &body); err != nil {
 		return err
 	}
-	a, err := s.placeOf(r.Context(), org, body)
-	if err != nil {
+	var a place
+	if body.ActorID == user {
+		// Leaving: even a suspended person may go.
+		a = place{UserID: user}
+		if a.NewTeam, err = s.newTeamRules(r.Context(), org); err != nil {
+			return store(err)
+		}
+	} else if a, err = s.placeOf(r.Context(), org, body); err != nil {
 		return err
 	}
 	target, isMember, err := s.rules.membership(r.Context(), org, user)
@@ -561,20 +567,27 @@ func (s *server) deleteMember(w http.ResponseWriter, r *http.Request) error {
 		return store(err)
 	}
 	if isMember && isHeld(target.Roles) {
+		if body.ActorID == user {
+			return forbidden("The owner cannot leave the agency. Hand it to someone else first.")
+		}
 		return forbidden("The workspace's owner cannot be removed.")
 	}
 	if !isMember {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "access_changed": false})
 		return nil
 	}
-	if ok, why := mayAct(a, actRemove, &target, "", ""); !ok {
-		return forbidden(why)
+	// A person may leave an agency at once (D25); anyone else is removed by those who manage them.
+	leaving := a.UserID == user
+	if !leaving {
+		if ok, why := mayAct(a, actRemove, &target, "", ""); !ok {
+			return forbidden(why)
+		}
 	}
 	teams, err := s.rules.teams(r.Context(), org)
 	if err != nil {
 		return store(err)
 	}
-	if !a.NewTeam && slices.ContainsFunc(teams, func(t team) bool { return slices.Contains(t.ManagerIDs, user) }) {
+	if !a.NewTeam && !leaving && slices.ContainsFunc(teams, func(t team) bool { return slices.Contains(t.ManagerIDs, user) }) {
 		return newError(http.StatusConflict, "conflict", "Give this manager's teams to another manager first.")
 	}
 	if err := store(s.rules.removeMember(r.Context(), org, user)); err != nil {

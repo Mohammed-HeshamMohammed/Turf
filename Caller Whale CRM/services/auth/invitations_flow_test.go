@@ -21,6 +21,10 @@ type fakeWorkspaceAuthz struct {
 	named  bool // false: authz has no name for the workspace yet
 	// goneTeam is a team that was deleted: inviting into it is refused, as authz refuses a team not in the workspace.
 	goneTeam string
+	// Step 3: the roles each member was given, each team's leads, and whether every seat is taken.
+	roles     map[string][]string
+	leads     map[string][]string
+	seatsFull bool
 }
 
 func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
@@ -34,16 +38,24 @@ func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
 		if user == f.owner {
 			spaces = append(spaces, map[string]any{"org_id": flowOrg, "roles": []string{"owner"}, "business_owner": true})
 		} else if f.joined[user] {
-			spaces = append(spaces, map[string]any{"org_id": flowOrg, "roles": []string{"caller"}})
+			roles := f.roles[user]
+			if len(roles) == 0 {
+				roles = []string{"caller"}
+			}
+			spaces = append(spaces, map[string]any{"org_id": flowOrg, "roles": roles})
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"user_id": user, "platform_role": "", "workspaces": spaces})
 	case r.Method == "GET" && r.URL.Path == "/v1/orgs/"+flowOrg+"/roles":
-		_, _ = w.Write([]byte(`{"roles":[{"key":"caller","assignable":true},{"key":"closer","assignable":true}]}`))
+		_, _ = w.Write([]byte(`{"roles":[{"key":"caller","assignable":true},{"key":"closer","assignable":true},{"key":"manager","assignable":true}]}`))
 	case r.Method == "POST" && r.URL.Path == "/v1/orgs/"+flowOrg+"/relations/check":
 		var asked struct {
 			TeamID string `json:"team_id"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&asked)
+		if f.seatsFull {
+			_, _ = w.Write([]byte(`{"allowed":false,"code":"seats_full","reason":"Every seat on this plan is taken."}`))
+			return
+		}
 		if f.goneTeam != "" && asked.TeamID == f.goneTeam {
 			_, _ = w.Write([]byte(`{"allowed":false,"code":"bad_request","reason":"That team is not in this workspace."}`))
 			return
@@ -59,8 +71,47 @@ func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"org_id": flowOrg, "owner_id": f.owner, "name": name})
 	case r.Method == "PUT" && strings.HasPrefix(r.URL.Path, "/v1/orgs/"+flowOrg+"/members/"):
-		f.joined[strings.TrimPrefix(r.URL.Path, "/v1/orgs/"+flowOrg+"/members/")] = true
+		user := strings.TrimPrefix(r.URL.Path, "/v1/orgs/"+flowOrg+"/members/")
+		var body struct {
+			Roles []string `json:"roles"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		f.joined[user] = true
+		if f.roles == nil {
+			f.roles = map[string][]string{}
+		}
+		f.roles[user] = body.Roles
 		_, _ = w.Write([]byte(`{"ok":true}`))
+	case r.Method == "GET" && r.URL.Path == "/v1/orgs/"+flowOrg+"/teams":
+		teams := []map[string]any{}
+		for _, id := range []string{flowTeam, goneTeam} {
+			leads := f.leads[id]
+			if leads == nil {
+				leads = []string{}
+			}
+			first := ""
+			if len(leads) > 0 {
+				first = leads[0]
+			}
+			teams = append(teams, map[string]any{"team_id": id, "name": "Team " + id[:4], "manager_id": first, "manager_ids": leads, "deputy_ids": []string{}})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"teams": teams})
+	case r.Method == "PUT" && strings.HasPrefix(r.URL.Path, "/v1/orgs/"+flowOrg+"/teams/"):
+		id := strings.TrimPrefix(r.URL.Path, "/v1/orgs/"+flowOrg+"/teams/")
+		var body struct {
+			Name       string   `json:"name"`
+			ManagerIDs []string `json:"manager_ids"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if f.leads == nil {
+			f.leads = map[string][]string{}
+		}
+		f.leads[id] = body.ManagerIDs
+		first := ""
+		if len(body.ManagerIDs) > 0 {
+			first = body.ManagerIDs[0]
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"team": map[string]any{"team_id": id, "name": body.Name, "manager_id": first, "manager_ids": body.ManagerIDs}})
 	default:
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte(`{"error":"not here","code":"not_found"}`))

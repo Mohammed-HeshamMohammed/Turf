@@ -181,3 +181,55 @@ func TestStaffWhoOwnTheAgencyActAsItsOwner(t *testing.T) {
 		t.Fatalf("in someone else's agency without a second step: %d", code)
 	}
 }
+
+// Step 3: one invitation carries several roles, several teams and teams to lead; anyone but the owner can leave.
+func TestAnInvitationCarriesEverythingAndPeopleCanLeave(t *testing.T) {
+	h := newHarness(t)
+	h.opened()
+	h.call(authToken, "PUT", "/v1/orgs/"+org1+"/teams/"+team2, map[string]any{"actor_id": ownerID, "actor_second_step": true, "name": "Team two"})
+	check := func(actor string, body map[string]any) map[string]any {
+		body["actor_id"], body["actor_second_step"], body["action"] = actor, true, "invite"
+		_, out := h.call(authToken, "POST", "/v1/orgs/"+org1+"/relations/check", body)
+		return out
+	}
+	// A team lead invited with the team they will lead: allowed under the old rules while the team has no lead.
+	if out := check(ownerID, map[string]any{"roles": []string{"manager"}, "lead_team_ids": []string{team2}}); out["allowed"] != true {
+		t.Fatalf("a lead with their team: %v", out)
+	}
+	if out := check(ownerID, map[string]any{"roles": []string{"caller"}, "lead_team_ids": []string{team2}}); out["allowed"] == true {
+		t.Fatal("only a team lead is given teams to lead")
+	}
+	if out := check(ownerID, map[string]any{"roles": []string{"manager", "closer"}, "team_ids": []string{team1}}); out["allowed"] == true {
+		t.Fatal("a lead who also closes needs the new team rules")
+	}
+	h.call(authToken, "PUT", "/v1/orgs/"+org1+"/features/teams_v2", map[string]any{"on": true})
+	if out := check(ownerID, map[string]any{"roles": []string{"manager", "closer"}, "team_ids": []string{team1, team2}, "lead_team_ids": []string{team1}}); out["allowed"] != true {
+		t.Fatalf("everything at once: %v", out)
+	}
+	// A lead invites into a team they lead, not another, and names no leads.
+	h.call(authToken, "PUT", "/v1/orgs/"+org1+"/members/"+managerID, map[string]any{"actor_id": ownerID, "actor_second_step": true, "roles": []string{"manager"}})
+	h.call(authToken, "PUT", "/v1/orgs/"+org1+"/teams/"+team1, map[string]any{"actor_id": ownerID, "actor_second_step": true, "name": "Team one", "manager_ids": []string{managerID}})
+	if out := check(managerID, map[string]any{"roles": []string{"caller"}, "team_ids": []string{team1}}); out["allowed"] != true {
+		t.Fatalf("a lead invites into their team: %v", out)
+	}
+	if out := check(managerID, map[string]any{"roles": []string{"caller"}, "team_ids": []string{team1, team2}}); out["allowed"] == true {
+		t.Fatal("a lead invites into a team they do not lead")
+	}
+	// Leaving: a caller, even suspended, leaves; the owner cannot.
+	h.call(authToken, "POST", "/v1/orgs/"+org1+"/members/"+callerID+"/suspend", map[string]any{"actor_id": ownerID, "actor_second_step": true})
+	if code, out := h.call(authToken, "DELETE", "/v1/orgs/"+org1+"/members/"+callerID, map[string]any{"actor_id": callerID, "actor_second_step": false}); code != 200 {
+		t.Fatalf("a caller leaves: %d %v", code, out)
+	}
+	if code, out := h.call(authToken, "DELETE", "/v1/orgs/"+org1+"/members/"+ownerID, map[string]any{"actor_id": ownerID, "actor_second_step": true}); code != 403 {
+		t.Fatalf("the owner leaves: %d %v", code, out)
+	}
+	if code, _ := h.call(authToken, "DELETE", "/v1/orgs/"+org1+"/members/"+managerID, map[string]any{"actor_id": managerID}); code != 200 {
+		t.Fatalf("a lead leaves: %d", code)
+	}
+	_, teams := h.call(authToken, "GET", "/v1/orgs/"+org1+"/teams", nil)
+	for _, raw := range teams["teams"].([]any) {
+		if tm := raw.(map[string]any); tm["team_id"] == team1 && len(list(tm["manager_ids"])) != 0 {
+			t.Fatalf("a lead who left no longer leads: %v", tm)
+		}
+	}
+}

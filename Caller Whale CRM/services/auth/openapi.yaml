@@ -284,9 +284,9 @@ paths:
       security: [{ bearer: [] }]
       responses: { "200": { description: Pending invitations } }
     post:
-      summary: Invite a person to an editable workspace role; agency owner only
+      summary: Invite a person; the owner, an admin, staff, or a team lead into the teams they lead (authz decides)
       security: [{ bearer: [] }]
-      requestBody: { content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string }, team_id: { type: string, description: The team a caller or closer joins (required for them) } } } } } }
+      requestBody: { content: { application/json: { schema: { type: object, required: [email], properties: { email: { type: string, format: email }, role: { type: string }, team_id: { type: string, description: The team a caller or closer joins (required for them) }, roles: { type: array, items: { type: string }, description: Several roles (in place of role) }, team_ids: { type: array, items: { type: string }, description: Several teams (in place of team_id) }, lead_team_ids: { type: array, items: { type: string }, description: Teams a team lead will lead once they accept } } } } } }
       responses: { "201": { description: Invitation saved with delivery state }, "409": { description: Duplicate or existing member } }
   /v1/invitations/{id}:
     delete:
@@ -353,6 +353,21 @@ paths:
       summary: The owner sets valid_days (1 to 30); only Caller Whale staff set daily_cap
       security: [{ bearer: [] }]
       responses: { "200": { description: Saved }, "400": { description: Out of range }, "403": { description: Not allowed } }
+  /v1/orgs/{org}/leave:
+    post:
+      summary: Leave the agency at once (anyone but the owner); waiting invitations they sent are cancelled
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Left }, "403": { description: The owner cannot leave } }
+  /v1/orgs/{org}/seat-requests:
+    get:
+      summary: Seats team leads asked for when every seat was taken; owner and admins
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Open requests } }
+  /v1/orgs/{org}/seat-requests/{id}:
+    delete:
+      summary: Mark a seat request handled
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Closed } }
   /v1/admin/invitation-reports:
     get:
       summary: Reported invitations, newest first; staff with a second step

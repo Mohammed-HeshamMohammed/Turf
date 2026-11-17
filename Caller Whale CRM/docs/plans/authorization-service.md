@@ -68,7 +68,7 @@ Costs and checks before committing:
 | `auth.rs` `with_organization`: reads `memberships` and `roles` | Replaced by a grant request |
 | Tables `memberships`, `roles`, team and project membership, `users.platform_role` | Relationships in SpiceDB |
 | Lead assignment, handoffs, client shares (today read by `callerwhale_visible_lead()`) | Stay as CRM data in the core database for row security; authorization receives a relationship copy only where a decision needs it |
-| Routes that change access: `/admin/members`, `/admin/roles`, `/admin/teams`, `/platform/staff`, `/invitations/join`, `/organizations/trial` | Writes become calls to authorization; the paths stay in the core API |
+| Routes that change access: `/admin/members`, `/admin/roles`, `/admin/teams`, `/platform/staff`, `/organizations/trial` (invitations live in the auth service; the old `/invitations/join` token path is gone) | Writes become calls to authorization; the paths stay in the core API |
 
 Stays in the core API: the CRM records, organizations and the `access_revision` counter, row security, and every route path the apps use. Billing moves to its own service.
 

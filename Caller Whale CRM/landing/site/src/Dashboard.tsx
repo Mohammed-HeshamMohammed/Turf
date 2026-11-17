@@ -36,6 +36,16 @@ const resetDashboardScroll = () => {
   window.scrollTo(0, 0);
 };
 
+/** Leaving an agency (D25): access ends at once, and the person's leads stay with their teams for the owner to hand on. */
+async function leave(auth: Auth, authBase: string, orgId: string) {
+  if (!confirm("Leave this agency? You lose access to it at once. Your leads stay with your team, and the agency can invite you again later.")) return;
+  const token = await auth.accessToken();
+  const response = await fetch(`${authBase}/v1/orgs/${orgId}/leave`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const result = await response.json().catch(() => null);
+  if (!response.ok) { alert(result?.error || "You could not leave the agency right now."); return; }
+  location.reload();
+}
+
 /** What any signed-in person sees as their overview: their account, memberships, platform role, invitations and (for a workspace owner) the people in the workspace. */
 function UsageOverview({ access, auth, authBase, me }: { access: Access; auth: Auth; authBase: string; me: Me }) {
   return <div className="dashboard-page">
@@ -53,6 +63,7 @@ function UsageOverview({ access, auth, authBase, me }: { access: Access; auth: A
           {access.workspaces.map((workspace, index) => <li key={workspace.org_id}>
             <strong>Workspace {index + 1}</strong>
             <RoleBadges access={{ platform_role: "", workspaces: [workspace] }} />
+            {!workspace.business_owner && <button type="button" className="staff-text-button" onClick={() => void leave(auth, authBase, workspace.org_id)}>Leave</button>}
           </li>)}
         </ul>}
       </section>
