@@ -148,7 +148,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-216 decisions. Each row links to the file that holds it.
+220 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -368,3 +368,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D214 | A lead not contacted for a long time (6 months to start) has its number checked against the reassigned-numbers database before the next contact. The lawyer confirms which countries need it. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D215 | When someone answers "wrong number", the number is removed from that lead and blocked for anyone tied to it. The lead stays, waiting for a new number. The person who answered is not added to anything. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D216 | The owner and admins see a health score for each sending number. A number starting to be flagged as spam is slowed automatically and the owner is told, before carriers block it. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D217 | Every imported number is checked against the agency's do-not-call list, Caller Whale's own database and any registry the agency subscribes to, before any calls start. Blocked rows are kept but marked, and the import summary says how many. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D218 | The checks at import are charged to the client the list is for and to the team it goes to. When there is no client budget, the agency's own allowance pays. The import shows the cost before it starts. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D219 | The person who imported a list, or a team lead, can remove the whole list within 24 hours if none of its leads has been called, texted or edited. After that, leads are removed one by one. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D220 | One import can be as large as the agency's remaining lead allowance. Large files are read in parts and the person can keep working meanwhile. | [02-teams-and-leads](02-teams-and-leads.md) |

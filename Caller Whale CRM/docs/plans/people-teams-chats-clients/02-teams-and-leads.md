@@ -54,6 +54,10 @@ How teams are built (managers, deputies, admins, agents in several teams), who h
 | D182 | Work waiting to be handed on stays with the team leads, who can work it. The owner and admins get a reminder after a few days that it is still waiting. | 12 |
 | D183 | Each team sets a maximum of open leads per agent. An agent at the limit cannot claim more until they finish or release some. | 20 |
 | D184 | The record of people changes is kept 2 years. The record of who opened a lead is kept 90 days. The lawyer may adjust both. | 16, 30, lawyer |
+| D217 | Every imported number is checked against the agency's do-not-call list, Caller Whale's own database and any registry the agency subscribes to, before any calls start. Blocked rows are kept but marked, and the import summary says how many. | 20, 25 |
+| D218 | The checks at import are charged to the client the list is for and to the team it goes to. When there is no client budget, the agency's own allowance pays. The import shows the cost before it starts. | 20, 22 |
+| D219 | The person who imported a list, or a team lead, can remove the whole list within 24 hours if none of its leads has been called, texted or edited. After that, leads are removed one by one. | 20 |
+| D220 | One import can be as large as the agency's remaining lead allowance. Large files are read in parts and the person can keep working meanwhile. | 20 |
 
 ## Notes
 
