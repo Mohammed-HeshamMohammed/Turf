@@ -15,6 +15,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | [05-calls-and-budgets.md](05-calls-and-budgets.md) | Phone numbers per team, recordings, joining a live call, scripts and the AI's suggestions, call review, commission, and how paid usage is shared and limited. |
 | [06-do-not-call.md](06-do-not-call.md) | The three kinds of "do not call", Caller Whale's own database that learns from every agency's work, and who can take a number out. |
 | [07-platform-and-rollout.md](07-platform-and-rollout.md) | The web cache, shared devices, what plans and billing do to people, support access, limits on AI, and how every step is released and checked. |
+| [08-for-the-lawyer.md](08-for-the-lawyer.md) | Every decision with a legal question, grouped by topic, and the documents the lawyer is asked to write. Built from the other files. |
 
 ## Words on screen (D343 to D346)
 
@@ -174,6 +175,14 @@ The step numbers above are names, not the order. The order is:
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
+## Contradictions to settle
+
+Found in a review on 2026-11-17. Replaced decisions are marked in place ("Replaced by"): D28 by D200, D113 by D139, D189 by D194.
+
+1. **D265 vs D139, D140 and D324.** D265 says Caller Whale never compares one agency's data with another's. But the do-not-call database learns numbers from every agency (D139, D140), and agencies can agree to shared learning (D324). Suggested reading: D265 holds for leads, people and work, with those two stated exceptions.
+2. **D74 vs D85 and D40.** Important announcements "cannot be muted" (D74), but quiet hours pause everything except account and security alerts (D85), and the work category can be switched off (D40). Suggested reading: an important announcement cannot be muted inside the app, but respects quiet hours and arrives when they end.
+3. **D209 vs D139.** D209 says "leave me alone" blocks texts and calls, but not for whom. D139 sends "wants no calls at all" to every agency. Suggested reading: a reply to one agency, however strong, blocks that agency (D207); only a clear statement of wanting no calls from anyone, confirmed by the agent, goes platform-wide.
+
 ## Open questions
 
 1. For the lawyer: message retention after account deletion, report copies, and the terms forbidding lead data in personal chats.
@@ -192,7 +201,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-346 decisions. Each row links to the file that holds it.
+348 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -223,7 +232,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D25 | A person can leave an agency at once. Their leads, tasks and threads go to their managers (or the owner), and the owner can then decide where it goes: all of it to one person, or parts to different people. The same choice applies when someone is removed. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D26 | A suspended person's leads and threads are held by their managers, who can read and take over. On restore everything not reassigned returns to the person. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D27 | If an owner's account is closed or disabled, the agency is paused (members read, nobody works) and Caller Whale staff hand it on or close it. | [01-people-and-invitations](01-people-and-invitations.md) |
-| D28 | An active owner can hand the agency to a member. Both confirm with a second step; the old owner becomes a manager or leaves. | [01-people-and-invitations](01-people-and-invitations.md) |
+| D28 | An active owner can hand the agency to a member. Both confirm with a second step; the old owner becomes a manager or leaves. *Replaced by D200 where they differ: the old owner may also become an admin.* | [01-people-and-invitations](01-people-and-invitations.md) |
 | D29 | Name and tag changes are limited (for example twice in 30 days). An old `Name#id` is reserved for 90 days so nobody can pose as its last holder. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D30 | New accounts start with: people in my agencies find me by name; anyone else needs my exact `Name#id` and sends a request. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D31 | A blocked person is told ("You cannot message this person"). | [03-chats](03-chats.md) |
@@ -308,7 +317,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D110 | An imported list belongs to the team chosen at import. The person importing picks a team they belong to or run; the owner and admins can import into any team. The leads start unassigned in that team. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D111 | Managers and deputies hand out a team's unassigned leads. Each team has a setting for whether its agents may also claim them. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D112 | When the same person or property is imported into a second team, that team sees "This lead already exists in another team" without the details. The owner or an admin chooses which team keeps it, or that both keep their own copy. | [02-teams-and-leads](02-teams-and-leads.md) |
-| D113 | "Do not call" applies to the whole agency: the number is blocked for every team and for future imports. Only the owner or an admin can lift it. | [06-do-not-call](06-do-not-call.md) |
+| D113 | "Do not call" applies to the whole agency: the number is blocked for every team and for future imports. Only the owner or an admin can lift it. *Replaced by D139 where they differ: a "stop" said to one agency stays inside it; registry and "no calls at all" numbers go platform-wide.* | [06-do-not-call](06-do-not-call.md) |
 | D114 | A manager who runs several teams gets the same team switch and "All my teams" view as agents (step 11). | [02-teams-and-leads](02-teams-and-leads.md) |
 | D115 | A manager sees reports for the teams they run. Agency-wide totals and other teams' numbers are for the owner and admins. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D116 | Each team has its own phone numbers, given by the owner or an admin. A team without one uses the agency's default number. | [05-calls-and-budgets](05-calls-and-budgets.md) |
@@ -542,3 +551,5 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D344 | The person who opened a workspace is called "Owner" on screen. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D345 | Screens show each person's role (Caller, Closer, Researcher) and use no group word for them. Where a group is needed, "team members". The plan's word "agents" stays inside the plan. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D346 | Every step uses the on-screen words in the glossary in README.md. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D347 | The owner and admins change workspace settings. Team leads can read the settings that affect their team (hours, limits, claim rules) but not change workspace-wide ones. Everyone else sees only what affects them. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D348 | A team lead changes the team-level settings already decided as theirs (claim limit, leaderboard, whole-team view). The team's hours and full phone numbers stay with the owner and admins. | [07-platform-and-rollout](07-platform-and-rollout.md) |

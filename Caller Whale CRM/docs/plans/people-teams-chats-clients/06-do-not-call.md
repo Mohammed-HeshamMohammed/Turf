@@ -18,7 +18,7 @@ The three kinds of "do not call", Caller Whale's own database that learns from e
 | D273 | Numbers outside supported countries are marked on import and cannot be called or texted until that country is supported. | 20, 25 |
 | D274 | Caller Whale checks the federal Do Not Call list for every agency, and state lists where a state keeps one. Each agency holds its own registry access, as the law requires per business, and Caller Whale uses it on their behalf. | 25, lawyer |
 | D275 | Registry access is its own cost in each agency's plan, priced as a feature of its own. | 25, 22 |
-| D113 | "Do not call" applies to the whole agency: the number is blocked for every team and for future imports. Only the owner or an admin can lift it. | - |
+| D113 | "Do not call" applies to the whole agency: the number is blocked for every team and for future imports. Only the owner or an admin can lift it. *Replaced by D139 where they differ: a "stop" said to one agency stays inside it; registry and "no calls at all" numbers go platform-wide.* | - |
 
 ## Notes
 

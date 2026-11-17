@@ -90,6 +90,8 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D344 | The person who opened a workspace is called "Owner" on screen. | all |
 | D345 | Screens show each person's role (Caller, Closer, Researcher) and use no group word for them. Where a group is needed, "team members". The plan's word "agents" stays inside the plan. | all |
 | D346 | Every step uses the on-screen words in the glossary in README.md. | all |
+| D347 | The owner and admins change workspace settings. Team leads can read the settings that affect their team (hours, limits, claim rules) but not change workspace-wide ones. Everyone else sees only what affects them. | 11 |
+| D348 | A team lead changes the team-level settings already decided as theirs (claim limit, leaderboard, whole-team view). The team's hours and full phone numbers stay with the owner and admins. | 11 |
 | D332 | Step 1's server changes (agency name, delivery states, masked address, links) are done now. Their screens are built directly in the CRM when the people screens move, so nothing is built twice. The current Dashboard screens get only small wording fixes. | 1 |
 | D333 | In the CRM, members, teams, invitations and clients form one "Team" section in the sidebar for those who manage people. Agency settings (hours, numbers, limits, branding) go under Workspace settings in the Caller Whale menu. | 3, 11 |
 | D334 | An agent sees only the directory in the Team section: names, roles and teams of everyone in the agency, to start a chat. No invitations or management actions. | 16 |

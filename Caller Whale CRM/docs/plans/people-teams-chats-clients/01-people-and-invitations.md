@@ -20,7 +20,7 @@ Who can be invited, how an invitation works from sending to arriving, one person
 | D25 | A person can leave an agency at once. Their leads, tasks and threads go to their managers (or the owner), and the owner can then decide where it goes: all of it to one person, or parts to different people. The same choice applies when someone is removed. | - |
 | D26 | A suspended person's leads and threads are held by their managers, who can read and take over. On restore everything not reassigned returns to the person. | - |
 | D27 | If an owner's account is closed or disabled, the agency is paused (members read, nobody works) and Caller Whale staff hand it on or close it. | - |
-| D28 | An active owner can hand the agency to a member. Both confirm with a second step; the old owner becomes a manager or leaves. | - |
+| D28 | An active owner can hand the agency to a member. Both confirm with a second step; the old owner becomes a manager or leaves. *Replaced by D200 where they differ: the old owner may also become an admin.* | - |
 | D29 | Name and tag changes are limited (for example twice in 30 days). An old `Name#id` is reserved for 90 days so nobody can pose as its last holder. | - |
 | D30 | New accounts start with: people in my agencies find me by name; anyone else needs my exact `Name#id` and sends a request. | - |
 | D41 | Each agency sets how long its invitations stay valid. | - |
