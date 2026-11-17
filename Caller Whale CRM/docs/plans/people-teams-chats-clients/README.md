@@ -142,7 +142,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-149 decisions. Each row links to the file that holds it.
+153 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -295,3 +295,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D147 | Each agency sets how long call recordings and captions are kept, inside limits Caller Whale sets after the lawyer's review. Captions used for AI learning are deleted with the recording. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D148 | The owner switches the AI's call suggestions on for the agency, and a team's managers for the team. An agent can hide the suggestions on their own screen, but cannot turn off captions if the agency requires them. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D149 | If commission tracking is built, the owner sets the rules per role or person (for example a fixed amount per appointment for callers and a percentage of the deal for closers, with a split when both worked the lead) and can override any figure. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D150 | When a lead calls back, it rings the agent assigned to that lead. If they are busy or away it rings the team's other available agents, then its managers, then goes to voicemail in the lead's thread. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D151 | Calls and texts are blocked outside the allowed hours in the lead's own time zone. Caller Whale sets the legal window by the lead's location; an agency can make it shorter, never longer. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D152 | Agents have a status: available, on a call (automatic), on a break, off (set by the agent). Inbound calls, unanswered-text alerts and assignments use it, and managers see their team's status. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D153 | A callback that comes due while its agent is away stays with the agent, flagged overdue. After the agency's wait time the team's managers and deputies are told and can give that one call to someone else. | [05-calls-and-budgets](05-calls-and-budgets.md) |
