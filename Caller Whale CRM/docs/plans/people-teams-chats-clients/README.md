@@ -149,7 +149,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-177 decisions. Each row links to the file that holds it.
+181 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -330,3 +330,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D175 | An invitation can be resent at most once an hour and three times in total, and extended twice. After that the owner withdraws it and sends a new one. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D176 | An agency can never have more pending invitations than free seats, and no more than 50 new ones in a day. Staff can raise the daily number for a large agency. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D177 | Someone signed in with a different address than the one invited is shown the first letter and the domain of the invited address, for example m•••••@gmail.com. | [01-people-and-invitations](01-people-and-invitations.md) |
+| D178 | On screen the role that runs a team is called "Team lead", and its deputy "Deputy lead". This plan's word "manager" means the team lead; the stored role key stays `manager`. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D179 | An agency can have at most 3 admins (a starting number). Staff can raise it for a large agency. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D180 | The team switch sits in the header beside the agency name and opens a short list with "All my teams". People in one team see no switch. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D181 | When the new team rules are switched on, every existing team keeps its lead and its members exactly as they are. The new abilities are simply available afterwards. | [02-teams-and-leads](02-teams-and-leads.md) |

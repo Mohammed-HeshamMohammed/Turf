@@ -47,6 +47,10 @@ How teams are built (managers, deputies, admins, agents in several teams), who h
 | D163 | By default agents see only the last digits of a lead's phone number and call or text with a button. The owner can switch full numbers on per team. Managers and above always see them. | 30 |
 | D164 | When a person opens or scrolls through far more leads than usual, the owner and admins are told and that person is slowed for a while. Nothing is blocked outright. | 30 |
 | D165 | Each lead keeps a record of who opened it and when, visible to the owner and admins, kept for a set time. | 30 |
+| D178 | On screen the role that runs a team is called "Team lead", and its deputy "Deputy lead". This plan's word "manager" means the team lead; the stored role key stays `manager`. | 11 |
+| D179 | An agency can have at most 3 admins (a starting number). Staff can raise it for a large agency. | 11 |
+| D180 | The team switch sits in the header beside the agency name and opens a short list with "All my teams". People in one team see no switch. | 11 |
+| D181 | When the new team rules are switched on, every existing team keeps its lead and its members exactly as they are. The new abilities are simply available afterwards. | 11 |
 
 ## Notes
 
