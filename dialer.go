@@ -75,7 +75,7 @@ func (s *server) dialerScope(ctx context.Context, org, user string) (scope, erro
 	if name == "" {
 		name = "Dialer"
 	}
-	return scope{userID: user, orgID: org, label: name, roles: g.Roles, scopes: g.Scopes, teamIDs: g.TeamIDs, projectIDs: g.ProjectIDs, caps: g.Capabilities}, nil
+	return scope{userID: user, orgID: org, label: name, roles: g.Roles, scopes: g.Scopes, teamIDs: g.TeamIDs, seeTeams: g.seeTeams(), projectIDs: g.ProjectIDs, caps: g.Capabilities}, nil
 }
 
 // dialerLead answers "may this person call this lead, and on which number": the dialer dials the CRM's number, never one a

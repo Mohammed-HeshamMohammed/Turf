@@ -239,7 +239,7 @@ func (s *server) enter(ctx context.Context, q *req, org string) error {
 		return refusal(g)
 	}
 	q.grant, q.rev = g, accessRevision(g)
-	q.sc = scope{userID: q.c.sub, orgID: org, label: label(q.c), scopes: g.Scopes, teamIDs: g.TeamIDs, projectIDs: g.ProjectIDs, caps: g.Capabilities, secondStep: q.c.secondFactor}
+	q.sc = scope{userID: q.c.sub, orgID: org, label: label(q.c), scopes: g.Scopes, teamIDs: g.TeamIDs, seeTeams: g.seeTeams(), projectIDs: g.ProjectIDs, caps: g.Capabilities, secondStep: q.c.secondFactor}
 	s.remember(ctx, q.c, org)
 	return nil
 }

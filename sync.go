@@ -219,8 +219,8 @@ func leadVisible(sc scope, alias string, args []any) (string, []any) {
 		case "organization":
 			branches = []string{"TRUE"}
 		case "team":
-			if len(sc.teamIDs) > 0 && !slices.Contains(branches, "TRUE") {
-				branches = append(branches, alias+".team_id = ANY("+add(sc.teamIDs)+"::uuid[])")
+			if teams := sc.visibleTeams(); len(teams) > 0 && !slices.Contains(branches, "TRUE") {
+				branches = append(branches, alias+".team_id = ANY("+add(teams)+"::uuid[])")
 			}
 		case "project":
 			if len(sc.projectIDs) > 0 && !slices.Contains(branches, "TRUE") {
