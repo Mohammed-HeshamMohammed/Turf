@@ -540,9 +540,17 @@ func (s *server) checkRelation(w http.ResponseWriter, r *http.Request) error {
 		Role     string `json:"role"`
 		TeamID   string `json:"team_id"`
 		Pending  int    `json:"pending"` // invitations already waiting, which hold a seat each
+		// An invitation that carries everything (step 3, D45): several roles, several teams, and for a team lead the teams they
+		// will lead. Left out, role and team_id are the whole invitation.
+		Roles       []string `json:"roles"`
+		TeamIDs     []string `json:"team_ids"`
+		LeadTeamIDs []string `json:"lead_team_ids"`
 	}
 	if err := readJSON(w, r, &body); err != nil {
 		return err
+	}
+	if body.Action == actInvite && (len(body.Roles) > 0 || len(body.TeamIDs) > 0 || len(body.LeadTeamIDs) > 0) {
+		return s.checkInvitation(w, r, org, body.actor, body.Roles, body.TeamIDs, body.LeadTeamIDs, body.Role, body.TeamID, max(body.Pending, 0))
 	}
 	refuse := func(e error) error {
 		var api *apiError
@@ -724,5 +732,74 @@ func (s *server) putFeature(w http.ResponseWriter, r *http.Request) error {
 	}
 	log.Printf("INFO workspace %s: switch %s turned %v by %s", org, name, body.On, callerOf(r))
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": name, "on": body.On, "access_changed": true})
+	return nil
+}
+
+// checkInvitation answers whether an invitation carrying several roles, teams and teams to lead may be sent now, and would be
+// accepted: the same rules as each change on its own (who may invite which role into which team, the team tree, the seats), and a
+// team to lead must exist and, under the old team rules, have no lead yet. Only the owner, an admin or staff name team leads.
+func (s *server) checkInvitation(w http.ResponseWriter, r *http.Request, org string, who actor, roles, teamIDs, leadTeams []string, role, teamID string, pending int) error {
+	refuse := func(e error) error {
+		var api *apiError
+		if ok := asAPI(e, &api); ok && api.status < 500 {
+			writeJSON(w, http.StatusOK, map[string]any{"allowed": false, "code": api.code, "reason": api.message})
+			return nil
+		}
+		return e
+	}
+	if len(roles) == 0 && role != "" {
+		roles = []string{role}
+	}
+	if len(teamIDs) == 0 && teamID != "" {
+		teamIDs = []string{teamID}
+	}
+	if len(roles) == 0 || len(roles) > 4 {
+		return refuse(bad("Choose one to four roles."))
+	}
+	a, err := s.placeOf(r.Context(), org, who)
+	if err != nil {
+		return refuse(err)
+	}
+	for _, rl := range roles {
+		if slices.Contains(agentRoles, rl) && len(teamIDs) > 0 {
+			for _, t := range teamIDs {
+				if ok, why := mayAct(a, actInvite, nil, rl, t); !ok {
+					return refuse(forbidden(why))
+				}
+			}
+		} else if ok, why := mayAct(a, actInvite, nil, rl, ""); !ok {
+			return refuse(forbidden(why))
+		}
+	}
+	teams, err := s.rules.teams(r.Context(), org)
+	if err != nil {
+		return store(err)
+	}
+	if err := checkPlacement(roles, teamIDs, teams, a.NewTeam); err != nil {
+		return refuse(err)
+	}
+	if len(leadTeams) > 0 {
+		if !slices.Contains(roles, "manager") {
+			return refuse(bad("Only someone invited as a team lead can be given teams to lead."))
+		}
+		if ok, _ := mayAct(a, actTeams, nil, "", ""); !ok {
+			return refuse(forbidden("Only the agency owner or an admin names team leads."))
+		}
+		seen := map[string]bool{}
+		for _, id := range leadTeams {
+			i := slices.IndexFunc(teams, func(t team) bool { return t.TeamID == id })
+			if i < 0 || seen[id] {
+				return refuse(bad("Choose each team to lead once, from this workspace."))
+			}
+			seen[id] = true
+			if !a.NewTeam && len(teams[i].ManagerIDs) > 0 {
+				return refuse(newError(http.StatusConflict, "conflict", teams[i].Name+" already has a team lead. A team gets several leads under the new team rules."))
+			}
+		}
+	}
+	if err := s.seatsFree(r.Context(), org, roles, pending); err != nil {
+		return refuse(err)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"allowed": true})
 	return nil
 }
