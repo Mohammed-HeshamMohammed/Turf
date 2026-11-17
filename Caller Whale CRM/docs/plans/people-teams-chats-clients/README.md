@@ -160,7 +160,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-259 decisions. Each row links to the file that holds it.
+263 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -423,3 +423,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D257 | Files on leads can be PDF, Word, Excel or common images, up to 25 MB each. Each file is scanned before anyone can open it, and storage counts against the agency's plan. | [04-clients](04-clients.md) |
 | D258 | A shared file shows who opened or downloaded it and when. A shared link stops working when withdrawn or after a set time. | [04-clients](04-clients.md) |
 | D259 | Signing documents is not part of this plan. Signing happens in the tools agencies already use, and signed copies are uploaded back to the lead. | [04-clients](04-clients.md) |
+| D260 | Tasks are given down the team tree: the owner and admins to anyone, team leads to their teams' people and deputies, agents only to themselves. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D261 | A task is visible to the person, whoever gave it, their team leads, the owner and admins. A task on a lead is also visible to whoever holds the lead next. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D262 | A person is reminded when a task is due. If it is still open a day later, whoever gave it is told. A task someone gave themselves only reminds them. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D263 | A task can repeat daily, weekly or monthly. Each time is its own task, so missing one does not hide the next. | [02-teams-and-leads](02-teams-and-leads.md) |

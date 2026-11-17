@@ -76,6 +76,10 @@ How teams are built (managers, deputies, admins, agents in several teams), who h
 | D252 | The receiving agency can decline a sent lead with an optional reason. The sender is told and its copy reopens as a normal lead. | 37 |
 | D253 | The two owners can note an agreed referral fee on a sent lead. Caller Whale shows it to both and reminds them when the deal closes. The money changes hands outside Caller Whale. | 37 |
 | D254 | Before sending a lead to another agency, the sender must confirm the person agreed to be passed on. The confirmation is recorded with the date. The lawyer confirms the wording and when it is needed. | 37, lawyer |
+| D260 | Tasks are given down the team tree: the owner and admins to anyone, team leads to their teams' people and deputies, agents only to themselves. | 20 |
+| D261 | A task is visible to the person, whoever gave it, their team leads, the owner and admins. A task on a lead is also visible to whoever holds the lead next. | 20 |
+| D262 | A person is reminded when a task is due. If it is still open a day later, whoever gave it is told. A task someone gave themselves only reminds them. | 20 |
+| D263 | A task can repeat daily, weekly or monthly. Each time is its own task, so missing one does not hide the next. | 20 |
 
 ## Notes
 
