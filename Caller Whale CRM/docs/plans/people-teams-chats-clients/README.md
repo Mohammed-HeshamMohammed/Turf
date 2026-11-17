@@ -148,7 +148,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-206 decisions. Each row links to the file that holds it.
+212 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -358,3 +358,9 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D204 | During the grace period after a failed payment, only the owner and admins are told, by a daily email and an in-app banner. Members see a plain notice only once the agency is read-only. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D205 | A read-only agency can be read, and replies from leads still arrive and are stored. Nothing can be sent, called, imported or exported, and no one can be invited. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D206 | After 30 days of read-only with no payment, the agency is treated as closed (D82): members lose access, and the owner can still pay and reopen, or export, for 30 more days. Then it is deleted except what the law requires keeping. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D207 | A reply that is only an opt-out ("STOP", "unsubscribe", "stop texting me") blocks the number for that agency at once, sends an automatic confirmation, and the thread shows why. The agent cannot override it; only the owner or an admin can, with a reason. | [06-do-not-call](06-do-not-call.md) |
+| D208 | A message that uses "stop" inside a normal sentence ("let's stop at that price") is flagged to the agent, with the AI's reading of whether it is an opt-out. The agent must choose "opt-out" or "not an opt-out" before sending anything else, and the choice is recorded. | [06-do-not-call](06-do-not-call.md) |
+| D209 | An opt-out says what it stops: "stop texting me" blocks texts, "stop calling me" blocks calls, "stop" or "leave me alone" blocks both. When unclear, both are blocked. | [06-do-not-call](06-do-not-call.md) |
+| D210 | The owner, admins and team leads write text templates per client or team, with fields such as the lead's first name. Agents pick one and can edit it before sending. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D211 | A text can be scheduled. It is sent only inside the lead's allowed hours and is cancelled automatically if the number is blocked before then. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D212 | Only the owner, admins and team leads can send one message to many leads, within budgets and calling hours. Each lead still gets their own thread. | [05-calls-and-budgets](05-calls-and-budgets.md) |
