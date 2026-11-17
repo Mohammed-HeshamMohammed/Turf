@@ -41,6 +41,10 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D204 | During the grace period after a failed payment, only the owner and admins are told, by a daily email and an in-app banner. Members see a plain notice only once the agency is read-only. | 18 |
 | D205 | A read-only agency can be read, and replies from leads still arrive and are stored. Nothing can be sent, called, imported or exported, and no one can be invited. | 18 |
 | D206 | After 30 days of read-only with no payment, the agency is treated as closed (D82): members lose access, and the owner can still pay and reopen, or export, for 30 more days. Then it is deleted except what the law requires keeping. | 18, lawyer |
+| D233 | The owner or an admin can create a key for one outside tool, limited to what it needs (for example "add leads to Team A for Client X"). Every key can be switched off, its use is recorded, and no key can spend money. | 33 |
+| D234 | The owner can choose events (a lead booked, a deal closed) to send to an address of theirs. Each message carries only the event and an ID; details are fetched with a key, so nothing personal travels unasked. | 33 |
+| D235 | A public status page shows each part (sign-in, calls, texts, chats). When something is down, everyone signed in sees a short banner, and owners can choose to get an email. | 34 |
+| D236 | After a security breach affecting an agency's data, its owner is told within 72 hours of Caller Whale knowing, with what happened and what to do. Telling leads or authorities follows the law, which the lawyer sets out. | 34, lawyer |
 
 ## Notes
 

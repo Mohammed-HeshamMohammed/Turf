@@ -108,6 +108,8 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | 30 | Protecting an agency's leads: who can export, masked phone numbers for agents, a warning and slow-down on unusual access, and a record of who opened each lead. *Honest limit: a number an agent may call can still be written down by hand.* | 20 |
 | 31 | First setup for a new agency (guided, skippable, with a checklist), a walk-through per role, and agency material that managers assign. *The learning service has not been read for this.* | 11, 23 |
 | 32 | Overviews by role (owner: what needs them today; team lead: their team right now), scheduled report emails with totals only, reports in the agency's time zone. *The current overview and reports code has not been read for this.* | 20, 22, 23 |
+| 33 | Keys for outside tools (limited, switchable, recorded, never spending) and outgoing events with no lead details. *The gateway's token handling has not been read for this.* | 23, 24 |
+| 34 | Public status page, outage banner and owner emails; the breach notice process (a written procedure as much as code). | - |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -129,6 +131,7 @@ The step numbers above are names, not the order. The order is:
 12. Step 30: protecting leads, straight after step 20, since it guards the same data.
 13. Step 31: first setup and walk-throughs, last, once the screens they describe exist.
 14. Step 32: overviews and reports, once the things they count exist.
+15. Steps 33 and 34: integrations, the status page and the breach procedure. Step 34 can be done at any time; it must exist before opening.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
@@ -150,7 +153,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-232 decisions. Each row links to the file that holds it.
+236 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -386,3 +389,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D230 | The owner and admins define lead fields per agency or client. Team leads create tags for their teams. Agents fill fields and apply existing tags but create neither. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D231 | Two copies of the same person for the same client can be merged by a team lead, admin or owner. History, threads and numbers are combined, and the merge can be undone for 7 days. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D232 | Agents and team leads can archive a lead (reversible). Only the owner and admins delete permanently, with a confirmation. A person's request to be erased is handled by the owner. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D233 | The owner or an admin can create a key for one outside tool, limited to what it needs (for example "add leads to Team A for Client X"). Every key can be switched off, its use is recorded, and no key can spend money. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D234 | The owner can choose events (a lead booked, a deal closed) to send to an address of theirs. Each message carries only the event and an ID; details are fetched with a key, so nothing personal travels unasked. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D235 | A public status page shows each part (sign-in, calls, texts, chats). When something is down, everyone signed in sees a short banner, and owners can choose to get an email. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D236 | After a security breach affecting an agency's data, its owner is told within 72 hours of Caller Whale knowing, with what happened and what to do. Telling leads or authorities follows the law, which the lawyer sets out. | [07-platform-and-rollout](07-platform-and-rollout.md) |
