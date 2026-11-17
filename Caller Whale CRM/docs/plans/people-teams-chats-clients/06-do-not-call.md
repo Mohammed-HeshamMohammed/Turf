@@ -14,6 +14,10 @@ The three kinds of "do not call", Caller Whale's own database that learns from e
 | D207 | A reply that is only an opt-out ("STOP", "unsubscribe", "stop texting me") blocks the number for that agency at once, sends an automatic confirmation, and the thread shows why. The agent cannot override it; only the owner or an admin can, with a reason. | 10, 25 |
 | D208 | A message that uses "stop" inside a normal sentence ("let's stop at that price") is flagged to the agent, with the AI's reading of whether it is an opt-out. The agent must choose "opt-out" or "not an opt-out" before sending anything else, and the choice is recorded. | 10, 25 |
 | D209 | An opt-out says what it stops: "stop texting me" blocks texts, "stop calling me" blocks calls, "stop" or "leave me alone" blocks both. When unclear, both are blocked. | 10, 25 |
+| D272 | At opening, calling and texting are for the US only. Other countries follow one by one, each with its own rules checked by the lawyer. | 21, 25 |
+| D273 | Numbers outside supported countries are marked on import and cannot be called or texted until that country is supported. | 20, 25 |
+| D274 | Caller Whale checks the federal Do Not Call list for every agency, and state lists where a state keeps one. Each agency holds its own registry access, as the law requires per business, and Caller Whale uses it on their behalf. | 25, lawyer |
+| D275 | Registry access is its own cost in each agency's plan, priced as a feature of its own. | 25, 22 |
 | D113 | "Do not call" applies to the whole agency: the number is blocked for every team and for future imports. Only the owner or an admin can lift it. | - |
 
 ## Notes

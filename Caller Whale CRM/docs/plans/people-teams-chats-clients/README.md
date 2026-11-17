@@ -162,7 +162,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-271 decisions. Each row links to the file that holds it.
+275 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -437,3 +437,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D269 | Staff see each agency's complaint and opt-out rates. Above a threshold the owner is warned, then sending is limited, then the agency is suspended until staff review. Each step is recorded and the owner can appeal. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D270 | A new agency can set up, import and invite freely, but calling and texting open only after its business details pass the registration check, with a quick staff look for the first agencies. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D271 | Only the platform owner and cofounder, with a second step, see across agencies: agency-level numbers such as complaint rates, spend and seats, never lead details. Narrower staff roles (support, billing, moderation) come when there is a team. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D272 | At opening, calling and texting are for the US only. Other countries follow one by one, each with its own rules checked by the lawyer. | [06-do-not-call](06-do-not-call.md) |
+| D273 | Numbers outside supported countries are marked on import and cannot be called or texted until that country is supported. | [06-do-not-call](06-do-not-call.md) |
+| D274 | Caller Whale checks the federal Do Not Call list for every agency, and state lists where a state keeps one. Each agency holds its own registry access, as the law requires per business, and Caller Whale uses it on their behalf. | [06-do-not-call](06-do-not-call.md) |
+| D275 | Registry access is its own cost in each agency's plan, priced as a feature of its own. | [06-do-not-call](06-do-not-call.md) |
