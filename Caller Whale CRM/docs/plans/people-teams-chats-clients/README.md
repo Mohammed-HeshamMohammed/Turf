@@ -106,6 +106,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | 28 | Pipeline stages per agency and client; closers' availability, booking by callers, ranges set by managers; deal credit by role; Google Calendar per account (busy times read, appointments written, no lead details in events, removed on leaving). *The calendar and deals code has not been read for this, and Google's access needs its own review.* | 20, 23 |
 | 29 | Email from the agency's or a client's sending domain, with replies returning to the lead's record. *The mail code has not been read for this.* | 23 |
 | 30 | Protecting an agency's leads: who can export, masked phone numbers for agents, a warning and slow-down on unusual access, and a record of who opened each lead. *Honest limit: a number an agent may call can still be written down by hand.* | 20 |
+| 31 | First setup for a new agency (guided, skippable, with a checklist), a walk-through per role, and agency material that managers assign. *The learning service has not been read for this.* | 11, 23 |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -125,6 +126,7 @@ The step numbers above are names, not the order. The order is:
 10. Steps 26 and 27: scripts, AI suggestions, call review and commission, last.
 11. Steps 28 and 29: pipeline, appointments, Google Calendar and email sending, after step 23.
 12. Step 30: protecting leads, straight after step 20, since it guards the same data.
+13. Step 31: first setup and walk-throughs, last, once the screens they describe exist.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
@@ -147,7 +149,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-169 decisions. Each row links to the file that holds it.
+173 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -320,3 +322,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D167 | Until then the only people using it with real leads are the owner and a couple of friends. Each step that changes teams, roles or leads carries their existing people and data across, and they are told before it is switched on. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D168 | Every new screen works at phone width, as the CRM already does. A separate mobile app is not part of this plan. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D169 | Within building it all, the owner marked these as mattering most after the invitation fixes and teams and roles: leads by team and protecting leads, clients, the name tag and personal chats, and the web cache for several agencies. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D170 | A new agency owner meets a short guided setup: agency name and hours, first team, first client (or "own business"), inviting people, and the authenticator. Each step can be skipped and finished later from a checklist. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D171 | The app ships in English. New screens keep their words separate from the code so another language can be added later without rework, including right-to-left layout. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D172 | The client's screens, reports and emails show the agency's name and logo, with a small "Powered by Caller Whale". | [04-clients](04-clients.md) |
+| D173 | Each role gets a brief walk-through of its own screens on first sign-in. Managers and the owner can assign the agency's own material and see who finished it. | [07-platform-and-rollout](07-platform-and-rollout.md) |
