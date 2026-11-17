@@ -160,7 +160,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-263 decisions. Each row links to the file that holds it.
+267 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -427,3 +427,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D261 | A task is visible to the person, whoever gave it, their team leads, the owner and admins. A task on a lead is also visible to whoever holds the lead next. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D262 | A person is reminded when a task is due. If it is still open a day later, whoever gave it is told. A task someone gave themselves only reminds them. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D263 | A task can repeat daily, weekly or monthly. Each time is its own task, so missing one does not hide the next. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D264 | Removing a person ends their access to that agency at once on every device. The records of exports and lead views show what they looked at recently. What they remember or wrote down is a matter for the agency's own contracts. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D265 | Agencies stay blind to each other. Caller Whale never compares one agency's leads or people with another's, even when a person moves from one to the other. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D266 | The owner can export the agency's leads, history, notes, tasks and files (and recordings, if kept) in common formats at any time and when closing. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D267 | The owner sees each member's last sign-in, days active this month and the seats in use, so unused seats can be freed. Nothing beyond what reports already count is tracked. | [07-platform-and-rollout](07-platform-and-rollout.md) |

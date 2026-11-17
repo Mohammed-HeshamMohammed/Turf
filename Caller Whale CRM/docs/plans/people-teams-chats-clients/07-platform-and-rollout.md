@@ -45,6 +45,8 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D234 | The owner can choose events (a lead booked, a deal closed) to send to an address of theirs. Each message carries only the event and an ID; details are fetched with a key, so nothing personal travels unasked. | 33 |
 | D235 | A public status page shows each part (sign-in, calls, texts, chats). When something is down, everyone signed in sees a short banner, and owners can choose to get an email. | 34 |
 | D236 | After a security breach affecting an agency's data, its owner is told within 72 hours of Caller Whale knowing, with what happened and what to do. Telling leads or authorities follows the law, which the lawyer sets out. | 34, lawyer |
+| D266 | The owner can export the agency's leads, history, notes, tasks and files (and recordings, if kept) in common formats at any time and when closing. | 18 |
+| D267 | The owner sees each member's last sign-in, days active this month and the seats in use, so unused seats can be freed. Nothing beyond what reports already count is tracked. | 32 |
 
 ## Notes
 

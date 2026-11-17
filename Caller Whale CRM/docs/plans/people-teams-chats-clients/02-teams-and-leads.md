@@ -80,6 +80,8 @@ How teams are built (managers, deputies, admins, agents in several teams), who h
 | D261 | A task is visible to the person, whoever gave it, their team leads, the owner and admins. A task on a lead is also visible to whoever holds the lead next. | 20 |
 | D262 | A person is reminded when a task is due. If it is still open a day later, whoever gave it is told. A task someone gave themselves only reminds them. | 20 |
 | D263 | A task can repeat daily, weekly or monthly. Each time is its own task, so missing one does not hide the next. | 20 |
+| D264 | Removing a person ends their access to that agency at once on every device. The records of exports and lead views show what they looked at recently. What they remember or wrote down is a matter for the agency's own contracts. | 12, 30 |
+| D265 | Agencies stay blind to each other. Caller Whale never compares one agency's leads or people with another's, even when a person moves from one to the other. | - |
 
 ## Notes
 
