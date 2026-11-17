@@ -37,6 +37,10 @@ Who can be invited, how an invitation works from sending to arriving, one person
 | D95 | Managers and deputies must have an authenticator set up, like owners. They are asked for a code at sign-in, not at every action. | 11 |
 | D99 | A person can download their profile, settings and personal chats. Agency data belongs to the agency and is exported by its owner. | 15, 9 (lawyer) |
 | D106 | Existing people learn about their tag from a one-time note in settings. No email. | 4 |
+| D174 | A cancelled or withdrawn invitation sends no email. The invited person sees "This invitation was cancelled" if they open the link or their dashboard. | 2 |
+| D175 | An invitation can be resent at most once an hour and three times in total, and extended twice. After that the owner withdraws it and sends a new one. | 2 |
+| D176 | An agency can never have more pending invitations than free seats, and no more than 50 new ones in a day. Staff can raise the daily number for a large agency. | 2 |
+| D177 | Someone signed in with a different address than the one invited is shown the first letter and the domain of the invited address, for example m•••••@gmail.com. | 1 |
 
 ## Notes
 

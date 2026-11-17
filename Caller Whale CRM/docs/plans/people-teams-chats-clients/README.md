@@ -149,7 +149,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-173 decisions. Each row links to the file that holds it.
+177 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -326,3 +326,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D171 | The app ships in English. New screens keep their words separate from the code so another language can be added later without rework, including right-to-left layout. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D172 | The client's screens, reports and emails show the agency's name and logo, with a small "Powered by Caller Whale". | [04-clients](04-clients.md) |
 | D173 | Each role gets a brief walk-through of its own screens on first sign-in. Managers and the owner can assign the agency's own material and see who finished it. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D174 | A cancelled or withdrawn invitation sends no email. The invited person sees "This invitation was cancelled" if they open the link or their dashboard. | [01-people-and-invitations](01-people-and-invitations.md) |
+| D175 | An invitation can be resent at most once an hour and three times in total, and extended twice. After that the owner withdraws it and sends a new one. | [01-people-and-invitations](01-people-and-invitations.md) |
+| D176 | An agency can never have more pending invitations than free seats, and no more than 50 new ones in a day. Staff can raise the daily number for a large agency. | [01-people-and-invitations](01-people-and-invitations.md) |
+| D177 | Someone signed in with a different address than the one invited is shown the first letter and the domain of the invited address, for example m•••••@gmail.com. | [01-people-and-invitations](01-people-and-invitations.md) |
