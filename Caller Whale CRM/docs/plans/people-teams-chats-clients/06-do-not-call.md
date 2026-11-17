@@ -16,6 +16,12 @@ The three kinds of "do not call", Caller Whale's own database that learns from e
 | D209 | An opt-out says what it stops: "stop texting me" blocks texts, "stop calling me" blocks calls, "stop" or "leave me alone" blocks both. When unclear, both are blocked. *Settled by D351.* | 10, 25 |
 | D351 | Settles the D209 contradiction: a strong refusal to one agency ("leave me alone", "never call me again") blocks that agency for texts and calls. Only a clear statement of wanting no calls from anyone ("stop all these companies calling me"), confirmed by the agent, goes to Caller Whale's database for every agency. | 10, 21, 25, 26 |
 | D352 | Opt-outs are detected automatically wherever the lead speaks or writes: in call captions during a call, and in texts and emails. A detected opt-out is marked at once with its kind (this agency, or anyone), and the agent gets a confirmation button. Clear opt-out words still block at once (D207); the detection's reading is advice, never the decision on its own. | 21, 25, 26 |
+| D353 | A lead is texted only with consent on record. Consent can come from: a website form (D247), an earlier reply from the lead, the agent marking it during a call, or the agency confirming per list that it holds consent. Cold leads with none of these can be called but not texted. | 10, 25, lawyer |
+| D354 | Caller Whale trusts the agency and the agent for consent it cannot verify, such as a lead on the phone saying "I'm driving, text me". The agent marks "Agreed to texts", with the date, who marked it, and the recording or captions linked when there are any. Responsibility for consent the agency or agent confirmed stays with the agency, as the terms say. | 10, 25, lawyer |
+| D355 | An agency can confirm on import that it holds consent for a list. The confirmation is recorded with who gave it and when, and covers that agency only. | 20, 25, lawyer |
+| D356 | Consent belongs to one agency and one number. Each agency holds its own consent for the same number, and one agency's consent never lets another agency text it. | 25 |
+| D357 | Each lead has a primary phone and a primary email. Consent and blocks belong to each number or address, so a blocked number never blocks the lead's others unless the lead asked. | 20, 25 |
+| D358 | Consent stays until the lead opts out. If a lead has not been contacted for 6 months (as for reassigned numbers, D214), consent is re-confirmed on the next call before texting. | 25 |
 | D272 | At opening, calling and texting are for the US only. Other countries follow one by one, each with its own rules checked by the lawyer. | 21, 25 |
 | D273 | Numbers outside supported countries are marked on import and cannot be called or texted until that country is supported. | 20, 25 |
 | D274 | Caller Whale checks the federal Do Not Call list for every agency, and state lists where a state keeps one. Each agency holds its own registry access, as the law requires per business, and Caller Whale uses it on their behalf. | 25, lawyer |
@@ -32,3 +38,7 @@ The three kinds of "do not call", Caller Whale's own database that learns from e
 ## Note on reading replies (D207 to D209)
 
 The AI's reading of a reply is advice to the agent, never the decision on its own: a clear opt-out word blocks without waiting for it, and an unclear message waits for the agent's choice. This keeps a mistaken AI from either missing an opt-out or blocking a willing lead. Which exact words count as a clear opt-out is a list the lawyer should confirm.
+
+## Note on consent the agency confirms (D354, D355)
+
+Trusting the agency's or agent's word is the owner's choice, made knowingly: not every consent can be checked (a lead saying "text me" while driving). Caller Whale's protection is the record: every confirmation says who, when, for which number and which agency, and links any recording. If an agency confirms consent it does not hold, the terms place the responsibility on that agency, and the complaint and opt-out rates (D269) catch agencies that do it often. The lawyer should confirm the terms can carry that responsibility.

@@ -37,6 +37,9 @@ Every item links to the file that holds it, where the surrounding decisions give
 | D298 | Data stays on the current server and its backups, and the terms state which country. A US region can be added later if large agencies require it. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D308 | The owner accepts a data processing agreement during first setup, since Caller Whale processes leads' data on the agency's behalf. A copy is kept in their settings. The lawyer writes it. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D309 | Small changes to the terms or privacy policy are announced in "What's new". Big changes must be accepted at the next sign-in before working, and the date each person accepted is recorded. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D353 | A lead is texted only with consent on record. Consent can come from: a website form (D247), an earlier reply from the lead, the agent marking it during a call, or the agency confirming per list that it holds consent. Cold leads with none of these can be called but not texted. | [06-do-not-call](06-do-not-call.md) |
+| D354 | Caller Whale trusts the agency and the agent for consent it cannot verify, such as a lead on the phone saying "I'm driving, text me". The agent marks "Agreed to texts", with the date, who marked it, and the recording or captions linked when there are any. Responsibility for consent the agency or agent confirmed stays with the agency, as the terms say. | [06-do-not-call](06-do-not-call.md) |
+| D355 | An agency can confirm on import that it holds consent for a list. The confirmation is recorded with who gave it and when, and covers that agency only. | [06-do-not-call](06-do-not-call.md) |
 
 ## Data, retention and deletion
 

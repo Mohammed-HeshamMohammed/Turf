@@ -201,7 +201,7 @@ Found in a review on 2026-11-17 and settled by the owner the same day. Replaced 
 
 ## Every decision
 
-352 decisions. Each row links to the file that holds it.
+358 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -557,3 +557,9 @@ Found in a review on 2026-11-17 and settled by the owner the same day. Replaced 
 | D350 | Settles the D74 contradiction: an announcement marked important breaks through quiet hours (D85) and category settings (D40), like account and security alerts. Only the owner, admins and team leads can mark one important, so it should be rare. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D351 | Settles the D209 contradiction: a strong refusal to one agency ("leave me alone", "never call me again") blocks that agency for texts and calls. Only a clear statement of wanting no calls from anyone ("stop all these companies calling me"), confirmed by the agent, goes to Caller Whale's database for every agency. | [06-do-not-call](06-do-not-call.md) |
 | D352 | Opt-outs are detected automatically wherever the lead speaks or writes: in call captions during a call, and in texts and emails. A detected opt-out is marked at once with its kind (this agency, or anyone), and the agent gets a confirmation button. Clear opt-out words still block at once (D207); the detection's reading is advice, never the decision on its own. | [06-do-not-call](06-do-not-call.md) |
+| D353 | A lead is texted only with consent on record. Consent can come from: a website form (D247), an earlier reply from the lead, the agent marking it during a call, or the agency confirming per list that it holds consent. Cold leads with none of these can be called but not texted. | [06-do-not-call](06-do-not-call.md) |
+| D354 | Caller Whale trusts the agency and the agent for consent it cannot verify, such as a lead on the phone saying "I'm driving, text me". The agent marks "Agreed to texts", with the date, who marked it, and the recording or captions linked when there are any. Responsibility for consent the agency or agent confirmed stays with the agency, as the terms say. | [06-do-not-call](06-do-not-call.md) |
+| D355 | An agency can confirm on import that it holds consent for a list. The confirmation is recorded with who gave it and when, and covers that agency only. | [06-do-not-call](06-do-not-call.md) |
+| D356 | Consent belongs to one agency and one number. Each agency holds its own consent for the same number, and one agency's consent never lets another agency text it. | [06-do-not-call](06-do-not-call.md) |
+| D357 | Each lead has a primary phone and a primary email. Consent and blocks belong to each number or address, so a blocked number never blocks the lead's others unless the lead asked. | [06-do-not-call](06-do-not-call.md) |
+| D358 | Consent stays until the lead opts out. If a lead has not been contacted for 6 months (as for reassigned numbers, D214), consent is re-confirmed on the next call before texting. | [06-do-not-call](06-do-not-call.md) |
