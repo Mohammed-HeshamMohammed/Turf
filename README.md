@@ -17,6 +17,10 @@ The CRM's backend: leads, tasks, notes, calls and deals, synced to the web CRM a
 
 Every request inside a workspace carries `Authorization: Bearer <token>` and `x-callerwhale-org`. Each runs in a transaction that tells PostgreSQL who is asking; row security then shows only that workspace, and `cw_visible_lead()` only the leads the person's role may see.
 
+## Leads and teams
+
+Each team has settings its team leads, an admin or the owner change (`GET`/`PUT /api/v1/teams/{id}/settings`): whether its agents may claim its unassigned leads (`agents_claim`), the most open leads one agent may hold before claiming more (`open_limit`), and whether its agents see each other's numbers (`leaderboard`). `GET /api/v1/teams/{id}/pool` lists a team's unassigned leads for its leads, deputies and, when claiming is on, its agents; the `lead.claim` operation takes one. A team lead moves leads only between teams they lead; a handoff stays inside the lead's team; only the owner or an admin deletes a lead for good (`lead.delete`), everyone else archives. A team lead gives work and tasks to their teams' people and deputies.
+
 ## Imports
 
 1. The gateway sends upload start, chunk, resume and complete requests to the import worker. Core receives no uploaded file bytes. The worker authenticates each request with Core's `/api/v1/me`, owns temporary storage, and writes upload metadata to PostgreSQL.

@@ -29,8 +29,9 @@ type watched struct {
 	Suspended bool     `json:"suspended"`
 }
 
-// whoMayIWatch lists the people the asking person may monitor (never clients).
-func (s *server) whoMayIWatch(ctx context.Context, q *req) ([]watched, error) {
+// whoMayIWatch lists the people the asking person may monitor (never clients). boards are teams whose leaderboard is on (D125): their
+// members are listed too, for numbers only.
+func (s *server) whoMayIWatch(ctx context.Context, q *req, boards []string) ([]watched, error) {
 	members, err := s.rules.members(ctx, q.sc.orgID)
 	if err != nil {
 		return nil, err
@@ -51,7 +52,7 @@ func (s *server) whoMayIWatch(ctx context.Context, q *req) ([]watched, error) {
 			continue
 		}
 		team := teamOf(m, managed)
-		if !everyone && m.UserID != q.sc.userID && !inTeams(m, managed) {
+		if !everyone && m.UserID != q.sc.userID && !inTeams(m, managed) && !inTeams(m, boards) {
 			continue
 		}
 		out = append(out, watched{UserID: m.UserID, Roles: m.Roles, TeamID: team, TeamName: names[team], Suspended: m.SuspendedAt != nil})
@@ -118,7 +119,11 @@ func (s *server) memberStats(q *req) error {
 	if err != nil {
 		return err
 	}
-	people, err := s.whoMayIWatch(ctx, q)
+	boards, err := s.leaderboards(ctx, q)
+	if err != nil {
+		return err
+	}
+	people, err := s.whoMayIWatch(ctx, q, boards)
 	if err != nil {
 		return err
 	}
@@ -209,7 +214,7 @@ func (s *server) memberActivity(q *req) error {
 	if !validID(user) {
 		return bad("Choose a person.")
 	}
-	people, err := s.whoMayIWatch(ctx, q)
+	people, err := s.whoMayIWatch(ctx, q, nil) // activity is for those who manage, never a leaderboard
 	if err != nil {
 		return err
 	}
@@ -238,4 +243,30 @@ func (s *server) memberActivity(q *req) error {
 	}
 	writeJSON(q.w, http.StatusOK, map[string]any{"events": events})
 	return nil
+}
+
+// leaderboards are the person's own teams whose leads switched on the leaderboard (D125).
+func (s *server) leaderboards(ctx context.Context, q *req) ([]string, error) {
+	if len(q.sc.teamIDs) == 0 {
+		return nil, nil
+	}
+	tx, err := s.st.begin(ctx, q.sc)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	rows, err := tx.Query(ctx, `SELECT team_id::text FROM team_settings WHERE leaderboard AND team_id = ANY($1::uuid[])`, uuidArray(q.sc.teamIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }

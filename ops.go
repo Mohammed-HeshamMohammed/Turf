@@ -54,7 +54,7 @@ func (conflict) Error() string { return "conflict" }
 func reject(format string, a ...any) error { return rejection(fmt.Sprintf(format, a...)) }
 
 // Changes that alter ownership, permissions or many records are never accepted from an offline queue.
-var onlineOnly = []string{"lead.assign", "lead.delete", "lead.share", "handoff.decide", "task.delete", "deal.delete", "note.delete"}
+var onlineOnly = []string{"lead.assign", "lead.claim", "lead.delete", "lead.share", "handoff.decide", "task.delete", "deal.delete", "note.delete"}
 
 var (
 	leadStages = []string{"New", "Contacted", "Interested", "Qualified", "Closed"}
@@ -183,6 +183,8 @@ func (r *run) dispatch() (any, error) {
 		return r.leadUpdate(p)
 	case "lead.assign":
 		return r.leadAssign(p)
+	case "lead.claim":
+		return r.leadClaim(p)
 	case "lead.delete":
 		return r.leadDelete(p)
 	case "lead.archive":
@@ -730,6 +732,16 @@ func (r *run) leadAssign(p map[string]any) (any, error) {
 			return nil, err
 		}
 		from, _ := before["assignee_id"].(string)
+		// A lead moves between teams only for someone who runs both, or sees the whole workspace (D108).
+		if current := asString(before["team_id"]); team != nil && current != "" && current != *team && !slices.Contains(r.sc.scopes, "organization") {
+			mine, err := r.s.rules.grant(r.ctx, r.sc.userID, r.sc.orgID, r.sc.secondStep)
+			if err != nil {
+				return nil, err
+			}
+			if !slices.Contains(mine.ManagedTeamIDs, current) || !slices.Contains(mine.ManagedTeamIDs, *team) {
+				return nil, reject("A team lead moves leads only between teams they lead")
+			}
+		}
 		if err = r.exec(`UPDATE leads SET assignee_id = $2, team_id = coalesce($3, team_id), version = version + 1, updated_at = now() WHERE id = $1`, id, to, team); err != nil {
 			return nil, err
 		}
@@ -798,9 +810,10 @@ func (r *run) leadArchive(p map[string]any, archive bool) (any, error) {
 	return redactLead(after, r.sc), nil
 }
 
+// leadDelete removes a lead for good: the owner and admins only, after a confirmation on screen (D232). Everyone else archives.
 func (r *run) leadDelete(p map[string]any) (any, error) {
-	if err := r.need("assign"); err != nil {
-		return nil, err
+	if !r.sc.can("admin") {
+		return nil, reject("Only the agency owner or an admin deletes a lead for good. Archive it instead")
 	}
 	id, err := uuidField(p, "id")
 	if err != nil {
@@ -1354,6 +1367,10 @@ func (r *run) handoffRequest(p map[string]any) (any, error) {
 	}
 	if !g.Allowed || !slices.Contains(g.Capabilities, "accept") {
 		return nil, reject("That person cannot accept handoffs")
+	}
+	// A handoff stays inside the lead's team; another team's closer is a team move by a team lead (D109).
+	if team := asString(lead["team_id"]); team != "" && !slices.Contains(g.TeamIDs, team) && !slices.Contains(g.Scopes, "organization") {
+		return nil, reject("Hand off to someone in this lead's team. Sending it to another team is a move a team lead makes")
 	}
 	if project, ok := lead["project_id"].(string); ok {
 		var required []string
