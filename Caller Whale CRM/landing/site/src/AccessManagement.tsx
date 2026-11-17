@@ -3,7 +3,17 @@ import type { Auth, Me } from "./auth/auth-client.js";
 import { workspaceRoleName } from "./roles.ts";
 import { ApiError, needsSecondStep, useSecondStep } from "./SecondStep.tsx";
 
-type Invitation = { id: string; scope: string; org_id: string; email: string; role: string; team_id?: string; expires_at: number; created_at?: number; delivery_state: string; org_name?: string; owner_name?: string; inviter_name?: string };
+type Invitation = { id: string; scope: string; org_id: string; email: string; role: string; team_id?: string; expires_at: number; created_at?: number; delivery_state: string; org_name?: string; owner_name?: string; inviter_name?: string; status?: string; status_reason?: string; resends_left?: number; extends_left?: number; next_resend_at?: number };
+/** An invitation's state in words: waiting, blocked (with why), ended, declined or cancelled. */
+const statusWords = (item: Invitation) => {
+  switch (item.status) {
+    case "blocked": return `Blocked: ${item.status_reason || "it cannot be accepted yet."}`;
+    case "expired": return "Ended";
+    case "declined": return "Declined";
+    case "cancelled": return item.status_reason ? `Cancelled: ${item.status_reason}` : "Cancelled";
+    default: return "Waiting";
+  }
+};
 /** How an invitation's email went: sent, failed (tried and refused), or not set up (email is switched off on this server). */
 const deliveryWords = (state: string) => state === "sent" ? "Emailed" : state === "failed" ? "Email failed" : "Not emailed (email is off)";
 type Member = { user_id: string; email?: string; name?: string; roles: string[]; team_ids?: string[]; suspended_at?: number; suspended_reason?: string };
@@ -68,6 +78,24 @@ export function InviteManager({ auth, authBase, scope, orgId = "" }: { auth: Aut
       setBusy(false);
     });
   };
+  // How long this agency's invitations last (1 to 30 days), set by the owner.
+  const [validDays, setValidDays] = useState(7);
+  useEffect(() => { if (scope === "workspace") call(auth, authBase, "GET", `/v1/orgs/${orgId}/invitation-settings`).then(result => setValidDays(result.valid_days || 7), () => undefined); }, [auth, authBase, orgId, scope]);
+  const saveDays = async (days: number) => {
+    setBusy(true); setMessage("");
+    try { setValidDays((await call(auth, authBase, "PUT", `/v1/orgs/${orgId}/invitation-settings`, { valid_days: days })).valid_days); setMessage(`New invitations now last ${days} ${days === 1 ? "day" : "days"}.`); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Could not save how long invitations last."); }
+    setBusy(false);
+  };
+  const again = async (item: Invitation, what: "resend" | "extend") => {
+    setBusy(true); setMessage("");
+    try {
+      const result = await call(auth, authBase, "POST", `/v1/invitations/${item.id}/${what}`);
+      await load();
+      setMessage(what === "extend" ? `Extended until ${new Date(result.expires_at * 1000).toLocaleString()}.` : result.delivery_state === "sent" ? "Invitation emailed again." : "The email could not be sent. Send the person the link another way.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not change the invitation."); }
+    setBusy(false);
+  };
   const revoke = (item: Invitation) => {
     if (!confirm(`Withdraw the invitation for ${item.email}?`)) return Promise.resolve();
     return second.guard(async () => {
@@ -81,11 +109,11 @@ export function InviteManager({ auth, authBase, scope, orgId = "" }: { auth: Aut
     });
   };
   return <section className="admin-manage card" aria-label={`${scope} invitations`}>
-    <div><span className="eyebrow">Invitation</span><h2>Invite {scope === "platform" ? "platform staff" : "workspace members"}</h2><p className="muted">Access starts only after the recipient signs in with this email, confirms it, and accepts the invitation. {scope === "platform" ? "Invitations expire one hour after they are created." : "Invitations expire 72 hours after they are created."}</p></div>
+    <div><span className="eyebrow">Invitation</span><h2>Invite {scope === "platform" ? "platform staff" : "workspace members"}</h2><p className="muted">Access starts only after the recipient signs in with this email, confirms it, and accepts the invitation. {scope === "platform" ? "Invitations expire one hour after they are created." : <>Invitations last <select aria-label="How long invitations last" value={validDays} disabled={busy} onChange={event => void saveDays(Number(event.target.value))}>{[1, 2, 3, 5, 7, 10, 14, 21, 30].map(days => <option key={days} value={days}>{days} {days === 1 ? "day" : "days"}</option>)}</select>. Each can be resent three times (once an hour) and extended twice.</>}</p></div>
     {second.prompt}<form className="staff-form" onSubmit={invite}><div className="staff-fields"><label>Email address<input type="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="person@example.com" /></label><label>Role<select value={role} onChange={event => setRole(event.target.value)}>{roles.map(value => <option key={value} value={value}>{roleLabel(value)}</option>)}</select></label>{needsTeam && <label>Team<select required value={teamId} onChange={event => setTeamId(event.target.value)}><option value="">Choose a team</option>{teams.map(team => <option key={team.team_id} value={team.team_id}>{team.name}</option>)}</select></label>}<button className="button primary" disabled={busy || (needsTeam && !teamId)}>{busy ? "Saving…" : "Send invitation"}</button></div>{needsTeam && teams.length === 0 && <p className="muted">Callers and closers join a team. Create a team in Members first.</p>}</form>
     {message && <p className="notice" role="status">{message}</p>}
     {handout && <div className="notice" role="note"><p>{handout}</p><button type="button" className="staff-text-button" onClick={() => { void navigator.clipboard?.writeText(handout).then(() => setCopied(true), () => setCopied(false)); }}>{copied ? "Copied" : "Copy these words"}</button></div>}
-    <div><h3>Pending invitations</h3>{state === "loading" ? <p className="muted" role="status">Loading invitations…</p> : state === "error" ? <p role="alert">Invitations are unavailable. <button type="button" className="staff-text-button" onClick={() => void load()}>Retry</button></p> : items.length === 0 ? <p className="muted">No pending invitations.</p> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Email</th><th>Role</th><th>Delivery</th><th>Expires</th><th><span className="sr-only">Action</span></th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td>{item.email}</td><td>{roleLabel(item.role)}{item.team_id && teams.find(team => team.team_id === item.team_id) ? ` · ${teams.find(team => team.team_id === item.team_id)?.name}` : ""}</td><td>{deliveryWords(item.delivery_state)}</td><td>{new Date(item.expires_at * 1000).toLocaleString()}</td><td><button type="button" className="staff-text-button" disabled={busy} onClick={() => void revoke(item)}>Withdraw</button></td></tr>)}</tbody></table></div>}</div>
+    <div><h3>Pending invitations</h3>{state === "loading" ? <p className="muted" role="status">Loading invitations…</p> : state === "error" ? <p role="alert">Invitations are unavailable. <button type="button" className="staff-text-button" onClick={() => void load()}>Retry</button></p> : items.length === 0 ? <p className="muted">No pending invitations.</p> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Delivery</th><th>Expires</th><th><span className="sr-only">Action</span></th></tr></thead><tbody>{items.map(item => { const open = !item.status || item.status === "pending" || item.status === "blocked" || item.status === "expired"; return <tr key={item.id}><td>{item.email}</td><td>{roleLabel(item.role)}{item.team_id && teams.find(team => team.team_id === item.team_id) ? ` · ${teams.find(team => team.team_id === item.team_id)?.name}` : ""}</td><td>{statusWords(item)}</td><td>{deliveryWords(item.delivery_state)}</td><td>{new Date(item.expires_at * 1000).toLocaleString()}</td><td>{open && <>{item.status !== "expired" && (item.resends_left ?? 0) > 0 && <button type="button" className="staff-text-button" disabled={busy || (item.next_resend_at ?? 0) * 1000 > Date.now()} title={(item.next_resend_at ?? 0) * 1000 > Date.now() ? `Can be resent after ${new Date((item.next_resend_at ?? 0) * 1000).toLocaleTimeString()}` : `${item.resends_left} resends left`} onClick={() => void again(item, "resend")}>Resend</button>}{(item.extends_left ?? 0) > 0 && <button type="button" className="staff-text-button" disabled={busy} title={`${item.extends_left} extensions left`} onClick={() => void again(item, "extend")}>Extend</button>}<button type="button" className="staff-text-button" disabled={busy} onClick={() => void revoke(item)}>Withdraw</button></>}</td></tr>; })}</tbody></table></div>}</div>
   </section>;
 }
 
@@ -113,11 +141,25 @@ export function PendingInvitations({ auth, authBase }: { auth: Auth; authBase: s
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not report the invitation."); }
     setBusy(false);
   };
+  const decline = async (item: Invitation) => {
+    if (!confirm(`Decline the invitation from ${item.org_name || "this agency"}?`)) return;
+    setBusy(true); setError(""); setNotice("");
+    try { await call(auth, authBase, "POST", `/v1/me/invitations/${item.id}/decline`); setItems(items.filter(other => other.id !== item.id)); setNotice("Invitation declined."); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Could not decline the invitation."); }
+    setBusy(false);
+  };
+  const block = async (item: Invitation) => {
+    if (!confirm(`Block ${item.org_name || "this agency"}? It will never be able to invite you again, and its invitations to you are declined. You can undo this later.`)) return;
+    setBusy(true); setError(""); setNotice("");
+    try { await call(auth, authBase, "POST", "/v1/me/blocked-agencies", { invitation_id: item.id }); setItems(items.filter(other => other.org_id !== item.org_id)); setNotice(`${item.org_name || "The agency"} is blocked.`); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Could not block the agency."); }
+    setBusy(false);
+  };
   const from = (item: Invitation) => item.scope === "platform" ? "Caller Whale platform" : item.org_name || "Workspace";
   const who = (item: Invitation) => [item.owner_name ? `owner ${item.owner_name}` : "", item.inviter_name && item.inviter_name !== item.owner_name ? `sent by ${item.inviter_name}` : ""].filter(Boolean).join(" · ");
   return <section className="card admin-pending" aria-label="Your invitations"><h2>Your invitations</h2>
     {waiting && <p className="notice" role="status">An invitation is waiting. Confirm your email to see it.</p>}
-    {items.map(item => <div className={`admin-invite-row${item.id === linked ? " linked" : ""}`} key={item.id}><span><strong>{from(item)}</strong><small>{[roleLabel(item.role), who(item), `invited at ${item.email}`, item.created_at ? `sent ${new Date(item.created_at * 1000).toLocaleString()}` : "", `expires ${new Date(item.expires_at * 1000).toLocaleString()}`].filter(Boolean).join(" · ")}</small></span><span><button type="button" className="button primary" disabled={busy} onClick={() => void accept(item)}>Accept invitation</button> <button type="button" className="staff-text-button" disabled={busy} onClick={() => void report(item)}>Report this invitation</button></span></div>)}
+    {items.map(item => <div className={`admin-invite-row${item.id === linked ? " linked" : ""}`} key={item.id}><span><strong>{from(item)}</strong><small>{[roleLabel(item.role), who(item), `invited at ${item.email}`, item.created_at ? `sent ${new Date(item.created_at * 1000).toLocaleString()}` : "", `expires ${new Date(item.expires_at * 1000).toLocaleString()}`].filter(Boolean).join(" · ")}</small>{item.status === "blocked" && <small className="notice bad">This invitation cannot be accepted yet: {item.status_reason} Ask whoever invited you to fix it.</small>}</span><span><button type="button" className="button primary" disabled={busy || item.status === "blocked"} onClick={() => void accept(item)}>Accept invitation</button> <button type="button" className="staff-text-button" disabled={busy} onClick={() => void decline(item)}>Decline</button>{item.scope === "workspace" && <> <button type="button" className="staff-text-button" disabled={busy} onClick={() => void block(item)}>Block this agency</button></>} <button type="button" className="staff-text-button" disabled={busy} onClick={() => void report(item)}>Report this invitation</button></span></div>)}
     {notice && <p className="notice" role="status">{notice}</p>}{error && <p className="notice bad" role="alert">{error}</p>}</section>;
 }
 

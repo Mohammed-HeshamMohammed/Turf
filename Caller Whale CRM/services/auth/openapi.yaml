@@ -314,6 +314,45 @@ paths:
       security: [{ bearer: [] }]
       requestBody: { content: { application/json: { schema: { type: object, properties: { reason: { type: string, maxLength: 1000 } } } } } }
       responses: { "200": { description: Reported (again is harmless) }, "404": { description: No such invitation for this address } }
+  /v1/me/invitations/{id}/decline:
+    post:
+      summary: Decline an invitation; the sender sees Declined and the seat is free
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Declined }, "403": { description: Another address or unconfirmed email }, "410": { description: Already ended } }
+  /v1/me/blocked-agencies:
+    get:
+      summary: Agencies the signed-in address has blocked
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Blocked agencies } }
+    post:
+      summary: Block the agency of one of this address's invitations; it can never invite the address again and its waiting invitations are declined
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [invitation_id], properties: { invitation_id: { type: string } } } } } }
+      responses: { "200": { description: Blocked }, "404": { description: No such invitation for this address } }
+  /v1/me/blocked-agencies/{org}:
+    delete:
+      summary: Undo a block
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Unblocked } }
+  /v1/invitations/{id}/resend:
+    post:
+      summary: Email a waiting workspace invitation again; at most once an hour and three times
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Resent with delivery_state }, "409": { description: "resend_limit, email_off, or the invitation ended" }, "429": { description: resend_wait } }
+  /v1/invitations/{id}/extend:
+    post:
+      summary: Give a waiting or ended workspace invitation the agency's full validity again from now; twice at most
+      security: [{ bearer: [] }]
+      responses: { "200": { description: New expires_at }, "409": { description: extend_limit, or declined or cancelled } }
+  /v1/orgs/{org}/invitation-settings:
+    get:
+      summary: How long the agency's invitations last (valid_days) and its daily number (daily_cap)
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Settings } }
+    put:
+      summary: The owner sets valid_days (1 to 30); only Caller Whale staff set daily_cap
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Saved }, "400": { description: Out of range }, "403": { description: Not allowed } }
   /v1/admin/invitation-reports:
     get:
       summary: Reported invitations, newest first; staff with a second step

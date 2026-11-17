@@ -19,6 +19,8 @@ type fakeWorkspaceAuthz struct {
 	owner  string
 	joined map[string]bool
 	named  bool // false: authz has no name for the workspace yet
+	// goneTeam is a team that was deleted: inviting into it is refused, as authz refuses a team not in the workspace.
+	goneTeam string
 }
 
 func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +40,18 @@ func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
 	case r.Method == "GET" && r.URL.Path == "/v1/orgs/"+flowOrg+"/roles":
 		_, _ = w.Write([]byte(`{"roles":[{"key":"caller","assignable":true},{"key":"closer","assignable":true}]}`))
 	case r.Method == "POST" && r.URL.Path == "/v1/orgs/"+flowOrg+"/relations/check":
+		var asked struct {
+			TeamID string `json:"team_id"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&asked)
+		if f.goneTeam != "" && asked.TeamID == f.goneTeam {
+			_, _ = w.Write([]byte(`{"allowed":false,"code":"bad_request","reason":"That team is not in this workspace."}`))
+			return
+		}
 		_, _ = w.Write([]byte(`{"allowed":true}`))
+	case r.Method == "DELETE" && strings.HasPrefix(r.URL.Path, "/v1/orgs/"+flowOrg+"/members/"),
+		r.Method == "POST" && strings.HasSuffix(r.URL.Path, "/suspend"):
+		_, _ = w.Write([]byte(`{"ok":true}`))
 	case r.Method == "GET" && r.URL.Path == "/v1/orgs/"+flowOrg:
 		name := ""
 		if f.named {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -31,15 +32,35 @@ type invitation struct {
 	OrgName     string `json:"org_name"`
 	OwnerName   string `json:"owner_name"`
 	InviterName string `json:"inviter_name"`
+	// Status is pending, blocked (it cannot be accepted until the agency fixes something, StatusReason says what), expired,
+	// declined or cancelled. The limits on resending and extending it (D175) come with it.
+	Status       string `json:"status"`
+	StatusReason string `json:"status_reason,omitempty"`
+	ResendsLeft  int    `json:"resends_left"`
+	ExtendsLeft  int    `json:"extends_left"`
+	NextResendAt int64  `json:"next_resend_at"`
+
+	revokedReason   string
+	resent          int
+	extended        int
+	lastSentAt      int64
+	acceptedAt      *int64
+	revokedAt       *int64
+	inviterDisabled bool
 }
 
 // invitationColumns are read for every invitation shown; scanInvitation fills them in the same order.
-const invitationColumns = `i.id,i.scope,i.org_id,i.email,i.role,i.team_id,i.invited_by,i.expires_at,i.created_at,i.delivery_state,i.org_name,i.owner_name,coalesce(u.display_name,'')`
+const invitationColumns = `i.id,i.scope,i.org_id,i.email,i.role,i.team_id,i.invited_by,i.expires_at,i.created_at,i.delivery_state,i.org_name,i.owner_name,coalesce(u.display_name,''),` +
+	`i.revoked_reason,i.resent_count,i.extended_count,coalesce(i.last_sent_at,i.created_at),i.accepted_at,i.revoked_at,coalesce(u.disabled_at IS NOT NULL,false)`
 const invitationFrom = ` FROM access_invitations i LEFT JOIN users u ON u.id = i.invited_by `
 
 func scanInvitation(row pgx.Row) (invitation, error) {
 	var item invitation
-	err := row.Scan(&item.ID, &item.Scope, &item.OrgID, &item.Email, &item.Role, &item.TeamID, &item.InvitedBy, &item.ExpiresAt, &item.CreatedAt, &item.DeliveryState, &item.OrgName, &item.OwnerName, &item.InviterName)
+	err := row.Scan(&item.ID, &item.Scope, &item.OrgID, &item.Email, &item.Role, &item.TeamID, &item.InvitedBy, &item.ExpiresAt, &item.CreatedAt, &item.DeliveryState, &item.OrgName, &item.OwnerName, &item.InviterName,
+		&item.revokedReason, &item.resent, &item.extended, &item.lastSentAt, &item.acceptedAt, &item.revokedAt, &item.inviterDisabled)
+	if err == nil {
+		item.settle()
+	}
 	return item, err
 }
 
@@ -60,12 +81,12 @@ func (s *server) invitationLink(id string) string {
 }
 
 // invitationDeadline is when an invitation stops working: a platform (staff) invitation after one hour, a workspace invitation after
-// 72 hours, long enough for a new caller to find it when email delivery is off and they are told by phone or chat.
-func invitationDeadline(scope string, createdAt int64) int64 {
+// the days its agency chose (D41, 7 unless changed). Extending a workspace invitation starts that length again from now.
+func invitationDeadline(scope string, from int64, validDays int) int64 {
 	if scope == "workspace" {
-		return createdAt + int64(72*time.Hour/time.Second)
+		return from + int64(validDays)*int64(24*time.Hour/time.Second)
 	}
-	return createdAt + int64(time.Hour/time.Second)
+	return from + int64(time.Hour/time.Second)
 }
 
 func (s *server) authzCall(r *http.Request, method, path string, body any, out any) (int, error) {
@@ -164,8 +185,12 @@ func (s *server) workspaceActor(r *http.Request, org string) (claims, error) {
 	return seat.c, nil
 }
 
+// listInvitations is what the agency sees: invitations still waiting, and those that ended in the last week without being
+// accepted (declined, cancelled, expired), so the sender sees what happened (D68) and can extend an expired one.
 func (s *server) listInvitations(w http.ResponseWriter, r *http.Request, scope, org string) error {
-	rows, err := s.db.Query(r.Context(), `SELECT `+invitationColumns+invitationFrom+`WHERE i.scope=$1 AND i.org_id=$2 AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at>$3 ORDER BY i.created_at DESC LIMIT 200`, scope, org, now())
+	week := now() - int64(7*24*time.Hour/time.Second)
+	rows, err := s.db.Query(r.Context(), `SELECT `+invitationColumns+invitationFrom+`WHERE i.scope=$1 AND i.org_id=$2 AND i.accepted_at IS NULL AND i.revoked_reason<>'replaced'
+		AND ((i.revoked_at IS NULL AND i.expires_at>$3) OR i.revoked_at>$3) ORDER BY i.created_at DESC LIMIT 200`, scope, org, week)
 	if err != nil {
 		return err
 	}
@@ -181,6 +206,8 @@ func (s *server) listInvitations(w http.ResponseWriter, r *http.Request, scope, 
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	rows.Close()
+	s.markBlocked(r, items)
 	writeJSON(w, http.StatusOK, map[string]any{"invitations": items})
 	return nil
 }
@@ -211,6 +238,28 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 	email, err := normalEmail(body.Email)
 	if err != nil {
 		return err
+	}
+	settings := invitationSettings{ValidDays: 7, DailyCap: 50}
+	if scope == "workspace" {
+		if settings, err = s.invitationSettings(r.Context(), org); err != nil {
+			return err
+		}
+		// A person who blocked this agency is never invited by it again (D93).
+		var blocked bool
+		if err := s.db.QueryRow(r.Context(), "SELECT EXISTS (SELECT 1 FROM invitation_blocks WHERE email=$1 AND org_id=$2)", email, org).Scan(&blocked); err != nil {
+			return err
+		}
+		if blocked {
+			return forbidden("This person has chosen not to receive invitations from this agency.")
+		}
+		// At most so many new invitations a day (D176); staff can raise it for a large agency.
+		var today int
+		if err := s.db.QueryRow(r.Context(), "SELECT count(*) FROM access_invitations WHERE scope='workspace' AND org_id=$1 AND created_at>$2", org, now()-int64(24*time.Hour/time.Second)).Scan(&today); err != nil {
+			return err
+		}
+		if today >= settings.DailyCap {
+			return newError(http.StatusTooManyRequests, "daily_cap", fmt.Sprintf("This agency has sent %d invitations in the last 24 hours, its daily limit. Try again later, or ask Caller Whale to raise it.", settings.DailyCap))
+		}
 	}
 	role := strings.TrimSpace(body.Role)
 	if scope == "platform" {
@@ -325,36 +374,19 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 	}
 	id := uuid.NewString()
 	createdAt := now()
-	expires := invitationDeadline(scope, createdAt)
-	if _, err := s.db.Exec(r.Context(), "UPDATE access_invitations SET revoked_at=$1 WHERE scope=$2 AND org_id=$3 AND email=$4 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at<=$1", now(), scope, org, email); err != nil {
+	expires := invitationDeadline(scope, createdAt, settings.ValidDays)
+	if _, err := s.db.Exec(r.Context(), "UPDATE access_invitations SET revoked_at=$1, revoked_reason='replaced' WHERE scope=$2 AND org_id=$3 AND email=$4 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at<=$1", now(), scope, org, email); err != nil {
 		return err
 	}
-	_, err = s.db.Exec(r.Context(), `INSERT INTO access_invitations (id,scope,org_id,email,role,team_id,invited_by,created_at,expires_at,org_name,owner_name) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, id, scope, org, email, role, strings.TrimSpace(body.TeamID), c.Sub, createdAt, expires, orgName, ownerName)
+	_, err = s.db.Exec(r.Context(), `INSERT INTO access_invitations (id,scope,org_id,email,role,team_id,invited_by,created_at,expires_at,org_name,owner_name,last_sent_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$8)`, id, scope, org, email, role, strings.TrimSpace(body.TeamID), c.Sub, createdAt, expires, orgName, ownerName)
 	if err != nil {
 		if strings.Contains(err.Error(), "access_invitations_open") {
 			return conflict("An invitation is already pending for this email.")
 		}
 		return err
 	}
-	state := "not_configured"
-	if s.mail != nil {
-		var inviter string
-		if err := s.db.QueryRow(r.Context(), "SELECT display_name FROM users WHERE id=$1", c.Sub).Scan(&inviter); err != nil {
-			return err
-		}
-		expiresIn := "one hour"
-		if scope == "workspace" {
-			expiresIn = "72 hours"
-		}
-		if err := s.mail.sendInvitation(r.Context(), email, inviter, orgName, role, roleWords(role), expiresIn, s.invitationLink(id)); err == nil {
-			state = "sent"
-		} else {
-			// Kept apart from "not_configured": the sender is told the email failed, not that email is switched off (problem 9).
-			log.Printf("WARN invitation %s was not emailed: %v", id, err)
-			state = "failed"
-		}
-	}
-	if _, err := s.db.Exec(r.Context(), "UPDATE access_invitations SET delivery_state=$1 WHERE id=$2", state, id); err != nil {
+	state, err := s.emailInvitation(r.Context(), id, c.Sub, email, orgName, role, scope, settings.ValidDays)
+	if err != nil {
 		return err
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"id": id, "delivery_state": state, "expires_at": expires, "link": s.invitationLink(id)})
@@ -407,6 +439,9 @@ func (s *server) myInvitations(w http.ResponseWriter, r *http.Request) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	rows.Close()
+	// A blocked invitation says so before the person tries to accept it (problems 12, 13).
+	s.markBlocked(r, items)
 	writeJSON(w, http.StatusOK, map[string]any{"invitations": items, "waiting": len(items) > 0, "email_verified": true})
 	return nil
 }
@@ -419,13 +454,11 @@ func (s *server) readMyInvitation(r *http.Request, q interface {
 	if _, err := uuid.Parse(id); err != nil {
 		return invitation{}, bad("Choose a valid invitation.")
 	}
-	query := `SELECT ` + invitationColumns + `,i.accepted_at,i.revoked_at` + invitationFrom + `WHERE i.id=$1`
+	query := `SELECT ` + invitationColumns + invitationFrom + `WHERE i.id=$1`
 	if lock {
 		query += " FOR UPDATE OF i"
 	}
-	var item invitation
-	var accepted, revoked *int64
-	err := q.QueryRow(r.Context(), query, id).Scan(&item.ID, &item.Scope, &item.OrgID, &item.Email, &item.Role, &item.TeamID, &item.InvitedBy, &item.ExpiresAt, &item.CreatedAt, &item.DeliveryState, &item.OrgName, &item.OwnerName, &item.InviterName, &accepted, &revoked)
+	item, err := scanInvitation(q.QueryRow(r.Context(), query, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return invitation{}, newError(http.StatusNotFound, "not_found", "Invitation not found.")
 	}
@@ -438,12 +471,18 @@ func (s *server) readMyInvitation(r *http.Request, q interface {
 	if !c.EmailVerified {
 		return invitation{}, newError(http.StatusForbidden, "email_unverified", "An invitation is waiting. Confirm your email to see it.")
 	}
-	switch {
-	case revoked != nil:
-		return invitation{}, newError(http.StatusGone, "cancelled", "This invitation was cancelled.")
-	case accepted != nil:
+	switch item.Status {
+	case "accepted":
 		return invitation{}, newError(http.StatusConflict, "accepted", "You already accepted this invitation.")
-	case item.ExpiresAt <= now() || invitationDeadline(item.Scope, item.CreatedAt) <= now():
+	case "declined":
+		if item.revokedReason == "blocked_agency" {
+			return invitation{}, newError(http.StatusGone, "declined", "You blocked this agency, so this invitation was declined.")
+		}
+		return invitation{}, newError(http.StatusGone, "declined", "You declined this invitation.")
+	case "cancelled":
+		// Withdrawn, its inviter removed, or replaced: the person is told it was cancelled and nothing more (D174).
+		return invitation{}, newError(http.StatusGone, "cancelled", "This invitation was cancelled.")
+	case "expired":
 		return invitation{}, newError(http.StatusGone, "expired", "This invitation has ended. Ask whoever invited you to send a new one.")
 	}
 	return item, nil
@@ -459,7 +498,9 @@ func (s *server) myInvitation(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"invitation": item})
+	items := []invitation{item}
+	s.markBlocked(r, items)
+	writeJSON(w, http.StatusOK, map[string]any{"invitation": items[0]})
 	return nil
 }
 
@@ -624,7 +665,7 @@ func (s *server) revokeInvitation(w http.ResponseWriter, r *http.Request) error 
 			return err
 		}
 	}
-	_, err = s.db.Exec(r.Context(), "UPDATE access_invitations SET revoked_at=$1 WHERE id=$2 AND accepted_at IS NULL AND revoked_at IS NULL", now(), id)
+	_, err = s.db.Exec(r.Context(), "UPDATE access_invitations SET revoked_at=$1, revoked_reason='withdrawn' WHERE id=$2 AND accepted_at IS NULL AND revoked_at IS NULL", now(), id)
 	if err != nil {
 		return err
 	}
@@ -761,6 +802,7 @@ func (s *server) removeWorkspaceMember(w http.ResponseWriter, r *http.Request) e
 	if _, err := s.authzCall(r, http.MethodDelete, "/v1/orgs/"+org+"/members/"+user, map[string]any{"actor_id": c.Sub, "actor_second_step": c.MFA}, nil); err != nil {
 		return err
 	}
+	s.cancelInvitationsBy(r.Context(), org, user)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	return nil
 }
@@ -791,6 +833,9 @@ func (s *server) suspendWorkspaceMember(restore bool) func(http.ResponseWriter, 
 		}
 		if _, err := s.authzCall(r, http.MethodPost, path, map[string]any{"actor_id": seat.c.Sub, "actor_second_step": seat.c.MFA, "reason": strings.TrimSpace(body.Reason)}, nil); err != nil {
 			return err
+		}
+		if !restore {
+			s.cancelInvitationsBy(r.Context(), org, user)
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "suspended": !restore})
 		return nil
@@ -914,6 +959,10 @@ func (s *server) changeWorkspaceMember(w http.ResponseWriter, r *http.Request) e
 	change := map[string]any{"actor_id": c.Sub, "actor_second_step": c.MFA, "roles": body.Roles, "restrictions": current.Restrictions, "team_ids": teams, "project_ids": current.ProjectIDs}
 	if _, err := s.authzCall(r, http.MethodPut, "/v1/orgs/"+org+"/members/"+user, change, nil); err != nil {
 		return err
+	}
+	// A team lead who is no longer one cannot invite, so what they sent is cancelled (D7).
+	if slices.Contains(current.Roles, "manager") && !slices.Contains(body.Roles, "manager") {
+		s.cancelInvitationsBy(r.Context(), org, user)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	return nil
