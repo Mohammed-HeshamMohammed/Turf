@@ -46,6 +46,10 @@ workspace's standing.
 | `PUT /v1/orgs/{org}/owner` | Sets up a new workspace's roles and its owner (`owner` or `solo`) |
 | `GET /v1/orgs/{org}` | The workspace's owner and agency name, so auth can say on an invitation where it comes from (`read`) |
 | `PUT /v1/orgs/{org}/name` | Keeps the agency's name as the CRM has it; only crm-core sets it (`manage`) |
+| `PUT /v1/orgs/{org}/features/{name}` | Turns a workspace's switch on or off (`manage_staff`); `teams_v2` is the new team rules. `AUTHZ_FEATURES_EVERYWHERE=teams_v2` turns it on for every workspace |
+| `PUT /v1/orgs/{org}/teams/{team}/deputies` | Names a team's deputy leads: its leads, an admin or the owner (`manage_members`) |
+
+**New team rules (`teams_v2`, build step 11).** Off by default for each workspace. When on: a team has no lead, one, or several equal leads (`manager_ids`; `manager_id` stays the first) and up to 10 deputy leads; callers, closers and researchers sit in one to five teams; a person can hold several roles (a lead can also call or close); the owner names up to 3 admins (`authz_standing.admins` raises it), who do what the owner does with people and teams but cannot change admins; a lead invites agents into teams they lead and manages their agents but not other leads; a removed or demoted lead simply leaves the team's leads. A grant's `team_scope_ids` are the teams the `team` scope shows: led or deputised teams, and the person's own teams only when a role other than team lead gives the team scope. Staff who own a workspace act in it as its owner, without the staff second step.
 | `GET`/`PUT /v1/orgs/{org}/roles[/{key}]` | The workspace's roles; changing one needs an actor with `admin` |
 | `GET /v1/orgs/{org}/members`, `PUT`/`DELETE /v1/orgs/{org}/members/{user}` | Members, their roles, restrictions, teams and projects; changes need an actor with `admin` |
 | `PUT /v1/orgs/{org}/standing` | Suspended and payment-required flags (billing, core API) |

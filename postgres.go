@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -73,6 +72,17 @@ func (p *postgres) setup(ctx context.Context) error {
 		`UPDATE authz_roles SET second_step = false WHERE role_key IN ('owner', 'solo') AND second_step`,
 		// The agency's name, copied from the CRM, so an invitation can name the agency it comes from.
 		`ALTER TABLE authz_workspaces ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT ''`,
+		// Step 11 (the new team rules). A team's leads and deputies, several each (D43); authz_teams.manager_id stays the first
+		// lead for the services that know one. Every existing team keeps its manager as its lead (D181).
+		`CREATE TABLE IF NOT EXISTS authz_team_leads (org_id text NOT NULL, team_id text NOT NULL, user_id text NOT NULL, kind text NOT NULL CHECK (kind IN ('lead', 'deputy')), pos integer NOT NULL DEFAULT 0, PRIMARY KEY (org_id, team_id, user_id))`,
+		`CREATE INDEX IF NOT EXISTS authz_team_leads_user_idx ON authz_team_leads (org_id, user_id)`,
+		`INSERT INTO authz_team_leads (org_id, team_id, user_id, kind) SELECT org_id, team_id, manager_id, 'lead' FROM authz_teams WHERE manager_id IS NOT NULL ON CONFLICT DO NOTHING`,
+		// Each workspace's switches (D104), and the number of admins staff allow it (D179; null: the default).
+		`ALTER TABLE authz_workspaces ADD COLUMN IF NOT EXISTS features text[] NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS admins integer`,
+		// The admin role (D100) in every workspace, and the researcher (D337) as it now works: in teams, preparing leads.
+		`INSERT INTO authz_roles (org_id, role_key, capabilities, scope, second_step) SELECT org_id, 'admin', '{edit,assign,handoff,accept,call,message,export,finance,import,rules,review,admin}', 'organization', false FROM authz_workspaces ON CONFLICT DO NOTHING`,
+		`UPDATE authz_roles SET capabilities = '{edit,import,review}', scope = 'team' WHERE role_key = 'researcher' AND scope = 'project' AND capabilities = '{import,export,review}'`,
 	} {
 		if _, err = tx.Exec(ctx, ddl); err != nil {
 			return err
@@ -210,8 +220,12 @@ func (p *postgres) seatLimits(ctx context.Context, org string) (*int, *int, erro
 	return seats, clients, err
 }
 
+// teams lists the workspace's teams with their leads and deputies, in the order each was named.
 func (p *postgres) teams(ctx context.Context, org string) ([]team, error) {
-	rows, err := p.db.Query(ctx, `SELECT team_id, name, coalesce(manager_id, '') FROM authz_teams WHERE org_id=$1 ORDER BY lower(name)`, org)
+	rows, err := p.db.Query(ctx, `SELECT t.team_id, t.name,
+			coalesce((SELECT array_agg(user_id ORDER BY pos, user_id) FROM authz_team_leads WHERE org_id=t.org_id AND team_id=t.team_id AND kind='lead'), '{}'),
+			coalesce((SELECT array_agg(user_id ORDER BY pos, user_id) FROM authz_team_leads WHERE org_id=t.org_id AND team_id=t.team_id AND kind='deputy'), '{}')
+		FROM authz_teams t WHERE t.org_id=$1 ORDER BY lower(t.name)`, org)
 	if err != nil {
 		return nil, err
 	}
@@ -219,23 +233,76 @@ func (p *postgres) teams(ctx context.Context, org string) ([]team, error) {
 	out := []team{}
 	for rows.Next() {
 		var t team
-		if err := rows.Scan(&t.TeamID, &t.Name, &t.ManagerID); err != nil {
+		if err := rows.Scan(&t.TeamID, &t.Name, &t.ManagerIDs, &t.DeputyIDs); err != nil {
 			return nil, err
 		}
+		t.settle()
 		out = append(out, t)
 	}
 	return out, rows.Err()
 }
 
+// setTeam saves a team with exactly the leads and deputies it carries.
 func (p *postgres) setTeam(ctx context.Context, org string, t team) error {
-	_, err := p.db.Exec(ctx, `INSERT INTO authz_teams (org_id, team_id, name, manager_id) VALUES ($1, $2, $3, nullif($4, ''))
-		ON CONFLICT (org_id, team_id) DO UPDATE SET name = EXCLUDED.name, manager_id = EXCLUDED.manager_id`, org, t.TeamID, t.Name, t.ManagerID)
-	return err
+	t.settle()
+	tx, err := p.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, `INSERT INTO authz_teams (org_id, team_id, name, manager_id) VALUES ($1, $2, $3, nullif($4, ''))
+		ON CONFLICT (org_id, team_id) DO UPDATE SET name = EXCLUDED.name, manager_id = EXCLUDED.manager_id`, org, t.TeamID, t.Name, t.ManagerID); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM authz_team_leads WHERE org_id=$1 AND team_id=$2`, org, t.TeamID); err != nil {
+		return err
+	}
+	for kind, ids := range map[string][]string{"lead": t.ManagerIDs, "deputy": t.DeputyIDs} {
+		for pos, id := range ids {
+			if _, err = tx.Exec(ctx, `INSERT INTO authz_team_leads (org_id, team_id, user_id, kind, pos) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING`, org, t.TeamID, id, kind, pos); err != nil {
+				return err
+			}
+		}
+	}
+	return tx.Commit(ctx)
 }
 
 func (p *postgres) removeTeam(ctx context.Context, org, teamID string) error {
-	_, err := p.db.Exec(ctx, `DELETE FROM authz_teams WHERE org_id=$1 AND team_id=$2`, org, teamID)
+	tx, err := p.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, `DELETE FROM authz_team_leads WHERE org_id=$1 AND team_id=$2`, org, teamID); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM authz_teams WHERE org_id=$1 AND team_id=$2`, org, teamID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (p *postgres) features(ctx context.Context, org string) ([]string, error) {
+	var on []string
+	err := p.db.QueryRow(ctx, `SELECT features FROM authz_workspaces WHERE org_id=$1`, org).Scan(&on)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	return on, err
+}
+
+func (p *postgres) setFeature(ctx context.Context, org, name string, on bool) error {
+	_, err := p.db.Exec(ctx, `UPDATE authz_workspaces SET features = CASE WHEN $3 THEN array_append(array_remove(features, $2), $2) ELSE array_remove(features, $2) END WHERE org_id=$1`, org, name, on)
 	return err
+}
+
+func (p *postgres) adminLimit(ctx context.Context, org string) (*int, error) {
+	var admins *int
+	err := p.db.QueryRow(ctx, `SELECT admins FROM authz_standing WHERE org_id=$1`, org).Scan(&admins)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	return admins, err
 }
 
 func (p *postgres) setSuspension(ctx context.Context, org, user string, at *int64, by, reason string) error {
@@ -372,33 +439,38 @@ func (p *postgres) facts(ctx context.Context, user, org string) (facts, error) {
 	f.member = true
 	f.memberSuspended = m.SuspendedAt != nil
 	f.roles = activeRoles(m.Roles)
-	managed, err := tx.Query(ctx, `SELECT team_id FROM authz_teams WHERE org_id=$1 AND manager_id=$2 ORDER BY team_id`, org, user)
+	managed, err := tx.Query(ctx, `SELECT team_id, kind FROM authz_team_leads WHERE org_id=$1 AND user_id=$2 ORDER BY team_id`, org, user)
 	if err != nil {
 		return facts{}, err
 	}
 	for managed.Next() {
-		var id string
-		if err = managed.Scan(&id); err != nil {
+		var id, kind string
+		if err = managed.Scan(&id, &kind); err != nil {
 			managed.Close()
 			return facts{}, err
 		}
-		f.managed = append(f.managed, id)
+		if kind == "lead" {
+			f.managed = append(f.managed, id)
+		} else {
+			f.deputyOf = append(f.deputyOf, id)
+		}
 	}
 	err = managed.Err()
 	managed.Close()
 	if err != nil {
 		return facts{}, err
 	}
-	rows, err := tx.Query(ctx, `SELECT capabilities,scope,second_step FROM authz_roles WHERE org_id=$1 AND role_key=ANY($2)`, org, f.roles)
+	rows, err := tx.Query(ctx, `SELECT role_key,capabilities,scope,second_step FROM authz_roles WHERE org_id=$1 AND role_key=ANY($2)`, org, f.roles)
 	if err != nil {
 		return facts{}, err
 	}
 	scopeSet := map[string]bool{}
+	ownTeamScope := false
 	for rows.Next() {
+		var key, scope string
 		var caps []string
-		var scope string
 		var second bool
-		if err = rows.Scan(&caps, &scope, &second); err != nil {
+		if err = rows.Scan(&key, &caps, &scope, &second); err != nil {
 			rows.Close()
 			return facts{}, err
 		}
@@ -408,6 +480,7 @@ func (p *postgres) facts(ctx context.Context, user, org string) (facts, error) {
 		if scope != "" && scope != "none" {
 			scopeSet[scope] = true
 		}
+		ownTeamScope = ownTeamScope || (scope == "team" && key != "manager")
 		f.secondStep = f.secondStep || second
 	}
 	err = rows.Err()
@@ -415,19 +488,8 @@ func (p *postgres) facts(ctx context.Context, user, org string) (facts, error) {
 	if err != nil {
 		return facts{}, err
 	}
-	for _, restriction := range m.Restrictions {
-		if sc, ok := strings.CutPrefix(restriction, "scope:"); ok {
-			delete(scopeSet, sc)
-		} else {
-			delete(f.capabilities, restriction)
-		}
-	}
-	for _, sc := range scopes {
-		if scopeSet[sc] {
-			f.scopes = append(f.scopes, sc)
-		}
-	}
-	f.teams, f.projects = teamsSeen(m.TeamIDs, f.managed), m.ProjectIDs
+	settleScopes(&f, scopeSet, m.Restrictions, m.TeamIDs, ownTeamScope)
+	f.projects = m.ProjectIDs
 	return f, tx.Commit(ctx)
 }
 

@@ -32,6 +32,9 @@ type config struct {
 	staffSecondStep   bool   // Caller Whale's staff must have passed it
 	platformOwner     string // who is the Caller Whale owner; set once at start, never changed
 	platformCofounder string // the cofounder is also permanent
+	// featuresEverywhere are switches on for every workspace (AUTHZ_FEATURES_EVERYWHERE, like "teams_v2"), once a step is
+	// switched on for everyone. Until then each workspace's own switches decide (D104).
+	featuresEverywhere []string
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -72,6 +75,15 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	if c.tokens, err = parseTokens(get("AUTHZ_TOKENS", "")); err != nil {
 		return c, err
+	}
+	for _, name := range strings.Split(get("AUTHZ_FEATURES_EVERYWHERE", ""), ",") {
+		if name = strings.TrimSpace(name); name == "" {
+			continue
+		}
+		if name != teamsV2 {
+			return c, fmt.Errorf("AUTHZ_FEATURES_EVERYWHERE: %q is not a switch (known: %s)", name, teamsV2)
+		}
+		c.featuresEverywhere = append(c.featuresEverywhere, name)
 	}
 	return c, nil
 }

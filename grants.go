@@ -25,6 +25,9 @@ type grantClaims struct {
 	DBRole       string   `json:"db_role"`
 	Scopes       []string `json:"scopes,omitempty"`
 	TeamIDs      []string `json:"team_ids,omitempty"`
+	// TeamScopeIDs are the teams whose records the "team" scope shows: teams led or deputised, and their own teams only when a
+	// role other than team lead gives the team scope. A caller who deputises another team sees that team, not all of their own.
+	TeamScopeIDs []string `json:"team_scope_ids,omitempty"`
 	ProjectIDs   []string `json:"project_ids,omitempty"`
 	Capabilities []string `json:"capabilities,omitempty"`
 	jwt.RegisteredClaims
@@ -92,7 +95,7 @@ func (k *keys) sign(caller, user, org, action string, d decision, now time.Time,
 		return "", err
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, grantClaims{
-		Org: org, Action: action, DBRole: d.DBRole, Scopes: d.Scopes, TeamIDs: d.TeamIDs, ProjectIDs: d.ProjectIDs, Capabilities: d.Capabilities,
+		Org: org, Action: action, DBRole: d.DBRole, Scopes: d.Scopes, TeamIDs: d.TeamIDs, TeamScopeIDs: d.TeamScopeIDs, ProjectIDs: d.ProjectIDs, Capabilities: d.Capabilities,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer: grantIssuer, Audience: jwt.ClaimStrings{caller}, Subject: user, ID: hex.EncodeToString(id),
 			IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(seconds) * time.Second)),

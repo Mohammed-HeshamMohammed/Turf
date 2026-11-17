@@ -85,9 +85,43 @@ func TestAnAgentSitsInExactlyOneTeam(t *testing.T) {
 		"the researcher is off":       {[]string{"researcher"}, nil, false},
 		"a manager is not also agent": {[]string{"manager", "caller"}, []string{team1}, false},
 	} {
-		if err := checkPlacement(c.roles, c.teams, teams); (err == nil) != c.ok {
+		if err := checkPlacement(c.roles, c.teams, teams, false); (err == nil) != c.ok {
 			t.Errorf("%s: %v", name, err)
 		}
+	}
+}
+
+// Under the new team rules (D97, D98, D337): agents in one to five teams, a lead who is also a caller, researchers in teams.
+func TestTheNewTeamRulesPlaceAgentsInUpToFiveTeams(t *testing.T) {
+	ids := []string{team1, team2, "66666666-6666-4666-8666-000000000003", "66666666-6666-4666-8666-000000000004", "66666666-6666-4666-8666-000000000005", "66666666-6666-4666-8666-000000000006"}
+	teams := []team{}
+	for _, id := range ids {
+		teams = append(teams, team{TeamID: id, Name: id})
+	}
+	for name, c := range map[string]struct {
+		roles, teams []string
+		ok           bool
+	}{
+		"a closer in two teams":               {[]string{"closer"}, ids[:2], true},
+		"a caller in five teams":              {[]string{"caller"}, ids[:5], true},
+		"a caller in six teams":               {[]string{"caller"}, ids, false},
+		"a caller without a team":             {[]string{"caller"}, nil, false},
+		"the same team twice":                 {[]string{"caller"}, []string{team1, team1}, false},
+		"a lead who is also a caller":         {[]string{"manager", "caller"}, []string{team1}, true},
+		"a researcher in a team":              {[]string{"researcher"}, []string{team1}, true},
+		"an admin":                            {[]string{"admin"}, nil, true},
+		"an admin put in a team":              {[]string{"admin"}, []string{team1}, false},
+		"an admin who also closes in a team":  {[]string{"admin", "closer"}, []string{team1}, true},
+	} {
+		if err := checkPlacement(c.roles, c.teams, teams, true); (err == nil) != c.ok {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	if err := checkPlacement([]string{"admin"}, nil, teams, false); err == nil {
+		t.Error("no admins until the switch is on")
+	}
+	if err := checkPlacement([]string{"caller"}, ids[:2], teams, false); err == nil {
+		t.Error("one team each until the switch is on")
 	}
 }
 
