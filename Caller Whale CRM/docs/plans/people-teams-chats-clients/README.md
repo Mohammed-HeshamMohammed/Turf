@@ -103,6 +103,8 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | 25 | "Do not call": the three kinds, Caller Whale's own database learning from every agency, confirmation for registry numbers, the record of who marked what, staff review and removal. *The existing do-not-call code has not been read for this.* | 20 |
 | 26 | Scripts per client with a team's own version, the AI's suggestions per lead learned from earlier calls, and call review with feedback. *The assistant and call-helper code has not been read for this.* | 21, 23 |
 | 27 | Commission tracking, optional per agency (if it can be built) | 20 |
+| 28 | Pipeline stages per agency and client; closers' availability, booking by callers, ranges set by managers; deal credit by role; Google Calendar per account (busy times read, appointments written, no lead details in events, removed on leaving). *The calendar and deals code has not been read for this, and Google's access needs its own review.* | 20, 23 |
+| 29 | Email from the agency's or a client's sending domain, with replies returning to the lead's record. *The mail code has not been read for this.* | 23 |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -120,6 +122,7 @@ The step numbers above are names, not the order. The order is:
 8. Steps 21 and 22: team numbers, live calls and budgets, with the calling and SMS stage, after the dialer and billing services have been read.
 9. Steps 23, 24 and 25: clients, AI limits and "do not call", after step 20.
 10. Steps 26 and 27: scripts, AI suggestions, call review and commission, last.
+11. Steps 28 and 29: pipeline, appointments, Google Calendar and email sending, after step 23.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
@@ -142,7 +145,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-153 decisions. Each row links to the file that holds it.
+161 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -299,3 +302,11 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D151 | Calls and texts are blocked outside the allowed hours in the lead's own time zone. Caller Whale sets the legal window by the lead's location; an agency can make it shorter, never longer. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D152 | Agents have a status: available, on a call (automatic), on a break, off (set by the agent). Inbound calls, unanswered-text alerts and assignments use it, and managers see their team's status. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D153 | A callback that comes due while its agent is away stays with the agent, flagged overdue. After the agency's wait time the team's managers and deputies are told and can give that one call to someone else. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D154 | The owner or an admin sets the agency's pipeline stages. A client's work can have its own stages when it needs them. Teams and agents cannot change stages. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D155 | Closers have availability for appointments. A caller of the same team sees the free slots and who is responsible for each, and books one; the closer is notified and it appears on their calendar. If the closer is live on the call with the caller, they can help set the right time during it. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D156 | A closer manages their own free slots. The team's managers, admins and the owner can also set or limit the range of slots for a closer. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D157 | A closed deal is credited to everyone who worked it, by role: the caller who set it and the closer who closed it, with the team and the client. Reports and any commission use those records. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D158 | A person can connect their Google Calendar to their account. Caller Whale reads only when they are busy, not what the events are, so those slots are not offered, and adds Caller Whale appointments to their calendar. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D159 | A Google Calendar event for an appointment holds the time and a link back that opens the lead inside the right agency. Names and phone numbers stay in Caller Whale, so a personal calendar never holds an agency's lead data. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D160 | When a person leaves an agency, that agency's events are removed from their Google Calendar, and the appointments go to whoever receives their leads and appear on that person's calendar. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D161 | Email to a lead is sent from the agency's own sending domain, or from one connected for a client. Replies come back into the lead's record, not to a personal inbox. | [05-calls-and-budgets](05-calls-and-budgets.md) |

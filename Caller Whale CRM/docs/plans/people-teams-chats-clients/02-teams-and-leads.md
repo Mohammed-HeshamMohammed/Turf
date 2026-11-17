@@ -36,6 +36,13 @@ How teams are built (managers, deputies, admins, agents in several teams), who h
 | D115 | A manager sees reports for the teams they run. Agency-wide totals and other teams' numbers are for the owner and admins. | - |
 | D124 | By default an agent sees only their own leads. Each team can switch on "agents see the whole team's leads", read-only. | 20 |
 | D125 | A team's managers can switch on a leaderboard for the team. Without it, each agent sees only their own numbers. | 20 |
+| D154 | The owner or an admin sets the agency's pipeline stages. A client's work can have its own stages when it needs them. Teams and agents cannot change stages. | 28 |
+| D155 | Closers have availability for appointments. A caller of the same team sees the free slots and who is responsible for each, and books one; the closer is notified and it appears on their calendar. If the closer is live on the call with the caller, they can help set the right time during it. | 28 |
+| D156 | A closer manages their own free slots. The team's managers, admins and the owner can also set or limit the range of slots for a closer. | 28 |
+| D157 | A closed deal is credited to everyone who worked it, by role: the caller who set it and the closer who closed it, with the team and the client. Reports and any commission use those records. | 28 |
+| D158 | A person can connect their Google Calendar to their account. Caller Whale reads only when they are busy, not what the events are, so those slots are not offered, and adds Caller Whale appointments to their calendar. | 28 |
+| D159 | A Google Calendar event for an appointment holds the time and a link back that opens the lead inside the right agency. Names and phone numbers stay in Caller Whale, so a personal calendar never holds an agency's lead data. | 28 |
+| D160 | When a person leaves an agency, that agency's events are removed from their Google Calendar, and the appointments go to whoever receives their leads and appear on that person's calendar. | 28, 12 |
 
 ## Notes
 
