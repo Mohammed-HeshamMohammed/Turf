@@ -191,8 +191,22 @@ def start(handler, me):
                 raise APIError(400, "That list does not exist.")
         elif kind == "lead_list":
             project = core_request(handler, "POST", "/api/v1/projects", {"name": name})["id"]
-        team_ids = me.get("team_ids") or []
-        team = team_ids[0] if team_ids and ID.fullmatch(team_ids[0]) else None
+        # The list belongs to the team chosen at import (D110): one the person is in or leads; the owner and admins (who see the whole
+        # workspace) may choose any team. Without a choice it is the person's first team, as before. The leads start unassigned there.
+        team_ids = [t for t in (me.get("team_ids") or []) if isinstance(t, str) and ID.fullmatch(t)]
+        chosen = body.get("team_id")
+        if chosen is not None and chosen != "":
+            if not isinstance(chosen, str) or not ID.fullmatch(chosen):
+                raise APIError(400, "Choose one of your teams.")
+            if chosen not in team_ids:
+                if "organization" not in (me.get("scopes") or []):
+                    raise APIError(403, "You can import into a team you are in or lead.")
+                teams = core_request(handler, "GET", "/api/v1/admin/teams")
+                if not any(isinstance(t, dict) and t.get("id") == chosen for t in teams or []):
+                    raise APIError(400, "That team is not in this workspace.")
+            team = chosen
+        else:
+            team = team_ids[0] if team_ids else None
         row = conn.execute("""INSERT INTO importing.jobs (org_id, user_id, project_id, team_id, name, filename, size, chunk_size, total_chunks, has_header, kind, source_timezone, for_skip_tracing, progress)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, '{"phase":"uploading","done":0}') RETURNING id::text""",
             (me["organization_id"], me["user"]["id"], project, team, name, filename, size, CHUNK_SIZE,

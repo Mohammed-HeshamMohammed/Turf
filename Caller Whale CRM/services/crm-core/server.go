@@ -9,6 +9,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -167,6 +168,9 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /api/v1/imports/{id}/retry", s.member(s.importRetryMerge))
 	mux.Handle("POST /api/v1/imports/{id}/cancel", s.member(s.importCancel))
 	mux.Handle("DELETE /api/v1/imports/{id}", s.member(s.importDelete))
+	mux.Handle("DELETE /api/v1/imports/{id}/leads", s.member(s.removeList))
+	mux.Handle("GET /api/v1/imports/{id}/other-team", s.member(s.otherTeam))
+	mux.Handle("POST /api/v1/imports/{id}/other-team", s.member(s.decideOtherTeam))
 
 	s.dialerRoutes(mux)
 
@@ -243,8 +247,45 @@ func (s *server) enter(ctx context.Context, q *req, org string) error {
 	}
 	q.grant, q.rev = g, accessRevision(g)
 	q.sc = scope{userID: q.c.sub, orgID: org, label: label(q.c), scopes: g.Scopes, teamIDs: g.TeamIDs, seeTeams: g.seeTeams(), projectIDs: g.ProjectIDs, caps: g.Capabilities, secondStep: q.c.secondFactor}
+	peek, err := s.peekTeams(ctx, q.sc)
+	if err != nil {
+		return err
+	}
+	if len(peek) > 0 {
+		q.sc.peekTeams, q.rev = peek, accessRevision(g, peek...)
+	}
 	s.remember(ctx, q.c, org)
 	return nil
+}
+
+// peekTeams are the person's own teams whose leads switched on "agents see the whole team" (D124), apart from teams they already see
+// in full. Someone who sees the whole workspace needs none.
+func (s *server) peekTeams(ctx context.Context, sc scope) ([]string, error) {
+	if len(sc.teamIDs) == 0 || slices.Contains(sc.scopes, "organization") || slices.Contains(sc.scopes, "shared") && len(sc.scopes) == 1 {
+		return nil, nil
+	}
+	tx, err := s.st.begin(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	rows, err := tx.Query(ctx, `SELECT team_id::text FROM team_settings WHERE agents_see_team AND team_id = ANY($1::uuid[]) ORDER BY 1`, uuidArray(sc.teamIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	full := sc.visibleTeams()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		if !(slices.Contains(sc.scopes, "team") && slices.Contains(full, id)) {
+			out = append(out, id)
+		}
+	}
+	return out, rows.Err()
 }
 
 func refusal(g grantReply) error {

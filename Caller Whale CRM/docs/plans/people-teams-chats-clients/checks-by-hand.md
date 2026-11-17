@@ -109,3 +109,14 @@ Team settings, the unassigned pool and claiming have no screen yet; they come wi
 | L1 | As a team lead, assign a lead of your team to a team you don't lead | "A team lead moves leads only between teams they lead". As the owner it works. |
 | L2 | As a caller, hand off a lead to a closer in another team | "Hand off to someone in this lead's team. Sending it to another team is a move a team lead makes". The same closer in your own team works. |
 | L3 | As a team lead, delete a lead | "Only the agency owner or an admin deletes a lead for good. Archive it instead". Archive still works; the owner can still delete. |
+
+# Step 20, part B: whole-team view and imports into a team (server only)
+
+The whole-team view setting, the "already exists in another team" decision and removing a list have no CRM screen yet; automated tests cover them. Once they have screens:
+
+| # | Do | Expect |
+|---|---|---|
+| L4 | As a team lead, turn on "agents see the whole team" | The team's callers see each other's leads, marked read-only; they can open them but not change them, add notes or see deal figures. Another team sees nothing new. |
+| L5 | Import a list into a team | Its new leads land unassigned in that team, for its leads to hand out. |
+| L6 | Import a list containing someone another team already holds | That row waits; the importer sees "These leads already exist in another team" with a count only. You choose: they keep it, both keep a copy, or move it here. |
+| L7 | Remove a list you imported less than 24 hours ago, before anyone worked it | Its new leads are gone. After a call, note, deal or edit on any of them, it is refused. |

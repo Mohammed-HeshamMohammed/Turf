@@ -44,6 +44,7 @@ class FakeConnection:
         elif query.startswith(("SELECT count(*) AS n", "SELECT coalesce(sum(size)")):
             return FakeResult([{"n": 0}])
         elif query.startswith("INSERT INTO importing.jobs"):
+            self.inserted = args
             return FakeResult([{"id": JOB_ID}])
         return FakeResult([])
 
@@ -133,3 +134,40 @@ class UploadTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+TEAM_A = "44444444-4444-4444-8444-444444444444"
+TEAM_B = "55555555-5555-4555-8555-555555555555"
+
+
+class TeamChoiceTest(unittest.TestCase):
+    """A list belongs to the team chosen at import (D110): one of the person's teams, or any team for the owner or an admin."""
+
+    def start(self, me, team, teams=()):
+        body = json.dumps({"filename": "owners.csv", "size": 42, "name": "Owners", "project_id": None, "team_id": team}).encode()
+        conn = FakeConnection(42)
+
+        def core(_handler, method, path, *_):
+            if path == "/api/v1/admin/teams":
+                return [{"id": t} for t in teams]
+            return {"id": ORG_ID}
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"IMPORT_DIR": tmp}),                 patch.object(upload_api, "database", return_value=conn), patch.object(upload_api, "core_request", side_effect=core),                 patch.object(upload_api, "get_job", side_effect=lambda *_: dict(conn.job)):
+            upload_api.start(Handler(body), me)
+        return conn.inserted[3]
+
+    def test_a_person_imports_into_one_of_their_teams(self):
+        me = {"organization_id": ORG_ID, "user": {"id": USER_ID}, "scopes": ["own"], "team_ids": [TEAM_A, TEAM_B]}
+        self.assertEqual(self.start(me, TEAM_B), TEAM_B)
+        self.assertEqual(self.start(me, None), TEAM_A)
+
+    def test_not_into_someone_elses_team(self):
+        me = {"organization_id": ORG_ID, "user": {"id": USER_ID}, "scopes": ["own"], "team_ids": [TEAM_A]}
+        with self.assertRaises(upload_api.APIError) as caught:
+            self.start(me, TEAM_B)
+        self.assertEqual(caught.exception.status, 403)
+
+    def test_the_owner_imports_into_any_team_of_the_workspace(self):
+        me = {"organization_id": ORG_ID, "user": {"id": USER_ID}, "scopes": ["organization"], "team_ids": []}
+        self.assertEqual(self.start(me, TEAM_B, teams=[TEAM_A, TEAM_B]), TEAM_B)
+        with self.assertRaises(upload_api.APIError):
+            self.start(me, "66666666-6666-4666-8666-666666666666", teams=[TEAM_A])
