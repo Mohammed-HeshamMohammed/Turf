@@ -87,6 +87,7 @@ How teams are built (managers, deputies, admins, agents in several teams), who h
 | D286 | Each lead shows its own local time and whether it is inside calling hours now. Tasks, appointments and everything else show in the viewer's own time zone. | 20 |
 | D283 | When a deal closes, its lead is marked "won" and leaves the calling queues. Follow-ups happen only through tasks someone creates. It still counts for credit, reports and any commission. | 28 |
 | D337 | The researcher role is switched on in step 11. A researcher prepares leads in their teams (import, clean, merge, skip-trace within budget, tag) and hands them to the team's unassigned pool. They never call or text and never see deal money. | 11 |
+| D339 | A researcher takes a cheaper seat than callers and closers, since they never call or text. Its price is set with the step, from its real cost (D291). | 11, 22 |
 
 ## Notes
 

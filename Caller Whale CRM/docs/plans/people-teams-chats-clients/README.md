@@ -174,7 +174,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-338 decisions. Each row links to the file that holds it.
+342 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -516,3 +516,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D336 | The old token invitation path (`#/join?token=`, `/api/v1/invitations/join`) has no server handler left. Its CRM code, test and contract line are removed in step 3, leaving one invitation system. (Problem 15.) | [01-people-and-invitations](01-people-and-invitations.md) |
 | D337 | The researcher role is switched on in step 11. A researcher prepares leads in their teams (import, clean, merge, skip-trace within budget, tag) and hands them to the team's unassigned pool. They never call or text and never see deal money. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D338 | The switched-off "system admin" platform role is removed. The narrow staff roles (support, billing, moderation, D271) take its place when there is a team. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D339 | A researcher takes a cheaper seat than callers and closers, since they never call or text. Its price is set with the step, from its real cost (D291). | [02-teams-and-leads](02-teams-and-leads.md) |
+| D340 | A Duo agency is created with one team and both people as owner and admin. Team leads, deputies and team screens stay hidden until it moves to the Team plan. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D341 | Moving from Duo to Team upgrades the same workspace in place, like the Solo upgrade. The team screens, roles and invitations appear, and the two people keep owner and admin. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D342 | One person can run a Solo workspace and own a Team agency at the same time, as separate workspaces each billed on its own (D69). | [07-platform-and-rollout](07-platform-and-rollout.md) |

@@ -83,6 +83,9 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D330 | Clients sign in to the same CRM and see a simplified view with only their own pages, under the agency's branding (D172). | 23 |
 | D331 | Platform staff screens (the report queue, agencies, support access) stay in the website Dashboard's existing staff area, away from agencies' work. | 7, 19, 39 |
 | D338 | The switched-off "system admin" platform role is removed. The narrow staff roles (support, billing, moderation, D271) take its place when there is a team. | 11 |
+| D340 | A Duo agency is created with one team and both people as owner and admin. Team leads, deputies and team screens stay hidden until it moves to the Team plan. | 17 |
+| D341 | Moving from Duo to Team upgrades the same workspace in place, like the Solo upgrade. The team screens, roles and invitations appear, and the two people keep owner and admin. | 17 |
+| D342 | One person can run a Solo workspace and own a Team agency at the same time, as separate workspaces each billed on its own (D69). | - |
 | D332 | Step 1's server changes (agency name, delivery states, masked address, links) are done now. Their screens are built directly in the CRM when the people screens move, so nothing is built twice. The current Dashboard screens get only small wording fixes. | 1 |
 | D333 | In the CRM, members, teams, invitations and clients form one "Team" section in the sidebar for those who manage people. Agency settings (hours, numbers, limits, branding) go under Workspace settings in the Caller Whale menu. | 3, 11 |
 | D334 | An agent sees only the directory in the Team section: names, roles and teams of everyone in the agency, to start a chat. No invitations or management actions. | 16 |
