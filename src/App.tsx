@@ -453,7 +453,7 @@ export function App({ path: first = "/" }) {
     // keep() already notifies useMe, which restores the profile and handles a temporary failure.
     let back = "";
     try { back = window.sessionStorage.getItem("cw-after-signin") || ""; window.sessionStorage.removeItem("cw-after-signin"); } catch { /* none */ }
-    if (back.startsWith("/connect")) go(back);
+    if (back.startsWith("/connect") || back.startsWith("/dashboard?invitation=")) go(back);
     else if (!wantsCrm(window.location.search)) go("/dashboard");
   };
   const signOut = async () => {
@@ -475,7 +475,8 @@ export function App({ path: first = "/" }) {
     if (me && cleanPath(path) === "/profile" && !setupStep(me) && profilePath(me) !== "/account") { go(profilePath(me), { replace: true }); return; }
     if (me === null && ownPageName) { go("/signin", { replace: true }); return; }
     const to = redirectFor(path, me);
-    if (to && !me && path.startsWith("/connect")) { try { window.sessionStorage.setItem("cw-after-signin", window.location.pathname + window.location.search); } catch { /* signing in then opens the dashboard */ } }
+    // An invitation link (/dashboard?invitation=<id>) also comes back to that invitation after signing in.
+    if (to && !me && (path.startsWith("/connect") || (path.startsWith("/dashboard") && new URLSearchParams(window.location.search).has("invitation")))) { try { window.sessionStorage.setItem("cw-after-signin", window.location.pathname + window.location.search); } catch { /* signing in then opens the dashboard */ } }
     if (to) go(to, { replace: true });
   }, [path, me, ownPageName]);
   // Signed in and then not, without the person asking (the session ended, or they signed out in another tab): say so.

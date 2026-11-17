@@ -3,7 +3,9 @@ import type { Auth, Me } from "./auth/auth-client.js";
 import { workspaceRoleName } from "./roles.ts";
 import { ApiError, needsSecondStep, useSecondStep } from "./SecondStep.tsx";
 
-type Invitation = { id: string; scope: string; org_id: string; email: string; role: string; team_id?: string; expires_at: number; delivery_state: string };
+type Invitation = { id: string; scope: string; org_id: string; email: string; role: string; team_id?: string; expires_at: number; created_at?: number; delivery_state: string; org_name?: string; owner_name?: string; inviter_name?: string };
+/** How an invitation's email went: sent, failed (tried and refused), or not set up (email is switched off on this server). */
+const deliveryWords = (state: string) => state === "sent" ? "Emailed" : state === "failed" ? "Email failed" : "Not emailed (email is off)";
 type Member = { user_id: string; email?: string; name?: string; roles: string[]; team_ids?: string[]; suspended_at?: number; suspended_reason?: string };
 type Team = { team_id: string; name: string; manager_id: string };
 const workspaceRoles = ["manager", "caller", "closer", "client"];
@@ -52,9 +54,12 @@ export function InviteManager({ auth, authBase, scope, orgId = "" }: { auth: Aut
         setEmail(""); await load();
         if (result.delivery_state === "sent") setMessage("Invitation emailed.");
         else {
-          setMessage("Invitation saved, but it was not emailed: email sending is not set up yet. Send the person these words another way:");
+          setMessage(result.delivery_state === "failed"
+            ? "Invitation saved, but the email could not be sent. Send the person these words another way:"
+            : "Invitation saved, but it was not emailed: email sending is not set up yet. Send the person these words another way:");
           const until = result.expires_at ? new Date(result.expires_at * 1000).toLocaleString() : "";
-          setHandout(`You're invited to Caller Whale as ${roleLabel(role)}. Sign in at ${window.location.origin} with ${invited}, open your dashboard and press "Accept invitation".${until ? ` The invitation works until ${until}.` : ""}`);
+          const link = result.link || `${window.location.origin}/dashboard`;
+          setHandout(`You're invited to Caller Whale as ${roleLabel(role)}. Open ${link} and sign in with ${invited}, then press "Accept invitation".${until ? ` The invitation works until ${until}.` : ""}`);
         }
       } catch (error) {
         if (needsSecondStep(error)) { setBusy(false); throw error; }
@@ -80,22 +85,40 @@ export function InviteManager({ auth, authBase, scope, orgId = "" }: { auth: Aut
     {second.prompt}<form className="staff-form" onSubmit={invite}><div className="staff-fields"><label>Email address<input type="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="person@example.com" /></label><label>Role<select value={role} onChange={event => setRole(event.target.value)}>{roles.map(value => <option key={value} value={value}>{roleLabel(value)}</option>)}</select></label>{needsTeam && <label>Team<select required value={teamId} onChange={event => setTeamId(event.target.value)}><option value="">Choose a team</option>{teams.map(team => <option key={team.team_id} value={team.team_id}>{team.name}</option>)}</select></label>}<button className="button primary" disabled={busy || (needsTeam && !teamId)}>{busy ? "Saving…" : "Send invitation"}</button></div>{needsTeam && teams.length === 0 && <p className="muted">Callers and closers join a team. Create a team in Members first.</p>}</form>
     {message && <p className="notice" role="status">{message}</p>}
     {handout && <div className="notice" role="note"><p>{handout}</p><button type="button" className="staff-text-button" onClick={() => { void navigator.clipboard?.writeText(handout).then(() => setCopied(true), () => setCopied(false)); }}>{copied ? "Copied" : "Copy these words"}</button></div>}
-    <div><h3>Pending invitations</h3>{state === "loading" ? <p className="muted" role="status">Loading invitations…</p> : state === "error" ? <p role="alert">Invitations are unavailable. <button type="button" className="staff-text-button" onClick={() => void load()}>Retry</button></p> : items.length === 0 ? <p className="muted">No pending invitations.</p> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Email</th><th>Role</th><th>Delivery</th><th>Expires</th><th><span className="sr-only">Action</span></th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td>{item.email}</td><td>{roleLabel(item.role)}{item.team_id && teams.find(team => team.team_id === item.team_id) ? ` · ${teams.find(team => team.team_id === item.team_id)?.name}` : ""}</td><td>{item.delivery_state === "sent" ? "Emailed" : "Saved, not emailed"}</td><td>{new Date(item.expires_at * 1000).toLocaleString()}</td><td><button type="button" className="staff-text-button" disabled={busy} onClick={() => void revoke(item)}>Withdraw</button></td></tr>)}</tbody></table></div>}</div>
+    <div><h3>Pending invitations</h3>{state === "loading" ? <p className="muted" role="status">Loading invitations…</p> : state === "error" ? <p role="alert">Invitations are unavailable. <button type="button" className="staff-text-button" onClick={() => void load()}>Retry</button></p> : items.length === 0 ? <p className="muted">No pending invitations.</p> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Email</th><th>Role</th><th>Delivery</th><th>Expires</th><th><span className="sr-only">Action</span></th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td>{item.email}</td><td>{roleLabel(item.role)}{item.team_id && teams.find(team => team.team_id === item.team_id) ? ` · ${teams.find(team => team.team_id === item.team_id)?.name}` : ""}</td><td>{deliveryWords(item.delivery_state)}</td><td>{new Date(item.expires_at * 1000).toLocaleString()}</td><td><button type="button" className="staff-text-button" disabled={busy} onClick={() => void revoke(item)}>Withdraw</button></td></tr>)}</tbody></table></div>}</div>
   </section>;
 }
 
 export function PendingInvitations({ auth, authBase }: { auth: Auth; authBase: string }) {
   const [items, setItems] = useState<Invitation[]>([]);
+  const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  useEffect(() => { call(auth, authBase, "GET", "/v1/me/invitations").then(result => setItems(result.invitations), () => setError("Invitations could not be loaded.")); }, [auth, authBase]);
-  if (!items.length && !error) return null;
+  // The email link opens /dashboard?invitation=<id>: say plainly why that invitation cannot be used (another address, cancelled, ended).
+  const linked = new URLSearchParams(window.location.search).get("invitation") || "";
+  useEffect(() => { call(auth, authBase, "GET", "/v1/me/invitations").then(result => { setItems(result.invitations); setWaiting(Boolean(result.waiting) && result.email_verified === false); }, () => setError("Invitations could not be loaded.")); }, [auth, authBase]);
+  useEffect(() => { if (linked) call(auth, authBase, "GET", `/v1/me/invitations/${encodeURIComponent(linked)}`).catch(cause => setError(cause instanceof Error ? cause.message : "This invitation cannot be opened.")); }, [auth, authBase, linked]);
+  if (!items.length && !error && !waiting) return null;
   const accept = async (item: Invitation) => {
     setBusy(true); setError("");
-    try { await call(auth, authBase, "POST", `/v1/me/invitations/${item.id}/accept`); location.reload(); }
+    try { await call(auth, authBase, "POST", `/v1/me/invitations/${item.id}/accept`); location.replace(`${window.location.pathname}`); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not accept the invitation."); setBusy(false); }
   };
-  return <section className="card admin-pending" aria-label="Your invitations"><h2>Your invitations</h2>{items.map(item => <div className="admin-invite-row" key={item.id}><span><strong>{item.scope === "platform" ? "Caller Whale platform" : "Workspace"}</strong><small>{roleLabel(item.role)} · invited at {item.email} · expires {new Date(item.expires_at * 1000).toLocaleString()}</small></span><button type="button" className="button primary" disabled={busy} onClick={() => void accept(item)}>Accept invitation</button></div>)}{error && <p className="notice bad" role="alert">{error}</p>}</section>;
+  const report = async (item: Invitation) => {
+    const reason = prompt("Tell Caller Whale what looks wrong with this invitation (optional):");
+    if (reason === null) return;
+    setBusy(true); setError(""); setNotice("");
+    try { await call(auth, authBase, "POST", `/v1/me/invitations/${item.id}/report`, { reason }); setNotice("Thank you. Caller Whale staff will look at this invitation. It stays here until you accept it or it ends."); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Could not report the invitation."); }
+    setBusy(false);
+  };
+  const from = (item: Invitation) => item.scope === "platform" ? "Caller Whale platform" : item.org_name || "Workspace";
+  const who = (item: Invitation) => [item.owner_name ? `owner ${item.owner_name}` : "", item.inviter_name && item.inviter_name !== item.owner_name ? `sent by ${item.inviter_name}` : ""].filter(Boolean).join(" · ");
+  return <section className="card admin-pending" aria-label="Your invitations"><h2>Your invitations</h2>
+    {waiting && <p className="notice" role="status">An invitation is waiting. Confirm your email to see it.</p>}
+    {items.map(item => <div className={`admin-invite-row${item.id === linked ? " linked" : ""}`} key={item.id}><span><strong>{from(item)}</strong><small>{[roleLabel(item.role), who(item), `invited at ${item.email}`, item.created_at ? `sent ${new Date(item.created_at * 1000).toLocaleString()}` : "", `expires ${new Date(item.expires_at * 1000).toLocaleString()}`].filter(Boolean).join(" · ")}</small></span><span><button type="button" className="button primary" disabled={busy} onClick={() => void accept(item)}>Accept invitation</button> <button type="button" className="staff-text-button" disabled={busy} onClick={() => void report(item)}>Report this invitation</button></span></div>)}
+    {notice && <p className="notice" role="status">{notice}</p>}{error && <p className="notice bad" role="alert">{error}</p>}</section>;
 }
 
 export function WorkspaceSecondStep({ auth, me }: { auth: Auth; me: Me }) {
@@ -108,7 +131,7 @@ export function WorkspaceSecondStep({ auth, me }: { auth: Auth; me: Me }) {
   useEffect(() => { if (!setup) return; let active = true; import("qrcode").then(({ toDataURL }) => toDataURL(setup.otpauth_url, { width: 224, margin: 2 })).then(value => { if (active) setQr(value); }, () => { if (active) setMessage("QR code unavailable. Enter the setup key in your authenticator app."); }); return () => { active = false; }; }, [setup]);
   const begin = async () => { setBusy(true); setMessage(""); try { setSetup(await auth.setupMfa()); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not start setup."); } setBusy(false); };
   const confirmCode = async (event: React.FormEvent) => { event.preventDefault(); setBusy(true); setMessage(""); try { if (setup) { setRecovery((await auth.confirmMfa(code)).recovery_codes); setSetup(null); } else { await auth.verifyMfa(code); location.reload(); } } catch (error) { setMessage(error instanceof Error ? error.message : "That code did not work."); } setBusy(false); };
-  return <section className="staff-verify" aria-label="Secure workspace access"><span className="eyebrow">Protect member access</span><h2>{recovery.length ? "Save your recovery codes" : setup ? "Connect your authenticator" : me.mfa_enrolled ? "Confirm it’s you" : "Set up an authenticator"}</h2>{recovery.length ? <><p>Each code works once. Save them somewhere private before continuing.</p><ol>{recovery.map(value => <li key={value}><code>{value}</code></li>)}</ol><button type="button" className="button primary" onClick={() => location.reload()}>I saved my codes</button></> : <>{!me.mfa_enrolled && !setup && <button type="button" className="button primary" disabled={busy} onClick={() => void begin()}>Set up authenticator</button>}{setup && <div className="staff-setup"><div className="staff-qr">{qr ? <img src={qr} width="224" height="224" alt="Scan to add Caller Whale to your authenticator" /> : "Preparing QR code…"}</div><div className="staff-setup-instructions"><p>Scan the QR code, or enter this setup key in your app:</p><code>{setup.secret}</code></div></div>}{(me.mfa_enrolled || setup) && <form className="staff-code-form" onSubmit={confirmCode}><label>Six-digit code<input inputMode="numeric" autoComplete="one-time-code" required pattern="[0-9]{6}" maxLength={6} value={code} onChange={event => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" /></label><button className="button primary" disabled={busy}>{busy ? "Checking…" : "Verify and continue"}</button></form>}</>}{message && <p className="notice bad" role="alert">{message}</p>}</section>;
+  return <section className="staff-verify" aria-label="Secure workspace access"><span className="eyebrow">Protect member access</span><h2>{recovery.length ? "Save your recovery codes" : setup ? "Connect your authenticator" : me.mfa_enrolled ? "Confirm it’s you" : "Set up an authenticator"}</h2>{!recovery.length && <p className="muted">Your members, teams and invitations open once this is done.</p>}{recovery.length ? <><p>Each code works once. Save them somewhere private before continuing.</p><ol>{recovery.map(value => <li key={value}><code>{value}</code></li>)}</ol><button type="button" className="button primary" onClick={() => location.reload()}>I saved my codes</button></> : <>{!me.mfa_enrolled && !setup && <button type="button" className="button primary" disabled={busy} onClick={() => void begin()}>Set up authenticator</button>}{setup && <div className="staff-setup"><div className="staff-qr">{qr ? <img src={qr} width="224" height="224" alt="Scan to add Caller Whale to your authenticator" /> : "Preparing QR code…"}</div><div className="staff-setup-instructions"><p>Scan the QR code, or enter this setup key in your app:</p><code>{setup.secret}</code></div></div>}{(me.mfa_enrolled || setup) && <form className="staff-code-form" onSubmit={confirmCode}><label>Six-digit code<input inputMode="numeric" autoComplete="one-time-code" required pattern="[0-9]{6}" maxLength={6} value={code} onChange={event => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" /></label><button className="button primary" disabled={busy}>{busy ? "Checking…" : "Verify and continue"}</button></form>}</>}{message && <p className="notice bad" role="alert">{message}</p>}</section>;
 }
 
 /** The people of one workspace and its teams. The agency owner (or platform staff) places people in teams, names each team's manager,
