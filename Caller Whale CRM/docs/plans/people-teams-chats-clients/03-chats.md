@@ -42,7 +42,7 @@ Personal chats, agency chats and lead threads: how they are kept apart, who can 
 | D61 | Reports are reviewed by the platform owner and cofounder only, with a second step, and every look is recorded. | - |
 | D72 | Agency chats always show read status and online status. In personal chats each person chooses; hiding yours hides others' from you. | 8, 16 |
 | D73 | A personal group has an owner (its creator) who can name admins. Owner and admins add and remove people; anyone can leave. Someone added by a person they do not know gets a request first. | 7 |
-| D74 | Each agency has an announcements channel with every member in it. Only the owner and managers post; everyone can react. Posts marked important cannot be muted. | 16 |
+| D74 | Each agency has an announcements channel with every member in it. Only the owner and managers post; everyone can react. Posts marked important cannot be muted. *Settled by D350.* | 16 |
 | D75 | An agency's internal chat messages are kept while the agency exists. Lead threads follow the lead's record and the legal rules for texts. | 9 (lawyer) |
 | D76 | Takeover follows rank: owner over manager, manager over deputy, deputy over agent. Control is handed back down the same way. | 10 |
 | D77 | If the holder of a taken-over thread does not answer a new text within the agency's wait time, control returns to the agent and both are told. | 10 |

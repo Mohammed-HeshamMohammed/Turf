@@ -175,13 +175,13 @@ The step numbers above are names, not the order. The order is:
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
-## Contradictions to settle
+## Contradictions settled
 
-Found in a review on 2026-11-17. Replaced decisions are marked in place ("Replaced by"): D28 by D200, D113 by D139, D189 by D194.
+Found in a review on 2026-11-17 and settled by the owner the same day. Replaced decisions are marked in place ("Replaced by"): D28 by D200, D113 by D139, D189 by D194.
 
-1. **D265 vs D139, D140 and D324.** D265 says Caller Whale never compares one agency's data with another's. But the do-not-call database learns numbers from every agency (D139, D140), and agencies can agree to shared learning (D324). Suggested reading: D265 holds for leads, people and work, with those two stated exceptions.
-2. **D74 vs D85 and D40.** Important announcements "cannot be muted" (D74), but quiet hours pause everything except account and security alerts (D85), and the work category can be switched off (D40). Suggested reading: an important announcement cannot be muted inside the app, but respects quiet hours and arrives when they end.
-3. **D209 vs D139.** D209 says "leave me alone" blocks texts and calls, but not for whom. D139 sends "wants no calls at all" to every agency. Suggested reading: a reply to one agency, however strong, blocks that agency (D207); only a clear statement of wanting no calls from anyone, confirmed by the agent, goes platform-wide.
+1. **Agencies blind to each other (D265):** settled by D349. Blind for leads, people and work; the do-not-call database and opt-in shared learning are the two stated exceptions.
+2. **Important announcements vs quiet hours (D74):** settled by D350. Important announcements break through quiet hours and category settings.
+3. **Strong refusals (D209):** settled by D351. A refusal to one agency blocks that agency; only a clear "from anyone" statement, confirmed by the agent, goes platform-wide. D352 adds automatic detection in captions, texts and emails, with a confirmation button for the agent.
 
 ## Open questions
 
@@ -201,7 +201,7 @@ Found in a review on 2026-11-17. Replaced decisions are marked in place ("Replac
 
 ## Every decision
 
-348 decisions. Each row links to the file that holds it.
+352 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -278,7 +278,7 @@ Found in a review on 2026-11-17. Replaced decisions are marked in place ("Replac
 | D71 | A manager inviting with no free seat is blocked and can send the owner a request to add one. Nothing is charged without the owner. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D72 | Agency chats always show read status and online status. In personal chats each person chooses; hiding yours hides others' from you. | [03-chats](03-chats.md) |
 | D73 | A personal group has an owner (its creator) who can name admins. Owner and admins add and remove people; anyone can leave. Someone added by a person they do not know gets a request first. | [03-chats](03-chats.md) |
-| D74 | Each agency has an announcements channel with every member in it. Only the owner and managers post; everyone can react. Posts marked important cannot be muted. | [03-chats](03-chats.md) |
+| D74 | Each agency has an announcements channel with every member in it. Only the owner and managers post; everyone can react. Posts marked important cannot be muted. *Settled by D350.* | [03-chats](03-chats.md) |
 | D75 | An agency's internal chat messages are kept while the agency exists. Lead threads follow the lead's record and the legal rules for texts. | [03-chats](03-chats.md) |
 | D76 | Takeover follows rank: owner over manager, manager over deputy, deputy over agent. Control is handed back down the same way. | [03-chats](03-chats.md) |
 | D77 | If the holder of a taken-over thread does not answer a new text within the agency's wait time, control returns to the agent and both are told. | [03-chats](03-chats.md) |
@@ -413,7 +413,7 @@ Found in a review on 2026-11-17. Replaced decisions are marked in place ("Replac
 | D206 | After 30 days of read-only with no payment, the agency is treated as closed (D82): members lose access, and the owner can still pay and reopen, or export, for 30 more days. Then it is deleted except what the law requires keeping. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D207 | A reply that is only an opt-out ("STOP", "unsubscribe", "stop texting me") blocks the number for that agency at once, sends an automatic confirmation, and the thread shows why. The agent cannot override it; only the owner or an admin can, with a reason. | [06-do-not-call](06-do-not-call.md) |
 | D208 | A message that uses "stop" inside a normal sentence ("let's stop at that price") is flagged to the agent, with the AI's reading of whether it is an opt-out. The agent must choose "opt-out" or "not an opt-out" before sending anything else, and the choice is recorded. | [06-do-not-call](06-do-not-call.md) |
-| D209 | An opt-out says what it stops: "stop texting me" blocks texts, "stop calling me" blocks calls, "stop" or "leave me alone" blocks both. When unclear, both are blocked. | [06-do-not-call](06-do-not-call.md) |
+| D209 | An opt-out says what it stops: "stop texting me" blocks texts, "stop calling me" blocks calls, "stop" or "leave me alone" blocks both. When unclear, both are blocked. *Settled by D351.* | [06-do-not-call](06-do-not-call.md) |
 | D210 | The owner, admins and team leads write text templates per client or team, with fields such as the lead's first name. Agents pick one and can edit it before sending. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D211 | A text can be scheduled. It is sent only inside the lead's allowed hours and is cancelled automatically if the number is blocked before then. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D212 | Only the owner, admins and team leads can send one message to many leads, within budgets and calling hours. Each lead still gets their own thread. | [05-calls-and-budgets](05-calls-and-budgets.md) |
@@ -469,7 +469,7 @@ Found in a review on 2026-11-17. Replaced decisions are marked in place ("Replac
 | D262 | A person is reminded when a task is due. If it is still open a day later, whoever gave it is told. A task someone gave themselves only reminds them. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D263 | A task can repeat daily, weekly or monthly. Each time is its own task, so missing one does not hide the next. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D264 | Removing a person ends their access to that agency at once on every device. The records of exports and lead views show what they looked at recently. What they remember or wrote down is a matter for the agency's own contracts. | [02-teams-and-leads](02-teams-and-leads.md) |
-| D265 | Agencies stay blind to each other. Caller Whale never compares one agency's leads or people with another's, even when a person moves from one to the other. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D265 | Agencies stay blind to each other. Caller Whale never compares one agency's leads or people with another's, even when a person moves from one to the other. *Settled by D349.* | [02-teams-and-leads](02-teams-and-leads.md) |
 | D266 | The owner can export the agency's leads, history, notes, tasks and files (and recordings, if kept) in common formats at any time and when closing. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D267 | The owner sees each member's last sign-in, days active this month and the seats in use, so unused seats can be freed. Nothing beyond what reports already count is tracked. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D268 | Each agency registers its own texting brand with the carriers (US 10DLC). The owner enters the business details during setup and Caller Whale submits the registration. An agency cannot text until it is approved, so one agency's behaviour cannot get the others blocked. | [05-calls-and-budgets](05-calls-and-budgets.md) |
@@ -553,3 +553,7 @@ Found in a review on 2026-11-17. Replaced decisions are marked in place ("Replac
 | D346 | Every step uses the on-screen words in the glossary in README.md. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D347 | The owner and admins change workspace settings. Team leads can read the settings that affect their team (hours, limits, claim rules) but not change workspace-wide ones. Everyone else sees only what affects them. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D348 | A team lead changes the team-level settings already decided as theirs (claim limit, leaderboard, whole-team view). The team's hours and full phone numbers stay with the owner and admins. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D349 | Settles the D265 contradiction: agencies never see or get compared on each other's leads, people or work. The only things that cross agencies are blocked numbers in Caller Whale's do-not-call database (D139, D140) and patterns from agencies that agreed to shared learning (D324). | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D350 | Settles the D74 contradiction: an announcement marked important breaks through quiet hours (D85) and category settings (D40), like account and security alerts. Only the owner, admins and team leads can mark one important, so it should be rare. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D351 | Settles the D209 contradiction: a strong refusal to one agency ("leave me alone", "never call me again") blocks that agency for texts and calls. Only a clear statement of wanting no calls from anyone ("stop all these companies calling me"), confirmed by the agent, goes to Caller Whale's database for every agency. | [06-do-not-call](06-do-not-call.md) |
+| D352 | Opt-outs are detected automatically wherever the lead speaks or writes: in call captions during a call, and in texts and emails. A detected opt-out is marked at once with its kind (this agency, or anyone), and the agent gets a confirmation button. Clear opt-out words still block at once (D207); the detection's reading is advice, never the decision on its own. | [06-do-not-call](06-do-not-call.md) |
