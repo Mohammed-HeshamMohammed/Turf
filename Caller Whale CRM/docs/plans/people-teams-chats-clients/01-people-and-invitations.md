@@ -43,6 +43,10 @@ Who can be invited, how an invitation works from sending to arriving, one person
 | D177 | Someone signed in with a different address than the one invited is shown the first letter and the domain of the invited address, for example m•••••@gmail.com. | 1 |
 | D186 | A tag is 4 letters and digits, for example #K7P2. Characters that are easily confused (0 and O, 1 and I) are never used. A person changing theirs picks 3 to 8 characters from the same set. | 4 |
 | D187 | The tag appears beside a name only when the same name occurs twice in what is on screen. Otherwise names stay clean. | 4 |
+| D237 | A person can link Google, Microsoft or Apple to their account and sign in with it. The authenticator rules for owners, admins and team leads still apply. | 35 |
+| D238 | The owner can require an authenticator for everyone in the agency. A member without one sets it up at their next sign-in before they can work. | 35 |
+| D239 | Resetting a forgotten password needs the email link and either the authenticator or a saved recovery code. Someone who has lost both is checked by support, with a waiting period. | 35 |
+| D240 | Each person sees their signed-in devices and can sign any of them out. The owner and admins can sign out every session of a member of their agency. | 35 |
 
 ## Notes
 

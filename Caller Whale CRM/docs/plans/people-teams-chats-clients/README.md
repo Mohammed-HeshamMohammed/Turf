@@ -110,6 +110,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | 32 | Overviews by role (owner: what needs them today; team lead: their team right now), scheduled report emails with totals only, reports in the agency's time zone. *The current overview and reports code has not been read for this.* | 20, 22, 23 |
 | 33 | Keys for outside tools (limited, switchable, recorded, never spending) and outgoing events with no lead details. *The gateway's token handling has not been read for this.* | 23, 24 |
 | 34 | Public status page, outage banner and owner emails; the breach notice process (a written procedure as much as code). | - |
+| 35 | Sign-in with Google, Microsoft and Apple; an agency requiring an authenticator for everyone; recovery needing the email link and a second proof; seeing and ending sessions, including an owner ending a member's. *Partly exists in the auth service (Firebase sign-in, authenticator, recovery codes); not read in detail for this.* | 11 |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -132,6 +133,7 @@ The step numbers above are names, not the order. The order is:
 13. Step 31: first setup and walk-throughs, last, once the screens they describe exist.
 14. Step 32: overviews and reports, once the things they count exist.
 15. Steps 33 and 34: integrations, the status page and the breach procedure. Step 34 can be done at any time; it must exist before opening.
+16. Step 35: sign-in options and sessions, alongside step 15.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
@@ -153,7 +155,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-236 decisions. Each row links to the file that holds it.
+240 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -393,3 +395,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D234 | The owner can choose events (a lead booked, a deal closed) to send to an address of theirs. Each message carries only the event and an ID; details are fetched with a key, so nothing personal travels unasked. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D235 | A public status page shows each part (sign-in, calls, texts, chats). When something is down, everyone signed in sees a short banner, and owners can choose to get an email. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D236 | After a security breach affecting an agency's data, its owner is told within 72 hours of Caller Whale knowing, with what happened and what to do. Telling leads or authorities follows the law, which the lawyer sets out. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D237 | A person can link Google, Microsoft or Apple to their account and sign in with it. The authenticator rules for owners, admins and team leads still apply. | [01-people-and-invitations](01-people-and-invitations.md) |
+| D238 | The owner can require an authenticator for everyone in the agency. A member without one sets it up at their next sign-in before they can work. | [01-people-and-invitations](01-people-and-invitations.md) |
+| D239 | Resetting a forgotten password needs the email link and either the authenticator or a saved recovery code. Someone who has lost both is checked by support, with a waiting period. | [01-people-and-invitations](01-people-and-invitations.md) |
+| D240 | Each person sees their signed-in devices and can sign any of them out. The owner and admins can sign out every session of a member of their agency. | [01-people-and-invitations](01-people-and-invitations.md) |
