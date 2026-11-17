@@ -56,6 +56,10 @@ Personal chats, agency chats and lead threads: how they are kept apart, who can 
 | D90 | A link from someone not yet accepted shows a warning before it opens. When files are built, only common safe types are allowed and they are scanned. | 7 |
 | D96 | Internal notes in a lead thread are read and written by everyone who can see the thread, and move with it on reassignment. | 10 |
 | D185 | A member can mute the automatic team chat but cannot leave it while they are in the team. | 16 |
+| D190 | Before accepting a message request the receiver sees the sender's name, tag and first message as plain text: links are not clickable and pictures are not shown. The sender cannot tell whether it was opened. | 7 |
+| D191 | An unanswered message request is removed quietly after 30 days. The sender can send one new request to the same person after another 30 days. | 7 |
+| D192 | A declined request looks the same to the sender as one still waiting. A decline counts toward the automatic spam protection. | 7 |
+| D193 | A report in personal chats has four reasons: spam or scam, harassment or threats, sharing an agency's lead data, pretending to be someone else. | 7 |
 
 ## Notes
 

@@ -149,7 +149,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-189 decisions. Each row links to the file that holds it.
+193 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -342,3 +342,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D187 | The tag appears beside a name only when the same name occurs twice in what is on screen. Otherwise names stay clean. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D188 | "This is my device" is remembered for 30 days. Owners, admins and team leads are asked for their authenticator code again every 7 days. A sign-in from a new place asks at once. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D189 | On a device marked as theirs, the device password still protects the saved copy. On a shared device nothing is saved, so no device password is asked. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D190 | Before accepting a message request the receiver sees the sender's name, tag and first message as plain text: links are not clickable and pictures are not shown. The sender cannot tell whether it was opened. | [03-chats](03-chats.md) |
+| D191 | An unanswered message request is removed quietly after 30 days. The sender can send one new request to the same person after another 30 days. | [03-chats](03-chats.md) |
+| D192 | A declined request looks the same to the sender as one still waiting. A decline counts toward the automatic spam protection. | [03-chats](03-chats.md) |
+| D193 | A report in personal chats has four reasons: spam or scam, harassment or threats, sharing an agency's lead data, pretending to be someone else. | [03-chats](03-chats.md) |
