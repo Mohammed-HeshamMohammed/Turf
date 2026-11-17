@@ -33,6 +33,10 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D188 | "This is my device" is remembered for 30 days. Owners, admins and team leads are asked for their authenticator code again every 7 days. A sign-in from a new place asks at once. | 15 |
 | D189 | *Replaced by D194.* (It assumed the web app still saved an encrypted copy behind a device password; that was removed on 2026-11-10.) | 5, 15 |
 | D194 | The web app saves no lead data in the browser and asks for no device password (as built on 2026-11-10). Its cache lives in the open tab and is gone on reload. The desktop app keeps its encrypted copy and device password, and is out of scope. | 5 |
+| D199 | An ownership handover lapses if the new owner has not confirmed and added payment within 7 days; nothing changes. The old owner can cancel it at any time before then. | 13 |
+| D200 | In a handover the old owner chooses their new role: admin, team lead, or leaving. The new owner can change it afterwards like anyone else's. | 13 |
+| D201 | When an owner's account is disabled, only an existing admin of the agency can ask to take it over. Staff confirm the owner cannot be reached for 14 days and check the request before handing it over. | 13 |
+| D202 | With support access granted, staff can see screens and change settings to fix a problem. They cannot edit, export or delete leads, message anyone, or spend money. | 19 |
 
 ## Notes
 

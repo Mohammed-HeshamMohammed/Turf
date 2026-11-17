@@ -148,7 +148,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-198 decisions. Each row links to the file that holds it.
+202 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -350,3 +350,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D196 | Threat reports are looked at within a day and others within 3 days. A report waiting longer sends the owner and cofounder an email reminder. The reporter is told when it is reviewed. | [03-chats](03-chats.md) |
 | D197 | Notifications older than 90 days, read or unread, are removed. What they pointed to is never affected. | [03-chats](03-chats.md) |
 | D198 | Many notifications of the same kind at once are grouped into one line ("40 leads were assigned to you") that opens the list, with one browser pop-up for the group. | [03-chats](03-chats.md) |
+| D199 | An ownership handover lapses if the new owner has not confirmed and added payment within 7 days; nothing changes. The old owner can cancel it at any time before then. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D200 | In a handover the old owner chooses their new role: admin, team lead, or leaving. The new owner can change it afterwards like anyone else's. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D201 | When an owner's account is disabled, only an existing admin of the agency can ask to take it over. Staff confirm the owner cannot be reached for 14 days and check the request before handing it over. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D202 | With support access granted, staff can see screens and change settings to fix a problem. They cannot edit, export or delete leads, message anyone, or spend money. | [07-platform-and-rollout](07-platform-and-rollout.md) |
