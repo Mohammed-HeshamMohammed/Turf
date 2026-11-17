@@ -105,6 +105,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | 27 | Commission tracking, optional per agency (if it can be built) | 20 |
 | 28 | Pipeline stages per agency and client; closers' availability, booking by callers, ranges set by managers; deal credit by role; Google Calendar per account (busy times read, appointments written, no lead details in events, removed on leaving). *The calendar and deals code has not been read for this, and Google's access needs its own review.* | 20, 23 |
 | 29 | Email from the agency's or a client's sending domain, with replies returning to the lead's record. *The mail code has not been read for this.* | 23 |
+| 30 | Protecting an agency's leads: who can export, masked phone numbers for agents, a warning and slow-down on unusual access, and a record of who opened each lead. *Honest limit: a number an agent may call can still be written down by hand.* | 20 |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -123,6 +124,7 @@ The step numbers above are names, not the order. The order is:
 9. Steps 23, 24 and 25: clients, AI limits and "do not call", after step 20.
 10. Steps 26 and 27: scripts, AI suggestions, call review and commission, last.
 11. Steps 28 and 29: pipeline, appointments, Google Calendar and email sending, after step 23.
+12. Step 30: protecting leads, straight after step 20, since it guards the same data.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
@@ -145,7 +147,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-161 decisions. Each row links to the file that holds it.
+165 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -310,3 +312,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D159 | A Google Calendar event for an appointment holds the time and a link back that opens the lead inside the right agency. Names and phone numbers stay in Caller Whale, so a personal calendar never holds an agency's lead data. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D160 | When a person leaves an agency, that agency's events are removed from their Google Calendar, and the appointments go to whoever receives their leads and appear on that person's calendar. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D161 | Email to a lead is sent from the agency's own sending domain, or from one connected for a client. Replies come back into the lead's record, not to a personal inbox. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D162 | The owner and admins can export any leads. A manager can export their own teams' leads only if the owner switches that on. Agents never export. Every export is recorded with who, what and when. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D163 | By default agents see only the last digits of a lead's phone number and call or text with a button. The owner can switch full numbers on per team. Managers and above always see them. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D164 | When a person opens or scrolls through far more leads than usual, the owner and admins are told and that person is slowed for a while. Nothing is blocked outright. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D165 | Each lead keeps a record of who opened it and when, visible to the owner and admins, kept for a set time. | [02-teams-and-leads](02-teams-and-leads.md) |

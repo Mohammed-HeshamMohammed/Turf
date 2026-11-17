@@ -43,6 +43,10 @@ How teams are built (managers, deputies, admins, agents in several teams), who h
 | D158 | A person can connect their Google Calendar to their account. Caller Whale reads only when they are busy, not what the events are, so those slots are not offered, and adds Caller Whale appointments to their calendar. | 28 |
 | D159 | A Google Calendar event for an appointment holds the time and a link back that opens the lead inside the right agency. Names and phone numbers stay in Caller Whale, so a personal calendar never holds an agency's lead data. | 28 |
 | D160 | When a person leaves an agency, that agency's events are removed from their Google Calendar, and the appointments go to whoever receives their leads and appear on that person's calendar. | 28, 12 |
+| D162 | The owner and admins can export any leads. A manager can export their own teams' leads only if the owner switches that on. Agents never export. Every export is recorded with who, what and when. | 30 |
+| D163 | By default agents see only the last digits of a lead's phone number and call or text with a button. The owner can switch full numbers on per team. Managers and above always see them. | 30 |
+| D164 | When a person opens or scrolls through far more leads than usual, the owner and admins are told and that person is slowed for a while. Nothing is blocked outright. | 30 |
+| D165 | Each lead keeps a record of who opened it and when, visible to the owner and admins, kept for a set time. | 30 |
 
 ## Notes
 
