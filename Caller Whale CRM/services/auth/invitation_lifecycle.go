@@ -147,6 +147,10 @@ func (s *server) cancelInvitationsBy(ctx context.Context, org, user string) {
 
 // agencyInvitation finds a workspace invitation the agency may act on (resend, extend), with its owner or platform staff asking.
 func (s *server) agencyInvitation(r *http.Request) (invitation, error) {
+	// Signed in first, so nobody learns whether an invitation exists without being someone.
+	if _, err := s.person(r); err != nil {
+		return invitation{}, err
+	}
 	id := r.PathValue("id")
 	if _, err := uuid.Parse(id); err != nil {
 		return invitation{}, bad("Choose a valid invitation.")
