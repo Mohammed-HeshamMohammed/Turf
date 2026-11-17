@@ -162,7 +162,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-283 decisions. Each row links to the file that holds it.
+287 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -449,3 +449,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D281 | Reports show a client their deal count and total value. A single deal's figures appear to them only if the agency shares that deal. | [04-clients](04-clients.md) |
 | D282 | A property is its own record within a client's work, and the people linked to it (owner, tenant, heir) are leads. Notes about the property are shared by everyone working any of its leads for that client. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D283 | When a deal closes, its lead is marked "won" and leaves the calling queues. Follow-ups happen only through tasks someone creates. It still counts for credit, reports and any commission. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D284 | Every new screen meets WCAG AA: it works with a keyboard and a screen reader, keeps readable contrast, and allows larger text without breaking. This is checked as part of each step. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D285 | Captions and the AI's call suggestions work in English at opening, with Spanish next. The app's own screens stay in English (D171). | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D286 | Each lead shows its own local time and whether it is inside calling hours now. Tasks, appointments and everything else show in the viewer's own time zone. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D287 | With no connection, the open tab keeps what it has loaded and keeps typed notes and drafts in memory, and sends changes when the connection returns. Since nothing is saved in the browser (D194), closing the tab while offline loses unsent work, with a warning first. | [07-platform-and-rollout](07-platform-and-rollout.md) |

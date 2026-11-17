@@ -30,6 +30,7 @@ Phone numbers per team, recordings, joining a live call, scripts and the AI's su
 | D277 | An agent can pause and resume recording during a call. The recording shows where it was paused and for how long, and captions pause with it. | 21 |
 | D278 | Team leads, admins and the owner record voicemail messages per client or team. An agent picks one on reaching a voicemail; it plays while the agent moves to the next call. | 21 |
 | D279 | Agents dial one lead at a time; auto dial moves to the next after each outcome. Caller Whale does not dial several numbers at once, since abandoned calls are strictly limited by law. | 21 |
+| D285 | Captions and the AI's call suggestions work in English at opening, with Spanish next. The app's own screens stay in English (D171). | 26 |
 | D161 | Email to a lead is sent from the agency's own sending domain, or from one connected for a client. Replies come back into the lead's record, not to a personal inbox. | 29 |
 | D142 | Calling scripts belong to a client, written by the owner, admins or the managers working for that client. A team can keep its own version; agents cannot change scripts. The AI also suggests what to say for each lead, from the lead's data and from earlier calls: captions run in the background of every call, and the AI learns from how the previous calls went to help with the next one. | 26 |
 | D143 | A manager or deputy can score a call recording against a short checklist and leave comments. The agent sees their own scores; the team's averages go into the manager's reports. | 26 |
