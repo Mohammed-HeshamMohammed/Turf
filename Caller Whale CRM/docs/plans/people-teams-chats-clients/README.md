@@ -162,7 +162,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-287 decisions. Each row links to the file that holds it.
+291 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -453,3 +453,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D285 | Captions and the AI's call suggestions work in English at opening, with Spanish next. The app's own screens stay in English (D171). | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D286 | Each lead shows its own local time and whether it is inside calling hours now. Tasks, appointments and everything else show in the viewer's own time zone. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D287 | With no connection, the open tab keeps what it has loaded and keeps typed notes and drafts in memory, and sends changes when the connection returns. Since nothing is saved in the browser (D194), closing the tab while offline loses unsent work, with a warning first. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D288 | Personal chats are free for every account. They belong to the person, so no agency pays for them; Caller Whale carries their cost. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D289 | Each of these is priced as its own feature: call recording and its storage, AI call suggestions and captions, number checks and reassigned-number checks, and files on leads beyond a free amount. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D290 | Client and partner people stay free seats, up to a generous number per client (10 to start), since they never call or text. Above that the owner asks Caller Whale. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D291 | Each step records what its feature costs Caller Whale to run. The sell price is set when the step is built and its real cost is known, in line with pricing each feature on its own. | [07-platform-and-rollout](07-platform-and-rollout.md) |

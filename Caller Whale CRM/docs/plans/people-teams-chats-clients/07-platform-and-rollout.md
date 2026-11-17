@@ -50,6 +50,10 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D271 | Only the platform owner and cofounder, with a second step, see across agencies: agency-level numbers such as complaint rates, spend and seats, never lead details. Narrower staff roles (support, billing, moderation) come when there is a team. | 39 |
 | D284 | Every new screen meets WCAG AA: it works with a keyboard and a screen reader, keeps readable contrast, and allows larger text without breaking. This is checked as part of each step. | all |
 | D287 | With no connection, the open tab keeps what it has loaded and keeps typed notes and drafts in memory, and sends changes when the connection returns. Since nothing is saved in the browser (D194), closing the tab while offline loses unsent work, with a warning first. | 5 |
+| D288 | Personal chats are free for every account. They belong to the person, so no agency pays for them; Caller Whale carries their cost. | 6 |
+| D289 | Each of these is priced as its own feature: call recording and its storage, AI call suggestions and captions, number checks and reassigned-number checks, and files on leads beyond a free amount. | 21, 26, 38 |
+| D290 | Client and partner people stay free seats, up to a generous number per client (10 to start), since they never call or text. Above that the owner asks Caller Whale. | 23 |
+| D291 | Each step records what its feature costs Caller Whale to run. The sell price is set when the step is built and its real cost is known, in line with pricing each feature on its own. | every step |
 
 ## Notes
 
