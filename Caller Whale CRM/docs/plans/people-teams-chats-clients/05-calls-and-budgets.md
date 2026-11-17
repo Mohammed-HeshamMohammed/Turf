@@ -1,0 +1,28 @@
+# Calls, scripts and budgets
+
+**State:** plan only, nothing built. Scope is the **web version**; the desktop app and other local apps are out of scope for now. Index and build order: [README.md](README.md).
+
+Phone numbers per team, recordings, joining a live call, scripts and the AI's suggestions, call review, commission, and how paid usage is shared and limited.
+
+## Decisions
+
+| # | Decision | Step |
+| --- | --- | --- |
+| D116 | Each team has its own phone numbers, given by the owner or an admin. A team without one uses the agency's default number. | 21 |
+| D117 | A lead that moves to another team keeps the number it already knows, so replies still arrive. New leads of a team use that team's number. | 21 |
+| D118 | Call recordings and transcripts are open to the same people as the lead thread, and move with the lead. | 21 |
+| D119 | A manager or deputy can join an agent's live call: listen silently, speak only to the agent, or take the call over, by rank as in D76. The agent always sees that someone joined. Whether the lead must be told depends on the law where they are. | 21, lawyer |
+| D142 | Calling scripts belong to a client, written by the owner, admins or the managers working for that client. A team can keep its own version; agents cannot change scripts. The AI also suggests what to say for each lead, from the lead's data and from earlier calls: captions run in the background of every call, and the AI learns from how the previous calls went to help with the next one. | 26 |
+| D143 | A manager or deputy can score a call recording against a short checklist and leave comments. The agent sees their own scores; the team's averages go into the manager's reports. | 26 |
+| D144 | Commission tracking, if it can be built, is optional per agency: the owner sets rates and Caller Whale shows what each agent has earned. No payments are made through it. | 27 |
+| D120 | Paid usage (texts, call minutes, skip tracing credits) comes from the agency's allowance. The owner or an admin can give a team a monthly budget; a team without one draws from the pool. | 22 |
+| D121 | A manager sets usage limits for their team's agents, within the team's budget. The owner and admins set anyone's. | 22 |
+| D122 | A text or call is charged to the team that owns the lead, whoever sends it, including a takeover. | 22 |
+| D123 | When a team's budget or a person's limit runs out, paid actions stop for them and they can ask the manager or owner to raise it. Replies from leads still arrive and can be read. | 22 |
+| D135 | The owner or an admin sets a monthly budget per client. A text or call counts against both the lead's client and the lead's team. The client sees their own usage. | 22 |
+
+## Notes
+
+- D119: whether the lead must be told when a manager joins or records a call depends on the law where the lead is. For the lawyer.
+- D142, not designed yet: how the AI learns from captions. Assumed until the owner says otherwise: what it learns from one agency's calls is used only inside that agency, and what it learns from one client's calls only for that client. The assistant and call-helper code has not been read for this.
+- D131 applies here: no AI can spend, raise a budget or change a plan (see the platform file).
