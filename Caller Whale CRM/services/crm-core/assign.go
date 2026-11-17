@@ -45,10 +45,18 @@ func (s *server) assignTargets(ctx context.Context, sc scope, managed []string) 
 	if err != nil {
 		return nil, err
 	}
-	runs := map[string][]string{} // team lead -> teams they lead
+	runs := map[string][]string{}     // team lead -> teams they lead
+	deputises := map[string]string{} // a deputy of a team the giver leads -> that team (D260)
 	for _, t := range teams {
 		for _, lead := range t.leads() {
 			runs[lead] = append(runs[lead], t.TeamID)
+		}
+		if slices.Contains(managed, t.TeamID) {
+			for _, d := range t.DeputyIDs {
+				if _, ok := deputises[d]; !ok {
+					deputises[d] = t.TeamID
+				}
+			}
 		}
 	}
 	everyone := slices.Contains(sc.scopes, "organization")
@@ -62,6 +70,9 @@ func (s *server) assignTargets(ctx context.Context, sc scope, managed []string) 
 			team = runs[m.UserID][0] // a team lead who leads one team
 		}
 		allowed := everyone || m.UserID == sc.userID || inTeams(m, managed)
+		if d, ok := deputises[m.UserID]; ok && !allowed {
+			allowed, team = true, d
+		}
 		if allowed {
 			out[m.UserID] = assignTarget{UserID: m.UserID, TeamID: team}
 		}

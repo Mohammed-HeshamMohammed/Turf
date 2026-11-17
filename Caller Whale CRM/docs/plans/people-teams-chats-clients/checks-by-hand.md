@@ -99,3 +99,13 @@ Not in this step:
 - **CRM screens:** the people and invitation screens in the CRM come later.
 - **Handing on work:** the screen for handing on the work of someone who left is step 12.
 - **Clients:** team leads inviting clients comes with the clients step.
+
+# Step 20, part A: leads and teams (server only)
+
+Team settings, the unassigned pool and claiming have no screen yet; they come with the CRM's people screens, and automated tests cover them. You can check these in the CRM as it is:
+
+| # | Do | Expect |
+|---|---|---|
+| L1 | As a team lead, assign a lead of your team to a team you don't lead | "A team lead moves leads only between teams they lead". As the owner it works. |
+| L2 | As a caller, hand off a lead to a closer in another team | "Hand off to someone in this lead's team. Sending it to another team is a move a team lead makes". The same closer in your own team works. |
+| L3 | As a team lead, delete a lead | "Only the agency owner or an admin deletes a lead for good. Archive it instead". Archive still works; the owner can still delete. |
