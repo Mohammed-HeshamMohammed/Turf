@@ -50,11 +50,8 @@ func (s *server) whoMayIWatch(ctx context.Context, q *req) ([]watched, error) {
 		if len(m.Roles) == 0 || (len(m.Roles) == 1 && m.Roles[0] == "client") {
 			continue
 		}
-		team := ""
-		if len(m.TeamIDs) == 1 {
-			team = m.TeamIDs[0]
-		}
-		if !everyone && m.UserID != q.sc.userID && !(team != "" && slices.Contains(managed, team)) {
+		team := teamOf(m, managed)
+		if !everyone && m.UserID != q.sc.userID && !inTeams(m, managed) {
 			continue
 		}
 		out = append(out, watched{UserID: m.UserID, Roles: m.Roles, TeamID: team, TeamName: names[team], Suspended: m.SuspendedAt != nil})

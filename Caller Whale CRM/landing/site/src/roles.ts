@@ -10,7 +10,8 @@ export const WORKSPACE_ROLES: RoleEntry[] = [
   { key: "researcher", name: "Data researcher" },
   { key: "caller", name: "Caller" },
   { key: "closer", name: "Acquisitions / closer" },
-  { key: "manager", name: "Team manager" },
+  { key: "manager", name: "Team lead" },
+  { key: "admin", name: "Admin" },
   { key: "owner", name: "Agency owner" },
   { key: "client", name: "Client / partner" },
 ];

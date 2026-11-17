@@ -84,3 +84,63 @@ func TestTheSnapshotsLeadConditionMatchesTheVisibilityFunction(t *testing.T) {
 		}
 	}
 }
+
+// A caller who is a deputy lead of another team (D62) sees that team's leads and their own, never their own team's other leads,
+// both through row security and through the snapshot's condition.
+func TestADeputySeesTheTeamTheyDeputiseNotTheirOwnTeamsLeads(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	ctx := context.Background()
+	e.call(alice, orgA, "GET", "/sync/snapshot?limit=1", nil)
+	me, other := "aaaaaaaa-0000-4000-8000-000000000011", "aaaaaaaa-0000-4000-8000-000000000012"
+	own, deputised := "bbbbbbbb-0000-4000-8000-000000000011", "bbbbbbbb-0000-4000-8000-000000000012"
+	if _, err := e.admin.Exec(ctx, fmt.Sprintf(`INSERT INTO crm.teams (id, org_id, name) VALUES ('%s', '%s', 'own'), ('%s', '%s', 'deputised')`, own, orgA, deputised, orgA)); err != nil {
+		t.Fatal(err)
+	}
+	leads := map[string][2]string{ // name -> assignee, team
+		"colleague's lead in my team": {other, own},
+		"the deputised team's lead":   {other, deputised},
+		"my own lead":                 {me, own},
+	}
+	for name, l := range leads {
+		if _, err := e.admin.Exec(ctx, `INSERT INTO crm.leads (org_id, name, assignee_id, team_id) VALUES ($1, $2, $3::uuid, $4::uuid)`, orgA, name, l[0], l[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	g := grantReply{Scopes: []string{"own", "team"}, TeamIDs: []string{own, deputised}, TeamScopeIDs: []string{deputised}}
+	sc := scope{userID: me, orgID: orgA, scopes: g.Scopes, teamIDs: g.TeamIDs, seeTeams: g.seeTeams()}
+	tx, err := e.s.st.begin(ctx, sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	names := func(sql string, a ...any) []string {
+		rows, err := tx.Query(ctx, sql, a...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var out []string
+		for rows.Next() {
+			var n string
+			if err = rows.Scan(&n); err != nil {
+				t.Fatal(err)
+			}
+			out = append(out, n)
+		}
+		slices.Sort(out)
+		return out
+	}
+	want := []string{"my own lead", "the deputised team's lead"}
+	if got := names(`SELECT l.name FROM leads l WHERE cw_visible_lead(l.id)`); !slices.Equal(got, want) {
+		t.Fatalf("row security shows %v, want %v", got, want)
+	}
+	where, args := leadVisible(sc, "l", nil)
+	if got := names(`SELECT l.name FROM leads l WHERE `+where, args...); !slices.Equal(got, want) {
+		t.Fatalf("the snapshot's condition shows %v, want %v", got, want)
+	}
+	// An older authz (no team_scope_ids) keeps the old meaning.
+	if old := (grantReply{TeamIDs: []string{own}}).seeTeams(); !slices.Equal(old, []string{own}) {
+		t.Fatalf("older grant: %v", old)
+	}
+}

@@ -13,17 +13,31 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"slices"
 	"strings"
 )
 
-// disabledRoles are switched off for now: not listed, not given, and a grant someone still holds allows nothing.
-var disabledRoles = map[string]bool{"researcher": true, "system_admin": true}
+// disabledRoles are switched off: not listed, not given, and a grant someone still holds allows nothing. The system admin platform
+// role is gone (D338); narrow staff roles take its place when there is a staff team.
+var disabledRoles = map[string]bool{"system_admin": true}
 
-// agentRoles sit in exactly one team.
-var agentRoles = []string{"caller", "closer"}
+// agentRoles sit in teams: one team under the old team rules, one to maxTeams under the new ones. A researcher (D337) sits in teams
+// like a caller or closer and is managed by the team's leads the same way (D369).
+var agentRoles = []string{"caller", "closer", "researcher"}
+
+// newRolesOnly are given only once the new team rules are on for the workspace.
+var newRolesOnly = []string{"admin", "researcher"}
+
+const (
+	maxTeams     = 5  // D97: teams an agent can be in, a starting number
+	maxDeputies  = 10 // deputies one team can have
+	defaultAdmin = 3  // D179: admins an agency can have unless staff raise it
+	// teamsV2 is the switch for the new team rules (D104): several leads, deputies, admins, researchers, agents in several teams.
+	teamsV2 = "teams_v2"
+)
 
 func isAgent(roles []string) bool {
 	return slices.ContainsFunc(roles, func(r string) bool { return slices.Contains(agentRoles, r) })
@@ -34,11 +48,32 @@ func isHeld(roles []string) bool {
 func onlyClient(roles []string) bool { return len(roles) == 1 && roles[0] == "client" }
 func staffBoss(staff string) bool    { return staff == "owner" || staff == "cofounder" }
 
-// team is one team of a workspace and its manager ("" when it has none yet).
+// team is one team of a workspace: its leads (none, one, or several equal ones; D43) and deputies. ManagerID is the first lead,
+// kept for the services and screens that know only one.
 type team struct {
-	TeamID    string `json:"team_id"`
-	Name      string `json:"name"`
-	ManagerID string `json:"manager_id"`
+	TeamID     string   `json:"team_id"`
+	Name       string   `json:"name"`
+	ManagerID  string   `json:"manager_id"`
+	ManagerIDs []string `json:"manager_ids"`
+	DeputyIDs  []string `json:"deputy_ids"`
+}
+
+// settle fills ManagerID from ManagerIDs and makes the lists empty rather than missing. A team given only ManagerID (the older
+// form, ManagerIDs nil) has that one lead.
+func (t *team) settle() {
+	if t.ManagerIDs == nil {
+		t.ManagerIDs = []string{}
+		if t.ManagerID != "" {
+			t.ManagerIDs = []string{t.ManagerID}
+		}
+	}
+	if t.DeputyIDs == nil {
+		t.DeputyIDs = []string{}
+	}
+	t.ManagerID = ""
+	if len(t.ManagerIDs) > 0 {
+		t.ManagerID = t.ManagerIDs[0]
+	}
 }
 
 // place is what the store says about the person asking for a change, in one workspace.
@@ -46,7 +81,20 @@ type place struct {
 	UserID  string
 	Staff   string   // platform role
 	Roles   []string // workspace roles ("" when not a member)
-	Managed []string // teams this person manages
+	Managed []string // teams this person leads
+	NewTeam bool     // the new team rules are on in this workspace
+}
+
+// newTeamRules is whether the switch for the new team rules is on for this workspace, or for every workspace.
+func (s *server) newTeamRules(ctx context.Context, org string) (bool, error) {
+	if slices.Contains(s.cfg.featuresEverywhere, teamsV2) {
+		return true, nil
+	}
+	on, err := s.rules.features(ctx, org)
+	if err != nil {
+		return false, err
+	}
+	return slices.Contains(on, teamsV2), nil
 }
 
 // Actions a person may take on another.
@@ -76,6 +124,16 @@ func mayAct(a place, action string, target *membership, role, teamID string) (bo
 	switch {
 	case slices.Contains(a.Roles, "owner"):
 		return true, ""
+	case a.NewTeam && slices.Contains(a.Roles, "admin"):
+		// An admin does what the owner does with people and teams (D100), except that only the owner names, changes or
+		// removes admins.
+		if target != nil && slices.Contains(target.Roles, "admin") {
+			return false, "Only the agency owner changes an admin."
+		}
+		if role == "admin" {
+			return false, "Only the agency owner names admins."
+		}
+		return true, ""
 	case slices.Contains(a.Roles, "solo"):
 		if action == actTeams {
 			return false, "A solo workspace has no teams."
@@ -93,10 +151,18 @@ func mayAct(a place, action string, target *membership, role, teamID string) (bo
 	case slices.Contains(a.Roles, "manager"):
 		switch action {
 		case actSuspend, actRestrict, actLimits:
-			if target != nil && isAgent(target.Roles) && len(target.TeamIDs) == 1 && slices.Contains(a.Managed, target.TeamIDs[0]) {
+			// Any lead of a team manages its callers, closers and researchers; leads do not manage each other (D64).
+			if target != nil && isAgent(target.Roles) && !slices.Contains(target.Roles, "manager") && !slices.Contains(target.Roles, "admin") &&
+				slices.ContainsFunc(target.TeamIDs, func(t string) bool { return slices.Contains(a.Managed, t) }) {
 				return true, ""
 			}
-			return false, "A team manager manages the callers and closers of their own teams only."
+			return false, "A team lead manages the callers, closers and researchers of their own teams only."
+		case actInvite:
+			// Under the new team rules a lead invites agents into a team they run (D15, D369).
+			if a.NewTeam && slices.Contains(agentRoles, role) && teamID != "" && slices.Contains(a.Managed, teamID) {
+				return true, ""
+			}
+			return false, "A team lead invites callers, closers and researchers into their own teams only."
 		default:
 			return false, "Only the agency owner does this."
 		}
@@ -114,16 +180,26 @@ func (s *server) placeOf(ctx context.Context, org string, a actor) (place, error
 	if err != nil {
 		return place{}, store(err)
 	}
-	p := place{UserID: a.ActorID, Staff: staff}
+	newTeam, err := s.newTeamRules(ctx, org)
+	if err != nil {
+		return place{}, store(err)
+	}
+	p := place{UserID: a.ActorID, Staff: staff, NewTeam: newTeam}
+	f, err := s.rules.facts(ctx, a.ActorID, org)
+	if err != nil {
+		return place{}, store(err)
+	}
 	if staffBoss(staff) {
+		// Staff who are the owner of this workspace act in it as its owner, like any agency owner: no staff second step. Staff
+		// acting in someone else's workspace confirm themselves first.
+		if f.member && isHeld(f.roles) {
+			p.Staff, p.Roles, p.Managed = "", f.roles, f.managed
+			return p, nil
+		}
 		if s.cfg.staffSecondStep && !a.ActorSecondStep {
 			return place{}, forbidden("Confirm it's you with your second step first.")
 		}
 		return p, nil
-	}
-	f, err := s.rules.facts(ctx, a.ActorID, org)
-	if err != nil {
-		return place{}, store(err)
 	}
 	if d := decide(f, grantRequest{Action: "read", SecondStepPassed: a.ActorSecondStep}, s.cfg.requireSecondStep); !d.Allowed && d.Code != "no_scope" {
 		return place{}, forbidden(d.Reason)
@@ -132,9 +208,9 @@ func (s *server) placeOf(ctx context.Context, org string, a actor) (place, error
 	return p, nil
 }
 
-// checkPlacement refuses roles and teams that break the tree: switched-off and owner roles, an agent without exactly one team of
-// this workspace, a team given to anyone but an agent.
-func checkPlacement(roles, teamIDs []string, teams []team) error {
+// checkPlacement refuses roles and teams that break the tree: switched-off and owner roles, roles that need the new team rules
+// while they are off, an agent without the right number of teams of this workspace, a team given to anyone but an agent.
+func checkPlacement(roles, teamIDs []string, teams []team, newTeam bool) error {
 	for _, r := range roles {
 		if disabledRoles[r] {
 			return forbidden(roleTitle(r) + " is switched off for now.")
@@ -142,19 +218,32 @@ func checkPlacement(roles, teamIDs []string, teams []team) error {
 		if slices.Contains(heldRoles, r) {
 			return forbidden("Only the person who opened this workspace is its owner; that role cannot be given.")
 		}
+		if !newTeam && slices.Contains(newRolesOnly, r) {
+			return forbidden(roleTitle(r) + " comes with the new team rules, which are not on for this agency yet.")
+		}
 	}
 	if isAgent(roles) {
-		if len(teamIDs) != 1 {
+		switch {
+		case !newTeam && len(teamIDs) != 1:
 			return bad("Put a caller or closer in exactly one team.")
+		case newTeam && (len(teamIDs) < 1 || len(teamIDs) > maxTeams):
+			return bad(fmt.Sprintf("Put a caller, closer or researcher in one to %d teams.", maxTeams))
 		}
-		if !slices.ContainsFunc(teams, func(t team) bool { return t.TeamID == teamIDs[0] }) {
-			return bad("That team is not in this workspace.")
+		seen := map[string]bool{}
+		for _, id := range teamIDs {
+			if seen[id] {
+				return bad("Name each team once.")
+			}
+			seen[id] = true
+			if !slices.ContainsFunc(teams, func(t team) bool { return t.TeamID == id }) {
+				return bad("That team is not in this workspace.")
+			}
 		}
-		if len(roles) > 1 && slices.Contains(roles, "manager") {
+		if !newTeam && len(roles) > 1 && slices.Contains(roles, "manager") {
 			return bad("A team manager is not also a caller or closer.")
 		}
 	} else if len(teamIDs) > 0 {
-		return bad("Only callers and closers sit in a team; a manager is named on the team itself.")
+		return bad("Only callers, closers and researchers sit in a team; a team lead is named on the team itself.")
 	}
 	return nil
 }
@@ -215,8 +304,9 @@ func (s *server) putTeam(w http.ResponseWriter, r *http.Request) error {
 	}
 	var body struct {
 		actor
-		Name      string `json:"name"`
-		ManagerID string `json:"manager_id"`
+		Name       string    `json:"name"`
+		ManagerID  string    `json:"manager_id"`  // one lead, or "" for none (the older form)
+		ManagerIDs *[]string `json:"manager_ids"` // the team's leads; left out, manager_id decides
 	}
 	if err := readJSON(w, r, &body); err != nil {
 		return err
@@ -232,31 +322,120 @@ func (s *server) putTeam(w http.ResponseWriter, r *http.Request) error {
 	if ok, why := mayAct(a, actTeams, nil, "", ""); !ok {
 		return forbidden(why)
 	}
-	if body.ManagerID != "" {
-		m, ok, err := s.rules.membership(r.Context(), org, body.ManagerID)
+	leads := []string{}
+	if body.ManagerIDs != nil {
+		leads = *body.ManagerIDs
+	} else if body.ManagerID != "" {
+		leads = []string{body.ManagerID}
+	}
+	if !a.NewTeam && len(leads) > 1 {
+		return bad("A team has one lead until the new team rules are on for this agency.")
+	}
+	seen := map[string]bool{}
+	for _, lead := range leads {
+		if !validID(lead) || seen[lead] {
+			return bad("Name each team lead once.")
+		}
+		seen[lead] = true
+		m, ok, err := s.rules.membership(r.Context(), org, lead)
 		if err != nil {
 			return store(err)
 		}
 		if !ok || !slices.Contains(m.Roles, "manager") {
-			return bad("Choose a team manager of this workspace to run the team.")
+			return bad("Choose team leads of this workspace to run the team.")
 		}
 		if m.SuspendedAt != nil {
-			return bad("That manager is suspended.")
+			return bad("That team lead is suspended.")
 		}
 	}
 	teams, err := s.rules.teams(r.Context(), org)
 	if err != nil {
 		return store(err)
 	}
+	saved := team{TeamID: id, Name: body.Name, ManagerIDs: leads}
 	for _, t := range teams {
 		if t.TeamID != id && strings.EqualFold(t.Name, body.Name) {
 			return newError(http.StatusConflict, "conflict", "Another team already has that name.")
 		}
+		if t.TeamID == id {
+			// Deputies stay; one who is now a lead is a lead only.
+			saved.DeputyIDs = slices.DeleteFunc(slices.Clone(t.DeputyIDs), func(d string) bool { return seen[d] })
+		}
 	}
-	saved := team{TeamID: id, Name: body.Name, ManagerID: body.ManagerID}
+	saved.settle()
 	if err := store(s.rules.setTeam(r.Context(), org, saved)); err != nil {
 		return err
 	}
+	writeJSON(w, http.StatusOK, map[string]any{"team": saved, "access_changed": true})
+	return nil
+}
+
+// putDeputies names a team's deputies (D43, D62, D63): any member of the agency, named by the team's leads, the owner or an admin.
+// A deputy reads the team's leads and threads and can take them over, but manages nobody.
+func (s *server) putDeputies(w http.ResponseWriter, r *http.Request) error {
+	org, err := s.workspace(r)
+	if err != nil {
+		return err
+	}
+	id := r.PathValue("team")
+	if !validID(id) {
+		return bad("That is not a team id.")
+	}
+	var body struct {
+		actor
+		DeputyIDs []string `json:"deputy_ids"`
+	}
+	if err := readJSON(w, r, &body); err != nil {
+		return err
+	}
+	a, err := s.placeOf(r.Context(), org, body.actor)
+	if err != nil {
+		return err
+	}
+	if !a.NewTeam {
+		return forbidden("Deputy leads come with the new team rules, which are not on for this agency yet.")
+	}
+	if ok, _ := mayAct(a, actTeams, nil, "", ""); !ok && !slices.Contains(a.Managed, id) {
+		return forbidden("The team's leads, an admin or the owner name its deputies.")
+	}
+	if len(body.DeputyIDs) > maxDeputies {
+		return bad(fmt.Sprintf("A team has at most %d deputy leads.", maxDeputies))
+	}
+	teams, err := s.rules.teams(r.Context(), org)
+	if err != nil {
+		return store(err)
+	}
+	i := slices.IndexFunc(teams, func(t team) bool { return t.TeamID == id })
+	if i < 0 {
+		return newError(http.StatusNotFound, "not_found", "That team is not in this workspace.")
+	}
+	saved := teams[i]
+	seen := map[string]bool{}
+	for _, d := range body.DeputyIDs {
+		if !validID(d) || seen[d] {
+			return bad("Name each deputy once.")
+		}
+		seen[d] = true
+		if slices.Contains(saved.ManagerIDs, d) {
+			return bad("A team lead of this team is not also its deputy.")
+		}
+		m, ok, err := s.rules.membership(r.Context(), org, d)
+		if err != nil {
+			return store(err)
+		}
+		if !ok || onlyClient(m.Roles) {
+			return bad("A deputy is a member of this agency (not a client).")
+		}
+		if m.SuspendedAt != nil {
+			return bad("That person is suspended.")
+		}
+	}
+	saved.DeputyIDs = slices.Clone(body.DeputyIDs)
+	saved.settle()
+	if err := store(s.rules.setTeam(r.Context(), org, saved)); err != nil {
+		return err
+	}
+	log.Printf("INFO workspace %s: deputies of team %s set by %s", org, id, a.UserID)
 	writeJSON(w, http.StatusOK, map[string]any{"team": saved, "access_changed": true})
 	return nil
 }
@@ -400,7 +579,7 @@ func (s *server) checkRelation(w http.ResponseWriter, r *http.Request) error {
 		if body.TeamID != "" {
 			teamIDs = []string{body.TeamID}
 		}
-		if err := checkPlacement([]string{body.Role}, teamIDs, teams); err != nil {
+		if err := checkPlacement([]string{body.Role}, teamIDs, teams, a.NewTeam); err != nil {
 			return refuse(err)
 		}
 		if err := s.seatsFree(r.Context(), org, []string{body.Role}, max(body.Pending, 0)); err != nil {
@@ -467,4 +646,83 @@ func teamsSeen(own, managed []string) []string {
 		}
 	}
 	return out
+}
+
+// leaveTeams takes someone off the leads (and, when they leave the workspace, the deputies) of every team.
+func (s *server) leaveTeams(ctx context.Context, org, user string, deputiesToo bool) error {
+	teams, err := s.rules.teams(ctx, org)
+	if err != nil {
+		return store(err)
+	}
+	for _, t := range teams {
+		lead, deputy := slices.Contains(t.ManagerIDs, user), slices.Contains(t.DeputyIDs, user)
+		if !lead && !(deputiesToo && deputy) {
+			continue
+		}
+		t.ManagerIDs = slices.DeleteFunc(slices.Clone(t.ManagerIDs), func(id string) bool { return id == user })
+		if deputiesToo {
+			t.DeputyIDs = slices.DeleteFunc(slices.Clone(t.DeputyIDs), func(id string) bool { return id == user })
+		}
+		t.settle()
+		if err := store(s.rules.setTeam(ctx, org, t)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// adminPlaceFree refuses a fourth admin (D179) unless staff raised the number for this agency.
+func (s *server) adminPlaceFree(ctx context.Context, org string) error {
+	limit, err := s.rules.adminLimit(ctx, org)
+	if err != nil {
+		return store(err)
+	}
+	allowed := defaultAdmin
+	if limit != nil {
+		allowed = *limit
+	}
+	members, err := s.rules.members(ctx, org)
+	if err != nil {
+		return store(err)
+	}
+	admins := 0
+	for _, m := range members {
+		if slices.Contains(m.Roles, "admin") {
+			admins++
+		}
+	}
+	if admins >= allowed {
+		return newError(http.StatusConflict, "admins_full", fmt.Sprintf("This agency has %d admins, its limit. Ask Caller Whale to raise it.", allowed))
+	}
+	return nil
+}
+
+// putFeature turns one of a workspace's switches on or off (D104): on for the owner's agency first, then for everyone, and off
+// again without a release. Only Caller Whale staff do this, through auth.
+func (s *server) putFeature(w http.ResponseWriter, r *http.Request) error {
+	org, err := s.workspace(r)
+	if err != nil {
+		return err
+	}
+	name := r.PathValue("name")
+	if name != teamsV2 {
+		return bad("There is no such switch.")
+	}
+	var body struct {
+		On bool `json:"on"`
+	}
+	if err := readJSON(w, r, &body); err != nil {
+		return err
+	}
+	if _, _, found, err := s.rules.workspaceInfo(r.Context(), org); err != nil {
+		return store(err)
+	} else if !found {
+		return newError(http.StatusNotFound, "not_found", "No such workspace.")
+	}
+	if err := store(s.rules.setFeature(r.Context(), org, name, body.On)); err != nil {
+		return err
+	}
+	log.Printf("INFO workspace %s: switch %s turned %v by %s", org, name, body.On, callerOf(r))
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": name, "on": body.On, "access_changed": true})
+	return nil
 }

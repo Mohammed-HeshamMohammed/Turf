@@ -52,6 +52,18 @@ type grantReply struct {
 	// The person's workspace roles and the teams they manage (a team manager monitors those teams' callers and closers).
 	Roles          []string `json:"roles"`
 	ManagedTeamIDs []string `json:"managed_team_ids"`
+	// The teams they are a deputy lead of, and the teams whose leads the "team" scope shows them (nil from an older authz: then
+	// team_ids, as before).
+	DeputyTeamIDs []string `json:"deputy_team_ids"`
+	TeamScopeIDs  []string `json:"team_scope_ids"`
+}
+
+// seeTeams is the teams whose leads the "team" scope shows: a deputy's team, but not a caller's own team they only work in.
+func (g grantReply) seeTeams() []string {
+	if g.TeamScopeIDs != nil {
+		return g.TeamScopeIDs
+	}
+	return g.TeamIDs
 }
 
 type member struct {
@@ -133,9 +145,41 @@ func (a *authzClient) members(ctx context.Context, org string) ([]member, error)
 
 // authzTeam is one team of a workspace as authz keeps it (the single source of the team tree).
 type authzTeam struct {
-	TeamID    string `json:"team_id"`
-	Name      string `json:"name"`
-	ManagerID string `json:"manager_id"`
+	TeamID     string   `json:"team_id"`
+	Name       string   `json:"name"`
+	ManagerID  string   `json:"manager_id"`
+	ManagerIDs []string `json:"manager_ids"`
+	DeputyIDs  []string `json:"deputy_ids"`
+}
+
+// leads are the team's leads: several under the new team rules (D43), the one manager from an older authz.
+func (t authzTeam) leads() []string {
+	if len(t.ManagerIDs) > 0 {
+		return t.ManagerIDs
+	}
+	if t.ManagerID != "" {
+		return []string{t.ManagerID}
+	}
+	return nil
+}
+
+// teamOf is the team a lead given to m goes to: the first of their teams that the giver leads, else their first team. "" for
+// someone in no team.
+func teamOf(m member, managed []string) string {
+	for _, t := range m.TeamIDs {
+		if slices.Contains(managed, t) {
+			return t
+		}
+	}
+	if len(m.TeamIDs) > 0 {
+		return m.TeamIDs[0]
+	}
+	return ""
+}
+
+// inTeams is whether m works in any of these teams.
+func inTeams(m member, teams []string) bool {
+	return slices.ContainsFunc(m.TeamIDs, func(t string) bool { return slices.Contains(teams, t) })
 }
 
 func (a *authzClient) teams(ctx context.Context, org string) ([]authzTeam, error) {
@@ -195,8 +239,17 @@ type scope struct {
 	userID, orgID, label string
 	roles, scopes        []string
 	teamIDs, projectIDs  []string
+	seeTeams             []string // the teams the "team" scope shows (grantReply.seeTeams)
 	caps                 []string
 	secondStep           bool
+}
+
+// visibleTeams is the teams whose leads the "team" scope shows; a scope built without them (an older queued run) uses its teams.
+func (sc scope) visibleTeams() []string {
+	if sc.seeTeams != nil {
+		return sc.seeTeams
+	}
+	return sc.teamIDs
 }
 
 func (s scope) can(capability string) bool { return slices.Contains(s.caps, capability) }

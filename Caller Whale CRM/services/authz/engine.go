@@ -51,6 +51,11 @@ type engine interface {
 	setWorkspaceName(ctx context.Context, org, name string) error
 	// workspaceInfo is a workspace's owner and name; found is false when it was never opened.
 	workspaceInfo(ctx context.Context, org string) (owner, name string, found bool, err error)
+	// features are the workspace's switches that are on (D104); setFeature turns one on or off.
+	features(ctx context.Context, org string) ([]string, error)
+	setFeature(ctx context.Context, org, name string, on bool) error
+	// adminLimit is how many admins the workspace may have when staff changed it (nil: the default).
+	adminLimit(ctx context.Context, org string) (*int, error)
 	setStanding(ctx context.Context, org string, change standingChange) error
 	// seatLimits is how many seats and client places the workspace has (nil: unlimited).
 	seatLimits(ctx context.Context, org string) (seats, clients *int, err error)

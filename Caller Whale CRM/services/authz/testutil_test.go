@@ -25,10 +25,12 @@ type memEngine struct {
 	teamsBy   map[string][]team  // org -> teams
 	limits    map[string][2]*int // org -> seats, clients
 	names     map[string]string  // org -> agency name
+	switches  map[string][]string
+	admins    map[string]*int
 }
 
 func newMem() *memEngine {
-	return &memEngine{roleDefs: map[string]map[string]role{}, people: map[string]map[string]membership{}, standing: map[string][2]bool{}, staff: map[string]string{}, openOwner: map[string]string{}, teamsBy: map[string][]team{}, limits: map[string][2]*int{}, names: map[string]string{}}
+	return &memEngine{roleDefs: map[string]map[string]role{}, people: map[string]map[string]membership{}, standing: map[string][2]bool{}, staff: map[string]string{}, openOwner: map[string]string{}, teamsBy: map[string][]team{}, limits: map[string][2]*int{}, names: map[string]string{}, switches: map[string][]string{}, admins: map[string]*int{}}
 }
 
 var errStoreDown = errors.New("rules store down")
@@ -55,11 +57,16 @@ func (m *memEngine) facts(_ context.Context, user, org string) (facts, error) {
 	f.memberSuspended = p.SuspendedAt != nil
 	f.roles = activeRoles(p.Roles)
 	for _, t := range m.teamsBy[org] {
-		if t.ManagerID == user {
+		t = memTeam(t)
+		if slices.Contains(t.ManagerIDs, user) {
 			f.managed = append(f.managed, t.TeamID)
+		}
+		if slices.Contains(t.DeputyIDs, user) {
+			f.deputyOf = append(f.deputyOf, t.TeamID)
 		}
 	}
 	scopeSet := map[string]bool{}
+	ownTeamScope := false
 	for _, key := range f.roles {
 		r := m.roleDefs[org][key]
 		for _, c := range r.Capabilities {
@@ -68,21 +75,11 @@ func (m *memEngine) facts(_ context.Context, user, org string) (facts, error) {
 		if r.Scope != "none" && r.Scope != "" {
 			scopeSet[r.Scope] = true
 		}
+		ownTeamScope = ownTeamScope || (r.Scope == "team" && key != "manager")
 		f.secondStep = f.secondStep || r.SecondStep
 	}
-	for _, restriction := range p.Restrictions {
-		if sc, isScope := strings.CutPrefix(restriction, "scope:"); isScope {
-			delete(scopeSet, sc)
-		} else {
-			delete(f.capabilities, restriction)
-		}
-	}
-	for _, sc := range scopes {
-		if scopeSet[sc] {
-			f.scopes = append(f.scopes, sc)
-		}
-	}
-	f.teams, f.projects = teamsSeen(p.TeamIDs, f.managed), p.ProjectIDs
+	settleScopes(&f, scopeSet, p.Restrictions, p.TeamIDs, ownTeamScope)
+	f.projects = p.ProjectIDs
 	return f, nil
 }
 
@@ -225,11 +222,42 @@ func (m *memEngine) seatLimits(_ context.Context, org string) (*int, *int, error
 	return l[0], l[1], m.down()
 }
 
+// memTeam reads a team written by an older test with only ManagerID as having that one lead.
+func memTeam(t team) team {
+	if len(t.ManagerIDs) == 0 && t.ManagerID != "" {
+		t.ManagerIDs = []string{t.ManagerID}
+	}
+	t.ManagerIDs, t.DeputyIDs = slices.Clone(t.ManagerIDs), slices.Clone(t.DeputyIDs)
+	t.settle()
+	return t
+}
+
 func (m *memEngine) teams(_ context.Context, org string) ([]team, error) {
-	return append([]team{}, m.teamsBy[org]...), m.down()
+	out := []team{}
+	for _, t := range m.teamsBy[org] {
+		out = append(out, memTeam(t))
+	}
+	return out, m.down()
+}
+
+func (m *memEngine) features(_ context.Context, org string) ([]string, error) {
+	return slices.Clone(m.switches[org]), m.down()
+}
+
+func (m *memEngine) setFeature(_ context.Context, org, name string, on bool) error {
+	m.switches[org] = slices.DeleteFunc(m.switches[org], func(s string) bool { return s == name })
+	if on {
+		m.switches[org] = append(m.switches[org], name)
+	}
+	return m.down()
+}
+
+func (m *memEngine) adminLimit(_ context.Context, org string) (*int, error) {
+	return m.admins[org], m.down()
 }
 
 func (m *memEngine) setTeam(_ context.Context, org string, t team) error {
+	t = memTeam(t)
 	for i, old := range m.teamsBy[org] {
 		if old.TeamID == t.TeamID {
 			m.teamsBy[org][i] = t

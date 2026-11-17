@@ -54,6 +54,8 @@ func (s *server) handler() http.Handler {
 	mux.Handle("PUT /v1/orgs/{org}/owner", s.only("open", s.open))
 	mux.Handle("GET /v1/orgs/{org}", s.only("read", s.workspaceAbout))
 	mux.Handle("PUT /v1/orgs/{org}/name", s.only("manage", s.nameWorkspace))
+	mux.Handle("PUT /v1/orgs/{org}/features/{name}", s.only("manage_staff", s.putFeature))
+	mux.Handle("PUT /v1/orgs/{org}/teams/{team}/deputies", s.only("manage_members", s.putDeputies))
 	mux.Handle("GET /v1/people/{user}", s.only("read", s.person))
 	mux.Handle("GET /v1/roles", s.only("read", s.catalog))
 	mux.Handle("GET /v1/orgs/{org}/roles", s.only("read", s.listRoles))
@@ -149,6 +151,7 @@ func (s *server) grant(w http.ResponseWriter, r *http.Request) error {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"allowed": true, "grant": signed, "expires_in": s.cfg.grantSeconds, "db_role": d.DBRole, "scopes": d.Scopes,
 		"team_ids": d.TeamIDs, "project_ids": d.ProjectIDs, "capabilities": d.Capabilities, "roles": d.Roles, "managed_team_ids": d.ManagedTeamIDs,
+		"deputy_team_ids": d.DeputyTeamIDs, "team_scope_ids": d.TeamScopeIDs,
 	})
 	return nil
 }
@@ -273,7 +276,15 @@ func (s *server) workspaceAbout(w http.ResponseWriter, r *http.Request) error {
 	if !found {
 		return newError(http.StatusNotFound, "not_found", "No such workspace.")
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"org_id": org, "owner_id": owner, "name": name})
+	newTeam, err := s.newTeamRules(r.Context(), org)
+	if err != nil {
+		return store(err)
+	}
+	switches := []string{}
+	if newTeam {
+		switches = append(switches, teamsV2)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"org_id": org, "owner_id": owner, "name": name, "features": switches})
 	return nil
 }
 
@@ -309,8 +320,17 @@ func (s *server) listRoles(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return store(err)
 	}
-	// One list with nothing twice: the standard roles, then this workspace's own.
-	writeJSON(w, http.StatusOK, map[string]any{"roles": buildCatalog(roles)})
+	newTeam, err := s.newTeamRules(r.Context(), org)
+	if err != nil {
+		return store(err)
+	}
+	// One list with nothing twice: the standard roles, then this workspace's own. Admin and researcher appear once the new team
+	// rules are on for this workspace.
+	listed := buildCatalog(roles)
+	if !newTeam {
+		listed = slices.DeleteFunc(listed, func(c catalogRole) bool { return slices.Contains(newRolesOnly, c.Key) })
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"roles": listed})
 	return nil
 }
 
@@ -466,6 +486,9 @@ func (s *server) putMember(w http.ResponseWriter, r *http.Request) error {
 		target = &current
 	}
 	roleAsked, teamAsked := body.Roles[0], ""
+	if slices.Contains(body.Roles, "admin") && !(isMember && slices.Contains(current.Roles, "admin")) {
+		roleAsked = "admin" // naming an admin is the owner's alone (D100)
+	}
 	if len(body.TeamIDs) == 1 {
 		teamAsked = body.TeamIDs[0]
 	}
@@ -477,7 +500,7 @@ func (s *server) putMember(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return store(err)
 		}
-		if err := checkPlacement(body.Roles, body.TeamIDs, teams); err != nil {
+		if err := checkPlacement(body.Roles, body.TeamIDs, teams, a.NewTeam); err != nil {
 			return err
 		}
 	}
@@ -487,18 +510,30 @@ func (s *server) putMember(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
-	if isMember && slices.Contains(current.Roles, "manager") && !slices.Contains(body.Roles, "manager") {
+	if slices.Contains(body.Roles, "admin") && !(isMember && slices.Contains(current.Roles, "admin")) {
+		if err := s.adminPlaceFree(ctx, org); err != nil {
+			return err
+		}
+	}
+	demoted := isMember && slices.Contains(current.Roles, "manager") && !slices.Contains(body.Roles, "manager")
+	if demoted && !a.NewTeam {
 		teams, err := s.rules.teams(ctx, org)
 		if err != nil {
 			return store(err)
 		}
-		if slices.ContainsFunc(teams, func(t team) bool { return t.ManagerID == user }) {
+		if slices.ContainsFunc(teams, func(t team) bool { return slices.Contains(t.ManagerIDs, user) }) {
 			return newError(http.StatusConflict, "conflict", "Give this manager's teams to another manager first.")
 		}
 	}
 	m := membership{UserID: user, Roles: body.Roles, Restrictions: sortedCopy(body.Restrictions), TeamIDs: body.TeamIDs, ProjectIDs: body.ProjectIDs}
 	if err := store(s.rules.setMembership(r.Context(), org, m)); err != nil {
 		return err
+	}
+	if demoted {
+		// Under the new rules a team may have no lead (D43): one who is no longer a team lead simply leaves its leads.
+		if err := s.leaveTeams(ctx, org, user, false); err != nil {
+			return err
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"member": m, "access_changed": true})
 	return nil
@@ -539,10 +574,14 @@ func (s *server) deleteMember(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return store(err)
 	}
-	if slices.ContainsFunc(teams, func(t team) bool { return t.ManagerID == user }) {
+	if !a.NewTeam && slices.ContainsFunc(teams, func(t team) bool { return slices.Contains(t.ManagerIDs, user) }) {
 		return newError(http.StatusConflict, "conflict", "Give this manager's teams to another manager first.")
 	}
 	if err := store(s.rules.removeMember(r.Context(), org, user)); err != nil {
+		return err
+	}
+	// A person who leaves is no longer a lead or deputy anywhere in the workspace.
+	if err := s.leaveTeams(r.Context(), org, user, true); err != nil {
 		return err
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "access_changed": true})

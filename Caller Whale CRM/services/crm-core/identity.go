@@ -234,7 +234,9 @@ func (s *server) teams(q *req) error {
 			return err
 		}
 		for _, t := range listed {
-			managers[t.TeamID] = t.ManagerID
+			if leads := t.leads(); len(leads) > 0 {
+				managers[t.TeamID] = leads[0]
+			}
 		}
 	} else {
 		log.Printf("WARN reading the teams from authz: %v", err)
@@ -512,17 +514,19 @@ func (s *server) inMyTree(ctx context.Context, q *req, members []member) ([]memb
 	if err != nil {
 		return nil, err
 	}
-	mine := append(slices.Clone(q.sc.teamIDs), q.grant.ManagedTeamIDs...)
-	managers := map[string]bool{}
+	mine := append(append(slices.Clone(q.sc.teamIDs), q.grant.ManagedTeamIDs...), q.grant.DeputyTeamIDs...)
+	managers := map[string]bool{} // the leads and deputies of the teams they are in
 	for _, t := range teams {
-		if t.ManagerID != "" && slices.Contains(q.sc.teamIDs, t.TeamID) {
-			managers[t.ManagerID] = true
+		if slices.Contains(q.sc.teamIDs, t.TeamID) {
+			for _, lead := range append(t.leads(), t.DeputyIDs...) {
+				managers[lead] = true
+			}
 		}
 	}
 	keep := members[:0:0]
 	for _, m := range members {
 		shares := slices.ContainsFunc(m.TeamIDs, func(team string) bool { return slices.Contains(mine, team) })
-		if m.UserID == q.sc.userID || shares || managers[m.UserID] || slices.Contains(m.Roles, "owner") {
+		if m.UserID == q.sc.userID || shares || managers[m.UserID] || slices.Contains(m.Roles, "owner") || slices.Contains(m.Roles, "admin") {
 			keep = append(keep, m)
 		}
 	}

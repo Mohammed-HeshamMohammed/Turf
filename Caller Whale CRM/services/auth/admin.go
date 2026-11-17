@@ -94,7 +94,8 @@ func (s *server) assignStaff(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	body.Email = strings.ToLower(strings.TrimSpace(body.Email))
-	if body.Email == "" || (body.Role != "" && body.Role != "system_admin" && body.Role != "tester") {
+	// The system admin role is gone (D338); testers remain.
+	if body.Email == "" || (body.Role != "" && body.Role != "tester") {
 		return bad("Choose an account email and a staff role.")
 	}
 	var target string

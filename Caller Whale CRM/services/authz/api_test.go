@@ -402,7 +402,7 @@ func TestTheCatalogListsEachRoleOnce(t *testing.T) {
 		{Key: "senior_closer", Capabilities: []string{"edit"}, Scope: "own"},
 		{Key: "helper", Capabilities: []string{"export"}, Scope: "team"},
 		{Key: "helper", Capabilities: []string{"export"}, Scope: "team"}, // a repeat is still one role
-		{Key: "researcher", Capabilities: []string{"import"}, Scope: "project"}, // switched off: never listed
+		{Key: "system_admin", Capabilities: []string{"import"}, Scope: "project"}, // switched off: never listed
 	}
 	got := buildCatalog(stored)
 	seen := map[string]bool{}
@@ -412,8 +412,8 @@ func TestTheCatalogListsEachRoleOnce(t *testing.T) {
 		}
 		seen[r.Key] = true
 	}
-	if len(got) != len(presets)-1+2 {
-		t.Fatalf("expected the %d standard roles (researcher is switched off) and 2 custom ones, got %d", len(presets)-1, len(got))
+	if len(got) != len(presets)+2 {
+		t.Fatalf("expected the %d standard roles and 2 custom ones, got %d", len(presets), len(got))
 	}
 	// Standard roles come first in their usual order, then custom ones by key.
 	if got[0].Key != presets[0].key || got[len(got)-2].Key != "helper" || got[len(got)-1].Key != "senior_closer" {
@@ -447,7 +447,7 @@ func TestTheRoleCatalogHasThePlatformRolesInTheirOwnGroup(t *testing.T) {
 	}
 	workspace, _ := out["workspace"].([]any)
 	platform, _ := out["platform"].([]any)
-	if len(workspace) != len(presets)-1 || len(platform) != 3 { // researcher and system admin are switched off
+	if len(workspace) != len(presets) || len(platform) != 3 { // system admin is gone (D338)
 		t.Fatalf("workspace %d, platform %d", len(workspace), len(platform))
 	}
 	first, _ := platform[0].(map[string]any)

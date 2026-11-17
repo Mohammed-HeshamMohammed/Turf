@@ -45,10 +45,10 @@ func (s *server) assignTargets(ctx context.Context, sc scope, managed []string) 
 	if err != nil {
 		return nil, err
 	}
-	runs := map[string][]string{} // manager -> teams they run
+	runs := map[string][]string{} // team lead -> teams they lead
 	for _, t := range teams {
-		if t.ManagerID != "" {
-			runs[t.ManagerID] = append(runs[t.ManagerID], t.TeamID)
+		for _, lead := range t.leads() {
+			runs[lead] = append(runs[lead], t.TeamID)
 		}
 	}
 	everyone := slices.Contains(sc.scopes, "organization")
@@ -57,13 +57,11 @@ func (s *server) assignTargets(ctx context.Context, sc scope, managed []string) 
 		if len(m.Roles) == 0 || m.SuspendedAt != nil || (len(m.Roles) == 1 && m.Roles[0] == "client") {
 			continue
 		}
-		team := ""
-		if len(m.TeamIDs) == 1 {
-			team = m.TeamIDs[0] // a caller or closer
-		} else if len(runs[m.UserID]) == 1 {
-			team = runs[m.UserID][0] // a manager who runs one team
+		team := teamOf(m, managed) // a caller, closer or researcher: the giver's team of theirs, else their first
+		if team == "" && len(runs[m.UserID]) == 1 {
+			team = runs[m.UserID][0] // a team lead who leads one team
 		}
-		allowed := everyone || m.UserID == sc.userID || (len(m.TeamIDs) == 1 && slices.Contains(managed, m.TeamIDs[0]))
+		allowed := everyone || m.UserID == sc.userID || inTeams(m, managed)
 		if allowed {
 			out[m.UserID] = assignTarget{UserID: m.UserID, TeamID: team}
 		}
@@ -126,6 +124,7 @@ type assignScope struct {
 	UserID     string   `json:"user_id"`
 	Scopes     []string `json:"scopes"`
 	TeamIDs    []string `json:"team_ids"`
+	SeeTeams   []string `json:"see_teams,omitempty"` // missing in runs queued before step 11: then team_ids
 	ProjectIDs []string `json:"project_ids"`
 	Caps       []string `json:"caps"`
 }
@@ -193,7 +192,7 @@ func (s *server) startAssignment(q *req) error {
 		body.To = []string{}
 	}
 	selection, _ := json.Marshal(sel)
-	actor, _ := json.Marshal(assignScope{UserID: q.sc.userID, Scopes: q.sc.scopes, TeamIDs: q.sc.teamIDs, ProjectIDs: q.sc.projectIDs, Caps: q.sc.caps})
+	actor, _ := json.Marshal(assignScope{UserID: q.sc.userID, Scopes: q.sc.scopes, TeamIDs: q.sc.teamIDs, SeeTeams: q.sc.visibleTeams(), ProjectIDs: q.sc.projectIDs, Caps: q.sc.caps})
 	var limit any
 	if body.Limit > 0 {
 		limit = body.Limit
@@ -289,7 +288,7 @@ func (s *server) runAssignment(ctx context.Context, org, id string) {
 	var sel assignSelection
 	_ = json.Unmarshal(actorRaw, &actor)
 	_ = json.Unmarshal(selRaw, &sel)
-	sc := scope{userID: actor.UserID, orgID: org, scopes: actor.Scopes, teamIDs: actor.TeamIDs, projectIDs: actor.ProjectIDs, caps: actor.Caps}
+	sc := scope{userID: actor.UserID, orgID: org, scopes: actor.Scopes, teamIDs: actor.TeamIDs, seeTeams: actor.SeeTeams, projectIDs: actor.ProjectIDs, caps: actor.Caps}
 	after := ""
 	if cursor != nil {
 		after = *cursor
