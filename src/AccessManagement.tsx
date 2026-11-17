@@ -17,10 +17,14 @@ const statusWords = (item: Invitation) => {
 /** How an invitation's email went: sent, failed (tried and refused), or not set up (email is switched off on this server). */
 const deliveryWords = (state: string) => state === "sent" ? "Emailed" : state === "failed" ? "Email failed" : "Not emailed (email is off)";
 type Member = { user_id: string; email?: string; name?: string; roles: string[]; team_ids?: string[]; suspended_at?: number; suspended_reason?: string };
-type Team = { team_id: string; name: string; manager_id: string };
+type Team = { team_id: string; name: string; manager_id: string; manager_ids?: string[]; deputy_ids?: string[] };
+/** A team's leads: several under the new team rules, the one manager from an older server. */
+const leadsOf = (team: Team) => team.manager_ids?.length ? team.manager_ids : team.manager_id ? [team.manager_id] : [];
+/** The values picked in a multiple select. */
+const picked = (select: HTMLSelectElement) => [...select.selectedOptions].map(option => option.value).filter(Boolean);
 const workspaceRoles = ["manager", "caller", "closer", "client"];
 /** Callers and closers sit in exactly one team, under that team's manager. */
-const agentRoles = ["caller", "closer"];
+const agentRoles = ["caller", "closer", "researcher"];
 const isAgent = (role: string) => agentRoles.includes(role);
 const roleLabel = (role: string) => workspaceRoleName(role);
 
@@ -182,7 +186,12 @@ export function WorkspaceSecondStep({ auth, me }: { auth: Auth; me: Me }) {
 export function WorkspaceManager({ auth, authBase, orgId }: { auth: Auth; authBase: string; orgId: string }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [you, setYou] = useState<{ owner: boolean; manager: boolean; staff: boolean }>({ owner: false, manager: false, staff: false });
+  const [you, setYou] = useState<{ owner: boolean; manager: boolean; staff: boolean; admin?: boolean }>({ owner: false, manager: false, staff: false });
+  // The switches on for this workspace: "teams_v2" is the new team rules (several leads, deputies, admins, agents in several teams).
+  const [features, setFeatures] = useState<string[]>([]);
+  const teamsV2 = features.includes("teams_v2");
+  const [roleList, setRoleList] = useState<string[]>([]);
+  const [teamList, setTeamList] = useState<string[]>([]);
   const [roles, setRoles] = useState(workspaceRoles);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [editing, setEditing] = useState("");
@@ -195,12 +204,13 @@ export function WorkspaceManager({ auth, authBase, orgId }: { auth: Auth; authBa
   const load = async () => {
     try {
       const result = await call(auth, authBase, "GET", `/v1/orgs/${orgId}/members`);
-      setMembers(result.members); setTeams(result.teams || []); if (result.you) setYou(result.you); setState("ready");
+      setMembers(result.members); setTeams(result.teams || []); setFeatures(result.features || []); if (result.you) setYou(result.you); setState("ready");
     } catch { setState("error"); }
   };
   useEffect(() => { void load(); }, [auth, authBase, orgId]);
   useEffect(() => { call(auth, authBase, "GET", `/v1/orgs/${orgId}/roles`).then(result => setRoles([...new Set<string>(result.roles)]), () => setMessage("Custom roles could not be loaded. Standard roles remain available.")); }, [auth, authBase, orgId]);
-  const runs = (personId: string) => teams.filter(team => team.manager_id === personId);
+  const runs = (personId: string) => teams.filter(team => leadsOf(team).includes(personId));
+  const teamsOf = (person: Member) => (person.team_ids || []).map(teamName).filter(Boolean).join(", ");
   const teamName = (id?: string) => teams.find(team => team.team_id === id)?.name || "";
   const managers = members.filter(person => person.roles.includes("manager") && !person.suspended_at);
   const nameOf = (id: string) => { const person = members.find(entry => entry.user_id === id); return person ? person.name || person.email || "Member" : ""; };
@@ -213,8 +223,15 @@ export function WorkspaceManager({ auth, authBase, orgId }: { auth: Auth; authBa
   };
   const save = (event: React.FormEvent) => {
     event.preventDefault();
-    return act(async () => { await call(auth, authBase, "PUT", `/v1/orgs/${orgId}/members/${editing}`, { roles: [role], team_ids: isAgent(role) ? [teamId] : [] }); setEditing(""); }, "Member saved.");
+    // Under the new team rules a person can hold several roles and an agent can be in up to five teams (D97, D98).
+    const chosenRoles = teamsV2 && roleList.length ? roleList : [role];
+    const agent = chosenRoles.some(isAgent);
+    const chosenTeams = teamsV2 ? teamList : teamId ? [teamId] : [];
+    return act(async () => { await call(auth, authBase, "PUT", `/v1/orgs/${orgId}/members/${editing}`, { roles: chosenRoles, team_ids: agent ? chosenTeams : [] }); setEditing(""); }, "Member saved.");
   };
+  const setLeads = (team: Team, ids: string[]) => act(() => call(auth, authBase, "PUT", `/v1/orgs/${orgId}/teams/${team.team_id}`, { name: team.name, manager_ids: ids }), ids.length ? `${team.name} is led by ${ids.map(nameOf).join(", ")}.` : `${team.name} has no team lead now.`);
+  const setDeputies = (team: Team, ids: string[]) => act(() => call(auth, authBase, "PUT", `/v1/orgs/${orgId}/teams/${team.team_id}/deputies`, { deputy_ids: ids }), ids.length ? `Deputy leads of ${team.name}: ${ids.map(nameOf).join(", ")}.` : `${team.name} has no deputy lead now.`);
+  const flip = () => act(() => call(auth, authBase, "PUT", `/v1/admin/workspaces/${orgId}/features/teams_v2`, { on: !teamsV2 }), teamsV2 ? "The new team rules are off for this agency." : "The new team rules are on for this agency.");
   const suspend = (person: Member) => {
     if (person.suspended_at) return act(() => call(auth, authBase, "POST", `/v1/orgs/${orgId}/members/${person.user_id}/restore`), `${nameOf(person.user_id)} can work again.`);
     const reason = prompt(`Suspend ${nameOf(person.user_id)}? They keep their place and history but cannot open the workspace. Reason (optional):`, "");
@@ -229,35 +246,43 @@ export function WorkspaceManager({ auth, authBase, orgId }: { auth: Auth; authBa
     event.preventDefault();
     return act(async () => { await call(auth, authBase, "PUT", `/v1/orgs/${orgId}/teams/${crypto.randomUUID()}`, { name: newTeam.trim(), manager_id: newManager }); setNewTeam(""); setNewManager(""); }, "Team created.");
   };
-  const setManager = (team: Team, managerId: string) => act(() => call(auth, authBase, "PUT", `/v1/orgs/${orgId}/teams/${team.team_id}`, { name: team.name, manager_id: managerId }), managerId ? `${nameOf(managerId)} now runs ${team.name}.` : `${team.name} has no manager now.`);
+  const setManager = (team: Team, managerId: string) => act(() => call(auth, authBase, "PUT", `/v1/orgs/${orgId}/teams/${team.team_id}`, { name: team.name, manager_id: managerId }), managerId ? `${nameOf(managerId)} now leads ${team.name}.` : `${team.name} has no team lead now.`);
   const removeTeam = (team: Team) => {
     if (!confirm(`Remove the team ${team.name}?`)) return Promise.resolve();
     return act(() => call(auth, authBase, "DELETE", `/v1/orgs/${orgId}/teams/${team.team_id}`), `${team.name} was removed.`);
   };
   const leads = you.owner || you.staff;
-  const ownTeams = teams.filter(team => leads || team.manager_id === members.find(person => person.roles.includes("manager"))?.user_id);
+  const ownTeams = teams.filter(team => leads || members.some(person => person.roles.includes("manager") && leadsOf(team).includes(person.user_id)));
+  const workers = members.filter(person => !person.suspended_at && !(person.roles.length === 1 && person.roles[0] === "client"));
   return <section className="admin-manage card">
-    <div><span className="eyebrow">Workspace access</span><h2>{leads ? "Teams and members" : "Your team"}</h2><p className="muted">{leads ? "Each team has one manager. Callers and closers sit in one team, under its manager. The owner role is permanent." : "The callers and closers of the teams you run. You can suspend or restore them; the agency owner changes roles and teams."}</p></div>
+    <div><span className="eyebrow">Workspace access</span><h2>{leads ? "Teams and members" : "Your team"}</h2><p className="muted">{leads ? (teamsV2 ? "A team has no lead, one, or several equal leads, and deputy leads who help them. Callers, closers and researchers can be in up to five teams. The owner role is permanent." : "Each team has one team lead. Callers and closers sit in one team, under its lead. The owner role is permanent.") : "The callers, closers and researchers of the teams you lead. You can suspend or restore them; the agency owner changes roles and teams."}</p>
+      {you.staff && <p className="notice" role="note">New team rules for this agency (staff only): <strong>{teamsV2 ? "on" : "off"}</strong>. <button type="button" className="staff-text-button" disabled={busy} onClick={() => void flip()}>{teamsV2 ? "Turn off" : "Turn on"}</button></p>}</div>
     {state === "loading" ? <p role="status">Loading members…</p> : state === "error" ? <p role="alert">Members are unavailable. <button type="button" className="staff-text-button" onClick={() => void load()}>Retry</button></p> : <>
-      {(leads || teams.length > 0) && <div><h3>Teams</h3>{teams.length === 0 ? <p className="muted">No teams yet. Create one, then invite callers and closers into it.</p> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Team</th><th>Manager</th><th>People</th><th><span className="sr-only">Action</span></th></tr></thead><tbody>{(leads ? teams : ownTeams).map(team => <tr key={team.team_id}><td>{team.name}</td><td>{leads ? <select aria-label={`Manager of ${team.name}`} value={team.manager_id} disabled={busy} onChange={event => void setManager(team, event.target.value)}><option value="">No manager</option>{managers.map(person => <option key={person.user_id} value={person.user_id}>{person.name || person.email}</option>)}</select> : nameOf(team.manager_id) || "No manager"}</td><td>{members.filter(person => person.team_ids?.[0] === team.team_id).length}</td><td>{leads && <button type="button" className="staff-text-button" disabled={busy} onClick={() => void removeTeam(team)}>Remove</button>}</td></tr>)}</tbody></table></div>}
-        {leads && <form className="staff-form" onSubmit={addTeam}><div className="staff-fields"><label>New team<input required maxLength={100} value={newTeam} onChange={event => setNewTeam(event.target.value)} placeholder="Tampa callers" /></label><label>Manager<select value={newManager} onChange={event => setNewManager(event.target.value)}><option value="">Choose later</option>{managers.map(person => <option key={person.user_id} value={person.user_id}>{person.name || person.email}</option>)}</select></label><button className="button primary" disabled={busy || !newTeam.trim()}>Create team</button></div>{managers.length === 0 && <p className="muted">Invite someone as Team manager to give a team its manager.</p>}</form>}
+      {(leads || teams.length > 0) && <div><h3>Teams</h3>{teams.length === 0 ? <p className="muted">No teams yet. Create one, then invite callers and closers into it.</p> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Team</th><th>{teamsV2 ? "Team leads" : "Team lead"}</th>{teamsV2 && <th>Deputy leads</th>}<th>People</th><th><span className="sr-only">Action</span></th></tr></thead><tbody>{(leads ? teams : ownTeams).map(team => <tr key={team.team_id}><td>{team.name}</td><td>{leads && teamsV2 ? <select multiple size={Math.min(4, Math.max(2, managers.length))} aria-label={`Team leads of ${team.name}`} value={leadsOf(team)} disabled={busy} onChange={event => void setLeads(team, picked(event.currentTarget))}>{managers.map(person => <option key={person.user_id} value={person.user_id}>{person.name || person.email}</option>)}</select> : leads ? <select aria-label={`Team lead of ${team.name}`} value={team.manager_id} disabled={busy} onChange={event => void setManager(team, event.target.value)}><option value="">No team lead</option>{managers.map(person => <option key={person.user_id} value={person.user_id}>{person.name || person.email}</option>)}</select> : leadsOf(team).map(nameOf).join(", ") || "No team lead"}</td>{teamsV2 && <td>{leads || you.manager ? <select multiple size={Math.min(4, Math.max(2, workers.length))} aria-label={`Deputy leads of ${team.name}`} value={team.deputy_ids || []} disabled={busy} onChange={event => void setDeputies(team, picked(event.currentTarget))}>{workers.filter(person => !leadsOf(team).includes(person.user_id)).map(person => <option key={person.user_id} value={person.user_id}>{person.name || person.email}</option>)}</select> : (team.deputy_ids || []).map(nameOf).join(", ") || "—"}</td>}<td>{members.filter(person => person.team_ids?.includes(team.team_id)).length}</td><td>{leads && <button type="button" className="staff-text-button" disabled={busy} onClick={() => void removeTeam(team)}>Remove</button>}</td></tr>)}</tbody></table></div>}
+        {leads && <form className="staff-form" onSubmit={addTeam}><div className="staff-fields"><label>New team<input required maxLength={100} value={newTeam} onChange={event => setNewTeam(event.target.value)} placeholder="Tampa callers" /></label><label>Team lead<select value={newManager} onChange={event => setNewManager(event.target.value)}><option value="">Choose later</option>{managers.map(person => <option key={person.user_id} value={person.user_id}>{person.name || person.email}</option>)}</select></label><button className="button primary" disabled={busy || !newTeam.trim()}>Create team</button></div>{managers.length === 0 && <p className="muted">A team can start without a lead. Invite someone as Team lead to give it one.</p>}</form>}
       </div>}
       <div><h3>Members</h3><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Person</th><th>Role</th><th>Team</th><th>Status</th><th><span className="sr-only">Action</span></th></tr></thead><tbody>{members.map(person => <tr key={person.user_id}>
         <td>{person.name || person.email || "Account"}<small className="admin-member-email">{person.email}</small></td>
         <td>{person.roles.map(roleLabel).join(", ")}</td>
-        <td>{person.roles.includes("manager") ? (runs(person.user_id).map(team => team.name).join(", ") || "Runs no team yet") : teamName(person.team_ids?.[0]) || "—"}</td>
+        <td>{[person.roles.includes("manager") ? (runs(person.user_id).map(team => `leads ${team.name}`).join(", ") || "Leads no team yet") : "", teamsOf(person)].filter(Boolean).join(" · ") || "—"}</td>
         <td>{person.suspended_at ? <span title={person.suspended_reason || ""}>Suspended</span> : "Active"}</td>
         <td>{!isOwnerRow(person) && <span className="admin-row-actions">
-          {leads && <button type="button" className="staff-text-button" disabled={busy} onClick={() => { setEditing(person.user_id); setRole(person.roles[0] || "caller"); setTeamId(person.team_ids?.[0] || ""); setMessage(""); }}>Change role or team</button>}
+          {leads && <button type="button" className="staff-text-button" disabled={busy} onClick={() => { setEditing(person.user_id); setRole(person.roles[0] || "caller"); setRoleList(person.roles); setTeamId(person.team_ids?.[0] || ""); setTeamList(person.team_ids || []); setMessage(""); }}>Change role or team</button>}
           {(leads || (you.manager && isAgent(person.roles[0] || ""))) && <button type="button" className="staff-text-button" disabled={busy} onClick={() => void suspend(person)}>{person.suspended_at ? "Restore" : "Suspend"}</button>}
           {leads && <button type="button" className="staff-text-button" disabled={busy} onClick={() => void remove(person)}>Remove</button>}
         </span>}</td>
       </tr>)}</tbody></table></div></div>
     </>}
     {editing && <form className="staff-form" onSubmit={save}><div className="staff-fields">
-      <label>Role for {nameOf(editing)}<select value={role} onChange={event => setRole(event.target.value)}>{roles.map(value => <option key={value} value={value}>{roleLabel(value)}</option>)}</select></label>
-      {isAgent(role) && <label>Team<select required value={teamId} onChange={event => setTeamId(event.target.value)}><option value="">Choose a team</option>{teams.map(team => <option key={team.team_id} value={team.team_id}>{team.name}</option>)}</select></label>}
-      <button className="button primary" disabled={busy || (isAgent(role) && !teamId)}>{busy ? "Saving…" : "Save"}</button><button type="button" className="button raised" onClick={() => setEditing("")}>Cancel</button>
+      {teamsV2 ? <>
+        <label>Roles for {nameOf(editing)}<select multiple size={Math.min(5, roles.length)} value={roleList} onChange={event => setRoleList(picked(event.currentTarget))}>{roles.map(value => <option key={value} value={value}>{roleLabel(value)}</option>)}</select></label>
+        {roleList.some(isAgent) && <label>Teams (up to five)<select multiple size={Math.min(5, Math.max(2, teams.length))} value={teamList} onChange={event => setTeamList(picked(event.currentTarget).slice(0, 5))}>{teams.map(team => <option key={team.team_id} value={team.team_id}>{team.name}</option>)}</select></label>}
+        <button className="button primary" disabled={busy || !roleList.length || (roleList.some(isAgent) && !teamList.length)}>{busy ? "Saving…" : "Save"}</button>
+      </> : <>
+        <label>Role for {nameOf(editing)}<select value={role} onChange={event => setRole(event.target.value)}>{roles.map(value => <option key={value} value={value}>{roleLabel(value)}</option>)}</select></label>
+        {isAgent(role) && <label>Team<select required value={teamId} onChange={event => setTeamId(event.target.value)}><option value="">Choose a team</option>{teams.map(team => <option key={team.team_id} value={team.team_id}>{team.name}</option>)}</select></label>}
+        <button className="button primary" disabled={busy || (isAgent(role) && !teamId)}>{busy ? "Saving…" : "Save"}</button>
+      </>}<button type="button" className="button raised" onClick={() => setEditing("")}>Cancel</button>
     </div></form>}
     {message && <p className="notice" role="status">{message}</p>}
   </section>;

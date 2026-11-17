@@ -14,7 +14,7 @@ type Plan = { plan: string; plan_name?: string; status?: string; period_end?: st
 type Person = { user_id: string; name: string; roles: string[]; team_name: string; suspended: boolean };
 type Totals = { user_id: string; dials: number; connects: number; qualified: number; callbacks: number; bad_numbers: number; do_not_call: number; leads_worked: number; leads_held: number; tasks_done: number; tasks_open: number; tasks_overdue: number; notes: number; last_active?: string };
 
-const ROLE_NAMES: Record<string, string> = { owner: "Agency owner", solo: "Solo operator", manager: "Team manager", caller: "Caller", closer: "Acquisitions / closer", client: "Client" };
+const ROLE_NAMES: Record<string, string> = { owner: "Agency owner", solo: "Solo operator", manager: "Team lead", admin: "Admin", researcher: "Data researcher", caller: "Caller", closer: "Acquisitions / closer", client: "Client" };
 const initials = (text: string) => (text.split("@")[0].split(/[\s._-]+/).filter(Boolean).slice(0, 2).map(word => word[0]).join("") || "?").toUpperCase();
 const firstNameOf = (me: Me) => String(me.first_name || "").trim() || (me.name || "").trim().split(/\s+/)[0] || me.email;
 const viewFromHash = (hash: string): View => (["team", "invitations", "activity", "account"].includes(hash.slice(1)) ? (hash.slice(1) as View) : "overview");
@@ -120,7 +120,7 @@ export function WorkspaceDashboard({ access, auth, authBase, me, onSaved }: { ac
   const link = (key: View, label: string) => <a href={`#${key}`} aria-current={view === key ? "page" : undefined} onClick={event => { event.preventDefault(); open(key); }}>{label}</a>;
   return <div className="admin-layout">
     <div className="admin-sidebar-slot"><aside className="admin-sidebar" aria-label="Workspace navigation">
-      <div className="admin-sidebar-brand"><span className="admin-sidebar-mark" aria-hidden="true">{me.avatar ? <img src={String(me.avatar)} alt="" /> : initials(me.name || me.email)}</span><span><strong>{owner ? (solo ? "Solo operator" : "Agency owner") : "Team manager"}</strong><small>{firstNameOf(me)}</small></span></div>
+      <div className="admin-sidebar-brand"><span className="admin-sidebar-mark" aria-hidden="true">{me.avatar ? <img src={String(me.avatar)} alt="" /> : initials(me.name || me.email)}</span><span><strong>{owner ? (solo ? "Solo operator" : "Agency owner") : "Team lead"}</strong><small>{firstNameOf(me)}</small></span></div>
       {spaces.length > 1 && <label className="admin-sidebar-note">Workspace<select value={space?.org_id} onChange={event => setOrgId(event.target.value)}>{spaces.map((item, index) => <option key={item.org_id} value={item.org_id}>Workspace {index + 1}</option>)}</select></label>}
       <nav aria-label="Dashboard sections">
         {link("overview", "Overview")}
