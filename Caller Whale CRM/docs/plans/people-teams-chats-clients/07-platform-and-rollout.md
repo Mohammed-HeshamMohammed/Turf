@@ -74,6 +74,10 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D309 | Small changes to the terms or privacy policy are announced in "What's new". Big changes must be accepted at the next sign-in before working, and the date each person accepted is recorded. | 40, lawyer |
 | D310 | The owner has a tool for a lead's data request. It finds every record about that person in the agency, exports or deletes it, blocks the number if asked, and records the request and its date. | 44, lawyer |
 | D311 | A Caller Whale account needs its holder to be 18 or older, confirmed at sign-up, as the terms say today. Personal chats follow the same rule. | - |
+| D312 | One agency is built and tested to stay fast up to 200 people, 50 teams and 1 million leads. Larger agencies talk to Caller Whale first. | all |
+| D313 | Anyone can open a sample agency with made-up teams, leads and chats to explore every screen. Real calling, texting and imports need a paid plan and the carrier check. | 31 |
+| D314 | Before paying, an owner can create teams and clients and invite people. Nobody can call, text or import real leads until the plan is paid and the carrier check passes. | 31 |
+| D315 | The sample agency runs on made-up data inside the person's own tab, as the CRM's sample workspace does today. Nothing from it ever reaches the real databases. | 31 |
 
 ## Notes
 
