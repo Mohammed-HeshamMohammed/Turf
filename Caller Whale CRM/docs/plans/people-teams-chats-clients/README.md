@@ -115,6 +115,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | 37 | Sending a lead to another agency: owner or admin sends and accepts, contact details and a note travel, the sender keeps a closed copy and sees the outcome, blocks travel with it. | 20, 25 |
 | 38 | Files on leads: upload by whoever holds the lead, sharing by team leads and above, scanning, size and type limits, storage against the plan, tracked shared links that expire. *No file storage exists for leads yet as far as this plan has read.* | 23 |
 | 39 | Carrier registration per agency (10DLC brand and campaign), calling and texting opened only after approval, agency complaint and opt-out rates with warn-limit-suspend, the staff view across agencies. *The dialer and SMS provider's registration API has not been read; carrier approval takes days to weeks and is outside our control.* | 21 |
+| 40 | Help and feedback: help pages, a support conversation for owners and admins, "What's new" notes by role, early features owners can opt into, a feedback button that attaches the page and version but no lead data. | - |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -141,6 +142,7 @@ The step numbers above are names, not the order. The order is:
 17. Steps 36 and 37: website forms and sending leads between agencies, after steps 23 and 25.
 18. Step 38: files on leads, with or after step 23.
 19. Step 39: carrier registration and agency policing, before any real agency texts. Like the lawyer and Google, carrier approval takes calendar time, so it should start early.
+20. Step 40: help and feedback. The feedback button and "What's new" notes are worth building early, since they help the owner and testers try every later step.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
@@ -162,7 +164,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-291 decisions. Each row links to the file that holds it.
+295 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -457,3 +459,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D289 | Each of these is priced as its own feature: call recording and its storage, AI call suggestions and captions, number checks and reassigned-number checks, and files on leads beyond a free amount. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D290 | Client and partner people stay free seats, up to a generous number per client (10 to start), since they never call or text. Above that the owner asks Caller Whale. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D291 | Each step records what its feature costs Caller Whale to run. The sell price is set when the step is built and its real cost is known, in line with pricing each feature on its own. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D292 | Everyone has searchable help pages and the in-app assistant. Owners and admins also get a support conversation with Caller Whale staff. Members ask their owner first. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D293 | When a step is switched on, the people it affects see a one-time "What's new" note for their role. Owners get a fuller list. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D294 | Owners can switch on early features for their agency from settings, knowing they may change. This uses the per-step switches (D104). | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D295 | A "Send feedback" button on every page sends the person's note with the page they were on and the app version. No lead data is attached. | [07-platform-and-rollout](07-platform-and-rollout.md) |

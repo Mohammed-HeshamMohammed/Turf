@@ -54,6 +54,10 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D289 | Each of these is priced as its own feature: call recording and its storage, AI call suggestions and captions, number checks and reassigned-number checks, and files on leads beyond a free amount. | 21, 26, 38 |
 | D290 | Client and partner people stay free seats, up to a generous number per client (10 to start), since they never call or text. Above that the owner asks Caller Whale. | 23 |
 | D291 | Each step records what its feature costs Caller Whale to run. The sell price is set when the step is built and its real cost is known, in line with pricing each feature on its own. | every step |
+| D292 | Everyone has searchable help pages and the in-app assistant. Owners and admins also get a support conversation with Caller Whale staff. Members ask their owner first. | 40 |
+| D293 | When a step is switched on, the people it affects see a one-time "What's new" note for their role. Owners get a fuller list. | 40 |
+| D294 | Owners can switch on early features for their agency from settings, knowing they may change. This uses the per-step switches (D104). | 40 |
+| D295 | A "Send feedback" button on every page sends the person's note with the page they were on and the app version. No lead data is attached. | 40 |
 
 ## Notes
 
