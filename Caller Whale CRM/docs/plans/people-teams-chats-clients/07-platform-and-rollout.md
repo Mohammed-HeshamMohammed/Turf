@@ -47,6 +47,7 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D236 | After a security breach affecting an agency's data, its owner is told within 72 hours of Caller Whale knowing, with what happened and what to do. Telling leads or authorities follows the law, which the lawyer sets out. | 34, lawyer |
 | D266 | The owner can export the agency's leads, history, notes, tasks and files (and recordings, if kept) in common formats at any time and when closing. | 18 |
 | D267 | The owner sees each member's last sign-in, days active this month and the seats in use, so unused seats can be freed. Nothing beyond what reports already count is tracked. | 32 |
+| D271 | Only the platform owner and cofounder, with a second step, see across agencies: agency-level numbers such as complaint rates, spend and seats, never lead details. Narrower staff roles (support, billing, moderation) come when there is a team. | 39 |
 
 ## Notes
 
@@ -72,6 +73,7 @@ D166 means the opening date is set by the slowest of these, none of which is onl
 - **The lawyer:** terms and privacy text for personal chats and reports, retention periods, telling a lead about a joined or recorded call, client lists on leaving, calling hours, and the three kinds of "do not call".
 - **The SMS and calling stage:** lead threads, takeover, team numbers, live calls, inbound routing and budgets (steps 10, 21, 22) cannot be finished before texts and calls themselves work.
 - **Google's review:** connecting Google Calendar needs Google to approve the app.
+- **Carrier registration:** each agency's texting brand must be approved by the carriers (D268), which takes days to weeks per agency.
 - **Services not yet read for this plan:** billing, the dialer, imports, the assistant and call helpers, mail, calendar and deals, and the existing do-not-call code. Until they are read, those steps say what should happen, not how long they take.
 
 The order of work in the index still applies inside D166: the steps the owner marked in D169 come first, so the parts that can be tried early are tried early.

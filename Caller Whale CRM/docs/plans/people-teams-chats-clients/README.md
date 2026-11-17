@@ -114,6 +114,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | 36 | Website forms per client: link or embed, submissions become leads in a chosen team, block-list check, consent recorded. *For the lawyer: the consent wording.* | 23, 25 |
 | 37 | Sending a lead to another agency: owner or admin sends and accepts, contact details and a note travel, the sender keeps a closed copy and sees the outcome, blocks travel with it. | 20, 25 |
 | 38 | Files on leads: upload by whoever holds the lead, sharing by team leads and above, scanning, size and type limits, storage against the plan, tracked shared links that expire. *No file storage exists for leads yet as far as this plan has read.* | 23 |
+| 39 | Carrier registration per agency (10DLC brand and campaign), calling and texting opened only after approval, agency complaint and opt-out rates with warn-limit-suspend, the staff view across agencies. *The dialer and SMS provider's registration API has not been read; carrier approval takes days to weeks and is outside our control.* | 21 |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -139,6 +140,7 @@ The step numbers above are names, not the order. The order is:
 16. Step 35: sign-in options and sessions, alongside step 15.
 17. Steps 36 and 37: website forms and sending leads between agencies, after steps 23 and 25.
 18. Step 38: files on leads, with or after step 23.
+19. Step 39: carrier registration and agency policing, before any real agency texts. Like the lawyer and Google, carrier approval takes calendar time, so it should start early.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
@@ -160,7 +162,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-267 decisions. Each row links to the file that holds it.
+271 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -431,3 +433,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D265 | Agencies stay blind to each other. Caller Whale never compares one agency's leads or people with another's, even when a person moves from one to the other. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D266 | The owner can export the agency's leads, history, notes, tasks and files (and recordings, if kept) in common formats at any time and when closing. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D267 | The owner sees each member's last sign-in, days active this month and the seats in use, so unused seats can be freed. Nothing beyond what reports already count is tracked. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D268 | Each agency registers its own texting brand with the carriers (US 10DLC). The owner enters the business details during setup and Caller Whale submits the registration. An agency cannot text until it is approved, so one agency's behaviour cannot get the others blocked. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D269 | Staff see each agency's complaint and opt-out rates. Above a threshold the owner is warned, then sending is limited, then the agency is suspended until staff review. Each step is recorded and the owner can appeal. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D270 | A new agency can set up, import and invite freely, but calling and texting open only after its business details pass the registration check, with a quick staff look for the first agencies. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D271 | Only the platform owner and cofounder, with a second step, see across agencies: agency-level numbers such as complaint rates, spend and seats, never lead details. Narrower staff roles (support, billing, moderation) come when there is a team. | [07-platform-and-rollout](07-platform-and-rollout.md) |
