@@ -107,6 +107,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | 29 | Email from the agency's or a client's sending domain, with replies returning to the lead's record. *The mail code has not been read for this.* | 23 |
 | 30 | Protecting an agency's leads: who can export, masked phone numbers for agents, a warning and slow-down on unusual access, and a record of who opened each lead. *Honest limit: a number an agent may call can still be written down by hand.* | 20 |
 | 31 | First setup for a new agency (guided, skippable, with a checklist), a walk-through per role, and agency material that managers assign. *The learning service has not been read for this.* | 11, 23 |
+| 32 | Overviews by role (owner: what needs them today; team lead: their team right now), scheduled report emails with totals only, reports in the agency's time zone. *The current overview and reports code has not been read for this.* | 20, 22, 23 |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -127,6 +128,7 @@ The step numbers above are names, not the order. The order is:
 11. Steps 28 and 29: pipeline, appointments, Google Calendar and email sending, after step 23.
 12. Step 30: protecting leads, straight after step 20, since it guards the same data.
 13. Step 31: first setup and walk-throughs, last, once the screens they describe exist.
+14. Step 32: overviews and reports, once the things they count exist.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
@@ -148,7 +150,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-224 decisions. Each row links to the file that holds it.
+228 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -376,3 +378,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D222 | A traced number that turns out to be blocked is saved on the lead, shown as blocked, and cannot be called or texted, so it is never paid for again. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D223 | A lead's data is never shared between the agency's clients. A number traced or a note written for one client's lead is never used for another client's copy, and each client pays for its own. | [04-clients](04-clients.md) |
 | D224 | Each agency sets how long a lead nobody works is kept (for example 2 years without contact). Before deletion the owner gets a list and can keep any lead with a reason. The lawyer sets the longest period allowed. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D225 | The owner's overview opens with what needs them today: waiting hand-ons, seat requests, blocked invitations, budgets running low, numbers losing health, overdue callbacks across teams. Numbers and charts come below. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D226 | A team lead's overview opens with their team right now: who is available, on a call or on a break; unanswered lead texts; overdue callbacks; unassigned leads. Today's results come below. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D227 | The owner, admins and team leads can schedule a weekly or monthly report to themselves or to a client's people inside Caller Whale. The email holds totals only; the details open in Caller Whale. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D228 | Reports use the agency's time zone, so everyone sees the same numbers. A team with its own hours still reports in the agency's zone. | [02-teams-and-leads](02-teams-and-leads.md) |

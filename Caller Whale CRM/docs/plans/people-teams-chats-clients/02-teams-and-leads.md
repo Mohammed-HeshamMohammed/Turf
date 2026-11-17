@@ -61,6 +61,10 @@ How teams are built (managers, deputies, admins, agents in several teams), who h
 | D221 | The owner, admins and team leads can run skip tracing. An agent can ask for a lead to be traced, and a team lead approves. It is paid from the lead's client and team budget. | 20, 22 |
 | D222 | A traced number that turns out to be blocked is saved on the lead, shown as blocked, and cannot be called or texted, so it is never paid for again. | 20, 25 |
 | D224 | Each agency sets how long a lead nobody works is kept (for example 2 years without contact). Before deletion the owner gets a list and can keep any lead with a reason. The lawyer sets the longest period allowed. | 20, lawyer |
+| D225 | The owner's overview opens with what needs them today: waiting hand-ons, seat requests, blocked invitations, budgets running low, numbers losing health, overdue callbacks across teams. Numbers and charts come below. | 32 |
+| D226 | A team lead's overview opens with their team right now: who is available, on a call or on a break; unanswered lead texts; overdue callbacks; unassigned leads. Today's results come below. | 32 |
+| D227 | The owner, admins and team leads can schedule a weekly or monthly report to themselves or to a client's people inside Caller Whale. The email holds totals only; the details open in Caller Whale. | 32 |
+| D228 | Reports use the agency's time zone, so everyone sees the same numbers. A team with its own hours still reports in the agency's zone. | 32 |
 
 ## Notes
 
