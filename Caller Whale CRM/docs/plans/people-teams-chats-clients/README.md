@@ -201,7 +201,7 @@ Found in a review on 2026-11-17 and settled by the owner the same day. Replaced 
 
 ## Every decision
 
-358 decisions. Each row links to the file that holds it.
+362 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -563,3 +563,7 @@ Found in a review on 2026-11-17 and settled by the owner the same day. Replaced 
 | D356 | Consent belongs to one agency and one number. Each agency holds its own consent for the same number, and one agency's consent never lets another agency text it. | [06-do-not-call](06-do-not-call.md) |
 | D357 | Each lead has a primary phone and a primary email. Consent and blocks belong to each number or address, so a blocked number never blocks the lead's others unless the lead asked. | [06-do-not-call](06-do-not-call.md) |
 | D358 | Consent stays until the lead opts out. If a lead has not been contacted for 6 months (as for reassigned numbers, D214), consent is re-confirmed on the next call before texting. | [06-do-not-call](06-do-not-call.md) |
+| D359 | When a lead asks to be called back ("call me at 5", "call me tomorrow"), the captions detect it and offer a callback with the time filled in, in the lead's time zone and inside calling hours. The agent confirms or changes it with one click. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D360 | When a lead agrees to meet during a call, the captions notice it and open the booking panel with the team's closers' free slots (D155), so the caller books during the call. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D361 | When a call ends, its outcome is pre-selected from what was said. The agent confirms with one click or picks another. Quick outcomes still work as they do today. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D362 | Calls produce only practical signals with a clear action, such as "asked about price", "wants to sell soon" or "mentioned another buyer". People are not scored on mood. | [05-calls-and-budgets](05-calls-and-budgets.md) |
