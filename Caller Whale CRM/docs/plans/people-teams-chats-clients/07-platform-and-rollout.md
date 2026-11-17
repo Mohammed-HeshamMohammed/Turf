@@ -23,6 +23,10 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D105 | Personal chats go live after teams and the name tag, once the lawyer's text is ready. The server's memory is checked before the second database is created. | order |
 | D107 | Each step is checked by automatic tests and in the web app, then tried by the owner in their own agency with a second account, before it is switched on for everyone. | every step |
 | D145 | The plan is kept in one folder: an index of every decision, and one file per area. | done |
+| D166 | Everything in this plan is built before Caller Whale is opened to agencies. There is no smaller first release. | all |
+| D167 | Until then the only people using it with real leads are the owner and a couple of friends. Each step that changes teams, roles or leads carries their existing people and data across, and they are told before it is switched on. | all |
+| D168 | Every new screen works at phone width, as the CRM already does. A separate mobile app is not part of this plan. | all |
+| D169 | Within building it all, the owner marked these as mattering most after the invitation fixes and teams and roles: leads by team and protecting leads, clients, the name tag and personal chats, and the web cache for several agencies. | order |
 
 ## Notes
 
@@ -40,3 +44,14 @@ The web cache, shared devices, what plans and billing do to people, support acce
   4. Never while there are unsynced changes, an open edit form or a call in progress. Updates apply row by row and keep scroll position and selection.
 - **Manual "Reload everything"** stays.
 - **Removal.** Losing access to an agency deletes that agency's slot. (Problem 20.)
+
+## What "build it all before opening" waits on
+
+D166 means the opening date is set by the slowest of these, none of which is only code:
+
+- **The lawyer:** terms and privacy text for personal chats and reports, retention periods, telling a lead about a joined or recorded call, client lists on leaving, calling hours, and the three kinds of "do not call".
+- **The SMS and calling stage:** lead threads, takeover, team numbers, live calls, inbound routing and budgets (steps 10, 21, 22) cannot be finished before texts and calls themselves work.
+- **Google's review:** connecting Google Calendar needs Google to approve the app.
+- **Services not yet read for this plan:** billing, the dialer, imports, the assistant and call helpers, mail, calendar and deals, and the existing do-not-call code. Until they are read, those steps say what should happen, not how long they take.
+
+The order of work in the index still applies inside D166: the steps the owner marked in D169 come first, so the parts that can be tried early are tried early.

@@ -147,7 +147,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-165 decisions. Each row links to the file that holds it.
+169 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -316,3 +316,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D163 | By default agents see only the last digits of a lead's phone number and call or text with a button. The owner can switch full numbers on per team. Managers and above always see them. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D164 | When a person opens or scrolls through far more leads than usual, the owner and admins are told and that person is slowed for a while. Nothing is blocked outright. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D165 | Each lead keeps a record of who opened it and when, visible to the owner and admins, kept for a set time. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D166 | Everything in this plan is built before Caller Whale is opened to agencies. There is no smaller first release. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D167 | Until then the only people using it with real leads are the owner and a couple of friends. Each step that changes teams, roles or leads carries their existing people and data across, and they are told before it is switched on. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D168 | Every new screen works at phone width, as the CRM already does. A separate mobile app is not part of this plan. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D169 | Within building it all, the owner marked these as mattering most after the invitation fixes and teams and roles: leads by team and protecting leads, clients, the name tag and personal chats, and the web cache for several agencies. | [07-platform-and-rollout](07-platform-and-rollout.md) |
