@@ -118,6 +118,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | 40 | Help and feedback: help pages, a support conversation for owners and admins, "What's new" notes by role, early features owners can opt into, a feedback button that attaches the page and version but no lead data. | - |
 | 41 | Backups and recovery: daily off-server backups of every database kept 30 days, a monthly restore test, restoring a single agency, data location in the terms; a second server planned but not required to open. *The current Coolify backup settings have not been checked for this.* | - |
 | 42 | Monitoring and alerts: Grafana checks on sign-in, calls, texts, chats and databases; urgent alerts to the on-call person's phone; the speed targets watched; web app errors collected without personal data. *The current Grafana setup has not been read for this.* | - |
+| 43 | Security: fix the high-severity library weaknesses GitHub reports (before step 1), the cross-agency tests run on every change, a written way to change each secret with a yearly change, a monthly update review, and one outside security test before opening. | - |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -125,6 +126,7 @@ Each step ships on its own, with its tests, and is checked in the web app before
 
 The step numbers above are names, not the order. The order is:
 
+0. Before step 1: the high-severity library fixes from step 43. The cross-agency tests grow with each step; the outside test comes last, before opening.
 1. Steps 1 and 2: the invitation fixes.
 2. Step 11: teams and roles, then step 3 (invitations that carry teams and roles), step 20 (leads and teams), step 12 (hand-on) and step 16 (team chats, directory, record).
 3. Step 4: the name tag and settings, with step 15.
@@ -168,7 +170,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-303 decisions. Each row links to the file that holds it.
+307 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -475,3 +477,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D301 | The owner and cofounder take turns on call each week. Only urgent alerts (calls, texts or sign-in down) wake anyone; the rest wait for the morning. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D302 | Opening a lead or a list appears within a second, and saving an outcome or sending a text answers within half a second, for most people. Slower than that triggers an alert. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D303 | Errors in the web app are sent automatically with the page and version, stripped of names, numbers and message text, alongside the server's Runtime Logs table. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D304 | An outside security tester checks sign-in, the separation between agencies, personal chats and the gateway before any real agency joins. What they find is fixed first. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D305 | A set of automatic tests signs in as people of different agencies and tries every way to read another agency's leads, chats and files. Any change that lets one through fails before it ships. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D306 | Every secret has a written way to change it. Secrets are changed yearly, and at once if a person who knew them leaves or a leak is suspected. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D307 | The 3 high-severity weaknesses GitHub reports in outside libraries are fixed before the first build step. After that, updates are reviewed monthly and serious ones within a week. | [07-platform-and-rollout](07-platform-and-rollout.md) |

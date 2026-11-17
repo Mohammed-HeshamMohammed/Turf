@@ -66,6 +66,10 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D301 | The owner and cofounder take turns on call each week. Only urgent alerts (calls, texts or sign-in down) wake anyone; the rest wait for the morning. | 42 |
 | D302 | Opening a lead or a list appears within a second, and saving an outcome or sending a text answers within half a second, for most people. Slower than that triggers an alert. | all |
 | D303 | Errors in the web app are sent automatically with the page and version, stripped of names, numbers and message text, alongside the server's Runtime Logs table. | 42 |
+| D304 | An outside security tester checks sign-in, the separation between agencies, personal chats and the gateway before any real agency joins. What they find is fixed first. | 43 |
+| D305 | A set of automatic tests signs in as people of different agencies and tries every way to read another agency's leads, chats and files. Any change that lets one through fails before it ships. | all |
+| D306 | Every secret has a written way to change it. Secrets are changed yearly, and at once if a person who knew them leaves or a leak is suspected. | 43 |
+| D307 | The 3 high-severity weaknesses GitHub reports in outside libraries are fixed before the first build step. After that, updates are reviewed monthly and serious ones within a week. | 43 |
 
 ## Notes
 
