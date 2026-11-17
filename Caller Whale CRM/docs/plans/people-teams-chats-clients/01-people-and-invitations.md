@@ -47,6 +47,10 @@ Who can be invited, how an invitation works from sending to arriving, one person
 | D238 | The owner can require an authenticator for everyone in the agency. A member without one sets it up at their next sign-in before they can work. | 35 |
 | D239 | Resetting a forgotten password needs the email link and either the authenticator or a saved recovery code. Someone who has lost both is checked by support, with a waiting period. | 35 |
 | D240 | Each person sees their signed-in devices and can sign any of them out. The owner and admins can sign out every session of a member of their agency. | 35 |
+| D241 | A Google, Microsoft or Apple sign-in can be linked to an existing account only while signed in to it, after confirming the provider's email. Invitations still match the account's main email. Apple's hidden relay addresses are accepted this way. | 35 |
+| D242 | A sign-in from a new device sends an email and an account notification with the device and rough place, with a "This wasn't me" button that signs it out and starts a password reset. | 35 |
+| D243 | The owner can limit their agency's members to sign in only from chosen countries, and only from chosen networks (office internet addresses). | 35 |
+| D244 | Each agency sets how long a person can stay idle before being signed out, 8 hours by default. A call in progress never times out. | 35 |
 
 ## Notes
 
@@ -90,3 +94,7 @@ Who can be invited, how an invitation works from sending to arriving, one person
 - **Search.** Part of a name finds only people in your own agencies. A full `Name#id` finds exactly one person anywhere, with rate limits, so nobody can list every user.
 - **Settings**, next to the phone setting: "Who can find me" and "Who can message me". A new account starts with: my agencies by name, anyone else by exact `Name#id` and a request (D30).
 - **Changes (D29).** The name and the tag can each be changed a limited number of times (twice in 30 days to start). The previous `Name#id` cannot be taken by anyone else for 90 days.
+
+## Note on sign-in limits (D243, D244)
+
+A person can belong to several agencies (D1) but signs in once. When agencies set different country, network or idle limits, each agency's limit applies while the person works inside that agency: the person stays signed in, and an agency whose limit is not met is closed to them until it is (for example, outside the allowed network). The strictest idle time applies only to the agency that set it.

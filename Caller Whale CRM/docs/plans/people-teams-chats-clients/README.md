@@ -155,7 +155,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-240 decisions. Each row links to the file that holds it.
+244 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -399,3 +399,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D238 | The owner can require an authenticator for everyone in the agency. A member without one sets it up at their next sign-in before they can work. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D239 | Resetting a forgotten password needs the email link and either the authenticator or a saved recovery code. Someone who has lost both is checked by support, with a waiting period. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D240 | Each person sees their signed-in devices and can sign any of them out. The owner and admins can sign out every session of a member of their agency. | [01-people-and-invitations](01-people-and-invitations.md) |
+| D241 | A Google, Microsoft or Apple sign-in can be linked to an existing account only while signed in to it, after confirming the provider's email. Invitations still match the account's main email. Apple's hidden relay addresses are accepted this way. | [01-people-and-invitations](01-people-and-invitations.md) |
+| D242 | A sign-in from a new device sends an email and an account notification with the device and rough place, with a "This wasn't me" button that signs it out and starts a password reset. | [01-people-and-invitations](01-people-and-invitations.md) |
+| D243 | The owner can limit their agency's members to sign in only from chosen countries, and only from chosen networks (office internet addresses). | [01-people-and-invitations](01-people-and-invitations.md) |
+| D244 | Each agency sets how long a person can stay idle before being signed out, 8 hours by default. A call in progress never times out. | [01-people-and-invitations](01-people-and-invitations.md) |
