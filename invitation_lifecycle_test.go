@@ -56,6 +56,14 @@ func TestResendAndExtendAreLimited(t *testing.T) {
 	if seen["status"] != "pending" || seen["resends_left"].(float64) != 3 || seen["extends_left"].(float64) != 2 {
 		t.Fatalf("a new invitation: %v", seen)
 	}
+	for _, what := range []string{"resend", "extend"} {
+		if a := w.call("POST", "/v1/invitations/"+id+"/"+what, nil, ""); a.status != 401 {
+			t.Fatalf("%s without signing in says nothing about the invitation: %d", what, a.status)
+		}
+	}
+	if a := w.call("DELETE", "/v1/invitations/"+id, nil, ""); a.status != 401 {
+		t.Fatalf("withdraw without signing in: %d", a.status)
+	}
 	if a := w.call("POST", "/v1/invitations/"+id+"/resend", nil, owner); a.status != 429 || a.str("code") != "resend_wait" {
 		t.Fatalf("resent within the hour: %d %v", a.status, a.body)
 	}

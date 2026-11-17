@@ -644,6 +644,9 @@ func (s *server) acceptInvitation(w http.ResponseWriter, r *http.Request) error 
 }
 
 func (s *server) revokeInvitation(w http.ResponseWriter, r *http.Request) error {
+	if _, err := s.person(r); err != nil {
+		return err
+	}
 	id := r.PathValue("id")
 	if _, err := uuid.Parse(id); err != nil {
 		return bad("Choose a valid invitation.")
