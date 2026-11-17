@@ -69,6 +69,10 @@ How teams are built (managers, deputies, admins, agents in several teams), who h
 | D230 | The owner and admins define lead fields per agency or client. Team leads create tags for their teams. Agents fill fields and apply existing tags but create neither. | 20 |
 | D231 | Two copies of the same person for the same client can be merged by a team lead, admin or owner. History, threads and numbers are combined, and the merge can be undone for 7 days. | 20 |
 | D232 | Agents and team leads can archive a lead (reversible). Only the owner and admins delete permanently, with a confirmation. A person's request to be erased is handled by the owner. | 20, lawyer |
+| D248 | An agency can send a lead to another agency. Only the owner or an admin sends it, finding the other agency by its owner's Name#id, and only the receiving owner or an admin accepts it, into a team and client of theirs. | 37 |
+| D249 | A sent lead carries its contact details and a note from the sender. Calls, recordings, texts and internal notes stay with the sending agency, and its client's data never leaves. | 37 |
+| D250 | The sending agency keeps a closed copy marked "Sent to" the other agency. It is told only whether the lead was accepted and, if both agree, when the deal closes. It cannot see the receiver's work. | 37 |
+| D251 | Every block on a sent lead's numbers goes with it, and the receiving agency cannot lift a block that came from the sender. Caller Whale's own database applies anyway. | 37, 25 |
 
 ## Notes
 

@@ -111,6 +111,8 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | 33 | Keys for outside tools (limited, switchable, recorded, never spending) and outgoing events with no lead details. *The gateway's token handling has not been read for this.* | 23, 24 |
 | 34 | Public status page, outage banner and owner emails; the breach notice process (a written procedure as much as code). | - |
 | 35 | Sign-in with Google, Microsoft and Apple; an agency requiring an authenticator for everyone; recovery needing the email link and a second proof; seeing and ending sessions, including an owner ending a member's. *Partly exists in the auth service (Firebase sign-in, authenticator, recovery codes); not read in detail for this.* | 11 |
+| 36 | Website forms per client: link or embed, submissions become leads in a chosen team, block-list check, consent recorded. *For the lawyer: the consent wording.* | 23, 25 |
+| 37 | Sending a lead to another agency: owner or admin sends and accepts, contact details and a note travel, the sender keeps a closed copy and sees the outcome, blocks travel with it. | 20, 25 |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -134,6 +136,7 @@ The step numbers above are names, not the order. The order is:
 14. Step 32: overviews and reports, once the things they count exist.
 15. Steps 33 and 34: integrations, the status page and the breach procedure. Step 34 can be done at any time; it must exist before opening.
 16. Step 35: sign-in options and sessions, alongside step 15.
+17. Steps 36 and 37: website forms and sending leads between agencies, after steps 23 and 25.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
@@ -155,7 +158,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-244 decisions. Each row links to the file that holds it.
+251 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -403,3 +406,10 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D242 | A sign-in from a new device sends an email and an account notification with the device and rough place, with a "This wasn't me" button that signs it out and starts a password reset. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D243 | The owner can limit their agency's members to sign in only from chosen countries, and only from chosen networks (office internet addresses). | [01-people-and-invitations](01-people-and-invitations.md) |
 | D244 | Each agency sets how long a person can stay idle before being signed out, 8 hours by default. A call in progress never times out. | [01-people-and-invitations](01-people-and-invitations.md) |
+| D245 | A partner is another business working on the same deals as the agency, for example a lender, a title company or another agent who helps close a client's deals. Partners see only what is shared with them on specific leads, and are free seats. | [04-clients](04-clients.md) |
+| D246 | A client who hired two agencies has one sign-in and a switcher, like anyone in several agencies. Each agency sees only its own work for them, and neither knows about the other. | [04-clients](04-clients.md) |
+| D247 | The owner can create a website form (a link or an embed) for a client. Each submission becomes a lead for that client in a chosen team, is checked against the block lists, and records the person's consent. | [04-clients](04-clients.md) |
+| D248 | An agency can send a lead to another agency. Only the owner or an admin sends it, finding the other agency by its owner's Name#id, and only the receiving owner or an admin accepts it, into a team and client of theirs. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D249 | A sent lead carries its contact details and a note from the sender. Calls, recordings, texts and internal notes stay with the sending agency, and its client's data never leaves. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D250 | The sending agency keeps a closed copy marked "Sent to" the other agency. It is told only whether the lead was accepted and, if both agree, when the deal closes. It cannot see the receiver's work. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D251 | Every block on a sent lead's numbers goes with it, and the receiving agency cannot lift a block that came from the sender. Caller Whale's own database applies anyway. | [02-teams-and-leads](02-teams-and-leads.md) |
