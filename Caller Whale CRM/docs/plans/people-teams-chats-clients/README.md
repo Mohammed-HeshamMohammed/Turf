@@ -172,7 +172,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-315 decisions. Each row links to the file that holds it.
+319 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -491,3 +491,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D313 | Anyone can open a sample agency with made-up teams, leads and chats to explore every screen. Real calling, texting and imports need a paid plan and the carrier check. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D314 | Before paying, an owner can create teams and clients and invite people. Nobody can call, text or import real leads until the plan is paid and the carrier check passes. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D315 | The sample agency runs on made-up data inside the person's own tab, as the CRM's sample workspace does today. Nothing from it ever reaches the real databases. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D316 | Link clicks in emails to leads are recorded on the lead. Email opens are not tracked. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D317 | Every email to a lead carries an unsubscribe link and the agency's address. Unsubscribing blocks email to that address for the agency, like a text opt-out. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D318 | A lead's email reply goes into the lead's record, with the same wait-then-tell-the-team-lead rule as an unanswered text (D21). | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D319 | Agents email leads only from the agency's or a client's domain (D161), never from a personal mailbox, so lead conversations never leave the agency with a departing agent. | [05-calls-and-budgets](05-calls-and-budgets.md) |
