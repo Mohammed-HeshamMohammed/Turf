@@ -148,7 +148,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-212 decisions. Each row links to the file that holds it.
+216 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -364,3 +364,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D210 | The owner, admins and team leads write text templates per client or team, with fields such as the lead's first name. Agents pick one and can edit it before sending. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D211 | A text can be scheduled. It is sent only inside the lead's allowed hours and is cancelled automatically if the number is blocked before then. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D212 | Only the owner, admins and team leads can send one message to many leads, within budgets and calling hours. Each lead still gets their own thread. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D213 | Each number is checked (mobile, landline, disconnected) the first time it is about to be used, paid from the budget. Landlines are not texted, disconnected numbers are marked, and the result is kept so a number is never paid for twice. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D214 | A lead not contacted for a long time (6 months to start) has its number checked against the reassigned-numbers database before the next contact. The lawyer confirms which countries need it. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D215 | When someone answers "wrong number", the number is removed from that lead and blocked for anyone tied to it. The lead stays, waiting for a new number. The person who answered is not added to anything. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D216 | The owner and admins see a health score for each sending number. A number starting to be flagged as spam is slowed automatically and the owner is told, before carriers block it. | [05-calls-and-budgets](05-calls-and-budgets.md) |
