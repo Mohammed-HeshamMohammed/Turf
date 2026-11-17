@@ -43,7 +43,7 @@ func (s *server) searchLeads(q *req) error {
 			UNION SELECT x.id FROM leads x JOIN properties a ON a.id = x.property_id WHERE x.deleted_at IS NULL
 				AND (a.address ILIKE $1 OR lower(a.city) LIKE $2 OR lower(a.postal_code) LIKE $2)) AND `
 	}
-	visible, args := leadVisible(q.sc, "l", args)
+	visible, args := leadSeen(q.sc, "l", args)
 	where += visible
 	if term == "" {
 		where = `l.archived_at IS NULL AND ` + where
@@ -92,7 +92,7 @@ func (s *server) searchLeads(q *req) error {
 	if query.Get("sort") == "newest" {
 		order = ` ORDER BY l.created_at DESC, l.id DESC`
 	}
-	leads, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) FROM leads l LEFT JOIN properties p ON p.id = l.property_id WHERE `+where+order+` LIMIT $`+strconv.Itoa(len(args)+1)+` OFFSET $`+strconv.Itoa(len(args)+2), paged...)
+	leads, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) || `+readOnly(q.sc, "l")+` FROM leads l LEFT JOIN properties p ON p.id = l.property_id WHERE `+where+order+` LIMIT $`+strconv.Itoa(len(args)+1)+` OFFSET $`+strconv.Itoa(len(args)+2), paged...)
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (s *server) leadDetails(q *req) error {
 	}
 	defer tx.Rollback(ctx)
 	var visible bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM leads l WHERE l.id = $1 AND cw_visible_lead(l.id))`, id).Scan(&visible); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM leads l WHERE l.id = $1 AND cw_seen_lead(l.id))`, id).Scan(&visible); err != nil {
 		return err
 	}
 	if !visible {
@@ -129,7 +129,7 @@ func (s *server) leadDetails(q *req) error {
 	}
 	body := map[string]any{"deals": []json.RawMessage{}}
 	// The lead itself comes too: a page that lost it from this device's window (a fresh snapshot, a reset) gets it back.
-	lead, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) FROM leads l LEFT JOIN properties p ON p.id = l.property_id WHERE l.id = $1`, id)
+	lead, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) || `+readOnly(q.sc, "l")+` FROM leads l LEFT JOIN properties p ON p.id = l.property_id WHERE l.id = $1`, id)
 	if err != nil {
 		return err
 	}
@@ -146,14 +146,14 @@ func (s *server) leadDetails(q *req) error {
 		"handoffs": `SELECT to_jsonb(h) FROM handoffs h WHERE h.lead_id = $1 AND NOT cw_external()`,
 		// Co-owners: other leads at the same property under another name, each kept as its own lead (linkCoOwners).
 		"related": `SELECT jsonb_build_object('id', b.id, 'name', b.name, 'kind', k.kind) FROM lead_links k JOIN leads b ON b.id = k.related_id
-			WHERE k.lead_id = $1 AND b.deleted_at IS NULL AND cw_visible_lead(b.id) ORDER BY b.name`,
+			WHERE k.lead_id = $1 AND b.deleted_at IS NULL AND cw_seen_lead(b.id) ORDER BY b.name`,
 	} {
 		if body[name], err = queryJSON(ctx, tx, sql, id); err != nil {
 			return err
 		}
 	}
 	if q.sc.can("finance") {
-		if body["deals"], err = queryJSON(ctx, tx, `SELECT to_jsonb(d) FROM deals d WHERE d.lead_id = $1 AND NOT cw_external()`, id); err != nil {
+		if body["deals"], err = queryJSON(ctx, tx, `SELECT to_jsonb(d) FROM deals d WHERE d.lead_id = $1 AND NOT cw_external() AND cw_visible_lead(d.lead_id)`, id); err != nil {
 			return err
 		}
 	}

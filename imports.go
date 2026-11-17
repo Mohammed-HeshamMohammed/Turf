@@ -615,6 +615,14 @@ func (s *server) mergeBatch(ctx context.Context, sc scope, id string, project, t
 
 // mergeBatchIn does the work of mergeBatch inside a transaction the caller owns and commits.
 func mergeBatchIn(ctx context.Context, tx pgx.Tx, sc scope, id string, project, team *string) (int64, error) {
+	// A row of an import into a team that matches a lead another team holds is not merged into it (D112): it waits as 'other_team'
+	// for the owner or an admin to decide, and the importing team learns only how many.
+	if team != nil {
+		if _, err := tx.Exec(ctx, `UPDATE importing.rows r SET state = 'other_team' FROM leads l
+			WHERE r.job_id = $1 AND r.state = 'merge' AND l.id = r.match_lead AND l.team_id IS NOT NULL AND l.team_id <> $2::uuid`, id, *team); err != nil {
+			return 0, err
+		}
+	}
 	// Fields the person chose from the list replace what the matched lead had (a pick, importDecide). Done once per row, before the
 	// fold below, which then only fills what is still empty.
 	if _, err := tx.Exec(ctx, `
@@ -647,7 +655,8 @@ func mergeBatchIn(ctx context.Context, tx pgx.Tx, sc scope, id string, project, 
 			FROM batch WHERE address IS NOT NULL OR zip IS NOT NULL OR city IS NOT NULL OR latitude IS NOT NULL RETURNING id
 		), ins AS (
 			INSERT INTO leads (id, org_id, project_id, team_id, property_id, assignee_id, name, phone, email, source, value_amount, stage, contacts)
-			SELECT new_lead_id, cw_org(), $3::uuid, $4::uuid, p.id, $5::uuid, coalesce(nullif(b.name, ''), nullif(b.phone, ''), nullif(b.email, ''), nullif(b.address, ''), 'Unnamed lead'),
+			-- Into a team, new leads start unassigned for the team's leads to hand out (D110); without a team they are the importer's.
+			SELECT new_lead_id, cw_org(), $3::uuid, $4::uuid, p.id, CASE WHEN $4::uuid IS NULL THEN $5::uuid END, coalesce(nullif(b.name, ''), nullif(b.phone, ''), nullif(b.email, ''), nullif(b.address, ''), 'Unnamed lead'),
 				coalesce(b.phone, ''), coalesce(b.email, ''), coalesce(nullif(b.source, ''), $6), b.value, 'New', coalesce(b.contacts, '{}')
 			FROM batch b LEFT JOIN props p ON p.id = b.prop_id RETURNING id
 		), feed AS (

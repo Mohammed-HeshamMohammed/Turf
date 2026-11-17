@@ -240,6 +240,7 @@ type scope struct {
 	roles, scopes        []string
 	teamIDs, projectIDs  []string
 	seeTeams             []string // the teams the "team" scope shows (grantReply.seeTeams)
+	peekTeams            []string // the person's teams that let agents see the whole team, read-only (D124)
 	caps                 []string
 	secondStep           bool
 }
@@ -261,9 +262,15 @@ func (s scope) external() bool {
 
 // accessRevision changes whenever what the person may see changes, so a device holding an older one starts over with a
 // fresh snapshot. It is a number that fits JavaScript's safe integers.
-func accessRevision(g grantReply) int64 {
+func accessRevision(g grantReply, peek ...string) int64 {
 	parts := func(v []string) []string { v = slices.Clone(v); slices.Sort(v); return v }
-	b, _ := json.Marshal([]any{parts(g.Scopes), parts(g.TeamIDs), parts(g.ProjectIDs), parts(g.Capabilities)})
+	var b []byte
+	if len(peek) == 0 {
+		b, _ = json.Marshal([]any{parts(g.Scopes), parts(g.TeamIDs), parts(g.ProjectIDs), parts(g.Capabilities)})
+	} else {
+		// The teams seen read-only (D124) are part of what this person sees: switching the team view changes the revision.
+		b, _ = json.Marshal([]any{parts(g.Scopes), parts(g.TeamIDs), parts(g.ProjectIDs), parts(g.Capabilities), parts(peek)})
+	}
 	h := uint64(14695981039346656037)
 	for _, c := range b {
 		h = (h ^ uint64(c)) * 1099511628211

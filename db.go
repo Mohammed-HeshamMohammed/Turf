@@ -361,8 +361,8 @@ func (s *store) begin(ctx context.Context, sc scope) (pgx.Tx, error) {
 		return nil, err
 	}
 	_, err = tx.Exec(ctx, `SELECT set_config('cw.org_id', $1, true), set_config('cw.user_id', $2, true), set_config('cw.scopes', $3, true),
-		set_config('cw.team_ids', $4, true), set_config('cw.project_ids', $5, true)`,
-		sc.orgID, sc.userID, strings.Join(sc.scopes, ","), uuidArray(sc.visibleTeams()), uuidArray(sc.projectIDs))
+		set_config('cw.team_ids', $4, true), set_config('cw.project_ids', $5, true), set_config('cw.peek_team_ids', $6, true)`,
+		sc.orgID, sc.userID, strings.Join(sc.scopes, ","), uuidArray(sc.visibleTeams()), uuidArray(sc.projectIDs), uuidArray(sc.peekTeams))
 	if err != nil {
 		tx.Rollback(ctx)
 		return nil, err

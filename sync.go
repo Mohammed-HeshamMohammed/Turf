@@ -68,17 +68,17 @@ func current(ctx context.Context, tx pgx.Tx, sc scope, entity, id string) (json.
 	var sql string
 	switch entity {
 	case "lead":
-		sql = `SELECT to_jsonb(l) FROM leads l WHERE l.id = $1 AND cw_visible_lead(l.id)`
+		sql = `SELECT to_jsonb(l) || ` + readOnly(sc, "l") + ` FROM leads l WHERE l.id = $1 AND cw_seen_lead(l.id)`
 	case "task":
 		sql = taskVisible + ` AND t.id = $1`
 	case "note":
-		sql = `SELECT to_jsonb(n) FROM notes n WHERE n.id = $1 AND cw_visible_lead(n.lead_id) AND (NOT cw_external() OR n.visibility = 'shared')`
+		sql = `SELECT to_jsonb(n) FROM notes n WHERE n.id = $1 AND cw_seen_lead(n.lead_id) AND (NOT cw_external() OR n.visibility = 'shared')`
 	case "call":
-		sql = `SELECT to_jsonb(c) FROM call_events c WHERE c.id = $1 AND cw_visible_lead(c.lead_id) AND NOT cw_external()`
+		sql = `SELECT to_jsonb(c) FROM call_events c WHERE c.id = $1 AND cw_seen_lead(c.lead_id) AND NOT cw_external()`
 	case "deal":
 		sql = `SELECT to_jsonb(d) FROM deals d WHERE d.id = $1 AND cw_visible_lead(d.lead_id) AND NOT cw_external()`
 	case "handoff":
-		sql = `SELECT to_jsonb(h) FROM handoffs h WHERE h.id = $1 AND cw_visible_lead(h.lead_id) AND NOT cw_external()`
+		sql = `SELECT to_jsonb(h) FROM handoffs h WHERE h.id = $1 AND cw_seen_lead(h.lead_id) AND NOT cw_external()`
 	default:
 		return nil, nil
 	}
@@ -313,7 +313,7 @@ func (s *server) snapshot(q *req) error {
 	// and stops after `limit` leads (leads_recent), so a workspace of hundreds of thousands costs no more than a small one; the halves are
 	// then put together. The page after another starts below the last lead of the one before in this same order.
 	winArgs := []any{q.sc.userID, limit, afterMine, afterAt, afterID}
-	visible, winArgs := leadVisible(q.sc, "l", winArgs)
+	visible, winArgs := leadSeen(q.sc, "l", winArgs) // the team view is in the window; the counts below are the person's own
 	if _, err = tx.Exec(ctx, `CREATE TEMP TABLE win ON COMMIT DROP AS
 		SELECT id, mine, updated_at FROM (
 			(SELECT l.id, true AS mine, l.updated_at FROM leads l
@@ -387,7 +387,7 @@ func (s *server) snapshot(q *req) error {
 	if err = countRows.Err(); err != nil {
 		return err
 	}
-	leads, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) FROM leads l JOIN win ON win.id = l.id LEFT JOIN properties p ON p.id = l.property_id`)
+	leads, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) || `+readOnly(q.sc, "l")+` FROM leads l JOIN win ON win.id = l.id LEFT JOIN properties p ON p.id = l.property_id`)
 	if err != nil {
 		return err
 	}
@@ -408,7 +408,7 @@ func (s *server) snapshot(q *req) error {
 		}
 	}
 	if q.sc.can("finance") {
-		if body["deals"], err = queryJSON(ctx, tx, `SELECT to_jsonb(d) FROM deals d WHERE d.lead_id IN (SELECT id FROM win) AND NOT cw_external()`); err != nil {
+		if body["deals"], err = queryJSON(ctx, tx, `SELECT to_jsonb(d) FROM deals d WHERE d.lead_id IN (SELECT id FROM win) AND NOT cw_external() AND cw_visible_lead(d.lead_id)`); err != nil {
 			return err
 		}
 	}
@@ -421,7 +421,7 @@ func (s *server) snapshot(q *req) error {
 // snapshotPage answers a later page of a snapshot: the leads of the window table and what belongs to them. The totals, the lists and the
 // cursor came with the first page.
 func (s *server) snapshotPage(q *req, ctx context.Context, tx pgx.Tx, next string) error {
-	leads, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) FROM leads l JOIN win ON win.id = l.id LEFT JOIN properties p ON p.id = l.property_id`)
+	leads, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) || `+readOnly(q.sc, "l")+` FROM leads l JOIN win ON win.id = l.id LEFT JOIN properties p ON p.id = l.property_id`)
 	if err != nil {
 		return err
 	}
@@ -442,10 +442,30 @@ func (s *server) snapshotPage(q *req, ctx context.Context, tx pgx.Tx, next strin
 		}
 	}
 	if q.sc.can("finance") {
-		if body["deals"], err = queryJSON(ctx, tx, `SELECT to_jsonb(d) FROM deals d WHERE d.lead_id IN (SELECT id FROM win) AND NOT cw_external()`); err != nil {
+		if body["deals"], err = queryJSON(ctx, tx, `SELECT to_jsonb(d) FROM deals d WHERE d.lead_id IN (SELECT id FROM win) AND NOT cw_external() AND cw_visible_lead(d.lead_id)`); err != nil {
 			return err
 		}
 	}
 	writeJSON(q.w, http.StatusOK, body)
 	return nil
+}
+
+// leadSeen is leadVisible widened to what the person may read: their teams that let agents see the whole team, read-only (D124). Only
+// reading uses it; changes go through cw_visible_lead.
+func leadSeen(sc scope, alias string, args []any) (string, []any) {
+	visible, args := leadVisible(sc, alias, args)
+	if len(sc.peekTeams) == 0 {
+		return visible, args
+	}
+	args = append(args, sc.peekTeams)
+	peek := "(" + alias + ".deleted_at IS NULL AND " + alias + ".org_id = cw_org() AND " + alias + ".team_id = ANY($" + strconv.Itoa(len(args)) + "::uuid[]))"
+	return "(" + visible + " OR " + peek + ")", args
+}
+
+// readOnly is a column saying a lead is seen only through the team view (D124), so screens offer nothing that changes it.
+func readOnly(sc scope, alias string) string {
+	if len(sc.peekTeams) == 0 {
+		return `jsonb_build_object('read_only', false)`
+	}
+	return `jsonb_build_object('read_only', NOT cw_visible_lead(` + alias + `.id))`
 }

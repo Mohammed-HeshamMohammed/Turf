@@ -19,11 +19,13 @@ type teamSettings struct {
 	AgentsClaim bool   `json:"agents_claim"`
 	OpenLimit   *int   `json:"open_limit"`
 	Leaderboard bool   `json:"leaderboard"`
+	// AgentsSeeTeam lets the team's agents see all its leads, read-only (D124).
+	AgentsSeeTeam bool `json:"agents_see_team"`
 }
 
 func loadTeamSettings(ctx context.Context, tx pgx.Tx, team string) (teamSettings, error) {
 	ts := teamSettings{TeamID: team}
-	err := tx.QueryRow(ctx, `SELECT agents_claim, open_limit, leaderboard FROM team_settings WHERE team_id = $1`, team).Scan(&ts.AgentsClaim, &ts.OpenLimit, &ts.Leaderboard)
+	err := tx.QueryRow(ctx, `SELECT agents_claim, open_limit, leaderboard, agents_see_team FROM team_settings WHERE team_id = $1`, team).Scan(&ts.AgentsClaim, &ts.OpenLimit, &ts.Leaderboard, &ts.AgentsSeeTeam)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = nil
 	}
@@ -71,7 +73,8 @@ func (s *server) putTeamSettings(q *req) error {
 		return forbidden("A team's leads, an admin or the owner change its settings.")
 	}
 	var body struct {
-		AgentsClaim *bool `json:"agents_claim"`
+		AgentsClaim   *bool `json:"agents_claim"`
+		AgentsSeeTeam *bool `json:"agents_see_team"`
 		OpenLimit   *int  `json:"open_limit"` // 0 clears the limit
 		Leaderboard *bool `json:"leaderboard"`
 	}
@@ -110,16 +113,19 @@ func (s *server) putTeamSettings(q *req) error {
 	if body.Leaderboard != nil {
 		ts.Leaderboard = *body.Leaderboard
 	}
+	if body.AgentsSeeTeam != nil {
+		ts.AgentsSeeTeam = *body.AgentsSeeTeam
+	}
 	if body.OpenLimit != nil {
 		ts.OpenLimit = body.OpenLimit
 		if *body.OpenLimit == 0 {
 			ts.OpenLimit = nil
 		}
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO team_settings (team_id, org_id, agents_claim, open_limit, leaderboard, updated_by, updated_at)
-		VALUES ($1, cw_org(), $2, $3, $4, $5, now())
-		ON CONFLICT (team_id) DO UPDATE SET agents_claim = EXCLUDED.agents_claim, open_limit = EXCLUDED.open_limit, leaderboard = EXCLUDED.leaderboard,
-			updated_by = EXCLUDED.updated_by, updated_at = now()`, team, ts.AgentsClaim, ts.OpenLimit, ts.Leaderboard, q.sc.userID); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO team_settings (team_id, org_id, agents_claim, open_limit, leaderboard, updated_by, updated_at, agents_see_team)
+		VALUES ($1, cw_org(), $2, $3, $4, $5, now(), $6)
+		ON CONFLICT (team_id) DO UPDATE SET agents_claim = EXCLUDED.agents_claim, open_limit = EXCLUDED.open_limit, leaderboard = EXCLUDED.leaderboard, agents_see_team = EXCLUDED.agents_see_team,
+			updated_by = EXCLUDED.updated_by, updated_at = now()`, team, ts.AgentsClaim, ts.OpenLimit, ts.Leaderboard, q.sc.userID, ts.AgentsSeeTeam); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
