@@ -22,6 +22,10 @@ A client is the person or business that hired the agency to work for them. It is
 | D246 | A client who hired two agencies has one sign-in and a switcher, like anyone in several agencies. Each agency sees only its own work for them, and neither knows about the other. | 23 |
 | D247 | The owner can create a website form (a link or an embed) for a client. Each submission becomes a lead for that client in a chosen team, is checked against the block lists, and records the person's consent. | 36 |
 | D255 | A partner sees the details and documents shared with them on a lead and can message the agency in that lead's partner thread. Partners never call or text the lead through Caller Whale. | 23 |
+| D256 | Anyone holding a lead can attach files to it. Only team leads, admins and the owner can share a file with a client or partner. Every share is recorded and can be withdrawn. | 38 |
+| D257 | Files on leads can be PDF, Word, Excel or common images, up to 25 MB each. Each file is scanned before anyone can open it, and storage counts against the agency's plan. | 38 |
+| D258 | A shared file shows who opened or downloaded it and when. A shared link stops working when withdrawn or after a set time. | 38 |
+| D259 | Signing documents is not part of this plan. Signing happens in the tools agencies already use, and signed copies are uploaded back to the lead. | - |
 | D172 | The client's screens, reports and emails show the agency's name and logo, with a small "Powered by Caller Whale". | 23 |
 | D94 | The owner invites any client or partner. A manager can invite a client only to share things belonging to their own teams. | 3 |
 

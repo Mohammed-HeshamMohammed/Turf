@@ -113,6 +113,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | 35 | Sign-in with Google, Microsoft and Apple; an agency requiring an authenticator for everyone; recovery needing the email link and a second proof; seeing and ending sessions, including an owner ending a member's. *Partly exists in the auth service (Firebase sign-in, authenticator, recovery codes); not read in detail for this.* | 11 |
 | 36 | Website forms per client: link or embed, submissions become leads in a chosen team, block-list check, consent recorded. *For the lawyer: the consent wording.* | 23, 25 |
 | 37 | Sending a lead to another agency: owner or admin sends and accepts, contact details and a note travel, the sender keeps a closed copy and sees the outcome, blocks travel with it. | 20, 25 |
+| 38 | Files on leads: upload by whoever holds the lead, sharing by team leads and above, scanning, size and type limits, storage against the plan, tracked shared links that expire. *No file storage exists for leads yet as far as this plan has read.* | 23 |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -137,6 +138,7 @@ The step numbers above are names, not the order. The order is:
 15. Steps 33 and 34: integrations, the status page and the breach procedure. Step 34 can be done at any time; it must exist before opening.
 16. Step 35: sign-in options and sessions, alongside step 15.
 17. Steps 36 and 37: website forms and sending leads between agencies, after steps 23 and 25.
+18. Step 38: files on leads, with or after step 23.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
@@ -158,7 +160,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-255 decisions. Each row links to the file that holds it.
+259 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -417,3 +419,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D253 | The two owners can note an agreed referral fee on a sent lead. Caller Whale shows it to both and reminds them when the deal closes. The money changes hands outside Caller Whale. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D254 | Before sending a lead to another agency, the sender must confirm the person agreed to be passed on. The confirmation is recorded with the date. The lawyer confirms the wording and when it is needed. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D255 | A partner sees the details and documents shared with them on a lead and can message the agency in that lead's partner thread. Partners never call or text the lead through Caller Whale. | [04-clients](04-clients.md) |
+| D256 | Anyone holding a lead can attach files to it. Only team leads, admins and the owner can share a file with a client or partner. Every share is recorded and can be withdrawn. | [04-clients](04-clients.md) |
+| D257 | Files on leads can be PDF, Word, Excel or common images, up to 25 MB each. Each file is scanned before anyone can open it, and storage counts against the agency's plan. | [04-clients](04-clients.md) |
+| D258 | A shared file shows who opened or downloaded it and when. A shared link stops working when withdrawn or after a set time. | [04-clients](04-clients.md) |
+| D259 | Signing documents is not part of this plan. Signing happens in the tools agencies already use, and signed copies are uploaded back to the lead. | [04-clients](04-clients.md) |
