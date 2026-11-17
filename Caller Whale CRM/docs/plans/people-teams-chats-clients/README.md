@@ -2,7 +2,7 @@
 
 **Written:** 2026-11-16 and 2026-11-17. **State:** plan only, nothing built. Scope is the **web version** (the Dashboard on `callerwhale.com` and the CRM on `app.callerwhale.com`); the desktop (Tauri) app and other local apps are out of scope for now.
 
-This plan began as a review of the invitation flow (`services/auth/invitations.go`, `services/authz/tree.go`, `landing/site/src/AccessManagement.tsx`, `desktop/frontend/react/src/RemoteGate.jsx`) and of messaging (`services/messaging`), and grew through eleven rounds of questions answered by the owner. Everything under "What exists today" was read in the code, not run.
+This plan began as a review of the invitation flow (`services/auth/invitations.go`, `services/authz/tree.go`, `landing/site/src/AccessManagement.tsx`, `desktop/frontend/react/src/RemoteGate.jsx`) and of messaging (`services/messaging`), and grew through twelve rounds of questions answered by the owner. Everything under "What exists today" was read in the code, not run.
 
 ## Files
 
@@ -126,8 +126,8 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 ## Open questions
 
 1. For the lawyer: message retention after account deletion, report copies, and the terms forbidding lead data in personal chats.
-2. D142: how the AI learns from captions, and whether what it learns stays inside one agency and one client (assumed yes).
-3. D144: whether commission tracking can be built, and how rates are set.
+2. D142: how the AI learns from captions (where it may be used is decided, D146).
+3. D144: whether commission tracking can be built.
 
 ## Not verified
 
@@ -142,7 +142,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-145 decisions. Each row links to the file that holds it.
+149 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -291,3 +291,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D143 | A manager or deputy can score a call recording against a short checklist and leave comments. The agent sees their own scores; the team's averages go into the manager's reports. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D144 | Commission tracking, if it can be built, is optional per agency: the owner sets rates and Caller Whale shows what each agent has earned. No payments are made through it. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D145 | The plan is kept in one folder: an index of every decision, and one file per area. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D146 | What the AI learns from an agency's calls is used only inside that agency, and what it learns from one client's calls only for that client's work. Nothing crosses to another agency. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D147 | Each agency sets how long call recordings and captions are kept, inside limits Caller Whale sets after the lawyer's review. Captions used for AI learning are deleted with the recording. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D148 | The owner switches the AI's call suggestions on for the agency, and a team's managers for the team. An agent can hide the suggestions on their own screen, but cannot turn off captions if the agency requires them. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D149 | If commission tracking is built, the owner sets the rules per role or person (for example a fixed amount per appointment for callers and a percentage of the deal for closers, with a split when both worked the lead) and can override any figure. | [05-calls-and-budgets](05-calls-and-budgets.md) |
