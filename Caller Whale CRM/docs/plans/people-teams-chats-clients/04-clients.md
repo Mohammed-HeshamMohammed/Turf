@@ -21,6 +21,7 @@ A client is the person or business that hired the agency to work for them. It is
 | D245 | A partner is another business working on the same deals as the agency, for example a lender, a title company or another agent who helps close a client's deals. Partners see only what is shared with them on specific leads, and are free seats. | 23 |
 | D246 | A client who hired two agencies has one sign-in and a switcher, like anyone in several agencies. Each agency sees only its own work for them, and neither knows about the other. | 23 |
 | D247 | The owner can create a website form (a link or an embed) for a client. Each submission becomes a lead for that client in a chosen team, is checked against the block lists, and records the person's consent. | 36 |
+| D255 | A partner sees the details and documents shared with them on a lead and can message the agency in that lead's partner thread. Partners never call or text the lead through Caller Whale. | 23 |
 | D172 | The client's screens, reports and emails show the agency's name and logo, with a small "Powered by Caller Whale". | 23 |
 | D94 | The owner invites any client or partner. A manager can invite a client only to share things belonging to their own teams. | 3 |
 

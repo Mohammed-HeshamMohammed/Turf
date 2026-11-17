@@ -73,6 +73,9 @@ How teams are built (managers, deputies, admins, agents in several teams), who h
 | D249 | A sent lead carries its contact details and a note from the sender. Calls, recordings, texts and internal notes stay with the sending agency, and its client's data never leaves. | 37 |
 | D250 | The sending agency keeps a closed copy marked "Sent to" the other agency. It is told only whether the lead was accepted and, if both agree, when the deal closes. It cannot see the receiver's work. | 37 |
 | D251 | Every block on a sent lead's numbers goes with it, and the receiving agency cannot lift a block that came from the sender. Caller Whale's own database applies anyway. | 37, 25 |
+| D252 | The receiving agency can decline a sent lead with an optional reason. The sender is told and its copy reopens as a normal lead. | 37 |
+| D253 | The two owners can note an agreed referral fee on a sent lead. Caller Whale shows it to both and reminds them when the deal closes. The money changes hands outside Caller Whale. | 37 |
+| D254 | Before sending a lead to another agency, the sender must confirm the person agreed to be passed on. The confirmation is recorded with the date. The lawyer confirms the wording and when it is needed. | 37, lawyer |
 
 ## Notes
 
