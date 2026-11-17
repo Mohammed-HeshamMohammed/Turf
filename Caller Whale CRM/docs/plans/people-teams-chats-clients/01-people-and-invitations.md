@@ -75,7 +75,7 @@ Who can be invited, how an invitation works from sending to arriving, one person
 - **Suspension (D26).** A suspended person keeps their place. Their leads and threads are held by their managers, who can read and take over. On restore, whatever was not reassigned returns.
 - **Owner gone (D27).** If the owner's account is closed or disabled, the agency is paused: members can read, nobody can work, invitations stop. Caller Whale staff hand it to another person or close it.
 - **Handing over ownership (D28).** An active owner picks a member; both confirm with a second step. The old owner becomes a manager or leaves. Until both confirm, nothing changes.
-- **Shared devices (D38).** At sign-in: "This is my device" keeps the encrypted copy; "Shared device" keeps nothing after sign-out or closing the tab.
+- **Shared devices (D38).** At sign-in: "This is my device" remembers the sign-in; "Shared device" signs out when the tab closes. No lead data is saved in the browser either way.
 - **Seats (D46).** A seat is one person in one agency.
 
 ## Display name tag

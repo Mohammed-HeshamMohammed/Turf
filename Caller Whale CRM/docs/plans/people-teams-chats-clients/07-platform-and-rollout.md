@@ -8,8 +8,8 @@ The web cache, shared devices, what plans and billing do to people, support acce
 
 | # | Decision | Step |
 | --- | --- | --- |
-| D4 | The web cache refreshes automatically; a manual reload stays as a fallback. | - |
-| D38 | At sign-in the person chooses "This is my device" (the encrypted copy is kept) or "Shared device" (nothing is kept after sign-out or closing the tab). | - |
+| D4 | The web cache refreshes automatically; a manual reload stays as a fallback. The cache lives in the open tab only (D194). | - |
+| D38 | At sign-in the person chooses "This is my device" (their sign-in is remembered, D188) or "Shared device" (they are signed out when the tab closes). On the web no lead data is ever saved in the browser either way (D194). | - |
 | D70 | Handing over ownership completes only after the new owner adds their own payment method. The old owner's card is removed and never charged again. | 13 |
 | D80 | When payment fails or the plan ends, a grace period (7 days to start) keeps everything working and warns the owner. After it, members can read but not work and invitations stop, until the owner pays. | 18 |
 | D81 | Lowering the plan below the number of members cannot complete until the owner picks who keeps a seat. The others are suspended, not removed, and their work is handed on. | 18 |
@@ -31,7 +31,8 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D171 | The app ships in English. New screens keep their words separate from the code so another language can be added later without rework, including right-to-left layout. | all |
 | D173 | Each role gets a brief walk-through of its own screens on first sign-in. Managers and the owner can assign the agency's own material and see who finished it. | 31 |
 | D188 | "This is my device" is remembered for 30 days. Owners, admins and team leads are asked for their authenticator code again every 7 days. A sign-in from a new place asks at once. | 15 |
-| D189 | On a device marked as theirs, the device password still protects the saved copy. On a shared device nothing is saved, so no device password is asked. | 5, 15 |
+| D189 | *Replaced by D194.* (It assumed the web app still saved an encrypted copy behind a device password; that was removed on 2026-11-10.) | 5, 15 |
+| D194 | The web app saves no lead data in the browser and asks for no device password (as built on 2026-11-10). Its cache lives in the open tab and is gone on reload. The desktop app keeps its encrypted copy and device password, and is out of scope. | 5 |
 
 ## Notes
 
@@ -40,15 +41,15 @@ The web cache, shared devices, what plans and billing do to people, support acce
 
 ## Web cache
 
-- **One slot per person per agency.** Each slot keeps what has loaded and where loading stopped, so loading resumes. Switching back does not start again.
-- **Only one agency in memory.** A switch drops the previous agency's records, selection, search and filters. Drafts are kept per agency.
+- **Memory only (D194).** Since 2026-11-10 the web app saves nothing in the browser and asks for no device password (commit `959c2bf3`; the desktop app keeps both). Everything below lives in the open tab and is gone when the tab is reloaded or closed. This matches the owner's original wish: the cache holds what the person needs until they reload.
+- **One agency at a time.** A switch drops the previous agency's records, selection, search and filters from memory. Unsent drafts are kept per agency for the life of the tab.
 - **Automatic refresh, in layers:**
   1. Always: live updates and a quiet incremental refresh while the tab is visible.
   2. On events: switching back to an agency, the network returning, the tab returning after a while, a role or team change.
   3. Full re-read only when the position cannot be trusted (the server reports a gap, the app version changed, access changed) or at the daily access renewal.
   4. Never while there are unsynced changes, an open edit form or a call in progress. Updates apply row by row and keep scroll position and selection.
 - **Manual "Reload everything"** stays.
-- **Removal.** Losing access to an agency deletes that agency's slot. (Problem 20.)
+- **Removal.** Losing access to the agency in the open tab clears it from memory at once and returns the person to their other agencies or the "not invited" screen.
 
 ## What "build it all before opening" waits on
 

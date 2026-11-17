@@ -32,7 +32,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 
 **Several agencies**
 - Membership is stored per agency and person. The CRM has a workspace switcher; the Dashboard lists every agency.
-- The web CRM keeps one encrypted copy per person in the browser, holding one agency at a time (`remote/vault.ts`, `remote/engine.ts`). Switching replaces it, so going back loads everything again.
+- The web CRM keeps its data in the open tab only, with no device password (since commit `959c2bf3`, 2026-11-10). The desktop app still keeps an encrypted copy behind a device password (`remote/vault.ts`). Switching agencies reloads everything.
 
 **Messaging** (`services/messaging`)
 - Every conversation (`direct`, `group`, `lead`) has a required agency id, and row security shows a request only its own agency's rows. Every request names an agency and passes an access check for it.
@@ -69,7 +69,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 17. After accepting, the CRM opens the workspace the device used last, not the new one.
 18. Neither agency knows about the other. (Kept as is: this is privacy, see D1.)
 19. There is no way for a person to leave an agency.
-20. `RemoteGate.jsx` says a removed agency's offline copy "goes too", but the code only forgets the choice. To confirm.
+20. *Closed:* the web app saves no copy, so there is nothing to delete. (The desktop app is out of scope.)
 21. When someone is removed from an agency, their rows in that agency's chats stay: others still see them as a member and live prompts still go to them. Their access to read is refused, but the list is wrong.
 
 ## Build order
@@ -80,7 +80,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | 2 | Inviter removed cancels pending invitations; blocked state; held seats; resend and extend | - |
 | 3 | Invitations that carry teams; managers inviting into their own teams; leave an agency; remove the old token path | 2 |
 | 4 | Tag (`#id`), search rules, and the three settings (phone, find me, message me) | - |
-| 5 | Web cache: per-agency slots, layered refresh, delete on removal | - |
+| 5 | Web cache in the open tab: one agency in memory, layered automatic refresh, cleared on losing access | - |
 | 6 | Personal chats: the second database, personal routes in the messaging service, and tests that try to cross between the two databases in every direction. Roster sync for agency conversations | 4 |
 | 7 | Message requests, block, report (90-day copies), limits | 6 |
 | 8 | Inbox switch, new-chat search, requests and block screens; per-agency badges in the switcher | 6, 7 |
@@ -142,21 +142,20 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 - The sign-up path for an invited person with no account yet.
 - The platform-staff invitation flow.
 - Whether the old token invitation path is still used.
-- Whether a removed agency's offline copy is deleted today.
 - How the Dashboard's workspace picker behaves with several agencies.
 - How the core service decides which team may see a lead (needed for Part 6).
 - The billing service, the dialer service, the import service, the assistant and MCP services, and the existing do-not-call code, each for the parts of this plan that touch them.
 
 ## Every decision
 
-193 decisions. Each row links to the file that holds it.
+198 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
 | D1 | One person can belong to several agencies. This is a supported case. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D2 | A person's name, email and other profile details are one profile, shared with every agency they are in. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D3 | A personal phone number is shown only if the person chooses to: a setting next to authentication. | [01-people-and-invitations](01-people-and-invitations.md) |
-| D4 | The web cache refreshes automatically; a manual reload stays as a fallback. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D4 | The web cache refreshes automatically; a manual reload stays as a fallback. The cache lives in the open tab only (D194). | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D5 | Display names get a `#id` tag so two people never look the same in a search. Everyone normally sees the name without the tag. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D6 | Chats between people need no agency ("personal chats"). Anything with a lead or a real phone number is locked to one agency, and every participant must be in that agency. | [03-chats](03-chats.md) |
 | D7 | When the person who sent an invitation is removed, the invitation is cancelled and gives no access. | [01-people-and-invitations](01-people-and-invitations.md) |
@@ -190,7 +189,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D35 | Unblocking brings the old conversation back. Messages attempted during the block were never delivered and do not appear. | [03-chats](03-chats.md) |
 | D36 | Personal chats allow what agency chats allow (text, replies, reactions, polls, GIFs, and photos and files when built), minus the lead card and lead location. | [03-chats](03-chats.md) |
 | D37 | When an account is deleted its messages stay for the others, shown as "Deleted user". Agency chats and lead threads stay with the agency. | [03-chats](03-chats.md) |
-| D38 | At sign-in the person chooses "This is my device" (the encrypted copy is kept) or "Shared device" (nothing is kept after sign-out or closing the tab). | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D38 | At sign-in the person chooses "This is my device" (their sign-in is remembered, D188) or "Shared device" (they are signed out when the tab closes). On the web no lead data is ever saved in the browser either way (D194). | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D39 | Activity in an agency the person is not working in shows as a badge on the switcher and as a notification in its own category, with no details. | [03-chats](03-chats.md) |
 | D40 | Notifications have categories: this agency's work, other agencies, personal chats, account and security. The notification screen has Read and Unread tabs. Each person can switch a category off, except account and security. | [03-chats](03-chats.md) |
 | D41 | Each agency sets how long its invitations stay valid. | [01-people-and-invitations](01-people-and-invitations.md) |
@@ -341,8 +340,13 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D186 | A tag is 4 letters and digits, for example #K7P2. Characters that are easily confused (0 and O, 1 and I) are never used. A person changing theirs picks 3 to 8 characters from the same set. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D187 | The tag appears beside a name only when the same name occurs twice in what is on screen. Otherwise names stay clean. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D188 | "This is my device" is remembered for 30 days. Owners, admins and team leads are asked for their authenticator code again every 7 days. A sign-in from a new place asks at once. | [07-platform-and-rollout](07-platform-and-rollout.md) |
-| D189 | On a device marked as theirs, the device password still protects the saved copy. On a shared device nothing is saved, so no device password is asked. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D189 | *Replaced by D194.* (It assumed the web app still saved an encrypted copy behind a device password; that was removed on 2026-11-10.) | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D190 | Before accepting a message request the receiver sees the sender's name, tag and first message as plain text: links are not clickable and pictures are not shown. The sender cannot tell whether it was opened. | [03-chats](03-chats.md) |
 | D191 | An unanswered message request is removed quietly after 30 days. The sender can send one new request to the same person after another 30 days. | [03-chats](03-chats.md) |
 | D192 | A declined request looks the same to the sender as one still waiting. A decline counts toward the automatic spam protection. | [03-chats](03-chats.md) |
 | D193 | A report in personal chats has four reasons: spam or scam, harassment or threats, sharing an agency's lead data, pretending to be someone else. | [03-chats](03-chats.md) |
+| D194 | The web app saves no lead data in the browser and asks for no device password (as built on 2026-11-10). Its cache lives in the open tab and is gone on reload. The desktop app keeps its encrypted copy and device password, and is out of scope. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D195 | The report queue shows "harassment or threats" first, then everything else oldest first. A person with several open reports appears once, with all of them together. | [03-chats](03-chats.md) |
+| D196 | Threat reports are looked at within a day and others within 3 days. A report waiting longer sends the owner and cofounder an email reminder. The reporter is told when it is reviewed. | [03-chats](03-chats.md) |
+| D197 | Notifications older than 90 days, read or unread, are removed. What they pointed to is never affected. | [03-chats](03-chats.md) |
+| D198 | Many notifications of the same kind at once are grouped into one line ("40 leads were assigned to you") that opens the list, with one browser pop-up for the group. | [03-chats](03-chats.md) |

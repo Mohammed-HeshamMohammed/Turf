@@ -60,6 +60,10 @@ Personal chats, agency chats and lead threads: how they are kept apart, who can 
 | D191 | An unanswered message request is removed quietly after 30 days. The sender can send one new request to the same person after another 30 days. | 7 |
 | D192 | A declined request looks the same to the sender as one still waiting. A decline counts toward the automatic spam protection. | 7 |
 | D193 | A report in personal chats has four reasons: spam or scam, harassment or threats, sharing an agency's lead data, pretending to be someone else. | 7 |
+| D195 | The report queue shows "harassment or threats" first, then everything else oldest first. A person with several open reports appears once, with all of them together. | 7 |
+| D196 | Threat reports are looked at within a day and others within 3 days. A report waiting longer sends the owner and cofounder an email reminder. The reporter is told when it is reviewed. | 7 |
+| D197 | Notifications older than 90 days, read or unread, are removed. What they pointed to is never affected. | 14 |
+| D198 | Many notifications of the same kind at once are grouped into one line ("40 leads were assigned to you") that opens the list, with one browser pop-up for the group. | 14 |
 
 ## Notes
 
