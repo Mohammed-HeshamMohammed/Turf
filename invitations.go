@@ -139,9 +139,10 @@ func (s *server) authzCall(r *http.Request, method, path string, body any, out a
 // or the platform owner or cofounder. authz applies the exact rule to every change; this only keeps everyone else out.
 type workspaceSeat struct {
 	c       claims
-	owner   bool
+	owner   bool // the agency owner, or an admin (D100: an admin does what the owner does with people and teams)
 	manager bool
 	staff   bool
+	admin   bool
 }
 
 func (s *server) workspaceSeat(r *http.Request, org string) (workspaceSeat, error) {
@@ -159,12 +160,13 @@ func (s *server) workspaceSeat(r *http.Request, org string) (workspaceSeat, erro
 	seat := workspaceSeat{c: c, staff: profile.PlatformRole == "owner" || profile.PlatformRole == "cofounder"}
 	for _, space := range profile.Workspaces {
 		if space.OrgID == org {
-			seat.owner = space.BusinessOwner
+			seat.admin = slices.Contains(space.Roles, "admin")
+			seat.owner = space.BusinessOwner || seat.admin
 			seat.manager = slices.Contains(space.Roles, "manager")
 		}
 	}
 	if !seat.owner && !seat.staff && !seat.manager {
-		return workspaceSeat{}, forbidden("Only this workspace's owner and team managers manage its people.")
+		return workspaceSeat{}, forbidden("Only this workspace's owner, admins and team leads manage its people.")
 	}
 	// Platform staff confirm themselves with a second step first; people inside a workspace do not need one.
 	if seat.staff && !seat.owner && !seat.manager && !c.MFA {
@@ -267,7 +269,7 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 			return bad("Choose tester.")
 		}
 	} else {
-		if role == "owner" || role == "solo" || role == "admin" || role == "" {
+		if role == "owner" || role == "solo" || role == "" {
 			return bad("Choose a workspace member role.")
 		}
 		var listed struct {
@@ -688,11 +690,13 @@ type member struct {
 	Name            string   `json:"name,omitempty"`
 }
 
-// team is one team of a workspace and its manager, as authz keeps it.
+// team is one team of a workspace with its leads and deputies, as authz keeps it. ManagerID is the first lead.
 type team struct {
-	TeamID    string `json:"team_id"`
-	Name      string `json:"name"`
-	ManagerID string `json:"manager_id"`
+	TeamID     string   `json:"team_id"`
+	Name       string   `json:"name"`
+	ManagerID  string   `json:"manager_id"`
+	ManagerIDs []string `json:"manager_ids"`
+	DeputyIDs  []string `json:"deputy_ids"`
 }
 
 func (s *server) workspaceRoles(w http.ResponseWriter, r *http.Request) error {
@@ -710,7 +714,7 @@ func (s *server) workspaceRoles(w http.ResponseWriter, r *http.Request) error {
 	keys, catalog := []string{}, []workspaceRole{}
 	seen := map[string]bool{}
 	for _, role := range listed.Roles {
-		if !role.Assignable || role.Key == "admin" || seen[role.Key] {
+		if !role.Assignable || seen[role.Key] {
 			continue
 		}
 		seen[role.Key] = true
@@ -770,16 +774,16 @@ func (s *server) workspaceMembers(w http.ResponseWriter, r *http.Request) error 
 	}
 	shown := listed.Members
 	if !seat.owner && !seat.staff {
-		// A team manager sees themself and the callers and closers of the teams they run.
+		// A team lead sees themself and the people of the teams they lead (any one of their teams, D97).
 		managed := []string{}
 		for _, t := range listed.Teams {
-			if t.ManagerID == seat.c.Sub {
+			if slices.Contains(t.ManagerIDs, seat.c.Sub) || t.ManagerID == seat.c.Sub {
 				managed = append(managed, t.TeamID)
 			}
 		}
 		shown = []member{}
 		for _, m := range listed.Members {
-			if m.UserID == seat.c.Sub || (len(m.TeamIDs) == 1 && slices.Contains(managed, m.TeamIDs[0])) {
+			if m.UserID == seat.c.Sub || slices.ContainsFunc(m.TeamIDs, func(t string) bool { return slices.Contains(managed, t) }) {
 				shown = append(shown, m)
 			}
 		}
@@ -787,7 +791,70 @@ func (s *server) workspaceMembers(w http.ResponseWriter, r *http.Request) error 
 	for i := range shown {
 		_ = s.db.QueryRow(r.Context(), "SELECT email,display_name FROM users WHERE id=$1", shown[i].UserID).Scan(&shown[i].Email, &shown[i].Name)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"members": shown, "teams": listed.Teams, "you": map[string]bool{"owner": seat.owner, "manager": seat.manager, "staff": seat.staff}})
+	// The switches on for this workspace (D104), so the screens offer several leads, deputies and admins only when they work.
+	var about struct {
+		Features []string `json:"features"`
+	}
+	if status, err := s.authzCall(r, http.MethodGet, "/v1/orgs/"+org, nil, &about); err != nil && status != http.StatusNotFound {
+		return err
+	}
+	if about.Features == nil {
+		about.Features = []string{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"members": shown, "teams": listed.Teams, "features": about.Features,
+		"you": map[string]bool{"owner": seat.owner, "admin": seat.admin, "manager": seat.manager, "staff": seat.staff}})
+	return nil
+}
+
+// putTeamDeputies names a team's deputy leads (D43, D62): its leads, an admin or the owner (authz decides).
+func (s *server) putTeamDeputies(w http.ResponseWriter, r *http.Request) error {
+	org, id := r.PathValue("org"), r.PathValue("team")
+	seat, err := s.workspaceSeat(r, org)
+	if err != nil {
+		return err
+	}
+	if _, err := uuid.Parse(id); err != nil {
+		return bad("Choose a valid team.")
+	}
+	var body struct {
+		DeputyIDs []string `json:"deputy_ids"`
+	}
+	if err := readJSON(w, r, &body); err != nil {
+		return err
+	}
+	if body.DeputyIDs == nil {
+		body.DeputyIDs = []string{}
+	}
+	var saved struct {
+		Team team `json:"team"`
+	}
+	change := map[string]any{"actor_id": seat.c.Sub, "actor_second_step": seat.c.MFA, "deputy_ids": body.DeputyIDs}
+	if _, err := s.authzCall(r, http.MethodPut, "/v1/orgs/"+org+"/teams/"+id+"/deputies", change, &saved); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"team": saved.Team})
+	return nil
+}
+
+// putWorkspaceFeature turns a workspace's switch on or off (D104): Caller Whale's owner or cofounder, with a second step.
+func (s *server) putWorkspaceFeature(w http.ResponseWriter, r *http.Request) error {
+	if _, err := s.staffActor(r, true); err != nil {
+		return err
+	}
+	org, name := r.PathValue("org"), r.PathValue("name")
+	if _, err := uuid.Parse(org); err != nil {
+		return bad("Choose a valid workspace.")
+	}
+	var body struct {
+		On bool `json:"on"`
+	}
+	if err := readJSON(w, r, &body); err != nil {
+		return err
+	}
+	if _, err := s.authzCall(r, http.MethodPut, "/v1/orgs/"+org+"/features/"+name, map[string]any{"on": body.On}, nil); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": name, "on": body.On})
 	return nil
 }
 
@@ -874,8 +941,9 @@ func (s *server) putWorkspaceTeam(w http.ResponseWriter, r *http.Request) error 
 		return bad("Choose a valid team.")
 	}
 	var body struct {
-		Name      string `json:"name"`
-		ManagerID string `json:"manager_id"`
+		Name       string    `json:"name"`
+		ManagerID  string    `json:"manager_id"`
+		ManagerIDs *[]string `json:"manager_ids"` // several equal leads under the new team rules (D43)
 	}
 	if err := readJSON(w, r, &body); err != nil {
 		return err
@@ -884,6 +952,9 @@ func (s *server) putWorkspaceTeam(w http.ResponseWriter, r *http.Request) error 
 		Team team `json:"team"`
 	}
 	change := map[string]any{"actor_id": c.Sub, "actor_second_step": c.MFA, "name": body.Name, "manager_id": strings.TrimSpace(body.ManagerID)}
+	if body.ManagerIDs != nil {
+		change["manager_ids"] = *body.ManagerIDs
+	}
 	if _, err := s.authzCall(r, http.MethodPut, "/v1/orgs/"+org+"/teams/"+id, change, &saved); err != nil {
 		return err
 	}
@@ -927,7 +998,7 @@ func (s *server) changeWorkspaceMember(w http.ResponseWriter, r *http.Request) e
 	}
 	seen := map[string]bool{}
 	for _, role := range body.Roles {
-		if role == "owner" || role == "solo" || role == "admin" || seen[role] {
+		if role == "owner" || role == "solo" || seen[role] {
 			return bad("Choose unique editable member roles.")
 		}
 		seen[role] = true
@@ -979,7 +1050,11 @@ func roleWords(role string) string {
 	case "solo":
 		return "Solo operator"
 	case "manager":
-		return "Team manager"
+		return "Team lead"
+	case "admin":
+		return "Admin"
+	case "researcher":
+		return "Data researcher"
 	case "caller":
 		return "Caller"
 	case "closer":
