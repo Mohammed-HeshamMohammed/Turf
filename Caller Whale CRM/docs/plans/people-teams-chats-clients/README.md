@@ -148,7 +148,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-220 decisions. Each row links to the file that holds it.
+224 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -372,3 +372,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D218 | The checks at import are charged to the client the list is for and to the team it goes to. When there is no client budget, the agency's own allowance pays. The import shows the cost before it starts. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D219 | The person who imported a list, or a team lead, can remove the whole list within 24 hours if none of its leads has been called, texted or edited. After that, leads are removed one by one. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D220 | One import can be as large as the agency's remaining lead allowance. Large files are read in parts and the person can keep working meanwhile. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D221 | The owner, admins and team leads can run skip tracing. An agent can ask for a lead to be traced, and a team lead approves. It is paid from the lead's client and team budget. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D222 | A traced number that turns out to be blocked is saved on the lead, shown as blocked, and cannot be called or texted, so it is never paid for again. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D223 | A lead's data is never shared between the agency's clients. A number traced or a note written for one client's lead is never used for another client's copy, and each client pays for its own. | [04-clients](04-clients.md) |
+| D224 | Each agency sets how long a lead nobody works is kept (for example 2 years without contact). Before deletion the owner gets a list and can keep any lead with a reason. The lawyer sets the longest period allowed. | [02-teams-and-leads](02-teams-and-leads.md) |

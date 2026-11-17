@@ -17,6 +17,7 @@ A client is the person or business that hired the agency to work for them. It is
 | D136 | A client hears a recording or reads a conversation only when the owner, an admin or the lead's team managers share that specific one. | 23 |
 | D137 | Each client has one conversation with the people the agency names for them: the owner, admins and chosen managers. Agents are in it only if added. | 23 |
 | D138 | The agency can send the calling script and the list summary to the client for approval. Whether approval is required before work starts is a setting per client. | 23 |
+| D223 | A lead's data is never shared between the agency's clients. A number traced or a note written for one client's lead is never used for another client's copy, and each client pays for its own. | 23 |
 | D172 | The client's screens, reports and emails show the agency's name and logo, with a small "Powered by Caller Whale". | 23 |
 | D94 | The owner invites any client or partner. A manager can invite a client only to share things belonging to their own teams. | 3 |
 

@@ -58,6 +58,9 @@ How teams are built (managers, deputies, admins, agents in several teams), who h
 | D218 | The checks at import are charged to the client the list is for and to the team it goes to. When there is no client budget, the agency's own allowance pays. The import shows the cost before it starts. | 20, 22 |
 | D219 | The person who imported a list, or a team lead, can remove the whole list within 24 hours if none of its leads has been called, texted or edited. After that, leads are removed one by one. | 20 |
 | D220 | One import can be as large as the agency's remaining lead allowance. Large files are read in parts and the person can keep working meanwhile. | 20 |
+| D221 | The owner, admins and team leads can run skip tracing. An agent can ask for a lead to be traced, and a team lead approves. It is paid from the lead's client and team budget. | 20, 22 |
+| D222 | A traced number that turns out to be blocked is saved on the lead, shown as blocked, and cannot be called or texted, so it is never paid for again. | 20, 25 |
+| D224 | Each agency sets how long a lead nobody works is kept (for example 2 years without contact). Before deletion the owner gets a list and can keep any lead with a reason. The lawyer sets the longest period allowed. | 20, lawyer |
 
 ## Notes
 
