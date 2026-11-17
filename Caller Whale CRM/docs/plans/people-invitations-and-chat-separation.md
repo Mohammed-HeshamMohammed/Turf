@@ -199,6 +199,25 @@ The owner named three kinds of AI, which the plan keeps apart: the outside AIs t
 
 On D126: who supplied a list matters for who may take it away. *To settle with the owner and the lawyer: when a client leaves, what happens to lists the client supplied and to lists the agency supplied.*
 
+Eleventh round, 2026-11-17: clients and "do not call" (complete as written):
+
+| # | Decision | Step |
+| --- | --- | --- |
+| D132 | When a client stops working with the agency, lists the client supplied are exported to them and removed from the agency after a set time. Lists the agency supplied stay with the agency, no longer marked with that client. | 23, lawyer |
+| D133 | The same person or property in two clients' lists is two separate records with separate histories. Neither client can learn the other has it. The owner and admins see a quiet marker that it exists twice. | 23 |
+| D134 | The agency invites a client's main contact. That person adds and removes their own colleagues, who see the same client view. All are free seats. | 23 |
+| D135 | The owner or an admin sets a monthly budget per client. A text or call counts against both the lead's client and the lead's team. The client sees their own usage. | 22 |
+| D136 | A client hears a recording or reads a conversation only when the owner, an admin or the lead's team managers share that specific one. | 23 |
+| D137 | Each client has one conversation with the people the agency names for them: the owner, admins and chosen managers. Agents are in it only if added. | 23 |
+| D138 | The agency can send the calling script and the list summary to the client for approval. Whether approval is required before work starts is a setting per client. | 23 |
+| D139 | "Do not call" has three kinds. **Asked this agency to stop:** blocked for that agency, every client and team. **On a registry or a known complainer:** added to Caller Whale's own database for every agency once confirmed (a second agency reports it, or staff check it). **Wants no calls at all:** added to Caller Whale's database for every agency. | 25 |
+| D140 | Any number found to be a do-not-call number that is not yet in Caller Whale's database is added to it. The database learns from every agency's work. | 25 |
+| D141 | Only Caller Whale staff remove a number from the database. An agency can ask for a review with a reason; each removal is recorded. | 25 |
+
+D139 replaces D113 where they differ: a "stop" said to one agency stays inside that agency; the other two kinds go platform-wide.
+
+Risk to keep in view on D139: "wants no calls at all" is marked by one agent and then blocks the number for every agency. A mistake, or a person marking numbers to hurt other agencies, has a wide effect. The plan's guards are the record of who marked each number, a watch on anyone marking unusually many, and staff removal (D141). *The lawyer should confirm the three kinds match calling law.*
+
 Suggested and turned down, recorded so it is not raised again: a lock that makes a person select an active team before a lead thread can be opened (the team switch is a filter, D44).
 
 ## What exists today
@@ -434,6 +453,7 @@ These change rules the authorization service enforces today (`services/authz/tre
 | 22 | Budgets: agency pool, optional team budgets, limits set by managers, charging the lead's team, stopping with a request to raise. *The billing and usage code has not been read for this.* | 20 |
 | 23 | Clients: every list and lead marked with its client and who supplied it, the "own business" client, the client's view (reports, shared leads, conversation, usage and cost), teams working for several clients. *How client access and sharing work today in the core service has not been read for this.* | 20 |
 | 24 | AI limits: the assistant and call helpers reach only what the person can, outside AIs confirm risky steps inside Caller Whale, and nothing spends money without the person. *The assistant and MCP services have not been read for this.* | 11 |
+| 25 | "Do not call": the three kinds, Caller Whale's own database learning from every agency, confirmation for registry numbers, the record of who marked what, staff review and removal. *The existing do-not-call code has not been read for this.* | 20 |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -449,7 +469,7 @@ The step numbers above are names, not the order. The order is:
 6. Steps 13, 17, 18 and 19: ownership, solo upgrade, plan effects and support access, after the billing service has been read.
 7. Step 10: lead threads, with the SMS stage.
 8. Steps 21 and 22: team numbers, live calls and budgets, with the calling and SMS stage, after the dialer and billing services have been read.
-9. Steps 23 and 24: clients and AI limits, after step 20.
+9. Steps 23, 24 and 25: clients, AI limits and "do not call", after step 20.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
