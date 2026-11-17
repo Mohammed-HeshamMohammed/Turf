@@ -51,6 +51,9 @@ How teams are built (managers, deputies, admins, agents in several teams), who h
 | D179 | An agency can have at most 3 admins (a starting number). Staff can raise it for a large agency. | 11 |
 | D180 | The team switch sits in the header beside the agency name and opens a short list with "All my teams". People in one team see no switch. | 11 |
 | D181 | When the new team rules are switched on, every existing team keeps its lead and its members exactly as they are. The new abilities are simply available afterwards. | 11 |
+| D182 | Work waiting to be handed on stays with the team leads, who can work it. The owner and admins get a reminder after a few days that it is still waiting. | 12 |
+| D183 | Each team sets a maximum of open leads per agent. An agent at the limit cannot claim more until they finish or release some. | 20 |
+| D184 | The record of people changes is kept 2 years. The record of who opened a lead is kept 90 days. The lawyer may adjust both. | 16, 30, lawyer |
 
 ## Notes
 

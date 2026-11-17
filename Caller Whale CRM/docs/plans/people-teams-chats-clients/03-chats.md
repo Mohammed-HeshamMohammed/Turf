@@ -55,6 +55,7 @@ Personal chats, agency chats and lead threads: how they are kept apart, who can 
 | D89 | A person limited or suspended after a report can appeal once. A different reviewer decides (for now, whichever of the owner and cofounder did not make the first decision). | 7 |
 | D90 | A link from someone not yet accepted shows a warning before it opens. When files are built, only common safe types are allowed and they are scanned. | 7 |
 | D96 | Internal notes in a lead thread are read and written by everyone who can see the thread, and move with it on reassignment. | 10 |
+| D185 | A member can mute the automatic team chat but cannot leave it while they are in the team. | 16 |
 
 ## Notes
 
