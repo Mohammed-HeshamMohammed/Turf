@@ -39,6 +39,10 @@ type invitation struct {
 	ResendsLeft  int    `json:"resends_left"`
 	ExtendsLeft  int    `json:"extends_left"`
 	NextResendAt int64  `json:"next_resend_at"`
+	// Everything the invitation carries (step 3, D45): its roles, the teams an agent joins, and the teams a lead will lead.
+	Roles       []string `json:"roles"`
+	TeamIDs     []string `json:"team_ids"`
+	LeadTeamIDs []string `json:"lead_team_ids"`
 
 	revokedReason   string
 	resent          int
@@ -51,17 +55,39 @@ type invitation struct {
 
 // invitationColumns are read for every invitation shown; scanInvitation fills them in the same order.
 const invitationColumns = `i.id,i.scope,i.org_id,i.email,i.role,i.team_id,i.invited_by,i.expires_at,i.created_at,i.delivery_state,i.org_name,i.owner_name,coalesce(u.display_name,''),` +
-	`i.revoked_reason,i.resent_count,i.extended_count,coalesce(i.last_sent_at,i.created_at),i.accepted_at,i.revoked_at,coalesce(u.disabled_at IS NOT NULL,false)`
+	`i.revoked_reason,i.resent_count,i.extended_count,coalesce(i.last_sent_at,i.created_at),i.accepted_at,i.revoked_at,coalesce(u.disabled_at IS NOT NULL,false),` +
+	`i.roles,i.team_ids,i.lead_team_ids`
 const invitationFrom = ` FROM access_invitations i LEFT JOIN users u ON u.id = i.invited_by `
 
 func scanInvitation(row pgx.Row) (invitation, error) {
 	var item invitation
 	err := row.Scan(&item.ID, &item.Scope, &item.OrgID, &item.Email, &item.Role, &item.TeamID, &item.InvitedBy, &item.ExpiresAt, &item.CreatedAt, &item.DeliveryState, &item.OrgName, &item.OwnerName, &item.InviterName,
-		&item.revokedReason, &item.resent, &item.extended, &item.lastSentAt, &item.acceptedAt, &item.revokedAt, &item.inviterDisabled)
+		&item.revokedReason, &item.resent, &item.extended, &item.lastSentAt, &item.acceptedAt, &item.revokedAt, &item.inviterDisabled,
+		&item.Roles, &item.TeamIDs, &item.LeadTeamIDs)
 	if err == nil {
+		// Written before invitations carried lists: the one role and team.
+		if len(item.Roles) == 0 {
+			item.Roles = []string{item.Role}
+		}
+		if len(item.TeamIDs) == 0 && item.TeamID != "" {
+			item.TeamIDs = []string{item.TeamID}
+		}
+		if item.TeamIDs == nil {
+			item.TeamIDs = []string{}
+		}
+		if item.LeadTeamIDs == nil {
+			item.LeadTeamIDs = []string{}
+		}
 		item.settle()
 	}
 	return item, err
+}
+
+// invitationCheck is what authz is asked about an invitation: as its inviter, may these roles join these teams (and lead those),
+// with the invitations sent before it holding their seats.
+func invitationCheck(inviter string, secondStep bool, item invitation, pending int) map[string]any {
+	return map[string]any{"actor_id": inviter, "actor_second_step": secondStep, "action": "invite", "role": item.Role, "team_id": item.TeamID,
+		"roles": item.Roles, "team_ids": item.TeamIDs, "lead_team_ids": item.LeadTeamIDs, "pending": pending}
 }
 
 // maskEmail shows an address by its first letter and its domain, m•••••@gmail.com, so a person signed in with another address
@@ -189,10 +215,10 @@ func (s *server) workspaceActor(r *http.Request, org string) (claims, error) {
 
 // listInvitations is what the agency sees: invitations still waiting, and those that ended in the last week without being
 // accepted (declined, cancelled, expired), so the sender sees what happened (D68) and can extend an expired one.
-func (s *server) listInvitations(w http.ResponseWriter, r *http.Request, scope, org string) error {
+func (s *server) listInvitations(w http.ResponseWriter, r *http.Request, scope, org, by string) error {
 	week := now() - int64(7*24*time.Hour/time.Second)
-	rows, err := s.db.Query(r.Context(), `SELECT `+invitationColumns+invitationFrom+`WHERE i.scope=$1 AND i.org_id=$2 AND i.accepted_at IS NULL AND i.revoked_reason<>'replaced'
-		AND ((i.revoked_at IS NULL AND i.expires_at>$3) OR i.revoked_at>$3) ORDER BY i.created_at DESC LIMIT 200`, scope, org, week)
+	rows, err := s.db.Query(r.Context(), `SELECT `+invitationColumns+invitationFrom+`WHERE i.scope=$1 AND i.org_id=$2 AND ($4 = '' OR i.invited_by = $4) AND i.accepted_at IS NULL AND i.revoked_reason<>'replaced'
+		AND ((i.revoked_at IS NULL AND i.expires_at>$3) OR i.revoked_at>$3) ORDER BY i.created_at DESC LIMIT 200`, scope, org, week, by)
 	if err != nil {
 		return err
 	}
@@ -218,14 +244,20 @@ func (s *server) listPlatformInvitations(w http.ResponseWriter, r *http.Request)
 	if _, err := s.staffActor(r, false); err != nil {
 		return err
 	}
-	return s.listInvitations(w, r, "platform", "")
+	return s.listInvitations(w, r, "platform", "", "")
 }
 func (s *server) listWorkspaceInvitations(w http.ResponseWriter, r *http.Request) error {
 	org := r.PathValue("org")
-	if _, err := s.workspaceActor(r, org); err != nil {
+	seat, err := s.workspaceSeat(r, org)
+	if err != nil {
 		return err
 	}
-	return s.listInvitations(w, r, "workspace", org)
+	// A team lead sees the invitations they sent; the owner, admins and staff see all of them.
+	by := ""
+	if !seat.owner && !seat.staff {
+		by = seat.c.Sub
+	}
+	return s.listInvitations(w, r, "workspace", org, by)
 }
 
 func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope, org string, c claims) error {
@@ -233,9 +265,30 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 		Email  string `json:"email"`
 		Role   string `json:"role"`
 		TeamID string `json:"team_id"`
+		// Step 3 (D45): several roles, several teams, and the teams a lead will lead. Left out, role and team_id are all.
+		Roles       []string `json:"roles"`
+		TeamIDs     []string `json:"team_ids"`
+		LeadTeamIDs []string `json:"lead_team_ids"`
 	}
 	if err := readJSON(w, r, &body); err != nil {
 		return err
+	}
+	if len(body.Roles) == 0 && strings.TrimSpace(body.Role) != "" {
+		body.Roles = []string{strings.TrimSpace(body.Role)}
+	}
+	if len(body.TeamIDs) == 0 && strings.TrimSpace(body.TeamID) != "" {
+		body.TeamIDs = []string{strings.TrimSpace(body.TeamID)}
+	}
+	if body.LeadTeamIDs == nil {
+		body.LeadTeamIDs = []string{}
+	}
+	if len(body.Roles) > 4 || len(body.TeamIDs) > 5 || len(body.LeadTeamIDs) > 20 {
+		return bad("Choose up to four roles, five teams and twenty teams to lead.")
+	}
+	for _, id := range append(slices.Clone(body.TeamIDs), body.LeadTeamIDs...) {
+		if _, err := uuid.Parse(id); err != nil {
+			return bad("Choose teams of this workspace.")
+		}
 	}
 	email, err := normalEmail(body.Email)
 	if err != nil {
@@ -263,15 +316,19 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 			return newError(http.StatusTooManyRequests, "daily_cap", fmt.Sprintf("This agency has sent %d invitations in the last 24 hours, its daily limit. Try again later, or ask Caller Whale to raise it.", settings.DailyCap))
 		}
 	}
-	role := strings.TrimSpace(body.Role)
+	role := ""
+	if len(body.Roles) > 0 {
+		role = strings.TrimSpace(body.Roles[0])
+	}
+	teamID := ""
+	if len(body.TeamIDs) > 0 {
+		teamID = body.TeamIDs[0]
+	}
 	if scope == "platform" {
-		if role != "tester" { // system admin is switched off for now
+		if role != "tester" || len(body.Roles) > 1 || len(body.TeamIDs) > 0 || len(body.LeadTeamIDs) > 0 { // system admin is switched off
 			return bad("Choose tester.")
 		}
 	} else {
-		if role == "owner" || role == "solo" || role == "" {
-			return bad("Choose a workspace member role.")
-		}
 		var listed struct {
 			Roles []struct {
 				Key string `json:"key"`
@@ -280,26 +337,30 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 		if _, err := s.authzCall(r, http.MethodGet, "/v1/orgs/"+org+"/roles", nil, &listed); err != nil {
 			return err
 		}
-		found := false
-		for _, item := range listed.Roles {
-			if item.Key == role {
-				found = true
-				break
+		seen := map[string]bool{}
+		for i, wanted := range body.Roles {
+			wanted = strings.TrimSpace(wanted)
+			body.Roles[i] = wanted
+			if wanted == "owner" || wanted == "solo" || wanted == "" || seen[wanted] {
+				return bad("Choose workspace member roles, each once.")
+			}
+			seen[wanted] = true
+			if !slices.ContainsFunc(listed.Roles, func(item struct {
+				Key string `json:"key"`
+			}) bool {
+				return item.Key == wanted
+			}) {
+				return bad("That role is not available in this workspace.")
 			}
 		}
-		if !found {
-			return bad("That role is not available in this workspace.")
+		if len(body.Roles) == 0 {
+			return bad("Choose a workspace member role.")
 		}
-		if body.TeamID != "" {
-			if _, err := uuid.Parse(body.TeamID); err != nil {
-				return bad("Choose a team of this workspace.")
-			}
-		}
-		// The team tree and the plan's seats: authz says whether this person may invite this role into this team, counting the
-		// invitations already waiting as taken seats.
+		// The team tree and the plan's seats: authz says whether this person may invite these roles into these teams (and to
+		// lead those), counting the invitations already waiting as taken seats.
 		var pending int
-		clientOnly := role == "client"
-		if err := s.db.QueryRow(r.Context(), `SELECT count(*) FROM access_invitations WHERE scope='workspace' AND org_id=$1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at>$2 AND (role='client') = $3`, org, now(), clientOnly).Scan(&pending); err != nil {
+		clientOnly := len(body.Roles) == 1 && role == "client"
+		if err := s.db.QueryRow(r.Context(), `SELECT count(*) FROM access_invitations WHERE scope='workspace' AND org_id=$1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at>$2 AND (role='client' AND cardinality(roles) <= 1) = $3`, org, now(), clientOnly).Scan(&pending); err != nil {
 			return err
 		}
 		var verdict struct {
@@ -307,8 +368,8 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 			Code    string `json:"code"`
 			Reason  string `json:"reason"`
 		}
-		check := map[string]any{"actor_id": c.Sub, "actor_second_step": c.MFA, "action": "invite", "role": role, "team_id": body.TeamID, "pending": pending}
-		if _, err := s.authzCall(r, http.MethodPost, "/v1/orgs/"+org+"/relations/check", check, &verdict); err != nil {
+		asked := invitation{Role: role, TeamID: teamID, Roles: body.Roles, TeamIDs: body.TeamIDs, LeadTeamIDs: body.LeadTeamIDs}
+		if _, err := s.authzCall(r, http.MethodPost, "/v1/orgs/"+org+"/relations/check", invitationCheck(c.Sub, c.MFA, asked, pending), &verdict); err != nil {
 			return err
 		}
 		if !verdict.Allowed {
@@ -318,6 +379,12 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 				status = http.StatusConflict
 			case "bad_request":
 				status = http.StatusBadRequest
+			}
+			if verdict.Code == "seats_full" {
+				// A team lead with no free seat asks the owner for one (D71); nothing is charged without the owner.
+				if asked, err := s.askForSeat(r, org, c.Sub, email); err == nil && asked {
+					return newError(status, verdict.Code, "Every seat is taken. Your agency owner has been asked to add one; nothing is charged until they do.")
+				}
 			}
 			return newError(status, verdict.Code, verdict.Reason)
 		}
@@ -380,7 +447,8 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 	if _, err := s.db.Exec(r.Context(), "UPDATE access_invitations SET revoked_at=$1, revoked_reason='replaced' WHERE scope=$2 AND org_id=$3 AND email=$4 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at<=$1", now(), scope, org, email); err != nil {
 		return err
 	}
-	_, err = s.db.Exec(r.Context(), `INSERT INTO access_invitations (id,scope,org_id,email,role,team_id,invited_by,created_at,expires_at,org_name,owner_name,last_sent_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$8)`, id, scope, org, email, role, strings.TrimSpace(body.TeamID), c.Sub, createdAt, expires, orgName, ownerName)
+	_, err = s.db.Exec(r.Context(), `INSERT INTO access_invitations (id,scope,org_id,email,role,team_id,invited_by,created_at,expires_at,org_name,owner_name,last_sent_at,roles,team_ids,lead_team_ids)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$8,$12,$13,$14)`, id, scope, org, email, role, teamID, c.Sub, createdAt, expires, orgName, ownerName, body.Roles, nonNilStrings(body.TeamIDs), body.LeadTeamIDs)
 	if err != nil {
 		if strings.Contains(err.Error(), "access_invitations_open") {
 			return conflict("An invitation is already pending for this email.")
@@ -402,13 +470,28 @@ func (s *server) invitePlatform(w http.ResponseWriter, r *http.Request) error {
 	}
 	return s.createInvitation(w, r, "platform", "", c)
 }
+// inviteWorkspace sends a workspace invitation: the owner, an admin, staff, or a team lead into the teams they lead (D15, D369;
+// authz decides which roles and teams).
 func (s *server) inviteWorkspace(w http.ResponseWriter, r *http.Request) error {
 	org := r.PathValue("org")
-	c, err := s.workspaceActor(r, org)
+	seat, err := s.workspaceSeat(r, org)
 	if err != nil {
 		return err
 	}
-	return s.createInvitation(w, r, "workspace", org, c)
+	return s.createInvitation(w, r, "workspace", org, seat.c)
+}
+
+// mayHandleInvitation lets the owner, an admin or staff act on any of the workspace's invitations, and a team lead on the ones
+// they sent.
+func (s *server) mayHandleInvitation(r *http.Request, org, invitedBy string) error {
+	seat, err := s.workspaceSeat(r, org)
+	if err != nil {
+		return err
+	}
+	if seat.owner || seat.staff || seat.c.Sub == invitedBy {
+		return nil
+	}
+	return forbidden("A team lead handles the invitations they sent.")
 }
 
 func (s *server) myInvitations(w http.ResponseWriter, r *http.Request) error {
@@ -610,7 +693,8 @@ func (s *server) acceptInvitation(w http.ResponseWriter, r *http.Request) error 
 	if item.Scope == "workspace" {
 		for _, space := range profile.Workspaces {
 			if space.OrgID == item.OrgID {
-				if len(space.Roles) != 1 || !slices.Contains(space.Roles, item.Role) {
+				same := len(space.Roles) == len(item.Roles) && !slices.ContainsFunc(item.Roles, func(r string) bool { return !slices.Contains(space.Roles, r) })
+				if !same {
 					return conflict("You are already a member of this workspace with a different role.")
 				}
 				alreadyApplied = true
@@ -623,9 +707,9 @@ func (s *server) acceptInvitation(w http.ResponseWriter, r *http.Request) error 
 		actor["role"] = item.Role
 	} else {
 		path = "/v1/orgs/" + item.OrgID + "/members/" + c.Sub
-		actor["roles"] = []string{item.Role}
-		if item.TeamID != "" {
-			actor["team_ids"] = []string{item.TeamID}
+		actor["roles"] = item.Roles
+		if len(item.TeamIDs) > 0 && slices.ContainsFunc(item.Roles, func(r string) bool { return r == "caller" || r == "closer" || r == "researcher" }) {
+			actor["team_ids"] = item.TeamIDs
 		}
 	}
 	if !alreadyApplied {
@@ -640,9 +724,48 @@ func (s *server) acceptInvitation(w http.ResponseWriter, r *http.Request) error 
 	if err := tx.Commit(r.Context()); err != nil {
 		return err
 	}
+	// A team lead's invitation names the teams they lead: those teams get them as a lead now (step 3, problems 1 and 2). The
+	// membership is already in place; a team that cannot take them (deleted, or already led under the old rules) is reported.
+	notLed := s.leadTeamsOnAccept(r, item, c.Sub)
 	// org_id lets the app open the agency just joined rather than the one used last (problem 17).
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "scope": item.Scope, "org_id": item.OrgID})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "scope": item.Scope, "org_id": item.OrgID, "teams_not_led": notLed})
 	return nil
+}
+
+// leadTeamsOnAccept adds the new member as a lead of the teams their invitation named, as its inviter, and returns the teams that
+// could not take them.
+func (s *server) leadTeamsOnAccept(r *http.Request, item invitation, user string) []string {
+	notLed := []string{}
+	if item.Scope != "workspace" || len(item.LeadTeamIDs) == 0 {
+		return notLed
+	}
+	var listed struct {
+		Teams []team `json:"teams"`
+	}
+	if _, err := s.authzCall(r, http.MethodGet, "/v1/orgs/"+item.OrgID+"/teams", nil, &listed); err != nil {
+		return item.LeadTeamIDs
+	}
+	for _, id := range item.LeadTeamIDs {
+		i := slices.IndexFunc(listed.Teams, func(t team) bool { return t.TeamID == id })
+		if i < 0 {
+			notLed = append(notLed, id)
+			continue
+		}
+		t := listed.Teams[i]
+		leads := slices.Clone(t.ManagerIDs)
+		if len(leads) == 0 && t.ManagerID != "" {
+			leads = []string{t.ManagerID}
+		}
+		if !slices.Contains(leads, user) {
+			leads = append(leads, user)
+		}
+		change := map[string]any{"actor_id": item.InvitedBy, "actor_second_step": true, "name": t.Name, "manager_id": leads[0], "manager_ids": leads}
+		if _, err := s.authzCall(r, http.MethodPut, "/v1/orgs/"+item.OrgID+"/teams/"+id, change, nil); err != nil {
+			log.Printf("WARN invitation %s: the new lead could not be added to team %s: %v", item.ID, id, err)
+			notLed = append(notLed, id)
+		}
+	}
+	return notLed
 }
 
 func (s *server) revokeInvitation(w http.ResponseWriter, r *http.Request) error {
@@ -653,8 +776,8 @@ func (s *server) revokeInvitation(w http.ResponseWriter, r *http.Request) error 
 	if _, err := uuid.Parse(id); err != nil {
 		return bad("Choose a valid invitation.")
 	}
-	var scope, org string
-	err := s.db.QueryRow(r.Context(), "SELECT scope,org_id FROM access_invitations WHERE id=$1 AND accepted_at IS NULL AND revoked_at IS NULL", id).Scan(&scope, &org)
+	var scope, org, invitedBy string
+	err := s.db.QueryRow(r.Context(), "SELECT scope,org_id,invited_by FROM access_invitations WHERE id=$1 AND accepted_at IS NULL AND revoked_at IS NULL", id).Scan(&scope, &org, &invitedBy)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return newError(http.StatusNotFound, "not_found", "Invitation not found.")
 	}
@@ -665,10 +788,8 @@ func (s *server) revokeInvitation(w http.ResponseWriter, r *http.Request) error 
 		if _, err := s.ownerActor(r); err != nil {
 			return err
 		}
-	} else {
-		if _, err := s.workspaceActor(r, org); err != nil {
-			return err
-		}
+	} else if err := s.mayHandleInvitation(r, org, invitedBy); err != nil {
+		return err
 	}
 	_, err = s.db.Exec(r.Context(), "UPDATE access_invitations SET revoked_at=$1, revoked_reason='withdrawn' WHERE id=$2 AND accepted_at IS NULL AND revoked_at IS NULL", now(), id)
 	if err != nil {
@@ -955,8 +1076,23 @@ func (s *server) putWorkspaceTeam(w http.ResponseWriter, r *http.Request) error 
 	if body.ManagerIDs != nil {
 		change["manager_ids"] = *body.ManagerIDs
 	}
+	// The leads before the change: one taken off the team can no longer invite into it (D7).
+	var before struct {
+		Teams []team `json:"teams"`
+	}
+	_, _ = s.authzCall(r, http.MethodGet, "/v1/orgs/"+org+"/teams", nil, &before)
 	if _, err := s.authzCall(r, http.MethodPut, "/v1/orgs/"+org+"/teams/"+id, change, &saved); err != nil {
 		return err
+	}
+	for _, t := range before.Teams {
+		if t.TeamID != id {
+			continue
+		}
+		for _, lead := range append(slices.Clone(t.ManagerIDs), t.ManagerID) {
+			if lead != "" && !slices.Contains(saved.Team.ManagerIDs, lead) && saved.Team.ManagerID != lead {
+				s.cancelInvitationsInto(r.Context(), org, id, lead)
+			}
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"team": saved.Team})
 	return nil

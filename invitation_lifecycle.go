@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -74,7 +75,7 @@ func (s *server) markBlocked(r *http.Request, items []invitation) {
 			Allowed bool   `json:"allowed"`
 			Reason  string `json:"reason"`
 		}
-		check := map[string]any{"actor_id": item.InvitedBy, "actor_second_step": true, "action": "invite", "role": item.Role, "team_id": item.TeamID, "pending": earlier}
+		check := invitationCheck(item.InvitedBy, true, *item, earlier)
 		if _, err := s.authzCall(r, http.MethodPost, "/v1/orgs/"+item.OrgID+"/relations/check", check, &verdict); err != nil {
 			return
 		}
@@ -165,7 +166,7 @@ func (s *server) agencyInvitation(r *http.Request) (invitation, error) {
 	if item.Scope != "workspace" {
 		return invitation{}, bad("Platform invitations last one hour; send a new one instead.")
 	}
-	if _, err := s.workspaceActor(r, item.OrgID); err != nil {
+	if err := s.mayHandleInvitation(r, item.OrgID, item.InvitedBy); err != nil {
 		return invitation{}, err
 	}
 	if item.Status != "pending" && item.Status != "expired" {
@@ -407,4 +408,108 @@ func (s *server) putWorkspaceInvitationSettings(w http.ResponseWriter, r *http.R
 	}
 	writeJSON(w, http.StatusOK, settings)
 	return nil
+}
+
+func nonNilStrings(in []string) []string {
+	if in == nil {
+		return []string{}
+	}
+	return in
+}
+
+// askForSeat records that someone who is not the owner (a team lead) could not invite for want of a seat (D71). It answers false
+// when the asker is the owner or an admin, who add seats themselves.
+func (s *server) askForSeat(r *http.Request, org, asker, email string) (bool, error) {
+	profile, err := readAccess(r.Context(), s.cfg.authzURL, s.cfg.authzToken, asker)
+	if err != nil {
+		return false, err
+	}
+	for _, space := range profile.Workspaces {
+		if space.OrgID == org && (space.BusinessOwner || slices.Contains(space.Roles, "admin")) {
+			return false, nil
+		}
+	}
+	// One open request per lead and address is enough.
+	_, err = s.db.Exec(r.Context(), `INSERT INTO seat_requests (id, org_id, requested_by, for_email, created_at)
+		SELECT $1, $2, $3, $4, $5 WHERE NOT EXISTS (SELECT 1 FROM seat_requests WHERE org_id=$2 AND requested_by=$3 AND for_email=$4 AND handled_at IS NULL)`,
+		uuid.NewString(), org, asker, email, now())
+	return err == nil, err
+}
+
+// seatRequests lists the open requests for seats, for the owner and admins.
+func (s *server) seatRequests(w http.ResponseWriter, r *http.Request) error {
+	org := r.PathValue("org")
+	if _, err := s.workspaceActor(r, org); err != nil {
+		return err
+	}
+	rows, err := s.db.Query(r.Context(), `SELECT q.id, q.requested_by, coalesce(u.display_name,''), q.for_email, q.created_at FROM seat_requests q
+		LEFT JOIN users u ON u.id = q.requested_by WHERE q.org_id=$1 AND q.handled_at IS NULL ORDER BY q.created_at DESC LIMIT 100`, org)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	type request struct {
+		ID          string `json:"id"`
+		RequestedBy string `json:"requested_by"`
+		Name        string `json:"name"`
+		ForEmail    string `json:"for_email"`
+		CreatedAt   int64  `json:"created_at"`
+	}
+	items := []request{}
+	for rows.Next() {
+		var item request
+		if err := rows.Scan(&item.ID, &item.RequestedBy, &item.Name, &item.ForEmail, &item.CreatedAt); err != nil {
+			return err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"requests": items})
+	return nil
+}
+
+// closeSeatRequest marks a request handled (a seat added, or the owner said no).
+func (s *server) closeSeatRequest(w http.ResponseWriter, r *http.Request) error {
+	org := r.PathValue("org")
+	if _, err := s.workspaceActor(r, org); err != nil {
+		return err
+	}
+	if _, err := s.db.Exec(r.Context(), "UPDATE seat_requests SET handled_at=$1 WHERE id=$2 AND org_id=$3 AND handled_at IS NULL", now(), r.PathValue("id"), org); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	return nil
+}
+
+// leaveWorkspace is a person leaving an agency at once (D25). Their access ends now; they stop leading or deputising any team;
+// invitations they sent and that still wait are cancelled. Their leads stay with their teams, where the team's leads (or the
+// owner) see them, until the owner hands them on (build step 12). The owner cannot leave.
+func (s *server) leaveWorkspace(w http.ResponseWriter, r *http.Request) error {
+	org := r.PathValue("org")
+	if _, err := uuid.Parse(org); err != nil {
+		return bad("Choose a valid workspace.")
+	}
+	c, err := s.person(r)
+	if err != nil {
+		return err
+	}
+	if _, err := s.authzCall(r, http.MethodDelete, "/v1/orgs/"+org+"/members/"+c.Sub, map[string]any{"actor_id": c.Sub, "actor_second_step": c.MFA}, nil); err != nil {
+		return err
+	}
+	s.cancelInvitationsBy(r.Context(), org, c.Sub)
+	log.Printf("INFO workspace %s: a member left", org)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	return nil
+}
+
+// cancelInvitationsInto cancels what a former lead of a team sent into that team and still waits (D7). Their invitations into
+// teams they still lead stay. The owner's and admins' invitations are never theirs to lose this way: they are not team leads by
+// position.
+func (s *server) cancelInvitationsInto(ctx context.Context, org, team, lead string) {
+	if _, err := s.db.Exec(ctx, `UPDATE access_invitations SET revoked_at=$1, revoked_reason='inviter_removed' WHERE scope='workspace' AND org_id=$2 AND invited_by=$3
+		AND ($4 = ANY(team_ids) OR team_id=$4) AND accepted_at IS NULL AND revoked_at IS NULL`, now(), org, lead, team); err != nil {
+		log.Printf("ERROR could not cancel a former lead's invitations into a team in %s: %v", org, err)
+	}
 }
