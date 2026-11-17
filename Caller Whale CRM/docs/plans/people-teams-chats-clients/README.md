@@ -116,6 +116,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | 38 | Files on leads: upload by whoever holds the lead, sharing by team leads and above, scanning, size and type limits, storage against the plan, tracked shared links that expire. *No file storage exists for leads yet as far as this plan has read.* | 23 |
 | 39 | Carrier registration per agency (10DLC brand and campaign), calling and texting opened only after approval, agency complaint and opt-out rates with warn-limit-suspend, the staff view across agencies. *The dialer and SMS provider's registration API has not been read; carrier approval takes days to weeks and is outside our control.* | 21 |
 | 40 | Help and feedback: help pages, a support conversation for owners and admins, "What's new" notes by role, early features owners can opt into, a feedback button that attaches the page and version but no lead data. | - |
+| 41 | Backups and recovery: daily off-server backups of every database kept 30 days, a monthly restore test, restoring a single agency, data location in the terms; a second server planned but not required to open. *The current Coolify backup settings have not been checked for this.* | - |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -143,6 +144,7 @@ The step numbers above are names, not the order. The order is:
 18. Step 38: files on leads, with or after step 23.
 19. Step 39: carrier registration and agency policing, before any real agency texts. Like the lawyer and Google, carrier approval takes calendar time, so it should start early.
 20. Step 40: help and feedback. The feedback button and "What's new" notes are worth building early, since they help the owner and testers try every later step.
+21. Step 41: backups and recovery. The daily off-server backup and the restore test should exist before any real agency's data is on the server; the second server can follow.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
@@ -164,7 +166,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-295 decisions. Each row links to the file that holds it.
+299 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -463,3 +465,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D293 | When a step is switched on, the people it affects see a one-time "What's new" note for their role. Owners get a fuller list. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D294 | Owners can switch on early features for their agency from settings, knowing they may change. This uses the per-step switches (D104). | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D295 | A "Send feedback" button on every page sends the person's note with the page they were on and the app version. No lead data is attached. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D296 | Every database, including the personal chats database, is backed up daily to storage outside the VPS and kept 30 days. A restore is tested every month. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D297 | Staff can restore one agency's data from a backup without touching any other agency, after the owner confirms. Each restore is recorded. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D298 | Data stays on the current server and its backups, and the terms state which country. A US region can be added later if large agencies require it. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D299 | A second server (or a managed database) is planned so one failure does not stop calling and texting for every agency, but it does not delay opening. | [07-platform-and-rollout](07-platform-and-rollout.md) |

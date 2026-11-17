@@ -58,6 +58,10 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D293 | When a step is switched on, the people it affects see a one-time "What's new" note for their role. Owners get a fuller list. | 40 |
 | D294 | Owners can switch on early features for their agency from settings, knowing they may change. This uses the per-step switches (D104). | 40 |
 | D295 | A "Send feedback" button on every page sends the person's note with the page they were on and the app version. No lead data is attached. | 40 |
+| D296 | Every database, including the personal chats database, is backed up daily to storage outside the VPS and kept 30 days. A restore is tested every month. | 41 |
+| D297 | Staff can restore one agency's data from a backup without touching any other agency, after the owner confirms. Each restore is recorded. | 41 |
+| D298 | Data stays on the current server and its backups, and the terms state which country. A US region can be added later if large agencies require it. | 41, lawyer |
+| D299 | A second server (or a managed database) is planned so one failure does not stop calling and texting for every agency, but it does not delay opening. | 41 |
 
 ## Notes
 
