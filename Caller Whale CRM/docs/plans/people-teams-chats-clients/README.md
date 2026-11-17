@@ -16,6 +16,24 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | [06-do-not-call.md](06-do-not-call.md) | The three kinds of "do not call", Caller Whale's own database that learns from every agency's work, and who can take a number out. |
 | [07-platform-and-rollout.md](07-platform-and-rollout.md) | The web cache, shared devices, what plans and billing do to people, support access, limits on AI, and how every step is released and checked. |
 
+## Words on screen (D343 to D346)
+
+Every step uses these words. The plan itself sometimes says "agency" and "agent"; screens do not.
+
+| On screen | Means | Plan word |
+| --- | --- | --- |
+| Workspace | The business a person belongs to (Solo, Duo or Team plan) | agency |
+| Owner | The person who opened the workspace | owner |
+| Admin | Someone the owner gave owner-level powers, without billing or closing (D100) | admin |
+| Team lead | The person who runs a team (stored role key: `manager`) | manager, team lead |
+| Deputy lead | Someone a team lead or the owner named to help run a team (D43) | deputy |
+| Caller, Closer, Researcher | The roles that work leads; "team members" when a group word is needed | agent |
+| Client | The person or business that hired the workspace to work for them (not a lead) | client |
+| Partner | Another business working on the same deals, such as a lender (D245) | partner |
+| Lead | A person or property being worked | lead |
+| Personal chat | A chat that belongs to people, not to any workspace | personal chat |
+| Team chat, Group, Direct message | Chats inside a workspace | agency chat |
+
 ## What exists today
 
 **Teams and roles** (`services/authz/tree.go`)
@@ -174,7 +192,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-342 decisions. Each row links to the file that holds it.
+346 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -520,3 +538,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D340 | A Duo agency is created with one team and both people as owner and admin. Team leads, deputies and team screens stay hidden until it moves to the Team plan. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D341 | Moving from Duo to Team upgrades the same workspace in place, like the Solo upgrade. The team screens, roles and invitations appear, and the two people keep owner and admin. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D342 | One person can run a Solo workspace and own a Team agency at the same time, as separate workspaces each billed on its own (D69). | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D343 | Screens say "workspace" everywhere, since a Solo operator is not an agency. The website and pricing talk about agencies. In this plan "agency" means a workspace. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D344 | The person who opened a workspace is called "Owner" on screen. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D345 | Screens show each person's role (Caller, Closer, Researcher) and use no group word for them. Where a group is needed, "team members". The plan's word "agents" stays inside the plan. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D346 | Every step uses the on-screen words in the glossary in README.md. | [07-platform-and-rollout](07-platform-and-rollout.md) |
