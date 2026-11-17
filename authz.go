@@ -24,6 +24,8 @@ type rules interface {
 	open(ctx context.Context, org, user, role string) error
 	teams(ctx context.Context, org string) ([]authzTeam, error)
 	putTeam(ctx context.Context, org, id, name, actor string, secondStep bool) error
+	// nameOrg tells authz the agency's name, so an invitation can say which agency it comes from.
+	nameOrg(ctx context.Context, org, name string) error
 }
 
 type workspaceRoles struct {
@@ -148,6 +150,11 @@ func (a *authzClient) putTeam(ctx context.Context, org, id, name, actor string, 
 	var out map[string]any
 	return a.call(ctx, http.MethodPut, "/v1/orgs/"+url.PathEscape(org)+"/teams/"+url.PathEscape(id),
 		map[string]any{"actor_id": actor, "actor_second_step": secondStep, "name": name}, &out)
+}
+
+func (a *authzClient) nameOrg(ctx context.Context, org, name string) error {
+	var out map[string]any
+	return a.call(ctx, http.MethodPut, "/v1/orgs/"+url.PathEscape(org)+"/name", map[string]any{"name": name}, &out)
 }
 
 // grant asks for the "read" grant, which carries everything the person holds in the workspace. Answers are kept for a few

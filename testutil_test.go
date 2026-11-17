@@ -27,6 +27,27 @@ type fakeRules struct {
 	down    bool
 	// teams in authz, per workspace
 	teamList map[string][]authzTeam
+	// agency names told to authz, per workspace
+	names map[string]string
+}
+
+func (f *fakeRules) nameOrg(_ context.Context, org, name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.down {
+		return errUnavailable
+	}
+	if f.names == nil {
+		f.names = map[string]string{}
+	}
+	f.names[org] = name
+	return nil
+}
+
+func (f *fakeRules) nameOf(org string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.names[org]
 }
 
 func (f *fakeRules) people(_ context.Context, user string) (peopleReply, error) {
