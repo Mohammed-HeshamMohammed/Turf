@@ -37,6 +37,10 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D200 | In a handover the old owner chooses their new role: admin, team lead, or leaving. The new owner can change it afterwards like anyone else's. | 13 |
 | D201 | When an owner's account is disabled, only an existing admin of the agency can ask to take it over. Staff confirm the owner cannot be reached for 14 days and check the request before handing it over. | 13 |
 | D202 | With support access granted, staff can see screens and change settings to fix a problem. They cannot edit, export or delete leads, message anyone, or spend money. | 19 |
+| D203 | When a solo operator upgrades, a first team named after them is created, they become its team lead as well as the owner, and all their leads go into it. Their clients stay as clients of the agency. | 17 |
+| D204 | During the grace period after a failed payment, only the owner and admins are told, by a daily email and an in-app banner. Members see a plain notice only once the agency is read-only. | 18 |
+| D205 | A read-only agency can be read, and replies from leads still arrive and are stored. Nothing can be sent, called, imported or exported, and no one can be invited. | 18 |
+| D206 | After 30 days of read-only with no payment, the agency is treated as closed (D82): members lose access, and the owner can still pay and reopen, or export, for 30 more days. Then it is deleted except what the law requires keeping. | 18, lawyer |
 
 ## Notes
 
