@@ -152,8 +152,6 @@ export const api = {
   startTrial: (organizationName, timezone) => request("POST", "/api/v1/organizations/trial", { organization: organizationName || "", timezone: timezone || "" }),
   /** Whether a new account may open its own trial on this server, or must be given access by an owner or Caller Whale. */
   signupOpen: () => request("GET", "/api/v1/auth/service").then(data => data?.signup === true),
-  /** Joins the organization of an invitation for this person's email. */
-  joinInvitation: token => request("POST", "/api/v1/invitations/join", { token }),
   directory: () => request("GET", "/api/v1/directory"),
   /** My account's picture, kept with my name so the rest of the team sees the same face. */
   setPicture: (avatar: string): Promise<any> => request("PUT", "/api/v1/me/picture", { avatar }, { includeOrganization: false }),
@@ -225,9 +223,3 @@ export function socketProtocols(token, org = organization()) {
   return ["callerwhale.v1", ...(token ? [`bearer.${token}`] : []), ...(org ? [`org.${org}`] : [])];
 }
 
-/** The token from an invitation link (…#/join?token=…), or the token itself when that is what was pasted. */
-export function invitationToken(text) {
-  const value = String(text || "").trim();
-  const match = value.match(/[?&]token=([^&#\s]+)/);
-  return match ? decodeURIComponent(match[1]) : value;
-}
