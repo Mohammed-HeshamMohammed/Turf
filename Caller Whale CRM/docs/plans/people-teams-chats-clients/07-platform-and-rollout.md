@@ -70,6 +70,10 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D305 | A set of automatic tests signs in as people of different agencies and tries every way to read another agency's leads, chats and files. Any change that lets one through fails before it ships. | all |
 | D306 | Every secret has a written way to change it. Secrets are changed yearly, and at once if a person who knew them leaves or a leak is suspected. | 43 |
 | D307 | The 3 high-severity weaknesses GitHub reports in outside libraries are fixed before the first build step. After that, updates are reviewed monthly and serious ones within a week. | 43 |
+| D308 | The owner accepts a data processing agreement during first setup, since Caller Whale processes leads' data on the agency's behalf. A copy is kept in their settings. The lawyer writes it. | 31, lawyer |
+| D309 | Small changes to the terms or privacy policy are announced in "What's new". Big changes must be accepted at the next sign-in before working, and the date each person accepted is recorded. | 40, lawyer |
+| D310 | The owner has a tool for a lead's data request. It finds every record about that person in the agency, exports or deletes it, blocks the number if asked, and records the request and its date. | 44, lawyer |
+| D311 | A Caller Whale account needs its holder to be 18 or older, confirmed at sign-up, as the terms say today. Personal chats follow the same rule. | - |
 
 ## Notes
 

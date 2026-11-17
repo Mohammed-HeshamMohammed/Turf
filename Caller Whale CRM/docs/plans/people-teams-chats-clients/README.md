@@ -119,6 +119,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | 41 | Backups and recovery: daily off-server backups of every database kept 30 days, a monthly restore test, restoring a single agency, data location in the terms; a second server planned but not required to open. *The current Coolify backup settings have not been checked for this.* | - |
 | 42 | Monitoring and alerts: Grafana checks on sign-in, calls, texts, chats and databases; urgent alerts to the on-call person's phone; the speed targets watched; web app errors collected without personal data. *The current Grafana setup has not been read for this.* | - |
 | 43 | Security: fix the high-severity library weaknesses GitHub reports (before step 1), the cross-agency tests run on every change, a written way to change each secret with a yearly change, a monthly update review, and one outside security test before opening. | - |
+| 44 | Data requests from leads: the owner enters a request, Caller Whale finds every record about that person in the agency, exports or deletes it, blocks the number if asked, and records it. | 20, 23 |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -149,6 +150,7 @@ The step numbers above are names, not the order. The order is:
 20. Step 40: help and feedback. The feedback button and "What's new" notes are worth building early, since they help the owner and testers try every later step.
 21. Step 41: backups and recovery. The daily off-server backup and the restore test should exist before any real agency's data is on the server; the second server can follow.
 22. Step 42: monitoring and alerts, before any real agency depends on the service, alongside step 41.
+23. Step 44: the data request tool, with the lawyer's text, before opening.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
@@ -170,7 +172,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-307 decisions. Each row links to the file that holds it.
+311 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -481,3 +483,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D305 | A set of automatic tests signs in as people of different agencies and tries every way to read another agency's leads, chats and files. Any change that lets one through fails before it ships. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D306 | Every secret has a written way to change it. Secrets are changed yearly, and at once if a person who knew them leaves or a leak is suspected. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D307 | The 3 high-severity weaknesses GitHub reports in outside libraries are fixed before the first build step. After that, updates are reviewed monthly and serious ones within a week. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D308 | The owner accepts a data processing agreement during first setup, since Caller Whale processes leads' data on the agency's behalf. A copy is kept in their settings. The lawyer writes it. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D309 | Small changes to the terms or privacy policy are announced in "What's new". Big changes must be accepted at the next sign-in before working, and the date each person accepted is recorded. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D310 | The owner has a tool for a lead's data request. It finds every record about that person in the agency, exports or deletes it, blocks the number if asked, and records the request and its date. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D311 | A Caller Whale account needs its holder to be 18 or older, confirmed at sign-up, as the terms say today. Personal chats follow the same rule. | [07-platform-and-rollout](07-platform-and-rollout.md) |
