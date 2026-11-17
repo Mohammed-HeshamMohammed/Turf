@@ -62,6 +62,10 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D297 | Staff can restore one agency's data from a backup without touching any other agency, after the owner confirms. Each restore is recorded. | 41 |
 | D298 | Data stays on the current server and its backups, and the terms state which country. A US region can be added later if large agencies require it. | 41, lawyer |
 | D299 | A second server (or a managed database) is planned so one failure does not stop calling and texting for every agency, but it does not delay opening. | 41 |
+| D300 | Grafana watches sign-in, calls, texts, chats and the databases. When something fails or slows, an alert goes to the platform owner and cofounder by push notification or email, with a link to the logs. | 42 |
+| D301 | The owner and cofounder take turns on call each week. Only urgent alerts (calls, texts or sign-in down) wake anyone; the rest wait for the morning. | 42 |
+| D302 | Opening a lead or a list appears within a second, and saving an outcome or sending a text answers within half a second, for most people. Slower than that triggers an alert. | all |
+| D303 | Errors in the web app are sent automatically with the page and version, stripped of names, numbers and message text, alongside the server's Runtime Logs table. | 42 |
 
 ## Notes
 

@@ -117,6 +117,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | 39 | Carrier registration per agency (10DLC brand and campaign), calling and texting opened only after approval, agency complaint and opt-out rates with warn-limit-suspend, the staff view across agencies. *The dialer and SMS provider's registration API has not been read; carrier approval takes days to weeks and is outside our control.* | 21 |
 | 40 | Help and feedback: help pages, a support conversation for owners and admins, "What's new" notes by role, early features owners can opt into, a feedback button that attaches the page and version but no lead data. | - |
 | 41 | Backups and recovery: daily off-server backups of every database kept 30 days, a monthly restore test, restoring a single agency, data location in the terms; a second server planned but not required to open. *The current Coolify backup settings have not been checked for this.* | - |
+| 42 | Monitoring and alerts: Grafana checks on sign-in, calls, texts, chats and databases; urgent alerts to the on-call person's phone; the speed targets watched; web app errors collected without personal data. *The current Grafana setup has not been read for this.* | - |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -145,6 +146,7 @@ The step numbers above are names, not the order. The order is:
 19. Step 39: carrier registration and agency policing, before any real agency texts. Like the lawyer and Google, carrier approval takes calendar time, so it should start early.
 20. Step 40: help and feedback. The feedback button and "What's new" notes are worth building early, since they help the owner and testers try every later step.
 21. Step 41: backups and recovery. The daily off-server backup and the restore test should exist before any real agency's data is on the server; the second server can follow.
+22. Step 42: monitoring and alerts, before any real agency depends on the service, alongside step 41.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
@@ -166,7 +168,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-299 decisions. Each row links to the file that holds it.
+303 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -469,3 +471,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D297 | Staff can restore one agency's data from a backup without touching any other agency, after the owner confirms. Each restore is recorded. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D298 | Data stays on the current server and its backups, and the terms state which country. A US region can be added later if large agencies require it. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D299 | A second server (or a managed database) is planned so one failure does not stop calling and texting for every agency, but it does not delay opening. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D300 | Grafana watches sign-in, calls, texts, chats and the databases. When something fails or slows, an alert goes to the platform owner and cofounder by push notification or email, with a link to the logs. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D301 | The owner and cofounder take turns on call each week. Only urgent alerts (calls, texts or sign-in down) wake anyone; the rest wait for the morning. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D302 | Opening a lead or a list appears within a second, and saving an outcome or sending a text answers within half a second, for most people. Slower than that triggers an alert. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D303 | Errors in the web app are sent automatically with the page and version, stripped of names, numbers and message text, alongside the server's Runtime Logs table. | [07-platform-and-rollout](07-platform-and-rollout.md) |
