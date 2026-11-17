@@ -150,7 +150,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-228 decisions. Each row links to the file that holds it.
+232 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -382,3 +382,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D226 | A team lead's overview opens with their team right now: who is available, on a call or on a break; unanswered lead texts; overdue callbacks; unassigned leads. Today's results come below. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D227 | The owner, admins and team leads can schedule a weekly or monthly report to themselves or to a client's people inside Caller Whale. The email holds totals only; the details open in Caller Whale. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D228 | Reports use the agency's time zone, so everyone sees the same numbers. A team with its own hours still reports in the agency's zone. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D229 | Whoever holds a lead sees everything done on it for that client, by anyone, so they never repeat a call or contradict an earlier promise. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D230 | The owner and admins define lead fields per agency or client. Team leads create tags for their teams. Agents fill fields and apply existing tags but create neither. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D231 | Two copies of the same person for the same client can be merged by a team lead, admin or owner. History, threads and numbers are combined, and the merge can be undone for 7 days. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D232 | Agents and team leads can archive a lead (reversible). Only the owner and admins delete permanently, with a confirmation. A person's request to be erased is handled by the owner. | [02-teams-and-leads](02-teams-and-leads.md) |
