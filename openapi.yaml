@@ -297,12 +297,28 @@ paths:
     get:
       summary: List live invitations addressed to the signed-in verified email
       security: [{ bearer: [] }]
-      responses: { "200": { description: Invitations, empty until email is verified } }
+      responses: { "200": { description: "Invitations with org_name, owner_name, inviter_name and created_at; empty until email is verified, with waiting true when one is pending" } }
+  /v1/me/invitations/{id}:
+    get:
+      summary: The invitation an email link opens
+      security: [{ bearer: [] }]
+      responses: { "200": { description: The invitation }, "403": { description: "other_address (the invited address, masked like m•••••@gmail.com) or email_unverified" }, "404": { description: No such invitation }, "409": { description: Already accepted }, "410": { description: Cancelled or expired } }
   /v1/me/invitations/{id}/accept:
     post:
       summary: Accept a pending invitation after verified-email sign-in; Authz checks the inviter's current authority
       security: [{ bearer: [] }]
-      responses: { "200": { description: Membership applied }, "403": { description: Wrong email, expired invitation, or inviter lost authority }, "409": { description: Already has a role or membership } }
+      responses: { "200": { description: "Membership applied; org_id is the agency joined" }, "403": { description: "Wrong address (masked), unverified email, or inviter lost authority" }, "409": { description: Already accepted, or a role or membership exists }, "410": { description: Cancelled or expired } }
+  /v1/me/invitations/{id}/report:
+    post:
+      summary: Report an invitation sent to the signed-in address to Caller Whale staff
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { reason: { type: string, maxLength: 1000 } } } } } }
+      responses: { "200": { description: Reported (again is harmless) }, "404": { description: No such invitation for this address } }
+  /v1/admin/invitation-reports:
+    get:
+      summary: Reported invitations, newest first; staff with a second step
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Reports }, "403": { description: Staff access required } }
   /v1/password:
     post:
       summary: Change the password and close every other session

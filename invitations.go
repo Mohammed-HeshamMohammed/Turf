@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"slices"
 	"strings"
@@ -23,8 +25,38 @@ type invitation struct {
 	TeamID        string `json:"team_id"`
 	InvitedBy     string `json:"-"`
 	ExpiresAt     int64  `json:"expires_at"`
-	CreatedAt     int64  `json:"-"`
+	CreatedAt     int64  `json:"created_at"`
 	DeliveryState string `json:"delivery_state"`
+	// Where it comes from (D92): the agency and its owner as named when it was sent, and who sent it.
+	OrgName     string `json:"org_name"`
+	OwnerName   string `json:"owner_name"`
+	InviterName string `json:"inviter_name"`
+}
+
+// invitationColumns are read for every invitation shown; scanInvitation fills them in the same order.
+const invitationColumns = `i.id,i.scope,i.org_id,i.email,i.role,i.team_id,i.invited_by,i.expires_at,i.created_at,i.delivery_state,i.org_name,i.owner_name,coalesce(u.display_name,'')`
+const invitationFrom = ` FROM access_invitations i LEFT JOIN users u ON u.id = i.invited_by `
+
+func scanInvitation(row pgx.Row) (invitation, error) {
+	var item invitation
+	err := row.Scan(&item.ID, &item.Scope, &item.OrgID, &item.Email, &item.Role, &item.TeamID, &item.InvitedBy, &item.ExpiresAt, &item.CreatedAt, &item.DeliveryState, &item.OrgName, &item.OwnerName, &item.InviterName)
+	return item, err
+}
+
+// maskEmail shows an address by its first letter and its domain, m•••••@gmail.com, so a person signed in with another address
+// learns which one the invitation was sent to without the whole of it being shown (D177).
+func maskEmail(email string) string {
+	at := strings.LastIndexByte(email, '@')
+	if at < 1 {
+		return "•••••"
+	}
+	first := []rune(email[:at])[0]
+	return string(first) + "•••••" + email[at:]
+}
+
+// invitationLink opens the invitation itself rather than the dashboard in general (problem 11).
+func (s *server) invitationLink(id string) string {
+	return s.cfg.landingURL + "/dashboard?invitation=" + id
 }
 
 // invitationDeadline is when an invitation stops working: a platform (staff) invitation after one hour, a workspace invitation after
@@ -133,15 +165,15 @@ func (s *server) workspaceActor(r *http.Request, org string) (claims, error) {
 }
 
 func (s *server) listInvitations(w http.ResponseWriter, r *http.Request, scope, org string) error {
-	rows, err := s.db.Query(r.Context(), `SELECT id,scope,org_id,email,role,team_id,invited_by,expires_at,delivery_state FROM access_invitations WHERE scope=$1 AND org_id=$2 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at>$3 ORDER BY created_at DESC LIMIT 200`, scope, org, now())
+	rows, err := s.db.Query(r.Context(), `SELECT `+invitationColumns+invitationFrom+`WHERE i.scope=$1 AND i.org_id=$2 AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at>$3 ORDER BY i.created_at DESC LIMIT 200`, scope, org, now())
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	items := []invitation{}
 	for rows.Next() {
-		var item invitation
-		if err := rows.Scan(&item.ID, &item.Scope, &item.OrgID, &item.Email, &item.Role, &item.TeamID, &item.InvitedBy, &item.ExpiresAt, &item.DeliveryState); err != nil {
+		item, err := scanInvitation(rows)
+		if err != nil {
 			return err
 		}
 		items = append(items, item)
@@ -269,13 +301,35 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 			}
 		}
 	}
+	// The invitation names where it comes from (D92). The CRM keeps the agency's name in authz; a workspace not named there yet
+	// is shown as its owner's.
+	orgName, ownerName := "Caller Whale", ""
+	if scope == "workspace" {
+		var about struct {
+			OwnerID string `json:"owner_id"`
+			Name    string `json:"name"`
+		}
+		// Not found (or an authz from before names were kept): the invitation goes out without the name rather than not at all.
+		if status, err := s.authzCall(r, http.MethodGet, "/v1/orgs/"+org, nil, &about); err != nil && status != http.StatusNotFound {
+			return err
+		}
+		if about.OwnerID != "" {
+			if err := s.db.QueryRow(r.Context(), "SELECT display_name FROM users WHERE id=$1", about.OwnerID).Scan(&ownerName); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return err
+			}
+		}
+		orgName = strings.TrimSpace(about.Name)
+		if orgName == "" && ownerName != "" {
+			orgName = ownerName + "'s workspace"
+		}
+	}
 	id := uuid.NewString()
 	createdAt := now()
 	expires := invitationDeadline(scope, createdAt)
 	if _, err := s.db.Exec(r.Context(), "UPDATE access_invitations SET revoked_at=$1 WHERE scope=$2 AND org_id=$3 AND email=$4 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at<=$1", now(), scope, org, email); err != nil {
 		return err
 	}
-	_, err = s.db.Exec(r.Context(), `INSERT INTO access_invitations (id,scope,org_id,email,role,team_id,invited_by,created_at,expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, id, scope, org, email, role, strings.TrimSpace(body.TeamID), c.Sub, createdAt, expires)
+	_, err = s.db.Exec(r.Context(), `INSERT INTO access_invitations (id,scope,org_id,email,role,team_id,invited_by,created_at,expires_at,org_name,owner_name) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, id, scope, org, email, role, strings.TrimSpace(body.TeamID), c.Sub, createdAt, expires, orgName, ownerName)
 	if err != nil {
 		if strings.Contains(err.Error(), "access_invitations_open") {
 			return conflict("An invitation is already pending for this email.")
@@ -288,21 +342,22 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 		if err := s.db.QueryRow(r.Context(), "SELECT display_name FROM users WHERE id=$1", c.Sub).Scan(&inviter); err != nil {
 			return err
 		}
-		link := s.cfg.landingURL + "/dashboard"
 		expiresIn := "one hour"
 		if scope == "workspace" {
 			expiresIn = "72 hours"
 		}
-		if err := s.mail.sendInvitation(r.Context(), email, inviter, role, roleWords(role), expiresIn, link); err == nil {
+		if err := s.mail.sendInvitation(r.Context(), email, inviter, orgName, role, roleWords(role), expiresIn, s.invitationLink(id)); err == nil {
 			state = "sent"
 		} else {
+			// Kept apart from "not_configured": the sender is told the email failed, not that email is switched off (problem 9).
+			log.Printf("WARN invitation %s was not emailed: %v", id, err)
 			state = "failed"
 		}
 	}
 	if _, err := s.db.Exec(r.Context(), "UPDATE access_invitations SET delivery_state=$1 WHERE id=$2", state, id); err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"id": id, "delivery_state": state, "expires_at": expires})
+	writeJSON(w, http.StatusCreated, map[string]any{"id": id, "delivery_state": state, "expires_at": expires, "link": s.invitationLink(id)})
 	return nil
 }
 
@@ -328,18 +383,23 @@ func (s *server) myInvitations(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if !c.EmailVerified {
-		writeJSON(w, http.StatusOK, map[string]any{"invitations": []invitation{}})
+		// Nothing about the invitation is shown before the address is confirmed, only that one waits (problem 7).
+		var waiting bool
+		if err := s.db.QueryRow(r.Context(), `SELECT EXISTS (SELECT 1 FROM access_invitations WHERE email=$1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at>$2)`, strings.ToLower(c.Email), now()).Scan(&waiting); err != nil {
+			return err
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"invitations": []invitation{}, "waiting": waiting, "email_verified": false})
 		return nil
 	}
-	rows, err := s.db.Query(r.Context(), `SELECT id,scope,org_id,email,role,invited_by,expires_at,delivery_state FROM access_invitations WHERE email=$1 AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at>$2 ORDER BY created_at DESC LIMIT 50`, strings.ToLower(c.Email), now())
+	rows, err := s.db.Query(r.Context(), `SELECT `+invitationColumns+invitationFrom+`WHERE i.email=$1 AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at>$2 ORDER BY i.created_at DESC LIMIT 50`, strings.ToLower(c.Email), now())
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	items := []invitation{}
 	for rows.Next() {
-		var item invitation
-		if err := rows.Scan(&item.ID, &item.Scope, &item.OrgID, &item.Email, &item.Role, &item.InvitedBy, &item.ExpiresAt, &item.DeliveryState); err != nil {
+		item, err := scanInvitation(rows)
+		if err != nil {
 			return err
 		}
 		items = append(items, item)
@@ -347,7 +407,134 @@ func (s *server) myInvitations(w http.ResponseWriter, r *http.Request) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"invitations": items})
+	writeJSON(w, http.StatusOK, map[string]any{"invitations": items, "waiting": len(items) > 0, "email_verified": true})
+	return nil
+}
+
+// readMyInvitation finds one invitation for the signed-in person and says, in words they can act on, why it cannot be used:
+// sent to another address (shown masked), address not yet confirmed, cancelled, already accepted, or ended.
+func (s *server) readMyInvitation(r *http.Request, q interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}, c claims, id string, lock bool) (invitation, error) {
+	if _, err := uuid.Parse(id); err != nil {
+		return invitation{}, bad("Choose a valid invitation.")
+	}
+	query := `SELECT ` + invitationColumns + `,i.accepted_at,i.revoked_at` + invitationFrom + `WHERE i.id=$1`
+	if lock {
+		query += " FOR UPDATE OF i"
+	}
+	var item invitation
+	var accepted, revoked *int64
+	err := q.QueryRow(r.Context(), query, id).Scan(&item.ID, &item.Scope, &item.OrgID, &item.Email, &item.Role, &item.TeamID, &item.InvitedBy, &item.ExpiresAt, &item.CreatedAt, &item.DeliveryState, &item.OrgName, &item.OwnerName, &item.InviterName, &accepted, &revoked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return invitation{}, newError(http.StatusNotFound, "not_found", "Invitation not found.")
+	}
+	if err != nil {
+		return invitation{}, err
+	}
+	if item.Email != strings.ToLower(c.Email) {
+		return invitation{}, newError(http.StatusForbidden, "other_address", "This invitation was sent to "+maskEmail(item.Email)+". Sign in with that address to accept it.")
+	}
+	if !c.EmailVerified {
+		return invitation{}, newError(http.StatusForbidden, "email_unverified", "An invitation is waiting. Confirm your email to see it.")
+	}
+	switch {
+	case revoked != nil:
+		return invitation{}, newError(http.StatusGone, "cancelled", "This invitation was cancelled.")
+	case accepted != nil:
+		return invitation{}, newError(http.StatusConflict, "accepted", "You already accepted this invitation.")
+	case item.ExpiresAt <= now() || invitationDeadline(item.Scope, item.CreatedAt) <= now():
+		return invitation{}, newError(http.StatusGone, "expired", "This invitation has ended. Ask whoever invited you to send a new one.")
+	}
+	return item, nil
+}
+
+// myInvitation is the invitation an email link opens (GET /v1/me/invitations/{id}).
+func (s *server) myInvitation(w http.ResponseWriter, r *http.Request) error {
+	c, err := s.person(r)
+	if err != nil {
+		return err
+	}
+	item, err := s.readMyInvitation(r, s.db, c, r.PathValue("id"), false)
+	if err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"invitation": item})
+	return nil
+}
+
+// reportInvitation sends an invitation to Caller Whale staff as suspicious (D92). Only the person it was sent to can report it,
+// once; reporting does not decline it.
+func (s *server) reportInvitation(w http.ResponseWriter, r *http.Request) error {
+	c, err := s.person(r)
+	if err != nil {
+		return err
+	}
+	id := r.PathValue("id")
+	if _, err := uuid.Parse(id); err != nil {
+		return bad("Choose a valid invitation.")
+	}
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	if r.ContentLength != 0 {
+		if err := readJSON(w, r, &body); err != nil {
+			return err
+		}
+	}
+	reason := strings.TrimSpace(body.Reason)
+	if len(reason) > 1000 {
+		return bad("Keep the reason under 1000 characters.")
+	}
+	var email string
+	err = s.db.QueryRow(r.Context(), "SELECT email FROM access_invitations WHERE id=$1", id).Scan(&email)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && email != strings.ToLower(c.Email)) {
+		return newError(http.StatusNotFound, "not_found", "Invitation not found.")
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := s.db.Exec(r.Context(), `INSERT INTO invitation_reports (invitation_id,reporter_id,reason,created_at) VALUES ($1,$2,$3,$4) ON CONFLICT (invitation_id,reporter_id) DO NOTHING`, id, c.Sub, reason, now()); err != nil {
+		return err
+	}
+	log.Printf("INFO invitation %s was reported to staff", id)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	return nil
+}
+
+// invitationReports lists reported invitations for Caller Whale staff, newest first.
+func (s *server) invitationReports(w http.ResponseWriter, r *http.Request) error {
+	if _, err := s.staffActor(r, false); err != nil {
+		return err
+	}
+	rows, err := s.db.Query(r.Context(), `SELECT p.invitation_id,p.reason,p.created_at,i.org_id,i.org_name,i.owner_name,coalesce(u.display_name,''),i.invited_by,i.created_at FROM invitation_reports p JOIN access_invitations i ON i.id=p.invitation_id LEFT JOIN users u ON u.id=i.invited_by ORDER BY p.created_at DESC LIMIT 200`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	type report struct {
+		InvitationID string `json:"invitation_id"`
+		Reason       string `json:"reason"`
+		ReportedAt   int64  `json:"reported_at"`
+		OrgID        string `json:"org_id"`
+		OrgName      string `json:"org_name"`
+		OwnerName    string `json:"owner_name"`
+		InviterName  string `json:"inviter_name"`
+		InviterID    string `json:"inviter_id"`
+		SentAt       int64  `json:"sent_at"`
+	}
+	items := []report{}
+	for rows.Next() {
+		var item report
+		if err := rows.Scan(&item.InvitationID, &item.Reason, &item.ReportedAt, &item.OrgID, &item.OrgName, &item.OwnerName, &item.InviterName, &item.InviterID, &item.SentAt); err != nil {
+			return err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"reports": items})
 	return nil
 }
 
@@ -356,28 +543,15 @@ func (s *server) acceptInvitation(w http.ResponseWriter, r *http.Request) error 
 	if err != nil {
 		return err
 	}
-	if !c.EmailVerified {
-		return forbidden("Confirm your email address before accepting an invitation.")
-	}
 	id := r.PathValue("id")
-	if _, err := uuid.Parse(id); err != nil {
-		return bad("Choose a valid invitation.")
-	}
 	tx, err := s.db.Begin(r.Context())
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(r.Context())
-	var item invitation
-	err = tx.QueryRow(r.Context(), `SELECT id,scope,org_id,email,role,team_id,invited_by,expires_at,delivery_state,created_at FROM access_invitations WHERE id=$1 AND accepted_at IS NULL AND revoked_at IS NULL FOR UPDATE`, id).Scan(&item.ID, &item.Scope, &item.OrgID, &item.Email, &item.Role, &item.TeamID, &item.InvitedBy, &item.ExpiresAt, &item.DeliveryState, &item.CreatedAt)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return newError(http.StatusNotFound, "not_found", "Invitation not found.")
-	}
+	item, err := s.readMyInvitation(r, tx, c, id, true)
 	if err != nil {
 		return err
-	}
-	if item.Email != strings.ToLower(c.Email) || item.ExpiresAt <= now() || invitationDeadline(item.Scope, item.CreatedAt) <= now() {
-		return forbidden("This invitation is unavailable for this account.")
 	}
 	profile, err := readAccess(r.Context(), s.cfg.authzURL, s.cfg.authzToken, c.Sub)
 	if err != nil {
@@ -423,7 +597,8 @@ func (s *server) acceptInvitation(w http.ResponseWriter, r *http.Request) error 
 	if err := tx.Commit(r.Context()); err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	// org_id lets the app open the agency just joined rather than the one used last (problem 17).
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "scope": item.Scope, "org_id": item.OrgID})
 	return nil
 }
 
