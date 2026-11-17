@@ -41,6 +41,8 @@ Who can be invited, how an invitation works from sending to arriving, one person
 | D175 | An invitation can be resent at most once an hour and three times in total, and extended twice. After that the owner withdraws it and sends a new one. | 2 |
 | D176 | An agency can never have more pending invitations than free seats, and no more than 50 new ones in a day. Staff can raise the daily number for a large agency. | 2 |
 | D177 | Someone signed in with a different address than the one invited is shown the first letter and the domain of the invited address, for example m•••••@gmail.com. | 1 |
+| D186 | A tag is 4 letters and digits, for example #K7P2. Characters that are easily confused (0 and O, 1 and I) are never used. A person changing theirs picks 3 to 8 characters from the same set. | 4 |
+| D187 | The tag appears beside a name only when the same name occurs twice in what is on screen. Otherwise names stay clean. | 4 |
 
 ## Notes
 

@@ -149,7 +149,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Every decision
 
-185 decisions. Each row links to the file that holds it.
+189 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -338,3 +338,7 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 | D183 | Each team sets a maximum of open leads per agent. An agent at the limit cannot claim more until they finish or release some. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D184 | The record of people changes is kept 2 years. The record of who opened a lead is kept 90 days. The lawyer may adjust both. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D185 | A member can mute the automatic team chat but cannot leave it while they are in the team. | [03-chats](03-chats.md) |
+| D186 | A tag is 4 letters and digits, for example #K7P2. Characters that are easily confused (0 and O, 1 and I) are never used. A person changing theirs picks 3 to 8 characters from the same set. | [01-people-and-invitations](01-people-and-invitations.md) |
+| D187 | The tag appears beside a name only when the same name occurs twice in what is on screen. Otherwise names stay clean. | [01-people-and-invitations](01-people-and-invitations.md) |
+| D188 | "This is my device" is remembered for 30 days. Owners, admins and team leads are asked for their authenticator code again every 7 days. A sign-in from a new place asks at once. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D189 | On a device marked as theirs, the device password still protects the saved copy. On a shared device nothing is saved, so no device password is asked. | [07-platform-and-rollout](07-platform-and-rollout.md) |
