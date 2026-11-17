@@ -44,6 +44,8 @@ workspace's standing.
 | `POST /v1/grant` `{user_id, org_id, action, second_step_passed}` | Allowed, with a signed grant (EdDSA, audience = the calling service, 60 seconds) carrying the database role, scopes, team and project ids and capabilities; or refused with a code: `not_member`, `suspended`, `second_step_required`, `payment_required`, `no_scope`, `missing_capability`, `not_staff` |
 | `POST /v1/check`, `POST /v1/check-batch` | Allowed or not, for a capability, `member`, `manage_access`, `staff`, `manage_staff` or `tester` |
 | `PUT /v1/orgs/{org}/owner` | Sets up a new workspace's roles and its owner (`owner` or `solo`) |
+| `GET /v1/orgs/{org}` | The workspace's owner and agency name, so auth can say on an invitation where it comes from (`read`) |
+| `PUT /v1/orgs/{org}/name` | Keeps the agency's name as the CRM has it; only crm-core sets it (`manage`) |
 | `GET`/`PUT /v1/orgs/{org}/roles[/{key}]` | The workspace's roles; changing one needs an actor with `admin` |
 | `GET /v1/orgs/{org}/members`, `PUT`/`DELETE /v1/orgs/{org}/members/{user}` | Members, their roles, restrictions, teams and projects; changes need an actor with `admin` |
 | `PUT /v1/orgs/{org}/standing` | Suspended and payment-required flags (billing, core API) |

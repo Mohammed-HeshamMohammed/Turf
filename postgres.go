@@ -71,6 +71,8 @@ func (p *postgres) setup(ctx context.Context) error {
 		`UPDATE authz_roles SET capabilities = array_append(capabilities, 'import') WHERE role_key = 'manager' AND NOT ('import' = ANY(capabilities))`,
 		// The second step (an authenticator) is for the platform owner and cofounder only, not for anyone in a workspace.
 		`UPDATE authz_roles SET second_step = false WHERE role_key IN ('owner', 'solo') AND second_step`,
+		// The agency's name, copied from the CRM, so an invitation can name the agency it comes from.
+		`ALTER TABLE authz_workspaces ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT ''`,
 	} {
 		if _, err = tx.Exec(ctx, ddl); err != nil {
 			return err
@@ -183,6 +185,20 @@ func (p *postgres) setStanding(ctx context.Context, org string, c standingChange
 			clients = CASE WHEN $6 THEN $7 ELSE authz_standing.clients END`,
 		org, c.Suspended, c.PaymentRequired, c.SeatsSet, c.Seats, c.ClientsSet, c.Clients)
 	return err
+}
+
+func (p *postgres) setWorkspaceName(ctx context.Context, org, name string) error {
+	_, err := p.db.Exec(ctx, `UPDATE authz_workspaces SET name=$2 WHERE org_id=$1`, org, name)
+	return err
+}
+
+func (p *postgres) workspaceInfo(ctx context.Context, org string) (string, string, bool, error) {
+	var owner, name string
+	err := p.db.QueryRow(ctx, `SELECT owner_id, name FROM authz_workspaces WHERE org_id=$1`, org).Scan(&owner, &name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", false, nil
+	}
+	return owner, name, err == nil, err
 }
 
 func (p *postgres) seatLimits(ctx context.Context, org string) (*int, *int, error) {

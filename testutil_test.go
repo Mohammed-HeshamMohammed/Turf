@@ -24,10 +24,11 @@ type memEngine struct {
 	openOwner map[string]string
 	teamsBy   map[string][]team  // org -> teams
 	limits    map[string][2]*int // org -> seats, clients
+	names     map[string]string  // org -> agency name
 }
 
 func newMem() *memEngine {
-	return &memEngine{roleDefs: map[string]map[string]role{}, people: map[string]map[string]membership{}, standing: map[string][2]bool{}, staff: map[string]string{}, openOwner: map[string]string{}, teamsBy: map[string][]team{}, limits: map[string][2]*int{}}
+	return &memEngine{roleDefs: map[string]map[string]role{}, people: map[string]map[string]membership{}, standing: map[string][2]bool{}, staff: map[string]string{}, openOwner: map[string]string{}, teamsBy: map[string][]team{}, limits: map[string][2]*int{}, names: map[string]string{}}
 }
 
 var errStoreDown = errors.New("rules store down")
@@ -205,6 +206,18 @@ func (m *memEngine) setStanding(_ context.Context, org string, c standingChange)
 	}
 	m.limits[org] = l
 	return m.down()
+}
+
+func (m *memEngine) setWorkspaceName(_ context.Context, org, name string) error {
+	if _, ok := m.openOwner[org]; ok {
+		m.names[org] = name
+	}
+	return m.down()
+}
+
+func (m *memEngine) workspaceInfo(_ context.Context, org string) (string, string, bool, error) {
+	owner, ok := m.openOwner[org]
+	return owner, m.names[org], ok, m.down()
 }
 
 func (m *memEngine) seatLimits(_ context.Context, org string) (*int, *int, error) {

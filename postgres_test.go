@@ -28,6 +28,16 @@ func TestPostgres(t *testing.T) {
 		}
 	}
 	must(s.openWorkspace(ctx, org1, ownerID, "owner"))
+	if owner, name, found, err := s.workspaceInfo(ctx, org1); err != nil || !found || owner != ownerID || name != "" {
+		t.Errorf("a new workspace has its owner and no name yet: %q %q %v %v", owner, name, found, err)
+	}
+	must(s.setWorkspaceName(ctx, org1, "Blue Door Homes"))
+	if _, name, _, _ := s.workspaceInfo(ctx, org1); name != "Blue Door Homes" {
+		t.Errorf("the name is kept: %q", name)
+	}
+	if _, _, found, err := s.workspaceInfo(ctx, strangerID); found || err != nil {
+		t.Errorf("a workspace never opened is not found: %v %v", found, err)
+	}
 	if err := s.openWorkspace(ctx, org1, strangerID, "owner"); err != errAlreadyOpen {
 		t.Errorf("a second owner: %v", err)
 	}

@@ -52,6 +52,8 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/check", s.only("check", s.check))
 	mux.Handle("POST /v1/check-batch", s.only("check", s.checkBatch))
 	mux.Handle("PUT /v1/orgs/{org}/owner", s.only("open", s.open))
+	mux.Handle("GET /v1/orgs/{org}", s.only("read", s.workspaceAbout))
+	mux.Handle("PUT /v1/orgs/{org}/name", s.only("manage", s.nameWorkspace))
 	mux.Handle("GET /v1/people/{user}", s.only("read", s.person))
 	mux.Handle("GET /v1/roles", s.only("read", s.catalog))
 	mux.Handle("GET /v1/orgs/{org}/roles", s.only("read", s.listRoles))
@@ -255,6 +257,46 @@ func (s *server) open(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "access_changed": true})
+	return nil
+}
+
+// workspaceAbout is who owns a workspace and what it is called, for an invitation that has to say where it comes from.
+func (s *server) workspaceAbout(w http.ResponseWriter, r *http.Request) error {
+	org, err := s.workspace(r)
+	if err != nil {
+		return err
+	}
+	owner, name, found, err := s.rules.workspaceInfo(r.Context(), org)
+	if err != nil {
+		return store(err)
+	}
+	if !found {
+		return newError(http.StatusNotFound, "not_found", "No such workspace.")
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"org_id": org, "owner_id": owner, "name": name})
+	return nil
+}
+
+// nameWorkspace keeps the agency's name as the CRM has it. Only the CRM (core-api) sets it, since that is where it is changed.
+func (s *server) nameWorkspace(w http.ResponseWriter, r *http.Request) error {
+	org, err := s.workspace(r)
+	if err != nil {
+		return err
+	}
+	var body struct {
+		Name string `json:"name"`
+	}
+	if err := readJSON(w, r, &body); err != nil {
+		return err
+	}
+	name := strings.TrimSpace(body.Name)
+	if name == "" || len(name) > 200 || strings.ContainsAny(name, "\r\n") {
+		return bad("Send a name of up to 200 characters on one line.")
+	}
+	if err := store(s.rules.setWorkspaceName(r.Context(), org, name)); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	return nil
 }
 
