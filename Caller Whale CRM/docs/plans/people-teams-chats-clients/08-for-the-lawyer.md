@@ -27,6 +27,8 @@ Every item links to the file that holds it, where the surrounding decisions give
 | D132 | When a client stops working with the agency, lists the client supplied are exported to them and removed from the agency after a set time. Lists the agency supplied stay with the agency, no longer marked with that client. | [04-clients](04-clients.md) |
 | D274 | Caller Whale checks the federal Do Not Call list for every agency, and state lists where a state keeps one. Each agency holds its own registry access, as the law requires per business, and Caller Whale uses it on their behalf. | [06-do-not-call](06-do-not-call.md) |
 | D317 | Every email to a lead carries an unsubscribe link and the agency's address. Unsubscribing blocks email to that address for the agency, like a text opt-out. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D363 | Settles D140: numbers on a do-not-call registry are checked through each agency's own registry access and never copied into Caller Whale's shared database. The shared database holds only numbers whose owners said "no calls from anyone" to a Caller Whale agency (D351) and confirmed known complainers. | [06-do-not-call](06-do-not-call.md) |
+| D366 | Settles D356 against D223: consent to text belongs to one client's work within an agency, and one number. Working the same number for another client needs its own consent. Opt-outs still block the whole agency (D139). | [06-do-not-call](06-do-not-call.md) |
 
 ## Terms, agreements and consent
 
@@ -40,6 +42,7 @@ Every item links to the file that holds it, where the surrounding decisions give
 | D353 | A lead is texted only with consent on record. Consent can come from: a website form (D247), an earlier reply from the lead, the agent marking it during a call, or the agency confirming per list that it holds consent. Cold leads with none of these can be called but not texted. | [06-do-not-call](06-do-not-call.md) |
 | D354 | Caller Whale trusts the agency and the agent for consent it cannot verify, such as a lead on the phone saying "I'm driving, text me". The agent marks "Agreed to texts", with the date, who marked it, and the recording or captions linked when there are any. Responsibility for consent the agency or agent confirmed stays with the agency, as the terms say. | [06-do-not-call](06-do-not-call.md) |
 | D355 | An agency can confirm on import that it holds consent for a list. The confirmation is recorded with who gave it and when, and covers that agency only. | [06-do-not-call](06-do-not-call.md) |
+| D370 | Deleted data leaves the backups within 30 days, and the terms and privacy policy say so. A restore never brings back data deleted on a person's request: it is deleted again after any restore. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 
 ## Data, retention and deletion
 
@@ -53,6 +56,7 @@ Every item links to the file that holds it, where the surrounding decisions give
 | D232 | Agents and team leads can archive a lead (reversible). Only the owner and admins delete permanently, with a confirmation. A person's request to be erased is handled by the owner. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D236 | After a security breach affecting an agency's data, its owner is told within 72 hours of Caller Whale knowing, with what happened and what to do. Telling leads or authorities follows the law, which the lawyer sets out. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D310 | The owner has a tool for a lead's data request. It finds every record about that person in the agency, exports or deletes it, blocks the number if asked, and records the request and its date. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D367 | When a lead asks to be deleted, their record, history and files are deleted. Only the number and email stay on the agency's block list, with the date and "deleted on request", so they are never contacted again. | [06-do-not-call](06-do-not-call.md) |
 
 ## Calls, texts and recording
 

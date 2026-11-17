@@ -15,7 +15,7 @@ Who can be invited, how an invitation works from sending to arriving, one person
 | D7 | When the person who sent an invitation is removed, the invitation is cancelled and gives no access. | - |
 | D13 | Removing an inviter cancels pending invitations only. People who already accepted keep their access. | - |
 | D14 | The tag is generated automatically and the person can change it. | - |
-| D15 | A team manager can invite callers and closers into the teams they run. The owner sees every invitation and can withdraw any. | - |
+| D15 | A team manager can invite callers and closers into the teams they run. The owner sees every invitation and can withdraw any. *Researchers too: D369.* | - |
 | D22 | Platform staff see a member's phone only through the person's own setting. | - |
 | D25 | A person can leave an agency at once. Their leads, tasks and threads go to their managers (or the owner), and the owner can then decide where it goes: all of it to one person, or parts to different people. The same choice applies when someone is removed. | - |
 | D26 | A suspended person's leads and threads are held by their managers, who can read and take over. On restore everything not reassigned returns to the person. | - |
@@ -24,7 +24,7 @@ Who can be invited, how an invitation works from sending to arriving, one person
 | D29 | Name and tag changes are limited (for example twice in 30 days). An old `Name#id` is reserved for 90 days so nobody can pose as its last holder. | - |
 | D30 | New accounts start with: people in my agencies find me by name; anyone else needs my exact `Name#id` and sends a request. | - |
 | D41 | Each agency sets how long its invitations stay valid. | - |
-| D47 | An invitation link lets a new person sign up inside it: email filled in and locked, opening the link confirms the email, and they land in the agency. | - |
+| D47 | An invitation link lets a new person sign up inside it: email filled in and locked, opening the link confirms the email, and they land in the agency. *How it works with the CRM: D368.* | - |
 | D56 | A removed person can be invited back and starts fresh: nothing assigned, old chats only where they are added again. The owner sees they were a member before. | - |
 | D57 | A reason for a removal or suspension is optional. If one is written, the person sees it. | - |
 | D58 | The record of people changes: the owner sees all of it, managers see their teams', each person sees changes made to themselves. | - |

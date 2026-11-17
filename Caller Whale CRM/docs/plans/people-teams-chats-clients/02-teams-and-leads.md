@@ -13,7 +13,7 @@ How teams are built (managers, deputies, admins, agents in several teams), who h
 | D45 | One person can hold several roles in an agency, for example a manager who also closes. One invitation can carry them. | - |
 | D46 | A seat is one person in one agency, however many teams or roles they have. The same person in two agencies is one seat in each. | - |
 | D49 | A lead belongs to one team and is assigned to one agent of that team. That team's managers see it; the agent's other teams do not. | - |
-| D54 | Every member sees who is in the agency, with role and team. Contact details follow each person's own settings. | - |
+| D54 | Every member sees who is in the agency, with role and team. Contact details follow each person's own settings. *Email visibility: D371.* | - |
 | D59 | A solo operator who adds callers upgrades in place: the same workspace becomes an agency and keeps its leads, clients and history. | - |
 | D62 | A deputy can be any member of the agency. Being a deputy shows that team's leads to them. | - |
 | D63 | A team's managers and the owner name and remove its deputies. The owner sees every change. | - |
@@ -88,6 +88,8 @@ How teams are built (managers, deputies, admins, agents in several teams), who h
 | D283 | When a deal closes, its lead is marked "won" and leaves the calling queues. Follow-ups happen only through tasks someone creates. It still counts for credit, reports and any commission. | 28 |
 | D337 | The researcher role is switched on in step 11. A researcher prepares leads in their teams (import, clean, merge, skip-trace within budget, tag) and hands them to the team's unassigned pool. They never call or text and never see deal money. | 11 |
 | D339 | A researcher takes a cheaper seat than callers and closers, since they never call or text. Its price is set with the step, from its real cost (D291). | 11, 22 |
+| D369 | Team leads can invite researchers into teams they run, as they do callers and closers. A person with several roles takes the most expensive of their roles' seats, once per workspace (D46). | 3, 11 |
+| D371 | In the directory everyone sees names, roles and teams. A member's email is visible only to the owner, admins and that person's own team leads. | 16 |
 
 ## Notes
 

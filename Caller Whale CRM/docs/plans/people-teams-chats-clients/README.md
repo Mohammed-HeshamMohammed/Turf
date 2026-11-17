@@ -177,11 +177,18 @@ Every step goes out behind its own switch (D104) and is tried by the owner befor
 
 ## Contradictions settled
 
-Found in a review on 2026-11-17 and settled by the owner the same day. Replaced decisions are marked in place ("Replaced by"): D28 by D200, D113 by D139, D189 by D194.
+Found in two reviews on 2026-11-17 and settled by the owner the same day. The plan was wrapped up after the second (D374). Replaced decisions are marked in place ("Replaced by"): D28 by D200, D113 by D139, D189 by D194.
 
 1. **Agencies blind to each other (D265):** settled by D349. Blind for leads, people and work; the do-not-call database and opt-in shared learning are the two stated exceptions.
 2. **Important announcements vs quiet hours (D74):** settled by D350. Important announcements break through quiet hours and category settings.
 3. **Strong refusals (D209):** settled by D351. A refusal to one agency blocks that agency; only a clear "from anyone" statement, confirmed by the agent, goes platform-wide. D352 adds automatic detection in captions, texts and emails, with a confirmation button for the agent.
+4. **Registry numbers in the shared database (D140 vs D274):** settled by D363. Registry numbers stay per agency.
+5. **Export while unpaid (D205 vs D266):** settled by D364. The owner can always export.
+6. **Suspension after a smaller plan (D81 vs D26):** settled by D365. Held like any suspension.
+7. **Consent per agency or per client (D356 vs D223):** settled by D366. Per client within the agency; consent never travels to another agency (D373).
+8. **Invitation link without an account (D47 vs D328, D329):** settled by D368. The CRM sends the person to sign-up and back.
+
+Gaps filled in the same review: erasure keeps only the blocked number (D367), researchers invited by team leads and the dearer seat (D369), deleted data leaves backups within 30 days (D370), email visible to owner, admins and own team leads (D371), help questions charged to the general allowance (D372).
 
 ## Open questions
 
@@ -201,7 +208,7 @@ Found in a review on 2026-11-17 and settled by the owner the same day. Replaced 
 
 ## Every decision
 
-362 decisions. Each row links to the file that holds it.
+374 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -219,7 +226,7 @@ Found in a review on 2026-11-17 and settled by the owner the same day. Replaced 
 | D12 | Platform staff can read reported messages only (with a few before and after for context). Report copies are kept 90 days. | [03-chats](03-chats.md) |
 | D13 | Removing an inviter cancels pending invitations only. People who already accepted keep their access. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D14 | The tag is generated automatically and the person can change it. | [01-people-and-invitations](01-people-and-invitations.md) |
-| D15 | A team manager can invite callers and closers into the teams they run. The owner sees every invitation and can withdraw any. | [01-people-and-invitations](01-people-and-invitations.md) |
+| D15 | A team manager can invite callers and closers into the teams they run. The owner sees every invitation and can withdraw any. *Researchers too: D369.* | [01-people-and-invitations](01-people-and-invitations.md) |
 | D16 | A lead thread follows the lead: whoever may see the lead may see its thread (the assigned agent, that team's manager, the agency owner). | [03-chats](03-chats.md) |
 | D17 | In a lead thread one agent sends. The manager and owner read, leave internal notes, and can **take over** to send in the agent's place. | [03-chats](03-chats.md) |
 | D18 | After a takeover the manager or owner hands control back. The agent can ask for it back; they cannot take it. The lead sees no change. | [03-chats](03-chats.md) |
@@ -251,14 +258,14 @@ Found in a review on 2026-11-17 and settled by the owner the same day. Replaced 
 | D44 | A caller or closer can be in several teams of one agency and switches the view to the team they want to work in. The switch is a filter, not a lock: alerts for another team's lead still arrive, and opening one switches the view. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D45 | One person can hold several roles in an agency, for example a manager who also closes. One invitation can carry them. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D46 | A seat is one person in one agency, however many teams or roles they have. The same person in two agencies is one seat in each. | [02-teams-and-leads](02-teams-and-leads.md) |
-| D47 | An invitation link lets a new person sign up inside it: email filled in and locked, opening the link confirms the email, and they land in the agency. | [01-people-and-invitations](01-people-and-invitations.md) |
+| D47 | An invitation link lets a new person sign up inside it: email filled in and locked, opening the link confirms the email, and they land in the agency. *How it works with the CRM: D368.* | [01-people-and-invitations](01-people-and-invitations.md) |
 | D48 | When a team has several managers, all of them and their deputies are told about an agent's handed-on threads and unanswered texts. The first to act holds it and the others see who. | [03-chats](03-chats.md) |
 | D49 | A lead belongs to one team and is assigned to one agent of that team. That team's managers see it; the agent's other teams do not. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D50 | After reviewing a report, staff can warn the person, limit their personal chats for a period, suspend the account, or dismiss. A suspension applies across Caller Whale; each affected agency owner is told the member is suspended, not why. | [03-chats](03-chats.md) |
 | D51 | Clients and partners see only the partner threads shared with them inside an agency, and have a Personal space like anyone else. | [03-chats](03-chats.md) |
 | D52 | Every team gets its own team chat automatically. Managers, deputies and agents join and leave it as they join and leave the team. | [03-chats](03-chats.md) |
 | D53 | Inside an agency, any member can start a chat with any other member. | [03-chats](03-chats.md) |
-| D54 | Every member sees who is in the agency, with role and team. Contact details follow each person's own settings. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D54 | Every member sees who is in the agency, with role and team. Contact details follow each person's own settings. *Email visibility: D371.* | [02-teams-and-leads](02-teams-and-leads.md) |
 | D55 | A message can be edited for 15 minutes (marked "edited") and deleted at any time (leaving "Message deleted"). A text already sent to a lead cannot be edited or unsent. | [03-chats](03-chats.md) |
 | D56 | A removed person can be invited back and starts fresh: nothing assigned, old chats only where they are added again. The owner sees they were a member before. | [01-people-and-invitations](01-people-and-invitations.md) |
 | D57 | A reason for a removal or suspension is optional. If one is written, the person sees it. | [01-people-and-invitations](01-people-and-invitations.md) |
@@ -285,7 +292,7 @@ Found in a review on 2026-11-17 and settled by the owner the same day. Replaced 
 | D78 | An agent in several teams opens on the last team used, and has an "All my teams" view where each lead is marked with its team. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D79 | The owner sets the agency's working hours and time zone. A team can have its own hours. They control the unanswered-text wait. | [03-chats](03-chats.md) |
 | D80 | When payment fails or the plan ends, a grace period (7 days to start) keeps everything working and warns the owner. After it, members can read but not work and invitations stop, until the owner pays. | [07-platform-and-rollout](07-platform-and-rollout.md) |
-| D81 | Lowering the plan below the number of members cannot complete until the owner picks who keeps a seat. The others are suspended, not removed, and their work is handed on. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D81 | Lowering the plan below the number of members cannot complete until the owner picks who keeps a seat. The others are suspended, not removed, and their work is handed on. *Settled by D365: treated like any suspension.* | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D82 | Closing an agency: members lose access at once and are told. The owner can reopen it for 30 days and export the data. Then it is deleted, except what the law requires keeping. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D83 | Caller Whale staff can open an agency's workspace only when its owner allows it, for a set time (24 hours to start). They do not see internal chats, every action is recorded, and the owner can end it early. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D84 | Outside the app, notifications can reach a person by browser notification, by email for important things (invitations, security, an unanswered lead text), and by a daily email digest. Each can be switched off; a person can choose nothing outside the app. A browser notification shows no lead details. | [03-chats](03-chats.md) |
@@ -344,7 +351,7 @@ Found in a review on 2026-11-17 and settled by the owner the same day. Replaced 
 | D137 | Each client has one conversation with the people the agency names for them: the owner, admins and chosen managers. Agents are in it only if added. | [04-clients](04-clients.md) |
 | D138 | The agency can send the calling script and the list summary to the client for approval. Whether approval is required before work starts is a setting per client. | [04-clients](04-clients.md) |
 | D139 | "Do not call" has three kinds. **Asked this agency to stop:** blocked for that agency, every client and team. **On a registry or a known complainer:** added to Caller Whale's own database for every agency once confirmed (a second agency reports it, or staff check it). **Wants no calls at all:** added to Caller Whale's database for every agency. | [06-do-not-call](06-do-not-call.md) |
-| D140 | Any number found to be a do-not-call number that is not yet in Caller Whale's database is added to it. The database learns from every agency's work. | [06-do-not-call](06-do-not-call.md) |
+| D140 | Any number found to be a do-not-call number that is not yet in Caller Whale's database is added to it. The database learns from every agency's work. *Settled by D363: registry numbers stay per agency.* | [06-do-not-call](06-do-not-call.md) |
 | D141 | Only Caller Whale staff remove a number from the database. An agency can ask for a review with a reason; each removal is recorded. | [06-do-not-call](06-do-not-call.md) |
 | D142 | Calling scripts belong to a client, written by the owner, admins or the managers working for that client. A team can keep its own version; agents cannot change scripts. The AI also suggests what to say for each lead, from the lead's data and from earlier calls: captions run in the background of every call, and the AI learns from how the previous calls went to help with the next one. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D143 | A manager or deputy can score a call recording against a short checklist and leave comments. The agent sees their own scores; the team's averages go into the manager's reports. | [05-calls-and-budgets](05-calls-and-budgets.md) |
@@ -409,7 +416,7 @@ Found in a review on 2026-11-17 and settled by the owner the same day. Replaced 
 | D202 | With support access granted, staff can see screens and change settings to fix a problem. They cannot edit, export or delete leads, message anyone, or spend money. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D203 | When a solo operator upgrades, a first team named after them is created, they become its team lead as well as the owner, and all their leads go into it. Their clients stay as clients of the agency. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D204 | During the grace period after a failed payment, only the owner and admins are told, by a daily email and an in-app banner. Members see a plain notice only once the agency is read-only. | [07-platform-and-rollout](07-platform-and-rollout.md) |
-| D205 | A read-only agency can be read, and replies from leads still arrive and are stored. Nothing can be sent, called, imported or exported, and no one can be invited. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D205 | A read-only agency can be read, and replies from leads still arrive and are stored. Nothing can be sent, called, imported or exported, and no one can be invited. *Export is allowed even when read-only (D364).* | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D206 | After 30 days of read-only with no payment, the agency is treated as closed (D82): members lose access, and the owner can still pay and reopen, or export, for 30 more days. Then it is deleted except what the law requires keeping. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D207 | A reply that is only an opt-out ("STOP", "unsubscribe", "stop texting me") blocks the number for that agency at once, sends an automatic confirmation, and the thread shows why. The agent cannot override it; only the owner or an admin can, with a reason. | [06-do-not-call](06-do-not-call.md) |
 | D208 | A message that uses "stop" inside a normal sentence ("let's stop at that price") is flagged to the agent, with the AI's reading of whether it is an opt-out. The agent must choose "opt-out" or "not an opt-out" before sending anything else, and the choice is recorded. | [06-do-not-call](06-do-not-call.md) |
@@ -470,7 +477,7 @@ Found in a review on 2026-11-17 and settled by the owner the same day. Replaced 
 | D263 | A task can repeat daily, weekly or monthly. Each time is its own task, so missing one does not hide the next. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D264 | Removing a person ends their access to that agency at once on every device. The records of exports and lead views show what they looked at recently. What they remember or wrote down is a matter for the agency's own contracts. | [02-teams-and-leads](02-teams-and-leads.md) |
 | D265 | Agencies stay blind to each other. Caller Whale never compares one agency's leads or people with another's, even when a person moves from one to the other. *Settled by D349.* | [02-teams-and-leads](02-teams-and-leads.md) |
-| D266 | The owner can export the agency's leads, history, notes, tasks and files (and recordings, if kept) in common formats at any time and when closing. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D266 | The owner can export the agency's leads, history, notes, tasks and files (and recordings, if kept) in common formats at any time and when closing. *Including while read-only (D364).* | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D267 | The owner sees each member's last sign-in, days active this month and the seats in use, so unused seats can be freed. Nothing beyond what reports already count is tracked. | [07-platform-and-rollout](07-platform-and-rollout.md) |
 | D268 | Each agency registers its own texting brand with the carriers (US 10DLC). The owner enters the business details during setup and Caller Whale submits the registration. An agency cannot text until it is approved, so one agency's behaviour cannot get the others blocked. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D269 | Staff see each agency's complaint and opt-out rates. Above a threshold the owner is warned, then sending is limited, then the agency is suspended until staff review. Each step is recorded and the owner can appeal. | [05-calls-and-budgets](05-calls-and-budgets.md) |
@@ -560,10 +567,22 @@ Found in a review on 2026-11-17 and settled by the owner the same day. Replaced 
 | D353 | A lead is texted only with consent on record. Consent can come from: a website form (D247), an earlier reply from the lead, the agent marking it during a call, or the agency confirming per list that it holds consent. Cold leads with none of these can be called but not texted. | [06-do-not-call](06-do-not-call.md) |
 | D354 | Caller Whale trusts the agency and the agent for consent it cannot verify, such as a lead on the phone saying "I'm driving, text me". The agent marks "Agreed to texts", with the date, who marked it, and the recording or captions linked when there are any. Responsibility for consent the agency or agent confirmed stays with the agency, as the terms say. | [06-do-not-call](06-do-not-call.md) |
 | D355 | An agency can confirm on import that it holds consent for a list. The confirmation is recorded with who gave it and when, and covers that agency only. | [06-do-not-call](06-do-not-call.md) |
-| D356 | Consent belongs to one agency and one number. Each agency holds its own consent for the same number, and one agency's consent never lets another agency text it. | [06-do-not-call](06-do-not-call.md) |
+| D356 | Consent belongs to one agency and one number. Each agency holds its own consent for the same number, and one agency's consent never lets another agency text it. *Settled by D366: per client within the agency.* | [06-do-not-call](06-do-not-call.md) |
 | D357 | Each lead has a primary phone and a primary email. Consent and blocks belong to each number or address, so a blocked number never blocks the lead's others unless the lead asked. | [06-do-not-call](06-do-not-call.md) |
 | D358 | Consent stays until the lead opts out. If a lead has not been contacted for 6 months (as for reassigned numbers, D214), consent is re-confirmed on the next call before texting. | [06-do-not-call](06-do-not-call.md) |
 | D359 | When a lead asks to be called back ("call me at 5", "call me tomorrow"), the captions detect it and offer a callback with the time filled in, in the lead's time zone and inside calling hours. The agent confirms or changes it with one click. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D360 | When a lead agrees to meet during a call, the captions notice it and open the booking panel with the team's closers' free slots (D155), so the caller books during the call. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D361 | When a call ends, its outcome is pre-selected from what was said. The agent confirms with one click or picks another. Quick outcomes still work as they do today. | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D362 | Calls produce only practical signals with a clear action, such as "asked about price", "wants to sell soon" or "mentioned another buyer". People are not scored on mood. | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D363 | Settles D140: numbers on a do-not-call registry are checked through each agency's own registry access and never copied into Caller Whale's shared database. The shared database holds only numbers whose owners said "no calls from anyone" to a Caller Whale agency (D351) and confirmed known complainers. | [06-do-not-call](06-do-not-call.md) |
+| D364 | Settles D205 against D266: the owner can export the workspace's data at any time, including while it is read-only. Only working (calls, texts, imports, invitations) stops. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D365 | Settles D81 against D26: members suspended because the plan was lowered are treated like any suspension. Their team leads hold their work and can act on it, and it returns if the seat comes back. The owner can still hand it on. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D366 | Settles D356 against D223: consent to text belongs to one client's work within an agency, and one number. Working the same number for another client needs its own consent. Opt-outs still block the whole agency (D139). | [06-do-not-call](06-do-not-call.md) |
+| D367 | When a lead asks to be deleted, their record, history and files are deleted. Only the number and email stay on the agency's block list, with the date and "deleted on request", so they are never contacted again. | [06-do-not-call](06-do-not-call.md) |
+| D368 | Settles D47 against D328 and D329: when the invitation link reaches the CRM with no account, the CRM opens the website sign-up with the email filled in and locked, then returns the person to the invitation in the CRM to accept. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D369 | Team leads can invite researchers into teams they run, as they do callers and closers. A person with several roles takes the most expensive of their roles' seats, once per workspace (D46). | [02-teams-and-leads](02-teams-and-leads.md) |
+| D370 | Deleted data leaves the backups within 30 days, and the terms and privacy policy say so. A restore never brings back data deleted on a person's request: it is deleted again after any restore. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D371 | In the directory everyone sees names, roles and teams. A member's email is visible only to the owner, admins and that person's own team leads. | [02-teams-and-leads](02-teams-and-leads.md) |
+| D372 | Assistant use not about a lead (a "how do I" question) is charged to the workspace's general allowance, within the daily cap. Anything about a lead is charged to its team and client (D323). | [05-calls-and-budgets](05-calls-and-budgets.md) |
+| D373 | Consent to text never travels with a lead sent to another agency. Blocks do (D251); the receiving agency gathers its own consent. | [06-do-not-call](06-do-not-call.md) |
+| D374 | The plan was wrapped up on 2026-11-17 after a full review of every decision. Anything decided later is added as a new decision and checked against the earlier ones. | [07-platform-and-rollout](07-platform-and-rollout.md) |
