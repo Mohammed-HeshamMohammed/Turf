@@ -485,3 +485,57 @@
 @media (max-width: 1050px) { .page:not(.dashboard-shell) > .site-header.is-compact { margin-inline: 14px; } }
 @media (prefers-reduced-motion: reduce) { .site-header { transition: none; } }
 @media (max-width: 600px) { .site-header { gap: 8px; } .site-auth .site-signup { padding: 8px 12px; font-size: 13px; white-space: nowrap; } .site-auth .site-signup span { display: none; } }
+
+/* ---- Dashboard spacing, second pass: the frame keeps its 14px, the content gets room and a rhythm ------------------------------
+   --dash-gap (content)  20px between related things (tiles, cards in a row, a title and its tabs)
+   --dash-section        40px between groups (People, Money, Trends) so each group reads as one unit
+   Sidebar items are 44px tall (a comfortable touch target) and the sidebar sits at the top beside the page title, not mid-screen. */
+.dashboard-shell > main { --dash-gap: 20px; --dash-section: 40px; padding-right: 8px; }
+.dashboard-shell { --dash-pad-lg: 28px; }
+.dashboard-shell .admin-layout { column-gap: 32px; }
+.dashboard-shell .admin-sidebar-slot { align-items: flex-start; }
+.dashboard-shell .admin-sidebar { gap: 20px; padding: 18px 14px; }
+.dashboard-shell .admin-sidebar-brand { padding: 4px 8px 16px; border-bottom: 1px solid #ffffff1f; }
+.admin-sidebar nav { gap: 6px; }
+.admin-sidebar nav a { padding: 12px 14px; }
+.admin-workspace { gap: 28px; padding-bottom: 32px; }
+.admin-view-header { min-height: 56px; padding: 8px 0 0; }
+.admin-view-header h1 { font-size: clamp(28px, 2.6vw, 36px); }
+.settings-tabs { margin-bottom: 0; }
+.owner-overview { gap: var(--dash-gap); }
+.admin-group-title { margin: var(--dash-section) 0 -4px; color: var(--muted); font-size: 13px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+.admin-group-title:first-child { margin-top: 0; }
+.admin-metrics > div { align-content: start; gap: 8px; min-height: 120px; padding: 20px 22px; border-radius: var(--dash-radius, 20px); }
+.admin-metrics span { font-size: 14px; }
+.admin-metrics small { font-size: 13px; line-height: 1.4; }
+.admin-overview-panels .card { gap: 14px; }
+.owner-overview > .card, .owner-overview > .admin-overview-panels { margin-top: calc(var(--dash-section) - var(--dash-gap)); }
+.owner-overview > .admin-metrics + .card, .owner-overview > .notice + .card, .owner-overview > .card + .card, .owner-overview > .card + .notice { margin-top: 0; }
+.owner-list li { padding: 14px 0; }
+.admin-table th { padding: 12px 16px; }
+.admin-table td { padding: 18px 16px; }
+.admin-section-heading { gap: 24px; }
+.admin-team, .admin-manage { gap: 20px; }
+.admin-toolbar { padding: 16px; gap: 16px; }
+.admin-empty { padding: 36px 28px; }
+.dashboard-panels .card { padding: var(--dash-pad-lg); }
+.dashboard-panels .card { display: grid; align-content: start; justify-items: start; gap: 14px; }
+.dashboard-panels .card > * { margin: 0; }
+.dashboard-panels .card > ul { justify-self: stretch; }
+.dashboard-shell .admin-sidebar-brand strong { overflow: visible; white-space: normal; line-height: 1.2; letter-spacing: .04em; }
+.membership-list li { padding: 14px 0; gap: 8px; }
+@media (max-width: 1100px) { .dashboard-shell .admin-layout { column-gap: 24px; } }
+@media (max-width: 760px) {
+  .dashboard-shell > main { --dash-gap: 16px; --dash-section: 32px; padding-right: 0; }
+  /* On a phone the page scrolls as one: no pinned footer and no small scrolling box. The menu is one swipeable row, so the content starts near the top. */
+  .dashboard-shell { height: auto; min-height: 100dvh; overflow: visible; }
+  .dashboard-shell > main { overflow: visible; container-type: normal; }
+  .dashboard-shell .admin-layout { row-gap: 20px; }
+  .dashboard-shell .admin-sidebar { gap: 12px; padding: 12px; }
+  .dashboard-shell .admin-sidebar-brand { padding: 0 6px 12px; }
+  .admin-sidebar nav { flex-wrap: nowrap; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+  .admin-sidebar nav a { white-space: nowrap; }
+  .admin-sidebar nav a { padding: 11px 14px; }
+  .admin-metrics > div { min-height: 104px; padding: 16px 18px; }
+  .admin-view-header { min-height: 44px; }
+}

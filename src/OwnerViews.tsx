@@ -64,6 +64,7 @@ export function PlatformOverview({ request, openCosts }: { request: Api; openCos
   const { people, plans, usage, finance } = data;
   const best = data.most_requested_plan;
   return <div className="owner-overview">
+    <h2 className="admin-group-title">People</h2>
     <div className="admin-metrics" aria-label="People">
       <div><span>Members</span><strong>{people.members}</strong><small>{plural(people.new_7_days, "new member")} this week</small></div>
       <div><span>Active in 30 days</span><strong>{people.active_30_days}</strong><small>{pct(people.active_30_days, people.members)} of members · {people.active_7_days} this week</small></div>
@@ -71,6 +72,7 @@ export function PlatformOverview({ request, openCosts }: { request: Api; openCos
       <div><span>Email confirmed</span><strong>{pct(people.email_verified, people.members)}</strong><small>{people.email_verified} of {people.members} members</small></div>
     </div>
     {finance ? <>
+      <h2 className="admin-group-title">Money</h2>
       <div className="admin-metrics" aria-label="Money">
         <div><span>Monthly recurring revenue</span><strong>{money(finance.mrr_minor, finance.currency)}</strong><small>From paying workspaces</small></div>
         <div><span>Revenue this month</span><strong>{money(finance.revenue_this_month_minor, finance.currency)}</strong><small>Last month {money(finance.revenue_last_month_minor, finance.currency)}</small></div>
