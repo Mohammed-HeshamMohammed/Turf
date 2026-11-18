@@ -475,6 +475,7 @@ func (s *server) invitePlatform(w http.ResponseWriter, r *http.Request) error {
 	}
 	return s.createInvitation(w, r, "platform", "", c)
 }
+
 // inviteWorkspace sends a workspace invitation: the owner, an admin, staff, or a team lead into the teams they lead (D15, D369;
 // authz decides which roles and teams).
 func (s *server) inviteWorkspace(w http.ResponseWriter, r *http.Request) error {

@@ -3,7 +3,8 @@
 // services/core-api/website/ and desktop/frontend/react/src/remote/ must stay identical (a test checks).
 //
 // The access token lives only in memory and is refreshed a minute before it expires. The refresh token is kept in
-// the browser's storage so a reload stays signed in. Anything that can run script in the page could read it, so the
+// the browser's storage so a reload stays signed in; on a shared device (the person chose it at sign-in, and the server's
+// answer says "device": "shared") only in this tab's storage, so closing the tab signs out. Anything that can run script in the page could read it, so the
 // pages that use this must not load scripts from other sites.
 
 export class AuthError extends Error {
@@ -17,11 +18,13 @@ export class AuthError extends Error {
 }
 
 const REFRESH_KEY = "callerwhale.auth.refresh";
+/** "shared" while a sign-in with Google or Apple is on its way, so the session it comes back with is a shared device's. */
+const DEVICE_KEY = "callerwhale.auth.device";
 const EARLY_MS = 60_000;
 /** /v1/me is asked once a minute at most; new tokens, signing out and anything that changes the answer ask again. */
 const ME_MS = 60_000;
 
-export function createAuth({ base, storage = globalThis.localStorage, fetchImpl = (...args) => fetch(...args), now = () => Date.now(), onChange = () => {} }) {
+export function createAuth({ base, storage = globalThis.localStorage, tabStorage = globalThis.sessionStorage, fetchImpl = (...args) => fetch(...args), now = () => Date.now(), onChange = () => {} }) {
   base = String(base || "").replace(/\/$/, "");
   let access = null;
   let refreshing = null;
@@ -32,17 +35,28 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
 
   const readRefresh = () => {
     try {
-      return storage?.getItem(REFRESH_KEY) || null;
+      return tabStorage?.getItem(REFRESH_KEY) || storage?.getItem(REFRESH_KEY) || null;
     } catch {
       return null;
     }
   };
-  const writeRefresh = value => {
+  const writeRefresh = (value, shared = false) => {
     try {
-      if (value) storage?.setItem(REFRESH_KEY, value);
-      else storage?.removeItem(REFRESH_KEY);
+      tabStorage?.removeItem(REFRESH_KEY);
+      storage?.removeItem(REFRESH_KEY);
+      if (value) (shared ? tabStorage : storage)?.setItem(REFRESH_KEY, value);
     } catch {
       /* Not remembered on this device: signed in until the page closes. */
+    }
+  };
+  /** The device chosen before a sign-in with Google or Apple: "shared", or nothing (my device). Read once. */
+  const takeDevice = () => {
+    try {
+      const device = tabStorage?.getItem(DEVICE_KEY) || "";
+      tabStorage?.removeItem(DEVICE_KEY);
+      return device === "shared" ? "shared" : "";
+    } catch {
+      return "";
     }
   };
 
@@ -93,7 +107,7 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
   function keep(tokens) {
     access = { token: tokens.access_token, expiresAt: now() + tokens.expires_in * 1000 };
     dropMe(); // new tokens may say something new (the second step passed, the email confirmed)
-    if (tokens.refresh_token) writeRefresh(tokens.refresh_token);
+    if (tokens.refresh_token) writeRefresh(tokens.refresh_token, tokens.device === "shared");
     onChange();
     return tokens;
   }
@@ -139,7 +153,16 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
     accessToken,
     refresh,
     /** `birth_date` is YYYY-MM-DD: the age check. Refused (403) under 18. */
-    signUp: (name, email, password, kind = "browser", human_token = "", birth_date = "", terms_version = "") => call("POST", "/v1/accounts", { name, email, password, kind, birth_date, terms_version, ...(human_token ? { human_token } : {}) }).then(keep),
+    signUp: (name, email, password, kind = "browser", human_token = "", birth_date = "", terms_version = "", invitation = null) => call("POST", "/v1/accounts", { name, email, password, kind, birth_date, terms_version, ...(human_token ? { human_token } : {}), ...(invitation ? { invitation_id: invitation.id, invitation_key: invitation.key } : {}) }).then(keep),
+    /** Before a sign-in with Google or Apple: whether this is a shared device, so the session that comes back is kept only in this tab. */
+    chooseDevice: shared => {
+      try {
+        if (shared) tabStorage?.setItem(DEVICE_KEY, "shared");
+        else tabStorage?.removeItem(DEVICE_KEY);
+      } catch {
+        /* the sign-in is then kept as on the person's own device */
+      }
+    },
     /** The age check for an account that has not given its date of birth yet (`me.age_confirmed` is false). Once only. */
     setBirthDate: birth_date => withToken("POST", "/v1/me/birth-date", { birth_date }),
     /** Agrees to the terms and privacy notice, by version (`me.terms_version` is the current one). */
@@ -153,7 +176,7 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
     /** A new password with the code from the reset link; every session of that person ends. */
     resetPassword: (token, password) => call("POST", "/v1/password/reset", { token, new: password }),
     /** Trades the one-time code a Google or Apple sign-in came back with. */
-    exchange: code => call("POST", "/v1/oauth/exchange", { code }).then(keep),
+    exchange: code => call("POST", "/v1/oauth/exchange", { code, device: takeDevice() }).then(keep),
     providers: () => call("GET", "/v1/providers"),
     security: () => call("GET", "/v1/security"),
     providerUrl: (provider, target, port, human_token = "", action = "signin") => call("POST", `/v1/oauth/${encodeURIComponent(provider)}/start`, { target, ...(port ? { port } : {}), human_token, action }).then(answer => answer.url),
@@ -172,7 +195,7 @@ export function createAuth({ base, storage = globalThis.localStorage, fetchImpl 
       if (!code && !refused) return false;
       globalThis.history?.replaceState(null, "", globalThis.location.pathname + globalThis.location.hash);
       if (!code) throw new AuthError(400, "oauth_error", refused);
-      await call("POST", "/v1/oauth/exchange", { code }).then(keep);
+      await call("POST", "/v1/oauth/exchange", { code, device: takeDevice() }).then(keep);
       return true;
     },
     /** Who is signed in and what they have set up. Many callers in a minute share one request; `{ fresh: true }` asks again. */

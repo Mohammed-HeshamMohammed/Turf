@@ -120,7 +120,15 @@ func (s *server) emailInvitation(ctx context.Context, id, inviterID, email, orgN
 		if err := s.db.QueryRow(ctx, "SELECT display_name FROM users WHERE id=$1", inviterID).Scan(&inviter); err != nil {
 			return "", err
 		}
-		if err := s.mail.sendInvitation(ctx, email, inviter, orgName, role, roleWords(role), validWords(scope, validDays), s.invitationLink(id)); err == nil {
+		link := s.invitationLink(id)
+		if scope == "workspace" {
+			keyed, err := s.keyedInvitationLink(ctx, id)
+			if err != nil {
+				return "", err
+			}
+			link = keyed
+		}
+		if err := s.mail.sendInvitation(ctx, email, inviter, orgName, role, roleWords(role), validWords(scope, validDays), link); err == nil {
 			state = "sent"
 		} else {
 			log.Printf("WARN invitation %s was not emailed: %v", id, err)

@@ -3,10 +3,12 @@ import type { Auth, Me } from "./auth/auth-client.js";
 import { SettingsConnections } from "./SettingsConnections.tsx";
 import { SettingsSecurity } from "./SettingsSecurity.tsx";
 import { SettingsPrivacy } from "./SettingsPrivacy.tsx";
+import { SettingsAccess } from "./SettingsAccess.tsx";
 
 const TABS = [
   { key: "security", label: "Security" },
   { key: "privacy", label: "Privacy" },
+  { key: "access", label: "My access" },
   { key: "connections", label: "Connections" },
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
@@ -34,6 +36,7 @@ export function Settings({ me, auth, authBase, onSaved, embedded = false }: { me
       </div>
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === "security" && <SettingsSecurity me={me} auth={auth} onChanged={onSaved} />}
+        {tab === "access" && <SettingsAccess auth={auth} authBase={authBase} />}
         {tab === "privacy" && <SettingsPrivacy me={me} auth={auth} authBase={authBase} onSaved={onSaved} />}
         {tab === "connections" && <SettingsConnections auth={auth} authBase={authBase} />}
       </div>

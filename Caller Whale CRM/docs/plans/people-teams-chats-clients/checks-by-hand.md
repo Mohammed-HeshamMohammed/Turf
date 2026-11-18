@@ -174,3 +174,13 @@ On callerwhale.com, Settings → Privacy. Use a throwaway account where a second
 | N3 | Change your tag a third time the same month | Refused: twice in 30 days, with how many days to wait. |
 | N4 | Set "Who can see my phone number" to Nobody, then to owners, admins and team leads | Saved each time. In the agency's member list, a member's phone shows only when their own setting allows it. |
 | N5 | Send an invitation and open it as the invited person | The owner is named in full, with the tag. |
+
+# Step 15: sign-up inside an invitation, devices, My access
+
+| # | Do | Expect |
+|---|---|---|
+| P1 | Invite a throwaway address that has no account; open the email's link in a private window | The sign-up page, with the address filled in and locked and who invited you. After creating the account, no confirmation email is needed and the invitation is there to accept. |
+| P2 | Open the same email link again | "This invitation link has ended or was already used." |
+| P3 | Sign in choosing "Shared device", then close the tab and open callerwhale.com again | You are signed out. With "This is my device", you stay signed in. |
+| P4 | Settings → My access | Your agency by name with your role (and teams if any), waiting invitations, your signed-in devices with "Sign out", and "Download my data", which saves a file. |
+| P5 | As the throwaway member, Settings → My access → Leave | You leave at once; the agency's member list no longer shows you. |

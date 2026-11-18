@@ -10,7 +10,7 @@ func TestGooglePictureHost(t *testing.T) {
 		"https://evil.example/lh3.googleusercontent.com/a": false,
 		"https://googleusercontent.com.evil.example/a":     false,
 		"https://user@lh3.googleusercontent.com/a":         false,
-		"":                                                 false,
+		"": false,
 	} {
 		if got := googlePictureHost(raw); got != want {
 			t.Errorf("%q: got %v, want %v", raw, got, want)

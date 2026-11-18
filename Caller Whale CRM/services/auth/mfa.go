@@ -562,7 +562,7 @@ func (s *server) complete(ctx context.Context, w http.ResponseWriter, ch *challe
 // stepUpToken: the open session has passed a second step, so it says so from now on, and this is a token that says so.
 func (s *server) stepUpToken(ctx context.Context, w http.ResponseWriter, u *user, sid, provider string) error {
 	var started int64
-	err := s.db.QueryRow(ctx, "UPDATE sessions SET mfa_passed = 1 WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL RETURNING created_at", sid, u.id).Scan(&started)
+	err := s.db.QueryRow(ctx, "UPDATE sessions SET mfa_passed = 1, mfa_at = extract(epoch FROM now())::bigint WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL RETURNING created_at", sid, u.id).Scan(&started)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return errUnauthenticated
 	}
@@ -938,7 +938,7 @@ func (s *server) totpConfirm(w http.ResponseWriter, r *http.Request) error {
 			}
 		}
 	}
-	if _, err := tx.Exec(ctx, "UPDATE sessions SET mfa_passed = 1 WHERE id = $1", c.SID); err != nil {
+	if _, err := tx.Exec(ctx, "UPDATE sessions SET mfa_passed = 1, mfa_at = extract(epoch FROM now())::bigint WHERE id = $1", c.SID); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {

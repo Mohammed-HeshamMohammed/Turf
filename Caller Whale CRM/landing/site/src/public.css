@@ -376,6 +376,10 @@
 .profile-picture-actions .text-button { padding: 0 8px; border: 0; background: transparent; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
 .check { display: flex; align-items: flex-start; gap: 10px; font-weight: 500; line-height: 1.4; }
 .check input { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 2px; }
+.access-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.access-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.access-list p { margin: 4px 0 0; }
+.device-choice { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 8px; }
 .setup-work { width: min(100%, 640px); }
 .choice-group { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
 .choice-group legend { margin-bottom: 4px; padding: 0; font-weight: 650; }

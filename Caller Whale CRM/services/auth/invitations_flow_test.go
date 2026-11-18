@@ -162,7 +162,8 @@ func TestAnInvitationSaysWhereItComesFromAndWhyItCannotBeUsed(t *testing.T) {
 	if sent.str("delivery_state") != "sent" || sent.str("link") != "http://landing.example/dashboard?invitation="+id {
 		t.Fatalf("sent: %v", sent.body)
 	}
-	if last := len(w.mail.links) - 1; w.mail.links[last] != sent.str("link") || w.mail.agencies[len(w.mail.agencies)-1] != "Blue Door Homes" {
+	// The email's link is the same with its one-time key (step 15), which only the invited mailbox gets.
+	if last := len(w.mail.links) - 1; !strings.HasPrefix(w.mail.links[last], sent.str("link")+"&key=") || w.mail.agencies[len(w.mail.agencies)-1] != "Blue Door Homes" {
 		t.Fatalf("the email links to the invitation and names the agency: %v %v", w.mail.links, w.mail.agencies)
 	}
 
