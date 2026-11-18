@@ -19,7 +19,7 @@ GOOD_STANDING = {"trialing", "active"}
 
 # Limits a workspace has. seats and monthly_minutes come from billing.plans, the rest from billing.plan_limits; staff may override
 # any of them for one workspace (billing.org_limit_overrides). None means unlimited.
-LIMIT_KEYS = ("seats", "clients", "active_leads", "imports_monthly", "monthly_minutes", "skiptrace_credits")
+LIMIT_KEYS = ("seats", "clients", "active_leads", "imports_monthly", "monthly_minutes", "skiptrace_credits", "file_storage_mb")
 
 
 def plan_limits(conn, plan_key: str) -> dict:
