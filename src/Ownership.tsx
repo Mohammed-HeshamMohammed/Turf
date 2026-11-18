@@ -137,3 +137,36 @@ export function OwnerlessAgencies({ auth, authBase }: { auth: Auth; authBase: st
     {message && <p className="notice" role="status">{message}</p>}
   </section>;
 }
+
+type Stage = { stage: string; owner?: boolean; grace_ends?: number; read_only_ends?: number; delete_at?: number; closed_at?: number | null };
+
+/** Step 18: where an agency stands with its plan, said to the people it concerns (D80, D204, D205, D206), and the owner's close and
+ * reopen with 30 days to change their mind (D82). */
+export function AgencyStanding({ auth, authBase, orgId }: { auth: Auth; authBase: string; orgId: string }) {
+  const request = useRequest(auth, authBase);
+  const [stage, setStage] = useState<Stage | null>(null);
+  const [message, setMessage] = useState("");
+  const load = useCallback(() => request(`/v1/orgs/${orgId}/plan-stage`).then(setStage, () => setStage(null)), [request, orgId]);
+  useEffect(() => { void load(); }, [load]);
+  const change = async (close: boolean) => {
+    if (close && !confirm("Close this agency? Everyone in it loses access at once. For 30 days you can reopen it or export its data; after that it is deleted.")) return;
+    try { await request(`/v1/orgs/${orgId}/${close ? "close" : "reopen"}`, "POST"); setMessage(close ? "The agency is closed." : "The agency is open again."); await load(); }
+    catch (error) {
+      const code = (error as { code?: string }).code;
+      setMessage(code === "mfa_required" ? "Sign in with two-step sign-in first." : error instanceof Error ? error.message : "That did not work.");
+    }
+  };
+  if (!stage) return null;
+  const text = {
+    grace: `The plan is unpaid. Everything keeps working until ${stage.grace_ends ? day(stage.grace_ends) : "the grace period ends"}; then the agency becomes read-only.`,
+    read_only: `The agency is read-only until its plan is paid: people can read and export, but not call, text, import or invite.${stage.read_only_ends ? ` It closes on ${day(stage.read_only_ends)}.` : ""}`,
+    closed: `The agency is closed.${stage.delete_at ? ` Its data is deleted on ${day(stage.delete_at)} unless it is reopened.` : ""}`,
+  }[stage.stage as "grace" | "read_only" | "closed"];
+  if (!text && !stage.owner) return null;
+  return <section className="card" aria-labelledby={`standing-${orgId}`}>
+    <h2 id={`standing-${orgId}`}>{stage.stage === "closed" ? "Agency closed" : stage.stage ? "Plan needs paying" : "Close this agency"}</h2>
+    {text ? <p className={stage.stage === "grace" ? "notice" : "notice bad"} role="status">{text}</p> : <p className="muted">Closing ends everyone's access at once. You can reopen it or export its data for 30 days.</p>}
+    {stage.owner && (stage.closed_at ? <button type="button" className="button primary" onClick={() => void change(false)}>Reopen the agency</button> : <button type="button" className="button" onClick={() => void change(true)}>Close the agency</button>)}
+    {message && <p className="notice" role="status">{message}</p>}
+  </section>;
+}
