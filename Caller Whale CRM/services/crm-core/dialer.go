@@ -101,6 +101,10 @@ func (s *server) dialerLead(w http.ResponseWriter, r *http.Request, ask dialerAs
 		return notFound("The lead was not found, was deleted, or is outside this person's access.")
 	}
 	reply := dialerLeadReply(lead, sc)
+	// A list waiting for its client's approval is not worked yet (step 23, D138).
+	if waiting, err := waitingApproval(ctx, tx, asString(lead["id"])); err == nil && waiting {
+		reply["may_call"], reply["reason"], reply["waiting_approval"] = false, "This list is waiting for its client's approval.", true
+	}
 	// For the lead's text thread (step 10): who works the lead, its team's leads and deputies (told when a text waits too long), and
 	// the asker's rank toward it, for who may send and take over.
 	reply["assignee_id"], reply["team_id"], reply["client_id"] = lead["assignee_id"], lead["team_id"], lead["client_id"]
