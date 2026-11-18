@@ -307,3 +307,24 @@ test("when the human check refuses and a box is on offer, the page is told; othe
     else globalThis.window = had;
   }
 });
+
+test("a shared device's sign-in is kept only in this tab, and a Google sign-in remembers the choice (step 15)", async () => {
+  const storage = memoryStorage();
+  const tabStorage = memoryStorage();
+  const shared = { status: 200, body: { access_token: "A1", refresh_token: "R1", expires_in: 900, device: "shared" } };
+  const { calls, fetchImpl } = fakeService({ "/v1/sessions": shared, "/v1/oauth/exchange": shared, "/v1/accounts": tokens("A2", "R2") });
+  const auth = createAuth({ base: "http://auth.example", storage, tabStorage, fetchImpl });
+  await auth.signIn("s@example.com", "pw", undefined, "shared");
+  assert.equal(calls[0].body.kind, "shared");
+  assert.equal(tabStorage.map.get("callerwhale.auth.refresh"), "R1");
+  assert.equal(storage.map.has("callerwhale.auth.refresh"), false, "nothing outlives the tab");
+  auth.chooseDevice(true);
+  await auth.exchange("code");
+  assert.equal(calls[1].body.device, "shared");
+  assert.equal(tabStorage.map.has("callerwhale.auth.device"), false, "the choice is used once");
+  await auth.signUp("Nia", "n@example.com", "pw", "browser", "", "1990-01-01", "v1", { id: "inv", key: "k" });
+  assert.equal(calls[2].body.invitation_id, "inv");
+  assert.equal(calls[2].body.invitation_key, "k");
+  assert.equal(storage.map.get("callerwhale.auth.refresh"), "R2");
+  assert.equal(tabStorage.map.has("callerwhale.auth.refresh"), false, "my own device: kept, and the tab's copy dropped");
+});
