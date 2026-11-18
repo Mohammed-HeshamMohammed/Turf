@@ -77,3 +77,33 @@ func TestASoloWorkspaceBecomesAnAgency(t *testing.T) {
 		t.Fatalf("upgrading an agency again: %d", code)
 	}
 }
+
+// Step 18: a lowered plan leaves more people than seats; suspending someone frees a seat, and they come back only when one is free
+// (D81, D365).
+func TestSeatsAfterAPlanIsLowered(t *testing.T) {
+	h := newHarness(t)
+	h.opened() // the owner and a caller
+	if code, out := h.call(coreToken, "PUT", "/v1/orgs/"+org1+"/members/"+managerID, map[string]any{"actor_id": ownerID, "actor_second_step": true, "roles": []string{"closer"}, "team_ids": []string{team1}}); code != 200 {
+		t.Fatalf("add a closer: %d %v", code, out)
+	}
+	h.call(billingToken, "PUT", "/v1/orgs/"+org1+"/standing", map[string]any{"seats": 2})
+	if _, out := h.call(authToken, "GET", "/v1/orgs/"+org1+"/seats", nil); out["over"] != float64(1) || out["used"] != float64(3) {
+		t.Fatalf("over the seats: %v", out)
+	}
+	suspend := func(path string) (int, map[string]any) {
+		return h.call(coreToken, "POST", "/v1/orgs/"+org1+"/members/"+managerID+"/"+path, map[string]any{"actor_id": ownerID, "actor_second_step": true, "reason": "The plan was lowered"})
+	}
+	if code, out := suspend("suspend"); code != 200 {
+		t.Fatalf("suspend: %d %v", code, out)
+	}
+	if _, out := h.call(authToken, "GET", "/v1/orgs/"+org1+"/seats", nil); out["over"] != float64(0) {
+		t.Fatalf("after the choice: %v", out)
+	}
+	if code, out := suspend("restore"); code != 409 || out["code"] != "seats_full" {
+		t.Fatalf("coming back without a free seat: %d %v", code, out)
+	}
+	h.call(billingToken, "PUT", "/v1/orgs/"+org1+"/standing", map[string]any{"seats": 3})
+	if code, out := suspend("restore"); code != 200 {
+		t.Fatalf("coming back once a seat is added: %d %v", code, out)
+	}
+}

@@ -89,3 +89,32 @@ func (s *server) planStage(w http.ResponseWriter, r *http.Request) error {
 	writeJSON(w, http.StatusOK, v.describe(time.Now().Unix()))
 	return nil
 }
+
+// seatUse answers GET /v1/orgs/{org}/seats: the plan's seats and the people using one (everyone but clients and the suspended). When a
+// lowered plan leaves more people than seats, the owner chooses who keeps one and the others are suspended (step 18, D81, D365).
+func (s *server) seatUse(w http.ResponseWriter, r *http.Request) error {
+	org, err := s.workspace(r)
+	if err != nil {
+		return err
+	}
+	seats, _, err := s.rules.seatLimits(r.Context(), org)
+	if err != nil {
+		return store(err)
+	}
+	members, err := s.rules.members(r.Context(), org)
+	if err != nil {
+		return store(err)
+	}
+	using := []string{}
+	for _, m := range members {
+		if len(m.Roles) > 0 && !onlyClient(m.Roles) && m.SuspendedAt == nil {
+			using = append(using, m.UserID)
+		}
+	}
+	over := 0
+	if seats != nil && len(using) > *seats {
+		over = len(using) - *seats
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"seats": seats, "used": len(using), "over": over, "using": using})
+	return nil
+}
