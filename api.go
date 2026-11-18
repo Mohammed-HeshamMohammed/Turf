@@ -90,6 +90,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("GET /v1/admin/members", serve(s.adminMembers))
 	mux.Handle("GET /v1/admin/overview", serve(s.adminOverview))
 	mux.Handle("GET /v1/announcement", serve(s.getAnnouncement))
+	s.helpRoutes(mux) // step 40: support conversations, what's new, early features, feedback
 	// The status page, the outage banner and owners' emails, and breach notices (step 34).
 	mux.Handle("GET /v1/status", serve(s.getStatus))
 	mux.Handle("POST /v1/admin/status/incidents", serve(s.openIncident))
