@@ -131,8 +131,22 @@ func TestRestrictionsAndStanding(t *testing.T) {
 	if code, _ := h.call(billingToken, "PUT", "/v1/orgs/"+org1+"/standing", map[string]any{"payment_required": true}); code != 200 {
 		t.Fatalf("standing: %d", code)
 	}
-	if _, out := h.grant(callerID, "edit", false); out["code"] != "payment_required" {
-		t.Errorf("unpaid: %v", out)
+	// Step 18: an unpaid plan first has a grace period in which everything works, then turns read-only.
+	if _, out := h.grant(callerID, "edit", false); out["allowed"] != true {
+		t.Errorf("unpaid, in the grace period: %v", out)
+	}
+	h.call(billingToken, "PUT", "/v1/orgs/"+org1+"/standing", map[string]any{"unpaid_since": time.Now().Unix() - 8*86_400})
+	if _, out := h.grant(callerID, "edit", false); out["code"] != "read_only" {
+		t.Errorf("unpaid past the grace period: %v", out)
+	}
+	if code, out := h.call(authToken, "GET", "/v1/orgs/"+org1+"/plan-stage", nil); code != 200 || out["stage"] != "read_only" {
+		t.Errorf("the plan stage: %d %v", code, out)
+	}
+	if code, _ := h.call(billingToken, "PUT", "/v1/orgs/"+org1+"/standing", map[string]any{"closed": true}); code != 200 {
+		t.Fatalf("billing closing: %d", code)
+	}
+	if _, out := h.grant(callerID, "read", false); out["code"] == "closed" {
+		t.Errorf("billing cannot close an agency: %v", out)
 	}
 	if _, out := h.grant(ownerID, "pay", true); out["allowed"] != true {
 		t.Errorf("the owner can still pay: %v", out)
@@ -401,7 +415,7 @@ func TestTheCatalogListsEachRoleOnce(t *testing.T) {
 		{Key: "caller", Capabilities: []string{"call"}, Scope: "team"}, // kept from before presets were protected
 		{Key: "senior_closer", Capabilities: []string{"edit"}, Scope: "own"},
 		{Key: "helper", Capabilities: []string{"export"}, Scope: "team"},
-		{Key: "helper", Capabilities: []string{"export"}, Scope: "team"}, // a repeat is still one role
+		{Key: "helper", Capabilities: []string{"export"}, Scope: "team"},          // a repeat is still one role
 		{Key: "system_admin", Capabilities: []string{"import"}, Scope: "project"}, // switched off: never listed
 	}
 	got := buildCatalog(stored)
