@@ -56,6 +56,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("PUT /v1/orgs/{org}/name", s.only("manage", s.nameWorkspace))
 	mux.Handle("PUT /v1/orgs/{org}/features/{name}", s.only("manage_staff", s.putFeature))
 	mux.Handle("PUT /v1/orgs/{org}/teams/{team}/deputies", s.only("manage_members", s.putDeputies))
+	mux.Handle("GET /v1/orgs/{org}/people-log", s.only("read", s.readPeopleLog))
 	mux.Handle("GET /v1/people/{user}", s.only("read", s.person))
 	mux.Handle("GET /v1/roles", s.only("read", s.catalog))
 	mux.Handle("GET /v1/orgs/{org}/roles", s.only("read", s.listRoles))
@@ -535,6 +536,9 @@ func (s *server) putMember(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
+	what := map[string]string{actInvite: "joined", actChange: "changed", actRestrict: "restricted"}[action]
+	s.record(ctx, org, a.UserID, user, what, teamsSeen(current.TeamIDs, body.TeamIDs),
+		map[string]any{"roles_before": nonNil(current.Roles), "roles": body.Roles, "teams_before": nonNil(current.TeamIDs), "teams": nonNil(body.TeamIDs)})
 	writeJSON(w, http.StatusOK, map[string]any{"member": m, "access_changed": true})
 	return nil
 }
@@ -548,10 +552,17 @@ func (s *server) deleteMember(w http.ResponseWriter, r *http.Request) error {
 	if !validID(user) {
 		return bad("That is not a person's id.")
 	}
-	var body actor
-	if err := readJSON(w, r, &body); err != nil {
+	var asked struct {
+		actor
+		Reason string `json:"reason"` // optional; the person removed sees it (D57)
+	}
+	if err := readJSON(w, r, &asked); err != nil {
 		return err
 	}
+	if len(asked.Reason) > 200 {
+		return bad("Keep the reason under 200 characters.")
+	}
+	body := asked.actor
 	var a place
 	if body.ActorID == user {
 		// Leaving: even a suspended person may go.
@@ -597,6 +608,13 @@ func (s *server) deleteMember(w http.ResponseWriter, r *http.Request) error {
 	if err := s.leaveTeams(r.Context(), org, user, true); err != nil {
 		return err
 	}
+	what, detail := "removed", map[string]any{"roles": nonNil(target.Roles)}
+	if leaving {
+		what = "left"
+	} else if r := strings.TrimSpace(asked.Reason); r != "" {
+		detail["reason"] = r
+	}
+	s.record(r.Context(), org, a.UserID, user, what, target.TeamIDs, detail)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "access_changed": true})
 	return nil
 }

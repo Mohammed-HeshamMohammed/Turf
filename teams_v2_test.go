@@ -233,3 +233,61 @@ func TestAnInvitationCarriesEverythingAndPeopleCanLeave(t *testing.T) {
 		}
 	}
 }
+
+// The record of people changes (D58, D57): the owner sees all of it, a team lead their teams' part, each person what was done to them,
+// with the reason when one was written.
+func TestTheRecordOfPeopleChangesHasThreeViews(t *testing.T) {
+	h := newHarness(t)
+	h.opened() // owner, team1, callerID a caller in team1 (recorded as joining)
+	h.call(authToken, "PUT", "/v1/orgs/"+org1+"/members/"+managerID, map[string]any{"actor_id": ownerID, "actor_second_step": true, "roles": []string{"manager"}})
+	h.call(authToken, "PUT", "/v1/orgs/"+org1+"/teams/"+team1, map[string]any{"actor_id": ownerID, "actor_second_step": true, "name": "Team one", "manager_id": managerID})
+	h.call(authToken, "PUT", "/v1/orgs/"+org1+"/teams/"+team2, map[string]any{"actor_id": ownerID, "actor_second_step": true, "name": "Team two"})
+	h.call(authToken, "PUT", "/v1/orgs/"+org1+"/members/"+closerID, map[string]any{"actor_id": ownerID, "actor_second_step": true, "roles": []string{"closer"}, "team_ids": []string{team2}})
+	h.call(authToken, "POST", "/v1/orgs/"+org1+"/members/"+callerID+"/suspend", map[string]any{"actor_id": managerID, "actor_second_step": true, "reason": "On leave"})
+	h.call(authToken, "DELETE", "/v1/orgs/"+org1+"/members/"+closerID, map[string]any{"actor_id": ownerID, "actor_second_step": true, "reason": "Moved away"})
+	view := func(viewer string) (string, []map[string]any) {
+		code, out := h.call(authToken, "GET", "/v1/orgs/"+org1+"/people-log?viewer="+viewer, nil)
+		if code != 200 {
+			t.Fatalf("%s reads the record: %d %v", viewer, code, out)
+		}
+		entries := []map[string]any{}
+		for _, raw := range out["entries"].([]any) {
+			entries = append(entries, raw.(map[string]any))
+		}
+		return out["view"].(string), entries
+	}
+	view0, all := view(ownerID)
+	if view0 != "all" || len(all) < 6 {
+		t.Fatalf("the owner sees everything: %s %d", view0, len(all))
+	}
+	view1, lead := view(managerID)
+	for _, e := range lead {
+		if e["target_id"] == closerID {
+			t.Fatalf("a team lead sees another team's changes: %v", e)
+		}
+	}
+	if view1 != "teams" || !slices.ContainsFunc(lead, func(e map[string]any) bool { return e["action"] == "suspended" && e["target_id"] == callerID }) {
+		t.Fatalf("a team lead sees their team's part: %s %v", view1, lead)
+	}
+	_, mine := view(callerID)
+	for _, e := range mine {
+		if e["target_id"] != callerID {
+			t.Fatalf("a person sees only what was done to them: %v", e)
+		}
+	}
+	if !slices.ContainsFunc(mine, func(e map[string]any) bool {
+		d, _ := e["detail"].(map[string]any)
+		return e["action"] == "suspended" && d["reason"] == "On leave"
+	}) {
+		t.Fatalf("the person sees the reason: %v", mine)
+	}
+	if !slices.ContainsFunc(all, func(e map[string]any) bool {
+		d, _ := e["detail"].(map[string]any)
+		return e["action"] == "removed" && d["reason"] == "Moved away"
+	}) {
+		t.Fatal("a removal keeps its reason")
+	}
+	if code, _ := h.call(authToken, "GET", "/v1/orgs/"+org1+"/people-log?viewer="+strangerID, nil); code != 403 {
+		t.Fatalf("a stranger reads the record: %d", code)
+	}
+}

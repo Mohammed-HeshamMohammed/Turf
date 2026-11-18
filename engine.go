@@ -54,6 +54,9 @@ type engine interface {
 	// features are the workspace's switches that are on (D104); setFeature turns one on or off.
 	features(ctx context.Context, org string) ([]string, error)
 	setFeature(ctx context.Context, org, name string, on bool) error
+	// logPeople records one change to people; peopleLog reads the newest first, older entries than two years are dropped.
+	logPeople(ctx context.Context, org string, e peopleEntry) error
+	peopleLog(ctx context.Context, org string, since int64, limit int) ([]peopleEntry, error)
 	// adminLimit is how many admins the workspace may have when staff changed it (nil: the default).
 	adminLimit(ctx context.Context, org string) (*int, error)
 	setStanding(ctx context.Context, org string, change standingChange) error

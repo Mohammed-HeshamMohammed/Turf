@@ -27,10 +27,12 @@ type memEngine struct {
 	names     map[string]string  // org -> agency name
 	switches  map[string][]string
 	admins    map[string]*int
+	log       map[string][]peopleEntry
+	logID     int64
 }
 
 func newMem() *memEngine {
-	return &memEngine{roleDefs: map[string]map[string]role{}, people: map[string]map[string]membership{}, standing: map[string][2]bool{}, staff: map[string]string{}, openOwner: map[string]string{}, teamsBy: map[string][]team{}, limits: map[string][2]*int{}, names: map[string]string{}, switches: map[string][]string{}, admins: map[string]*int{}}
+	return &memEngine{roleDefs: map[string]map[string]role{}, people: map[string]map[string]membership{}, standing: map[string][2]bool{}, staff: map[string]string{}, openOwner: map[string]string{}, teamsBy: map[string][]team{}, limits: map[string][2]*int{}, names: map[string]string{}, switches: map[string][]string{}, admins: map[string]*int{}, log: map[string][]peopleEntry{}}
 }
 
 var errStoreDown = errors.New("rules store down")
@@ -414,4 +416,21 @@ func (h *harness) opened() {
 
 func (h *harness) grant(user, action string, secondStep bool) (int, map[string]any) {
 	return h.call(coreToken, "POST", "/v1/grant", map[string]any{"user_id": user, "org_id": org1, "action": action, "second_step_passed": secondStep})
+}
+
+func (m *memEngine) logPeople(_ context.Context, org string, e peopleEntry) error {
+	m.logID++
+	e.ID = m.logID
+	m.log[org] = append([]peopleEntry{e}, m.log[org]...)
+	return m.down()
+}
+
+func (m *memEngine) peopleLog(_ context.Context, org string, since int64, limit int) ([]peopleEntry, error) {
+	out := []peopleEntry{}
+	for _, e := range m.log[org] {
+		if e.At >= since && len(out) < limit {
+			out = append(out, e)
+		}
+	}
+	return out, m.down()
 }
