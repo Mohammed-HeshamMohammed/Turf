@@ -19,6 +19,8 @@ GOOD_STANDING = {"trialing", "active"}
 
 # Limits a workspace has. seats and monthly_minutes come from billing.plans, the rest from billing.plan_limits; staff may override
 # any of them for one workspace (billing.org_limit_overrides). None means unlimited.
+DISCOUNT_REASONS = ("shared_learning",)
+DISCOUNT_KINDS = ("ai", "minutes", "texts")
 LIMIT_KEYS = ("seats", "clients", "active_leads", "imports_monthly", "monthly_minutes", "skiptrace_credits", "file_storage_mb")
 
 
@@ -107,13 +109,36 @@ class Store:
         return rows
 
     def entitlements(self, org_id: UUID) -> dict:
-        """What one workspace may use: its plan's limits with staff overrides on top. A workspace without a plan has no limits here."""
+        """What one workspace may use: its plan's limits with staff overrides on top, and the discounts it earned (step 45). A
+        workspace without a plan has no limits here."""
+        discounts = self.discounts(org_id)
         with self.pool.connection() as conn:
             row = conn.execute("SELECT plan_key FROM billing.subscriptions WHERE org_id = %s", (org_id,)).fetchone()
             if row is None:
-                return {"org_id": str(org_id), "plan": None, "limits": {key: None for key in LIMIT_KEYS}, "overrides": {}}
+                return {"org_id": str(org_id), "plan": None, "limits": {key: None for key in LIMIT_KEYS}, "overrides": {}, "discounts": discounts}
             limits, overrides = effective_limits(conn, org_id, row[0])
-        return {"org_id": str(org_id), "plan": row[0], "limits": limits, "overrides": overrides}
+        return {"org_id": str(org_id), "plan": row[0], "limits": limits, "overrides": overrides, "discounts": discounts}
+
+    def set_discount(self, org_id: UUID, reason: str, kind: str, percent: int) -> dict:
+        """Gives a workspace a discount for a reason, or ends it (percent 0). Answers the workspace's discounts by kind."""
+        if reason not in DISCOUNT_REASONS or kind not in DISCOUNT_KINDS or not 0 <= percent <= 100:
+            raise Refused(400, "bad_request", "reason is shared_learning; kind is ai, minutes or texts; percent is 0 to 100")
+        with self.pool.connection() as conn:
+            if percent == 0:
+                conn.execute("DELETE FROM billing.discounts WHERE org_id = %s AND reason = %s AND kind = %s", (org_id, reason, kind))
+            else:
+                conn.execute(
+                    "INSERT INTO billing.discounts (org_id, reason, kind, percent) VALUES (%s, %s, %s, %s) "
+                    "ON CONFLICT (org_id, reason, kind) DO UPDATE SET percent = excluded.percent",
+                    (org_id, reason, kind, percent),
+                )
+        return self.discounts(org_id)
+
+    def discounts(self, org_id: UUID) -> dict:
+        """The largest discount the workspace has for each kind, in percent."""
+        with self.pool.connection() as conn:
+            rows = conn.execute("SELECT kind, max(percent) FROM billing.discounts WHERE org_id = %s GROUP BY kind", (org_id,)).fetchall()
+        return {_first(r, "kind", 0): _first(r, "max", 1) for r in rows}
 
     def summary(self, now: datetime) -> dict:
         """What the platform owner's dashboard shows: money taken, who is on which plan, and what is being used. Totals only: no card
