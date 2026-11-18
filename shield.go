@@ -27,6 +27,7 @@ var authRoutes = []string{
 	"POST /v1/me/profile",
 	"POST /v1/me/username",
 	"POST /v1/me/tag", "POST /v1/me/tag-note", "PUT /v1/me/privacy", "GET /v1/people/search",
+	"GET /v1/me/agencies", "GET /v1/me/export", "GET /v1/invitations/{id}/preview",
 	"POST /v1/me/birth-date",
 	"POST /v1/me/terms",
 	"POST /v1/me/work",
