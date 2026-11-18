@@ -191,16 +191,21 @@ func (s *server) templatesFor(ctx context.Context, sc scope, lead string) ([]tem
 
 // textingWindow is the next moment a lead may be texted at or after t: between 8:00 and 21:00 in the agency's time zone.
 func textingWindow(t time.Time, zone *time.Location) time.Time {
+	return textingWindowIn(t, zone, textFromHour, textUntilHour)
+}
+
+// textingWindowIn is the same within the agency's own, shorter, hours (step 21, D151).
+func textingWindowIn(t time.Time, zone *time.Location, from, until int) time.Time {
 	if zone == nil {
 		zone = time.UTC
 	}
 	local := t.In(zone)
 	switch {
-	case local.Hour() < textFromHour:
-		return time.Date(local.Year(), local.Month(), local.Day(), textFromHour, 0, 0, 0, zone)
-	case local.Hour() >= textUntilHour:
+	case local.Hour() < from:
+		return time.Date(local.Year(), local.Month(), local.Day(), from, 0, 0, 0, zone)
+	case local.Hour() >= until:
 		next := local.AddDate(0, 0, 1)
-		return time.Date(next.Year(), next.Month(), next.Day(), textFromHour, 0, 0, 0, zone)
+		return time.Date(next.Year(), next.Month(), next.Day(), from, 0, 0, 0, zone)
 	}
 	return t
 }
@@ -219,8 +224,9 @@ func (s *server) scheduleText(ctx context.Context, sc scope, ask textAsk, at tim
 	if err != nil {
 		return nil, err
 	}
-	at = textingWindow(at, s.agencyZone(ctx, sc.orgID))
-	from, err := s.callerID(ctx, sc, ask.From, "texts")
+	from0, until, zone := s.contactWindow(ctx, sc.orgID)
+	at = textingWindowIn(at, zone, from0, until)
+	from, err := s.numberFor(ctx, sc, lead, ask.From, "texts")
 	if err != nil {
 		return nil, err
 	}

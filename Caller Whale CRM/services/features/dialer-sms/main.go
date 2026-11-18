@@ -48,6 +48,7 @@ type config struct {
 	simSpeed        float64
 	simPrivateKey   string
 	noTimers        bool // tests: settle only when asked
+	anyHours        bool // simulate mode only (SIM_ANY_HOURS=true): try calls and texts at any hour; live always keeps the hours
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -81,6 +82,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 	switch mode := strings.ToLower(trim("TELNYX_MODE")); mode {
 	case "", "simulate":
 		c.simulate = true
+		c.anyHours = strings.EqualFold(trim("SIM_ANY_HOURS"), "true")
 	case "live":
 	default:
 		return c, fmt.Errorf("TELNYX_MODE is simulate or live, not %q", mode)

@@ -140,7 +140,9 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	t.Cleanup(st.close)
-	e := &env{t: t, clock: time.Now(), org: newUUID(), user: newUUID(), number: "+15125550100",
+	// A weekday afternoon in UTC: leads are called and texted only in the day (step 21).
+	now := time.Now().UTC()
+	e := &env{t: t, clock: time.Date(now.Year(), now.Month(), now.Day(), 15, 0, 0, 0, time.UTC), org: newUUID(), user: newUUID(), number: "+15125550100",
 		crm: &fakeCRM{leads: map[string]*leadInfo{}, logged: map[string]map[string]any{}, recordings: map[string]map[string]any{}}}
 	e.fx = newVerifyFixture(t)
 	jwks := e.fx.jwks("k1")

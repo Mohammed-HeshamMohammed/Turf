@@ -281,6 +281,7 @@ func TestTheBrowserGetsACallingTokenAndNeverTheAccountKey(t *testing.T) {
 func TestTheScenariosCommandPassesAgainstARunningDialer(t *testing.T) {
 	e := newEnv(t)
 	e.s.now, e.sim.now = time.Now, time.Now
+	e.s.cfg.anyHours = true // the real clock may be at night
 	e.s.cfg.noTimers, e.s.cfg.settleDelay = false, 100*time.Millisecond
 	e.sim.speed = 50
 	lead := e.addLead("+15125557777")
