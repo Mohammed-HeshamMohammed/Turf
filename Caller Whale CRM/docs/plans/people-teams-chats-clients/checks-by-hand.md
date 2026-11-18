@@ -33,7 +33,7 @@ Chrome was not connected). The rows marked **verify** are what the code expects;
 
 | Container | Add or change | Then |
 |---|---|---|
-| Caller Whale Gateway | `AUTHZ_URL=http://authz:8104` and `AUTHZ_TOKEN` (the `gateway=` value in authz's `AUTHZ_TOKENS`) for agencies' place limits (step 35); **verify** `ROUTES` sends `gate.callerwhale.com` (its `CORE_HOST`) to `http://crm-core:8107`. The example still shows `http://notifications:8102` there; the CRM's routes (sync, imports, Google's return, email links and unsubscribe, tool keys) need crm-core | Redeploy (new open routes for steps 28, 29, 33 and auth's step 34 routes) |
+| Caller Whale Gateway | Redeploy for steps 40 and 42's auth routes (help, support, feedback, browser errors). `AUTHZ_URL=http://authz:8104` and `AUTHZ_TOKEN` (the `gateway=` value in authz's `AUTHZ_TOKENS`) for agencies' place limits (step 35); **verify** `ROUTES` sends `gate.callerwhale.com` (its `CORE_HOST`) to `http://crm-core:8107`. The example still shows `http://notifications:8102` there; the CRM's routes (sync, imports, Google's return, email links and unsubscribe, tool keys) need crm-core | Redeploy (new open routes for steps 28, 29, 33 and auth's step 34 routes) |
 | Caller Whale Live Server | nothing new | — |
 | Caller Whale AI Assistant | `AGENT_TOKEN` (T5); `OPENROUTER_API_KEY` (S3) | Redeploy |
 | Caller Whale Authentication | `STATUS_PROBES` (optional), like `sign_in=http://auth:8101/healthz,crm=http://crm-core:8107/healthz,calls=http://dialer-sms:8113/healthz,chats=http://messaging:8108/healthz`; `AUTH_MCP_TOKEN` (T7) if not set | Redeploy (new tables for the status page and breach notices) |
@@ -59,6 +59,7 @@ Chrome was not connected). The rows marked **verify** are what the code expects;
 | S4 | Google Cloud: a web OAuth client with the Calendar API, asking only `calendar.freebusy` and `calendar.app.created`; submit it for Google's verification | crm-core `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URL`, `GOOGLE_TOKEN_KEY` (`openssl rand -base64 32`), `APP_URL` | Google Calendar per person (step 28) |
 | S5 | Amazon SES: an IAM user (send, create and check identities), production access out of the sandbox, the reply domain's MX to SES receiving, a receipt rule to an SNS topic (Base64), the topic subscribed to `https://<api>/api/v1/public/email/inbound` | crm-core `EMAIL_SES_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `EMAIL_PUBLIC_URL`, `EMAIL_REPLY_DOMAIN`, `EMAIL_SNS_TOPIC_ARN` | Email to leads and replies (step 29) |
 | S6 | Redeploy the gateway (`gateway-backend-production`) | nothing | Google's return, email clicks, unsubscribe and inbound replies (steps 28, 29), and outside tools' keys (step 33) reaching the CRM |
+| S7 | Phone alerts (step 42): install the ntfy app on both phones, each subscribe to a long random topic of your own | monitoring resource `PUSH_TARGETS` (owner=https://ntfy.sh/<topic>,cofounder=https://ntfy.sh/<topic>), `RELAY_TOKEN` (`openssl rand -hex 32`), optional `ONCALL_FROM` | Urgent alerts to whoever is on call |
 
 ## Switches and choices in the product
 
@@ -532,3 +533,13 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | B1 | In Coolify, add an S3 storage outside the server and a daily backup of every PostgreSQL, keeping 30 | The next morning each database has a file in the bucket. |
 | B2 | Download the newest CRM backup and run `node tools/restore-test.mjs --dump <file> --scratch <throwaway db> --expect crm.leads --log restore-tests.jsonl` | PASS with the tables and rows; repeat monthly for every database. |
 | B3 | With a throwaway agency: restore yesterday's CRM backup into a copy, set `RESTORE_COPY_URL`, ask, confirm as its owner, run | Only that agency's leads go back to yesterday; another agency's are untouched; blocks made today stay; its devices reload. |
+
+# Step 42: monitoring and alerts (after the monitoring resource, auth, the gateway and both web apps are redeployed, with S7 done)
+
+| # | Do | Expect |
+|---|---|---|
+| M1 | Open Grafana → Alerting → Alert rules | 15 rules in "Caller Whale alerts", none in error. If any shows an error, tell me its message. |
+| M2 | Stop the dialer in Coolify for 3 minutes, then start it | The on-call phone gets "dialer-sms is not answering", then "Fixed"; the other phone gets nothing unless the first push failed. |
+| M3 | Stop the messaging service for 6 minutes at night, then in the day | At night nothing arrives until 07:00; in the day both phones get it. |
+| M4 | On the website, open the browser console and run `setTimeout(() => { throw new TypeError("test") })` | In Grafana Explore, `{container=~".+"} |= "client_error"` shows the line with the page and kind, without "test". |
+| M5 | Contact points → urgent-on-call → Test | The on-call phone gets a test push. |

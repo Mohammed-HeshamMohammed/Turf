@@ -78,6 +78,8 @@ services:
       # People are who the proxy says they are, and only when the proxy says it.
       # true enables proxy-header authentication. Keep the proxy whitelist and disabled alternative logins intact to avoid impersonation paths.
       GF_AUTH_PROXY_ENABLED: "true"
+      # Secret shared by Grafana's alert contact points and the alert relay (step 42), 32+ characters (openssl rand -hex 32). Set once for the resource; both containers read it.
+      RELAY_TOKEN: "${RELAY_TOKEN:?set RELAY_TOKEN}"
       # Trusted username header, X-WEBAUTH-USER. Must match the proxy's emitted identity header.
       GF_AUTH_PROXY_HEADER_NAME: X-WEBAUTH-USER
       # Proxy identity header is treated as username. Changing it changes how Grafana maps incoming identities to stored users.
@@ -122,6 +124,32 @@ services:
         ipv4_address: 172.30.10.20
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # Passes Grafana's alerts to phones (build step 42): urgent ones to whoever is on call this week, the rest to everyone. It needs
+  # the coolify network only to reach the push service on the internet; nothing reaches it from outside this resource.
+  alert-relay:
+    build:
+      context: ../../services/alert-relay
+    environment:
+      # Secret shared by Grafana's alert contact points and the alert relay (step 42), 32+ characters (openssl rand -hex 32). Set once for the resource; both containers read it.
+      RELAY_TOKEN: "${RELAY_TOKEN:?set RELAY_TOKEN}"
+      # Secret: each on-call person's ntfy topic address, like owner=https://ntfy.sh/<long random topic>,cofounder=https://ntfy.sh/<topic>. Each person subscribes to their topic in the ntfy app.
+      PUSH_TARGETS: "${PUSH_TARGETS:?set PUSH_TARGETS}"
+      # Whose on-call week comes first, then the next, from PUSH_TARGETS' names; default owner,cofounder. Only urgent alerts wake the person on call.
+      ONCALL_ORDER: "${ONCALL_ORDER:-owner,cofounder}"
+      # The Monday the first person's on-call week starts, like 2026-11-23; the order then repeats a week at a time.
+      ONCALL_FROM: "${ONCALL_FROM:-2026-11-23}"
+      # The link each alert push opens: Grafana's alert list behind the staff login; default https://gate.callerwhale.com/staff/monitoring/alerting/list.
+      ALERTS_URL: "${ALERTS_URL:-https://gate.callerwhale.com/staff/monitoring/alerting/list}"
+    networks:
+      - grafana
+      - coolify
+    healthcheck:
+      test: ["CMD", "/service", "health"]
       interval: 30s
       timeout: 5s
       retries: 3
