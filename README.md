@@ -34,17 +34,26 @@ All under `/api/v1/messaging`, with `Authorization: Bearer <sign-in token>` and,
 | Request | Does |
 | --- | --- |
 | `GET /live` | Where to open the socket, the person's channel and a ten-minute token for it |
-| `GET /conversations` | The person's conversations, newest first, each with its members, unread count and last message |
+| `GET /conversations` | The person's conversations, newest first, each with its members, unread count and last message. Includes their team chats (`kind: "team"`, `team_id`) and the agency's announcements channel (`kind: "announcements"`) |
 | `POST /conversations` `{kind: "direct" \| "group", title, member_ids}` | Starts one. A direct chat that exists is answered, not duplicated |
 | `GET /conversations/{id}` | One conversation |
-| `PATCH /conversations/{id}` `{title, archived, muted}` | Renames a group (its owner), or changes the person's own settings |
-| `POST /conversations/{id}/members` `{add, remove}` | The owner adds or removes people; anyone may remove themselves |
+| `PATCH /conversations/{id}` `{title, archived, muted}` | Renames a group (its owner), or changes the person's own settings. A team chat takes its team's name |
+| `POST /conversations/{id}/members` `{add, remove}` | The owner adds or removes people; anyone may remove themselves. Not for team chats or announcements, which follow the teams and the agency |
 | `POST /conversations/{id}/read` `{seq}` | Marks read up to a message number |
 | `GET /conversations/{id}/messages?after=&before=&limit=` | Messages, oldest first: after a number, before one, or the newest |
-| `POST /conversations/{id}/messages` `{id, body, reply_to, mentions, poll}` | Sends a message or a poll |
-| `PATCH /messages/{id}` `{body}`, `DELETE /messages/{id}` | Edits or deletes the person's own message |
+| `POST /conversations/{id}/messages` `{id, body, reply_to, mentions, mention_groups, important, poll}` | Sends a message or a poll. `mention_groups`: `everyone`, `managers`, `team` (in a team chat) or `team:<id>`, turned into the people in the conversation they reach (`mentions`). `important` only in announcements |
+| `GET /messages/search?q=` | Words in messages of the person's own conversations in this workspace, newest first, up to 50 |
+| `PATCH /messages/{id}` `{body}`, `DELETE /messages/{id}` | Edits the person's own message for 15 minutes after sending (then `409 edit_window`), or deletes it at any time |
 | `PUT` / `DELETE /messages/{id}/reactions/{emoji}` | Adds or takes back a reaction |
 | `POST /messages/{id}/vote` `{option}` | Votes in a poll; again moves the vote, `null` takes it back |
+
+**Team chats and announcements (build step 16).** Each team has one chat that follows the team in authz: its leads, deputy leads
+and the people placed in it join and leave as authz changes them (a newcomer has only what comes after unread), and it takes the
+team's name. Nobody leaves it while they are in the team; they can mute it. The agency has one announcements channel with every
+member except clients. Only the owner, admins and team leads post there (everyone reacts) and they can mark a post `important`,
+which is meant to reach people through mute and quiet hours once notifications carry it (step 14). `@everyone` in announcements
+and in conversations of more than 30 people is for the owner, admins and team leads only. On each request the service reads
+authz's roster (kept as long as a grant) and writes only when it changed since it last did, or a minute passed.
 
 Live updates carry `type` (`conversation`, `message`, `message_changed`, `read`), `org_id`, `conversation_id` and, for messages, the message.
 
@@ -73,6 +82,7 @@ ordinary login) and are skipped without them. GitHub runs them in `.github/workf
 ## Not done yet
 
 - The CRM's Inbox still shows its sample conversations.
-- Attachments, search, and notifications when the app is closed.
+- Attachments, and notifications when the app is closed (an important announcement breaking through quiet hours comes with them, step 14).
+- The CRM's screens for team chats, announcements, group mentions and search.
 - Text threads with leads (`kind = 'lead'`, team notes): the columns exist, the requests do not.
 - The Centrifugo settings in `services/live/config.json` (the live server's own folder) and `deploy/compose.yml` are written from its documentation; the container has not been built or run locally (no Docker on the build machine).

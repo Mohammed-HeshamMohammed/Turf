@@ -339,19 +339,25 @@ func TestUpdatesReachTheLiveServerOnceAndInOrder(t *testing.T) {
 	if sent, err := e.s.flush(ctx); sent != 0 || err == nil {
 		t.Fatalf("flush with the live server down: sent %d, err %v", sent, err)
 	}
+	// Four: everyone joining the agency's announcements channel on first use, the new chat, and the two messages.
 	var waiting int
-	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM messaging.outbox`).Scan(&waiting); err != nil || waiting != 3 {
-		t.Fatalf("%d updates waiting (%v), want 3", waiting, err)
+	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM messaging.outbox`).Scan(&waiting); err != nil || waiting != 4 {
+		t.Fatalf("%d updates waiting (%v), want 4", waiting, err)
 	}
 
 	e.live.setDown(false)
-	if sent, err := e.s.flush(ctx); sent != 3 || err != nil {
+	if sent, err := e.s.flush(ctx); sent != 4 || err != nil {
 		t.Fatalf("flush: sent %d, err %v", sent, err)
 	}
 	got := e.live.seen()
-	if len(got) != 3 {
+	if len(got) != 4 {
 		t.Fatalf("the live server heard %d updates", len(got))
 	}
+	// The first tells the three of them they are in the announcements channel; the rest are about the chat.
+	if first := got[0]["data"].(map[string]any); first["type"] != "conversation" || first["conversation_id"] == id || len(got[0]["channels"].([]any)) != 3 {
+		t.Fatalf("the announcements channel update: %v", got[0])
+	}
+	got = got[1:]
 	kinds, keys := []string{}, map[string]bool{}
 	for _, update := range got {
 		data := update["data"].(map[string]any)
@@ -421,8 +427,8 @@ func TestASuperuserLoginStillGetsRowSecurity(t *testing.T) {
 			t.Fatalf("%s sees %d messages, want %d", user[:4], n, want)
 		}
 	}
-	// And the live updates still go out, which the login (not the restricted role) sends.
-	if sent, err := e.s.flush(ctx); err != nil || sent != 2 {
+	// And the live updates still go out, which the login (not the restricted role) sends: the announcements channel, the chat, the message.
+	if sent, err := e.s.flush(ctx); err != nil || sent != 3 {
 		t.Fatalf("flush: sent %d, err %v", sent, err)
 	}
 }
