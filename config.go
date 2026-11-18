@@ -19,6 +19,7 @@ type config struct {
 	publicURL      string // this service's public address
 	websiteURL     string
 	landingURL     string // where a sign-in or a confirmation link started from the public site returns
+	statusProbes   map[string]string // STATUS_PROBES: part=health address, checked every minute (step 34)
 	appURL         string
 	devTokens      bool // development only: return email confirmation tokens in answers
 	allowedOrigins []string
@@ -72,6 +73,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 		websiteURL:       trimSlash(get("AUTH_WEBSITE_URL", "http://localhost:8088")),
 		appURL:           trimSlash(get("AUTH_APP_URL", "http://localhost:5190")),
 		landingURL:       trimSlash(get("AUTH_LANDING_URL", "http://localhost:5200")),
+		statusProbes:     map[string]string{},
 		devTokens:        get("AUTH_DEV_TOKENS", "false") == "true",
 		firebaseKey:      strings.TrimSpace(getenv("AUTH_FIREBASE_API_KEY")),
 		firebaseIdentity: trimSlash(get("AUTH_FIREBASE_IDENTITY_URL", "https://identitytoolkit.googleapis.com")),
@@ -116,6 +118,11 @@ func loadConfig(getenv func(string) string) (config, error) {
 			c.allowedOrigins = append(c.allowedOrigins, o)
 		}
 	}
+	probes, err := parseProbes(get("STATUS_PROBES", ""))
+	if err != nil {
+		return c, err
+	}
+	c.statusProbes = probes
 	return c, nil
 }
 
