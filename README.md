@@ -152,3 +152,9 @@ All for the owner or an admin of each agency (`lead_referrals` sits outside eith
 ## Restoring one agency from a backup (build step 41)
 
 See `docs/plans/backups-and-recovery.md`. Staff (owner or cofounder, second step): `GET/POST /api/v1/platform/restores`, `POST …/{id}/run`, `POST …/{id}/cancel`. The agency's owner: `GET /api/v1/restores`, `POST /api/v1/restores/{id}/confirm` (second step). The run needs `RESTORE_COPY_URL`. A pull from before a restore answers `reset`.
+
+## A lead's data request (build step 44)
+
+- `POST /api/v1/data-requests {kind: access|delete, name, phone, email, received_on, block_calls, block_texts, note}` (the owner or an admin): finds the agency's leads with that number or email (also among their other contacts) and counts every record kept on them; a block asked for applies at once (a deletion always blocks). `GET /api/v1/data-requests`, `GET …/{id}` (what is found now), `POST …/{id}/close`.
+- `GET …/{id}/export`: one JSON file with every record about the person: their leads, properties, and every agency table with a `lead_id` (notes, tasks, calls, deals, emails, files' details, …), forms they sent, their blocks and unsubscribes.
+- `POST …/{id}/delete {confirm: true}` (the owner, second step): deletes all of it, blanks them out of referrals, keeps the number blocked (`deleted_on_request`) and the email unsubscribed, empties the name on the request, and lists the number for the dialer (`GET /internal/v1/dialer/erasures`, `POST …/{id}/done`), which removes its calls and texts with it and records the date here. A restore deletes it again (step 41).
