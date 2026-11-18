@@ -63,6 +63,8 @@ func (s *server) handler() http.Handler {
 	mux.Handle("GET /v1/orgs/{org}", s.only("read", s.workspaceAbout))
 	mux.Handle("PUT /v1/orgs/{org}/name", s.only("manage", s.nameWorkspace))
 	mux.Handle("PUT /v1/orgs/{org}/features/{name}", s.only("manage_staff", s.putFeature))
+	mux.Handle("GET /v1/orgs/{org}/security", s.only("read", s.orgSecurity))
+	mux.Handle("PUT /v1/orgs/{org}/security", s.only("manage_members", s.orgSecurity))
 	mux.Handle("PUT /v1/orgs/{org}/teams/{team}/deputies", s.only("manage_members", s.putDeputies))
 	mux.Handle("GET /v1/orgs/{org}/people-log", s.only("read", s.readPeopleLog))
 	mux.Handle("GET /v1/people/{user}", s.only("read", s.person))
@@ -149,6 +151,10 @@ func (s *server) grant(w http.ResponseWriter, r *http.Request) error {
 		}
 		// Caller Whale's staff, in an agency that granted support access (step 19).
 		if f, err = s.asSupport(r, req.UserID, req.OrgID, f); err != nil {
+			return store(err)
+		}
+		// The owner may require the second step of everyone (step 35, D238).
+		if f, err = s.everyoneNeedsSecondStep(r.Context(), req.OrgID, f); err != nil {
 			return store(err)
 		}
 		d = decide(f, req, s.cfg.requireSecondStep || f.roles != nil && f.roles[0] == "support")

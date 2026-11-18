@@ -449,3 +449,14 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | Z3 | As staff, resolve it with a note | The banner goes; the incident moves to the last 30 days with the note; you get a "Resolved" email. |
 | Z4 | Set `STATUS_PROBES` on auth and stop a throwaway service it checks | After two minutes that part shows down; it comes back when the service does. |
 | Z5 | As staff, send a breach notice to a throwaway agency (a practice run, as the breach plan asks once a year) | Its owner gets the notice; the list shows it went within 72 hours. |
+
+# Step 35, part A: sign-in security (after auth, authz, notifications, gateway and the website are redeployed)
+
+| # | Do | Expect |
+|---|---|---|
+| H1 | Sign in to a throwaway account from a browser it never used | An email "New sign-in" names the device and country; "This wasn't me" signs that device out and emails a reset link. |
+| H2 | As a throwaway agency's owner, require an authenticator for everyone | A caller without one is asked to set it up before they can work. |
+| H3 | Set the idle limit to 15 minutes; leave a member's tab closed for 20 minutes, then open it | They are signed out; with a call in progress they would not be. |
+| H4 | As the owner, sign out a member; as an admin, try to sign out the owner | The member's devices are signed out; the admin is refused. |
+| H5 | With an authenticator set up, reset your password with the email link alone, then with a recovery code | Refused, then done. |
+| H6 | Ask support with the reset link (lost both); as staff, approve before and after 7 days | Refused before; after, the authenticator is removed and a reset link arrives. |

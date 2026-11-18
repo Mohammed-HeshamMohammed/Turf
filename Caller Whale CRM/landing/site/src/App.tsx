@@ -9,7 +9,7 @@ import { Pricing } from "./Pricing.tsx";
 import { FeaturesIndex, FeaturePage } from "./Features.tsx";
 import { Security } from "./Security.tsx";
 import { AcceptableUse, Contact, DataProcessing, Privacy, RemoveMyInformation, Terms } from "./PublicPages.tsx";
-import { OutageBanner, StatusPage } from "./Status.tsx";
+import { NotMe, OutageBanner, StatusPage } from "./Status.tsx";
 import { WhyCallerWhale } from "./WhyCallerWhale.tsx";
 import { Home } from "./Home.tsx";
 import { AnnouncementBanner } from "./Announcement.tsx";
@@ -538,6 +538,7 @@ export function App({ path: first = "/" }) {
     "/why-caller-whale": <WhyCallerWhale />,
     "/security": <Security />,
     "/status": <StatusPage authBase={authBase} />,
+    "/account/not-me": <NotMe authBase={authBase} />,
     "/contact": <Contact getAuth={getAuth} />,
     "/remove-my-information": <RemoveMyInformation getAuth={getAuth} />,
     "/dpa": <DataProcessing />,

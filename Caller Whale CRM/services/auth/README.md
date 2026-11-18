@@ -92,3 +92,10 @@ A new numbered SQL file goes in `database_setup/`; a route added here goes in th
 - Staff: `POST /v1/admin/status/incidents {components, severity: degraded|down, title, message}`, `POST /v1/admin/status/incidents/{id} {message, resolved}`. Opening and resolving email everyone who chose it: `GET`/`PUT /v1/me/status-emails {on}`.
 - `STATUS_PROBES` (optional): `part=private health address,...`, checked every minute; two failures in a row show the part down until it answers.
 - Staff: `POST /v1/admin/breach-notices {org_ids, discovered_at, what, to_do}` emails each agency's owner now and keeps whether it went within 72 hours of `discovered_at`; `GET /v1/admin/breach-notices` lists them with their deadline.
+
+## Sign-in security (build step 35, part A)
+
+- Each session keeps its device ("Chrome on Windows"), country (Cloudflare's `CF-IPCountry`) and network (the address cut to its first parts). A sign-in from a device the person never used emails them (`new_sign_in`) with a "This wasn't me" link to the website's `/account/not-me`, which calls `POST /v1/sessions/not-me {token}`: that session ends and a password reset email goes out.
+- `POST /v1/orgs/{org}/members/{user}/sign-out`: the owner or an admin (with their second step) ends every session of a member; an admin cannot sign out the owner.
+- `GET`/`PUT /v1/orgs/{org}/security {idle_minutes, mfa_everyone}`: the owner sets the idle limit (15 minutes to 7 days, 8 hours by default) and requires the authenticator of everyone (kept in authz as the `mfa_everyone` switch). A refresh after the shortest limit of the person's agencies ends the session (`signed_out_idle`), counted from the last refresh or from the app's `idle_seconds`; `on_call: true` never times out.
+- `POST /v1/password/reset {token, new, code}`: someone with an authenticator app or recovery codes also gives a code. Lost both: `POST /v1/password/reset/support {token, reason}`; staff see `GET /v1/admin/reset-requests` and `POST /v1/admin/reset-requests/{id}/approve|refuse`, approving only after 7 days, which removes the lost authenticator and recovery codes, signs the person out everywhere and emails a reset link.
