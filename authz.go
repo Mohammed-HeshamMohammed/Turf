@@ -245,6 +245,7 @@ type scope struct {
 	peekTeams            []string // the person's teams that let agents see the whole team, read-only (D124)
 	caps                 []string
 	secondStep           bool
+	managed, deputyOf    []string // the teams they lead and deputise (the dialer's lead threads, step 10)
 }
 
 // visibleTeams is the teams whose leads the "team" scope shows; a scope built without them (an older queued run) uses its teams.

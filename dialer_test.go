@@ -74,6 +74,13 @@ func TestTheDialerLogsCarrierCallsAsThePersonWhoMadeThem(t *testing.T) {
 	if status, out := post("/internal/v1/dialer/lead", token, with(map[string]any{"lead_id": a})); status != 200 || out["may_call"] != true || out["phone"] != "(512) 555-0101" {
 		t.Fatalf("lead: %d %v", status, out)
 	}
+	// For the lead's text thread (step 10): who works it, its team's leads (the owner when it has none) and the asker's rank.
+	g := e.rules.grants[alice+"|"+org]
+	g.Roles = []string{"owner"}
+	e.rules.grants[alice+"|"+org] = g
+	if _, out := post("/internal/v1/dialer/lead", token, with(map[string]any{"lead_id": a})); out["rank"] != "owner" || out["team_leads"] == nil || out["team_deputies"] == nil {
+		t.Fatalf("thread facts: %v", out)
+	}
 	if _, out := post("/internal/v1/dialer/find-lead", token, with(map[string]any{"phone": "+15125550101"})); out["found"] != true || out["lead_id"] != a {
 		t.Fatalf("find by number: %v", out)
 	}
