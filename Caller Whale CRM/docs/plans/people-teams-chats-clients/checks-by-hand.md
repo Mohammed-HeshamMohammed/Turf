@@ -2,6 +2,55 @@
 
 Steps built so far, as they look on the live site. Automated tests cover the server side. Steps 1 and 2 (invitations) come first, then step 11 (teams and roles).
 
+# Settings and setup to do first
+
+Everything below is yours to do: secrets are set in Coolify only, never in chat or in a file. A step whose settings are empty stays off
+and the rest keeps working. Each service's `env/<service>.production.example` explains every setting. Tick a row once it is done.
+
+## Tokens between services
+
+Each token is a random value of 32 characters or more (`openssl rand -hex 32`). The same value goes on both sides.
+
+| # | Set | On | Matching value on | Turns on |
+|---|---|---|---|---|
+| T1 | `DIALER_TOKEN` | crm-core | dialer-sms `CRM_TOKEN` (and `CRM_URL=http://crm-core:8107`) | The dialer asking the CRM about leads and logging calls (steps 10, 21, 25) |
+| T2 | `AUTHZ_TOKEN` | dialer-sms | authz `AUTHZ_TOKENS`: add `,dialer-sms=<token>` | The dialer checking people's rights |
+| T3 | `BILLING_TOKEN` (and `BILLING_URL=http://billing:8103`) | dialer-sms | billing `BILLING_TOKENS`: add `,dialer-sms=<token>` | Budgets for calls and texts (step 22) |
+| T4 | `BILLING_TOKEN` (and `BILLING_URL=http://billing:8103`) | crm-core | billing `BILLING_TOKENS`: add `,crm-core=<token>` | Charging the in-app assistant, with the daily cap (step 26) |
+| T5 | `AGENT_TOKEN` | assistant | crm-core and dialer-sms `ASSISTANT_TOKEN` (and `ASSISTANT_URL=http://assistant:8109`) | The in-app assistant and call summaries (step 26); needs `OPENROUTER_API_KEY` on the assistant |
+| T6 | `NOTIFY_MAIL_TOKEN` (and `NOTIFY_MAIL_URL=http://notifications:8102`) | crm-core | notifications `NOTIFY_TOKENS`: add `,crm-core=<token>` | Scheduled report emails (step 32) |
+| T7 | `AUTH_MCP_TOKEN` | auth | mcp `MCP_AUTH_TOKEN` | Outside AIs asking for changes that wait for you (step 24) |
+
+## Outside accounts and their settings
+
+| # | Do | Then set | Turns on |
+|---|---|---|---|
+| S1 | Deploy the dialer (`dialer-sms-backend-production`) in Coolify, simulator first (`TELNYX_MODE=simulate`) | The rows of T1 to T3, T5 | Calls, texts, captions, opt-outs (steps 10, 21, 25, 26) |
+| S2 | Telnyx: account, numbers, the 10DLC brand and campaign registration, a messaging profile | dialer-sms `TELNYX_*` (see its example), then `TELNYX_MODE=live` | Real calls and texts. Check that STOP gets the carrier's own confirmation (D9) |
+| S3 | OpenRouter account and key | assistant `OPENROUTER_API_KEY` | The website helper's AI and the in-app assistant |
+| S4 | Google Cloud: a web OAuth client with the Calendar API, asking only `calendar.freebusy` and `calendar.app.created`; submit it for Google's verification | crm-core `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URL`, `GOOGLE_TOKEN_KEY` (`openssl rand -base64 32`), `APP_URL` | Google Calendar per person (step 28) |
+| S5 | Amazon SES: an IAM user (send, create and check identities), production access out of the sandbox, the reply domain's MX to SES receiving, a receipt rule to an SNS topic (Base64), the topic subscribed to `https://<api>/api/v1/public/email/inbound` | crm-core `EMAIL_SES_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `EMAIL_PUBLIC_URL`, `EMAIL_REPLY_DOMAIN`, `EMAIL_SNS_TOPIC_ARN` | Email to leads and replies (step 29) |
+| S6 | Redeploy the gateway (`gateway-backend-production`) | nothing | Google's return, email clicks, unsubscribe and inbound replies (steps 28, 29), and outside tools' keys (step 33) reaching the CRM |
+
+## Switches and choices in the product
+
+| # | Do | Why |
+|---|---|---|
+| P-1 | Turn `teams_v2` on for your agency (staff: `PUT /v1/orgs/{org}/features/teams_v2`), or `AUTHZ_FEATURES_EVERYWHERE=teams_v2` on authz for everyone | The new team rules (step 11) that later steps build on |
+| P-2 | Right after crm-core with step 30 is deployed: as the owner, show full numbers to each team that still uses the old screens (`PUT /api/v1/teams/{id}/full-numbers {on: true}`) | Agents see "••• 1234" until the CRM screens get a call button that dials through the dialer |
+| P-3 | Set the agency's time zone, postal address (`PUT /api/v1/email/settings`) and, if wanted, the AI's suggestions and required captions (`PUT /api/v1/ai-settings`) | Reports by your day; email needs the address; captions are off until switched on |
+| P-4 | Turn commissions on only if you want them (`PUT /api/v1/commissions/settings`) | Off by default (step 27) |
+
+## For the lawyer (before real leads)
+
+| # | Item | Where it is used |
+|---|---|---|
+| W-1 | The data processing agreement's text (now a draft version `2026-11-draft`) | Step 31: the owner accepts it |
+| W-2 | The list of opt-out words, and "no calls from anyone" | Steps 25, 26 |
+| W-3 | The recording notice per state | Step 21 |
+| W-4 | The longest time recordings, captions and lead views may be kept | Steps 26, 30 |
+| W-5 | The email footer (postal address, unsubscribe) and consent wording | Steps 25, 29 |
+
 # Invitation steps 1 and 2
 
 Built and deployed on 2026-11-17.
@@ -354,3 +403,12 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | R3 | As the owner, open members' activity | Each member's last active day and days active this month. |
 | R4 | As a team lead, schedule a weekly report for your team; wait until Monday (agency time) | An email with totals only and a link to the details. |
 | R5 | As the owner, schedule a monthly report to a client's people | On the 1st, the client's people get the totals for their work only. |
+
+# Step 33: keys and events (after the gateway is redeployed)
+
+| # | Do | Expect |
+|---|---|---|
+| K3 | As a throwaway agency's owner, make a key "Web form" that adds leads to a team; try one that "makes calls" | The key shows once; the second is refused. |
+| K4 | With the key, add a lead (`POST /api/v1/tools/leads`), then read it back | It waits unassigned in that team; reading a lead of another team answers not found. |
+| K5 | Switch the key off and use it | Refused; the key's uses list each try, refused ones too. |
+| K6 | Add an event address (for example a request-bin you own) for "deal won"; win a deal | A message with only the event, ids and time arrives, signed with the secret you were shown. |
