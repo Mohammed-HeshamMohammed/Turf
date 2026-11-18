@@ -82,6 +82,9 @@ func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		f.roles[user] = body.Roles
 		_, _ = w.Write([]byte(`{"ok":true}`))
+	case r.Method == "GET" && r.URL.Path == "/v1/orgs/"+flowOrg+"/people-log":
+		viewer := r.URL.Query().Get("viewer")
+		_ = json.NewEncoder(w).Encode(map[string]any{"view": "mine", "entries": []map[string]any{{"id": 1, "at": 1, "actor_id": f.owner, "target_id": viewer, "action": "suspended", "detail": map[string]any{"reason": "On leave"}, "team_ids": []string{}}}})
 	case r.Method == "GET" && r.URL.Path == "/v1/orgs/"+flowOrg+"/teams":
 		teams := []map[string]any{}
 		for _, id := range []string{flowTeam, goneTeam} {

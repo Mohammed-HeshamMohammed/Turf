@@ -223,3 +223,32 @@ func TestPostgresTeamTree(t *testing.T) {
 		t.Errorf("team removed: %+v", teams)
 	}
 }
+
+// The record of people changes in PostgreSQL: written, read newest first, and trimmed after two years.
+func TestPostgresPeopleLog(t *testing.T) {
+	url := os.Getenv("AUTHZ_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("AUTHZ_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	s, err := newPostgres(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.close()
+	org := "13131313-1313-4313-8313-131313131313"
+	now := time.Now().Unix()
+	old := peopleEntry{At: now - 800*24*3600, ActorID: ownerID, TargetID: callerID, Action: "joined", TeamIDs: []string{team1}}
+	recent := peopleEntry{At: now, ActorID: ownerID, TargetID: callerID, Action: "suspended", TeamIDs: []string{team1}, Detail: map[string]any{"reason": "On leave"}}
+	if err := s.logPeople(ctx, org, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.logPeople(ctx, org, recent); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.peopleLog(ctx, org, 0, 10)
+	if err != nil || len(got) != 1 || got[0].Action != "suspended" || got[0].Detail["reason"] != "On leave" || got[0].TeamIDs[0] != team1 {
+		t.Fatalf("the two-year-old entry is gone, the new one reads back: %+v %v", got, err)
+	}
+}

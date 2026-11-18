@@ -990,7 +990,16 @@ func (s *server) removeWorkspaceMember(w http.ResponseWriter, r *http.Request) e
 	if _, err := uuid.Parse(user); err != nil {
 		return bad("Choose a valid member.")
 	}
-	if _, err := s.authzCall(r, http.MethodDelete, "/v1/orgs/"+org+"/members/"+user, map[string]any{"actor_id": c.Sub, "actor_second_step": c.MFA}, nil); err != nil {
+	// An optional reason, which the person removed sees in their record (D57).
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	if r.ContentLength != 0 {
+		if err := readJSON(w, r, &body); err != nil {
+			return err
+		}
+	}
+	if _, err := s.authzCall(r, http.MethodDelete, "/v1/orgs/"+org+"/members/"+user, map[string]any{"actor_id": c.Sub, "actor_second_step": c.MFA, "reason": strings.TrimSpace(body.Reason)}, nil); err != nil {
 		return err
 	}
 	s.cancelInvitationsBy(r.Context(), org, user)

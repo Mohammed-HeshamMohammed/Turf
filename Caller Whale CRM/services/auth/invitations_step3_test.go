@@ -116,3 +116,18 @@ func TestStep3InvitationsCarryTeamsAndLeadsInvite(t *testing.T) {
 		t.Fatalf("a person who left cancels what they sent: %v", seen)
 	}
 }
+
+// The record of people changes comes with names, for whoever asks, as authz decides what they may see.
+func TestTheRecordOfPeopleChangesCarriesNames(t *testing.T) {
+	w, _, _ := lifecycleWorld(t)
+	sami := w.confirmed("sami@example.com").access()
+	a := w.call("GET", "/v1/orgs/"+flowOrg+"/people-log", nil, sami)
+	entries, _ := a.body["entries"].([]any)
+	if a.status != 200 || len(entries) != 1 {
+		t.Fatalf("record: %d %v", a.status, a.body)
+	}
+	e := entries[0].(map[string]any)
+	if e["target_id"] != w.idOf("sami@example.com") || e["actor_name"] != "Sami" || e["target_name"] != "Sami" {
+		t.Fatalf("the viewer's own entry with names: %v", e)
+	}
+}

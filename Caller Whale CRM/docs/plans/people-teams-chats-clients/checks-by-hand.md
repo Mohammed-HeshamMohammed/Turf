@@ -141,3 +141,12 @@ No screen yet; automated tests cover it. Once it has one:
 | H2 | As the team's lead, hand their leads to another caller | The leads and their open callbacks move, due times kept; notes stay on the leads. Another team's part stays for that team's lead or you. |
 | H3 | Hand the rest back to the team | Those leads become the team's unassigned leads. |
 | H4 | Suspend a caller, then restore them without handing anything on | All their leads are still theirs. |
+
+# Step 16, part A: directory, record of people changes, edit window, search
+
+| # | Do | Expect |
+|---|---|---|
+| D1 | As a caller (second account), open the CRM's team list or directory | Everyone in the agency with role and team. Emails show only for themselves, not for others. As the owner, every email shows. |
+| D2 | Edit a chat message right away, then after 15 minutes | The first edit works; the second says "A message can be edited for 15 minutes after it was sent." Deleting still works. |
+| D3 | Suspend a caller with a reason, then ask for the record of people changes (no screen yet: `GET /v1/orgs/{org}/people-log`) | The owner sees everything; the team's lead sees their team's changes; the caller sees only what was done to them, with the reason. |
+| D4 | Search messages (no screen yet: `GET .../messages/search?q=`) | Only messages in conversations the person is in, in this agency. |

@@ -103,6 +103,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST "+base+"/conversations/{id}/read", s.member(s.markRead))
 	mux.Handle("GET "+base+"/conversations/{id}/messages", s.member(s.listMessages))
 	mux.Handle("POST "+base+"/conversations/{id}/messages", s.member(s.sendMessage))
+	mux.Handle("GET "+base+"/messages/search", s.member(s.searchMessages))
 	mux.Handle("PATCH "+base+"/messages/{id}", s.member(s.editMessage))
 	mux.Handle("DELETE "+base+"/messages/{id}", s.member(s.deleteMessage))
 	mux.Handle("PUT "+base+"/messages/{id}/reactions/{emoji}", s.member(s.react(true)))

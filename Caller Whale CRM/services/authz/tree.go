@@ -366,6 +366,7 @@ func (s *server) putTeam(w http.ResponseWriter, r *http.Request) error {
 	if err := store(s.rules.setTeam(r.Context(), org, saved)); err != nil {
 		return err
 	}
+	s.record(r.Context(), org, a.UserID, "", "team.saved", []string{id}, map[string]any{"name": saved.Name, "lead_ids": saved.ManagerIDs})
 	writeJSON(w, http.StatusOK, map[string]any{"team": saved, "access_changed": true})
 	return nil
 }
@@ -436,6 +437,7 @@ func (s *server) putDeputies(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	log.Printf("INFO workspace %s: deputies of team %s set by %s", org, id, a.UserID)
+	s.record(r.Context(), org, a.UserID, "", "team.deputies", []string{id}, map[string]any{"name": saved.Name, "deputy_ids": saved.DeputyIDs})
 	writeJSON(w, http.StatusOK, map[string]any{"team": saved, "access_changed": true})
 	return nil
 }
@@ -521,6 +523,11 @@ func (s *server) suspendMember(restore bool) handler {
 			return err
 		}
 		log.Printf("INFO workspace %s: %s %s by %s", org, user, map[bool]string{true: "restored", false: "suspended"}[restore], a.UserID)
+		detail := map[string]any{}
+		if reason := strings.TrimSpace(body.Reason); reason != "" && !restore {
+			detail["reason"] = reason
+		}
+		s.record(r.Context(), org, a.UserID, user, map[bool]string{true: "restored", false: "suspended"}[restore], target.TeamIDs, detail)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "suspended": !restore, "access_changed": true})
 		return nil
 	}

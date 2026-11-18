@@ -639,6 +639,14 @@ func (s *server) editMessage(q *req) error {
 		if sender != q.sc.userID || kind != "text" {
 			return forbidden("You can edit only your own messages.")
 		}
+		// A message can be edited for 15 minutes after it was sent (step 16); after that it stands, and can still be deleted.
+		var late bool
+		if err := tx.QueryRow(ctx, `SELECT created_at < now() - interval '15 minutes' FROM messages WHERE id = $1`, id).Scan(&late); err != nil {
+			return err
+		}
+		if late {
+			return &apiError{http.StatusConflict, "edit_window", "A message can be edited for 15 minutes after it was sent."}
+		}
 		_, err := tx.Exec(ctx, `UPDATE messages SET body = $2, edited_at = now() WHERE id = $1`, id, text)
 		return err
 	})
@@ -700,4 +708,27 @@ func (s *server) vote(q *req) error {
 			ON CONFLICT (message_id, user_id) DO UPDATE SET option = EXCLUDED.option`, id, *body.Option)
 		return err
 	})
+}
+
+// searchMessages answers GET .../messages/search?q=: words in messages of the conversations the person is in, in this workspace only
+// (D87). Row security already keeps every other conversation, and every other workspace, out.
+func (s *server) searchMessages(q *req) error {
+	term := strings.TrimSpace(q.r.URL.Query().Get("q"))
+	if utf8.RuneCountInString(term) < 2 || len(term) > 200 {
+		return bad("Search for at least two characters.")
+	}
+	escaped := strings.NewReplacer(`\`, `\`, `%`, `\%`, `_`, `\_`).Replace(term)
+	ctx := q.r.Context()
+	tx, err := s.st.begin(ctx, q.sc)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	rows, err := manyJSON(ctx, tx, `SELECT message_json(m) FROM messages m WHERE m.org_id = cw_org() AND cw_member(m.conversation_id) AND m.deleted_at IS NULL
+		AND m.body ILIKE '%' || $1 || '%' ORDER BY m.created_at DESC LIMIT 50`, escaped)
+	if err != nil {
+		return err
+	}
+	writeJSON(q.w, 200, map[string]any{"messages": rows})
+	return nil
 }

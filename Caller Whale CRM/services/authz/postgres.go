@@ -80,6 +80,10 @@ func (p *postgres) setup(ctx context.Context) error {
 		// Each workspace's switches (D104), and the number of admins staff allow it (D179; null: the default).
 		`ALTER TABLE authz_workspaces ADD COLUMN IF NOT EXISTS features text[] NOT NULL DEFAULT '{}'`,
 		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS admins integer`,
+		// The record of people changes (D58, D184): kept 2 years. team_ids are the teams the change touched, so a team's leads see
+		// their teams' part; the person changed sees their own.
+		`CREATE TABLE IF NOT EXISTS authz_people_log (id bigserial PRIMARY KEY, org_id text NOT NULL, at bigint NOT NULL, actor_id text NOT NULL, target_id text NOT NULL DEFAULT '', action text NOT NULL, detail jsonb NOT NULL DEFAULT '{}', team_ids text[] NOT NULL DEFAULT '{}')`,
+		`CREATE INDEX IF NOT EXISTS authz_people_log_org ON authz_people_log (org_id, at DESC)`,
 		// The admin role (D100) in every workspace, and the researcher (D337) as it now works: in teams, preparing leads.
 		`INSERT INTO authz_roles (org_id, role_key, capabilities, scope, second_step) SELECT org_id, 'admin', '{edit,assign,handoff,accept,call,message,export,finance,import,rules,review,admin}', 'organization', false FROM authz_workspaces ON CONFLICT DO NOTHING`,
 		`UPDATE authz_roles SET capabilities = '{edit,import,review}', scope = 'team' WHERE role_key = 'researcher' AND scope = 'project' AND capabilities = '{import,export,review}'`,

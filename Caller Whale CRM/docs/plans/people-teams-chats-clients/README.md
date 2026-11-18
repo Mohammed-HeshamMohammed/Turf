@@ -110,7 +110,7 @@ Every step uses these words. The plan itself sometimes says "agency" and "agent"
 | 13 | Owner gone (agency paused) and handing over ownership | - |
 | 14 | Notification categories, Read and Unread tabs, per-category settings | 8 |
 | 15 | Sign-up inside the invitation link; shared-device choice at sign-in; name and tag change limits | 1, 4, 5 |
-| 16 | Automatic team chats, the agency directory, the 15-minute edit window, the record of people changes with its three views | 11 |
+| 16 | Automatic team chats, the agency directory, the 15-minute edit window, the record of people changes with its three views. **Part A built 2026-11-18 (server):** the directory shows everyone in the agency with roles and teams, emails only to the owner, admins, the person's own team leads and the person (D53, D54, D334, D371); the record of people changes kept 2 years with its three views and reasons (D58, D57, D184), recorded by authz and named by auth; messages editable for 15 minutes; search inside the person's own conversations of one agency (D87). **Part B:** automatic team chats that follow team membership and can be muted but not left (D52, D185), the announcements channel with important posts (D74, D350), @team, @everyone and @managers (D86). Read and online status (D72) is a CRM screen matter | 11 |
 | 17 | Solo workspace upgraded in place to an agency | 11 |
 | 18 | Plan and billing effects on people: grace period and read-only, choosing who keeps a seat, closing an agency with 30 days to undo, the seat request, payment on handover. *The billing service has not been read yet.* | 12, 13 |
 | 19 | Support access granted by the owner for a set time, recorded | - |

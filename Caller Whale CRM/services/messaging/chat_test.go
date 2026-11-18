@@ -452,3 +452,36 @@ func TestALoginThatBypassesRowSecurityWithoutBeingASuperuserIsRefused(t *testing
 		t.Fatal("the service started with a login that bypasses row security")
 	}
 }
+
+// A message can be edited for 15 minutes; search finds words only in the person's own conversations of this workspace (D87).
+func TestTheEditWindowAndSearch(t *testing.T) {
+	e := newEnv(t)
+	org, other := newID(), newID()
+	alice, bob, carol := newID(), newID(), newID()
+	e.rules.join(org, alice, bob, carol)
+	e.rules.join(other, alice)
+	ab := e.must(201, alice, org, "POST", "/conversations", map[string]any{"kind": "direct", "member_ids": []string{bob}})["id"].(string)
+	bc := e.must(201, bob, org, "POST", "/conversations", map[string]any{"kind": "direct", "member_ids": []string{carol}})["id"].(string)
+	mid := e.send(alice, org, ab, "The Maple Street offer is ready")["id"].(string)
+	e.send(bob, org, bc, "Maple Street is off the table")
+	e.must(200, alice, org, "PATCH", "/messages/"+mid, map[string]any{"body": "The Maple Street offer is signed"})
+	if _, err := e.admin.Exec(context.Background(), `UPDATE messaging.messages SET created_at = now() - interval '16 minutes' WHERE id = $1`, mid); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ := e.call(alice, org, "PATCH", "/messages/"+mid, map[string]any{"body": "changed later"}); status != 409 {
+		t.Fatalf("an edit after 15 minutes: %d", status)
+	}
+	found := e.must(200, alice, org, "GET", "/messages/search?q=maple", nil)["messages"].([]any)
+	if len(found) != 1 || found[0].(map[string]any)["id"] != mid {
+		t.Fatalf("alice finds only her own conversation's message: %v", found)
+	}
+	if found := e.must(200, bob, org, "GET", "/messages/search?q=maple", nil)["messages"].([]any); len(found) != 2 {
+		t.Fatalf("bob is in both: %v", found)
+	}
+	if found := e.must(200, alice, other, "GET", "/messages/search?q=maple", nil)["messages"].([]any); len(found) != 0 {
+		t.Fatalf("another workspace finds nothing: %v", found)
+	}
+	if status, _ := e.call(alice, org, "GET", "/messages/search?q=m", nil); status != 400 {
+		t.Fatalf("one letter: %d", status)
+	}
+}
