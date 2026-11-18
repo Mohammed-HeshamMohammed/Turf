@@ -16,6 +16,7 @@ This plan began as a review of the invitation flow (`services/auth/invitations.g
 | [06-do-not-call.md](06-do-not-call.md) | The three kinds of "do not call", Caller Whale's own database that learns from every agency's work, and who can take a number out. |
 | [07-platform-and-rollout.md](07-platform-and-rollout.md) | The web cache, shared devices, what plans and billing do to people, support access, limits on AI, and how every step is released and checked. |
 | [08-for-the-lawyer.md](08-for-the-lawyer.md) | Every decision with a legal question, grouped by topic, and the documents the lawyer is asked to write. Built from the other files. |
+| [09-repository-and-releases.md](09-repository-and-releases.md) | How the code is laid out, how a change reaches production and what protects `main`: protection and CI, images built once and deployed by digest, one monorepo with shared packages. Written 2026-11-18 from an audit of the repository. |
 
 ## Words on screen (D343 to D346)
 
@@ -140,6 +141,15 @@ Every step uses these words. The plan itself sometimes says "agency" and "agent"
 | 43 | Security: fix the high-severity library weaknesses GitHub reports (before step 1), the cross-agency tests run on every change, a written way to change each secret with a yearly change, a monthly update review, and one outside security test before opening. **Built 2026-11-18 (libraries, CRM, dialer, Dependabot, docs):** `docs/plans/security-upkeep.md`: GitHub's alerts fixed (dnspython, happy-dom, minimatch, glob, fast-xml-parser), two left with reasons (a withdrawn advisory, and glib waiting for the desktop upgrade); tests that act as another agency on every CRM and dialer route with every id of the first, and fail when a table holds agencies' rows without row security, run on every change; Dependabot monthly over every service, with the review written down; how to change each kind of secret, yearly; what the outside tester checks. **Left:** booking the outside security test, dismissing the withdrawn alert on GitHub, and the glib fix with the desktop upgrade | - |
 | 44 | Data requests from leads: the owner enters a request, Caller Whale finds every record about that person in the agency, exports or deletes it, blocks the number if asked, and records it. **Built 2026-11-18 (CRM, dialer, server):** the owner or an admin enters the request with the person's number and email and the day they asked; every lead with them (also among other contacts) and everything kept on those leads is found; an export is one file; a deletion, by the owner with the second step, removes it all and leaves only the number blocked and the email unsubscribed as "deleted on request" (D367); the dialer then removes its calls and texts with the number; the request keeps its dates without the name. **Left:** the screens, and the lawyer's wording for what is sent to the person (W-8) | 20, 23 |
 | 45 | Shared learning by agreement: the owner's separate agreement, each client's agreement, the check that leads were told, removal of personal details with a check, the AI discount, withdrawal. *Needs the lawyer before any data is used.* **Built 2026-11-18 (CRM, billing, server), switched off:** what is learned is counts only (how often calls reach people by hour of the week and by attempt), so no personal detail is ever taken, and a check refuses anything else; the owner's separate agreement with the second step, each client's own agreement, staff's check of the agency's notice to leads, and `SHARED_LEARNING=on` must all hold; agencies see figures only where three agencies make them up; the AI discount (20% for now) follows the agreement in billing; withdrawing stops new counts and the discount, and keeps what was learned. **Left:** the lawyer's agreement text and notice guidance (W-9), the discount's final size with the AI price, the screens, and using the shared figures in the AI's suggestions | 26 |
+| 46 | Safety and protection: copy the local-only files to a safe place (D386); record every branch's commit and tag `main`; fix the red restore test; one CI workflow that always runs, with a job for every deployed part through a reusable per-service workflow (D377, D378); CODEOWNERS and a ruleset on `main` requiring the CI summary (D376); the publish script refuses a commit whose checks are not green. Build caches stay until the owner says (D387). *(See [09-repository-and-releases](09-repository-and-releases.md).)* | - |
+| 47 | Images built in CI beside the branches: on `main`, build each service's existing Dockerfile, push it to the GitHub container registry tagged with the commit, record its provenance, and print its digest (D379). Coolify does not change yet. *(See [09-repository-and-releases](09-repository-and-releases.md).)* | 46 |
+| 48 | Coolify moves to images, one resource at a time: each becomes a Docker Image application pinned by digest, each server logs in to the registry once, deploys run through the deploy webhook after the push and wait for the "production" environment's approval (D379, D381). Order: alert-relay and grafana-proxy, learning, mcp, assistant, notifications, live, billing, authz, auth, crm-core, messaging, dialer-sms, importing-lists, the gateway last. Each moved part leaves `production.json`, and its branch is retired (D380). *Needs the owner in Coolify (Cloudflare's check).* *(See [09-repository-and-releases](09-repository-and-releases.md).)* | 47 |
+| 49 | npm workspaces: a root `package.json` over `apps/*` and `packages/*`; the calendar, auth client and error reporter become `@callerwhale/*` packages; their copies, sync scripts and copy tests go (D383). *(See [09-repository-and-releases](09-repository-and-releases.md).)* | 46 |
+| 50 | Shared Go modules: `packages/go/authverify` and `packages/go/runtimelog`; each service requires them; the token copies and the runtime-log injection go (D383). *(See [09-repository-and-releases](09-repository-and-releases.md).)* | 46 |
+| 51 | Services move to `services/<name>` (D382). By now Coolify deploys images, so no Coolify path depends on these folders. *(See [09-repository-and-releases](09-repository-and-releases.md).)* | 48, 50 |
+| 52 | Apps and desktop move to `apps/crm`, `apps/crm-desktop`, `apps/crm-web`, `apps/website`; one Rust workspace at the root; the engine tried as a Tauri sidecar (D388). *(See [09-repository-and-releases](09-repository-and-releases.md).)* | 49 |
+| 53 | The engine moves to `engines/skip-engine` with its own `pyproject.toml` and lock file (D383); the older desktop app moves to `apps/lists-desktop` or is archived. *(See [09-repository-and-releases](09-repository-and-releases.md).)* | 52 |
+| 54 | Scaffolds to `scaffolds/` and out of the production compose (D384); `env/` moves in the same commit as its ignore rules (D386); Kubernetes kept as history and Coolify notes written (D385); docs moved; the empty `Caller Whale CRM/` removed; `AGENTS.md` changes from "publish the production branches" to "images build in CI"; old branches retired after review (D380). *(See [09-repository-and-releases](09-repository-and-releases.md).)* | 51, 52, 53 |
 
 Each step ships on its own, with its tests, and is checked in the web app before the next starts.
 
@@ -172,6 +182,7 @@ The step numbers above are names, not the order. The order is:
 22. Step 42: monitoring and alerts, before any real agency depends on the service, alongside step 41.
 23. Step 44: the data request tool, with the lawyer's text, before opening.
 24. Step 45: shared learning by agreement, last of the AI steps, after the lawyer's review.
+25. Steps 46 to 54: the repository and releases (D375 to D388). Step 46 (protection, CI for every part, the red check fixed) comes first, now; steps 47 and 48 (images built in CI, Coolify moving to them) before any real agency's data is on the server; the moves (49 to 54) one at a time after that.
 
 Every step goes out behind its own switch (D104) and is tried by the owner before it is on for everyone (D107).
 
@@ -195,6 +206,8 @@ Gaps filled in the same review: erasure keeps only the blocked number (D367), re
 1. For the lawyer: message retention after account deletion, report copies, and the terms forbidding lead data in personal chats.
 2. D142: how the AI learns from captions (where it may be used is decided, D146).
 3. D144: whether commission tracking can be built.
+4. Step 53: keep the older desktop app (`Caller Whale App`) as its own product, or archive it.
+5. D375: whether the repository goes private before the first real agency.
 
 ## Not verified
 
@@ -208,7 +221,7 @@ Gaps filled in the same review: erasure keeps only the blocked number (D367), re
 
 ## Every decision
 
-374 decisions. Each row links to the file that holds it.
+388 decisions. Each row links to the file that holds it.
 
 | # | Decision | File |
 | --- | --- | --- |
@@ -586,3 +599,17 @@ Gaps filled in the same review: erasure keeps only the blocked number (D367), re
 | D372 | Assistant use not about a lead (a "how do I" question) is charged to the workspace's general allowance, within the daily cap. Anything about a lead is charged to its team and client (D323). | [05-calls-and-budgets](05-calls-and-budgets.md) |
 | D373 | Consent to text never travels with a lead sent to another agency. Blocks do (D251); the receiving agency gathers its own consent. | [06-do-not-call](06-do-not-call.md) |
 | D374 | The plan was wrapped up on 2026-11-17 after a full review of every decision. Anything decided later is added as a new decision and checked against the earlier ones. | [07-platform-and-rollout](07-platform-and-rollout.md) |
+| D375 | The repository stays public for now (owner, 2026-11-18). Nothing secret is ever committed: configuration and credentials live in the environment, so the code could be published at any moment without exposing a credential. Revisited before the first real agency joins. | [09-repository-and-releases](09-repository-and-releases.md) |
+| D376 | `main` is protected: every change arrives by pull request, and the CI summary check must pass before it merges, for admins too. A CODEOWNERS file names who reviews each folder. | [09-repository-and-releases](09-repository-and-releases.md) |
+| D377 | Required checks never depend on path filters, because a workflow skipped by a path filter leaves its check pending and blocks merging. One CI workflow always runs and decides inside it which jobs to skip; a job skipped by its own condition reports success. | [09-repository-and-releases](09-repository-and-releases.md) |
+| D378 | Every deployed service, image and tool has a CI job. A part with no CI job is not deployed. | [09-repository-and-releases](09-repository-and-releases.md) |
+| D379 | A release is an image built once in GitHub Actions, tagged with its commit, pushed to the GitHub container registry with a record of how it was built, and deployed by Coolify by its digest through Coolify's deploy webhook. Nothing is built on the production server. | [09-repository-and-releases](09-repository-and-releases.md) |
+| D380 | The production branches stay until each Coolify resource has moved to images, then each is retired. The two old local branches, the merged `crm/*` branches and superseded Dependabot branches are retired after the owner reviews them. | [09-repository-and-releases](09-repository-and-releases.md) |
+| D381 | Production deploys go through a GitHub "production" environment that needs the owner's or the cofounder's approval. (Free for a public repository, D375.) | [09-repository-and-releases](09-repository-and-releases.md) |
+| D382 | The repository becomes one monorepo at its root, with no spaces in folder names: `apps/`, `services/`, `engines/`, `packages/`, `crates/`, `scaffolds/`, `contracts/`, `deploy/`, `env/`, `tools/`, `docs/`. | [09-repository-and-releases](09-repository-and-releases.md) |
+| D383 | Shared code has one original. Web code uses npm workspaces over `apps/*` and `packages/*` (packages named `@callerwhale/*`); shared Go code is its own module (`go.work` is not committed, as the Go reference advises); Rust is one workspace at the root; each Python project keeps its own `pyproject.toml` and lock file, since its services deploy separately. The copy-and-sync scripts go. | [09-repository-and-releases](09-repository-and-releases.md) |
+| D384 | Scaffolds (services with no business logic) live in `scaffolds/`, apart from production services, and are never built into a production image or deployed. | [09-repository-and-releases](09-repository-and-releases.md) |
+| D385 | Coolify is the one deployment path. The Compose file is for local development only; the Kubernetes files are kept as history. | [09-repository-and-releases](09-repository-and-releases.md) |
+| D386 | Before any move, the local-only files (secret env files, dev accounts, the Vercel link) are copied to a safe place, and every ignore rule moves in the same commit as the folder it protects, so a secret file never becomes visible to Git. | [09-repository-and-releases](09-repository-and-releases.md) |
+| D387 | Build caches and leftovers (the removed core API's 4.3 GB, the Rust `target` folders) are deleted only with the owner's approval. | [09-repository-and-releases](09-repository-and-releases.md) |
+| D388 | The Python engine is shipped with the desktop app as a Tauri sidecar (`bundle.externalBin`, one file per target), the way Tauri documents for programs built with PyInstaller, once a build proves it; until then it stays a bundled resource. | [09-repository-and-releases](09-repository-and-releases.md) |
