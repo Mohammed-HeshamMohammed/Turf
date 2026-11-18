@@ -543,3 +543,11 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | M3 | Stop the messaging service for 6 minutes at night, then in the day | At night nothing arrives until 07:00; in the day both phones get it. |
 | M4 | On the website, open the browser console and run `setTimeout(() => { throw new TypeError("test") })` | In Grafana Explore, `{container=~".+"} |= "client_error"` shows the line with the page and kind, without "test". |
 | M5 | Contact points → urgent-on-call → Test | The on-call phone gets a test push. |
+
+# Step 43: security upkeep (docs/plans/security-upkeep.md)
+
+| # | Do | Expect |
+|---|---|---|
+| X1 | GitHub → Security → Dependabot alerts after this push | Only picomatch (withdrawn: dismiss it as "inaccurate") and the two glib alerts are left. |
+| X2 | On the first Monday of next month, do the monthly update review in security-upkeep.md | The monthly pull requests are merged or noted, and the table has the date. |
+| X3 | Book an outside security tester for sign-in, agency separation, chats and the gateway before the first real agency | Their report is kept with security-upkeep.md and what they find is fixed first. |

@@ -1,6 +1,7 @@
-# Keeps every container's dependencies and base images current. One weekly pull request per ecosystem and folder group (minor and
-# patch updates together, each major update on its own), so there is a short list to review, not a flood. Security updates are
-# opened straight away by GitHub whatever this schedule says. The checks in .github/workflows/audit.yml tell which of them matter.
+# Keeps every container's dependencies and base images current. One monthly pull request per ecosystem and folder group (minor and
+# patch updates together, each major update on its own), reviewed in the monthly update review (D307,
+# Caller Whale CRM/docs/plans/security-upkeep.md). Security updates are opened straight away by GitHub whatever this schedule
+# says, and serious ones are fixed within a week. The checks in .github/workflows/audit.yml tell which of them matter.
 version: 2
 
 updates:
@@ -12,7 +13,8 @@ updates:
       - "/Caller Whale CRM/landing/site"
       - "/Caller Whale CRM/landing/dashboard-web"
       - "/Caller Whale CRM/tools/firebase"
-    schedule: { interval: weekly, day: monday, time: "06:00", timezone: "Etc/UTC" }
+      - "/Caller Whale CRM/services/features/ai-campaigns"
+    schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5
     groups:
       npm-minor-and-patch:
@@ -28,7 +30,13 @@ updates:
       - "/Caller Whale CRM/services/notifications"
       - "/Caller Whale CRM/services/grafana-proxy"
       - "/Caller Whale CRM/services/features/dialer-sms"
-    schedule: { interval: weekly, day: monday, time: "06:00", timezone: "Etc/UTC" }
+      - "/Caller Whale CRM/services/crm-core"
+      - "/Caller Whale CRM/services/messaging"
+      - "/Caller Whale CRM/services/assistant"
+      - "/Caller Whale CRM/services/learning"
+      - "/Caller Whale CRM/services/mcp"
+      - "/Caller Whale CRM/services/alert-relay"
+    schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5
     groups:
       go-minor-and-patch:
@@ -39,8 +47,9 @@ updates:
   - package-ecosystem: pip
     directories:
       - "/Caller Whale CRM/services/billing"
+      - "/Caller Whale CRM/services/features/importing-lists"
       - "/service"
-    schedule: { interval: weekly, day: monday, time: "06:00", timezone: "Etc/UTC" }
+    schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5
     groups:
       python-minor-and-patch:
@@ -53,7 +62,7 @@ updates:
       - "/Caller Whale App/src-tauri"
       - "/Caller Whale CRM"
       - "/Caller Whale CRM/desktop/container/rust"
-    schedule: { interval: weekly, day: monday, time: "06:00", timezone: "Etc/UTC" }
+    schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5
     groups:
       rust-minor-and-patch:
@@ -75,11 +84,17 @@ updates:
       - "/Caller Whale CRM/services/features/backup-restore"
       - "/Caller Whale CRM/services/features/crm"
       - "/Caller Whale CRM/services/features/dialer-sms"
+      - "/Caller Whale CRM/services/crm-core"
+      - "/Caller Whale CRM/services/messaging"
+      - "/Caller Whale CRM/services/assistant"
+      - "/Caller Whale CRM/services/learning"
+      - "/Caller Whale CRM/services/mcp"
+      - "/Caller Whale CRM/services/alert-relay"
       - "/Caller Whale CRM/services/features/exports"
       - "/Caller Whale CRM/services/features/importing-lists"
       - "/Caller Whale CRM/services/features/leads-map"
       - "/Caller Whale CRM/services/features/skip-tracing"
-    schedule: { interval: weekly, day: monday, time: "06:00", timezone: "Etc/UTC" }
+    schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5
     groups:
       base-images:
@@ -89,7 +104,7 @@ updates:
   # --- The build checks themselves -----------------------------------------------------------------------------------------
   - package-ecosystem: github-actions
     directory: "/"
-    schedule: { interval: weekly, day: monday, time: "06:00", timezone: "Etc/UTC" }
+    schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }
     groups:
       actions:
         patterns: ["*"]
