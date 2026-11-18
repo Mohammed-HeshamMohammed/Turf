@@ -125,7 +125,7 @@ func (s *server) mayUse(ctx context.Context, org, user string, lead leadInfo, ki
 	if s.budget == nil {
 		return nil
 	}
-	return s.budget.use(ctx, usageAsk{OrgID: org, Kind: kind, Amount: 1, RequestID: newUUID(), TeamID: optional(lead.TeamID), UserID: optional(user), CheckOnly: true})
+	return s.budget.use(ctx, usageAsk{OrgID: org, Kind: kind, Amount: 1, RequestID: newUUID(), TeamID: optional(lead.TeamID), UserID: optional(user), ClientID: optional(lead.ClientID), CheckOnly: true})
 }
 
 // charge records a use once (the request id is the call's or the text's own). A failure is logged: the call or text already happened.
@@ -133,7 +133,7 @@ func (s *server) charge(ctx context.Context, org, user string, lead leadInfo, ki
 	if s.budget == nil || amount <= 0 {
 		return
 	}
-	if err := s.budget.use(ctx, usageAsk{OrgID: org, Kind: kind, Amount: amount, RequestID: request, TeamID: optional(lead.TeamID), UserID: optional(user)}); err != nil {
+	if err := s.budget.use(ctx, usageAsk{OrgID: org, Kind: kind, Amount: amount, RequestID: request, TeamID: optional(lead.TeamID), UserID: optional(user), ClientID: optional(lead.ClientID)}); err != nil {
 		log.Printf("WARN charging %s %s %d: %v", kind, request, amount, err)
 	}
 }
