@@ -142,7 +142,7 @@ func (s *server) leadDetails(q *req) error {
 	for name, sql := range map[string]string{
 		"tasks":    taskVisible + ` AND t.lead_id = $1`,
 		"notes":    `SELECT to_jsonb(n) FROM notes n WHERE n.lead_id = $1 AND (NOT cw_external() OR n.visibility = 'shared')`,
-		"calls":    `SELECT to_jsonb(c) FROM call_events c WHERE c.lead_id = $1 AND NOT cw_external()`,
+		"calls":    `SELECT to_jsonb(c) FROM call_events c WHERE c.lead_id = $1 AND (NOT cw_external() OR c.shared_with_client)`,
 		"handoffs": `SELECT to_jsonb(h) FROM handoffs h WHERE h.lead_id = $1 AND NOT cw_external()`,
 		// Co-owners: other leads at the same property under another name, each kept as its own lead (linkCoOwners).
 		"related": `SELECT jsonb_build_object('id', b.id, 'name', b.name, 'kind', k.kind) FROM lead_links k JOIN leads b ON b.id = k.related_id
@@ -153,7 +153,7 @@ func (s *server) leadDetails(q *req) error {
 		}
 	}
 	if q.sc.can("finance") {
-		if body["deals"], err = queryJSON(ctx, tx, `SELECT to_jsonb(d) FROM deals d WHERE d.lead_id = $1 AND NOT cw_external() AND cw_visible_lead(d.lead_id)`, id); err != nil {
+		if body["deals"], err = queryJSON(ctx, tx, `SELECT to_jsonb(d) FROM deals d WHERE d.lead_id = $1 AND (NOT cw_external() OR d.shared_with_client) AND cw_visible_lead(d.lead_id)`, id); err != nil {
 			return err
 		}
 	}

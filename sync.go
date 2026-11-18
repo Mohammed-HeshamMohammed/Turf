@@ -74,9 +74,9 @@ func current(ctx context.Context, tx pgx.Tx, sc scope, entity, id string) (json.
 	case "note":
 		sql = `SELECT to_jsonb(n) FROM notes n WHERE n.id = $1 AND cw_seen_lead(n.lead_id) AND (NOT cw_external() OR n.visibility = 'shared')`
 	case "call":
-		sql = `SELECT to_jsonb(c) FROM call_events c WHERE c.id = $1 AND cw_seen_lead(c.lead_id) AND NOT cw_external()`
+		sql = `SELECT to_jsonb(c) FROM call_events c WHERE c.id = $1 AND cw_seen_lead(c.lead_id) AND (NOT cw_external() OR c.shared_with_client)`
 	case "deal":
-		sql = `SELECT to_jsonb(d) FROM deals d WHERE d.id = $1 AND cw_visible_lead(d.lead_id) AND NOT cw_external()`
+		sql = `SELECT to_jsonb(d) FROM deals d WHERE d.id = $1 AND cw_visible_lead(d.lead_id) AND (NOT cw_external() OR d.shared_with_client)`
 	case "handoff":
 		sql = `SELECT to_jsonb(h) FROM handoffs h WHERE h.id = $1 AND cw_seen_lead(h.lead_id) AND NOT cw_external()`
 	default:
@@ -402,7 +402,7 @@ func (s *server) snapshot(q *req) error {
 	for name, sql := range map[string]string{
 		"tasks":    taskVisible + ` AND (t.lead_id IS NULL OR t.lead_id IN (SELECT id FROM win))`,
 		"notes":    `SELECT to_jsonb(n) FROM notes n WHERE n.lead_id IN (SELECT id FROM win) AND (NOT cw_external() OR n.visibility = 'shared')`,
-		"calls":    `SELECT to_jsonb(c) FROM call_events c WHERE c.lead_id IN (SELECT id FROM win) AND NOT cw_external()`,
+		"calls":    `SELECT to_jsonb(c) FROM call_events c WHERE c.lead_id IN (SELECT id FROM win) AND (NOT cw_external() OR c.shared_with_client)`,
 		"handoffs": `SELECT to_jsonb(h) FROM handoffs h WHERE h.lead_id IN (SELECT id FROM win) AND NOT cw_external()`,
 	} {
 		if body[name], err = queryJSON(ctx, tx, sql); err != nil {
@@ -410,7 +410,7 @@ func (s *server) snapshot(q *req) error {
 		}
 	}
 	if q.sc.can("finance") {
-		if body["deals"], err = queryJSON(ctx, tx, `SELECT to_jsonb(d) FROM deals d WHERE d.lead_id IN (SELECT id FROM win) AND NOT cw_external() AND cw_visible_lead(d.lead_id)`); err != nil {
+		if body["deals"], err = queryJSON(ctx, tx, `SELECT to_jsonb(d) FROM deals d WHERE d.lead_id IN (SELECT id FROM win) AND (NOT cw_external() OR d.shared_with_client) AND cw_visible_lead(d.lead_id)`); err != nil {
 			return err
 		}
 	}
@@ -436,7 +436,7 @@ func (s *server) snapshotPage(q *req, ctx context.Context, tx pgx.Tx, next strin
 	for name, sql := range map[string]string{
 		"tasks":    taskVisible + ` AND t.lead_id IN (SELECT id FROM win)`,
 		"notes":    `SELECT to_jsonb(n) FROM notes n WHERE n.lead_id IN (SELECT id FROM win) AND (NOT cw_external() OR n.visibility = 'shared')`,
-		"calls":    `SELECT to_jsonb(c) FROM call_events c WHERE c.lead_id IN (SELECT id FROM win) AND NOT cw_external()`,
+		"calls":    `SELECT to_jsonb(c) FROM call_events c WHERE c.lead_id IN (SELECT id FROM win) AND (NOT cw_external() OR c.shared_with_client)`,
 		"handoffs": `SELECT to_jsonb(h) FROM handoffs h WHERE h.lead_id IN (SELECT id FROM win) AND NOT cw_external()`,
 	} {
 		if body[name], err = queryJSON(ctx, tx, sql); err != nil {
@@ -444,7 +444,7 @@ func (s *server) snapshotPage(q *req, ctx context.Context, tx pgx.Tx, next strin
 		}
 	}
 	if q.sc.can("finance") {
-		if body["deals"], err = queryJSON(ctx, tx, `SELECT to_jsonb(d) FROM deals d WHERE d.lead_id IN (SELECT id FROM win) AND NOT cw_external() AND cw_visible_lead(d.lead_id)`); err != nil {
+		if body["deals"], err = queryJSON(ctx, tx, `SELECT to_jsonb(d) FROM deals d WHERE d.lead_id IN (SELECT id FROM win) AND (NOT cw_external() OR d.shared_with_client) AND cw_visible_lead(d.lead_id)`); err != nil {
 			return err
 		}
 	}
