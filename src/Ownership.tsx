@@ -196,3 +196,46 @@ export function SeatChoice({ auth, authBase, orgId }: { auth: Auth; authBase: st
     {message && <p className="notice" role="status">{message}</p>}
   </section>;
 }
+
+/** Step 19: the owner lets Caller Whale's support into the agency for a set time, and can end it early (D83, D202). */
+export function SupportAccess({ auth, authBase, orgId }: { auth: Auth; authBase: string; orgId: string }) {
+  const request = useRequest(auth, authBase);
+  const [until, setUntil] = useState<number | null>(null);
+  const [hours, setHours] = useState(24);
+  const [message, setMessage] = useState("");
+  const load = useCallback(() => request(`/v1/orgs/${orgId}/support`).then(result => setUntil(result.until ?? null), () => setUntil(null)), [request, orgId]);
+  useEffect(() => { void load(); }, [load]);
+  const change = async (allow: boolean) => {
+    try { const result = await request(`/v1/orgs/${orgId}/support`, allow ? "POST" : "DELETE", allow ? { hours } : undefined); setUntil(result.until ?? null); setMessage(allow ? "Support can come in." : "Support access ended."); }
+    catch (error) {
+      const code = (error as { code?: string }).code;
+      setMessage(code === "mfa_required" ? "Sign in with two-step sign-in first." : error instanceof Error ? error.message : "That did not work.");
+    }
+  };
+  return <section className="card" aria-labelledby={`support-${orgId}`}>
+    <h2 id={`support-${orgId}`}>Support access</h2>
+    <p className="muted">Let Caller Whale's support see your agency to fix a problem. They can look at its screens and change its settings, but not edit, export or delete leads, read your team chats, message anyone or spend money. Each visit is recorded.</p>
+    {until ? <>
+      <p className="notice" role="status">Support can come in until {new Date(until * 1000).toLocaleString()}.</p>
+      <button type="button" className="button" onClick={() => void change(false)}>End support access now</button>
+    </> : <div className="staff-fields">
+      <label>For<select value={hours} onChange={event => setHours(Number(event.target.value))}><option value={4}>4 hours</option><option value={24}>24 hours</option><option value={72}>3 days</option></select></label>
+      <button type="button" className="button" onClick={() => void change(true)}>Let support in</button>
+    </div>}
+    {message && <p className="notice" role="status">{message}</p>}
+  </section>;
+}
+
+/** Staff: the agencies whose owners let support in now (D331). */
+export function SupportedAgencies({ auth, authBase }: { auth: Auth; authBase: string }) {
+  const request = useRequest(auth, authBase);
+  const [list, setList] = useState<{ org_id: string; name: string; until: number }[]>([]);
+  useEffect(() => { request("/v1/admin/support").then(result => setList(result.agencies || []), () => setList([])); }, [request]);
+  return <section className="card" aria-labelledby="supported-title">
+    <div><span className="eyebrow">Support access</span><h2 id="supported-title">Agencies that let support in</h2>
+      <p className="muted">Open them in the CRM, where they appear among your agencies as "support". You see everything and can change settings; you cannot edit, export or delete leads, read team chats, message or pay. Every visit is in the agency's record.</p></div>
+    {list.length === 0 ? <p className="muted">None right now.</p> : <ul className="membership-list">
+      {list.map(item => <li key={item.org_id}><strong>{item.name || item.org_id}</strong> <span className="muted">until {new Date(item.until * 1000).toLocaleString()}</span></li>)}
+    </ul>}
+  </section>;
+}

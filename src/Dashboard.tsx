@@ -7,7 +7,7 @@ import { ApiError, needsSecondStep, useSecondStep } from "./SecondStep.tsx";
 import { AnnouncementManager } from "./AnnouncementManager.tsx";
 import { CostsManager, MembersTable, PlatformOverview } from "./OwnerViews.tsx";
 import { InviteManager, PendingInvitations, WorkspaceManager, WorkspaceSecondStep } from "./AccessManagement.tsx";
-import { AgencyStanding, HandOver, SeatChoice, OfferedAgencies, OwnerlessAgencies, askTakeover } from "./Ownership.tsx";
+import { AgencyStanding, HandOver, SeatChoice, SupportAccess, SupportedAgencies, OfferedAgencies, OwnerlessAgencies, askTakeover } from "./Ownership.tsx";
 import { MonitoringPanel } from "./MonitoringPanel.tsx";
 import { Settings } from "./Settings.tsx";
 import { profilePath } from "./profile-path.ts";
@@ -76,7 +76,7 @@ function UsageOverview({ access, auth, authBase, me }: { access: Access; auth: A
         <RoleBadges access={{ ...access, workspaces: [] }} />
       </section>
     </div>
-    {access.workspaces.filter(space => space.business_owner).map(space => <div className="workspace-access" key={space.org_id}><h2>Workspace access</h2><p className="muted">Manage the people in your workspace.</p>{me.mfa_passed === false ? <WorkspaceSecondStep auth={auth} me={me} /> : <><WorkspaceManager auth={auth} authBase={authBase} orgId={space.org_id} /><InviteManager auth={auth} authBase={authBase} scope="workspace" orgId={space.org_id} /><SeatChoice auth={auth} authBase={authBase} orgId={space.org_id} /><HandOver auth={auth} authBase={authBase} orgId={space.org_id} /></>}</div>)}
+    {access.workspaces.filter(space => space.business_owner).map(space => <div className="workspace-access" key={space.org_id}><h2>Workspace access</h2><p className="muted">Manage the people in your workspace.</p>{me.mfa_passed === false ? <WorkspaceSecondStep auth={auth} me={me} /> : <><WorkspaceManager auth={auth} authBase={authBase} orgId={space.org_id} /><InviteManager auth={auth} authBase={authBase} scope="workspace" orgId={space.org_id} /><SeatChoice auth={auth} authBase={authBase} orgId={space.org_id} /><HandOver auth={auth} authBase={authBase} orgId={space.org_id} /><SupportAccess auth={auth} authBase={authBase} orgId={space.org_id} /></>}</div>)}
     {access.workspaces.filter(space => !space.business_owner && space.roles.includes("manager")).map(space => <div className="workspace-access" key={space.org_id}><h2>Your team</h2><p className="muted">Track and manage the callers and closers you run.</p><WorkspaceManager auth={auth} authBase={authBase} orgId={space.org_id} /></div>)}
   </div>;
 }
@@ -276,6 +276,7 @@ function StaffDashboard({ access, auth, authBase, me, onSaved }: { access: Acces
     {canManage && status === "ready" && shownView === "team" && <section id="staff-role-form" className="admin-manage card" aria-labelledby="admin-manage-title"><div><span className="eyebrow">Role management</span><h2 id="admin-manage-title">Change current staff roles</h2><p className="muted">Select a person in the staff directory, or enter the email of an account that has already signed in. Founder roles are permanent.</p></div>{second.prompt}<form className="staff-form" onSubmit={assign}><div className="staff-fields"><label>Account email<input type="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="person@example.com" /></label><label>Role<select value={role} onChange={event => setRole(event.target.value)}><option value="tester">Tester</option><option value="">Remove role</option></select></label><button className="button primary" disabled={busy}>{busy ? "Saving…" : "Save access"}</button></div>{message && <p className={message.includes("saved") || message.includes("removed") ? "notice" : "notice bad"} role="status">{message}</p>}</form></section>}
     {canManage && status === "ready" && shownView === "access" && <InviteManager auth={auth} authBase={authBase} scope="platform" />}
     {canManage && status === "ready" && shownView === "access" && <OwnerlessAgencies auth={auth} authBase={authBase} />}
+    {status === "ready" && shownView === "access" && <SupportedAgencies auth={auth} authBase={authBase} />}
     {shownView === "account" && <Settings embedded me={me} auth={auth} authBase={authBase} onSaved={onSaved} />}
   </section></div></div>;
 }
