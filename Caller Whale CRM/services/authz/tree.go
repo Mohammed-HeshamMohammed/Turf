@@ -611,6 +611,11 @@ type standingChange struct {
 	Suspended       *bool
 	PaymentRequired *bool
 	Paused          *bool // staff own it, like Suspended (step 13)
+	// Step 18: when the plan went unpaid (billing may say; otherwise the first "payment_required: true" sets it to now), and an
+	// agency its owner closed (auth only).
+	UnpaidSinceSet bool
+	UnpaidSince    *int64
+	Closed         *bool
 	SeatsSet        bool
 	Seats           *int
 	ClientsSet      bool
@@ -619,6 +624,7 @@ type standingChange struct {
 
 func readStanding(raw map[string]json.RawMessage) (standingChange, error) {
 	var c standingChange
+	var err error
 	decode := func(key string, into any) (bool, error) {
 		v, ok := raw[key]
 		if !ok {
@@ -635,7 +641,12 @@ func readStanding(raw map[string]json.RawMessage) (standingChange, error) {
 	if _, err := decode("paused", &c.Paused); err != nil {
 		return c, bad("paused is true or false.")
 	}
-	var err error
+	if c.UnpaidSinceSet, err = decode("unpaid_since", &c.UnpaidSince); err != nil {
+		return c, bad("unpaid_since is a time in seconds, or null.")
+	}
+	if _, err := decode("closed", &c.Closed); err != nil {
+		return c, bad("closed is true or false.")
+	}
 	if c.SeatsSet, err = decode("seats", &c.Seats); err != nil || (c.Seats != nil && *c.Seats < 1) {
 		return c, bad("seats is a number of 1 or more, or null for unlimited.")
 	}

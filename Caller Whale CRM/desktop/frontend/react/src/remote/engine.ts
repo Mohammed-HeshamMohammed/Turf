@@ -23,7 +23,7 @@ const QUIET_MS = 60_000;
 const AWAY_MS = 30_000;
 const BUSY_RETRY_MS = 5_000;
 /** Codes that mean the person is no longer in the open agency: its records leave memory at once. */
-const ACCESS_LOST = new Set(["not_member", "suspended"]);
+const ACCESS_LOST = new Set(["not_member", "suspended", "member_suspended", "closed"]);
 
 export class SyncEngine {
   vault: any; api: any; onChange: any; useSocket: any; store: any; ops: any[]; online: boolean; reachable: boolean; status: string;

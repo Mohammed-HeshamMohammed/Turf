@@ -62,6 +62,8 @@ type engine interface {
 	// adminLimit is how many admins the workspace may have when staff changed it (nil: the default).
 	adminLimit(ctx context.Context, org string) (*int, error)
 	setStanding(ctx context.Context, org string, change standingChange) error
+	// standingOf is the agency's plan stage and pause (step 18).
+	standingOf(ctx context.Context, org string) (standingView, error)
 	// seatLimits is how many seats and client places the workspace has (nil: unlimited).
 	seatLimits(ctx context.Context, org string) (seats, clients *int, err error)
 	teams(ctx context.Context, org string) ([]team, error)

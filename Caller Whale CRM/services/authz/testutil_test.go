@@ -29,10 +29,13 @@ type memEngine struct {
 	admins    map[string]*int
 	log       map[string][]peopleEntry
 	logID     int64
+	// Step 18: since when each workspace is unpaid, and which ones their owner closed.
+	unpaidSince map[string]int64
+	closedOrgs  map[string]int64
 }
 
 func newMem() *memEngine {
-	return &memEngine{roleDefs: map[string]map[string]role{}, people: map[string]map[string]membership{}, standing: map[string][3]bool{}, staff: map[string]string{}, openOwner: map[string]string{}, teamsBy: map[string][]team{}, limits: map[string][2]*int{}, names: map[string]string{}, switches: map[string][]string{}, admins: map[string]*int{}, log: map[string][]peopleEntry{}}
+	return &memEngine{roleDefs: map[string]map[string]role{}, people: map[string]map[string]membership{}, standing: map[string][3]bool{}, staff: map[string]string{}, openOwner: map[string]string{}, teamsBy: map[string][]team{}, limits: map[string][2]*int{}, names: map[string]string{}, switches: map[string][]string{}, admins: map[string]*int{}, log: map[string][]peopleEntry{}, unpaidSince: map[string]int64{}, closedOrgs: map[string]int64{}}
 }
 
 var errStoreDown = errors.New("rules store down")
@@ -51,6 +54,10 @@ func (m *memEngine) facts(_ context.Context, user, org string) (facts, error) {
 	f := facts{capabilities: map[string]bool{}}
 	st := m.standing[org]
 	f.suspended, f.paymentRequired, f.paused = st[0], st[1], st[2]
+	if since, ok := m.unpaidSince[org]; ok {
+		f.unpaidFor = time.Now().Unix() - since
+	}
+	_, f.closed = m.closedOrgs[org]
 	p, ok := m.people[org][user]
 	if !ok || len(p.Roles) == 0 {
 		return f, nil
@@ -199,6 +206,23 @@ func (m *memEngine) setStanding(_ context.Context, org string, c standingChange)
 		st[2] = *c.Paused
 	}
 	m.standing[org] = st
+	switch {
+	case c.UnpaidSinceSet && c.UnpaidSince != nil:
+		m.unpaidSince[org] = *c.UnpaidSince
+	case c.UnpaidSinceSet, c.PaymentRequired != nil && !*c.PaymentRequired:
+		delete(m.unpaidSince, org)
+	case c.PaymentRequired != nil:
+		if _, ok := m.unpaidSince[org]; !ok {
+			m.unpaidSince[org] = time.Now().Unix()
+		}
+	}
+	if c.Closed != nil && *c.Closed {
+		if _, ok := m.closedOrgs[org]; !ok {
+			m.closedOrgs[org] = time.Now().Unix()
+		}
+	} else if c.Closed != nil {
+		delete(m.closedOrgs, org)
+	}
 	l := m.limits[org]
 	if c.SeatsSet {
 		l[0] = c.Seats
@@ -208,6 +232,17 @@ func (m *memEngine) setStanding(_ context.Context, org string, c standingChange)
 	}
 	m.limits[org] = l
 	return m.down()
+}
+
+func (m *memEngine) standingOf(_ context.Context, org string) (standingView, error) {
+	v := standingView{Paused: m.standing[org][2]}
+	if since, ok := m.unpaidSince[org]; ok {
+		v.UnpaidSince = &since
+	}
+	if at, ok := m.closedOrgs[org]; ok {
+		v.ClosedAt = &at
+	}
+	return v, m.down()
 }
 
 func (m *memEngine) setWorkspaceName(_ context.Context, org, name string) error {

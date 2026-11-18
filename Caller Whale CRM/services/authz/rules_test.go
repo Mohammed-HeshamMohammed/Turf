@@ -17,6 +17,8 @@ func TestDecide(t *testing.T) {
 	caller := facts{member: true, capabilities: caps("edit", "handoff", "call", "message"), scopes: []string{"own"}, teams: []string{"t2", "t1"}}
 	owner := facts{member: true, capabilities: caps("edit", "admin", "finance"), scopes: []string{"organization"}, secondStep: true}
 	adminOnly := facts{member: true, capabilities: caps("admin")}
+	// The agency's owner as step 18 needs them: their role named, and allowed to export.
+	agencyOwner := facts{member: true, capabilities: caps("edit", "admin", "finance", "export", "call"), scopes: []string{"organization"}, roles: []string{"owner"}}
 	cases := []struct {
 		name   string
 		f      facts
@@ -33,7 +35,13 @@ func TestDecide(t *testing.T) {
 		{"an owner with the second step administers", owner, "admin", true, "", "cw_admin"},
 		{"admin alone sees no records", adminOnly, "read", false, "no_scope", ""},
 		{"a suspended workspace refuses everything", func() facts { f := owner; f.suspended = true; return f }(), "pay", true, "suspended", ""},
-		{"an unpaid workspace refuses work", func() facts { f := caller; f.paymentRequired = true; return f }(), "read", false, "payment_required", ""},
+		{"an unpaid workspace works through its grace period", func() facts { f := caller; f.paymentRequired = true; f.unpaidFor = 3 * 86_400; return f }(), "call", true, "", "cw_write"},
+		{"after the grace period it is read-only", func() facts { f := caller; f.paymentRequired = true; f.unpaidFor = 8 * 86_400; return f }(), "call", false, "read_only", ""},
+		{"read-only still reads", func() facts { f := caller; f.paymentRequired = true; f.unpaidFor = 8 * 86_400; return f }(), "read", true, "", "cw_read"},
+		{"read-only still exports", func() facts { f := agencyOwner; f.paymentRequired = true; f.unpaidFor = 8 * 86_400; return f }(), "export", true, "", "cw_export"},
+		{"after 37 days unpaid it is closed to members", func() facts { f := caller; f.paymentRequired = true; f.unpaidFor = 38 * 86_400; return f }(), "read", false, "closed", ""},
+		{"a closed agency lets its owner export", func() facts { f := agencyOwner; f.closed = true; return f }(), "export", true, "", "cw_export"},
+		{"a closed agency lets nobody work", func() facts { f := agencyOwner; f.closed = true; return f }(), "call", false, "closed", ""},
 		{"an unpaid workspace still lets the owner pay", func() facts { f := owner; f.paymentRequired = true; return f }(), "pay", true, "", "cw_finance"},
 		{"a caller cannot pay", func() facts { f := caller; f.paymentRequired = true; return f }(), "pay", false, "missing_capability", ""},
 	}

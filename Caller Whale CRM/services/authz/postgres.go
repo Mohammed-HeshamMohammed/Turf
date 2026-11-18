@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -82,6 +83,10 @@ func (p *postgres) setup(ctx context.Context) error {
 		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS admins integer`,
 		// Paused (step 13, D27): the owner is gone; members read, nobody works, until Caller Whale hands the agency on.
 		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS paused boolean NOT NULL DEFAULT false`,
+		// Step 18: since when the plan is unpaid (grace, then read-only, then closed), and when the owner closed the agency.
+		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS unpaid_since bigint`,
+		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS closed_at bigint`,
+		`UPDATE authz_standing SET unpaid_since = extract(epoch FROM now())::bigint WHERE payment_required AND unpaid_since IS NULL`,
 		// The record of people changes (D58, D184): kept 2 years. team_ids are the teams the change touched, so a team's leads see
 		// their teams' part; the person changed sees their own.
 		`CREATE TABLE IF NOT EXISTS authz_people_log (id bigserial PRIMARY KEY, org_id text NOT NULL, at bigint NOT NULL, actor_id text NOT NULL, target_id text NOT NULL DEFAULT '', action text NOT NULL, detail jsonb NOT NULL DEFAULT '{}', team_ids text[] NOT NULL DEFAULT '{}')`,
@@ -201,7 +206,31 @@ func (p *postgres) setStanding(ctx context.Context, org string, c standingChange
 			clients = CASE WHEN $6 THEN $7 ELSE authz_standing.clients END,
 			paused = coalesce($8, authz_standing.paused)`,
 		org, c.Suspended, c.PaymentRequired, c.SeatsSet, c.Seats, c.ClientsSet, c.Clients, c.Paused)
+	if err != nil {
+		return err
+	}
+	// The day the plan went unpaid: as given, or the first time it is reported unpaid; cleared when it is paid.
+	switch {
+	case c.UnpaidSinceSet:
+		_, err = p.db.Exec(ctx, `UPDATE authz_standing SET unpaid_since=$2 WHERE org_id=$1`, org, c.UnpaidSince)
+	case c.PaymentRequired != nil && *c.PaymentRequired:
+		_, err = p.db.Exec(ctx, `UPDATE authz_standing SET unpaid_since=coalesce(unpaid_since, extract(epoch FROM now())::bigint) WHERE org_id=$1`, org)
+	case c.PaymentRequired != nil:
+		_, err = p.db.Exec(ctx, `UPDATE authz_standing SET unpaid_since=NULL WHERE org_id=$1`, org)
+	}
+	if err == nil && c.Closed != nil {
+		_, err = p.db.Exec(ctx, `UPDATE authz_standing SET closed_at = CASE WHEN $2 THEN coalesce(closed_at, extract(epoch FROM now())::bigint) END WHERE org_id=$1`, org, *c.Closed)
+	}
 	return err
+}
+
+func (p *postgres) standingOf(ctx context.Context, org string) (standingView, error) {
+	var v standingView
+	err := p.db.QueryRow(ctx, `SELECT unpaid_since, closed_at, paused FROM authz_standing WHERE org_id=$1`, org).Scan(&v.UnpaidSince, &v.ClosedAt, &v.Paused)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return standingView{}, nil
+	}
+	return v, err
 }
 
 func (p *postgres) setOwner(ctx context.Context, org, owner string) error {
@@ -436,7 +465,12 @@ func (p *postgres) facts(ctx context.Context, user, org string) (facts, error) {
 	}
 	defer tx.Rollback(ctx)
 	f := facts{capabilities: map[string]bool{}}
-	err = tx.QueryRow(ctx, `SELECT suspended,payment_required,paused FROM authz_standing WHERE org_id=$1`, org).Scan(&f.suspended, &f.paymentRequired, &f.paused)
+	var unpaidSince, closedAt *int64
+	err = tx.QueryRow(ctx, `SELECT suspended,payment_required,paused,unpaid_since,closed_at FROM authz_standing WHERE org_id=$1`, org).Scan(&f.suspended, &f.paymentRequired, &f.paused, &unpaidSince, &closedAt)
+	if unpaidSince != nil {
+		f.unpaidFor = time.Now().Unix() - *unpaidSince
+	}
+	f.closed = closedAt != nil
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return facts{}, err
 	}

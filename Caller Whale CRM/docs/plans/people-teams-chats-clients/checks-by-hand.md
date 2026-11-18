@@ -214,3 +214,11 @@ Needs two-step sign-in on both accounts. Do it with a throwaway agency, not your
 |---|---|---|
 | U1 | With a throwaway solo workspace that has a few leads, CRM → Team → Make this an agency | "Your workspace is now an agency. N leads are in <your name>'s team." After the reload you are the agency owner, and the leads keep their history. |
 | U2 | Look at the Team page again | The button is gone; inviting callers works as in any agency. |
+
+# Step 18, part A: unpaid plans and closing an agency
+
+| # | Do | Expect |
+|---|---|---|
+| G1 | As staff, give a throwaway agency a membership that ends today; open its Dashboard the next day as its owner | "Plan needs paying": everything keeps working until the date shown. A caller of the agency sees nothing yet. |
+| G2 | Eight days later (or ask me to move its unpaid date back) | Everyone sees "read-only": reading and exporting work, calling, importing and inviting do not. |
+| G3 | As the throwaway agency's owner (two-step sign-in), Dashboard → Close the agency | Members lose access at once; waiting invitations show as cancelled; "Reopen the agency" brings everything back. |

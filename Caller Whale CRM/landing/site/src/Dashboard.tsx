@@ -7,7 +7,7 @@ import { ApiError, needsSecondStep, useSecondStep } from "./SecondStep.tsx";
 import { AnnouncementManager } from "./AnnouncementManager.tsx";
 import { CostsManager, MembersTable, PlatformOverview } from "./OwnerViews.tsx";
 import { InviteManager, PendingInvitations, WorkspaceManager, WorkspaceSecondStep } from "./AccessManagement.tsx";
-import { HandOver, OfferedAgencies, OwnerlessAgencies, askTakeover } from "./Ownership.tsx";
+import { AgencyStanding, HandOver, OfferedAgencies, OwnerlessAgencies, askTakeover } from "./Ownership.tsx";
 import { MonitoringPanel } from "./MonitoringPanel.tsx";
 import { Settings } from "./Settings.tsx";
 import { profilePath } from "./profile-path.ts";
@@ -52,6 +52,7 @@ function UsageOverview({ access, auth, authBase, me }: { access: Access; auth: A
   return <div className="dashboard-page">
     <PendingInvitations auth={auth} authBase={authBase} />
     <OfferedAgencies auth={auth} authBase={authBase} />
+    {access.workspaces.map(space => <AgencyStanding key={space.org_id} auth={auth} authBase={authBase} orgId={space.org_id} />)}
     <div className="dashboard-panels">
       <section className="card" aria-labelledby="dashboard-account">
         <h2 id="dashboard-account">Account</h2>
