@@ -71,9 +71,18 @@ func clean(reply, site string) string {
 var errAI = errors.New("the AI did not answer")
 
 func (a *ai) ask(ctx context.Context, history []message, page string) (string, error) {
-	msgs := append([]message{{Role: "system", Content: a.system(page)}}, history...)
+	reply, err := a.complete(ctx, a.system(page), history, 350)
+	if err != nil {
+		return "", err
+	}
+	return clean(reply, a.site), nil
+}
+
+// complete is one answer from the model to a system prompt and messages, at most maxTokens long.
+func (a *ai) complete(ctx context.Context, system string, history []message, maxTokens int) (string, error) {
+	msgs := append([]message{{Role: "system", Content: system}}, history...)
 	// Only providers that neither keep nor train on what is sent (step 24, D321): OpenRouter routes around any that would.
-	body, _ := json.Marshal(map[string]any{"model": a.model, "messages": msgs, "max_tokens": 350, "temperature": 0.3,
+	body, _ := json.Marshal(map[string]any{"model": a.model, "messages": msgs, "max_tokens": maxTokens, "temperature": 0.3,
 		"provider": map[string]any{"data_collection": "deny"}})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.url, bytes.NewReader(body))
 	if err != nil {
@@ -100,5 +109,5 @@ func (a *ai) ask(ctx context.Context, history []message, page string) (string, e
 	if json.Unmarshal(data, &out) != nil || len(out.Choices) == 0 || strings.TrimSpace(out.Choices[0].Message.Content) == "" {
 		return "", fmt.Errorf("%w: empty answer", errAI)
 	}
-	return clean(out.Choices[0].Message.Content, a.site), nil
+	return out.Choices[0].Message.Content, nil
 }
