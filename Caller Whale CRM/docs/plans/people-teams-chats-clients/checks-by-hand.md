@@ -263,3 +263,13 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | A3 | As the team's lead, score one of the caller's calls on two checklist items with a comment | The caller's "my reviews" shows it with the average; the team's reviews show the team and the caller's average. |
 | A4 | As the caller, try to score your own call | Refused. |
 | A5 | As the owner, switch the AI's suggestions on and require captions; as the team's lead, switch suggestions off for the team | The team's callers are told suggestions are off; captions are still required. |
+
+# Step 26, part B: captions and call signals (simulator)
+
+| # | Do | Expect |
+|---|---|---|
+| B1 | With the AI's suggestions off and captions not required, call a lead with scenario `callback` | No captions; nothing is pre-selected. |
+| B2 | Switch the AI's suggestions on (owner) and call with scenario `callback` | Captions show "can you call me back tomorrow at 5?", a callback signal at 17:00 tomorrow (agency time), and "Callback" pre-selected. |
+| B3 | During a call, `POST /sim/say` "stop all these companies calling me", then confirm the "anyone" signal | "Do not call" is pre-selected and logged; in the CRM the number goes to Caller Whale's database. |
+| B4 | Pause the recording, have the lead say a line, resume | The line said while paused is not in the captions. |
+| B5 | Set the keeping time to 7 days | Captions older than that disappear within a minute. |

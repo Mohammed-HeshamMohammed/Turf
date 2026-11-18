@@ -258,6 +258,48 @@ func (s *server) handler() http.Handler {
 	}))
 	mux.Handle("POST /api/v1/calls/token", s.member(s.callingToken))
 
+	// Captions and their signals (step 26, part B).
+	mux.Handle("GET /api/v1/calls/{id}/captions", s.member(func(q *req) error {
+		out, err := s.callCaptions(q.r.Context(), q.sc, q.r.PathValue("id"))
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, out)
+		}
+		return err
+	}))
+	mux.Handle("POST /api/v1/calls/{id}/signals/{signal}", s.member(func(q *req) error {
+		var ask struct {
+			Confirm bool `json:"confirm"`
+		}
+		if err := readJSON(q.w, q.r, &ask); err != nil {
+			return err
+		}
+		out, err := s.decideSignal(q.r.Context(), q.sc, q.r.PathValue("id"), q.r.PathValue("signal"), ask.Confirm)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, out)
+		}
+		return err
+	}))
+	mux.Handle("GET /api/v1/leads/{id}/signals", s.member(func(q *req) error {
+		out, err := s.leadSignals(q.r.Context(), q.sc, q.r.PathValue("id"))
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, map[string]any{"signals": out})
+		}
+		return err
+	}))
+	mux.Handle("PUT /api/v1/calls/keep", s.member(func(q *req) error {
+		var ask struct {
+			Days *int `json:"days"`
+		}
+		if err := readJSON(q.w, q.r, &ask); err != nil {
+			return err
+		}
+		err := s.putCallKeep(q.r.Context(), q.sc, ask.Days)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, map[string]any{"days": ask.Days})
+		}
+		return err
+	}))
+
 	mux.Handle("POST /api/v1/sms", s.member(func(q *req) error {
 		var ask textAsk
 		if err := readJSON(q.w, q.r, &ask); err != nil {

@@ -63,6 +63,12 @@ type callRow struct {
 	CRMStatus          string     `db:"crm_status" json:"crm_status"`
 	CRMMessage         string     `db:"crm_message" json:"crm_message"`
 	RecordingReported  bool       `db:"recording_reported" json:"recording_reported"`
+	// Captions and the AI's suggestions on this call, and what the captions pre-selected (step 26).
+	Captions         bool   `db:"captions" json:"captions"`
+	Suggestions      bool   `db:"suggestions" json:"suggestions"`
+	CaptionsPaused   bool   `db:"captions_paused" json:"captions_paused"`
+	SuggestedOutcome string `db:"suggested_outcome" json:"suggested_outcome"`
+	DNCKind          string `db:"dnc_kind" json:"dnc_kind"`
 	CreatedAt          time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time  `db:"updated_at" json:"updated_at"`
 }
@@ -175,9 +181,12 @@ func (s *server) placeCall(ctx context.Context, sc scope, ask dialAsk) (*callRow
 		scenario = strings.TrimSpace(ask.Scenario)
 	}
 	id := newUUID()
-	if _, err = s.st.db.Exec(ctx, `INSERT INTO calls (id, org_id, user_id, lead_id, direction, from_number, to_number, route, scenario, amd_mode, record, voicemail_drop_url)
-		VALUES ($1, $2, $3, $4, 'outgoing', $5, $6, $7, $8, $9, $10, $11)`,
-		id, sc.orgID, sc.userID, ask.LeadID, from, to, s.route(), scenario, amd, ask.Record || s.cfg.recordCalls, ask.VoicemailDropURL); err != nil {
+	// Captions when the agency requires them or the AI's suggestions are on for this person (step 26, D148).
+	if _, err = s.st.db.Exec(ctx, `INSERT INTO calls (id, org_id, user_id, lead_id, direction, from_number, to_number, route, scenario, amd_mode, record, voicemail_drop_url,
+			captions, suggestions)
+		VALUES ($1, $2, $3, $4, 'outgoing', $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+		id, sc.orgID, sc.userID, ask.LeadID, from, to, s.route(), scenario, amd, ask.Record || s.cfg.recordCalls, ask.VoicemailDropURL,
+		lead.CaptionsRequired || lead.AISuggestions, lead.AISuggestions); err != nil {
 		return nil, err
 	}
 	answer, err := s.carrier.dial(ctx, dialRequest{From: from, To: to, ClientState: id, AMD: amd, TimeoutSecs: s.cfg.ringSeconds, TimeLimitSecs: 4 * 3600, Scenario: scenario})
@@ -381,6 +390,16 @@ func (s *server) react(ctx context.Context, ev event, c *callRow) {
 		}
 	}
 	live := c.EndedAt == nil
+	// Captions (step 26): started on the answered call, read line by line.
+	if ev.EventType == "call.answered" && leg == "" && live && c.Captions && !c.CaptionsPaused {
+		s.startCaptions(ctx, c)
+	}
+	if ev.EventType == "call.transcription" && leg == "" {
+		if err := s.captionHeard(ctx, ev, c); err != nil {
+			log.Printf("WARN call %s: caption: %v", c.ID, err)
+		}
+		return
+	}
 	switch {
 	case ev.EventType == "call.initiated" && c.Direction == "incoming" && leg == "" && live:
 		do("answer", map[string]any{"client_state": base64.StdEncoding.EncodeToString([]byte(c.ID))})
@@ -460,6 +479,8 @@ type wrapAsk struct {
 	Outcome    string `json:"outcome"`
 	CallbackAt string `json:"callback_at"`
 	Notes      string `json:"notes"`
+	// With "Do not call": agency (default), or anyone when the lead wants no calls from anyone, confirmed by the agent (D351).
+	DNCKind string `json:"dnc_kind"`
 }
 
 // wrapUp is the person saying how a call went. "auto" means "use what the carrier said". It can come before the hangup.
@@ -485,6 +506,16 @@ func (s *server) wrapUp(ctx context.Context, sc scope, id string, ask wrapAsk) (
 	}
 	if c.ReportState == "reported" || c.ReportState == "failed" || c.ReportState == "skipped" {
 		return nil, conflictErr("This call is already logged.")
+	}
+	switch ask.DNCKind {
+	case "", "agency", "anyone", "complainer":
+	default:
+		return nil, bad("dnc_kind is agency, anyone or complainer.")
+	}
+	if label == "Do not call" {
+		if _, err = s.st.db.Exec(ctx, `UPDATE calls SET dnc_kind = $2 WHERE id = $1`, c.ID, ask.DNCKind); err != nil {
+			return nil, err
+		}
 	}
 	if _, err = s.st.db.Exec(ctx, `UPDATE calls SET disposition = $2, callback_at = $3, notes = $4,
 			settle_after = CASE WHEN report_state IN ('due', 'wrapup') THEN $5::timestamptz ELSE settle_after END,
@@ -687,6 +718,9 @@ func (s *server) callPayload(c *callRow, f facts, label, lead string) map[string
 	}
 	if c.CallbackAt != nil {
 		payload["callback_at"] = c.CallbackAt.Format(time.RFC3339)
+	}
+	if label == "Do not call" && c.DNCKind != "" {
+		payload["dnc_kind"] = c.DNCKind
 	}
 	if c.RecordingStartedAt != nil {
 		payload["recording_started_at"] = c.RecordingStartedAt.UTC().Format(time.RFC3339)

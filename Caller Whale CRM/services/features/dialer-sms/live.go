@@ -146,6 +146,18 @@ func (s *server) pauseRecording(ctx context.Context, sc scope, id string, pause 
 	} else {
 		_, err = s.st.db.Exec(ctx, `UPDATE recording_pauses SET resumed_at = $2 WHERE call_id = $1 AND resumed_at IS NULL`, id, s.now())
 	}
+	if err != nil || !c.Captions {
+		return err
+	}
+	// Captions pause with the recording (D277).
+	if pause {
+		if aerr := s.carrier.action(ctx, *c.CallControlID, "transcription_stop", nil); aerr != nil {
+			log.Printf("WARN call %s: transcription_stop: %v", c.ID, aerr)
+		}
+	} else {
+		s.startCaptions(ctx, c)
+	}
+	_, err = s.st.db.Exec(ctx, `UPDATE calls SET captions_paused = $2, updated_at = now() WHERE id = $1`, id, pause)
 	return err
 }
 
@@ -297,6 +309,9 @@ func (s *server) checkCallbacksPeriodically(ctx context.Context) {
 		case <-t.C:
 			if err := s.checkCallbacks(ctx); err != nil {
 				log.Printf("WARN callbacks due: %v", err)
+			}
+			if err := s.forgetOldCalls(ctx); err != nil {
+				log.Printf("WARN removing old captions: %v", err)
 			}
 		}
 	}

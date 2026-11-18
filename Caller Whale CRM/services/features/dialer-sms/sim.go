@@ -64,7 +64,7 @@ type simCall struct {
 	ccid, leg, session, from, to, state, direction, scenario, amdMode string
 	timeout                                                           int
 	t, start                                                          time.Time
-	answered, ended, recording                                        bool
+	answered, ended, recording, captioning                            bool
 	recStart                                                          time.Time
 	transferred                                                       *simCall
 	parent                                                            *simCall
@@ -91,6 +91,7 @@ func (s *simulator) handler() http.Handler {
 	}))
 	mux.HandleFunc("POST /sim/inbound-call", s.auth(s.inboundCall))
 	mux.HandleFunc("POST /sim/inbound-sms", s.auth(s.inboundText))
+	mux.HandleFunc("POST /sim/say", s.auth(s.say))
 	mux.HandleFunc("POST /sim/settings", s.auth(func(w http.ResponseWriter, r *http.Request) {
 		var ask struct{ Dupes, Reorder *bool }
 		_ = json.NewDecoder(r.Body).Decode(&ask)
@@ -409,6 +410,10 @@ func (s *simulator) play(c *simCall) {
 	case "human_answered", "callback", "do_not_call", "dropped":
 		s.after(c, 4*time.Second, func() {
 			s.answer(c, "human")
+			// What the lead says, heard by captions when the dialer started them (step 26).
+			if line := scenarioLines[c.scenario]; line != "" {
+				s.after(c, 5*time.Second, func() { s.speakLine(c, line) })
+			}
 			s.after(c, talk[c.scenario], func() {
 				if c.scenario == "dropped" {
 					s.hangup(c, "unspecified", "unknown", "")
@@ -527,6 +532,11 @@ func (s *simulator) action(w http.ResponseWriter, r *http.Request) {
 			s.callEvents(c, ev("call.bridged", nil))
 			s.after(leg, 90*time.Second, func() { s.hangup(c, "normal_clearing", "callee", "200") })
 		})
+	case "transcription_start", "transcription_stop":
+		s.mu.Lock()
+		c.captioning = r.PathValue("action") == "transcription_start"
+		s.actions = append(s.actions, c.ccid+"|"+r.PathValue("action"))
+		s.mu.Unlock()
 	case "speak", "record_stop", "playback_stop", "bridge", "record_pause", "record_resume":
 		s.mu.Lock()
 		s.actions = append(s.actions, c.ccid+"|"+r.PathValue("action"))
@@ -602,4 +612,39 @@ func (s *simulator) inboundText(w http.ResponseWriter, r *http.Request) {
 
 func (s *simulator) String() string {
 	return fmt.Sprintf("simulator(webhook=%s speed=%v)", s.webhook, s.speed)
+}
+
+// scenarioLines is what the lead says in a scenario, for captions.
+var scenarioLines = map[string]string{
+	"human_answered": "How much would you offer for the house?",
+	"callback":       "I'm driving, can you call me back tomorrow at 5?",
+	"do_not_call":    "Please stop calling me.",
+}
+
+// speakLine sends one finished caption line of the lead, when the dialer asked for captions.
+func (s *simulator) speakLine(c *simCall, text string) {
+	s.mu.Lock()
+	on := c.captioning && !c.ended
+	s.mu.Unlock()
+	if on {
+		s.callEvents(c, ev("call.transcription", map[string]any{"transcription_data": map[string]any{"transcript": text, "is_final": true, "confidence": 0.93}}))
+	}
+}
+
+// say is the lead saying a line on a live call: {"call_control_id", "text"}.
+func (s *simulator) say(w http.ResponseWriter, r *http.Request) {
+	var ask struct {
+		CallControlID string `json:"call_control_id"`
+		Text          string `json:"text"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&ask)
+	s.mu.Lock()
+	c := s.calls[ask.CallControlID]
+	s.mu.Unlock()
+	if c == nil || s.isEnded(c) {
+		telnyxError(w, http.StatusNotFound, "10005", "Resource not found", "No live call with that call_control_id")
+		return
+	}
+	s.after(c, 0, func() { s.speakLine(c, ask.Text) })
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
