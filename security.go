@@ -237,8 +237,10 @@ func (s *server) orgSecurity(w http.ResponseWriter, r *http.Request) error {
 			return newError(http.StatusForbidden, "mfa_required", "Confirm your identity with a second step first.")
 		}
 		var body struct {
-			IdleMinutes *int  `json:"idle_minutes"`
-			MFAEveryone *bool `json:"mfa_everyone"`
+			IdleMinutes *int      `json:"idle_minutes"`
+			MFAEveryone *bool     `json:"mfa_everyone"`
+			Countries   *[]string `json:"countries"` // where members may work from (D243); kept in authz, checked by the gateway
+			Networks    *[]string `json:"networks"`
 		}
 		if err := readJSON(w, r, &body); err != nil {
 			return err
@@ -252,19 +254,31 @@ func (s *server) orgSecurity(w http.ResponseWriter, r *http.Request) error {
 				return err
 			}
 		}
-		if body.MFAEveryone != nil {
-			if _, err := s.authzCall(r, http.MethodPut, "/v1/orgs/"+org+"/security", map[string]any{"actor_id": c.Sub, "actor_second_step": c.MFA, "mfa_everyone": *body.MFAEveryone}, nil); err != nil {
+		if body.MFAEveryone != nil || body.Countries != nil || body.Networks != nil {
+			change := map[string]any{"actor_id": c.Sub, "actor_second_step": c.MFA}
+			if body.MFAEveryone != nil {
+				change["mfa_everyone"] = *body.MFAEveryone
+			}
+			if body.Countries != nil {
+				change["countries"] = *body.Countries
+			}
+			if body.Networks != nil {
+				change["networks"] = *body.Networks
+			}
+			if _, err := s.authzCall(r, http.MethodPut, "/v1/orgs/"+org+"/security", change, nil); err != nil {
 				return err
 			}
 		}
 	}
 	idle := defaultIdleMinutes
 	_ = s.db.QueryRow(ctx, `SELECT idle_minutes FROM org_security WHERE org_id = $1`, org).Scan(&idle)
-	var authzView struct {
-		MFAEveryone bool `json:"mfa_everyone"`
-	}
+	authzView := struct {
+		MFAEveryone bool     `json:"mfa_everyone"`
+		Countries   []string `json:"countries"`
+		Networks    []string `json:"networks"`
+	}{Countries: []string{}, Networks: []string{}}
 	_, _ = s.authzCall(r, http.MethodGet, "/v1/orgs/"+org+"/security", nil, &authzView)
-	writeJSON(w, http.StatusOK, map[string]any{"idle_minutes": idle, "mfa_everyone": authzView.MFAEveryone})
+	writeJSON(w, http.StatusOK, map[string]any{"idle_minutes": idle, "mfa_everyone": authzView.MFAEveryone, "countries": authzView.Countries, "networks": authzView.Networks})
 	return nil
 }
 

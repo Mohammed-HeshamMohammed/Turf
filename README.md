@@ -99,3 +99,8 @@ A new numbered SQL file goes in `database_setup/`; a route added here goes in th
 - `POST /v1/orgs/{org}/members/{user}/sign-out`: the owner or an admin (with their second step) ends every session of a member; an admin cannot sign out the owner.
 - `GET`/`PUT /v1/orgs/{org}/security {idle_minutes, mfa_everyone}`: the owner sets the idle limit (15 minutes to 7 days, 8 hours by default) and requires the authenticator of everyone (kept in authz as the `mfa_everyone` switch). A refresh after the shortest limit of the person's agencies ends the session (`signed_out_idle`), counted from the last refresh or from the app's `idle_seconds`; `on_call: true` never times out.
 - `POST /v1/password/reset {token, new, code}`: someone with an authenticator app or recovery codes also gives a code. Lost both: `POST /v1/password/reset/support {token, reason}`; staff see `GET /v1/admin/reset-requests` and `POST /v1/admin/reset-requests/{id}/approve|refuse`, approving only after 7 days, which removes the lost authenticator and recovery codes, signs the person out everywhere and emails a reset link.
+
+## Sign-in security, part B (build step 35)
+
+- Microsoft sign-in and linking: `/v1/oauth/microsoft/start` and `/v1/me/providers/microsoft/start` go through Firebase's own authorization flow (no client here). It shows once Microsoft is turned on in Firebase (an Azure app registration whose redirect is Firebase's handler).
+- `PUT /v1/orgs/{org}/security {countries, networks}` (the owner): where the agency's members may work from. Authz keeps them; the gateway checks each request inside the agency against Cloudflare's country and the real address, the owner excepted.

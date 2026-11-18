@@ -81,6 +81,10 @@ func TestSignInSecurity(t *testing.T) {
 	if a := w.call("PUT", "/v1/orgs/"+flowOrg+"/security", map[string]any{"idle_minutes": 60, "mfa_everyone": true}, boss); a.status != 200 || a.body["idle_minutes"] != float64(60) || a.body["mfa_everyone"] != true {
 		t.Fatalf("rules: %d %v", a.status, a.body)
 	}
+	// Where members may work from (D243): kept in authz, which the gateway reads.
+	if a := w.call("PUT", "/v1/orgs/"+flowOrg+"/security", map[string]any{"countries": []string{"US"}}, boss); a.status != 200 || len(a.body["countries"].([]any)) != 1 {
+		t.Fatalf("countries: %d %v", a.status, a.body)
+	}
 	idle := w.signInFrom("member@example.com", "")
 	onCall := w.signInFrom("member@example.com", "")
 	clock = func() time.Time { return time.Now().Add(2 * time.Hour) }
@@ -142,6 +146,14 @@ func TestSignInSecurity(t *testing.T) {
 	}
 	if a := w.call("POST", "/v1/password/reset", map[string]any{"token": token, "new": "Yet-an0ther-passphrase!"}, ""); a.status != 200 {
 		t.Fatalf("the link alone after support: %d %v", a.status, a.body)
+	}
+	// Microsoft sign-in through Firebase (D237).
+	w.fb.brokered = true
+	if a := w.call("GET", "/v1/providers", nil, ""); a.body["microsoft"] != true {
+		t.Fatalf("providers: %v", a.body)
+	}
+	if a := w.call("POST", "/v1/oauth/microsoft/start", map[string]any{"target": "landing"}, ""); a.status != 200 || !strings.HasPrefix(a.str("url"), "https://") {
+		t.Fatalf("microsoft start: %d %v", a.status, a.body)
 	}
 	_ = strings.TrimSpace
 	_ = http.StatusOK
