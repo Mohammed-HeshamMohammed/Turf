@@ -85,3 +85,10 @@ Build the image with this folder as the context: `docker build -t callerwhale-au
 ## Adding to it
 
 A new numbered SQL file goes in `database_setup/`; a route added here goes in the gateway's allow-list (`services/gateway/shield.go`; its test compares that list with this source).
+
+## Status page and breach notices (build step 34)
+
+- `GET /v1/status` (open): each part (sign_in, crm, calls, texts, chats, email) up, degraded or down; open incidents (the `banner`) and the last 30 days'. The website's `/status` page and every page's outage banner read it.
+- Staff: `POST /v1/admin/status/incidents {components, severity: degraded|down, title, message}`, `POST /v1/admin/status/incidents/{id} {message, resolved}`. Opening and resolving email everyone who chose it: `GET`/`PUT /v1/me/status-emails {on}`.
+- `STATUS_PROBES` (optional): `part=private health address,...`, checked every minute; two failures in a row show the part down until it answers.
+- Staff: `POST /v1/admin/breach-notices {org_ids, discovered_at, what, to_do}` emails each agency's owner now and keeps whether it went within 72 hours of `discovered_at`; `GET /v1/admin/breach-notices` lists them with their deadline.

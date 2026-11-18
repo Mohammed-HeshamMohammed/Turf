@@ -43,7 +43,7 @@ var authRoutes = []string{
 	"GET /v1/admin/staff",
 	"POST /v1/admin/staff",
 	"GET /v1/admin/invitations", "POST /v1/admin/invitations",
-	"GET /v1/announcement", "PUT /v1/admin/announcement", "GET /v1/roles", "GET /v1/admin/members", "GET /v1/admin/overview", "GET /v1/admin/costs", "POST /v1/admin/costs", "DELETE /v1/admin/costs/{id}", "GET /v1/admin/plans", "POST /v1/admin/memberships", "GET /v1/admin/rates", "POST /v1/admin/rates", "DELETE /v1/admin/rates/{id}",
+	"GET /v1/announcement", "PUT /v1/admin/announcement", "GET /v1/status", "POST /v1/admin/status/incidents", "POST /v1/admin/status/incidents/{id}", "GET /v1/me/status-emails", "PUT /v1/me/status-emails", "POST /v1/admin/breach-notices", "GET /v1/admin/breach-notices", "GET /v1/roles", "GET /v1/admin/members", "GET /v1/admin/overview", "GET /v1/admin/costs", "POST /v1/admin/costs", "DELETE /v1/admin/costs/{id}", "GET /v1/admin/plans", "POST /v1/admin/memberships", "GET /v1/admin/rates", "POST /v1/admin/rates", "DELETE /v1/admin/rates/{id}",
 	"GET /v1/orgs/{org}/members", "PUT /v1/orgs/{org}/members/{user}", "DELETE /v1/orgs/{org}/members/{user}",
 	"POST /v1/orgs/{org}/members/{user}/suspend", "POST /v1/orgs/{org}/members/{user}/restore",
 	"GET /v1/orgs/{org}/teams", "PUT /v1/orgs/{org}/teams/{team}", "DELETE /v1/orgs/{org}/teams/{team}",

@@ -39,9 +39,13 @@ TELNYX_AMD=detect
 # true records every answered call (Telnyx charges per minute); otherwise only calls placed with record set.
 RECORD_CALLS=false
 # Budgets (build step 22): billing's private address and the dialer-sms token from its BILLING_TOKENS. Empty: calls and texts are not limited.
+# Billing's private address, like http://billing:8103, for budgets on calls, texts and assistant use (step 22). Empty: nothing is limited.
 BILLING_URL=http://billing:8103
+# Secret: the value after dialer-sms= in billing's BILLING_TOKENS, 32+ characters.
 BILLING_TOKEN=<the dialer-sms token from billing's BILLING_TOKENS>
 
 # The call summary (build step 26): the assistant service and its AGENT_TOKEN (secret, Coolify only). Empty: no summaries.
+# The assistant service's private address, like http://assistant:8109, for call summaries (step 26). Empty: no summaries.
 ASSISTANT_URL=http://assistant:8109
+# Secret: the same value as the assistant's AGENT_TOKEN, 32+ characters.
 ASSISTANT_TOKEN=<the same value as the assistant's AGENT_TOKEN>

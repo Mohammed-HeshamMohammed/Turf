@@ -9,6 +9,7 @@ import { Pricing } from "./Pricing.tsx";
 import { FeaturesIndex, FeaturePage } from "./Features.tsx";
 import { Security } from "./Security.tsx";
 import { AcceptableUse, Contact, DataProcessing, Privacy, RemoveMyInformation, Terms } from "./PublicPages.tsx";
+import { OutageBanner, StatusPage } from "./Status.tsx";
 import { WhyCallerWhale } from "./WhyCallerWhale.tsx";
 import { Home } from "./Home.tsx";
 import { AnnouncementBanner } from "./Announcement.tsx";
@@ -536,6 +537,7 @@ export function App({ path: first = "/" }) {
     "/features": <FeaturesIndex />,
     "/why-caller-whale": <WhyCallerWhale />,
     "/security": <Security />,
+    "/status": <StatusPage authBase={authBase} />,
     "/contact": <Contact getAuth={getAuth} />,
     "/remove-my-information": <RemoveMyInformation getAuth={getAuth} />,
     "/dpa": <DataProcessing />,
@@ -552,6 +554,7 @@ export function App({ path: first = "/" }) {
   return (
     <div className={`page${cleanPath(path) === "/" ? " home-page" : ""}${cleanPath(path) === "/dashboard" ? " dashboard-shell" : ""}`}>
       {cleanPath(path) !== "/dashboard" && <AnnouncementBanner authBase={authBase} />}
+      {cleanPath(path) !== "/status" && <OutageBanner authBase={authBase} />}
       <SiteHeader path={path} me={me} onSignOut={signOut} savedSession={savedSession} cached={cached} openCrm={crmLink ? openCrm : undefined} />
       <main>{pages[cleanPath(path)] || (ownPageName ? ownPage : null) || (routeFor(path).key.startsWith("feature:") ? <FeaturePage slug={featureSlug} /> : <NotFound />)}</main>
       <SiteFooter compact={cleanPath(path) === "/dashboard"} />

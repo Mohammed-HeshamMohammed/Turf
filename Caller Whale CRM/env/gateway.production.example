@@ -74,6 +74,6 @@ MCP_HOST=mcp.callerwhale.com
 # Requests a minute from one address on the MCP host; default 6000. Higher than for people since assistants share a few addresses; each connection also has its own limit.
 MCP_IP_PER_MINUTE=6000
 # ---- The live server (team chat) ----
-# The ROUTES host that is the live server (live.callerwhale.com). Only its socket address (/connection/websocket) is answered; its API, metrics and health are private. Must be one of the ROUTES hosts.
+# The ROUTES host that is the live server (live.callerwhale.com). Only its socket address is answered; its API, metrics and health stay private. Must be one of the ROUTES hosts.
 LIVE_HOST=live.callerwhale.com
 

@@ -21,6 +21,33 @@ Each token is a random value of 32 characters or more (`openssl rand -hex 32`). 
 | T6 | `NOTIFY_MAIL_TOKEN` (and `NOTIFY_MAIL_URL=http://notifications:8102`) | crm-core | notifications `NOTIFY_TOKENS`: add `,crm-core=<token>` | Scheduled report emails (step 32) |
 | T7 | `AUTH_MCP_TOKEN` | auth | mcp `MCP_AUTH_TOKEN` | Outside AIs asking for changes that wait for you (step 24) |
 
+## Per container in Coolify
+
+What each container needs added or changed for steps 10 to 34, by the names in your Coolify project. Private addresses use each
+container's network alias (`http://<alias>:<port>`), as the existing settings do. Every setting's meaning is in
+`env/container-notes.json`; `node tools/env-notes.mjs render <name>` prints a container's list (names and notes, never values), and
+`node tools/env-notes.mjs check` confirms the examples and notes agree.
+
+**Not yet compared with the live containers:** Coolify could not be opened from here (Cloudflare's check stopped the built-in browser and
+Chrome was not connected). The rows marked **verify** are what the code expects; check them against Coolify.
+
+| Container | Add or change | Then |
+|---|---|---|
+| Caller Whale Gateway | **verify** `ROUTES` sends `gate.callerwhale.com` (its `CORE_HOST`) to `http://crm-core:8107`. The example still shows `http://notifications:8102` there; the CRM's routes (sync, imports, Google's return, email links and unsubscribe, tool keys) need crm-core | Redeploy (new open routes for steps 28, 29, 33 and auth's step 34 routes) |
+| Caller Whale Live Server | nothing new | — |
+| Caller Whale AI Assistant | `AGENT_TOKEN` (T5); `OPENROUTER_API_KEY` (S3) | Redeploy |
+| Caller Whale Authentication | `STATUS_PROBES` (optional), like `sign_in=http://auth:8101/healthz,crm=http://crm-core:8107/healthz,calls=http://dialer-sms:8113/healthz,chats=http://messaging:8108/healthz`; `AUTH_MCP_TOKEN` (T7) if not set | Redeploy (new tables for the status page and breach notices) |
+| Caller Whale Authorization | `AUTHZ_TOKENS`: add `dialer-sms=<token>` (T2), and `messaging=<token>` if it is not there; optional `AUTHZ_FEATURES_EVERYWHERE=teams_v2` (P-1) | Redeploy |
+| Caller Whale Billing | `BILLING_TOKENS`: add `dialer-sms=<token>` (T3) and `crm-core=<token>` (T4) | Redeploy (the `ai` use kind) |
+| Caller Whale CRM Core | `DIALER_TOKEN` (T1); `ASSISTANT_URL=http://assistant:8109`, `ASSISTANT_TOKEN` (T5); `BILLING_URL=http://billing:8103`, `BILLING_TOKEN` (T4); `NOTIFY_MAIL_URL=http://notifications:8102`, `NOTIFY_MAIL_TOKEN` (T6); `APP_URL=https://app.callerwhale.com` (**verify** the CRM web app's address); `GOOGLE_*` (S4, `GOOGLE_REDIRECT_URL=https://gate.callerwhale.com/api/v1/google/callback`); `EMAIL_*` and `AWS_*` (S5, `EMAIL_PUBLIC_URL=https://gate.callerwhale.com`) | Redeploy (migrations 0032 to 0041 run on start) |
+| Caller Whale Dialer | Deploy it first (S1): `CRM_URL=http://crm-core:8107`, `CRM_TOKEN` (T1); `AUTHZ_URL=http://authz:8104`, `AUTHZ_TOKEN` (T2); `BILLING_URL=http://billing:8103`, `BILLING_TOKEN` (T3); `ASSISTANT_URL=http://assistant:8109`, `ASSISTANT_TOKEN` (T5); `TELNYX_*` (S2) | Simulator first, then live |
+| Caller Whale Importing Worker | nothing new | — |
+| Caller Whale Learning | nothing new | — |
+| Caller Whale MCP | nothing new (`MCP_AUTH_TOKEN` is auth's `AUTH_MCP_TOKEN`) | — |
+| Caller Whale Messaging | nothing new | — |
+| Caller Whale Notifications | `NOTIFY_TOKENS`: add `crm-core=<token>` (T6) | Redeploy (the report, status and breach notice emails) |
+| The website (landing-web) | nothing new | Redeploy (the /status page and the outage banner) |
+
 ## Outside accounts and their settings
 
 | # | Do | Then set | Turns on |
@@ -412,3 +439,13 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | K4 | With the key, add a lead (`POST /api/v1/tools/leads`), then read it back | It waits unassigned in that team; reading a lead of another team answers not found. |
 | K5 | Switch the key off and use it | Refused; the key's uses list each try, refused ones too. |
 | K6 | Add an event address (for example a request-bin you own) for "deal won"; win a deal | A message with only the event, ids and time arrives, signed with the secret you were shown. |
+
+# Step 34: status page and breach notices (after auth, notifications, gateway and the website are redeployed)
+
+| # | Do | Expect |
+|---|---|---|
+| Z1 | Open callerwhale.com/status | Every part shows working; nothing in the last 30 days. |
+| Z2 | Signed in, turn on status emails (`PUT /v1/me/status-emails {on: true}`); as staff, open an incident "Calls are down" for calls | The status page shows calls not working, every page shows the banner, and you get an email. |
+| Z3 | As staff, resolve it with a note | The banner goes; the incident moves to the last 30 days with the note; you get a "Resolved" email. |
+| Z4 | Set `STATUS_PROBES` on auth and stop a throwaway service it checks | After two minutes that part shows down; it comes back when the service does. |
+| Z5 | As staff, send a breach notice to a throwaway agency (a practice run, as the breach plan asks once a year) | Its owner gets the notice; the list shows it went within 72 hours. |

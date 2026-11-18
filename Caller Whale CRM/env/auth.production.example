@@ -62,3 +62,6 @@ AUTH_TELEGRAM_WEBHOOK_SECRET=<a long random string, or empty>
 # gateway. Any AUTH_TURNSTILE_* variable left in Coolify from an older setup is ignored and can be deleted.
 # Secret shared with the MCP service (its MCP_AUTH_TOKEN), 32+ characters, to ask who an assistant's token belongs to. Empty turns connectors off. To rotate, list new,old; update MCP; drop the old.
 AUTH_MCP_TOKEN=<32+ random characters>
+
+# Parts the status page checks every minute (step 34): part=private health address, comma-separated; parts sign_in, crm, calls, texts, chats, email. Empty: incidents only.
+STATUS_PROBES=

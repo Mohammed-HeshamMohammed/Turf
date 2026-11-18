@@ -543,3 +543,10 @@
   .admin-metrics > div { min-height: 104px; padding: 16px 18px; }
   .admin-view-header { min-height: 44px; }
 }
+
+/* The status page (step 34). */
+.status-parts { list-style: none; padding: 0; display: grid; gap: 8px; }
+.status-parts li { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; padding: 12px 14px; border-radius: 12px; background: #f2f5f3; }
+.status-parts li.status-degraded { background: #fbefd5; }
+.status-parts li.status-down { background: #f6dcd8; }
+.status-incident { padding: 12px 0; border-top: 1px solid #e3e7e4; }

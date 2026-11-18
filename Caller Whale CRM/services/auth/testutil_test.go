@@ -291,6 +291,8 @@ type capture struct {
 	fail   bool
 	// agencies named in invitation emails, in the order sent
 	agencies []string
+	// other templates sent (step 34), in order
+	templates []string
 }
 
 func (c *capture) sendConfirmation(_ context.Context, to, _ string, link string) error {
@@ -309,6 +311,16 @@ func (c *capture) sendCode(_ context.Context, to, code string) error {
 		return fmt.Errorf("down")
 	}
 	c.codeTo, c.codes = append(c.codeTo, to), append(c.codes, code)
+	return nil
+}
+
+func (c *capture) sendTemplate(_ context.Context, template, to string, data map[string]any) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.fail {
+		return fmt.Errorf("down")
+	}
+	c.to, c.templates = append(c.to, to), append(c.templates, template)
 	return nil
 }
 
