@@ -179,27 +179,25 @@ func (s *server) directory(q *req) error {
 	if err != nil {
 		return err
 	}
-	if !slices.Contains(q.sc.scopes, "organization") {
-		if members, err = s.inMyTree(ctx, q, members); err != nil {
-			return err
-		}
-	}
-	names, avatars := map[string]string{}, map[string]string{}
+	// Everyone in the agency sees who is in it, with roles and teams (D53, D54, D334). An email shows only to the owner and admins,
+	// to the person's own team leads, and to the person (D371).
+	everyone := slices.Contains(q.sc.scopes, "organization")
+	names, avatars, emails := map[string]string{}, map[string]string{}, map[string]string{}
 	ids := make([]string, 0, len(members))
 	for _, m := range members {
 		ids = append(ids, m.UserID)
 	}
-	rows, err := s.st.db.Query(ctx, `SELECT user_id::text, name, avatar FROM people WHERE user_id = ANY($1::uuid[])`, onlyIDs(ids))
+	rows, err := s.st.db.Query(ctx, `SELECT user_id::text, name, avatar, email FROM people WHERE user_id = ANY($1::uuid[])`, onlyIDs(ids))
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var id, name, avatar string
-		if err = rows.Scan(&id, &name, &avatar); err != nil {
+		var id, name, avatar, email string
+		if err = rows.Scan(&id, &name, &avatar, &email); err != nil {
 			return err
 		}
-		names[id], avatars[id] = name, avatar
+		names[id], avatars[id], emails[id] = name, avatar, email
 	}
 	out := make([]map[string]any, 0, len(members))
 	for _, m := range members {
@@ -207,7 +205,11 @@ func (s *server) directory(q *req) error {
 		if name == "" {
 			name = "Member"
 		}
-		out = append(out, map[string]any{"id": m.UserID, "name": name, "avatar": avatars[m.UserID], "roles": nonNil(m.Roles), "team_ids": nonNil(m.TeamIDs), "sign_in": nil})
+		entry := map[string]any{"id": m.UserID, "name": name, "avatar": avatars[m.UserID], "roles": nonNil(m.Roles), "team_ids": nonNil(m.TeamIDs), "sign_in": nil}
+		if everyone || m.UserID == q.sc.userID || inTeams(m, q.grant.ManagedTeamIDs) {
+			entry["email"] = emails[m.UserID]
+		}
+		out = append(out, entry)
 	}
 	slices.SortFunc(out, func(a, b map[string]any) int { return strings.Compare(a["name"].(string), b["name"].(string)) })
 	writeJSON(q.w, 200, out)
@@ -507,28 +509,3 @@ func (s *server) setPicture(q *req) error {
 	return nil
 }
 
-// inMyTree narrows the team list for someone who does not see the whole workspace (a team manager, a caller, a closer): themselves,
-// the people in their teams and in the teams they run, the managers of their own teams, and the agency owners above them.
-func (s *server) inMyTree(ctx context.Context, q *req, members []member) ([]member, error) {
-	teams, err := s.rules.teams(ctx, q.sc.orgID)
-	if err != nil {
-		return nil, err
-	}
-	mine := append(append(slices.Clone(q.sc.teamIDs), q.grant.ManagedTeamIDs...), q.grant.DeputyTeamIDs...)
-	managers := map[string]bool{} // the leads and deputies of the teams they are in
-	for _, t := range teams {
-		if slices.Contains(q.sc.teamIDs, t.TeamID) {
-			for _, lead := range append(t.leads(), t.DeputyIDs...) {
-				managers[lead] = true
-			}
-		}
-	}
-	keep := members[:0:0]
-	for _, m := range members {
-		shares := slices.ContainsFunc(m.TeamIDs, func(team string) bool { return slices.Contains(mine, team) })
-		if m.UserID == q.sc.userID || shares || managers[m.UserID] || slices.Contains(m.Roles, "owner") || slices.Contains(m.Roles, "admin") {
-			keep = append(keep, m)
-		}
-	}
-	return keep, nil
-}

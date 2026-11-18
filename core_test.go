@@ -939,9 +939,18 @@ func TestLeadsAreGivenDownTheTeamTree(t *testing.T) {
 		}
 		return n
 	}
-	// A manager's team list holds their own team and the owner, not another team's caller.
-	if _, raw := e.raw(dave, orgA, "GET", "/api/v1/directory", nil, nil); strings.Contains(string(raw), erin) || !strings.Contains(string(raw), bob) || !strings.Contains(string(raw), alice) {
-		t.Errorf("a manager sees only their tree: %s", raw)
+	// Everyone sees who is in the agency (D54); emails only to the owner, admins and the person's own team leads (D371).
+	if _, raw := e.raw(dave, orgA, "GET", "/api/v1/directory", nil, nil); !strings.Contains(string(raw), erin) || !strings.Contains(string(raw), bob) || !strings.Contains(string(raw), alice) {
+		t.Errorf("the directory lists the whole agency: %s", raw)
+	}
+	var listed []map[string]any
+	_, raw := e.raw(dave, orgA, "GET", "/api/v1/directory", nil, nil)
+	_ = json.Unmarshal(raw, &listed)
+	for _, p := range listed {
+		_, shown := p["email"]
+		if want := p["id"] == bob || p["id"] == dave; shown != want {
+			t.Errorf("email of %v shown to a team lead: %v", p["id"], shown)
+		}
 	}
 	// The owner sees who they can give leads to: everyone working, not clients.
 	_, targets := e.call(alice, orgA, "GET", "/api/v1/assignments/targets", nil)
