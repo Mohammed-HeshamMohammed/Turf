@@ -8,7 +8,7 @@ themselves could not be read from here (Cloudflare's check), so the setup below 
 Coolify's own scheduled backups do this; nothing custom runs them.
 
 1. **Storage outside the VPS.** In Coolify: Storages → add an S3-compatible bucket (Cloudflare R2, Backblaze B2, Hetzner Object
-   Storage or AWS S3) in the same country as the server (D298). Give it its own access key that can only reach that bucket, and
+   Storage or AWS S3) in an EU region in the same country as the server, now France (D298). Give it its own access key that can only reach that bucket, and
    turn on the bucket's versioning lock or object lock if the provider has it, so a stolen Coolify key cannot erase backups.
 2. **Every database.** For each PostgreSQL in the project's "database" environment (the auth database, the CRM database, which also
    holds billing, authz, the dialer and imports, and the messaging/chats database if it is separate): Backups → add a scheduled
@@ -47,8 +47,12 @@ tables (imports waiting in the import worker, calls and texts in the dialer, cha
 
 ## Where data lives (D298)
 
-On the current server and its backups in the same country. The terms and privacy notice must name that country (for the lawyer).
-A US region can be added later for agencies that require it.
+The server is in Paris, France (owner, 2026-11-18). The owner is thinking of moving it to Germany for a better connection to
+Telnyx. Either way the data stays in the European Union, so the terms and privacy notice can say "the European Union (currently
+France)" and, the lawyer to confirm, need only the country updated after a move. The backup bucket goes in the same country as the server
+(an EU region of the storage provider). Calls and texts reach US leads through Telnyx, so call quality depends on the path from the
+server to Telnyx's nearest point of presence; measure it from each candidate location before moving. A US region can be added
+later for agencies that require it.
 
 ## A second server (D299)
 

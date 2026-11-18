@@ -80,7 +80,7 @@ Chrome was not connected). The rows marked **verify** are what the code expects;
 | W-4 | The longest time recordings, captions and lead views may be kept | Steps 26, 30 |
 | W-5 | The email footer (postal address, unsubscribe) and consent wording | Steps 25, 29 |
 | W-6 | The words agencies send the carriers about how they text (campaign description, how people agree, sample texts), the referral consent (step 37) and the form consent (step 36) | Steps 36, 37, 39 |
-| W-7 | Which country the data is kept in, for the terms and privacy notice, and that deleted data leaves backups within 30 days (D298, D370) | Step 41 |
+| W-7 | Where the data is kept, for the terms and privacy notice: the European Union, currently France (Paris), perhaps Germany later; and that deleted data leaves backups within 30 days (D298, D370) | Step 41 |
 
 # Invitation steps 1 and 2
 
