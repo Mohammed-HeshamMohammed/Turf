@@ -125,6 +125,8 @@ func (s *server) handler() http.Handler {
 	mux.Handle("GET /api/v1/teams/{id}/settings", s.member(s.getTeamSettings))
 	mux.Handle("PUT /api/v1/teams/{id}/settings", s.member(s.putTeamSettings))
 	mux.Handle("GET /api/v1/teams/{id}/pool", s.member(s.teamPool))
+	mux.Handle("GET /api/v1/handon", s.member(s.waitingWork))
+	mux.Handle("POST /api/v1/handon/{user}", s.member(s.handOn))
 	mux.Handle("GET /api/v1/tags", s.member(s.listTags))
 	mux.Handle("POST /api/v1/tags", s.member(s.createTag))
 	mux.Handle("DELETE /api/v1/tags/{id}", s.member(s.deleteTag))
