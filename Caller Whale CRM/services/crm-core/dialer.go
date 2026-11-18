@@ -118,7 +118,8 @@ func (s *server) dialerLead(w http.ResponseWriter, r *http.Request, ask dialerAs
 	if project := asString(lead["project_id"]); project != "" {
 		_ = tx.QueryRow(ctx, `SELECT text_consent_at IS NOT NULL FROM projects WHERE id = $1`, project).Scan(&listConsent)
 	}
-	reply["list_consent"] = listConsent
+	// A website form the person agreed on, for this client's work, counts the same (step 36, D247).
+	reply["list_consent"] = listConsent || formConsent(ctx, tx, asString(lead["phone"]), asString(lead["client_id"]))
 	// The AI's call suggestions for this person on this lead's team, and whether captions must run (step 26, D148).
 	if suggest, captions, err := callAI(ctx, tx, sc.userID, asString(lead["team_id"])); err == nil {
 		reply["ai_suggestions"], reply["captions_required"] = suggest, captions

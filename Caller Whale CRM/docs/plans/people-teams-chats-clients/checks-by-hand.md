@@ -467,3 +467,13 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 |---|---|---|
 | H7 | In Firebase, turn on Microsoft (with an Azure app registration); open the sign-in page | "Continue with Microsoft" appears and signs you in; Profile can connect Microsoft. |
 | H8 | As a throwaway agency's owner, limit it to your country and your office network (`PUT /v1/orgs/{org}/security {countries, networks}`) | A member working from another network is refused with "only from its office networks"; you, the owner, are not. |
+
+# Step 36: website forms (after crm-core and the gateway are redeployed, with EMAIL_PUBLIC_URL set)
+
+| # | Do | Expect |
+|---|---|---|
+| Y1 | As a throwaway agency's owner, make a form for a client and a team (`POST /api/v1/forms`) | You get its address and an embed snippet. |
+| Y2 | Open the address on a phone; send it with the consent ticked | "Thank you"; a new unassigned lead of that client waits in that team, with the property and message as a note. |
+| Y3 | Put the embed snippet on a page of a site you listed, then on another site | It shows on the listed site and is refused on the other. |
+| Y4 | Send it with a number on the agency's block list | The lead comes in as do-not-call, and the form's submissions show it as blocked. |
+| Y5 | Text the lead who ticked consent (through the dialer) | Allowed for that client; the same number under another client is not. |

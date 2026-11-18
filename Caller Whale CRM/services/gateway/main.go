@@ -197,6 +197,9 @@ func classify(method, path string) need {
 	case method == http.MethodPost && path == "/api/v1/billing/webhook": // the payment provider's signature is checked by the core API
 		return open
 	// Email to leads (step 29): a lead clicking a link or unsubscribing, and SNS delivering replies (its signature is checked by the CRM).
+	// Website forms (step 36): anyone may open and send one; the CRM limits sends per address and turns robots away.
+	case (method == http.MethodGet || method == http.MethodPost) && strings.HasPrefix(path, "/api/v1/public/forms/"):
+		return open
 	case (method == http.MethodGet || method == http.MethodPost) && strings.HasPrefix(path, "/api/v1/public/email/"):
 		return open
 	// Keys for outside tools (step 33): the CRM checks the key (cwk_...) itself; the per-address limit still applies.
