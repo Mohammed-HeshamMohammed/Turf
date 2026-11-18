@@ -101,6 +101,8 @@ func (s *server) searchLeads(q *req) error {
 			return err
 		}
 	}
+	// Paging through leads counts toward unusual access (D164): a page of 20 counts as one lead opened.
+	s.noteAccess(q, "", (len(leads)+19)/20)
 	body["leads"] = leads
 	writeJSON(q.w, http.StatusOK, body)
 	return nil
@@ -138,11 +140,15 @@ func (s *server) leadDetails(q *req) error {
 			return err
 		}
 	}
+	// Who opened which lead (step 30, D165), and far more than usual (D164).
+	if len(lead) > 0 {
+		s.noteAccess(q, id, 1)
+	}
 	body["leads"] = lead
 	for name, sql := range map[string]string{
 		"tasks":    taskVisible + ` AND t.lead_id = $1`,
 		"notes":    `SELECT to_jsonb(n) FROM notes n WHERE n.lead_id = $1 AND (NOT cw_external() OR n.visibility = 'shared')`,
-		"calls":    `SELECT to_jsonb(c) FROM call_events c WHERE c.lead_id = $1 AND (NOT cw_external() OR c.shared_with_client)`,
+		"calls":    `SELECT to_jsonb(c) || jsonb_build_object('phone', cw_call_phone(c.phone, c.lead_id)) FROM call_events c WHERE c.lead_id = $1 AND (NOT cw_external() OR c.shared_with_client)`,
 		"handoffs": `SELECT to_jsonb(h) FROM handoffs h WHERE h.lead_id = $1 AND NOT cw_external()`,
 		// Co-owners: other leads at the same property under another name, each kept as its own lead (linkCoOwners).
 		"related": `SELECT jsonb_build_object('id', b.id, 'name', b.name, 'kind', k.kind) FROM lead_links k JOIN leads b ON b.id = k.related_id

@@ -246,6 +246,9 @@ type scope struct {
 	caps                 []string
 	secondStep           bool
 	managed, deputyOf    []string // the teams they lead and deputise (the dialer's lead threads, step 10)
+	// Step 30: whether lead numbers are masked for this person, and their teams whose numbers the owner shows in full (D163).
+	maskPhones bool
+	fullTeams  []string
 }
 
 // visibleTeams is the teams whose leads the "team" scope shows; a scope built without them (an older queued run) uses its teams.

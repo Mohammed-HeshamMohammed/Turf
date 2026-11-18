@@ -412,6 +412,15 @@ func redactLead(lead map[string]any, sc scope) map[string]any {
 		delete(lead, "value_amount")
 		delete(lead, "value_currency")
 	}
+	// Masked numbers for agents (step 30, D163): the dialer still dials the real one, which only the CRM gives it.
+	if masksFor(sc, asString(lead["team_id"])) {
+		if p, ok := lead["phone"].(string); ok && p != "" {
+			lead["phone"] = maskPhone(p)
+		}
+		if c, ok := lead["contacts"]; ok {
+			lead["contacts"] = maskNumbers(c)
+		}
+	}
 	if sc.external() {
 		for _, f := range []string{"qualification", "verdict", "source", "priority", "do_not_call", "team_id", "project_id", "contact_id"} {
 			delete(lead, f)
@@ -662,6 +671,9 @@ func (r *run) leadUpdate(p map[string]any) (any, error) {
 	}
 	if !canEditLead(r.sc, before) {
 		return nil, reject("You can only edit leads assigned to you")
+	}
+	if _, ok := changes["phone"]; ok && masksFor(r.sc, asString(before["team_id"])) {
+		return nil, reject("You see this lead's number masked, so you cannot change it")
 	}
 	if changes["do_not_call"] == false && before["do_not_call"] == true && !r.sc.can("assign") {
 		return nil, reject("Only a manager can lift a do-not-call")
@@ -1035,7 +1047,7 @@ func (r *run) callRecord(p map[string]any) (any, error) {
 		scheduled = &t
 	}
 	phone := str(p, "phone")
-	if phone == "" {
+	if len(nonDigits.ReplaceAllString(phone, "")) < 7 { // none, or the masked number an agent's device shows (step 30)
 		phone = asString(before["phone"])
 	}
 	// The carrier's facts about a call (record id, durations, recording) come only from the dialer service.
