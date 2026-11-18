@@ -156,6 +156,7 @@ func (s *server) handler() http.Handler {
 	s.bookingRoutes(mux)
 	s.googleRoutes(mux)
 	s.emailRoutes(mux)
+	s.protectRoutes(mux)
 	mux.Handle("PUT /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
 	mux.Handle("DELETE /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
 	mux.Handle("PUT /api/v1/clients/{id}/teams/{other}", s.member(s.clientLink("teams")))
@@ -289,6 +290,13 @@ func (s *server) enter(ctx context.Context, q *req, org string) error {
 	}
 	if len(peek) > 0 {
 		q.sc.peekTeams, q.rev = peek, accessRevision(g, peek...)
+	}
+	// Agents see lead numbers masked unless the owner shows their team full numbers (step 30, D163).
+	if !seesFullNumbers(q.sc, g) {
+		q.sc.maskPhones = true
+		if q.sc.fullTeams, err = s.fullNumberTeams(ctx, q.sc); err != nil {
+			return err
+		}
 	}
 	s.remember(ctx, q.c, org)
 	return nil

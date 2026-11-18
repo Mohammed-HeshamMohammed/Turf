@@ -360,9 +360,14 @@ func (s *store) begin(ctx context.Context, sc scope) (pgx.Tx, error) {
 	if err != nil {
 		return nil, err
 	}
+	mask := "off"
+	if sc.maskPhones {
+		mask = "on"
+	}
 	_, err = tx.Exec(ctx, `SELECT set_config('cw.org_id', $1, true), set_config('cw.user_id', $2, true), set_config('cw.scopes', $3, true),
-		set_config('cw.team_ids', $4, true), set_config('cw.project_ids', $5, true), set_config('cw.peek_team_ids', $6, true)`,
-		sc.orgID, sc.userID, strings.Join(sc.scopes, ","), uuidArray(sc.visibleTeams()), uuidArray(sc.projectIDs), uuidArray(sc.peekTeams))
+		set_config('cw.team_ids', $4, true), set_config('cw.project_ids', $5, true), set_config('cw.peek_team_ids', $6, true),
+		set_config('cw.mask_phones', $7, true), set_config('cw.full_team_ids', $8, true)`,
+		sc.orgID, sc.userID, strings.Join(sc.scopes, ","), uuidArray(sc.visibleTeams()), uuidArray(sc.projectIDs), uuidArray(sc.peekTeams), mask, uuidArray(sc.fullTeams))
 	if err != nil {
 		tx.Rollback(ctx)
 		return nil, err

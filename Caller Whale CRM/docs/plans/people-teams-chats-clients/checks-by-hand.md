@@ -325,3 +325,13 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | E3 | As a caller who works a lead with your own test address, send an email with a link | It arrives from team@yourdomain, ends with the agency's address and an unsubscribe link; the link opens the page and the click shows on the lead. |
 | E4 | Reply to it from your test mailbox | The reply shows on the lead without the quoted email; after 15 minutes unanswered, the team's lead gets a task. |
 | E5 | Open the unsubscribe link and press Unsubscribe | Sending to that address is refused for the agency. |
+
+# Step 30: protecting leads
+
+| # | Do | Expect |
+|---|---|---|
+| L1 | As an agent in a throwaway agency, open a lead | Its number shows as "••• 1234", in its calls too; calling through the dialer still reaches the real number. |
+| L2 | As the agent, try to change that number | Refused: you see it masked. |
+| L3 | As the owner, show the agent's team full numbers; reload as the agent | The full number shows. |
+| L4 | As a team lead, export your team's leads; then as the owner allow it and try again; then try the whole agency | Refused, then a CSV of your team's leads, then refused. The owner sees each export in the record. |
+| L5 | As the owner, open the agent's "what they looked at" and a lead's "who opened it" | The leads they opened with times, and their exports. |
