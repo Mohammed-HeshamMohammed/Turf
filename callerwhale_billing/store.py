@@ -55,6 +55,14 @@ class Refused(Exception):
         self.status, self.code, self.message = status, code, message
 
 
+def _uuid_or_none(value) -> str | None:
+    """A person's id from the provider's custom data, or None when it is missing or not an id."""
+    try:
+        return str(UUID(str(value))) if value else None
+    except ValueError:
+        return None
+
+
 def add_months(moment: datetime, months: int) -> datetime:
     """The same day and time `months` calendar months later (the last day of the month when that day does not exist there)."""
     index = moment.month - 1 + months
@@ -153,7 +161,7 @@ class Store:
     def standing(self, org_id: UUID, now: datetime) -> dict:
         with self.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
-                "SELECT s.plan_key, s.status, s.period_start, s.period_end, p.seats, p.monthly_minutes FROM billing.subscriptions s "
+                "SELECT s.plan_key, s.status, s.period_start, s.period_end, s.provider, s.payer_id, p.seats, p.monthly_minutes FROM billing.subscriptions s "
                 "JOIN billing.plans p ON p.key = s.plan_key WHERE s.org_id = %s",
                 (org_id,),
             )
@@ -171,6 +179,9 @@ class Store:
             "org_id": str(org_id), "plan": sub["plan_key"], "status": sub["status"], "period_end": sub["period_end"].isoformat(),
             "seats": limits["seats"], "minutes_allowed": limits["monthly_minutes"], "minutes_used": used, "limited": True, "payment_required": unpaid,
             "limits": limits,
+            # Paid through the payment provider, and by whom: a handover of ownership waits for the new owner to pay (step 13, D70).
+            "provider_paid": sub["provider"] is not None and sub["status"] not in ("canceled",),
+            "payer_id": str(sub["payer_id"]) if sub["payer_id"] else None,
         }
 
     def reserve(self, kind: str, account_id: UUID, amount: int, request_id: UUID, detail: str, now: datetime) -> Reservation:
@@ -323,6 +334,7 @@ class Store:
 
     def _apply(self, conn, provider: str, event_type: str, data: dict) -> str | None:
         org = (data.get("custom_data") or {}).get("org_id")
+        payer = _uuid_or_none((data.get("custom_data") or {}).get("payer_id"))
         if event_type.startswith("subscription."):
             status = STATUSES.get(str(data.get("status")))
             period = data.get("current_billing_period") or {}
@@ -339,16 +351,17 @@ class Store:
             if not starts or not ends:
                 # A canceled or paused subscription can have no current period: keep the old one and change the status only.
                 conn.execute(
-                    "UPDATE billing.subscriptions SET status = %s, provider = %s, provider_subscription_id = %s, updated_at = now() WHERE org_id = %s",
-                    (status, provider, data.get("id"), org),
+                    "UPDATE billing.subscriptions SET status = %s, provider = %s, provider_subscription_id = %s, payer_id = coalesce(%s, payer_id), "
+                    "updated_at = now() WHERE org_id = %s",
+                    (status, provider, data.get("id"), payer, org),
                 )
                 return org
             conn.execute(
-                "INSERT INTO billing.subscriptions (org_id, plan_key, status, period_start, period_end, provider, provider_subscription_id) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (org_id) DO UPDATE SET plan_key = excluded.plan_key, status = excluded.status, "
+                "INSERT INTO billing.subscriptions (org_id, plan_key, status, period_start, period_end, provider, provider_subscription_id, payer_id) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (org_id) DO UPDATE SET plan_key = excluded.plan_key, status = excluded.status, "
                 "period_start = excluded.period_start, period_end = excluded.period_end, provider = excluded.provider, "
-                "provider_subscription_id = excluded.provider_subscription_id, updated_at = now()",
-                (org, plan[0], status, starts, ends, provider, data.get("id")),
+                "provider_subscription_id = excluded.provider_subscription_id, payer_id = coalesce(excluded.payer_id, billing.subscriptions.payer_id), updated_at = now()",
+                (org, plan[0], status, starts, ends, provider, data.get("id"), payer),
             )
             return org
         if event_type == "transaction.completed":

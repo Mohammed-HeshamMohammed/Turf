@@ -5,7 +5,7 @@ import os
 import threading
 import unittest
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from callerwhale_billing import db
 from callerwhale_billing.store import Refused, Store
@@ -119,6 +119,21 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(self.store.record_webhook("paddle", event), (False, None))
         standing = self.store.standing(uuid4().__class__(org), NOW)
         self.assertEqual((standing["plan"], standing["status"], standing["payment_required"]), ("starter", "active", False))
+        self.assertEqual((standing["provider_paid"], standing["payer_id"]), (True, None))
+
+    def test_the_payer_comes_from_the_checkout_and_stays_until_another_pays(self):
+        org, payer, new_owner = str(uuid4()), str(uuid4()), str(uuid4())
+        period = {"starts_at": "2026-11-01T00:00:00Z", "ends_at": "2026-12-01T00:00:00Z"}
+        def event(n, custom):
+            return {"event_id": f"evt_{n}_{org}", "event_type": "subscription.updated",
+                    "data": {"id": "sub_" + org, "status": "active", "custom_data": {"org_id": org, **custom}, "items": [{"price": {"id": "pri_starter"}}], "current_billing_period": period}}
+        self.store.record_webhook("paddle", event(1, {"payer_id": payer}))
+        self.store.record_webhook("paddle", event(2, {}))
+        self.assertEqual(self.store.standing(UUID(org), NOW)["payer_id"], payer, "an event that names no payer keeps the one there")
+        self.store.record_webhook("paddle", event(3, {"payer_id": new_owner}))
+        self.assertEqual(self.store.standing(UUID(org), NOW)["payer_id"], new_owner)
+        self.store.record_webhook("paddle", event(4, {"payer_id": "not-an-id"}))
+        self.assertEqual(self.store.standing(UUID(org), NOW)["payer_id"], new_owner)
 
 
 if __name__ == "__main__":
