@@ -48,6 +48,8 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/me/tag", serve(s.changeTag))
 	mux.Handle("GET /v1/me/agencies", serve(s.myAgencies))
 	mux.Handle("GET /v1/orgs/{org}/plan-stage", serve(s.planStage))
+	mux.Handle("GET /v1/orgs/{org}/seats", serve(s.seatUse))
+	mux.Handle("POST /v1/orgs/{org}/seats/keep", serve(s.keepSeats))
 	mux.Handle("POST /v1/orgs/{org}/close", serve(s.closeWorkspace(false)))
 	mux.Handle("POST /v1/orgs/{org}/reopen", serve(s.closeWorkspace(true)))
 	mux.Handle("POST /v1/orgs/{org}/handover", serve(s.offerOwnership))

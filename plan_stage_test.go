@@ -46,3 +46,31 @@ func TestPlanStageAndClosingAnAgency(t *testing.T) {
 		t.Fatalf("reopen: %d %v", a.status, a.body)
 	}
 }
+
+// Step 18: after the plan was lowered, the owner sees who uses a seat and keeps as many as there are seats; the others are suspended
+// (D81, D365).
+func TestChoosingWhoKeepsASeat(t *testing.T) {
+	w, fake, _ := lifecycleWorld(t)
+	boss := w.stepped("boss@example.com").access()
+	ann, ben := w.confirmed("ann@example.com").access(), w.confirmed("ben@example.com").access()
+	_ = ben
+	annID, benID := w.idOf("ann@example.com"), w.idOf("ben@example.com")
+	fake.mu.Lock()
+	fake.owner, fake.seats = w.idOf("boss@example.com"), 2
+	fake.joined[annID], fake.joined[benID] = true, true
+	fake.mu.Unlock()
+	use := w.call("GET", "/v1/orgs/"+flowOrg+"/seats", nil, boss)
+	if use.status != 200 || use.body["over"] != float64(1) || len(use.body["people"].([]any)) != 3 {
+		t.Fatalf("seats: %d %v", use.status, use.body)
+	}
+	if a := w.call("GET", "/v1/orgs/"+flowOrg+"/seats", nil, ann); a.status != 403 {
+		t.Fatalf("a caller sees the seats: %d", a.status)
+	}
+	if a := w.call("POST", "/v1/orgs/"+flowOrg+"/seats/keep", map[string]any{"keep": []string{annID, benID}}, boss); a.status != 400 {
+		t.Fatalf("keeping more than the seats: %d %v", a.status, a.body)
+	}
+	kept := w.call("POST", "/v1/orgs/"+flowOrg+"/seats/keep", map[string]any{"keep": []string{annID}}, boss)
+	if kept.status != 200 || len(kept.body["suspended"].([]any)) != 1 || kept.body["suspended"].([]any)[0] != benID {
+		t.Fatalf("keep: %d %v", kept.status, kept.body)
+	}
+}
