@@ -26,17 +26,17 @@ func limit(v int64) *int64 { return &v }
 // builtInPlans are the plans staff can give while no billing service is connected. Prices are monthly, in cents.
 var builtInPlans = []offeredPlan{
 	{Key: "trial", Name: "Free trial", Seats: 1, Minutes: 30, PriceMinor: 0, Currency: "USD",
-		Limits: map[string]*int64{"seats": limit(1), "clients": nil, "active_leads": limit(25000), "imports_monthly": limit(5), "monthly_minutes": limit(30), "skiptrace_credits": limit(25000)}},
+		Limits: map[string]*int64{"seats": limit(1), "clients": nil, "active_leads": limit(25000), "imports_monthly": limit(5), "monthly_minutes": limit(30), "skiptrace_credits": limit(25000), "file_storage_mb": limit(100)}},
 	{Key: "solo", Name: "Solo", Seats: 1, Minutes: 3000, PriceMinor: 17900, Currency: "USD",
-		Limits: map[string]*int64{"seats": limit(1), "clients": nil, "active_leads": limit(1000000), "imports_monthly": nil, "monthly_minutes": limit(3000), "skiptrace_credits": limit(1000000)}},
+		Limits: map[string]*int64{"seats": limit(1), "clients": nil, "active_leads": limit(1000000), "imports_monthly": nil, "monthly_minutes": limit(3000), "skiptrace_credits": limit(1000000), "file_storage_mb": limit(2048)}},
 	{Key: "duo", Name: "Duo", Seats: 2, Minutes: 6000, PriceMinor: 28800, Currency: "USD",
-		Limits: map[string]*int64{"seats": limit(2), "clients": nil, "active_leads": limit(2000000), "imports_monthly": nil, "monthly_minutes": limit(6000), "skiptrace_credits": limit(2000000)}},
+		Limits: map[string]*int64{"seats": limit(2), "clients": nil, "active_leads": limit(2000000), "imports_monthly": nil, "monthly_minutes": limit(6000), "skiptrace_credits": limit(2000000), "file_storage_mb": limit(4096)}},
 	{Key: "team", Name: "Team", Seats: 3, Minutes: 9000, PriceMinor: 43800, Currency: "USD",
-		Limits: map[string]*int64{"seats": limit(3), "clients": nil, "active_leads": limit(3000000), "imports_monthly": nil, "monthly_minutes": limit(9000), "skiptrace_credits": limit(3000000)}},
+		Limits: map[string]*int64{"seats": limit(3), "clients": nil, "active_leads": limit(3000000), "imports_monthly": nil, "monthly_minutes": limit(9000), "skiptrace_credits": limit(3000000), "file_storage_mb": limit(6144)}},
 	{Key: "pro", Name: "Pro", Seats: 3, Minutes: 24000, PriceMinor: 90000, Currency: "USD",
-		Limits: map[string]*int64{"seats": limit(3), "clients": nil, "active_leads": limit(7500000), "imports_monthly": nil, "monthly_minutes": limit(24000), "skiptrace_credits": limit(9000000)}},
+		Limits: map[string]*int64{"seats": limit(3), "clients": nil, "active_leads": limit(7500000), "imports_monthly": nil, "monthly_minutes": limit(24000), "skiptrace_credits": limit(9000000), "file_storage_mb": limit(15360)}},
 	{Key: "custom", Name: "Custom", Seats: 1, Minutes: 0, PriceMinor: 0, Currency: "USD",
-		Limits: map[string]*int64{"seats": limit(1), "clients": nil, "active_leads": limit(0), "imports_monthly": limit(0), "monthly_minutes": limit(0), "skiptrace_credits": limit(0)}},
+		Limits: map[string]*int64{"seats": limit(1), "clients": nil, "active_leads": limit(0), "imports_monthly": limit(0), "monthly_minutes": limit(0), "skiptrace_credits": limit(0), "file_storage_mb": limit(0)}},
 }
 
 func builtInPlan(key string) (offeredPlan, bool) {
