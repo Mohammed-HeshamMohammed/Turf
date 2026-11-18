@@ -32,7 +32,7 @@ signed webhooks say.
 | `GET /api/v1/plans` | anyone (through the gateway) | The plans on sale, prices as exact decimals |
 | `POST /api/v1/billing/webhook` | Paddle (through the gateway) | Checks `Paddle-Signature`, stores the event once by its id, applies subscription and payment events; a redelivery changes nothing |
 | `POST /v1/reservations` | core API | Takes call minutes (account = workspace) or desktop credits (account = person) from this period's allowance, once per `request_id`; `402 limit_reached` or `402 payment_required` when it cannot |
-| `GET /v1/orgs/{org}/standing` | core API, worker | Plan, status, period, seats, minutes used, and whether the plan needs paying |
+| `GET /v1/orgs/{org}/standing` | core API, worker, auth | Plan, status, period, seats, minutes used, whether the plan needs paying, and whether it is paid through the provider and by whom (`provider_paid`, `payer_id`, from the checkout's `custom_data.payer_id`; a handover of ownership waits for the new owner to pay) |
 | `PUT /v1/orgs/{org}/trial` | core API | Opens a trial for a new workspace (once) |
 | `PUT /v1/people/{user}/credit-limit` | core API | A person's monthly desktop credits, or no limit |
 | `GET /healthz`, `GET /version` | anyone | Health and version |

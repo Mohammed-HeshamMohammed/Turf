@@ -195,3 +195,15 @@ On callerwhale.com, Settings → Privacy. Use a throwaway account where a second
 | W4 | With two agencies: change something while offline, switch agency, then switch back online and return | The change waited and is sent when you are back in that agency. |
 | W5 | Remove the throwaway member while they have the CRM open | Within a minute their screen leaves your agency and says they no longer have access. |
 | W6 | Sync page → Reload everything | The records load again from the start; the line under the title says when they were last up to date. |
+
+# Step 13: handing over an agency
+
+Needs two-step sign-in on both accounts. Do it with a throwaway agency, not your real one.
+
+| # | Do | Expect |
+|---|---|---|
+| O1 | As a throwaway agency's owner, Dashboard → Hand over this agency: pick a member, "You become: An admin", Offer | "Offered. They have 7 days to accept." and the offer shows with Cancel. |
+| O2 | As that member, Dashboard → Agencies offered to you → Accept | "You now own …". The old owner is now an admin. Without two-step sign-in it asks for it first. |
+| O3 | Offer again and Cancel | "Cancelled. Nothing changed." The member no longer sees it. |
+| O4 | As staff, staff area → Access → Pause and hand on: pause the throwaway agency | Its members can open it but cannot call, import or invite. "End the pause" undoes it. |
+| O5 | As an admin of the paused agency, Memberships → Owner unreachable? | "Asked." Staff see the request, and Approve is refused until the agency has been paused for 14 days. |

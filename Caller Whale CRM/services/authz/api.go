@@ -52,6 +52,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/check", s.only("check", s.check))
 	mux.Handle("POST /v1/check-batch", s.only("check", s.checkBatch))
 	mux.Handle("PUT /v1/orgs/{org}/owner", s.only("open", s.open))
+	mux.Handle("PUT /v1/orgs/{org}/owner/handover", s.only("manage_members", s.handOver))
 	mux.Handle("GET /v1/orgs/{org}", s.only("read", s.workspaceAbout))
 	mux.Handle("PUT /v1/orgs/{org}/name", s.only("manage", s.nameWorkspace))
 	mux.Handle("PUT /v1/orgs/{org}/features/{name}", s.only("manage_staff", s.putFeature))
@@ -636,7 +637,7 @@ func (s *server) putStanding(w http.ResponseWriter, r *http.Request) error {
 	}
 	// Billing owns payment and the plan's seats; it may never lift (or set) a staff suspension.
 	if callerOf(r) == "billing" {
-		change.Suspended = nil
+		change.Suspended, change.Paused = nil, nil
 	}
 	if err := store(s.rules.setStanding(r.Context(), org, change)); err != nil {
 		return err

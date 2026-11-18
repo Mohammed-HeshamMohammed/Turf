@@ -610,6 +610,7 @@ func (s *server) checkRelation(w http.ResponseWriter, r *http.Request) error {
 type standingChange struct {
 	Suspended       *bool
 	PaymentRequired *bool
+	Paused          *bool // staff own it, like Suspended (step 13)
 	SeatsSet        bool
 	Seats           *int
 	ClientsSet      bool
@@ -630,6 +631,9 @@ func readStanding(raw map[string]json.RawMessage) (standingChange, error) {
 	}
 	if _, err := decode("payment_required", &c.PaymentRequired); err != nil {
 		return c, bad("payment_required is true or false.")
+	}
+	if _, err := decode("paused", &c.Paused); err != nil {
+		return c, bad("paused is true or false.")
 	}
 	var err error
 	if c.SeatsSet, err = decode("seats", &c.Seats); err != nil || (c.Seats != nil && *c.Seats < 1) {

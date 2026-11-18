@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"slices"
 	"testing"
@@ -237,8 +238,9 @@ func TestPostgresPeopleLog(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.close()
-	org := "13131313-1313-4313-8313-131313131313"
+	// Its own workspace each run, so a second copy of the test binary started alongside (some machines' scanners do) cannot mix in.
 	now := time.Now().Unix()
+	org := fmt.Sprintf("13131313-1313-4313-8313-%012d", time.Now().UnixNano()%1_000_000_000_000)
 	old := peopleEntry{At: now - 800*24*3600, ActorID: ownerID, TargetID: callerID, Action: "joined", TeamIDs: []string{team1}}
 	recent := peopleEntry{At: now, ActorID: ownerID, TargetID: callerID, Action: "suspended", TeamIDs: []string{team1}, Detail: map[string]any{"reason": "On leave"}}
 	if err := s.logPeople(ctx, org, old); err != nil {

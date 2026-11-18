@@ -80,6 +80,8 @@ func (p *postgres) setup(ctx context.Context) error {
 		// Each workspace's switches (D104), and the number of admins staff allow it (D179; null: the default).
 		`ALTER TABLE authz_workspaces ADD COLUMN IF NOT EXISTS features text[] NOT NULL DEFAULT '{}'`,
 		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS admins integer`,
+		// Paused (step 13, D27): the owner is gone; members read, nobody works, until Caller Whale hands the agency on.
+		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS paused boolean NOT NULL DEFAULT false`,
 		// The record of people changes (D58, D184): kept 2 years. team_ids are the teams the change touched, so a team's leads see
 		// their teams' part; the person changed sees their own.
 		`CREATE TABLE IF NOT EXISTS authz_people_log (id bigserial PRIMARY KEY, org_id text NOT NULL, at bigint NOT NULL, actor_id text NOT NULL, target_id text NOT NULL DEFAULT '', action text NOT NULL, detail jsonb NOT NULL DEFAULT '{}', team_ids text[] NOT NULL DEFAULT '{}')`,
@@ -190,14 +192,20 @@ func (p *postgres) openWorkspace(ctx context.Context, org, owner, ownerRole stri
 
 // setStanding changes only the fields the change carries.
 func (p *postgres) setStanding(ctx context.Context, org string, c standingChange) error {
-	_, err := p.db.Exec(ctx, `INSERT INTO authz_standing (org_id, suspended, payment_required, seats, clients)
-		VALUES ($1, coalesce($2, false), coalesce($3, false), $5, $7)
+	_, err := p.db.Exec(ctx, `INSERT INTO authz_standing (org_id, suspended, payment_required, seats, clients, paused)
+		VALUES ($1, coalesce($2, false), coalesce($3, false), $5, $7, coalesce($8, false))
 		ON CONFLICT (org_id) DO UPDATE SET
 			suspended = coalesce($2, authz_standing.suspended),
 			payment_required = coalesce($3, authz_standing.payment_required),
 			seats = CASE WHEN $4 THEN $5 ELSE authz_standing.seats END,
-			clients = CASE WHEN $6 THEN $7 ELSE authz_standing.clients END`,
-		org, c.Suspended, c.PaymentRequired, c.SeatsSet, c.Seats, c.ClientsSet, c.Clients)
+			clients = CASE WHEN $6 THEN $7 ELSE authz_standing.clients END,
+			paused = coalesce($8, authz_standing.paused)`,
+		org, c.Suspended, c.PaymentRequired, c.SeatsSet, c.Seats, c.ClientsSet, c.Clients, c.Paused)
+	return err
+}
+
+func (p *postgres) setOwner(ctx context.Context, org, owner string) error {
+	_, err := p.db.Exec(ctx, `UPDATE authz_workspaces SET owner_id=$2 WHERE org_id=$1`, org, owner)
 	return err
 }
 
@@ -428,7 +436,7 @@ func (p *postgres) facts(ctx context.Context, user, org string) (facts, error) {
 	}
 	defer tx.Rollback(ctx)
 	f := facts{capabilities: map[string]bool{}}
-	err = tx.QueryRow(ctx, `SELECT suspended,payment_required FROM authz_standing WHERE org_id=$1`, org).Scan(&f.suspended, &f.paymentRequired)
+	err = tx.QueryRow(ctx, `SELECT suspended,payment_required,paused FROM authz_standing WHERE org_id=$1`, org).Scan(&f.suspended, &f.paymentRequired, &f.paused)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return facts{}, err
 	}
