@@ -27,7 +27,12 @@ type leadInfo struct {
 	AssigneeID      string   `json:"assignee_id"`
 	TeamID          string   `json:"team_id"`
 	ClientID        string   `json:"client_id"`
-	WaitingApproval bool     `json:"waiting_approval"` // its list waits for the client's approval (step 23) // the lead's client, charged with its use (step 23)
+	WaitingApproval bool     `json:"waiting_approval"` // its list waits for the client's approval (step 23)
+	// The number's blocks (step 25): calls and texts each, with why; and whether its list carries the agency's consent to text (D355).
+	BlockedCalls bool   `json:"blocked_calls"`
+	BlockedTexts bool   `json:"blocked_texts"`
+	BlockReason  string `json:"block_reason"`
+	ListConsent  bool   `json:"list_consent"`
 	TeamLeads       []string `json:"team_leads"`
 	TeamDeputies    []string `json:"team_deputies"`
 	TeamAgents      []string `json:"team_agents"` // the team's other people, for an incoming call (step 21)
@@ -48,6 +53,8 @@ type crm interface {
 	findLead(ctx context.Context, org, user, phone string) (leadInfo, error)
 	recordCall(ctx context.Context, org, user, operationID string, payload map[string]any) (opAnswer, error)
 	addRecording(ctx context.Context, org, user, operationID string, payload map[string]any) (opAnswer, error)
+	// block puts a number on the agency's block list after the lead's own opt-out reply, or lifts that block on START (step 25).
+	block(ctx context.Context, org, user, phone, lead string, payload map[string]any) error
 }
 
 // errCRMRefused is crm-core saying no for a reason that will not change by asking again (the person or lead is out of reach).
@@ -110,6 +117,11 @@ func (c *crmClient) addRecording(ctx context.Context, org, user, id string, payl
 	var out opAnswer
 	err := c.post(ctx, "/internal/v1/dialer/recording", map[string]any{"org_id": org, "user_id": user, "operation_id": id, "payload": payload}, &out)
 	return out, err
+}
+
+func (c *crmClient) block(ctx context.Context, org, user, phone, lead string, payload map[string]any) error {
+	var out map[string]any
+	return c.post(ctx, "/internal/v1/dialer/block", map[string]any{"org_id": org, "user_id": user, "phone": phone, "lead_id": lead, "payload": payload}, &out)
 }
 
 var errNoCRM = errors.New("CRM_URL is not set")

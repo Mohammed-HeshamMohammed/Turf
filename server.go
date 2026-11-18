@@ -280,11 +280,26 @@ func (s *server) handler() http.Handler {
 		var ask struct {
 			LeadID string `json:"lead_id"`
 			Source string `json:"source"`
+			CallID string `json:"call_id"`
 		}
 		if err := readJSON(q.w, q.r, &ask); err != nil {
 			return err
 		}
-		err := s.textConsent(q.r.Context(), q.sc, ask.LeadID, ask.Source)
+		err := s.textConsent(q.r.Context(), q.sc, ask.LeadID, ask.Source, ask.CallID)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, map[string]any{"ok": true})
+		}
+		return err
+	}))
+	// The agent's choice on a reply that may be an opt-out (step 25, D208).
+	mux.Handle("POST /api/v1/sms/{id}/opt-out", s.member(func(q *req) error {
+		var ask struct {
+			OptOut bool `json:"opt_out"`
+		}
+		if err := readJSON(q.w, q.r, &ask); err != nil {
+			return err
+		}
+		err := s.chooseOptOut(q.r.Context(), q.sc, q.r.PathValue("id"), ask.OptOut)
 		if err == nil {
 			writeJSON(q.w, http.StatusOK, map[string]any{"ok": true})
 		}

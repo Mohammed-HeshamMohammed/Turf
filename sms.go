@@ -33,10 +33,13 @@ type smsRow struct {
 	UpdatedAt  time.Time  `db:"updated_at" json:"updated_at"`
 	SendAt     *time.Time `db:"send_at" json:"send_at"`   // a scheduled text's time (step 10)
 	BatchID    *string    `db:"batch_id" json:"batch_id"` // one message to many leads
+	// A reply read as an opt-out, or waiting for the agent's choice (step 25, D207, D208).
+	OptOutQuestion string     `db:"opt_out_question" json:"opt_out_question"`
+	OptOutBy       *string    `db:"opt_out_by" json:"opt_out_by"`
+	OptOutAt       *time.Time `db:"opt_out_at" json:"opt_out_at"`
 }
 
 var (
-	stopWords  = []string{"stop", "stopall", "unsubscribe", "cancel", "end", "quit", "revoke", "optout", "opt out", "opt-out"}
 	startWords = []string{"start", "unstop", "yes", "subscribe"}
 )
 
@@ -120,8 +123,12 @@ func (s *server) mayText(ctx context.Context, sc scope, ask textAsk, anySender b
 			return "", lead, err
 		}
 	}
-	if lead.DoNotCall {
-		return "", lead, conflictErr("This lead is do-not-call; they cannot be texted.")
+	if lead.BlockedTexts {
+		why := lead.BlockReason
+		if why == "" {
+			why = "This number is blocked for texts."
+		}
+		return "", lead, conflictErr(why)
 	}
 	if lead.WaitingApproval {
 		return "", lead, conflictErr("This list is waiting for its client's approval.")
@@ -130,20 +137,31 @@ func (s *server) mayText(ctx context.Context, sc scope, ask textAsk, anySender b
 	if to == "" {
 		return "", lead, conflictErr("The lead's phone number cannot receive texts.")
 	}
+	// Consent belongs to the agency, the lead's client and the number (D353, D366): the lead's own reply, a form, the agent marking it
+	// on a call, or the agency confirming it for the lead's list. Without contact for 6 months it is confirmed again on a call (D358).
 	var why string
 	err = s.st.db.QueryRow(ctx, `SELECT CASE
 			WHEN EXISTS (SELECT 1 FROM sms_opt_outs WHERE org_id = $1 AND phone_number = $2) THEN 'stop'
-			WHEN EXISTS (SELECT 1 FROM sms_messages WHERE org_id = $1 AND from_number = $2 AND direction = 'incoming') THEN ''
-			WHEN EXISTS (SELECT 1 FROM sms_consents WHERE org_id = $1 AND phone_number = $2) THEN ''
-			ELSE 'no_conversation' END`, sc.orgID, to).Scan(&why)
+			WHEN EXISTS (SELECT 1 FROM sms_messages WHERE org_id = $1 AND lead_id = $3 AND direction = 'incoming' AND opt_out_question = 'waiting') THEN 'choose'
+			WHEN NOT ($5 OR EXISTS (SELECT 1 FROM sms_messages WHERE org_id = $1 AND from_number = $2 AND lead_id = $3 AND direction = 'incoming')
+				OR EXISTS (SELECT 1 FROM sms_consents WHERE org_id = $1 AND client_key = $4 AND phone_number = $2)) THEN 'no_conversation'
+			WHEN greatest(
+				(SELECT max(created_at) FROM sms_messages WHERE org_id = $1 AND (from_number = $2 OR to_number = $2) AND status <> 'failed'),
+				(SELECT max(at) FROM sms_consents WHERE org_id = $1 AND client_key = $4 AND phone_number = $2),
+				(SELECT max(answered_at) FROM calls WHERE org_id = $1 AND (from_number = $2 OR to_number = $2))) < now() - interval '180 days' THEN 'stale'
+			ELSE '' END`, sc.orgID, to, ask.LeadID, lead.ClientID, lead.ListConsent).Scan(&why)
 	if err != nil {
 		return "", lead, err
 	}
 	switch why {
 	case "stop":
-		return "", lead, conflictErr("This number replied STOP. It cannot be texted until it sends START.")
+		return "", lead, conflictErr("This number opted out of texts. It cannot be texted until it sends START.")
+	case "choose":
+		return "", lead, conflictErr("The lead's last reply may be an opt-out: choose \"opt-out\" or \"not an opt-out\" first.")
 	case "no_conversation":
-		return "", lead, conflictErr("Texting is for conversations: the lead must text first, or have agreed to texts on a form or a call.")
+		return "", lead, conflictErr("Texting needs consent: the lead texted first, agreed on a form or a call, or the agency confirmed it for this list.")
+	case "stale":
+		return "", lead, conflictErr("No contact with this number for 6 months: confirm on a call that they still agree to texts first.")
 	}
 	return to, lead, nil
 }
@@ -304,11 +322,21 @@ func (s *server) textReceived(ctx context.Context, ev event, raw []byte) error {
 		id, org, user, from, to, text, ev.str("id"), s.route()); err != nil || tag.RowsAffected() == 0 {
 		return err
 	}
-	word := strings.ToLower(strings.Trim(strings.TrimSpace(text), ".!"))
+	// An opt-out reply blocks at once; a reply that only mentions one waits for the agent's choice (step 25, D207, D208).
+	word := plainWords(text)
+	reading := readOptOut(text)
+	started := slices.Contains(startWords, word)
 	switch {
-	case slices.Contains(stopWords, word):
-		_, err = tx.Exec(ctx, `INSERT INTO sms_opt_outs (org_id, phone_number, keyword) VALUES ($1, $2, $3) ON CONFLICT (org_id, phone_number) DO UPDATE SET keyword = EXCLUDED.keyword, at = now()`, org, from, word)
-	case slices.Contains(startWords, word):
+	case reading.clear:
+		if reading.texts {
+			_, err = tx.Exec(ctx, `INSERT INTO sms_opt_outs (org_id, phone_number, keyword) VALUES ($1, $2, $3) ON CONFLICT (org_id, phone_number) DO UPDATE SET keyword = EXCLUDED.keyword, at = now()`, org, from, word)
+		}
+		if err == nil {
+			_, err = tx.Exec(ctx, `UPDATE sms_messages SET opt_out_question = 'opt_out', opt_out_at = now() WHERE id = $1`, id)
+		}
+	case reading.unclear:
+		_, err = tx.Exec(ctx, `UPDATE sms_messages SET opt_out_question = 'waiting' WHERE id = $1`, id)
+	case started:
 		_, err = tx.Exec(ctx, `DELETE FROM sms_opt_outs WHERE org_id = $1 AND phone_number = $2`, org, from)
 	}
 	if err != nil {
@@ -318,11 +346,27 @@ func (s *server) textReceived(ctx context.Context, ev event, raw []byte) error {
 		return err
 	}
 	// Which lead wrote: the thread is theirs. Done after the text is safe, so a CRM outage loses nothing.
-	if lead, err := s.crm.findLead(ctx, org, user, from); err == nil && lead.Found {
+	lead, err := s.crm.findLead(ctx, org, user, from)
+	// The agency's block list in the CRM: an opt-out blocks the number there (calls too when asked), START lifts what a reply made.
+	switch {
+	case reading.clear:
+		leadID := ""
+		if err == nil && lead.Found {
+			leadID = lead.LeadID
+		}
+		if berr := s.crm.block(ctx, org, user, from, leadID, map[string]any{"calls": reading.calls, "texts": reading.texts, "note": "Replied: " + truncate(text, 200)}); berr != nil {
+			log.Printf("WARN the CRM did not take an opt-out from %s: %v", maskNumber(from), berr)
+		}
+	case started:
+		if berr := s.crm.block(ctx, org, user, from, "", map[string]any{"lift": true}); berr != nil {
+			log.Printf("WARN the CRM did not take START from %s: %v", maskNumber(from), berr)
+		}
+	}
+	if err == nil && lead.Found {
 		_, _ = s.st.db.Exec(ctx, `UPDATE sms_messages SET lead_id = $2, updated_at = now() WHERE id = $1`, id, lead.LeadID)
 		_, _ = s.st.db.Exec(ctx, `UPDATE sms_messages SET lead_id = $3 WHERE org_id = $1 AND to_number = $2 AND lead_id IS NULL`, org, from, lead.LeadID)
 		// The text now waits for an answer: too long, and the team's leads are told (step 10, D21).
-		if !slices.Contains(stopWords, word) {
+		if !reading.clear {
 			// Who works the lead and leads its team, so the right people are told if it waits (asked as the number's owner).
 			if _, _, err := s.leadThread(ctx, scope{userID: user, orgID: org}, lead.LeadID); err != nil {
 				log.Printf("WARN the thread of lead %s: %v", lead.LeadID, err)
@@ -354,7 +398,7 @@ func (s *server) textThread(ctx context.Context, sc scope, lead string) ([]smsRo
 	return pgx.CollectRows(rows, pgx.RowToStructByName[smsRow])
 }
 
-func (s *server) textConsent(ctx context.Context, sc scope, lead, source string) error {
+func (s *server) textConsent(ctx context.Context, sc scope, lead, source, call string) error {
 	if source != "form" && source != "call" {
 		return bad("source is form or call.")
 	}
@@ -370,8 +414,17 @@ func (s *server) textConsent(ctx context.Context, sc scope, lead, source string)
 	if phone == "" {
 		return conflictErr("The lead has no number that can receive texts.")
 	}
-	_, err = s.st.db.Exec(ctx, `INSERT INTO sms_consents (org_id, phone_number, source, user_id) VALUES ($1, $2, $3, $4)
-		ON CONFLICT (org_id, phone_number) DO UPDATE SET source = EXCLUDED.source, user_id = EXCLUDED.user_id, at = now()`, sc.orgID, phone, source, sc.userID)
+	if info.BlockedTexts {
+		return conflictErr("This number opted out of texts; consent cannot be marked over it.")
+	}
+	// The consent is for the lead's client only (D366), with the call it was given on when there is one (D354).
+	var callID any
+	if validID(call) {
+		callID = call
+	}
+	_, err = s.st.db.Exec(ctx, `INSERT INTO sms_consents (org_id, client_key, phone_number, source, user_id, call_id) VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (org_id, client_key, phone_number) DO UPDATE SET source = EXCLUDED.source, user_id = EXCLUDED.user_id, call_id = EXCLUDED.call_id, at = now()`,
+		sc.orgID, info.ClientID, phone, source, sc.userID, callID)
 	return err
 }
 
