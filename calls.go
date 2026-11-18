@@ -135,7 +135,11 @@ func (s *server) placeCall(ctx context.Context, sc scope, ask dialAsk) (*callRow
 	if to == "" {
 		return nil, conflictErr("The lead's phone number is not a number that can be dialled.")
 	}
-	from, err := s.callerID(ctx, sc, ask.From, "calls")
+	// Only inside the hours leads may be called (step 21, D151), from the number the lead knows or their team's (D116, D117).
+	if err := s.mayContactNow(ctx, sc.orgID); err != nil {
+		return nil, err
+	}
+	from, err := s.numberFor(ctx, sc, lead, ask.From, "calls")
 	if err != nil {
 		return nil, err
 	}
@@ -366,10 +370,17 @@ func (s *server) react(ctx context.Context, ev event, c *callRow) {
 	case ev.EventType == "call.answered" && leg == "" && live && c.Record:
 		do("record_start", map[string]any{"format": "mp3", "channels": "single"})
 	case ev.EventType == "call.answered" && leg == "" && live && c.Direction == "incoming":
-		// Ring the number's owner in the browser, when they have a calling login.
+		// Ring the lead's agent, else the team's available agents, then its leads (step 21, D150); nobody available: the caller leaves
+		// a voicemail, recorded on the lead.
+		target, err := s.inboundTarget(ctx, c.OrgID, c.UserID, c.FromNumber)
 		var username string
-		if err := s.st.db.QueryRow(ctx, `SELECT sip_username FROM agent_credentials WHERE user_id = $1`, c.UserID).Scan(&username); err == nil && username != "" {
+		if err == nil && target != "" {
+			_ = s.st.db.QueryRow(ctx, `SELECT sip_username FROM agent_credentials WHERE user_id = $1`, target).Scan(&username)
+		}
+		if username != "" {
 			do("transfer", map[string]any{"to": "sip:" + username + "@sip.telnyx.com", "client_state": base64.StdEncoding.EncodeToString([]byte(c.ID + ":agent"))})
+		} else {
+			do("record_start", map[string]any{"format": "mp3", "channels": "single"})
 		}
 	case strings.HasSuffix(ev.EventType, "detection.ended") && live && c.AMDResult == "machine" && c.VoicemailDropURL == "":
 		do("hangup", nil) // the auto dialer skips machines

@@ -273,14 +273,44 @@ func (s *server) handler() http.Handler {
 	}))
 	mux.Handle("PUT /api/v1/sms/settings", s.member(func(q *req) error {
 		var body struct {
-			WaitMinutes int `json:"wait_minutes"`
+			WaitMinutes  int `json:"wait_minutes"`
+			ContactFrom  int `json:"contact_from"` // hours leads may be called and texted, inside 8 to 21 (step 21)
+			ContactUntil int `json:"contact_until"`
 		}
 		if err := readJSON(q.w, q.r, &body); err != nil {
 			return err
 		}
-		err := s.putTextSettings(q.r.Context(), q.sc, body.WaitMinutes)
+		var err error
+		if body.WaitMinutes != 0 {
+			err = s.putTextSettings(q.r.Context(), q.sc, body.WaitMinutes)
+		}
+		if err == nil && (body.ContactFrom != 0 || body.ContactUntil != 0) {
+			err = s.putContactHours(q.r.Context(), q.sc, body.ContactFrom, body.ContactUntil)
+		}
 		if err == nil {
-			writeJSON(q.w, http.StatusOK, map[string]any{"wait_minutes": body.WaitMinutes})
+			writeJSON(q.w, http.StatusOK, body)
+		}
+		return err
+	}))
+
+	// Agents' status (step 21, D152).
+	mux.Handle("PUT /api/v1/status", s.member(func(q *req) error {
+		var body struct {
+			Status string `json:"status"`
+		}
+		if err := readJSON(q.w, q.r, &body); err != nil {
+			return err
+		}
+		err := s.setStatus(q.r.Context(), q.sc, body.Status)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, map[string]any{"status": body.Status})
+		}
+		return err
+	}))
+	mux.Handle("GET /api/v1/status", s.member(func(q *req) error {
+		list, err := s.teamStatus(q.r.Context(), q.sc)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, map[string]any{"people": list})
 		}
 		return err
 	}))
@@ -416,6 +446,9 @@ func (s *server) putNumber(q *req) error {
 		UserID string `json:"user_id"`
 		Calls  *bool  `json:"calls"`
 		Texts  *bool  `json:"texts"`
+		// A team's number, or the agency's default for teams without one (step 21, D116).
+		TeamID  string `json:"team_id"`
+		Default bool   `json:"default"`
 	}
 	if err := readJSON(q.w, q.r, &ask); err != nil {
 		return err
@@ -431,16 +464,26 @@ func (s *server) putNumber(q *req) error {
 		return bad("That person is not in this workspace.")
 	}
 	calls, texts := ask.Calls == nil || *ask.Calls, ask.Texts == nil || *ask.Texts
-	tag, err := s.st.db.Exec(q.r.Context(), `INSERT INTO numbers (phone_number, org_id, user_id, calls, texts) VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (phone_number) DO UPDATE SET user_id = EXCLUDED.user_id, calls = EXCLUDED.calls, texts = EXCLUDED.texts WHERE numbers.org_id = EXCLUDED.org_id`,
-		phone, q.sc.orgID, ask.UserID, calls, texts)
+	if ask.TeamID != "" && !validID(ask.TeamID) {
+		return bad("Choose a team.")
+	}
+	ctx := q.r.Context()
+	if ask.Default {
+		if _, err := s.st.db.Exec(ctx, `UPDATE numbers SET is_default = false WHERE org_id = $1 AND phone_number <> $2`, q.sc.orgID, phone); err != nil {
+			return err
+		}
+	}
+	tag, err := s.st.db.Exec(ctx, `INSERT INTO numbers (phone_number, org_id, user_id, calls, texts, team_id, is_default) VALUES ($1, $2, $3, $4, $5, nullif($6, '')::uuid, $7)
+		ON CONFLICT (phone_number) DO UPDATE SET user_id = EXCLUDED.user_id, calls = EXCLUDED.calls, texts = EXCLUDED.texts, team_id = EXCLUDED.team_id, is_default = EXCLUDED.is_default
+		WHERE numbers.org_id = EXCLUDED.org_id`,
+		phone, q.sc.orgID, ask.UserID, calls, texts, ask.TeamID, ask.Default)
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
 		return conflictErr("That number belongs to another workspace.")
 	}
-	writeJSON(q.w, http.StatusOK, map[string]any{"phone_number": phone, "user_id": ask.UserID, "calls": calls, "texts": texts})
+	writeJSON(q.w, http.StatusOK, map[string]any{"phone_number": phone, "user_id": ask.UserID, "calls": calls, "texts": texts, "team_id": ask.TeamID, "default": ask.Default})
 	return nil
 }
 

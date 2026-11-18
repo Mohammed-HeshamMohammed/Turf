@@ -28,6 +28,7 @@ type leadInfo struct {
 	TeamID       string   `json:"team_id"`
 	TeamLeads    []string `json:"team_leads"`
 	TeamDeputies []string `json:"team_deputies"`
+	TeamAgents   []string `json:"team_agents"` // the team's other people, for an incoming call (step 21)
 	Rank         string   `json:"rank"`
 	ErrMessage   string   `json:"-"`
 }

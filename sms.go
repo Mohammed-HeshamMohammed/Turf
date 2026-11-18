@@ -54,11 +54,15 @@ func (s *server) sendText(ctx context.Context, sc scope, ask textAsk) (*smsRow, 
 	if ask.SendAt != nil {
 		return s.scheduleText(ctx, sc, ask, *ask.SendAt, "", false)
 	}
-	to, _, err := s.mayText(ctx, sc, ask, false)
+	to, lead, err := s.mayText(ctx, sc, ask, false)
 	if err != nil {
 		return nil, err
 	}
-	from, err := s.callerID(ctx, sc, ask.From, "texts")
+	// Only inside the hours leads may be texted (step 21, D151); later ones can be scheduled.
+	if err := s.mayContactNow(ctx, sc.orgID); err != nil {
+		return nil, err
+	}
+	from, err := s.numberFor(ctx, sc, lead, ask.From, "texts")
 	if err != nil {
 		return nil, err
 	}
