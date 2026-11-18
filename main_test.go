@@ -467,6 +467,7 @@ func TestClassifyListsWhatEachPathNeeds(t *testing.T) {
 		{"GET", "/api/v1/platform/staff", staff}, {"GET", "/api/v1/platform", staff},
 		{"GET", "/api/v1/platformx", signedIn},
 		{"POST", "/api/v1/public/waitlist", open}, {"POST", "/api/v1/public/contact", open},
+		{"GET", "/api/v1/public/email/l/x", open}, {"POST", "/api/v1/public/email/inbound", open}, {"DELETE", "/api/v1/public/email/u/x", signedIn},
 		{"GET", "/api/v1/google/callback", open}, {"POST", "/api/v1/google/callback", signedIn}, {"GET", "/api/v1/google/other", signedIn},
 		{"GET", "/api/v1/public/waitlist", signedIn}, {"POST", "/api/v1/public/other", signedIn}, {"GET", "/api/v1/platform/waitlist", staff},
 		// Another spelling of a guarded path is still guarded.
