@@ -72,7 +72,7 @@ def claim(conn: psycopg.Connection, name: str = WORKER) -> dict | None:
                 WHERE NOT cancel_requested
                   AND (status = 'queued' OR (status IN ('loading', 'cleaning') AND (heartbeat_at IS NULL OR heartbeat_at < now() - {STALE})))
                 ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
-            RETURNING id::text, org_id::text, user_id::text, filename, size, total_chunks, has_header, status, loaded_rows, report, columns, kind, source_timezone, for_skip_tracing""", (name,))
+            RETURNING id::text, org_id::text, user_id::text, client_id::text, filename, size, total_chunks, has_header, status, loaded_rows, report, columns, kind, source_timezone, for_skip_tracing""", (name,))
         job = cur.fetchone()
     conn.commit()
     return job
@@ -881,14 +881,15 @@ def say(conn: psycopg.Connection, job_id: str, step: str, done: int, total: int,
     conn.commit()
 
 
-def build_lead_keys(cur: psycopg.Cursor, org: str) -> None:
-    """The keys of the leads already in the account, in a small temporary table with indexes (one per connection)."""
+def build_lead_keys(cur: psycopg.Cursor, org: str, client: str | None = None) -> None:
+    """The keys of the leads already in the account, in a small temporary table with indexes (one per connection). Only the leads of the
+    list's own client: the same person in two clients' lists is two leads, and neither client learns of the other (D133, D223)."""
     cur.execute("SET cw.matching = 'on'")
     cur.execute("DROP TABLE IF EXISTS _lead_keys")
     cur.execute("""
         CREATE TEMP TABLE _lead_keys AS
         SELECT id::text AS lead, phone, email, addr_key AS ak, nullif(regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]', '', 'g'), '') AS nk
-        FROM importing.lead_match WHERE org_id = %s::uuid""", (org,))
+        FROM importing.lead_match WHERE org_id = %s::uuid AND client_id IS NOT DISTINCT FROM %s::uuid""", (org, client))
     cur.execute("CREATE INDEX ON _lead_keys (phone, nk)")
     cur.execute("CREATE INDEX ON _lead_keys (email, nk)")
     cur.execute("CREATE INDEX ON _lead_keys (ak, nk)")
@@ -920,7 +921,7 @@ def find_repeats(conn: psycopg.Connection, job: dict, total: int = 0) -> tuple[i
     check_cancel(conn, job_id)
     say(conn, job_id, "Reading the leads already in your account", 0, total, 50)
     with conn.cursor() as cur:
-        build_lead_keys(cur, org)
+        build_lead_keys(cur, org, job.get("client_id"))
         cur.execute("SELECT count(*) FROM _lead_keys")
         existing = cur.fetchone()[0]
         cur.execute("SELECT coalesce(min(row_no), 0), coalesce(max(row_no), 0), count(*) FROM importing.rows WHERE job_id = %s AND state = 'clean'", (job_id,))
