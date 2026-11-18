@@ -294,3 +294,13 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | M3 | A caller logs a call "Transfer"; the closer moves the lead's deal (fee 10,000) to Closed won | The caller sees 25 + 200; the closer 800; each sees only their own. |
 | M4 | As the owner, override the closer's figure to 900 with a reason | The closer's total shows 900 with the reason. |
 | M5 | Move the deal back to Negotiation | Its commission disappears. |
+
+# Step 28, part A: pipeline, booking, credit
+
+| # | Do | Expect |
+|---|---|---|
+| P1 | As a throwaway agency's owner, set stages "New offer, Signed"; as a team lead, try to change them | The owner's stick; the team lead is refused. |
+| P2 | As a team lead, limit a closer to 09:00-17:00; as the closer, set 08:00-17:00, then 09:00-17:00 | The first is refused, the second saved. |
+| P3 | As a caller of that team, list the team's slots and book one for a lead you work | The closer gets an appointment task at that time; booking the same slot again is refused. |
+| P4 | A caller of another team lists those slots | Refused. |
+| P5 | The closer moves the lead's deal to Closed won | The deal is credited to the caller and the closer; the lead shows Closed / Won and leaves the queues; commissions count the booking. |

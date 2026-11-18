@@ -224,9 +224,16 @@ func (s *server) commissions(q *req) error {
 		return err
 	}
 	var items []earning
-	// Appointments: each call logged "Transfer" is one, for whoever made the call.
-	rows, err := tx.Query(ctx, `SELECT id::text, lead_id::text, agent_id::text, occurred_at FROM call_events
-		WHERE outcome = 'Transfer' AND agent_id IS NOT NULL AND occurred_at >= $1 AND occurred_at < $2 ORDER BY occurred_at`, from, to)
+	// Appointments: each one booked (step 28) for whoever booked it, and each call logged "Transfer" by someone who did not also book
+	// an appointment for that lead within a day of it.
+	rows, err := tx.Query(ctx, `SELECT id::text, lead_id::text, booked_by::text, created_at FROM appointments
+			WHERE status <> 'cancelled' AND created_at >= $1 AND created_at < $2
+		UNION ALL
+		SELECT c.id::text, c.lead_id::text, c.agent_id::text, c.occurred_at FROM call_events c
+			WHERE c.outcome = 'Transfer' AND c.agent_id IS NOT NULL AND c.occurred_at >= $1 AND c.occurred_at < $2
+			AND NOT EXISTS (SELECT 1 FROM appointments a WHERE a.lead_id = c.lead_id AND a.booked_by = c.agent_id AND a.status <> 'cancelled'
+				AND a.created_at BETWEEN c.occurred_at - interval '1 day' AND c.occurred_at + interval '1 day')
+		ORDER BY 4`, from, to)
 	if err != nil {
 		return err
 	}
@@ -242,8 +249,11 @@ func (s *server) commissions(q *req) error {
 	}
 	rows.Close()
 	// Won deals: the closer's percentage of the fee (else the amount), part of it to the caller who set the lead's appointment.
-	rows, err = tx.Query(ctx, `SELECT d.id::text, d.lead_id::text, coalesce(d.closed_by, l.assignee_id)::text, d.closed_at, coalesce(d.fee, d.amount)::float8, d.currency,
-			(SELECT c.agent_id::text FROM call_events c WHERE c.lead_id = d.lead_id AND c.outcome = 'Transfer' AND c.agent_id IS NOT NULL ORDER BY c.occurred_at DESC LIMIT 1)
+	// Who is credited with each won deal comes from its credit records (step 28, D157).
+	rows, err = tx.Query(ctx, `SELECT d.id::text, d.lead_id::text,
+			coalesce((SELECT user_id FROM deal_credits WHERE deal_id = d.id AND role = 'closer'), d.closed_by, l.assignee_id)::text,
+			d.closed_at, coalesce(d.fee, d.amount)::float8, d.currency,
+			(SELECT user_id::text FROM deal_credits WHERE deal_id = d.id AND role = 'caller')
 		FROM deals d JOIN leads l ON l.id = d.lead_id
 		WHERE d.stage = 'Closed won' AND d.closed_at >= $1 AND d.closed_at < $2 ORDER BY d.closed_at`, from, to)
 	if err != nil {

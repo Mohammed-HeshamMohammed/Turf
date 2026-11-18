@@ -58,7 +58,6 @@ var onlineOnly = []string{"lead.assign", "lead.claim", "lead.merge", "lead.unmer
 
 var (
 	leadStages = []string{"New", "Contacted", "Interested", "Qualified", "Closed"}
-	dealStages = []string{"Qualified", "Appointment", "Offer preparation", "Offer sent", "Negotiation", "Under contract", "Closed won", "Closed lost"}
 )
 
 type outcome struct {
@@ -1559,18 +1558,24 @@ func (r *run) dealCreate(p map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err = r.visibleLead(leadID, false); err != nil {
+	lead, err := r.visibleLead(leadID, false)
+	if err != nil {
 		return nil, err
 	}
 	id, err := optUUID(p, "id")
 	if err != nil {
 		return nil, err
 	}
+	// The stages of the lead's client, else the agency's (step 28, D154).
+	stages, err := stagesFor(r.ctx, r.tx, asString(lead["client_id"]))
+	if err != nil {
+		return nil, err
+	}
 	stage := str(p, "stage")
 	if stage == "" {
-		stage = "Qualified"
+		stage = stages[0]
 	}
-	if !slices.Contains(dealStages, stage) {
+	if !slices.Contains(stages, stage) {
 		return nil, reject("%s is not a deal stage", stage)
 	}
 	if strings.HasPrefix(stage, "Closed") {
@@ -1633,7 +1638,15 @@ func (r *run) dealUpdate(p map[string]any) (any, error) {
 		return nil, err
 	}
 	if stage, ok := changes["stage"].(string); ok {
-		if !slices.Contains(dealStages, stage) {
+		var client *string
+		if err := r.tx.QueryRow(r.ctx, `SELECT l.client_id::text FROM leads l WHERE l.id = $1`, asString(before["lead_id"])).Scan(&client); err != nil {
+			return nil, err
+		}
+		stages, err := stagesFor(r.ctx, r.tx, deref(client))
+		if err != nil {
+			return nil, err
+		}
+		if !slices.Contains(stages, stage) && stage != before["stage"] {
 			return nil, reject("%s is not a deal stage", stage)
 		}
 		reason := asString(before["outcome_reason"])
@@ -1654,6 +1667,10 @@ func (r *run) dealUpdate(p map[string]any) (any, error) {
 	if before["stage"] != deal["stage"] && (before["stage"] == "Closed won" || deal["stage"] == "Closed won") {
 		if deal, err = r.one(`UPDATE deals SET closed_at = CASE WHEN stage = 'Closed won' THEN now() END, closed_by = CASE WHEN stage = 'Closed won' THEN $2::uuid END
 			WHERE id = $1 RETURNING to_jsonb(deals.*)`, id, r.sc.userID); err != nil {
+			return nil, err
+		}
+		// Credit by role, and the won lead leaves the calling queues (step 28, D157, D283).
+		if err = r.creditDeal(deal, deal["stage"] == "Closed won"); err != nil {
 			return nil, err
 		}
 	}
