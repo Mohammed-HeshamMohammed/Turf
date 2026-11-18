@@ -273,3 +273,14 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | B3 | During a call, `POST /sim/say` "stop all these companies calling me", then confirm the "anyone" signal | "Do not call" is pre-selected and logged; in the CRM the number goes to Caller Whale's database. |
 | B4 | Pause the recording, have the lead say a line, resume | The line said while paused is not in the captions. |
 | B5 | Set the keeping time to 7 days | Captions older than that disappear within a minute. |
+
+# Step 26, part C: the in-app assistant (after the owner sets AGENT_TOKEN, ASSISTANT_URL/TOKEN and crm-core's BILLING_URL/TOKEN in Coolify)
+
+| # | Do | Expect |
+|---|---|---|
+| I1 | As a caller in a throwaway agency, ask for a lead's summary | A short summary of its calls and notes; nothing is added to the lead. |
+| I2 | Ask for a text draft, then save it | The draft can be edited; saved, it shows as a note "Text drafted with the assistant". |
+| I3 | Ask for a text draft for a lead marked "Do not call" | Refused: the number is blocked. |
+| I4 | Ask "how do I log a callback?" | An answer; nothing is kept on any lead. |
+| I5 | Give the team an "ai" budget of 1 and ask twice | The second is refused with "budget ... used up". |
+| I6 | After a captioned simulator call, ask for the call's summary | A summary and a suggested outcome; the outcome is pre-selected in the wrap-up. |

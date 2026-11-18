@@ -155,6 +155,18 @@ class StoreTest(unittest.TestCase):
         listed = {(b["scope"], b["subject_id"]): b["used"] for b in budgets.budgets(self.store, org, NOW)}
         self.assertEqual(listed[("team", str(team))], 3)
         self.assertEqual(listed[("person", str(agent))], 2)
+        # The assistant (step 26): a person's daily cap, counted from midnight.
+        cap = budgets.AI_DAILY_CAP
+        budgets.AI_DAILY_CAP = 2
+        try:
+            for _ in range(2):
+                budgets.use(self.store, org, "ai", 1, uuid4(), team, agent, None, NOW, False)
+            with self.assertRaises(Refused) as capped:
+                budgets.use(self.store, org, "ai", 1, uuid4(), team, agent, None, NOW, False)
+            self.assertEqual(capped.exception.status, 429)
+            budgets.use(self.store, org, "ai", 1, uuid4(), team, other, None, NOW, False)  # someone else is not capped by it
+        finally:
+            budgets.AI_DAILY_CAP = cap
         budgets.ask_raise(self.store, org, "team", team, "texts", other, "Busy week", NOW)
         self.assertEqual(len(budgets.raise_requests(self.store, org)), 1)
         budgets.set_budget(self.store, org, "team", team, "texts", 10, None)

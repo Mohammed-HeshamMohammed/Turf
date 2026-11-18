@@ -146,6 +146,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("GET /api/v1/leads/{id}/twins", s.member(s.leadTwins))
 	s.blockRoutes(mux)
 	s.scriptRoutes(mux)
+	s.assistantRoutes(mux)
 	mux.Handle("PUT /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
 	mux.Handle("DELETE /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
 	mux.Handle("PUT /api/v1/clients/{id}/teams/{other}", s.member(s.clientLink("teams")))

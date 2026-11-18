@@ -69,6 +69,7 @@ type callRow struct {
 	CaptionsPaused   bool   `db:"captions_paused" json:"captions_paused"`
 	SuggestedOutcome string `db:"suggested_outcome" json:"suggested_outcome"`
 	DNCKind          string `db:"dnc_kind" json:"dnc_kind"`
+	AISummary        string `db:"ai_summary" json:"ai_summary"`
 	CreatedAt          time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time  `db:"updated_at" json:"updated_at"`
 }

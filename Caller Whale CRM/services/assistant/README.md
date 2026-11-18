@@ -35,3 +35,7 @@ go test ./...
 ```
 
 The AI is tested against a fake OpenRouter; no key is needed. Settings: [env/assistant.production.example](../../env/assistant.production.example). Coolify: branch `assistant-backend-production`, Dockerfile `/Dockerfile`, port 8109, then add `assistant.callerwhale.com=http://assistant:8109` to the gateway's `ROUTES` (and the site's address to its `CORS_ORIGINS`).
+
+## The in-app assistant (build step 26)
+
+`POST /v1/agent/complete {task, facts, request}` with `Authorization: Bearer <AGENT_TOKEN>`, for crm-core and dialer-sms only (the gateway never forwards `/v1/` from outside). Tasks: `lead_summary`, `draft_text`, `draft_email`, `call_summary` (ending in an `OUTCOME:` line) and `howto`. The facts and the request are data, never instructions; neither is logged. Answers are drafts: nothing is sent or saved here. Without `AGENT_TOKEN` or `OPENROUTER_API_KEY` it answers 401 or 503.

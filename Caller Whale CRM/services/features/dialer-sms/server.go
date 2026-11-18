@@ -279,6 +279,13 @@ func (s *server) handler() http.Handler {
 		}
 		return err
 	}))
+	mux.Handle("POST /api/v1/calls/{id}/summary", s.member(func(q *req) error {
+		out, err := s.summarizeCall(q.r.Context(), q.sc, q.r.PathValue("id"))
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, out)
+		}
+		return err
+	}))
 	mux.Handle("GET /api/v1/leads/{id}/signals", s.member(func(q *req) error {
 		out, err := s.leadSignals(q.r.Context(), q.sc, q.r.PathValue("id"))
 		if err == nil {

@@ -41,3 +41,7 @@ RECORD_CALLS=false
 # Budgets (build step 22): billing's private address and the dialer-sms token from its BILLING_TOKENS. Empty: calls and texts are not limited.
 BILLING_URL=http://billing:8103
 BILLING_TOKEN=<the dialer-sms token from billing's BILLING_TOKENS>
+
+# The call summary (build step 26): the assistant service and its AGENT_TOKEN (secret, Coolify only). Empty: no summaries.
+ASSISTANT_URL=http://assistant:8109
+ASSISTANT_TOKEN=<the same value as the assistant's AGENT_TOKEN>

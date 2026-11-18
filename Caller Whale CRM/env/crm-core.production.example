@@ -25,3 +25,10 @@ LEARNING_URL=
 LEARNING_TOKEN=
 # Secret: the dialer service's CRM_TOKEN, 32+ characters. Turns on /internal/v1/dialer (private) so carrier calls are logged. Empty turns it off.
 DIALER_TOKEN=
+
+# The in-app assistant (build step 26): the assistant service and its AGENT_TOKEN (secret, Coolify only). Empty: the assistant is off.
+ASSISTANT_URL=http://assistant:8109
+ASSISTANT_TOKEN=<the same value as the assistant's AGENT_TOKEN>
+# Charging the assistant's use (step 26): billing's private address and the crm-core token from its BILLING_TOKENS. Empty: not limited.
+BILLING_URL=http://billing:8103
+BILLING_TOKEN=<the crm-core token from billing's BILLING_TOKENS>

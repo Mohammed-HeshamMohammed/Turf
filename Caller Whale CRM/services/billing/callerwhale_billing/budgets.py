@@ -11,7 +11,10 @@ from psycopg.rows import dict_row
 
 from .store import Refused, Store, month_of
 
-KINDS = ("minutes", "texts")
+KINDS = ("minutes", "texts", "ai")  # ai: one use of the in-app assistant (step 26, D323)
+# The most assistant uses one person may make in a day, against runaway use (D323). Use about a lead is charged to its team and client;
+# use about nothing in particular (a "how do I" question) only to the person and the agency's allowance (D372).
+AI_DAILY_CAP = 200
 SCOPES = ("team", "person", "client")
 WHOSE = {"team": "Your team's", "person": "Your own", "client": "This client's"}
 
@@ -19,7 +22,7 @@ WHOSE = {"team": "Your team's", "person": "Your own", "client": "This client's"}
 def use(store: Store, org: UUID, kind: str, amount: int, request_id: UUID, team: UUID | None, user: UUID | None, client: UUID | None,
         now: datetime, check_only: bool) -> dict:
     if kind not in KINDS:
-        raise Refused(400, "bad_request", "kind is minutes or texts")
+        raise Refused(400, "bad_request", "kind is minutes, texts or ai")
     if not 1 <= amount <= 100_000:
         raise Refused(400, "bad_request", "Use 1 to 100,000 at a time.")
     start, end = month_of(now)
@@ -29,6 +32,12 @@ def use(store: Store, org: UUID, kind: str, amount: int, request_id: UUID, team:
         earlier = cur.fetchone()
         if earlier is not None and not check_only:
             return {"ok": True, "duplicate": True}
+        if kind == "ai" and user is not None:
+            day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            cur.execute("SELECT coalesce(sum(amount), 0)::bigint AS used FROM billing.usage WHERE org_id = %s AND kind = 'ai' AND user_id = %s AND at >= %s",
+                        (org, user, day))
+            if cur.fetchone()["used"] + amount > AI_DAILY_CAP:
+                raise Refused(429, "daily_cap", f"You have used the assistant {AI_DAILY_CAP} times today, the most one person may. It opens again tomorrow.")
         # The budgets this use falls under, locked so two uses cannot both take the last of one.
         cur.execute(
             "SELECT scope, subject_id, monthly FROM billing.budgets WHERE org_id = %s AND kind = %s AND "
@@ -63,7 +72,7 @@ def use(store: Store, org: UUID, kind: str, amount: int, request_id: UUID, team:
 
 def set_budget(store: Store, org: UUID, scope: str, subject: UUID, kind: str, monthly: int | None, set_by: UUID | None) -> None:
     if scope not in SCOPES or kind not in KINDS:
-        raise Refused(400, "bad_request", "scope is team, person or client; kind is minutes or texts")
+        raise Refused(400, "bad_request", "scope is team, person or client; kind is minutes, texts or ai")
     if monthly is not None and not 0 <= monthly <= 100_000_000:
         raise Refused(400, "bad_request", "A monthly budget is 0 or more, or null to remove it.")
     with store.pool.connection() as conn, conn.transaction():
@@ -96,7 +105,7 @@ def budgets(store: Store, org: UUID, now: datetime) -> list[dict]:
 
 def ask_raise(store: Store, org: UUID, scope: str, subject: UUID, kind: str, asked_by: UUID, note: str, now: datetime) -> str:
     if scope not in SCOPES or kind not in KINDS:
-        raise Refused(400, "bad_request", "scope is team, person or client; kind is minutes or texts")
+        raise Refused(400, "bad_request", "scope is team, person or client; kind is minutes, texts or ai")
     rid = uuid4()
     with store.pool.connection() as conn, conn.transaction():
         conn.execute(

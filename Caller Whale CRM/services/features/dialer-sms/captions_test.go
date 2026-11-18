@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
@@ -136,5 +139,56 @@ func TestCaptionsSignalsAndTheirOutcome(t *testing.T) {
 	}
 	if _, seen = e.call("GET", "/api/v1/calls/"+id+"/captions", nil); len(seen["captions"].([]any)) != 0 {
 		t.Fatalf("captions past the keeping time: %v", seen)
+	}
+}
+
+func TestSplittingTheAssistantsCallSummary(t *testing.T) {
+	summary, outcome := splitSummary("Pat asked for a callback tomorrow at 5.\nOUTCOME: callback.")
+	if summary != "Pat asked for a callback tomorrow at 5." || outcome != "Callback" {
+		t.Fatalf("%q %q", summary, outcome)
+	}
+	if _, outcome := splitSummary("Something.\nOUTCOME: Sold the house"); outcome != "" {
+		t.Fatalf("an outcome that is not one of the dispositions: %q", outcome)
+	}
+}
+
+// Step 26, part C: the call's summary is asked of the assistant with the call's captions only, charged as one use, and its outcome
+// pre-selected unless an opt-out was heard.
+func TestTheAssistantSummarisesACall(t *testing.T) {
+	e := newEnv(t)
+	var facts string
+	assistant := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		facts, _ = body["facts"].(string)
+		writeJSON(w, 200, map[string]any{"text": "The lead is driving and wants a call tomorrow at 5.\nOUTCOME: Callback"})
+	}))
+	defer assistant.Close()
+	e.s.cfg.assistantURL, e.s.cfg.assistantToken = assistant.URL, strings.Repeat("a", 40)
+	budget := &fakeBudgets{monthly: map[string]int{}, used: map[string]int{}, charged: map[string]int{}}
+	e.s.budget = budget
+	lead := e.addLead("+15125557201")
+	e.crm.mu.Lock()
+	e.crm.leads[lead].AISuggestions = true
+	e.crm.mu.Unlock()
+	_, out := e.call("POST", "/api/v1/calls", map[string]any{"lead_id": lead, "scenario": "callback"})
+	id := out["id"].(string)
+	for i := 0; i < 50; i++ {
+		if _, seen := e.call("GET", "/api/v1/calls/"+id+"/captions", nil); len(seen["captions"].([]any)) > 0 || !e.sim.step() {
+			break
+		}
+	}
+	status, sum := e.call("POST", "/api/v1/calls/"+id+"/summary", nil)
+	if status != 200 || sum["ai_outcome"] != "Callback" || !strings.Contains(sum["summary"].(string), "tomorrow at 5") {
+		t.Fatalf("summary: %d %v", status, sum)
+	}
+	if !strings.Contains(facts, "call me back tomorrow at 5") || strings.Contains(facts, "+1512") {
+		t.Fatalf("what the assistant was told: %q", facts)
+	}
+	budget.mu.Lock()
+	n := len(budget.charged)
+	budget.mu.Unlock()
+	if n != 1 {
+		t.Fatalf("charged %d uses", n)
 	}
 }

@@ -32,6 +32,7 @@ type config struct {
 	grantTTL                                         time.Duration
 	crmURL, crmToken                                 string
 	billingURL, billingToken                         string // billing's budgets (step 22); without them nothing is limited
+	assistantURL, assistantToken                     string // the in-app assistant (step 26): the assistant service and its AGENT_TOKEN
 
 	simulate        bool
 	apiURL, apiKey  string
@@ -69,6 +70,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 		port: trim("PORT"), databaseURL: trim("DATABASE_URL"), jwksURL: trim("AUTH_JWKS_URL"), authzURL: trim("AUTHZ_URL"),
 		authzToken: trim("AUTHZ_TOKEN"), grantTTL: 5 * time.Second, crmURL: trim("CRM_URL"), crmToken: trim("CRM_TOKEN"),
 		billingURL: strings.TrimSuffix(trim("BILLING_URL"), "/"), billingToken: trim("BILLING_TOKEN"),
+		assistantURL: strings.TrimSuffix(trim("ASSISTANT_URL"), "/"), assistantToken: trim("ASSISTANT_TOKEN"),
 		apiURL: trim("TELNYX_API_URL"), apiKey: trim("TELNYX_API_KEY"), connectionID: trim("TELNYX_CONNECTION_ID"),
 		sipConnectionID: trim("TELNYX_SIP_CONNECTION_ID"), profileID: trim("TELNYX_MESSAGING_PROFILE_ID"),
 		publicKey: trim("TELNYX_PUBLIC_KEY"), webhookURL: trim("TELNYX_WEBHOOK_URL"), fromNumber: e164(getenv("TELNYX_FROM_NUMBER")),

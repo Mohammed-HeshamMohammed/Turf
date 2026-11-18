@@ -29,6 +29,9 @@ type config struct {
 	learningURL   string // the learning service (private); empty turns the learning copy off
 	learningToken string
 	dialerToken   string // the dialer service's token for /internal/v1/dialer (DIALER_TOKEN); empty turns those routes off
+	// The in-app assistant (step 26): the assistant service and its AGENT_TOKEN; billing and crm-core's token there, to charge its use.
+	assistantURL, assistantToken string
+	billingURL, billingToken     string
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -45,6 +48,8 @@ func loadConfig(getenv func(string) string) (config, error) {
 		learningURL:   trim(getenv("LEARNING_URL")),
 		learningToken: strings.TrimSpace(getenv("LEARNING_TOKEN")),
 		dialerToken:   strings.TrimSpace(getenv("DIALER_TOKEN")),
+		assistantURL:  trim(getenv("ASSISTANT_URL")), assistantToken: strings.TrimSpace(getenv("ASSISTANT_TOKEN")),
+		billingURL: trim(getenv("BILLING_URL")), billingToken: strings.TrimSpace(getenv("BILLING_TOKEN")),
 	}
 	if c.port == "" {
 		c.port = "8107"
@@ -64,6 +69,12 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	if c.dialerToken != "" && len(c.dialerToken) < 32 {
 		return c, errors.New("DIALER_TOKEN must be at least 32 characters when set: the dialer service's CRM_TOKEN")
+	}
+	if c.assistantURL != "" && len(c.assistantToken) < 32 {
+		return c, errors.New("ASSISTANT_TOKEN must be at least 32 characters when ASSISTANT_URL is set: the assistant service's AGENT_TOKEN")
+	}
+	if c.billingURL != "" && len(c.billingToken) < 32 {
+		return c, errors.New("BILLING_TOKEN must be at least 32 characters when BILLING_URL is set: crm-core's token in billing's BILLING_TOKENS (crm-core=...)")
 	}
 	return c, nil
 }
