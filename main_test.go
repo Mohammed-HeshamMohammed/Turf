@@ -260,3 +260,18 @@ func TestTheReportTemplateHoldsTotalsOnly(t *testing.T) {
 		t.Fatal("a report without totals")
 	}
 }
+
+// Step 34: status emails and breach notices.
+func TestStatusAndBreachTemplates(t *testing.T) {
+	m, err := Render("status", "owner@example.com", map[string]any{"title": "Caller Whale: Calls are down", "message": "We are on it.", "link": "https://callerwhale.com/status"})
+	if err != nil || m.Subject != "Caller Whale: Calls are down" || !strings.Contains(m.Text, "https://callerwhale.com/status") {
+		t.Fatalf("%v %+v", err, m)
+	}
+	b, err := Render("breach_notice", "owner@example.com", map[string]any{"what": "A key was exposed.", "to_do": "Sign in again.", "discovered": "18 November 2026, 09:00 UTC"})
+	if err != nil || !strings.Contains(b.Text, "A key was exposed.") || !strings.Contains(b.HTML, "What you should do") {
+		t.Fatalf("%v %+v", err, b)
+	}
+	if _, err := Render("breach_notice", "x@example.com", map[string]any{"what": "x"}); err == nil {
+		t.Fatal("a notice without what to do")
+	}
+}

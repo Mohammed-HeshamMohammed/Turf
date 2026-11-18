@@ -288,6 +288,33 @@ func Render(template, to string, data map[string]any) (Message, error) {
 			`" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none">Open the details</a></p>` +
 			`<p style="color:#666;font-size:13px">You get this because a report was scheduled for you in Caller Whale.</p></div>`
 		return Message{To: to, Subject: agency + ": " + period, Text: body, HTML: page}, nil
+	case "status":
+		// Something is down, or back (step 34, D235): to the people who chose these emails.
+		title, message, link := str("title"), str("message"), str("link")
+		if title == "" || len(title) > 160 || strings.ContainsAny(title, "\r\n") || len(message) > 2000 || !strings.HasPrefix(link, "https://") {
+			return Message{}, errors.New("status needs a title and an https link")
+		}
+		e := html.EscapeString
+		text := title + "\n\n" + message + "\n\nSee the status page: " + link + "\n\nYou get this because you chose status emails in Caller Whale."
+		page := `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:520px"><p><strong>` +
+			e(title) + `</strong></p><p style="white-space:pre-wrap">` + e(message) + `</p><p><a href="` + e(link) + `">See the status page</a></p>` +
+			`<p style="color:#666;font-size:13px">You get this because you chose status emails in Caller Whale.</p></div>`
+		return Message{To: to, Subject: title, Text: text, HTML: page}, nil
+	case "breach_notice":
+		// A security breach affecting the agency's data, to its owner within 72 hours (step 34, D236). The words are staff's; the
+		// lawyer sets what else must be said.
+		what, toDo, discovered := str("what"), str("to_do"), str("discovered")
+		if what == "" || toDo == "" || discovered == "" || len(what) > 5000 || len(toDo) > 5000 {
+			return Message{}, errors.New("breach_notice needs what happened, what to do and when it was found")
+		}
+		e := html.EscapeString
+		text := "We are writing to tell you about a security incident that affected your agency's data in Caller Whale.\n\nWhen we learned of it: " + discovered +
+			"\n\nWhat happened:\n" + what + "\n\nWhat you should do:\n" + toDo + "\n\nReply to this email with any question. We will tell you of anything new we learn.\n\n— Caller Whale"
+		page := `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:560px">` +
+			`<p>We are writing to tell you about a security incident that affected your agency's data in Caller Whale.</p>` +
+			`<p><strong>When we learned of it:</strong> ` + e(discovered) + `</p><p><strong>What happened</strong></p><p style="white-space:pre-wrap">` + e(what) +
+			`</p><p><strong>What you should do</strong></p><p style="white-space:pre-wrap">` + e(toDo) + `</p><p>Reply to this email with any question. We will tell you of anything new we learn.</p></div>`
+		return Message{To: to, Subject: "Important: a security incident affecting your Caller Whale data", Text: text, HTML: page}, nil
 	}
 	return Message{}, errors.New("unknown template")
 }
