@@ -105,6 +105,12 @@ class UploadTest(unittest.TestCase):
                 self.assertTrue((Path(tmp) / JOB_ID).is_dir())
                 core.assert_called_once_with(handler, "POST", "/api/v1/projects", {"name": "Owners"})
 
+    def test_an_agency_the_carriers_have_not_verified_cannot_start_an_import(self):
+        me = {"organization_id": ORG_ID, "user": {"id": USER_ID}, "capabilities": ["import"], "carrier": {"may_import": False}}
+        with self.assertRaises(upload_api.APIError) as caught:
+            upload_api.start(Handler(b"{}"), me)
+        self.assertEqual((caught.exception.status, caught.exception.code), (403, "carrier_check"))
+
     def test_only_worker_owned_complete_pieces_can_be_queued(self):
         data = b"name,phone\nPat,555-0100\n"
         me = {"organization_id": ORG_ID, "user": {"id": USER_ID}, "capabilities": ["import"]}

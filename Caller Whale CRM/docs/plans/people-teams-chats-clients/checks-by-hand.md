@@ -40,7 +40,7 @@ Chrome was not connected). The rows marked **verify** are what the code expects;
 | Caller Whale Authorization | `AUTHZ_TOKENS`: add `gateway=<token>` (step 35) and `dialer-sms=<token>` (T2), and `messaging=<token>` if it is not there; optional `AUTHZ_FEATURES_EVERYWHERE=teams_v2` (P-1) | Redeploy |
 | Caller Whale Billing | `BILLING_TOKENS`: add `dialer-sms=<token>` (T3) and `crm-core=<token>` (T4) | Redeploy (the `ai` use kind) |
 | Caller Whale CRM Core | `CLAMD_ADDR=clamav:3310` (step 38, after ClamAV runs); `DIALER_TOKEN` (T1); `ASSISTANT_URL=http://assistant:8109`, `ASSISTANT_TOKEN` (T5); `BILLING_URL=http://billing:8103`, `BILLING_TOKEN` (T4); `NOTIFY_MAIL_URL=http://notifications:8102`, `NOTIFY_MAIL_TOKEN` (T6); `APP_URL=https://app.callerwhale.com` (**verify** the CRM web app's address); `GOOGLE_*` (S4, `GOOGLE_REDIRECT_URL=https://gate.callerwhale.com/api/v1/google/callback`); `EMAIL_*` and `AWS_*` (S5, `EMAIL_PUBLIC_URL=https://gate.callerwhale.com`) | Redeploy (migrations 0032 to 0041 run on start) |
-| Caller Whale Dialer | Deploy it first (S1): `CRM_URL=http://crm-core:8107`, `CRM_TOKEN` (T1); `AUTHZ_URL=http://authz:8104`, `AUTHZ_TOKEN` (T2); `BILLING_URL=http://billing:8103`, `BILLING_TOKEN` (T3); `ASSISTANT_URL=http://assistant:8109`, `ASSISTANT_TOKEN` (T5); `TELNYX_*` (S2) | Simulator first, then live |
+| Caller Whale Dialer | `CARRIER_CHECK=on` (the default) and, live, `TELNYX_WEBHOOK_URL` for the 10DLC updates (step 39). Deploy it first (S1): `CRM_URL=http://crm-core:8107`, `CRM_TOKEN` (T1); `AUTHZ_URL=http://authz:8104`, `AUTHZ_TOKEN` (T2); `BILLING_URL=http://billing:8103`, `BILLING_TOKEN` (T3); `ASSISTANT_URL=http://assistant:8109`, `ASSISTANT_TOKEN` (T5); `TELNYX_*` (S2) | Simulator first, then live |
 | Caller Whale Importing Worker | nothing new | — |
 | Caller Whale Learning | nothing new | — |
 | Caller Whale MCP | nothing new (`MCP_AUTH_TOKEN` is auth's `AUTH_MCP_TOKEN`) | — |
@@ -54,7 +54,7 @@ Chrome was not connected). The rows marked **verify** are what the code expects;
 | # | Do | Then set | Turns on |
 |---|---|---|---|
 | S1 | Deploy the dialer (`dialer-sms-backend-production`) in Coolify, simulator first (`TELNYX_MODE=simulate`) | The rows of T1 to T3, T5 | Calls, texts, captions, opt-outs (steps 10, 21, 25, 26) |
-| S2 | Telnyx: account, numbers, the 10DLC brand and campaign registration, a messaging profile | dialer-sms `TELNYX_*` (see its example), then `TELNYX_MODE=live` | Real calls and texts. Check that STOP gets the carrier's own confirmation (D9) |
+| S2 | Telnyx: account, numbers, a messaging profile; each agency's 10DLC brand and campaign are now submitted from Caller Whale (step 39), so set `TELNYX_WEBHOOK_URL` to the dialer's public `/webhooks/telnyx` | dialer-sms `TELNYX_*` (see its example), then `TELNYX_MODE=live` | Real calls and texts. Check that STOP gets the carrier's own confirmation (D9) |
 | S3 | OpenRouter account and key | assistant `OPENROUTER_API_KEY` | The website helper's AI and the in-app assistant |
 | S4 | Google Cloud: a web OAuth client with the Calendar API, asking only `calendar.freebusy` and `calendar.app.created`; submit it for Google's verification | crm-core `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URL`, `GOOGLE_TOKEN_KEY` (`openssl rand -base64 32`), `APP_URL` | Google Calendar per person (step 28) |
 | S5 | Amazon SES: an IAM user (send, create and check identities), production access out of the sandbox, the reply domain's MX to SES receiving, a receipt rule to an SNS topic (Base64), the topic subscribed to `https://<api>/api/v1/public/email/inbound` | crm-core `EMAIL_SES_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `EMAIL_PUBLIC_URL`, `EMAIL_REPLY_DOMAIN`, `EMAIL_SNS_TOPIC_ARN` | Email to leads and replies (step 29) |
@@ -68,6 +68,7 @@ Chrome was not connected). The rows marked **verify** are what the code expects;
 | P-2 | Right after crm-core with step 30 is deployed: as the owner, show full numbers to each team that still uses the old screens (`PUT /api/v1/teams/{id}/full-numbers {on: true}`) | Agents see "••• 1234" until the CRM screens get a call button that dials through the dialer |
 | P-3 | Set the agency's time zone, postal address (`PUT /api/v1/email/settings`) and, if wanted, the AI's suggestions and required captions (`PUT /api/v1/ai-settings`) | Reports by your day; email needs the address; captions are off until switched on |
 | P-4 | Turn commissions on only if you want them (`PUT /api/v1/commissions/settings`) | Off by default (step 27) |
+| P-5 | Once the dialer runs live and your agency's registration is approved: crm-core `CARRIER_CHECK=on` | Imports wait for each agency's verified business (step 39). The dialer's own check is on from the start |
 
 ## For the lawyer (before real leads)
 
@@ -78,6 +79,7 @@ Chrome was not connected). The rows marked **verify** are what the code expects;
 | W-3 | The recording notice per state | Step 21 |
 | W-4 | The longest time recordings, captions and lead views may be kept | Steps 26, 30 |
 | W-5 | The email footer (postal address, unsubscribe) and consent wording | Steps 25, 29 |
+| W-6 | The words agencies send the carriers about how they text (campaign description, how people agree, sample texts), the referral consent (step 37) and the form consent (step 36) | Steps 36, 37, 39 |
 
 # Invitation steps 1 and 2
 
@@ -500,3 +502,14 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | F4 | As the caller, try to share the PDF with clients; as the team's lead, share it | The caller is refused; the team lead can. The client sees it and opening it is listed in its activity with their name. |
 | F5 | As the owner, make a link for "Title Co" for 1 day; open it in a private window; withdraw it; open again | It opens and the opening shows with the network; after withdrawing it says the link was withdrawn. |
 | F6 | Give a throwaway agency a membership with "File storage on leads (MB)" of 1, then upload a 2 MB file | Refused: storage full. |
+
+# Step 39: carrier registration and texting standing (dialer in simulate mode first, then live)
+
+| # | Do | Expect |
+|---|---|---|
+| C1 | As a throwaway agency's owner, try a call and a text | Both refused: "opens once the carriers verify…". |
+| C2 | Enter the business details (`PUT /api/v1/carrier`) and submit (`POST /api/v1/carrier/submit`) | In simulate mode the brand is verified and the campaign follows within minutes; calling opens first, then texting. Live, expect days. |
+| C3 | Simulate mode: submit with a display name containing "Refused" | The state is brand_failed with the reason; correct it and submit again. |
+| C4 | With crm-core `CARRIER_CHECK=on`, start an import in an agency not yet verified | Refused with the carrier message; allowed once verified. |
+| C5 | As the platform owner with your second step, `GET /api/v1/platform/carrier` | Every agency's state and rates; support staff are refused. |
+| C6 | (Simulate) have many leads reply STOP to an agency's texts | Its owner gets a "Texting warning" task; staff see it; days later limited, then suspended; the owner appeals; staff clear it and texting reopens. |

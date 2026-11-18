@@ -37,6 +37,7 @@ type smsRow struct {
 	OptOutQuestion string     `db:"opt_out_question" json:"opt_out_question"`
 	OptOutBy       *string    `db:"opt_out_by" json:"opt_out_by"`
 	OptOutAt       *time.Time `db:"opt_out_at" json:"opt_out_at"`
+	Complaint      bool       `db:"complaint" json:"complaint"` // a reply that complains (step 39)
 }
 
 var (
@@ -105,6 +106,10 @@ func (s *server) sendScheduled(ctx context.Context, sc scope, id string, ask tex
 func (s *server) mayText(ctx context.Context, sc scope, ask textAsk, anySender bool) (string, leadInfo, error) {
 	if !sc.can("message") {
 		return "", leadInfo{}, forbidden("Your role does not allow texting.")
+	}
+	// The carriers approved the agency's texting, and its opt-out and complaint rates allow it (step 39).
+	if err := s.textingAllowed(ctx, sc.orgID, anySender); err != nil {
+		return "", leadInfo{}, err
 	}
 	text := strings.TrimSpace(ask.Text)
 	if text == "" || len([]rune(text)) > 1600 {
@@ -321,6 +326,12 @@ func (s *server) textReceived(ctx context.Context, ev event, raw []byte) error {
 		VALUES ($1, $2, $3, 'incoming', $4, $5, $6, $7, $8, 'received') ON CONFLICT (carrier_id) DO NOTHING`,
 		id, org, user, from, to, text, ev.str("id"), s.route()); err != nil || tag.RowsAffected() == 0 {
 		return err
+	}
+	// A complaining reply counts toward the agency's complaint rate (step 39, D269).
+	if isComplaint(text) {
+		if _, err = tx.Exec(ctx, `UPDATE sms_messages SET complaint = true WHERE id = $1`, id); err != nil {
+			return err
+		}
 	}
 	// An opt-out reply blocks at once; a reply that only mentions one waits for the agent's choice (step 25, D207, D208).
 	word := plainWords(text)

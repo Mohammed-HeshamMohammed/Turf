@@ -118,6 +118,7 @@ func (s *server) me(q *req) error {
 			return err
 		}
 		body["organization_id"], body["roles"] = current.OrgID, current.Roles
+		body["carrier"] = s.carrierFor(ctx, current.OrgID) // step 39: calling, texting and importing wait for the carriers (D314)
 		switch {
 		case g.Allowed:
 			body["capabilities"], body["scopes"], body["team_ids"] = nonNil(g.Capabilities), nonNil(g.Scopes), nonNil(g.TeamIDs)

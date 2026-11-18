@@ -42,6 +42,7 @@ type simulator struct {
 	Dupes       bool
 	Reorder     bool
 	journal     []simEntry
+	brands      map[string]string // 10DLC brands (step 39): id -> display name
 }
 
 type simStep struct {
@@ -88,6 +89,15 @@ func (s *simulator) handler() http.Handler {
 	mux.HandleFunc("POST /v2/telephony_credentials/{id}/token", s.auth(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = w.Write([]byte("sim." + base64.RawURLEncoding.EncodeToString([]byte(r.PathValue("id"))) + ".token"))
+	}))
+	mux.HandleFunc("POST /v2/10dlc/brand", s.auth(s.brand))
+	mux.HandleFunc("GET /v2/10dlc/brand/{id}", s.auth(s.brand))
+	mux.HandleFunc("POST /v2/10dlc/campaignBuilder", s.auth(s.campaign))
+	mux.HandleFunc("GET /v2/10dlc/campaign/{id}", s.auth(s.campaign))
+	mux.HandleFunc("POST /v2/10dlc/phone_number_campaigns", s.auth(func(w http.ResponseWriter, r *http.Request) {
+		var ask struct{ PhoneNumber, CampaignID string }
+		_ = json.NewDecoder(r.Body).Decode(&ask)
+		writeJSON(w, http.StatusOK, map[string]any{"phoneNumber": ask.PhoneNumber, "campaignId": ask.CampaignID, "assignmentStatus": "ASSIGNED"})
 	}))
 	mux.HandleFunc("POST /sim/inbound-call", s.auth(s.inboundCall))
 	mux.HandleFunc("POST /sim/inbound-sms", s.auth(s.inboundText))
@@ -647,4 +657,48 @@ func (s *simulator) say(w http.ResponseWriter, r *http.Request) {
 	}
 	s.after(c, 0, func() { s.speakLine(c, ask.Text) })
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// brand answers 10DLC brand registration and reading (step 39): pending when created, verified when read, refused when the display
+// name says "Refused".
+func (s *simulator) brand(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.brands == nil {
+		s.brands = map[string]string{}
+	}
+	if r.Method == http.MethodPost {
+		var ask struct{ DisplayName, EntityType string }
+		if err := json.NewDecoder(r.Body).Decode(&ask); err != nil || ask.DisplayName == "" || ask.EntityType == "" {
+			telnyxError(w, http.StatusBadRequest, "10001", "Invalid brand", "entityType and displayName are required")
+			return
+		}
+		id := "B" + strings.ToUpper(newUUID()[:6])
+		s.brands[id] = ask.DisplayName
+		writeJSON(w, http.StatusOK, map[string]any{"brandId": id, "identityStatus": "UNVERIFIED", "status": "REGISTRATION_PENDING"})
+		return
+	}
+	name, ok := s.brands[r.PathValue("id")]
+	switch {
+	case !ok:
+		telnyxError(w, http.StatusNotFound, "10004", "Not found", "no such brand")
+	case strings.Contains(name, "Refused"):
+		writeJSON(w, http.StatusOK, map[string]any{"brandId": r.PathValue("id"), "identityStatus": "UNVERIFIED", "status": "REGISTRATION_FAILED", "failureReasons": "The EIN does not match the legal name (simulated)."})
+	default:
+		writeJSON(w, http.StatusOK, map[string]any{"brandId": r.PathValue("id"), "identityStatus": "VERIFIED", "status": "OK"})
+	}
+}
+
+// campaign answers 10DLC campaigns: pending when created, provisioned when read.
+func (s *simulator) campaign(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		var ask struct{ BrandID, Usecase, Description string }
+		if err := json.NewDecoder(r.Body).Decode(&ask); err != nil || ask.BrandID == "" || ask.Usecase == "" || ask.Description == "" {
+			telnyxError(w, http.StatusBadRequest, "10002", "Invalid campaign", "brandId, usecase and description are required")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"campaignId": newUUID(), "brandId": ask.BrandID, "campaignStatus": "TCR_PENDING"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"campaignId": r.PathValue("id"), "campaignStatus": "MNO_PROVISIONED"})
 }

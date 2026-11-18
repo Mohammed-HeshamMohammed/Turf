@@ -295,7 +295,8 @@
         "EMAIL_SNS_TOPIC_ARN": "The SNS topic SES puts received replies on (encoding Base64); only messages from it are taken.",
         "NOTIFY_MAIL_URL": "The notification service's private address, like http://notifications:8102, for scheduled report emails (step 32). Empty: reports are not sent.",
         "NOTIFY_MAIL_TOKEN": "Secret: the value after crm-core= in notifications' NOTIFY_TOKENS, 24+ characters.",
-        "CLAMD_ADDR": "ClamAV's daemon on the private network, like clamav:3310, which scans files on leads (step 38). Its StreamMaxLength must be above 25 MB. Empty: files wait unopened."
+        "CLAMD_ADDR": "ClamAV's daemon on the private network, like clamav:3310, which scans files on leads (step 38). Its StreamMaxLength must be above 25 MB. Empty: files wait unopened.",
+        "CARRIER_CHECK": "Step 39: on holds imports until the carriers verify the agency's business, as the dialer reports it. Turn on (CARRIER_CHECK=on) once the dialer runs live with 10DLC registration; empty or off: imports are not held."
       }
     },
     "learning": {
@@ -340,7 +341,8 @@
         "BILLING_URL": "Billing's private address, like http://billing:8103, for budgets on calls, texts and assistant use (step 22). Empty: nothing is limited.",
         "BILLING_TOKEN": "Secret: the value after dialer-sms= in billing's BILLING_TOKENS, 32+ characters.",
         "ASSISTANT_URL": "The assistant service's private address, like http://assistant:8109, for call summaries (step 26). Empty: no summaries.",
-        "ASSISTANT_TOKEN": "Secret: the same value as the assistant's AGENT_TOKEN, 32+ characters."
+        "ASSISTANT_TOKEN": "Secret: the same value as the assistant's AGENT_TOKEN, 32+ characters.",
+        "CARRIER_CHECK": "Step 39: calls wait until the carriers verify the agency's brand and texts until its 10DLC campaign is provisioned. On unless set to off; off only for local work and tests."
       }
     },
     "messaging": {

@@ -4,6 +4,7 @@ package main
 // services/crm-core/dialer.go.
 
 import (
+	"time"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -58,6 +59,20 @@ type crm interface {
 	addRecording(ctx context.Context, org, user, operationID string, payload map[string]any) (opAnswer, error)
 	// block puts a number on the agency's block list after the lead's own opt-out reply, or lifts that block on START (step 25).
 	block(ctx context.Context, org, user, phone, lead string, payload map[string]any) error
+	// carrier tells the CRM an agency's carrier registration and texting standing (step 39); the answer carries a staff review.
+	carrier(ctx context.Context, org string, standing map[string]any) (carrierReply, error)
+}
+
+// carrierReply is the CRM's answer: when staff last cleared the agency's texting, and their note.
+type carrierReply struct {
+	ClearedAt *time.Time `json:"cleared_at"`
+	ClearNote string     `json:"clear_note"`
+}
+
+func (c *crmClient) carrier(ctx context.Context, org string, standing map[string]any) (carrierReply, error) {
+	var out carrierReply
+	standing["org_id"] = org
+	return out, c.post(ctx, "/internal/v1/dialer/carrier", standing, &out)
 }
 
 // errCRMRefused is crm-core saying no for a reason that will not change by asking again (the person or lead is out of reach).

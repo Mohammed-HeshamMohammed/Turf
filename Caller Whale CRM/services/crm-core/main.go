@@ -41,6 +41,7 @@ type config struct {
 	emailRegion, emailPublicURL, emailReplyDomain, emailTopic string
 	// Scheduled report emails (step 32): the notification service and crm-core's token in its NOTIFY_TOKENS.
 	notifyMailURL, notifyMailToken string
+	carrierCheck                   bool   // step 39: imports wait for the carriers to verify the agency (CARRIER_CHECK=on)
 	clamdAddr                      string // ClamAV's daemon, like clamav:3310 (step 38)
 }
 
@@ -65,7 +66,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 		emailRegion: strings.TrimSpace(getenv("EMAIL_SES_REGION")), emailPublicURL: trim(getenv("EMAIL_PUBLIC_URL")),
 		emailReplyDomain: strings.ToLower(strings.TrimSpace(getenv("EMAIL_REPLY_DOMAIN"))), emailTopic: strings.TrimSpace(getenv("EMAIL_SNS_TOPIC_ARN")),
 		notifyMailURL: trim(getenv("NOTIFY_MAIL_URL")), notifyMailToken: strings.TrimSpace(getenv("NOTIFY_MAIL_TOKEN")),
-		clamdAddr: strings.TrimSpace(getenv("CLAMD_ADDR")),
+		clamdAddr: strings.TrimSpace(getenv("CLAMD_ADDR")), carrierCheck: strings.EqualFold(strings.TrimSpace(getenv("CARRIER_CHECK")), "on"),
 	}
 	if c.port == "" {
 		c.port = "8107"

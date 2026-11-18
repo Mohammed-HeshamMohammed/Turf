@@ -131,6 +131,9 @@ def queue_info(conn, me, job):
 
 
 def start(handler, me):
+    # Real leads wait for the carriers to verify the agency (build step 39, D314); the CRM says so in /api/v1/me.
+    if (me.get("carrier") or {}).get("may_import") is False:
+        raise APIError(403, "Importing opens once the carriers verify the agency's business. The owner submits it under Settings, Carrier registration.", "carrier_check")
     try:
         length = int(handler.headers.get("Content-Length", "0"))
     except ValueError:

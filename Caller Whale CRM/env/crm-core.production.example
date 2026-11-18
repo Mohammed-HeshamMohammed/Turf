@@ -81,3 +81,7 @@ NOTIFY_MAIL_TOKEN=<the crm-core token from notifications' NOTIFY_TOKENS>
 # network with CLAMD_CONF_StreamMaxLength=30M, and point crm-core at it. Storage per agency comes from billing (BILLING_URL above).
 # ClamAV's daemon on the private network, like clamav:3310, which scans files on leads (step 38). Its StreamMaxLength must be above 25 MB. Empty: files wait unopened.
 CLAMD_ADDR=clamav:3310
+
+# Carrier check (build step 39): imports wait for the agency's verified business, as the dialer reports it.
+# Step 39: on holds imports until the carriers verify the agency's business, as the dialer reports it. Turn on (CARRIER_CHECK=on) once the dialer runs live with 10DLC registration; empty or off: imports are not held.
+CARRIER_CHECK=off
