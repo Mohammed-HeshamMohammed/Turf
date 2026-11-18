@@ -110,6 +110,10 @@ func TestOtherQuestionsGoToTheAIWithTheRulesAndTheFacts(t *testing.T) {
 	if (*seen)["model"] != "some/model" || (*seen)["max_tokens"].(float64) > 500 {
 		t.Fatalf("model and length limits: %v", *seen)
 	}
+	// Only providers that neither keep nor train on what is sent (step 24, D321).
+	if provider, _ := (*seen)["provider"].(map[string]any); provider["data_collection"] != "deny" {
+		t.Fatalf("providers that keep data are not refused: %v", *seen)
+	}
 }
 
 func TestWithoutAKeyOrWhenTheAIFailsThePersonStillGetsAHonestAnswer(t *testing.T) {

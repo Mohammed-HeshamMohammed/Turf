@@ -72,7 +72,9 @@ var errAI = errors.New("the AI did not answer")
 
 func (a *ai) ask(ctx context.Context, history []message, page string) (string, error) {
 	msgs := append([]message{{Role: "system", Content: a.system(page)}}, history...)
-	body, _ := json.Marshal(map[string]any{"model": a.model, "messages": msgs, "max_tokens": 350, "temperature": 0.3})
+	// Only providers that neither keep nor train on what is sent (step 24, D321): OpenRouter routes around any that would.
+	body, _ := json.Marshal(map[string]any{"model": a.model, "messages": msgs, "max_tokens": 350, "temperature": 0.3,
+		"provider": map[string]any{"data_collection": "deny"}})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.url, bytes.NewReader(body))
 	if err != nil {
 		return "", err
