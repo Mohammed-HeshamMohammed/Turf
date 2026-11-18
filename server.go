@@ -186,6 +186,57 @@ func (s *server) handler() http.Handler {
 		return err
 	}))
 
+	// Lead threads (step 10): one sender, takeover by rank, notes, and the unanswered-text wait.
+	mux.Handle("GET /api/v1/sms/threads/{lead}", s.member(func(q *req) error {
+		view, err := s.threadView(q.r.Context(), q.sc, q.r.PathValue("lead"))
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, view)
+		}
+		return err
+	}))
+	mux.Handle("POST /api/v1/sms/threads/{lead}/{action}", s.member(func(q *req) error {
+		var body struct {
+			Body string `json:"body"`
+		}
+		if q.r.PathValue("action") == "notes" {
+			if err := readJSON(q.w, q.r, &body); err != nil {
+				return err
+			}
+		}
+		view, err := s.threadAction(q.r.Context(), q.sc, q.r.PathValue("lead"), q.r.PathValue("action"), body.Body)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, view)
+		}
+		return err
+	}))
+	mux.Handle("GET /api/v1/sms/alerts", s.member(func(q *req) error {
+		list, err := s.myAlerts(q.r.Context(), q.sc)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, map[string]any{"alerts": list})
+		}
+		return err
+	}))
+	mux.Handle("POST /api/v1/sms/alerts/{id}/seen", s.member(func(q *req) error {
+		err := s.seenAlert(q.r.Context(), q.sc, q.r.PathValue("id"))
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, map[string]any{"ok": true})
+		}
+		return err
+	}))
+	mux.Handle("PUT /api/v1/sms/settings", s.member(func(q *req) error {
+		var body struct {
+			WaitMinutes int `json:"wait_minutes"`
+		}
+		if err := readJSON(q.w, q.r, &body); err != nil {
+			return err
+		}
+		err := s.putTextSettings(q.r.Context(), q.sc, body.WaitMinutes)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, map[string]any{"wait_minutes": body.WaitMinutes})
+		}
+		return err
+	}))
+
 	mux.Handle("GET /api/v1/numbers", s.member(s.listNumbers))
 	mux.Handle("PUT /api/v1/numbers/{phone}", s.member(s.putNumber))
 

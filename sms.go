@@ -56,12 +56,12 @@ func (s *server) sendText(ctx context.Context, sc scope, ask textAsk) (*smsRow, 
 	if !validID(ask.LeadID) {
 		return nil, bad("Choose a lead (lead_id).")
 	}
-	lead, err := s.crm.lead(ctx, sc.orgID, sc.userID, ask.LeadID)
-	var refused errCRMRefused
-	if errors.As(err, &refused) {
-		return nil, notFound(refused.message)
-	}
+	lead, thread, err := s.leadThread(ctx, sc, ask.LeadID)
 	if err != nil {
+		return nil, err
+	}
+	// One person sends in a lead's conversation (step 10, D17).
+	if err := thread.mustBeSender(sc.userID); err != nil {
 		return nil, err
 	}
 	if lead.DoNotCall {
@@ -110,6 +110,10 @@ func (s *server) sendText(ctx context.Context, sc scope, ask textAsk) (*smsRow, 
 	}
 	// A delivery report can come before the carrier's answer: apply any that are waiting for this text.
 	if err = s.replayTextEvents(ctx, carrierID); err != nil {
+		return nil, err
+	}
+	// The lead is answered: their wait ends (step 10).
+	if err = s.textAnswered(ctx, sc.orgID, ask.LeadID); err != nil {
 		return nil, err
 	}
 	return s.loadText(ctx, `id = $1`, id)
@@ -263,6 +267,12 @@ func (s *server) textReceived(ctx context.Context, ev event, raw []byte) error {
 	if lead, err := s.crm.findLead(ctx, org, user, from); err == nil && lead.Found {
 		_, _ = s.st.db.Exec(ctx, `UPDATE sms_messages SET lead_id = $2, updated_at = now() WHERE id = $1`, id, lead.LeadID)
 		_, _ = s.st.db.Exec(ctx, `UPDATE sms_messages SET lead_id = $3 WHERE org_id = $1 AND to_number = $2 AND lead_id IS NULL`, org, from, lead.LeadID)
+		// The text now waits for an answer: too long, and the team's leads are told (step 10, D21).
+		if !slices.Contains(stopWords, word) {
+			if err := s.textWaiting(ctx, org, lead.LeadID); err != nil {
+				log.Printf("WARN the wait of a text from lead %s: %v", lead.LeadID, err)
+			}
+		}
 	}
 	return nil
 }
