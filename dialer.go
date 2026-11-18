@@ -124,6 +124,18 @@ func (s *server) dialerLead(w http.ResponseWriter, r *http.Request, ask dialerAs
 			}
 		}
 	}
+	// The team's agents, for an incoming call that its own agent cannot take (step 21, D150).
+	agents := []string{}
+	if team := asString(lead["team_id"]); team != "" {
+		if members, err := s.rules.members(ctx, sc.orgID); err == nil {
+			for _, m := range members {
+				if slices.Contains(m.TeamIDs, team) && !slices.Contains(leads, m.UserID) {
+					agents = append(agents, m.UserID)
+				}
+			}
+		}
+	}
+	reply["team_agents"] = agents
 	reply["team_leads"], reply["team_deputies"] = leads, deputies
 	writeJSON(w, http.StatusOK, reply)
 	return nil
