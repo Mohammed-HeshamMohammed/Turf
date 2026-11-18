@@ -247,3 +247,16 @@ func TestTeamInvitationNamesTheAgencyAndLinksToTheInvitation(t *testing.T) {
 		t.Fatalf("a name on two lines is left out: %+v", m)
 	}
 }
+
+// Step 32: a report holds totals and a link only.
+func TestTheReportTemplateHoldsTotalsOnly(t *testing.T) {
+	m, err := Render("report", "owner@example.com", map[string]any{"agency": "Blue Door Homes", "period": "Week of 9 November 2026",
+		"lines": []any{map[string]any{"label": "Calls", "value": float64(1234)}, map[string]any{"label": "Deals won", "value": float64(2)}},
+		"link": "https://app.callerwhale.com/?view=reports"})
+	if err != nil || !strings.Contains(m.Text, "Calls: 1,234") || !strings.Contains(m.HTML, "Open the details") || m.Subject != "Blue Door Homes: Week of 9 November 2026" {
+		t.Fatalf("%v %+v", err, m)
+	}
+	if _, err := Render("report", "x@example.com", map[string]any{"agency": "A", "period": "P", "lines": []any{}, "link": "https://x"}); err == nil {
+		t.Fatal("a report without totals")
+	}
+}

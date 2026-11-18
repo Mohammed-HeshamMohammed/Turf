@@ -259,6 +259,35 @@ func Render(template, to string, data map[string]any) (Message, error) {
 			`<p style="white-space:pre-wrap">` + e(message) + "</p>" +
 			`<p style="color:#666;font-size:13px">Reply to this email to answer them.</p></div>`
 		return Message{To: to, ReplyTo: writer.Address, Subject: "Contact form: " + subjectOf(name, writer.Address), Text: text, HTML: page}, nil
+	case "report":
+		// A scheduled report from the CRM (step 32): totals only; the details open in Caller Whale (D227). No lead is named here.
+		agency, period, link := str("agency"), str("period"), str("link")
+		lines, _ := data["lines"].([]any)
+		if agency == "" || period == "" || !strings.HasPrefix(link, "https://") || len(lines) == 0 || len(lines) > 20 ||
+			strings.ContainsAny(agency+period, "\r\n") || len(agency) > 200 || len(period) > 80 {
+			return Message{}, errors.New("report needs agency, period, lines and an https link")
+		}
+		e := html.EscapeString
+		var text, rows strings.Builder
+		for _, l := range lines {
+			m, _ := l.(map[string]any)
+			label, _ := m["label"].(string)
+			value := fmt.Sprint(m["value"])
+			if v, ok := m["value"].(float64); ok {
+				value = thousands(int64(v))
+			}
+			if label == "" || len(label) > 80 {
+				return Message{}, errors.New("each report line needs a short label")
+			}
+			text.WriteString(label + ": " + value + "\n")
+			rows.WriteString(`<tr><td style="padding:4px 16px 4px 0">` + e(label) + `</td><td style="text-align:right"><strong>` + e(value) + `</strong></td></tr>`)
+		}
+		body := agency + ", " + period + "\n\n" + text.String() + "\nThe details: " + link + "\n\nYou get this because a report was scheduled for you in Caller Whale."
+		page := `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:520px"><p><strong>` +
+			e(agency) + `</strong>, ` + e(period) + `</p><table>` + rows.String() + `</table><p><a href="` + e(link) +
+			`" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none">Open the details</a></p>` +
+			`<p style="color:#666;font-size:13px">You get this because a report was scheduled for you in Caller Whale.</p></div>`
+		return Message{To: to, Subject: agency + ": " + period, Text: body, HTML: page}, nil
 	}
 	return Message{}, errors.New("unknown template")
 }
