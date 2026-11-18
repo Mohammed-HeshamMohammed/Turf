@@ -26,6 +26,9 @@ type fakeWorkspaceAuthz struct {
 	roles     map[string][]string
 	leads     map[string][]string
 	seatsFull bool
+	// Step 13: Caller Whale staff (platform owner), and whether the agency is paused.
+	staff  string
+	paused bool
 }
 
 func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
@@ -45,13 +48,51 @@ func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
 			}
 			spaces = append(spaces, map[string]any{"org_id": flowOrg, "roles": roles})
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"user_id": user, "platform_role": "", "workspaces": spaces})
+		platform := ""
+		if user == f.staff {
+			platform = "owner"
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"user_id": user, "platform_role": platform, "workspaces": spaces})
 	case r.Method == "GET" && r.URL.Path == "/v1/orgs/"+flowOrg+"/members":
 		members := []map[string]any{{"user_id": f.owner, "roles": []string{"owner"}, "team_ids": []string{}}}
 		for user := range f.joined {
-			members = append(members, map[string]any{"user_id": user, "roles": []string{"caller"}, "team_ids": []string{flowTeam}})
+			roles := f.roles[user]
+			if len(roles) == 0 {
+				roles = []string{"caller"}
+			}
+			members = append(members, map[string]any{"user_id": user, "roles": roles, "team_ids": []string{flowTeam}})
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"members": members, "teams": []any{}})
+	case r.Method == "PUT" && r.URL.Path == "/v1/orgs/"+flowOrg+"/owner/handover":
+		var body struct {
+			From     string   `json:"from"`
+			To       string   `json:"to"`
+			OldRoles []string `json:"old_roles"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.From != f.owner {
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"error":"That person does not own this agency.","code":"not_owner"}`))
+			return
+		}
+		if f.roles == nil {
+			f.roles = map[string][]string{}
+		}
+		delete(f.joined, body.To)
+		f.owner, f.paused = body.To, false
+		if len(body.OldRoles) > 0 {
+			f.joined[body.From], f.roles[body.From] = true, body.OldRoles
+		}
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	case r.Method == "PUT" && r.URL.Path == "/v1/orgs/"+flowOrg+"/standing":
+		var body struct {
+			Paused *bool `json:"paused"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.Paused != nil {
+			f.paused = *body.Paused
+		}
+		_, _ = w.Write([]byte(`{"ok":true}`))
 	case r.Method == "GET" && r.URL.Path == "/v1/orgs/"+flowOrg+"/roles":
 		_, _ = w.Write([]byte(`{"roles":[{"key":"caller","assignable":true},{"key":"closer","assignable":true},{"key":"manager","assignable":true}]}`))
 	case r.Method == "POST" && r.URL.Path == "/v1/orgs/"+flowOrg+"/relations/check":
