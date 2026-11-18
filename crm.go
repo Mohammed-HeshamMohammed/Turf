@@ -24,14 +24,15 @@ type leadInfo struct {
 	MayCall   bool   `json:"may_call"`
 	Reason    string `json:"reason"`
 	// For the lead's text thread (step 10): who works it, its team's leads and deputies, and the asker's rank toward it.
-	AssigneeID   string   `json:"assignee_id"`
-	TeamID       string   `json:"team_id"`
-	ClientID     string   `json:"client_id"` // the lead's client, charged with its use (step 23)
-	TeamLeads    []string `json:"team_leads"`
-	TeamDeputies []string `json:"team_deputies"`
-	TeamAgents   []string `json:"team_agents"` // the team's other people, for an incoming call (step 21)
-	Rank         string   `json:"rank"`
-	ErrMessage   string   `json:"-"`
+	AssigneeID      string   `json:"assignee_id"`
+	TeamID          string   `json:"team_id"`
+	ClientID        string   `json:"client_id"`
+	WaitingApproval bool     `json:"waiting_approval"` // its list waits for the client's approval (step 23) // the lead's client, charged with its use (step 23)
+	TeamLeads       []string `json:"team_leads"`
+	TeamDeputies    []string `json:"team_deputies"`
+	TeamAgents      []string `json:"team_agents"` // the team's other people, for an incoming call (step 21)
+	Rank            string   `json:"rank"`
+	ErrMessage      string   `json:"-"`
 }
 
 // opAnswer is crm-core's answer to an operation: applied, duplicate (already logged), rejected or conflict.

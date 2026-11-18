@@ -123,6 +123,9 @@ func (s *server) mayText(ctx context.Context, sc scope, ask textAsk, anySender b
 	if lead.DoNotCall {
 		return "", lead, conflictErr("This lead is do-not-call; they cannot be texted.")
 	}
+	if lead.WaitingApproval {
+		return "", lead, conflictErr("This list is waiting for its client's approval.")
+	}
 	to := e164(lead.Phone)
 	if to == "" {
 		return "", lead, conflictErr("The lead's phone number cannot receive texts.")
