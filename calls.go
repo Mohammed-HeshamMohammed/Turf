@@ -111,6 +111,8 @@ type dialAsk struct {
 	Record           bool   `json:"record"`
 	VoicemailDropURL string `json:"voicemail_drop_url"`
 	Scenario         string `json:"scenario"` // simulate mode only
+	// One of the agency's recorded voicemail messages, instead of an address (step 21, D278).
+	VoicemailDropID string `json:"voicemail_drop_id"`
 }
 
 func (s *server) placeCall(ctx context.Context, sc scope, ask dialAsk) (*callRow, error) {
@@ -143,6 +145,17 @@ func (s *server) placeCall(ctx context.Context, sc scope, ask dialAsk) (*callRow
 	if err != nil {
 		return nil, err
 	}
+	if ask.VoicemailDropID != "" {
+		if ask.VoicemailDropURL, err = s.dropURL(ctx, sc.orgID, ask.VoicemailDropID); err != nil {
+			return nil, err
+		}
+	}
+	// Recording the owner switched on for the agency or the lead's team (D276).
+	recordOn, err := s.recordingOn(ctx, sc.orgID, lead.TeamID)
+	if err != nil {
+		return nil, err
+	}
+	ask.Record = ask.Record || recordOn
 	if ask.VoicemailDropURL != "" && !strings.HasPrefix(ask.VoicemailDropURL, "https://") {
 		return nil, bad("voicemail_drop_url must be an https address of the recording to play.")
 	}
@@ -368,6 +381,8 @@ func (s *server) react(ctx context.Context, ev event, c *callRow) {
 	case ev.EventType == "call.initiated" && c.Direction == "incoming" && leg == "" && live:
 		do("answer", map[string]any{"client_state": base64.StdEncoding.EncodeToString([]byte(c.ID))})
 	case ev.EventType == "call.answered" && leg == "" && live && c.Record:
+		// The lead hears that the call is recorded before it is (D276; the wording per state is the lawyer's).
+		do("speak", map[string]any{"payload": recordingNotice, "voice": "female", "language": "en-US"})
 		do("record_start", map[string]any{"format": "mp3", "channels": "single"})
 	case ev.EventType == "call.answered" && leg == "" && live && c.Direction == "incoming":
 		// Ring the lead's agent, else the team's available agents, then its leads (step 21, D150); nobody available: the caller leaves

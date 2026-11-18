@@ -120,6 +120,80 @@ func (s *server) handler() http.Handler {
 		}
 		return err
 	}))
+	// Live calls and recording (step 21, part B).
+	mux.Handle("POST /api/v1/calls/{id}/join", s.member(func(q *req) error {
+		var body struct {
+			Mode string `json:"mode"`
+		}
+		if err := readJSON(q.w, q.r, &body); err != nil {
+			return err
+		}
+		out, err := s.joinCall(q.r.Context(), q.sc, q.r.PathValue("id"), body.Mode)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, out)
+		}
+		return err
+	}))
+	mux.Handle("GET /api/v1/calls/{id}/joins", s.member(func(q *req) error {
+		c, err := s.ownCall(q.r.Context(), q.sc, q.r.PathValue("id"))
+		if err != nil {
+			return err
+		}
+		joins, err := s.joinsOf(q.r.Context(), c.ID)
+		if err != nil {
+			return err
+		}
+		pauses, err := s.pausesOf(q.r.Context(), c.ID)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, map[string]any{"joins": joins, "recording_pauses": pauses})
+		}
+		return err
+	}))
+	mux.Handle("POST /api/v1/calls/{id}/recording", s.member(func(q *req) error {
+		var body struct {
+			Pause bool `json:"pause"`
+		}
+		if err := readJSON(q.w, q.r, &body); err != nil {
+			return err
+		}
+		err := s.pauseRecording(q.r.Context(), q.sc, q.r.PathValue("id"), body.Pause)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, map[string]any{"paused": body.Pause})
+		}
+		return err
+	}))
+	mux.Handle("PUT /api/v1/recording", s.member(func(q *req) error {
+		var body struct {
+			TeamID string `json:"team_id"`
+			On     bool   `json:"on"`
+		}
+		if err := readJSON(q.w, q.r, &body); err != nil {
+			return err
+		}
+		err := s.putRecording(q.r.Context(), q.sc, body.TeamID, body.On)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, map[string]any{"on": body.On})
+		}
+		return err
+	}))
+	mux.Handle("POST /api/v1/voicemail-drops", s.member(func(q *req) error {
+		var body voicemailDrop
+		if err := readJSON(q.w, q.r, &body); err != nil {
+			return err
+		}
+		d, err := s.saveDrop(q.r.Context(), q.sc, body)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, d)
+		}
+		return err
+	}))
+	mux.Handle("GET /api/v1/voicemail-drops", s.member(func(q *req) error {
+		list, err := s.dropsFor(q.r.Context(), q.sc, q.r.URL.Query().Get("lead_id"))
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, map[string]any{"voicemail_drops": list})
+		}
+		return err
+	}))
 	mux.Handle("POST /api/v1/calls/{id}/hangup", s.member(func(q *req) error {
 		c, err := s.hangupCall(q.r.Context(), q.sc, q.r.PathValue("id"))
 		if err == nil {

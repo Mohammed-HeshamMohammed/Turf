@@ -43,6 +43,8 @@ type dialRequest struct {
 	TimeoutSecs   int
 	TimeLimitSecs int
 	Scenario      string // simulator only: which scenario to play (ignored by Telnyx; sent as a header only in simulate mode)
+	// Joining a live call (step 21): the call to join, and how (monitor, whisper, barge).
+	SuperviseID, SupervisorRole string
 }
 
 type dialAnswer struct {
@@ -119,6 +121,9 @@ func (t *telnyx) dial(ctx context.Context, d dialRequest) (dialAnswer, error) {
 	}
 	if d.AMD != "" {
 		body["answering_machine_detection"] = d.AMD
+	}
+	if d.SuperviseID != "" {
+		body["supervise_call_control_id"], body["supervisor_role"] = d.SuperviseID, d.SupervisorRole
 	}
 	if t.webhookURL != "" {
 		body["webhook_url"] = t.webhookURL
