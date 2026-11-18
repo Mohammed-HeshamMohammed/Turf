@@ -97,12 +97,12 @@ func (s *server) getConversation(q *req) error {
 
 // teammates checks that every id is someone else in the workspace, and returns them once each, in lower case.
 func (s *server) teammates(ctx context.Context, sc scope, ids []string) ([]string, error) {
-	roster, err := s.rules.members(ctx, sc.orgID)
+	roster, err := s.rules.roster(ctx, sc.orgID)
 	if err != nil {
 		return nil, err
 	}
 	in := map[string]bool{}
-	for _, m := range roster {
+	for _, m := range roster.Members {
 		in[strings.ToLower(m.UserID)] = true
 	}
 	out := []string{}
@@ -221,7 +221,10 @@ func (s *server) changeConversation(q *req) error {
 	}
 	if body.Title != nil {
 		title := strings.TrimSpace(*body.Title)
-		if kind != "group" || role != "owner" {
+		switch {
+		case kind == "team":
+			return forbidden("A team chat has its team's name; rename the team instead.")
+		case kind != "group" || role != "owner":
 			return forbidden("Only the group's owner renames it.")
 		}
 		if title == "" || utf8.RuneCountInString(title) > maxTitle {
@@ -297,7 +300,13 @@ func (s *server) changeMembers(q *req) error {
 	if err != nil {
 		return err
 	}
-	if kind != "group" {
+	switch kind {
+	case "team":
+		return forbidden("Everyone in a team is in its chat while they are in the team. You can mute it instead.")
+	case "announcements":
+		return forbidden("Everyone in the agency is in announcements. You can mute it instead.")
+	case "group":
+	default:
 		return bad("Only a group's members can change.")
 	}
 	leavingOnly := len(add) == 0 && len(remove) == 1 && remove[0] == q.sc.userID
@@ -371,6 +380,8 @@ type newMessage struct {
 	id, kind, body string
 	replyTo        *string
 	mentions       []string
+	groups         []string
+	important      bool
 	poll           *pollBody
 }
 
@@ -398,14 +409,17 @@ func addMessage(ctx context.Context, tx pgx.Tx, sc scope, conversation string, m
 	if m.mentions == nil {
 		m.mentions = []string{}
 	}
+	if m.groups == nil {
+		m.groups = []string{}
+	}
 	var seq int64
 	if err = tx.QueryRow(ctx, `UPDATE conversations SET last_seq = last_seq + 1, last_message_at = now() WHERE id = $1 RETURNING last_seq`, conversation).Scan(&seq); err != nil {
 		return nil, false, err
 	}
 	var id string
-	err = tx.QueryRow(ctx, `INSERT INTO messages (id, org_id, conversation_id, seq, sender_id, kind, body, reply_to, mentions)
-		VALUES (coalesce(nullif($1, '')::uuid, gen_random_uuid()), cw_org(), $2, $3, cw_user(), $4, $5, $6, $7::uuid[]) RETURNING id::text`,
-		m.id, conversation, seq, m.kind, m.body, m.replyTo, m.mentions).Scan(&id)
+	err = tx.QueryRow(ctx, `INSERT INTO messages (id, org_id, conversation_id, seq, sender_id, kind, body, reply_to, mentions, mention_groups, important)
+		VALUES (coalesce(nullif($1, '')::uuid, gen_random_uuid()), cw_org(), $2, $3, cw_user(), $4, $5, $6, $7::uuid[], $8::text[], $9) RETURNING id::text`,
+		m.id, conversation, seq, m.kind, m.body, m.replyTo, m.mentions, m.groups, m.important).Scan(&id)
 	var pg *pgconn.PgError
 	if errors.As(err, &pg) && pg.Code == "23505" { // the id belongs to a message this person cannot see
 		return nil, false, conflict("That message id is already used.")
@@ -436,7 +450,10 @@ func (s *server) sendMessage(q *req) error {
 		Body     string    `json:"body"`
 		ReplyTo  *string   `json:"reply_to"`
 		Mentions []string  `json:"mentions"`
+		Groups   []string  `json:"mention_groups"` // everyone, managers, team, team:<id> (D86)
 		Poll     *pollBody `json:"poll"`
+		// An announcement the owner, an admin or a team lead marks important reaches people even when muted (D350).
+		Important bool `json:"important"`
 	}
 	if err := readJSON(q.w, q.r, &body); err != nil {
 		return err
@@ -444,7 +461,7 @@ func (s *server) sendMessage(q *req) error {
 	if !validID(body.ID) {
 		return bad("A message needs an id made by the app, so sending it twice saves it once.")
 	}
-	m := newMessage{id: strings.ToLower(body.ID), kind: "text", body: strings.TrimSpace(body.Body), replyTo: body.ReplyTo, poll: body.Poll}
+	m := newMessage{id: strings.ToLower(body.ID), kind: "text", body: strings.TrimSpace(body.Body), replyTo: body.ReplyTo, poll: body.Poll, important: body.Important}
 	if p := body.Poll; p != nil {
 		p.Question = strings.TrimSpace(p.Question)
 		if p.Question == "" || utf8.RuneCountInString(p.Question) > 300 || len(p.Options) < 2 || len(p.Options) > 10 {
@@ -469,8 +486,25 @@ func (s *server) sendMessage(q *req) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	if _, _, err = membership(ctx, tx, conversation); err != nil {
+	kind, _, err := membership(ctx, tx, conversation)
+	if err != nil {
 		return err
+	}
+	var teamID string
+	if err = tx.QueryRow(ctx, `SELECT coalesce(team_id::text, '') FROM conversations WHERE id = $1`, conversation).Scan(&teamID); err != nil {
+		return err
+	}
+	var roster roster
+	if kind == "announcements" || m.important || len(body.Groups) > 0 {
+		if roster, err = s.rules.roster(ctx, q.sc.orgID); err != nil {
+			return err
+		}
+	}
+	switch {
+	case kind == "announcements" && !roster.leads()[q.sc.userID]:
+		return forbidden("Only the owner, admins and team leads post announcements. You can react to them.")
+	case m.important && kind != "announcements":
+		return bad("Only an announcement can be marked important.")
 	}
 	if m.replyTo != nil {
 		var found bool
@@ -485,6 +519,22 @@ func (s *server) sendMessage(q *req) error {
 	if err = tx.QueryRow(ctx, `SELECT coalesce(array_agg(user_id::text), '{}') FROM members WHERE conversation_id = $1 AND left_at IS NULL AND user_id::text = ANY($2)`,
 		conversation, lower(body.Mentions)).Scan(&m.mentions); err != nil {
 		return err
+	}
+	if len(body.Groups) > 0 {
+		var members []string
+		if err = tx.QueryRow(ctx, `SELECT coalesce(array_agg(user_id::text), '{}') FROM members WHERE conversation_id = $1 AND left_at IS NULL`, conversation).Scan(&members); err != nil {
+			return err
+		}
+		reached, used, err := mentionGroups(roster, q.sc, kind, teamID, members, body.Groups)
+		if err != nil {
+			return err
+		}
+		for _, id := range reached {
+			if !slices.Contains(m.mentions, id) {
+				m.mentions = append(m.mentions, id)
+			}
+		}
+		m.groups = used
 	}
 	raw, created, err := addMessage(ctx, tx, q.sc, conversation, m)
 	if err != nil {
@@ -717,7 +767,7 @@ func (s *server) searchMessages(q *req) error {
 	if utf8.RuneCountInString(term) < 2 || len(term) > 200 {
 		return bad("Search for at least two characters.")
 	}
-	escaped := strings.NewReplacer(`\`, `\`, `%`, `\%`, `_`, `\_`).Replace(term)
+	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(term)
 	ctx := q.r.Context()
 	tx, err := s.st.begin(ctx, q.sc)
 	if err != nil {

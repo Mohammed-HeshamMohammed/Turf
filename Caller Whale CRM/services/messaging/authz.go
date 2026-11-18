@@ -17,7 +17,7 @@ import (
 // rules is what this service asks the authorization service: may this person work in this workspace, and who else is in it.
 type rules interface {
 	grant(ctx context.Context, user, org string, secondStep bool) (grantReply, error)
-	members(ctx context.Context, org string) ([]member, error)
+	roster(ctx context.Context, org string) (roster, error)
 }
 
 // grantReply is the answer to "may this person work in this workspace": the rights to use, or a code and a reason.
@@ -30,8 +30,23 @@ type grantReply struct {
 }
 
 type member struct {
-	UserID string   `json:"user_id"`
-	Roles  []string `json:"roles"`
+	UserID  string   `json:"user_id"`
+	Roles   []string `json:"roles"`
+	TeamIDs []string `json:"team_ids"`
+}
+
+// team is one of the workspace's teams: its leads and deputy leads.
+type team struct {
+	TeamID     string   `json:"team_id"`
+	Name       string   `json:"name"`
+	ManagerIDs []string `json:"manager_ids"`
+	DeputyIDs  []string `json:"deputy_ids"`
+}
+
+// roster is who is in a workspace and its teams, as authz has them.
+type roster struct {
+	Members []member `json:"members"`
+	Teams   []team   `json:"teams"`
 }
 
 var (
@@ -44,8 +59,14 @@ type authzClient struct {
 	http        *http.Client
 	ttl         time.Duration
 
-	mu    sync.Mutex
-	cache map[string]cached
+	mu      sync.Mutex
+	cache   map[string]cached
+	rosters map[string]cachedRoster
+}
+
+type cachedRoster struct {
+	roster  roster
+	expires time.Time
 }
 
 type cached struct {
@@ -54,7 +75,7 @@ type cached struct {
 }
 
 func newAuthz(base, token string, ttl time.Duration) *authzClient {
-	return &authzClient{base: base, token: token, ttl: ttl, http: &http.Client{Timeout: 5 * time.Second}, cache: map[string]cached{}}
+	return &authzClient{base: base, token: token, ttl: ttl, http: &http.Client{Timeout: 5 * time.Second}, cache: map[string]cached{}, rosters: map[string]cachedRoster{}}
 }
 
 func (a *authzClient) call(ctx context.Context, method, path string, body io.Reader, into any) error {
@@ -81,11 +102,25 @@ func (a *authzClient) call(ctx context.Context, method, path string, body io.Rea
 	return json.Unmarshal(data, into)
 }
 
-func (a *authzClient) members(ctx context.Context, org string) ([]member, error) {
-	var r struct {
-		Members []member `json:"members"`
+// roster answers who is in the workspace and its teams, kept for as long as a grant is: team chats follow it on every request.
+func (a *authzClient) roster(ctx context.Context, org string) (roster, error) {
+	a.mu.Lock()
+	if hit, ok := a.rosters[org]; ok && time.Now().Before(hit.expires) {
+		a.mu.Unlock()
+		return hit.roster, nil
 	}
-	return r.Members, a.call(ctx, http.MethodGet, "/v1/orgs/"+url.PathEscape(org)+"/members", nil, &r)
+	a.mu.Unlock()
+	var r roster
+	if err := a.call(ctx, http.MethodGet, "/v1/orgs/"+url.PathEscape(org)+"/members", nil, &r); err != nil {
+		return r, err
+	}
+	a.mu.Lock()
+	if len(a.rosters) > 1000 {
+		a.rosters = map[string]cachedRoster{}
+	}
+	a.rosters[org] = cachedRoster{r, time.Now().Add(a.ttl)}
+	a.mu.Unlock()
+	return r, nil
 }
 
 // grant asks for the "read" grant, which carries everything the person holds in the workspace. Answers are kept for a few

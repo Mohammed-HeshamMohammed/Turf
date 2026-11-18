@@ -150,3 +150,15 @@ No screen yet; automated tests cover it. Once it has one:
 | D2 | Edit a chat message right away, then after 15 minutes | The first edit works; the second says "A message can be edited for 15 minutes after it was sent." Deleting still works. |
 | D3 | Suspend a caller with a reason, then ask for the record of people changes (no screen yet: `GET /v1/orgs/{org}/people-log`) | The owner sees everything; the team's lead sees their team's changes; the caller sees only what was done to them, with the reason. |
 | D4 | Search messages (no screen yet: `GET .../messages/search?q=`) | Only messages in conversations the person is in, in this agency. |
+
+# Step 16, part B: team chats, announcements, mentions (server only)
+
+The CRM's Inbox still shows sample conversations, so these wait for its chat screen. Automated tests cover them.
+
+| # | Do | Expect |
+|---|---|---|
+| C1 | Put a caller in a team, then open chats as them | A chat named after the team, with its lead, deputies and members, and the Announcements channel. You, the owner, are not in a team chat you do not lead. |
+| C2 | As the caller, try to leave the team chat, then mute it | Leaving is refused ("Everyone in a team is in its chat while they are in the team"); muting works. |
+| C3 | Move the caller to another team; rename the first team | They leave the first team's chat and join the second's, with only new messages unread. The first chat takes the new name. |
+| C4 | As the caller, post in Announcements; as the team lead, post one marked important with @everyone | The caller is refused and can still react; the lead's post shows as important and mentions everyone. |
+| C5 | In a team chat write @team and @managers; in a direct chat write @team | The team's people, then its leads and deputies, are mentioned; in a direct chat @team needs a team named. |
