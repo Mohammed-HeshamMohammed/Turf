@@ -7,7 +7,7 @@ import { ApiError, needsSecondStep, useSecondStep } from "./SecondStep.tsx";
 import { AnnouncementManager } from "./AnnouncementManager.tsx";
 import { CostsManager, MembersTable, PlatformOverview } from "./OwnerViews.tsx";
 import { InviteManager, PendingInvitations, WorkspaceManager, WorkspaceSecondStep } from "./AccessManagement.tsx";
-import { AgencyStanding, HandOver, OfferedAgencies, OwnerlessAgencies, askTakeover } from "./Ownership.tsx";
+import { AgencyStanding, HandOver, SeatChoice, OfferedAgencies, OwnerlessAgencies, askTakeover } from "./Ownership.tsx";
 import { MonitoringPanel } from "./MonitoringPanel.tsx";
 import { Settings } from "./Settings.tsx";
 import { profilePath } from "./profile-path.ts";
@@ -76,7 +76,7 @@ function UsageOverview({ access, auth, authBase, me }: { access: Access; auth: A
         <RoleBadges access={{ ...access, workspaces: [] }} />
       </section>
     </div>
-    {access.workspaces.filter(space => space.business_owner).map(space => <div className="workspace-access" key={space.org_id}><h2>Workspace access</h2><p className="muted">Manage the people in your workspace.</p>{me.mfa_passed === false ? <WorkspaceSecondStep auth={auth} me={me} /> : <><WorkspaceManager auth={auth} authBase={authBase} orgId={space.org_id} /><InviteManager auth={auth} authBase={authBase} scope="workspace" orgId={space.org_id} /><HandOver auth={auth} authBase={authBase} orgId={space.org_id} /></>}</div>)}
+    {access.workspaces.filter(space => space.business_owner).map(space => <div className="workspace-access" key={space.org_id}><h2>Workspace access</h2><p className="muted">Manage the people in your workspace.</p>{me.mfa_passed === false ? <WorkspaceSecondStep auth={auth} me={me} /> : <><WorkspaceManager auth={auth} authBase={authBase} orgId={space.org_id} /><InviteManager auth={auth} authBase={authBase} scope="workspace" orgId={space.org_id} /><SeatChoice auth={auth} authBase={authBase} orgId={space.org_id} /><HandOver auth={auth} authBase={authBase} orgId={space.org_id} /></>}</div>)}
     {access.workspaces.filter(space => !space.business_owner && space.roles.includes("manager")).map(space => <div className="workspace-access" key={space.org_id}><h2>Your team</h2><p className="muted">Track and manage the callers and closers you run.</p><WorkspaceManager auth={auth} authBase={authBase} orgId={space.org_id} /></div>)}
   </div>;
 }
