@@ -42,6 +42,8 @@ CRM (browser) --POST /api/v1/calls--> dialer-sms --POST /v2/calls--> Telnyx (or 
 
 **Texting** is conversations only: a lead can be texted after they texted the workspace, or once consent is recorded (`POST /api/v1/sms/consent`, source `form` or `call`). STOP (and STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT) blocks texts until START. Delivery reports move a text forward (queued, sent, delivered or failed), never back.
 
+**Lead threads (build step 10).** A lead's texts are one thread with one sender: the lead's agent, unless someone above took it over (the owner or an admin, a lead of the lead's team, its deputy, by rank). `GET /api/v1/sms/threads/{lead}` is the texts, internal notes and control (who sends, who may take over, hand back or ask back); `POST /api/v1/sms/threads/{lead}/takeover`, `/handback`, `/ask-back`, `/notes {body}`. A text from the lead not answered within the agency's wait (`PUT /api/v1/sms/settings {wait_minutes}`, 15 by default) tells the team's leads and deputies (the owner when the team has none); one waiting on whoever took it over goes back to the agent and both are told. What people were told: `GET /api/v1/sms/alerts`, `POST /api/v1/sms/alerts/{id}/seen`. The CRM says who works the lead and the asker's rank in its `/internal/v1/dialer/lead` answer.
+
 ## Trying it with the simulator
 
 The simulator plays these scenarios. Pick one per call with `"scenario"` in `POST /api/v1/calls` (simulate mode only), or call a number ending in its digits:

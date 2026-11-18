@@ -13,6 +13,7 @@ import (
 	"crypto/subtle"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -75,7 +76,8 @@ func (s *server) dialerScope(ctx context.Context, org, user string) (scope, erro
 	if name == "" {
 		name = "Dialer"
 	}
-	return scope{userID: user, orgID: org, label: name, roles: g.Roles, scopes: g.Scopes, teamIDs: g.TeamIDs, seeTeams: g.seeTeams(), projectIDs: g.ProjectIDs, caps: g.Capabilities}, nil
+	return scope{userID: user, orgID: org, label: name, roles: g.Roles, scopes: g.Scopes, teamIDs: g.TeamIDs, seeTeams: g.seeTeams(), projectIDs: g.ProjectIDs, caps: g.Capabilities,
+		managed: g.ManagedTeamIDs, deputyOf: g.DeputyTeamIDs}, nil
 }
 
 // dialerLead answers "may this person call this lead, and on which number": the dialer dials the CRM's number, never one a
@@ -98,8 +100,50 @@ func (s *server) dialerLead(w http.ResponseWriter, r *http.Request, ask dialerAs
 	if lead == nil {
 		return notFound("The lead was not found, was deleted, or is outside this person's access.")
 	}
-	writeJSON(w, http.StatusOK, dialerLeadReply(lead, sc))
+	reply := dialerLeadReply(lead, sc)
+	// For the lead's text thread (step 10): who works the lead, its team's leads and deputies (told when a text waits too long), and
+	// the asker's rank toward it, for who may send and take over.
+	reply["assignee_id"], reply["team_id"] = lead["assignee_id"], lead["team_id"]
+	reply["rank"] = threadRank(sc, lead)
+	leads, deputies := []string{}, []string{}
+	if team := asString(lead["team_id"]); team != "" {
+		if teams, err := s.rules.teams(ctx, sc.orgID); err == nil {
+			for _, t := range teams {
+				if t.TeamID == team {
+					leads, deputies = nonNil(t.leads()), nonNil(t.DeputyIDs)
+				}
+			}
+		}
+	}
+	if len(leads) == 0 { // a team without a lead: the owner is told instead (D20)
+		if members, err := s.rules.members(ctx, sc.orgID); err == nil {
+			for _, m := range members {
+				if slices.Contains(m.Roles, "owner") || slices.Contains(m.Roles, "solo") {
+					leads = append(leads, m.UserID)
+				}
+			}
+		}
+	}
+	reply["team_leads"], reply["team_deputies"] = leads, deputies
+	writeJSON(w, http.StatusOK, reply)
 	return nil
+}
+
+// threadRank is the asker's place toward a lead's text thread, highest first (D76): the owner or an admin, a lead of the lead's team,
+// its deputy, the agent it is assigned to; "" for anyone else who may see it.
+func threadRank(sc scope, lead map[string]any) string {
+	team := asString(lead["team_id"])
+	switch {
+	case slices.Contains(sc.roles, "owner") || slices.Contains(sc.roles, "solo") || slices.Contains(sc.roles, "admin"):
+		return "owner"
+	case team != "" && slices.Contains(sc.managed, team):
+		return "lead"
+	case team != "" && slices.Contains(sc.deputyOf, team):
+		return "deputy"
+	case asString(lead["assignee_id"]) == sc.userID:
+		return "agent"
+	}
+	return ""
 }
 
 func dialerLeadReply(lead map[string]any, sc scope) map[string]any {

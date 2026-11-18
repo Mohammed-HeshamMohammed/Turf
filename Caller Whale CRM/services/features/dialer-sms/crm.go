@@ -23,6 +23,12 @@ type leadInfo struct {
 	DoNotCall  bool   `json:"do_not_call"`
 	MayCall    bool   `json:"may_call"`
 	Reason     string `json:"reason"`
+	// For the lead's text thread (step 10): who works it, its team's leads and deputies, and the asker's rank toward it.
+	AssigneeID   string   `json:"assignee_id"`
+	TeamID       string   `json:"team_id"`
+	TeamLeads    []string `json:"team_leads"`
+	TeamDeputies []string `json:"team_deputies"`
+	Rank         string   `json:"rank"`
 	ErrMessage string `json:"-"`
 }
 

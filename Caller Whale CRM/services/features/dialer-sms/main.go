@@ -215,6 +215,7 @@ func main() {
 		log.Print("INFO TELNYX_MODE=live: calls and texts go to Telnyx and cost money")
 	}
 	go s.settlePeriodically(ctx)
+	go s.checkWaitingPeriodically(ctx)
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: time.Minute, WriteTimeout: time.Minute, IdleTimeout: 2 * time.Minute}
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)

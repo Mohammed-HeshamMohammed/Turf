@@ -32,13 +32,14 @@ func (f *fakeRules) grant(_ context.Context, user, org string, _ bool) (grantRep
 // fakeCRM stands in for crm-core's /internal/v1/dialer routes: leads to call, and the call log, one entry per operation id.
 type fakeCRM struct {
 	mu         sync.Mutex
+	ranks      map[string]string // user|lead -> rank toward the lead's thread
 	leads      map[string]*leadInfo
 	logged     map[string]map[string]any // operation id -> payload
 	reports    int                       // every recordCall, repeats included
 	recordings map[string]map[string]any
 }
 
-func (f *fakeCRM) lead(_ context.Context, _, _, id string) (leadInfo, error) {
+func (f *fakeCRM) lead(_ context.Context, _, user, id string) (leadInfo, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	l := f.leads[id]
@@ -46,6 +47,8 @@ func (f *fakeCRM) lead(_ context.Context, _, _, id string) (leadInfo, error) {
 		return leadInfo{}, errCRMRefused{"The lead was not found"}
 	}
 	out := *l
+	// Each person's rank toward the lead's thread (step 10), as the CRM would answer it.
+	out.Rank = f.ranks[user+"|"+id]
 	out.Found, out.MayCall = true, !l.DoNotCall
 	if l.DoNotCall {
 		out.Reason = "This lead is do-not-call."
