@@ -39,6 +39,8 @@ type config struct {
 	// Email to leads (step 29): Amazon SES's region (its login from AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY), this API's public
 	// address, the domain replies go to, and the SNS topic SES puts them on.
 	emailRegion, emailPublicURL, emailReplyDomain, emailTopic string
+	// Scheduled report emails (step 32): the notification service and crm-core's token in its NOTIFY_TOKENS.
+	notifyMailURL, notifyMailToken string
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -61,6 +63,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 		googleRedirect: strings.TrimSpace(getenv("GOOGLE_REDIRECT_URL")), appURL: trim(getenv("APP_URL")),
 		emailRegion: strings.TrimSpace(getenv("EMAIL_SES_REGION")), emailPublicURL: trim(getenv("EMAIL_PUBLIC_URL")),
 		emailReplyDomain: strings.ToLower(strings.TrimSpace(getenv("EMAIL_REPLY_DOMAIN"))), emailTopic: strings.TrimSpace(getenv("EMAIL_SNS_TOPIC_ARN")),
+		notifyMailURL: trim(getenv("NOTIFY_MAIL_URL")), notifyMailToken: strings.TrimSpace(getenv("NOTIFY_MAIL_TOKEN")),
 	}
 	if c.port == "" {
 		c.port = "8107"
@@ -152,6 +155,7 @@ func main() {
 	go s.sweepRowsPeriodically(ctx)
 	go s.learnPendingPeriodically(ctx)
 	go s.checkEmailWaitsPeriodically(ctx)
+	go s.sendReportsPeriodically(ctx)
 	go st.keepBuildingLateIndexes(ctx, 5*time.Minute)
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 5 * time.Minute, WriteTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute}
 	stop := make(chan os.Signal, 1)

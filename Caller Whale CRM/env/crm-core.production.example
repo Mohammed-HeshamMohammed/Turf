@@ -54,3 +54,8 @@ AWS_SECRET_ACCESS_KEY=
 EMAIL_PUBLIC_URL=https://api.callerwhale.com
 EMAIL_REPLY_DOMAIN=reply.callerwhale.com
 EMAIL_SNS_TOPIC_ARN=
+
+# Scheduled report emails (build step 32): the notification service and crm-core's token in its NOTIFY_TOKENS ("crm-core=<token>").
+# Secret, set in Coolify only. Empty: reports are not sent. APP_URL (above) is the link in them.
+NOTIFY_MAIL_URL=http://notifications:8102
+NOTIFY_MAIL_TOKEN=<the crm-core token from notifications' NOTIFY_TOKENS>

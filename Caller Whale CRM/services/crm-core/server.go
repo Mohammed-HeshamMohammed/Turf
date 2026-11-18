@@ -74,9 +74,12 @@ type server struct {
 	// Email to leads (step 29); nil when not set up. fetchCert reads SNS signing certificates (a stand-in in tests).
 	mail      emailProvider
 	fetchCert func(context.Context, string) ([]byte, error)
+	// reportMailer sends a report email (the notification service; a stand-in in tests).
+	reportMailer reportMail
 
 	seenPeople sync.Map // user -> last time their name was stored
 	seenOrgs   sync.Map // workspace ids that have a row
+	seenDays   sync.Map // org|user|day already written to member_days (step 32)
 	sharedName sync.Map // workspace id -> the agency name authz was last told
 }
 
@@ -158,6 +161,7 @@ func (s *server) handler() http.Handler {
 	s.emailRoutes(mux)
 	s.protectRoutes(mux)
 	s.setupRoutes(mux)
+	s.overviewRoutes(mux)
 	mux.Handle("PUT /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
 	mux.Handle("DELETE /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
 	mux.Handle("PUT /api/v1/clients/{id}/teams/{other}", s.member(s.clientLink("teams")))
@@ -350,6 +354,7 @@ func label(c claims) string {
 
 // remember keeps the person's display name and the workspace row, at most once in a while.
 func (s *server) remember(ctx context.Context, c claims, org string) {
+	s.noteMemberDay(ctx, org, c.sub) // days active, for the owner (step 32, D267)
 	if _, ok := s.seenOrgs.Load(org); !ok {
 		if _, err := s.st.db.Exec(ctx, `INSERT INTO orgs (id, name) VALUES ($1, 'Workspace') ON CONFLICT DO NOTHING`, org); err == nil {
 			s.seenOrgs.Store(org, true)

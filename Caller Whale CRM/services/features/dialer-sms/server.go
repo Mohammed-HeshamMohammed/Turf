@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"context"
 	"crypto/ed25519"
 	"crypto/subtle"
@@ -484,6 +485,23 @@ func (s *server) handler() http.Handler {
 		return err
 	}))
 
+	// Unanswered texts from leads, for a team's leads (their team) or the owner and admins (step 32, D226).
+	mux.Handle("GET /api/v1/sms/waiting", s.member(func(q *req) error {
+		team := q.r.URL.Query().Get("team_id")
+		if !q.sc.runsAgency() && (team == "" || !slices.Contains(q.sc.managed, team)) {
+			return forbidden("A team's leads see its waiting texts (team_id); the owner and admins see all.")
+		}
+		rows, err := s.st.db.Query(q.r.Context(), `SELECT jsonb_build_object('lead_id', lead_id, 'team_id', team_id, 'assignee_id', assignee_id, 'waiting_since', waiting_since)
+			FROM sms_threads WHERE org_id = $1 AND waiting_since IS NOT NULL AND ($2 = '' OR team_id::text = $2) ORDER BY waiting_since`, q.sc.orgID, team)
+		if err != nil {
+			return err
+		}
+		list, err := pgx.CollectRows(rows, pgx.RowTo[map[string]any])
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, map[string]any{"waiting": list})
+		}
+		return err
+	}))
 	mux.Handle("GET /api/v1/numbers", s.member(s.listNumbers))
 	mux.Handle("PUT /api/v1/numbers/{phone}", s.member(s.putNumber))
 

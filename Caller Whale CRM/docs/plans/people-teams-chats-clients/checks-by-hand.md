@@ -344,3 +344,13 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | F2 | Rename the agency, skip hours, accept the agreement | Name and agreement done, hours skipped; an admin cannot accept the agreement. |
 | F3 | As a caller, open the walk-through status, finish yours | Your role is listed until you finish it. |
 | F4 | As a team lead, add material for your team and give it to a caller of your team, then to someone outside it | The first works, the second is refused; when the caller finishes it, you see it. |
+
+# Step 32: overviews and reports (reports after the owner sets NOTIFY_MAIL_URL/TOKEN)
+
+| # | Do | Expect |
+|---|---|---|
+| R1 | As a throwaway agency's owner, open the overview | What needs you today first (work to hand on, overdue callbacks by team, emails waiting), then today's calls and results. |
+| R2 | As a team lead, open your team's overview and the dialer's waiting texts | Overdue callbacks, unassigned leads and emails waiting for your team; another team's is refused. |
+| R3 | As the owner, open members' activity | Each member's last active day and days active this month. |
+| R4 | As a team lead, schedule a weekly report for your team; wait until Monday (agency time) | An email with totals only and a link to the details. |
+| R5 | As the owner, schedule a monthly report to a client's people | On the 1st, the client's people get the totals for their work only. |

@@ -111,3 +111,9 @@ With `EMAIL_SES_REGION` (and the SES login), `EMAIL_PUBLIC_URL`, `EMAIL_REPLY_DO
 - `GET`/`POST /api/v1/agreements/dpa {version}`: the owner accepts the current version (`dpaVersion`, a draft until the lawyer writes it); who accepted which version and when is kept.
 - `GET /api/v1/me/walkthroughs` (the person's roles still to see here), `POST {role}` (seen).
 - `POST /api/v1/material {title, url | body, team_id}` (owner, admins; a team lead for their team), `DELETE /api/v1/material/{id}`, `POST /api/v1/material/{id}/assign {user_ids, due_at}` (to people the asker manages), `POST /api/v1/material/{id}/finish`, `GET /api/v1/material` (mine, and for managers all with counts), `GET /api/v1/material/{id}/progress`.
+
+## Overviews and reports (build step 32)
+
+- `GET /api/v1/overview` (owner, admins): what needs them today (work to hand on, people held, overdue callbacks by team, emails waiting, access alerts today, lists the client asked to change), then today's results. `GET /api/v1/overview/teams/{id}` (the team's leads and deputies, admins, the owner): overdue callbacks, unassigned leads, emails waiting, then today's results. Who is available or on a call, and unanswered texts, come from the dialer (`GET /api/v1/status`, `GET /api/v1/sms/waiting?team_id=`). Days are the agency's time zone (`orgs.timezone`).
+- `GET /api/v1/overview/members` (owner, admins): each member's last active day and days active this month.
+- `POST /api/v1/reports/schedules {frequency: weekly|monthly, team_id, client_id, to_client}` (owner, admins; a team lead for their team, and to a client's people only for a client the team works for), `GET`, `DELETE /api/v1/reports/schedules/{id}`. Every 10 minutes due reports are emailed through the notification service (template `report`): calls, reached, appointments, deals won and their value for the last full week or month, with a link to the details, never a lead.
