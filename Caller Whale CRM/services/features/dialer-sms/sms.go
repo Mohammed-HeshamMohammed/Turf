@@ -17,20 +17,22 @@ import (
 )
 
 type smsRow struct {
-	ID         string    `db:"id" json:"id"`
-	OrgID      string    `db:"org_id" json:"org_id"`
-	UserID     *string   `db:"user_id" json:"user_id"`
-	LeadID     *string   `db:"lead_id" json:"lead_id"`
-	Direction  string    `db:"direction" json:"direction"`
-	FromNumber string    `db:"from_number" json:"from"`
-	ToNumber   string    `db:"to_number" json:"to"`
-	Body       string    `db:"body" json:"body"`
-	CarrierID  *string   `db:"carrier_id" json:"carrier_id"`
-	Route      string    `db:"route" json:"route"`
-	Status     string    `db:"status" json:"status"`
-	Error      string    `db:"error" json:"error"`
-	CreatedAt  time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	ID         string     `db:"id" json:"id"`
+	OrgID      string     `db:"org_id" json:"org_id"`
+	UserID     *string    `db:"user_id" json:"user_id"`
+	LeadID     *string    `db:"lead_id" json:"lead_id"`
+	Direction  string     `db:"direction" json:"direction"`
+	FromNumber string     `db:"from_number" json:"from"`
+	ToNumber   string     `db:"to_number" json:"to"`
+	Body       string     `db:"body" json:"body"`
+	CarrierID  *string    `db:"carrier_id" json:"carrier_id"`
+	Route      string     `db:"route" json:"route"`
+	Status     string     `db:"status" json:"status"`
+	Error      string     `db:"error" json:"error"`
+	CreatedAt  time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time  `db:"updated_at" json:"updated_at"`
+	SendAt     *time.Time `db:"send_at" json:"send_at"`   // a scheduled text's time (step 10)
+	BatchID    *string    `db:"batch_id" json:"batch_id"` // one message to many leads
 }
 
 var (
@@ -43,33 +45,69 @@ type textAsk struct {
 	Text     string `json:"text"`
 	From     string `json:"from"`
 	Scenario string `json:"scenario"` // simulate mode only: sms_delivered or sms_failed
+	// Later instead of now (step 10, D211): sent then, inside the lead's texting hours, unless the number was blocked meanwhile.
+	SendAt *time.Time `json:"send_at"`
 }
 
 func (s *server) sendText(ctx context.Context, sc scope, ask textAsk) (*smsRow, error) {
-	if !sc.can("message") {
-		return nil, forbidden("Your role does not allow texting.")
+	// A time given: the text waits for it (step 10, D211).
+	if ask.SendAt != nil {
+		return s.scheduleText(ctx, sc, ask, *ask.SendAt, "", false)
 	}
-	text := strings.TrimSpace(ask.Text)
-	if text == "" || len([]rune(text)) > 1600 {
-		return nil, bad("Write a text of up to 1,600 characters.")
-	}
-	if !validID(ask.LeadID) {
-		return nil, bad("Choose a lead (lead_id).")
-	}
-	lead, thread, err := s.leadThread(ctx, sc, ask.LeadID)
+	to, _, err := s.mayText(ctx, sc, ask, false)
 	if err != nil {
 		return nil, err
 	}
-	// One person sends in a lead's conversation (step 10, D17).
-	if err := thread.mustBeSender(sc.userID); err != nil {
+	from, err := s.callerID(ctx, sc, ask.From, "texts")
+	if err != nil {
 		return nil, err
 	}
+	id := newUUID()
+	if _, err = s.st.db.Exec(ctx, `INSERT INTO sms_messages (id, org_id, user_id, lead_id, direction, from_number, to_number, body, route)
+		VALUES ($1, $2, $3, $4, 'outgoing', $5, $6, $7, $8)`, id, sc.orgID, sc.userID, ask.LeadID, from, to, strings.TrimSpace(ask.Text), s.route()); err != nil {
+		return nil, err
+	}
+	return s.deliver(ctx, sc.orgID, ask.LeadID, id, from, to, strings.TrimSpace(ask.Text), ask.Scenario)
+}
+
+// sendScheduled sends a text that waited for its time, checking again as its sender is now (a bulk text skips the one-sender rule).
+func (s *server) sendScheduled(ctx context.Context, sc scope, id string, ask textAsk, bulk bool) (*smsRow, error) {
+	to, _, err := s.mayText(ctx, sc, ask, bulk)
+	if err != nil {
+		return nil, err
+	}
+	return s.deliver(ctx, sc.orgID, ask.LeadID, id, ask.From, to, ask.Text, "")
+}
+
+// mayText checks that the person may text the lead now: their role, the conversation's one sender (unless anySender: a bulk text,
+// D212), do-not-call, a number that takes texts, STOP, and that texting is a conversation (the lead texted first or agreed).
+func (s *server) mayText(ctx context.Context, sc scope, ask textAsk, anySender bool) (string, leadInfo, error) {
+	if !sc.can("message") {
+		return "", leadInfo{}, forbidden("Your role does not allow texting.")
+	}
+	text := strings.TrimSpace(ask.Text)
+	if text == "" || len([]rune(text)) > 1600 {
+		return "", leadInfo{}, bad("Write a text of up to 1,600 characters.")
+	}
+	if !validID(ask.LeadID) {
+		return "", leadInfo{}, bad("Choose a lead (lead_id).")
+	}
+	lead, thread, err := s.leadThread(ctx, sc, ask.LeadID)
+	if err != nil {
+		return "", lead, err
+	}
+	// One person sends in a lead's conversation (step 10, D17).
+	if !anySender {
+		if err := thread.mustBeSender(sc.userID); err != nil {
+			return "", lead, err
+		}
+	}
 	if lead.DoNotCall {
-		return nil, conflictErr("This lead is do-not-call; they cannot be texted.")
+		return "", lead, conflictErr("This lead is do-not-call; they cannot be texted.")
 	}
 	to := e164(lead.Phone)
 	if to == "" {
-		return nil, conflictErr("The lead's phone number cannot receive texts.")
+		return "", lead, conflictErr("The lead's phone number cannot receive texts.")
 	}
 	var why string
 	err = s.st.db.QueryRow(ctx, `SELECT CASE
@@ -78,26 +116,21 @@ func (s *server) sendText(ctx context.Context, sc scope, ask textAsk) (*smsRow, 
 			WHEN EXISTS (SELECT 1 FROM sms_consents WHERE org_id = $1 AND phone_number = $2) THEN ''
 			ELSE 'no_conversation' END`, sc.orgID, to).Scan(&why)
 	if err != nil {
-		return nil, err
+		return "", lead, err
 	}
 	switch why {
 	case "stop":
-		return nil, conflictErr("This number replied STOP. It cannot be texted until it sends START.")
+		return "", lead, conflictErr("This number replied STOP. It cannot be texted until it sends START.")
 	case "no_conversation":
-		return nil, conflictErr("Texting is for conversations: the lead must text first, or have agreed to texts on a form or a call.")
+		return "", lead, conflictErr("Texting is for conversations: the lead must text first, or have agreed to texts on a form or a call.")
 	}
-	from, err := s.callerID(ctx, sc, ask.From, "texts")
-	if err != nil {
-		return nil, err
-	}
-	id := newUUID()
-	if _, err = s.st.db.Exec(ctx, `INSERT INTO sms_messages (id, org_id, user_id, lead_id, direction, from_number, to_number, body, route)
-		VALUES ($1, $2, $3, $4, 'outgoing', $5, $6, $7, $8)`, id, sc.orgID, sc.userID, ask.LeadID, from, to, text, s.route()); err != nil {
-		return nil, err
-	}
-	scenario := ""
-	if s.cfg.simulate {
-		scenario = ask.Scenario
+	return to, lead, nil
+}
+
+// deliver hands a saved text to the carrier and ends the lead's wait.
+func (s *server) deliver(ctx context.Context, org, lead, id, from, to, text, scenario string) (*smsRow, error) {
+	if !s.cfg.simulate {
+		scenario = ""
 	}
 	carrierID, err := s.carrier.sendText(withScenario(ctx, scenario), from, to, text)
 	if err != nil {
@@ -105,7 +138,7 @@ func (s *server) sendText(ctx context.Context, sc scope, ask textAsk) (*smsRow, 
 		_, _ = s.st.db.Exec(ctx, `UPDATE sms_messages SET status = 'failed', error = $2, updated_at = now() WHERE id = $1`, id, err.Error())
 		return nil, &apiError{502, "carrier", "The carrier did not take the text. Try again in a moment."}
 	}
-	if _, err = s.st.db.Exec(ctx, `UPDATE sms_messages SET carrier_id = $2, updated_at = now() WHERE id = $1`, id, carrierID); err != nil {
+	if _, err = s.st.db.Exec(ctx, `UPDATE sms_messages SET carrier_id = $2, status = 'queued', updated_at = now() WHERE id = $1`, id, carrierID); err != nil {
 		return nil, err
 	}
 	// A delivery report can come before the carrier's answer: apply any that are waiting for this text.
@@ -113,7 +146,7 @@ func (s *server) sendText(ctx context.Context, sc scope, ask textAsk) (*smsRow, 
 		return nil, err
 	}
 	// The lead is answered: their wait ends (step 10).
-	if err = s.textAnswered(ctx, sc.orgID, ask.LeadID); err != nil {
+	if err = s.textAnswered(ctx, org, lead); err != nil {
 		return nil, err
 	}
 	return s.loadText(ctx, `id = $1`, id)
@@ -269,6 +302,10 @@ func (s *server) textReceived(ctx context.Context, ev event, raw []byte) error {
 		_, _ = s.st.db.Exec(ctx, `UPDATE sms_messages SET lead_id = $3 WHERE org_id = $1 AND to_number = $2 AND lead_id IS NULL`, org, from, lead.LeadID)
 		// The text now waits for an answer: too long, and the team's leads are told (step 10, D21).
 		if !slices.Contains(stopWords, word) {
+			// Who works the lead and leads its team, so the right people are told if it waits (asked as the number's owner).
+			if _, _, err := s.leadThread(ctx, scope{userID: user, orgID: org}, lead.LeadID); err != nil {
+				log.Printf("WARN the thread of lead %s: %v", lead.LeadID, err)
+			}
 			if err := s.textWaiting(ctx, org, lead.LeadID); err != nil {
 				log.Printf("WARN the wait of a text from lead %s: %v", lead.LeadID, err)
 			}

@@ -25,6 +25,9 @@ type grantReply struct {
 	Reason       string   `json:"reason"`
 	Scopes       []string `json:"scopes"`
 	Capabilities []string `json:"capabilities"`
+	// Their roles and the teams they lead: who writes templates, sets hours and texts many leads at once (step 10).
+	Roles          []string `json:"roles"`
+	ManagedTeamIDs []string `json:"managed_team_ids"`
 }
 
 var (
@@ -100,8 +103,9 @@ func (a *authzClient) grant(ctx context.Context, user, org string, secondStep bo
 
 // scope is one person acting in one workspace: what their transactions run as.
 type scope struct {
-	userID, orgID string
-	scopes, caps  []string
+	userID, orgID  string
+	scopes, caps   []string
+	roles, managed []string
 }
 
 func (s scope) can(capability string) bool { return slices.Contains(s.caps, capability) }

@@ -223,6 +223,54 @@ func (s *server) handler() http.Handler {
 		}
 		return err
 	}))
+	// Working hours, templates and one message to many leads (step 10, part B).
+	mux.Handle("PUT /api/v1/sms/hours", s.member(func(q *req) error {
+		var body struct {
+			TeamID   string          `json:"team_id"`
+			TimeZone string          `json:"time_zone"`
+			Days     json.RawMessage `json:"days"`
+		}
+		if err := readJSON(q.w, q.r, &body); err != nil {
+			return err
+		}
+		err := s.putHours(q.r.Context(), q.sc, body.TeamID, body.TimeZone, body.Days)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, map[string]any{"ok": true})
+		}
+		return err
+	}))
+	mux.Handle("POST /api/v1/sms/templates", s.member(func(q *req) error {
+		var body template
+		if err := readJSON(q.w, q.r, &body); err != nil {
+			return err
+		}
+		t, err := s.saveTemplate(q.r.Context(), q.sc, body)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, t)
+		}
+		return err
+	}))
+	mux.Handle("GET /api/v1/sms/templates", s.member(func(q *req) error {
+		list, err := s.templatesFor(q.r.Context(), q.sc, q.r.URL.Query().Get("lead_id"))
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, map[string]any{"templates": list})
+		}
+		return err
+	}))
+	mux.Handle("POST /api/v1/sms/bulk", s.member(func(q *req) error {
+		var body struct {
+			LeadIDs []string `json:"lead_ids"`
+			Text    string   `json:"text"`
+		}
+		if err := readJSON(q.w, q.r, &body); err != nil {
+			return err
+		}
+		out, err := s.bulkText(q.r.Context(), q.sc, body.LeadIDs, body.Text)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, out)
+		}
+		return err
+	}))
 	mux.Handle("PUT /api/v1/sms/settings", s.member(func(q *req) error {
 		var body struct {
 			WaitMinutes int `json:"wait_minutes"`
@@ -320,7 +368,7 @@ func (s *server) enter(w http.ResponseWriter, r *http.Request) (*req, error) {
 		}
 		return nil, &apiError{status, g.Code, g.Reason}
 	}
-	return &req{w: w, r: r, sc: scope{userID: c.sub, orgID: org, scopes: g.Scopes, caps: g.Capabilities}}, nil
+	return &req{w: w, r: r, sc: scope{userID: c.sub, orgID: org, scopes: g.Scopes, caps: g.Capabilities, roles: g.Roles, managed: g.ManagedTeamIDs}}, nil
 }
 
 func (s *server) listCalls(q *req) error {
