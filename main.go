@@ -202,6 +202,9 @@ func classify(method, path string) need {
 		return open
 	case (method == http.MethodGet || method == http.MethodPost) && strings.HasPrefix(path, "/api/v1/public/email/"):
 		return open
+	// Shared-file links (step 38): the CRM checks the link, its expiry and the scan, and records each opening.
+	case method == http.MethodGet && strings.HasPrefix(path, "/api/v1/public/files/"):
+		return open
 	// Keys for outside tools (step 33): the CRM checks the key (cwk_...) itself; the per-address limit still applies.
 	case (method == http.MethodGet || method == http.MethodPost) && strings.HasPrefix(path, "/api/v1/tools/"):
 		return open
