@@ -29,6 +29,9 @@ type fakeWorkspaceAuthz struct {
 	// Step 13: Caller Whale staff (platform owner), and whether the agency is paused.
 	staff  string
 	paused bool
+	// Step 18: the plan stage authz reports, and whether the owner closed the agency.
+	stage  string
+	closed bool
 }
 
 func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
@@ -87,12 +90,18 @@ func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
 	case r.Method == "PUT" && r.URL.Path == "/v1/orgs/"+flowOrg+"/standing":
 		var body struct {
 			Paused *bool `json:"paused"`
+			Closed *bool `json:"closed"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		if body.Paused != nil {
 			f.paused = *body.Paused
 		}
+		if body.Closed != nil {
+			f.closed = *body.Closed
+		}
 		_, _ = w.Write([]byte(`{"ok":true}`))
+	case r.Method == "GET" && r.URL.Path == "/v1/orgs/"+flowOrg+"/plan-stage":
+		_ = json.NewEncoder(w).Encode(map[string]any{"stage": f.stage, "grace_ends": 1})
 	case r.Method == "GET" && r.URL.Path == "/v1/orgs/"+flowOrg+"/roles":
 		_, _ = w.Write([]byte(`{"roles":[{"key":"caller","assignable":true},{"key":"closer","assignable":true},{"key":"manager","assignable":true}]}`))
 	case r.Method == "POST" && r.URL.Path == "/v1/orgs/"+flowOrg+"/relations/check":
