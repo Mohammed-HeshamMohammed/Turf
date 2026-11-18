@@ -83,6 +83,11 @@ type server struct {
 	seenOrgs   sync.Map // workspace ids that have a row
 	seenDays   sync.Map // org|user|day already written to member_days (step 32)
 	sharedName sync.Map // workspace id -> the agency name authz was last told
+	// Files on leads (step 38): the virus scanner (nil when CLAMD_ADDR is not set: files wait unopened), the plan's storage per
+	// agency kept a minute, and a stand-in for billing in tests.
+	scanner        fileScanner
+	storageLimits  sync.Map
+	storageLimitFn func(context.Context, string) (int64, error)
 }
 
 // shareOrgName tells authz the agency's name once per name, so invitations can name the agency. A failure is logged and tried
@@ -184,10 +189,7 @@ func (s *server) handler() http.Handler {
 
 	mux.Handle("GET /api/v1/leads/search", s.member(s.searchLeads))
 	mux.Handle("GET /api/v1/leads/{id}/details", s.member(s.leadDetails))
-	mux.Handle("GET /api/v1/leads/{id}/files", s.member(s.listFiles))
-	mux.Handle("POST /api/v1/leads/{id}/files", s.member(s.uploadFile))
-	mux.Handle("GET /api/v1/files/{id}", s.member(s.downloadFile))
-	mux.Handle("DELETE /api/v1/files/{id}", s.member(s.deleteFile))
+	s.fileRoutes(mux)
 	mux.HandleFunc("POST /api/v1/public/remove-my-information", s.removeMyInformation)
 	mux.Handle("GET /api/v1/learning", s.member(s.learningStatus))
 	mux.Handle("POST /api/v1/learning/opt-out", s.member(s.learningChoice(true)))

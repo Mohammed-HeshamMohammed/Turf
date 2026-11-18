@@ -155,7 +155,7 @@ func newEnv(t *testing.T) *env {
 	fx := newVerifyFixture(t)
 	jwks := fx.jwks("k1")
 	rules := &fakeRules{people_: map[string]peopleReply{}, grants: map[string]grantReply{}, roster: map[string][]member{}}
-	s := &server{cfg: config{}, keys: serveVerifyKeys(t, &jwks, nil), rules: rules, st: st, hub: newHub(), now: time.Now}
+	s := &server{cfg: config{}, keys: serveVerifyKeys(t, &jwks, nil), rules: rules, st: st, hub: newHub(), now: time.Now, scanner: fakeScanner{}}
 	hubCtx, stop := context.WithCancel(ctx)
 	t.Cleanup(stop)
 	go s.hub.listen(hubCtx, appURL)
