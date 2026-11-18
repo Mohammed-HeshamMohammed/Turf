@@ -80,6 +80,7 @@ Chrome was not connected). The rows marked **verify** are what the code expects;
 | W-4 | The longest time recordings, captions and lead views may be kept | Steps 26, 30 |
 | W-5 | The email footer (postal address, unsubscribe) and consent wording | Steps 25, 29 |
 | W-6 | The words agencies send the carriers about how they text (campaign description, how people agree, sample texts), the referral consent (step 37) and the form consent (step 36) | Steps 36, 37, 39 |
+| W-7 | Which country the data is kept in, for the terms and privacy notice, and that deleted data leaves backups within 30 days (D298, D370) | Step 41 |
 
 # Invitation steps 1 and 2
 
@@ -523,3 +524,11 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | H3 | As staff, Dashboard → Support and feedback: open it and reply | The owner gets an email and sees the reply; a caller of that agency gets "ask your owner" if they try. |
 | H4 | As staff, publish a What's new note for callers, and one for the switch teams_v2 | A caller sees the first once on their dashboard; after the owner switches on "New team rules" under Settings → Early features, the second shows too. |
 | H5 | Press "Send feedback" on a dashboard page and send a note | Staff see it with the page's path and version, no ids. |
+
+# Step 41: backups and recovery (docs/plans/backups-and-recovery.md)
+
+| # | Do | Expect |
+|---|---|---|
+| B1 | In Coolify, add an S3 storage outside the server and a daily backup of every PostgreSQL, keeping 30 | The next morning each database has a file in the bucket. |
+| B2 | Download the newest CRM backup and run `node tools/restore-test.mjs --dump <file> --scratch <throwaway db> --expect crm.leads --log restore-tests.jsonl` | PASS with the tables and rows; repeat monthly for every database. |
+| B3 | With a throwaway agency: restore yesterday's CRM backup into a copy, set `RESTORE_COPY_URL`, ask, confirm as its owner, run | Only that agency's leads go back to yesterday; another agency's are untouched; blocks made today stay; its devices reload. |

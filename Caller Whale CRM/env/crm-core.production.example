@@ -85,3 +85,7 @@ CLAMD_ADDR=clamav:3310
 # Carrier check (build step 39): imports wait for the agency's verified business, as the dialer reports it.
 # Step 39: on holds imports until the carriers verify the agency's business, as the dialer reports it. Turn on (CARRIER_CHECK=on) once the dialer runs live with 10DLC registration; empty or off: imports are not held.
 CARRIER_CHECK=off
+
+# Restoring one agency (build step 41).
+# Step 41: the database a CRM backup was restored into, to restore one agency from (docs/plans/backups-and-recovery.md). Secret PostgreSQL URI with crm-core's login. Empty except while a restore is being done.
+RESTORE_COPY_URL=

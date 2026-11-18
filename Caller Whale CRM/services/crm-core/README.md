@@ -148,3 +148,7 @@ All for the owner or an admin of each agency (`lead_referrals` sits outside eith
 - `POST /internal/v1/dialer/carrier` (the dialer's `DIALER_TOKEN`): each agency's registration state, whether it may call and text, and its texting step and 30-day counts. A new step becomes a task for each owner. The answer carries staff's last review.
 - `/api/v1/me` gains `carrier` {state, may_call, may_text, may_import, step}. With `CARRIER_CHECK=on` imports wait for a verified brand (the import worker refuses to start one).
 - `GET /api/v1/platform/carrier` and `POST /api/v1/platform/carrier/{org}/clear {note}`: only Caller Whale's owner or cofounder, with their second step; agency-level numbers, never leads (D271).
+
+## Restoring one agency from a backup (build step 41)
+
+See `docs/plans/backups-and-recovery.md`. Staff (owner or cofounder, second step): `GET/POST /api/v1/platform/restores`, `POST …/{id}/run`, `POST …/{id}/cancel`. The agency's owner: `GET /api/v1/restores`, `POST /api/v1/restores/{id}/confirm` (second step). The run needs `RESTORE_COPY_URL`. A pull from before a restore answers `reset`.
