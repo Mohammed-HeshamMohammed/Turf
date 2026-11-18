@@ -40,7 +40,6 @@ func usernameFrom(name, email string) string {
 	return base
 }
 
-
 // freeUsername finds the first username from base that nobody has: base, base-2, base-3, ...
 func (s *server) freeUsername(ctx context.Context, base string) (string, error) {
 	for n := 1; n < 10000; n++ {

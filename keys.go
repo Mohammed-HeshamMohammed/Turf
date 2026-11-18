@@ -55,7 +55,7 @@ func (c claims) GetAudience() (jwt.ClaimStrings, error)  { return jwt.ClaimStrin
 // person is what a token says about who it is for.
 type person struct {
 	id, email, name, tag string
-	emailVerified   bool
+	emailVerified        bool
 }
 
 type keys struct {

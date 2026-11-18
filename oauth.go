@@ -612,7 +612,8 @@ func (s *server) handoff(ctx context.Context, userID, kind, provider string, mfa
 }
 
 type exchangeBody struct {
-	Code string `json:"code"`
+	Code   string `json:"code"`
+	Device string `json:"device"` // "shared": a browser on a shared device (step 15, D38)
 }
 
 // exchange trades the one-time code from a provider sign-in for tokens. One statement uses it up, so it works once.
@@ -642,6 +643,9 @@ func (s *server) exchange(w http.ResponseWriter, r *http.Request) error {
 	}
 	// A provider sign-in does not pass two-step sign-in: the token says so, and services that need it will ask. A sign-in handed over
 	// from the browser (POST /v1/handoffs) keeps what that session passed.
+	if kind == "browser" && body.Device == "shared" {
+		kind = "shared"
+	}
 	reply, err := s.openSession(ctx, u, kind, mfa == 1, provider, deref(fb))
 	if err != nil {
 		return err

@@ -46,6 +46,9 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/me/profile", serve(s.updateProfile))
 	mux.Handle("POST /v1/me/username", serve(s.updateUsername))
 	mux.Handle("POST /v1/me/tag", serve(s.changeTag))
+	mux.Handle("GET /v1/me/agencies", serve(s.myAgencies))
+	mux.Handle("GET /v1/me/export", serve(s.exportMe))
+	mux.Handle("GET /v1/invitations/{id}/preview", serve(s.invitationPreview))
 	mux.Handle("POST /v1/me/tag-note", serve(s.seenTagNote))
 	mux.Handle("PUT /v1/me/privacy", serve(s.putPrivacy))
 	mux.Handle("GET /v1/people/search", serve(s.searchPeople))
@@ -151,6 +154,8 @@ func kindOf(kind string) (string, error) {
 		return "browser", nil
 	case "desktop":
 		return "desktop", nil
+	case "shared": // a browser on a shared device (step 15, D38)
+		return "shared", nil
 	}
 	return "", bad("kind is browser or desktop.")
 }
@@ -166,6 +171,10 @@ type signUpBody struct {
 	BirthDate string `json:"birth_date"`
 	// The version of the terms and privacy notice they ticked. Required, and must be the current one.
 	TermsVersion string `json:"terms_version"`
+	// Signing up inside an emailed invitation (step 15): its id and the link's key. The address must be the one invited, and is
+	// then confirmed by the link itself (D47).
+	InvitationID  string `json:"invitation_id"`
+	InvitationKey string `json:"invitation_key"`
 }
 
 func (s *server) signUp(w http.ResponseWriter, r *http.Request) error {
@@ -173,12 +182,24 @@ func (s *server) signUp(w http.ResponseWriter, r *http.Request) error {
 	if err := readJSON(w, r, &body); err != nil {
 		return err
 	}
-	if !s.cfg.publicSignup {
-		return forbidden("New accounts are by invitation on this server.")
-	}
 	email, err := normalEmail(body.Email)
 	if err != nil {
 		return err
+	}
+	var invited *openInvitation
+	if body.InvitationID != "" || body.InvitationKey != "" {
+		if invited, err = s.invitationByKey(r.Context(), body.InvitationID, body.InvitationKey); err != nil {
+			return err
+		}
+		if invited == nil {
+			return forbidden("This invitation link has ended or was already used. Ask for a new invitation.")
+		}
+		if invited.email != email {
+			return forbidden("Sign up with the address the invitation was sent to.")
+		}
+	}
+	if !s.cfg.publicSignup && invited == nil {
+		return forbidden("New accounts are by invitation on this server.")
 	}
 	name := strings.TrimSpace(body.Name)
 	if n := utf8.RuneCountInString(name); n == 0 || n > 200 {
@@ -222,6 +243,19 @@ func (s *server) signUp(w http.ResponseWriter, r *http.Request) error {
 	}
 	if !birth.IsZero() {
 		if _, err := s.db.Exec(ctx, "UPDATE users SET birth_date = $1, age_confirmed_at = $2 WHERE id = $3", birth.Format("2006-01-02"), now(), u.id); err != nil {
+			return err
+		}
+	}
+	if invited != nil {
+		// Opening the emailed link proved the address. The link has done its work: its key is used up (the invitation itself stays,
+		// for the person to accept).
+		if _, err := s.db.Exec(ctx, "UPDATE users SET email_verified_at = COALESCE(email_verified_at, $1) WHERE id = $2", now(), u.id); err != nil {
+			return err
+		}
+		if _, err := s.db.Exec(ctx, "UPDATE access_invitations SET link_key_hash = NULL WHERE id = $1", body.InvitationID); err != nil {
+			return err
+		}
+		if u, err = s.userBy(ctx, "id", u.id); err != nil {
 			return err
 		}
 	}
@@ -359,8 +393,9 @@ func (s *server) refresh(w http.ResponseWriter, r *http.Request) error {
 	t := now()
 	var sid, userID, provider string
 	var mfa, started int64
-	err := s.db.QueryRow(ctx, "SELECT id, user_id, mfa_passed, provider, created_at FROM sessions WHERE refresh_hash = $1 AND revoked_at IS NULL AND expires_at > $2", presented, t).
-		Scan(&sid, &userID, &mfa, &provider, &started)
+	var mfaAt *int64
+	err := s.db.QueryRow(ctx, "SELECT id, user_id, mfa_passed, provider, created_at, mfa_at FROM sessions WHERE refresh_hash = $1 AND revoked_at IS NULL AND expires_at > $2", presented, t).
+		Scan(&sid, &userID, &mfa, &provider, &started, &mfaAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return s.reused(ctx, presented)
 	}
@@ -389,6 +424,13 @@ func (s *server) refresh(w http.ResponseWriter, r *http.Request) error {
 	}
 	if done.RowsAffected() != 1 {
 		return s.reused(ctx, presented)
+	}
+	// Owners, admins and team leads give their code again every 7 days (D188): the session stays, its second step does not.
+	if mfa == 1 && mfaAt != nil && s.secondStepStale(ctx, u.id, *mfaAt) {
+		if _, err := s.db.Exec(ctx, "UPDATE sessions SET mfa_passed = 0 WHERE id = $1", sid); err != nil {
+			return err
+		}
+		mfa = 0
 	}
 	reply, err := s.tokens(u, sid, mfa == 1, provider, started, next)
 	if err != nil {

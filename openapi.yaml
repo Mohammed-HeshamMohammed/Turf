@@ -123,6 +123,21 @@ paths:
       security: [{ bearer: [] }]
       parameters: [{ name: q, in: query, required: true, schema: { type: string } }]
       responses: { "200": { description: People found }, "400": { description: Too short }, "429": { description: Too many exact look-ups } }
+  /v1/me/agencies:
+    get:
+      summary: The agencies the person is in, by name, with their roles and teams, and whether they own each (My access)
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Agencies }, "503": { description: Authorization unavailable } }
+  /v1/me/export:
+    get:
+      summary: A file with what Caller Whale keeps about the person themselves (profile, settings, sign-ins, agencies)
+      security: [{ bearer: [] }]
+      responses: { "200": { description: The person's data as a JSON attachment } }
+  /v1/invitations/{id}/preview:
+    get:
+      summary: Before signing in, an emailed invitation link with its key; the invited address, where it comes from, and whether that address has an account
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { name: key, in: query, required: true, schema: { type: string } }]
+      responses: { "200": { description: The invitation }, "403": { description: Ended, used, or a wrong key } }
   /v1/me/birth-date:
     post:
       summary: Give the date of birth for the age check, once (accounts made before the check, or through Google or Apple)
