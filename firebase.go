@@ -305,8 +305,13 @@ func (f *firebase) sendPasswordReset(ctx context.Context, email string) error {
 }
 
 // resetPassword sets a new password with the code from the reset link and returns the address it belongs to.
+// With no password it only checks the code, without using it.
 func (f *firebase) resetPassword(ctx context.Context, oobCode, password string) (string, error) {
-	reply, err := f.call(ctx, "/v1/accounts:resetPassword", map[string]any{"oobCode": oobCode, "newPassword": password})
+	body := map[string]any{"oobCode": oobCode}
+	if password != "" {
+		body["newPassword"] = password
+	}
+	reply, err := f.call(ctx, "/v1/accounts:resetPassword", body)
 	return strings.ToLower(reply.Email), err
 }
 

@@ -212,7 +212,9 @@ func (f *fakeFirebase) serve(w http.ResponseWriter, r *http.Request) {
 	case strings.HasSuffix(r.URL.Path, "accounts:resetPassword"):
 		for _, a := range f.accounts {
 			if str("oobCode") == "reset-"+a.uid {
-				a.password = str("newPassword")
+				if str("newPassword") != "" { // without one, Firebase only checks the code
+					a.password = str("newPassword")
+				}
 				_ = json.NewEncoder(w).Encode(map[string]any{"email": a.email})
 				return
 			}
@@ -293,6 +295,8 @@ type capture struct {
 	agencies []string
 	// other templates sent (step 34), in order
 	templates []string
+	data      []map[string]any
+	tplTo     []string // who each template went to, in the same order
 }
 
 func (c *capture) sendConfirmation(_ context.Context, to, _ string, link string) error {
@@ -320,7 +324,7 @@ func (c *capture) sendTemplate(_ context.Context, template, to string, data map[
 	if c.fail {
 		return fmt.Errorf("down")
 	}
-	c.to, c.templates = append(c.to, to), append(c.templates, template)
+	c.to, c.templates, c.data, c.tplTo = append(c.to, to), append(c.templates, template), append(c.data, data), append(c.tplTo, to)
 	return nil
 }
 

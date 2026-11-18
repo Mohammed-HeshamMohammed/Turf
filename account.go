@@ -127,6 +127,8 @@ func (s *server) forgotPassword(w http.ResponseWriter, r *http.Request) error {
 type resetBody struct {
 	Token string `json:"token"`
 	New   string `json:"new"`
+	// A code from the authenticator app, or a recovery code, for someone who has either (step 35, D239).
+	Code string `json:"code"`
 }
 
 // resetPassword sets a new password with the code from the reset link, and ends every session of that person.
@@ -139,6 +141,27 @@ func (s *server) resetPassword(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	ctx := r.Context()
+	// The link alone is not enough for someone with an authenticator or recovery codes: one of them too (step 35, D239). Firebase
+	// checks the link's code without using it first.
+	who, err := s.fb.resetPassword(ctx, strings.TrimSpace(body.Token), "")
+	if err != nil {
+		return asAPI(err)
+	}
+	if u, err := s.userBy(ctx, "email", who); err == nil && u != nil {
+		has, err := s.hasSecondProof(ctx, u.id)
+		if err != nil {
+			return err
+		}
+		if has {
+			ok, err := s.secondProofOK(ctx, u, body.Code)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return newError(http.StatusForbidden, "second_proof_required", "Enter a code from your authenticator app, or one of your recovery codes. Lost both? Ask support to check it's you.")
+			}
+		}
+	}
 	email, err := s.fb.resetPassword(ctx, strings.TrimSpace(body.Token), body.New)
 	if err != nil {
 		return asAPI(err)

@@ -42,6 +42,14 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/sessions/refresh", serve(s.refresh))
 	mux.Handle("POST /v1/sessions/sign-out", serve(s.signOut))
 	mux.Handle("POST /v1/sessions/revoke", serve(s.revoke))
+	// Step 35: sign-in security.
+	mux.Handle("POST /v1/sessions/not-me", serve(s.notMe))
+	mux.Handle("POST /v1/orgs/{org}/members/{user}/sign-out", serve(s.signOutMember))
+	mux.Handle("GET /v1/orgs/{org}/security", serve(s.orgSecurity))
+	mux.Handle("PUT /v1/orgs/{org}/security", serve(s.orgSecurity))
+	mux.Handle("POST /v1/password/reset/support", serve(s.askResetSupport))
+	mux.Handle("GET /v1/admin/reset-requests", serve(s.resetRequests))
+	mux.Handle("POST /v1/admin/reset-requests/{id}/{decision}", serve(s.decideResetRequest))
 	mux.Handle("GET /v1/me", serve(s.me))
 	mux.Handle("POST /v1/me/profile", serve(s.updateProfile))
 	mux.Handle("POST /v1/me/username", serve(s.updateUsername))
@@ -407,6 +415,10 @@ func (s *server) finishSignIn(ctx context.Context, w http.ResponseWriter, u *use
 
 type refreshBody struct {
 	RefreshToken string `json:"refresh_token"`
+	// How long nobody touched the app, and whether a call is in progress (step 35, D244): past the agencies' idle limit the session
+	// ends, except during a call.
+	IdleSeconds int64 `json:"idle_seconds"`
+	OnCall      bool  `json:"on_call"`
 }
 
 // refresh swaps a refresh token for a new pair. The token changes every time it is used, and one that was already used ends its
@@ -420,15 +432,22 @@ func (s *server) refresh(w http.ResponseWriter, r *http.Request) error {
 	presented := sha256Hex(strings.TrimSpace(body.RefreshToken))
 	t := now()
 	var sid, userID, provider string
-	var mfa, started int64
+	var mfa, started, lastSeen int64
 	var mfaAt *int64
-	err := s.db.QueryRow(ctx, "SELECT id, user_id, mfa_passed, provider, created_at, mfa_at FROM sessions WHERE refresh_hash = $1 AND revoked_at IS NULL AND expires_at > $2", presented, t).
-		Scan(&sid, &userID, &mfa, &provider, &started, &mfaAt)
+	err := s.db.QueryRow(ctx, "SELECT id, user_id, mfa_passed, provider, created_at, mfa_at, last_seen_at FROM sessions WHERE refresh_hash = $1 AND revoked_at IS NULL AND expires_at > $2", presented, t).
+		Scan(&sid, &userID, &mfa, &provider, &started, &mfaAt, &lastSeen)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return s.reused(ctx, presented)
 	}
 	if err != nil {
 		return err
+	}
+	// Idle past the agencies' limit: signed out (step 35, D244).
+	if s.tooIdle(ctx, userID, lastSeen, body.IdleSeconds, body.OnCall) {
+		if _, err := s.db.Exec(ctx, "UPDATE sessions SET revoked_at = $1 WHERE id = $2", t, sid); err != nil {
+			return err
+		}
+		return newError(http.StatusUnauthorized, "signed_out_idle", "You were signed out after being idle. Sign in again.")
 	}
 	u, err := s.userBy(ctx, "id", userID)
 	if err != nil {

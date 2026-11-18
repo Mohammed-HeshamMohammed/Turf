@@ -38,6 +38,8 @@ type fakeWorkspaceAuthz struct {
 	suspended []string
 	// Step 19: support access, until when (0: closed).
 	supportUntil int64
+	// Step 35: the agency requires an authenticator of everyone.
+	mfaEveryone bool
 }
 
 func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
@@ -106,6 +108,23 @@ func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
 			f.closed = *body.Closed
 		}
 		_, _ = w.Write([]byte(`{"ok":true}`))
+	case r.URL.Path == "/v1/orgs/"+flowOrg+"/security":
+		if r.Method == "PUT" {
+			var body struct {
+				ActorID     string `json:"actor_id"`
+				MFAEveryone *bool  `json:"mfa_everyone"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body.ActorID != f.owner {
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`{"error":"Only the agency's owner changes who needs an authenticator.","code":"forbidden"}`))
+				return
+			}
+			if body.MFAEveryone != nil {
+				f.mfaEveryone = *body.MFAEveryone
+			}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"mfa_everyone": f.mfaEveryone})
 	case r.URL.Path == "/v1/orgs/"+flowOrg+"/support":
 		switch r.Method {
 		case "PUT":
