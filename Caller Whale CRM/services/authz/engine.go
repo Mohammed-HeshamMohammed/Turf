@@ -56,6 +56,9 @@ type engine interface {
 	// features are the workspace's switches that are on (D104); setFeature turns one on or off.
 	features(ctx context.Context, org string) ([]string, error)
 	setFeature(ctx context.Context, org, name string, on bool) error
+	// accessLimits are the countries and networks the agency's members may work from (step 35, D243); empty: anywhere.
+	accessLimits(ctx context.Context, org string) (countries, networks []string, err error)
+	setAccessLimits(ctx context.Context, org string, countries, networks []string) error
 	// logPeople records one change to people; peopleLog reads the newest first, older entries than two years are dropped.
 	logPeople(ctx context.Context, org string, e peopleEntry) error
 	peopleLog(ctx context.Context, org string, since int64, limit int) ([]peopleEntry, error)

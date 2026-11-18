@@ -53,6 +53,8 @@ type config struct {
 	scanWindow     time.Duration
 	scanPause      time.Duration
 	corsOrigins    map[string]bool // pages (like https://callerwhale.com) that may read the gateway's own replies from a browser
+	// Step 35: authz, for each agency's allowed countries and networks (its token reads only those). Empty: no place limits.
+	authzURL, authzToken string
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -118,6 +120,10 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	if c.authHost = strings.ToLower(strings.TrimSpace(getenv("AUTH_HOST"))); c.authHost != "" && c.routes[c.authHost] == nil {
 		return c, errors.New("AUTH_HOST is not one of the ROUTES hosts")
+	}
+	c.authzURL, c.authzToken = strings.TrimRight(strings.TrimSpace(getenv("AUTHZ_URL")), "/"), strings.TrimSpace(getenv("AUTHZ_TOKEN"))
+	if (c.authzURL == "") != (c.authzToken == "") {
+		return c, errors.New("set AUTHZ_URL and AUTHZ_TOKEN together (the gateway's token in authz's AUTHZ_TOKENS)")
 	}
 	if c.mcpHost = strings.ToLower(strings.TrimSpace(getenv("MCP_HOST"))); c.mcpHost != "" && c.routes[c.mcpHost] == nil {
 		return c, errors.New("MCP_HOST is not one of the ROUTES hosts")
@@ -216,11 +222,13 @@ type gateway struct {
 	scans    *scanners
 	humanIPs *limiter // guarded requests per address: every one costs a call to Google
 	now      func() time.Time
+	places   *placeCache // each agency's allowed countries and networks (step 35)
 }
 
 func newGateway(cfg config) *gateway {
 	g := &gateway{cfg: cfg, ips: newLimiter(cfg.ipPerMinute), mcpIPs: newLimiter(cfg.mcpIPPerMinute), people: newLimiter(cfg.userPerMinute), now: time.Now,
-		scans: newScanners(cfg.scanLimit, cfg.scanWindow, cfg.scanPause)}
+		scans: newScanners(cfg.scanLimit, cfg.scanWindow, cfg.scanPause),
+		places: &placeCache{byOrg: map[string]*placeRules{}, client: &http.Client{Timeout: 4 * time.Second}}}
 	if cfg.human != nil {
 		g.human = newHumanCheck(*cfg.human)
 		g.humanIPs = newLimiter(cfg.human.perMinute)
@@ -457,6 +465,11 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+	}
+	// An agency limited to chosen countries and networks (step 35, D243).
+	if ok, why := g.placeAllowed(r, caller); !ok {
+		writeJSON(w, http.StatusForbidden, map[string]any{"error": why, "code": "place_not_allowed"})
+		return
 	}
 	if rt.core && g.cfg.importWorker != nil && uploadRoute(r.Method, r.URL.Path) {
 		g.cfg.importWorker.proxy.ServeHTTP(w, r)

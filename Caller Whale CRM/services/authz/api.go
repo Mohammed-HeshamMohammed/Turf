@@ -65,6 +65,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("PUT /v1/orgs/{org}/features/{name}", s.only("manage_staff", s.putFeature))
 	mux.Handle("GET /v1/orgs/{org}/security", s.only("read", s.orgSecurity))
 	mux.Handle("PUT /v1/orgs/{org}/security", s.only("manage_members", s.orgSecurity))
+	mux.Handle("GET /v1/orgs/{org}/access-limits", s.only("limits", s.accessLimits))
 	mux.Handle("PUT /v1/orgs/{org}/teams/{team}/deputies", s.only("manage_members", s.putDeputies))
 	mux.Handle("GET /v1/orgs/{org}/people-log", s.only("read", s.readPeopleLog))
 	mux.Handle("GET /v1/people/{user}", s.only("read", s.person))

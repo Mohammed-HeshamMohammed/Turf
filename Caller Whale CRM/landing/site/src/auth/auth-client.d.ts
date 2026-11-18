@@ -51,7 +51,7 @@ export interface Auth {
 	startStepUp(): Promise<unknown>;
 	sendCode(challenge: string, method: string, device?: string): Promise<unknown>;
 	answer(challenge: string, method: string, code?: string): Promise<unknown>;
-  providers(): Promise<{ google?: boolean; apple?: boolean }>;
+  providers(): Promise<{ google?: boolean; apple?: boolean; microsoft?: boolean }>;
   security(): Promise<{ bot_protection?: { enabled: boolean; site_key: string } }>;
   startProvider(provider: string, target: string, humanToken?: string, action?: string): Promise<unknown>;
   finishProvider(): Promise<unknown>;

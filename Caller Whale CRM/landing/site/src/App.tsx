@@ -125,7 +125,7 @@ function useAction() {
 }
 
 function Providers({ action, shared = false }: { action: string; shared?: boolean }) {
-  const [list, setList] = useState<{ google?: boolean; apple?: boolean }>({});
+  const [list, setList] = useState<{ google?: boolean; apple?: boolean; microsoft?: boolean }>({});
   const [state, run] = useAction();
   useEffect(() => {
     auth.providers().then(setList, () => {});
@@ -138,6 +138,9 @@ function Providers({ action, shared = false }: { action: string; shared?: boolea
       <button type="button" className="button raised" disabled={state.busy} onClick={() => run(async () => { auth.chooseDevice(shared); await auth.startProvider("google", "landing", await humanToken(getAuth, action), action); })}>
         Continue with Google
       </button>
+      {list.microsoft && <button type="button" className="button raised" disabled={state.busy} onClick={() => run(async () => { auth.chooseDevice(shared); await auth.startProvider("microsoft", "landing", await humanToken(getAuth, action), action); })}>
+        Continue with Microsoft
+      </button>}
       {state.error && <p className="notice bad" role="alert">{state.error}</p>}
     </>
   );

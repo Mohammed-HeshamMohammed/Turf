@@ -33,11 +33,11 @@ Chrome was not connected). The rows marked **verify** are what the code expects;
 
 | Container | Add or change | Then |
 |---|---|---|
-| Caller Whale Gateway | **verify** `ROUTES` sends `gate.callerwhale.com` (its `CORE_HOST`) to `http://crm-core:8107`. The example still shows `http://notifications:8102` there; the CRM's routes (sync, imports, Google's return, email links and unsubscribe, tool keys) need crm-core | Redeploy (new open routes for steps 28, 29, 33 and auth's step 34 routes) |
+| Caller Whale Gateway | `AUTHZ_URL=http://authz:8104` and `AUTHZ_TOKEN` (the `gateway=` value in authz's `AUTHZ_TOKENS`) for agencies' place limits (step 35); **verify** `ROUTES` sends `gate.callerwhale.com` (its `CORE_HOST`) to `http://crm-core:8107`. The example still shows `http://notifications:8102` there; the CRM's routes (sync, imports, Google's return, email links and unsubscribe, tool keys) need crm-core | Redeploy (new open routes for steps 28, 29, 33 and auth's step 34 routes) |
 | Caller Whale Live Server | nothing new | — |
 | Caller Whale AI Assistant | `AGENT_TOKEN` (T5); `OPENROUTER_API_KEY` (S3) | Redeploy |
 | Caller Whale Authentication | `STATUS_PROBES` (optional), like `sign_in=http://auth:8101/healthz,crm=http://crm-core:8107/healthz,calls=http://dialer-sms:8113/healthz,chats=http://messaging:8108/healthz`; `AUTH_MCP_TOKEN` (T7) if not set | Redeploy (new tables for the status page and breach notices) |
-| Caller Whale Authorization | `AUTHZ_TOKENS`: add `dialer-sms=<token>` (T2), and `messaging=<token>` if it is not there; optional `AUTHZ_FEATURES_EVERYWHERE=teams_v2` (P-1) | Redeploy |
+| Caller Whale Authorization | `AUTHZ_TOKENS`: add `gateway=<token>` (step 35) and `dialer-sms=<token>` (T2), and `messaging=<token>` if it is not there; optional `AUTHZ_FEATURES_EVERYWHERE=teams_v2` (P-1) | Redeploy |
 | Caller Whale Billing | `BILLING_TOKENS`: add `dialer-sms=<token>` (T3) and `crm-core=<token>` (T4) | Redeploy (the `ai` use kind) |
 | Caller Whale CRM Core | `DIALER_TOKEN` (T1); `ASSISTANT_URL=http://assistant:8109`, `ASSISTANT_TOKEN` (T5); `BILLING_URL=http://billing:8103`, `BILLING_TOKEN` (T4); `NOTIFY_MAIL_URL=http://notifications:8102`, `NOTIFY_MAIL_TOKEN` (T6); `APP_URL=https://app.callerwhale.com` (**verify** the CRM web app's address); `GOOGLE_*` (S4, `GOOGLE_REDIRECT_URL=https://gate.callerwhale.com/api/v1/google/callback`); `EMAIL_*` and `AWS_*` (S5, `EMAIL_PUBLIC_URL=https://gate.callerwhale.com`) | Redeploy (migrations 0032 to 0041 run on start) |
 | Caller Whale Dialer | Deploy it first (S1): `CRM_URL=http://crm-core:8107`, `CRM_TOKEN` (T1); `AUTHZ_URL=http://authz:8104`, `AUTHZ_TOKEN` (T2); `BILLING_URL=http://billing:8103`, `BILLING_TOKEN` (T3); `ASSISTANT_URL=http://assistant:8109`, `ASSISTANT_TOKEN` (T5); `TELNYX_*` (S2) | Simulator first, then live |
@@ -460,3 +460,10 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | H4 | As the owner, sign out a member; as an admin, try to sign out the owner | The member's devices are signed out; the admin is refused. |
 | H5 | With an authenticator set up, reset your password with the email link alone, then with a recovery code | Refused, then done. |
 | H6 | Ask support with the reset link (lost both); as staff, approve before and after 7 days | Refused before; after, the authenticator is removed and a reset link arrives. |
+
+# Step 35, part B: Microsoft sign-in and place limits
+
+| # | Do | Expect |
+|---|---|---|
+| H7 | In Firebase, turn on Microsoft (with an Azure app registration); open the sign-in page | "Continue with Microsoft" appears and signs you in; Profile can connect Microsoft. |
+| H8 | As a throwaway agency's owner, limit it to your country and your office network (`PUT /v1/orgs/{org}/security {countries, networks}`) | A member working from another network is refused with "only from its office networks"; you, the owner, are not. |
