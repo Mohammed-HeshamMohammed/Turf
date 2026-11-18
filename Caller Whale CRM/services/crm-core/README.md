@@ -49,3 +49,7 @@ The database tests need a disposable PostgreSQL: `CRM_TEST_ADMIN_URL` (a superus
 ## Coolify
 
 Branch `crm-core-backend-production`, Dockerfile `/Dockerfile`, port 8107, network alias `crm-core`, no domain. Settings: [env/crm-core.production.example](../../env/crm-core.production.example). Core needs no upload volume.
+
+## Clients (build step 23)
+
+`GET /api/v1/clients` (the agency's people: every client with lead counts, members and teams; a client's person: their own), `POST /api/v1/clients {name, approval_required}` and `PATCH /api/v1/clients/{id} {name, approval_required, ended}` (owner, admins), `PUT`/`DELETE /api/v1/clients/{id}/members/{user} {main}` and `/teams/{team}`, and `GET /api/v1/clients/{id}/summary` (figures without names). A list takes `client_id` and `supplied_by` (agency or client); its leads take its client. The `lead.share_client` operation shares a lead with its client's people. A lead or list with no client is the agency's own business.

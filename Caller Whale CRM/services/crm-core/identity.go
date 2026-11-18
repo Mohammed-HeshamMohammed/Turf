@@ -260,6 +260,9 @@ func (s *server) teams(q *req) error {
 type named struct {
 	Name                string   `json:"name"`
 	QualificationFields []string `json:"qualification_fields"`
+	// A list's client and who supplied it (step 23, D126); none: the agency's own business, supplied by the agency.
+	ClientID   string `json:"client_id"`
+	SuppliedBy string `json:"supplied_by"`
 }
 
 func (s *server) createTeam(q *req) error {
@@ -338,7 +341,26 @@ func (s *server) createProject(q *req) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	rec, err := queryJSON(ctx, tx, `INSERT INTO projects (org_id, name, qualification_fields) VALUES (cw_org(), $1, $2) RETURNING to_jsonb(projects.*)`, name, body.QualificationFields)
+	if body.SuppliedBy == "" {
+		body.SuppliedBy = "agency"
+	}
+	if body.SuppliedBy != "agency" && body.SuppliedBy != "client" {
+		return bad("A list is supplied by the agency or the client.")
+	}
+	if body.ClientID != "" {
+		var own bool
+		err := tx.QueryRow(ctx, `SELECT own_business FROM clients WHERE id = $1 AND org_id = cw_org() AND ended_at IS NULL`, body.ClientID).Scan(&own)
+		if err != nil {
+			return bad("Choose one of the agency's clients.")
+		}
+		if own {
+			body.ClientID = "" // the agency's own business is kept as no client
+		}
+	}
+	if body.ClientID == "" && body.SuppliedBy == "client" {
+		return bad("A list the client supplied needs its client.")
+	}
+	rec, err := queryJSON(ctx, tx, `INSERT INTO projects (org_id, name, qualification_fields, client_id, supplied_by) VALUES (cw_org(), $1, $2, nullif($3, '')::uuid, $4) RETURNING to_jsonb(projects.*)`, name, body.QualificationFields, body.ClientID, body.SuppliedBy)
 	if err != nil {
 		return err
 	}

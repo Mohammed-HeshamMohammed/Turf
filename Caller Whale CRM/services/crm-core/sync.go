@@ -233,7 +233,9 @@ func leadVisible(sc scope, alias string, args []any) (string, []any) {
 			}
 		case "shared":
 			if sc.userID != "" && !slices.Contains(branches, "TRUE") {
-				branches = append(branches, "EXISTS (SELECT 1 FROM lead_shares s WHERE s.lead_id = "+alias+".id AND s.user_id = "+add(sc.userID)+"::uuid)")
+				me := add(sc.userID)
+				// Shared with them one by one, or shared with their client (step 23, D127).
+				branches = append(branches, "(EXISTS (SELECT 1 FROM lead_shares s WHERE s.lead_id = "+alias+".id AND s.user_id = "+me+"::uuid) OR ("+alias+".shared_with_client AND EXISTS (SELECT 1 FROM client_members cm WHERE cm.client_id = "+alias+".client_id AND cm.user_id = "+me+"::uuid)))")
 			}
 		}
 		if slices.Contains(branches, "TRUE") {

@@ -103,7 +103,7 @@ func (s *server) dialerLead(w http.ResponseWriter, r *http.Request, ask dialerAs
 	reply := dialerLeadReply(lead, sc)
 	// For the lead's text thread (step 10): who works the lead, its team's leads and deputies (told when a text waits too long), and
 	// the asker's rank toward it, for who may send and take over.
-	reply["assignee_id"], reply["team_id"] = lead["assignee_id"], lead["team_id"]
+	reply["assignee_id"], reply["team_id"], reply["client_id"] = lead["assignee_id"], lead["team_id"], lead["client_id"]
 	reply["rank"] = threadRank(sc, lead)
 	leads, deputies := []string{}, []string{}
 	if team := asString(lead["team_id"]); team != "" {
