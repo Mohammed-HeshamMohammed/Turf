@@ -69,6 +69,8 @@ type server struct {
 	st    *store
 	hub   *hub
 	now   func() time.Time
+	// Google Calendar (step 28, part B); nil when not set up.
+	calendar calendarAPI
 
 	seenPeople sync.Map // user -> last time their name was stored
 	seenOrgs   sync.Map // workspace ids that have a row
@@ -149,6 +151,7 @@ func (s *server) handler() http.Handler {
 	s.assistantRoutes(mux)
 	s.commissionRoutes(mux)
 	s.bookingRoutes(mux)
+	s.googleRoutes(mux)
 	mux.Handle("PUT /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
 	mux.Handle("DELETE /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
 	mux.Handle("PUT /api/v1/clients/{id}/teams/{other}", s.member(s.clientLink("teams")))

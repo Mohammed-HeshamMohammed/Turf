@@ -176,6 +176,22 @@ func (s *server) handOn(q *req) error {
 	if err != nil {
 		return err
 	}
+	// Their coming appointments on those leads go to whoever takes the leads, and onto that person's calendar (step 28, D160).
+	apptRows, err := tx.Query(ctx, `UPDATE appointments SET closer_id = coalesce($2::uuid, closer_id) WHERE closer_id = $1 AND status = 'booked' AND starts_at > now()
+		AND lead_id = ANY($3::uuid[]) RETURNING id::text, CASE WHEN $2::uuid IS NULL THEN '' ELSE closer_id::text END, lead_id::text, starts_at, ends_at`, user, to, uuidArray(moved))
+	if err != nil {
+		return err
+	}
+	var movedAppts []movedAppointment
+	for apptRows.Next() {
+		var m movedAppointment
+		if err := apptRows.Scan(&m.id, &m.closer, &m.lead, &m.start, &m.end); err != nil {
+			apptRows.Close()
+			return err
+		}
+		movedAppts = append(movedAppts, m)
+	}
+	apptRows.Close()
 	// Their own tasks with no lead go to the person taking the work, when handing on everything.
 	var own int64
 	if all && to != nil {
@@ -207,6 +223,7 @@ func (s *server) handOn(q *req) error {
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
+	s.moveAppointments(ctx, q.sc.orgID, movedAppts)
 	writeJSON(q.w, http.StatusOK, map[string]any{"leads": len(moved), "tasks": tasks.RowsAffected() + own, "at": time.Now().Unix()})
 	return nil
 }

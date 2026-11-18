@@ -32,6 +32,10 @@ type config struct {
 	// The in-app assistant (step 26): the assistant service and its AGENT_TOKEN; billing and crm-core's token there, to charge its use.
 	assistantURL, assistantToken string
 	billingURL, billingToken     string
+	// Google Calendar (step 28): the Google Cloud app, the key that encrypts stored tokens, and the CRM web app for links and returns.
+	googleClientID, googleSecret, googleRedirect string
+	googleKey                                    []byte
+	appURL                                       string
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -50,6 +54,8 @@ func loadConfig(getenv func(string) string) (config, error) {
 		dialerToken:   strings.TrimSpace(getenv("DIALER_TOKEN")),
 		assistantURL:  trim(getenv("ASSISTANT_URL")), assistantToken: strings.TrimSpace(getenv("ASSISTANT_TOKEN")),
 		billingURL: trim(getenv("BILLING_URL")), billingToken: strings.TrimSpace(getenv("BILLING_TOKEN")),
+		googleClientID: strings.TrimSpace(getenv("GOOGLE_CLIENT_ID")), googleSecret: strings.TrimSpace(getenv("GOOGLE_CLIENT_SECRET")),
+		googleRedirect: strings.TrimSpace(getenv("GOOGLE_REDIRECT_URL")), appURL: trim(getenv("APP_URL")),
 	}
 	if c.port == "" {
 		c.port = "8107"
@@ -75,6 +81,14 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	if c.billingURL != "" && len(c.billingToken) < 32 {
 		return c, errors.New("BILLING_TOKEN must be at least 32 characters when BILLING_URL is set: crm-core's token in billing's BILLING_TOKENS (crm-core=...)")
+	}
+	if c.googleClientID != "" {
+		if c.googleSecret == "" || c.googleRedirect == "" || c.appURL == "" {
+			return c, errors.New("set GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URL and APP_URL with GOOGLE_CLIENT_ID")
+		}
+		if c.googleKey, err = parseTokenKey(getenv("GOOGLE_TOKEN_KEY")); err != nil {
+			return c, err
+		}
 	}
 	return c, nil
 }
@@ -116,6 +130,9 @@ func main() {
 	}
 	log.Print("INFO importer access ready")
 	s := &server{cfg: cfg, keys: newKeyset(cfg.jwksURL), rules: newAuthz(cfg.authzURL, cfg.authzToken, cfg.grantTTL), st: st, hub: newHub(), now: time.Now}
+	if cfg.googleClientID != "" {
+		s.calendar = newGoogleAPI(cfg.googleClientID, cfg.googleSecret, cfg.googleRedirect)
+	}
 	go s.hub.listen(ctx, cfg.databaseURL)
 	go s.resumeMerges(ctx)
 	go s.resumeAssignments(ctx)
