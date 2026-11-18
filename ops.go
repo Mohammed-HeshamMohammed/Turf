@@ -138,7 +138,13 @@ func (s *server) apply(ctx context.Context, sc scope, o op) (opResult, error) {
 	if _, err = tx.Exec(ctx, `UPDATE operations SET status = $2, result = $3 WHERE id = $1`, o.ID, answer.Status, stored); err != nil {
 		return opResult{}, err
 	}
-	return answer, tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return opResult{}, err
+	}
+	if deal, ok := answer.Result.(map[string]any); ok && answer.Status == "applied" && deal["stage"] == "Closed won" {
+		s.referralFeeReminders(ctx, sc.orgID, asString(deal["lead_id"]))
+	}
+	return answer, nil
 }
 
 // runInner applies the change inside a savepoint: a refusal undoes all of it and leaves the operation's own record.
@@ -1684,6 +1690,11 @@ func (r *run) dealUpdate(p map[string]any) (any, error) {
 		// Credit by role, and the won lead leaves the calling queues (step 28, D157, D283).
 		if err = r.creditDeal(deal, deal["stage"] == "Closed won"); err != nil {
 			return nil, err
+		}
+		if deal["stage"] == "Closed won" {
+			if err = r.exec(`UPDATE lead_referrals SET deal_closed_at = coalesce(deal_closed_at, now()) WHERE to_org = cw_org() AND to_lead_id = $1 AND status = 'accepted'`, nullID(asString(deal["lead_id"]))); err != nil {
+				return nil, err
+			}
 		}
 	}
 	kind := "deal.updated"
