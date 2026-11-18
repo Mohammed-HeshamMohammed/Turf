@@ -128,3 +128,12 @@ With `EMAIL_SES_REGION` (and the SES login), `EMAIL_PUBLIC_URL`, `EMAIL_REPLY_DO
 
 - `POST /api/v1/forms {name, title, client_id, team_id, consent_text, thanks, embed_origins}`, `PATCH /api/v1/forms/{id}` (also `off`), `GET /api/v1/forms`, `GET /api/v1/forms/{id}/submissions`: the owner and admins. The answer gives the form's `address` (`EMAIL_PUBLIC_URL` + `/api/v1/public/forms/<token>`) and an `embed` snippet. The consent words default to a draft for the lawyer.
 - `GET /api/v1/public/forms/{token}` is the page (works in an iframe on the sites in `embed_origins`, or any site when empty; it allows nothing else), `POST` sends it. Each send becomes an unassigned lead of the form's client in its team (source "Form: <name>", the address and message as a note), checked against the block lists (a blocked number comes in as do-not-call and the submission is flagged), with whether the consent was ticked, its exact words, the time and the sender's network. A ticked consent lets the dialer text that number for that client (sent as `list_consent`). A hidden field turns robots away; 5 sends a minute per address per form.
+
+## Sending a lead to another agency (build step 37)
+
+All for the owner or an admin of each agency (`lead_referrals` sits outside either agency's rows; every read names the asking agency).
+- `GET /api/v1/referrals/agencies?owner=Name#tag`: the agencies that person owns.
+- `POST /api/v1/leads/{id}/send {to_org, note, consent_confirmed}`: the name, phone, email, property address and note go; the blocks on the number go with them. Calls, recordings, texts, notes, client data and consent to text stay. The sender's lead closes as "Sent to <agency>". `consent_confirmed` (the person agreed to be passed on) is required and kept with the date.
+- `GET /api/v1/referrals`: sent (status, decline reason, fee, and the deal's close date only when both agencies agreed to share it) and received (contact details only while waiting or accepted).
+- `POST /api/v1/referrals/{id}/accept {team_id, client_id}` (receiver): a new lead, "From <agency>", the note and address as a note; the sender's blocks come in locked, so `/api/v1/blocks/lift` refuses them. `/decline {reason}` (receiver) or `/cancel` (sender), while waiting, reopen the sender's lead (with the reason as a note).
+- `POST /api/v1/referrals/{id}/fee {note}` or `{agree: true}` (owners): one side notes the agreed fee, the other agrees; when the deal is won, each owner gets a reminder task. `/share-close {agree}`: both must agree before the sender sees the close.

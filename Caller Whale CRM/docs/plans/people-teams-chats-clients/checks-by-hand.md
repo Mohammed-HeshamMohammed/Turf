@@ -477,3 +477,14 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | Y3 | Put the embed snippet on a page of a site you listed, then on another site | It shows on the listed site and is refused on the other. |
 | Y4 | Send it with a number on the agency's block list | The lead comes in as do-not-call, and the form's submissions show it as blocked. |
 | Y5 | Text the lead who ticked consent (through the dialer) | Allowed for that client; the same number under another client is not. |
+
+# Step 37: sending a lead to another agency (after crm-core is redeployed)
+
+| # | Do | Expect |
+|---|---|---|
+| Z1 | With two throwaway agencies A and B, as A's owner look up B's owner by Name#tag (`GET /api/v1/referrals/agencies`) | B's agency is listed. |
+| Z2 | As A, send a lead with a note without confirming consent, then with it | Refused first; then A's lead shows Closed, "Sent to <B>". |
+| Z3 | As B's owner, decline it with a reason | A's lead reopens with the reason as a note. |
+| Z4 | Send again; as B, accept into a client | B has a new lead with the note; no calls, texts or A's notes came with it. |
+| Z5 | Before sending, block texts to the number in A; after B accepts, try lifting that block in B | B's lead can't be texted, and B can't lift the block. |
+| Z6 | Note a fee as A, agree as B, then win the deal in B | Both owners get a "Referral fee" task. A sees the close only after both turned on sharing. |

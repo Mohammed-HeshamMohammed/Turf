@@ -315,6 +315,13 @@ func (s *server) liftBlock(q *req) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
+	var locked bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM number_blocks WHERE org_id = cw_org() AND phone_key = $1 AND lifted_at IS NULL AND locked)`, key).Scan(&locked); err != nil {
+		return err
+	}
+	if locked {
+		return forbidden("This block came with a lead from another agency and stays (D251).")
+	}
 	tag, err := tx.Exec(ctx, `UPDATE number_blocks SET lifted_at = now(), lifted_by = $2, lift_reason = $3 WHERE org_id = cw_org() AND phone_key = $1 AND lifted_at IS NULL`,
 		key, q.sc.userID, reason)
 	if err != nil {
