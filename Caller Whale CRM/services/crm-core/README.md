@@ -104,3 +104,10 @@ With `EMAIL_SES_REGION` (and the SES login), `EMAIL_PUBLIC_URL`, `EMAIL_REPLY_DO
 - **Exports**: `GET /api/v1/leads/export?team_id=` is a CSV (formula-like cells kept as text): the owner and admins any leads; a team lead only a team they lead, and only when the owner set `managers_export` (`PUT /api/v1/protection {managers_export, view_keep_days}`); agents never. Each export is kept: `GET /api/v1/exports?user_id=`.
 - **Who opened what**: opening a lead's details is recorded; `GET /api/v1/leads/{id}/views` and `GET /api/v1/people/{user}/views?days=` (opened leads and exports, for a removed person too) for the owner and admins, within the agency's keeping time (90 days by default).
 - **Unusual access**: opening leads and paging through searches are counted per 10 minutes; more than 5 times the person's usual (and at least 60) records an alert (`GET /api/v1/protection/alerts`, owner and admins) and slows each lead they open by 2 seconds for 30 minutes. Nothing is blocked.
+
+## Setup, walk-throughs and material (build step 31)
+
+- `GET /api/v1/setup` (owner, admins): name, hours, first team, first client, invite, authenticator, data processing agreement; each `done`, `skipped` or `todo`. What the CRM sees counts by itself (a renamed agency, a team, a client, someone besides the owner, an authenticator used in this sign-in, the accepted agreement). `POST /api/v1/setup/{step} {status: done|skipped|todo}`.
+- `GET`/`POST /api/v1/agreements/dpa {version}`: the owner accepts the current version (`dpaVersion`, a draft until the lawyer writes it); who accepted which version and when is kept.
+- `GET /api/v1/me/walkthroughs` (the person's roles still to see here), `POST {role}` (seen).
+- `POST /api/v1/material {title, url | body, team_id}` (owner, admins; a team lead for their team), `DELETE /api/v1/material/{id}`, `POST /api/v1/material/{id}/assign {user_ids, due_at}` (to people the asker manages), `POST /api/v1/material/{id}/finish`, `GET /api/v1/material` (mine, and for managers all with counts), `GET /api/v1/material/{id}/progress`.

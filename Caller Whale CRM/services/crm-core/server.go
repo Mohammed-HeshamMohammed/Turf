@@ -157,6 +157,7 @@ func (s *server) handler() http.Handler {
 	s.googleRoutes(mux)
 	s.emailRoutes(mux)
 	s.protectRoutes(mux)
+	s.setupRoutes(mux)
 	mux.Handle("PUT /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
 	mux.Handle("DELETE /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
 	mux.Handle("PUT /api/v1/clients/{id}/teams/{other}", s.member(s.clientLink("teams")))

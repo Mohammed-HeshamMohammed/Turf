@@ -335,3 +335,12 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | L3 | As the owner, show the agent's team full numbers; reload as the agent | The full number shows. |
 | L4 | As a team lead, export your team's leads; then as the owner allow it and try again; then try the whole agency | Refused, then a CSV of your team's leads, then refused. The owner sees each export in the record. |
 | L5 | As the owner, open the agent's "what they looked at" and a lead's "who opened it" | The leads they opened with times, and their exports. |
+
+# Step 31: setup, walk-throughs, material
+
+| # | Do | Expect |
+|---|---|---|
+| F1 | As a new throwaway agency's owner, open the setup checklist | Name, hours, team, client, invite, authenticator, agreement; invite shows done once someone joined. |
+| F2 | Rename the agency, skip hours, accept the agreement | Name and agreement done, hours skipped; an admin cannot accept the agreement. |
+| F3 | As a caller, open the walk-through status, finish yours | Your role is listed until you finish it. |
+| F4 | As a team lead, add material for your team and give it to a caller of your team, then to someone outside it | The first works, the second is refused; when the caller finishes it, you see it. |
