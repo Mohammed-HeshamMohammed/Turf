@@ -86,6 +86,8 @@ func (p *postgres) setup(ctx context.Context) error {
 		// Step 18: since when the plan is unpaid (grace, then read-only, then closed), and when the owner closed the agency.
 		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS unpaid_since bigint`,
 		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS closed_at bigint`,
+		// Step 19: support access the owner granted, until a time.
+		`CREATE TABLE IF NOT EXISTS authz_support (org_id text PRIMARY KEY, until bigint NOT NULL, granted_by text NOT NULL)`,
 		`UPDATE authz_standing SET unpaid_since = extract(epoch FROM now())::bigint WHERE payment_required AND unpaid_since IS NULL`,
 		// The record of people changes (D58, D184): kept 2 years. team_ids are the teams the change touched, so a team's leads see
 		// their teams' part; the person changed sees their own.
@@ -222,6 +224,42 @@ func (p *postgres) setStanding(ctx context.Context, org string, c standingChange
 		_, err = p.db.Exec(ctx, `UPDATE authz_standing SET closed_at = CASE WHEN $2 THEN coalesce(closed_at, extract(epoch FROM now())::bigint) END WHERE org_id=$1`, org, *c.Closed)
 	}
 	return err
+}
+
+func (p *postgres) supportUntil(ctx context.Context, org string) (int64, error) {
+	var until int64
+	err := p.db.QueryRow(ctx, `SELECT until FROM authz_support WHERE org_id=$1`, org).Scan(&until)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, nil
+	}
+	return until, err
+}
+
+func (p *postgres) setSupport(ctx context.Context, org string, until *int64, by string) error {
+	if until == nil {
+		_, err := p.db.Exec(ctx, `DELETE FROM authz_support WHERE org_id=$1`, org)
+		return err
+	}
+	_, err := p.db.Exec(ctx, `INSERT INTO authz_support (org_id, until, granted_by) VALUES ($1,$2,$3) ON CONFLICT (org_id) DO UPDATE SET until=EXCLUDED.until, granted_by=EXCLUDED.granted_by`, org, *until, by)
+	return err
+}
+
+func (p *postgres) supportOpen(ctx context.Context, now int64) (map[string]int64, error) {
+	rows, err := p.db.Query(ctx, `SELECT org_id, until FROM authz_support WHERE until > $1`, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int64{}
+	for rows.Next() {
+		var org string
+		var until int64
+		if err := rows.Scan(&org, &until); err != nil {
+			return nil, err
+		}
+		out[org] = until
+	}
+	return out, rows.Err()
 }
 
 func (p *postgres) standingOf(ctx context.Context, org string) (standingView, error) {

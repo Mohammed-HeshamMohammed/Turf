@@ -64,6 +64,10 @@ type engine interface {
 	setStanding(ctx context.Context, org string, change standingChange) error
 	// standingOf is the agency's plan stage and pause (step 18).
 	standingOf(ctx context.Context, org string) (standingView, error)
+	// Support access (step 19): until when staff may come in (0: not open), set or ended (nil) by the owner, and every agency open now.
+	supportUntil(ctx context.Context, org string) (int64, error)
+	setSupport(ctx context.Context, org string, until *int64, by string) error
+	supportOpen(ctx context.Context, now int64) (map[string]int64, error)
 	// seatLimits is how many seats and client places the workspace has (nil: unlimited).
 	seatLimits(ctx context.Context, org string) (seats, clients *int, err error)
 	teams(ctx context.Context, org string) ([]team, error)
