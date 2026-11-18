@@ -253,3 +253,13 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | D7 | Reply "Let's stop at that price" | The reply is marked as waiting; texting is refused until the sender chooses "not an opt-out" or "opt-out". |
 | D8 | Reply "Leave me alone", then "START" | Texts and calls are blocked, then START lifts what the reply made (never a block a person made). |
 | D9 | On a real 10DLC number (once live), text STOP | The carrier sends its own confirmation, and Caller Whale sends none. |
+
+# Step 26, part A: scripts, call review, AI switches
+
+| # | Do | Expect |
+|---|---|---|
+| A1 | As a throwaway agency's owner, write a script for a client; as a caller, try to write one | The owner's is saved; the caller is refused. |
+| A2 | As a team's lead (the team works for that client), write the team's version; open a lead of that team as its caller | The caller reads the team's version; a lead of another team gets the client's script. |
+| A3 | As the team's lead, score one of the caller's calls on two checklist items with a comment | The caller's "my reviews" shows it with the average; the team's reviews show the team and the caller's average. |
+| A4 | As the caller, try to score your own call | Refused. |
+| A5 | As the owner, switch the AI's suggestions on and require captions; as the team's lead, switch suggestions off for the team | The team's callers are told suggestions are off; captions are still required. |

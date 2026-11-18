@@ -119,6 +119,10 @@ func (s *server) dialerLead(w http.ResponseWriter, r *http.Request, ask dialerAs
 		_ = tx.QueryRow(ctx, `SELECT text_consent_at IS NOT NULL FROM projects WHERE id = $1`, project).Scan(&listConsent)
 	}
 	reply["list_consent"] = listConsent
+	// The AI's call suggestions for this person on this lead's team, and whether captions must run (step 26, D148).
+	if suggest, captions, err := callAI(ctx, tx, sc.userID, asString(lead["team_id"])); err == nil {
+		reply["ai_suggestions"], reply["captions_required"] = suggest, captions
+	}
 	// A list waiting for its client's approval is not worked yet (step 23, D138).
 	if waiting, err := waitingApproval(ctx, tx, asString(lead["id"])); err == nil && waiting {
 		reply["may_call"], reply["reason"], reply["waiting_approval"] = false, "This list is waiting for its client's approval.", true
