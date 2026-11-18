@@ -184,3 +184,14 @@ On callerwhale.com, Settings → Privacy. Use a throwaway account where a second
 | P3 | Sign in choosing "Shared device", then close the tab and open callerwhale.com again | You are signed out. With "This is my device", you stay signed in. |
 | P4 | Settings → My access | Your agency by name with your role (and teams if any), waiting invitations, your signed-in devices with "Sign out", and "Download my data", which saves a file. |
 | P5 | As the throwaway member, Settings → My access → Leave | You leave at once; the agency's member list no longer shows you. |
+
+# Step 5: the web cache (app.callerwhale.com)
+
+| # | Do | Expect |
+|---|---|---|
+| W1 | Open the CRM in two tabs; change a lead in one | The other shows the change within a minute (at once when live updates are on), without losing its place in the list. |
+| W2 | Start typing a note, and meanwhile have someone import a large list | Your note and the screen stay as they are; the records load again only after you stop typing. |
+| W3 | Turn the network off, change a lead, then try to close the tab | The browser asks before closing. Turn the network back on instead: the change is sent. |
+| W4 | With two agencies: change something while offline, switch agency, then switch back online and return | The change waited and is sent when you are back in that agency. |
+| W5 | Remove the throwaway member while they have the CRM open | Within a minute their screen leaves your agency and says they no longer have access. |
+| W6 | Sync page → Reload everything | The records load again from the start; the line under the title says when they were last up to date. |

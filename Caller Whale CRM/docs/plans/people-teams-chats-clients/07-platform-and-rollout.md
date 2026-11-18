@@ -111,6 +111,8 @@ The web cache, shared devices, what plans and billing do to people, support acce
 
 ## Web cache
 
+**Built 2026-11-18** in `desktop/frontend/react/src/remote/engine.ts` and `held-work.ts` (build step 5); see the step row in [README.md](README.md).
+
 - **Memory only (D194).** Since 2026-11-10 the web app saves nothing in the browser and asks for no device password (commit `959c2bf3`; the desktop app keeps both). Everything below lives in the open tab and is gone when the tab is reloaded or closed. This matches the owner's original wish: the cache holds what the person needs until they reload.
 - **One agency at a time.** A switch drops the previous agency's records, selection, search and filters from memory. Unsent drafts are kept per agency for the life of the tab.
 - **Automatic refresh, in layers:**
