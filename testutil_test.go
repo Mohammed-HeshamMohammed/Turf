@@ -98,6 +98,20 @@ func (f *fakeRules) putTeam(_ context.Context, org, id, name, actor string, _ bo
 	return nil
 }
 
+// upgrade makes the solo operator the owner and lead of the first team, as authz does.
+func (f *fakeRules) upgrade(_ context.Context, org, user, teamID, teamName string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.teamList == nil {
+		f.teamList = map[string][]authzTeam{}
+	}
+	f.teamList[org] = append(f.teamList[org], authzTeam{TeamID: teamID, Name: teamName, ManagerID: user, ManagerIDs: []string{user}})
+	g := f.grants[user+"|"+org]
+	g.Roles = []string{"owner"}
+	f.grants[user+"|"+org] = g
+	return nil
+}
+
 func (f *fakeRules) members(_ context.Context, org string) ([]member, error) {
 	return f.roster[org], nil
 }

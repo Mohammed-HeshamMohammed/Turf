@@ -26,6 +26,8 @@ type rules interface {
 	putTeam(ctx context.Context, org, id, name, actor string, secondStep bool) error
 	// nameOrg tells authz the agency's name, so an invitation can say which agency it comes from.
 	nameOrg(ctx context.Context, org, name string) error
+	// upgrade makes a solo workspace an agency (step 17).
+	upgrade(ctx context.Context, org, user, teamID, teamName string) error
 }
 
 type workspaceRoles struct {

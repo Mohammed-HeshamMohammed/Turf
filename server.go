@@ -135,6 +135,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /api/v1/retention/keep", s.member(s.keepLeads))
 	mux.Handle("POST /api/v1/retention/remove", s.member(s.removeDue))
 	mux.Handle("POST /api/v1/admin/teams", s.member(s.createTeam))
+	mux.Handle("POST /api/v1/workspace/upgrade", s.member(s.upgradeToAgency))
 	mux.Handle("GET /api/v1/projects", s.member(s.projects))
 	mux.Handle("POST /api/v1/projects", s.member(s.createProject))
 	mux.Handle("DELETE /api/v1/projects/{id}", s.member(s.deleteProject))
