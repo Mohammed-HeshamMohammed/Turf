@@ -88,6 +88,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("GET /v1/admin/invitation-reports", serve(s.invitationReports))
 	mux.Handle("PUT /v1/orgs/{org}/teams/{team}/deputies", serve(s.putTeamDeputies))
 	mux.Handle("POST /v1/orgs/{org}/leave", serve(s.leaveWorkspace))
+	mux.Handle("GET /v1/orgs/{org}/people-log", serve(s.peopleLog))
 	mux.Handle("GET /v1/orgs/{org}/seat-requests", serve(s.seatRequests))
 	mux.Handle("DELETE /v1/orgs/{org}/seat-requests/{id}", serve(s.closeSeatRequest))
 	mux.Handle("PUT /v1/admin/workspaces/{org}/features/{name}", serve(s.putWorkspaceFeature))

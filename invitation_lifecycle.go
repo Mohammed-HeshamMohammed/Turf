@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -512,4 +513,65 @@ func (s *server) cancelInvitationsInto(ctx context.Context, org, team, lead stri
 		AND ($4 = ANY(team_ids) OR team_id=$4) AND accepted_at IS NULL AND revoked_at IS NULL`, now(), org, lead, team); err != nil {
 		log.Printf("ERROR could not cancel a former lead's invitations into a team in %s: %v", org, err)
 	}
+}
+
+// peopleLog answers GET /v1/orgs/{org}/people-log: the record of people changes as the person may see it (D58): everything for the
+// owner and admins, their teams' part for a team lead, what was done to them for anyone else. Names are filled in here.
+func (s *server) peopleLog(w http.ResponseWriter, r *http.Request) error {
+	org := r.PathValue("org")
+	if _, err := uuid.Parse(org); err != nil {
+		return bad("Choose a valid workspace.")
+	}
+	c, err := s.person(r)
+	if err != nil {
+		return err
+	}
+	days := r.URL.Query().Get("days")
+	if days == "" {
+		days = "90"
+	}
+	var listed struct {
+		Entries []map[string]any `json:"entries"`
+		View    string           `json:"view"`
+	}
+	if _, err := s.authzCall(r, http.MethodGet, "/v1/orgs/"+org+"/people-log?viewer="+c.Sub+"&days="+url.QueryEscape(days), nil, &listed); err != nil {
+		return err
+	}
+	ids := []string{}
+	for _, e := range listed.Entries {
+		for _, k := range []string{"actor_id", "target_id"} {
+			if id, _ := e[k].(string); id != "" && !slices.Contains(ids, id) {
+				ids = append(ids, id)
+			}
+		}
+	}
+	names := map[string]string{}
+	if len(ids) > 0 {
+		rows, err := s.db.Query(r.Context(), `SELECT id, display_name FROM users WHERE id = ANY($1)`, ids)
+		if err != nil {
+			return err
+		}
+		for rows.Next() {
+			var id, name string
+			if err := rows.Scan(&id, &name); err != nil {
+				rows.Close()
+				return err
+			}
+			names[id] = name
+		}
+		rows.Close()
+	}
+	for _, e := range listed.Entries {
+		if id, _ := e["actor_id"].(string); id != "" {
+			e["actor_name"] = names[id]
+		}
+		if id, _ := e["target_id"].(string); id != "" {
+			e["target_name"] = names[id]
+		}
+	}
+	if listed.Entries == nil {
+		listed.Entries = []map[string]any{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"entries": listed.Entries, "view": listed.View})
+	return nil
 }
