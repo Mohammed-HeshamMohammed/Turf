@@ -31,6 +31,7 @@ var authRoutes = []string{
 	"POST /v1/orgs/{org}/handover", "GET /v1/orgs/{org}/handover", "DELETE /v1/orgs/{org}/handover", "GET /v1/me/handovers",
 	"POST /v1/me/handovers/{id}/accept", "POST /v1/me/handovers/{id}/decline", "PUT /v1/admin/workspaces/{org}/paused",
 	"GET /v1/orgs/{org}/seats", "POST /v1/orgs/{org}/seats/keep",
+	"GET /v1/orgs/{org}/support", "POST /v1/orgs/{org}/support", "DELETE /v1/orgs/{org}/support", "GET /v1/admin/support",
 	"GET /v1/orgs/{org}/plan-stage", "POST /v1/orgs/{org}/close", "POST /v1/orgs/{org}/reopen",
 	"POST /v1/orgs/{org}/takeover", "GET /v1/admin/takeovers", "POST /v1/admin/takeovers/{id}/approve", "POST /v1/admin/takeovers/{id}/reject",
 	"POST /v1/me/birth-date",
