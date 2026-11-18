@@ -130,3 +130,14 @@ No CRM screens yet; automated tests cover them. Once they have screens:
 | L8 | As the owner, make an agency tag; as a team lead, make a team tag; as a caller, try to make one | The first two work; the caller can only apply existing tags. A team's tag can't go on another team's lead. |
 | L9 | As a team lead, merge two copies of the same person in your team | One lead remains with both histories, every number and email; the other disappears. Undo within 7 days brings it all back; after 7 days undo is refused. A caller can't merge. |
 | L10 | As the owner, set "keep unworked leads 30 days" | The list of leads due appears. Keeping one with a reason takes it off the list. Only the owner removes what is due; nothing goes on its own. |
+
+# Step 12: handing on work (server only)
+
+No screen yet; automated tests cover it. Once it has one:
+
+| # | Do | Expect |
+|---|---|---|
+| H1 | Remove a caller who holds leads | Their leads stay in their team; the team's lead can open and work them. "Hand on" lists the person with how many leads and tasks. |
+| H2 | As the team's lead, hand their leads to another caller | The leads and their open callbacks move, due times kept; notes stay on the leads. Another team's part stays for that team's lead or you. |
+| H3 | Hand the rest back to the team | Those leads become the team's unassigned leads. |
+| H4 | Suspend a caller, then restore them without handing anything on | All their leads are still theirs. |

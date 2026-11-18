@@ -71,7 +71,7 @@ func TestTheTeamViewAndImportsIntoATeam(t *testing.T) {
 	if status, out := e.call(bob, orgA, "GET", "/api/v1/leads/"+theirs+"/details", nil); status != 200 || out["leads"].([]any)[0].(map[string]any)["read_only"] != true {
 		t.Fatalf("details of a teammate's lead: %d %v", status, out)
 	}
-	if out := e.op(bob, orgA, "lead.update", map[string]any{"id": theirs, "stage": "Contacted"}); out["status"] != "rejected" {
+	if out := e.op(bob, orgA, "lead.update", map[string]any{"id": theirs, "changes": map[string]any{"stage": "Contacted"}}); out["status"] != "rejected" || out["message"] == "Nothing to change" {
 		t.Fatalf("a teammate's lead is changed through the team view: %v", out)
 	}
 	if out := e.op(bob, orgA, "note.add", map[string]any{"lead_id": theirs, "body": "hello"}); out["status"] != "rejected" {

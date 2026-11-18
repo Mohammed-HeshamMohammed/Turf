@@ -25,6 +25,8 @@ A team can let its agents see all its leads, read-only (`agents_see_team`): thos
 
 Tags (`/api/v1/tags`): the owner or an admin makes agency tags, a team's leads make tags for their team, and anyone who may edit a lead applies an existing one (`lead.tag`, `lead.untag`); every read of a lead carries its `tag_ids`. A team's lead, an admin or the owner merges a second copy of a person into the first (`lead.merge`): its notes, calls, tasks, deals, handoffs and tags move, its numbers and emails join, and it is put aside with `merged_into`; `lead.unmerge` undoes it for 7 days. Retention (`/api/v1/retention`): the owner or an admin sets how long an unworked lead is kept and sees what is due; leads can be kept with a reason (`/retention/keep`); only the owner removes what is due (`/retention/remove`). Nothing is deleted on its own.
 
+Handing on work (`/api/v1/handon`): someone who left, was removed or is suspended keeps their leads where their team's leads hold and work them; nothing moves on its own, so a suspended person who returns finds what was not handed on. `GET` lists whose work waits and how much (all of it for the owner and admins, a team lead's teams for a team lead); `POST /api/v1/handon/{user}` gives it to one person or back to the team's unassigned leads, optionally one team at a time. Open tasks and callbacks follow their leads with their due times; notes stay on the lead.
+
 ## Imports
 
 1. The gateway sends upload start, chunk, resume and complete requests to the import worker. Core receives no uploaded file bytes. The worker authenticates each request with Core's `/api/v1/me`, owns temporary storage, and writes upload metadata to PostgreSQL.
