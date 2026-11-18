@@ -467,6 +467,7 @@ func TestClassifyListsWhatEachPathNeeds(t *testing.T) {
 		{"GET", "/api/v1/platform/staff", staff}, {"GET", "/api/v1/platform", staff},
 		{"GET", "/api/v1/platformx", signedIn},
 		{"POST", "/api/v1/public/waitlist", open}, {"POST", "/api/v1/public/contact", open},
+		{"GET", "/api/v1/public/forms/x", open}, {"POST", "/api/v1/public/forms/x", open}, {"DELETE", "/api/v1/public/forms/x", signedIn},
 		{"GET", "/api/v1/public/email/l/x", open}, {"POST", "/api/v1/public/email/inbound", open}, {"DELETE", "/api/v1/public/email/u/x", signedIn},
 		{"POST", "/api/v1/tools/leads", open}, {"GET", "/api/v1/tools/leads/x", open}, {"DELETE", "/api/v1/tools/leads/x", signedIn}, {"GET", "/api/v1/toolsx", signedIn},
 		{"GET", "/api/v1/google/callback", open}, {"POST", "/api/v1/google/callback", signedIn}, {"GET", "/api/v1/google/other", signedIn},
