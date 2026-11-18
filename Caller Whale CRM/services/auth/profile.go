@@ -95,6 +95,10 @@ func (s *server) updateProfile(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if body.Name != current {
+		// A name can be changed twice in 30 days (D29); the old Name#tag is then held for 90 days by the database.
+		if err := s.changeAllowed(r.Context(), s.db, c.Sub, "name", false); err != nil {
+			return err
+		}
 		idToken, err := s.sessionIDToken(r.Context(), c.SID)
 		if err != nil {
 			return err
@@ -103,14 +107,20 @@ func (s *server) updateProfile(w http.ResponseWriter, r *http.Request) error {
 			return asAPI(err)
 		}
 	}
-	if _, err := s.db.Exec(r.Context(), "UPDATE users SET display_name = $1, phone = $2, avatar = $3 WHERE id = $4", body.Name, body.Phone, body.Avatar, c.Sub); err != nil {
+	var tag string
+	if err := s.db.QueryRow(r.Context(), "UPDATE users SET display_name = $1, phone = $2, avatar = $3 WHERE id = $4 RETURNING tag", body.Name, body.Phone, body.Avatar, c.Sub).Scan(&tag); err != nil {
 		return err
+	}
+	if body.Name != current {
+		if err := s.changeAllowed(r.Context(), s.db, c.Sub, "name", true); err != nil {
+			return err
+		}
 	}
 	if body.First != nil || body.Middle != nil || body.Last != nil {
 		if _, err := s.db.Exec(r.Context(), "UPDATE users SET first_name = $1, middle_name = $2, last_name = $3 WHERE id = $4", first, middle, last, c.Sub); err != nil {
 			return err
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"name": body.Name, "phone": body.Phone, "avatar": body.Avatar, "first_name": first, "middle_name": middle, "last_name": last})
+	writeJSON(w, http.StatusOK, map[string]any{"name": body.Name, "tag": tag, "phone": body.Phone, "avatar": body.Avatar, "first_name": first, "middle_name": middle, "last_name": last})
 	return nil
 }

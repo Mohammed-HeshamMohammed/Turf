@@ -154,6 +154,7 @@ func (e *env) token(user string) string {
 	return e.fx.sign("k1", "EdDSA", func(m map[string]any) {
 		m["sub"] = user
 		m["name"] = "Person " + user[:4]
+		m["tag"] = "K7P2"
 		m["email"] = user[:4] + "@example.com"
 	})
 }

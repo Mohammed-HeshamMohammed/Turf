@@ -322,8 +322,8 @@ func (s *server) remember(ctx context.Context, c claims, org string) {
 	if at, ok := s.seenPeople.Load(c.sub); ok && s.now().Sub(at.(time.Time)) < 10*time.Minute {
 		return
 	}
-	if _, err := s.st.db.Exec(ctx, `INSERT INTO people (user_id, name, email) VALUES ($1, $2, $3)
-		ON CONFLICT (user_id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email, seen_at = now()`, c.sub, label(c), c.email); err == nil {
+	if _, err := s.st.db.Exec(ctx, `INSERT INTO people (user_id, name, email, tag) VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email, tag = coalesce(nullif(EXCLUDED.tag, ''), people.tag), seen_at = now()`, c.sub, label(c), c.email, c.tag); err == nil {
 		s.seenPeople.Store(c.sub, s.now())
 	}
 }

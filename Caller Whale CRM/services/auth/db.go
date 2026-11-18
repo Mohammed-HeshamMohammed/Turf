@@ -96,7 +96,7 @@ func setupDatabase(ctx context.Context, db *pgxpool.Pool) error {
 }
 
 // statements splits a SQL file into its statements: comments (from "--" to the end of the line) are dropped, then it is cut at ";".
-// The files use plain statements only, as the Rust loader assumed.
+// A function body between $$ and $$ is kept whole, ";" and all (0027 has the first ones).
 func statements(sql string) []string {
 	var lines []string
 	for _, line := range strings.Split(sql, "\n") {
@@ -104,10 +104,30 @@ func statements(sql string) []string {
 		lines = append(lines, line)
 	}
 	var out []string
-	for _, s := range strings.Split(strings.Join(lines, "\n"), ";") {
-		if s = strings.TrimSpace(s); s != "" {
-			out = append(out, s)
+	var current strings.Builder
+	quoted := false
+	for i, part := range strings.Split(strings.Join(lines, "\n"), "$$") {
+		if i > 0 {
+			current.WriteString("$$")
+			quoted = !quoted
 		}
+		if quoted {
+			current.WriteString(part)
+			continue
+		}
+		pieces := strings.Split(part, ";")
+		for j, piece := range pieces {
+			current.WriteString(piece)
+			if j < len(pieces)-1 {
+				if s := strings.TrimSpace(current.String()); s != "" {
+					out = append(out, s)
+				}
+				current.Reset()
+			}
+		}
+	}
+	if s := strings.TrimSpace(current.String()); s != "" {
+		out = append(out, s)
 	}
 	return out
 }

@@ -100,6 +100,29 @@ paths:
       security: [{ bearer: [] }]
       requestBody: { content: { application/json: { schema: { type: object, required: [name, phone, avatar], properties: { name: { type: string }, phone: { type: string }, avatar: { type: string }, first_name: { type: string, nullable: true }, middle_name: { type: string, nullable: true }, last_name: { type: string, nullable: true } } } } } }
       responses: { "200": { description: Profile saved }, "401": { description: Not signed in }, "400": { description: Invalid profile detail } }
+  /v1/me/tag:
+    post:
+      summary: Change the #tag after the person's name (3 to 8 letters and digits without 0, O, 1, I); twice in 30 days
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [tag], properties: { tag: { type: string } } } } } }
+      responses: { "200": { description: Tag saved }, "400": { description: Not a tag }, "409": { description: Taken with this name, or held for its last holder }, "429": { description: Changed twice in 30 days } }
+  /v1/me/tag-note:
+    post:
+      summary: The one-time note about the person's new tag was read
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Noted } }
+  /v1/me/privacy:
+    put:
+      summary: Who can see the person's phone (nobody, leads, agencies), find them (exact, agencies) and message them (requests, agencies, nobody)
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { phone_visible: { type: string }, find_me: { type: string }, message_me: { type: string } } } } } }
+      responses: { "200": { description: Saved }, "400": { description: Not one of the settings } }
+  /v1/people/search:
+    get:
+      summary: Part of a name finds people in the person's agencies; a full Name#tag finds that one person anywhere (30 an hour)
+      security: [{ bearer: [] }]
+      parameters: [{ name: q, in: query, required: true, schema: { type: string } }]
+      responses: { "200": { description: People found }, "400": { description: Too short }, "429": { description: Too many exact look-ups } }
   /v1/me/birth-date:
     post:
       summary: Give the date of birth for the age check, once (accounts made before the check, or through Google or Apple)

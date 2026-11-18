@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -45,6 +46,12 @@ func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
 			spaces = append(spaces, map[string]any{"org_id": flowOrg, "roles": roles})
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"user_id": user, "platform_role": "", "workspaces": spaces})
+	case r.Method == "GET" && r.URL.Path == "/v1/orgs/"+flowOrg+"/members":
+		members := []map[string]any{{"user_id": f.owner, "roles": []string{"owner"}, "team_ids": []string{}}}
+		for user := range f.joined {
+			members = append(members, map[string]any{"user_id": user, "roles": []string{"caller"}, "team_ids": []string{flowTeam}})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"members": members, "teams": []any{}})
 	case r.Method == "GET" && r.URL.Path == "/v1/orgs/"+flowOrg+"/roles":
 		_, _ = w.Write([]byte(`{"roles":[{"key":"caller","assignable":true},{"key":"closer","assignable":true},{"key":"manager","assignable":true}]}`))
 	case r.Method == "POST" && r.URL.Path == "/v1/orgs/"+flowOrg+"/relations/check":
@@ -195,7 +202,7 @@ func TestAnInvitationSaysWhereItComesFromAndWhyItCannotBeUsed(t *testing.T) {
 		t.Fatalf("list: %d %v", a.status, a.body)
 	}
 	item := items[0].(map[string]any)
-	if item["org_name"] != "Blue Door Homes" || item["owner_name"] != "Sami" || item["inviter_name"] != "Sami" || item["created_at"].(float64) == 0 {
+	if item["org_name"] != "Blue Door Homes" || !regexp.MustCompile(`^Sami#[A-HJ-NP-Z2-9]{4}$`).MatchString(item["owner_name"].(string)) || item["inviter_name"] != "Sami" || item["created_at"].(float64) == 0 {
 		t.Fatalf("where it comes from: %v", item)
 	}
 	if a := w.call("GET", "/v1/me/invitations/"+id, nil, sami); a.status != 200 {

@@ -162,3 +162,15 @@ The CRM's Inbox still shows sample conversations, so these wait for its chat scr
 | C3 | Move the caller to another team; rename the first team | They leave the first team's chat and join the second's, with only new messages unread. The first chat takes the new name. |
 | C4 | As the caller, post in Announcements; as the team lead, post one marked important with @everyone | The caller is refused and can still react; the lead's post shows as important and mentions everyone. |
 | C5 | In a team chat write @team and @managers; in a direct chat write @team | The team's people, then its leads and deputies, are mentioned; in a direct chat @team needs a team named. |
+
+# Step 4: name tags and privacy
+
+On callerwhale.com, Settings → Privacy. Use a throwaway account where a second person is needed.
+
+| # | Do | Expect |
+|---|---|---|
+| N1 | Open Settings → Privacy | A note "You have a tag" with your full name, e.g. Your Name#K7P2; "Got it" hides it for good. |
+| N2 | Change your tag to something with an O or a 1 | Refused: those characters are left out. A tag like WHALE saves. |
+| N3 | Change your tag a third time the same month | Refused: twice in 30 days, with how many days to wait. |
+| N4 | Set "Who can see my phone number" to Nobody, then to owners, admins and team leads | Saved each time. In the agency's member list, a member's phone shows only when their own setting allows it. |
+| N5 | Send an invitation and open it as the invited person | The owner is named in full, with the tag. |

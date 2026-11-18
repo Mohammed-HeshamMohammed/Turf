@@ -42,7 +42,7 @@ type server struct {
 }
 
 type user struct {
-	id, email, name string
+	id, email, name, tag string
 	disabled        bool
 	emailVerified   bool
 }
@@ -69,8 +69,8 @@ func (s *server) userBy(ctx context.Context, column, value string) (*user, error
 	}
 	var u user
 	var disabled, verified *int64
-	err := s.db.QueryRow(ctx, "SELECT id, email, display_name, disabled_at, email_verified_at FROM users WHERE "+column+" = $1", value).
-		Scan(&u.id, &u.email, &u.name, &disabled, &verified)
+	err := s.db.QueryRow(ctx, "SELECT id, email, display_name, tag, disabled_at, email_verified_at FROM users WHERE "+column+" = $1", value).
+		Scan(&u.id, &u.email, &u.name, &u.tag, &disabled, &verified)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -224,7 +224,7 @@ func (s *server) openSession(ctx context.Context, u *user, kind string, mfaPasse
 }
 
 func (s *server) tokens(u *user, sid string, mfa bool, provider string, authTime int64, refresh string) (map[string]any, error) {
-	access, expiresIn, err := s.keys.sign(person{id: u.id, email: u.email, name: u.name, emailVerified: u.emailVerified}, sid, mfa, provider, authTime, now(), s.cfg.accessMinutes)
+	access, expiresIn, err := s.keys.sign(person{id: u.id, email: u.email, name: u.name, tag: u.tag, emailVerified: u.emailVerified}, sid, mfa, provider, authTime, now(), s.cfg.accessMinutes)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +233,7 @@ func (s *server) tokens(u *user, sid string, mfa bool, provider string, authTime
 		"token_type":    "Bearer",
 		"expires_in":    expiresIn,
 		"refresh_token": refresh,
-		"user":          map[string]any{"id": u.id, "email": u.email, "name": u.name, "email_verified": u.emailVerified},
+		"user":          map[string]any{"id": u.id, "email": u.email, "name": u.name, "tag": u.tag, "email_verified": u.emailVerified},
 	}, nil
 }
 

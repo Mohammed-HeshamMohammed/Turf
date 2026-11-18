@@ -182,22 +182,22 @@ func (s *server) directory(q *req) error {
 	// Everyone in the agency sees who is in it, with roles and teams (D53, D54, D334). An email shows only to the owner and admins,
 	// to the person's own team leads, and to the person (D371).
 	everyone := slices.Contains(q.sc.scopes, "organization")
-	names, avatars, emails := map[string]string{}, map[string]string{}, map[string]string{}
+	names, avatars, emails, tags := map[string]string{}, map[string]string{}, map[string]string{}, map[string]string{}
 	ids := make([]string, 0, len(members))
 	for _, m := range members {
 		ids = append(ids, m.UserID)
 	}
-	rows, err := s.st.db.Query(ctx, `SELECT user_id::text, name, avatar, email FROM people WHERE user_id = ANY($1::uuid[])`, onlyIDs(ids))
+	rows, err := s.st.db.Query(ctx, `SELECT user_id::text, name, avatar, email, tag FROM people WHERE user_id = ANY($1::uuid[])`, onlyIDs(ids))
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var id, name, avatar, email string
-		if err = rows.Scan(&id, &name, &avatar, &email); err != nil {
+		var id, name, avatar, email, tag string
+		if err = rows.Scan(&id, &name, &avatar, &email, &tag); err != nil {
 			return err
 		}
-		names[id], avatars[id], emails[id] = name, avatar, email
+		names[id], avatars[id], emails[id], tags[id] = name, avatar, email, tag
 	}
 	out := make([]map[string]any, 0, len(members))
 	for _, m := range members {
@@ -205,7 +205,8 @@ func (s *server) directory(q *req) error {
 		if name == "" {
 			name = "Member"
 		}
-		entry := map[string]any{"id": m.UserID, "name": name, "avatar": avatars[m.UserID], "roles": nonNil(m.Roles), "team_ids": nonNil(m.TeamIDs), "sign_in": nil}
+		// The tag tells two people of the same name apart; the screens show it only when two names on screen are the same (D187).
+		entry := map[string]any{"id": m.UserID, "name": name, "tag": tags[m.UserID], "avatar": avatars[m.UserID], "roles": nonNil(m.Roles), "team_ids": nonNil(m.TeamIDs), "sign_in": nil}
 		if everyone || m.UserID == q.sc.userID || inTeams(m, q.grant.ManagedTeamIDs) {
 			entry["email"] = emails[m.UserID]
 		}
