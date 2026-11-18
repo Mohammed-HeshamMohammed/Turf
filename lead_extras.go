@@ -224,6 +224,9 @@ func (r *run) leadMerge(p map[string]any) (any, error) {
 	if err := r.mergeRights(keep, gone); err != nil {
 		return nil, err
 	}
+	if err := sameClient(keep, gone); err != nil {
+		return nil, err
+	}
 	var open bool
 	if err := r.tx.QueryRow(r.ctx, `SELECT EXISTS (SELECT 1 FROM handoffs WHERE lead_id IN ($1, $2) AND status = 'Requested')`, keepID, mergeID).Scan(&open); err != nil {
 		return nil, err
