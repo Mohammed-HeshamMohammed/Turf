@@ -173,6 +173,7 @@ func (s *server) handler() http.Handler {
 	s.formRoutes(mux)
 	s.referralRoutes(mux)
 	s.carrierRoutes(mux)
+	s.restoreRoutes(mux)
 	mux.Handle("PUT /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
 	mux.Handle("DELETE /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
 	mux.Handle("PUT /api/v1/clients/{id}/teams/{other}", s.member(s.clientLink("teams")))

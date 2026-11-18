@@ -131,7 +131,12 @@ func (s *server) pull(q *req) error {
 	if err = tx.QueryRow(ctx, `SELECT count(*) FROM (SELECT 1 FROM change_log WHERE seq > $1 LIMIT $2) t`, cursor, maxPullBehind+1).Scan(&behind); err != nil {
 		return err
 	}
-	if behind > maxPullBehind {
+	// The agency was restored from a backup since this cursor (step 41): the device starts over.
+	var restored bool
+	if err = tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM org_resets WHERE seq > $1)`, cursor).Scan(&restored); err != nil {
+		return err
+	}
+	if behind > maxPullBehind || restored {
 		writeJSON(q.w, http.StatusOK, map[string]any{"reset": true, "access_revision": q.rev})
 		return nil
 	}
