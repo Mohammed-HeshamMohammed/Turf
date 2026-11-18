@@ -142,3 +142,9 @@ All for the owner or an admin of each agency (`lead_referrals` sits outside eith
 
 - `POST /api/v1/leads/{id}/files?name=&visibility=`: whoever can edit the lead uploads PDF, Word, Excel or photos (PNG, JPEG, WebP, GIF, HEIC) up to 25 MB whose first bytes match the type. Each is scanned by ClamAV (`CLAMD_ADDR`) before anyone can open it: `scan` is waiting, clean or infected; a harmful file's content is dropped (410), a waiting one answers 409 and is retried every 30 seconds. Files count against the plan's `file_storage_mb` from billing's entitlements (402 when full); `GET /api/v1/files/storage` shows it to the owner and admins.
 - Sharing is for the owner, admins and the lead's team leads: `PATCH /api/v1/files/{id} {visibility}` (the lead's clients), `POST /api/v1/files/{id}/links {for, days}` (a link for 1 to 30 days, 7 by default, at `EMAIL_PUBLIC_URL/api/v1/public/files/<token>`), `DELETE /api/v1/files/{id}/shares/{share}` to withdraw, `GET /api/v1/files/{id}/activity` for every share and every opening (a client by name, a link by who it was for and the network).
+
+## Carrier standing (build step 39)
+
+- `POST /internal/v1/dialer/carrier` (the dialer's `DIALER_TOKEN`): each agency's registration state, whether it may call and text, and its texting step and 30-day counts. A new step becomes a task for each owner. The answer carries staff's last review.
+- `/api/v1/me` gains `carrier` {state, may_call, may_text, may_import, step}. With `CARRIER_CHECK=on` imports wait for a verified brand (the import worker refuses to start one).
+- `GET /api/v1/platform/carrier` and `POST /api/v1/platform/carrier/{org}/clear {note}`: only Caller Whale's owner or cofounder, with their second step; agency-level numbers, never leads (D271).
