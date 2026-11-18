@@ -6,7 +6,7 @@ FROM golang:1 AS runtime-log-build
 COPY landing/dashboard-web/runtime-log/main.go /src/main.go
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log /src/main.go
 
-FROM node:24-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 COPY desktop/frontend/react/package.json desktop/frontend/react/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -24,7 +24,7 @@ ENV VITE_CALLERWHALE_AUTH_URL=$VITE_CALLERWHALE_AUTH_URL \
     VITE_CALLERWHALE_REQUIRE_SIGN_IN=true
 RUN node /headers/security-headers.mjs /app/security-headers.conf && npx tsc -p . && npx vite build
 
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 COPY --from=runtime-log-build /runtime-log /usr/local/bin/callerwhale-log
 ENV CALLERWHALE_LOG_SERVICE="Dashboard"
 COPY landing/dashboard-web/nginx.conf /etc/nginx/conf.d/default.conf
