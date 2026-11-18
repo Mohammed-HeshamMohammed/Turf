@@ -275,3 +275,11 @@ func TestStatusAndBreachTemplates(t *testing.T) {
 		t.Fatal("a notice without what to do")
 	}
 }
+
+// Step 35: the new-device email.
+func TestNewSignInTemplate(t *testing.T) {
+	m, err := Render("new_sign_in", "a@example.com", map[string]any{"device": "Chrome on Windows", "place": "US", "at": "18 November 2026, 09:00 UTC", "link": "https://callerwhale.com/account/not-me?token=x"})
+	if err != nil || !strings.Contains(m.Text, "Chrome on Windows") || !strings.Contains(m.HTML, "This wasn't me") {
+		t.Fatalf("%v %+v", err, m)
+	}
+}

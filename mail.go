@@ -315,6 +315,21 @@ func Render(template, to string, data map[string]any) (Message, error) {
 			`<p><strong>When we learned of it:</strong> ` + e(discovered) + `</p><p><strong>What happened</strong></p><p style="white-space:pre-wrap">` + e(what) +
 			`</p><p><strong>What you should do</strong></p><p style="white-space:pre-wrap">` + e(toDo) + `</p><p>Reply to this email with any question. We will tell you of anything new we learn.</p></div>`
 		return Message{To: to, Subject: "Important: a security incident affecting your Caller Whale data", Text: text, HTML: page}, nil
+	case "new_sign_in":
+		// A sign-in from a device the person never used (step 35, D242), with a way to end it.
+		device, place, at, link := str("device"), str("place"), str("at"), str("link")
+		if device == "" || at == "" || !strings.HasPrefix(link, "http") || len(device) > 80 || len(place) > 80 || strings.ContainsAny(device+place, "\r\n") {
+			return Message{}, errors.New("new_sign_in needs the device, the time and a link")
+		}
+		e := html.EscapeString
+		text := "Someone signed in to your Caller Whale account from a new device.\n\nDevice: " + device + "\nWhere: " + place + "\nWhen: " + at +
+			"\n\nIf it was you, there is nothing to do.\n\nIf it wasn't you, sign that device out and choose a new password: " + link + "\n\n— Caller Whale"
+		page := `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:520px">` +
+			`<p>Someone signed in to your Caller Whale account from a new device.</p><p><strong>Device:</strong> ` + e(device) + `<br><strong>Where:</strong> ` + e(place) +
+			`<br><strong>When:</strong> ` + e(at) + `</p><p>If it was you, there is nothing to do.</p>` +
+			`<p><a href="` + e(link) + `" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none">This wasn't me</a></p>` +
+			`<p style="color:#666;font-size:13px">The button signs that device out and emails you a link to choose a new password.</p></div>`
+		return Message{To: to, Subject: "New sign-in to your Caller Whale account", Text: text, HTML: page}, nil
 	}
 	return Message{}, errors.New("unknown template")
 }
