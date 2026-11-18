@@ -286,7 +286,7 @@ func TestDirectoryNamesPeopleAndProjectsAreListed(t *testing.T) {
 	res, raw := e.raw(alice, orgA, "GET", "/api/v1/directory", nil, nil)
 	var people []map[string]any
 	_ = json.Unmarshal(raw, &people)
-	if res != 200 || len(people) != 2 || people[0]["name"] == "Member" {
+	if res != 200 || len(people) != 2 || people[0]["name"] == "Member" || people[0]["tag"] != "K7P2" {
 		t.Fatalf("directory: %d %v", res, people)
 	}
 	status, project := e.call(alice, orgA, "POST", "/api/v1/projects", map[string]any{"name": "Austin owners"})
