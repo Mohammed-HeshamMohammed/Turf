@@ -200,7 +200,8 @@ func (s *server) textWaiting(ctx context.Context, org, lead string) error {
 // checkWaiting tells about the texts that waited longer than their agency's wait (D21, D48), and returns a taken-over conversation to
 // its agent when its holder did not answer in time, telling both (D77). Run every minute.
 func (s *server) checkWaiting(ctx context.Context) error {
-	rows, err := s.st.db.Query(ctx, `SELECT t.org_id::text, t.lead_id::text, t.assignee_id::text, t.holder_id::text, t.team_leads::text[], t.team_deputies::text[]
+	rows, err := s.st.db.Query(ctx, `SELECT t.org_id::text, t.lead_id::text, t.assignee_id::text, t.holder_id::text, t.team_leads::text[], t.team_deputies::text[],
+			t.team_id::text, t.waiting_since, coalesce(c.wait_minutes, 15)
 		FROM sms_threads t LEFT JOIN sms_settings c ON c.org_id = t.org_id
 		WHERE t.waiting_since IS NOT NULL AND t.alerted_at IS NULL AND t.waiting_since <= $1::timestamptz - make_interval(mins => coalesce(c.wait_minutes, 15))
 		LIMIT 500`, s.now())
@@ -211,11 +212,14 @@ func (s *server) checkWaiting(ctx context.Context) error {
 		org, lead       string
 		agent, holder   *string
 		leads, deputies []string
+		team            *string
+		since           time.Time
+		wait            int
 	}
 	list := []due{}
 	for rows.Next() {
 		var d due
-		if err := rows.Scan(&d.org, &d.lead, &d.agent, &d.holder, &d.leads, &d.deputies); err != nil {
+		if err := rows.Scan(&d.org, &d.lead, &d.agent, &d.holder, &d.leads, &d.deputies, &d.team, &d.since, &d.wait); err != nil {
 			rows.Close()
 			return err
 		}
@@ -226,6 +230,14 @@ func (s *server) checkWaiting(ctx context.Context) error {
 		return err
 	}
 	for _, d := range list {
+		// The wait counts only while the lead's team (or the agency) is working (D79).
+		hours, err := s.hoursFor(ctx, d.org, d.team)
+		if err != nil {
+			return err
+		}
+		if hours.deadline(d.since, time.Duration(d.wait)*time.Minute).After(s.now()) {
+			continue
+		}
 		if d.holder != nil {
 			// The holder did not answer: the conversation goes back to the agent, the wait starts again for them, both are told.
 			told := []string{*d.holder}
