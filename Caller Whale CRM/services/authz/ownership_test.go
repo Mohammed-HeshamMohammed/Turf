@@ -53,3 +53,27 @@ func TestPausedAgencyAndHandingOverOwnership(t *testing.T) {
 		t.Fatalf("an old owner who chose to leave: %v", out)
 	}
 }
+
+// Step 17: a solo workspace becomes an agency in place; the solo operator owns it and leads its first team (D59, D203).
+func TestASoloWorkspaceBecomesAnAgency(t *testing.T) {
+	h := newHarness(t)
+	solo := "abababab-abab-4bab-8bab-abababababab"
+	first := "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd"
+	if code, out := h.call(coreToken, "PUT", "/v1/orgs/"+solo+"/owner", map[string]any{"user_id": ownerID, "role": "solo"}); code != 200 {
+		t.Fatalf("open solo: %d %v", code, out)
+	}
+	up := map[string]any{"user_id": ownerID, "team_id": first, "team_name": "Sami's team"}
+	if code, _ := h.call(billingToken, "POST", "/v1/orgs/"+solo+"/upgrade", up); code != 403 {
+		t.Fatalf("billing upgrades a workspace: %d", code)
+	}
+	if code, out := h.call(coreToken, "POST", "/v1/orgs/"+solo+"/upgrade", up); code != 200 {
+		t.Fatalf("upgrade: %d %v", code, out)
+	}
+	_, out := h.call(coreToken, "POST", "/v1/grant", map[string]any{"user_id": ownerID, "org_id": solo, "action": "admin", "second_step_passed": true})
+	if out["allowed"] != true || !slices.Equal(list(out["roles"]), []string{"owner"}) || !slices.Equal(list(out["managed_team_ids"]), []string{first}) {
+		t.Fatalf("the owner, leading the first team: %v", out)
+	}
+	if code, _ := h.call(coreToken, "POST", "/v1/orgs/"+solo+"/upgrade", up); code != 409 {
+		t.Fatalf("upgrading an agency again: %d", code)
+	}
+}

@@ -93,3 +93,46 @@ func (s *server) handOver(w http.ResponseWriter, r *http.Request) error {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "owner_id": body.To, "access_changed": true})
 	return nil
 }
+
+// upgrade answers POST /v1/orgs/{org}/upgrade {user_id, team_id, team_name}: a solo workspace becomes an agency in place (step 17,
+// D59, D203). The solo operator becomes its owner and the lead of a first team, which the CRM names after them and moves their leads
+// into. Their clients stay the agency's clients. Only the CRM asks.
+func (s *server) upgrade(w http.ResponseWriter, r *http.Request) error {
+	org, err := s.workspace(r)
+	if err != nil {
+		return err
+	}
+	var body struct {
+		UserID   string `json:"user_id"`
+		TeamID   string `json:"team_id"`
+		TeamName string `json:"team_name"`
+	}
+	if err := readJSON(w, r, &body); err != nil {
+		return err
+	}
+	if !validID(body.UserID) || !validID(body.TeamID) || body.TeamName == "" || len(body.TeamName) > 100 {
+		return bad("Send user_id, team_id and team_name.")
+	}
+	m, ok, err := s.rules.membership(r.Context(), org, body.UserID)
+	if err != nil {
+		return store(err)
+	}
+	if !ok || !slices.Contains(m.Roles, "solo") {
+		return newError(http.StatusConflict, "not_solo", "This workspace is already an agency.")
+	}
+	m.Roles = []string{"owner"}
+	if err := store(s.rules.setMembership(r.Context(), org, m)); err != nil {
+		return err
+	}
+	if err := store(s.rules.setOwner(r.Context(), org, body.UserID)); err != nil {
+		return err
+	}
+	t := team{TeamID: body.TeamID, Name: body.TeamName, ManagerIDs: []string{body.UserID}}
+	t.settle()
+	if err := store(s.rules.setTeam(r.Context(), org, t)); err != nil {
+		return err
+	}
+	s.record(r.Context(), org, body.UserID, body.UserID, "upgraded_to_agency", []string{body.TeamID}, map[string]any{"team_name": body.TeamName})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "team": t, "access_changed": true})
+	return nil
+}

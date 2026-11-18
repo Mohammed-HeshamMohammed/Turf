@@ -207,3 +207,10 @@ Needs two-step sign-in on both accounts. Do it with a throwaway agency, not your
 | O3 | Offer again and Cancel | "Cancelled. Nothing changed." The member no longer sees it. |
 | O4 | As staff, staff area → Access → Pause and hand on: pause the throwaway agency | Its members can open it but cannot call, import or invite. "End the pause" undoes it. |
 | O5 | As an admin of the paused agency, Memberships → Owner unreachable? | "Asked." Staff see the request, and Approve is refused until the agency has been paused for 14 days. |
+
+# Step 17: solo to agency
+
+| # | Do | Expect |
+|---|---|---|
+| U1 | With a throwaway solo workspace that has a few leads, CRM → Team → Make this an agency | "Your workspace is now an agency. N leads are in <your name>'s team." After the reload you are the agency owner, and the leads keep their history. |
+| U2 | Look at the Team page again | The button is gone; inviting callers works as in any agency. |
