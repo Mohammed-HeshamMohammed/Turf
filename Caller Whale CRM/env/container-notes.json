@@ -290,11 +290,12 @@
         "EMAIL_SES_REGION": "Amazon SES region for email to leads (step 29), like us-east-1. Empty turns email to leads off.",
         "AWS_ACCESS_KEY_ID": "Secret: the access key of an IAM user allowed ses:SendRawEmail, ses:SendEmail, ses:CreateEmailIdentity and ses:GetEmailIdentity.",
         "AWS_SECRET_ACCESS_KEY": "Secret: that IAM user's secret access key.",
-        "EMAIL_PUBLIC_URL": "This service's public address at the gateway (https, no trailing slash), like https://gate.callerwhale.com: email links, unsubscribe, SES's SNS subscription and website forms' addresses use it.",
+        "EMAIL_PUBLIC_URL": "This service's public address at the gateway (https, no trailing slash), like https://gate.callerwhale.com: email links, unsubscribe, SES's SNS subscription, website forms' addresses and shared-file links use it.",
         "EMAIL_REPLY_DOMAIN": "A domain whose mail SES receives (its MX at SES receiving), like reply.callerwhale.com; replies to leads' emails go to reply+<token>@ it.",
         "EMAIL_SNS_TOPIC_ARN": "The SNS topic SES puts received replies on (encoding Base64); only messages from it are taken.",
         "NOTIFY_MAIL_URL": "The notification service's private address, like http://notifications:8102, for scheduled report emails (step 32). Empty: reports are not sent.",
-        "NOTIFY_MAIL_TOKEN": "Secret: the value after crm-core= in notifications' NOTIFY_TOKENS, 24+ characters."
+        "NOTIFY_MAIL_TOKEN": "Secret: the value after crm-core= in notifications' NOTIFY_TOKENS, 24+ characters.",
+        "CLAMD_ADDR": "ClamAV's daemon on the private network, like clamav:3310, which scans files on leads (step 38). Its StreamMaxLength must be above 25 MB. Empty: files wait unopened."
       }
     },
     "learning": {

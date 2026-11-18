@@ -26,7 +26,7 @@ type offeredPlan struct {
 	PriceMinor   int64  `json:"price_minor"`
 	Currency     string `json:"currency"`
 	DisplayPrice string `json:"price"`
-	// What the plan allows (seats, clients, active_leads, imports_monthly, monthly_minutes, skiptrace_credits); null is unlimited.
+	// What the plan allows (seats, clients, active_leads, imports_monthly, monthly_minutes, skiptrace_credits, file_storage_mb); null is unlimited.
 	Limits map[string]*int64 `json:"limits,omitempty"`
 }
 
@@ -103,7 +103,7 @@ type membershipBody struct {
 }
 
 // limitKeys are the limits staff may set when they give a membership (billing.org_limit_overrides).
-var limitKeys = []string{"seats", "clients", "active_leads", "imports_monthly", "monthly_minutes", "skiptrace_credits"}
+var limitKeys = []string{"seats", "clients", "active_leads", "imports_monthly", "monthly_minutes", "skiptrace_credits", "file_storage_mb"}
 
 // checkMembership says what is wrong with a request, or nothing. Time and money are limited to sensible amounts.
 func checkMembership(b *membershipBody) *apiError {

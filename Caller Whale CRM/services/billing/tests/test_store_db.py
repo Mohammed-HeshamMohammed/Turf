@@ -55,6 +55,7 @@ class StoreTest(unittest.TestCase):
         self.assertTrue({"solo", "duo", "team", "pro", "custom"} <= set(keys))
         self.assertEqual(keys["solo"]["limits"]["active_leads"], 1_000_000)
         self.assertIsNone(keys["solo"]["limits"]["clients"], "clients are unlimited")
+        self.assertEqual(keys["solo"]["limits"]["file_storage_mb"], 2048, "file storage on leads (step 38)")
         org = uuid4()
         given = self.store.assign_membership(org, "solo", "free", 14, 12, None, NOW, {"seats": 4, "active_leads": 1_000_000, "monthly_minutes": None}, "staff")
         self.assertEqual(given["overrides"], {"seats": 4, "monthly_minutes": None}, "a value equal to the plan's is not stored")

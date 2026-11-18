@@ -41,6 +41,7 @@ type config struct {
 	emailRegion, emailPublicURL, emailReplyDomain, emailTopic string
 	// Scheduled report emails (step 32): the notification service and crm-core's token in its NOTIFY_TOKENS.
 	notifyMailURL, notifyMailToken string
+	clamdAddr                      string // ClamAV's daemon, like clamav:3310 (step 38)
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -64,6 +65,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 		emailRegion: strings.TrimSpace(getenv("EMAIL_SES_REGION")), emailPublicURL: trim(getenv("EMAIL_PUBLIC_URL")),
 		emailReplyDomain: strings.ToLower(strings.TrimSpace(getenv("EMAIL_REPLY_DOMAIN"))), emailTopic: strings.TrimSpace(getenv("EMAIL_SNS_TOPIC_ARN")),
 		notifyMailURL: trim(getenv("NOTIFY_MAIL_URL")), notifyMailToken: strings.TrimSpace(getenv("NOTIFY_MAIL_TOKEN")),
+		clamdAddr: strings.TrimSpace(getenv("CLAMD_ADDR")),
 	}
 	if c.port == "" {
 		c.port = "8107"
@@ -142,6 +144,9 @@ func main() {
 		s.calendar = newGoogleAPI(cfg.googleClientID, cfg.googleSecret, cfg.googleRedirect)
 	}
 	s.fetchCert = defaultFetchCert
+	if cfg.clamdAddr != "" {
+		s.scanner = clamd{addr: cfg.clamdAddr}
+	}
 	if cfg.emailRegion != "" {
 		ses, err := newSES(ctx, cfg.emailRegion)
 		if err != nil {
@@ -157,6 +162,7 @@ func main() {
 	go s.checkEmailWaitsPeriodically(ctx)
 	go s.sendReportsPeriodically(ctx)
 	go s.sendEventsPeriodically(ctx)
+	go s.scanWaitingPeriodically(ctx)
 	go st.keepBuildingLateIndexes(ctx, 5*time.Minute)
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 5 * time.Minute, WriteTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute}
 	stop := make(chan os.Signal, 1)

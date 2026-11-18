@@ -304,6 +304,7 @@ const limitFields: { key: string; label: string }[] = [
   { key: "imports_monthly", label: "Imports per month" },
   { key: "monthly_minutes", label: "Calling minutes per month" },
   { key: "skiptrace_credits", label: "Skip-trace credits per month" },
+  { key: "file_storage_mb", label: "File storage on leads (MB)" },
 ];
 const limitText = (value: number | null | undefined) => (value === null || value === undefined ? "" : String(value));
 

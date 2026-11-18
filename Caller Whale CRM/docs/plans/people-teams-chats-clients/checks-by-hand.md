@@ -16,7 +16,7 @@ Each token is a random value of 32 characters or more (`openssl rand -hex 32`). 
 | T1 | `DIALER_TOKEN` | crm-core | dialer-sms `CRM_TOKEN` (and `CRM_URL=http://crm-core:8107`) | The dialer asking the CRM about leads and logging calls (steps 10, 21, 25) |
 | T2 | `AUTHZ_TOKEN` | dialer-sms | authz `AUTHZ_TOKENS`: add `,dialer-sms=<token>` | The dialer checking people's rights |
 | T3 | `BILLING_TOKEN` (and `BILLING_URL=http://billing:8103`) | dialer-sms | billing `BILLING_TOKENS`: add `,dialer-sms=<token>` | Budgets for calls and texts (step 22) |
-| T4 | `BILLING_TOKEN` (and `BILLING_URL=http://billing:8103`) | crm-core | billing `BILLING_TOKENS`: add `,crm-core=<token>` | Charging the in-app assistant, with the daily cap (step 26) |
+| T4 | `BILLING_TOKEN` (and `BILLING_URL=http://billing:8103`) | crm-core | billing `BILLING_TOKENS`: add `,crm-core=<token>` | Charging the in-app assistant, with the daily cap (step 26), and reading the plan's file storage (step 38) |
 | T5 | `AGENT_TOKEN` | assistant | crm-core and dialer-sms `ASSISTANT_TOKEN` (and `ASSISTANT_URL=http://assistant:8109`) | The in-app assistant and call summaries (step 26); needs `OPENROUTER_API_KEY` on the assistant |
 | T6 | `NOTIFY_MAIL_TOKEN` (and `NOTIFY_MAIL_URL=http://notifications:8102`) | crm-core | notifications `NOTIFY_TOKENS`: add `,crm-core=<token>` | Scheduled report emails (step 32) |
 | T7 | `AUTH_MCP_TOKEN` | auth | mcp `MCP_AUTH_TOKEN` | Outside AIs asking for changes that wait for you (step 24) |
@@ -39,13 +39,14 @@ Chrome was not connected). The rows marked **verify** are what the code expects;
 | Caller Whale Authentication | `STATUS_PROBES` (optional), like `sign_in=http://auth:8101/healthz,crm=http://crm-core:8107/healthz,calls=http://dialer-sms:8113/healthz,chats=http://messaging:8108/healthz`; `AUTH_MCP_TOKEN` (T7) if not set | Redeploy (new tables for the status page and breach notices) |
 | Caller Whale Authorization | `AUTHZ_TOKENS`: add `gateway=<token>` (step 35) and `dialer-sms=<token>` (T2), and `messaging=<token>` if it is not there; optional `AUTHZ_FEATURES_EVERYWHERE=teams_v2` (P-1) | Redeploy |
 | Caller Whale Billing | `BILLING_TOKENS`: add `dialer-sms=<token>` (T3) and `crm-core=<token>` (T4) | Redeploy (the `ai` use kind) |
-| Caller Whale CRM Core | `DIALER_TOKEN` (T1); `ASSISTANT_URL=http://assistant:8109`, `ASSISTANT_TOKEN` (T5); `BILLING_URL=http://billing:8103`, `BILLING_TOKEN` (T4); `NOTIFY_MAIL_URL=http://notifications:8102`, `NOTIFY_MAIL_TOKEN` (T6); `APP_URL=https://app.callerwhale.com` (**verify** the CRM web app's address); `GOOGLE_*` (S4, `GOOGLE_REDIRECT_URL=https://gate.callerwhale.com/api/v1/google/callback`); `EMAIL_*` and `AWS_*` (S5, `EMAIL_PUBLIC_URL=https://gate.callerwhale.com`) | Redeploy (migrations 0032 to 0041 run on start) |
+| Caller Whale CRM Core | `CLAMD_ADDR=clamav:3310` (step 38, after ClamAV runs); `DIALER_TOKEN` (T1); `ASSISTANT_URL=http://assistant:8109`, `ASSISTANT_TOKEN` (T5); `BILLING_URL=http://billing:8103`, `BILLING_TOKEN` (T4); `NOTIFY_MAIL_URL=http://notifications:8102`, `NOTIFY_MAIL_TOKEN` (T6); `APP_URL=https://app.callerwhale.com` (**verify** the CRM web app's address); `GOOGLE_*` (S4, `GOOGLE_REDIRECT_URL=https://gate.callerwhale.com/api/v1/google/callback`); `EMAIL_*` and `AWS_*` (S5, `EMAIL_PUBLIC_URL=https://gate.callerwhale.com`) | Redeploy (migrations 0032 to 0041 run on start) |
 | Caller Whale Dialer | Deploy it first (S1): `CRM_URL=http://crm-core:8107`, `CRM_TOKEN` (T1); `AUTHZ_URL=http://authz:8104`, `AUTHZ_TOKEN` (T2); `BILLING_URL=http://billing:8103`, `BILLING_TOKEN` (T3); `ASSISTANT_URL=http://assistant:8109`, `ASSISTANT_TOKEN` (T5); `TELNYX_*` (S2) | Simulator first, then live |
 | Caller Whale Importing Worker | nothing new | — |
 | Caller Whale Learning | nothing new | — |
 | Caller Whale MCP | nothing new (`MCP_AUTH_TOKEN` is auth's `AUTH_MCP_TOKEN`) | — |
 | Caller Whale Messaging | nothing new | — |
 | Caller Whale Notifications | `NOTIFY_TOKENS`: add `crm-core=<token>` (T6) | Redeploy (the report, status and breach notice emails) |
+| ClamAV (new, step 38) | A new container from the open-source `clamav/clamav` image (`stable` tag), on the same network with the alias `clamav`, no domain, `CLAMD_CONF_StreamMaxLength=30M`; it needs about 3 GB of memory and downloads its virus list on start | Then set crm-core's `CLAMD_ADDR=clamav:3310` and redeploy crm-core, billing (the storage limit) and the gateway (shared-file links) |
 | The website (landing-web) | nothing new | Redeploy (the /status page and the outage banner) |
 
 ## Outside accounts and their settings
@@ -488,3 +489,14 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | Z4 | Send again; as B, accept into a client | B has a new lead with the note; no calls, texts or A's notes came with it. |
 | Z5 | Before sending, block texts to the number in A; after B accepts, try lifting that block in B | B's lead can't be texted, and B can't lift the block. |
 | Z6 | Note a fee as A, agree as B, then win the deal in B | Both owners get a "Referral fee" task. A sees the close only after both turned on sharing. |
+
+# Step 38: files on leads (after ClamAV runs, CLAMD_ADDR is set, and crm-core, billing and the gateway are redeployed)
+
+| # | Do | Expect |
+|---|---|---|
+| F1 | As a caller holding a lead, upload a PDF | It shows "clean" within seconds and opens. |
+| F2 | Rename a .exe to .pdf and upload it; upload a 30 MB PDF | Both refused. |
+| F3 | Upload the EICAR test file (from eicar.org) saved as a .pdf that starts with `%PDF-` | It shows as harmful and can't be opened. |
+| F4 | As the caller, try to share the PDF with clients; as the team's lead, share it | The caller is refused; the team lead can. The client sees it and opening it is listed in its activity with their name. |
+| F5 | As the owner, make a link for "Title Co" for 1 day; open it in a private window; withdraw it; open again | It opens and the opening shows with the network; after withdrawing it says the link was withdrawn. |
+| F6 | Give a throwaway agency a membership with "File storage on leads (MB)" of 1, then upload a 2 MB file | Refused: storage full. |
