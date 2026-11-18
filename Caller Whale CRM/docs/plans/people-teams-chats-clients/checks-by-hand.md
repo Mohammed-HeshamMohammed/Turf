@@ -229,3 +229,11 @@ Needs two-step sign-in on both accounts. Do it with a throwaway agency, not your
 |---|---|---|
 | K1 | As staff, give a throwaway agency with three people a plan with 2 seats | Its owner's Dashboard shows "Choose who keeps a seat": keep up to 1 besides you. |
 | K2 | Tick one person and press Keep these people | "1 suspended until a seat is free." The other person is suspended with the reason shown to them; restoring them is refused until a seat is added. |
+
+# Step 19: support access
+
+| # | Do | Expect |
+|---|---|---|
+| S1 | As a throwaway agency's owner, Dashboard → Support access → Let support in (24 hours) | "Support can come in until …". |
+| S2 | As staff, staff area → Access | The agency is listed until that time; in the CRM it appears among your agencies, where you can read but not edit leads, export or open team chats. |
+| S3 | As the owner, End support access now | Staff lose the agency at once; the record of people changes shows the grant, the visit and the end. |

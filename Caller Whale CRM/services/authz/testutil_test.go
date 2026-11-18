@@ -32,10 +32,11 @@ type memEngine struct {
 	// Step 18: since when each workspace is unpaid, and which ones their owner closed.
 	unpaidSince map[string]int64
 	closedOrgs  map[string]int64
+	support     map[string]int64
 }
 
 func newMem() *memEngine {
-	return &memEngine{roleDefs: map[string]map[string]role{}, people: map[string]map[string]membership{}, standing: map[string][3]bool{}, staff: map[string]string{}, openOwner: map[string]string{}, teamsBy: map[string][]team{}, limits: map[string][2]*int{}, names: map[string]string{}, switches: map[string][]string{}, admins: map[string]*int{}, log: map[string][]peopleEntry{}, unpaidSince: map[string]int64{}, closedOrgs: map[string]int64{}}
+	return &memEngine{roleDefs: map[string]map[string]role{}, people: map[string]map[string]membership{}, standing: map[string][3]bool{}, staff: map[string]string{}, openOwner: map[string]string{}, teamsBy: map[string][]team{}, limits: map[string][2]*int{}, names: map[string]string{}, switches: map[string][]string{}, admins: map[string]*int{}, log: map[string][]peopleEntry{}, unpaidSince: map[string]int64{}, closedOrgs: map[string]int64{}, support: map[string]int64{}}
 }
 
 var errStoreDown = errors.New("rules store down")
@@ -232,6 +233,29 @@ func (m *memEngine) setStanding(_ context.Context, org string, c standingChange)
 	}
 	m.limits[org] = l
 	return m.down()
+}
+
+func (m *memEngine) supportUntil(_ context.Context, org string) (int64, error) {
+	return m.support[org], m.down()
+}
+
+func (m *memEngine) setSupport(_ context.Context, org string, until *int64, _ string) error {
+	if until == nil {
+		delete(m.support, org)
+	} else {
+		m.support[org] = *until
+	}
+	return m.down()
+}
+
+func (m *memEngine) supportOpen(_ context.Context, now int64) (map[string]int64, error) {
+	out := map[string]int64{}
+	for org, until := range m.support {
+		if until > now {
+			out[org] = until
+		}
+	}
+	return out, m.down()
 }
 
 func (m *memEngine) standingOf(_ context.Context, org string) (standingView, error) {

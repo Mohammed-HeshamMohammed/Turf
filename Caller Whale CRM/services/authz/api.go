@@ -56,6 +56,10 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/orgs/{org}/upgrade", s.only("manage_members", s.upgrade))
 	mux.Handle("GET /v1/orgs/{org}/plan-stage", s.only("read", s.planStage))
 	mux.Handle("GET /v1/orgs/{org}/seats", s.only("read", s.seatUse))
+	mux.Handle("GET /v1/orgs/{org}/support", s.only("read", s.putSupport))
+	mux.Handle("PUT /v1/orgs/{org}/support", s.only("manage_members", s.putSupport))
+	mux.Handle("DELETE /v1/orgs/{org}/support", s.only("manage_members", s.putSupport))
+	mux.Handle("GET /v1/support", s.only("read", s.supportList))
 	mux.Handle("GET /v1/orgs/{org}", s.only("read", s.workspaceAbout))
 	mux.Handle("PUT /v1/orgs/{org}/name", s.only("manage", s.nameWorkspace))
 	mux.Handle("PUT /v1/orgs/{org}/features/{name}", s.only("manage_staff", s.putFeature))
@@ -143,7 +147,11 @@ func (s *server) grant(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return store(err)
 		}
-		d = decide(f, req, s.cfg.requireSecondStep)
+		// Caller Whale's staff, in an agency that granted support access (step 19).
+		if f, err = s.asSupport(r, req.UserID, req.OrgID, f); err != nil {
+			return store(err)
+		}
+		d = decide(f, req, s.cfg.requireSecondStep || f.roles != nil && f.roles[0] == "support")
 	}
 	if !d.Allowed {
 		writeJSON(w, http.StatusOK, d)
@@ -744,6 +752,18 @@ func (s *server) person(w http.ResponseWriter, r *http.Request) error {
 		}
 		held := slices.ContainsFunc(m.Roles, func(role string) bool { return slices.Contains(heldRoles, role) })
 		spaces = append(spaces, workspaceRoles{OrgID: org, Roles: m.Roles, BusinessOwner: held})
+	}
+	// The platform owner and cofounder also see the agencies that let support in now (step 19), as support.
+	if staff == "owner" || staff == "cofounder" {
+		open, err := s.rules.supportOpen(r.Context(), s.now().Unix())
+		if err != nil {
+			return store(err)
+		}
+		for org := range open {
+			if !slices.ContainsFunc(spaces, func(w workspaceRoles) bool { return w.OrgID == org }) {
+				spaces = append(spaces, workspaceRoles{OrgID: org, Roles: []string{"support"}})
+			}
+		}
 	}
 	body := map[string]any{"user_id": user, "platform_role": staff, "workspaces": spaces}
 	if label := ladder[staff]; label != "" {
