@@ -26,3 +26,29 @@ func TestOwnerRequiresTheSecondStepOfEveryone(t *testing.T) {
 		t.Fatalf("switched off again: %v", out)
 	}
 }
+
+// Step 35, D243: the owner limits the agency to countries and networks; the gateway reads them with the owner exempt.
+func TestAccessLimits(t *testing.T) {
+	h := newHarness(t)
+	h.opened()
+	put := func(actor string, body map[string]any) (int, map[string]any) {
+		body["actor_id"], body["actor_second_step"] = actor, true
+		return h.call(authToken, "PUT", "/v1/orgs/"+org1+"/security", body)
+	}
+	if code, _ := put(callerID, map[string]any{"countries": []string{"US"}}); code != 403 {
+		t.Fatalf("a caller sets limits: %d", code)
+	}
+	if code, _ := put(ownerID, map[string]any{"countries": []string{"usa"}}); code != 400 {
+		t.Fatalf("a bad country: %d", code)
+	}
+	if code, _ := put(ownerID, map[string]any{"networks": []string{"10.0.0.0/4"}}); code != 400 {
+		t.Fatalf("a network that is too wide: %d", code)
+	}
+	if code, out := put(ownerID, map[string]any{"countries": []string{"us", "CA"}, "networks": []string{"203.0.113.7"}}); code != 200 || len(out["countries"].([]any)) != 2 || out["networks"].([]any)[0] != "203.0.113.7/32" {
+		t.Fatalf("limits: %d %v", code, out)
+	}
+	code, out := h.call(gatewayToken, "GET", "/v1/orgs/"+org1+"/access-limits", nil)
+	if code != 200 || len(out["exempt"].([]any)) != 1 || out["exempt"].([]any)[0] != ownerID {
+		t.Fatalf("the gateway's view: %d %v", code, out)
+	}
+}

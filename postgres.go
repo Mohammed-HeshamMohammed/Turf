@@ -88,6 +88,8 @@ func (p *postgres) setup(ctx context.Context) error {
 		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS closed_at bigint`,
 		// Step 19: support access the owner granted, until a time.
 		`CREATE TABLE IF NOT EXISTS authz_support (org_id text PRIMARY KEY, until bigint NOT NULL, granted_by text NOT NULL)`,
+		// Step 35: the countries and office networks an agency's members may work from (D243).
+		`CREATE TABLE IF NOT EXISTS authz_access_limits (org_id text PRIMARY KEY, countries text[] NOT NULL DEFAULT '{}', networks text[] NOT NULL DEFAULT '{}')`,
 		`UPDATE authz_standing SET unpaid_since = extract(epoch FROM now())::bigint WHERE payment_required AND unpaid_since IS NULL`,
 		// The record of people changes (D58, D184): kept 2 years. team_ids are the teams the change touched, so a team's leads see
 		// their teams' part; the person changed sees their own.
@@ -617,4 +619,19 @@ func (p *postgres) check(ctx context.Context, user, org, permission string) (boo
 	default:
 		return f.capabilities[permission], nil
 	}
+}
+
+func (p *postgres) accessLimits(ctx context.Context, org string) ([]string, []string, error) {
+	countries, networks := []string{}, []string{}
+	err := p.db.QueryRow(ctx, `SELECT countries, networks FROM authz_access_limits WHERE org_id=$1`, org).Scan(&countries, &networks)
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = nil
+	}
+	return countries, networks, err
+}
+
+func (p *postgres) setAccessLimits(ctx context.Context, org string, countries, networks []string) error {
+	_, err := p.db.Exec(ctx, `INSERT INTO authz_access_limits (org_id, countries, networks) VALUES ($1, $2, $3)
+		ON CONFLICT (org_id) DO UPDATE SET countries = EXCLUDED.countries, networks = EXCLUDED.networks`, org, nonNil(countries), nonNil(networks))
+	return err
 }

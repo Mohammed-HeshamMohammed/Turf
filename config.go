@@ -18,7 +18,7 @@ var callerRights = map[string][]string{
 	"billing":    {"grant", "check", "standing"},
 	"messaging":  {"grant", "check", "read"}, // asks who is in a workspace; changes nothing
 	"dialer-sms": {"grant"},                  // asks what the person placing a call or text may do; changes nothing
-	"gateway":    {"check"},
+	"gateway":    {"check", "limits"}, // limits: an agency's allowed countries and networks, and nothing else (step 35)
 	"worker":     {"check"},
 }
 
