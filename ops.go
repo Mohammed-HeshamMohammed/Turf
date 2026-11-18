@@ -1650,6 +1650,13 @@ func (r *run) dealUpdate(p map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Who won it and when, for commissions (step 27); a deal moved out of "Closed won" loses both.
+	if before["stage"] != deal["stage"] && (before["stage"] == "Closed won" || deal["stage"] == "Closed won") {
+		if deal, err = r.one(`UPDATE deals SET closed_at = CASE WHEN stage = 'Closed won' THEN now() END, closed_by = CASE WHEN stage = 'Closed won' THEN $2::uuid END
+			WHERE id = $1 RETURNING to_jsonb(deals.*)`, id, r.sc.userID); err != nil {
+			return nil, err
+		}
+	}
 	kind := "deal.updated"
 	if before["stage"] != deal["stage"] {
 		kind = "deal.stage_changed"
