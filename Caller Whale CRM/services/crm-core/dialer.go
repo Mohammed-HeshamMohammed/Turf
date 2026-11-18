@@ -25,6 +25,7 @@ func (s *server) dialerRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /internal/v1/dialer/find-lead", s.dialerOnly(s.dialerFindLead))
 	mux.Handle("POST /internal/v1/dialer/calls", s.dialerOnly(s.dialerOp("call.record")))
 	mux.Handle("POST /internal/v1/dialer/recording", s.dialerOnly(s.dialerOp("call.recording")))
+	mux.Handle("POST /internal/v1/dialer/block", s.dialerOnly(s.dialerBlock))
 }
 
 type dialerAsk struct {
@@ -101,6 +102,23 @@ func (s *server) dialerLead(w http.ResponseWriter, r *http.Request, ask dialerAs
 		return notFound("The lead was not found, was deleted, or is outside this person's access.")
 	}
 	reply := dialerLeadReply(lead, sc)
+	// The number's blocks (step 25): calls and texts each, with why; and whether its list carries the agency's consent to text (D355).
+	b, err := numberBlocked(ctx, tx, asString(lead["phone"]))
+	if err != nil {
+		return err
+	}
+	if lead["do_not_call"] == true && !b.Calls && !b.Texts { // a lead marked before blocks were kept by number
+		b.Calls, b.Texts, b.Why = true, true, "This lead is do-not-call."
+	}
+	reply["blocked_calls"], reply["blocked_texts"], reply["block_reason"] = b.Calls, b.Texts, b.Why
+	if b.Calls && reply["may_call"] == true {
+		reply["may_call"], reply["reason"] = false, b.Why
+	}
+	var listConsent bool
+	if project := asString(lead["project_id"]); project != "" {
+		_ = tx.QueryRow(ctx, `SELECT text_consent_at IS NOT NULL FROM projects WHERE id = $1`, project).Scan(&listConsent)
+	}
+	reply["list_consent"] = listConsent
 	// A list waiting for its client's approval is not worked yet (step 23, D138).
 	if waiting, err := waitingApproval(ctx, tx, asString(lead["id"])); err == nil && waiting {
 		reply["may_call"], reply["reason"], reply["waiting_approval"] = false, "This list is waiting for its client's approval.", true
@@ -257,4 +275,59 @@ func (r *run) callRecording(p map[string]any) (any, error) {
 	}
 	leadID := asString(event["lead_id"])
 	return event, r.record(change{entity: "call", kind: "call.recording_added", id: asString(event["id"]), leadID: leadID, after: event})
+}
+
+// dialerBlock is a lead's own opt-out reply (step 25, D207, D209): payload {calls, texts, note} blocks the number for the agency, as
+// the lead's doing (no person marked it); {lift: true} is the lead texting START, which lifts only a block their own reply made.
+func (s *server) dialerBlock(w http.ResponseWriter, r *http.Request, ask dialerAsk, sc scope) error {
+	if phoneKey(ask.Phone) == "" {
+		return bad("phone is required.")
+	}
+	ctx := r.Context()
+	tx, err := s.st.begin(ctx, sc)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if ask.Payload["lift"] == true {
+		key := phoneKey(ask.Phone)
+		tag, err := tx.Exec(ctx, `UPDATE number_blocks SET lifted_at = now(), lift_reason = 'The lead texted START.'
+			WHERE org_id = cw_org() AND phone_key = $1 AND lifted_at IS NULL AND reason = 'opt_out_reply'`, key)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() > 0 {
+			if b, err := numberBlocked(ctx, tx, ask.Phone); err != nil {
+				return err
+			} else if !b.Calls {
+				if err = logLeads(ctx, tx, `UPDATE leads SET do_not_call = false, version = version + 1, updated_at = now()
+					WHERE org_id = cw_org() AND deleted_at IS NULL AND do_not_call AND crm.phone_key(phone) = $1 RETURNING id::text`, key); err != nil {
+					return err
+				}
+			}
+		}
+	} else {
+		calls, _ := ask.Payload["calls"].(bool)
+		texts, _ := ask.Payload["texts"].(bool)
+		note, _ := ask.Payload["note"].(string)
+		if len(note) > 500 {
+			note = note[:500]
+		}
+		lead := ""
+		if validID(ask.LeadID) {
+			lead = ask.LeadID
+		}
+		if err = block(ctx, tx, scope{orgID: sc.orgID}, blockAsk{Phone: ask.Phone, Calls: calls, Texts: texts, Reason: "opt_out_reply", Source: "text", Note: note, LeadID: lead}); err != nil {
+			return err
+		}
+	}
+	b, err := numberBlocked(ctx, tx, ask.Phone)
+	if err != nil {
+		return err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return err
+	}
+	writeJSON(w, http.StatusOK, b)
+	return nil
 }

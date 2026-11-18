@@ -1,6 +1,6 @@
 # Do not call
 
-**State:** plan only, nothing built. Scope is the **web version**; the desktop app and other local apps are out of scope for now. Index and build order: [README.md](README.md).
+**State:** built 2026-11-18 on the server (CRM and dialer): see step 25 in [README.md](README.md) for what is left. Scope is the **web version**; the desktop app and other local apps are out of scope for now. Index and build order: [README.md](README.md).
 
 The three kinds of "do not call", Caller Whale's own database that learns from every agency's work, and who can take a number out.
 

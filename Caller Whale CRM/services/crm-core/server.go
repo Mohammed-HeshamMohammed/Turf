@@ -144,6 +144,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /api/v1/projects/{id}/approval/send", s.member(s.sendForApproval))
 	mux.Handle("POST /api/v1/projects/{id}/approval", s.member(s.approveList))
 	mux.Handle("GET /api/v1/leads/{id}/twins", s.member(s.leadTwins))
+	s.blockRoutes(mux)
 	mux.Handle("PUT /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
 	mux.Handle("DELETE /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
 	mux.Handle("PUT /api/v1/clients/{id}/teams/{other}", s.member(s.clientLink("teams")))

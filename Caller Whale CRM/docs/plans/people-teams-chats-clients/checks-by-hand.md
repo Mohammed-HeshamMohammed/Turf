@@ -237,3 +237,19 @@ Needs two-step sign-in on both accounts. Do it with a throwaway agency, not your
 | S1 | As a throwaway agency's owner, Dashboard → Support access → Let support in (24 hours) | "Support can come in until …". |
 | S2 | As staff, staff area → Access | The agency is listed until that time; in the CRM it appears among your agencies, where you can read but not edit leads, export or open team chats. |
 | S3 | As the owner, End support access now | Staff lose the agency at once; the record of people changes shows the grant, the visit and the end. |
+
+# Step 25: do not call
+
+Use throwaway agencies and the dialer's simulator (not yet deployed: run it locally as its README says).
+
+| # | Do | Expect |
+|---|---|---|
+| D1 | In a throwaway agency, mark a lead "Do not call", then add another lead with the same number in another format | The new lead is do-not-call at once. A lead with that number in another throwaway agency is not. |
+| D2 | As a caller, try to clear "Do not call" on that lead | Refused: the owner or an admin lifts it on the block list, with a reason. |
+| D3 | As the owner, `POST /api/v1/blocks/lift` without a reason, then with one | The first is refused; the second lifts it, and `GET /api/v1/blocks` shows who marked, who lifted and why. |
+| D4 | Log a "Do not call" call with "wants no calls from anyone", then add a lead with that number in a second throwaway agency | The second agency's lead is do-not-call; its check says the number is in Caller Whale's database. |
+| D5 | From the second agency's owner, ask for a review with a reason; as staff, `GET /api/v1/platform/do-not-call`, then remove it with a reason | The review is listed with every mark; after removal the second agency may call the number, and the first agency's own block stays. |
+| D6 | In the simulator, reply "Stop calling me" from a lead's number | Texts still go; the CRM blocks calls only. |
+| D7 | Reply "Let's stop at that price" | The reply is marked as waiting; texting is refused until the sender chooses "not an opt-out" or "opt-out". |
+| D8 | Reply "Leave me alone", then "START" | Texts and calls are blocked, then START lifts what the reply made (never a block a person made). |
+| D9 | On a real 10DLC number (once live), text STOP | The carrier sends its own confirmation, and Caller Whale sends none. |

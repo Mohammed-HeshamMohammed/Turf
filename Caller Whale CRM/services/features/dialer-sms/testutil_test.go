@@ -37,6 +37,21 @@ type fakeCRM struct {
 	logged     map[string]map[string]any // operation id -> payload
 	reports    int                       // every recordCall, repeats included
 	recordings map[string]map[string]any
+	blocks     map[string]map[string]any // phone -> the last block asked for (step 25)
+}
+
+func (f *fakeCRM) block(_ context.Context, _, _, phone, lead string, payload map[string]any) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.blocks == nil {
+		f.blocks = map[string]map[string]any{}
+	}
+	if payload["lift"] == true {
+		delete(f.blocks, e164(phone))
+		return nil
+	}
+	f.blocks[e164(phone)] = payload
+	return nil
 }
 
 func (f *fakeCRM) lead(_ context.Context, _, user, id string) (leadInfo, error) {
@@ -49,9 +64,11 @@ func (f *fakeCRM) lead(_ context.Context, _, user, id string) (leadInfo, error) 
 	out := *l
 	// Each person's rank toward the lead's thread (step 10), as the CRM would answer it.
 	out.Rank = f.ranks[user+"|"+id]
-	out.Found, out.MayCall = true, !l.DoNotCall
-	if l.DoNotCall {
-		out.Reason = "This lead is do-not-call."
+	b := f.blocks[e164(l.Phone)]
+	out.BlockedCalls, out.BlockedTexts = l.DoNotCall || b["calls"] == true, l.DoNotCall || b["texts"] == true
+	out.Found, out.MayCall = true, !out.BlockedCalls
+	if out.BlockedCalls || out.BlockedTexts {
+		out.Reason, out.BlockReason = "This lead is do-not-call.", "This number asked this agency to stop."
 	}
 	return out, nil
 }
