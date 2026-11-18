@@ -6,10 +6,11 @@ import { InviteManager, PendingInvitations, WorkspaceManager } from "./AccessMan
 import { Settings } from "./Settings.tsx";
 import { profilePath } from "./profile-path.ts";
 import { crmUrl } from "./crm-url.ts";
+import { EarlyFeatures, FeedbackButton, SupportChats, WhatsNew } from "./Help.tsx";
 
 const gateway = (import.meta.env.VITE_CALLERWHALE_GATEWAY_URL || "https://gate.callerwhale.com").replace(/\/$/, "");
 
-type View = "overview" | "team" | "invitations" | "activity" | "account";
+type View = "overview" | "team" | "invitations" | "activity" | "support" | "account";
 type Plan = { plan: string; plan_name?: string; status?: string; period_end?: string; seats?: number; minutes_allowed?: number; minutes_used?: number; limited: boolean; payment_required: boolean };
 type Person = { user_id: string; name: string; roles: string[]; team_name: string; suspended: boolean };
 type Totals = { user_id: string; dials: number; connects: number; qualified: number; callbacks: number; bad_numbers: number; do_not_call: number; leads_worked: number; leads_held: number; tasks_done: number; tasks_open: number; tasks_overdue: number; notes: number; last_active?: string };
@@ -17,7 +18,7 @@ type Totals = { user_id: string; dials: number; connects: number; qualified: num
 const ROLE_NAMES: Record<string, string> = { owner: "Agency owner", solo: "Solo operator", manager: "Team lead", admin: "Admin", researcher: "Data researcher", caller: "Caller", closer: "Acquisitions / closer", client: "Client" };
 const initials = (text: string) => (text.split("@")[0].split(/[\s._-]+/).filter(Boolean).slice(0, 2).map(word => word[0]).join("") || "?").toUpperCase();
 const firstNameOf = (me: Me) => String(me.first_name || "").trim() || (me.name || "").trim().split(/\s+/)[0] || me.email;
-const viewFromHash = (hash: string): View => (["team", "invitations", "activity", "account"].includes(hash.slice(1)) ? (hash.slice(1) as View) : "overview");
+const viewFromHash = (hash: string): View => (["team", "invitations", "activity", "support", "account"].includes(hash.slice(1)) ? (hash.slice(1) as View) : "overview");
 const day = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const when = (value?: string) => (value ? new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "—");
 const percent = (part: number, whole: number) => (whole ? `${Math.round((part / whole) * 100)}%` : "—");
@@ -118,7 +119,7 @@ export function WorkspaceDashboard({ access, auth, authBase, me, onSaved }: { ac
   const canInvite = owner || Boolean(space?.roles.includes("manager"));
   const solo = Boolean(space?.roles.includes("solo"));
   const open = (next: View) => { window.history.replaceState(null, "", next === "overview" ? window.location.pathname : `#${next}`); setView(next); window.scrollTo(0, 0); };
-  const titles: Record<View, string> = { overview: "Overview", team: owner ? (solo ? "Clients" : "Teams and members") : "Your team", invitations: "Invitations", activity: "Activity", account: "Settings" };
+  const titles: Record<View, string> = { overview: "Overview", team: owner ? (solo ? "Clients" : "Teams and members") : "Your team", invitations: "Invitations", activity: "Activity", support: "Support", account: "Settings" };
   const link = (key: View, label: string) => <a href={`#${key}`} aria-current={view === key ? "page" : undefined} onClick={event => { event.preventDefault(); open(key); }}>{label}</a>;
   return <div className="admin-layout">
     <div className="admin-sidebar-slot"><aside className="admin-sidebar" aria-label="Workspace navigation">
@@ -129,7 +130,9 @@ export function WorkspaceDashboard({ access, auth, authBase, me, onSaved }: { ac
         {link("team", owner ? (solo ? "Clients" : "Teams and members") : "Your team")}
         {canInvite && link("invitations", "Invitations")}
         {link("activity", "Activity")}
+        {owner && link("support", "Support")}
         <a href={crmUrl}>Open the CRM</a>
+        <Link to="/help">Help</Link>
         <Link to={profilePath(me)}>Profile</Link>
         {link("account", "Settings")}
       </nav>
@@ -137,11 +140,15 @@ export function WorkspaceDashboard({ access, auth, authBase, me, onSaved }: { ac
     <div className="admin-main"><section className={`admin-workspace admin-view-${view}`} aria-labelledby="ws-title">
       <header className="admin-view-header"><h1 id="ws-title">{titles[view]}</h1></header>
       {!space ? <p className="muted">You do not run a workspace yet.</p> : <>
+        {view === "overview" && <WhatsNew key={`news-${space.org_id}`} auth={auth} authBase={authBase} orgId={space.org_id} />}
         {view === "overview" && <WorkspaceOverview key={space.org_id} auth={auth} authBase={authBase} orgId={space.org_id} owner={owner} open={open} />}
         {view === "team" && <WorkspaceManager key={space.org_id} auth={auth} authBase={authBase} orgId={space.org_id} />}
         {view === "invitations" && canInvite && <InviteManager key={space.org_id} auth={auth} authBase={authBase} scope="workspace" orgId={space.org_id} />}
         {view === "activity" && <TeamActivity key={space.org_id} auth={auth} orgId={space.org_id} />}
+        {view === "support" && owner && <SupportChats key={space.org_id} auth={auth} authBase={authBase} orgId={space.org_id} />}
+        {view === "account" && <EarlyFeatures key={`early-${space.org_id}`} auth={auth} authBase={authBase} orgId={space.org_id} owner={Boolean(space.business_owner)} />}
         {view === "account" && <Settings embedded me={me} auth={auth} authBase={authBase} onSaved={onSaved} />}
+        <FeedbackButton auth={auth} authBase={authBase} orgId={space.org_id} />
       </>}
     </section></div>
   </div>;

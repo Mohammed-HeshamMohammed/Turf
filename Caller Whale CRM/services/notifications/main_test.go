@@ -283,3 +283,14 @@ func TestNewSignInTemplate(t *testing.T) {
 		t.Fatalf("%v %+v", err, m)
 	}
 }
+
+// Step 40: a support reply names the reply and links to the conversation.
+func TestSupportReplyEmail(t *testing.T) {
+	m, err := Render("support_reply", "owner@example.com", map[string]any{"title": "Caller Whale support replied", "message": "Map the Owner column to name.", "link": "https://callerwhale.com/dashboard/support"})
+	if err != nil || !strings.Contains(m.Text, "Map the Owner column") || !strings.Contains(m.HTML, "Read and reply") {
+		t.Fatalf("%v %+v", err, m)
+	}
+	if _, err := Render("support_reply", "x@example.com", map[string]any{"title": "T", "message": "", "link": "https://x"}); err == nil {
+		t.Fatal("an empty reply was rendered")
+	}
+}

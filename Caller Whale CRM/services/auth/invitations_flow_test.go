@@ -41,6 +41,8 @@ type fakeWorkspaceAuthz struct {
 	// Step 35: the agency requires an authenticator of everyone.
 	mfaEveryone bool
 	countries   []string
+	// Step 40: the agency's switches that are on.
+	features []string
 }
 
 func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
@@ -193,7 +195,27 @@ func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
 		if f.named {
 			name = "Blue Door Homes"
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"org_id": flowOrg, "owner_id": f.owner, "name": name})
+		_ = json.NewEncoder(w).Encode(map[string]any{"org_id": flowOrg, "owner_id": f.owner, "name": name, "features": append([]string{}, f.features...)})
+	case r.URL.Path == "/v1/orgs/"+flowOrg+"/early-features" || strings.HasPrefix(r.URL.Path, "/v1/orgs/"+flowOrg+"/early-features/"):
+		if r.Method == "PUT" {
+			var body struct {
+				ActorID string `json:"actor_id"`
+				On      bool   `json:"on"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body.ActorID != f.owner {
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`{"error":"Only the agency's owner switches early features on.","code":"forbidden"}`))
+				return
+			}
+			if body.On {
+				f.features = append(f.features, "teams_v2")
+			} else {
+				f.features = nil
+			}
+		}
+		on := len(f.features) > 0
+		_ = json.NewEncoder(w).Encode(map[string]any{"features": []any{map[string]any{"name": "teams_v2", "title": "New team rules", "on": on}}})
 	case r.Method == "PUT" && strings.HasPrefix(r.URL.Path, "/v1/orgs/"+flowOrg+"/members/"):
 		user := strings.TrimPrefix(r.URL.Path, "/v1/orgs/"+flowOrg+"/members/")
 		var body struct {

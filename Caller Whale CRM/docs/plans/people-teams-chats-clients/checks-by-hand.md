@@ -45,7 +45,7 @@ Chrome was not connected). The rows marked **verify** are what the code expects;
 | Caller Whale Learning | nothing new | — |
 | Caller Whale MCP | nothing new (`MCP_AUTH_TOKEN` is auth's `AUTH_MCP_TOKEN`) | — |
 | Caller Whale Messaging | nothing new | — |
-| Caller Whale Notifications | `NOTIFY_TOKENS`: add `crm-core=<token>` (T6) | Redeploy (the report, status and breach notice emails) |
+| Caller Whale Notifications | `NOTIFY_TOKENS`: add `crm-core=<token>` (T6) | Redeploy (the report, status, breach notice and support reply emails) |
 | ClamAV (new, step 38) | A new container from the open-source `clamav/clamav` image (`stable` tag), on the same network with the alias `clamav`, no domain, `CLAMD_CONF_StreamMaxLength=30M`; it needs about 3 GB of memory and downloads its virus list on start | Then set crm-core's `CLAMD_ADDR=clamav:3310` and redeploy crm-core, billing (the storage limit) and the gateway (shared-file links) |
 | The website (landing-web) | nothing new | Redeploy (the /status page and the outage banner) |
 
@@ -513,3 +513,13 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | C4 | With crm-core `CARRIER_CHECK=on`, start an import in an agency not yet verified | Refused with the carrier message; allowed once verified. |
 | C5 | As the platform owner with your second step, `GET /api/v1/platform/carrier` | Every agency's state and rates; support staff are refused. |
 | C6 | (Simulate) have many leads reply STOP to an agency's texts | Its owner gets a "Texting warning" task; staff see it; days later limited, then suspended; the owner appeals; staff clear it and texting reopens. |
+
+# Step 40: help and feedback (after auth, authz, notifications and the website are redeployed)
+
+| # | Do | Expect |
+|---|---|---|
+| H1 | Open /help and search "texting" | Only the articles about texting show. |
+| H2 | As a throwaway agency's owner, Dashboard → Support: write to support | It is listed as "Waiting for us". |
+| H3 | As staff, Dashboard → Support and feedback: open it and reply | The owner gets an email and sees the reply; a caller of that agency gets "ask your owner" if they try. |
+| H4 | As staff, publish a What's new note for callers, and one for the switch teams_v2 | A caller sees the first once on their dashboard; after the owner switches on "New team rules" under Settings → Early features, the second shows too. |
+| H5 | Press "Send feedback" on a dashboard page and send a note | Staff see it with the page's path and version, no ids. |

@@ -300,6 +300,18 @@ func Render(template, to string, data map[string]any) (Message, error) {
 			e(title) + `</strong></p><p style="white-space:pre-wrap">` + e(message) + `</p><p><a href="` + e(link) + `">See the status page</a></p>` +
 			`<p style="color:#666;font-size:13px">You get this because you chose status emails in Caller Whale.</p></div>`
 		return Message{To: to, Subject: title, Text: text, HTML: page}, nil
+	case "support_reply":
+		// Caller Whale's staff answered an agency's support conversation (step 40, D292).
+		title, message, link := str("title"), str("message"), str("link")
+		if title == "" || len(title) > 160 || strings.ContainsAny(title, "\r\n") || message == "" || len(message) > 2000 || !strings.HasPrefix(link, "https://") {
+			return Message{}, errors.New("support_reply needs a title, the message and an https link")
+		}
+		e := html.EscapeString
+		text := title + "\n\n" + message + "\n\nRead and reply: " + link + "\n\nYou get this because you wrote to Caller Whale support."
+		page := `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:520px"><p><strong>` +
+			e(title) + `</strong></p><p style="white-space:pre-wrap">` + e(message) + `</p><p><a href="` + e(link) + `">Read and reply</a></p>` +
+			`<p style="color:#666;font-size:13px">You get this because you wrote to Caller Whale support.</p></div>`
+		return Message{To: to, Subject: title, Text: text, HTML: page}, nil
 	case "breach_notice":
 		// A security breach affecting the agency's data, to its owner within 72 hours (step 34, D236). The words are staff's; the
 		// lawyer sets what else must be said.

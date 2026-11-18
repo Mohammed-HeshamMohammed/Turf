@@ -104,3 +104,10 @@ A new numbered SQL file goes in `database_setup/`; a route added here goes in th
 
 - Microsoft sign-in and linking: `/v1/oauth/microsoft/start` and `/v1/me/providers/microsoft/start` go through Firebase's own authorization flow (no client here). It shows once Microsoft is turned on in Firebase (an Azure app registration whose redirect is Firebase's handler).
 - `PUT /v1/orgs/{org}/security {countries, networks}` (the owner): where the agency's members may work from. Authz keeps them; the gateway checks each request inside the agency against Cloudflare's country and the real address, the owner excepted.
+
+## Help and feedback (build step 40)
+
+- Support conversations (D292): `GET/POST /v1/orgs/{org}/support-chats` (the owner and admins; members are told to ask their owner), `GET /v1/support-chats/{id}`, `POST /v1/support-chats/{id}/messages`, `POST /v1/support-chats/{id}/close`; staff list them at `GET /v1/admin/support-chats` (owner or cofounder, second step). A staff reply emails whoever opened it (notifications template `support_reply`).
+- What's new (D293, D309): staff write notes (`POST /v1/admin/whats-new {title, body, roles, feature, kind}`); `GET /v1/whats-new?org=` gives a person the notes they have not seen: for their roles (owners every note), and a note tied to a switch only where it is on. `POST /v1/whats-new/{id}/seen`. A small terms change is a note of kind "terms"; a big one still changes `termsVersion`, which asks everyone again.
+- Early features (D294): `GET /v1/orgs/{org}/early-features`, `PUT …/{name} {on}` (the owner, second step), kept in authz as switches.
+- Feedback (D295): `POST /v1/feedback {note, page, version, org_id}` keeps only the page's path with ids taken out; 20 a day per person. Staff: `GET /v1/admin/feedback`, `POST /v1/admin/feedback/{id}/handled`.
