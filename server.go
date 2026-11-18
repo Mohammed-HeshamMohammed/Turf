@@ -76,6 +76,8 @@ type server struct {
 	fetchCert func(context.Context, string) ([]byte, error)
 	// reportMailer sends a report email (the notification service; a stand-in in tests).
 	reportMailer reportMail
+	// hookHTTP delivers outgoing events (public addresses only); a stand-in in tests.
+	hookHTTP *http.Client
 
 	seenPeople sync.Map // user -> last time their name was stored
 	seenOrgs   sync.Map // workspace ids that have a row
@@ -162,6 +164,7 @@ func (s *server) handler() http.Handler {
 	s.protectRoutes(mux)
 	s.setupRoutes(mux)
 	s.overviewRoutes(mux)
+	s.keyRoutes(mux)
 	mux.Handle("PUT /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
 	mux.Handle("DELETE /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
 	mux.Handle("PUT /api/v1/clients/{id}/teams/{other}", s.member(s.clientLink("teams")))

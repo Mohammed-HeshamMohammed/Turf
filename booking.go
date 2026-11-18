@@ -456,14 +456,18 @@ func (s *server) bookAppointment(q *req) error {
 	if err := r.record(change{entity: "task", kind: "task.created", id: taskID, leadID: body.LeadID}); err != nil {
 		return err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return err
-	}
-	// On the closer's Google Calendar when they connected it (D155, D158).
 	var made struct {
 		ID string `json:"id"`
 	}
 	_ = json.Unmarshal(rows[0], &made)
+	// The owner's event address hears "a lead booked", with ids only (step 33, D234).
+	if err := emitEvent(ctx, tx, s, "lead.booked", made.ID, body.LeadID); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	// On the closer's Google Calendar when they connected it (D155, D158).
 	s.addEvent(ctx, q.sc.orgID, made.ID, body.CloserID, body.LeadID, free[i].StartsAt, free[i].EndsAt)
 	writeJSON(q.w, 200, rows[0])
 	return nil
@@ -560,6 +564,10 @@ func (r *run) creditDeal(deal map[string]any, won bool) error {
 				(SELECT agent_id FROM call_events WHERE lead_id = l.id AND outcome = 'Transfer' AND agent_id IS NOT NULL ORDER BY occurred_at DESC LIMIT 1)) AS who) c
 		WHERE l.id = $2 AND c.who IS NOT NULL AND c.who <> $3
 		ON CONFLICT (deal_id, role) DO UPDATE SET user_id = EXCLUDED.user_id, at = now()`, id, lead, r.sc.userID); err != nil {
+		return err
+	}
+	// The owner's event address hears "a deal won", with ids only (step 33, D234).
+	if err := emitEvent(r.ctx, r.tx, r.s, "deal.won", id, lead); err != nil {
 		return err
 	}
 	// The won lead leaves the calling queues; follow-ups are tasks someone creates (D283).
