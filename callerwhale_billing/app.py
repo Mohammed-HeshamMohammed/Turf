@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from . import SERVICE, VERSION, paddle
+from . import budgets
 from .config import CALLER_RIGHTS, Settings
 from .store import Refused
 
@@ -28,6 +29,33 @@ class ReserveBody(BaseModel):
     amount: int
     request_id: UUID
     detail: str = Field(default="", max_length=200)
+
+
+class UsageBody(BaseModel):
+    org_id: UUID
+    kind: str
+    amount: int
+    request_id: UUID
+    team_id: UUID | None = None
+    user_id: UUID | None = None
+    client_id: UUID | None = None
+    check_only: bool = False
+
+
+class BudgetBody(BaseModel):
+    scope: str
+    subject_id: UUID
+    kind: str
+    monthly: int | None = None
+    set_by: UUID | None = None
+
+
+class RaiseBody(BaseModel):
+    scope: str
+    subject_id: UUID
+    kind: str
+    asked_by: UUID
+    note: str = Field(default="", max_length=500)
 
 
 class CreditLimitBody(BaseModel):
@@ -138,6 +166,24 @@ def create_app(settings: Settings, store, now: Callable[[], datetime] = lambda: 
     @app.post("/v1/reservations")
     def reserve(body: ReserveBody, _: str = caller("reserve")):
         return store.reserve(body.kind, body.account_id, body.amount, body.request_id, body.detail, now()).as_json()
+
+    # Budgets (step 22): the dialer checks, then charges, each call's minutes and each text.
+    @app.post("/v1/usage")
+    def usage(body: UsageBody, _: str = caller("usage")):
+        return budgets.use(store, body.org_id, body.kind, body.amount, body.request_id, body.team_id, body.user_id, body.client_id, now(), body.check_only)
+
+    @app.put("/v1/orgs/{org_id}/budgets")
+    def put_budget(org_id: UUID, body: BudgetBody, _: str = caller("budgets")):
+        budgets.set_budget(store, org_id, body.scope, body.subject_id, body.kind, body.monthly, body.set_by)
+        return {"ok": True}
+
+    @app.get("/v1/orgs/{org_id}/budgets")
+    def get_budgets(org_id: UUID, _: str = caller("budgets")):
+        return {"budgets": budgets.budgets(store, org_id, now()), "raise_requests": budgets.raise_requests(store, org_id)}
+
+    @app.post("/v1/orgs/{org_id}/raise-requests")
+    def ask_raise(org_id: UUID, body: RaiseBody, _: str = caller("budgets")):
+        return {"id": budgets.ask_raise(store, org_id, body.scope, body.subject_id, body.kind, body.asked_by, body.note, now())}
 
     @app.get("/v1/admin/summary")
     def summary(_: str = caller("summary")):

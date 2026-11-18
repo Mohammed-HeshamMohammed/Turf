@@ -34,6 +34,8 @@ signed webhooks say.
 | `POST /v1/reservations` | core API | Takes call minutes (account = workspace) or desktop credits (account = person) from this period's allowance, once per `request_id`; `402 limit_reached` or `402 payment_required` when it cannot |
 | `GET /v1/orgs/{org}/standing` | core API, worker, auth | Plan, status, period, seats, minutes used, whether the plan needs paying, and whether it is paid through the provider and by whom (`provider_paid`, `payer_id`, from the checkout's `custom_data.payer_id`; a handover of ownership waits for the new owner to pay) |
 | `PUT /v1/orgs/{org}/trial` | core API | Opens a trial for a new workspace (once) |
+| `POST /v1/usage` | dialer-sms | Checks (`check_only`) or charges call minutes or a text to the lead's team, the person and the client, once per `request_id`, within their monthly budgets (and, for minutes, the plan's allowance); `402 budget_reached` when one is used up (step 22) |
+| `GET`/`PUT /v1/orgs/{org}/budgets`, `POST /v1/orgs/{org}/raise-requests` | dialer-sms | Budgets per team, person or client with this month's use, and requests to raise them, which raising answers. Who may set which is checked by the dialer |
 | `PUT /v1/people/{user}/credit-limit` | core API | A person's monthly desktop credits, or no limit |
 | `GET /healthz`, `GET /version` | anyone | Health and version |
 

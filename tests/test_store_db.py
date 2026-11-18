@@ -136,5 +136,30 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(self.store.standing(UUID(org), NOW)["payer_id"], new_owner)
 
 
+    def test_budgets_stop_a_team_and_a_person_and_raising_answers_the_request(self):
+        from callerwhale_billing import budgets
+        org, team, agent, other = uuid4(), uuid4(), uuid4(), uuid4()
+        budgets.set_budget(self.store, org, "team", team, "texts", 3, None)
+        budgets.set_budget(self.store, org, "person", agent, "texts", 2, None)
+        use = lambda who, rid=None, check=False: budgets.use(self.store, org, "texts", 1, rid or uuid4(), team, who, None, NOW, check)
+        rid = uuid4()
+        use(agent, rid)
+        self.assertTrue(use(agent, rid)["duplicate"], "the same text is charged once")
+        use(agent)
+        with self.assertRaises(Refused) as refused:
+            use(agent, check=True)
+        self.assertEqual((refused.exception.status, refused.exception.code), (402, "budget_reached"))
+        use(other)  # the team still has one
+        with self.assertRaises(Refused):
+            use(other)
+        listed = {(b["scope"], b["subject_id"]): b["used"] for b in budgets.budgets(self.store, org, NOW)}
+        self.assertEqual(listed[("team", str(team))], 3)
+        self.assertEqual(listed[("person", str(agent))], 2)
+        budgets.ask_raise(self.store, org, "team", team, "texts", other, "Busy week", NOW)
+        self.assertEqual(len(budgets.raise_requests(self.store, org)), 1)
+        budgets.set_budget(self.store, org, "team", team, "texts", 10, None)
+        self.assertEqual(budgets.raise_requests(self.store, org), [], "raising the budget answers the request")
+        use(other)
+
 if __name__ == "__main__":
     unittest.main()
