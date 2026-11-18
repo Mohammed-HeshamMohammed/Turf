@@ -32,7 +32,8 @@ export interface Auth {
   accessToken(): Promise<string | null>;
   me(options?: { fresh?: boolean }): Promise<Me>;
   signIn(email: string, password: string, code?: string, kind?: string, humanToken?: string): Promise<unknown>;
-  signUp(name: string, email: string, password: string, kind?: string, humanToken?: string, birthDate?: string, termsVersion?: string): Promise<unknown>;
+  signUp(name: string, email: string, password: string, kind?: string, humanToken?: string, birthDate?: string, termsVersion?: string, invitation?: { id: string; key: string } | null): Promise<unknown>;
+  chooseDevice(shared: boolean): void;
   setBirthDate(birthDate: string): Promise<unknown>;
   handoff(kind?: "desktop" | "browser"): Promise<string>;
   acceptTerms(version: string): Promise<unknown>;
