@@ -92,7 +92,7 @@ func (s *server) searchLeads(q *req) error {
 	if query.Get("sort") == "newest" {
 		order = ` ORDER BY l.created_at DESC, l.id DESC`
 	}
-	leads, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) || `+readOnly(q.sc, "l")+` FROM leads l LEFT JOIN properties p ON p.id = l.property_id WHERE `+where+order+` LIMIT $`+strconv.Itoa(len(args)+1)+` OFFSET $`+strconv.Itoa(len(args)+2), paged...)
+	leads, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) || `+readOnly(q.sc, "l")+` || `+leadTagsColumn("l")+` FROM leads l LEFT JOIN properties p ON p.id = l.property_id WHERE `+where+order+` LIMIT $`+strconv.Itoa(len(args)+1)+` OFFSET $`+strconv.Itoa(len(args)+2), paged...)
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (s *server) leadDetails(q *req) error {
 	}
 	body := map[string]any{"deals": []json.RawMessage{}}
 	// The lead itself comes too: a page that lost it from this device's window (a fresh snapshot, a reset) gets it back.
-	lead, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) || `+readOnly(q.sc, "l")+` FROM leads l LEFT JOIN properties p ON p.id = l.property_id WHERE l.id = $1`, id)
+	lead, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) || `+readOnly(q.sc, "l")+` || `+leadTagsColumn("l")+` FROM leads l LEFT JOIN properties p ON p.id = l.property_id WHERE l.id = $1`, id)
 	if err != nil {
 		return err
 	}

@@ -68,7 +68,7 @@ func current(ctx context.Context, tx pgx.Tx, sc scope, entity, id string) (json.
 	var sql string
 	switch entity {
 	case "lead":
-		sql = `SELECT to_jsonb(l) || ` + readOnly(sc, "l") + ` FROM leads l WHERE l.id = $1 AND cw_seen_lead(l.id)`
+		sql = `SELECT to_jsonb(l) || ` + readOnly(sc, "l") + ` || ` + leadTagsColumn("l") + ` FROM leads l WHERE l.id = $1 AND cw_seen_lead(l.id)`
 	case "task":
 		sql = taskVisible + ` AND t.id = $1`
 	case "note":
@@ -387,7 +387,7 @@ func (s *server) snapshot(q *req) error {
 	if err = countRows.Err(); err != nil {
 		return err
 	}
-	leads, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) || `+readOnly(q.sc, "l")+` FROM leads l JOIN win ON win.id = l.id LEFT JOIN properties p ON p.id = l.property_id`)
+	leads, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) || `+readOnly(q.sc, "l")+` || `+leadTagsColumn("l")+` FROM leads l JOIN win ON win.id = l.id LEFT JOIN properties p ON p.id = l.property_id`)
 	if err != nil {
 		return err
 	}
@@ -421,7 +421,7 @@ func (s *server) snapshot(q *req) error {
 // snapshotPage answers a later page of a snapshot: the leads of the window table and what belongs to them. The totals, the lists and the
 // cursor came with the first page.
 func (s *server) snapshotPage(q *req, ctx context.Context, tx pgx.Tx, next string) error {
-	leads, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) || `+readOnly(q.sc, "l")+` FROM leads l JOIN win ON win.id = l.id LEFT JOIN properties p ON p.id = l.property_id`)
+	leads, err := queryJSON(ctx, tx, `SELECT to_jsonb(l) || jsonb_build_object('property', to_jsonb(p)) || `+readOnly(q.sc, "l")+` || `+leadTagsColumn("l")+` FROM leads l JOIN win ON win.id = l.id LEFT JOIN properties p ON p.id = l.property_id`)
 	if err != nil {
 		return err
 	}
