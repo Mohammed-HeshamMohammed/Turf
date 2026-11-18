@@ -304,3 +304,14 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | P3 | As a caller of that team, list the team's slots and book one for a lead you work | The closer gets an appointment task at that time; booking the same slot again is refused. |
 | P4 | A caller of another team lists those slots | Refused. |
 | P5 | The closer moves the lead's deal to Closed won | The deal is credited to the caller and the closer; the lead shows Closed / Won and leaves the queues; commissions count the booking. |
+
+# Step 28, part B: Google Calendar (after the owner creates the Google Cloud app and sets the GOOGLE_* settings and APP_URL)
+
+| # | Do | Expect |
+|---|---|---|
+| G4 | As a closer, connect Google Calendar | Google asks only to see when you are busy and to manage a calendar Caller Whale creates; you return with "connected"; a "Caller Whale" calendar appears in Google. |
+| G5 | Put a meeting in your own Google Calendar tomorrow at 10:00 | A caller of your team no longer sees your 10:00 slot. |
+| G6 | A caller books one of your slots | An event "Caller Whale appointment" appears at that time; it holds only a link, which opens the lead in the right agency after sign-in. |
+| G7 | Cancel the appointment | The event disappears. |
+| G8 | Hand a suspended closer's work to another connected closer | The coming appointments and events move to the new closer's calendar. |
+| G9 | Disconnect Google | The events leave your calendar and Google shows Caller Whale's access removed. |

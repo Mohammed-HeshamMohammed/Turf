@@ -190,6 +190,8 @@ func classify(method, path string) need {
 		return open
 	case method == http.MethodPost && path == "/api/v1/billing/webhook": // the payment provider's signature is checked by the core API
 		return open
+	case method == http.MethodGet && path == "/api/v1/google/callback": // Google sends the person back here; a one-use state made for them proves who they are
+		return open
 	case path == "/api/v1/platform" || strings.HasPrefix(path, "/api/v1/platform/"):
 		return staff
 	case strings.HasPrefix(path, "/api/v1/") || path == "/sync" || strings.HasPrefix(path, "/sync/") || path == "/events":

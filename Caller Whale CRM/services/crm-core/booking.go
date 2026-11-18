@@ -6,8 +6,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"slices"
 	"strings"
@@ -287,7 +289,7 @@ func (s *server) closersOf(ctx context.Context, org, team string) ([]string, err
 
 // freeSlots is each closer's free slots from now for some days: their hours in the agency's time zone, cut into the agency's slot
 // length, without what is booked or past.
-func freeSlots(ctx context.Context, tx pgx.Tx, closers []string, now time.Time, days int) ([]slot, error) {
+func freeSlots(ctx context.Context, tx pgx.Tx, closers []string, now time.Time, days int, elsewhere map[string][][2]time.Time) ([]slot, error) {
 	var zoneName string
 	var length int
 	if err := tx.QueryRow(ctx, `SELECT timezone, slot_minutes FROM orgs WHERE id = cw_org()`).Scan(&zoneName, &length); err != nil {
@@ -313,7 +315,7 @@ func freeSlots(ctx context.Context, tx pgx.Tx, closers []string, now time.Time, 
 			hours[wd] = [2]int{from, until}
 		}
 		rows.Close()
-		var busy [][2]time.Time
+		busy := append([][2]time.Time{}, elsewhere[closer]...) // busy on their Google Calendar (D158)
 		rows, err = tx.Query(ctx, `SELECT starts_at, ends_at FROM appointments WHERE closer_id = $1 AND status = 'booked' AND ends_at > $2`, closer, now)
 		if err != nil {
 			return nil, err
@@ -367,7 +369,7 @@ func (s *server) teamSlots(q *req) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	slots, err := freeSlots(ctx, tx, closers, s.now(), days)
+	slots, err := freeSlots(ctx, tx, closers, s.now(), days, s.googleBusy(ctx, closers, s.now(), s.now().AddDate(0, 0, days+1)))
 	if err != nil {
 		return err
 	}
@@ -432,7 +434,7 @@ func (s *server) bookAppointment(q *req) error {
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, "closer:"+body.CloserID); err != nil {
 		return err
 	}
-	free, err := freeSlots(ctx, tx, []string{body.CloserID}, s.now(), 62)
+	free, err := freeSlots(ctx, tx, []string{body.CloserID}, s.now(), 62, s.googleBusy(ctx, []string{body.CloserID}, body.StartsAt.Add(-time.Hour), body.StartsAt.Add(3*time.Hour)))
 	if err != nil {
 		return err
 	}
@@ -457,6 +459,12 @@ func (s *server) bookAppointment(q *req) error {
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
+	// On the closer's Google Calendar when they connected it (D155, D158).
+	var made struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal(rows[0], &made)
+	s.addEvent(ctx, q.sc.orgID, made.ID, body.CloserID, body.LeadID, free[i].StartsAt, free[i].EndsAt)
 	writeJSON(q.w, 200, rows[0])
 	return nil
 }
@@ -497,6 +505,9 @@ func (s *server) cancelAppointment(q *req) error {
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return err
+	}
+	if err := s.removeEvents(ctx, `appointment_id = $1`, id); err != nil {
+		log.Printf("WARN google event of appointment %s: %v", id, err)
 	}
 	writeJSON(q.w, 200, map[string]any{"ok": true})
 	return nil
