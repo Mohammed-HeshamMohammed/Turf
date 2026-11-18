@@ -156,6 +156,8 @@ export const api = {
   /** My account's picture, kept with my name so the rest of the team sees the same face. */
   setPicture: (avatar: string): Promise<any> => request("PUT", "/api/v1/me/picture", { avatar }, { includeOrganization: false }),
   teams: () => request("GET", "/api/v1/admin/teams"),
+  /** A solo operator makes the workspace an agency (step 17): a first team named after them, holding their leads. */
+  upgradeToAgency: () => request("POST", "/api/v1/workspace/upgrade"),
   // Giving leads to people (crm-core assign.go): who the viewer may give leads to, starting a run, and following it.
   assignTargets: (): Promise<any> => request("GET", "/api/v1/assignments/targets"),
   startAssignment: (body: unknown): Promise<any> => request("POST", "/api/v1/assignments", body),
