@@ -31,6 +31,7 @@ type config struct {
 	origins                                          map[string]bool
 	grantTTL                                         time.Duration
 	crmURL, crmToken                                 string
+	billingURL, billingToken                         string // billing's budgets (step 22); without them nothing is limited
 
 	simulate        bool
 	apiURL, apiKey  string
@@ -67,6 +68,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 	c := config{
 		port: trim("PORT"), databaseURL: trim("DATABASE_URL"), jwksURL: trim("AUTH_JWKS_URL"), authzURL: trim("AUTHZ_URL"),
 		authzToken: trim("AUTHZ_TOKEN"), grantTTL: 5 * time.Second, crmURL: trim("CRM_URL"), crmToken: trim("CRM_TOKEN"),
+		billingURL: strings.TrimSuffix(trim("BILLING_URL"), "/"), billingToken: trim("BILLING_TOKEN"),
 		apiURL: trim("TELNYX_API_URL"), apiKey: trim("TELNYX_API_KEY"), connectionID: trim("TELNYX_CONNECTION_ID"),
 		sipConnectionID: trim("TELNYX_SIP_CONNECTION_ID"), profileID: trim("TELNYX_MESSAGING_PROFILE_ID"),
 		publicKey: trim("TELNYX_PUBLIC_KEY"), webhookURL: trim("TELNYX_WEBHOOK_URL"), fromNumber: e164(getenv("TELNYX_FROM_NUMBER")),
@@ -134,6 +136,9 @@ func loadConfig(getenv func(string) string) (config, error) {
 // carrier client calls it over HTTP on this port and it sends its signed webhooks back to this port.
 func newServer(cfg config, st *store, keys *keyset, r rules, c crm) (*server, error) {
 	s := &server{cfg: cfg, st: st, keys: keys, rules: r, crm: c, now: time.Now}
+	if cfg.billingURL != "" && cfg.billingToken != "" {
+		s.budget = &billingClient{base: cfg.billingURL, token: cfg.billingToken, http: &http.Client{Timeout: 5 * time.Second}}
+	}
 	t := &telnyx{base: cfg.apiURL, key: cfg.apiKey, connectionID: cfg.connectionID, sipConnID: cfg.sipConnectionID,
 		profileID: cfg.profileID, webhookURL: cfg.webhookURL, simulate: cfg.simulate, http: &http.Client{Timeout: 10 * time.Second}}
 	if t.base == "" {

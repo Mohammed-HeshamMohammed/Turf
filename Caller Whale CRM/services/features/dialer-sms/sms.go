@@ -62,6 +62,9 @@ func (s *server) sendText(ctx context.Context, sc scope, ask textAsk) (*smsRow, 
 	if err := s.mayContactNow(ctx, sc.orgID); err != nil {
 		return nil, err
 	}
+	if err := s.mayUse(ctx, sc.orgID, sc.userID, lead, "texts"); err != nil {
+		return nil, err
+	}
 	from, err := s.numberFor(ctx, sc, lead, ask.From, "texts")
 	if err != nil {
 		return nil, err
@@ -71,16 +74,27 @@ func (s *server) sendText(ctx context.Context, sc scope, ask textAsk) (*smsRow, 
 		VALUES ($1, $2, $3, $4, 'outgoing', $5, $6, $7, $8)`, id, sc.orgID, sc.userID, ask.LeadID, from, to, strings.TrimSpace(ask.Text), s.route()); err != nil {
 		return nil, err
 	}
-	return s.deliver(ctx, sc.orgID, ask.LeadID, id, from, to, strings.TrimSpace(ask.Text), ask.Scenario)
+	m, err := s.deliver(ctx, sc.orgID, ask.LeadID, id, from, to, strings.TrimSpace(ask.Text), ask.Scenario)
+	if err == nil {
+		s.charge(ctx, sc.orgID, sc.userID, lead, "texts", 1, id) // to the lead's team and the sender (step 22)
+	}
+	return m, err
 }
 
 // sendScheduled sends a text that waited for its time, checking again as its sender is now (a bulk text skips the one-sender rule).
 func (s *server) sendScheduled(ctx context.Context, sc scope, id string, ask textAsk, bulk bool) (*smsRow, error) {
-	to, _, err := s.mayText(ctx, sc, ask, bulk)
+	to, lead, err := s.mayText(ctx, sc, ask, bulk)
 	if err != nil {
 		return nil, err
 	}
-	return s.deliver(ctx, sc.orgID, ask.LeadID, id, ask.From, to, ask.Text, "")
+	if err := s.mayUse(ctx, sc.orgID, sc.userID, lead, "texts"); err != nil {
+		return nil, err
+	}
+	m, err := s.deliver(ctx, sc.orgID, ask.LeadID, id, ask.From, to, ask.Text, "")
+	if err == nil {
+		s.charge(ctx, sc.orgID, sc.userID, lead, "texts", 1, id)
+	}
+	return m, err
 }
 
 // mayText checks that the person may text the lead now: their role, the conversation's one sender (unless anySender: a bulk text,

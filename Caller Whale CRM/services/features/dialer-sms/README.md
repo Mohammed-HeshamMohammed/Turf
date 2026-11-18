@@ -48,6 +48,8 @@ CRM (browser) --POST /api/v1/calls--> dialer-sms --POST /v2/calls--> Telnyx (or 
 
 **Live calls, recording and voicemail messages (build step 21, part B).** `POST /api/v1/calls/{id}/join {mode: listen|whisper|takeover}` (a lead or deputy of the call's team, an admin or the owner, from their calling login) dials them in with the carrier's supervisor role (monitor, whisper, barge); `GET /api/v1/calls/{id}/joins` shows the agent who joined and the recording's pauses. `PUT /api/v1/recording {team_id, on}` (owner, admins) records every call of the agency or a team, after a spoken notice; `POST /api/v1/calls/{id}/recording {pause}` pauses and resumes it. `POST /api/v1/voicemail-drops {name, audio_url, team_id}` and `GET ?lead_id=`; a call takes `voicemail_drop_id`. A callback due while its agent is not available tells the team's leads and deputies once, after the agency's wait (`/api/v1/sms/alerts`, kind `callback`).
 
+**Budgets (build step 22).** With `BILLING_URL` and `BILLING_TOKEN`, a call or a text is checked against the budgets of the lead's team and the person (and the plan's minutes) before it goes, and charged after it (a call's talk time, rounded up to the minute, once). `PUT /api/v1/budgets {scope: team|person|client, subject_id, kind: minutes|texts, monthly}`: the owner and admins, or a team's lead for their people. `GET /api/v1/budgets` (owner, admins, leads); `POST /api/v1/budgets/raise {scope, subject_id, kind, note}` when one is used up.
+
 ## Trying it with the simulator
 
 The simulator plays these scenarios. Pick one per call with `"scenario"` in `POST /api/v1/calls` (simulate mode only), or call a number ending in its digits:

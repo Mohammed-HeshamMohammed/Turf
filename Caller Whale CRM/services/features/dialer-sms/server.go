@@ -77,6 +77,7 @@ type server struct {
 	webhookKey ed25519.PublicKey
 	sim        *simulator // simulate mode: the fake Telnyx this service talks to
 	now        func() time.Time
+	budget     budgets // billing's budgets (step 22); nil: nothing is limited
 }
 
 type req struct {
@@ -159,6 +160,36 @@ func (s *server) handler() http.Handler {
 		err := s.pauseRecording(q.r.Context(), q.sc, q.r.PathValue("id"), body.Pause)
 		if err == nil {
 			writeJSON(q.w, http.StatusOK, map[string]any{"paused": body.Pause})
+		}
+		return err
+	}))
+	// Budgets (step 22).
+	mux.Handle("PUT /api/v1/budgets", s.member(func(q *req) error {
+		var body budgetSet
+		if err := readJSON(q.w, q.r, &body); err != nil {
+			return err
+		}
+		err := s.putBudget(q.r.Context(), q.sc, body)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, map[string]any{"ok": true})
+		}
+		return err
+	}))
+	mux.Handle("GET /api/v1/budgets", s.member(func(q *req) error {
+		out, err := s.budgetList(q.r.Context(), q.sc)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, out)
+		}
+		return err
+	}))
+	mux.Handle("POST /api/v1/budgets/raise", s.member(func(q *req) error {
+		var body raiseAsk
+		if err := readJSON(q.w, q.r, &body); err != nil {
+			return err
+		}
+		id, err := s.askForMore(q.r.Context(), q.sc, body)
+		if err == nil {
+			writeJSON(q.w, http.StatusOK, map[string]any{"id": id})
 		}
 		return err
 	}))
