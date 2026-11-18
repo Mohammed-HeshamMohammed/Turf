@@ -667,6 +667,19 @@ func (r *run) leadUpdate(p map[string]any) (any, error) {
 	if changes["do_not_call"] == false && before["do_not_call"] == true && !r.sc.can("assign") {
 		return nil, reject("Only a manager can lift a do-not-call")
 	}
+	// A blocked number keeps its leads do-not-call: the block is lifted on the block list, with a reason (step 25, D207).
+	if changes["do_not_call"] == false && before["do_not_call"] == true {
+		b, err := numberBlocked(r.ctx, r.tx, asString(before["phone"]))
+		if err != nil {
+			return nil, err
+		}
+		if b.Shared {
+			return nil, reject("This number is in Caller Whale's do-not-call database; the owner or an admin can ask Caller Whale to review it")
+		}
+		if b.Calls {
+			return nil, reject("This number is on the agency's block list; the owner or an admin lifts it there, with a reason")
+		}
+	}
 	if err = checkBase(before, changes, base); err != nil {
 		return nil, err
 	}
@@ -680,6 +693,12 @@ func (r *run) leadUpdate(p map[string]any) (any, error) {
 		version = l.version + 1, updated_at = now() WHERE l.id = $1`, id, merge(before, changes))
 	if err != nil {
 		return nil, err
+	}
+	// Marking a lead do-not-call blocks its number for the whole agency (step 25, D139).
+	if changes["do_not_call"] == true && before["do_not_call"] != true {
+		if err = block(r.ctx, r.tx, r.sc, blockAsk{Phone: asString(merge(before, changes)["phone"]), Calls: true, Texts: true, Source: "lead", LeadID: id}); err != nil {
+			return nil, err
+		}
 	}
 	after, err := r.visibleLead(id, false)
 	if err != nil {
@@ -988,6 +1007,11 @@ func (r *run) callRecord(p map[string]any) (any, error) {
 	if before["do_not_call"] == true {
 		return nil, reject("This lead is do-not-call; calls cannot be logged")
 	}
+	if b, err := numberBlocked(r.ctx, r.tx, asString(before["phone"])); err != nil {
+		return nil, err
+	} else if b.Calls {
+		return nil, reject("%s Calls cannot be logged", b.Why)
+	}
 	occurred := time.Now()
 	if t, err := optTime(p, "occurred_at"); err != nil {
 		return nil, err
@@ -1068,6 +1092,17 @@ func (r *run) callRecord(p map[string]any) (any, error) {
 		leadID, stage, verdict, out.meaning == "do_not_call", scheduled, nextAction, out.label == "Transfer")
 	if err != nil {
 		return nil, err
+	}
+	// "Do not call" blocks the number for the agency; dnc_kind "anyone" is the agent confirming the person wants no calls from anyone,
+	// "complainer" reports a known complainer: both go to Caller Whale's database (step 25, D139, D351).
+	if out.meaning == "do_not_call" {
+		kind := str(p, "dnc_kind")
+		if !slices.Contains([]string{"anyone", "complainer"}, kind) {
+			kind = "agency"
+		}
+		if err = block(r.ctx, r.tx, r.sc, blockAsk{Phone: phone, Calls: true, Texts: true, Kind: kind, Source: "call", LeadID: leadID}); err != nil {
+			return nil, err
+		}
 	}
 	// One open callback task per lead: a new try replaces it, a final outcome closes it.
 	closed, err := queryJSON(r.ctx, r.tx, `UPDATE tasks SET done_at = now(), version = version + 1 WHERE lead_id = $1 AND type = 'Callback' AND done_at IS NULL RETURNING jsonb_build_object('id', id)`, leadID)
