@@ -141,6 +141,10 @@ func (s *server) placeCall(ctx context.Context, sc scope, ask dialAsk) (*callRow
 	if err := s.mayContactNow(ctx, sc.orgID); err != nil {
 		return nil, err
 	}
+	// Within the lead's team's, the person's and the agency's budgets (step 22).
+	if err := s.mayUse(ctx, sc.orgID, sc.userID, lead, "minutes"); err != nil {
+		return nil, err
+	}
 	from, err := s.numberFor(ctx, sc, lead, ask.From, "calls")
 	if err != nil {
 		return nil, err
@@ -633,7 +637,12 @@ func (s *server) settle(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	if err = tx.Commit(ctx); err != nil {
+		return err
+	}
+	// The talk time is charged to the lead's team and the caller, once (step 22).
+	s.chargeCall(ctx, c)
+	return nil
 }
 
 // callPayload is the CRM's call.record operation for the call (services/crm-core/ops.go, callRecord).
