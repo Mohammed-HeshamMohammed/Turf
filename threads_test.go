@@ -126,3 +126,21 @@ func TestLeadThreads(t *testing.T) {
 		t.Fatalf("the owner sets the wait: %d", status)
 	}
 }
+
+// Step 32: a team's leads see its unanswered texts; an agent does not (D226).
+func TestWaitingTextsForTheTeamLead(t *testing.T) {
+	e := newEnv(t)
+	team, teamLead, agent := newUUID(), newUUID(), newUUID()
+	rules := e.s.rules.(*fakeRules)
+	rules.grants[teamLead+"|"+e.org] = grantReply{Allowed: true, Scopes: []string{"team"}, Capabilities: []string{"call", "message"}, ManagedTeamIDs: []string{team}}
+	rules.grants[agent+"|"+e.org] = grantReply{Allowed: true, Scopes: []string{"own"}, Capabilities: []string{"call", "message"}}
+	if _, err := e.s.st.db.Exec(context.Background(), `INSERT INTO sms_threads (org_id, lead_id, team_id, waiting_since) VALUES ($1, $2, $3, now())`, e.org, newUUID(), team); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ := e.callAs(agent, "GET", "/api/v1/sms/waiting?team_id="+team, nil); status != 403 {
+		t.Fatalf("an agent: %d", status)
+	}
+	if status, out := e.callAs(teamLead, "GET", "/api/v1/sms/waiting?team_id="+team, nil); status != 200 || len(out["waiting"].([]any)) != 1 {
+		t.Fatalf("the team's lead: %d %v", status, out)
+	}
+}
