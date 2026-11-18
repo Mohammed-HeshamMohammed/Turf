@@ -36,6 +36,8 @@ type fakeWorkspaceAuthz struct {
 	// Step 18, part B: the plan's seats and who was suspended.
 	seats     int
 	suspended []string
+	// Step 19: support access, until when (0: closed).
+	supportUntil int64
 }
 
 func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
@@ -104,6 +106,31 @@ func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
 			f.closed = *body.Closed
 		}
 		_, _ = w.Write([]byte(`{"ok":true}`))
+	case r.URL.Path == "/v1/orgs/"+flowOrg+"/support":
+		switch r.Method {
+		case "PUT":
+			var body struct {
+				Hours int `json:"hours"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body.Hours == 0 {
+				body.Hours = 24
+			}
+			f.supportUntil = 1_800_000_000 + int64(body.Hours)*3600
+		case "DELETE":
+			f.supportUntil = 0
+		}
+		var until any
+		if f.supportUntil > 0 {
+			until = f.supportUntil
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"until": until})
+	case r.Method == "GET" && r.URL.Path == "/v1/support":
+		list := []map[string]any{}
+		if f.supportUntil > 0 {
+			list = append(list, map[string]any{"org_id": flowOrg, "name": "Blue Door Homes", "until": f.supportUntil})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"agencies": list})
 	case r.Method == "GET" && r.URL.Path == "/v1/orgs/"+flowOrg+"/seats":
 		using := []string{f.owner}
 		for user := range f.joined {
