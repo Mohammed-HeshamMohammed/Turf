@@ -284,3 +284,13 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | I4 | Ask "how do I log a callback?" | An answer; nothing is kept on any lead. |
 | I5 | Give the team an "ai" budget of 1 and ask twice | The second is refused with "budget ... used up". |
 | I6 | After a captioned simulator call, ask for the call's summary | A summary and a suggested outcome; the outcome is pre-selected in the wrap-up. |
+
+# Step 27: commissions
+
+| # | Do | Expect |
+|---|---|---|
+| M1 | In a throwaway agency, open commissions before switching them on | "Commission tracking is off." |
+| M2 | As the owner: switch on with a 20% split; callers 25 per appointment; one closer 10% of deals | Saved; an admin cannot change them. |
+| M3 | A caller logs a call "Transfer"; the closer moves the lead's deal (fee 10,000) to Closed won | The caller sees 25 + 200; the closer 800; each sees only their own. |
+| M4 | As the owner, override the closer's figure to 900 with a reason | The closer's total shows 900 with the reason. |
+| M5 | Move the deal back to Negotiation | Its commission disappears. |
