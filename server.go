@@ -79,6 +79,7 @@ type server struct {
 	sim        *simulator // simulate mode: the fake Telnyx this service talks to
 	now        func() time.Time
 	budget     budgets // billing's budgets (step 22); nil: nothing is limited
+	reg        registrar // the carrier's 10DLC registration (step 39)
 }
 
 type req struct {
@@ -502,6 +503,7 @@ func (s *server) handler() http.Handler {
 		}
 		return err
 	}))
+	s.carrierRoutes(mux)
 	mux.Handle("GET /api/v1/numbers", s.member(s.listNumbers))
 	mux.Handle("PUT /api/v1/numbers/{phone}", s.member(s.putNumber))
 
@@ -547,6 +549,11 @@ func (s *server) webhook(w http.ResponseWriter, r *http.Request) {
 		if err := s.textEvent(ctx, ev); err != nil {
 			writeError(w, err)
 			return
+		}
+	case strings.HasPrefix(ev.EventType, "10dlc."):
+		// A registration changed: read it again. A carrier error is logged; the periodic check tries again.
+		if err := s.registrationEvent(ctx, ev); err != nil {
+			log.Printf("WARN registration event %s: %v", ev.EventType, err)
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})

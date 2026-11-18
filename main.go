@@ -51,6 +51,7 @@ type config struct {
 	simPrivateKey   string
 	noTimers        bool // tests: settle only when asked
 	anyHours        bool // simulate mode only (SIM_ANY_HOURS=true): try calls and texts at any hour; live always keeps the hours
+	carrierCheck    bool // step 39: calls and texts wait for the agency's carrier registration (CARRIER_CHECK, on unless "off")
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -75,6 +76,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 		sipConnectionID: trim("TELNYX_SIP_CONNECTION_ID"), profileID: trim("TELNYX_MESSAGING_PROFILE_ID"),
 		publicKey: trim("TELNYX_PUBLIC_KEY"), webhookURL: trim("TELNYX_WEBHOOK_URL"), fromNumber: e164(getenv("TELNYX_FROM_NUMBER")),
 		recordCalls: trim("RECORD_CALLS") == "true", simPrivateKey: trim("TELNYX_SIM_PRIVATE_KEY"),
+		carrierCheck: !strings.EqualFold(trim("CARRIER_CHECK"), "off"),
 	}
 	if c.port == "" {
 		c.port = "8113"
@@ -169,7 +171,7 @@ func newServer(cfg config, st *store, keys *keyset, r rules, c crm) (*server, er
 		}
 		s.webhookKey = pub
 	}
-	s.carrier = t
+	s.carrier, s.reg = t, t
 	return s, nil
 }
 
@@ -227,6 +229,7 @@ func main() {
 	go s.checkWaitingPeriodically(ctx)
 	go s.sendDuePeriodically(ctx)
 	go s.checkCallbacksPeriodically(ctx)
+	go s.carrierPeriodically(ctx)
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: time.Minute, WriteTimeout: time.Minute, IdleTimeout: 2 * time.Minute}
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)

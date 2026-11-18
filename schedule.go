@@ -308,6 +308,9 @@ func (s *server) bulkText(ctx context.Context, sc scope, leads []string, text st
 	if len(leads) == 0 || len(leads) > bulkMax {
 		return nil, bad("Choose 1 to 500 leads.")
 	}
+	if err := s.textingAllowed(ctx, sc.orgID, true); err != nil {
+		return nil, err
+	}
 	batch := newUUID()
 	scheduled, refused := 0, []map[string]any{}
 	for _, lead := range leads {

@@ -38,6 +38,18 @@ type fakeCRM struct {
 	reports    int                       // every recordCall, repeats included
 	recordings map[string]map[string]any
 	blocks     map[string]map[string]any // phone -> the last block asked for (step 25)
+	carriers   map[string]map[string]any // org -> the last carrier standing told (step 39)
+	clearedAt  *time.Time
+}
+
+func (f *fakeCRM) carrier(_ context.Context, org string, standing map[string]any) (carrierReply, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.carriers == nil {
+		f.carriers = map[string]map[string]any{}
+	}
+	f.carriers[org] = standing
+	return carrierReply{ClearedAt: f.clearedAt, ClearNote: "Reviewed"}, nil
 }
 
 func (f *fakeCRM) block(_ context.Context, _, _, phone, lead string, payload map[string]any) error {
@@ -174,6 +186,7 @@ func newEnv(t *testing.T) *env {
 	e.s = &server{cfg: cfg, st: st, keys: serveVerifyKeys(t, &jwks, nil), rules: rules, crm: e.crm, sim: e.sim, now: e.now,
 		webhookKey: key.Public().(ed25519.PublicKey),
 		carrier:    &telnyx{base: e.ts.URL + "/telnyx-sim/v2", key: "sim-key", connectionID: "sim-connection", simulate: true, http: &http.Client{Timeout: 10 * time.Second}}}
+	e.s.reg = e.s.carrier.(*telnyx)
 	h = e.s.handler()
 	if status, out := e.call("PUT", "/api/v1/numbers/"+e.number, map[string]any{"user_id": e.user}); status != 200 {
 		t.Fatalf("number: %d %v", status, out)

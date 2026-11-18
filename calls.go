@@ -129,6 +129,10 @@ func (s *server) placeCall(ctx context.Context, sc scope, ask dialAsk) (*callRow
 	if !validID(ask.LeadID) {
 		return nil, bad("Choose a lead (lead_id).")
 	}
+	// The carriers verified the agency's business (step 39, D314).
+	if err := s.callingAllowed(ctx, sc.orgID); err != nil {
+		return nil, err
+	}
 	lead, err := s.crm.lead(ctx, sc.orgID, sc.userID, ask.LeadID)
 	var refused errCRMRefused
 	if errors.As(err, &refused) {
