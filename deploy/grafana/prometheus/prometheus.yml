@@ -32,7 +32,12 @@ scrape_configs:
           - http://authz:8104/healthz
           - http://billing:8103/healthz
           - http://notifications:8102/healthz
+          - http://crm-core:8107/healthz
+          - http://dialer-sms:8113/healthz
+          - http://messaging:8108/healthz
+          - http://assistant:8109/healthz
           - http://grafana-proxy:8120/_callerwhale/health
+          - http://alert-relay:8121/healthz
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target
