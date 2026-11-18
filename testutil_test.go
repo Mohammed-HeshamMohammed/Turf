@@ -18,7 +18,7 @@ import (
 type memEngine struct {
 	roleDefs  map[string]map[string]role       // org -> key -> role
 	people    map[string]map[string]membership // org -> user -> membership
-	standing  map[string][2]bool               // org -> suspended, payment required
+	standing  map[string][3]bool               // org -> suspended, payment required, paused
 	staff     map[string]string                // user -> platform role
 	failNext  bool
 	openOwner map[string]string
@@ -32,7 +32,7 @@ type memEngine struct {
 }
 
 func newMem() *memEngine {
-	return &memEngine{roleDefs: map[string]map[string]role{}, people: map[string]map[string]membership{}, standing: map[string][2]bool{}, staff: map[string]string{}, openOwner: map[string]string{}, teamsBy: map[string][]team{}, limits: map[string][2]*int{}, names: map[string]string{}, switches: map[string][]string{}, admins: map[string]*int{}, log: map[string][]peopleEntry{}}
+	return &memEngine{roleDefs: map[string]map[string]role{}, people: map[string]map[string]membership{}, standing: map[string][3]bool{}, staff: map[string]string{}, openOwner: map[string]string{}, teamsBy: map[string][]team{}, limits: map[string][2]*int{}, names: map[string]string{}, switches: map[string][]string{}, admins: map[string]*int{}, log: map[string][]peopleEntry{}}
 }
 
 var errStoreDown = errors.New("rules store down")
@@ -50,7 +50,7 @@ func (m *memEngine) facts(_ context.Context, user, org string) (facts, error) {
 	}
 	f := facts{capabilities: map[string]bool{}}
 	st := m.standing[org]
-	f.suspended, f.paymentRequired = st[0], st[1]
+	f.suspended, f.paymentRequired, f.paused = st[0], st[1], st[2]
 	p, ok := m.people[org][user]
 	if !ok || len(p.Roles) == 0 {
 		return f, nil
@@ -195,6 +195,9 @@ func (m *memEngine) setStanding(_ context.Context, org string, c standingChange)
 	if c.PaymentRequired != nil {
 		st[1] = *c.PaymentRequired
 	}
+	if c.Paused != nil {
+		st[2] = *c.Paused
+	}
 	m.standing[org] = st
 	l := m.limits[org]
 	if c.SeatsSet {
@@ -211,6 +214,11 @@ func (m *memEngine) setWorkspaceName(_ context.Context, org, name string) error 
 	if _, ok := m.openOwner[org]; ok {
 		m.names[org] = name
 	}
+	return m.down()
+}
+
+func (m *memEngine) setOwner(_ context.Context, org, owner string) error {
+	m.openOwner[org] = owner
 	return m.down()
 }
 

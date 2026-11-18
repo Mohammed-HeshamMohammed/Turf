@@ -48,12 +48,13 @@ workspace's standing.
 | `PUT /v1/orgs/{org}/name` | Keeps the agency's name as the CRM has it; only crm-core sets it (`manage`) |
 | `PUT /v1/orgs/{org}/features/{name}` | Turns a workspace's switch on or off (`manage_staff`); `teams_v2` is the new team rules. `AUTHZ_FEATURES_EVERYWHERE=teams_v2` turns it on for every workspace |
 | `GET /v1/orgs/{org}/people-log?viewer=` | The record of people changes as the viewer may see it: all for the owner and admins, their teams' part for a team lead, what was done to them for anyone else; kept 2 years (`read`) |
+| `PUT /v1/orgs/{org}/owner/handover` `{from, to, old_roles, actor_id}` | Hands the agency to a member (step 13): they become its owner, the old owner takes `old_roles` (admin or manager) or leaves when it is empty, and a pause ends (`manage_members`, auth only) |
 | `PUT /v1/orgs/{org}/teams/{team}/deputies` | Names a team's deputy leads: its leads, an admin or the owner (`manage_members`) |
 
 **New team rules (`teams_v2`, build step 11).** Off by default for each workspace. When on: a team has no lead, one, or several equal leads (`manager_ids`; `manager_id` stays the first) and up to 10 deputy leads; callers, closers and researchers sit in one to five teams; a person can hold several roles (a lead can also call or close); the owner names up to 3 admins (`authz_standing.admins` raises it), who do what the owner does with people and teams but cannot change admins; a lead invites agents into teams they lead and manages their agents but not other leads; a removed or demoted lead simply leaves the team's leads. A grant's `team_scope_ids` are the teams the `team` scope shows: led or deputised teams, and the person's own teams only when a role other than team lead gives the team scope. Staff who own a workspace act in it as its owner, without the staff second step.
 | `GET`/`PUT /v1/orgs/{org}/roles[/{key}]` | The workspace's roles; changing one needs an actor with `admin` |
 | `GET /v1/orgs/{org}/members`, `PUT`/`DELETE /v1/orgs/{org}/members/{user}` | Members, their roles, restrictions, teams and projects; changes need an actor with `admin` |
-| `PUT /v1/orgs/{org}/standing` | Suspended and payment-required flags (billing, core API) |
+| `PUT /v1/orgs/{org}/standing` | Suspended, paused and payment-required flags (billing, core API, auth). A paused agency (its owner is gone, step 13) can be read but nobody works (`paused`); billing can lift neither a suspension nor a pause |
 | `GET /v1/people/{user}` | Who this person is: their place on the platform (`platform_role`, `platform_label`) and their roles in each workspace (`business_owner` is true for the workspace's owner). Auth reads this for the signed-in person's website dashboard. |
 | `PUT /v1/staff/{user}` | Assign or remove `system_admin` and `tester`; platform owner or cofounder only |
 | `GET /v1/staff` | List platform roles for the private auth bridge and core API |

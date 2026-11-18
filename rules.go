@@ -77,6 +77,7 @@ type facts struct {
 	memberSuspended bool     // this person is suspended in the workspace
 	suspended       bool
 	paymentRequired bool
+	paused          bool // the owner is gone (step 13, D27): members read, nobody works
 }
 
 // grantRequest is what a service asks before doing something for a person.
@@ -170,6 +171,9 @@ func decide(f facts, req grantRequest, requireSecondStep bool) decision {
 	}
 	if requireSecondStep && f.secondStep && !req.SecondStepPassed {
 		return refuse("second_step_required", "Confirm it's you with your second step first.")
+	}
+	if f.paused && req.Action != "read" {
+		return refuse("paused", "This agency is paused while Caller Whale hands it to a new owner. You can read, but not work.")
 	}
 	granted := decision{
 		Allowed:        true,
