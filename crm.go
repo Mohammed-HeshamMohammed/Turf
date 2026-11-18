@@ -33,6 +33,9 @@ type leadInfo struct {
 	BlockedTexts bool   `json:"blocked_texts"`
 	BlockReason  string `json:"block_reason"`
 	ListConsent  bool   `json:"list_consent"`
+	// The AI's call suggestions for the asker on this lead's team, and whether captions must run (step 26, D148).
+	AISuggestions    bool `json:"ai_suggestions"`
+	CaptionsRequired bool `json:"captions_required"`
 	TeamLeads       []string `json:"team_leads"`
 	TeamDeputies    []string `json:"team_deputies"`
 	TeamAgents      []string `json:"team_agents"` // the team's other people, for an incoming call (step 21)
