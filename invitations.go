@@ -432,13 +432,18 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 			return err
 		}
 		if about.OwnerID != "" {
-			if err := s.db.QueryRow(r.Context(), "SELECT display_name FROM users WHERE id=$1", about.OwnerID).Scan(&ownerName); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			var ownerTag string
+			if err := s.db.QueryRow(r.Context(), "SELECT display_name, tag FROM users WHERE id=$1", about.OwnerID).Scan(&ownerName, &ownerTag); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				return err
 			}
-		}
-		orgName = strings.TrimSpace(about.Name)
-		if orgName == "" && ownerName != "" {
-			orgName = ownerName + "'s workspace"
+			orgName = strings.TrimSpace(about.Name)
+			if orgName == "" && ownerName != "" {
+				orgName = ownerName + "'s workspace"
+			}
+			// The invitation names the owner in full, Name#tag, so it cannot be mistaken for someone with the same name (D92).
+			ownerName = fullName(ownerName, ownerTag)
+		} else {
+			orgName = strings.TrimSpace(about.Name)
 		}
 	}
 	id := uuid.NewString()
@@ -809,6 +814,8 @@ type member struct {
 	SuspendedReason string   `json:"suspended_reason,omitempty"`
 	Email           string   `json:"email,omitempty"`
 	Name            string   `json:"name,omitempty"`
+	Tag             string   `json:"tag,omitempty"`
+	Phone           string   `json:"phone,omitempty"` // only where the person's own setting lets this viewer see it (D3)
 }
 
 // team is one team of a workspace with its leads and deputies, as authz keeps it. ManagerID is the first lead.
@@ -909,8 +916,15 @@ func (s *server) workspaceMembers(w http.ResponseWriter, r *http.Request) error 
 			}
 		}
 	}
+	// This list is for the owner, admins and team leads, so a phone set to "my agencies' leads" shows; platform staff who are not in
+	// the agency see a phone only when its owner shows it to everyone in their agencies, which staff are not (D22): never here.
+	leadOrAbove := seat.owner || !seat.staff
 	for i := range shown {
-		_ = s.db.QueryRow(r.Context(), "SELECT email,display_name FROM users WHERE id=$1", shown[i].UserID).Scan(&shown[i].Email, &shown[i].Name)
+		var phone, visible string
+		_ = s.db.QueryRow(r.Context(), "SELECT email,display_name,tag,phone,phone_visible FROM users WHERE id=$1", shown[i].UserID).Scan(&shown[i].Email, &shown[i].Name, &shown[i].Tag, &phone, &visible)
+		if shown[i].UserID == seat.c.Sub || (phoneShown(visible, leadOrAbove) && !(seat.staff && !seat.owner)) {
+			shown[i].Phone = phone
+		}
 	}
 	// The switches on for this workspace (D104), so the screens offer several leads, deputies and admins only when they work.
 	var about struct {

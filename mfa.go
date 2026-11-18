@@ -572,7 +572,7 @@ func (s *server) stepUpToken(ctx context.Context, w http.ResponseWriter, u *user
 	// The person has just proved themselves with the second step, so this is a fresh authentication: auth_time is now, not when the
 	// session began. Admin mode (Grafana) asks for a recent one, and a code entered in the dashboard must satisfy it.
 	_ = started
-	access, expiresIn, err := s.keys.sign(person{id: u.id, email: u.email, name: u.name, emailVerified: u.emailVerified}, sid, true, provider, now(), now(), s.cfg.accessMinutes)
+	access, expiresIn, err := s.keys.sign(person{id: u.id, email: u.email, name: u.name, tag: u.tag, emailVerified: u.emailVerified}, sid, true, provider, now(), now(), s.cfg.accessMinutes)
 	if err != nil {
 		return err
 	}
