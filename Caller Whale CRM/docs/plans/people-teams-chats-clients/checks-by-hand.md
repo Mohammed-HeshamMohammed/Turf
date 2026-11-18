@@ -82,6 +82,7 @@ Chrome was not connected). The rows marked **verify** are what the code expects;
 | W-5 | The email footer (postal address, unsubscribe) and consent wording | Steps 25, 29 |
 | W-6 | The words agencies send the carriers about how they text (campaign description, how people agree, sample texts), the referral consent (step 37) and the form consent (step 36) | Steps 36, 37, 39 |
 | W-7 | Where the data is kept, for the terms and privacy notice: the European Union, currently France (Paris), perhaps Germany later; and that deleted data leaves backups within 30 days (D298, D370) | Step 41 |
+| W-8 | What a person is sent with their data, and the wording when their data is deleted (D310, D367) | Step 44 |
 
 # Invitation steps 1 and 2
 
@@ -551,3 +552,12 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | X1 | GitHub → Security → Dependabot alerts after this push | Only picomatch (withdrawn: dismiss it as "inaccurate") and the two glib alerts are left. |
 | X2 | On the first Monday of next month, do the monthly update review in security-upkeep.md | The monthly pull requests are merged or noted, and the table has the date. |
 | X3 | Book an outside security tester for sign-in, agency separation, chats and the gateway before the first real agency | Their report is kept with security-upkeep.md and what they find is fixed first. |
+
+# Step 44: a lead's data request (after crm-core and the dialer are redeployed)
+
+| # | Do | Expect |
+|---|---|---|
+| D1 | In a throwaway agency, make a lead with a note and a file; as the owner `POST /api/v1/data-requests` with kind access and its number | It finds the lead and counts the note and file; the export holds them and no other lead. |
+| D2 | Enter a delete request for that number, then `POST …/{id}/delete {confirm: true}` with your second step | The lead, note and file are gone; the number is blocked "deleted on request"; the request shows no name. |
+| D3 | Import or add a lead with that number again | It comes in as do-not-call with "This person asked for their information to be deleted". |
+| D4 | Within 10 minutes (the dialer's check) | The request shows when the dialer removed its calls and texts. |

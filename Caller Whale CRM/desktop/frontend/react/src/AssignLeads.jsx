@@ -25,6 +25,7 @@ export function AssignLeadsDialog({ state, picked = [], stage = "", onClose, not
   }, [run]);
   useEffect(() => {
     if (run?.status === "done") notify?.(`${Number(run.assigned).toLocaleString()} ${run.assigned === 1 ? "lead" : "leads"} given`);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- tell once when the run finishes, not on every new notify
   }, [run?.status]);
 
   const submit = async event => {

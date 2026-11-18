@@ -25,6 +25,7 @@ export function useLeadPage(ask, enabled) {
     return () => {
       live = false;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- key already stands for ask, so a new ask object with the same key does not reload
   }, [enabled, key, version, dispatch]);
   const current = answer.key === key && answer.page ? answer.page : held?.page || null;
   // While the next page is on its way the previous one stays on screen, as it always did, instead of the table emptying.
