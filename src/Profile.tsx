@@ -45,7 +45,7 @@ export function Profile({ me, auth, authBase, onSaved }: { me: Me; auth: Auth; a
   const avatar = savedAvatar;
   const [access, setAccess] = useState<Access | null>(null);
   const [providers, setProviders] = useState<string[]>([]);
-  const [available, setAvailable] = useState<{ google?: boolean; apple?: boolean }>({});
+  const [available, setAvailable] = useState<{ google?: boolean; apple?: boolean; microsoft?: boolean }>({});
   const [state, setState] = useState({ busy: false, message: "", error: "" });
   useEffect(() => { setParts(namePartsOf(me)); setName(String(me.name || "")); setPhone(String(me.phone || "")); }, [me.id, me.name, me.phone, me.first_name, me.middle_name, me.last_name]);
   useEffect(() => {
@@ -102,7 +102,7 @@ export function Profile({ me, auth, authBase, onSaved }: { me: Me; auth: Auth; a
       onSaved();
     } catch (error) { setState({ busy: false, message: "", error: error instanceof Error ? error.message : "Could not save your profile." }); }
   };
-  const link = async (provider: "google" | "apple") => {
+  const link = async (provider: "google" | "apple" | "microsoft") => {
     setState({ busy: true, message: "", error: "" });
     try {
       const token = await auth.accessToken();
@@ -120,7 +120,7 @@ export function Profile({ me, auth, authBase, onSaved }: { me: Me; auth: Auth; a
     {cropping && <AvatarCropper file={cropping} onCancel={() => setCropping(null)} onDone={savePicture} />}
     <div className="profile-grid"><form className="card profile-card" onSubmit={save}><div className="profile-card-head"><h2>Personal details</h2><button className="button primary" disabled={state.busy || !parts.first.trim() || !name.trim()} aria-busy={state.busy}>{state.busy ? <><span className="spinner" aria-hidden="true" />Saving…</> : "Save changes"}</button></div><div className="profile-fields"><label>Display name<input required maxLength={120} autoComplete="nickname" value={name} onChange={event => setName(event.target.value)} /></label><div className="profile-name"><label>First name<input required maxLength={60} autoComplete="given-name" value={parts.first} onChange={event => setParts({ ...parts, first: event.target.value })} /></label><label>Middle name<input maxLength={60} autoComplete="additional-name" value={parts.middle} onChange={event => setParts({ ...parts, middle: event.target.value })} placeholder="Optional" /></label><label>Last name<input maxLength={60} autoComplete="family-name" value={parts.last} onChange={event => setParts({ ...parts, last: event.target.value })} placeholder="Optional" /></label></div><label>Email<input value={me.email} readOnly aria-readonly="true" /></label><label>Phone number<input type="tel" value={phone} onChange={event => setPhone(event.target.value)} placeholder="Optional" autoComplete="tel" /></label></div>{state.message && <p role="status" className="notice good">{state.message}</p>}{state.error && <p role="alert" className="notice bad">{state.error}</p>}</form>
       <UsernameCard me={me} auth={auth} authBase={authBase} onSaved={onSaved} />
-      <section className="card profile-card"><h2>Connected accounts</h2><div className="profile-providers">{(["google", "apple"] as const).map(provider => <div key={provider}><span>{provider === "google" ? "Google" : "Apple"}</span>{providers.includes(provider) ? <span className="role-badge">Connected</span> : available[provider] ? <button type="button" className="button" disabled={state.busy} onClick={() => void link(provider)}>Connect</button> : <span className="muted">Unavailable</span>}</div>)}</div>{linked && <p role="status" className="notice good">{linked === "apple" ? "Apple" : "Google"} connected.</p>}{linkError && <p role="alert" className="notice bad">{linkError}</p>}</section>
+      <section className="card profile-card"><h2>Connected accounts</h2><div className="profile-providers">{(["google", "apple", "microsoft"] as const).map(provider => <div key={provider}><span>{provider === "google" ? "Google" : provider === "apple" ? "Apple" : "Microsoft"}</span>{providers.includes(provider) ? <span className="role-badge">Connected</span> : available[provider] ? <button type="button" className="button" disabled={state.busy} onClick={() => void link(provider)}>Connect</button> : <span className="muted">Unavailable</span>}</div>)}</div>{linked && <p role="status" className="notice good">{linked === "apple" ? "Apple" : linked === "microsoft" ? "Microsoft" : "Google"} connected.</p>}{linkError && <p role="alert" className="notice bad">{linkError}</p>}</section>
       <MainCurrency auth={auth} authBase={authBase} saved={String(me.currency || "")} onSaved={onSaved} /></div>
   </div>;
 }
