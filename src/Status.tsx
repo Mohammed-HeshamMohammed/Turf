@@ -75,3 +75,16 @@ function IncidentCard({ incident }: { incident: Incident }) {
     </article>
   );
 }
+
+/** The "This wasn't me" link from a new-device email (step 35): it signs that device out and emails a password reset link. */
+export function NotMe({ authBase }: { authBase: string }) {
+  const [message, setMessage] = useState("Signing that device out…");
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("token") || "";
+    fetch(`${authBase}/v1/sessions/not-me`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) })
+      .then(res => res.json().then(body => ({ ok: res.ok, body })))
+      .then(({ ok, body }) => setMessage(ok ? body.message : (typeof body.error === "string" ? body.error : body.error?.message) || "This link was used or has expired."),
+        () => setMessage("We could not reach Caller Whale. Try the link again in a moment."));
+  }, [authBase]);
+  return <section className="form-wrap"><h1>This wasn't me</h1><p role="status">{message}</p></section>;
+}
