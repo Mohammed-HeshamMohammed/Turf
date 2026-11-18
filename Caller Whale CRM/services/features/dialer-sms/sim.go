@@ -32,13 +32,16 @@ type simulator struct {
 	speed   float64 // 0: manual (drain)
 	now     func() time.Time
 
-	mu      sync.Mutex
-	calls   map[string]*simCall
-	pending []simStep
-	seq     int64
-	Dupes   bool
-	Reorder bool
-	journal []simEntry
+	mu    sync.Mutex
+	calls map[string]*simCall
+	// Step 21: the calls joined (call|role) and the plain actions asked for (call|action), for tests to read.
+	supervisors []string
+	actions     []string
+	pending     []simStep
+	seq         int64
+	Dupes       bool
+	Reorder     bool
+	journal     []simEntry
 }
 
 type simStep struct {
@@ -311,8 +314,28 @@ func (s *simulator) dial(w http.ResponseWriter, r *http.Request) {
 		ClientState string `json:"client_state"`
 		AMD         string `json:"answering_machine_detection"`
 		Timeout     int    `json:"timeout_secs"`
+		Supervise   string `json:"supervise_call_control_id"`
+		Role        string `json:"supervisor_role"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&ask); err != nil || e164(ask.To) == "" || ask.From == "" || ask.Connection == "" {
+	_ = json.NewDecoder(r.Body).Decode(&ask)
+	// Joining a live call: a browser login that answers and listens, whispers or barges into the call (step 21).
+	if ask.Supervise != "" && strings.HasPrefix(ask.To, "sip:") && ask.Connection != "" {
+		s.mu.Lock()
+		target := s.calls[ask.Supervise]
+		s.mu.Unlock()
+		if target == nil || s.isEnded(target) {
+			telnyxError(w, http.StatusUnprocessableEntity, "90018", "Call has already ended", "The call to supervise is not active")
+			return
+		}
+		leg := s.newCall("outgoing", ask.From, ask.To, ask.ClientState, "supervisor")
+		s.mu.Lock()
+		s.supervisors = append(s.supervisors, ask.Supervise+"|"+ask.Role)
+		s.mu.Unlock()
+		s.after(leg, 0, func() { s.callEvents(leg, ev("call.initiated", nil)) })
+		writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"call_control_id": leg.ccid, "call_leg_id": leg.leg, "call_session_id": leg.session, "is_alive": true, "record_type": "call"}})
+		return
+	}
+	if e164(ask.To) == "" || ask.From == "" || ask.Connection == "" {
 		telnyxError(w, http.StatusUnprocessableEntity, "90015", "Invalid parameters", "to, from and connection_id are required")
 		return
 	}
@@ -504,7 +527,10 @@ func (s *simulator) action(w http.ResponseWriter, r *http.Request) {
 			s.callEvents(c, ev("call.bridged", nil))
 			s.after(leg, 90*time.Second, func() { s.hangup(c, "normal_clearing", "callee", "200") })
 		})
-	case "speak", "record_stop", "playback_stop", "bridge":
+	case "speak", "record_stop", "playback_stop", "bridge", "record_pause", "record_resume":
+		s.mu.Lock()
+		s.actions = append(s.actions, c.ccid+"|"+r.PathValue("action"))
+		s.mu.Unlock()
 	default:
 		telnyxError(w, http.StatusUnprocessableEntity, "90015", "Invalid parameters", "Unknown action "+r.PathValue("action"))
 		return
