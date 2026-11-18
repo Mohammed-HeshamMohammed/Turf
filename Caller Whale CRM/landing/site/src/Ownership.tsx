@@ -239,3 +239,31 @@ export function SupportedAgencies({ auth, authBase }: { auth: Auth; authBase: st
     </ul>}
   </section>;
 }
+
+/** Step 24: changes an outside AI asked for on the person's behalf, which happen only once they confirm them here (D130). */
+export function AIRequests({ auth, authBase }: { auth: Auth; authBase: string }) {
+  const request = useRequest(auth, authBase);
+  const [list, setList] = useState<{ id: string; client_name: string; summary: string; expires_at: number }[]>([]);
+  const [message, setMessage] = useState("");
+  const load = useCallback(() => request("/v1/me/ai-requests").then(result => setList(result.requests || []), () => setList([])), [request]);
+  useEffect(() => { void load(); }, [load]);
+  const decide = async (id: string, approve: boolean) => {
+    try {
+      const result = await request(`/v1/me/ai-requests/${id}/${approve ? "approve" : "reject"}`, "POST");
+      setMessage(!approve ? "Refused. Nothing changed." : result.ok ? "Done." : (result.result?.error || "Caller Whale refused it, as it would if you did it yourself."));
+      await load();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "That did not work."); }
+  };
+  if (!list.length && !message) return null;
+  return <section className="card" aria-labelledby="ai-requests">
+    <h2 id="ai-requests">Your AI asks to</h2>
+    <p className="muted">An assistant you connected asked for these changes. Nothing happens until you confirm, and it is done as you, with your rights.</p>
+    <ul className="membership-list">
+      {list.map(item => <li key={item.id}>
+        <span><strong>{item.summary}</strong> <span className="muted">· asked by {item.client_name || "your assistant"}, until {day(item.expires_at)}</span></span>
+        <span><button type="button" className="button primary" onClick={() => void decide(item.id, true)}>Confirm</button> <button type="button" className="button" onClick={() => void decide(item.id, false)}>Refuse</button></span>
+      </li>)}
+    </ul>
+    {message && <p className="notice" role="status">{message}</p>}
+  </section>;
+}

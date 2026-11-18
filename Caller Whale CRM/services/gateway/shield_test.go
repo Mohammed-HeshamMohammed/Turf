@@ -191,7 +191,7 @@ func TestTheAllowListMatchesTheAuthSource(t *testing.T) {
 		listed[norm(route)] = true
 	}
 	for route := range found {
-		if route == "POST /v1/connectors/introspect" || route == "POST /v1/connectors/standing" {
+		if route == "POST /v1/connectors/introspect" || route == "POST /v1/connectors/standing" || route == "POST /v1/connectors/people" || route == "POST /v1/connectors/requests" {
 			continue // for the mcp service on the private network only
 		}
 		if route == "GET /healthz" || route == "GET /version" {
