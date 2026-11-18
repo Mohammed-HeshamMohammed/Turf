@@ -43,3 +43,14 @@ GOOGLE_REDIRECT_URL=https://api.callerwhale.com/api/v1/google/callback
 GOOGLE_TOKEN_KEY=
 # The CRM web app: the link in calendar events, and where people return after connecting Google.
 APP_URL=https://app.callerwhale.com
+
+# Email to leads (build step 29) through Amazon SES. Its login: an IAM user allowed ses:SendRawEmail, ses:SendEmail,
+# ses:CreateEmailIdentity and ses:GetEmailIdentity, out of the SES sandbox. Secrets, set in Coolify only.
+# Replies: EMAIL_REPLY_DOMAIN's MX points at SES receiving in that region; a receipt rule sends its mail to an SNS topic (encoding
+# Base64), and that topic has an HTTPS subscription to EMAIL_PUBLIC_URL/api/v1/public/email/inbound. Empty region: email is off.
+EMAIL_SES_REGION=us-east-1
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+EMAIL_PUBLIC_URL=https://api.callerwhale.com
+EMAIL_REPLY_DOMAIN=reply.callerwhale.com
+EMAIL_SNS_TOPIC_ARN=

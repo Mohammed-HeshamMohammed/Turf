@@ -315,3 +315,13 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | G7 | Cancel the appointment | The event disappears. |
 | G8 | Hand a suspended closer's work to another connected closer | The coming appointments and events move to the new closer's calendar. |
 | G9 | Disconnect Google | The events leave your calendar and Google shows Caller Whale's access removed. |
+
+# Step 29: email to leads (after the owner's SES setup and the EMAIL_* settings)
+
+| # | Do | Expect |
+|---|---|---|
+| E1 | In a throwaway agency, email a lead before setting the postal address | Refused: set the agency's postal address first. |
+| E2 | As the owner, set the address; add a sending domain you own; add its DNS records; check it | The records are listed (DKIM, SPF, DMARC); after DNS updates, the domain shows verified. |
+| E3 | As a caller who works a lead with your own test address, send an email with a link | It arrives from team@yourdomain, ends with the agency's address and an unsubscribe link; the link opens the page and the click shows on the lead. |
+| E4 | Reply to it from your test mailbox | The reply shows on the lead without the quoted email; after 15 minutes unanswered, the team's lead gets a task. |
+| E5 | Open the unsubscribe link and press Unsubscribe | Sending to that address is refused for the agency. |

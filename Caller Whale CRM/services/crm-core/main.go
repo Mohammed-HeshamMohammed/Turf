@@ -36,6 +36,9 @@ type config struct {
 	googleClientID, googleSecret, googleRedirect string
 	googleKey                                    []byte
 	appURL                                       string
+	// Email to leads (step 29): Amazon SES's region (its login from AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY), this API's public
+	// address, the domain replies go to, and the SNS topic SES puts them on.
+	emailRegion, emailPublicURL, emailReplyDomain, emailTopic string
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -56,6 +59,8 @@ func loadConfig(getenv func(string) string) (config, error) {
 		billingURL: trim(getenv("BILLING_URL")), billingToken: strings.TrimSpace(getenv("BILLING_TOKEN")),
 		googleClientID: strings.TrimSpace(getenv("GOOGLE_CLIENT_ID")), googleSecret: strings.TrimSpace(getenv("GOOGLE_CLIENT_SECRET")),
 		googleRedirect: strings.TrimSpace(getenv("GOOGLE_REDIRECT_URL")), appURL: trim(getenv("APP_URL")),
+		emailRegion: strings.TrimSpace(getenv("EMAIL_SES_REGION")), emailPublicURL: trim(getenv("EMAIL_PUBLIC_URL")),
+		emailReplyDomain: strings.ToLower(strings.TrimSpace(getenv("EMAIL_REPLY_DOMAIN"))), emailTopic: strings.TrimSpace(getenv("EMAIL_SNS_TOPIC_ARN")),
 	}
 	if c.port == "" {
 		c.port = "8107"
@@ -133,11 +138,20 @@ func main() {
 	if cfg.googleClientID != "" {
 		s.calendar = newGoogleAPI(cfg.googleClientID, cfg.googleSecret, cfg.googleRedirect)
 	}
+	s.fetchCert = defaultFetchCert
+	if cfg.emailRegion != "" {
+		ses, err := newSES(ctx, cfg.emailRegion)
+		if err != nil {
+			log.Fatal(err)
+		}
+		s.mail = ses
+	}
 	go s.hub.listen(ctx, cfg.databaseURL)
 	go s.resumeMerges(ctx)
 	go s.resumeAssignments(ctx)
 	go s.sweepRowsPeriodically(ctx)
 	go s.learnPendingPeriodically(ctx)
+	go s.checkEmailWaitsPeriodically(ctx)
 	go st.keepBuildingLateIndexes(ctx, 5*time.Minute)
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 5 * time.Minute, WriteTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute}
 	stop := make(chan os.Signal, 1)
