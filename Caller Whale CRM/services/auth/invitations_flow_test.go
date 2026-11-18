@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -32,6 +33,9 @@ type fakeWorkspaceAuthz struct {
 	// Step 18: the plan stage authz reports, and whether the owner closed the agency.
 	stage  string
 	closed bool
+	// Step 18, part B: the plan's seats and who was suspended.
+	seats     int
+	suspended []string
 }
 
 func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
@@ -99,6 +103,18 @@ func (f *fakeWorkspaceAuthz) serve(w http.ResponseWriter, r *http.Request) {
 		if body.Closed != nil {
 			f.closed = *body.Closed
 		}
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	case r.Method == "GET" && r.URL.Path == "/v1/orgs/"+flowOrg+"/seats":
+		using := []string{f.owner}
+		for user := range f.joined {
+			if !slices.Contains(f.suspended, user) {
+				using = append(using, user)
+			}
+		}
+		over := max(len(using)-f.seats, 0)
+		_ = json.NewEncoder(w).Encode(map[string]any{"seats": f.seats, "used": len(using), "over": over, "using": using})
+	case r.Method == "POST" && strings.HasSuffix(r.URL.Path, "/suspend") && strings.HasPrefix(r.URL.Path, "/v1/orgs/"+flowOrg+"/members/"):
+		f.suspended = append(f.suspended, strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/orgs/"+flowOrg+"/members/"), "/suspend"))
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	case r.Method == "GET" && r.URL.Path == "/v1/orgs/"+flowOrg+"/plan-stage":
 		_ = json.NewEncoder(w).Encode(map[string]any{"stage": f.stage, "grace_ends": 1})

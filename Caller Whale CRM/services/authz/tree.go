@@ -262,7 +262,7 @@ func (s *server) seatsFree(ctx context.Context, org string, roles []string, pend
 	for _, m := range members {
 		if onlyClient(m.Roles) {
 			usedClients++
-		} else if len(m.Roles) > 0 {
+		} else if len(m.Roles) > 0 && m.SuspendedAt == nil { // a suspended person keeps their place but not a seat (D81, D365)
 			usedSeats++
 		}
 	}
@@ -514,6 +514,12 @@ func (s *server) suspendMember(restore bool) handler {
 			return forbidden(why)
 		}
 		if restore {
+			// Coming back needs a free seat: after the plan was lowered, the owner adds one first (D365).
+			if target.SuspendedAt != nil && !onlyClient(target.Roles) {
+				if err := s.seatsFree(r.Context(), org, target.Roles, 0); err != nil {
+					return err
+				}
+			}
 			err = s.rules.setSuspension(r.Context(), org, user, nil, "", "")
 		} else {
 			at := s.now().Unix()

@@ -170,3 +170,29 @@ export function AgencyStanding({ auth, authBase, orgId }: { auth: Auth; authBase
     {message && <p className="notice" role="status">{message}</p>}
   </section>;
 }
+
+/** Step 18: after the plan was lowered, the owner chooses who keeps a seat; the others are suspended, their work held (D81, D365). */
+export function SeatChoice({ auth, authBase, orgId }: { auth: Auth; authBase: string; orgId: string }) {
+  const request = useRequest(auth, authBase);
+  const [use, setUse] = useState<{ seats: number | null; over: number; people: { user_id: string; name: string; email: string; you: boolean }[] } | null>(null);
+  const [keep, setKeep] = useState<string[]>([]);
+  const [message, setMessage] = useState("");
+  const load = useCallback(() => request(`/v1/orgs/${orgId}/seats`).then(setUse, () => setUse(null)), [request, orgId]);
+  useEffect(() => { void load(); }, [load]);
+  if (!use || !use.over || use.seats === null) return message ? <p className="notice" role="status">{message}</p> : null;
+  const room = use.seats - 1; // the owner keeps theirs
+  const save = async () => {
+    if (!confirm("Suspend everyone you did not tick? Their work is held by their team, and they come back when you add a seat.")) return;
+    try { const result = await request(`/v1/orgs/${orgId}/seats/keep`, "POST", { keep }); setMessage(`${result.suspended.length} suspended until a seat is free.`); await load(); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "That did not work."); }
+  };
+  return <section className="card" aria-labelledby={`seats-${orgId}`}>
+    <h2 id={`seats-${orgId}`}>Choose who keeps a seat</h2>
+    <p className="notice bad" role="status">Your plan has {use.seats} {use.seats === 1 ? "seat" : "seats"} and {use.people.length} people use one. Keep up to {room} besides you; the others are suspended, not removed.</p>
+    <ul className="membership-list">
+      {use.people.filter(person => !person.you).map(person => <li key={person.user_id}><label className="check"><input type="checkbox" checked={keep.includes(person.user_id)} disabled={!keep.includes(person.user_id) && keep.length >= room} onChange={event => setKeep(event.target.checked ? [...keep, person.user_id] : keep.filter(id => id !== person.user_id))} /> <span>{person.name || person.email}</span></label></li>)}
+    </ul>
+    <button type="button" className="button primary" onClick={() => void save()}>Keep these people</button>
+    {message && <p className="notice" role="status">{message}</p>}
+  </section>;
+}
