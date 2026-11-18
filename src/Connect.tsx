@@ -3,7 +3,10 @@ import type { Auth } from "./auth/auth-client.js";
 import { askedFrom, returnKind } from "./connect-check.ts";
 
 
-const SCOPE_TEXT: Record<string, string> = { "account:read": "See your name, your email, your role and your workspaces, and how much of your plan you have used" };
+const SCOPE_TEXT: Record<string, string> = {
+  "account:read": "See your name, your email, your role and your workspaces, and how much of your plan you have used",
+  "team:manage": "See the people and teams of the agencies you run, and ask to invite, remove or change people. Each change waits for you to confirm it in Caller Whale; it can never spend money",
+};
 
 /** The consent page an assistant sends the person to. Allowing hands the assistant a code; nothing is shared before that. */
 export function Connect({ auth, authBase, search }: { auth: Auth; authBase: string; search: string }) {
