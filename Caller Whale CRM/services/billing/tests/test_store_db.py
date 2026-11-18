@@ -50,6 +50,14 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(conflict.exception.code, "conflict")
         self.assertEqual(self.store.standing(org, NOW)["minutes_used"], 60)
 
+    def test_a_discount_is_given_and_ended(self):
+        org = uuid4()
+        self.assertEqual(self.store.set_discount(org, "shared_learning", "ai", 20), {"ai": 20})
+        self.assertEqual(self.store.entitlements(org)["discounts"], {"ai": 20}, "step 45: the shared-learning discount")
+        self.assertEqual(self.store.set_discount(org, "shared_learning", "ai", 0), {})
+        with self.assertRaises(Refused):
+            self.store.set_discount(org, "a friend", "ai", 50)
+
     def test_the_ready_made_plans_are_there_and_a_membership_keeps_only_the_limits_that_differ(self):
         keys = {p["key"]: p for p in self.store.plans()}
         self.assertTrue({"solo", "duo", "team", "pro", "custom"} <= set(keys))

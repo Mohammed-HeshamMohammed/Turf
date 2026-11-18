@@ -16,7 +16,7 @@ import (
 // reason in its migration.
 var crossAgencyTables = []string{
 	"email_waits", "report_due", "event_due", "google_accounts", "google_events", "shared_blocks", "shared_block_marks", "shared_block_reviews",
-	"lead_referrals", "carrier_standing", "agency_restores", "file_scans", "dialer_erasures", "orgs", "people", "schema_migrations",
+	"lead_referrals", "carrier_standing", "agency_restores", "file_scans", "dialer_erasures", "learning_agreements", "shared_learning_runs", "orgs", "people", "schema_migrations",
 }
 
 // Step 43, D305: every table that holds an agency's rows is under forced row security, or deliberately listed as cross-agency.

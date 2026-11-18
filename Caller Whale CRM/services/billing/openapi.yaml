@@ -548,6 +548,73 @@
         }
       }
     },
+    "/v1/orgs/{org_id}/discounts/{reason}": {
+      "put": {
+        "summary": "Put Discount",
+        "operationId": "put_discount_v1_orgs__org_id__discounts__reason__put",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Org Id"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reason"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscountBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/orgs/{org_id}/trial": {
       "put": {
         "summary": "Trial",
@@ -732,6 +799,26 @@
         },
         "type": "object",
         "title": "CreditLimitBody"
+      },
+      "DiscountBody": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "percent": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Percent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "percent"
+        ],
+        "title": "DiscountBody"
       },
       "HTTPValidationError": {
         "properties": {

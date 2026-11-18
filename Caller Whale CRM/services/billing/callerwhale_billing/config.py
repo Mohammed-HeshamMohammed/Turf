@@ -13,7 +13,7 @@ CALLER_RIGHTS = {
     "dialer-sms": {"usage", "budgets"},
     # The CRM charges the in-app assistant's use to the lead's team and client, within each person's daily cap (step 26), and reads
     # a workspace's limits for its file storage (step 38).
-    "crm-core": {"usage", "standing"},
+    "crm-core": {"usage", "standing", "discounts"},  # discounts: the shared-learning discount on AI features (step 45)
 }
 
 

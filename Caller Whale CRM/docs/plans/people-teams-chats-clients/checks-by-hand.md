@@ -16,7 +16,7 @@ Each token is a random value of 32 characters or more (`openssl rand -hex 32`). 
 | T1 | `DIALER_TOKEN` | crm-core | dialer-sms `CRM_TOKEN` (and `CRM_URL=http://crm-core:8107`) | The dialer asking the CRM about leads and logging calls (steps 10, 21, 25) |
 | T2 | `AUTHZ_TOKEN` | dialer-sms | authz `AUTHZ_TOKENS`: add `,dialer-sms=<token>` | The dialer checking people's rights |
 | T3 | `BILLING_TOKEN` (and `BILLING_URL=http://billing:8103`) | dialer-sms | billing `BILLING_TOKENS`: add `,dialer-sms=<token>` | Budgets for calls and texts (step 22) |
-| T4 | `BILLING_TOKEN` (and `BILLING_URL=http://billing:8103`) | crm-core | billing `BILLING_TOKENS`: add `,crm-core=<token>` | Charging the in-app assistant, with the daily cap (step 26), and reading the plan's file storage (step 38) |
+| T4 | `BILLING_TOKEN` (and `BILLING_URL=http://billing:8103`) | crm-core | billing `BILLING_TOKENS`: add `,crm-core=<token>` | Charging the in-app assistant, with the daily cap (step 26), reading the plan's file storage (step 38) and the shared-learning discount (step 45) |
 | T5 | `AGENT_TOKEN` | assistant | crm-core and dialer-sms `ASSISTANT_TOKEN` (and `ASSISTANT_URL=http://assistant:8109`) | The in-app assistant and call summaries (step 26); needs `OPENROUTER_API_KEY` on the assistant |
 | T6 | `NOTIFY_MAIL_TOKEN` (and `NOTIFY_MAIL_URL=http://notifications:8102`) | crm-core | notifications `NOTIFY_TOKENS`: add `,crm-core=<token>` | Scheduled report emails (step 32) |
 | T7 | `AUTH_MCP_TOKEN` | auth | mcp `MCP_AUTH_TOKEN` | Outside AIs asking for changes that wait for you (step 24) |
@@ -70,6 +70,7 @@ Chrome was not connected). The rows marked **verify** are what the code expects;
 | P-3 | Set the agency's time zone, postal address (`PUT /api/v1/email/settings`) and, if wanted, the AI's suggestions and required captions (`PUT /api/v1/ai-settings`) | Reports by your day; email needs the address; captions are off until switched on |
 | P-4 | Turn commissions on only if you want them (`PUT /api/v1/commissions/settings`) | Off by default (step 27) |
 | P-5 | Once the dialer runs live and your agency's registration is approved: crm-core `CARRIER_CHECK=on` | Imports wait for each agency's verified business (step 39). The dialer's own check is on from the start |
+| P-6 | After the lawyer approved the agreement (W-9): crm-core `SHARED_LEARNING=on` | Agencies that agreed and whose notice staff checked start sharing counts (step 45) |
 
 ## For the lawyer (before real leads)
 
@@ -83,6 +84,7 @@ Chrome was not connected). The rows marked **verify** are what the code expects;
 | W-6 | The words agencies send the carriers about how they text (campaign description, how people agree, sample texts), the referral consent (step 37) and the form consent (step 36) | Steps 36, 37, 39 |
 | W-7 | Where the data is kept, for the terms and privacy notice: the European Union, currently France (Paris), perhaps Germany later; and that deleted data leaves backups within 30 days (D298, D370) | Step 41 |
 | W-8 | What a person is sent with their data, and the wording when their data is deleted (D310, D367) | Step 44 |
+| W-9 | The shared-learning agreement's text (a draft in crm-core, version `2026-11-draft`), what an agency's notice to leads must say for staff to check it, and that learned patterns stay after withdrawal (D326, D327) | Step 45 |
 
 # Invitation steps 1 and 2
 
@@ -561,3 +563,12 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | D2 | Enter a delete request for that number, then `POST …/{id}/delete {confirm: true}` with your second step | The lead, note and file are gone; the number is blocked "deleted on request"; the request shows no name. |
 | D3 | Import or add a lead with that number again | It comes in as do-not-call with "This person asked for their information to be deleted". |
 | D4 | Within 10 minutes (the dialer's check) | The request shows when the dialer removed its calls and texts. |
+
+# Step 45: shared learning by agreement (after crm-core and billing are redeployed; SHARED_LEARNING stays off until W-9)
+
+| # | Do | Expect |
+|---|---|---|
+| L1 | As a throwaway agency's owner, `GET /api/v1/learning/agreement`, then sign it with your notice's address and your second step | It says why nothing is used yet ("waits for the lawyer"); billing shows a 20% AI discount for the agency. |
+| L2 | As staff, `GET /api/v1/platform/learning` and mark the notice checked | The agency is listed with its notice address. |
+| L3 | With `SHARED_LEARNING=on` on a test setup, make some calls and wait a day | `shared_learning_runs` has a passed run; `shared_patterns` holds only counts by hour and attempt. |
+| L4 | Withdraw as the owner | The discount ends and no new counts are added; the earlier ones stay. |
