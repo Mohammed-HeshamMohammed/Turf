@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { runtimeLogTargets, pruneWorkspace, rewriteDockerfile } from "./publish-production.mjs";
+import { runtimeLogTargets, pruneWorkspace, rewriteDockerfile, checksVerdict } from "./publish-production.mjs";
 
 const cargo = `# One workspace.
 [workspace]
@@ -64,4 +64,16 @@ test("production snapshots inject a runner only for opted-in image contexts", ()
     ["services/core-api/Dockerfile", "FROM golang:1 AS runtime-log-build"],
     ["vendor/Dockerfile", "FROM redis:7"],
   ]), ["runtime-log/main.go", "services/core-api/runtime-log/main.go"]);
+});
+
+test("only a commit whose CI summary passed is published", () => {
+  const run = (status, conclusion, started_at = "2026-11-19T10:00:00Z") => ({ name: "CI summary", status, conclusion, started_at });
+  assert.equal(checksVerdict({ check_runs: [] }).ok, false);
+  assert.equal(checksVerdict({ check_runs: [{ ...run("completed", "success"), name: "something else" }] }).ok, false);
+  assert.equal(checksVerdict({ check_runs: [run("in_progress", null)] }).ok, false);
+  assert.equal(checksVerdict({ check_runs: [run("completed", "failure")] }).ok, false);
+  assert.equal(checksVerdict({ check_runs: [run("completed", "success")] }).ok, true);
+  // A re-run that passed replaces the earlier failure, and the other way round.
+  assert.equal(checksVerdict({ check_runs: [run("completed", "failure", "2026-11-19T09:00:00Z"), run("completed", "success")] }).ok, true);
+  assert.equal(checksVerdict({ check_runs: [run("completed", "success", "2026-11-19T09:00:00Z"), run("completed", "failure")] }).ok, false);
 });

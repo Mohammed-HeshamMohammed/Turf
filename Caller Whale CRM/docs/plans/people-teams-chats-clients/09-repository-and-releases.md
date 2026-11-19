@@ -97,11 +97,41 @@ Each step is a pull request into a protected `main` and keeps the current produc
 | 47 | Images built in CI beside the branches: on `main`, build each service's existing Dockerfile, push it to the GitHub container registry tagged with the commit, record its provenance, and print its digest (D379). Coolify does not change yet. | a new `images.yml`, the services' `.dockerignore` files | 46 |
 | 48 | Coolify moves to images, one resource at a time: each becomes a Docker Image application pinned by digest, each server logs in to the registry once, deploys run through the deploy webhook after the push and wait for the "production" environment's approval (D379, D381). Order: alert-relay and grafana-proxy, learning, mcp, assistant, notifications, live, billing, authz, auth, crm-core, messaging, dialer-sms, importing-lists, the gateway last. Each moved part leaves `production.json`, and its branch is retired (D380). *Needs the owner in Coolify (Cloudflare's check).* | `images.yml` (deploy job), `tools/production.json`, the Coolify resources, the monitoring compose (`image:` lines) | 47 |
 | 49 | npm workspaces: a root `package.json` over `apps/*` and `packages/*`; the calendar, auth client and error reporter become `@callerwhale/*` packages; their copies, sync scripts and copy tests go (D383). | the apps' imports, the website and CRM Dockerfiles (root build context with a per-Dockerfile ignore file), the CI npm jobs, Dependabot's npm entry | 46 |
-| 50 | Shared Go modules: `packages/go/authverify` and `packages/go/runtimelog`; each service requires them; the token copies and the runtime-log injection go (D383). | the services' `go.mod` and Dockerfiles, `check-gateway.yml`, the generator and image job, the `.gitignore` runtime-log rules | 46 |
+| 50 | Shared Go modules: `packages/go/authverify` and `packages/go/runtimelog`; each service requires them; the token copies and the runtime-log injection go (D383). | the services' `go.mod` and Dockerfiles, the gateway job in `ci.yml`, the generator and image job, the `.gitignore` runtime-log rules | 46 |
 | 51 | Services move to `services/<name>` (D382). By now Coolify deploys images, so no Coolify path depends on these folders. | CI paths, the image job's contexts, Dependabot directories, the compose contexts, `env-notes.mjs`, `tools/infra.json` and `stack.json`, docs | 48, 50 |
 | 52 | Apps and desktop move to `apps/crm`, `apps/crm-desktop`, `apps/crm-web`, `apps/website`; one Rust workspace at the root; the engine tried as a Tauri sidecar (D388). | `tauri.conf.json`, `scripts/tauri.mjs`, the desktop release workflow, `.claude/launch.json`, the crm-web Dockerfile, the root `Cargo.toml`, the Vercel demo's root directory (by hand) | 49 |
 | 53 | The engine moves to `engines/skip-engine` with its own `pyproject.toml` and lock file (D383); the older desktop app moves to `apps/lists-desktop` or is archived. | the sidecar path, both packaging configs, the release workflow, the CI Python steps, Dependabot and audits, the engine's `.gitignore` rules | 52 |
 | 54 | Scaffolds to `scaffolds/` and out of the production compose (D384); `env/` moves in the same commit as its ignore rules (D386); Kubernetes kept as history and Coolify notes written (D385); docs moved; the empty `Caller Whale CRM/` removed; `AGENTS.md` changes from "publish the production branches" to "images build in CI"; old branches retired after review (D380). | `.gitignore`, `deploy/`, `docs/`, `AGENTS.md`, the root README | 51, 52, 53 |
+
+## Where everything stood before the move (2026-11-19)
+
+Tag `before-reorganisation-2026-11-19` (pushed) marks `main` at `03304ae0c3`. Each branch then:
+
+| Branch | Commit | Last changed |
+| --- | --- | --- |
+| `assistant-backend-production` | `51f70c0313` | 2026-11-18 |
+| `auth-backend-production` | `8251eaa52e` | 2026-11-18 |
+| `authz-backend-production` | `b7bbe92420` | 2026-11-18 |
+| `billing-backend-production` | `45a1c1acca` | 2026-11-18 |
+| `core-api-backend-production` | `0ffe142496` | 2026-11-03 |
+| `crm-core-backend-production` | `215766d67d` | 2026-11-18 |
+| `desktop-app-production` | `a883991aa1` | 2026-11-18 |
+| `dialer-sms-backend-production` | `f115964f4c` | 2026-11-18 |
+| `gateway-backend-production` | `45d3a94ba4` | 2026-11-18 |
+| `grafana-production` | `f12c4ba556` | 2026-11-18 |
+| `importing-lists-backend-production` | `c11b4ca1b2` | 2026-11-18 |
+| `landing-backend-production` | `0ff83572a4` | 2026-11-03 |
+| `landing-dashboard-web-production` | `577f8ef729` | 2026-11-18 |
+| `landing-web-production` | `adc435473e` | 2026-11-18 |
+| `learning-backend-production` | `7fde7ad3a6` | 2026-11-10 |
+| `live-backend-production` | `281c6a0225` | 2026-11-18 |
+| `main` | `03304ae0c3` | 2026-11-18 |
+| `mcp-backend-production` | `865bf616ad` | 2026-11-18 |
+| `messaging-backend-production` | `99028d8f9b` | 2026-11-18 |
+| `notifications-backend-production` | `ffae153889` | 2026-11-18 |
+| `skip-engine-production` | `9ed55d710e` | 2026-11-18 |
+
+The local-only files (D386) were copied, unread, to `X:/callerwhale-local-backup/2026-11-19/` outside the repository, at the same paths: the `env/*.env` files, `.env.local`, `.vercel/`, `landing/site/.env.example` and `backend/scripts/.dev-accounts.json`. The owner approved deleting the build caches (D387): `services/core-api/` (only the Rust `target` and two generated files, 4.3 GB) and the root `target/` (2.2 GB) went, with the Python caches.
 
 ## Open questions
 

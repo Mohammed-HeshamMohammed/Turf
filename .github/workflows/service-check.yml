@@ -1,0 +1,105 @@
+name: Service check
+
+# The check every Go and Python service runs, called by ci.yml once per service (D378): vet and test against a real PostgreSQL,
+# then make sure the database tests named in `must_pass` really ran (a test skipped for a missing variable would pass quietly).
+
+on:
+  workflow_call:
+    inputs:
+      dir:
+        description: The service's folder from the repository root
+        required: true
+        type: string
+      language:
+        description: go or python
+        required: true
+        type: string
+      setup:
+        description: Shell run before the tests (create logins and databases with psql)
+        required: false
+        type: string
+        default: ""
+      env:
+        description: KEY=VALUE lines the tests read
+        required: false
+        type: string
+        default: ""
+      must_pass:
+        description: One extended regular expression per line; each must match a line of the test log
+        required: false
+        type: string
+        default: ""
+      race:
+        description: Run the Go tests with the race detector
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: testpass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGPASSWORD: testpass
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test variables
+        env:
+          LINES: ${{ inputs.env }}
+        run: printf '%s\n' "$LINES" | sed '/^[[:space:]]*$/d' >> "$GITHUB_ENV"
+      - name: Logins and databases
+        if: inputs.setup != ''
+        env:
+          SETUP: ${{ inputs.setup }}
+        run: bash -euo pipefail -c "$SETUP"
+
+      - if: inputs.language == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ inputs.dir }}/go.mod
+          cache-dependency-path: ${{ inputs.dir }}/go.sum
+      - if: inputs.language == 'go'
+        run: go vet ./...
+      - if: inputs.language == 'go'
+        # -v shows each test's name, so a skipped database test is visible in the log.
+        run: go test ./... -count=1 -v ${{ inputs.race && '-race' || '' }} 2>&1 | tee test.log; test ${PIPESTATUS[0]} -eq 0
+
+      - if: inputs.language == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - if: inputs.language == 'python'
+        run: |
+          if [ -f requirements-test.txt ]; then pip install -r requirements-test.txt; else pip install -r requirements.txt; fi
+      - if: inputs.language == 'python'
+        run: python -m unittest discover -s tests -v 2>&1 | tee test.log; test ${PIPESTATUS[0]} -eq 0
+
+      - name: The database tests really ran
+        if: inputs.must_pass != ''
+        env:
+          MUST_PASS: ${{ inputs.must_pass }}
+        run: |
+          missing=0
+          while IFS= read -r pattern; do
+            [ -n "$pattern" ] || continue
+            grep -qE -- "$pattern" test.log || { echo "::error::Did not pass (skipped or missing): $pattern"; missing=1; }
+          done <<< "$MUST_PASS"
+          exit $missing

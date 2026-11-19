@@ -32,13 +32,14 @@ Each server branch also carries its container file and its Kubernetes files (`in
 
 ## How they are made
 
-`node tools/publish-production.mjs` builds every branch from `main`, as a new commit on top of the branch's last one: a branch's history is the list of snapshots of `main` it was made from. Nothing is rewritten, the working copy is not touched, and a branch that would not change is left alone.
+`node tools/publish-production.mjs` builds every branch from `main`, as a new commit on top of the branch's last one: a branch's history is the list of snapshots of `main` it was made from. Nothing is rewritten, the working copy is not touched, and a branch that would not change is left alone. It refuses a commit whose **CI summary** check (`.github/workflows/ci.yml`) has not passed on GitHub (step 46), so a branch Coolify deploys from never gets code that failed its tests; it asks GitHub with `gh`.
 
 ```bash
 node tools/publish-production.mjs --list                    # what each branch holds
 node tools/publish-production.mjs                           # refresh every branch
 node tools/publish-production.mjs landing-web-production    # one
 node tools/publish-production.mjs --push                    # and push what changed (never forced)
+node tools/publish-production.mjs --without-checks          # emergency only: skip the CI check below
 ```
 
 **Never edit a production branch.** Change `main`, then refresh the branch. A change made on a branch would be lost, or be in the way, the next time it is refreshed.

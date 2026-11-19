@@ -9,6 +9,10 @@
 //   node tools/publish-production.mjs landing-web-production update one
 //   node tools/publish-production.mjs --push                 also push what changed to origin
 //   CALLERWHALE_COMMIT_TRAILER="Co-Authored-By: ..." adds a line to the end of each commit message
+//
+// It refuses a commit whose "CI summary" check on GitHub has not passed (.github/workflows/ci.yml, step 46): a branch Coolify deploys
+// from never gets code that failed its tests. It asks GitHub with the `gh` command. --without-checks skips this, for an emergency
+// only, and says so loudly.
 import { execFileSync } from "node:child_process";
 import { readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -65,6 +69,28 @@ export function pruneWorkspace(text, has) {
   return out.join("\n");
 }
 
+/** The name of the one check `main` requires (ci.yml's last job). */
+export const SUMMARY_CHECK = "CI summary";
+
+/**
+ * Whether a commit may be published, from GitHub's check runs for it ({check_runs: [{name, status, conclusion}]}). The newest run
+ * of the summary decides (a re-run replaces an earlier one). Answers {ok, why}.
+ */
+export function checksVerdict(checkRuns) {
+  const runs = (checkRuns?.check_runs ?? []).filter(r => r.name === SUMMARY_CHECK);
+  if (!runs.length) return { ok: false, why: `no "${SUMMARY_CHECK}" check for this commit yet (CI has not run on it)` };
+  const newest = runs.reduce((a, b) => ((a.started_at ?? "") >= (b.started_at ?? "") ? a : b));
+  if (newest.status !== "completed") return { ok: false, why: `"${SUMMARY_CHECK}" is still ${newest.status}; wait for it` };
+  if (newest.conclusion !== "success") return { ok: false, why: `"${SUMMARY_CHECK}" ended ${newest.conclusion}` };
+  return { ok: true, why: `"${SUMMARY_CHECK}" passed` };
+}
+
+/** Asks GitHub (through `gh`) for a commit's check runs. */
+function checkRunsFor(root, sha) {
+  const out = execFileSync("gh", ["api", `repos/{owner}/{repo}/commits/${sha}/check-runs?per_page=100&check_name=${encodeURIComponent(SUMMARY_CHECK)}`], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  return JSON.parse(out);
+}
+
 /** The note at the root of each branch. Named readme.md so GitHub shows it on the branch's page. */
 const NOTE = "readme.md";
 
@@ -98,6 +124,22 @@ function run() {
   const sha = git(["rev-parse", from]).trim();
   const short = sha.slice(0, 7);
   const date = git(["show", "-s", "--format=%cs", sha]).trim();
+  if (!flag("--list")) {
+    if (flag("--without-checks")) console.log(`WARNING: publishing ${short} without looking at its checks (--without-checks).`);
+    else {
+      let verdict;
+      try {
+        verdict = checksVerdict(checkRunsFor(root, sha));
+      } catch (err) {
+        verdict = { ok: false, why: `could not ask GitHub (${String(err.stderr || err.message).trim().split("\n")[0]})` };
+      }
+      if (!verdict.ok) {
+        console.error(`Not publishing ${short}: ${verdict.why}.`);
+        process.exit(1);
+      }
+      console.log(`${short}: ${verdict.why}.`);
+    }
+  }
   const indexFile = join(git(["rev-parse", "--absolute-git-dir"]).trim(), "callerwhale-production.index");
   const trailer = process.env.CALLERWHALE_COMMIT_TRAILER ? `\n\n${process.env.CALLERWHALE_COMMIT_TRAILER}` : "";
   const changed = [];

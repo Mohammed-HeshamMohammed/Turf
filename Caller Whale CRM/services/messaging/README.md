@@ -77,7 +77,7 @@ go test ./...
 ```
 
 The database tests need `MESSAGING_TEST_ADMIN_URL` (a superuser, to reset the schema) and `MESSAGING_TEST_DATABASE_URL` (an
-ordinary login) and are skipped without them. GitHub runs them in `.github/workflows/check-backend.yml`.
+ordinary login) and are skipped without them. GitHub runs them in `.github/workflows/ci.yml`.
 
 ## Not done yet
 
