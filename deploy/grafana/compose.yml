@@ -2,8 +2,11 @@
 # Docker Compose. Neither service has a public domain or published port.
 # The gateway alone reaches grafana-proxy through the shared Coolify network.
 #
-# Locally (from the repository folder "Caller Whale CRM"):
-#   docker compose --env-file deploy/grafana/.env -f deploy/grafana/compose.yml up --build
+# Locally (from the repository folder "Caller Whale CRM"), building grafana-proxy and alert-relay from source:
+#   docker compose --env-file deploy/grafana/.env -f deploy/grafana/compose.yml -f deploy/grafana/compose.local.yml up --build
+#
+# grafana-proxy and alert-relay are not built on the server (step 48, D379): they run the images GitHub Actions built, pinned by
+# digest in CW_GRAFANA_PROXY_IMAGE and CW_ALERT_RELAY_IMAGE. The Images workflow's deploy job sets both in Coolify and redeploys.
 #
 # Two locks keep Grafana closed to everyone but the proxy:
 # 1. Grafana has no domain and no published port, so only containers on this resource's networks reach it.
@@ -15,8 +18,7 @@
 name: callerwhale-grafana
 services:
   grafana-proxy:
-    build:
-      context: ../../services/grafana-proxy
+    image: "${CW_GRAFANA_PROXY_IMAGE:?set CW_GRAFANA_PROXY_IMAGE, the cw-grafana-proxy image by digest}"
     environment:
       # Private Grafana proxy listen port; compose fixes it at 8120. Match the gateway's private monitoring upstream if changing it.
       PORT: "8120"
@@ -132,8 +134,7 @@ services:
   # Passes Grafana's alerts to phones (build step 42): urgent ones to whoever is on call this week, the rest to everyone. It needs
   # the coolify network only to reach the push service on the internet; nothing reaches it from outside this resource.
   alert-relay:
-    build:
-      context: ../../services/alert-relay
+    image: "${CW_ALERT_RELAY_IMAGE:?set CW_ALERT_RELAY_IMAGE, the cw-alert-relay image by digest}"
     environment:
       # Secret shared by Grafana's alert contact points and the alert relay (step 42), 32+ characters (openssl rand -hex 32). Set once for the resource; both containers read it.
       RELAY_TOKEN: "${RELAY_TOKEN:?set RELAY_TOKEN}"
