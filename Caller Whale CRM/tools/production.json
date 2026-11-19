@@ -42,7 +42,8 @@
           "dockerfile": "landing/dashboard-web/Dockerfile",
           "buildArgs": {
             "VITE_CALLERWHALE_AUTH_URL": "CALLERWHALE_AUTH_URL",
-            "VITE_CALLERWHALE_API_URL": "CALLERWHALE_API_URL"
+            "VITE_CALLERWHALE_API_URL": "CALLERWHALE_API_URL",
+            "VITE_CALLERWHALE_MESSAGING_URL": "CALLERWHALE_MESSAGING_URL"
           }
         }
       ]

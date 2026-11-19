@@ -1,7 +1,10 @@
 // Step 48 (D379, D381): puts freshly built images into Coolify. The Images workflow's build job leaves one record per pushed image
 // that has a Coolify target in tools/production.json ({image, ref, digest, coolify, setting}); the deploy job, after the
-// "production" environment's approval, runs this to write each image reference (by digest) into its Coolify setting and then
-// redeploy each Coolify application once.
+// "production" environment's approval, runs this. Two kinds of target:
+//   - a Docker Image application ("deploy": {"coolify": "<id>"}): its image and tag are set to the image's digest;
+//   - a Docker Compose application ("deploy": {"coolify": "<id>", "setting": "NAME"}): the setting NAME is set to <image>@<digest>,
+//     which the compose file's image: line reads (the monitoring resource).
+// Each application is then redeployed once.
 //   node tools/coolify-deploy.mjs --plan <records dir>   prints apps=[...] for the workflow (no network)
 //   node tools/coolify-deploy.mjs <records dir>          needs COOLIFY_URL and COOLIFY_TOKEN (a token with write and deploy)
 import { readdirSync, readFileSync } from "node:fs";
@@ -21,23 +24,32 @@ export function readRecords(dir) {
   return files.map(f => JSON.parse(readFileSync(join(dir, f), "utf8")));
 }
 
-/** Records grouped by Coolify application: [{app, settings: [{key, value, image}]}], checked and sorted. */
+/** Records grouped by Coolify application, checked and sorted:
+ *  [{app, settings: [{key, value, image}]}] for a compose application, [{app, image: {name, tag, ref}}] for an image application. */
 export function plan(records) {
   const apps = new Map();
   for (const r of records) {
     if (!r.coolify) continue;
     if (!/^[a-z0-9]{20,32}$/.test(r.coolify)) throw new Error(`${r.image}: not a Coolify application id: ${r.coolify}`);
-    if (!SETTING.test(r.setting ?? "")) throw new Error(`${r.image}: needs the Coolify setting its digest goes to`);
+    if (r.setting && !SETTING.test(r.setting)) throw new Error(`${r.image}: not a Coolify setting name: ${r.setting}`);
     if (!DIGEST.test(r.digest ?? "")) throw new Error(`${r.image}: not an image digest: ${r.digest}`);
     if (!/^ghcr\.io\/[a-z0-9-]+\/cw-[a-z0-9-]+$/.test(r.ref ?? "")) throw new Error(`${r.image}: unexpected image name ${r.ref}`);
-    const settings = apps.get(r.coolify) ?? [];
-    if (settings.some(s => s.key === r.setting)) throw new Error(`${r.coolify}: ${r.setting} is set by two images`);
-    settings.push({ key: r.setting, value: `${r.ref}@${r.digest}`, image: r.image });
-    apps.set(r.coolify, settings);
+    const app = apps.get(r.coolify) ?? { app: r.coolify };
+    if (r.setting) {
+      if (app.image) throw new Error(`${r.coolify}: is both an image application and a compose application`);
+      app.settings ??= [];
+      if (app.settings.some(s => s.key === r.setting)) throw new Error(`${r.coolify}: ${r.setting} is set by two images`);
+      app.settings.push({ key: r.setting, value: `${r.ref}@${r.digest}`, image: r.image });
+    } else {
+      if (app.image || app.settings) throw new Error(`${r.coolify}: an image application runs one image (${r.image})`);
+      // Coolify keeps a digest as "sha256-<hex>" in its "Docker Image Tag or Hash" field.
+      app.image = { name: r.ref, tag: r.digest.replace(":", "-"), ref: `${r.ref}@${r.digest}` };
+    }
+    apps.set(r.coolify, app);
   }
-  return [...apps]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([app, settings]) => ({ app, settings: settings.sort((a, b) => a.key.localeCompare(b.key)) }));
+  return [...apps.values()]
+    .sort((a, b) => a.app.localeCompare(b.app))
+    .map(a => (a.settings ? { ...a, settings: a.settings.sort((x, y) => x.key.localeCompare(y.key)) } : a));
 }
 
 async function call(base, token, method, path, body) {
@@ -49,10 +61,18 @@ async function call(base, token, method, path, body) {
   return { status: res.status, text: await res.text() };
 }
 
-/** Writes each setting (creating it when Coolify has none), then queues one deploy per application. Stops at the first refusal. */
+/** Sets each application's image (or settings), then queues one deploy per application. Stops at the first refusal. */
 export async function deploy(apps, { base, token, log = console.log }) {
-  for (const { app, settings } of apps) {
-    for (const s of settings) {
+  for (const { app, settings, image } of apps) {
+    if (image) {
+      const r = await call(base, token, "PATCH", `/applications/${app}`, {
+        docker_registry_image_name: image.name,
+        docker_registry_image_tag: image.tag,
+      });
+      if (r.status >= 300) throw new Error(`${app}: setting the image failed (${r.status}) ${r.text.slice(0, 200)}`);
+      log(`${app}: image ${image.ref}`);
+    }
+    for (const s of settings ?? []) {
       const body = { key: s.key, value: s.value, is_preview: false, is_literal: true };
       let r = await call(base, token, "PATCH", `/applications/${app}/envs`, body);
       if (r.status === 404) r = await call(base, token, "POST", `/applications/${app}/envs`, body);
