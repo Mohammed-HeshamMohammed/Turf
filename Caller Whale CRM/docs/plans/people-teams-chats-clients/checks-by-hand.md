@@ -581,3 +581,12 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | R2 | GitHub: Settings → Rules → Rulesets | "Protect main" is active on the default branch: pull request required, **CI summary** required, no bypass list. |
 | R3 | Try `git push origin main` from a commit made on `main` | GitHub refuses it ("protected"); the change goes through a pull request. |
 | R4 | Open one of the waiting Dependabot pull requests | CI runs on it and ends in **CI summary**; merge it only when that is green. |
+
+# Step 47: images built in CI (after the first run of the Images workflow on main)
+
+| # | Do | Expect |
+|---|---|---|
+| I1 | GitHub: your profile, Packages | One `cw-…` package per image (22), each **Private**. If any is public, open it, Package settings, Change visibility, Private (GitHub has no command for this); the workflow fails for an image that is public. |
+| I2 | Compare the repository's Actions variables `CALLERWHALE_AUTH_URL` and `CALLERWHALE_API_URL` with the website's and CRM web app's build variables in Coolify | The same addresses: they are built into the website and CRM web app images. |
+| I3 | GitHub: Settings, Billing, Packages storage, a week after the first runs | Within the plan's private storage (500 MB on the free plan). If not, lower `min-versions-to-keep` in `images.yml` or decide on a paid plan. |
+| I4 | Actions, Images, the latest run's summary | Each built image's digest; images that did not change say "nothing to build". |

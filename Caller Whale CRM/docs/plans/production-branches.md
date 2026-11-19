@@ -40,6 +40,7 @@ node tools/publish-production.mjs                           # refresh every bran
 node tools/publish-production.mjs landing-web-production    # one
 node tools/publish-production.mjs --push                    # and push what changed (never forced)
 node tools/publish-production.mjs --without-checks          # emergency only: skip the CI check below
+node tools/publish-production.mjs --export <dir> [name]     # write a branch's files to <dir>/<name>, touch no branch (image builds)
 ```
 
 **Never edit a production branch.** Change `main`, then refresh the branch. A change made on a branch would be lost, or be in the way, the next time it is refreshed.
