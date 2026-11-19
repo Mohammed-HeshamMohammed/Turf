@@ -8,6 +8,7 @@
 //   node tools/publish-production.mjs                        update every branch (locally)
 //   node tools/publish-production.mjs landing-web-production update one
 //   node tools/publish-production.mjs --push                 also push what changed to origin
+//   node tools/publish-production.mjs --export <dir> [name]  write each branch's files to <dir>/<name> (for image builds), touch nothing
 //   CALLERWHALE_COMMIT_TRAILER="Co-Authored-By: ..." adds a line to the end of each commit message
 //
 // It refuses a commit whose "CI summary" check on GitHub has not passed (.github/workflows/ci.yml, step 46): a branch Coolify deploys
@@ -15,8 +16,8 @@
 // summary", .github/workflows/desktop.yml) changes only when those passed on the commit too; the other branches go ahead without it. It asks GitHub with the `gh` command. --without-checks skips this, for an emergency
 // only, and says so loudly.
 import { execFileSync } from "node:child_process";
-import { readFileSync, rmSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
@@ -123,7 +124,8 @@ function run() {
   const args = process.argv.slice(2);
   const flag = name => args.includes(name);
   const from = args.includes("--from") ? args[args.indexOf("--from") + 1] : "main";
-  const names = args.filter((a, i) => !a.startsWith("--") && args[i - 1] !== "--from");
+  const exportDir = args.includes("--export") ? args[args.indexOf("--export") + 1] : "";
+  const names = args.filter((a, i) => !a.startsWith("--") && args[i - 1] !== "--from" && args[i - 1] !== "--export");
   const root = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
   const git = (argv, { env = {}, input } = {}) => execFileSync("git", argv, { cwd: root, encoding: "utf8", env: { ...process.env, ...env }, input, maxBuffer: 1 << 28, stdio: ["pipe", "pipe", "pipe"] });
   const config = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "production.json"), "utf8"));
@@ -132,7 +134,7 @@ function run() {
   const sha = git(["rev-parse", from]).trim();
   const short = sha.slice(0, 7);
   const date = git(["show", "-s", "--format=%cs", sha]).trim();
-  if (!flag("--list")) {
+  if (!flag("--list") && !exportDir) {
     if (flag("--without-checks")) console.log(`WARNING: publishing ${short} without looking at its checks (--without-checks).`);
     else {
       const verdict = checkPassed(root, sha, SUMMARY_CHECK);
@@ -220,6 +222,19 @@ function run() {
     }
     // The branch changes only when its files do, not on every commit to main: compare the files without the note.
     const content = git(["write-tree"], { env }).trim();
+    // --export: write the branch's files (without the note) to <dir>/<name> for an image build, and <dir>/<name>.content with the
+    // content id; no branch is touched (.github/workflows/images.yml, step 47).
+    if (exportDir) {
+      const out = resolve(exportDir, component.name);
+      rmSync(out, { recursive: true, force: true });
+      mkdirSync(out, { recursive: true });
+      // Piped, with the folder as tar's working directory: GNU tar reads "X:\..." as a remote host.
+      const archive = execFileSync("git", ["archive", "--format=tar", content], { cwd: root, maxBuffer: 1 << 30 });
+      execFileSync("tar", ["-xf", "-"], { cwd: out, input: archive, maxBuffer: 1 << 30 });
+      writeFileSync(join(out, "..", `${component.name}.content`), content + "\n");
+      console.log(`${component.name}: exported ${content}`);
+      continue;
+    }
     const ref = `refs/heads/${component.name}`;
     let parent = "";
     try {
