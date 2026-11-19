@@ -31,7 +31,7 @@ jobs:
     outputs:
       parts: ${{ steps.parts.outputs.parts }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: parts
@@ -208,8 +208,8 @@ jobs:
     if: contains(fromJSON(needs.changes.outputs.parts), 'tools')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
       - run: node --test "Caller Whale CRM/tools/*.test.mjs" "Caller Whale CRM/deploy/grafana/*.test.mjs" "Caller Whale CRM/services/live/*.test.mjs"
@@ -237,14 +237,14 @@ jobs:
       run:
         working-directory: Caller Whale CRM/desktop/frontend/react
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: Caller Whale CRM/desktop/frontend/react/package-lock.json
       # The Skip Tracing tests run the real engine (service/, Python), as the desktop app does.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
           cache: pip
@@ -266,8 +266,8 @@ jobs:
       run:
         working-directory: Caller Whale CRM/landing/site
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
