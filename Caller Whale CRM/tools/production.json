@@ -1,5 +1,5 @@
 {
-  "comment": "One production branch per part (docs/plans/production-branches.md). `paths` are relative to `base` (default 'Caller Whale CRM'); a branch holds only those, at those paths, plus .gitignore. `rust: true` adds the Cargo workspace file, cut down to the members present, and Cargo.lock.",
+  "comment": "One production branch per part (docs/plans/production-branches.md). `checks`: GitHub checks that must have passed on the commit, besides CI summary, before the branch changes. `paths` are relative to `base` (default 'Caller Whale CRM'); a branch holds only those, at those paths, plus .gitignore. `rust: true` adds the Cargo workspace file, cut down to the members present, and Cargo.lock.",
   "components": [
     {
       "name": "landing-web-production",
@@ -171,6 +171,7 @@
     },
     {
       "name": "desktop-app-production",
+      "checks": ["Desktop summary"],
       "envExample": "Caller Whale CRM/env/desktop.env.example",
       "title": "Desktop app: the frontend, the window container (Tauri) and the feature modules",
       "paths": [
@@ -197,6 +198,7 @@
     },
     {
       "name": "skip-engine-production",
+      "checks": ["Desktop summary"],
       "title": "Skip Tracing engine (Python)",
       "base": "service",
       "paths": [

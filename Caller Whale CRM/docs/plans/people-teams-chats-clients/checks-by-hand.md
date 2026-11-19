@@ -572,3 +572,12 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | L2 | As staff, `GET /api/v1/platform/learning` and mark the notice checked | The agency is listed with its notice address. |
 | L3 | With `SHARED_LEARNING=on` on a test setup, make some calls and wait a day | `shared_learning_runs` has a passed run; `shared_patterns` holds only counts by hour and attempt. |
 | L4 | Withdraw as the owner | The discount ends and no new counts are added; the earlier ones stay. |
+
+# Step 46: protection and CI
+
+| # | Do | Expect |
+|---|---|---|
+| R1 | Look at `X:/callerwhale-local-backup/2026-11-19/` | Your env files, `.env.local`, `.vercel` and the dev accounts file are there. Keep this folder off the repository; copy it to your password manager or an encrypted drive if you like. |
+| R2 | GitHub: Settings → Rules → Rulesets | "Protect main" is active on the default branch: pull request required, **CI summary** required, no bypass list. |
+| R3 | Try `git push origin main` from a commit made on `main` | GitHub refuses it ("protected"); the change goes through a pull request. |
+| R4 | Open one of the waiting Dependabot pull requests | CI runs on it and ends in **CI summary**; merge it only when that is green. |

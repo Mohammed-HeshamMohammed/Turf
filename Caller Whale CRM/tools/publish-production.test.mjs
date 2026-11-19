@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { runtimeLogTargets, pruneWorkspace, rewriteDockerfile } from "./publish-production.mjs";
+import { runtimeLogTargets, pruneWorkspace, rewriteDockerfile, checksVerdict } from "./publish-production.mjs";
 
 const cargo = `# One workspace.
 [workspace]
@@ -64,4 +64,26 @@ test("production snapshots inject a runner only for opted-in image contexts", ()
     ["services/core-api/Dockerfile", "FROM golang:1 AS runtime-log-build"],
     ["vendor/Dockerfile", "FROM redis:7"],
   ]), ["runtime-log/main.go", "services/core-api/runtime-log/main.go"]);
+});
+
+test("only a commit whose CI summary passed is published", () => {
+  let id = 0;
+  const run = (status, conclusion, slug = "github-actions") => ({ id: ++id, name: "CI summary", status, conclusion, app: { slug } });
+  assert.equal(checksVerdict({ check_runs: [] }).ok, false);
+  assert.equal(checksVerdict({ check_runs: [{ ...run("completed", "success"), name: "something else" }] }).ok, false);
+  assert.equal(checksVerdict({ check_runs: [run("in_progress", null)] }).ok, false);
+  assert.equal(checksVerdict({ check_runs: [run("completed", "failure")] }).ok, false);
+  assert.equal(checksVerdict({ check_runs: [run("completed", "success")] }).ok, true);
+  // A re-run that passed replaces the earlier failure, and the other way round; a queued re-run (no start time) holds it back.
+  assert.equal(checksVerdict({ check_runs: [run("completed", "failure"), run("completed", "success")] }).ok, true);
+  assert.equal(checksVerdict({ check_runs: [run("completed", "success"), run("completed", "failure")] }).ok, false);
+  assert.equal(checksVerdict({ check_runs: [run("completed", "success"), run("queued", null)] }).ok, false);
+  // A check of the same name from another app does not count.
+  assert.equal(checksVerdict({ check_runs: [run("completed", "success", "someone-else")] }).ok, false);
+  assert.equal(checksVerdict({ check_runs: [run("completed", "failure"), run("completed", "success", "someone-else")] }).ok, false);
+  // Another check by name (the desktop branches' "Desktop summary").
+  const desktop = { id: ++id, name: "Desktop summary", status: "completed", conclusion: "success", app: { slug: "github-actions" } };
+  assert.equal(checksVerdict({ check_runs: [desktop] }, "Desktop summary").ok, true);
+  assert.equal(checksVerdict({ check_runs: [desktop] }).ok, false);
+  assert.match(checksVerdict({ check_runs: [] }, "Desktop summary").why, /Run workflow/);
 });

@@ -51,7 +51,7 @@ Then open http://localhost:5183. The dev server talks to the service the same wa
 npm run check
 ```
 
-Runs the linter (ESLint) and the format check (Prettier), the type check and build of the window, UI interaction tests (Vitest), the service's tests (pytest), and the host's tests (cargo). `npm run format` rewrites the screens and their tests in the house format. Every push to `main` and every pull request runs the same checks on GitHub (`.github/workflows/check.yml`). For checks that do not need desktop libraries, run `npm run build`, `npm test`, and `python -m pytest service/tests -q`.
+Runs the linter (ESLint) and the format check (Prettier), the type check and build of the window, UI interaction tests (Vitest), the service's tests (pytest), and the host's tests (cargo). `npm run format` rewrites the screens and their tests in the house format. Every push to `main` and every pull request runs the same checks on GitHub (`.github/workflows/ci.yml`, job "Caller Whale App"). For checks that do not need desktop libraries, run `npm run build`, `npm test`, and `python -m pytest service/tests -q`.
 
 ## Package it
 
