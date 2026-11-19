@@ -28,8 +28,27 @@ container's network alias (`http://<alias>:<port>`), as the existing settings do
 `env/container-notes.json`; `node tools/env-notes.mjs render <name>` prints a container's list (names and notes, never values), and
 `node tools/env-notes.mjs check` confirms the examples and notes agree.
 
-**Not yet compared with the live containers:** Coolify could not be opened from here (Cloudflare's check stopped the built-in browser and
-Chrome was not connected). The rows marked **verify** are what the code expects; check them against Coolify.
+**Compared with Coolify on 2026-11-19** (read through Chrome; setting names only, plus the non-secret addresses below; nothing was changed):
+
+- **Billing is down.** Status Exited; its last three deploys (2026-11-18) failed the health check because the `core-api=` entry in
+  `BILLING_TOKENS` is shorter than 32 characters. core-api is retired: remove that entry (or give it a 32+ character value) and redeploy.
+- **There is no Notifications resource** in Coolify (and no ClamAV). crm-core's `NOTIFY_URL` and auth's `AUTH_NOTIFY_URL` point at
+  `notifications:8102`, so whatever sends through it (invitation and sign-in emails, reports, status and breach notices) has nowhere to go
+  until it is deployed again from `notifications-backend-production`.
+- **Gateway:** `ROUTES` already sends `gate.callerwhale.com` to `http://crm-core:8107` (verified). Missing: `AUTHZ_URL` and `AUTHZ_TOKEN` (step 35).
+- **CRM Core** has only `PORT DATABASE_URL AUTH_JWKS_URL AUTHZ_URL AUTHZ_TOKEN NOTIFY_URL CORS_ORIGINS IMPORT_DIR IMPORT_DB_ROLE
+  MAX_IMPORT_MB LEARNING_URL LEARNING_TOKEN DIALER_TOKEN`. Missing from its row: `APP_URL`, `BILLING_URL/TOKEN`, `ASSISTANT_URL/TOKEN`,
+  `NOTIFY_MAIL_URL/TOKEN`, `CLAMD_ADDR`, `GOOGLE_*`, `EMAIL_*`/`AWS_*`.
+- **Dialer** (deployed, simulate settings present) has `CRM_URL/TOKEN` and `AUTHZ_URL/TOKEN`; missing `BILLING_URL/TOKEN` and `ASSISTANT_URL/TOKEN`.
+- **Assistant** has `OPENROUTER_API_KEY` but no `AGENT_TOKEN` (T5). **Auth** has `AUTH_MCP_TOKEN` (T7), no `STATUS_PROBES`;
+  `AUTH_DEV_TOKENS` is `false` (good). **Authz** and **Billing** token lists exist; which names they hold was not read (values).
+- **Monitoring** has `RELAY_TOKEN`, `PUSH_TARGETS` and `ONCALL_FROM` (S7 set up).
+- **Web apps (IM2):** the Dashboard builds with `auth.callerwhale.com` and `gate.callerwhale.com`, the same as the repository's
+  `CALLERWHALE_AUTH_URL` and `CALLERWHALE_API_URL`. It also has `VITE_CALLERWHALE_MESSAGING_URL` (`chat.callerwhale.com`), which has no
+  repository variable and is not in `cw-crm-web`'s `buildArgs` in `tools/production.json`: the CI image has no team chat, so fix this
+  before step 48 moves the Dashboard to it. The website's `LANDING_API_ORIGIN` is `api.callerwhale.com`, which the gateway does not route.
+- Everything else (Authorization, CRM Core, Dialer, Importing Worker, Learning, MCP, Messaging, Assistant, Gateway, Live Server,
+  Dashboard, Landing Web, Monitoring and the nine databases) is Running.
 
 | Container | Add or change | Then |
 |---|---|---|
@@ -586,7 +605,7 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 
 | # | Do | Expect |
 |---|---|---|
-| IM1 | GitHub: your profile, Packages | One `cw-…` package per image (22), each **Private**. If any is public, open it, Package settings, Change visibility, Private (GitHub has no command for this); the workflow fails for an image that is public. |
+| IM1 | GitHub: your profile, Packages (2026-11-19: all 22 are public, so every image job of the first run on `main` failed at its last step; the images were pushed) | One `cw-…` package per image (22), each **Private**. If any is public, open it, Package settings, Change visibility, Private (GitHub has no command for this); the workflow fails for an image that is public. |
 | IM2 | Compare the repository's Actions variables `CALLERWHALE_AUTH_URL` and `CALLERWHALE_API_URL` with the website's and CRM web app's build variables in Coolify | The same addresses: they are built into the website and CRM web app images. |
 | IM3 | GitHub: Settings, Billing, Packages storage, a week after the first runs | Within the plan's private storage (500 MB on the free plan). If not, lower `min-versions-to-keep` in `images.yml` or decide on a paid plan. |
 | IM4 | Actions, Images, the latest run's summary | Each built image's digest; images that did not change say "nothing to build". |
