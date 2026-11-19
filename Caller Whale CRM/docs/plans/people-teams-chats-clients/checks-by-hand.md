@@ -610,3 +610,19 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | IM3 | GitHub: Settings, Billing, Packages storage, a week after the first runs | Within the plan's private storage (500 MB on the free plan). If not, lower `min-versions-to-keep` in `images.yml` or decide on a paid plan. |
 | IM4 | Actions, Images, the latest run's summary | Each built image's digest; images that did not change say "nothing to build". |
 | IM5 | Delete the folder `X:	mp-exp` | It held only exported copies of three branches from a test of the export; nothing else uses it. |
+
+# Step 48: Coolify runs the images (part 1: grafana-proxy and alert-relay)
+
+The settings below are yours: they need the repository's owner account (the account `gh` and Chrome use here can only write) or a
+secret.
+
+| # | Do | Expect |
+|---|---|---|
+| CD1 | GitHub (as the owner): Settings, Environments, New environment `production`. Required reviewers: you (and the cofounder's account); Deployment branches: `main` only. | The environment exists; the Images workflow's "Deploy to Coolify" job waits for one of you to approve it. |
+| CD2 | Coolify: Keys & Tokens, API tokens, New token. Permissions `write` and `deploy` only (clear `read`); access: only the Caller Whale Monitoring resource for now (add each resource as it moves). | Coolify shows the token once. |
+| CD3 | GitHub: the `production` environment, Add secret `COOLIFY_TOKEN` (the token from CD2); repository Actions variables, `COOLIFY_URL` = `https://coolify.callerwhale.com`. | Both listed (the secret's value hidden). |
+| CD4 | After this pull request is merged and the production branches are published: Coolify, Caller Whale Monitoring, Deployment logs | The deploy pulls `cw-grafana-proxy` and `cw-alert-relay` by digest (no build for those two) and ends healthy. If it fails on the image, run `docker login ghcr.io` on the server (CD5) or check the two `CW_…_IMAGE` settings. |
+| CD5 | When the images are made private (IM1): on the server, `docker login ghcr.io -u <your GitHub login>` with a GitHub token that has only `read:packages` (Coolify: Servers, the server, Registries, does the same). | Coolify can still pull; without it, every deploy of a moved resource fails at the pull. |
+| CD6 | Open `https://gate.callerwhale.com/staff/monitoring` from the admin dashboard, and send a test alert from Grafana's contact point | Grafana opens through the proxy; the test push reaches the phone. |
+| CD7 | The next time the Images workflow builds a new grafana-proxy or alert-relay: Actions, Images, the run | "Deploy to Coolify" waits for approval; after it, the two settings hold the new digests and Monitoring redeploys. |
+

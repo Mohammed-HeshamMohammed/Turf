@@ -313,12 +313,14 @@
         {
           "name": "cw-grafana-proxy",
           "context": "services/grafana-proxy",
-          "dockerfile": "services/grafana-proxy/Dockerfile"
+          "dockerfile": "services/grafana-proxy/Dockerfile",
+          "deploy": { "coolify": "cs7nxvwhusacrlrsmolbqll9", "setting": "CW_GRAFANA_PROXY_IMAGE" }
         },
         {
           "name": "cw-alert-relay",
           "context": "services/alert-relay",
-          "dockerfile": "services/alert-relay/Dockerfile"
+          "dockerfile": "services/alert-relay/Dockerfile",
+          "deploy": { "coolify": "cs7nxvwhusacrlrsmolbqll9", "setting": "CW_ALERT_RELAY_IMAGE" }
         },
         {
           "name": "cw-grafana",
