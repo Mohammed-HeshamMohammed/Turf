@@ -11,7 +11,8 @@
 //   CALLERWHALE_COMMIT_TRAILER="Co-Authored-By: ..." adds a line to the end of each commit message
 //
 // It refuses a commit whose "CI summary" check on GitHub has not passed (.github/workflows/ci.yml, step 46): a branch Coolify deploys
-// from never gets code that failed its tests. It asks GitHub with the `gh` command. --without-checks skips this, for an emergency
+// from never gets code that failed its tests. A branch with `checks` in production.json (the desktop app and the engine: "Desktop
+// summary", .github/workflows/desktop.yml) changes only when those passed on the commit too; the other branches go ahead without it. It asks GitHub with the `gh` command. --without-checks skips this, for an emergency
 // only, and says so loudly.
 import { execFileSync } from "node:child_process";
 import { readFileSync, rmSync } from "node:fs";
@@ -71,25 +72,31 @@ export function pruneWorkspace(text, has) {
 
 /** The name of the one check `main` requires (ci.yml's last job). */
 export const SUMMARY_CHECK = "CI summary";
+/** How to get a missing check run on main, by its name. */
+const HOW = { "CI summary": "it runs on every push to main", "Desktop summary": "run the Desktop app workflow on main (GitHub, Actions, Desktop app, Run workflow) and wait for it" };
 
 /**
  * Whether a commit may be published, from GitHub's check runs for it ({check_runs: [{id, name, status, conclusion, app}]}). Only
  * runs made by GitHub Actions count (another app could name a check the same). The newest run decides, by id, which GitHub gives
  * in creation order (a queued re-run has no start time yet, but it has an id). Answers {ok, why}.
  */
-export function checksVerdict(checkRuns) {
-  const runs = (checkRuns?.check_runs ?? []).filter(r => r.name === SUMMARY_CHECK && r.app?.slug === "github-actions");
-  if (!runs.length) return { ok: false, why: `no "${SUMMARY_CHECK}" check from GitHub Actions for this commit yet (CI has not run on it)` };
+export function checksVerdict(checkRuns, name = SUMMARY_CHECK) {
+  const runs = (checkRuns?.check_runs ?? []).filter(r => r.name === name && r.app?.slug === "github-actions");
+  if (!runs.length) return { ok: false, why: `no "${name}" check from GitHub Actions for this commit yet (${HOW[name] ?? "it has not run on it"})` };
   const newest = runs.reduce((a, b) => (b.id > a.id ? b : a));
-  if (newest.status !== "completed") return { ok: false, why: `"${SUMMARY_CHECK}" is still ${newest.status}; wait for it` };
-  if (newest.conclusion !== "success") return { ok: false, why: `"${SUMMARY_CHECK}" ended ${newest.conclusion}` };
-  return { ok: true, why: `"${SUMMARY_CHECK}" passed` };
+  if (newest.status !== "completed") return { ok: false, why: `"${name}" is still ${newest.status}; wait for it` };
+  if (newest.conclusion !== "success") return { ok: false, why: `"${name}" ended ${newest.conclusion}` };
+  return { ok: true, why: `"${name}" passed` };
 }
 
-/** Asks GitHub (through `gh`) for a commit's check runs. */
-function checkRunsFor(root, sha) {
-  const out = execFileSync("gh", ["api", `repos/{owner}/{repo}/commits/${sha}/check-runs?per_page=100&check_name=${encodeURIComponent(SUMMARY_CHECK)}`], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-  return JSON.parse(out);
+/** Asks GitHub (through `gh`) whether a commit's named check passed. Answers {ok, why}. */
+function checkPassed(root, sha, name) {
+  try {
+    const out = execFileSync("gh", ["api", `repos/{owner}/{repo}/commits/${sha}/check-runs?per_page=100&check_name=${encodeURIComponent(name)}`], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    return checksVerdict(JSON.parse(out), name);
+  } catch (err) {
+    return { ok: false, why: `could not ask GitHub (${String(err.stderr || err.message).trim().split("\n")[0]})` };
+  }
 }
 
 /** The note at the root of each branch. Named readme.md so GitHub shows it on the branch's page. */
@@ -128,12 +135,7 @@ function run() {
   if (!flag("--list")) {
     if (flag("--without-checks")) console.log(`WARNING: publishing ${short} without looking at its checks (--without-checks).`);
     else {
-      let verdict;
-      try {
-        verdict = checksVerdict(checkRunsFor(root, sha));
-      } catch (err) {
-        verdict = { ok: false, why: `could not ask GitHub (${String(err.stderr || err.message).trim().split("\n")[0]})` };
-      }
+      const verdict = checkPassed(root, sha, SUMMARY_CHECK);
       if (!verdict.ok) {
         console.error(`Not publishing ${short}: ${verdict.why}.`);
         process.exit(1);
@@ -144,6 +146,7 @@ function run() {
   const indexFile = join(git(["rev-parse", "--absolute-git-dir"]).trim(), "callerwhale-production.index");
   const trailer = process.env.CALLERWHALE_COMMIT_TRAILER ? `\n\n${process.env.CALLERWHALE_COMMIT_TRAILER}` : "";
   const changed = [];
+  const held = [];
 
   for (const component of chosen) {
     rmSync(indexFile, { force: true });
@@ -235,6 +238,15 @@ function run() {
       console.log(`${component.name}: up to date`);
       continue;
     }
+    // A branch with its own checks (the desktop app and the engine) changes only once they passed on this commit; the others go on.
+    if (component.checks?.length && !flag("--list") && !flag("--without-checks")) {
+      const failed = component.checks.map(name => checkPassed(root, sha, name)).find(v => !v.ok);
+      if (failed) {
+        console.error(`${component.name}: not refreshed: ${failed.why}.`);
+        held.push(component.name);
+        continue;
+      }
+    }
     const noted = component.note !== false;
     if (noted) put(NOTE, note(component, { ref: from, short, date, files: files.length + 1, content }));
     const tree = git(["write-tree"], { env }).trim();
@@ -255,6 +267,10 @@ Content id: ${content}`}${trailer}`;
     const toPush = chosen.map(c => c.name).filter(n => changed.includes(n) || remoteBehind(git, n));
     if (toPush.length) console.log(git(["push", "origin", ...toPush.map(n => `refs/heads/${n}:refs/heads/${n}`)]));
     else console.log("Nothing to push.");
+  }
+  if (held.length) {
+    console.error(`Held back, waiting for their own checks: ${held.join(", ")}.`);
+    process.exitCode = 1;
   }
 }
 

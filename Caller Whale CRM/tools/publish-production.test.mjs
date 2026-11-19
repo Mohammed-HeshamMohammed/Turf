@@ -81,4 +81,9 @@ test("only a commit whose CI summary passed is published", () => {
   // A check of the same name from another app does not count.
   assert.equal(checksVerdict({ check_runs: [run("completed", "success", "someone-else")] }).ok, false);
   assert.equal(checksVerdict({ check_runs: [run("completed", "failure"), run("completed", "success", "someone-else")] }).ok, false);
+  // Another check by name (the desktop branches' "Desktop summary").
+  const desktop = { id: ++id, name: "Desktop summary", status: "completed", conclusion: "success", app: { slug: "github-actions" } };
+  assert.equal(checksVerdict({ check_runs: [desktop] }, "Desktop summary").ok, true);
+  assert.equal(checksVerdict({ check_runs: [desktop] }).ok, false);
+  assert.match(checksVerdict({ check_runs: [] }, "Desktop summary").why, /Run workflow/);
 });

@@ -80,3 +80,17 @@ jobs:
       - run: cargo test --locked
         working-directory: Caller Whale CRM/desktop/container/rust
 
+
+  summary:
+    # What the publish script asks for before it refreshes desktop-app-production and skip-engine-production (tools/production.json).
+    name: Desktop summary
+    if: always()
+    needs: [skip-engine, desktop-app]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Both passed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          [ "$(echo "$RESULTS" | jq -r '[to_entries[] | select(.value.result != "success")] | length')" = 0 ] || { echo "::error::The desktop checks did not all pass"; exit 1; }
