@@ -2,8 +2,9 @@ name: Images
 
 # Builds the container images once, in GitHub, and pushes them to the GitHub container registry, private (step 47, D379; owner,
 # 2026-11-19: private images, the repository goes private later). Each image is built from its production branch's files
-# (tools/publish-production.mjs --export), so it holds exactly what Coolify builds from that branch today. Coolify does not use these
-# yet: step 48 moves it over, one resource at a time, deploying each image by its digest.
+# (tools/publish-production.mjs --export), so it holds exactly what Coolify builds from that branch today. Step 48 moves Coolify over
+# one resource at a time: an image with a "deploy" entry in production.json is put into Coolify by its digest (the deploy job,
+# after the "production" environment's approval); the others are still built by Coolify from their branches.
 #
 # - After CI passes on main: builds the images whose branch content changed. An image is tagged content-<branch content id> and
 #   sha-<commit>; when the content-<id> tag is already in the registry, nothing is built.
@@ -31,6 +32,7 @@ on:
       - "Caller Whale CRM/tools/production.json"
       - "Caller Whale CRM/tools/publish-production.mjs"
       - "Caller Whale CRM/tools/image-matrix.mjs"
+      - "Caller Whale CRM/tools/coolify-deploy.mjs"
       - "**/Dockerfile"
       - "**/.dockerignore"
 
@@ -149,6 +151,30 @@ jobs:
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
+      - name: Digest
+        if: steps.build.outputs.digest
+        run: |
+          echo "| ${{ matrix.image }} | \`${{ steps.build.outputs.digest }}\` | content-${{ steps.files.outputs.content }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "$REF@${{ steps.build.outputs.digest }}"
+
+      # Step 48: an image that runs in Coolify (its "deploy" entry in production.json) leaves a record for the deploy job.
+      - name: Deploy record
+        if: env.PUSH == 'true' && steps.build.outputs.digest && matrix.coolify != ''
+        env:
+          IMAGE: ${{ matrix.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          COOLIFY: ${{ matrix.coolify }}
+          SETTING: ${{ matrix.setting }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/deploy"
+          node -e 'const e=process.env; console.log(JSON.stringify({image:e.IMAGE, ref:e.REF, digest:e.DIGEST, coolify:e.COOLIFY, setting:e.SETTING}))' > "$RUNNER_TEMP/deploy/$IMAGE.json"
+      - if: env.PUSH == 'true' && steps.build.outputs.digest && matrix.coolify != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-${{ matrix.image }}
+          path: ${{ runner.temp }}/deploy/${{ matrix.image }}.json
+          retention-days: 7
+
       - name: The images stay private
         if: env.PUSH == 'true'
         env:
@@ -159,11 +185,53 @@ jobs:
           echo "Visibility of ${{ matrix.image }}: $visibility"
           if [ "$visibility" = public ]; then echo "::error::${{ matrix.image }} is public; make it private (package settings)"; exit 1; fi
 
-      - name: Digest
-        if: steps.build.outputs.digest
-        run: |
-          echo "| ${{ matrix.image }} | \`${{ steps.build.outputs.digest }}\` | content-${{ steps.files.outputs.content }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "$REF@${{ steps.build.outputs.digest }}"
+
+  # Step 48 (D379, D381): what to put into Coolify. Runs without the approval, so a run that built nothing for Coolify asks nobody.
+  deploys:
+    name: What to deploy
+    needs: [plan, build]
+    if: always() && github.event_name != 'pull_request' && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.plan.outputs.apps }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          sparse-checkout: Caller Whale CRM/tools
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: deploy-*
+          path: deploys
+        continue-on-error: true
+      - id: plan
+        run: node "Caller Whale CRM/tools/coolify-deploy.mjs" --plan deploys >> "$GITHUB_OUTPUT"
+
+  # Writes each new image's digest into its Coolify setting and redeploys the application, after the owner or the cofounder
+  # approves the "production" environment. COOLIFY_URL is an Actions variable; COOLIFY_TOKEN is the environment's secret (a Coolify
+  # API token with write and deploy on the moved resources only).
+  deploy:
+    name: Deploy to Coolify
+    needs: [plan, deploys]
+    if: always() && needs.deploys.result == 'success' && needs.deploys.outputs.apps != '[]'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: coolify-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          sparse-checkout: Caller Whale CRM/tools
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: deploy-*
+          path: deploys
+      - env:
+          COOLIFY_URL: ${{ vars.COOLIFY_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: node "Caller Whale CRM/tools/coolify-deploy.mjs" deploys | tee -a "$GITHUB_STEP_SUMMARY"
 
   clean:
     name: Old versions (${{ matrix.image }})

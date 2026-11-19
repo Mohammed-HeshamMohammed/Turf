@@ -1,6 +1,7 @@
 // The images .github/workflows/images.yml builds (step 47, D379): one entry per image in tools/production.json, built from its
 // production branch's files (publish-production.mjs --export), so an image holds exactly what Coolify builds from the branch today.
-//   node tools/image-matrix.mjs            prints matrix=[{branch, image, context, dockerfile, args}, ...]
+//   node tools/image-matrix.mjs            prints matrix=[{branch, image, context, dockerfile, args, coolify, setting}, ...]
+//     coolify and setting: the Coolify application and the setting the deploy job writes the image's digest to (step 48), or ""
 //   node tools/image-matrix.mjs --args     reads VARS (the Actions variables as JSON) and ARGS, prints the build arguments
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -16,6 +17,8 @@ export function matrix(config) {
       context: i.context,
       dockerfile: i.dockerfile,
       args: Object.entries(i.buildArgs ?? {}).map(([arg, variable]) => `${arg}=${variable}`).join(","),
+      coolify: i.deploy?.coolify ?? "",
+      setting: i.deploy?.setting ?? "",
     })),
   );
 }

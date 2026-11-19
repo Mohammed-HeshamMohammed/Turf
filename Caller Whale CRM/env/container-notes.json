@@ -116,6 +116,8 @@
         "env/container-variable-inventory.json"
       ],
       "variables": {
+        "CW_GRAFANA_PROXY_IMAGE": "The cw-grafana-proxy image by digest, like ghcr.io/<owner>/cw-grafana-proxy@sha256:<digest>. Set by the Images workflow's deploy job; locally any tag.",
+        "CW_ALERT_RELAY_IMAGE": "The cw-alert-relay image by digest, like ghcr.io/<owner>/cw-alert-relay@sha256:<digest>. Set by the Images workflow's deploy job; locally any tag.",
         "PORT": "Private Grafana proxy listen port; compose fixes it at 8120. Match the gateway's private monitoring upstream if changing it.",
         "GRAFANA_BASE_PATH": "Protected browser subpath; only /staff/monitoring or empty is accepted. Match gateway routing and Grafana's root URL.",
         "GRAFANA_URL": "Private Grafana HTTP origin reached by the proxy. Keep on the private monitoring network; not a browser-facing address.",
