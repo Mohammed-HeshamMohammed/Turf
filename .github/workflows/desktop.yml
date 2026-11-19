@@ -1,0 +1,82 @@
+name: Desktop app
+
+# The CRM desktop app (Caller Whale CRM/desktop) and the Skip Tracing engine it ships (service/), on Windows. Kept apart from ci.yml on
+# purpose: the desktop app has its own development and release (release-crm.yml), so a desktop failure shows on the pull request but
+# does not block merging to main. It runs only when the desktop's files change. Build and test it green before tagging a release.
+
+on:
+  pull_request:
+    paths:
+      - "Caller Whale CRM/desktop/**"
+      - "Caller Whale CRM/Cargo.toml"
+      - "Caller Whale CRM/Cargo.lock"
+      - "Caller Whale CRM/services/features/**"
+      - "Caller Whale CRM/services/auth/clients/**"
+      - "Caller Whale CRM/shared/**"
+      - "service/**"
+      - ".github/workflows/desktop.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Caller Whale CRM/desktop/**"
+      - "Caller Whale CRM/Cargo.toml"
+      - "Caller Whale CRM/Cargo.lock"
+      - "Caller Whale CRM/services/features/**"
+      - "Caller Whale CRM/services/auth/clients/**"
+      - "Caller Whale CRM/shared/**"
+      - "service/**"
+      - ".github/workflows/desktop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  skip-engine:
+    name: Skip Tracing engine (Python, Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: service/requirements.txt
+      - run: pip install -r service/requirements.txt pytest
+      - run: python -m pytest service/tests -q
+
+  desktop-app:
+    name: Desktop app (feature modules and window, Windows)
+    runs-on: windows-latest
+    env:
+      CALLERWHALE_SERVICE_ROOT: ${{ github.workspace }}\service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: Caller Whale CRM/desktop/frontend/react/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: service/requirements.txt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            Caller Whale CRM
+            Caller Whale CRM/desktop/container/rust
+      - run: pip install -r service/requirements.txt
+      # The window embeds the built frontend, so it is built first.
+      - run: npm ci && npm run build
+        working-directory: Caller Whale CRM/desktop/frontend/react
+      - run: cargo test --workspace --locked
+        working-directory: Caller Whale CRM
+      - run: cargo test --locked
+        working-directory: Caller Whale CRM/desktop/container/rust
+

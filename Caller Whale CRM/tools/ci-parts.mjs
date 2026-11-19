@@ -30,10 +30,9 @@ export const PARTS = {
   tools: [C + "tools/", C + "deploy/", C + "env/", C + "shared/", S, C + "landing/", C + "desktop/frontend/react/src/calendar/", "Caller Whale App/src/calendar/"],
   "crm-app": [C + "desktop/frontend/", C + "landing/dashboard-web/", C + "services/auth/clients/", C + "shared/", "service/"],
   website: [C + "landing/site/", C + "shared/"],
-  "skip-engine": ["service/"],
-  "desktop-app": [C + "desktop/", C + "shared/", C + "Cargo.toml", C + "Cargo.lock", S + "features/", C + "services/auth/clients/", "service/"],
-  "older-app": ["Caller Whale App/", C + "shared/", "service/"],
 };
+// The desktop apps and the engine they ship are not here: they have their own development and their own workflows (desktop.yml,
+// older-app.yml), which do not block merging to main.
 
 export function partsFor(files, { all = false } = {}) {
   if (all || files.some(f => f.startsWith(".github/"))) return Object.keys(PARTS);
