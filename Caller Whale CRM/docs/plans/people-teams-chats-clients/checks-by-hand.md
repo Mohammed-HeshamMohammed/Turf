@@ -43,6 +43,9 @@ container's network alias (`http://<alias>:<port>`), as the existing settings do
 - **Assistant** has `OPENROUTER_API_KEY` but no `AGENT_TOKEN` (T5). **Auth** has `AUTH_MCP_TOKEN` (T7), no `STATUS_PROBES`;
   `AUTH_DEV_TOKENS` is `false` (good). **Authz** and **Billing** token lists exist; which names they hold was not read (values).
 - **Monitoring cannot redeploy.** `RELAY_TOKEN` and `PUSH_TARGETS` are listed but **empty**, so every deploy since step 42 stops at "required variable ... is missing a value" (2026-11-18 and the step 48 deploy of 2026-11-19); the containers from 2026-11-11 keep running. Do S7 to unblock it, then redeploy (CD4).
+  **2026-11-20:** redeployed after `RELAY_TOKEN` and `PUSH_TARGETS` got values. The deploy finished and grafana-proxy now runs from
+  its CI image (the gateway's /staff/monitoring answers 401 as before). alert-relay restarts in a loop: `PUSH_TARGETS` holds a token, but it
+  must be `owner=https://ntfy.sh/<topic>,cofounder=https://ntfy.sh/<topic>`. Fix it and redeploy; nothing else depends on alert-relay.
 - **Web apps (IM2):** the Dashboard builds with `auth.callerwhale.com` and `gate.callerwhale.com`, the same as the repository's
   `CALLERWHALE_AUTH_URL` and `CALLERWHALE_API_URL`. It also has `VITE_CALLERWHALE_MESSAGING_URL` (`chat.callerwhale.com`), which has no
   repository variable and is not in `cw-crm-web`'s `buildArgs` in `tools/production.json`: the CI image has no team chat, so fix this
