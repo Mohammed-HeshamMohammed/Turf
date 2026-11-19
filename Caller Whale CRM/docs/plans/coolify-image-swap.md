@@ -8,10 +8,10 @@ one is a new app beside the old one; the secrets are copied by you, because Clau
 
 ## Before the first app
 
-1. CD1 to CD3 in [checks-by-hand](people-teams-chats-clients/checks-by-hand.md#step-48-coolify-runs-the-images-part-1-grafana-proxy-and-alert-relay): the `production`
+1. **Done 2026-11-20:** CD1 (the `production` environment: you approve, admins cannot skip it, `main` only) and the variables `COOLIFY_URL` and `CALLERWHALE_MESSAGING_URL`. **Still yours:** CD2 and CD3, the Coolify API token and its `COOLIFY_TOKEN` secret. Was: CD1 to CD3 in [checks-by-hand](people-teams-chats-clients/checks-by-hand.md#step-48-coolify-runs-the-images-part-1-grafana-proxy-and-alert-relay): the `production`
    environment, the Coolify API token (`write` and `deploy`, give it access to each new app as you create it) and `COOLIFY_URL`.
 2. While the packages are public nothing else is needed. Once they are private (IM1), log the server in to ghcr.io first (CD5).
-3. The repository variable `CALLERWHALE_MESSAGING_URL` = `https://chat.callerwhale.com` (the CRM web app's team chat; the
+3. (Done) The repository variable `CALLERWHALE_MESSAGING_URL` = `https://chat.callerwhale.com` (the CRM web app's team chat; the
    `cw-crm-web` image fails to build without it).
 
 ## For each app, in this order
@@ -40,7 +40,7 @@ CRM Core, Messaging, Dialer, Importing Worker, the website, the CRM web app (Das
 
 | Order | Old app (id) | Image | Port | Network alias | Domains | Settings to copy (names) | Check after |
 |---|---|---|---|---|---|---|---|
-| 1 | Caller Whale Learning (`vj0vujhfbaatothc1vwjy9w0`) | cw-learning | 8112 | learning | none | PORT LEARNING_ENABLED LEARNING_RETENTION_DAYS DATABASE_URL LEARNING_TOKEN LEARNING_HASH_KEY | CRM Core's log shows no learning errors |
+| 1 | Caller Whale Learning (`vj0vujhfbaatothc1vwjy9w0`); **new app made 2026-11-20: "Caller Whale Learning (image)" (`aglpc4qq7he7oskohr8gwo3t`), image and port set, alias empty, not deployed: do steps 4 to 9** | cw-learning | 8112 | learning | none | PORT LEARNING_ENABLED LEARNING_RETENTION_DAYS DATABASE_URL LEARNING_TOKEN LEARNING_HASH_KEY | CRM Core's log shows no learning errors |
 | 2 | Caller Whale MCP (`dijmk18qoh5txr02kky64inn`) | cw-mcp | 8106 | mcp | none (the gateway serves mcp.callerwhale.com) | PORT MCP_PUBLIC_URL MCP_AUTH_PUBLIC_URL MCP_AUTH_URL MCP_AUTH_TOKEN | `https://mcp.callerwhale.com` answers as before |
 | 3 | Caller Whale AI Assistant (`kvrd0xwxh1yycqbrpl0rjkiw`) | cw-assistant | 8109 | assistant | none (assistant.callerwhale.com via the gateway) | PORT CORS_ORIGINS SITE_URL OPENROUTER_API_KEY OPENROUTER_MODEL ASSISTANT_MESSAGES_PER_MINUTE ASSISTANT_AI_PER_VISITOR_PER_DAY ASSISTANT_AI_PER_DAY | The website's helper chat answers |
 | 4 | none today: Notifications is not deployed | cw-notifications | 8102 | notifications | none | from `env/notifications.production.example` (new values, yours) | An invitation email arrives; CRM Core's report emails stop failing |
@@ -58,6 +58,6 @@ CRM Core, Messaging, Dialer, Importing Worker, the website, the CRM web app (Das
 
 ## Not verified
 
-- Coolify's API taking a digest as `sha256-<hex>` in `docker_registry_image_tag` (the docs show that form in the field; `tools/coolify-deploy.mjs`
-  sends it). The first moved app's first automatic deploy proves it; if Coolify refuses, the deploy job fails before deploying.
+- Coolify's API taking the digest the way its own form stores it (image `<name>@sha256`, tag `sha256-<hex>`, read from the Learning app;
+  `tools/coolify-deploy.mjs` sends that). The first moved app's first automatic deploy proves it; if Coolify refuses, the deploy job fails before deploying.
 - The Domains tabs could not be read (Cloudflare's check); the domains above come from the gateway's `ROUTES` and the apps' descriptions.

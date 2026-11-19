@@ -42,8 +42,9 @@ export function plan(records) {
       app.settings.push({ key: r.setting, value: `${r.ref}@${r.digest}`, image: r.image });
     } else {
       if (app.image || app.settings) throw new Error(`${r.coolify}: an image application runs one image (${r.image})`);
-      // Coolify keeps a digest as "sha256-<hex>" in its "Docker Image Tag or Hash" field.
-      app.image = { name: r.ref, tag: r.digest.replace(":", "-"), ref: `${r.ref}@${r.digest}` };
+      // What Coolify itself stores for an image chosen by digest (read 2026-11-20 from an app made in its form): the image as
+      // "<name>@sha256" and the tag as "sha256-<hex>".
+      app.image = { name: `${r.ref}@sha256`, tag: r.digest.replace(":", "-"), ref: `${r.ref}@${r.digest}` };
     }
     apps.set(r.coolify, app);
   }
