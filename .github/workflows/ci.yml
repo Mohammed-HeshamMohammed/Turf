@@ -102,6 +102,9 @@ jobs:
       dir: Caller Whale CRM/services/auth
       language: go
       env: AUTH_TEST_DATABASE_URL=postgres://postgres:testpass@localhost:5432/postgres?sslmode=disable
+      must_pass: |
+        --- PASS: TestSignInOpensASession
+        --- PASS: TestTheDatabaseIsBroughtUpToDateOnceAndSafelyTogether
 
   authz:
     needs: changes
@@ -157,8 +160,6 @@ jobs:
     with:
       dir: Caller Whale CRM/services/gateway
       language: go
-      # The gateway's copy of the token check matches tools/auth-verify (shield_test.go also compares its routes with auth's).
-      setup: node "../../tools/auth-verify/sync.mjs" --check
 
   grafana-proxy:
     needs: changes
@@ -197,9 +198,10 @@ jobs:
       env: CRM_TEST_ADMIN_URL=postgres://postgres:testpass@localhost:5432/postgres?sslmode=disable
       must_pass: "^test_.* \\(test_worker\\.EndToEndTest.* \\.\\.\\. ok$"
 
-  # The live server's settings, the generator and branch scripts, the alert rules and the configuration notes.
+  # The live server's settings, the generator and branch scripts, the alert rules, the configuration notes, and every copy of a
+  # shared file matching its source.
   tools:
-    name: Tools, live server settings, alert rules, configuration notes
+    name: Tools, shared copies, live server settings, alert rules, configuration notes
     needs: changes
     if: contains(fromJSON(needs.changes.outputs.parts), 'tools')
     runs-on: ubuntu-latest
@@ -210,6 +212,15 @@ jobs:
           node-version: 24
       - run: node --test "Caller Whale CRM/tools/*.test.mjs" "Caller Whale CRM/deploy/grafana/*.test.mjs" "Caller Whale CRM/services/live/*.test.mjs"
       - run: node "Caller Whale CRM/tools/env-notes.mjs" check
+      - name: Every copy matches its source (token check, request logs, calendar)
+        run: |
+          node "Caller Whale CRM/tools/auth-verify/sync.mjs" --check
+          node "Caller Whale CRM/shared/calendar/sync.mjs" --check
+          # The log runner copies are not kept on main (the generator adds them to the branches), so write them, check, and make sure
+          # nothing that is kept changed (a stale request adapter or Dockerfile).
+          node "Caller Whale CRM/tools/runtime-log/sync.mjs"
+          node "Caller Whale CRM/tools/runtime-log/sync.mjs" --check
+          git diff --exit-code
       - name: The alert rules file is up to date
         run: |
           node "Caller Whale CRM/deploy/grafana/alerts.mjs"

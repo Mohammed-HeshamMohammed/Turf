@@ -1,5 +1,5 @@
 // Which parts CI tests (.github/workflows/ci.yml, D377): on a pull request, the parts whose files (or what they depend on) changed;
-// everything on a push to main, on a manual run, and when anything under .github/ changed. Prints `parts=["crm-core",...]`.
+// a moved file counts at its old place too (--no-renames lists both); everything on a push to main, on a manual run, and when anything under .github/ changed. Prints `parts=["crm-core",...]`.
 //
 //   EVENT=pull_request BASE=<base sha> node tools/ci-parts.mjs
 import { execFileSync } from "node:child_process";
@@ -25,12 +25,14 @@ export const PARTS = {
   billing: [S + "billing/"],
   // The end-to-end test builds crm-core's tables from its scripts.
   "importing-lists": [S + "features/importing-lists/", S + "crm-core/migrations/"],
-  tools: [C + "tools/", C + "deploy/", C + "env/", S + "live/"],
-  "crm-app": [C + "desktop/frontend/", C + "landing/dashboard-web/", C + "services/auth/clients/", "service/"],
-  website: [C + "landing/site/"],
+  // Also every place a shared file is copied to (the token check, the request-log adapters and runner, the calendar): the tools
+  // job checks that each copy matches its source.
+  tools: [C + "tools/", C + "deploy/", C + "env/", C + "shared/", S, C + "landing/", C + "desktop/frontend/react/src/calendar/", "Caller Whale App/src/calendar/"],
+  "crm-app": [C + "desktop/frontend/", C + "landing/dashboard-web/", C + "services/auth/clients/", C + "shared/", "service/"],
+  website: [C + "landing/site/", C + "shared/"],
   "skip-engine": ["service/"],
-  "desktop-app": [C + "desktop/", C + "Cargo.toml", C + "Cargo.lock", S + "features/", C + "services/auth/clients/", "service/"],
-  "older-app": ["Caller Whale App/", "service/"],
+  "desktop-app": [C + "desktop/", C + "shared/", C + "Cargo.toml", C + "Cargo.lock", S + "features/", C + "services/auth/clients/", "service/"],
+  "older-app": ["Caller Whale App/", C + "shared/", "service/"],
 };
 
 export function partsFor(files, { all = false } = {}) {
@@ -42,7 +44,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { EVENT = "", BASE = "" } = process.env;
   let parts;
   if (EVENT === "pull_request" && BASE) {
-    const files = execFileSync("git", ["diff", "--name-only", `${BASE}...HEAD`], { encoding: "utf8", maxBuffer: 1 << 26 }).split("\n").filter(Boolean);
+    const files = execFileSync("git", ["diff", "--name-only", "--no-renames", `${BASE}...HEAD`], { encoding: "utf8", maxBuffer: 1 << 26 }).split("\n").filter(Boolean);
     parts = partsFor(files);
   } else parts = partsFor([], { all: true });
   console.log(`parts=${JSON.stringify(parts)}`);

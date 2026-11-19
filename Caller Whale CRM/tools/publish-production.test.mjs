@@ -67,13 +67,18 @@ test("production snapshots inject a runner only for opted-in image contexts", ()
 });
 
 test("only a commit whose CI summary passed is published", () => {
-  const run = (status, conclusion, started_at = "2026-11-19T10:00:00Z") => ({ name: "CI summary", status, conclusion, started_at });
+  let id = 0;
+  const run = (status, conclusion, slug = "github-actions") => ({ id: ++id, name: "CI summary", status, conclusion, app: { slug } });
   assert.equal(checksVerdict({ check_runs: [] }).ok, false);
   assert.equal(checksVerdict({ check_runs: [{ ...run("completed", "success"), name: "something else" }] }).ok, false);
   assert.equal(checksVerdict({ check_runs: [run("in_progress", null)] }).ok, false);
   assert.equal(checksVerdict({ check_runs: [run("completed", "failure")] }).ok, false);
   assert.equal(checksVerdict({ check_runs: [run("completed", "success")] }).ok, true);
-  // A re-run that passed replaces the earlier failure, and the other way round.
-  assert.equal(checksVerdict({ check_runs: [run("completed", "failure", "2026-11-19T09:00:00Z"), run("completed", "success")] }).ok, true);
-  assert.equal(checksVerdict({ check_runs: [run("completed", "success", "2026-11-19T09:00:00Z"), run("completed", "failure")] }).ok, false);
+  // A re-run that passed replaces the earlier failure, and the other way round; a queued re-run (no start time) holds it back.
+  assert.equal(checksVerdict({ check_runs: [run("completed", "failure"), run("completed", "success")] }).ok, true);
+  assert.equal(checksVerdict({ check_runs: [run("completed", "success"), run("completed", "failure")] }).ok, false);
+  assert.equal(checksVerdict({ check_runs: [run("completed", "success"), run("queued", null)] }).ok, false);
+  // A check of the same name from another app does not count.
+  assert.equal(checksVerdict({ check_runs: [run("completed", "success", "someone-else")] }).ok, false);
+  assert.equal(checksVerdict({ check_runs: [run("completed", "failure"), run("completed", "success", "someone-else")] }).ok, false);
 });

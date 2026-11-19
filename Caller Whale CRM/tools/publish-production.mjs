@@ -73,13 +73,14 @@ export function pruneWorkspace(text, has) {
 export const SUMMARY_CHECK = "CI summary";
 
 /**
- * Whether a commit may be published, from GitHub's check runs for it ({check_runs: [{name, status, conclusion}]}). The newest run
- * of the summary decides (a re-run replaces an earlier one). Answers {ok, why}.
+ * Whether a commit may be published, from GitHub's check runs for it ({check_runs: [{id, name, status, conclusion, app}]}). Only
+ * runs made by GitHub Actions count (another app could name a check the same). The newest run decides, by id, which GitHub gives
+ * in creation order (a queued re-run has no start time yet, but it has an id). Answers {ok, why}.
  */
 export function checksVerdict(checkRuns) {
-  const runs = (checkRuns?.check_runs ?? []).filter(r => r.name === SUMMARY_CHECK);
-  if (!runs.length) return { ok: false, why: `no "${SUMMARY_CHECK}" check for this commit yet (CI has not run on it)` };
-  const newest = runs.reduce((a, b) => ((a.started_at ?? "") >= (b.started_at ?? "") ? a : b));
+  const runs = (checkRuns?.check_runs ?? []).filter(r => r.name === SUMMARY_CHECK && r.app?.slug === "github-actions");
+  if (!runs.length) return { ok: false, why: `no "${SUMMARY_CHECK}" check from GitHub Actions for this commit yet (CI has not run on it)` };
+  const newest = runs.reduce((a, b) => (b.id > a.id ? b : a));
   if (newest.status !== "completed") return { ok: false, why: `"${SUMMARY_CHECK}" is still ${newest.status}; wait for it` };
   if (newest.conclusion !== "success") return { ok: false, why: `"${SUMMARY_CHECK}" ended ${newest.conclusion}` };
   return { ok: true, why: `"${SUMMARY_CHECK}" passed` };
