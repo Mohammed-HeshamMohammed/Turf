@@ -13,6 +13,7 @@ require (
 )
 
 require (
+	callerwhale/runtimelog v0.0.0
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/go-jose/go-jose/v4 v4.1.6 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -21,3 +22,5 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 )
+
+replace callerwhale/runtimelog => ../../packages/go/runtimelog

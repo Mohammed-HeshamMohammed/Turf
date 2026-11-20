@@ -18,7 +18,7 @@ type config struct {
 	publicSignup   bool   // anyone may create an account; off for a private server
 	publicURL      string // this service's public address
 	websiteURL     string
-	landingURL     string // where a sign-in or a confirmation link started from the public site returns
+	landingURL     string            // where a sign-in or a confirmation link started from the public site returns
 	statusProbes   map[string]string // STATUS_PROBES: part=health address, checked every minute (step 34)
 	appURL         string
 	devTokens      bool // development only: return email confirmation tokens in answers

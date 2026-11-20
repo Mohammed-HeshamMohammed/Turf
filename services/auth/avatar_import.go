@@ -40,7 +40,7 @@ func fetchGooglePicture(ctx context.Context, raw string) string {
 	if err != nil {
 		return ""
 	}
-	client := &http.Client{CheckRedirect: func(next *http.Request, via []*http.Request) error {
+	client := &http.Client{Timeout: 6 * time.Second, CheckRedirect: func(next *http.Request, via []*http.Request) error {
 		if len(via) > 3 || !googlePictureHost(next.URL.String()) {
 			return http.ErrUseLastResponse
 		}

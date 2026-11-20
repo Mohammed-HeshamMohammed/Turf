@@ -1,6 +1,6 @@
 # Auth
 
-The authentication service, in Go. It replaced the Rust service that used to live here. Plan, decisions, phases and what is left: [docs/plans/go-auth.md](../../docs/plans/go-auth.md).
+The authentication service, in Go. It replaced the Rust service that used to live here. Plan, decisions, phases and what is left: [docs/plans/go-auth.md](../../Caller%20Whale%20CRM/docs/plans/go-auth.md).
 
 | | |
 | --- | --- |
@@ -9,8 +9,8 @@ The authentication service, in Go. It replaced the Rust service that used to liv
 | Data | PostgreSQL only (`database_setup_history` plus the numbered SQL in `database_setup/`) |
 | Accounts | Firebase holds accounts and passwords (always needs `AUTH_FIREBASE_API_KEY`); this service keeps no passwords |
 | Human check | Not here. The gateway checks reCAPTCHA; this service has no setting for it |
-| Settings | [env/auth.production.example](../../env/auth.production.example) |
-| Token check for other services | `tools/auth-verify/` (Go, copied into each Go service that checks tokens, today the gateway); `clients/` (JavaScript sign-in client, copied into the apps by `clients/sync.mjs`) |
+| Settings | [env/auth.production.example](../../Caller%20Whale%20CRM/env/auth.production.example) |
+| Token check for other services | `packages/go/authverify/` (Go, copied into each Go service that checks tokens, today the gateway); `clients/` (JavaScript sign-in client, copied into the apps by `clients/sync.mjs`) |
 
 ## What is built
 
@@ -46,7 +46,7 @@ If the profile says authorization is unavailable (503), check auth's logs for `W
 | Dockerfile location | `/Dockerfile` |
 | Port | 8101 |
 | Health check | the image has one (`/service health`); or HTTP `/healthz` on 8101 |
-| Settings | every key in [env/auth.production.example](../../env/auth.production.example), in Coolify only |
+| Settings | every key in [env/auth.production.example](../../Caller%20Whale%20CRM/env/auth.production.example), in Coolify only |
 
 The service creates and updates its own tables when it starts, so it only needs an empty PostgreSQL database and its role. The gateway does the human check.
 

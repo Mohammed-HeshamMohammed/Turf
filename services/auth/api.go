@@ -1,6 +1,7 @@
 package main
 
 import (
+	"callerwhale/runtimelog"
 	"context"
 	"errors"
 	"log"
@@ -91,7 +92,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("GET /v1/admin/overview", serve(s.adminOverview))
 	mux.Handle("GET /v1/announcement", serve(s.getAnnouncement))
 	mux.Handle("POST /v1/client-errors", serve(s.clientErrors)) // step 42: browser errors, without personal data
-	s.helpRoutes(mux) // step 40: support conversations, what's new, early features, feedback
+	s.helpRoutes(mux)                                           // step 40: support conversations, what's new, early features, feedback
 	// The status page, the outage banner and owners' emails, and breach notices (step 34).
 	mux.Handle("GET /v1/status", serve(s.getStatus))
 	mux.Handle("POST /v1/admin/status/incidents", serve(s.openIncident))
@@ -159,7 +160,7 @@ func (s *server) handler() http.Handler {
 		AllowedMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete},
 		AllowedHeaders: []string{"Content-Type", "Authorization"},
 	})
-	return logHTTP(policy.Handler(mux))
+	return runtimelog.LogHTTP(policy.Handler(mux))
 }
 
 // ---- the signed-in person ----
