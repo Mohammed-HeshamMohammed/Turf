@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { deploy, plan, readRecords, deployHeaders } from "./coolify-deploy.mjs";
+import { deploy, plan, readRecords, checkApps, record, PULL_ENVIRONMENT } from "./coolify-deploy.mjs";
 
 const APP = "cs7nxvwhusacrlrsmolbqll9";
 const d = n => `sha256:${String(n).repeat(64)}`;
@@ -105,10 +105,25 @@ test("a refused setting stops before deploying", async () => {
 
 test("Cloudflare's challenge page is named, not shown as a Coolify refusal", async t => {
   t.mock.method(globalThis, "fetch", async () => ({ status: 403, text: async () => "<!DOCTYPE html><title>Just a moment...</title>" }));
-  await assert.rejects(deploy(plan([rec("cw-a", "")]), { base: "https://c.test", token: "t", log: () => {} }), /Cloudflare's bot check answered instead of Coolify .*https:\/\/c\.test\/api\//);
+  await assert.rejects(deploy(plan([rec("cw-a", "")]), { base: "https://c.test", token: "t", log: () => {} }), /Cloudflare's bot protection answered instead of Coolify .*localhost/);
 });
 
-test("the deploy secret is sent as x-callerwhale-deploy only when it is set", () => {
-  assert.deepEqual(deployHeaders({ COOLIFY_DEPLOY_SECRET: "s3cret" }), { "x-callerwhale-deploy": "s3cret" });
-  assert.deepEqual(deployHeaders({}), {});
+test("a plan read back from GitHub is checked again before it touches Coolify", () => {
+  const ok = plan([rec("cw-a", ""), rec("cw-b", "B_IMAGE", d(2), "bbbbbbbbbbbbbbbbbbbbbbbb")]);
+  assert.equal(checkApps(ok), ok);
+  assert.throws(() => checkApps([]), /short list/);
+  assert.throws(() => checkApps([{ app: "x" }]), /application id/);
+  assert.throws(() => checkApps([{ app: APP, image: { name: "docker.io/evil/cw-a", tag: "sha256-" + "a".repeat(64) } }]), /unexpected image/);
+  assert.throws(() => checkApps([{ app: APP, settings: [{ key: "PATH", value: "x" }] }]), /unexpected setting/);
+  assert.throws(() => checkApps([{ app: APP }]), /nothing to set/);
+});
+
+test("the approved plan is recorded as a GitHub deployment for the server's puller", async t => {
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, init) => { calls.push({ url, body: JSON.parse(init.body), auth: init.headers.Authorization }); return { status: 201, text: async () => JSON.stringify({ id: 42 }) }; });
+  const apps = plan([rec("cw-a", "")]);
+  assert.equal(await record(apps, { repo: "o/r", sha: "abc", token: "gh", log: () => {} }), 42);
+  assert.equal(calls[0].url, "https://api.github.com/repos/o/r/deployments");
+  assert.equal(calls[0].auth, "Bearer gh");
+  assert.deepEqual({ ...calls[0].body, description: undefined }, { ref: "abc", environment: PULL_ENVIRONMENT, auto_merge: false, required_contexts: [], payload: { apps }, description: undefined });
 });
