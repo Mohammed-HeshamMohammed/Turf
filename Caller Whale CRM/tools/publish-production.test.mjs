@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { runtimeLogTargets, pruneWorkspace, rewriteDockerfile, checksVerdict } from "./publish-production.mjs";
+import { pruneWorkspace, rewriteDockerfile, checksVerdict } from "./publish-production.mjs";
 
 const cargo = `# One workspace.
 [workspace]
@@ -58,13 +58,6 @@ test("the real workspace file prunes to its members", () => {
   assert.equal([...pruned.matchAll(/^\s+"([^"]+)",?$/gm)].map(m => m[1]).join(), "services/features/leads-map");
 });
 
-test("production snapshots inject a runner only for opted-in image contexts", () => {
-  assert.deepEqual(runtimeLogTargets([
-    ["Dockerfile", "FROM golang:1 AS runtime-log-build"],
-    ["services/core-api/Dockerfile", "FROM golang:1 AS runtime-log-build"],
-    ["vendor/Dockerfile", "FROM redis:7"],
-  ]), ["runtime-log/main.go", "services/core-api/runtime-log/main.go"]);
-});
 
 test("only a commit whose CI summary passed is published", () => {
   let id = 0;

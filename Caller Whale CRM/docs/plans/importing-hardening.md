@@ -1,6 +1,6 @@
 # Importing and data storing: review and plan (2026-11-10)
 
-Scope: the import service (`services/features/importing-lists`: upload API, worker, readers, matching) and how imported data is stored (the `importing` schema and the merge into leads). Not the CRM screens, not the rest of crm-core.
+Scope: the import service (`services/importing-lists`: upload API, worker, readers, matching) and how imported data is stored (the `importing` schema and the merge into leads). Not the CRM screens, not the rest of crm-core.
 
 What is already right: size limits, a zip-bomb guard, XML entity tricks refused, SHA-256 per piece with resume, one login for the worker that cannot touch leads, non-root user, abandoned uploads cleared after 48 hours, failed rows cleared after 14 days, 3 active imports per workspace.
 

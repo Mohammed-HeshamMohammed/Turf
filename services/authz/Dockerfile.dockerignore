@@ -1,0 +1,11 @@
+# The build context is the repository root (step 50+51): send only this service and the shared Go modules.
+*
+!packages/go
+!services/authz
+**/node_modules
+**/__pycache__
+**/.env
+**/.env.*
+**/*.exe
+services/authz/*_test.go
+services/authz/README.md

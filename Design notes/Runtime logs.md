@@ -59,7 +59,7 @@ The current new-VPS production environment was inspected during this change and 
 
 ## One source, independent deployment branches
 
-`tools/runtime-log/main.go` is the canonical dependency-free Go runner. For local Docker builds, run the sync command below to generate ignored copies under each build context’s `runtime-log/main.go`. The production publisher injects the canonical source into each isolated branch snapshot automatically, so main keeps one runner source rather than 18 duplicate files. Isolated branches can then build without reaching into another branch. Docker compiles the runner as a static binary and keeps each application's existing command, user, healthcheck and application port.
+`packages/go/runtimelog/cmd/callerwhale-log/main.go` is the canonical dependency-free Go runner. For local Docker builds, run the sync command below to generate ignored copies under each build context’s `runtime-log/main.go`. The production publisher injects the canonical source into each isolated branch snapshot automatically, so main keeps one runner source rather than 18 duplicate files. Isolated branches can then build without reaching into another branch. Docker compiles the runner as a static binary and keeps each application's existing command, user, healthcheck and application port.
 
 Request adapters are maintained alongside the runner and synchronized to their consumers.
 

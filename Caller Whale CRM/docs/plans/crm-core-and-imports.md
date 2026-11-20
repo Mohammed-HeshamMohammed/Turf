@@ -12,7 +12,7 @@ The web CRM shows "Caller Whale's server cannot be reached". It asks `gate.calle
 | --- | --- | --- | --- |
 | **CRM PostgreSQL** | Database (new, Coolify) | - | Leads, tasks, notes, calls, deals, handoffs, workspaces, the change feed, the import holding tables and the job queue. One database, separate schemas and logins |
 | **crm-core** | App, always on | Go | The CRM's backend. `gate.callerwhale.com` points here. It is the `core-api` caller authz already knows |
-| **importing-lists** | App, always on but idle until a job is queued | Python with polars | Turns an uploaded file into rows in SQL, removes duplicates, matches columns, cleans data (fills in the existing scaffold in `services/features/importing-lists`) |
+| **importing-lists** | App, always on but idle until a job is queued | Python with polars | Turns an uploaded file into rows in SQL, removes duplicates, matches columns, cleans data (fills in the existing scaffold in `services/importing-lists`) |
 
 Not needed: a storage bucket (files come through our server), a second Redis (the existing one can serve live progress later), separate databases per service.
 
@@ -35,7 +35,7 @@ Answers what the web CRM calls today (`apps/crm/src/remote/api.ts`, `RemoteGate.
 - Forwards `POST/OPTIONS /api/v1/public/contact` to the notification service, so the website's contact form keeps working when `gate` moves.
 
 Where facts come from:
-- **Who:** the auth token, checked locally with auth's public keys (`tools/auth-verify`, copied into crm-core).
+- **Who:** the auth token, checked locally with auth's public keys (`packages/go/authverify`, copied into crm-core).
 - **Workspaces, roles, capabilities, record scope, suspended or unpaid:** authz (`GET /v1/people/{user}`, `POST /v1/grant`) with crm-core's own `core-api` token, cached for a few seconds.
 - **Workspace names and people's display names:** crm-core keeps them (authz holds only ids and roles).
 
@@ -95,7 +95,7 @@ Secrets (database passwords, the `core-api` token for authz) are set by the owne
 
 - **crm-core** (`services/crm-core`, Go, port 8107): `/api/v1/me`, `/account`, `/directory`, `/admin/teams`, `/projects`, `/ops`, `/credits/use`; `/sync/snapshot`, `/pull`, `/push` with every operation kind the web CRM sends except `message.draft` (refused until messaging exists); the `/events` WebSocket over PostgreSQL `LISTEN/NOTIFY`; the contact-form pass-through; CORS for the listed pages. Database tables and row security are created at start by numbered, checksummed scripts. Tested against a real PostgreSQL, including that a workspace never sees another's records.
 - **Imports, crm-core side:** mapping confirmation, repeat decisions, and the merge into leads in batches of 50,000 (resumes after a restart; cancel stops between batches).
-- **importing-lists** (`services/features/importing-lists`, Python and polars): assembly, load, exact duplicates, column suggestions, cleaning, repeats inside the file and against existing leads, resume after a restart, one import at a time. 500,000 rows by 20 columns: about 18 s to load, about 70 s to clean and find repeats, peak memory about 600 MB.
+- **importing-lists** (`services/importing-lists`, Python and polars): assembly, load, exact duplicates, column suggestions, cleaning, repeats inside the file and against existing leads, resume after a restart, one import at a time. 500,000 rows by 20 columns: about 18 s to load, about 70 s to clean and find repeats, peak memory about 600 MB.
 - **Decided while building:** a workspace the CRM has never seen is named after the person who opened it until an administrator renames it (`PATCH /api/v1/organization`); a person's access revision is derived from what authz grants them, so a change in roles resets their devices without a counter to keep; pieces are joined into one file as they are used and the file is kept until the load finishes (a restart needs it), then deleted.
 - **Also built since:** the CRM's import screen (`ServerImport.jsx`), a limit of 3 imports in progress per workspace, a guard against spreadsheets that unpack absurdly, refusal of XML entity tricks (`defusedxml`), and a clean-up that deletes the holding rows of finished, failed or cancelled imports after 14 days (the import's own record stays).
 - **Checked against the real thing:** the worker's database login can do its job and nothing else (it cannot read or change leads, or change structure); crm-core's client reads the real authz service's answers correctly (`CRM_TEST_AUTHZ_URL`, `CRM_TEST_AUTHZ_TOKEN`).

@@ -48,7 +48,7 @@ Python service, Rust workspace, Dockerfile and workflow), and GitHub opens secur
   covered without anyone adding it) with every id the first agency has, and fails if any answer shows that agency's lead, phone,
   email, client, note, task, file or form, or if anything of theirs changed. A control shows the first agency does see its data.
 
-`services/features/dialer-sms/isolation_test.go` does the same for the dialer's calls and texts (every route, every id), and the
+`services/dialer-sms/isolation_test.go` does the same for the dialer's calls and texts (every route, every id), and the
 messaging service's tests check chats (`services/messaging/chat_test.go`).
 The production branches should only be published from a `main` whose checks are green.
 

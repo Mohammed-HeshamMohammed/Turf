@@ -86,7 +86,7 @@ jobs:
       fail-fast: false
       matrix:
         dir:
-          - Caller Whale CRM/services/billing
+          - services/billing
           - service
     steps:
       - uses: actions/checkout@v7

@@ -31,7 +31,7 @@
       "name": "callerwhale-auth",
       "runtimeExecutable": "C:/Program Files/Git/bin/bash.exe",
       "runtimeArgs": [
-        "Caller Whale CRM/services/auth/scripts/run-auth.sh"
+        "services/auth/scripts/run-auth.sh"
       ],
       "port": 8101
     },

@@ -3,8 +3,8 @@
 # this file sends only what the image needs. The auth service and the gateway are fixed at build time (they are also in the
 # content security policy); the build stops without them, so an app that would talk to localhost is never made.
 FROM golang:1 AS runtime-log-build
-COPY ["apps/crm-web/runtime-log/main.go", "/src/main.go"]
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log /src/main.go
+COPY packages/go/runtimelog /src
+RUN cd /src && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log ./cmd/callerwhale-log
 
 FROM node:24-alpine AS build
 WORKDIR /repo

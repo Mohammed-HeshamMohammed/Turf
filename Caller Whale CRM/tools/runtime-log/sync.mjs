@@ -1,20 +1,30 @@
-// Each build context carries an identical dependency-free runner source.
+// The deployed images build the log wrapper from packages/go/runtimelog (step 50+51); --check makes sure each still starts
+// through it. The scaffolds (services/features/*, D384, never deployed) still get a generated copy of the wrapper and of
+// their request adapters until step 54 moves them.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve, dirname } from "node:path";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+export const images = [
+ ["../apps/website", "Landing"], ["../apps/crm-web", "Dashboard"],
+ ["../services/auth", "Auth"], ["../services/authz", "Authorization"], ["../services/billing", "Billing"],
+ ["../services/gateway", "Gateway"], ["../services/mcp", "MCP"], ["../services/crm-core", "CRM core"], ["../services/assistant", "Assistant"],
+ ["../services/grafana-proxy", "Grafana proxy"], ["../services/alert-relay", "Alert relay"], ["../services/notifications", "Notifications"],
+ ["../services/live", "Live server"], ["../services/dialer-sms", "Dialer SMS"], ["../services/importing-lists", "Importing lists"],
+ ["../services/messaging", "Messaging"], ["../services/learning", "Learning"],
+];
 export const containers = [
- ["../apps/website", "Landing"],
- ["../apps/crm-web", "Dashboard"],
- ["services/auth", "Auth"], ["services/authz", "Authorization"], ["services/billing", "Billing"],
- ["services/gateway", "Gateway"], ["services/mcp", "MCP"], ["services/crm-core", "CRM core"], ["services/assistant", "Assistant"], ["services/grafana-proxy", "Grafana proxy"], ["services/alert-relay", "Alert relay"], ["services/notifications", "Notifications"], ["services/live", "Live server"],
  ["services/features/ai-campaigns", "AI campaigns"], ["services/features/backup-restore", "Backup restore", true],
- ["services/features/crm", "CRM", true], ["services/features/dialer-sms", "Dialer SMS"],
- ["services/features/exports", "Exports"], ["services/features/importing-lists", "Importing lists"],
+ ["services/features/crm", "CRM", true], ["services/features/exports", "Exports"],
  ["services/features/leads-map", "Leads map", true], ["services/features/skip-tracing", "Skip tracing"],
 ];
-const source = readFileSync(resolve(root, "tools/runtime-log/main.go"), "utf8");
+const source = readFileSync(resolve(root, "../packages/go/runtimelog/cmd/callerwhale-log/main.go"), "utf8");
 const check = process.argv.includes("--check");
+for (const [folder, service] of images) {
+ const docker = readFileSync(resolve(root, folder, "Dockerfile"), "utf8");
+ if (!docker.includes("COPY packages/go/runtimelog /src") || !docker.includes("./cmd/callerwhale-log") || !docker.includes('callerwhale-log"') || !docker.includes(`CALLERWHALE_LOG_SERVICE="${service}"`))
+  throw new Error(`${folder}/Dockerfile must build the log wrapper from packages/go/runtimelog and start through it as "${service}"`);
+}
 for (const [folder, service, rootContext] of containers) {
  const base = resolve(root, folder), target = resolve(base, "runtime-log/main.go");
  if (check) {
@@ -41,7 +51,6 @@ console.log(`${check ? "Checked" : "Synchronized"} ${containers.length} applicat
 const adapters = [
  ["scaffold-access.rs.txt", ["services/features/crm/src/access_log.rs", "services/features/leads-map/src/access_log.rs", "services/features/backup-restore/src/access_log.rs"]],
  ["access-log.mjs", ["services/features/ai-campaigns/src/access-log.mjs"]],
- ["access.go", ["services/gateway/access_log.go", "services/grafana-proxy/access_log.go", "services/notifications/access_log.go", "services/auth/access_log.go", "services/authz/access_log.go", "services/features/dialer-sms/access_log.go"]],
 ];
 for (const [sourceName, targets] of adapters) {
  const body = readFileSync(resolve(root, "tools/runtime-log", sourceName), "utf8");

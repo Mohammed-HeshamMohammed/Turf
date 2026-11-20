@@ -3,7 +3,9 @@
 services:
   grafana-proxy:
     build:
-      context: ../../services/grafana-proxy
+      context: ../../..
+      dockerfile: services/grafana-proxy/Dockerfile
   alert-relay:
     build:
-      context: ../../services/alert-relay
+      context: ../../..
+      dockerfile: services/alert-relay/Dockerfile
