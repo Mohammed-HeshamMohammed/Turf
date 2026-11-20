@@ -1,0 +1,62 @@
+{
+  "name": "testing-full-crm-mode",
+  "version": "0.0.0",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node scripts/prepare-sites-build.mjs",
+    "preview": "vite preview",
+    "test:sites": "node --test tests/sites-worker.test.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "lint": "eslint .",
+    "typecheck": "tsc -p .",
+    "format": "prettier --write src tests/crm-model.test.mjs eslint.config.js vite.config.mjs design-qa.md",
+    "tauri": "node scripts/tauri.mjs",
+    "desktop": "node scripts/tauri.mjs dev",
+    "desktop:sample": "node scripts/desktop-sample.mjs",
+    "css:unused": "node scripts/css-unused.mjs"
+  },
+  "dependencies": {
+    "@callerwhale/auth-client": "1.0.0",
+    "@callerwhale/calendar": "1.0.0",
+    "@callerwhale/error-report": "1.0.0",
+    "@fontsource-variable/schibsted-grotesk": "^5.3.0",
+    "@phosphor-icons/react": "^2.1.10",
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-process": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.14.1",
+    "@vitejs/plugin-react": "5.0.4",
+    "centrifuge": "^5.8.0",
+    "dexie": "^4.4.7",
+    "leaflet": "^1.9.4",
+    "papaparse": "^5.7.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "recharts": "^3.10.1",
+    "vite": "6.4.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@tauri-apps/cli": "^2.12.4",
+    "@types/leaflet": "^1.9.22",
+    "@types/papaparse": "^5.5.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@typescript-eslint/parser": "^8.72.1",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "fake-indexeddb": "^6.2.8",
+    "globals": "^17.14.0",
+    "postcss": "^8.5.33",
+    "postcss-selector-parser": "^7.2.1",
+    "prettier": "^3.10.1",
+    "typescript": "5.9",
+    "typescript-eslint": "^8.72.2"
+  },
+  "overrides": {
+    "minimatch": "^11.0.1"
+  }
+}

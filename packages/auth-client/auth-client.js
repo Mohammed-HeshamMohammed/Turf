@@ -1,0 +1,255 @@
+// Signing in with Caller Whale's auth service, for the website and the CRM (in a browser tab and in the desktop window).
+// Plain JavaScript with no dependencies, so the same file serves both. The one copy: the apps import it as
+// @callerwhale/auth-client (npm workspaces, D383).
+//
+// The access token lives only in memory and is refreshed a minute before it expires. The refresh token is kept in
+// the browser's storage so a reload stays signed in; on a shared device (the person chose it at sign-in, and the server's
+// answer says "device": "shared") only in this tab's storage, so closing the tab signs out. Anything that can run script in the page could read it, so the
+// pages that use this must not load scripts from other sites.
+
+export class AuthError extends Error {
+  constructor(status, code, message, data = null) {
+    super(message);
+    this.status = status;
+    this.code = code;
+    /** What else the server said: for "mfa_required", the `challenge` and the `methods` it may be answered with. */
+    this.data = data;
+  }
+}
+
+const REFRESH_KEY = "callerwhale.auth.refresh";
+/** "shared" while a sign-in with Google or Apple is on its way, so the session it comes back with is a shared device's. */
+const DEVICE_KEY = "callerwhale.auth.device";
+const EARLY_MS = 60_000;
+/** /v1/me is asked once a minute at most; new tokens, signing out and anything that changes the answer ask again. */
+const ME_MS = 60_000;
+
+export function createAuth({ base, storage = globalThis.localStorage, tabStorage = globalThis.sessionStorage, fetchImpl = (...args) => fetch(...args), now = () => Date.now(), onChange = () => {} }) {
+  base = String(base || "").replace(/\/$/, "");
+  let access = null;
+  let refreshing = null;
+  let known = null; // the last /v1/me request and when it was made
+  const dropMe = () => {
+    known = null;
+  };
+
+  const readRefresh = () => {
+    try {
+      return tabStorage?.getItem(REFRESH_KEY) || storage?.getItem(REFRESH_KEY) || null;
+    } catch {
+      return null;
+    }
+  };
+  const writeRefresh = (value, shared = false) => {
+    try {
+      tabStorage?.removeItem(REFRESH_KEY);
+      storage?.removeItem(REFRESH_KEY);
+      if (value) (shared ? tabStorage : storage)?.setItem(REFRESH_KEY, value);
+    } catch {
+      /* Not remembered on this device: signed in until the page closes. */
+    }
+  };
+  /** The device chosen before a sign-in with Google or Apple: "shared", or nothing (my device). Read once. */
+  const takeDevice = () => {
+    try {
+      const device = tabStorage?.getItem(DEVICE_KEY) || "";
+      tabStorage?.removeItem(DEVICE_KEY);
+      return device === "shared" ? "shared" : "";
+    } catch {
+      return "";
+    }
+  };
+
+  async function call(method, path, body, token) {
+    let response;
+    const send = () =>
+      fetchImpl(base + path, {
+        method,
+        headers: { ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    try {
+      try {
+        response = await send();
+      } catch (first) {
+        // A read can safely be asked again: a flaky connection or proxy often answers the second time. A write is never repeated here.
+        if (method !== "GET") throw first;
+        await new Promise(resolve => setTimeout(resolve, 600));
+        response = await send();
+      }
+    } catch {
+      // The browser reports a blocked address, a proxy's block page and a dropped connection the same way, so say all of them.
+      let host = "the sign-in service";
+      try {
+        host = new URL(base).host;
+      } catch {
+        /* the plain words will do */
+      }
+      throw new AuthError(0, "offline", `Cannot reach ${host}. Check your connection. On a work or school network it may be blocked: try another network, or ask whoever runs it to allow ${host}.`);
+    }
+    const text = await response.text();
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+    if (!response.ok) {
+      // The invisible human check could not vouch for this person, and the server has a box for them: tell the page to show it.
+      if (data?.code === "human_required" && data.fallback && typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+        window.dispatchEvent(new Event("callerwhale:human-fallback"));
+      }
+      throw new AuthError(response.status, data?.code || "error", data?.error || "Sign-in was refused.", data);
+    }
+    return data;
+  }
+
+  function keep(tokens) {
+    access = { token: tokens.access_token, expiresAt: now() + tokens.expires_in * 1000 };
+    dropMe(); // new tokens may say something new (the second step passed, the email confirmed)
+    if (tokens.refresh_token) writeRefresh(tokens.refresh_token, tokens.device === "shared");
+    onChange();
+    return tokens;
+  }
+
+  function forget() {
+    const had = access || readRefresh();
+    access = null;
+    dropMe();
+    writeRefresh(null);
+    if (had) onChange();
+  }
+
+  /** New tokens from the refresh token. Several callers at once share one request. */
+  function refresh() {
+    if (refreshing) return refreshing;
+    const token = readRefresh();
+    if (!token) return Promise.resolve(null);
+    refreshing = call("POST", "/v1/sessions/refresh", { refresh_token: token })
+      .then(keep, reason => {
+        // The session ended (signed out elsewhere, or the token was copied): this device is signed out too.
+        if (reason.status === 401) forget();
+        throw reason;
+      })
+      .finally(() => {
+        refreshing = null;
+      });
+    return refreshing;
+  }
+
+  /** A current access token, refreshed when it is about to expire. Null when nobody is signed in. */
+  async function accessToken() {
+    if (access && access.expiresAt - EARLY_MS > now()) return access.token;
+    if (!readRefresh()) return null;
+    await refresh();
+    return access?.token ?? null;
+  }
+
+  const withToken = async (method, path, body) => call(method, path, body, await accessToken());
+
+  return {
+    base,
+    signedIn: () => Boolean(access || readRefresh()),
+    accessToken,
+    refresh,
+    /** `birth_date` is YYYY-MM-DD: the age check. Refused (403) under 18. */
+    signUp: (name, email, password, kind = "browser", human_token = "", birth_date = "", terms_version = "", invitation = null) => call("POST", "/v1/accounts", { name, email, password, kind, birth_date, terms_version, ...(human_token ? { human_token } : {}), ...(invitation ? { invitation_id: invitation.id, invitation_key: invitation.key } : {}) }).then(keep),
+    /** Before a sign-in with Google or Apple: whether this is a shared device, so the session that comes back is kept only in this tab. */
+    chooseDevice: shared => {
+      try {
+        if (shared) tabStorage?.setItem(DEVICE_KEY, "shared");
+        else tabStorage?.removeItem(DEVICE_KEY);
+      } catch {
+        /* the sign-in is then kept as on the person's own device */
+      }
+    },
+    /** The age check for an account that has not given its date of birth yet (`me.age_confirmed` is false). Once only. */
+    setBirthDate: birth_date => withToken("POST", "/v1/me/birth-date", { birth_date }),
+    /** Agrees to the terms and privacy notice, by version (`me.terms_version` is the current one). */
+    acceptTerms: version => withToken("POST", "/v1/me/terms", { version }),
+    /** The answers about a person's work: { role, team_size, uses: [...], other }. */
+    setWorkProfile: answers => withToken("POST", "/v1/me/work", answers),
+    /** With two-step sign-in on, the first try answers code "mfa_required"; try again with `code`. */
+    signIn: (email, password, code, kind = "browser", human_token = "") => call("POST", "/v1/sessions", { email, password, ...(code ? { code } : {}), kind, ...(human_token ? { human_token } : {}) }).then(keep),
+    /** Emails a password reset link. The answer is the same for any address. */
+    forgotPassword: (email, human_token = "") => call("POST", "/v1/password/forgot", { email, ...(human_token ? { human_token } : {}) }),
+    /** A new password with the code from the reset link; every session of that person ends. */
+    resetPassword: (token, password) => call("POST", "/v1/password/reset", { token, new: password }),
+    /** Trades the one-time code a Google or Apple sign-in came back with. */
+    exchange: code => call("POST", "/v1/oauth/exchange", { code, device: takeDevice() }).then(keep),
+    providers: () => call("GET", "/v1/providers"),
+    security: () => call("GET", "/v1/security"),
+    providerUrl: (provider, target, port, human_token = "", action = "signin") => call("POST", `/v1/oauth/${encodeURIComponent(provider)}/start`, { target, ...(port ? { port } : {}), human_token, action }).then(answer => answer.url),
+    /** Where to send the browser to sign in with a provider. `target` is website, app, landing (the public site) or desktop (with `port`). */
+    startUrl: (provider, target, port) => `${base}/v1/oauth/${encodeURIComponent(provider)}/start?target=${target}${port ? `&port=${port}` : ""}`,
+    /** This page goes to the provider (through auth) and comes back with `?callerwhale_code=`; `finishProvider` trades it. */
+    startProvider: async (provider, target, human_token = "", action = "signin") => {
+      const answer = await call("POST", `/v1/oauth/${encodeURIComponent(provider)}/start`, { target, human_token, action });
+      globalThis.location.href = answer.url;
+    },
+    /** True when this page came back from a provider and is now signed in. Reads the code before anything awaits. */
+    finishProvider: async () => {
+      const query = new URLSearchParams(globalThis.location?.search || "");
+      const code = query.get("callerwhale_code");
+      const refused = query.get("oauth_error");
+      if (!code && !refused) return false;
+      globalThis.history?.replaceState(null, "", globalThis.location.pathname + globalThis.location.hash);
+      if (!code) throw new AuthError(400, "oauth_error", refused);
+      await call("POST", "/v1/oauth/exchange", { code, device: takeDevice() }).then(keep);
+      return true;
+    },
+    /** Who is signed in and what they have set up. Many callers in a minute share one request; `{ fresh: true }` asks again. */
+    me: ({ fresh = false } = {}) => {
+      if (!fresh && known && now() - known.at < ME_MS) return known.request;
+      const request = withToken("GET", "/v1/me");
+      known = { at: now(), request };
+      // A failed answer is never remembered.
+      request.catch(() => {
+        if (known?.request === request) dropMe();
+      });
+      return request;
+    },
+    /** A one-time code that hands this sign-in to the desktop app (sent only to 127.0.0.1 by the website page). */
+    /** A one-time code that signs the same person in somewhere else: the desktop app (the default), or the CRM web app (`kind` "browser"). */
+    handoff: (kind = "desktop") => withToken("POST", "/v1/handoffs", { kind }).then(answer => answer.code),
+    // ---- the second step (docs/plans/second-factor.md) ----
+    /**
+     * After the password, a person who set up a second step gets `mfa_required` with `error.data = { challenge, methods }`
+     * (methods: "totp", "email", "telegram", "push"). `sendCode` asks for an email or Telegram code, or an approval on a
+     * device that is already signed in; `answer` finishes the sign-in with the code (or the approval) and keeps the tokens.
+     */
+    sendCode: (challenge, method, device) => call("POST", "/v1/mfa/challenge/send", { challenge, method, ...(device ? { device } : {}) }),
+    answer: (challenge, method, code) => call("POST", "/v1/mfa/challenge/answer", { challenge, method, ...(code ? { code } : {}) }).then(keep),
+    /** Where an approval request stands: "pending", "approved", "denied" or "expired". */
+    approvalState: challenge => call("POST", "/v1/mfa/challenge/status", { challenge }).then(reply => reply.push),
+    /** A step-up on this signed-in session (after Google, or for staff who set nothing up): a challenge and its methods. */
+    startStepUp: () => withToken("POST", "/v1/mfa/challenge/start"),
+    /** Requests waiting for this signed-in device to approve (it must have passed a second step itself). */
+    approvals: () => withToken("GET", "/v1/mfa/approvals").then(reply => reply.approvals),
+    decide: (id, approve) => withToken("POST", `/v1/mfa/approvals/${encodeURIComponent(id)}`, { approve }),
+    /** What the person has set up, what could be set up, and how many authenticator devices may be on. */
+    factors: () => withToken("GET", "/v1/mfa/factors"),
+    removeFactor: id => withToken("DELETE", `/v1/mfa/factors/${encodeURIComponent(id)}`).finally(dropMe),
+    setupMfa: () => withToken("POST", "/v1/mfa/totp/setup"),
+    /** Adds an authenticator device; a fourth removes the oldest (`removed` names them). The session counts as confirmed. */
+    confirmMfa: async (code, label) => {
+      const answer = await withToken("POST", "/v1/mfa/totp/confirm", { code, ...(label ? { label } : {}) });
+      await refresh();
+      return answer;
+    },
+    /** Turns the codes sent to the person's email on or off as a way to answer the second step. */
+    setEmailCodes: enabled => withToken("POST", "/v1/mfa/email", { enabled }),
+    /** A one-time link that opens the bot in Telegram and links that chat. */
+    linkTelegram: () => withToken("POST", "/v1/mfa/telegram/link"),
+    /** Confirms a code from an authenticator device for this session (the older step-up). */
+    verifyMfa: async code => keep(await withToken("POST", "/v1/mfa/verify", { code })),
+    verifyEmail: token => call("POST", "/v1/email/verify", { token }).finally(dropMe),
+    /** A new confirmation link; then a fresh token says whether the email is confirmed. */
+    resendEmail: () => withToken("POST", "/v1/email/resend"),
+    signOut: async () => {
+      const token = readRefresh();
+      forget();
+      if (token) await call("POST", "/v1/sessions/sign-out", { refresh_token: token }).catch(() => undefined);
+    },
+  };
+}

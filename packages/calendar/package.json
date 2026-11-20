@@ -1,0 +1,21 @@
+{
+  "name": "@callerwhale/calendar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Caller Whale's calendar and date field, drawn by the app (plain React and CSS).",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./calendar.d.ts",
+      "default": "./calendar.jsx"
+    },
+    "./calendar.css": "./calendar.css"
+  },
+  "sideEffects": [
+    "*.css"
+  ],
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

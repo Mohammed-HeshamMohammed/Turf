@@ -1,31 +1,13 @@
 {
-  "name": "callerwhale-landing-site",
-  "version": "0.1.0",
-  "license": "UNLICENSED",
+  "name": "callerwhale",
   "private": true,
-  "type": "module",
+  "description": "npm workspaces (D383): the shared packages and the web apps that use them. Run npm ci here, not in an app.",
+  "workspaces": [
+    "packages/*",
+    "Caller Whale CRM/desktop/frontend/react",
+    "Caller Whale CRM/landing/site"
+  ],
   "scripts": {
-    "dev": "vite --port 5200 --strictPort",
-    "typecheck": "tsc --noEmit",
-    "build": "tsc --noEmit && vite build && vite build --ssr src/entry-server.tsx --outDir dist-ssr && node scripts/prerender.mjs",
-    "preview": "vite preview --port 5200 --strictPort",
-    "test": "node --test \"tests/*.test.mjs\""
-  },
-  "dependencies": {
-    "@fontsource-variable/schibsted-grotesk": "^5.3.0",
-    "qrcode": "^1.5.4",
-    "react": "19.3.1",
-    "react-dom": "19.3.1"
-  },
-  "devDependencies": {
-    "@tailwindcss/vite": "^4.3.5",
-    "@types/node": "^24.19.2",
-    "@types/qrcode": "^1.5.6",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "5.0.4",
-    "tailwindcss": "^4.1.14",
-    "typescript": "^5.9.3",
-    "vite": "6.4.5"
+    "test:packages": "npm test --workspaces --if-present --workspace=packages/*"
   }
 }

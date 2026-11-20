@@ -1,0 +1,33 @@
+/* Tailwind's theme and utilities, without its resets (preflight): the site's own styles keep working as they are, and every
+   utility class is available for new work. The site's styles sit in the components layer so a utility always wins over them. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "./styles.css" layer(components);
+@import "@callerwhale/calendar/calendar.css" layer(components);
+@import "./pricing/builder.css" layer(components);
+@import "./pricing.css" layer(components);
+@import "./public.css" layer(components);
+@import "./home.css" layer(components);
+@import "./assistant.css" layer(components);
+
+/* The site's colours as Tailwind colours: bg-card, text-ink, border-line, bg-accent and so on. */
+@theme inline {
+  --color-page: var(--page);
+  --color-shell: var(--shell);
+  --color-card: var(--card);
+  --color-raised: var(--raised);
+  --color-well: var(--well);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-danger-ink: var(--danger-ink);
+  --color-dark: var(--dark);
+  --color-good: var(--good);
+  --color-good-ink: var(--good-ink);
+  --radius-card: var(--radius);
+  --radius-inner: var(--inner);
+}
