@@ -158,7 +158,7 @@ jobs:
   # The shared Go modules (packages/go, step 50+51); every service that imports them also runs when they change.
   authverify:
     needs: changes
-    if: contains(fromJSON(needs.changes.outputs.parts), go-packages)
+    if: contains(fromJSON(needs.changes.outputs.parts), 'go-packages')
     uses: ./.github/workflows/service-check.yml
     with:
       dir: packages/go/authverify
@@ -166,7 +166,7 @@ jobs:
 
   runtimelog:
     needs: changes
-    if: contains(fromJSON(needs.changes.outputs.parts), go-packages)
+    if: contains(fromJSON(needs.changes.outputs.parts), 'go-packages')
     uses: ./.github/workflows/service-check.yml
     with:
       dir: packages/go/runtimelog
