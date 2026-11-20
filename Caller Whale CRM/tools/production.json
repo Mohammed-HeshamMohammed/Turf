@@ -16,6 +16,7 @@
           "name": "cw-website",
           "context": ".",
           "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "7iglktaamqg3fsnxkzydofiz" },
           "buildArgs": {
             "VITE_CALLERWHALE_AUTH_URL": "CALLERWHALE_AUTH_URL"
           }
@@ -40,6 +41,7 @@
           "name": "cw-crm-web",
           "context": ".",
           "dockerfile": "landing/dashboard-web/Dockerfile",
+          "deploy": { "coolify": "tdqx7o94epfaiqpp38gqx3ya" },
           "buildArgs": {
             "VITE_CALLERWHALE_AUTH_URL": "CALLERWHALE_AUTH_URL",
             "VITE_CALLERWHALE_API_URL": "CALLERWHALE_API_URL",
@@ -62,7 +64,8 @@
         {
           "name": "cw-auth",
           "context": ".",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "pmabp02jo9zcziyp1e3ujx8f" }
         }
       ]
     },
@@ -118,7 +121,8 @@
         {
           "name": "cw-crm-core",
           "context": ".",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "pbhaa90fu9dh3tl2x9kzjdly" }
         }
       ]
     },
@@ -173,7 +177,8 @@
         {
           "name": "cw-dialer-sms",
           "context": ".",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "hnro3xava3rvdwa5g3why6as" }
         }
       ]
     },
@@ -191,7 +196,8 @@
         {
           "name": "cw-importing-lists",
           "context": ".",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "ovzio8h7fqwhhms0dmq3oitd" }
         }
       ]
     },
@@ -247,7 +253,8 @@
         {
           "name": "cw-gateway",
           "context": ".",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "uet17t0ao4zerab9ejksuzjt" }
         }
       ]
     },
@@ -265,7 +272,8 @@
         {
           "name": "cw-authz",
           "context": ".",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "pqtwac85tcbuqqtjuejj2sd2" }
         }
       ]
     },
