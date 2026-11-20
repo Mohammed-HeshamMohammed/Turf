@@ -50,7 +50,9 @@ function serviceBridge(): Plugin {
         child!.stdin.write(`${JSON.stringify({ id, schema_version: 1, command, payload: payload ?? {} })}\n`);
         const line = await answers!.next();
         if (line.done)
-          throw new Error("Caller Whale's service stopped unexpectedly. Is Python 3.11+ installed with engines/skip-engine/requirements.txt, or CALLERWHALE_PYTHON set?");
+          throw new Error(
+            "Caller Whale's service stopped unexpectedly. Is Python 3.11+ installed with engines/skip-engine/requirements.txt, or CALLERWHALE_PYTHON set?",
+          );
         const answer = JSON.parse(line.value) as { id?: number };
         if (answer.id !== id) throw new Error("Service response did not match the request");
         return line.value;

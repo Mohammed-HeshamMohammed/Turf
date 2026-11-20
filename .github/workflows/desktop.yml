@@ -59,7 +59,7 @@ jobs:
     name: Desktop app (feature modules and window, Windows)
     runs-on: windows-latest
     env:
-      CALLERWHALE_SERVICE_ROOT: ${{ github.workspace }}\service
+      CALLERWHALE_SERVICE_ROOT: ${{ github.workspace }}\engines\skip-engine
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
