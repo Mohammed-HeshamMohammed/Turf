@@ -1,0 +1,12 @@
+# The build context is the repository root (step 50+51): send only this service and the shared Go modules.
+*
+!packages/go
+!services/notifications
+**/node_modules
+**/__pycache__
+**/.env
+**/.env.*
+**/*.exe
+services/notifications/*_test.go
+services/notifications/openapi.yaml
+services/notifications/README.md

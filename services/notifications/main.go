@@ -4,6 +4,7 @@
 package main
 
 import (
+	"callerwhale/runtimelog"
 	"crypto/subtle"
 	"encoding/json"
 	"log"
@@ -201,5 +202,5 @@ func main() {
 	}
 	srv := newServer(cfg.Tokens, cfg.SMTP, cfg.SMTP.Configured()).withContact(cfg.ContactTo, cfg.ContactOrigins)
 	log.Printf("%s listening on :%s", service, port)
-	serveUntilStopped(&http.Server{Addr: ":" + port, Handler: logHTTP(srv.mux()), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 2 * time.Minute})
+	serveUntilStopped(&http.Server{Addr: ":" + port, Handler: runtimelog.LogHTTP(srv.mux()), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 2 * time.Minute})
 }
