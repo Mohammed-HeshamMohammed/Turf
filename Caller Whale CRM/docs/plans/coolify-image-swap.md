@@ -61,24 +61,20 @@ Found 2026-11-20: the first automatic deploy (the website and CRM web images of 
 check answered the GitHub runner with its "Just a moment..." page (403), and the job still showed green because its output went
 through `tee`. The job now fails on a refused deploy and names Cloudflare when it is the cause.
 
-The owner keeps the bot check (2026-11-20). The deploy job instead carries a **Cloudflare Access service token**
-(`CF-Access-Client-Id` / `CF-Access-Client-Secret`, `tools/coolify-deploy.mjs`): Cloudflare Access lets through to `/api/` only a request
-with that token, and every other request still meets the bot check. A forged header is refused by Access, so skipping the bot check
-for requests that carry it opens nothing. The Coolify token is still needed behind it.
+The owner keeps the bot check (2026-11-20), and Cloudflare Access needs a card on file, so the deploy job sends a secret header
+instead: `x-callerwhale-deploy` with the `production` secret `COOLIFY_DEPLOY_SECRET` (`tools/coolify-deploy.mjs`). The bot-check rule
+lets through only a request to `coolify.callerwhale.com/api/` that carries that exact value; everyone else, people included, still
+meets the check, and the Coolify token is still needed behind it. Custom rules are on Cloudflare's free plan.
 
-**Yours, in Cloudflare** (one time):
+**Yours** (one time):
 
-1. **Service token.** Zero Trust, Access, Service credentials, Service Tokens, **Create Service Token**: name `github-coolify-deploy`,
-   duration non-expiring (or a year, with a reminder). Copy the **Client ID** and **Client Secret** (the secret is shown once).
-2. **Access application.** Zero Trust, Access, Applications, **Add an application**, Self-hosted: name `Coolify API`, domain
-   `coolify.callerwhale.com`, path `api/*`. Policy: name `GitHub deploy`, action **Service Auth**, include **Service Token** =
-   `github-coolify-deploy`. Save.
-3. **Your bot check.** In the rule that challenges coolify.callerwhale.com (Security, WAF, Custom rules), add to its expression
-   `and not (starts_with(http.request.uri.path, "/api/") and len(http.request.headers["cf-access-client-id"]) > 0)`, so requests
-   carrying the token reach Access instead of the challenge. If the check is Bot Fight Mode or Under Attack mode rather than a rule,
-   tell Claude which, since those are bypassed differently.
-4. **GitHub.** Repository, Settings, Environments, `production`, add secrets `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` with the two
-   values (Claude never sees them).
+1. **Make a secret**: 40 or more random letters and digits, for example from a password manager. Keep it for steps 2 and 3.
+2. **Cloudflare** (callerwhale.com, Security, WAF, Custom rules): edit the rule that shows "Verify you are human" on Coolify, choose
+   "Edit expression", and add at the end:
+   `and not (http.host eq "coolify.callerwhale.com" and starts_with(http.request.uri.path, "/api/") and any(http.request.headers["x-callerwhale-deploy"][*] eq "<the secret>"))`
+   then Save. (If the check is Bot Fight Mode or Under Attack mode rather than a custom rule, tell Claude: those work differently.)
+3. **GitHub** (the repository, Settings, Environments, `production`, Add environment secret): name `COOLIFY_DEPLOY_SECRET`, value the
+   same secret. Claude never sees it.
 
 Then re-run the last Images run's "Deploy to Coolify" job (Actions, Images, the run, Re-run failed jobs) and approve it. Until then
 every image build ends with that job failing and the apps keep running the images set by hand.

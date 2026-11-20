@@ -54,25 +54,25 @@ export function plan(records) {
 }
 
 /**
- * Cloudflare Access service token (CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET, the production environment's secrets): the
- * owner keeps Cloudflare's bot check on Coolify, and lets through to /api/ only requests that Cloudflare Access accepts with
- * this token (docs/plans/coolify-image-swap.md, "Deploys from GitHub"). Without them, no Access headers are sent.
+ * The deploy secret (COOLIFY_DEPLOY_SECRET, the production environment's secret): the owner keeps Cloudflare's bot check on Coolify,
+ * and its rule lets through to /api/ only a request carrying this exact value in x-callerwhale-deploy
+ * (docs/plans/coolify-image-swap.md, "Deploys from GitHub"). Without it, no header is sent.
  */
-export function accessHeaders(env = process.env) {
-  const id = env.CF_ACCESS_CLIENT_ID ?? "", secret = env.CF_ACCESS_CLIENT_SECRET ?? "";
-  return id && secret ? { "CF-Access-Client-Id": id, "CF-Access-Client-Secret": secret } : {};
+export function deployHeaders(env = process.env) {
+  const secret = env.COOLIFY_DEPLOY_SECRET ?? "";
+  return secret ? { "x-callerwhale-deploy": secret } : {};
 }
 
 async function call(base, token, method, path, body) {
   const res = await fetch(`${base}/api/v1${path}`, {
     method,
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json", ...accessHeaders() },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json", ...deployHeaders() },
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
   // Cloudflare in front of Coolify: its bot check answers a script with a challenge page, so nothing reaches Coolify.
   if (res.status === 403 && /Just a moment|challenge-platform/i.test(text))
-    throw new Error(`Cloudflare's bot check answered instead of Coolify (403 on ${method} ${path})${Object.keys(accessHeaders()).length ? "" : " and no Cloudflare Access service token was sent (CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET)"}: requests to ${base}/api/ with the token must skip the check (docs/plans/coolify-image-swap.md, "Deploys from GitHub").`);
+    throw new Error(`Cloudflare's bot check answered instead of Coolify (403 on ${method} ${path})${Object.keys(deployHeaders()).length ? "" : " and no deploy secret was sent (COOLIFY_DEPLOY_SECRET)"}: requests to ${base}/api/ with the secret must skip the check (docs/plans/coolify-image-swap.md, "Deploys from GitHub").`);
   return { status: res.status, text };
 }
 
