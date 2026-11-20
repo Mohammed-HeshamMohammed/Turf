@@ -1,6 +1,7 @@
 package main
 
 import (
+	"callerwhale/runtimelog"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -93,7 +94,7 @@ func (w *humanWorld) call(method, path, body string) *httptest.ResponseRecorder 
 	req.RemoteAddr = "10.0.0.9:4444"
 	req.Header.Set("X-Forwarded-For", "203.0.113.9") // public traffic always comes through the proxy
 	rec := httptest.NewRecorder()
-	logHTTP(w.g).ServeHTTP(rec, req)
+	runtimelog.LogHTTP(w.g).ServeHTTP(rec, req)
 	return rec
 }
 
@@ -103,7 +104,7 @@ func (w *humanWorld) callCore(method, path, body string) *httptest.ResponseRecor
 	req.RemoteAddr = "10.0.0.9:4444"
 	req.Header.Set("X-Forwarded-For", "203.0.113.9")
 	rec := httptest.NewRecorder()
-	logHTTP(w.g).ServeHTTP(rec, req)
+	runtimelog.LogHTTP(w.g).ServeHTTP(rec, req)
 	return rec
 }
 
@@ -410,7 +411,7 @@ func TestTheWebsiteFormsPreflightIsAnsweredByTheGateway(t *testing.T) {
 		req.RemoteAddr = "10.0.0.9:4444"
 		req.Header.Set("X-Forwarded-For", "203.0.113.9")
 		rec := httptest.NewRecorder()
-		logHTTP(w.g).ServeHTTP(rec, req)
+		runtimelog.LogHTTP(w.g).ServeHTTP(rec, req)
 		return rec
 	}
 	for _, path := range []string{"/api/v1/public/contact", "/api/v1/public/waitlist"} {

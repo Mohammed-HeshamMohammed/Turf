@@ -7,6 +7,8 @@
 package main
 
 import (
+	"callerwhale/authverify"
+	"callerwhale/runtimelog"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -220,7 +222,7 @@ func classify(method, path string) need {
 
 type gateway struct {
 	cfg      config
-	keys     *keyset
+	keys     *authverify.Keyset
 	ips      *limiter
 	mcpIPs   *limiter // addresses calling the MCP host
 	people   *limiter
@@ -233,14 +235,14 @@ type gateway struct {
 
 func newGateway(cfg config) *gateway {
 	g := &gateway{cfg: cfg, ips: newLimiter(cfg.ipPerMinute), mcpIPs: newLimiter(cfg.mcpIPPerMinute), people: newLimiter(cfg.userPerMinute), now: time.Now,
-		scans: newScanners(cfg.scanLimit, cfg.scanWindow, cfg.scanPause),
+		scans:  newScanners(cfg.scanLimit, cfg.scanWindow, cfg.scanPause),
 		places: &placeCache{byOrg: map[string]*placeRules{}, client: &http.Client{Timeout: 4 * time.Second}}}
 	if cfg.human != nil {
 		g.human = newHumanCheck(*cfg.human)
 		g.humanIPs = newLimiter(cfg.human.perMinute)
 	}
 	if cfg.authJWKS != "" {
-		g.keys = newKeyset(cfg.authJWKS)
+		g.keys = authverify.NewKeyset(cfg.authJWKS)
 	}
 	routes := make([]*route, 0, len(cfg.routes)+1)
 	for _, r := range cfg.routes {
@@ -462,11 +464,11 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "Sign in again."})
 				return
 			}
-			if classify(r.Method, r.URL.Path) == staff && g.cfg.staffSecond && !c.secondFactor {
+			if classify(r.Method, r.URL.Path) == staff && g.cfg.staffSecond && !c.SecondFactor {
 				writeJSON(w, http.StatusForbidden, map[string]any{"error": "Staff pages need the authenticator step. Sign in again with your authenticator code.", "code": "mfa_required"})
 				return
 			}
-			if !g.people.allow(c.sub, g.now()) {
+			if !g.people.allow(c.Sub, g.now()) {
 				tooMany(w)
 				return
 			}
@@ -500,7 +502,7 @@ func uploadRoute(method, path string) bool {
 
 // identify reads the token from the Authorization header, or from the subprotocol list a browser WebSocket uses
 // (["callerwhale.v1", "bearer.<token>", ...]), and checks it.
-func (g *gateway) identify(r *http.Request) (claims, error) {
+func (g *gateway) identify(r *http.Request) (authverify.Claims, error) {
 	token := ""
 	if v := r.Header.Get("Authorization"); len(v) > 7 && strings.EqualFold(v[:7], "bearer ") {
 		token = strings.TrimSpace(v[7:])
@@ -513,9 +515,9 @@ func (g *gateway) identify(r *http.Request) (claims, error) {
 		}
 	}
 	if token == "" || g.keys == nil {
-		return claims{}, errors.New("no token")
+		return authverify.Claims{}, errors.New("no token")
 	}
-	return g.keys.verify(token, g.now())
+	return g.keys.Verify(token, g.now())
 }
 
 func tooMany(w http.ResponseWriter) {
@@ -559,7 +561,7 @@ func main() {
 		log.Printf("%s -> %s (core: %v)", r.host, r.upstream, r.core)
 	}
 	log.Printf("%s listening on http://localhost:%s", service, port)
-	srv := &http.Server{Addr: ":" + port, Handler: logHTTP(g), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute}
+	srv := &http.Server{Addr: ":" + port, Handler: runtimelog.LogHTTP(g), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute}
 	serveUntilStopped(srv) // no write timeout: event streams stay open
 }
 

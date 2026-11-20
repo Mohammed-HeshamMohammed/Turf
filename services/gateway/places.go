@@ -84,7 +84,7 @@ func (g *gateway) placeAllowed(r *http.Request, caller string) (bool, string) {
 		return true, ""
 	}
 	rules := g.placeRulesFor(strings.ToLower(org))
-	if rules == nil || (len(rules.Countries) == 0 && len(rules.nets) == 0) || slices.Contains(rules.Exempt, c.sub) {
+	if rules == nil || (len(rules.Countries) == 0 && len(rules.nets) == 0) || slices.Contains(rules.Exempt, c.Sub) {
 		return true, ""
 	}
 	if len(rules.Countries) > 0 && !slices.Contains(rules.Countries, strings.ToUpper(strings.TrimSpace(r.Header.Get("CF-IPCountry")))) {
