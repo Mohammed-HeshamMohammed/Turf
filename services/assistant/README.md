@@ -34,7 +34,7 @@ Messages are at most 600 characters, a conversation at most 12 messages, and the
 go test ./...
 ```
 
-The AI is tested against a fake OpenRouter; no key is needed. Settings: [env/assistant.production.example](../../Caller%20Whale%20CRM/env/assistant.production.example). Coolify: branch `assistant-backend-production`, Dockerfile `/Dockerfile`, port 8109, then add `assistant.callerwhale.com=http://assistant:8109` to the gateway's `ROUTES` (and the site's address to its `CORS_ORIGINS`).
+The AI is tested against a fake OpenRouter; no key is needed. Settings: [env/assistant.production.example](../../env/assistant.production.example). Coolify: branch `assistant-backend-production`, Dockerfile `/Dockerfile`, port 8109, then add `assistant.callerwhale.com=http://assistant:8109` to the gateway's `ROUTES` (and the site's address to its `CORS_ORIGINS`).
 
 ## The in-app assistant (build step 26)
 

@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - "Caller Whale CRM/tools/currency-data.mjs"
+      - "tools/currency-data.mjs"
       - "apps/website/src/currency-data.ts"
       - "services/auth/currency_data.go"
       - ".github/workflows/currency-data.yml"
@@ -27,4 +27,4 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - run: node "Caller Whale CRM/tools/currency-data.mjs" --check
+      - run: node "tools/currency-data.mjs" --check

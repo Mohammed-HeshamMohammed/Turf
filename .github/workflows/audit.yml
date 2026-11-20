@@ -38,10 +38,10 @@ jobs:
       fail-fast: false
       matrix:
         dir:
-          - "Caller Whale App"
+          - "apps/lists-desktop"
           # The npm workspace (D383): the CRM app, the website and packages/ share the root lock file.
           - "."
-          - "Caller Whale CRM/tools/firebase"
+          - "tools/firebase"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -87,7 +87,7 @@ jobs:
       matrix:
         dir:
           - services/billing
-          - service
+          - engines/skip-engine
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -105,8 +105,8 @@ jobs:
       matrix:
         lock:
           - Cargo.lock
-          - Caller Whale App/src-tauri/Cargo.lock
-          - Caller Whale CRM/Cargo.lock
+          - apps/lists-desktop/src-tauri/Cargo.lock
+          - scaffolds/Cargo.lock
     steps:
       - uses: actions/checkout@v7
       - uses: taiki-e/install-action@v2

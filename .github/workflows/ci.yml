@@ -7,7 +7,7 @@ name: CI
 #
 # Not here, on purpose: the daily dependency audit (audit.yml), the monthly currency check (currency-data.yml) and the desktop release
 # (release-crm.yml), because they depend on the outside world or run on a schedule; and the desktop apps (desktop.yml for the CRM
-# desktop app and the Skip Tracing engine, older-app.yml for Caller Whale App), which have their own development and release: their
+# desktop app and the Skip Tracing engine, older-app.yml for the older desktop app in apps/lists-desktop), which have their own development and release: their
 # checks show on a pull request that touches them but do not block merging to main (owner, 2026-11-19).
 
 on:
@@ -38,7 +38,7 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
-        run: node "Caller Whale CRM/tools/ci-parts.mjs" >> "$GITHUB_OUTPUT"
+        run: node "tools/ci-parts.mjs" >> "$GITHUB_OUTPUT"
 
   # Go and Python services, each through service-check.yml.
   crm-core:
@@ -229,21 +229,21 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - run: node --test "Caller Whale CRM/tools/*.test.mjs" "Caller Whale CRM/deploy/grafana/*.test.mjs" "services/live/*.test.mjs" "packages/*/test/*.test.mjs"
-      - run: node "Caller Whale CRM/tools/env-notes.mjs" check
+      - run: node --test "tools/*.test.mjs" "deploy/monitoring/*.test.mjs" "services/live/*.test.mjs" "packages/*/test/*.test.mjs"
+      - run: node "tools/env-notes.mjs" check
       # Every call between services has a timeout (one stuck service must not hang the ones that call it).
-      - run: node "Caller Whale CRM/tools/check-timeouts.mjs"
+      - run: node "tools/check-timeouts.mjs"
       - name: Every image starts through the log wrapper; the scaffold copies match their source
         run: |
           # The deployed images build the wrapper from packages/go/runtimelog. The scaffolds (until step 54) get generated copies,
           # which are not kept on main: write them, check, and make sure nothing that is kept changed.
-          node "Caller Whale CRM/tools/runtime-log/sync.mjs"
-          node "Caller Whale CRM/tools/runtime-log/sync.mjs" --check
+          node "tools/runtime-log/sync.mjs"
+          node "tools/runtime-log/sync.mjs" --check
           git diff --exit-code
       - name: The alert rules file is up to date
         run: |
-          node "Caller Whale CRM/deploy/grafana/alerts.mjs"
-          git diff --exit-code -- "Caller Whale CRM/deploy/grafana/"
+          node "deploy/monitoring/alerts.mjs"
+          git diff --exit-code -- "deploy/monitoring/"
 
   crm-app:
     name: CRM app (types, lint, build, tests)
@@ -265,8 +265,8 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: service/requirements.txt
-      - run: pip install -r ../../service/requirements.txt
+          cache-dependency-path: engines/skip-engine/requirements.txt
+      - run: pip install -r ../../engines/skip-engine/requirements.txt
       # npm workspaces (D383): one install at the repository root for the apps and packages/.
       - run: npm ci
         working-directory: .

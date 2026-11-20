@@ -1,6 +1,6 @@
 # crm-core
 
-The CRM's backend: leads, tasks, notes, calls and deals, synced to the web CRM and desktop app. The import worker receives files and stores their rows in PostgreSQL; Core reviews and merges those rows. Plan: [docs/plans/crm-core-and-imports.md](../../Caller%20Whale%20CRM/docs/plans/crm-core-and-imports.md).
+The CRM's backend: leads, tasks, notes, calls and deals, synced to the web CRM and desktop app. The import worker receives files and stores their rows in PostgreSQL; Core reviews and merges those rows. Plan: [docs/plans/crm-core-and-imports.md](../../docs/plans/crm-core-and-imports.md).
 
 | | |
 | --- | --- |
@@ -48,7 +48,7 @@ The database tests need a disposable PostgreSQL: `CRM_TEST_ADMIN_URL` (a superus
 
 ## Coolify
 
-Branch `crm-core-backend-production`, Dockerfile `/Dockerfile`, port 8107, network alias `crm-core`, no domain. Settings: [env/crm-core.production.example](../../Caller%20Whale%20CRM/env/crm-core.production.example). Core needs no upload volume.
+Branch `crm-core-backend-production`, Dockerfile `/Dockerfile`, port 8107, network alias `crm-core`, no domain. Settings: [env/crm-core.production.example](../../env/crm-core.production.example). Core needs no upload volume.
 
 ## Clients (build step 23)
 

@@ -1,0 +1,11 @@
+{
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/icon.ico"],
+    "resources": {
+      "../../../engines/skip-engine/dist/callerwhale-service.exe": "service/callerwhale-service.exe",
+      "../../../engines/skip-engine/database_setup/": "database_setup/"
+    }
+  }
+}

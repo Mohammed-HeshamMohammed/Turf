@@ -29,10 +29,10 @@ on:
   pull_request:
     paths:
       - ".github/workflows/images.yml"
-      - "Caller Whale CRM/tools/production.json"
-      - "Caller Whale CRM/tools/publish-production.mjs"
-      - "Caller Whale CRM/tools/image-matrix.mjs"
-      - "Caller Whale CRM/tools/coolify-deploy.mjs"
+      - "tools/production.json"
+      - "tools/publish-production.mjs"
+      - "tools/image-matrix.mjs"
+      - "tools/coolify-deploy.mjs"
       - "**/Dockerfile"
       - "**/.dockerignore"
       - "**/*.dockerignore"
@@ -67,7 +67,7 @@ jobs:
         with:
           ref: ${{ steps.sha.outputs.sha }}
       - id: list
-        run: node "Caller Whale CRM/tools/image-matrix.mjs" >> "$GITHUB_OUTPUT"
+        run: node "tools/image-matrix.mjs" >> "$GITHUB_OUTPUT"
 
   build:
     name: ${{ matrix.image }}
@@ -94,7 +94,7 @@ jobs:
       - name: The branch's files
         id: files
         run: |
-          node "Caller Whale CRM/tools/publish-production.mjs" --export "$RUNNER_TEMP/branches" "${{ matrix.branch }}" --from "$SHA"
+          node "tools/publish-production.mjs" --export "$RUNNER_TEMP/branches" "${{ matrix.branch }}" --from "$SHA"
           echo "dir=$RUNNER_TEMP/branches/${{ matrix.branch }}" >> "$GITHUB_OUTPUT"
           echo "content=$(cat "$RUNNER_TEMP/branches/${{ matrix.branch }}.content")" >> "$GITHUB_OUTPUT"
       - name: Build arguments
@@ -103,7 +103,7 @@ jobs:
           ARGS: ${{ matrix.args }}
           VARS: ${{ toJSON(vars) }}
         run: |
-          node "Caller Whale CRM/tools/image-matrix.mjs" --args >> "$GITHUB_OUTPUT"
+          node "tools/image-matrix.mjs" --args >> "$GITHUB_OUTPUT"
           if [ "$PUSH" = true ] && grep -q '^missing=.' "$GITHUB_OUTPUT"; then echo "::error::Set the repository Actions variables this image needs"; exit 1; fi
 
       - uses: docker/setup-buildx-action@v3
@@ -207,14 +207,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.plan.outputs.sha }}
-          sparse-checkout: Caller Whale CRM/tools
+          sparse-checkout: tools
       - uses: actions/download-artifact@v4
         with:
           pattern: deploy-*
           path: deploys
         continue-on-error: true
       - id: plan
-        run: node "Caller Whale CRM/tools/coolify-deploy.mjs" --plan deploys >> "$GITHUB_OUTPUT"
+        run: node "tools/coolify-deploy.mjs" --plan deploys >> "$GITHUB_OUTPUT"
 
   # After the owner or the cofounder approves the "production" environment, records the plan (each new image's digest and its
   # Coolify application) as a GitHub deployment. GitHub cannot reach Coolify through Cloudflare's bot protection, so the server's
@@ -235,7 +235,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.plan.outputs.sha }}
-          sparse-checkout: Caller Whale CRM/tools
+          sparse-checkout: tools
       - uses: actions/download-artifact@v4
         with:
           pattern: deploy-*
@@ -245,7 +245,7 @@ jobs:
           GITHUB_SHA: ${{ needs.plan.outputs.sha }}
         # bash with pipefail: a refused request fails the job instead of hiding behind tee.
         shell: bash
-        run: node "Caller Whale CRM/tools/coolify-deploy.mjs" --record deploys | tee -a "$GITHUB_STEP_SUMMARY"
+        run: node "tools/coolify-deploy.mjs" --record deploys | tee -a "$GITHUB_STEP_SUMMARY"
 
   clean:
     name: Old versions (${{ matrix.image }})
