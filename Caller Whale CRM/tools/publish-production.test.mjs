@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { pruneWorkspace, rewriteDockerfile, checksVerdict } from "./publish-production.mjs";
+import { pruneWorkspace, rewriteDockerfile, checksVerdict, pathLabel } from "./publish-production.mjs";
 
 const cargo = `# One workspace.
 [workspace]
@@ -79,4 +79,9 @@ test("only a commit whose CI summary passed is published", () => {
   assert.equal(checksVerdict({ check_runs: [desktop] }, "Desktop summary").ok, true);
   assert.equal(checksVerdict({ check_runs: [desktop] }).ok, false);
   assert.match(checksVerdict({ check_runs: [] }, "Desktop summary").why, /Run workflow/);
+});
+
+test("a path entry can put a folder elsewhere in the branch, and reads that way", () => {
+  assert.equal(pathLabel("services/gateway"), "services/gateway");
+  assert.equal(pathLabel({ from: "Caller Whale CRM/deploy/grafana", to: "deploy/grafana" }), "Caller Whale CRM/deploy/grafana (as deploy/grafana)");
 });

@@ -1,5 +1,5 @@
 {
-  "comment": "One production branch per part (docs/plans/production-branches.md). `checks`: GitHub checks that must have passed on the commit, besides CI summary, before the branch changes. `paths` are relative to `base` (default 'Caller Whale CRM'); a branch holds only those, at those paths, plus .gitignore. `rust: true` adds the Cargo workspace file, cut down to the members present, and Cargo.lock (`rust: \"<folder>\"`: from and to that folder). The web apps, the services (step 50+51, with packages/go) and the desktop app use `base: \"\"` (the repository layout, apps/ since step 52), so their branches carry the npm workspace: the root package.json, its lock file and packages/ (D383, step 49); the desktop branch carries the root Rust workspace whole. `images`: the container images built from the branch's files (.github/workflows/images.yml, step 47): `context` and `dockerfile` are paths in the branch; `buildArgs` maps a build argument to the repository's Actions variable that holds it.",
+  "comment": "One production branch per part (docs/plans/production-branches.md). `checks`: GitHub checks that must have passed on the commit, besides CI summary, before the branch changes. `paths` are relative to `base` (an entry {\"from\": ..., \"to\": ...} puts that folder somewhere else in the branch, so a Coolify setting that names a path keeps working) (default 'Caller Whale CRM'); a branch holds only those, at those paths, plus .gitignore. `rust: true` adds the Cargo workspace file, cut down to the members present, and Cargo.lock (`rust: \"<folder>\"`: from and to that folder). The web apps, the services (step 50+51, with packages/go) and the desktop app use `base: \"\"` (the repository layout, apps/ since step 52), so their branches carry the npm workspace: the root package.json, its lock file and packages/ (D383, step 49); the desktop branch carries the root Rust workspace whole. `images`: the container images built from the branch's files (.github/workflows/images.yml, step 47): `context` and `dockerfile` are paths in the branch; `buildArgs` maps a build argument to the repository's Actions variable that holds it.",
   "components": [
     {
       "name": "landing-web-production",
@@ -349,12 +349,21 @@
       "envExample": "Caller Whale CRM/env/grafana.production.example",
       "title": "Grafana for Caller Whale's staff, behind the login proxy (Coolify)",
       "paths": [
-        "Caller Whale CRM/deploy/grafana",
+        {
+          "from": "Caller Whale CRM/deploy/grafana",
+          "to": "deploy/grafana"
+        },
         "services/grafana-proxy",
         "services/alert-relay",
         "packages/go",
-        "Caller Whale CRM/docs/plans/grafana-access.md",
-        "Caller Whale CRM/env/grafana.production.example"
+        {
+          "from": "Caller Whale CRM/docs/plans/grafana-access.md",
+          "to": "docs/plans/grafana-access.md"
+        },
+        {
+          "from": "Caller Whale CRM/env/grafana.production.example",
+          "to": "env/grafana.production.example"
+        }
       ],
       "build": "go test ./... in services/grafana-proxy; in Coolify: a Docker Compose resource from this branch with deploy/grafana/compose.yml (deploy/grafana/README.md)",
       "images": [
@@ -372,28 +381,28 @@
         },
         {
           "name": "cw-grafana",
-          "context": "Caller Whale CRM/deploy/grafana/grafana",
-          "dockerfile": "Caller Whale CRM/deploy/grafana/grafana/Dockerfile"
+          "context": "deploy/grafana/grafana",
+          "dockerfile": "deploy/grafana/grafana/Dockerfile"
         },
         {
           "name": "cw-prometheus",
-          "context": "Caller Whale CRM/deploy/grafana/prometheus",
-          "dockerfile": "Caller Whale CRM/deploy/grafana/prometheus/Dockerfile"
+          "context": "deploy/grafana/prometheus",
+          "dockerfile": "deploy/grafana/prometheus/Dockerfile"
         },
         {
           "name": "cw-blackbox",
-          "context": "Caller Whale CRM/deploy/grafana/blackbox",
-          "dockerfile": "Caller Whale CRM/deploy/grafana/blackbox/Dockerfile"
+          "context": "deploy/grafana/blackbox",
+          "dockerfile": "deploy/grafana/blackbox/Dockerfile"
         },
         {
           "name": "cw-loki",
-          "context": "Caller Whale CRM/deploy/grafana/loki",
-          "dockerfile": "Caller Whale CRM/deploy/grafana/loki/Dockerfile"
+          "context": "deploy/grafana/loki",
+          "dockerfile": "deploy/grafana/loki/Dockerfile"
         },
         {
           "name": "cw-alloy",
-          "context": "Caller Whale CRM/deploy/grafana/alloy",
-          "dockerfile": "Caller Whale CRM/deploy/grafana/alloy/Dockerfile"
+          "context": "deploy/grafana/alloy",
+          "dockerfile": "deploy/grafana/alloy/Dockerfile"
         }
       ],
       "base": ""
