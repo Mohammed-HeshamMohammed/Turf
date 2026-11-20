@@ -1,0 +1,54 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Tauri
+**/src-tauri/target
+**/src-tauri/gen/schemas
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# The packaged service (service/tools/build_service.py)
+service/build
+service/dist
+
+# Rust build output and local dev accounts
+target/
+**/scripts/.dev-accounts.json
+
+# Generated local image helpers; production snapshots inject the canonical source.
+Caller Whale CRM/services/features/*/runtime-log/main.go
+
+# Local settings and secrets, wherever they are (these rules were in Caller Whale CRM/.gitignore before the apps moved out, step 52, D386)
+.env*
+!.env.example
+.vercel/
+.vite/
+apps/crm-desktop/gen/
+
+# Built programs never go into the repository (a messaging.exe was committed once, removed in step 50+51)
+*.exe

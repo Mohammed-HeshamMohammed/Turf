@@ -1,14 +1,15 @@
 # Learning store (plan: docs/plans/learning-store-compliance.md). Build with this folder as the context:
 #   docker build -t callerwhale-learning services/learning
 FROM golang:1 AS runtime-log-build
-COPY runtime-log/main.go /src/main.go
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log /src/main.go
+COPY packages/go/runtimelog /src
+RUN cd /src && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log ./cmd/callerwhale-log
 
 FROM golang:1 AS build
-WORKDIR /src
-COPY go.mod go.sum ./
+WORKDIR /repo/services/learning
+COPY packages/go /repo/packages/go
+COPY services/learning/go.mod services/learning/go.sum ./
 RUN go mod download
-COPY *.go ./
+COPY services/learning/*.go ./
 # The database test needs a PostgreSQL and is skipped here; run it with LEARNING_TEST_URL set where one is available.
 RUN go vet ./... && go test ./... && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/service .
 
