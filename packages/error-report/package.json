@@ -1,0 +1,16 @@
+{
+  "name": "@callerwhale/error-report",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sends a browser error's kind, page, code places and version to the auth service's log, never its text (D303).",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./error-report.d.ts",
+      "default": "./error-report.js"
+    }
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}

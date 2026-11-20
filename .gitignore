@@ -1,24 +1,46 @@
-node_modules/
-dist/
-.vite/
+# Logs
+logs
 *.log
-.vercel/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-.env*
-desktop/container/rust/target/
-desktop/container/rust/gen/
+node_modules
+dist
+dist-ssr
+*.local
 
-# Landing API database
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# New stack (tools/scaffold-stack.mjs)
-/target
-.env
+# Tauri
+**/src-tauri/target
+**/src-tauri/gen/schemas
 
-# Runtime settings stay ignored; only examples, the README and the two named documentation JSON files are committed.
-env/*
-!env/README.md
-# Non-secret documentation catalog and variable-name inventory; never include runtime values.
-!env/container-notes.json
-!env/container-variable-inventory.json
-!env/*.example
-!deploy/grafana/.env.example
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# The packaged service (service/tools/build_service.py)
+service/build
+service/dist
+
+# Rust build output and local dev accounts
+target/
+**/scripts/.dev-accounts.json
+
+# Generated local image helpers; production snapshots inject the canonical source.
+Caller Whale CRM/**/runtime-log/main.go
+!Caller Whale CRM/tools/runtime-log/main.go
+!Caller Whale CRM/landing/site/runtime-log/main.go

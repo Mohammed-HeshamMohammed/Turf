@@ -1,0 +1,43 @@
+# app.callerwhale.com: the CRM, the same screens as the desktop app (desktop/frontend/react) built for the browser, which
+# only works signed in. The build context is the repository root (npm workspaces, D383); Dockerfile.dockerignore beside
+# this file sends only what the image needs. The auth service and the gateway are fixed at build time (they are also in the
+# content security policy); the build stops without them, so an app that would talk to localhost is never made.
+FROM golang:1 AS runtime-log-build
+COPY ["Caller Whale CRM/landing/dashboard-web/runtime-log/main.go", "/src/main.go"]
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log /src/main.go
+
+FROM node:24-alpine AS build
+WORKDIR /repo
+COPY package.json package-lock.json .npmrc ./
+COPY packages/ packages/
+# npm checks the lock file against every workspace, so the website's package.json comes too (only the CRM app's packages install).
+COPY ["Caller Whale CRM/landing/site/package.json", "Caller Whale CRM/landing/site/"]
+COPY ["Caller Whale CRM/desktop/frontend/react/package.json", "Caller Whale CRM/desktop/frontend/react/"]
+RUN npm ci --workspace "Caller Whale CRM/desktop/frontend/react"
+COPY ["Caller Whale CRM/desktop/frontend/react/", "Caller Whale CRM/desktop/frontend/react/"]
+COPY ["Caller Whale CRM/landing/dashboard-web/scripts", "/headers"]
+WORKDIR "/repo/Caller Whale CRM/desktop/frontend/react"
+ARG VITE_CALLERWHALE_AUTH_URL
+ARG VITE_CALLERWHALE_API_URL
+# Where team chat is (the messaging service). Empty: the Inbox has no team chats.
+ARG VITE_CALLERWHALE_MESSAGING_URL=
+ARG VITE_CALLERWHALE_SITE_URL=https://callerwhale.com
+ENV VITE_CALLERWHALE_AUTH_URL=$VITE_CALLERWHALE_AUTH_URL \
+    VITE_CALLERWHALE_API_URL=$VITE_CALLERWHALE_API_URL \
+    VITE_CALLERWHALE_MESSAGING_URL=$VITE_CALLERWHALE_MESSAGING_URL \
+    VITE_CALLERWHALE_SITE_URL=$VITE_CALLERWHALE_SITE_URL \
+    VITE_CALLERWHALE_REQUIRE_SIGN_IN=true
+RUN mkdir -p /out && node /headers/security-headers.mjs /out/security-headers.conf && npx tsc -p . && npx vite build && cp -r dist/client /out/client
+
+FROM nginxinc/nginx-unprivileged:1.27-alpine
+COPY --from=runtime-log-build /runtime-log /usr/local/bin/callerwhale-log
+ENV CALLERWHALE_LOG_SERVICE="Dashboard"
+COPY ["Caller Whale CRM/landing/dashboard-web/nginx.conf", "/etc/nginx/conf.d/default.conf"]
+COPY --from=build /out/security-headers.conf /etc/nginx/security-headers.conf
+COPY --from=build /out/client /usr/share/nginx/html
+# Use labelled startup checks; retain nginx warnings and errors.
+COPY ["Caller Whale CRM/landing/dashboard-web/start.sh", "/usr/local/bin/callerwhale-start"]
+RUN sed -i 's@^error_log .*@error_log /dev/stderr warn;@' /etc/nginx/nginx.conf
+ENTRYPOINT ["/usr/local/bin/callerwhale-log","/bin/sh","/usr/local/bin/callerwhale-start"]
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1
