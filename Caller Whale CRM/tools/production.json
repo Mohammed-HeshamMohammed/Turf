@@ -154,7 +154,8 @@
         {
           "name": "cw-live",
           "context": ".",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "jp4nw7z0jyy3m3vxyouvjo9d" }
         }
       ]
     },
