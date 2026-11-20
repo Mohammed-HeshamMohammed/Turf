@@ -1,6 +1,7 @@
 package main
 
 import (
+	"callerwhale/authverify"
 	"context"
 	"encoding/json"
 	"errors"
@@ -64,7 +65,7 @@ func readJSON(w http.ResponseWriter, r *http.Request, into any) error {
 
 type server struct {
 	cfg   config
-	keys  *keyset
+	keys  *authverify.Keyset
 	rules rules
 	st    *store
 	hub   *hub
@@ -107,7 +108,7 @@ func (s *server) shareOrgName(ctx context.Context, org, name string) {
 type req struct {
 	w     http.ResponseWriter
 	r     *http.Request
-	c     claims
+	c     authverify.Claims
 	sc    scope
 	grant grantReply
 	rev   int64
@@ -278,8 +279,8 @@ func (s *server) identifyToken(w http.ResponseWriter, r *http.Request, token str
 	if token == "" {
 		return nil, unauth
 	}
-	c, err := s.keys.verify(token, s.now())
-	if err != nil || !validID(c.sub) {
+	c, err := s.keys.Verify(token, s.now())
+	if err != nil || !validID(c.Sub) {
 		return nil, unauth
 	}
 	return &req{w: w, r: r, c: c}, nil
@@ -290,7 +291,7 @@ func (s *server) enter(ctx context.Context, q *req, org string) error {
 	if !validID(org) {
 		return bad("Choose a workspace (x-callerwhale-org).")
 	}
-	g, err := s.rules.grant(ctx, q.c.sub, org, q.c.secondFactor)
+	g, err := s.rules.grant(ctx, q.c.Sub, org, q.c.SecondFactor)
 	if err != nil {
 		return err
 	}
@@ -298,7 +299,7 @@ func (s *server) enter(ctx context.Context, q *req, org string) error {
 		return refusal(g)
 	}
 	q.grant, q.rev = g, accessRevision(g)
-	q.sc = scope{userID: q.c.sub, orgID: org, label: label(q.c), scopes: g.Scopes, teamIDs: g.TeamIDs, seeTeams: g.seeTeams(), projectIDs: g.ProjectIDs, caps: g.Capabilities, secondStep: q.c.secondFactor,
+	q.sc = scope{userID: q.c.Sub, orgID: org, label: label(q.c), scopes: g.Scopes, teamIDs: g.TeamIDs, seeTeams: g.seeTeams(), projectIDs: g.ProjectIDs, caps: g.Capabilities, secondStep: q.c.SecondFactor,
 		roles: g.Roles, managed: g.ManagedTeamIDs, deputyOf: g.DeputyTeamIDs}
 	peek, err := s.peekTeams(ctx, q.sc)
 	if err != nil {
@@ -356,27 +357,27 @@ func refusal(g grantReply) error {
 	return &apiError{status, g.Code, g.Reason}
 }
 
-func label(c claims) string {
-	if c.name != "" {
-		return c.name
+func label(c authverify.Claims) string {
+	if c.Name != "" {
+		return c.Name
 	}
-	return c.email
+	return c.Email
 }
 
 // remember keeps the person's display name and the workspace row, at most once in a while.
-func (s *server) remember(ctx context.Context, c claims, org string) {
-	s.noteMemberDay(ctx, org, c.sub) // days active, for the owner (step 32, D267)
+func (s *server) remember(ctx context.Context, c authverify.Claims, org string) {
+	s.noteMemberDay(ctx, org, c.Sub) // days active, for the owner (step 32, D267)
 	if _, ok := s.seenOrgs.Load(org); !ok {
 		if _, err := s.st.db.Exec(ctx, `INSERT INTO orgs (id, name) VALUES ($1, 'Workspace') ON CONFLICT DO NOTHING`, org); err == nil {
 			s.seenOrgs.Store(org, true)
 		}
 	}
-	if at, ok := s.seenPeople.Load(c.sub); ok && s.now().Sub(at.(time.Time)) < 10*time.Minute {
+	if at, ok := s.seenPeople.Load(c.Sub); ok && s.now().Sub(at.(time.Time)) < 10*time.Minute {
 		return
 	}
 	if _, err := s.st.db.Exec(ctx, `INSERT INTO people (user_id, name, email, tag) VALUES ($1, $2, $3, $4)
-		ON CONFLICT (user_id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email, tag = coalesce(nullif(EXCLUDED.tag, ''), people.tag), seen_at = now()`, c.sub, label(c), c.email, c.tag); err == nil {
-		s.seenPeople.Store(c.sub, s.now())
+		ON CONFLICT (user_id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email, tag = coalesce(nullif(EXCLUDED.tag, ''), people.tag), seen_at = now()`, c.Sub, label(c), c.Email, c.Tag); err == nil {
+		s.seenPeople.Store(c.Sub, s.now())
 	}
 }
 

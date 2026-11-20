@@ -45,7 +45,7 @@ func (s *server) assignTargets(ctx context.Context, sc scope, managed []string) 
 	if err != nil {
 		return nil, err
 	}
-	runs := map[string][]string{}     // team lead -> teams they lead
+	runs := map[string][]string{}    // team lead -> teams they lead
 	deputises := map[string]string{} // a deputy of a team the giver leads -> that team (D260)
 	for _, t := range teams {
 		for _, lead := range t.leads() {

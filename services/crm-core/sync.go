@@ -357,9 +357,9 @@ func (s *server) snapshot(q *req) error {
 	counts := map[string]int64{}
 	callable := map[string]int64{}    // leads of each list the Calls queue can take: a phone number, not closed, not archived
 	contactable := map[string]int64{} // leads of each list with a phone number or an email: a list with none is a useless list
-	stages := map[string]int64{} // leads of each stage that are not archived: the overview and the team page count from these, not from the window
-	var unassigned int64         // of those, the open ones with no owner
-	owned := map[string]int64{}  // and the open ones each person owns
+	stages := map[string]int64{}      // leads of each stage that are not archived: the overview and the team page count from these, not from the window
+	var unassigned int64              // of those, the open ones with no owner
+	owned := map[string]int64{}       // and the open ones each person owns
 	countRows, err := tx.Query(ctx, `SELECT l.project_id::text, l.stage, (l.archived_at IS NOT NULL), l.assignee_id::text, count(*), count(*) FILTER (WHERE l.phone <> '' OR l.email <> '' OR p.skip_tracing), count(*) FILTER (WHERE l.phone <> '' AND l.stage <> 'Closed' AND l.archived_at IS NULL)
 		FROM leads l LEFT JOIN projects p ON p.id = l.project_id WHERE `+countWhere+` GROUP BY 1, 2, 3, 4`, countArgs...)
 	if err != nil {

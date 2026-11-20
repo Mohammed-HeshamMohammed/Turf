@@ -1,15 +1,16 @@
 # crm-core (plan: docs/plans/crm-core-and-imports.md). Build with this folder as the context:
 #   docker build -t callerwhale-crm-core services/crm-core
 FROM golang:1 AS runtime-log-build
-COPY runtime-log/main.go /src/main.go
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log /src/main.go
+COPY packages/go/runtimelog /src
+RUN cd /src && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log ./cmd/callerwhale-log
 
 FROM golang:1 AS build
-WORKDIR /src
-COPY go.mod go.sum ./
+WORKDIR /repo/services/crm-core
+COPY packages/go /repo/packages/go
+COPY services/crm-core/go.mod services/crm-core/go.sum ./
 RUN go mod download
-COPY *.go ./
-COPY migrations ./migrations
+COPY services/crm-core/*.go ./
+COPY services/crm-core/migrations ./migrations
 # The database tests need a PostgreSQL and are skipped here; run them with `go test` where one is available.
 RUN go vet ./... && go test ./... && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/service .
 

@@ -4,6 +4,7 @@
 package main
 
 import (
+	"callerwhale/authverify"
 	"context"
 	"errors"
 	"fmt"
@@ -144,7 +145,7 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Print("INFO importer access ready")
-	s := &server{cfg: cfg, keys: newKeyset(cfg.jwksURL), rules: newAuthz(cfg.authzURL, cfg.authzToken, cfg.grantTTL), st: st, hub: newHub(), now: time.Now}
+	s := &server{cfg: cfg, keys: authverify.NewKeyset(cfg.jwksURL), rules: newAuthz(cfg.authzURL, cfg.authzToken, cfg.grantTTL), st: st, hub: newHub(), now: time.Now}
 	if cfg.googleClientID != "" {
 		s.calendar = newGoogleAPI(cfg.googleClientID, cfg.googleSecret, cfg.googleRedirect)
 	}

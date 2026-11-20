@@ -65,7 +65,7 @@ func TestCarrierStandingFromTheDialer(t *testing.T) {
 	signed := func(mfa bool, method, path string, body any) (int, map[string]any) {
 		b, _ := json.Marshal(body)
 		req, _ := http.NewRequest(method, e.ts.URL+path, bytes.NewReader(b))
-		req.Header.Set("Authorization", "Bearer "+e.fx.sign("k1", "EdDSA", func(m map[string]any) { m["sub"], m["name"], m["mfa"] = boss, "Boss", mfa }))
+		req.Header.Set("Authorization", "Bearer "+e.fx.Sign("k1", "EdDSA", func(m map[string]any) { m["sub"], m["name"], m["mfa"] = boss, "Boss", mfa }))
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)

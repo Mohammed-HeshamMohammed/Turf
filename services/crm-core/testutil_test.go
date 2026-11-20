@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"callerwhale/authverify/authverifytest"
 	"context"
 	"encoding/json"
 	"io"
@@ -126,7 +127,7 @@ type env struct {
 	t     *testing.T
 	s     *server
 	ts    *httptest.Server
-	fx    verifyFixture
+	fx    authverifytest.Fixture
 	rules *fakeRules
 	admin *pgx.Conn
 }
@@ -152,10 +153,10 @@ func newEnv(t *testing.T) *env {
 	}
 	t.Cleanup(st.close)
 
-	fx := newVerifyFixture(t)
-	jwks := fx.jwks("k1")
+	fx := authverifytest.NewFixture(t)
+	jwks := fx.JWKS("k1")
 	rules := &fakeRules{people_: map[string]peopleReply{}, grants: map[string]grantReply{}, roster: map[string][]member{}}
-	s := &server{cfg: config{}, keys: serveVerifyKeys(t, &jwks, nil), rules: rules, st: st, hub: newHub(), now: time.Now, scanner: fakeScanner{}}
+	s := &server{cfg: config{}, keys: authverifytest.ServeKeys(t, &jwks, nil), rules: rules, st: st, hub: newHub(), now: time.Now, scanner: fakeScanner{}}
 	hubCtx, stop := context.WithCancel(ctx)
 	t.Cleanup(stop)
 	go s.hub.listen(hubCtx, appURL)
@@ -165,7 +166,7 @@ func newEnv(t *testing.T) *env {
 }
 
 func (e *env) token(user string) string {
-	return e.fx.sign("k1", "EdDSA", func(m map[string]any) {
+	return e.fx.Sign("k1", "EdDSA", func(m map[string]any) {
 		m["sub"] = user
 		m["name"] = "Person " + user[:4]
 		m["tag"] = "K7P2"

@@ -58,7 +58,7 @@ func (s *server) staffRestores(q *req) error {
 		}
 		var id string
 		if err := s.st.db.QueryRow(ctx, `INSERT INTO agency_restores (org_id, backup_date, reason, requested_by) VALUES ($1, $2, $3, $4) RETURNING id::text`,
-			body.OrgID, day, reason, q.c.sub).Scan(&id); err != nil {
+			body.OrgID, day, reason, q.c.Sub).Scan(&id); err != nil {
 			return err
 		}
 		s.tellOwners(ctx, body.OrgID, "Caller Whale asks to restore your agency from the backup of "+body.BackupDate+": "+reason+
@@ -146,7 +146,7 @@ func (s *server) staffRunRestore(q *req) error {
 	id := q.r.PathValue("id")
 	var org string
 	err := s.st.db.QueryRow(ctx, `UPDATE agency_restores SET status = 'failed', ran_by = $2, ran_at = now(), report = '{"error": "running"}'
-		WHERE id = $1 AND status = 'confirmed' RETURNING org_id::text`, nullID(id), q.c.sub).Scan(&org)
+		WHERE id = $1 AND status = 'confirmed' RETURNING org_id::text`, nullID(id), q.c.Sub).Scan(&org)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return conflictErr("Only a restore the owner confirmed can run.")
 	}

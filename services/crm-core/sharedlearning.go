@@ -375,7 +375,7 @@ func (s *server) staffNoticeChecked(q *req) error {
 		checked = s.now()
 	}
 	tag, err := s.st.db.Exec(q.r.Context(), `UPDATE learning_agreements SET notice_checked_at = $2, notice_checked_by = $3, notice_check_note = $4 WHERE org_id = $1`,
-		nullID(q.r.PathValue("org")), checked, q.c.sub, strings.TrimSpace(body.Note))
+		nullID(q.r.PathValue("org")), checked, q.c.Sub, strings.TrimSpace(body.Note))
 	if err != nil {
 		return err
 	}

@@ -19,17 +19,17 @@ import (
 // It answers even when the workspace refuses them (second step, payment), so the app can tell them what to do.
 func (s *server) me(q *req) error {
 	ctx := q.r.Context()
-	ppl, err := s.rules.people(ctx, q.c.sub)
+	ppl, err := s.rules.people(ctx, q.c.Sub)
 	if err != nil {
 		return err
 	}
 	// Caller Whale's own owner, cofounder and system admins work in a workspace of their own, opened for them the first time (and
 	// only after their second step), the way the old server did. Everyone else is given a workspace by an owner or by an invitation.
-	if len(ppl.Workspaces) == 0 && q.c.secondFactor && slices.Contains([]string{"owner", "cofounder"}, ppl.PlatformRole) { // system admin is switched off
-		if err = s.rules.open(ctx, staffWorkspaceID(q.c.sub), q.c.sub, "owner"); err != nil {
+	if len(ppl.Workspaces) == 0 && q.c.SecondFactor && slices.Contains([]string{"owner", "cofounder"}, ppl.PlatformRole) { // system admin is switched off
+		if err = s.rules.open(ctx, staffWorkspaceID(q.c.Sub), q.c.Sub, "owner"); err != nil {
 			return err
 		}
-		if ppl, err = s.rules.people(ctx, q.c.sub); err != nil {
+		if ppl, err = s.rules.people(ctx, q.c.Sub); err != nil {
 			return err
 		}
 	}
@@ -74,7 +74,7 @@ func (s *server) me(q *req) error {
 	for id, name := range owned {
 		s.shareOrgName(ctx, id, name)
 	}
-	if err = s.st.db.QueryRow(ctx, `SELECT last_org_id::text, last_org_at FROM people WHERE user_id = $1`, q.c.sub).Scan(&lastOrg, &lastAt); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err = s.st.db.QueryRow(ctx, `SELECT last_org_id::text, last_org_at FROM people WHERE user_id = $1`, q.c.Sub).Scan(&lastOrg, &lastAt); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
 	if chosen == "" && lastOrg.Valid {
@@ -94,26 +94,26 @@ func (s *server) me(q *req) error {
 		}
 	}
 	if current != nil && q.r.Header.Get("x-callerwhale-org") == current.OrgID {
-		if _, err = s.st.db.Exec(ctx, `UPDATE people SET last_org_id = $2, last_org_at = now() WHERE user_id = $1`, q.c.sub, current.OrgID); err != nil {
+		if _, err = s.st.db.Exec(ctx, `UPDATE people SET last_org_id = $2, last_org_at = now() WHERE user_id = $1`, q.c.Sub, current.OrgID); err != nil {
 			return err
 		}
 		lastAt = sql.NullTime{Time: s.now(), Valid: true}
 	}
 	body := map[string]any{
-		"user":              map[string]any{"id": q.c.sub, "email": q.c.email, "name": label(q.c), "sign_in": q.c.provider},
+		"user":              map[string]any{"id": q.c.Sub, "email": q.c.Email, "name": label(q.c), "sign_in": q.c.Provider},
 		"organizations":     orgs,
 		"last_workspace_at": nil,
 		"platform_role":     nilIfEmpty(ppl.PlatformRole), "platform_admin": ppl.PlatformRole != "",
 		"organization_id": nil, "roles": []string{}, "capabilities": []string{}, "scopes": []string{}, "team_ids": []string{},
 		"access_revision": 0,
-		"mfa":             map[string]any{"required": false, "enrolled": false, "passed": q.c.secondFactor},
+		"mfa":             map[string]any{"required": false, "enrolled": false, "passed": q.c.SecondFactor},
 		"subscription":    map[string]any{"plan": "", "status": "active", "usable": true, "reason": nil},
 	}
 	if lastAt.Valid {
 		body["last_workspace_at"] = lastAt.Time
 	}
 	if current != nil {
-		g, err := s.rules.grant(ctx, q.c.sub, current.OrgID, q.c.secondFactor)
+		g, err := s.rules.grant(ctx, q.c.Sub, current.OrgID, q.c.SecondFactor)
 		if err != nil {
 			return err
 		}
@@ -160,7 +160,7 @@ func nonNil(v []string) []string {
 // account is the person's own record and whether their email is confirmed. Invitations, credits and downloads are not here.
 func (s *server) account(q *req) error {
 	writeJSON(q.w, 200, map[string]any{
-		"person":       map[string]any{"id": q.c.sub, "email": q.c.email, "name": label(q.c), "email_verified": q.c.emailVerified},
+		"person":       map[string]any{"id": q.c.Sub, "email": q.c.Email, "name": label(q.c), "email_verified": q.c.EmailVerified},
 		"staff":        nil,
 		"access":       nil,
 		"can_download": false,
@@ -281,7 +281,7 @@ func (s *server) createTeam(q *req) error {
 	ctx := q.r.Context()
 	// The team is made in authz first (it holds the tree), then copied here under the same id.
 	id := randomID()
-	if err := s.rules.putTeam(ctx, q.sc.orgID, id, name, q.sc.userID, q.c.secondFactor); err != nil {
+	if err := s.rules.putTeam(ctx, q.sc.orgID, id, name, q.sc.userID, q.c.SecondFactor); err != nil {
 		return err
 	}
 	tx, err := s.st.begin(ctx, q.sc)
@@ -526,10 +526,9 @@ func (s *server) setPicture(q *req) error {
 		return bad("A picture is a PNG, JPEG or WebP image, or an https address.")
 	}
 	if _, err := s.st.db.Exec(q.r.Context(), `INSERT INTO people (user_id, name, email, avatar) VALUES ($1, $2, $3, $4)
-		ON CONFLICT (user_id) DO UPDATE SET avatar = EXCLUDED.avatar`, q.c.sub, label(q.c), q.c.email, avatar); err != nil {
+		ON CONFLICT (user_id) DO UPDATE SET avatar = EXCLUDED.avatar`, q.c.Sub, label(q.c), q.c.Email, avatar); err != nil {
 		return err
 	}
 	writeJSON(q.w, http.StatusOK, map[string]any{"ok": true})
 	return nil
 }
-

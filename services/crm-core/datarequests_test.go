@@ -52,7 +52,7 @@ func TestDataRequestFindsExportsAndDeletes(t *testing.T) {
 	noStep := func() (int, map[string]any) {
 		b, _ := json.Marshal(map[string]any{"confirm": true})
 		req, _ := http.NewRequest("POST", e.ts.URL+"/api/v1/data-requests/"+id+"/delete", bytes.NewReader(b))
-		req.Header.Set("Authorization", "Bearer "+e.fx.sign("k1", "EdDSA", func(m map[string]any) { m["sub"], m["mfa"] = alice, false }))
+		req.Header.Set("Authorization", "Bearer "+e.fx.Sign("k1", "EdDSA", func(m map[string]any) { m["sub"], m["mfa"] = alice, false }))
 		req.Header.Set("x-callerwhale-org", orgA)
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {

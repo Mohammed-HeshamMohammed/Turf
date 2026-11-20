@@ -11,6 +11,7 @@ require (
 )
 
 require (
+	callerwhale/authverify v0.0.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.21.1 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.9 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.12 // indirect
@@ -29,3 +30,5 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 )
+
+replace callerwhale/authverify => ../../packages/go/authverify

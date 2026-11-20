@@ -425,7 +425,7 @@ func (s *server) listTextConsent(q *req) error {
 
 // staff lets Caller Whale's own staff through.
 func (s *server) staff(q *req) error {
-	p, err := s.rules.people(q.r.Context(), q.c.sub)
+	p, err := s.rules.people(q.r.Context(), q.c.Sub)
 	if err != nil {
 		return err
 	}
@@ -474,7 +474,7 @@ func (s *server) staffConfirm(q *req) error {
 		return err
 	}
 	tag, err := s.st.db.Exec(q.r.Context(), `UPDATE shared_blocks SET confirmed_at = now(), confirmed_how = 'staff', confirmed_by = $2
-		WHERE id = $1 AND confirmed_at IS NULL AND removed_at IS NULL`, nullID(q.r.PathValue("id")), q.c.sub)
+		WHERE id = $1 AND confirmed_at IS NULL AND removed_at IS NULL`, nullID(q.r.PathValue("id")), q.c.Sub)
 	if err != nil {
 		return err
 	}
@@ -508,7 +508,7 @@ func (s *server) staffRemove(q *req) error {
 	}
 	defer tx.Rollback(ctx)
 	id := nullID(q.r.PathValue("id"))
-	tag, err := tx.Exec(ctx, `UPDATE shared_blocks SET removed_at = now(), removed_by = $2, remove_reason = $3 WHERE id = $1 AND removed_at IS NULL`, id, q.c.sub, reason)
+	tag, err := tx.Exec(ctx, `UPDATE shared_blocks SET removed_at = now(), removed_by = $2, remove_reason = $3 WHERE id = $1 AND removed_at IS NULL`, id, q.c.Sub, reason)
 	if err != nil {
 		return err
 	}
@@ -516,7 +516,7 @@ func (s *server) staffRemove(q *req) error {
 		return notFound("No number in the database under that id.")
 	}
 	if _, err = tx.Exec(ctx, `UPDATE shared_block_reviews SET decided_at = now(), decided_by = $2, decision = 'removed', staff_note = $3 WHERE block_id = $1 AND decided_at IS NULL`,
-		id, q.c.sub, reason); err != nil {
+		id, q.c.Sub, reason); err != nil {
 		return err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -538,7 +538,7 @@ func (s *server) staffKeep(q *req) error {
 		return err
 	}
 	tag, err := s.st.db.Exec(q.r.Context(), `UPDATE shared_block_reviews SET decided_at = now(), decided_by = $2, decision = 'kept', staff_note = $3 WHERE id = $1 AND decided_at IS NULL`,
-		nullID(q.r.PathValue("id")), q.c.sub, strings.TrimSpace(body.Note))
+		nullID(q.r.PathValue("id")), q.c.Sub, strings.TrimSpace(body.Note))
 	if err != nil {
 		return err
 	}

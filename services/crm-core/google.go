@@ -303,7 +303,7 @@ func (s *server) googleConnect(q *req) error {
 	b := make([]byte, 24)
 	_, _ = rand.Read(b)
 	state := hex.EncodeToString(b)
-	if _, err := s.st.db.Exec(q.r.Context(), `INSERT INTO google_states (state, user_id, expires_at) VALUES ($1, $2, now() + interval '10 minutes')`, state, q.c.sub); err != nil {
+	if _, err := s.st.db.Exec(q.r.Context(), `INSERT INTO google_states (state, user_id, expires_at) VALUES ($1, $2, now() + interval '10 minutes')`, state, q.c.Sub); err != nil {
 		return err
 	}
 	writeJSON(q.w, 200, map[string]any{"url": s.calendar.authURL(state)})
@@ -357,7 +357,7 @@ func (s *server) googleCallback(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) googleStatus(q *req) error {
 	var at *time.Time
-	err := s.st.db.QueryRow(q.r.Context(), `SELECT connected_at FROM google_accounts WHERE user_id = $1`, q.c.sub).Scan(&at)
+	err := s.st.db.QueryRow(q.r.Context(), `SELECT connected_at FROM google_accounts WHERE user_id = $1`, q.c.Sub).Scan(&at)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
@@ -369,18 +369,18 @@ func (s *server) googleStatus(q *req) error {
 // the token forgotten.
 func (s *server) googleDisconnect(q *req) error {
 	ctx := q.r.Context()
-	acct, err := s.googleAccount(ctx, q.c.sub)
+	acct, err := s.googleAccount(ctx, q.c.Sub)
 	if err != nil || acct == nil {
 		if err == nil {
 			writeJSON(q.w, 200, map[string]any{"connected": false})
 		}
 		return err
 	}
-	if err := s.removeEvents(ctx, `user_id = $1`, q.c.sub); err != nil {
+	if err := s.removeEvents(ctx, `user_id = $1`, q.c.Sub); err != nil {
 		log.Printf("WARN google disconnect: %v", err)
 	}
 	_ = s.calendar.revoke(ctx, acct.refresh)
-	if _, err := s.st.db.Exec(ctx, `DELETE FROM google_accounts WHERE user_id = $1`, q.c.sub); err != nil {
+	if _, err := s.st.db.Exec(ctx, `DELETE FROM google_accounts WHERE user_id = $1`, q.c.Sub); err != nil {
 		return err
 	}
 	writeJSON(q.w, 200, map[string]any{"connected": false})

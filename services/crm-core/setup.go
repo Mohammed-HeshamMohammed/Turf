@@ -56,7 +56,7 @@ func (s *server) setupChecklist(q *req) error {
 	if members, err := s.rules.members(ctx, q.sc.orgID); err == nil && len(members) > 1 {
 		seen["invite"] = true
 	}
-	if q.c.secondFactor {
+	if q.c.SecondFactor {
 		seen["authenticator"] = true
 	}
 	tx, err := s.st.begin(ctx, q.sc)

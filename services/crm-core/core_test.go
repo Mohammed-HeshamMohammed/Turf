@@ -774,7 +774,7 @@ func TestPlatformStaffGetTheirOwnWorkspaceOnceAndOnlyAfterTheSecondStep(t *testi
 	// Without the second step nothing is opened, even for the owner.
 	const later = "88888888-8888-4888-8888-888888888888"
 	e.rules.people_[later] = peopleReply{UserID: later, PlatformRole: "cofounder"}
-	noSecondStep := e.fx.sign("k1", "EdDSA", func(m map[string]any) {
+	noSecondStep := e.fx.Sign("k1", "EdDSA", func(m map[string]any) {
 		m["sub"] = later
 		m["mfa"] = false
 		m["name"] = "Later"

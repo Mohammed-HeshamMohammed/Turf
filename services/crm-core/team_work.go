@@ -75,8 +75,8 @@ func (s *server) putTeamSettings(q *req) error {
 	var body struct {
 		AgentsClaim   *bool `json:"agents_claim"`
 		AgentsSeeTeam *bool `json:"agents_see_team"`
-		OpenLimit   *int  `json:"open_limit"` // 0 clears the limit
-		Leaderboard *bool `json:"leaderboard"`
+		OpenLimit     *int  `json:"open_limit"` // 0 clears the limit
+		Leaderboard   *bool `json:"leaderboard"`
 	}
 	if err := readJSON(q.w, q.r, &body); err != nil {
 		return err

@@ -178,14 +178,14 @@ func queryRaw(ctx context.Context, s *server, sql string, args ...any) ([]json.R
 }
 
 type referral struct {
-	id, fromOrg, toOrg, fromLead, status        string
-	name, phone, email, address, note           string
-	blocks                                      []byte
-	prevStage, prevVerdict                      string
-	toLead                                      *string
-	feeNote                                     string
-	feeBy                                       *string
-	shareFrom, shareTo                          bool
+	id, fromOrg, toOrg, fromLead, status string
+	name, phone, email, address, note    string
+	blocks                               []byte
+	prevStage, prevVerdict               string
+	toLead                               *string
+	feeNote                              string
+	feeBy                                *string
+	shareFrom, shareTo                   bool
 }
 
 func (s *server) loadReferral(ctx context.Context, id string) (*referral, error) {

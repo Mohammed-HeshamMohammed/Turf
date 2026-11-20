@@ -119,17 +119,16 @@ func (s *server) tellOwners(ctx context.Context, org, title string) {
 	_ = tx.Commit(ctx)
 }
 
-
 // crossAgencyStaff is the platform owner or cofounder with their second step (D271).
 func (s *server) crossAgencyStaff(q *req) error {
-	p, err := s.rules.people(q.r.Context(), q.c.sub)
+	p, err := s.rules.people(q.r.Context(), q.c.Sub)
 	if err != nil {
 		return err
 	}
 	if !slices.Contains([]string{"owner", "cofounder"}, p.PlatformRole) {
 		return forbidden("Only Caller Whale's owner and cofounder see across agencies.")
 	}
-	if !q.c.secondFactor {
+	if !q.c.SecondFactor {
 		return &apiError{http.StatusForbidden, "second_step_required", "Pass your second sign-in step first."}
 	}
 	return nil
@@ -175,7 +174,7 @@ func (s *server) staffClearTexting(q *req) error {
 		return bad("Say what was reviewed (5 to 1,000 characters).")
 	}
 	tag, err := s.st.db.Exec(q.r.Context(), `UPDATE carrier_standing SET cleared_at = now(), cleared_by = $2, clear_note = $3 WHERE org_id = $1 AND step <> 'ok'`,
-		nullID(q.r.PathValue("org")), q.c.sub, note)
+		nullID(q.r.PathValue("org")), q.c.Sub, note)
 	if err != nil {
 		return err
 	}
