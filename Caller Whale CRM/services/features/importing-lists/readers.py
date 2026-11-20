@@ -343,7 +343,9 @@ def _csv_batches(path: Path, has_header: bool, skip_rows: int):
     width = max(max((len(r) for r in top[junk:]), default=1), widest_line(path, sep)) or 1
     # Read without a header row and take the first line as the header here, so the names are made unique the same way for every format.
     lazy = pl.scan_csv(path, separator=sep, has_header=False, schema={f"c{i}": pl.String for i in range(width)}, skip_rows=junk,
-                       encoding="utf8-lossy", truncate_ragged_lines=True, quote_char='"')
+                       encoding="utf8-lossy", truncate_ragged_lines=True, quote_char='"',
+                       # polars 2: lines narrower than the width get empty cells, as polars 1 did.
+                       missing_columns="insert")
     headers: list[str] | None = None
     skipped = 0
     for frame in lazy.collect_batches(chunk_size=BATCH_ROWS):
