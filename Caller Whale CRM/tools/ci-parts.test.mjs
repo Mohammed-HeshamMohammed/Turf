@@ -6,7 +6,8 @@ test("a change runs its part and what depends on it", () => {
   assert.deepEqual(partsFor(["Caller Whale CRM/services/crm-core/main.go"]), ["crm-core", "tools"]);
   assert.deepEqual(partsFor(["Caller Whale CRM/services/crm-core/migrations/0049_x.sql"]), ["crm-core", "importing-lists", "tools"]);
   assert.deepEqual(partsFor(["Caller Whale CRM/services/auth/help.go"]), ["auth", "gateway", "tools"]);
-  assert.deepEqual(partsFor(["Caller Whale CRM/shared/calendar/calendar.jsx"]), ["tools", "crm-app", "website"]);
+  assert.deepEqual(partsFor(["packages/calendar/calendar.jsx"]), ["tools", "crm-app", "website"]);
+  assert.deepEqual(partsFor(["package-lock.json"]), ["crm-app", "website"]);
   assert.deepEqual(partsFor(["service/x.py"]), ["crm-app"]);
   // The desktop apps have their own workflows.
   assert.deepEqual(partsFor(["Caller Whale CRM/desktop/container/rust/src/main.rs", "Caller Whale App/src/App.tsx"]), []);

@@ -7,5 +7,5 @@ reference
 .playwright-cli
 *.md
 
-# A copy of Caller Whale CRM/shared/calendar, kept identical by its sync.mjs: formatted there, not here.
+# An older copy of the calendar (packages/calendar), formatted like the original, not like this app. It is no longer synced (step 49).
 src/calendar/

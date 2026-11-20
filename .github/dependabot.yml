@@ -9,9 +9,8 @@ updates:
   - package-ecosystem: npm
     directories:
       - "/Caller Whale App"
-      - "/Caller Whale CRM/desktop/frontend/react"
-      - "/Caller Whale CRM/landing/site"
-      - "/Caller Whale CRM/landing/dashboard-web"
+      # The npm workspace (D383): the CRM app, the website and packages/ share the root lock file.
+      - "/"
       - "/Caller Whale CRM/tools/firebase"
       - "/Caller Whale CRM/services/features/ai-campaigns"
     schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }

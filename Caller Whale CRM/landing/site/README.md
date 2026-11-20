@@ -12,7 +12,7 @@ npm --prefix landing/site run dev      # http://localhost:5200
 npm --prefix landing/site run build    # landing/site/dist
 ```
 
-`src/auth/auth-client.js` and `human-check.jsx` are copies of `services/auth/clients/`, kept in step by `node services/auth/clients/sync.mjs`. When the auth service has bot protection on, the forms load the invisible human check on their own.
+The auth client and the human check come from `@callerwhale/auth-client` (`packages/auth-client`), the calendar from `@callerwhale/calendar` and the error reporter from `@callerwhale/error-report`: npm workspace packages, so run `npm ci` at the repository root, not here (D383). When the auth service has bot protection on, the forms load the invisible human check on their own.
 
 Sign-up answers "by invitation" while the auth service has `AUTH_PUBLIC_SIGNUP=false`. Google sign-in comes back to `/signin` (`AUTH_LANDING_URL` on the auth service). Deploy: Dockerfile in this folder, port 8080.
 

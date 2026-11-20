@@ -78,7 +78,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: Caller Whale CRM/desktop/frontend/react/package-lock.json
+          cache-dependency-path: package-lock.json
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
@@ -92,8 +92,8 @@ jobs:
       - run: pip install -r service/requirements.txt pyinstaller
       - run: python service/tools/build_service.py
 
+      # npm workspaces (D383): install once at the repository root.
       - run: npm ci
-        working-directory: Caller Whale CRM/desktop/frontend/react
       - name: Build the installer
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

@@ -35,6 +35,8 @@ on:
       - "Caller Whale CRM/tools/coolify-deploy.mjs"
       - "**/Dockerfile"
       - "**/.dockerignore"
+      - "**/*.dockerignore"
+      - "package-lock.json"
 
 permissions:
   contents: read
