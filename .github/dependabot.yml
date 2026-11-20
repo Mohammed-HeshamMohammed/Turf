@@ -55,9 +55,10 @@ updates:
         update-types: [minor, patch]
     labels: [dependencies, python]
 
-  # --- Rust: the desktop app, the workspace of feature crates, and the desktop container -----------------------------------
+  # --- Rust: the root workspace (the desktop window and its feature crates), the older desktop app and the scaffolds --------
   - package-ecosystem: cargo
     directories:
+      - "/"
       - "/Caller Whale App/src-tauri"
       - "/Caller Whale CRM"
     schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }
