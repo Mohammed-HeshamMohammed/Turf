@@ -10,6 +10,7 @@
 package main
 
 import (
+	"callerwhale/runtimelog"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -562,6 +563,6 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Printf("%s listening on http://localhost:%s, in front of %s", service, port, cfg.grafana)
-	srv := &http.Server{Addr: ":" + port, Handler: logHTTP(newProxy(cfg)), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 2 * time.Minute, IdleTimeout: 2 * time.Minute}
+	srv := &http.Server{Addr: ":" + port, Handler: runtimelog.LogHTTP(newProxy(cfg)), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 2 * time.Minute, IdleTimeout: 2 * time.Minute}
 	serveUntilStopped(srv)
 }

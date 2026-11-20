@@ -64,9 +64,9 @@ type world struct {
 }
 
 var (
-	owner = person{ID: "11111111-1111-1111-1111-111111111111", Email: "owner@callerwhale.example", Name: "App Owner", Role: "owner"}
+	owner     = person{ID: "11111111-1111-1111-1111-111111111111", Email: "owner@callerwhale.example", Name: "App Owner", Role: "owner"}
 	cofounder = person{ID: "33333333-3333-3333-3333-333333333333", Email: "cofounder@callerwhale.example", Name: "App Cofounder", Role: "cofounder"}
-	admin = person{ID: "22222222-2222-2222-2222-222222222222", Email: "helper@callerwhale.example", Name: "Support Person", Role: "system_admin"}
+	admin     = person{ID: "22222222-2222-2222-2222-222222222222", Email: "helper@callerwhale.example", Name: "Support Person", Role: "system_admin"}
 )
 
 // newWorld starts a fake Auth service and a fake Grafana that answers with the headers it was sent.

@@ -1,11 +1,12 @@
 FROM golang:1 AS runtime-log-build
-COPY runtime-log/main.go /src/main.go
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log /src/main.go
+COPY packages/go/runtimelog /src
+RUN cd /src && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log ./cmd/callerwhale-log
 
 FROM golang:1 AS build
-WORKDIR /src
-COPY go.mod ./
-COPY *.go ./
+WORKDIR /repo/services/alert-relay
+COPY packages/go /repo/packages/go
+COPY services/alert-relay/go.mod ./
+COPY services/alert-relay/*.go ./
 RUN CGO_ENABLED=0 go build -o /out/service .
 
 FROM gcr.io/distroless/static-debian12
