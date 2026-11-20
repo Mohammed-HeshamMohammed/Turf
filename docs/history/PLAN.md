@@ -2,7 +2,7 @@
 
 Caller Whale is the place to manage your lists and the areas they cover. The data comes from DataForge: listings collected through the browser extension, public records, and the phone checks from DataForge's Skip Tracing.
 
-Status: the first version is built (Dashboard, Lists with automatic and manual marks, Skip Tracing). See [README.md](README.md) for how it is built and what is not done. This plan was written 8 October 2026 from the conversation that started it; the open questions below show what was decided since.
+Status: the first version is built (Dashboard, Lists with automatic and manual marks, Skip Tracing). See [the older app's README](../../apps/lists-desktop/README.md) for how it is built and what is not done. This plan was written 8 October 2026 from the conversation that started it; the open questions below show what was decided since.
 
 ## What Caller Whale is for
 
