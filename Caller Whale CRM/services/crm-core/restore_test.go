@@ -28,7 +28,12 @@ func TestRestoreOneAgencyFromACopy(t *testing.T) {
 	var exists bool
 	_ = e.admin.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'crm_core_copy')`).Scan(&exists)
 	if !exists {
-		if _, err := e.admin.Exec(ctx, `CREATE DATABASE crm_core_copy OWNER `+pgx.Identifier{strings.Split(strings.TrimPrefix(appURL, "postgres://"), "@")[0]}.Sanitize()); err != nil {
+		// The app's role name, without the password the address may carry (postgres://crm_app:pass@host/db).
+		app, err := url.Parse(appURL)
+		if err != nil || app.User == nil {
+			t.Fatalf("CRM_TEST_DATABASE_URL has no user: %v", err)
+		}
+		if _, err := e.admin.Exec(ctx, `CREATE DATABASE crm_core_copy OWNER `+pgx.Identifier{app.User.Username()}.Sanitize()); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -141,6 +141,7 @@ export function Calls({ target }) {
   };
   useEffect(() => {
     if (bigWorkspace && pulled.key !== pullKey) pullMore();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- start a list once when it changes; pullMore is redefined each render
   }, [pullKey, bigWorkspace]);
   // Within a list, callbacks that are due come first, then people who have never been called.
   const leads = useMemo(() => {
@@ -157,6 +158,7 @@ export function Calls({ target }) {
   const position = leads.findIndex(item => item.id === lead?.id);
   useEffect(() => {
     if (bigWorkspace && pulled.key === pullKey && position >= leads.length - 10) pullMore();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- ask for the next page when the position nears the end; pullMore is redefined each render
   }, [position, leads.length, pulled.key, pulled.busy]);
   useEffect(() => {
     setCallNote("");

@@ -89,3 +89,7 @@ CARRIER_CHECK=off
 # Restoring one agency (build step 41).
 # Step 41: the database a CRM backup was restored into, to restore one agency from (docs/plans/backups-and-recovery.md). Secret PostgreSQL URI with crm-core's login. Empty except while a restore is being done.
 RESTORE_COPY_URL=
+
+# Shared learning by agreement (build step 45).
+# Step 45: on lets agencies' agreed patterns be used (shared learning). Leave off until the lawyer approved the agreement's text and the notice check (checks-by-hand W-9); off: nothing is used, agencies can still agree.
+SHARED_LEARNING=off

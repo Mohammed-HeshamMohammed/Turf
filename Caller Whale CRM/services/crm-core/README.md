@@ -152,3 +152,17 @@ All for the owner or an admin of each agency (`lead_referrals` sits outside eith
 ## Restoring one agency from a backup (build step 41)
 
 See `docs/plans/backups-and-recovery.md`. Staff (owner or cofounder, second step): `GET/POST /api/v1/platform/restores`, `POST …/{id}/run`, `POST …/{id}/cancel`. The agency's owner: `GET /api/v1/restores`, `POST /api/v1/restores/{id}/confirm` (second step). The run needs `RESTORE_COPY_URL`. A pull from before a restore answers `reset`.
+
+## A lead's data request (build step 44)
+
+- `POST /api/v1/data-requests {kind: access|delete, name, phone, email, received_on, block_calls, block_texts, note}` (the owner or an admin): finds the agency's leads with that number or email (also among their other contacts) and counts every record kept on them; a block asked for applies at once (a deletion always blocks). `GET /api/v1/data-requests`, `GET …/{id}` (what is found now), `POST …/{id}/close`.
+- `GET …/{id}/export`: one JSON file with every record about the person: their leads, properties, and every agency table with a `lead_id` (notes, tasks, calls, deals, emails, files' details, …), forms they sent, their blocks and unsubscribes.
+- `POST …/{id}/delete {confirm: true}` (the owner, second step): deletes all of it, blanks them out of referrals, keeps the number blocked (`deleted_on_request`) and the email unsubscribed, empties the name on the request, and lists the number for the dialer (`GET /internal/v1/dialer/erasures`, `POST …/{id}/done`), which removes its calls and texts with it and records the date here. A restore deletes it again (step 41).
+
+## Shared learning by agreement (build step 45)
+
+What is learned is counts only: how often calls reach people at each hour of the week and on each attempt (`shared_patterns`, no agency, person, number, client or text). An agency's counts are shared once a day only while `SHARED_LEARNING=on`, the owner signed the separate agreement of the current version with the second step and has not withdrawn, and staff checked the agency's notice to its leads; a client's leads count only once a person of that client agrees; a check refuses any row that is not a known kind, a bucket of digits and counts (`shared_learning_runs` keeps each run).
+- `GET /api/v1/learning/agreement` (the text, the state, why not, each client), `POST /api/v1/learning/agreement {version, notice_url}` and `…/withdraw` (the owner). Signing gives the AI discount in billing (`PUT /v1/orgs/{org}/discounts/shared_learning`, 20% for now); withdrawing ends it and new counts; what was learned stays.
+- `POST /api/v1/learning/clients/{id}/agree` and `/withdraw`: a person of that client.
+- `GET /api/v1/learning/shared-patterns`: reach rates, only where at least three agencies make up a figure.
+- Staff (owner or cofounder, second step): `GET /api/v1/platform/learning`, `POST /api/v1/platform/learning/{org}/notice-checked {ok, note}` (a "not ok" tells the owner).
