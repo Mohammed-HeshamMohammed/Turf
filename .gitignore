@@ -43,4 +43,12 @@ target/
 # Generated local image helpers; production snapshots inject the canonical source.
 Caller Whale CRM/**/runtime-log/main.go
 !Caller Whale CRM/tools/runtime-log/main.go
-!Caller Whale CRM/landing/site/runtime-log/main.go
+apps/**/runtime-log/main.go
+!apps/website/runtime-log/main.go
+
+# Local settings and secrets, wherever they are (these rules were in Caller Whale CRM/.gitignore before the apps moved out, step 52, D386)
+.env*
+!.env.example
+.vercel/
+.vite/
+apps/crm-desktop/gen/
