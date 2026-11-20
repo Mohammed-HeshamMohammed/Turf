@@ -18,8 +18,8 @@ import { createPortal } from "react-dom";
 import { useCrm } from "./context.jsx";
 import { avatarSources } from "./avatars.ts";
 import { TODAY } from "./data.ts";
-import { DatePicker as SharedDatePicker } from "./calendar/calendar.jsx";
-import "./calendar/calendar.css";
+import { DatePicker as SharedDatePicker } from "@callerwhale/calendar";
+import "@callerwhale/calendar/calendar.css";
 
 /** Source lists often arrive in capitals ("AADINA SHAREEF", "7014 SANTA RITA DR"). Shown in ordinary case; text that already has lower case is left as it is. */
 export const tidyCase = text => {

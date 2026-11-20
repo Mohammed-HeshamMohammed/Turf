@@ -11,7 +11,7 @@ import { SecondStep } from "./SecondStep.jsx";
 import { PasswordStrength, PasswordTips } from "./DevicePasswordHelp.jsx";
 import { PasswordInput } from "./PasswordInput.jsx";
 import { assess, MAX_LENGTH } from "./remote/password-check.ts";
-import { HumanCheck, humanToken } from "./remote/human-check.jsx";
+import { HumanCheck, humanToken } from "@callerwhale/auth-client/human-check.jsx";
 
 /**
  * Signs in with the auth service, opens the person's workspace on Caller Whale's server, and unlocks this device's offline

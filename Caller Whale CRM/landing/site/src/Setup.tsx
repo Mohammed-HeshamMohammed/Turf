@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import type { Auth, Me } from "./auth/auth-client.js";
+import type { Auth, Me } from "@callerwhale/auth-client";
 import { AgeGate } from "./AgeGate.tsx";
 import { TEAM_SIZES, TERMS_VERSION, WORK_ROLES, WORK_USES, setupStep } from "./setup.ts";
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { Auth } from "./auth/auth-client.js";
+import type { Auth } from "@callerwhale/auth-client";
 import { mcpUrl } from "./crm-url.ts";
 import { hasCrmAccess } from "./crm-access.ts";
 

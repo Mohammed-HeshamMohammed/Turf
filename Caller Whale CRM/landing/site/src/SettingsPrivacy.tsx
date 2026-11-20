@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import type { Auth, Me } from "./auth/auth-client.js";
+import type { Auth, Me } from "@callerwhale/auth-client";
 
 const problem = (error: unknown, fallback: string) => error instanceof Error && error.message ? error.message : fallback;
 

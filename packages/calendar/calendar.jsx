@@ -1,5 +1,5 @@
 // Caller Whale's calendar and date field, shared by the CRM, the website and the desktop app. Plain React and CSS
-// (calendar.css): no animation, icon or class-name libraries. Change it here, then run: node shared/calendar/sync.mjs
+// (calendar.css): no animation, icon or class-name libraries. The one copy: the apps import it as @callerwhale/calendar (D383).
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 

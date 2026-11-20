@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import type { Auth } from "./auth/auth-client.js";
+import type { Auth } from "@callerwhale/auth-client";
 
 // Build step 13: handing an agency to a new owner (D28, D70, D199, D200), and an agency whose owner is gone (D27, D201).
 

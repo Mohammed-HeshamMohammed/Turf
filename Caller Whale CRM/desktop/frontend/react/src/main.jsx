@@ -4,7 +4,7 @@ import { App } from "./App.jsx";
 import "@fontsource-variable/schibsted-grotesk";
 import "./styles.css";
 import "./crm.css";
-import { installErrorReports } from "./error-report.js";
+import { installErrorReports } from "@callerwhale/error-report";
 import { AUTH_SERVER } from "./remote/api.ts";
 
 // Errors in the app reach the auth service's log, without their text (step 42).

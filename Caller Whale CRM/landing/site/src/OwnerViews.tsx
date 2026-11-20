@@ -3,7 +3,7 @@ import { workspaceRoleName } from "./roles.ts";
 import { CurrencySelect } from "./CurrencySelect.tsx";
 import { convertMinor, formatMinor, type Rates } from "./currency.ts";
 import { useMainCurrency } from "./MainCurrency.tsx";
-import type { Auth } from "./auth/auth-client.js";
+import type { Auth } from "@callerwhale/auth-client";
 import { SecondStep, needsSecondStep, useSecondStep } from "./SecondStep.tsx";
 
 /** The dashboard's authed request to the auth service (it adds the token and turns refusals into messages). */

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import type { Auth } from "./auth/auth-client.js";
+import type { Auth } from "@callerwhale/auth-client";
 import type { Announcement } from "./Announcement.tsx";
 import type { Api } from "./OwnerViews.tsx";
 import { needsSecondStep, useSecondStep } from "./SecondStep.tsx";

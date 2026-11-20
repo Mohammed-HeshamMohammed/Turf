@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { Auth } from "./auth/auth-client.js";
+import type { Auth } from "@callerwhale/auth-client";
 import { workspaceRoleName } from "./roles.ts";
 
 type Agency = { org_id: string; name: string; roles: string[]; teams: { id: string; name: string; lead: boolean; deputy: boolean }[]; owner: boolean };

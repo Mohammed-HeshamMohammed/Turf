@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Auth, Me } from "./auth/auth-client.js";
+import type { Auth, Me } from "@callerwhale/auth-client";
 import { Link } from "./nav.tsx";
 import type { Access } from "./RoleBadges.tsx";
 import { InviteManager, PendingInvitations, WorkspaceManager } from "./AccessManagement.tsx";

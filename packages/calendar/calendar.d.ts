@@ -1,4 +1,4 @@
-// Types for calendar.jsx, a copy of Caller Whale CRM/shared/calendar/calendar.jsx kept in step by its sync.mjs.
+// Types for calendar.jsx (@callerwhale/calendar).
 import type { JSX } from "react";
 
 export interface DateRange {

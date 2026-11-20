@@ -1,6 +1,6 @@
 import type { Auth } from "./auth-client.js";
 
-// Types for human-check.jsx, a copy of services/auth/clients/human-check.jsx kept in step by sync.mjs.
+// Types for human-check.jsx (@callerwhale/auth-client/human-check.jsx).
 
 /**
  * The reCAPTCHA token for one request, taken when it is sent (a token works once): a new invisible one, or the ticked

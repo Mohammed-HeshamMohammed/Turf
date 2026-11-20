@@ -1,7 +1,7 @@
 // The Caller Whale API over fetch. Signing in is the auth service's job (./auth-client.js): every request here carries its
 // access token, and the organization the person is working in. No cookies: the token is the session.
 
-import { createAuth } from "./auth-client.js";
+import { createAuth } from "@callerwhale/auth-client";
 
 export class ApiError extends Error {
   status: number;
