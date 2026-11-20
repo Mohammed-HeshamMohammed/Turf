@@ -32,9 +32,9 @@ container's network alias (`http://<alias>:<port>`), as the existing settings do
 
 - **Billing is down.** Status Exited; its last three deploys (2026-11-18) failed the health check because the `core-api=` entry in
   `BILLING_TOKENS` is shorter than 32 characters. core-api is retired: remove that entry (or give it a 32+ character value) and redeploy.
-- **There is no Notifications resource** in Coolify (and no ClamAV). crm-core's `NOTIFY_URL` and auth's `AUTH_NOTIFY_URL` point at
-  `notifications:8102`, so whatever sends through it (invitation and sign-in emails, reports, status and breach notices) has nowhere to go
-  until it is deployed again from `notifications-backend-production`.
+- **Notifications (corrected 2026-11-20):** it is deployed and running ("Caller Whale Notifications", alias `notifications`, port 8102,
+  settings PORT NOTIFY_TOKENS NOTIFY_SMTP_HOST NOTIFY_SMTP_PORT NOTIFY_SMTP_USER NOTIFY_SMTP_PASSWORD NOTIFY_MAIL_FROM). The first read missed its row.
+  There is no ClamAV.
 - **Gateway:** `ROUTES` already sends `gate.callerwhale.com` to `http://crm-core:8107` (verified). Missing: `AUTHZ_URL` and `AUTHZ_TOKEN` (step 35).
 - **CRM Core** has only `PORT DATABASE_URL AUTH_JWKS_URL AUTHZ_URL AUTHZ_TOKEN NOTIFY_URL CORS_ORIGINS IMPORT_DIR IMPORT_DB_ROLE
   MAX_IMPORT_MB LEARNING_URL LEARNING_TOKEN DIALER_TOKEN`. Missing from its row: `APP_URL`, `BILLING_URL/TOKEN`, `ASSISTANT_URL/TOKEN`,
