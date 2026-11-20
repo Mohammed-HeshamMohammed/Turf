@@ -64,14 +64,14 @@ type callRow struct {
 	CRMMessage         string     `db:"crm_message" json:"crm_message"`
 	RecordingReported  bool       `db:"recording_reported" json:"recording_reported"`
 	// Captions and the AI's suggestions on this call, and what the captions pre-selected (step 26).
-	Captions         bool   `db:"captions" json:"captions"`
-	Suggestions      bool   `db:"suggestions" json:"suggestions"`
-	CaptionsPaused   bool   `db:"captions_paused" json:"captions_paused"`
-	SuggestedOutcome string `db:"suggested_outcome" json:"suggested_outcome"`
-	DNCKind          string `db:"dnc_kind" json:"dnc_kind"`
-	AISummary        string `db:"ai_summary" json:"ai_summary"`
-	CreatedAt          time.Time  `db:"created_at" json:"created_at"`
-	UpdatedAt          time.Time  `db:"updated_at" json:"updated_at"`
+	Captions         bool      `db:"captions" json:"captions"`
+	Suggestions      bool      `db:"suggestions" json:"suggestions"`
+	CaptionsPaused   bool      `db:"captions_paused" json:"captions_paused"`
+	SuggestedOutcome string    `db:"suggested_outcome" json:"suggested_outcome"`
+	DNCKind          string    `db:"dnc_kind" json:"dnc_kind"`
+	AISummary        string    `db:"ai_summary" json:"ai_summary"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
 }
 
 func (c callRow) facts(now time.Time) facts {

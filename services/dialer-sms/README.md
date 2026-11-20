@@ -103,7 +103,7 @@ Simulate mode costs nothing but the container (it runs inside it, no extra servi
 ## Run and test
 
 ```bash
-cd services/features/dialer-sms && go test ./...                 # without a database the scenario tests are skipped
+cd services/dialer-sms && go test ./...                 # without a database the scenario tests are skipped
 DIALER_TEST_DATABASE_URL=postgres://postgres@localhost:5432/dialer_test?sslmode=disable go test ./...
 ```
 

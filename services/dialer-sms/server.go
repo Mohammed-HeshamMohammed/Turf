@@ -1,7 +1,8 @@
 package main
 
 import (
-	"slices"
+	"callerwhale/authverify"
+	"callerwhale/runtimelog"
 	"context"
 	"crypto/ed25519"
 	"crypto/subtle"
@@ -11,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -71,14 +73,14 @@ func readJSON(w http.ResponseWriter, r *http.Request, into any) error {
 type server struct {
 	cfg        config
 	st         *store
-	keys       *keyset
+	keys       *authverify.Keyset
 	rules      rules
 	carrier    carrier
 	crm        crm
 	webhookKey ed25519.PublicKey
 	sim        *simulator // simulate mode: the fake Telnyx this service talks to
 	now        func() time.Time
-	budget     budgets // billing's budgets (step 22); nil: nothing is limited
+	budget     budgets   // billing's budgets (step 22); nil: nothing is limited
 	reg        registrar // the carrier's 10DLC registration (step 39)
 }
 
@@ -510,7 +512,7 @@ func (s *server) handler() http.Handler {
 	if s.sim != nil {
 		mux.Handle("/telnyx-sim/", http.StripPrefix("/telnyx-sim", s.sim.handler()))
 	}
-	return logHTTP(withCORS(s.cfg.origins, mux))
+	return runtimelog.LogHTTP(withCORS(s.cfg.origins, mux))
 }
 
 // webhook takes one Telnyx webhook. Anything not signed by Telnyx (or, in simulate mode, by the simulator) is refused. A
@@ -573,15 +575,15 @@ func (s *server) member(h func(*req) error) http.Handler {
 
 func (s *server) enter(w http.ResponseWriter, r *http.Request) (*req, error) {
 	token, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	c, err := s.keys.verify(strings.TrimSpace(token), s.now())
-	if err != nil || !validID(c.sub) {
+	c, err := s.keys.Verify(strings.TrimSpace(token), s.now())
+	if err != nil || !validID(c.Sub) {
 		return nil, &apiError{http.StatusUnauthorized, "unauthorized", "Sign in again."}
 	}
 	org := r.Header.Get("x-callerwhale-org")
 	if !validID(org) {
 		return nil, bad("Choose a workspace (x-callerwhale-org).")
 	}
-	g, err := s.rules.grant(r.Context(), c.sub, org, c.secondFactor)
+	g, err := s.rules.grant(r.Context(), c.Sub, org, c.SecondFactor)
 	if err != nil {
 		return nil, err
 	}
@@ -592,7 +594,7 @@ func (s *server) enter(w http.ResponseWriter, r *http.Request) (*req, error) {
 		}
 		return nil, &apiError{status, g.Code, g.Reason}
 	}
-	return &req{w: w, r: r, sc: scope{userID: c.sub, orgID: org, scopes: g.Scopes, caps: g.Capabilities, roles: g.Roles, managed: g.ManagedTeamIDs}}, nil
+	return &req{w: w, r: r, sc: scope{userID: c.Sub, orgID: org, scopes: g.Scopes, caps: g.Capabilities, roles: g.Roles, managed: g.ManagedTeamIDs}}, nil
 }
 
 func (s *server) listCalls(q *req) error {

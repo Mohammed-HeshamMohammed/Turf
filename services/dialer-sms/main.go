@@ -10,6 +10,7 @@
 package main
 
 import (
+	"callerwhale/authverify"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -138,7 +139,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 
 // newServer puts the parts together. In simulate mode without TELNYX_API_URL the simulator runs inside this service: the
 // carrier client calls it over HTTP on this port and it sends its signed webhooks back to this port.
-func newServer(cfg config, st *store, keys *keyset, r rules, c crm) (*server, error) {
+func newServer(cfg config, st *store, keys *authverify.Keyset, r rules, c crm) (*server, error) {
 	s := &server{cfg: cfg, st: st, keys: keys, rules: r, crm: c, now: time.Now}
 	if cfg.billingURL != "" && cfg.billingToken != "" {
 		s.budget = &billingClient{base: cfg.billingURL, token: cfg.billingToken, http: &http.Client{Timeout: 5 * time.Second}}
@@ -215,7 +216,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer st.close()
-	s, err := newServer(cfg, st, newKeyset(cfg.jwksURL), newAuthz(cfg.authzURL, cfg.authzToken, cfg.grantTTL),
+	s, err := newServer(cfg, st, authverify.NewKeyset(cfg.jwksURL), newAuthz(cfg.authzURL, cfg.authzToken, cfg.grantTTL),
 		&crmClient{base: cfg.crmURL, token: cfg.crmToken, http: &http.Client{Timeout: 10 * time.Second}})
 	if err != nil {
 		log.Fatal(err)

@@ -4,7 +4,6 @@ package main
 // services/crm-core/dialer.go.
 
 import (
-	"time"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -12,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 type leadInfo struct {
@@ -25,23 +25,23 @@ type leadInfo struct {
 	MayCall   bool   `json:"may_call"`
 	Reason    string `json:"reason"`
 	// For the lead's text thread (step 10): who works it, its team's leads and deputies, and the asker's rank toward it.
-	AssigneeID      string   `json:"assignee_id"`
-	TeamID          string   `json:"team_id"`
-	ClientID        string   `json:"client_id"`
-	WaitingApproval bool     `json:"waiting_approval"` // its list waits for the client's approval (step 23)
+	AssigneeID      string `json:"assignee_id"`
+	TeamID          string `json:"team_id"`
+	ClientID        string `json:"client_id"`
+	WaitingApproval bool   `json:"waiting_approval"` // its list waits for the client's approval (step 23)
 	// The number's blocks (step 25): calls and texts each, with why; and whether its list carries the agency's consent to text (D355).
 	BlockedCalls bool   `json:"blocked_calls"`
 	BlockedTexts bool   `json:"blocked_texts"`
 	BlockReason  string `json:"block_reason"`
 	ListConsent  bool   `json:"list_consent"`
 	// The AI's call suggestions for the asker on this lead's team, and whether captions must run (step 26, D148).
-	AISuggestions    bool `json:"ai_suggestions"`
-	CaptionsRequired bool `json:"captions_required"`
-	TeamLeads       []string `json:"team_leads"`
-	TeamDeputies    []string `json:"team_deputies"`
-	TeamAgents      []string `json:"team_agents"` // the team's other people, for an incoming call (step 21)
-	Rank            string   `json:"rank"`
-	ErrMessage      string   `json:"-"`
+	AISuggestions    bool     `json:"ai_suggestions"`
+	CaptionsRequired bool     `json:"captions_required"`
+	TeamLeads        []string `json:"team_leads"`
+	TeamDeputies     []string `json:"team_deputies"`
+	TeamAgents       []string `json:"team_agents"` // the team's other people, for an incoming call (step 21)
+	Rank             string   `json:"rank"`
+	ErrMessage       string   `json:"-"`
 }
 
 // opAnswer is crm-core's answer to an operation: applied, duplicate (already logged), rejected or conflict.

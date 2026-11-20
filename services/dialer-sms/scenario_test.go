@@ -285,7 +285,7 @@ func TestTheScenariosCommandPassesAgainstARunningDialer(t *testing.T) {
 	e.s.cfg.noTimers, e.s.cfg.settleDelay = false, 100*time.Millisecond
 	e.sim.speed = 50
 	lead := e.addLead("+15125557777")
-	token := e.fx.sign("k1", "EdDSA", func(m map[string]any) { m["sub"] = e.user })
+	token := e.fx.Sign("k1", "EdDSA", func(m map[string]any) { m["sub"] = e.user })
 	code := runScenarios([]string{"-dialer", e.ts.URL, "-token", token, "-org", e.org, "-lead", lead, "-phone", "+15125557777", "-sim-key", "sim-key"})
 	if code != 0 {
 		t.Fatalf("scenarios exited %d", code)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"callerwhale/authverify/authverifytest"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -145,7 +146,7 @@ type env struct {
 	ts     *httptest.Server
 	sim    *simulator
 	crm    *fakeCRM
-	fx     verifyFixture
+	fx     authverifytest.Fixture
 	clock  time.Time
 	clockM sync.Mutex
 	org    string
@@ -189,8 +190,8 @@ func newEnv(t *testing.T) *env {
 	now := time.Now().UTC()
 	e := &env{t: t, clock: time.Date(now.Year(), now.Month(), now.Day(), 15, 0, 0, 0, time.UTC), org: newUUID(), user: newUUID(), number: "+15125550100",
 		crm: &fakeCRM{leads: map[string]*leadInfo{}, logged: map[string]map[string]any{}, recordings: map[string]map[string]any{}}}
-	e.fx = newVerifyFixture(t)
-	jwks := e.fx.jwks("k1")
+	e.fx = authverifytest.NewFixture(t)
+	jwks := e.fx.JWKS("k1")
 	rules := &fakeRules{grants: map[string]grantReply{e.user + "|" + e.org: {Allowed: true, Scopes: []string{"organization"}, Capabilities: []string{"call", "message", "admin"}}}}
 	var h http.Handler
 	e.ts = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.ServeHTTP(w, r) }))
@@ -199,7 +200,7 @@ func newEnv(t *testing.T) *env {
 	cfg := config{simulate: true, amdMode: "detect", ringSeconds: 30, settleDelay: 5 * time.Second, wrapup: 10 * time.Minute, noTimers: true, apiKey: "sim-key", fromNumber: e.number}
 	e.sim = newSimulator(key, "sim-key", e.ts.URL+"/webhooks/telnyx", 0)
 	e.sim.now = e.now
-	e.s = &server{cfg: cfg, st: st, keys: serveVerifyKeys(t, &jwks, nil), rules: rules, crm: e.crm, sim: e.sim, now: e.now,
+	e.s = &server{cfg: cfg, st: st, keys: authverifytest.ServeKeys(t, &jwks, nil), rules: rules, crm: e.crm, sim: e.sim, now: e.now,
 		webhookKey: key.Public().(ed25519.PublicKey),
 		carrier:    &telnyx{base: e.ts.URL + "/telnyx-sim/v2", key: "sim-key", connectionID: "sim-connection", simulate: true, http: &http.Client{Timeout: 10 * time.Second}}}
 	e.s.reg = e.s.carrier.(*telnyx)
@@ -226,7 +227,7 @@ func (e *env) call(method, path string, body any) (int, map[string]any) {
 		reader = bytes.NewReader(b)
 	}
 	req, _ := http.NewRequest(method, e.ts.URL+path, reader)
-	req.Header.Set("Authorization", "Bearer "+e.fx.sign("k1", "EdDSA", func(m map[string]any) {
+	req.Header.Set("Authorization", "Bearer "+e.fx.Sign("k1", "EdDSA", func(m map[string]any) {
 		m["sub"], m["iat"], m["exp"] = e.user, e.now().Unix(), e.now().Add(time.Hour).Unix()
 	}))
 	req.Header.Set("x-callerwhale-org", e.org)
