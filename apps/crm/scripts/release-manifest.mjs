@@ -41,7 +41,7 @@ export function prepareRelease(bundle, { version, repository }) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  prepareRelease(new URL("../../../container/rust/target/release/bundle/nsis/", import.meta.url), {
+  prepareRelease(new URL("../../../target/release/bundle/nsis/", import.meta.url), {
     version: process.env.RELEASE_VERSION,
     repository: process.env.GITHUB_REPOSITORY,
   });

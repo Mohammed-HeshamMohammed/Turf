@@ -44,7 +44,7 @@ export function serviceBridge() {
     name: "callerwhale-crm-service-bridge",
     apply: "serve",
     configureServer(server) {
-      const root = resolve(process.env.CALLERWHALE_SERVICE_ROOT ?? "../../../../service");
+      const root = resolve(process.env.CALLERWHALE_SERVICE_ROOT ?? "../../service");
       let child = null;
       let answers = null;
       let nextId = 0;

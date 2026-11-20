@@ -4,11 +4,11 @@
 !package-lock.json
 !.npmrc
 !packages
-!Caller Whale CRM/landing/dashboard-web
-!Caller Whale CRM/desktop/frontend/react
-!Caller Whale CRM/landing/site/package.json
+!apps/crm-web
+!apps/crm
+!apps/website/package.json
 **/node_modules
 **/dist
 **/.env
 **/.env.*
-Caller Whale CRM/desktop/frontend/react/src-tauri/target
+apps/crm-desktop

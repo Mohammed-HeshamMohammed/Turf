@@ -11,7 +11,7 @@ import { check, checkRepeats, crmVerdict, engineAvailable, engineConfig, locatab
 import { ALLOWED_COMMANDS, refusal } from "../scripts/service-bridge.mjs";
 
 // CALLERWHALE_SERVICE_ROOT: where the engine is when this part is checked out alone (skip-engine-production).
-const root = process.env.CALLERWHALE_SERVICE_ROOT ? resolve(process.env.CALLERWHALE_SERVICE_ROOT) : resolve(import.meta.dirname, "../../../../../service");
+const root = process.env.CALLERWHALE_SERVICE_ROOT ? resolve(process.env.CALLERWHALE_SERVICE_ROOT) : resolve(import.meta.dirname, "../../../service");
 let child;
 
 before(() => {
