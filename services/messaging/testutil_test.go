@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"callerwhale/authverify/authverifytest"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -114,7 +115,7 @@ type env struct {
 	t     *testing.T
 	s     *server
 	ts    *httptest.Server
-	fx    verifyFixture
+	fx    authverifytest.Fixture
 	rules *fakeRules
 	live  *fakeLive
 	admin *pgx.Conn
@@ -147,19 +148,19 @@ func newEnvWith(t *testing.T, asSuperuser bool) *env {
 	}
 	t.Cleanup(st.close)
 
-	fx := newVerifyFixture(t)
-	jwks := fx.jwks("k1")
+	fx := authverifytest.NewFixture(t)
+	jwks := fx.JWKS("k1")
 	rules := &fakeRules{grants: map[string]grantReply{}, people: map[string][]member{}, teams: map[string][]team{}}
 	fl := newFakeLive(t, testLiveKey)
 	cfg := config{databaseURL: appURL, liveAPI: fl.ts.URL + "/api", liveAPIKey: testLiveKey, liveSecret: testLiveSecret, livePublic: "wss://live.example/connection/websocket"}
-	s := &server{cfg: cfg, keys: serveVerifyKeys(t, &jwks, nil), rules: rules, st: st, live: newLive(cfg), now: time.Now}
+	s := &server{cfg: cfg, keys: authverifytest.ServeKeys(t, &jwks, nil), rules: rules, st: st, live: newLive(cfg), now: time.Now}
 	ts := httptest.NewServer(s.handler())
 	t.Cleanup(ts.Close)
 	return &env{t: t, s: s, ts: ts, fx: fx, rules: rules, live: fl, admin: admin}
 }
 
 func (e *env) token(user string) string {
-	return e.fx.sign("k1", "EdDSA", func(m map[string]any) {
+	return e.fx.Sign("k1", "EdDSA", func(m map[string]any) {
 		m["sub"] = user
 		m["name"] = "Person " + user[:4]
 	})

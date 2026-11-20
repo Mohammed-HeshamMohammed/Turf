@@ -5,6 +5,7 @@
 package main
 
 import (
+	"callerwhale/authverify"
 	"context"
 	"errors"
 	"fmt"
@@ -98,7 +99,7 @@ func main() {
 	if cfg.liveAPI == "" {
 		log.Print("WARN LIVE_API_URL is not set: messages are saved, but nobody is told about them live")
 	}
-	s := &server{cfg: cfg, keys: newKeyset(cfg.jwksURL), rules: newAuthz(cfg.authzURL, cfg.authzToken, cfg.grantTTL), st: st, live: newLive(cfg), now: time.Now}
+	s := &server{cfg: cfg, keys: authverify.NewKeyset(cfg.jwksURL), rules: newAuthz(cfg.authzURL, cfg.authzToken, cfg.grantTTL), st: st, live: newLive(cfg), now: time.Now}
 	go s.deliver(ctx)
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: time.Minute, WriteTimeout: time.Minute, IdleTimeout: 2 * time.Minute}
 	stop := make(chan os.Signal, 1)

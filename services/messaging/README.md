@@ -2,15 +2,15 @@
 
 Conversations between the people of a workspace: direct chats and groups, with replies, mentions, reactions, polls, edits, deletes
 and unread counts. Later it also holds text threads with leads; the `sms` service will only carry them. Plan:
-[messaging-sms-voice.md](../../docs/plans/messaging-sms-voice.md), detail in
-[messaging-sms-voice-detail.md](../../docs/plans/messaging-sms-voice-detail.md).
+[messaging-sms-voice.md](../../Caller%20Whale%20CRM/docs/plans/messaging-sms-voice.md), detail in
+[messaging-sms-voice-detail.md](../../Caller%20Whale%20CRM/docs/plans/messaging-sms-voice-detail.md).
 
 **Status (2026-11-14):** the service, its tables and its tests are written and pass against a local PostgreSQL. It has not been run in
 a container, against the real authorization service, or against a real Centrifugo. The CRM's Inbox does not use it yet.
 
 ## How it works
 
-- **Who:** sign-in tokens from the auth service are checked locally (`token.go`, copied by `tools/auth-verify/sync.mjs`). The
+- **Who:** sign-in tokens from the auth service are checked locally (`token.go`, copied by `packages/go/authverify`). The
   authorization service says whether the person is in the workspace and may use conversations (the `message` capability; clients
   who only see shared records may not).
 - **Storage:** PostgreSQL, schema `messaging`, row security on every table. A request sees only its workspace, and only the

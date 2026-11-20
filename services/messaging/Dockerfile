@@ -1,15 +1,16 @@
 # messaging (plan: docs/plans/messaging-sms-voice.md). Build with this folder as the context:
 #   docker build -t callerwhale-messaging services/messaging
 FROM golang:1 AS runtime-log-build
-COPY runtime-log/main.go /src/main.go
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log /src/main.go
+COPY packages/go/runtimelog /src
+RUN cd /src && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log ./cmd/callerwhale-log
 
 FROM golang:1 AS build
-WORKDIR /src
-COPY go.mod go.sum ./
+WORKDIR /repo/services/messaging
+COPY packages/go /repo/packages/go
+COPY services/messaging/go.mod services/messaging/go.sum ./
 RUN go mod download
-COPY *.go ./
-COPY migrations ./migrations
+COPY services/messaging/*.go ./
+COPY services/messaging/migrations ./migrations
 # The database tests need a PostgreSQL and are skipped here; they run in .github/workflows/check-backend.yml.
 RUN go vet ./... && go test ./... && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/service .
 

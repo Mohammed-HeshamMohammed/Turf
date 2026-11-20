@@ -1,6 +1,7 @@
 package main
 
 import (
+	"callerwhale/authverify"
 	"context"
 	"encoding/json"
 	"errors"
@@ -62,7 +63,7 @@ func readJSON(w http.ResponseWriter, r *http.Request, into any) error {
 
 type server struct {
 	cfg   config
-	keys  *keyset
+	keys  *authverify.Keyset
 	rules rules
 	st    *store
 	live  *live
@@ -75,7 +76,7 @@ type server struct {
 type req struct {
 	w  http.ResponseWriter
 	r  *http.Request
-	c  claims
+	c  authverify.Claims
 	sc scope
 }
 
@@ -154,8 +155,8 @@ func (s *server) identify(w http.ResponseWriter, r *http.Request) (*req, error) 
 	if token = strings.TrimSpace(token); token == "" {
 		return nil, unauth
 	}
-	c, err := s.keys.verify(token, s.now())
-	if err != nil || !validID(c.sub) {
+	c, err := s.keys.Verify(token, s.now())
+	if err != nil || !validID(c.Sub) {
 		return nil, unauth
 	}
 	return &req{w: w, r: r, c: c}, nil
@@ -165,7 +166,7 @@ func (s *server) enter(ctx context.Context, q *req, org string) error {
 	if !validID(org) {
 		return bad("Choose a workspace (x-callerwhale-org).")
 	}
-	g, err := s.rules.grant(ctx, q.c.sub, org, q.c.secondFactor)
+	g, err := s.rules.grant(ctx, q.c.Sub, org, q.c.SecondFactor)
 	if err != nil {
 		return err
 	}
@@ -176,7 +177,7 @@ func (s *server) enter(ctx context.Context, q *req, org string) error {
 		}
 		return &apiError{status, g.Code, g.Reason}
 	}
-	q.sc = scope{userID: strings.ToLower(q.c.sub), orgID: strings.ToLower(org), scopes: g.Scopes, caps: g.Capabilities}
+	q.sc = scope{userID: strings.ToLower(q.c.Sub), orgID: strings.ToLower(org), scopes: g.Scopes, caps: g.Capabilities}
 	if q.sc.external() || !q.sc.can("message") {
 		return forbidden("Your role cannot use conversations in this workspace.")
 	}

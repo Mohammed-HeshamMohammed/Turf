@@ -55,7 +55,7 @@ func (s *server) liveToken(q *req) error {
 		writeJSON(q.w, 200, map[string]any{"enabled": false})
 		return nil
 	}
-	user := lowerID(q.c.sub)
+	user := lowerID(q.c.Sub)
 	writeJSON(q.w, 200, map[string]any{"enabled": true, "url": s.live.public, "token": s.live.token(user, s.now()), "channel": channelPrefix + user, "expires_in": int(liveTokenTTL.Seconds())})
 	return nil
 }

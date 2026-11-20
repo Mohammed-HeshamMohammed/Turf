@@ -1,4 +1,4 @@
-package main
+package authverify
 
 import (
 	"crypto/ed25519"
@@ -14,8 +14,8 @@ import (
 	"time"
 )
 
-// Source of truth: tools/auth-verify/token.go. Copied into each Go service that checks sign-in tokens by
-// tools/auth-verify/sync.mjs; change it there, not in the copy.
+// Package authverify checks Caller Whale's sign-in tokens. One original (packages/go/authverify, D383): the gateway,
+// crm-core, messaging and dialer-sms import it as callerwhale/authverify.
 //
 // Caller Whale's access tokens are made by the auth service: EdDSA (Ed25519) JWTs whose public keys it publishes at
 // /.well-known/jwks.json. A service checks the signature with those keys and the claims that say the token is
@@ -23,25 +23,26 @@ import (
 // identity provider: how the person proved who they are is the auth service's business. What the person may do (roles,
 // organization, revocation) is the authorization service's to decide.
 
+// Issuer and Audience are the claims that say a token is Caller Whale's.
 const (
-	tokenIssuer   = "callerwhale-auth"
-	tokenAudience = "callerwhale"
+	Issuer   = "callerwhale-auth"
+	Audience = "callerwhale"
 )
 
-// claims is what an access token says about the person.
-type claims struct {
-	sub           string // the person's id, the same in every service
-	email         string
-	name          string
-	tag           string // the #tag after the name (auth, step 4); absent in older tokens: empty
-	sessionID     string // the session the token belongs to; revoking it stops new tokens
-	secondFactor  bool   // the person confirmed an authenticator code (or a recovery code) when they signed in
-	emailVerified bool   // absent in older tokens: false
-	provider      string // how they signed in: password, google or apple; absent in older tokens: empty
-	authTime      int64  // when they signed in (Unix seconds), the session's start; absent in older tokens: 0
+// Claims is what an access token says about the person.
+type Claims struct {
+	Sub           string // the person's id, the same in every service
+	Email         string
+	Name          string
+	Tag           string // the #tag after the name (auth, step 4); absent in older tokens: empty
+	SessionID     string // the session the token belongs to; revoking it stops new tokens
+	SecondFactor  bool   // the person confirmed an authenticator code (or a recovery code) when they signed in
+	EmailVerified bool   // absent in older tokens: false
+	Provider      string // how they signed in: password, google or apple; absent in older tokens: empty
+	AuthTime      int64  // when they signed in (Unix seconds), the session's start; absent in older tokens: 0
 }
 
-type keyset struct {
+type Keyset struct {
 	url    string
 	client *http.Client
 
@@ -51,15 +52,15 @@ type keyset struct {
 	tried   time.Time // the last fetch, successful or not
 }
 
-func newKeyset(url string) *keyset {
-	return &keyset{url: url, client: &http.Client{Timeout: 10 * time.Second}, keys: map[string]ed25519.PublicKey{}}
+func NewKeyset(url string) *Keyset {
+	return &Keyset{url: url, client: &http.Client{Timeout: 10 * time.Second}, keys: map[string]ed25519.PublicKey{}}
 }
 
 var maxAge = regexp.MustCompile(`max-age=(\d+)`)
 
 // key returns the public key for a key id, fetching the set when it is stale or when the id is new (the auth service
 // rotates its key), at most once every 30 seconds.
-func (k *keyset) key(kid string, now time.Time) (ed25519.PublicKey, error) {
+func (k *Keyset) key(kid string, now time.Time) (ed25519.PublicKey, error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	if key := k.keys[kid]; key != nil && now.Before(k.expires) {
@@ -77,7 +78,7 @@ func (k *keyset) key(kid string, now time.Time) (ed25519.PublicKey, error) {
 	return nil, errors.New("unknown key")
 }
 
-func (k *keyset) fetch(now time.Time) error {
+func (k *Keyset) fetch(now time.Time) error {
 	res, err := k.client.Get(k.url)
 	if err != nil {
 		return err
@@ -118,23 +119,23 @@ func (k *keyset) fetch(now time.Time) error {
 	return nil
 }
 
-// verify checks a token (shape, key, signature, issuer, audience, time) and returns who it names.
-func (k *keyset) verify(token string, now time.Time) (claims, error) {
+// Verify checks a token (shape, key, signature, issuer, audience, time) and returns who it names.
+func (k *Keyset) Verify(token string, now time.Time) (Claims, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 || len(token) > 8192 {
-		return claims{}, errors.New("not a token")
+		return Claims{}, errors.New("not a token")
 	}
 	var head struct{ Alg, Kid string }
 	if err := decode(parts[0], &head); err != nil || head.Alg != "EdDSA" || head.Kid == "" {
-		return claims{}, errors.New("bad header")
+		return Claims{}, errors.New("bad header")
 	}
 	key, err := k.key(head.Kid, now)
 	if err != nil {
-		return claims{}, err
+		return Claims{}, err
 	}
 	sig, err := base64.RawURLEncoding.DecodeString(parts[2])
 	if err != nil || !ed25519.Verify(key, []byte(parts[0]+"."+parts[1]), sig) {
-		return claims{}, errors.New("bad signature")
+		return Claims{}, errors.New("bad signature")
 	}
 	var body struct {
 		Iss           string `json:"iss"`
@@ -152,20 +153,20 @@ func (k *keyset) verify(token string, now time.Time) (claims, error) {
 		AuthTime      int64  `json:"auth_time"`
 	}
 	if err := decode(parts[1], &body); err != nil {
-		return claims{}, errors.New("bad claims")
+		return Claims{}, errors.New("bad claims")
 	}
 	switch {
-	case body.Iss != tokenIssuer || body.Aud != tokenAudience:
-		return claims{}, errors.New("token is not Caller Whale's")
+	case body.Iss != Issuer || body.Aud != Audience:
+		return Claims{}, errors.New("token is not Caller Whale's")
 	case body.Sub == "" || len(body.Sub) > 128:
-		return claims{}, errors.New("no subject")
+		return Claims{}, errors.New("no subject")
 	case now.Unix() >= body.Exp+30:
-		return claims{}, errors.New("expired")
+		return Claims{}, errors.New("expired")
 	case body.Iat > now.Unix()+60:
-		return claims{}, errors.New("issued in the future")
+		return Claims{}, errors.New("issued in the future")
 	}
-	return claims{sub: body.Sub, email: body.Email, name: body.Name, tag: body.Tag, sessionID: body.Sid, secondFactor: body.Mfa,
-		emailVerified: body.EmailVerified, provider: body.Provider, authTime: body.AuthTime}, nil
+	return Claims{Sub: body.Sub, Email: body.Email, Name: body.Name, Tag: body.Tag, SessionID: body.Sid, SecondFactor: body.Mfa,
+		EmailVerified: body.EmailVerified, Provider: body.Provider, AuthTime: body.AuthTime}, nil
 }
 
 func decode(part string, into any) error {
