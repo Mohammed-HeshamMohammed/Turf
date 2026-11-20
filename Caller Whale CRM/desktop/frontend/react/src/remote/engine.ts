@@ -12,14 +12,33 @@ import { leadSource } from "../lead-source.ts";
 /** Leads per page when the first load of the records is read a page at a time, so the first ones show while the rest arrive. */
 const SNAPSHOT_PAGE = 250;
 
+// The web cache's automatic refresh (build step 5, plan 07 "Web cache"), in layers:
+//   1. always: live updates over the socket, and a quiet refresh every QUIET_MS while the tab is visible;
+//   2. on events: the network coming back, the tab coming back after AWAY_MS, a role or team change (the socket's access.changed);
+//   3. a full re-read only when the position cannot be trusted: the person's access changed (at once), or the server says this tab
+//      is too far behind (then it waits, see 4);
+//   4. never a re-read over open work: while changes are unsent, a form is being typed in or a call is on, it waits and tries again.
+// Updates apply row by row, so the page keeps its scroll position and selection.
+const QUIET_MS = 60_000;
+const AWAY_MS = 30_000;
+const BUSY_RETRY_MS = 5_000;
+/** Codes that mean the person is no longer in the open agency: its records leave memory at once. */
+const ACCESS_LOST = new Set(["not_member", "suspended", "member_suspended", "closed"]);
+
 export class SyncEngine {
   vault: any; api: any; onChange: any; useSocket: any; store: any; ops: any[]; online: boolean; reachable: boolean; status: string;
   error: string; running: any; again: boolean; channel: any; socket: any; stopped: any; connecting: any; extra: any; retryTimer: any; progress: any; held: any;
-  constructor({ vault, api = defaultApi, onChange = () => {}, socket = true }: any) {
+  isBusy: () => boolean; quietTimer: any; busyTimer: any; hiddenAt: number; behind: boolean; checkedAt: number; listeners: any[];
+  constructor({ vault, api = defaultApi, onChange = () => {}, socket = true, isBusy = () => false }: any) {
     this.vault = vault;
     this.api = api;
     this.onChange = onChange;
     this.useSocket = socket;
+    this.isBusy = isBusy;
+    this.behind = false; // the server said this tab is too far behind, and the re-read waits for the person to finish
+    this.checkedAt = 0; // when the records were last confirmed up to date
+    this.hiddenAt = 0;
+    this.listeners = [];
     this.store = null;
     this.ops = [];
     this.online = true;
@@ -33,7 +52,7 @@ export class SyncEngine {
   }
 
   emit() {
-    this.onChange({ store: this.store, ops: this.ops, status: this.status, error: this.error, online: this.online && this.reachable, progress: this.progress });
+    this.onChange({ store: this.store, ops: this.ops, status: this.status, error: this.error, online: this.online && this.reachable, progress: this.progress, behind: this.behind, checkedAt: this.checkedAt });
   }
 
   async reload() {
@@ -70,12 +89,39 @@ export class SyncEngine {
     void this.sync();
     if (this.useSocket) this.connect();
     if (typeof window !== "undefined") {
-      const again = () => {
-        if (!this.reachable && !document.hidden) this.sync();
+      // The network coming back always refreshes; the tab coming back does when it was away a while or the server was out of reach.
+      const online = () => this.sync();
+      const visible = () => {
+        if (document.hidden) {
+          this.hiddenAt = Date.now();
+          return;
+        }
+        if (!this.reachable || (this.hiddenAt && Date.now() - this.hiddenAt > AWAY_MS)) this.sync();
+        this.hiddenAt = 0;
       };
-      window.addEventListener("online", again);
-      document.addEventListener("visibilitychange", again);
+      window.addEventListener("online", online);
+      document.addEventListener("visibilitychange", visible);
+      this.listeners = [() => window.removeEventListener("online", online), () => document.removeEventListener("visibilitychange", visible)];
+      this.quietTimer = setInterval(() => this.quietRefresh(), QUIET_MS);
     }
+  }
+
+  /** The quiet refresh: only while the tab is visible, nothing is being typed and no call is on. */
+  quietRefresh() {
+    if (this.stopped || this.running || !this.online || (typeof document !== "undefined" && document.hidden) || this.isBusy()) return;
+    void this.sync();
+  }
+
+  /** "Reload everything": sends what is waiting, then takes the agency's records again from the start. */
+  async reloadEverything() {
+    await this.sync();
+    if (this.ops.some(op => op.status === "Pending")) throw new Error("Some changes are not sent yet. Reload everything once they are.");
+    this.behind = false;
+    await this.vault.dropRecords();
+    this.store = null;
+    leadSource.clear();
+    this.emit();
+    await this.sync();
   }
 
   setOnline(online) {
@@ -138,16 +184,34 @@ export class SyncEngine {
       this.reachable = true;
       this.status = "synced";
       this.error = "";
+      this.checkedAt = Date.now();
     } catch (error) {
       this.reachable = !(error instanceof ApiError && error.code === "offline");
       this.status = this.reachable ? "error" : "offline";
       this.error = error.message;
       if (error instanceof ApiError && error.status === 401) this.status = "signed-out";
+      if (error instanceof ApiError && error.status === 403 && ACCESS_LOST.has(error.code)) await this.forget(error.message);
     }
     if (this.stopped) return;
     this.emit();
     this.channel?.postMessage("changed");
     this.retryWhenUnreachable();
+  }
+
+  /**
+   * The person lost access to this agency (removed, suspended): its records leave memory at once and the app goes back to the person's
+   * other agencies. Their unsent changes for it go too: the server would refuse them.
+   */
+  async forget(message) {
+    this.status = "removed";
+    this.error = message || "You no longer have access to this agency.";
+    this.store = null;
+    this.held = null;
+    this.ops = [];
+    this.behind = false;
+    await this.vault.dropRecords();
+    for (const op of await this.vault.queue()) await this.vault.remove(op.id);
+    leadSource.clear();
   }
 
   /** An unreachable server is tried again every few seconds (and when the browser or tab comes back), so the records are never left stale. */
@@ -240,9 +304,11 @@ export class SyncEngine {
   /** The tasks, notes, calls, handoffs and deals of one lead, held with the rest so its page can show them. */
   async leadDetails(id) {
     const found = await this.api.leadDetails(id);
-    if (!this.store) return;
+    if (!this.store) return [];
     this.store = addSnapshotPage(this.store, found);
     this.emit();
+    // Co-owners (other leads at the same property under another name) are only shown on the lead's page, not kept in the store.
+    return found.related || [];
   }
 
   /** Fetches the workspace's lists again, so a list that was just uploaded shows up without signing in again. */
@@ -297,11 +363,21 @@ export class SyncEngine {
     while (true) {
       const answer = await this.api.pull(this.store.cursor, this.store.accessRevision);
       if (answer.reset) {
-        // Permissions changed: nothing cached before may be trusted.
+        const accessChanged = answer.access_revision === undefined || answer.access_revision !== this.store.accessRevision;
+        // Too far behind, while the person is working: the records they see stay, and the re-read waits until they are done.
+        if (!accessChanged && (this.isBusy() || this.ops.some(op => op.status === "Pending"))) {
+          this.behind = true;
+          clearTimeout(this.busyTimer);
+          this.busyTimer = setTimeout(() => this.sync(), BUSY_RETRY_MS);
+          return;
+        }
+        // Permissions changed (at once), or far behind: nothing cached before may be trusted.
+        this.behind = false;
         await this.vault.dropRecords();
         await this.snapshot();
         return;
       }
+      this.behind = false;
       if (answer.more && answer.cursor === this.store.cursor) throw new Error("The server did not advance the sync cursor");
       this.store = { ...applyChanges(this.store, answer.changes), cursor: answer.cursor, leaseExpiresAt: answer.offline_lease_expires_at ?? this.store.leaseExpiresAt };
       await this.save();
@@ -346,6 +422,9 @@ export class SyncEngine {
   stop() {
     this.stopped = true;
     clearTimeout(this.retryTimer);
+    clearTimeout(this.busyTimer);
+    clearInterval(this.quietTimer);
+    for (const remove of this.listeners) remove();
     this.socket?.close();
     this.channel?.close();
   }

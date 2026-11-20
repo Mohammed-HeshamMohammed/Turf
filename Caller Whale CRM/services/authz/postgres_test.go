@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"slices"
 	"testing"
@@ -28,6 +29,16 @@ func TestPostgres(t *testing.T) {
 		}
 	}
 	must(s.openWorkspace(ctx, org1, ownerID, "owner"))
+	if owner, name, found, err := s.workspaceInfo(ctx, org1); err != nil || !found || owner != ownerID || name != "" {
+		t.Errorf("a new workspace has its owner and no name yet: %q %q %v %v", owner, name, found, err)
+	}
+	must(s.setWorkspaceName(ctx, org1, "Blue Door Homes"))
+	if _, name, _, _ := s.workspaceInfo(ctx, org1); name != "Blue Door Homes" {
+		t.Errorf("the name is kept: %q", name)
+	}
+	if _, _, found, err := s.workspaceInfo(ctx, strangerID); found || err != nil {
+		t.Errorf("a workspace never opened is not found: %v %v", found, err)
+	}
 	if err := s.openWorkspace(ctx, org1, strangerID, "owner"); err != errAlreadyOpen {
 		t.Errorf("a second owner: %v", err)
 	}
@@ -35,7 +46,7 @@ func TestPostgres(t *testing.T) {
 
 	owner, err := s.facts(ctx, ownerID, org1)
 	must(err)
-	if !owner.member || !owner.secondStep || !owner.capabilities["admin"] || !slices.Equal(owner.scopes, []string{"organization"}) {
+	if !owner.member || owner.secondStep || !owner.capabilities["admin"] || !slices.Equal(owner.scopes, []string{"organization"}) {
 		t.Errorf("owner facts: %+v", owner)
 	}
 	if ok, _ := s.check(ctx, ownerID, org1, "manage_access"); !ok {
@@ -77,12 +88,13 @@ func TestPostgres(t *testing.T) {
 		t.Errorf("roles: %+v", roles)
 	}
 
-	must(s.setStanding(ctx, org1, false, true))
+	yes, no := true, false
+	must(s.setStanding(ctx, org1, standingChange{Suspended: &no, PaymentRequired: &yes}))
 	caller, _ = s.facts(ctx, callerID, org1)
 	if !caller.paymentRequired || caller.suspended {
 		t.Errorf("standing: %+v", caller)
 	}
-	must(s.setStanding(ctx, org1, false, false))
+	must(s.setStanding(ctx, org1, standingChange{PaymentRequired: &no}))
 
 	must(s.removeMember(ctx, org1, callerID))
 	if f, _ := s.facts(ctx, callerID, org1); f.member {
@@ -140,5 +152,105 @@ func TestPostgres(t *testing.T) {
 	}
 	if r, err := again.staffRole(ctx, callerID); err != nil || r != "cofounder" {
 		t.Errorf("cofounder after redeploy: %q %v", r, err)
+	}
+}
+
+// The team tree's SQL: teams and their manager, suspension, and standing that changes only what is sent.
+func TestPostgresTeamTree(t *testing.T) {
+	url := os.Getenv("AUTHZ_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("AUTHZ_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	s, err := newPostgres(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.close()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	org := "12121212-1212-4212-8212-121212121212"
+	must(s.openWorkspace(ctx, org, ownerID, "owner"))
+	must(s.setMembership(ctx, org, membership{UserID: managerID, Roles: []string{"manager"}}))
+	must(s.setTeam(ctx, org, team{TeamID: team1, Name: "Team one", ManagerID: managerID}))
+	must(s.setTeam(ctx, org, team{TeamID: team2, Name: "Team two"}))
+	must(s.setMembership(ctx, org, membership{UserID: callerID, Roles: []string{"caller"}, TeamIDs: []string{team1}}))
+	if err := s.setTeam(ctx, org, team{TeamID: closerID, Name: "team ONE"}); err == nil {
+		t.Error("two teams cannot share a name")
+	}
+	teams, err := s.teams(ctx, org)
+	must(err)
+	if len(teams) != 2 || teams[0].ManagerID != managerID || teams[1].ManagerID != "" {
+		t.Errorf("teams: %+v", teams)
+	}
+	m, err := s.facts(ctx, managerID, org)
+	must(err)
+	if !slices.Equal(m.managed, []string{team1}) || !slices.Contains(m.teams, team1) || !m.capabilities["import"] {
+		t.Errorf("a manager runs team one, sees its leads and uploads lists: %+v", m)
+	}
+	at := int64(1_800_000_000)
+	must(s.setSuspension(ctx, org, callerID, &at, managerID, "on leave"))
+	must(s.setMembership(ctx, org, membership{UserID: callerID, Roles: []string{"caller"}, TeamIDs: []string{team1}, Restrictions: []string{"export"}}))
+	c, ok, err := s.membership(ctx, org, callerID)
+	must(err)
+	if !ok || c.SuspendedAt == nil || *c.SuspendedAt != at || c.SuspendedBy != managerID || c.SuspendedReason != "on leave" {
+		t.Errorf("a suspension survives a change of restrictions: %+v", c)
+	}
+	if f, _ := s.facts(ctx, callerID, org); !f.memberSuspended {
+		t.Error("a suspended caller's facts say so")
+	}
+	must(s.setSuspension(ctx, org, callerID, nil, "", ""))
+	if f, _ := s.facts(ctx, callerID, org); f.memberSuspended {
+		t.Error("restored")
+	}
+	yes, two := true, 2
+	must(s.setStanding(ctx, org, standingChange{Suspended: &yes}))
+	must(s.setStanding(ctx, org, standingChange{SeatsSet: true, Seats: &two}))
+	if f, _ := s.facts(ctx, ownerID, org); !f.suspended {
+		t.Error("setting the seats leaves a suspension alone")
+	}
+	seats, clients, err := s.seatLimits(ctx, org)
+	must(err)
+	if seats == nil || *seats != 2 || clients != nil {
+		t.Errorf("seats %v clients %v", seats, clients)
+	}
+	must(s.removeTeam(ctx, org, team2))
+	if teams, _ := s.teams(ctx, org); len(teams) != 1 {
+		t.Errorf("team removed: %+v", teams)
+	}
+}
+
+// The record of people changes in PostgreSQL: written, read newest first, and trimmed after two years.
+func TestPostgresPeopleLog(t *testing.T) {
+	url := os.Getenv("AUTHZ_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("AUTHZ_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	s, err := newPostgres(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.close()
+	// Its own workspace each run, so a second copy of the test binary started alongside (some machines' scanners do) cannot mix in.
+	now := time.Now().Unix()
+	org := fmt.Sprintf("13131313-1313-4313-8313-%012d", time.Now().UnixNano()%1_000_000_000_000)
+	old := peopleEntry{At: now - 800*24*3600, ActorID: ownerID, TargetID: callerID, Action: "joined", TeamIDs: []string{team1}}
+	recent := peopleEntry{At: now, ActorID: ownerID, TargetID: callerID, Action: "suspended", TeamIDs: []string{team1}, Detail: map[string]any{"reason": "On leave"}}
+	if err := s.logPeople(ctx, org, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.logPeople(ctx, org, recent); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.peopleLog(ctx, org, 0, 10)
+	if err != nil || len(got) != 1 || got[0].Action != "suspended" || got[0].Detail["reason"] != "On leave" || got[0].TeamIDs[0] != team1 {
+		t.Fatalf("the two-year-old entry is gone, the new one reads back: %+v %v", got, err)
 	}
 }

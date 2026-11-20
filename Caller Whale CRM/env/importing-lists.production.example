@@ -6,7 +6,7 @@
 PORT=8111
 # Secret PostgreSQL URI with the worker's own login (importer): the importing schema and a view of a few lead fields, nothing else.
 DATABASE_URL=<postgres://importer:password@crm-postgres:5432/crm?sslmode=require>
-# The worker's own persistent upload volume; default /data/imports. Do not mount it in crm-core.
+# The folder shared with crm-core where upload pieces wait; default /data/imports. The same persistent volume at the same path in both applications.
 IMPORT_DIR=/data/imports
 # Internal CRM Core origin for validating the bearer token, workspace and import permission, and creating a source list.
 CORE_URL=http://crm-core:8107

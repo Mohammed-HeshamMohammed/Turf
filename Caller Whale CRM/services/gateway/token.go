@@ -33,6 +33,7 @@ type claims struct {
 	sub           string // the person's id, the same in every service
 	email         string
 	name          string
+	tag           string // the #tag after the name (auth, step 4); absent in older tokens: empty
 	sessionID     string // the session the token belongs to; revoking it stops new tokens
 	secondFactor  bool   // the person confirmed an authenticator code (or a recovery code) when they signed in
 	emailVerified bool   // absent in older tokens: false
@@ -141,6 +142,7 @@ func (k *keyset) verify(token string, now time.Time) (claims, error) {
 		Sub           string `json:"sub"`
 		Email         string `json:"email"`
 		Name          string `json:"name"`
+		Tag           string `json:"tag"`
 		Sid           string `json:"sid"`
 		Exp           int64  `json:"exp"`
 		Iat           int64  `json:"iat"`
@@ -162,7 +164,7 @@ func (k *keyset) verify(token string, now time.Time) (claims, error) {
 	case body.Iat > now.Unix()+60:
 		return claims{}, errors.New("issued in the future")
 	}
-	return claims{sub: body.Sub, email: body.Email, name: body.Name, sessionID: body.Sid, secondFactor: body.Mfa,
+	return claims{sub: body.Sub, email: body.Email, name: body.Name, tag: body.Tag, sessionID: body.Sid, secondFactor: body.Mfa,
 		emailVerified: body.EmailVerified, provider: body.Provider, authTime: body.AuthTime}, nil
 }
 

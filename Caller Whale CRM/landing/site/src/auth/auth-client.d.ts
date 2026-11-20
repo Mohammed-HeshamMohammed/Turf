@@ -32,7 +32,8 @@ export interface Auth {
   accessToken(): Promise<string | null>;
   me(options?: { fresh?: boolean }): Promise<Me>;
   signIn(email: string, password: string, code?: string, kind?: string, humanToken?: string): Promise<unknown>;
-  signUp(name: string, email: string, password: string, kind?: string, humanToken?: string, birthDate?: string, termsVersion?: string): Promise<unknown>;
+  signUp(name: string, email: string, password: string, kind?: string, humanToken?: string, birthDate?: string, termsVersion?: string, invitation?: { id: string; key: string } | null): Promise<unknown>;
+  chooseDevice(shared: boolean): void;
   setBirthDate(birthDate: string): Promise<unknown>;
   handoff(kind?: "desktop" | "browser"): Promise<string>;
   acceptTerms(version: string): Promise<unknown>;
@@ -46,10 +47,11 @@ export interface Auth {
 	setupMfa(): Promise<{ secret: string; otpauth_url: string }>;
 	confirmMfa(code: string, label?: string): Promise<{ recovery_codes: string[] }>;
 	verifyMfa(code: string): Promise<unknown>;
+	verifyEmail(token: string): Promise<{ email_verified: boolean }>;
 	startStepUp(): Promise<unknown>;
 	sendCode(challenge: string, method: string, device?: string): Promise<unknown>;
 	answer(challenge: string, method: string, code?: string): Promise<unknown>;
-  providers(): Promise<{ google?: boolean; apple?: boolean }>;
+  providers(): Promise<{ google?: boolean; apple?: boolean; microsoft?: boolean }>;
   security(): Promise<{ bot_protection?: { enabled: boolean; site_key: string } }>;
   startProvider(provider: string, target: string, humanToken?: string, action?: string): Promise<unknown>;
   finishProvider(): Promise<unknown>;

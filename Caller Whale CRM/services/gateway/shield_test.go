@@ -191,7 +191,7 @@ func TestTheAllowListMatchesTheAuthSource(t *testing.T) {
 		listed[norm(route)] = true
 	}
 	for route := range found {
-		if route == "POST /v1/connectors/introspect" || route == "POST /v1/connectors/standing" {
+		if route == "POST /v1/connectors/introspect" || route == "POST /v1/connectors/standing" || route == "POST /v1/connectors/people" || route == "POST /v1/connectors/requests" {
 			continue // for the mcp service on the private network only
 		}
 		if route == "GET /healthz" || route == "GET /version" {
@@ -249,5 +249,19 @@ func TestAnswersGetDefensiveHeadersUnlessTheServiceChoseItsOwn(t *testing.T) {
 	harden(monitoring, true)
 	if monitoring.Header.Get("X-Frame-Options") != "" {
 		t.Error("the monitoring pages are shown in a frame on the website, so they must not be marked DENY")
+	}
+}
+
+func TestLiveHostAnswersOnlyTheSocket(t *testing.T) {
+	if !liveAllowed("GET", "/connection/websocket") {
+		t.Fatal("the socket must be open")
+	}
+	for _, p := range []string{"/api", "/api/publish", "/metrics", "/health", "/debug/pprof/", "/admin", "/connection/websocket/x", "/"} {
+		if liveAllowed("GET", p) {
+			t.Errorf("%s must not be public", p)
+		}
+	}
+	if liveAllowed("POST", "/connection/websocket") {
+		t.Fatal("the socket is opened with GET")
 	}
 }

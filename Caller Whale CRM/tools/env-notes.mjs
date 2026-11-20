@@ -18,6 +18,9 @@ const examples = {
   'assistant.production.example': 'assistant',
   'learning.production.example': 'learning',
   'importing-lists.production.example': 'importing-lists',
+  'dialer-sms.production.example': 'dialer-sms',
+  'messaging.production.example': 'messaging',
+  'centrifugo.production.example': 'live',
   // Pointer-only example; actual monitoring settings are in deploy/grafana.
   'grafana.production.example': 'callerwhale-monitoring',
 };

@@ -9,6 +9,8 @@ One branch per part of Caller Whale, each holding **only that part's code**, so 
 | `auth-backend-production` | The authentication service (`services/auth`) |
 | `notifications-backend-production` | The notification service (`services/notifications`, Go) at the branch root |
 | `gateway-backend-production` | The gateway: the one public entry point (it only answers its health check so far) |
+| `messaging-backend-production` | The messaging service (`services/messaging`, Go) at the branch root: team chats and groups. No domain of its own |
+| `dialer-sms-backend-production` | The dialer (`services/features/dialer-sms`, Go) at the branch root: Telnyx calls and texts, with a built-in Telnyx simulator (`TELNYX_MODE=simulate`). No domain of its own |
 | `authz-backend-production` | The authorization service (`services/authz`, Go) at the branch root: decides what each person may do and which database rights each request gets. No domain |
 | `billing-backend-production` | The billing service (`services/billing`, Python) at the branch root. No domain; the gateway routes its public paths |
 | `desktop-app-production` | The whole desktop app: the frontend (`desktop/frontend/react`, also the CRM in a browser), the window container (Tauri) and the feature modules (`desktop/backend`) |
@@ -30,13 +32,15 @@ Each server branch also carries its container file and its Kubernetes files (`in
 
 ## How they are made
 
-`node tools/publish-production.mjs` builds every branch from `main`, as a new commit on top of the branch's last one: a branch's history is the list of snapshots of `main` it was made from. Nothing is rewritten, the working copy is not touched, and a branch that would not change is left alone.
+`node tools/publish-production.mjs` builds every branch from `main`, as a new commit on top of the branch's last one: a branch's history is the list of snapshots of `main` it was made from. Nothing is rewritten, the working copy is not touched, and a branch that would not change is left alone. It refuses a commit whose **CI summary** check (`.github/workflows/ci.yml`) has not passed on GitHub (step 46), so a branch Coolify deploys from never gets code that failed its tests; it asks GitHub with `gh`. `desktop-app-production` and `skip-engine-production` also wait for **Desktop summary** (`.github/workflows/desktop.yml`, the `checks` field in `tools/production.json`): if it has not passed on the commit, those two are held back, the others are refreshed, and the script ends with an error naming them. Desktop summary runs when desktop files change; for a commit where it did not, run the Desktop app workflow on `main` by hand.
 
 ```bash
 node tools/publish-production.mjs --list                    # what each branch holds
 node tools/publish-production.mjs                           # refresh every branch
 node tools/publish-production.mjs landing-web-production    # one
 node tools/publish-production.mjs --push                    # and push what changed (never forced)
+node tools/publish-production.mjs --without-checks          # emergency only: skip the CI check below
+node tools/publish-production.mjs --export <dir> [name]     # write a branch's files to <dir>/<name>, touch no branch (image builds)
 ```
 
 **Never edit a production branch.** Change `main`, then refresh the branch. A change made on a branch would be lost, or be in the way, the next time it is refreshed.
@@ -56,5 +60,6 @@ node tools/publish-production.mjs --push                    # and push what chan
 | `gateway-backend-production` | `/` | `/Dockerfile` | `8100` | its own health check (inside the private network only) |
 | `authz-backend-production` | `/` | `/Dockerfile` | `8104` | its own health check; no domain |
 | `billing-backend-production` | `/` | `/Dockerfile` | `8103` | `/healthz`; no domain |
+| `dialer-sms-backend-production` | `/` | `/Dockerfile` | `8113` | `/healthz`; no domain |
 
 Choose the **Dockerfile** build pack. After refreshing a source scan, replace any saved `landing/web/Dockerfile` path with `/Dockerfile`. Both paths in Coolify must start with `/`. Each Dockerfile uses its branch root as the build context. These generated branches are the release sources; do not point these applications at `main` with base directory `/`.

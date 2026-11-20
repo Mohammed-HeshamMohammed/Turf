@@ -42,9 +42,44 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/sessions/refresh", serve(s.refresh))
 	mux.Handle("POST /v1/sessions/sign-out", serve(s.signOut))
 	mux.Handle("POST /v1/sessions/revoke", serve(s.revoke))
+	// Step 35: sign-in security.
+	mux.Handle("POST /v1/sessions/not-me", serve(s.notMe))
+	mux.Handle("POST /v1/orgs/{org}/members/{user}/sign-out", serve(s.signOutMember))
+	mux.Handle("GET /v1/orgs/{org}/security", serve(s.orgSecurity))
+	mux.Handle("PUT /v1/orgs/{org}/security", serve(s.orgSecurity))
+	mux.Handle("POST /v1/password/reset/support", serve(s.askResetSupport))
+	mux.Handle("GET /v1/admin/reset-requests", serve(s.resetRequests))
+	mux.Handle("POST /v1/admin/reset-requests/{id}/{decision}", serve(s.decideResetRequest))
 	mux.Handle("GET /v1/me", serve(s.me))
 	mux.Handle("POST /v1/me/profile", serve(s.updateProfile))
 	mux.Handle("POST /v1/me/username", serve(s.updateUsername))
+	mux.Handle("POST /v1/me/tag", serve(s.changeTag))
+	mux.Handle("GET /v1/me/agencies", serve(s.myAgencies))
+	mux.Handle("GET /v1/orgs/{org}/plan-stage", serve(s.planStage))
+	mux.Handle("GET /v1/orgs/{org}/support", serve(s.support))
+	mux.Handle("POST /v1/orgs/{org}/support", serve(s.support))
+	mux.Handle("DELETE /v1/orgs/{org}/support", serve(s.support))
+	mux.Handle("GET /v1/admin/support", serve(s.supportedAgencies))
+	mux.Handle("GET /v1/orgs/{org}/seats", serve(s.seatUse))
+	mux.Handle("POST /v1/orgs/{org}/seats/keep", serve(s.keepSeats))
+	mux.Handle("POST /v1/orgs/{org}/close", serve(s.closeWorkspace(false)))
+	mux.Handle("POST /v1/orgs/{org}/reopen", serve(s.closeWorkspace(true)))
+	mux.Handle("POST /v1/orgs/{org}/handover", serve(s.offerOwnership))
+	mux.Handle("GET /v1/orgs/{org}/handover", serve(s.agencyHandover))
+	mux.Handle("DELETE /v1/orgs/{org}/handover", serve(s.cancelOwnership))
+	mux.Handle("GET /v1/me/handovers", serve(s.myHandovers))
+	mux.Handle("POST /v1/me/handovers/{id}/accept", serve(s.acceptOwnership))
+	mux.Handle("POST /v1/me/handovers/{id}/decline", serve(s.declineOwnership))
+	mux.Handle("PUT /v1/admin/workspaces/{org}/paused", serve(s.pauseWorkspace))
+	mux.Handle("POST /v1/orgs/{org}/takeover", serve(s.askTakeover))
+	mux.Handle("GET /v1/admin/takeovers", serve(s.takeoverRequests))
+	mux.Handle("POST /v1/admin/takeovers/{id}/approve", serve(s.decideTakeover(true)))
+	mux.Handle("POST /v1/admin/takeovers/{id}/reject", serve(s.decideTakeover(false)))
+	mux.Handle("GET /v1/me/export", serve(s.exportMe))
+	mux.Handle("GET /v1/invitations/{id}/preview", serve(s.invitationPreview))
+	mux.Handle("POST /v1/me/tag-note", serve(s.seenTagNote))
+	mux.Handle("PUT /v1/me/privacy", serve(s.putPrivacy))
+	mux.Handle("GET /v1/people/search", serve(s.searchPeople))
 	mux.Handle("POST /v1/me/birth-date", serve(s.setBirthDate))
 	mux.Handle("POST /v1/me/terms", serve(s.acceptTerms))
 	mux.Handle("POST /v1/me/work", serve(s.setWorkProfile))
@@ -55,6 +90,16 @@ func (s *server) handler() http.Handler {
 	mux.Handle("GET /v1/admin/members", serve(s.adminMembers))
 	mux.Handle("GET /v1/admin/overview", serve(s.adminOverview))
 	mux.Handle("GET /v1/announcement", serve(s.getAnnouncement))
+	mux.Handle("POST /v1/client-errors", serve(s.clientErrors)) // step 42: browser errors, without personal data
+	s.helpRoutes(mux) // step 40: support conversations, what's new, early features, feedback
+	// The status page, the outage banner and owners' emails, and breach notices (step 34).
+	mux.Handle("GET /v1/status", serve(s.getStatus))
+	mux.Handle("POST /v1/admin/status/incidents", serve(s.openIncident))
+	mux.Handle("POST /v1/admin/status/incidents/{id}", serve(s.updateIncident))
+	mux.Handle("GET /v1/me/status-emails", serve(s.statusEmails))
+	mux.Handle("PUT /v1/me/status-emails", serve(s.statusEmails))
+	mux.Handle("POST /v1/admin/breach-notices", serve(s.sendBreachNotice))
+	mux.Handle("GET /v1/admin/breach-notices", serve(s.breachNotices))
 	mux.Handle("PUT /v1/admin/announcement", serve(s.setAnnouncement))
 	mux.Handle("GET /v1/admin/costs", serve(s.listCosts))
 	mux.Handle("POST /v1/admin/costs", serve(s.addCost))
@@ -72,11 +117,34 @@ func (s *server) handler() http.Handler {
 	mux.Handle("GET /v1/orgs/{org}/standing", serve(s.workspaceStanding))
 	mux.Handle("GET /v1/orgs/{org}/roles", serve(s.workspaceRoles))
 	mux.Handle("PUT /v1/orgs/{org}/members/{user}", serve(s.changeWorkspaceMember))
+	mux.Handle("DELETE /v1/orgs/{org}/members/{user}", serve(s.removeWorkspaceMember))
+	mux.Handle("POST /v1/orgs/{org}/members/{user}/suspend", serve(s.suspendWorkspaceMember(false)))
+	mux.Handle("POST /v1/orgs/{org}/members/{user}/restore", serve(s.suspendWorkspaceMember(true)))
+	mux.Handle("GET /v1/orgs/{org}/teams", serve(s.workspaceTeams))
+	mux.Handle("PUT /v1/orgs/{org}/teams/{team}", serve(s.putWorkspaceTeam))
+	mux.Handle("DELETE /v1/orgs/{org}/teams/{team}", serve(s.deleteWorkspaceTeam))
 	mux.Handle("GET /v1/orgs/{org}/invitations", serve(s.listWorkspaceInvitations))
 	mux.Handle("POST /v1/orgs/{org}/invitations", serve(s.inviteWorkspace))
 	mux.Handle("DELETE /v1/invitations/{id}", serve(s.revokeInvitation))
 	mux.Handle("GET /v1/me/invitations", serve(s.myInvitations))
 	mux.Handle("POST /v1/me/invitations/{id}/accept", serve(s.acceptInvitation))
+	mux.Handle("GET /v1/me/invitations/{id}", serve(s.myInvitation))
+	mux.Handle("POST /v1/me/invitations/{id}/report", serve(s.reportInvitation))
+	mux.Handle("GET /v1/admin/invitation-reports", serve(s.invitationReports))
+	mux.Handle("PUT /v1/orgs/{org}/teams/{team}/deputies", serve(s.putTeamDeputies))
+	mux.Handle("POST /v1/orgs/{org}/leave", serve(s.leaveWorkspace))
+	mux.Handle("GET /v1/orgs/{org}/people-log", serve(s.peopleLog))
+	mux.Handle("GET /v1/orgs/{org}/seat-requests", serve(s.seatRequests))
+	mux.Handle("DELETE /v1/orgs/{org}/seat-requests/{id}", serve(s.closeSeatRequest))
+	mux.Handle("PUT /v1/admin/workspaces/{org}/features/{name}", serve(s.putWorkspaceFeature))
+	mux.Handle("POST /v1/invitations/{id}/resend", serve(s.resendInvitation))
+	mux.Handle("POST /v1/invitations/{id}/extend", serve(s.extendInvitation))
+	mux.Handle("POST /v1/me/invitations/{id}/decline", serve(s.declineInvitation))
+	mux.Handle("GET /v1/me/blocked-agencies", serve(s.blockedAgencies))
+	mux.Handle("POST /v1/me/blocked-agencies", serve(s.blockAgency))
+	mux.Handle("DELETE /v1/me/blocked-agencies/{org}", serve(s.unblockAgency))
+	mux.Handle("GET /v1/orgs/{org}/invitation-settings", serve(s.workspaceInvitationSettings))
+	mux.Handle("PUT /v1/orgs/{org}/invitation-settings", serve(s.putWorkspaceInvitationSettings))
 	s.accountRoutes(mux)
 	s.mfaRoutes(mux)
 	s.oauthRoutes(mux)
@@ -124,6 +192,8 @@ func kindOf(kind string) (string, error) {
 		return "browser", nil
 	case "desktop":
 		return "desktop", nil
+	case "shared": // a browser on a shared device (step 15, D38)
+		return "shared", nil
 	}
 	return "", bad("kind is browser or desktop.")
 }
@@ -139,6 +209,10 @@ type signUpBody struct {
 	BirthDate string `json:"birth_date"`
 	// The version of the terms and privacy notice they ticked. Required, and must be the current one.
 	TermsVersion string `json:"terms_version"`
+	// Signing up inside an emailed invitation (step 15): its id and the link's key. The address must be the one invited, and is
+	// then confirmed by the link itself (D47).
+	InvitationID  string `json:"invitation_id"`
+	InvitationKey string `json:"invitation_key"`
 }
 
 func (s *server) signUp(w http.ResponseWriter, r *http.Request) error {
@@ -146,12 +220,24 @@ func (s *server) signUp(w http.ResponseWriter, r *http.Request) error {
 	if err := readJSON(w, r, &body); err != nil {
 		return err
 	}
-	if !s.cfg.publicSignup {
-		return forbidden("New accounts are by invitation on this server.")
-	}
 	email, err := normalEmail(body.Email)
 	if err != nil {
 		return err
+	}
+	var invited *openInvitation
+	if body.InvitationID != "" || body.InvitationKey != "" {
+		if invited, err = s.invitationByKey(r.Context(), body.InvitationID, body.InvitationKey); err != nil {
+			return err
+		}
+		if invited == nil {
+			return forbidden("This invitation link has ended or was already used. Ask for a new invitation.")
+		}
+		if invited.email != email {
+			return forbidden("Sign up with the address the invitation was sent to.")
+		}
+	}
+	if !s.cfg.publicSignup && invited == nil {
+		return forbidden("New accounts are by invitation on this server.")
 	}
 	name := strings.TrimSpace(body.Name)
 	if n := utf8.RuneCountInString(name); n == 0 || n > 200 {
@@ -195,6 +281,19 @@ func (s *server) signUp(w http.ResponseWriter, r *http.Request) error {
 	}
 	if !birth.IsZero() {
 		if _, err := s.db.Exec(ctx, "UPDATE users SET birth_date = $1, age_confirmed_at = $2 WHERE id = $3", birth.Format("2006-01-02"), now(), u.id); err != nil {
+			return err
+		}
+	}
+	if invited != nil {
+		// Opening the emailed link proved the address. The link has done its work: its key is used up (the invitation itself stays,
+		// for the person to accept).
+		if _, err := s.db.Exec(ctx, "UPDATE users SET email_verified_at = COALESCE(email_verified_at, $1) WHERE id = $2", now(), u.id); err != nil {
+			return err
+		}
+		if _, err := s.db.Exec(ctx, "UPDATE access_invitations SET link_key_hash = NULL WHERE id = $1", body.InvitationID); err != nil {
+			return err
+		}
+		if u, err = s.userBy(ctx, "id", u.id); err != nil {
 			return err
 		}
 	}
@@ -318,6 +417,10 @@ func (s *server) finishSignIn(ctx context.Context, w http.ResponseWriter, u *use
 
 type refreshBody struct {
 	RefreshToken string `json:"refresh_token"`
+	// How long nobody touched the app, and whether a call is in progress (step 35, D244): past the agencies' idle limit the session
+	// ends, except during a call.
+	IdleSeconds int64 `json:"idle_seconds"`
+	OnCall      bool  `json:"on_call"`
 }
 
 // refresh swaps a refresh token for a new pair. The token changes every time it is used, and one that was already used ends its
@@ -331,14 +434,22 @@ func (s *server) refresh(w http.ResponseWriter, r *http.Request) error {
 	presented := sha256Hex(strings.TrimSpace(body.RefreshToken))
 	t := now()
 	var sid, userID, provider string
-	var mfa, started int64
-	err := s.db.QueryRow(ctx, "SELECT id, user_id, mfa_passed, provider, created_at FROM sessions WHERE refresh_hash = $1 AND revoked_at IS NULL AND expires_at > $2", presented, t).
-		Scan(&sid, &userID, &mfa, &provider, &started)
+	var mfa, started, lastSeen int64
+	var mfaAt *int64
+	err := s.db.QueryRow(ctx, "SELECT id, user_id, mfa_passed, provider, created_at, mfa_at, last_seen_at FROM sessions WHERE refresh_hash = $1 AND revoked_at IS NULL AND expires_at > $2", presented, t).
+		Scan(&sid, &userID, &mfa, &provider, &started, &mfaAt, &lastSeen)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return s.reused(ctx, presented)
 	}
 	if err != nil {
 		return err
+	}
+	// Idle past the agencies' limit: signed out (step 35, D244).
+	if s.tooIdle(ctx, userID, lastSeen, body.IdleSeconds, body.OnCall) {
+		if _, err := s.db.Exec(ctx, "UPDATE sessions SET revoked_at = $1 WHERE id = $2", t, sid); err != nil {
+			return err
+		}
+		return newError(http.StatusUnauthorized, "signed_out_idle", "You were signed out after being idle. Sign in again.")
 	}
 	u, err := s.userBy(ctx, "id", userID)
 	if err != nil {
@@ -362,6 +473,13 @@ func (s *server) refresh(w http.ResponseWriter, r *http.Request) error {
 	}
 	if done.RowsAffected() != 1 {
 		return s.reused(ctx, presented)
+	}
+	// Owners, admins and team leads give their code again every 7 days (D188): the session stays, its second step does not.
+	if mfa == 1 && mfaAt != nil && s.secondStepStale(ctx, u.id, *mfaAt) {
+		if _, err := s.db.Exec(ctx, "UPDATE sessions SET mfa_passed = 0 WHERE id = $1", sid); err != nil {
+			return err
+		}
+		mfa = 0
 	}
 	reply, err := s.tokens(u, sid, mfa == 1, provider, started, next)
 	if err != nil {
@@ -508,9 +626,11 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	var phone, avatar, currency, first, middle, last, username string
+	var phone, avatar, currency, first, middle, last, username, phoneVisible, findMe, messageMe string
 	var ageConfirmed int64
-	if err := s.db.QueryRow(r.Context(), "SELECT phone, avatar, currency, first_name, middle_name, last_name, age_confirmed_at, COALESCE(username, '') FROM users WHERE id = $1", u.id).Scan(&phone, &avatar, &currency, &first, &middle, &last, &ageConfirmed, &username); err != nil {
+	var tagNoteSeen bool
+	if err := s.db.QueryRow(r.Context(), "SELECT phone, avatar, currency, first_name, middle_name, last_name, age_confirmed_at, COALESCE(username, ''), tag_note_seen, phone_visible, find_me, message_me FROM users WHERE id = $1", u.id).
+		Scan(&phone, &avatar, &currency, &first, &middle, &last, &ageConfirmed, &username, &tagNoteSeen, &phoneVisible, &findMe, &messageMe); err != nil {
 		return err
 	}
 	termsAccepted, workAnswers, err := s.onboarding(r, u.id)
@@ -526,6 +646,7 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) error {
 		"mfa_passed": c.MFA, "session_id": c.SID,
 		"phone": phone, "avatar": avatar, "currency": currency,
 		"first_name": first, "middle_name": middle, "last_name": last, "username": username,
+		"tag": u.tag, "tag_note": !tagNoteSeen, "phone_visible": phoneVisible, "find_me": findMe, "message_me": messageMe,
 		"age_confirmed":  ageConfirmed > 0,
 		"terms_accepted": termsAccepted, "terms_version": termsVersion, "work_profile": workAnswers, "setup_exempt": exempt,
 	})

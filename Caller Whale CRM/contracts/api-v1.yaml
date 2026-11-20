@@ -57,7 +57,6 @@ paths:
   /readyz: { get: { summary: Readiness (database and cache) } }
   /api/v1/auth/bootstrap: { post: { summary: First organization on a fresh server, owned by the signed-in person; refused afterwards } }
   /api/v1/auth/service: { get: { summary: Where the auth service is (the website and the app sign in there) } }
-  /api/v1/invitations/join: { post: { summary: Join the organization of an invitation for this person's email, as the signed-in person } }
   /api/v1/organizations/trial: { post: { summary: Open a trial organization for the signed-in person, with them as owner (one per person) } }
   /api/v1/me: { get: { summary: Identity, roles, capabilities, scopes, access revision, MFA state } }
   /api/v1/admin/members: { get: { summary: Members and open invitations }, post: { summary: Invite (returns a one-time token) } }

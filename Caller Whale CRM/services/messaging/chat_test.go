@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -337,19 +339,25 @@ func TestUpdatesReachTheLiveServerOnceAndInOrder(t *testing.T) {
 	if sent, err := e.s.flush(ctx); sent != 0 || err == nil {
 		t.Fatalf("flush with the live server down: sent %d, err %v", sent, err)
 	}
+	// Four: everyone joining the agency's announcements channel on first use, the new chat, and the two messages.
 	var waiting int
-	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM messaging.outbox`).Scan(&waiting); err != nil || waiting != 3 {
-		t.Fatalf("%d updates waiting (%v), want 3", waiting, err)
+	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM messaging.outbox`).Scan(&waiting); err != nil || waiting != 4 {
+		t.Fatalf("%d updates waiting (%v), want 4", waiting, err)
 	}
 
 	e.live.setDown(false)
-	if sent, err := e.s.flush(ctx); sent != 3 || err != nil {
+	if sent, err := e.s.flush(ctx); sent != 4 || err != nil {
 		t.Fatalf("flush: sent %d, err %v", sent, err)
 	}
 	got := e.live.seen()
-	if len(got) != 3 {
+	if len(got) != 4 {
 		t.Fatalf("the live server heard %d updates", len(got))
 	}
+	// The first tells the three of them they are in the announcements channel; the rest are about the chat.
+	if first := got[0]["data"].(map[string]any); first["type"] != "conversation" || first["conversation_id"] == id || len(got[0]["channels"].([]any)) != 3 {
+		t.Fatalf("the announcements channel update: %v", got[0])
+	}
+	got = got[1:]
 	kinds, keys := []string{}, map[string]bool{}
 	for _, update := range got {
 		data := update["data"].(map[string]any)
@@ -383,5 +391,103 @@ func TestUpdatesReachTheLiveServerOnceAndInOrder(t *testing.T) {
 	status, where := e.call(alice, "", "GET", "/live", nil)
 	if status != 200 || where["enabled"] != true || where["channel"] != channelPrefix+alice || where["url"] == "" || len(strings.Split(where["token"].(string), ".")) != 3 {
 		t.Fatalf("live: %d %v", status, where)
+	}
+}
+
+func TestASuperuserLoginStillGetsRowSecurity(t *testing.T) {
+	e := newEnvWith(t, true)
+	if e.s.st.runAs != appRole {
+		t.Fatalf("a superuser login runs requests as %q, want %q", e.s.st.runAs, appRole)
+	}
+	org := newID()
+	alice, bob, carol := newID(), newID(), newID()
+	e.rules.join(org, alice, bob, carol)
+	id := e.must(201, alice, org, "POST", "/conversations", map[string]any{"kind": "direct", "member_ids": []string{bob}})["id"].(string)
+	e.send(alice, org, id, "between us")
+
+	// Through the API, and straight at the table with no check in the query: Carol sees nothing even though the login could see everything.
+	if e.conversation(carol, org, id) != nil {
+		t.Fatal("a teammate outside the chat lists it")
+	}
+	if status, _ := e.call(carol, org, "GET", "/conversations/"+id+"/messages", nil); status != 404 {
+		t.Fatalf("a teammate outside the chat reads it: status %d", status)
+	}
+	ctx := context.Background()
+	for user, want := range map[string]int{alice: 1, bob: 1, carol: 0} {
+		tx, err := e.s.st.begin(ctx, scope{userID: user, orgID: org})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var n int
+		if err = tx.QueryRow(ctx, `SELECT count(*) FROM messages`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		tx.Rollback(ctx)
+		if n != want {
+			t.Fatalf("%s sees %d messages, want %d", user[:4], n, want)
+		}
+	}
+	// And the live updates still go out, which the login (not the restricted role) sends: the announcements channel, the chat, the message.
+	if sent, err := e.s.flush(ctx); err != nil || sent != 3 {
+		t.Fatalf("flush: sent %d, err %v", sent, err)
+	}
+}
+
+func TestALoginThatBypassesRowSecurityWithoutBeingASuperuserIsRefused(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	// A superuser-owned role that bypasses row security but is not a superuser.
+	if _, err := e.admin.Exec(ctx, `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'messaging_bypass_test') THEN CREATE ROLE messaging_bypass_test LOGIN PASSWORD 'bypass' NOSUPERUSER BYPASSRLS; END IF; END $$`); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = e.admin.Exec(ctx, `DROP SCHEMA IF EXISTS messaging CASCADE`)
+		_, _ = e.admin.Exec(ctx, `DROP ROLE IF EXISTS messaging_bypass_test`)
+	})
+	appURL := os.Getenv("MESSAGING_TEST_DATABASE_URL")
+	u, err := url.Parse(appURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.User = url.UserPassword("messaging_bypass_test", "bypass")
+	if _, err = e.admin.Exec(ctx, `GRANT ALL ON DATABASE messaging_test TO messaging_bypass_test; GRANT ALL ON SCHEMA public TO messaging_bypass_test`); err != nil {
+		t.Fatal(err)
+	}
+	if st, err := openStore(ctx, u.String()); err == nil {
+		st.close()
+		t.Fatal("the service started with a login that bypasses row security")
+	}
+}
+
+// A message can be edited for 15 minutes; search finds words only in the person's own conversations of this workspace (D87).
+func TestTheEditWindowAndSearch(t *testing.T) {
+	e := newEnv(t)
+	org, other := newID(), newID()
+	alice, bob, carol := newID(), newID(), newID()
+	e.rules.join(org, alice, bob, carol)
+	e.rules.join(other, alice)
+	ab := e.must(201, alice, org, "POST", "/conversations", map[string]any{"kind": "direct", "member_ids": []string{bob}})["id"].(string)
+	bc := e.must(201, bob, org, "POST", "/conversations", map[string]any{"kind": "direct", "member_ids": []string{carol}})["id"].(string)
+	mid := e.send(alice, org, ab, "The Maple Street offer is ready")["id"].(string)
+	e.send(bob, org, bc, "Maple Street is off the table")
+	e.must(200, alice, org, "PATCH", "/messages/"+mid, map[string]any{"body": "The Maple Street offer is signed"})
+	if _, err := e.admin.Exec(context.Background(), `UPDATE messaging.messages SET created_at = now() - interval '16 minutes' WHERE id = $1`, mid); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ := e.call(alice, org, "PATCH", "/messages/"+mid, map[string]any{"body": "changed later"}); status != 409 {
+		t.Fatalf("an edit after 15 minutes: %d", status)
+	}
+	found := e.must(200, alice, org, "GET", "/messages/search?q=maple", nil)["messages"].([]any)
+	if len(found) != 1 || found[0].(map[string]any)["id"] != mid {
+		t.Fatalf("alice finds only her own conversation's message: %v", found)
+	}
+	if found := e.must(200, bob, org, "GET", "/messages/search?q=maple", nil)["messages"].([]any); len(found) != 2 {
+		t.Fatalf("bob is in both: %v", found)
+	}
+	if found := e.must(200, alice, other, "GET", "/messages/search?q=maple", nil)["messages"].([]any); len(found) != 0 {
+		t.Fatalf("another workspace finds nothing: %v", found)
+	}
+	if status, _ := e.call(alice, org, "GET", "/messages/search?q=m", nil); status != 400 {
+		t.Fatalf("one letter: %d", status)
 	}
 }

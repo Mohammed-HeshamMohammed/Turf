@@ -28,6 +28,23 @@ type config struct {
 	grantTTL      time.Duration
 	learningURL   string // the learning service (private); empty turns the learning copy off
 	learningToken string
+	dialerToken   string // the dialer service's token for /internal/v1/dialer (DIALER_TOKEN); empty turns those routes off
+	// The in-app assistant (step 26): the assistant service and its AGENT_TOKEN; billing and crm-core's token there, to charge its use.
+	assistantURL, assistantToken string
+	billingURL, billingToken     string
+	// Google Calendar (step 28): the Google Cloud app, the key that encrypts stored tokens, and the CRM web app for links and returns.
+	googleClientID, googleSecret, googleRedirect string
+	googleKey                                    []byte
+	appURL                                       string
+	// Email to leads (step 29): Amazon SES's region (its login from AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY), this API's public
+	// address, the domain replies go to, and the SNS topic SES puts them on.
+	emailRegion, emailPublicURL, emailReplyDomain, emailTopic string
+	// Scheduled report emails (step 32): the notification service and crm-core's token in its NOTIFY_TOKENS.
+	notifyMailURL, notifyMailToken string
+	sharedLearning                 bool   // step 45: SHARED_LEARNING=on once the lawyer approved the agreement
+	restoreCopyURL                 string // step 41: the database a backup was restored into, to restore one agency from
+	carrierCheck                   bool   // step 39: imports wait for the carriers to verify the agency (CARRIER_CHECK=on)
+	clamdAddr                      string // ClamAV's daemon, like clamav:3310 (step 38)
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -43,6 +60,17 @@ func loadConfig(getenv func(string) string) (config, error) {
 		grantTTL:      5 * time.Second,
 		learningURL:   trim(getenv("LEARNING_URL")),
 		learningToken: strings.TrimSpace(getenv("LEARNING_TOKEN")),
+		dialerToken:   strings.TrimSpace(getenv("DIALER_TOKEN")),
+		assistantURL:  trim(getenv("ASSISTANT_URL")), assistantToken: strings.TrimSpace(getenv("ASSISTANT_TOKEN")),
+		billingURL: trim(getenv("BILLING_URL")), billingToken: strings.TrimSpace(getenv("BILLING_TOKEN")),
+		googleClientID: strings.TrimSpace(getenv("GOOGLE_CLIENT_ID")), googleSecret: strings.TrimSpace(getenv("GOOGLE_CLIENT_SECRET")),
+		googleRedirect: strings.TrimSpace(getenv("GOOGLE_REDIRECT_URL")), appURL: trim(getenv("APP_URL")),
+		emailRegion: strings.TrimSpace(getenv("EMAIL_SES_REGION")), emailPublicURL: trim(getenv("EMAIL_PUBLIC_URL")),
+		emailReplyDomain: strings.ToLower(strings.TrimSpace(getenv("EMAIL_REPLY_DOMAIN"))), emailTopic: strings.TrimSpace(getenv("EMAIL_SNS_TOPIC_ARN")),
+		notifyMailURL: trim(getenv("NOTIFY_MAIL_URL")), notifyMailToken: strings.TrimSpace(getenv("NOTIFY_MAIL_TOKEN")),
+		clamdAddr: strings.TrimSpace(getenv("CLAMD_ADDR")), carrierCheck: strings.EqualFold(strings.TrimSpace(getenv("CARRIER_CHECK")), "on"),
+		restoreCopyURL: strings.TrimSpace(getenv("RESTORE_COPY_URL")),
+		sharedLearning: strings.EqualFold(strings.TrimSpace(getenv("SHARED_LEARNING")), "on"),
 	}
 	if c.port == "" {
 		c.port = "8107"
@@ -59,6 +87,23 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	if c.learningURL != "" && len(c.learningToken) < 32 {
 		return c, errors.New("LEARNING_TOKEN must be at least 32 characters when LEARNING_URL is set")
+	}
+	if c.dialerToken != "" && len(c.dialerToken) < 32 {
+		return c, errors.New("DIALER_TOKEN must be at least 32 characters when set: the dialer service's CRM_TOKEN")
+	}
+	if c.assistantURL != "" && len(c.assistantToken) < 32 {
+		return c, errors.New("ASSISTANT_TOKEN must be at least 32 characters when ASSISTANT_URL is set: the assistant service's AGENT_TOKEN")
+	}
+	if c.billingURL != "" && len(c.billingToken) < 32 {
+		return c, errors.New("BILLING_TOKEN must be at least 32 characters when BILLING_URL is set: crm-core's token in billing's BILLING_TOKENS (crm-core=...)")
+	}
+	if c.googleClientID != "" {
+		if c.googleSecret == "" || c.googleRedirect == "" || c.appURL == "" {
+			return c, errors.New("set GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URL and APP_URL with GOOGLE_CLIENT_ID")
+		}
+		if c.googleKey, err = parseTokenKey(getenv("GOOGLE_TOKEN_KEY")); err != nil {
+			return c, err
+		}
 	}
 	return c, nil
 }
@@ -100,10 +145,31 @@ func main() {
 	}
 	log.Print("INFO importer access ready")
 	s := &server{cfg: cfg, keys: newKeyset(cfg.jwksURL), rules: newAuthz(cfg.authzURL, cfg.authzToken, cfg.grantTTL), st: st, hub: newHub(), now: time.Now}
+	if cfg.googleClientID != "" {
+		s.calendar = newGoogleAPI(cfg.googleClientID, cfg.googleSecret, cfg.googleRedirect)
+	}
+	s.fetchCert = defaultFetchCert
+	if cfg.clamdAddr != "" {
+		s.scanner = clamd{addr: cfg.clamdAddr}
+	}
+	if cfg.emailRegion != "" {
+		ses, err := newSES(ctx, cfg.emailRegion)
+		if err != nil {
+			log.Fatal(err)
+		}
+		s.mail = ses
+	}
 	go s.hub.listen(ctx, cfg.databaseURL)
 	go s.resumeMerges(ctx)
+	go s.resumeAssignments(ctx)
 	go s.sweepRowsPeriodically(ctx)
 	go s.learnPendingPeriodically(ctx)
+	go s.checkEmailWaitsPeriodically(ctx)
+	go s.sendReportsPeriodically(ctx)
+	go s.sendEventsPeriodically(ctx)
+	go s.scanWaitingPeriodically(ctx)
+	go s.contributePeriodically(ctx)
+	go st.keepBuildingLateIndexes(ctx, 5*time.Minute)
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 5 * time.Minute, WriteTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute}
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)

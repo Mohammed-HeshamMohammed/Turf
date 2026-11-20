@@ -225,3 +225,72 @@ func TestACallerMayHoldTwoTokensWhileOneIsReplaced(t *testing.T) {
 		}
 	}
 }
+
+func TestTeamInvitationSaysTheRoleInWordsAndHowLongItWorks(t *testing.T) {
+	m, err := Render("team_invitation", "sami@example.com", map[string]any{"inviter": "Mo", "role": "manager", "role_name": "Team manager", "expires": "72 hours", "link": "https://callerwhale.com/dashboard"})
+	if err != nil || !strings.Contains(m.Text, "as Team manager.") || !strings.Contains(m.Text, "expires 72 hours after") || strings.Contains(m.Text, "one hour") || !strings.Contains(m.HTML, "<strong>Team manager</strong>") {
+		t.Fatalf("team invitation: %+v %v", m, err)
+	}
+}
+
+func TestTeamInvitationNamesTheAgencyAndLinksToTheInvitation(t *testing.T) {
+	link := "https://callerwhale.com/dashboard?invitation=abc"
+	m, err := Render("team_invitation", "sami@example.com", map[string]any{"inviter": "Mo", "agency": "Blue <Door> Homes", "role": "caller", "role_name": "Caller", "expires": "72 hours", "link": link})
+	if err != nil || m.Subject != "Join Blue <Door> Homes on Caller Whale" || !strings.Contains(m.Text, "join Blue <Door> Homes on Caller Whale as Caller") || !strings.Contains(m.Text, link) {
+		t.Fatalf("named agency: %+v %v", m, err)
+	}
+	if strings.Contains(m.HTML, "<Door>") || !strings.Contains(m.HTML, "Blue &lt;Door&gt; Homes") {
+		t.Fatalf("the agency name is escaped in the page: %s", m.HTML)
+	}
+	m, _ = Render("team_invitation", "sami@example.com", map[string]any{"inviter": "Mo", "agency": "Evil\r\nBcc: x@y.z", "role": "caller", "link": link})
+	if m.Subject != "Your Caller Whale invitation" || strings.Contains(m.Text, "Bcc") {
+		t.Fatalf("a name on two lines is left out: %+v", m)
+	}
+}
+
+// Step 32: a report holds totals and a link only.
+func TestTheReportTemplateHoldsTotalsOnly(t *testing.T) {
+	m, err := Render("report", "owner@example.com", map[string]any{"agency": "Blue Door Homes", "period": "Week of 9 November 2026",
+		"lines": []any{map[string]any{"label": "Calls", "value": float64(1234)}, map[string]any{"label": "Deals won", "value": float64(2)}},
+		"link": "https://app.callerwhale.com/?view=reports"})
+	if err != nil || !strings.Contains(m.Text, "Calls: 1,234") || !strings.Contains(m.HTML, "Open the details") || m.Subject != "Blue Door Homes: Week of 9 November 2026" {
+		t.Fatalf("%v %+v", err, m)
+	}
+	if _, err := Render("report", "x@example.com", map[string]any{"agency": "A", "period": "P", "lines": []any{}, "link": "https://x"}); err == nil {
+		t.Fatal("a report without totals")
+	}
+}
+
+// Step 34: status emails and breach notices.
+func TestStatusAndBreachTemplates(t *testing.T) {
+	m, err := Render("status", "owner@example.com", map[string]any{"title": "Caller Whale: Calls are down", "message": "We are on it.", "link": "https://callerwhale.com/status"})
+	if err != nil || m.Subject != "Caller Whale: Calls are down" || !strings.Contains(m.Text, "https://callerwhale.com/status") {
+		t.Fatalf("%v %+v", err, m)
+	}
+	b, err := Render("breach_notice", "owner@example.com", map[string]any{"what": "A key was exposed.", "to_do": "Sign in again.", "discovered": "18 November 2026, 09:00 UTC"})
+	if err != nil || !strings.Contains(b.Text, "A key was exposed.") || !strings.Contains(b.HTML, "What you should do") {
+		t.Fatalf("%v %+v", err, b)
+	}
+	if _, err := Render("breach_notice", "x@example.com", map[string]any{"what": "x"}); err == nil {
+		t.Fatal("a notice without what to do")
+	}
+}
+
+// Step 35: the new-device email.
+func TestNewSignInTemplate(t *testing.T) {
+	m, err := Render("new_sign_in", "a@example.com", map[string]any{"device": "Chrome on Windows", "place": "US", "at": "18 November 2026, 09:00 UTC", "link": "https://callerwhale.com/account/not-me?token=x"})
+	if err != nil || !strings.Contains(m.Text, "Chrome on Windows") || !strings.Contains(m.HTML, "This wasn't me") {
+		t.Fatalf("%v %+v", err, m)
+	}
+}
+
+// Step 40: a support reply names the reply and links to the conversation.
+func TestSupportReplyEmail(t *testing.T) {
+	m, err := Render("support_reply", "owner@example.com", map[string]any{"title": "Caller Whale support replied", "message": "Map the Owner column to name.", "link": "https://callerwhale.com/dashboard/support"})
+	if err != nil || !strings.Contains(m.Text, "Map the Owner column") || !strings.Contains(m.HTML, "Read and reply") {
+		t.Fatalf("%v %+v", err, m)
+	}
+	if _, err := Render("support_reply", "x@example.com", map[string]any{"title": "T", "message": "", "link": "https://x"}); err == nil {
+		t.Fatal("an empty reply was rendered")
+	}
+}

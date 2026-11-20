@@ -159,7 +159,6 @@ are unchanged.
 | --- | --- | --- | --- |
 | GET | `/plans` | anyone | The plan catalogue |
 | POST | `/organizations/trial` | signed in with auth (rate limited) | Trial organization for that person, one each |
-| POST | `/invitations/join` | signed in with auth, as the invited email | Joins the invitation's organization |
 | GET | `/billing` | members | Plan, status, seats, minutes; payments for owners and administrators only |
 | POST | `/billing/checkout` | owner or administrator, email confirmed | Pending payment, then the provider's checkout address |
 | POST | `/billing/webhook` | payment provider (HMAC signed) | Marks the payment paid or failed; switches the plan |

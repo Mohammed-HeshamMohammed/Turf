@@ -42,9 +42,9 @@ type server struct {
 }
 
 type user struct {
-	id, email, name string
-	disabled        bool
-	emailVerified   bool
+	id, email, name, tag string
+	disabled             bool
+	emailVerified        bool
 }
 
 func sha256Hex(text string) string {
@@ -69,8 +69,8 @@ func (s *server) userBy(ctx context.Context, column, value string) (*user, error
 	}
 	var u user
 	var disabled, verified *int64
-	err := s.db.QueryRow(ctx, "SELECT id, email, display_name, disabled_at, email_verified_at FROM users WHERE "+column+" = $1", value).
-		Scan(&u.id, &u.email, &u.name, &disabled, &verified)
+	err := s.db.QueryRow(ctx, "SELECT id, email, display_name, tag, disabled_at, email_verified_at FROM users WHERE "+column+" = $1", value).
+		Scan(&u.id, &u.email, &u.name, &u.tag, &disabled, &verified)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -212,28 +212,42 @@ func (s *server) openSession(ctx context.Context, u *user, kind string, mfaPasse
 		fb = &fbRefresh
 	}
 	mfa := int64(0)
+	var mfaAt *int64
 	if mfaPassed {
-		mfa = 1
+		mfa, mfaAt = 1, &t
 	}
-	_, err := s.db.Exec(ctx, "INSERT INTO sessions (id, user_id, refresh_hash, kind, mfa_passed, created_at, last_seen_at, expires_at, provider, fb_refresh) VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9)",
-		id, u.id, refreshHash, kind, mfa, t, t+int64(s.cfg.refreshDays)*86_400, provider, fb)
+	// "This is my device" keeps the sign-in for the usual days; a shared device's lasts 12 hours at most (D38, D188).
+	expires := t + int64(s.cfg.refreshDays)*86_400
+	if kind == "shared" {
+		expires = t + sharedSessionSeconds
+	}
+	_, err := s.db.Exec(ctx, "INSERT INTO sessions (id, user_id, refresh_hash, kind, mfa_passed, created_at, last_seen_at, expires_at, provider, fb_refresh, mfa_at) VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9, $10)",
+		id, u.id, refreshHash, kind, mfa, t, expires, provider, fb, mfaAt)
 	if err != nil {
 		return nil, err
 	}
+	s.noteDevice(ctx, u, id) // where it came from; a new device emails the person (step 35, D242)
 	return s.tokens(u, id, mfaPassed, provider, t, refresh)
 }
 
 func (s *server) tokens(u *user, sid string, mfa bool, provider string, authTime int64, refresh string) (map[string]any, error) {
-	access, expiresIn, err := s.keys.sign(person{id: u.id, email: u.email, name: u.name, emailVerified: u.emailVerified}, sid, mfa, provider, authTime, now(), s.cfg.accessMinutes)
+	access, expiresIn, err := s.keys.sign(person{id: u.id, email: u.email, name: u.name, tag: u.tag, emailVerified: u.emailVerified}, sid, mfa, provider, authTime, now(), s.cfg.accessMinutes)
 	if err != nil {
 		return nil, err
 	}
+	// The website keeps a shared device's sign-in only while its tab is open.
+	device := "mine"
+	var kind string
+	if err := s.db.QueryRow(context.Background(), "SELECT kind FROM sessions WHERE id = $1", sid).Scan(&kind); err == nil && kind == "shared" {
+		device = "shared"
+	}
 	return map[string]any{
+		"device":        device,
 		"access_token":  access,
 		"token_type":    "Bearer",
 		"expires_in":    expiresIn,
 		"refresh_token": refresh,
-		"user":          map[string]any{"id": u.id, "email": u.email, "name": u.name, "email_verified": u.emailVerified},
+		"user":          map[string]any{"id": u.id, "email": u.email, "name": u.name, "tag": u.tag, "email_verified": u.emailVerified},
 	}, nil
 }
 

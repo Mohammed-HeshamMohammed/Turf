@@ -5,5 +5,10 @@
   "description": "Setup of Caller Whale's Firebase project: the auth service's account store (docs/plans/firebase-auth.md)",
   "dependencies": {
     "firebase-admin": "14.5.0"
+  },
+  "overrides": {
+    "glob": "^14.0.2",
+    "minimatch": "^11.0.1",
+    "fast-xml-parser": "^5.12.0"
   }
 }

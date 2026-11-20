@@ -1,10 +1,10 @@
 package main
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"crypto/sha256"
 	"encoding/base64"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -49,7 +49,9 @@ func fakeAuthz(member *bool) *httptest.Server {
 			spaces = `[{"org_id":"11111111-1111-1111-1111-111111111111","roles":["owner"],"business_owner":true}]`
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"user_id":"x","platform_role":"","workspaces":` + spaces + `}`))
+		// The answer is about the person asked for (auth refuses an answer about someone else).
+		user := strings.TrimPrefix(r.URL.Path, "/v1/people/")
+		_, _ = w.Write([]byte(`{"user_id":"` + user + `","platform_role":"","workspaces":` + spaces + `}`))
 	}))
 }
 

@@ -9,6 +9,8 @@ import { Pricing } from "./Pricing.tsx";
 import { FeaturesIndex, FeaturePage } from "./Features.tsx";
 import { Security } from "./Security.tsx";
 import { AcceptableUse, Contact, DataProcessing, Privacy, RemoveMyInformation, Terms } from "./PublicPages.tsx";
+import { NotMe, OutageBanner, StatusPage } from "./Status.tsx";
+import { HelpPage } from "./Help.tsx";
 import { WhyCallerWhale } from "./WhyCallerWhale.tsx";
 import { Home } from "./Home.tsx";
 import { AnnouncementBanner } from "./Announcement.tsx";
@@ -123,8 +125,8 @@ function useAction() {
   return [state, run] as const;
 }
 
-function Providers({ action }: { action: string }) {
-  const [list, setList] = useState<{ google?: boolean; apple?: boolean }>({});
+function Providers({ action, shared = false }: { action: string; shared?: boolean }) {
+  const [list, setList] = useState<{ google?: boolean; apple?: boolean; microsoft?: boolean }>({});
   const [state, run] = useAction();
   useEffect(() => {
     auth.providers().then(setList, () => {});
@@ -134,9 +136,12 @@ function Providers({ action }: { action: string }) {
   if (list.google === false) return null;
   return (
     <>
-      <button type="button" className="button raised" disabled={state.busy} onClick={() => run(async () => void (await auth.startProvider("google", "landing", await humanToken(getAuth, action), action)))}>
+      <button type="button" className="button raised" disabled={state.busy} onClick={() => run(async () => { auth.chooseDevice(shared); await auth.startProvider("google", "landing", await humanToken(getAuth, action), action); })}>
         Continue with Google
       </button>
+      {list.microsoft && <button type="button" className="button raised" disabled={state.busy} onClick={() => run(async () => { auth.chooseDevice(shared); await auth.startProvider("microsoft", "landing", await humanToken(getAuth, action), action); })}>
+        Continue with Microsoft
+      </button>}
       {state.error && <p className="notice bad" role="alert">{state.error}</p>}
     </>
   );
@@ -149,6 +154,8 @@ function SignIn({ onDone, notice, me }: { onDone: () => void; notice: string; me
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [challenge, setChallenge] = useState<Challenge | null>(null);
+  // "This is my device" keeps the sign-in for 30 days; "Shared device" ends it when the tab closes, and after 12 hours (D38, D188).
+  const [shared, setShared] = useState(false);
   const resumed = Boolean(me && waitingForSecondStep(me)); // signed in already (Google, or an older session), second step not done
   const [state, run] = useAction();
   const submit = async (e: FormEvent) => {
@@ -156,7 +163,7 @@ function SignIn({ onDone, notice, me }: { onDone: () => void; notice: string; me
     let next: Challenge | null = null;
     const ok = await run(async () => {
       try {
-        await auth.signIn(email, password, undefined, "browser", await humanToken(getAuth, "signin"));
+        await auth.signIn(email, password, undefined, shared ? "shared" : "browser", await humanToken(getAuth, "signin"));
       } catch (error) {
         if ((error as AuthError).code !== "mfa_required") throw error;
         const data = (error as AuthError).data as { challenge?: string; methods?: string[] } | null;
@@ -214,10 +221,15 @@ function SignIn({ onDone, notice, me }: { onDone: () => void; notice: string; me
         {notice && <p className="notice" role="status">{notice}</p>}
         <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} />
         <Field label="Password" type="password" autoComplete="current-password" required value={password} onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)} />
+        <fieldset className="device-choice">
+          <legend className="sr-only">Which device is this?</legend>
+          <label className="check"><input type="radio" name="device" checked={!shared} onChange={() => setShared(false)} /> <span>This is my device: keep me signed in</span></label>
+          <label className="check"><input type="radio" name="device" checked={shared} onChange={() => setShared(true)} /> <span>Shared device: sign me out when I close this tab</span></label>
+        </fieldset>
         <HumanCheck getAuth={getAuth} />
         {state.error && <p className="notice bad" role="alert">{state.error}</p>}
         <button className="button primary" disabled={state.busy}>{state.busy ? "Signing in…" : "Sign in"}</button>
-        <Providers action="signin" />
+        <Providers action="signin" shared={shared} />
         <div className="alt">
           <Link to="/forgot">Forgot your password?</Link>
           <Link to="/signup">Create an account</Link>
@@ -234,6 +246,25 @@ function SignUp({ onDone }: { onDone: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [again, setAgain] = useState("");
+  // Opened from an invitation email (/signup?invitation=<id>&key=<key>): the address is the invited one, filled in and locked, and
+  // confirmed by the link itself (D47, D368).
+  const [invited, setInvited] = useState<{ id: string; key: string; email: string; org: string; owner: string; exists: boolean } | null>(null);
+  const [inviteProblem, setInviteProblem] = useState("");
+  useEffect(() => {
+    const search = typeof window === "undefined" ? "" : window.location.search;
+    const id = paramOf(search, "invitation"), key = paramOf(search, "key");
+    if (!id || !key) return;
+    fetch(`${authBase}/v1/invitations/${encodeURIComponent(id)}/preview?key=${encodeURIComponent(key)}`)
+      .then(async response => {
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) { setInviteProblem(body.error || "This invitation link cannot be used."); return; }
+        setInvited({ id, key, email: body.email, org: body.org_name, owner: body.owner_name, exists: Boolean(body.account_exists) });
+        setEmail(body.email);
+        // After the account is made, the invitation opens to be accepted.
+        try { window.sessionStorage.setItem("cw-after-signin", `/dashboard?invitation=${encodeURIComponent(id)}`); } catch { /* the dashboard lists it anyway */ }
+      })
+      .catch(() => setInviteProblem("Cannot check this invitation right now. Try again in a moment."));
+  }, []);
   const [agreed, setAgreed] = useState(false);
   const [birth, setBirth] = useState("");
   const [first, setFirst] = useState("");
@@ -268,7 +299,7 @@ function SignUp({ onDone }: { onDone: () => void }) {
     e.preventDefault();
     if (birthProblem || !birth) return;
     const made = await run(async () => {
-      await auth.signUp(name.trim(), email, password, "browser", await humanToken(getAuth, "signup"), birth, TERMS_VERSION);
+      await auth.signUp(name.trim(), email, password, "browser", await humanToken(getAuth, "signup"), birth, TERMS_VERSION, invited ? { id: invited.id, key: invited.key } : null);
       // The account exists now. Its names, phone and picture are saved with it; if that fails, the profile page can do it later.
       try {
         const token = await auth.accessToken();
@@ -301,8 +332,11 @@ function SignUp({ onDone }: { onDone: () => void }) {
       {step === 1 ? (
         <form className="form card" onSubmit={next}>
           <h1>Create your account</h1>
+          {invited && <p className="notice" role="status">{invited.owner ? `${invited.owner} invited you to ${invited.org || "their agency"}.` : `You are invited to ${invited.org || "an agency"}.`} Create your account with the invited address; you can accept the invitation right after.</p>}
+          {invited?.exists && <div className="notice" role="alert"><strong>This address already has an account.</strong><p>Sign in to accept the invitation.</p><div className="notice-actions"><Link className="button primary" to={`/signin?email=${encodeURIComponent(invited.email)}`}>Sign in</Link></div></div>}
+          {inviteProblem && <p className="notice bad" role="alert">{inviteProblem}</p>}
           <Field label="Display name" autoComplete="nickname" required value={name} onChange={(e: ChangeEvent<HTMLInputElement>) => setName(e.target.value)} />
-          <Field label="Email" type="email" autoComplete="email" required aria-invalid={taken || undefined} aria-describedby={taken ? "email-used" : undefined} value={email} onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} />
+          <Field label="Email" type="email" autoComplete="email" required readOnly={Boolean(invited)} aria-readonly={invited ? true : undefined} aria-invalid={taken || undefined} aria-describedby={taken ? "email-used" : undefined} value={email} onChange={(e: ChangeEvent<HTMLInputElement>) => { if (!invited) setEmail(e.target.value); }} />
           {taken && (
             <div className="notice" id="email-used" role="alert">
               <strong>This email already has an account.</strong>
@@ -373,6 +407,34 @@ function Forgot() {
   );
 }
 
+/** The link in the confirmation email lands here: the token is sent to auth once, and the person is told how it went. A confirmed
+ * address shows its waiting invitations in the dashboard. */
+function VerifyEmail({ me, onVerified }: { me: Me | null | undefined; onVerified: () => void }) {
+  const [state, setState] = useState<"working" | "done" | "failed">("working");
+  const [problem, setProblem] = useState("");
+  const asked = useRef(false);
+  useEffect(() => {
+    if (asked.current) return;
+    asked.current = true;
+    const token = paramOf(window.location.search, "token");
+    if (!token) { setState("failed"); setProblem("This link has no confirmation code. Open the link from the email again."); return; }
+    auth.verifyEmail(token).then(() => { setState("done"); onVerified(); }, (error: unknown) => {
+      setState("failed");
+      setProblem(error instanceof Error ? error.message : "This link is not valid or has expired.");
+    });
+  }, [onVerified]);
+  return (
+    <div className="form-wrap">
+      <div className="form card" role="status" aria-live="polite">
+        <h1>{state === "working" ? "Confirming your email…" : state === "done" ? "Your email is confirmed" : "This link did not work"}</h1>
+        {state === "done" && <p className="muted">{me ? "Invitations sent to this address are waiting in your dashboard." : "Sign in to see your dashboard and any invitations sent to this address."}</p>}
+        {state === "failed" && <p className="notice bad" role="alert">{problem} If your email is already confirmed, just sign in.</p>}
+        {state !== "working" && <div className="alt"><Link className="button primary" to={me ? "/dashboard" : "/signin"}>{me ? "Open your dashboard" : "Sign in"}</Link></div>}
+      </div>
+    </div>
+  );
+}
+
 function NotFound() {
   return (
     <div className="form-wrap">
@@ -425,7 +487,7 @@ export function App({ path: first = "/" }) {
     // keep() already notifies useMe, which restores the profile and handles a temporary failure.
     let back = "";
     try { back = window.sessionStorage.getItem("cw-after-signin") || ""; window.sessionStorage.removeItem("cw-after-signin"); } catch { /* none */ }
-    if (back.startsWith("/connect")) go(back);
+    if (back.startsWith("/connect") || back.startsWith("/dashboard?invitation=")) go(back);
     else if (!wantsCrm(window.location.search)) go("/dashboard");
   };
   const signOut = async () => {
@@ -446,8 +508,14 @@ export function App({ path: first = "/" }) {
     // /account is the older address of the same page: it goes to the person's own address once it is known.
     if (me && cleanPath(path) === "/profile" && !setupStep(me) && profilePath(me) !== "/account") { go(profilePath(me), { replace: true }); return; }
     if (me === null && ownPageName) { go("/signin", { replace: true }); return; }
+    // An emailed invitation link (it carries a key) opens sign-up inside the invitation; with an account, that page says sign in.
+    if (me === null && path.startsWith("/dashboard")) {
+      const query = new URLSearchParams(window.location.search);
+      if (query.has("invitation") && query.has("key")) { go(`/signup?invitation=${encodeURIComponent(query.get("invitation") || "")}&key=${encodeURIComponent(query.get("key") || "")}`, { replace: true }); return; }
+    }
     const to = redirectFor(path, me);
-    if (to && !me && path.startsWith("/connect")) { try { window.sessionStorage.setItem("cw-after-signin", window.location.pathname + window.location.search); } catch { /* signing in then opens the dashboard */ } }
+    // An invitation link (/dashboard?invitation=<id>) also comes back to that invitation after signing in.
+    if (to && !me && (path.startsWith("/connect") || (path.startsWith("/dashboard") && new URLSearchParams(window.location.search).has("invitation")))) { try { window.sessionStorage.setItem("cw-after-signin", window.location.pathname + window.location.search); } catch { /* signing in then opens the dashboard */ } }
     if (to) go(to, { replace: true });
   }, [path, me, ownPageName]);
   // Signed in and then not, without the person asking (the session ended, or they signed out in another tab): say so.
@@ -468,10 +536,14 @@ export function App({ path: first = "/" }) {
     "/signin": me && fromCrm ? (setupStep(me) ? setup : <div className="form-wrap"><p className="muted" role="status">Opening the CRM…</p></div>) : <SignIn onDone={signedIn} notice={notice} me={me} />,
     "/signup": <SignUp onDone={signedIn} />,
     "/forgot": <Forgot />,
+    "/verify": <VerifyEmail me={me} onVerified={() => { auth.me({ fresh: true }).then(setMe, () => undefined); }} />,
     "/pricing": <Pricing />,
     "/features": <FeaturesIndex />,
     "/why-caller-whale": <WhyCallerWhale />,
     "/security": <Security />,
+    "/status": <StatusPage authBase={authBase} />,
+    "/help": <HelpPage />,
+    "/account/not-me": <NotMe authBase={authBase} />,
     "/contact": <Contact getAuth={getAuth} />,
     "/remove-my-information": <RemoveMyInformation getAuth={getAuth} />,
     "/dpa": <DataProcessing />,
@@ -488,6 +560,7 @@ export function App({ path: first = "/" }) {
   return (
     <div className={`page${cleanPath(path) === "/" ? " home-page" : ""}${cleanPath(path) === "/dashboard" ? " dashboard-shell" : ""}`}>
       {cleanPath(path) !== "/dashboard" && <AnnouncementBanner authBase={authBase} />}
+      {cleanPath(path) !== "/status" && <OutageBanner authBase={authBase} />}
       <SiteHeader path={path} me={me} onSignOut={signOut} savedSession={savedSession} cached={cached} openCrm={crmLink ? openCrm : undefined} />
       <main>{pages[cleanPath(path)] || (ownPageName ? ownPage : null) || (routeFor(path).key.startsWith("feature:") ? <FeaturePage slug={featureSlug} /> : <NotFound />)}</main>
       <SiteFooter compact={cleanPath(path) === "/dashboard"} />

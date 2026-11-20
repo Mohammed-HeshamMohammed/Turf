@@ -47,7 +47,7 @@ function Bars({ title, data, format }: { title: string; data: { label: string; v
 type Plan = { plan: string; name: string; workspaces: number; paying: number; trialing: number; mrr_minor: number; currency: string };
 type Overview = {
   people: { accounts: number; staff: number; members: number; new_7_days: number; new_30_days: number; email_verified: number; two_step: number; active_7_days: number; active_30_days: number; signups_by_day: { day: string; count: number }[] };
-  plans: Plan[]; most_requested_plan?: Plan; billing_connected: boolean;
+  plans: Plan[]; most_requested_plan?: Plan; billing_connected: boolean; memberships_kept_here?: boolean;
   usage: { connected: boolean; minutes_this_month: number; credits_this_month: number; top: { kind: string; label: string; total: number }[] };
   finance?: { currency: string; mrr_minor: number; revenue_this_month_minor: number; revenue_last_month_minor: number; revenue_12_months_minor: number; monthly_costs_minor: number; one_off_costs_minor: number; profit_month_minor: number; roi_percent: number | null; revenue_by_month: { month: string; amount_minor: number }[]; costs_by_category: Record<string, number>; other_currency_costs: number; converted_entries: number; fx_as_of?: string; requested_currency?: string;
     variable_costs: { voip_minor: number; storage_minor: number; fees_minor: number; total_minor: number }; gross_profit_month_minor: number; gross_margin_percent: number | null;
@@ -64,6 +64,7 @@ export function PlatformOverview({ request, openCosts }: { request: Api; openCos
   const { people, plans, usage, finance } = data;
   const best = data.most_requested_plan;
   return <div className="owner-overview">
+    <h2 className="admin-group-title">People</h2>
     <div className="admin-metrics" aria-label="People">
       <div><span>Members</span><strong>{people.members}</strong><small>{plural(people.new_7_days, "new member")} this week</small></div>
       <div><span>Active in 30 days</span><strong>{people.active_30_days}</strong><small>{pct(people.active_30_days, people.members)} of members · {people.active_7_days} this week</small></div>
@@ -71,6 +72,7 @@ export function PlatformOverview({ request, openCosts }: { request: Api; openCos
       <div><span>Email confirmed</span><strong>{pct(people.email_verified, people.members)}</strong><small>{people.email_verified} of {people.members} members</small></div>
     </div>
     {finance ? <>
+      <h2 className="admin-group-title">Money</h2>
       <div className="admin-metrics" aria-label="Money">
         <div><span>Monthly recurring revenue</span><strong>{money(finance.mrr_minor, finance.currency)}</strong><small>From paying workspaces</small></div>
         <div><span>Revenue this month</span><strong>{money(finance.revenue_this_month_minor, finance.currency)}</strong><small>Last month {money(finance.revenue_last_month_minor, finance.currency)}</small></div>
@@ -104,7 +106,9 @@ export function PlatformOverview({ request, openCosts }: { request: Api; openCos
     </section>
     <section className="card owner-plans" aria-labelledby="owner-plans-title">
       <div className="admin-section-heading"><div><span className="eyebrow">Plans</span><h2 id="owner-plans-title">What people ask for</h2><p className="muted">{best ? `${best.name} is the most requested plan, with ${plural(best.workspaces, "workspace")}.` : "Nobody has picked a plan yet."}</p></div></div>
-      {!data.billing_connected && <p className="notice" role="note">Billing is not connected to this dashboard yet, so plans, revenue and usage are empty. Set AUTH_BILLING_URL and AUTH_BILLING_TOKEN on the auth service.</p>}
+      {!data.billing_connected && (data.memberships_kept_here
+        ? <p className="notice" role="note">No payment provider is connected yet. Plans you give in Members are kept by Caller Whale and their seats and limits apply at once; card payments, revenue and call usage appear here once billing is connected.</p>
+        : <p className="notice" role="note">Billing did not answer, so plans, revenue and usage are empty for now.</p>)}
       {plans.length > 0 && <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th scope="col">Plan</th><th scope="col">Workspaces</th><th scope="col">Paying</th><th scope="col">On trial</th><th scope="col">Monthly revenue</th></tr></thead><tbody>{plans.map(plan => <tr key={plan.plan}><td data-label="Plan"><strong>{plan.name}</strong></td><td data-label="Workspaces">{plan.workspaces}</td><td data-label="Paying">{plan.paying}</td><td data-label="On trial">{plan.trialing}</td><td data-label="Monthly revenue">{money(plan.mrr_minor, plan.currency)}</td></tr>)}</tbody></table></div>}
     </section>
     <section className="admin-overview-panels" aria-label="Usage">
@@ -290,10 +294,22 @@ function RatesManager({ request, auth, main }: { request: Api; auth: Auth; main:
   </section>;
 }
 
-type PlanOption = { key: string; name: string; price_minor: number; currency: string; price: string };
+type PlanOption = { key: string; name: string; price_minor: number; currency: string; price: string; limits?: Record<string, number | null> };
 const paymentNames: Record<string, string> = { trial: "Trial", free: "Free", manual: "Paid manually" };
+/** The limits staff can set with a membership, in the order the form shows them. Empty means unlimited. */
+const limitFields: { key: string; label: string }[] = [
+  { key: "seats", label: "Seats (clients not counted)" },
+  { key: "clients", label: "Clients" },
+  { key: "active_leads", label: "Active leads stored" },
+  { key: "imports_monthly", label: "Imports per month" },
+  { key: "monthly_minutes", label: "Calling minutes per month" },
+  { key: "skiptrace_credits", label: "Skip-trace credits per month" },
+  { key: "file_storage_mb", label: "File storage on leads (MB)" },
+];
+const limitText = (value: number | null | undefined) => (value === null || value === undefined ? "" : String(value));
 
-/** An owner or cofounder gives a person a plan they arranged with them: it opens their own workspace and starts the plan in billing. */
+/** An owner or cofounder gives a person a plan they arranged with them: it opens their own workspace and starts the plan (kept by
+ * Caller Whale itself until a payment provider is connected, then by billing). */
 function GiveMembership({ request, auth, member, onClose, onGiven }: { request: Api; auth: Auth; member: Member; onClose: () => void; onGiven: (text: string) => void }) {
   const { data, error } = useLoad<{ plans: PlanOption[] }>(request, "/v1/admin/plans");
   const { data: catalog } = useLoad<{ workspace: { key: string; name: string; assignable: boolean }[] }>(request, "/v1/roles");
@@ -308,6 +324,12 @@ function GiveMembership({ request, auth, member, onClose, onGiven }: { request: 
   const [confirming, setConfirming] = useState(false);
   const plans = data?.plans || [];
   const chosen = plans.find(option => option.key === (plan || plans[0]?.key));
+  // The limits start from the chosen plan's and are filled in again whenever another plan is chosen.
+  const [limits, setLimits] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (chosen?.limits) setLimits(Object.fromEntries(limitFields.map(field => [field.key, limitText(chosen.limits?.[field.key])])));
+  }, [chosen?.key, chosen?.limits]);
+  const changed = limitFields.filter(field => chosen?.limits && limits[field.key] !== undefined && limits[field.key] !== limitText(chosen.limits[field.key]));
   // The roles that open a workspace are the ones a membership can give; the catalog says which, so nothing is listed twice or invented here.
   const roles = (catalog?.workspace || []).filter(entry => !entry.assignable);
   const submit = async (event?: FormEvent) => {
@@ -320,6 +342,7 @@ function GiveMembership({ request, auth, member, onClose, onGiven }: { request: 
         user_id: member.id, plan: chosen.key, payment, role,
         ...(payment === "trial" ? { days: Number(days) } : { months: Number(months) }),
         ...(payment === "manual" && amount.trim() ? { amount_minor: Math.round(Number(amount) * 10 ** digits) } : {}),
+        ...(chosen.limits ? { limits: Object.fromEntries(limitFields.map(field => [field.key, (limits[field.key] ?? "") === "" ? null : Number(limits[field.key])])) } : {}),
       });
       const who = member.name || member.email;
       onGiven(`${who} now has the ${answer.plan_name || chosen.name} plan (${paymentNames[payment].toLowerCase()})${answer.workspace_created ? " in a new workspace" : " in their workspace"}.`);
@@ -346,6 +369,12 @@ function GiveMembership({ request, auth, member, onClose, onGiven }: { request: 
         <button className="button primary" disabled={busy || !chosen}>{busy ? "Giving…" : "Give membership"}</button>
         <button type="button" className="button raised" disabled={busy} onClick={onClose}>Cancel</button>
       </div>
+      {chosen?.limits && <fieldset className="staff-fields" aria-describedby="limits-note">
+        <legend>Limits for this workspace</legend>
+        {limitFields.map(field => <label key={field.key}>{field.label}<input inputMode="numeric" value={limits[field.key] ?? ""} placeholder="Unlimited" onChange={event => setLimits(current => ({ ...current, [field.key]: event.target.value.replace(/\D/g, "") }))} /></label>)}
+        <button type="button" className="button raised" disabled={busy || changed.length === 0} onClick={() => setLimits(Object.fromEntries(limitFields.map(field => [field.key, limitText(chosen.limits?.[field.key])])))}>Use the plan's limits</button>
+      </fieldset>}
+      {chosen?.limits && <p className="muted" id="limits-note">These start from the {chosen.name} plan. Leave a box empty for unlimited.{changed.length > 0 ? ` Changed from the plan: ${changed.map(field => field.label.replace(/ \(.*\)/, "").toLowerCase()).join(", ")}.` : ""}</p>}
       {payment === "manual" && <p className="muted">Leave the amount empty to record the plan's price for those months. The payment counts as revenue in the overview.</p>}
       {message && <p className="notice bad" role="alert">{message}</p>}
     </form>}

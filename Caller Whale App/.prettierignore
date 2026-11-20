@@ -6,3 +6,6 @@ package-lock.json
 reference
 .playwright-cli
 *.md
+
+# A copy of Caller Whale CRM/shared/calendar, kept identical by its sync.mjs: formatted there, not here.
+src/calendar/

@@ -61,7 +61,11 @@ func build(getenv func(string) string) (*server, string, error) {
 	if port == "" {
 		port = "8109"
 	}
-	s := &server{
+	agentToken := strings.TrimSpace(getenv("AGENT_TOKEN"))
+	if agentToken != "" && len(agentToken) < 32 {
+		return nil, "", fmt.Errorf("AGENT_TOKEN must be at least 32 characters")
+	}
+	s := &server{agentToken: agentToken,
 		ai: newAI(endpoint, strings.TrimSpace(getenv("OPENROUTER_API_KEY")), model, site), origins: origins, now: time.Now,
 		perMin: newCounter(time.Minute, perMin), aiPerIP: newCounter(24*time.Hour, perIP), aiAll: newCounter(24*time.Hour, all),
 	}

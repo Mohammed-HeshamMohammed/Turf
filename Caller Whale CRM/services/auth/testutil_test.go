@@ -212,7 +212,9 @@ func (f *fakeFirebase) serve(w http.ResponseWriter, r *http.Request) {
 	case strings.HasSuffix(r.URL.Path, "accounts:resetPassword"):
 		for _, a := range f.accounts {
 			if str("oobCode") == "reset-"+a.uid {
-				a.password = str("newPassword")
+				if str("newPassword") != "" { // without one, Firebase only checks the code
+					a.password = str("newPassword")
+				}
 				_ = json.NewEncoder(w).Encode(map[string]any{"email": a.email})
 				return
 			}
@@ -289,6 +291,12 @@ type capture struct {
 	codes  []string // sign-in codes asked for, with who they went to in codeTo
 	codeTo []string
 	fail   bool
+	// agencies named in invitation emails, in the order sent
+	agencies []string
+	// other templates sent (step 34), in order
+	templates []string
+	data      []map[string]any
+	tplTo     []string // who each template went to, in the same order
 }
 
 func (c *capture) sendConfirmation(_ context.Context, to, _ string, link string) error {
@@ -310,13 +318,23 @@ func (c *capture) sendCode(_ context.Context, to, code string) error {
 	return nil
 }
 
-func (c *capture) sendInvitation(_ context.Context, to, _, _, link string) error {
+func (c *capture) sendTemplate(_ context.Context, template, to string, data map[string]any) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.fail {
 		return fmt.Errorf("down")
 	}
-	c.to, c.links = append(c.to, to), append(c.links, link)
+	c.to, c.templates, c.data, c.tplTo = append(c.to, to), append(c.templates, template), append(c.data, data), append(c.tplTo, to)
+	return nil
+}
+
+func (c *capture) sendInvitation(_ context.Context, to, _, agency, _, _, _, link string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.fail {
+		return fmt.Errorf("down")
+	}
+	c.to, c.links, c.agencies = append(c.to, to), append(c.links, link), append(c.agencies, agency)
 	return nil
 }
 

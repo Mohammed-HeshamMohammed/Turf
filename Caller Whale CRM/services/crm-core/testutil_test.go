@@ -25,6 +25,29 @@ type fakeRules struct {
 	roster  map[string][]member
 	opened  []string
 	down    bool
+	// teams in authz, per workspace
+	teamList map[string][]authzTeam
+	// agency names told to authz, per workspace
+	names map[string]string
+}
+
+func (f *fakeRules) nameOrg(_ context.Context, org, name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.down {
+		return errUnavailable
+	}
+	if f.names == nil {
+		f.names = map[string]string{}
+	}
+	f.names[org] = name
+	return nil
+}
+
+func (f *fakeRules) nameOf(org string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.names[org]
 }
 
 func (f *fakeRules) people(_ context.Context, user string) (peopleReply, error) {
@@ -56,6 +79,36 @@ func (f *fakeRules) open(_ context.Context, org, user, role string) error {
 	p.Workspaces = append(p.Workspaces, workspaceRoles{OrgID: org, Roles: []string{role}, BusinessOwner: true})
 	f.people_[user] = p
 	f.grants[user+"|"+org] = owner()
+	return nil
+}
+
+func (f *fakeRules) teams(_ context.Context, org string) ([]authzTeam, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]authzTeam{}, f.teamList[org]...), nil
+}
+
+func (f *fakeRules) putTeam(_ context.Context, org, id, name, actor string, _ bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.teamList == nil {
+		f.teamList = map[string][]authzTeam{}
+	}
+	f.teamList[org] = append(f.teamList[org], authzTeam{TeamID: id, Name: name})
+	return nil
+}
+
+// upgrade makes the solo operator the owner and lead of the first team, as authz does.
+func (f *fakeRules) upgrade(_ context.Context, org, user, teamID, teamName string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.teamList == nil {
+		f.teamList = map[string][]authzTeam{}
+	}
+	f.teamList[org] = append(f.teamList[org], authzTeam{TeamID: teamID, Name: teamName, ManagerID: user, ManagerIDs: []string{user}})
+	g := f.grants[user+"|"+org]
+	g.Roles = []string{"owner"}
+	f.grants[user+"|"+org] = g
 	return nil
 }
 
@@ -102,7 +155,7 @@ func newEnv(t *testing.T) *env {
 	fx := newVerifyFixture(t)
 	jwks := fx.jwks("k1")
 	rules := &fakeRules{people_: map[string]peopleReply{}, grants: map[string]grantReply{}, roster: map[string][]member{}}
-	s := &server{cfg: config{}, keys: serveVerifyKeys(t, &jwks, nil), rules: rules, st: st, hub: newHub(), now: time.Now}
+	s := &server{cfg: config{}, keys: serveVerifyKeys(t, &jwks, nil), rules: rules, st: st, hub: newHub(), now: time.Now, scanner: fakeScanner{}}
 	hubCtx, stop := context.WithCancel(ctx)
 	t.Cleanup(stop)
 	go s.hub.listen(hubCtx, appURL)
@@ -115,6 +168,7 @@ func (e *env) token(user string) string {
 	return e.fx.sign("k1", "EdDSA", func(m map[string]any) {
 		m["sub"] = user
 		m["name"] = "Person " + user[:4]
+		m["tag"] = "K7P2"
 		m["email"] = user[:4] + "@example.com"
 	})
 }

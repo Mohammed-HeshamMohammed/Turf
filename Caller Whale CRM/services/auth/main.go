@@ -77,6 +77,8 @@ func run() error {
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 60 * time.Second, WriteTimeout: 2 * time.Minute, IdleTimeout: 2 * time.Minute}
 	failed := make(chan error, 1)
 	go func() { failed <- srv.ListenAndServe() }()
+	go s.watchMembershipPeriods(ctx) // without billing, an ended plan locks its workspace
+	go s.probeStatusPeriodically(ctx, cfg.statusProbes)
 	log.Printf("auth listening on http://localhost:%s", cfg.port)
 	select {
 	case err := <-failed:

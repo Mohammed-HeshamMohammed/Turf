@@ -96,14 +96,12 @@ services:
     restart: unless-stopped
   # The live server: holds the apps' sockets and delivers what the messaging service tells it. Only messaging calls its API.
   centrifugo:
-    image: centrifugo/centrifugo:v6
-    command: centrifugo -c /centrifugo/config.json
+    build:
+      context: ../services/live
     environment:
       CENTRIFUGO_HTTP_API_KEY: "${LIVE_API_KEY:?set LIVE_API_KEY in env/compose.env}"
       CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY: "${LIVE_TOKEN_SECRET:?set LIVE_TOKEN_SECRET in env/compose.env}"
       CENTRIFUGO_CLIENT_ALLOWED_ORIGINS: "${LIVE_ALLOWED_ORIGINS:-http://localhost:5190}"
-    volumes:
-      - ./centrifugo.json:/centrifugo/config.json:ro
     ports:
       - "8000:8000"
     restart: unless-stopped

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  ArrowClockwise,
   Clock,
   CloudArrowUp,
   Database,
@@ -224,7 +225,17 @@ export function Sync() {
         >
           Sync pending changes
         </Button>
+        {state.remote && <Button icon={ArrowClockwise} disabled={!state.online} onClick={() => dispatch({ type: "RELOAD_ALL" })}>Reload everything</Button>}
       </PageHeader>
+      {state.remote && (
+        <p className="muted" role="status">
+          {state.remoteBehind
+            ? "Many changes came in while you were working. Everything loads again as soon as you finish what you are typing or your call ends."
+            : state.remoteCheckedAt
+              ? `Up to date as of ${new Date(state.remoteCheckedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}. Records refresh on their own; nothing is kept in this browser after the tab closes.`
+              : "Loading this agency's records."}
+        </p>
+      )}
       <div className="two-columns">
         <Card
           title={state.online ? "Connected · ready to sync" : "Offline · your work is still here"}

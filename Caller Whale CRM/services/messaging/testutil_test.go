@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -23,7 +24,8 @@ import (
 type fakeRules struct {
 	mu     sync.Mutex
 	grants map[string]grantReply // user|org
-	roster map[string][]member
+	people map[string][]member
+	teams  map[string][]team
 }
 
 func (f *fakeRules) grant(_ context.Context, user, org string, _ bool) (grantReply, error) {
@@ -35,10 +37,28 @@ func (f *fakeRules) grant(_ context.Context, user, org string, _ bool) (grantRep
 	return grantReply{Code: "not_member", Reason: "You are not in this workspace."}, nil
 }
 
-func (f *fakeRules) members(_ context.Context, org string) ([]member, error) {
+func (f *fakeRules) roster(_ context.Context, org string) (roster, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.roster[org], nil
+	return roster{Members: slices.Clone(f.people[org]), Teams: slices.Clone(f.teams[org])}, nil
+}
+
+// place changes one person's roles and teams in the workspace's roster.
+func (f *fakeRules) place(org, user string, roles []string, teamIDs ...string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i, m := range f.people[org] {
+		if m.UserID == user {
+			f.people[org][i].Roles, f.people[org][i].TeamIDs = roles, teamIDs
+		}
+	}
+}
+
+// setTeams replaces the workspace's teams.
+func (f *fakeRules) setTeams(org string, teams ...team) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.teams[org] = teams
 }
 
 // join puts people in a workspace as ordinary team members who may use conversations.
@@ -47,7 +67,7 @@ func (f *fakeRules) join(org string, users ...string) {
 	defer f.mu.Unlock()
 	for _, u := range users {
 		f.grants[u+"|"+org] = grantReply{Allowed: true, Scopes: []string{"organization"}, Capabilities: []string{"edit", "message"}}
-		f.roster[org] = append(f.roster[org], member{UserID: u})
+		f.people[org] = append(f.people[org], member{UserID: u, Roles: []string{"caller"}})
 	}
 }
 
@@ -100,11 +120,17 @@ type env struct {
 	admin *pgx.Conn
 }
 
-func newEnv(t *testing.T) *env {
+func newEnv(t *testing.T) *env { return newEnvWith(t, false) }
+
+// newEnvWith runs the service as an ordinary login, or (asSuperuser) as the superuser a platform's own database hands out.
+func newEnvWith(t *testing.T, asSuperuser bool) *env {
 	t.Helper()
 	appURL, adminURL := os.Getenv("MESSAGING_TEST_DATABASE_URL"), os.Getenv("MESSAGING_TEST_ADMIN_URL")
 	if appURL == "" || adminURL == "" {
 		t.Skip("set MESSAGING_TEST_DATABASE_URL and MESSAGING_TEST_ADMIN_URL to run the database tests")
+	}
+	if asSuperuser {
+		appURL = adminURL
 	}
 	ctx := context.Background()
 	admin, err := pgx.Connect(ctx, adminURL)
@@ -123,7 +149,7 @@ func newEnv(t *testing.T) *env {
 
 	fx := newVerifyFixture(t)
 	jwks := fx.jwks("k1")
-	rules := &fakeRules{grants: map[string]grantReply{}, roster: map[string][]member{}}
+	rules := &fakeRules{grants: map[string]grantReply{}, people: map[string][]member{}, teams: map[string][]team{}}
 	fl := newFakeLive(t, testLiveKey)
 	cfg := config{databaseURL: appURL, liveAPI: fl.ts.URL + "/api", liveAPIKey: testLiveKey, liveSecret: testLiveSecret, livePublic: "wss://live.example/connection/websocket"}
 	s := &server{cfg: cfg, keys: serveVerifyKeys(t, &jwks, nil), rules: rules, st: st, live: newLive(cfg), now: time.Now}

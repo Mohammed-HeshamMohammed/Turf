@@ -18,14 +18,26 @@ import (
 type memEngine struct {
 	roleDefs  map[string]map[string]role       // org -> key -> role
 	people    map[string]map[string]membership // org -> user -> membership
-	standing  map[string][2]bool               // org -> suspended, payment required
+	standing  map[string][3]bool               // org -> suspended, payment required, paused
 	staff     map[string]string                // user -> platform role
 	failNext  bool
 	openOwner map[string]string
+	teamsBy   map[string][]team  // org -> teams
+	limits    map[string][2]*int // org -> seats, clients
+	names     map[string]string  // org -> agency name
+	switches  map[string][]string
+	admins    map[string]*int
+	log       map[string][]peopleEntry
+	logID     int64
+	// Step 18: since when each workspace is unpaid, and which ones their owner closed.
+	unpaidSince map[string]int64
+	closedOrgs  map[string]int64
+	support     map[string]int64
+	places      map[string][2][]string // org -> countries, networks (step 35)
 }
 
 func newMem() *memEngine {
-	return &memEngine{roleDefs: map[string]map[string]role{}, people: map[string]map[string]membership{}, standing: map[string][2]bool{}, staff: map[string]string{}, openOwner: map[string]string{}}
+	return &memEngine{roleDefs: map[string]map[string]role{}, people: map[string]map[string]membership{}, standing: map[string][3]bool{}, staff: map[string]string{}, openOwner: map[string]string{}, teamsBy: map[string][]team{}, limits: map[string][2]*int{}, names: map[string]string{}, switches: map[string][]string{}, admins: map[string]*int{}, log: map[string][]peopleEntry{}, unpaidSince: map[string]int64{}, closedOrgs: map[string]int64{}, support: map[string]int64{}, places: map[string][2][]string{}}
 }
 
 var errStoreDown = errors.New("rules store down")
@@ -43,14 +55,30 @@ func (m *memEngine) facts(_ context.Context, user, org string) (facts, error) {
 	}
 	f := facts{capabilities: map[string]bool{}}
 	st := m.standing[org]
-	f.suspended, f.paymentRequired = st[0], st[1]
+	f.suspended, f.paymentRequired, f.paused = st[0], st[1], st[2]
+	if since, ok := m.unpaidSince[org]; ok {
+		f.unpaidFor = time.Now().Unix() - since
+	}
+	_, f.closed = m.closedOrgs[org]
 	p, ok := m.people[org][user]
 	if !ok || len(p.Roles) == 0 {
 		return f, nil
 	}
 	f.member = true
+	f.memberSuspended = p.SuspendedAt != nil
+	f.roles = activeRoles(p.Roles)
+	for _, t := range m.teamsBy[org] {
+		t = memTeam(t)
+		if slices.Contains(t.ManagerIDs, user) {
+			f.managed = append(f.managed, t.TeamID)
+		}
+		if slices.Contains(t.DeputyIDs, user) {
+			f.deputyOf = append(f.deputyOf, t.TeamID)
+		}
+	}
 	scopeSet := map[string]bool{}
-	for _, key := range p.Roles {
+	ownTeamScope := false
+	for _, key := range f.roles {
 		r := m.roleDefs[org][key]
 		for _, c := range r.Capabilities {
 			f.capabilities[c] = true
@@ -58,21 +86,11 @@ func (m *memEngine) facts(_ context.Context, user, org string) (facts, error) {
 		if r.Scope != "none" && r.Scope != "" {
 			scopeSet[r.Scope] = true
 		}
+		ownTeamScope = ownTeamScope || (r.Scope == "team" && key != "manager")
 		f.secondStep = f.secondStep || r.SecondStep
 	}
-	for _, restriction := range p.Restrictions {
-		if sc, isScope := strings.CutPrefix(restriction, "scope:"); isScope {
-			delete(scopeSet, sc)
-		} else {
-			delete(f.capabilities, restriction)
-		}
-	}
-	for _, sc := range scopes {
-		if scopeSet[sc] {
-			f.scopes = append(f.scopes, sc)
-		}
-	}
-	f.teams, f.projects = p.TeamIDs, p.ProjectIDs
+	settleScopes(&f, scopeSet, p.Restrictions, p.TeamIDs, ownTeamScope)
+	f.projects = p.ProjectIDs
 	return f, nil
 }
 
@@ -91,7 +109,7 @@ func (m *memEngine) staffMembers(_ context.Context) ([]staffMember, error) {
 func (m *memEngine) check(ctx context.Context, user, org, permission string) (bool, error) {
 	switch permission {
 	case "staff":
-		return m.staff[user] == "owner" || m.staff[user] == "cofounder" || m.staff[user] == "system_admin", m.down()
+		return m.staff[user] == "owner" || m.staff[user] == "cofounder", m.down()
 	case "manage_staff":
 		return m.staff[user] == "owner" || m.staff[user] == "cofounder", m.down()
 	case "tester":
@@ -106,7 +124,7 @@ func (m *memEngine) check(ctx context.Context, user, org, permission string) (bo
 		return f.member, nil
 	case "manage_access":
 		p := m.people[org][user]
-		return m.staff[user] == "owner" || m.staff[user] == "cofounder" || m.staff[user] == "system_admin" || slices.ContainsFunc(p.Roles, func(r string) bool { return slices.Contains(heldRoles, r) }), nil
+		return m.staff[user] == "owner" || m.staff[user] == "cofounder" || slices.ContainsFunc(p.Roles, func(r string) bool { return slices.Contains(heldRoles, r) }), nil
 	}
 	return f.capabilities[permission], nil
 }
@@ -140,6 +158,9 @@ func (m *memEngine) setMembership(_ context.Context, org string, p membership) e
 	}
 	if m.people[org] == nil {
 		m.people[org] = map[string]membership{}
+	}
+	if old, ok := m.people[org][p.UserID]; ok {
+		p.SuspendedAt, p.SuspendedBy, p.SuspendedReason = old.SuspendedAt, old.SuspendedBy, old.SuspendedReason
 	}
 	m.people[org][p.UserID] = p
 	return nil
@@ -175,8 +196,170 @@ func (m *memEngine) openWorkspace(ctx context.Context, org, owner, ownerRole str
 	return m.setMembership(ctx, org, membership{UserID: owner, Roles: []string{ownerRole}})
 }
 
-func (m *memEngine) setStanding(_ context.Context, org string, suspended, paymentRequired bool) error {
-	m.standing[org] = [2]bool{suspended, paymentRequired}
+func (m *memEngine) setStanding(_ context.Context, org string, c standingChange) error {
+	st := m.standing[org]
+	if c.Suspended != nil {
+		st[0] = *c.Suspended
+	}
+	if c.PaymentRequired != nil {
+		st[1] = *c.PaymentRequired
+	}
+	if c.Paused != nil {
+		st[2] = *c.Paused
+	}
+	m.standing[org] = st
+	switch {
+	case c.UnpaidSinceSet && c.UnpaidSince != nil:
+		m.unpaidSince[org] = *c.UnpaidSince
+	case c.UnpaidSinceSet, c.PaymentRequired != nil && !*c.PaymentRequired:
+		delete(m.unpaidSince, org)
+	case c.PaymentRequired != nil:
+		if _, ok := m.unpaidSince[org]; !ok {
+			m.unpaidSince[org] = time.Now().Unix()
+		}
+	}
+	if c.Closed != nil && *c.Closed {
+		if _, ok := m.closedOrgs[org]; !ok {
+			m.closedOrgs[org] = time.Now().Unix()
+		}
+	} else if c.Closed != nil {
+		delete(m.closedOrgs, org)
+	}
+	l := m.limits[org]
+	if c.SeatsSet {
+		l[0] = c.Seats
+	}
+	if c.ClientsSet {
+		l[1] = c.Clients
+	}
+	m.limits[org] = l
+	return m.down()
+}
+
+func (m *memEngine) supportUntil(_ context.Context, org string) (int64, error) {
+	return m.support[org], m.down()
+}
+
+func (m *memEngine) accessLimits(_ context.Context, org string) ([]string, []string, error) {
+	p := m.places[org]
+	return append([]string{}, p[0]...), append([]string{}, p[1]...), m.down()
+}
+
+func (m *memEngine) setAccessLimits(_ context.Context, org string, countries, networks []string) error {
+	m.places[org] = [2][]string{countries, networks}
+	return m.down()
+}
+
+func (m *memEngine) setSupport(_ context.Context, org string, until *int64, _ string) error {
+	if until == nil {
+		delete(m.support, org)
+	} else {
+		m.support[org] = *until
+	}
+	return m.down()
+}
+
+func (m *memEngine) supportOpen(_ context.Context, now int64) (map[string]int64, error) {
+	out := map[string]int64{}
+	for org, until := range m.support {
+		if until > now {
+			out[org] = until
+		}
+	}
+	return out, m.down()
+}
+
+func (m *memEngine) standingOf(_ context.Context, org string) (standingView, error) {
+	v := standingView{Paused: m.standing[org][2]}
+	if since, ok := m.unpaidSince[org]; ok {
+		v.UnpaidSince = &since
+	}
+	if at, ok := m.closedOrgs[org]; ok {
+		v.ClosedAt = &at
+	}
+	return v, m.down()
+}
+
+func (m *memEngine) setWorkspaceName(_ context.Context, org, name string) error {
+	if _, ok := m.openOwner[org]; ok {
+		m.names[org] = name
+	}
+	return m.down()
+}
+
+func (m *memEngine) setOwner(_ context.Context, org, owner string) error {
+	m.openOwner[org] = owner
+	return m.down()
+}
+
+func (m *memEngine) workspaceInfo(_ context.Context, org string) (string, string, bool, error) {
+	owner, ok := m.openOwner[org]
+	return owner, m.names[org], ok, m.down()
+}
+
+func (m *memEngine) seatLimits(_ context.Context, org string) (*int, *int, error) {
+	l := m.limits[org]
+	return l[0], l[1], m.down()
+}
+
+// memTeam reads a team written by an older test with only ManagerID as having that one lead.
+func memTeam(t team) team {
+	if len(t.ManagerIDs) == 0 && t.ManagerID != "" {
+		t.ManagerIDs = []string{t.ManagerID}
+	}
+	t.ManagerIDs, t.DeputyIDs = slices.Clone(t.ManagerIDs), slices.Clone(t.DeputyIDs)
+	t.settle()
+	return t
+}
+
+func (m *memEngine) teams(_ context.Context, org string) ([]team, error) {
+	out := []team{}
+	for _, t := range m.teamsBy[org] {
+		out = append(out, memTeam(t))
+	}
+	return out, m.down()
+}
+
+func (m *memEngine) features(_ context.Context, org string) ([]string, error) {
+	return slices.Clone(m.switches[org]), m.down()
+}
+
+func (m *memEngine) setFeature(_ context.Context, org, name string, on bool) error {
+	m.switches[org] = slices.DeleteFunc(m.switches[org], func(s string) bool { return s == name })
+	if on {
+		m.switches[org] = append(m.switches[org], name)
+	}
+	return m.down()
+}
+
+func (m *memEngine) adminLimit(_ context.Context, org string) (*int, error) {
+	return m.admins[org], m.down()
+}
+
+func (m *memEngine) setTeam(_ context.Context, org string, t team) error {
+	t = memTeam(t)
+	for i, old := range m.teamsBy[org] {
+		if old.TeamID == t.TeamID {
+			m.teamsBy[org][i] = t
+			return m.down()
+		}
+	}
+	m.teamsBy[org] = append(m.teamsBy[org], t)
+	return m.down()
+}
+
+func (m *memEngine) removeTeam(_ context.Context, org, teamID string) error {
+	m.teamsBy[org] = slices.DeleteFunc(m.teamsBy[org], func(t team) bool { return t.TeamID == teamID })
+	return m.down()
+}
+
+func (m *memEngine) setSuspension(_ context.Context, org, user string, at *int64, by, reason string) error {
+	p, ok := m.people[org][user]
+	if !ok {
+		return m.down()
+	}
+	p.SuspendedAt, p.SuspendedBy, p.SuspendedReason = at, by, reason
+	m.people[org][user] = p
 	return m.down()
 }
 
@@ -298,6 +481,9 @@ func (h *harness) opened() {
 	if code, out := h.call(coreToken, "PUT", "/v1/orgs/"+org1+"/owner", map[string]any{"user_id": ownerID}); code != 200 {
 		h.t.Fatalf("open: %d %v", code, out)
 	}
+	if code, out := h.call(coreToken, "PUT", "/v1/orgs/"+org1+"/teams/"+team1, map[string]any{"actor_id": ownerID, "actor_second_step": true, "name": "Team one"}); code != 200 {
+		h.t.Fatalf("team: %d %v", code, out)
+	}
 	code, out := h.call(coreToken, "PUT", "/v1/orgs/"+org1+"/members/"+callerID, map[string]any{
 		"actor_id": ownerID, "actor_second_step": true, "roles": []string{"caller"}, "team_ids": []string{team1},
 	})
@@ -308,4 +494,21 @@ func (h *harness) opened() {
 
 func (h *harness) grant(user, action string, secondStep bool) (int, map[string]any) {
 	return h.call(coreToken, "POST", "/v1/grant", map[string]any{"user_id": user, "org_id": org1, "action": action, "second_step_passed": secondStep})
+}
+
+func (m *memEngine) logPeople(_ context.Context, org string, e peopleEntry) error {
+	m.logID++
+	e.ID = m.logID
+	m.log[org] = append([]peopleEntry{e}, m.log[org]...)
+	return m.down()
+}
+
+func (m *memEngine) peopleLog(_ context.Context, org string, since int64, limit int) ([]peopleEntry, error) {
+	out := []peopleEntry{}
+	for _, e := range m.log[org] {
+		if e.At >= since && len(out) < limit {
+			out = append(out, e)
+		}
+	}
+	return out, m.down()
 }

@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strings"
 )
 
 // capabilities are the things a role can allow in a workspace, with the same names the core API uses (access.rs).
@@ -23,12 +24,16 @@ type preset struct {
 }
 
 var presets = []preset{
-	{"solo", "Solo operator", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "admin", "review"}, "organization", true},
-	{"researcher", "Data researcher", []string{"import", "export", "review"}, "project", false},
+	{"solo", "Solo operator", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "admin", "review"}, "organization", false},
+	// A researcher prepares leads in their teams (import, clean, merge, tag) and never calls, texts or sees deal money (D337).
+	{"researcher", "Data researcher", []string{"edit", "import", "review"}, "team", false},
 	{"caller", "Caller", []string{"edit", "handoff", "call", "message"}, "own", false},
 	{"closer", "Acquisitions / closer", []string{"edit", "accept", "call", "message", "finance"}, "own", false},
-	{"manager", "Team manager", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "rules"}, "team", false},
-	{"owner", "Agency owner", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "review", "admin"}, "organization", true},
+	// On screen "Team lead" (D178); the key stays manager.
+	{"manager", "Team lead", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules"}, "team", false},
+	// An admin does what the owner does with people, teams and settings, but not billing, handing over or closing (D100).
+	{"admin", "Admin", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "review", "admin"}, "organization", false},
+	{"owner", "Agency owner", []string{"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "review", "admin"}, "organization", false},
 	{"client", "Client / partner", []string{"publicComment"}, "shared", false},
 }
 
@@ -65,8 +70,16 @@ type facts struct {
 	scopes          []string
 	secondStep      bool // one of their roles needs the second step
 	teams, projects []string
+	roles           []string // their workspace roles, switched-off ones left out
+	managed         []string // the teams they lead
+	deputyOf        []string // the teams they are a deputy lead of
+	teamScope       []string // the teams whose records the "team" scope shows them
+	memberSuspended bool     // this person is suspended in the workspace
 	suspended       bool
 	paymentRequired bool
+	paused          bool  // the owner is gone (step 13, D27): members read, nobody works
+	unpaidFor       int64 // seconds since the plan went unpaid (step 18)
+	closed          bool  // the owner closed the agency (step 18, D82)
 }
 
 // grantRequest is what a service asks before doing something for a person.
@@ -87,9 +100,47 @@ type decision struct {
 	TeamIDs      []string `json:"team_ids,omitempty"`
 	ProjectIDs   []string `json:"project_ids,omitempty"`
 	Capabilities []string `json:"capabilities,omitempty"`
+	// The person's workspace roles and the teams they manage, so a service can apply manager-to-agent rules itself.
+	Roles          []string `json:"roles,omitempty"`
+	ManagedTeamIDs []string `json:"managed_team_ids,omitempty"`
+	// DeputyTeamIDs are the teams they are a deputy lead of. TeamScopeIDs are the teams whose records the "team" scope shows; a
+	// service that knows it uses it in place of TeamIDs for that scope.
+	DeputyTeamIDs []string `json:"deputy_team_ids,omitempty"`
+	TeamScopeIDs  []string `json:"team_scope_ids,omitempty"`
 }
 
 func refuse(code, reason string) decision { return decision{Code: code, Reason: reason} }
+
+// settleScopes applies the person's restrictions and works out their teams. teams are every team they are in, lead or deputise;
+// teamScope is the teams the "team" scope shows: the ones they lead or deputise, and their own teams only when a role other than
+// team lead gives them the team scope. So a caller who deputises another team sees that team's leads, not all of their own team's
+// (D62). A restriction on the team scope takes all of it away.
+func settleScopes(f *facts, scopeSet map[string]bool, restrictions, ownTeams []string, ownTeamScope bool) {
+	if len(f.deputyOf) > 0 {
+		scopeSet["team"] = true
+	}
+	for _, restriction := range restrictions {
+		if sc, ok := strings.CutPrefix(restriction, "scope:"); ok {
+			delete(scopeSet, sc)
+		} else {
+			delete(f.capabilities, restriction)
+		}
+	}
+	f.scopes = nil
+	for _, sc := range scopes {
+		if scopeSet[sc] {
+			f.scopes = append(f.scopes, sc)
+		}
+	}
+	f.teams = teamsSeen(teamsSeen(ownTeams, f.managed), f.deputyOf)
+	f.teamScope = teamsSeen(f.managed, f.deputyOf)
+	if ownTeamScope {
+		f.teamScope = teamsSeen(f.teamScope, ownTeams)
+	}
+	if !scopeSet["team"] {
+		f.teamScope = nil
+	}
+}
 
 // knownAction is true for an action a grant can be asked for.
 func knownAction(action string) bool {
@@ -99,7 +150,7 @@ func knownAction(action string) bool {
 
 // decideStaff answers a request to act on Caller Whale's own platform pages.
 func decideStaff(staffRole string, secondStepPassed, staffSecondStep bool) decision {
-	if staffRole != "owner" && staffRole != "cofounder" && staffRole != "system_admin" {
+	if staffRole != "owner" && staffRole != "cofounder" { // system_admin is switched off for now (disabledRoles)
 		return refuse("not_staff", "This is for Caller Whale's staff.")
 	}
 	if staffSecondStep && !secondStepPassed {
@@ -117,16 +168,30 @@ func decide(f facts, req grantRequest, requireSecondStep bool) decision {
 	if f.suspended {
 		return refuse("suspended", "This workspace is suspended. Contact Caller Whale support.")
 	}
+	if f.memberSuspended {
+		return refuse("member_suspended", "Your access to this workspace is suspended. Ask the person who manages you.")
+	}
 	if requireSecondStep && f.secondStep && !req.SecondStepPassed {
 		return refuse("second_step_required", "Confirm it's you with your second step first.")
 	}
+	if f.paused && req.Action != "read" {
+		return refuse("paused", "This agency is paused while Caller Whale hands it to a new owner. You can read, but not work.")
+	}
 	granted := decision{
-		Allowed:      true,
-		DBRole:       dbRoles[req.Action],
-		Scopes:       sortedCopy(f.scopes),
-		TeamIDs:      sortedCopy(f.teams),
-		ProjectIDs:   sortedCopy(f.projects),
-		Capabilities: held(f.capabilities),
+		Allowed:        true,
+		DBRole:         dbRoles[req.Action],
+		Scopes:         sortedCopy(f.scopes),
+		TeamIDs:        sortedCopy(f.teams),
+		ProjectIDs:     sortedCopy(f.projects),
+		Capabilities:   held(f.capabilities),
+		Roles:          sortedCopy(f.roles),
+		ManagedTeamIDs: sortedCopy(f.managed),
+		DeputyTeamIDs:  sortedCopy(f.deputyOf),
+		TeamScopeIDs:   sortedCopy(f.teamScope),
+	}
+	// An unpaid plan: a grace period when everything works, then read-only, then closed (step 18).
+	if refused := planStageRefusal(f, req.Action); refused != nil {
+		return *refused
 	}
 	switch req.Action {
 	case "pay":
@@ -135,9 +200,6 @@ func decide(f facts, req grantRequest, requireSecondStep bool) decision {
 			return refuse("missing_capability", "Your role does not allow this (finance).")
 		}
 		return granted
-	}
-	if f.paymentRequired {
-		return refuse("payment_required", "This workspace's plan needs paying before it can be used.")
 	}
 	if req.Action == "read" {
 		if len(f.scopes) == 0 {

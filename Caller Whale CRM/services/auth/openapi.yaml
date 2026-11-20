@@ -100,6 +100,44 @@ paths:
       security: [{ bearer: [] }]
       requestBody: { content: { application/json: { schema: { type: object, required: [name, phone, avatar], properties: { name: { type: string }, phone: { type: string }, avatar: { type: string }, first_name: { type: string, nullable: true }, middle_name: { type: string, nullable: true }, last_name: { type: string, nullable: true } } } } } }
       responses: { "200": { description: Profile saved }, "401": { description: Not signed in }, "400": { description: Invalid profile detail } }
+  /v1/me/tag:
+    post:
+      summary: Change the #tag after the person's name (3 to 8 letters and digits without 0, O, 1, I); twice in 30 days
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [tag], properties: { tag: { type: string } } } } } }
+      responses: { "200": { description: Tag saved }, "400": { description: Not a tag }, "409": { description: Taken with this name, or held for its last holder }, "429": { description: Changed twice in 30 days } }
+  /v1/me/tag-note:
+    post:
+      summary: The one-time note about the person's new tag was read
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Noted } }
+  /v1/me/privacy:
+    put:
+      summary: Who can see the person's phone (nobody, leads, agencies), find them (exact, agencies) and message them (requests, agencies, nobody)
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { phone_visible: { type: string }, find_me: { type: string }, message_me: { type: string } } } } } }
+      responses: { "200": { description: Saved }, "400": { description: Not one of the settings } }
+  /v1/people/search:
+    get:
+      summary: Part of a name finds people in the person's agencies; a full Name#tag finds that one person anywhere (30 an hour)
+      security: [{ bearer: [] }]
+      parameters: [{ name: q, in: query, required: true, schema: { type: string } }]
+      responses: { "200": { description: People found }, "400": { description: Too short }, "429": { description: Too many exact look-ups } }
+  /v1/me/agencies:
+    get:
+      summary: The agencies the person is in, by name, with their roles and teams, and whether they own each (My access)
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Agencies }, "503": { description: Authorization unavailable } }
+  /v1/me/export:
+    get:
+      summary: A file with what Caller Whale keeps about the person themselves (profile, settings, sign-ins, agencies)
+      security: [{ bearer: [] }]
+      responses: { "200": { description: The person's data as a JSON attachment } }
+  /v1/invitations/{id}/preview:
+    get:
+      summary: Before signing in, an emailed invitation link with its key; the invited address, where it comes from, and whether that address has an account
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }, { name: key, in: query, required: true, schema: { type: string } }]
+      responses: { "200": { description: The invitation }, "403": { description: Ended, used, or a wrong key } }
   /v1/me/birth-date:
     post:
       summary: Give the date of birth for the age check, once (accounts made before the check, or through Google or Apple)
@@ -208,7 +246,7 @@ paths:
     post:
       summary: Give a person a membership: opens their own workspace with the agency owner (or solo) role and gives it a plan as a trial, free, or paid manually. Asking again sets the plan again on the same workspace; owner and cofounder only
       security: [{ bearer: [] }]
-      requestBody: { content: { application/json: { schema: { type: object, required: [user_id, plan, payment], properties: { user_id: { type: string, format: uuid }, plan: { type: string }, payment: { type: string, enum: [trial, free, manual] }, role: { type: string, enum: [owner, solo] }, days: { type: integer }, months: { type: integer }, amount_minor: { type: integer } } } } } }
+      requestBody: { content: { application/json: { schema: { type: object, required: [user_id, plan, payment], properties: { user_id: { type: string, format: uuid }, plan: { type: string }, payment: { type: string, enum: [trial, free, manual] }, role: { type: string, enum: [owner, solo] }, days: { type: integer }, months: { type: integer }, amount_minor: { type: integer }, limits: { type: object, description: 'The workspace limits where they differ from the plan (seats, clients, active_leads, imports_monthly, monthly_minutes, skiptrace_credits, file_storage_mb); null is unlimited', additionalProperties: { type: integer, nullable: true } } } } } } }
       responses: { "200": { description: Membership given }, "400": { description: Not valid }, "403": { description: Owner or cofounder with second step required }, "404": { description: No such account }, "409": { description: The workspace pays through the payment provider already }, "503": { description: Billing or authorization unavailable } }
   /v1/admin/rates:
     get:
@@ -244,19 +282,49 @@ paths:
       responses: { "200": { description: Editable role keys }, "403": { description: Owner with second step required } }
   /v1/orgs/{org}/members/{user}:
     put:
-      summary: Change existing member roles without changing their scopes; agency owner only
+      summary: Change a member's roles, and for a caller or closer their team (team_ids, one team); agency owner or platform owner and cofounder
       security: [{ bearer: [] }]
-      requestBody: { content: { application/json: { schema: { type: object, required: [roles], properties: { roles: { type: array, minItems: 1, maxItems: 8, items: { type: string } } } } } } }
+      requestBody: { content: { application/json: { schema: { type: object, required: [roles], properties: { roles: { type: array, minItems: 1, maxItems: 8, items: { type: string } }, team_ids: { type: array, maxItems: 1, items: { type: string } } } } } } }
       responses: { "200": { description: Role saved }, "403": { description: Owner or second step required }, "404": { description: Member absent } }
+    delete:
+      summary: Remove a member from the workspace; agency owner or platform owner and cofounder. A manager who still runs a team stays until the team is handed over
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Removed }, "403": { description: Not allowed }, "409": { description: The member still runs a team } }
+  /v1/orgs/{org}/members/{user}/suspend:
+    post:
+      summary: Suspend a member (their place and history stay, every grant is refused); the agency owner for anyone, a team manager for the callers and closers of their own teams
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { reason: { type: string, maxLength: 200 } } } } } }
+      responses: { "200": { description: Suspended }, "403": { description: Not allowed } }
+  /v1/orgs/{org}/members/{user}/restore:
+    post:
+      summary: Restore a suspended member; same people as suspend
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Restored }, "403": { description: Not allowed } }
+  /v1/orgs/{org}/teams:
+    get:
+      summary: The workspace's teams and the manager of each; the owner, team managers and platform staff
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Teams } }
+  /v1/orgs/{org}/teams/{team}:
+    put:
+      summary: Create or rename a team and name its one manager (empty for none); agency owner or platform owner and cofounder
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string, maxLength: 100 }, manager_id: { type: string } } } } } }
+      responses: { "200": { description: Team saved }, "400": { description: Not a manager of this workspace }, "403": { description: Not allowed }, "409": { description: Another team has that name } }
+    delete:
+      summary: Remove a team that has no callers or closers left in it
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Removed }, "409": { description: People are still in it } }
   /v1/orgs/{org}/invitations:
     get:
       summary: List pending invitations in a workspace; agency owner only
       security: [{ bearer: [] }]
       responses: { "200": { description: Pending invitations } }
     post:
-      summary: Invite a person to an editable workspace role; agency owner only
+      summary: Invite a person; the owner, an admin, staff, or a team lead into the teams they lead (authz decides)
       security: [{ bearer: [] }]
-      requestBody: { content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string } } } } } }
+      requestBody: { content: { application/json: { schema: { type: object, required: [email], properties: { email: { type: string, format: email }, role: { type: string }, team_id: { type: string, description: The team a caller or closer joins (required for them) }, roles: { type: array, items: { type: string }, description: Several roles (in place of role) }, team_ids: { type: array, items: { type: string }, description: Several teams (in place of team_id) }, lead_team_ids: { type: array, items: { type: string }, description: Teams a team lead will lead once they accept } } } } } }
       responses: { "201": { description: Invitation saved with delivery state }, "409": { description: Duplicate or existing member } }
   /v1/invitations/{id}:
     delete:
@@ -267,12 +335,82 @@ paths:
     get:
       summary: List live invitations addressed to the signed-in verified email
       security: [{ bearer: [] }]
-      responses: { "200": { description: Invitations, empty until email is verified } }
+      responses: { "200": { description: "Invitations with org_name, owner_name, inviter_name and created_at; empty until email is verified, with waiting true when one is pending" } }
+  /v1/me/invitations/{id}:
+    get:
+      summary: The invitation an email link opens
+      security: [{ bearer: [] }]
+      responses: { "200": { description: The invitation }, "403": { description: "other_address (the invited address, masked like m•••••@gmail.com) or email_unverified" }, "404": { description: No such invitation }, "409": { description: Already accepted }, "410": { description: Cancelled or expired } }
   /v1/me/invitations/{id}/accept:
     post:
       summary: Accept a pending invitation after verified-email sign-in; Authz checks the inviter's current authority
       security: [{ bearer: [] }]
-      responses: { "200": { description: Membership applied }, "403": { description: Wrong email, expired invitation, or inviter lost authority }, "409": { description: Already has a role or membership } }
+      responses: { "200": { description: "Membership applied; org_id is the agency joined" }, "403": { description: "Wrong address (masked), unverified email, or inviter lost authority" }, "409": { description: Already accepted, or a role or membership exists }, "410": { description: Cancelled or expired } }
+  /v1/me/invitations/{id}/report:
+    post:
+      summary: Report an invitation sent to the signed-in address to Caller Whale staff
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { reason: { type: string, maxLength: 1000 } } } } } }
+      responses: { "200": { description: Reported (again is harmless) }, "404": { description: No such invitation for this address } }
+  /v1/me/invitations/{id}/decline:
+    post:
+      summary: Decline an invitation; the sender sees Declined and the seat is free
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Declined }, "403": { description: Another address or unconfirmed email }, "410": { description: Already ended } }
+  /v1/me/blocked-agencies:
+    get:
+      summary: Agencies the signed-in address has blocked
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Blocked agencies } }
+    post:
+      summary: Block the agency of one of this address's invitations; it can never invite the address again and its waiting invitations are declined
+      security: [{ bearer: [] }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [invitation_id], properties: { invitation_id: { type: string } } } } } }
+      responses: { "200": { description: Blocked }, "404": { description: No such invitation for this address } }
+  /v1/me/blocked-agencies/{org}:
+    delete:
+      summary: Undo a block
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Unblocked } }
+  /v1/invitations/{id}/resend:
+    post:
+      summary: Email a waiting workspace invitation again; at most once an hour and three times
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Resent with delivery_state }, "409": { description: "resend_limit, email_off, or the invitation ended" }, "429": { description: resend_wait } }
+  /v1/invitations/{id}/extend:
+    post:
+      summary: Give a waiting or ended workspace invitation the agency's full validity again from now; twice at most
+      security: [{ bearer: [] }]
+      responses: { "200": { description: New expires_at }, "409": { description: extend_limit, or declined or cancelled } }
+  /v1/orgs/{org}/invitation-settings:
+    get:
+      summary: How long the agency's invitations last (valid_days) and its daily number (daily_cap)
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Settings } }
+    put:
+      summary: The owner sets valid_days (1 to 30); only Caller Whale staff set daily_cap
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Saved }, "400": { description: Out of range }, "403": { description: Not allowed } }
+  /v1/orgs/{org}/leave:
+    post:
+      summary: Leave the agency at once (anyone but the owner); waiting invitations they sent are cancelled
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Left }, "403": { description: The owner cannot leave } }
+  /v1/orgs/{org}/seat-requests:
+    get:
+      summary: Seats team leads asked for when every seat was taken; owner and admins
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Open requests } }
+  /v1/orgs/{org}/seat-requests/{id}:
+    delete:
+      summary: Mark a seat request handled
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Closed } }
+  /v1/admin/invitation-reports:
+    get:
+      summary: Reported invitations, newest first; staff with a second step
+      security: [{ bearer: [] }]
+      responses: { "200": { description: Reports }, "403": { description: Staff access required } }
   /v1/password:
     post:
       summary: Change the password and close every other session

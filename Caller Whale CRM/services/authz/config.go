@@ -11,12 +11,15 @@ import (
 // callerRights are the requests each calling service may make. Workers and the gateway only ask questions; only the core
 // API changes who belongs where, and only billing and the core API set a workspace's standing.
 var callerRights = map[string][]string{
-	"core-api":  {"grant", "check", "read", "manage", "manage_members", "manage_staff", "open", "standing"},
-	"auth":      {"read", "manage_members", "manage_staff", "open"}, // "open": an owner or cofounder gives a person a membership, which opens their workspace
-	"billing":   {"grant", "check", "standing"},
-	"messaging": {"grant", "check", "read"}, // asks who is in a workspace; changes nothing
-	"gateway":   {"check"},
-	"worker":    {"check"},
+	"core-api": {"grant", "check", "read", "manage", "manage_members", "manage_staff", "open", "standing"},
+	// "open": an owner or cofounder gives a person a membership, which opens their workspace. "standing": while no billing service
+	// runs, auth keeps those memberships and sets the workspace's seats, client places and whether its plan has ended.
+	"auth":       {"read", "manage_members", "manage_staff", "open", "standing"},
+	"billing":    {"grant", "check", "standing"},
+	"messaging":  {"grant", "check", "read"}, // asks who is in a workspace; changes nothing
+	"dialer-sms": {"grant"},                  // asks what the person placing a call or text may do; changes nothing
+	"gateway":    {"check", "limits"}, // limits: an agency's allowed countries and networks, and nothing else (step 35)
+	"worker":     {"check"},
 }
 
 type config struct {
@@ -29,6 +32,9 @@ type config struct {
 	staffSecondStep   bool   // Caller Whale's staff must have passed it
 	platformOwner     string // who is the Caller Whale owner; set once at start, never changed
 	platformCofounder string // the cofounder is also permanent
+	// featuresEverywhere are switches on for every workspace (AUTHZ_FEATURES_EVERYWHERE, like "teams_v2"), once a step is
+	// switched on for everyone. Until then each workspace's own switches decide (D104).
+	featuresEverywhere []string
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -69,6 +75,15 @@ func loadConfig(getenv func(string) string) (config, error) {
 	}
 	if c.tokens, err = parseTokens(get("AUTHZ_TOKENS", "")); err != nil {
 		return c, err
+	}
+	for _, name := range strings.Split(get("AUTHZ_FEATURES_EVERYWHERE", ""), ",") {
+		if name = strings.TrimSpace(name); name == "" {
+			continue
+		}
+		if name != teamsV2 {
+			return c, fmt.Errorf("AUTHZ_FEATURES_EVERYWHERE: %q is not a switch (known: %s)", name, teamsV2)
+		}
+		c.featuresEverywhere = append(c.featuresEverywhere, name)
 	}
 	return c, nil
 }

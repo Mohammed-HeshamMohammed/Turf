@@ -17,6 +17,37 @@ log = logging.getLogger("billing")
 # Subscription states in which the workspace can be used.
 GOOD_STANDING = {"trialing", "active"}
 
+# Limits a workspace has. seats and monthly_minutes come from billing.plans, the rest from billing.plan_limits; staff may override
+# any of them for one workspace (billing.org_limit_overrides). None means unlimited.
+DISCOUNT_REASONS = ("shared_learning",)
+DISCOUNT_KINDS = ("ai", "minutes", "texts")
+LIMIT_KEYS = ("seats", "clients", "active_leads", "imports_monthly", "monthly_minutes", "skiptrace_credits", "file_storage_mb")
+
+
+def plan_limits(conn, plan_key: str) -> dict:
+    """What a plan allows, every key present."""
+    row = conn.execute("SELECT seats, monthly_minutes FROM billing.plans WHERE key = %s", (plan_key,)).fetchone()
+    limits = {key: None for key in LIMIT_KEYS}
+    if row is not None:
+        limits["seats"], limits["monthly_minutes"] = _first(row, "seats", 0), _first(row, "monthly_minutes", 1)
+    for found in conn.execute("SELECT key, value FROM billing.plan_limits WHERE plan_key = %s", (plan_key,)).fetchall():
+        limits[_first(found, "key", 0)] = _first(found, "value", 1)
+    return limits
+
+
+def effective_limits(conn, org_id: UUID, plan_key: str) -> tuple[dict, dict]:
+    """(the workspace's limits, the overrides among them)."""
+    limits = plan_limits(conn, plan_key)
+    overrides = {_first(r, "key", 0): _first(r, "value", 1)
+                 for r in conn.execute("SELECT key, value FROM billing.org_limit_overrides WHERE org_id = %s", (org_id,)).fetchall()}
+    limits.update(overrides)
+    return limits, overrides
+
+
+def _first(row, name: str, index: int):
+    """A column of a row read as a tuple or a dict (the connection may use either row factory)."""
+    return row[name] if isinstance(row, dict) else row[index]
+
 
 class Refused(Exception):
     """A request the rules refuse: the code programs read and the sentence people read."""
@@ -24,6 +55,14 @@ class Refused(Exception):
     def __init__(self, status: int, code: str, message: str):
         super().__init__(message)
         self.status, self.code, self.message = status, code, message
+
+
+def _uuid_or_none(value) -> str | None:
+    """A person's id from the provider's custom data, or None when it is missing or not an id."""
+    try:
+        return str(UUID(str(value))) if value else None
+    except ValueError:
+        return None
 
 
 def add_months(moment: datetime, months: int) -> datetime:
@@ -63,9 +102,43 @@ class Store:
         with self.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
             cur.execute("SELECT key, name, seats, monthly_minutes, price_minor, currency FROM billing.plans WHERE active ORDER BY price_minor, key")
             rows = cur.fetchall()
+            for row in rows:
+                row["limits"] = plan_limits(conn, row["key"])
         for row in rows:
             row["price"] = str(money.from_minor(row["price_minor"], row["currency"]))
         return rows
+
+    def entitlements(self, org_id: UUID) -> dict:
+        """What one workspace may use: its plan's limits with staff overrides on top, and the discounts it earned (step 45). A
+        workspace without a plan has no limits here."""
+        discounts = self.discounts(org_id)
+        with self.pool.connection() as conn:
+            row = conn.execute("SELECT plan_key FROM billing.subscriptions WHERE org_id = %s", (org_id,)).fetchone()
+            if row is None:
+                return {"org_id": str(org_id), "plan": None, "limits": {key: None for key in LIMIT_KEYS}, "overrides": {}, "discounts": discounts}
+            limits, overrides = effective_limits(conn, org_id, row[0])
+        return {"org_id": str(org_id), "plan": row[0], "limits": limits, "overrides": overrides, "discounts": discounts}
+
+    def set_discount(self, org_id: UUID, reason: str, kind: str, percent: int) -> dict:
+        """Gives a workspace a discount for a reason, or ends it (percent 0). Answers the workspace's discounts by kind."""
+        if reason not in DISCOUNT_REASONS or kind not in DISCOUNT_KINDS or not 0 <= percent <= 100:
+            raise Refused(400, "bad_request", "reason is shared_learning; kind is ai, minutes or texts; percent is 0 to 100")
+        with self.pool.connection() as conn:
+            if percent == 0:
+                conn.execute("DELETE FROM billing.discounts WHERE org_id = %s AND reason = %s AND kind = %s", (org_id, reason, kind))
+            else:
+                conn.execute(
+                    "INSERT INTO billing.discounts (org_id, reason, kind, percent) VALUES (%s, %s, %s, %s) "
+                    "ON CONFLICT (org_id, reason, kind) DO UPDATE SET percent = excluded.percent",
+                    (org_id, reason, kind, percent),
+                )
+        return self.discounts(org_id)
+
+    def discounts(self, org_id: UUID) -> dict:
+        """The largest discount the workspace has for each kind, in percent."""
+        with self.pool.connection() as conn:
+            rows = conn.execute("SELECT kind, max(percent) FROM billing.discounts WHERE org_id = %s GROUP BY kind", (org_id,)).fetchall()
+        return {_first(r, "kind", 0): _first(r, "max", 1) for r in rows}
 
     def summary(self, now: datetime) -> dict:
         """What the platform owner's dashboard shows: money taken, who is on which plan, and what is being used. Totals only: no card
@@ -113,7 +186,7 @@ class Store:
     def standing(self, org_id: UUID, now: datetime) -> dict:
         with self.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
-                "SELECT s.plan_key, s.status, s.period_start, s.period_end, p.seats, p.monthly_minutes FROM billing.subscriptions s "
+                "SELECT s.plan_key, s.status, s.period_start, s.period_end, s.provider, s.payer_id, p.seats, p.monthly_minutes FROM billing.subscriptions s "
                 "JOIN billing.plans p ON p.key = s.plan_key WHERE s.org_id = %s",
                 (org_id,),
             )
@@ -125,10 +198,15 @@ class Store:
                 (org_id, sub["period_start"], sub["period_end"]),
             )
             used = cur.fetchone()["used"]
+            limits, _ = effective_limits(conn, org_id, sub["plan_key"])
         unpaid = sub["status"] not in GOOD_STANDING or sub["period_end"] <= now
         return {
             "org_id": str(org_id), "plan": sub["plan_key"], "status": sub["status"], "period_end": sub["period_end"].isoformat(),
-            "seats": sub["seats"], "minutes_allowed": sub["monthly_minutes"], "minutes_used": used, "limited": True, "payment_required": unpaid,
+            "seats": limits["seats"], "minutes_allowed": limits["monthly_minutes"], "minutes_used": used, "limited": True, "payment_required": unpaid,
+            "limits": limits,
+            # Paid through the payment provider, and by whom: a handover of ownership waits for the new owner to pay (step 13, D70).
+            "provider_paid": sub["provider"] is not None and sub["status"] not in ("canceled",),
+            "payer_id": str(sub["payer_id"]) if sub["payer_id"] else None,
         }
 
     def reserve(self, kind: str, account_id: UUID, amount: int, request_id: UUID, detail: str, now: datetime) -> Reservation:
@@ -142,8 +220,7 @@ class Store:
         with self.pool.connection() as conn, conn.transaction(), conn.cursor(row_factory=dict_row) as cur:
             if kind == "minutes":
                 cur.execute(
-                    "SELECT s.status, s.period_start, s.period_end, p.monthly_minutes AS allowed FROM billing.subscriptions s "
-                    "JOIN billing.plans p ON p.key = s.plan_key WHERE s.org_id = %s FOR UPDATE OF s",
+                    "SELECT s.status, s.period_start, s.period_end, s.plan_key FROM billing.subscriptions s WHERE s.org_id = %s FOR UPDATE OF s",
                     (account_id,),
                 )
                 row = cur.fetchone()
@@ -151,7 +228,10 @@ class Store:
                     return Reservation(limited=False)  # a workspace without a plan here has no minute limit (self-hosted)
                 if row["status"] not in GOOD_STANDING or row["period_end"] <= now:
                     raise Refused(402, "payment_required", "This workspace's plan needs paying before calls can start.")
-                start, end, allowed = row["period_start"], row["period_end"], row["allowed"]
+                allowed = effective_limits(conn, account_id, row["plan_key"])[0]["monthly_minutes"]
+                if allowed is None:
+                    return Reservation(limited=False)  # staff made this workspace's minutes unlimited
+                start, end = row["period_start"], row["period_end"]
             else:
                 cur.execute("SELECT monthly_credits AS allowed FROM billing.credit_limits WHERE user_id = %s FOR UPDATE", (account_id,))
                 row = cur.fetchone()
@@ -204,14 +284,25 @@ class Store:
                 return False
             return True
 
-    def assign_membership(self, org_id: UUID, plan_key: str, payment: str, days: int, months: int, amount_minor: int | None, now: datetime) -> dict:
+    def assign_membership(self, org_id: UUID, plan_key: str, payment: str, days: int, months: int, amount_minor: int | None, now: datetime,
+                          limits: dict | None = None, set_by: str = "") -> dict:
         """Gives a workspace a plan by hand, for an owner or cofounder who has arranged it with the person.
 
         trial: the plan, free, for `days`. free: the plan with no payment, for `months`. manual: the plan, paid outside the payment
         provider (a bank transfer, cash), for `months`, and the payment is recorded so it counts as revenue. A workspace that is paying
-        through the payment provider is not changed: its subscription belongs to the provider's webhooks."""
+        through the payment provider is not changed: its subscription belongs to the provider's webhooks.
+
+        limits: when given, the workspace's limits ({key: number, or None for unlimited}); a key left out keeps the plan's value. Only
+        values that differ from the plan are stored, as overrides, and earlier overrides are replaced."""
         if payment not in ("trial", "free", "manual"):
             raise Refused(400, "bad_request", "Choose trial, free or paid manually.")
+        for limit, value in (limits or {}).items():
+            if limit not in LIMIT_KEYS:
+                raise Refused(400, "bad_request", f"{limit} is not a limit.")
+            if value is not None and (not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 1_000_000_000_000):
+                raise Refused(400, "bad_request", f"{limit} must be a whole number of 0 or more, or unlimited.")
+        if limits is not None and limits.get("seats") == 0:
+            raise Refused(400, "bad_request", "A workspace needs at least one seat.")
         with self.pool.connection() as conn, conn.transaction():
             plan = conn.execute("SELECT key, name, price_minor, currency FROM billing.plans WHERE key = %s AND active", (plan_key,)).fetchone()
             if plan is None:
@@ -237,7 +328,18 @@ class Store:
                     "INSERT INTO billing.payments (org_id, provider, provider_payment_id, amount_minor, currency, status, at) VALUES (%s, 'manual', %s, %s, %s, 'completed', %s)",
                     (org_id, f"manual-{uuid4()}", paid, currency, now),
                 )
-        return {"org_id": str(org_id), "plan": key, "plan_name": name, "payment": payment, "status": status, "period_end": ends.isoformat(), "paid_minor": paid, "currency": currency}
+            if limits is not None:
+                base = plan_limits(conn, key)
+                conn.execute("DELETE FROM billing.org_limit_overrides WHERE org_id = %s", (org_id,))
+                for limit, value in limits.items():
+                    if value != base[limit]:
+                        conn.execute(
+                            "INSERT INTO billing.org_limit_overrides (org_id, key, value, reason, set_by) VALUES (%s, %s, %s, 'given with the membership', %s)",
+                            (org_id, limit, value, set_by[:100]),
+                        )
+            given_limits, overrides = effective_limits(conn, org_id, key)
+        return {"org_id": str(org_id), "plan": key, "plan_name": name, "payment": payment, "status": status, "period_end": ends.isoformat(),
+                "paid_minor": paid, "currency": currency, "limits": given_limits, "overrides": overrides}
 
     def record_webhook(self, provider: str, event: dict) -> tuple[bool, str | None]:
         """Stores a provider event once and applies it. Returns (new, org whose standing changed)."""
@@ -257,6 +359,7 @@ class Store:
 
     def _apply(self, conn, provider: str, event_type: str, data: dict) -> str | None:
         org = (data.get("custom_data") or {}).get("org_id")
+        payer = _uuid_or_none((data.get("custom_data") or {}).get("payer_id"))
         if event_type.startswith("subscription."):
             status = STATUSES.get(str(data.get("status")))
             period = data.get("current_billing_period") or {}
@@ -273,16 +376,17 @@ class Store:
             if not starts or not ends:
                 # A canceled or paused subscription can have no current period: keep the old one and change the status only.
                 conn.execute(
-                    "UPDATE billing.subscriptions SET status = %s, provider = %s, provider_subscription_id = %s, updated_at = now() WHERE org_id = %s",
-                    (status, provider, data.get("id"), org),
+                    "UPDATE billing.subscriptions SET status = %s, provider = %s, provider_subscription_id = %s, payer_id = coalesce(%s, payer_id), "
+                    "updated_at = now() WHERE org_id = %s",
+                    (status, provider, data.get("id"), payer, org),
                 )
                 return org
             conn.execute(
-                "INSERT INTO billing.subscriptions (org_id, plan_key, status, period_start, period_end, provider, provider_subscription_id) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (org_id) DO UPDATE SET plan_key = excluded.plan_key, status = excluded.status, "
+                "INSERT INTO billing.subscriptions (org_id, plan_key, status, period_start, period_end, provider, provider_subscription_id, payer_id) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (org_id) DO UPDATE SET plan_key = excluded.plan_key, status = excluded.status, "
                 "period_start = excluded.period_start, period_end = excluded.period_end, provider = excluded.provider, "
-                "provider_subscription_id = excluded.provider_subscription_id, updated_at = now()",
-                (org, plan[0], status, starts, ends, provider, data.get("id")),
+                "provider_subscription_id = excluded.provider_subscription_id, payer_id = coalesce(excluded.payer_id, billing.subscriptions.payer_id), updated_at = now()",
+                (org, plan[0], status, starts, ends, provider, data.get("id"), payer),
             )
             return org
         if event_type == "transaction.completed":

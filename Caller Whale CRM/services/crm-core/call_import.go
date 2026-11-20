@@ -210,6 +210,12 @@ func mergeOneCall(ctx context.Context, tx pgx.Tx, jobID string, rowNo int64, dat
 		if _, err = tx.Exec(ctx, `UPDATE leads SET do_not_call = true, verdict = 'Do not call', stage = 'Closed', version = version + 1, updated_at = now() WHERE id = $1`, leadID); err != nil {
 			return err
 		}
+		// An imported "do not call" blocks the number for the agency too (step 25).
+		if _, err = tx.Exec(ctx, `INSERT INTO number_blocks (org_id, phone_key, calls, texts, reason, source, lead_id)
+			SELECT cw_org(), crm.phone_key($1), true, true, 'asked_agency', 'import', $2 WHERE crm.phone_key($1) IS NOT NULL
+			ON CONFLICT (org_id, phone_key) WHERE lifted_at IS NULL DO UPDATE SET calls = true, texts = true`, phone, leadID); err != nil {
+			return err
+		}
 	} else {
 		occurred, parseErr := time.Parse(time.RFC3339, str(data, "occurred_at"))
 		if parseErr != nil {

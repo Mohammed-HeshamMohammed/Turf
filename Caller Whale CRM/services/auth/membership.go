@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"slices"
 	"strings"
@@ -25,6 +26,8 @@ type offeredPlan struct {
 	PriceMinor   int64  `json:"price_minor"`
 	Currency     string `json:"currency"`
 	DisplayPrice string `json:"price"`
+	// What the plan allows (seats, clients, active_leads, imports_monthly, monthly_minutes, skiptrace_credits, file_storage_mb); null is unlimited.
+	Limits map[string]*int64 `json:"limits,omitempty"`
 }
 
 // adminPlans lists the plans an owner can give, from billing.
@@ -32,8 +35,10 @@ func (s *server) adminPlans(w http.ResponseWriter, r *http.Request) error {
 	if _, err := s.staffActor(r, true); err != nil {
 		return err
 	}
-	if s.cfg.billingURL == "" {
-		return newError(http.StatusServiceUnavailable, "billing_unavailable", "Billing is not connected to this dashboard yet.")
+	if !s.billingConnected() {
+		// No billing service yet: the ready-made plans are kept here (membership_local.go).
+		writeJSON(w, http.StatusOK, map[string]any{"plans": plansHere(), "kept_here": true})
+		return nil
 	}
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, s.cfg.billingURL+"/api/v1/plans", nil)
 	if err != nil {
@@ -93,7 +98,12 @@ type membershipBody struct {
 	Days        int    `json:"days"`
 	Months      int    `json:"months"`
 	AmountMinor *int64 `json:"amount_minor"`
+	// The workspace's limits where they differ from the plan: {key: number, or null for unlimited}. Keys left out keep the plan's.
+	Limits map[string]*int64 `json:"limits,omitempty"`
 }
+
+// limitKeys are the limits staff may set when they give a membership (billing.org_limit_overrides).
+var limitKeys = []string{"seats", "clients", "active_leads", "imports_monthly", "monthly_minutes", "skiptrace_credits", "file_storage_mb"}
 
 // checkMembership says what is wrong with a request, or nothing. Time and money are limited to sensible amounts.
 func checkMembership(b *membershipBody) *apiError {
@@ -132,6 +142,17 @@ func checkMembership(b *membershipBody) *apiError {
 	if b.Payment != "manual" {
 		b.AmountMinor = nil
 	}
+	for key, value := range b.Limits {
+		if !slices.Contains(limitKeys, key) {
+			return bad(key + " is not a limit.")
+		}
+		if value != nil && (*value < 0 || *value > 1_000_000_000_000) {
+			return bad("Limits are whole numbers of 0 or more, or unlimited.")
+		}
+	}
+	if seats, ok := b.Limits["seats"]; ok && seats != nil && *seats < 1 {
+		return bad("A workspace needs at least one seat.")
+	}
 	return nil
 }
 
@@ -139,7 +160,8 @@ func checkMembership(b *membershipBody) *apiError {
 // billing the plan. Asking again is safe: the same workspace is found and the plan is set again.
 func (s *server) giveMembership(w http.ResponseWriter, r *http.Request) error {
 	// Giving someone a workspace and a plan moves money and access: it needs a second step done just now (ownerActor).
-	if _, err := s.ownerActor(r); err != nil {
+	actor, err := s.ownerActor(r)
+	if err != nil {
 		return err
 	}
 	var body membershipBody
@@ -148,9 +170,6 @@ func (s *server) giveMembership(w http.ResponseWriter, r *http.Request) error {
 	}
 	if problem := checkMembership(&body); problem != nil {
 		return problem
-	}
-	if s.cfg.billingURL == "" || s.cfg.billingToken == "" {
-		return newError(http.StatusServiceUnavailable, "billing_unavailable", "Billing is not connected to this dashboard yet.")
 	}
 	ctx := r.Context()
 	var email, name string
@@ -178,10 +197,16 @@ func (s *server) giveMembership(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
-	given, err := s.billingAssign(ctx, org, body)
+	var given map[string]any
+	if s.billingConnected() {
+		given, err = s.billingAssign(ctx, org, body, actor.Email)
+	} else {
+		given, err = s.assignHere(ctx, org, body.UserID, body, actor.Email)
+	}
 	if err != nil {
 		return err
 	}
+	log.Printf("INFO membership given: workspace %s plan %s (%s) by %s", org, body.Plan, body.Payment, actor.Sub)
 	given["workspace_created"] = created
 	given["role"] = body.Role
 	given["person"] = map[string]string{"id": body.UserID, "name": name, "email": email}
@@ -190,11 +215,15 @@ func (s *server) giveMembership(w http.ResponseWriter, r *http.Request) error {
 }
 
 // billingAssign sets the workspace's plan in billing and returns what billing says. Billing's own refusals keep their words.
-func (s *server) billingAssign(ctx context.Context, org string, body membershipBody) (map[string]any, error) {
+func (s *server) billingAssign(ctx context.Context, org string, body membershipBody, givenBy string) (map[string]any, error) {
 	payload := map[string]any{"plan": body.Plan, "payment": body.Payment, "days": body.Days, "months": body.Months}
 	if body.AmountMinor != nil {
 		payload["amount_minor"] = *body.AmountMinor
 	}
+	if body.Limits != nil {
+		payload["limits"] = body.Limits
+	}
+	payload["set_by"] = givenBy
 	raw, _ := json.Marshal(payload)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, s.cfg.billingURL+"/v1/admin/orgs/"+org+"/membership", bytes.NewReader(raw))
 	if err != nil {

@@ -20,7 +20,17 @@ import (
 var migrationFiles embed.FS
 
 // store is the service's PostgreSQL link. Its tables live in the schema "messaging".
-type store struct{ db *pgxpool.Pool }
+//
+// Row security (who may see which conversation) does not apply to a superuser, or to a login that bypasses it. A database made by a
+// platform such as Coolify hands out exactly such a login. So when the login is a superuser, the service makes a restricted role of
+// its own (appRole: no login, no superuser, no bypass) and every request runs as it; when the login is ordinary, requests run as the
+// login itself. A login that bypasses row security without being a superuser cannot be made safe, and the service does not start.
+type store struct {
+	db    *pgxpool.Pool
+	runAs string // the role requests run as; empty: the login itself
+}
+
+const appRole = "messaging_app"
 
 func openStore(ctx context.Context, url string) (*store, error) {
 	cfg, err := pgxpool.ParseConfig(url)
@@ -97,7 +107,40 @@ func (s *store) migrate(ctx context.Context) error {
 		}
 		log.Printf("INFO applied %s", name)
 	}
+	if err = s.restrict(ctx, tx); err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
+}
+
+// restrict decides what requests run as (see store) and, for a superuser login, makes that role and gives it the tables. It runs at every
+// start, so tables added by a later script are covered too.
+func (s *store) restrict(ctx context.Context, tx pgx.Tx) error {
+	var super, bypass bool
+	if err := tx.QueryRow(ctx, `SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user`).Scan(&super, &bypass); err != nil {
+		return err
+	}
+	switch {
+	case !super && !bypass:
+		s.runAs = ""
+		return nil
+	case !super:
+		return fmt.Errorf("the database login bypasses row security and is not a superuser, so it cannot be made safe: use an ordinary login")
+	}
+	for _, stmt := range []string{
+		`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '` + appRole + `') THEN CREATE ROLE ` + appRole + ` NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$`,
+		`GRANT USAGE ON SCHEMA messaging TO ` + appRole,
+		`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA messaging TO ` + appRole,
+		`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA messaging TO ` + appRole,
+		`GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA messaging TO ` + appRole,
+	} {
+		if _, err := tx.Exec(ctx, stmt); err != nil {
+			return fmt.Errorf("making the restricted role: %w", err)
+		}
+	}
+	s.runAs = appRole
+	log.Printf("INFO the database login is a superuser: requests run as the restricted role %s so row security applies", appRole)
+	return nil
 }
 
 // begin opens a transaction that runs as one person in one workspace: row security reads these settings.
@@ -105,6 +148,12 @@ func (s *store) begin(ctx context.Context, sc scope) (pgx.Tx, error) {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if s.runAs != "" {
+		if _, err = tx.Exec(ctx, `SET LOCAL ROLE `+s.runAs); err != nil {
+			tx.Rollback(ctx)
+			return nil, err
+		}
 	}
 	if _, err = tx.Exec(ctx, `SELECT set_config('cw.org_id', $1, true), set_config('cw.user_id', $2, true)`, sc.orgID, sc.userID); err != nil {
 		tx.Rollback(ctx)

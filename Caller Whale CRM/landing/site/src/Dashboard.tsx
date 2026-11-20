@@ -7,9 +7,12 @@ import { ApiError, needsSecondStep, useSecondStep } from "./SecondStep.tsx";
 import { AnnouncementManager } from "./AnnouncementManager.tsx";
 import { CostsManager, MembersTable, PlatformOverview } from "./OwnerViews.tsx";
 import { InviteManager, PendingInvitations, WorkspaceManager, WorkspaceSecondStep } from "./AccessManagement.tsx";
+import { AIRequests, AgencyStanding, HandOver, SeatChoice, SupportAccess, SupportedAgencies, OfferedAgencies, OwnerlessAgencies, askTakeover } from "./Ownership.tsx";
 import { MonitoringPanel } from "./MonitoringPanel.tsx";
 import { Settings } from "./Settings.tsx";
 import { profilePath } from "./profile-path.ts";
+import { WorkspaceDashboard } from "./WorkspaceDashboard.tsx";
+import { FeedbackButton, StaffHelp, WhatsNew } from "./Help.tsx";
 
 type StaffMember = { name: string; email?: string; role: string };
 /** Up to two capital letters from a name or an email address: "Mohammed Hesham" is MH. */
@@ -18,14 +21,15 @@ const initials = (text: string) => (text.split("@")[0].split(/[\s._-]+/).filter(
 const firstNameOf = (me: { first_name?: unknown; name?: string; email: string }) => String(me.first_name || "").trim() || (me.name || "").trim().split(/\s+/)[0] || me.email;
 const roleNames: Record<string, string> = Object.fromEntries(PLATFORM_ROLES.map(role => [role.key, role.name]));
 
-const staffRoles = new Set(["owner", "cofounder", "system_admin"]);
-type AdminView = "overview" | "team" | "members" | "access" | "costs" | "announcement" | "monitoring" | "account";
+const staffRoles = new Set(["owner", "cofounder"]); // system admin is switched off for now
+type AdminView = "overview" | "team" | "members" | "access" | "costs" | "announcement" | "help" | "monitoring" | "account";
 const viewFromHash = (hash: string): AdminView => {
   if (hash === "#team" || hash === "#admin-team") return "team";
   if (hash === "#access" || hash === "#admin-manage") return "access";
   if (hash === "#members") return "members";
   if (hash === "#costs") return "costs";
   if (hash === "#announcement") return "announcement";
+  if (hash === "#help") return "help";
   if (hash === "#monitoring") return "monitoring";
   if (hash === "#account" || hash === "#admin-account") return "account";
   return "overview";
@@ -35,10 +39,24 @@ const resetDashboardScroll = () => {
   window.scrollTo(0, 0);
 };
 
+/** Leaving an agency (D25): access ends at once, and the person's leads stay with their teams for the owner to hand on. */
+async function leave(auth: Auth, authBase: string, orgId: string) {
+  if (!confirm("Leave this agency? You lose access to it at once. Your leads stay with your team, and the agency can invite you again later.")) return;
+  const token = await auth.accessToken();
+  const response = await fetch(`${authBase}/v1/orgs/${orgId}/leave`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const result = await response.json().catch(() => null);
+  if (!response.ok) { alert(result?.error || "You could not leave the agency right now."); return; }
+  location.reload();
+}
+
 /** What any signed-in person sees as their overview: their account, memberships, platform role, invitations and (for a workspace owner) the people in the workspace. */
 function UsageOverview({ access, auth, authBase, me }: { access: Access; auth: Auth; authBase: string; me: Me }) {
   return <div className="dashboard-page">
     <PendingInvitations auth={auth} authBase={authBase} />
+    <OfferedAgencies auth={auth} authBase={authBase} />
+    <AIRequests auth={auth} authBase={authBase} />
+    {access.workspaces.map(space => <WhatsNew key={`news-${space.org_id}`} auth={auth} authBase={authBase} orgId={space.org_id} />)}
+    {access.workspaces.map(space => <AgencyStanding key={space.org_id} auth={auth} authBase={authBase} orgId={space.org_id} />)}
     <div className="dashboard-panels">
       <section className="card" aria-labelledby="dashboard-account">
         <h2 id="dashboard-account">Account</h2>
@@ -52,6 +70,8 @@ function UsageOverview({ access, auth, authBase, me }: { access: Access; auth: A
           {access.workspaces.map((workspace, index) => <li key={workspace.org_id}>
             <strong>Workspace {index + 1}</strong>
             <RoleBadges access={{ platform_role: "", workspaces: [workspace] }} />
+            {!workspace.business_owner && <button type="button" className="staff-text-button" onClick={() => void leave(auth, authBase, workspace.org_id)}>Leave</button>}
+            {workspace.roles.includes("admin") && <button type="button" className="staff-text-button" onClick={() => void askTakeover(auth, authBase, workspace.org_id)}>Owner unreachable?</button>}
           </li>)}
         </ul>}
       </section>
@@ -60,7 +80,8 @@ function UsageOverview({ access, auth, authBase, me }: { access: Access; auth: A
         <RoleBadges access={{ ...access, workspaces: [] }} />
       </section>
     </div>
-    {access.workspaces.filter(space => space.business_owner).map(space => <div className="workspace-access" key={space.org_id}><h2>Workspace access</h2><p className="muted">Manage the people in your workspace.</p>{me.mfa_passed === false ? <WorkspaceSecondStep auth={auth} me={me} /> : <><WorkspaceManager auth={auth} authBase={authBase} orgId={space.org_id} /><InviteManager auth={auth} authBase={authBase} scope="workspace" orgId={space.org_id} /></>}</div>)}
+    {access.workspaces.filter(space => space.business_owner).map(space => <div className="workspace-access" key={space.org_id}><h2>Workspace access</h2><p className="muted">Manage the people in your workspace.</p>{me.mfa_passed === false ? <WorkspaceSecondStep auth={auth} me={me} /> : <><WorkspaceManager auth={auth} authBase={authBase} orgId={space.org_id} /><InviteManager auth={auth} authBase={authBase} scope="workspace" orgId={space.org_id} /><SeatChoice auth={auth} authBase={authBase} orgId={space.org_id} /><HandOver auth={auth} authBase={authBase} orgId={space.org_id} /><SupportAccess auth={auth} authBase={authBase} orgId={space.org_id} /></>}</div>)}
+    {access.workspaces.filter(space => !space.business_owner && space.roles.includes("manager")).map(space => <div className="workspace-access" key={space.org_id}><h2>Your team</h2><p className="muted">Track and manage the callers and closers you run.</p><WorkspaceManager auth={auth} authBase={authBase} orgId={space.org_id} /></div>)}
   </div>;
 }
 
@@ -68,7 +89,7 @@ function StaffDashboard({ access, auth, authBase, me, onSaved }: { access: Acces
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error" | "verify">(me.mfa_passed === false ? "verify" : "loading");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState("system_admin");
+  const [role, setRole] = useState("tester");
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [message, setMessage] = useState("");
@@ -208,12 +229,13 @@ function StaffDashboard({ access, auth, authBase, me, onSaved }: { access: Acces
     access: "Manage access",
     costs: "Costs",
     announcement: "Announcement",
+    help: "Support and feedback",
     monitoring: "Monitoring",
     account: "Settings",
     recovery: "Save your recovery codes",
   };
   return <div className="admin-layout">
-    <div className="admin-sidebar-slot"><aside className="admin-sidebar" aria-label="Administration navigation"><div className="admin-sidebar-brand"><span className="admin-sidebar-mark" aria-hidden="true">{me.avatar ? <img src={String(me.avatar)} alt="" /> : initials(me.name || me.email)}</span><span><strong>{access.platform_role === "owner" ? "Owner" : roleNames[access.platform_role] || access.platform_label || "Staff"}</strong><small>{firstNameOf(me)}</small></span></div>{recovery.length ? <p className="admin-sidebar-note">Save your recovery codes to continue.</p> : <nav aria-label="Dashboard sections"><a href="#overview" aria-current={view === "overview" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("overview"); }}>Overview</a><a href="#team" aria-current={view === "team" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("team"); }}>Platform team</a><a href="#members" aria-current={view === "members" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("members"); }}>Members</a>{canManage && <a href="#access" aria-current={view === "access" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("access"); }}>Manage access</a>}{canManage && <a href="#costs" aria-current={view === "costs" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("costs"); }}>Costs</a>}<a href="#announcement" aria-current={view === "announcement" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("announcement"); }}>Announcement</a><a href="#monitoring" aria-current={view === "monitoring" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("monitoring"); }}>Monitoring</a><Link to={profilePath(me)}>Profile</Link><a href="#account" aria-current={view === "account" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("account"); }}>Settings</a></nav>}</aside></div>
+    <div className="admin-sidebar-slot"><aside className="admin-sidebar" aria-label="Administration navigation"><div className="admin-sidebar-brand"><span className="admin-sidebar-mark" aria-hidden="true">{me.avatar ? <img src={String(me.avatar)} alt="" /> : initials(me.name || me.email)}</span><span><strong>{access.platform_role === "owner" ? "Owner" : roleNames[access.platform_role] || access.platform_label || "Staff"}</strong><small>{firstNameOf(me)}</small></span></div>{recovery.length ? <p className="admin-sidebar-note">Save your recovery codes to continue.</p> : <nav aria-label="Dashboard sections"><a href="#overview" aria-current={view === "overview" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("overview"); }}>Overview</a><a href="#team" aria-current={view === "team" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("team"); }}>Platform team</a><a href="#members" aria-current={view === "members" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("members"); }}>Members</a>{canManage && <a href="#access" aria-current={view === "access" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("access"); }}>Manage access</a>}{canManage && <a href="#costs" aria-current={view === "costs" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("costs"); }}>Costs</a>}<a href="#announcement" aria-current={view === "announcement" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("announcement"); }}>Announcement</a><a href="#help" aria-current={view === "help" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("help"); }}>Support and feedback</a><a href="#monitoring" aria-current={view === "monitoring" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("monitoring"); }}>Monitoring</a><Link to={profilePath(me)}>Profile</Link><a href="#account" aria-current={view === "account" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("account"); }}>Settings</a></nav>}</aside></div>
     <div className="admin-main"><section className={`admin-workspace admin-view-${shownView}`} aria-labelledby="dashboard-administration">
     <header className="admin-view-header"><h1 id="dashboard-administration">{viewTitles[shownView]}</h1></header>
     {shownView !== "account" && !recovery.length && status === "loading" && <div className="admin-feedback card" role="status">Loading platform staff…</div>}
@@ -251,13 +273,16 @@ function StaffDashboard({ access, auth, authBase, me, onSaved }: { access: Acces
     {status === "ready" && shownView === "members" && <MembersTable request={request} canGive={canManage} auth={auth} />}
     {canManage && status === "ready" && shownView === "costs" && <CostsManager request={request} auth={auth} saved={String(me.currency || "")} />}
     {status === "ready" && shownView === "announcement" && <AnnouncementManager request={request} auth={auth} />}
+    {status === "ready" && shownView === "help" && <StaffHelp auth={auth} authBase={authBase} />}
     {status === "ready" && shownView === "monitoring" && <MonitoringPanel auth={auth} />}
     {status === "ready" && shownView === "team" && <section className="admin-team card" aria-labelledby="admin-team-title"><div className="admin-section-heading"><div><span className="eyebrow">Access directory</span><h2 id="admin-team-title">Staff directory</h2><p className="muted">Owner and cofounder roles are permanent. System admin and tester roles can be managed here.</p></div><span className="admin-count">{query || roleFilter !== "all" ? `${visibleStaff.length} of ${staff.length}` : staff.length} {staff.length === 1 ? "person" : "people"}</span></div>
         <div className="admin-toolbar"><label>Search people<input type="search" placeholder="Name or email" value={query} onChange={event => setQuery(event.target.value)} /></label><label>Role<select value={roleFilter} onChange={event => setRoleFilter(event.target.value)}><option value="all">All roles</option><option value="owner">Owner</option><option value="cofounder">Cofounder</option><option value="system_admin">System admin</option><option value="tester">Tester</option></select></label></div>
         {staff.length === 0 ? <div className="admin-empty"><h3>No staff to show yet</h3><p>When an account receives platform access, it will appear here.</p>{canManage && <button type="button" className="button primary" onClick={() => document.getElementById("staff-role-form")?.scrollIntoView({ block: "center", behavior: "smooth" })}>Assign a role</button>}</div> : visibleStaff.length === 0 ? <div className="admin-empty"><h3>No matches</h3><p>Try a different name, email, or role.</p><button type="button" className="button raised" onClick={() => { setQuery(""); setRoleFilter("all"); }}>Clear filters</button></div> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th scope="col">Person</th><th scope="col">Role</th><th scope="col">Access</th><th scope="col"><span className="sr-only">Action</span></th></tr></thead><tbody>{visibleStaff.map((person, index) => <tr key={person.email || `${person.role}-${index}`}><td data-label="Person"><span className="admin-person"><span className="admin-person-avatar" aria-hidden="true">{(person.name || person.email || "?").charAt(0).toUpperCase()}</span><span><strong>{person.name || person.email}</strong>{person.email && <small>{person.email}</small>}</span></span></td><td data-label="Role"><span className={`staff-role staff-role-${person.role}`}>{roleNames[person.role] || person.role}</span></td><td data-label="Access">{person.role === "owner" || person.role === "cofounder" ? "Permanent" : "Managed"}</td><td data-label="Action">{canManage && person.email && (person.role === "system_admin" || person.role === "tester") && <button type="button" className="staff-text-button" onClick={() => editRole(person)}>Edit role</button>}</td></tr>)}</tbody></table></div>}
       </section>}
-    {canManage && status === "ready" && shownView === "team" && <section id="staff-role-form" className="admin-manage card" aria-labelledby="admin-manage-title"><div><span className="eyebrow">Role management</span><h2 id="admin-manage-title">Change current staff roles</h2><p className="muted">Select a person in the staff directory, or enter the email of an account that has already signed in. Founder roles are permanent.</p></div>{second.prompt}<form className="staff-form" onSubmit={assign}><div className="staff-fields"><label>Account email<input type="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="person@example.com" /></label><label>Role<select value={role} onChange={event => setRole(event.target.value)}><option value="system_admin">System admin</option><option value="tester">Tester</option><option value="">Remove role</option></select></label><button className="button primary" disabled={busy}>{busy ? "Saving…" : "Save access"}</button></div>{message && <p className={message.includes("saved") || message.includes("removed") ? "notice" : "notice bad"} role="status">{message}</p>}</form></section>}
+    {canManage && status === "ready" && shownView === "team" && <section id="staff-role-form" className="admin-manage card" aria-labelledby="admin-manage-title"><div><span className="eyebrow">Role management</span><h2 id="admin-manage-title">Change current staff roles</h2><p className="muted">Select a person in the staff directory, or enter the email of an account that has already signed in. Founder roles are permanent.</p></div>{second.prompt}<form className="staff-form" onSubmit={assign}><div className="staff-fields"><label>Account email<input type="email" required value={email} onChange={event => setEmail(event.target.value)} placeholder="person@example.com" /></label><label>Role<select value={role} onChange={event => setRole(event.target.value)}><option value="tester">Tester</option><option value="">Remove role</option></select></label><button className="button primary" disabled={busy}>{busy ? "Saving…" : "Save access"}</button></div>{message && <p className={message.includes("saved") || message.includes("removed") ? "notice" : "notice bad"} role="status">{message}</p>}</form></section>}
     {canManage && status === "ready" && shownView === "access" && <InviteManager auth={auth} authBase={authBase} scope="platform" />}
+    {canManage && status === "ready" && shownView === "access" && <OwnerlessAgencies auth={auth} authBase={authBase} />}
+    {status === "ready" && shownView === "access" && <SupportedAgencies auth={auth} authBase={authBase} />}
     {shownView === "account" && <Settings embedded me={me} auth={auth} authBase={authBase} onSaved={onSaved} />}
   </section></div></div>;
 }
@@ -293,6 +318,8 @@ export function Dashboard({ me, auth, authBase, onSaved = () => {} }: { me: Me |
   if (status === "loading") return <div className="admin-feedback card" role="status"><h1>Preparing your dashboard</h1><p>Checking your account and access…</p></div>;
   if (status === "unavailable" || !access) return <div className="admin-feedback card" role="alert"><h1>We couldn’t load your dashboard</h1><p>Your account is signed in, but access details are unavailable right now.</p><button type="button" className="button primary" onClick={() => setRetry(value => value + 1)}>Try again</button></div>;
   if (staffRoles.has(access.platform_role)) return <StaffDashboard access={access} auth={auth} authBase={authBase} me={me} onSaved={onSaved} />;
+  // An agency owner, solo operator or team manager runs a workspace from a dashboard of its own, with a sidebar.
+  if (access.workspaces.some(space => space.business_owner || space.roles.includes("manager"))) return <WorkspaceDashboard access={access} auth={auth} authBase={authBase} me={me} onSaved={onSaved} />;
   return <div className="dashboard-page">
     <header className="page-head">
       <span className="eyebrow">Your Caller Whale account</span>

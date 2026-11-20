@@ -54,15 +54,22 @@ func TestAuthCanApplyAnOwnerApprovedMemberRoleOnly(t *testing.T) {
 	h.opened()
 	body := map[string]any{"actor_id": ownerID, "actor_second_step": true, "roles": []string{"caller"}}
 	path := "/v1/orgs/" + org1 + "/members/" + strangerID
+	if code, _ := h.call(authToken, "PUT", path, body); code != 400 {
+		t.Fatalf("a caller needs a team: %d", code)
+	}
+	body["team_ids"] = []string{team1}
 	if code, _ := h.call(authToken, "PUT", path, body); code != 200 {
 		t.Fatalf("auth may apply an owner-approved member role: %d", code)
-	}
-	if code, _ := h.call(authToken, "DELETE", path, body); code != 403 {
-		t.Fatalf("auth must not delete members: %d", code)
 	}
 	body["actor_id"] = callerID
 	if code, _ := h.call(authToken, "PUT", path, body); code != 403 {
 		t.Fatalf("a non-owner cannot authorize the same call: %d", code)
+	}
+	if code, _ := h.call(authToken, "DELETE", path, map[string]any{"actor_id": callerID, "actor_second_step": true}); code != 403 {
+		t.Fatalf("a caller cannot remove anyone: %d", code)
+	}
+	if code, _ := h.call(authToken, "DELETE", path, map[string]any{"actor_id": ownerID, "actor_second_step": true}); code != 200 {
+		t.Fatalf("the owner removes a member through auth's screens: %d", code)
 	}
 }
 
@@ -94,8 +101,8 @@ func TestGrantsCarryDatabaseRightsAndScope(t *testing.T) {
 	if _, out := h.grant(strangerID, "read", false); out["allowed"] != false || out["code"] != "not_member" {
 		t.Errorf("stranger: %v", out)
 	}
-	if _, out := h.grant(ownerID, "admin", false); out["code"] != "second_step_required" {
-		t.Errorf("owner without second step: %v", out)
+	if _, out := h.grant(ownerID, "admin", false); out["db_role"] != "cw_admin" {
+		t.Errorf("an agency owner needs no second step (only the platform owner and cofounder do): %v", out)
 	}
 	if _, out := h.grant(ownerID, "admin", true); out["db_role"] != "cw_admin" {
 		t.Errorf("owner admin: %v", out)
@@ -109,7 +116,7 @@ func TestRestrictionsAndStanding(t *testing.T) {
 	h := newHarness(t)
 	h.opened()
 	code, out := h.call(coreToken, "PUT", "/v1/orgs/"+org1+"/members/"+callerID, map[string]any{
-		"actor_id": ownerID, "actor_second_step": true, "roles": []string{"caller"}, "restrictions": []string{"call"},
+		"actor_id": ownerID, "actor_second_step": true, "roles": []string{"caller"}, "restrictions": []string{"call"}, "team_ids": []string{team1},
 	})
 	if code != 200 {
 		t.Fatalf("restrict: %d %v", code, out)
@@ -124,15 +131,34 @@ func TestRestrictionsAndStanding(t *testing.T) {
 	if code, _ := h.call(billingToken, "PUT", "/v1/orgs/"+org1+"/standing", map[string]any{"payment_required": true}); code != 200 {
 		t.Fatalf("standing: %d", code)
 	}
-	if _, out := h.grant(callerID, "edit", false); out["code"] != "payment_required" {
-		t.Errorf("unpaid: %v", out)
+	// Step 18: an unpaid plan first has a grace period in which everything works, then turns read-only.
+	if _, out := h.grant(callerID, "edit", false); out["allowed"] != true {
+		t.Errorf("unpaid, in the grace period: %v", out)
+	}
+	h.call(billingToken, "PUT", "/v1/orgs/"+org1+"/standing", map[string]any{"unpaid_since": time.Now().Unix() - 8*86_400})
+	if _, out := h.grant(callerID, "edit", false); out["code"] != "read_only" {
+		t.Errorf("unpaid past the grace period: %v", out)
+	}
+	if code, out := h.call(authToken, "GET", "/v1/orgs/"+org1+"/plan-stage", nil); code != 200 || out["stage"] != "read_only" {
+		t.Errorf("the plan stage: %d %v", code, out)
+	}
+	if code, _ := h.call(billingToken, "PUT", "/v1/orgs/"+org1+"/standing", map[string]any{"closed": true}); code != 200 {
+		t.Fatalf("billing closing: %d", code)
+	}
+	if _, out := h.grant(callerID, "read", false); out["code"] == "closed" {
+		t.Errorf("billing cannot close an agency: %v", out)
 	}
 	if _, out := h.grant(ownerID, "pay", true); out["allowed"] != true {
 		t.Errorf("the owner can still pay: %v", out)
 	}
 	h.call(billingToken, "PUT", "/v1/orgs/"+org1+"/standing", map[string]any{"suspended": true})
+	if _, out := h.grant(ownerID, "pay", true); out["code"] == "suspended" {
+		t.Errorf("billing cannot suspend a workspace: %v", out)
+	}
+	h.call(coreToken, "PUT", "/v1/orgs/"+org1+"/standing", map[string]any{"suspended": true})
+	h.call(billingToken, "PUT", "/v1/orgs/"+org1+"/standing", map[string]any{"payment_required": false})
 	if _, out := h.grant(ownerID, "pay", true); out["code"] != "suspended" {
-		t.Errorf("suspended: %v", out)
+		t.Errorf("a payment webhook never lifts a suspension: %v", out)
 	}
 }
 
@@ -143,8 +169,8 @@ func TestMemberChangesFollowTheOwnerRules(t *testing.T) {
 	if code, _ := h.call(coreToken, "PUT", path, map[string]any{"actor_id": callerID, "roles": []string{"caller"}}); code != 403 {
 		t.Errorf("a caller cannot add members: %d", code)
 	}
-	if code, _ := h.call(coreToken, "PUT", path, map[string]any{"actor_id": ownerID, "roles": []string{"caller"}}); code != 403 {
-		t.Errorf("the owner needs the second step: %d", code)
+	if code, _ := h.call(coreToken, "PUT", path, map[string]any{"actor_id": ownerID, "roles": []string{"caller"}}); code != 400 {
+		t.Errorf("the owner needs no second step, but a caller needs a team: %d", code)
 	}
 	if code, _ := h.call(coreToken, "PUT", path, map[string]any{"actor_id": ownerID, "actor_second_step": true, "roles": []string{"owner"}}); code != 403 {
 		t.Errorf("the owner role cannot be given: %d", code)
@@ -192,7 +218,7 @@ func TestRoleChanges(t *testing.T) {
 	if code := put("helper", map[string]any{"capabilities": []string{"export"}, "scope": "team"}); code != 200 {
 		t.Fatalf("custom role: %d", code)
 	}
-	h.call(coreToken, "PUT", "/v1/orgs/"+org1+"/members/"+callerID, map[string]any{"actor_id": ownerID, "actor_second_step": true, "roles": []string{"caller", "helper"}})
+	h.call(coreToken, "PUT", "/v1/orgs/"+org1+"/members/"+callerID, map[string]any{"actor_id": ownerID, "actor_second_step": true, "roles": []string{"caller", "helper"}, "team_ids": []string{team1}})
 	_, out := h.grant(callerID, "export", false)
 	if out["allowed"] != true || !strings.Contains(strings.Join(toStrings(out["scopes"]), ","), "team") {
 		t.Errorf("roles combine: %v", out)
@@ -215,10 +241,15 @@ func TestStaffChanges(t *testing.T) {
 	if code := put(ownerID, strangerID, "owner", true); code != 400 {
 		t.Errorf("there is one platform owner: %d", code)
 	}
-	if code := put(ownerID, strangerID, "system_admin", true); code != 200 {
-		t.Errorf("make staff: %d", code)
+	if code := put(ownerID, strangerID, "system_admin", true); code != 403 {
+		t.Errorf("system admin is switched off: %d", code)
 	}
-	code, out := h.call(coreToken, "POST", "/v1/grant", map[string]any{"user_id": strangerID, "action": "platform", "second_step_passed": true})
+	h.mem.staff[strangerID] = "system_admin" // given before it was switched off
+	if code, out := h.call(coreToken, "POST", "/v1/grant", map[string]any{"user_id": strangerID, "action": "platform", "second_step_passed": true}); code != 200 || out["allowed"] != false {
+		t.Errorf("a system admin kept from before gets nothing: %d %v", code, out)
+	}
+	delete(h.mem.staff, strangerID)
+	code, out := h.call(coreToken, "POST", "/v1/grant", map[string]any{"user_id": ownerID, "action": "platform", "second_step_passed": true})
 	if code != 200 || out["db_role"] != "cw_staff" {
 		t.Errorf("staff grant: %d %v", code, out)
 	}
@@ -243,8 +274,8 @@ func TestStaffChanges(t *testing.T) {
 	if code, out := h.call(gatewayToken, "POST", "/v1/check", map[string]any{"user_id": strangerID, "permission": "tester"}); code != 200 || out["allowed"] != true {
 		t.Errorf("tester check: %d %v", code, out)
 	}
-	if code := put(callerID, strangerID, "system_admin", true); code != 200 {
-		t.Errorf("cofounder assigns system admin: %d", code)
+	if code := put(callerID, strangerID, "system_admin", true); code != 403 {
+		t.Errorf("nobody assigns system admin while it is switched off: %d", code)
 	}
 }
 
@@ -384,7 +415,8 @@ func TestTheCatalogListsEachRoleOnce(t *testing.T) {
 		{Key: "caller", Capabilities: []string{"call"}, Scope: "team"}, // kept from before presets were protected
 		{Key: "senior_closer", Capabilities: []string{"edit"}, Scope: "own"},
 		{Key: "helper", Capabilities: []string{"export"}, Scope: "team"},
-		{Key: "helper", Capabilities: []string{"export"}, Scope: "team"}, // a repeat is still one role
+		{Key: "helper", Capabilities: []string{"export"}, Scope: "team"},          // a repeat is still one role
+		{Key: "system_admin", Capabilities: []string{"import"}, Scope: "project"}, // switched off: never listed
 	}
 	got := buildCatalog(stored)
 	seen := map[string]bool{}
@@ -429,7 +461,7 @@ func TestTheRoleCatalogHasThePlatformRolesInTheirOwnGroup(t *testing.T) {
 	}
 	workspace, _ := out["workspace"].([]any)
 	platform, _ := out["platform"].([]any)
-	if len(workspace) != len(presets) || len(platform) != 4 {
+	if len(workspace) != len(presets) || len(platform) != 3 { // system admin is gone (D338)
 		t.Fatalf("workspace %d, platform %d", len(workspace), len(platform))
 	}
 	first, _ := platform[0].(map[string]any)

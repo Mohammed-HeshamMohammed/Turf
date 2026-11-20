@@ -327,12 +327,13 @@ export function useShowMore(items, step = 100) {
  * `paged`: the table shows as many rows as fit the window (never fewer than 5) and pages through the rest with Previous and
  * Next, instead of growing with "Show more". A taller or wider window shows more rows at once.
  */
-export function DataTable({ view, columns, rowKey, leading, trailing, paged = false, remote = null, onRowClick = null }) {
+export function DataTable({ view, columns, rowKey, leading, trailing, paged = false, remote = null, onRowClick = null, filler = null }) {
   const arranged = view.arrange(columns);
   const ordered = arranged.filter(column => !(view.hidden || []).includes(column.id));
   const [shown, more] = useShowMore(view.rows);
   const [page, setPage] = useState(0);
   const [fit, setFit] = useState(10);
+  const rowHeight = useRef(58);
   const hasRows = view.rows.length > 0;
   const size = paged ? fit : 0;
   // `remote` { total, page, onPage, onSize }: the rows given are already the one page the server sent; the pager only steps through it.
@@ -374,6 +375,7 @@ export function DataTable({ view, columns, rowKey, leading, trailing, paged = fa
       if (Math.abs(shift) > 1)
         cell.animate([{ transform: `translateX(${shift}px)` }, { transform: "none" }], { duration: 300, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- animate when the layout changes; ids follow from it
   }, [layout]);
   // Remembered after every change, so the next one knows where the columns were.
   useLayoutEffect(() => {
@@ -389,7 +391,10 @@ export function DataTable({ view, columns, rowKey, leading, trailing, paged = fa
       const height = pane?.clientHeight || window.innerHeight;
       const top = table.getBoundingClientRect().top - (pane ? pane.getBoundingClientRect().top - pane.scrollTop : 0);
       const head = table.tHead?.offsetHeight || 40;
-      const row = table.tBodies[0]?.rows[0]?.offsetHeight || 58;
+      // The height of a real row, remembered: an empty page (a search with few matches) must not change how many rows fit.
+      const real = table.tBodies[0]?.querySelector("tr:not(.filler-row)")?.offsetHeight;
+      if (real) rowHeight.current = real;
+      const row = rowHeight.current;
       // Below the rows sit the pager and the pane's own bottom padding; everything else is for rows.
       const below = 54 + (pane ? parseFloat(getComputedStyle(pane).paddingBottom) || 0 : 0);
       setFit(Math.max(5, Math.min(100, Math.floor((height - top - head - below) / row))));
@@ -486,6 +491,16 @@ export function DataTable({ view, columns, rowKey, leading, trailing, paged = fa
               {trailing && <td className={trailing.className}>{trailing.cell(row)}</td>}
             </tr>
           ))}
+          {/* `filler` keeps a paged table the same size whatever a page holds: empty rows fill it (with a message or loading
+              bars), so searching and paging never make the page jump. */}
+          {filler && paged &&
+            Array.from({ length: Math.max(0, size - rows.length) }, (_, i) => (
+              <tr key={"filler-" + i} className={"filler-row" + (filler.loading ? " is-loading" : "")} aria-hidden={i > 0 || rows.length > 0 ? "true" : undefined}>
+                <td colSpan={ordered.length + (leading ? 1 : 0) + (trailing ? 1 : 0)} style={{ height: rowHeight.current }}>
+                  {filler.loading ? <span className="filler-bar" /> : i === 0 && rows.length === 0 ? filler.empty : null}
+                </td>
+              </tr>
+            ))}
         </tbody>
       </table>
       {paged ? (
@@ -513,7 +528,10 @@ export function DataTable({ view, columns, rowKey, leading, trailing, paged = fa
 }
 export function Avatar({ name, avatar, small = false, large = false }) {
   const crm = useCrm();
-  const choice = avatar ?? crm?.state.personal?.[name]?.avatar;
+  // Connected: my own picture from my account, everyone else's from the team list (crm-core keeps each person's account picture).
+  const remote = crm?.state.remote;
+  const fromTeam = remote ? (remote.user?.name === name && remote.user?.avatar) || (remote.people || []).find(person => person.name === name)?.avatar || undefined : undefined;
+  const choice = avatar ?? fromTeam ?? crm?.state.personal?.[name]?.avatar;
   const sources = avatarSources(choice, name);
   const [tried, setTried] = useState({ key: "", index: 0 });
   const key = sources.join("|");

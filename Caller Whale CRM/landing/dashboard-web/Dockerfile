@@ -14,9 +14,12 @@ COPY desktop/frontend/react/ ./
 COPY landing/dashboard-web/scripts /headers
 ARG VITE_CALLERWHALE_AUTH_URL
 ARG VITE_CALLERWHALE_API_URL
+# Where team chat is (the messaging service). Empty: the Inbox has no team chats.
+ARG VITE_CALLERWHALE_MESSAGING_URL=
 ARG VITE_CALLERWHALE_SITE_URL=https://callerwhale.com
 ENV VITE_CALLERWHALE_AUTH_URL=$VITE_CALLERWHALE_AUTH_URL \
     VITE_CALLERWHALE_API_URL=$VITE_CALLERWHALE_API_URL \
+    VITE_CALLERWHALE_MESSAGING_URL=$VITE_CALLERWHALE_MESSAGING_URL \
     VITE_CALLERWHALE_SITE_URL=$VITE_CALLERWHALE_SITE_URL \
     VITE_CALLERWHALE_REQUIRE_SIGN_IN=true
 RUN node /headers/security-headers.mjs /app/security-headers.conf && npx tsc -p . && npx vite build

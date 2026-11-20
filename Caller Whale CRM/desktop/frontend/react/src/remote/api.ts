@@ -92,7 +92,50 @@ export async function request(method: string, path: string, body?: unknown, { ba
   return data;
 }
 
+// A browser sometimes leaves a file's type empty: the type is then taken from its extension.
+const FILE_TYPES: Record<string, string> = {
+  pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", gif: "image/gif", txt: "text/plain", csv: "text/csv",
+  doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+};
+export function fileType(file: { name: string; type?: string }): string {
+  return file.type || FILE_TYPES[file.name.split(".").pop()?.toLowerCase() || ""] || "application/octet-stream";
+}
+
+/** A request whose body or answer is a file rather than JSON (a lead's documents). */
+async function sendFile(method: string, path: string, file?: Blob, type?: string): Promise<Response> {
+  const token = await auth.accessToken().catch(() => null);
+  const org = organization();
+  let response;
+  try {
+    response = await fetch(apiBase() + path, {
+      method,
+      headers: {
+        ...(type ? { "Content-Type": type } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(token && org ? { "x-callerwhale-org": org } : {}),
+      },
+      body: file,
+    });
+  } catch {
+    throw new ApiError(0, "offline", "The server cannot be reached");
+  }
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new ApiError(response.status, data?.error?.code || "error", data?.error?.message || "The server refused the request");
+  }
+  return response;
+}
+
 export const api = {
+  /** A lead's documents: listed, uploaded (up to 10 MB, internal or shared with clients), downloaded and removed. */
+  files: {
+    list: (leadId: string): Promise<any> => request("GET", `/api/v1/leads/${encodeURIComponent(leadId)}/files`),
+    upload: async (leadId: string, file: File, visibility: string): Promise<any> =>
+      (await sendFile("POST", `/api/v1/leads/${encodeURIComponent(leadId)}/files?name=${encodeURIComponent(file.name)}&visibility=${encodeURIComponent(visibility)}`, file, fileType(file))).json(),
+    download: async (id: string): Promise<Blob> => (await sendFile("GET", `/api/v1/files/${encodeURIComponent(id)}`)).blob(),
+    remove: (id: string): Promise<any> => request("DELETE", `/api/v1/files/${encodeURIComponent(id)}`),
+  },
   /** The learning copy of imported lists: whether it is on for this workspace, and the administrator's choice. */
   learningStatus: (): Promise<any> => request("GET", "/api/v1/learning"),
   learningOptOut: (): Promise<any> => request("POST", "/api/v1/learning/opt-out", {}),
@@ -109,10 +152,18 @@ export const api = {
   startTrial: (organizationName, timezone) => request("POST", "/api/v1/organizations/trial", { organization: organizationName || "", timezone: timezone || "" }),
   /** Whether a new account may open its own trial on this server, or must be given access by an owner or Caller Whale. */
   signupOpen: () => request("GET", "/api/v1/auth/service").then(data => data?.signup === true),
-  /** Joins the organization of an invitation for this person's email. */
-  joinInvitation: token => request("POST", "/api/v1/invitations/join", { token }),
   directory: () => request("GET", "/api/v1/directory"),
+  /** My account's picture, kept with my name so the rest of the team sees the same face. */
+  setPicture: (avatar: string): Promise<any> => request("PUT", "/api/v1/me/picture", { avatar }, { includeOrganization: false }),
   teams: () => request("GET", "/api/v1/admin/teams"),
+  /** A solo operator makes the workspace an agency (step 17): a first team named after them, holding their leads. */
+  upgradeToAgency: () => request("POST", "/api/v1/workspace/upgrade"),
+  // Giving leads to people (crm-core assign.go): who the viewer may give leads to, starting a run, and following it.
+  assignTargets: (): Promise<any> => request("GET", "/api/v1/assignments/targets"),
+  startAssignment: (body: unknown): Promise<any> => request("POST", "/api/v1/assignments", body),
+  assignment: (id: string): Promise<any> => request("GET", `/api/v1/assignments/${encodeURIComponent(id)}`),
+  memberStats: (from: string, to: string): Promise<any> => request("GET", `/api/v1/stats/members?from=${from}&to=${to}`),
+  memberActivity: (user: string, before = 0): Promise<any> => request("GET", `/api/v1/stats/members/${encodeURIComponent(user)}/activity${before ? `?before=${before}` : ""}`),
   projects: () => request("GET", "/api/v1/projects"),
   deleteProject: (id: string): Promise<any> => request("DELETE", `/api/v1/projects/${id}`, undefined, { timeout: 120000 }),
   settings: () => request("GET", "/api/v1/settings"),
@@ -125,8 +176,8 @@ export const api = {
     return request("GET", "/sync/snapshot" + (query.size ? "?" + query : ""), undefined, { timeout: 300000 });
   },
   /** One page of the workspace's leads (optionally of one stage, or matching a search), for the Leads list of a big workspace. */
-  browseLeads: ({ term = "", stage = "", offset = 0, limit = 25, count = true, project = "", callable = false, email = false }: { term?: string; stage?: string; offset?: number; limit?: number; count?: boolean; project?: string; callable?: boolean; email?: boolean }): Promise<any> =>
-    request("GET", `/api/v1/leads/search?q=${encodeURIComponent(term)}&stage=${encodeURIComponent(stage)}&offset=${offset}&limit=${limit}${count ? "" : "&count=0"}${project ? "&project=" + encodeURIComponent(project) : ""}${callable ? "&callable=1" : ""}${email ? "&email=1" : ""}`),
+  browseLeads: ({ term = "", stage = "", offset = 0, limit = 25, count = true, project = "", callable = false, email = false, sort = "" }: { term?: string; stage?: string; offset?: number; limit?: number; count?: boolean; project?: string; callable?: boolean; email?: boolean; sort?: string }): Promise<any> =>
+    request("GET", `/api/v1/leads/search?q=${encodeURIComponent(term)}&stage=${encodeURIComponent(stage)}&offset=${offset}&limit=${limit}${count ? "" : "&count=0"}${project ? "&project=" + encodeURIComponent(project) : ""}${callable ? "&callable=1" : ""}${email ? "&email=1" : ""}${sort ? "&sort=" + encodeURIComponent(sort) : ""}`),
   /** Leads of a big workspace beyond the snapshot's window: by name, phone, email or address. */
   /** What hangs off one lead (tasks, notes, calls, handoffs, deals): asked for when a lead outside this device's window is opened. */
   leadDetails: (id: string): Promise<any> => request("GET", `/api/v1/leads/${encodeURIComponent(id)}/details`),
@@ -174,9 +225,3 @@ export function socketProtocols(token, org = organization()) {
   return ["callerwhale.v1", ...(token ? [`bearer.${token}`] : []), ...(org ? [`org.${org}`] : [])];
 }
 
-/** The token from an invitation link (…#/join?token=…), or the token itself when that is what was pasted. */
-export function invitationToken(text) {
-  const value = String(text || "").trim();
-  const match = value.match(/[?&]token=([^&#\s]+)/);
-  return match ? decodeURIComponent(match[1]) : value;
-}

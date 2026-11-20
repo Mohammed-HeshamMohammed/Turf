@@ -1,15 +1,36 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { CheckCircle, Handshake, Phone, UsersThree } from "@phosphor-icons/react";
-import { PEOPLE, ROLES, SIGN_IN } from "./data.ts";
-import { capability, leadCounts, visibleLeads, visibleTasks } from "./model.ts";
+import { ROLES, SIGN_IN } from "./data.ts";
+import { capability, leadCounts, teamNames, visibleLeads, visibleTasks } from "./model.ts";
+
+const ROLE_NAMES = { owner: "Agency owner", solo: "Solo operator", manager: "Team manager", caller: "Caller", closer: "Acquisitions / closer", client: "Client" };
 import { useCrm } from "./context.jsx";
+import { api } from "./remote/api.ts";
 import { Avatar, Badge, Button, Card, PageHeader, money } from "./ui.jsx";
 import { SignInMark } from "./SignInMarks.jsx";
+import { TeamMonitor } from "./TeamMonitor.jsx";
 
 /** Everyone on the team in one place: what they own, what is waiting on them and where to go next. */
 export function Team() {
-  const { state, navigate } = useCrm();
+  const { state, navigate, notify } = useCrm();
   const finance = capability(state, "finance");
+  // A solo operator who wants to add callers makes the same workspace an agency (step 17, D59, D203).
+  const solo = Boolean(state.remote?.roles?.includes("solo"));
+  const [upgrading, setUpgrading] = useState(false);
+  const upgrade = async () => {
+    if (!window.confirm("Make this workspace an agency? You stay its owner and also lead a first team named after you, which takes all your leads. Nothing is copied or lost, and you can then invite callers.")) return;
+    setUpgrading(true);
+    try {
+      const result = await api.upgradeToAgency();
+      notify(`Your workspace is now an agency. ${result.leads_moved} leads are in ${result.team?.name || "your first team"}.`);
+      // The new roles and the first team come with a fresh start of the workspace.
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (error) {
+      notify(error.message || "The workspace could not be upgraded.");
+    } finally {
+      setUpgrading(false);
+    }
+  };
 
   const counts = leadCounts(state);
   const people = useMemo(() => {
@@ -17,8 +38,9 @@ export function Team() {
     const ids = new Set(visibleLeads(state).map(lead => lead.id));
     const tasks = visibleTasks(state).filter(task => !task.done);
     const calls = visibleLeads(state).flatMap(lead => lead.calls || []);
-    return PEOPLE.map(name => {
-      const role = Object.values(ROLES).find(item => item.person === name);
+    return teamNames(state).map(name => {
+      const member = state.remote ? (state.remote.people || []).find(person => person.name === name) : null;
+      const role = member ? { name: (member.roles || []).map(key => ROLE_NAMES[key] || key).join(", "), title: "" } : Object.values(ROLES).find(item => item.person === name);
       const owned = leads.filter(lead => lead.assignee === name);
       const ownedCount = counts.owned(name);
       const ownedIds = new Set(owned.map(lead => lead.id));
@@ -35,6 +57,7 @@ export function Team() {
         pipeline: state.deals.filter(deal => ownedIds.has(deal.leadId) && !deal.stage.startsWith("Closed")).reduce((sum, deal) => sum + deal.amount, 0),
       };
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- everything counted comes from state
   }, [state]);
 
   const unassigned = counts.unassigned;
@@ -43,7 +66,10 @@ export function Team() {
 
   return (
     <>
-      <PageHeader title="Team" description="Who owns what, and what is waiting on them." />
+      <PageHeader title="Team" description="Who owns what, and what is waiting on them.">
+        {solo && <Button variant="primary" disabled={upgrading} onClick={upgrade}>{upgrading ? "Upgrading…" : "Make this an agency"}</Button>}
+      </PageHeader>
+      {state.remote && <TeamMonitor />}
       <div className="metrics-grid">
         {[
           ["People", people.length, "On this workspace", UsersThree],

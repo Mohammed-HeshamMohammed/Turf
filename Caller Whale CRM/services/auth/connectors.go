@@ -33,7 +33,8 @@ const (
 )
 
 // connectorScopes are what an assistant can be given. Phase 1 has one: reading the person's own account and plan.
-var connectorScopes = []string{"account:read"}
+// team:manage (step 24) reads the agency's people and teams and asks for changes the person confirms in Caller Whale.
+var connectorScopes = []string{"account:read", "team:manage"}
 
 func (s *server) connectorRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server", s.connectorMetadata)
@@ -44,6 +45,11 @@ func (s *server) connectorRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /v1/connectors/token", serve(s.connectorToken))
 	mux.Handle("POST /v1/connectors/introspect", serve(s.connectorIntrospect))
 	mux.Handle("POST /v1/connectors/standing", serve(s.connectorStanding))
+	mux.Handle("POST /v1/connectors/people", serve(s.connectorPeople))
+	mux.Handle("POST /v1/connectors/requests", serve(s.connectorRequest))
+	mux.Handle("GET /v1/me/ai-requests", serve(s.myAIRequests))
+	mux.Handle("POST /v1/me/ai-requests/{id}/approve", serve(s.decideAIRequest(true)))
+	mux.Handle("POST /v1/me/ai-requests/{id}/reject", serve(s.decideAIRequest(false)))
 	mux.Handle("GET /v1/me/connections", serve(s.myConnections))
 	mux.Handle("DELETE /v1/me/connections/{id}", serve(s.revokeConnection))
 }

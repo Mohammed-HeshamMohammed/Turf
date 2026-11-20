@@ -1,3 +1,4 @@
+import { ImportStrip } from "./ImportStrip.jsx";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import { LiquidProgress } from "./LiquidProgress.jsx";
@@ -69,6 +70,7 @@ export function Lists({ id, importId = null }) {
         if (!found || found.ids.length < 100) break;
       }
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- load a list once per list (loadedFor guards it); dispatch and remote are stable for the page
   }, [id, listTotal]);
   const datasetIds = new Set(leads.map(item => item.datasetId));
   const datasets = state.remote ? state.datasets : state.datasets.filter(item => datasetIds.has(item.id) || (capability(state, "import") && item.team === (ROLES[state.role].team || "Tampa")));
@@ -326,6 +328,7 @@ export function Lists({ id, importId = null }) {
     return (
       <>
         <Breadcrumb items={[{ label: "Lists", path: "lists" }, { label: dataset.name }]} />
+        <ImportStrip />
         <PageHeader
           title={dataset.name}
           description={remote && jobsFor(id).length ? `${count(sourceListProgress(jobsFor(id)).sourceRows)} source rows · ${count(sourceListProgress(jobsFor(id)).unprocessedRows)} unprocessed · ${count(crmLeads(id, listLeads.length))} CRM leads` : `${count(crmLeads(id, listLeads.length))} CRM leads`}
@@ -406,6 +409,7 @@ export function Lists({ id, importId = null }) {
     );
   return (
     <>
+      <ImportStrip />
       <PageHeader title="Source lists" description="Imported lists and the leads that came from them.">
         {remote && <Button onClick={() => navigate("lists/activity")}>Import activity{importJobs.some(needsImportAction) ? ` (${importJobs.filter(needsImportAction).length})` : ""}</Button>}
         {capability(state, "import") && (

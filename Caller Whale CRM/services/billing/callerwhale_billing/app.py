@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from . import SERVICE, VERSION, paddle
+from . import budgets
 from .config import CALLER_RIGHTS, Settings
 from .store import Refused
 
@@ -30,6 +31,38 @@ class ReserveBody(BaseModel):
     detail: str = Field(default="", max_length=200)
 
 
+class UsageBody(BaseModel):
+    org_id: UUID
+    kind: str
+    amount: int
+    request_id: UUID
+    team_id: UUID | None = None
+    user_id: UUID | None = None
+    client_id: UUID | None = None
+    check_only: bool = False
+
+
+class BudgetBody(BaseModel):
+    scope: str
+    subject_id: UUID
+    kind: str
+    monthly: int | None = None
+    set_by: UUID | None = None
+
+
+class DiscountBody(BaseModel):
+    kind: str
+    percent: int = Field(ge=0, le=100)
+
+
+class RaiseBody(BaseModel):
+    scope: str
+    subject_id: UUID
+    kind: str
+    asked_by: UUID
+    note: str = Field(default="", max_length=500)
+
+
 class CreditLimitBody(BaseModel):
     monthly_credits: int | None = Field(default=None, ge=0, le=1_000_000_000)
 
@@ -40,6 +73,9 @@ class MembershipBody(BaseModel):
     days: int = Field(default=14, ge=1, le=90)  # a trial's length
     months: int = Field(default=12, ge=1, le=36)  # how long a free or manually paid plan lasts
     amount_minor: int | None = Field(default=None, ge=0, le=1_000_000_000_000)  # what was paid, when it is not the plan's price for the months
+    # The workspace's limits when they differ from the plan: {key: number, or null for unlimited}. Keys left out keep the plan's value.
+    limits: dict[str, int | None] | None = None
+    set_by: str = Field(default="", max_length=100)  # who gave it, for the record
 
 
 class TrialBody(BaseModel):
@@ -52,7 +88,12 @@ def tell_authorization(settings: Settings, org: str, standing: dict) -> None:
     retried by the next webhook or standing check; it never loses the payment record, which is already stored."""
     if not settings.authz_url:
         return
-    body = json.dumps({"suspended": False, "payment_required": bool(standing.get("payment_required"))}).encode()
+    # Billing owns payment and the plan's seats and client places; it never says anything about a staff suspension.
+    message = {"payment_required": bool(standing.get("payment_required"))}
+    limits = standing.get("limits")
+    if limits is not None:
+        message["seats"], message["clients"] = limits.get("seats"), limits.get("clients")
+    body = json.dumps(message).encode()
     req = urllib.request.Request(f"{settings.authz_url}/v1/orgs/{org}/standing", data=body, method="PUT",
                                  headers={"Authorization": f"Bearer {settings.authz_token}", "Content-Type": "application/json"})
     try:
@@ -131,19 +172,46 @@ def create_app(settings: Settings, store, now: Callable[[], datetime] = lambda: 
     def reserve(body: ReserveBody, _: str = caller("reserve")):
         return store.reserve(body.kind, body.account_id, body.amount, body.request_id, body.detail, now()).as_json()
 
+    # Budgets (step 22): the dialer checks, then charges, each call's minutes and each text.
+    @app.post("/v1/usage")
+    def usage(body: UsageBody, _: str = caller("usage")):
+        return budgets.use(store, body.org_id, body.kind, body.amount, body.request_id, body.team_id, body.user_id, body.client_id, now(), body.check_only)
+
+    @app.put("/v1/orgs/{org_id}/budgets")
+    def put_budget(org_id: UUID, body: BudgetBody, _: str = caller("budgets")):
+        budgets.set_budget(store, org_id, body.scope, body.subject_id, body.kind, body.monthly, body.set_by)
+        return {"ok": True}
+
+    @app.get("/v1/orgs/{org_id}/budgets")
+    def get_budgets(org_id: UUID, _: str = caller("budgets")):
+        return {"budgets": budgets.budgets(store, org_id, now()), "raise_requests": budgets.raise_requests(store, org_id)}
+
+    @app.post("/v1/orgs/{org_id}/raise-requests")
+    def ask_raise(org_id: UUID, body: RaiseBody, _: str = caller("budgets")):
+        return {"id": budgets.ask_raise(store, org_id, body.scope, body.subject_id, body.kind, body.asked_by, body.note, now())}
+
     @app.get("/v1/admin/summary")
     def summary(_: str = caller("summary")):
         return store.summary(now())
 
     @app.put("/v1/admin/orgs/{org_id}/membership")
     def membership(org_id: UUID, body: MembershipBody, _: str = caller("assign")):
-        given = store.assign_membership(org_id, body.plan, body.payment, body.days, body.months, body.amount_minor, now())
+        given = store.assign_membership(org_id, body.plan, body.payment, body.days, body.months, body.amount_minor, now(), body.limits, body.set_by)
         notify(settings, str(org_id), store.standing(org_id, now()))
         return given
 
     @app.get("/v1/orgs/{org_id}/standing")
     def standing(org_id: UUID, _: str = caller("standing")):
         return store.standing(org_id, now())
+
+    @app.get("/v1/orgs/{org_id}/entitlements")
+    def entitlements(org_id: UUID, _: str = caller("standing")):
+        return store.entitlements(org_id)
+
+    # Discounts a workspace earns (step 45, D325): crm-core gives and ends the shared-learning discount on AI features.
+    @app.put("/v1/orgs/{org_id}/discounts/{reason}")
+    def put_discount(org_id: UUID, reason: str, body: DiscountBody, _: str = caller("discounts")):
+        return {"discounts": store.set_discount(org_id, reason, body.kind, body.percent)}
 
     @app.put("/v1/orgs/{org_id}/trial")
     def trial(org_id: UUID, body: TrialBody, _: str = caller("subscribe")):

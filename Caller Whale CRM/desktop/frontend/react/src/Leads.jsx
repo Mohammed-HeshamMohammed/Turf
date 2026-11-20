@@ -3,12 +3,17 @@ import { PropertyMap } from "./PropertyMap.jsx";
 import { LeadsMap } from "./LeadsMap.jsx";
 import { coordinates } from "./skiptrace-fields.ts";
 import { Archive, ArrowUpRight, ArrowLeft, Plus, Phone, Envelope, Handshake, Clock, FileText, CheckCircle, Export, HouseLine } from "@phosphor-icons/react";
-import { LEAD_STAGES, PEOPLE, ROLES, TODAY } from "./data.ts";
-import { archivedLeads, callbackLabel, canEditLead, capability, scopedLeads, uid, visibleLeads } from "./model.ts";
+import { LEAD_STAGES, ROLES, TODAY } from "./data.ts";
+import { AssignLeadsDialog } from "./AssignLeads.jsx";
+import { archivedLeads, callbackLabel, canEditLead, capability, scopedLeads, uid, visibleLeads, teamNames, assignableNames } from "./model.ts";
 import { CallHistory, NewDealModal } from "./Work.jsx";
 import { useCrm } from "./context.jsx";
 import { SkeletonRows } from "./Skeleton.jsx";
 import { useLeadDetails, useLeadPage } from "./useLeadPage.js";
+import { leadSource } from "./lead-source.ts";
+import { STEP_TYPES, nextStepOf } from "./next-step.ts";
+import { api } from "./remote/api.ts";
+import { phoneHistory } from "./phone-history.ts";
 import {
   Badge,
   Select,
@@ -45,6 +50,8 @@ export function Leads() {
   const [view, setView] = useState("List");
   const [selected, setSelected] = useState([]);
   const [bulkStage, setBulkStage] = useState("Contacted");
+  const [assigning, setAssigning] = useState(false);
+  const canAssign = Boolean(state.remote) && capability(state, "assign");
   const assigneeParam = new URLSearchParams(route.split("?")[1]).get("assignee") || "All people";
   const [assignee, setAssignee] = useState(assigneeParam);
   useEffect(() => setAssignee(assigneeParam), [assigneeParam]);
@@ -61,7 +68,7 @@ export function Leads() {
   const [serverFailed, setServerFailed] = useState(false);
   const serverMode = Boolean(state.remote) && !heldAll && !serverFailed;
   // One shared source answers (and remembers) each page, so coming back here, or opening it from another screen, is instant.
-  const found = useLeadPage({ term, stage: stage === "All stages" ? "" : stage, offset: page * size, limit: size }, serverMode);
+  const found = useLeadPage({ term, stage: stage === "All stages" ? "" : stage, sort: "newest", offset: page * size, limit: size }, serverMode);
   const served = { ids: found.ids, total: found.total ?? 0 };
   const waiting = found.waiting; // the server has not answered for this page yet: not "no leads"
   useEffect(() => {
@@ -80,7 +87,33 @@ export function Leads() {
       (assignee === "All people" || lead.assignee === assignee) &&
       [lead.name, lead.address, lead.city, ...(client ? [] : [lead.phone, lead.email])].join(" ").toLowerCase().includes(search.toLowerCase()),
   );
-  const leads = serverMode ? served.ids.map(id => byId.get(id)).filter(Boolean) : windowLeads;
+  // Newest first, so an import's leads show at the top as each batch is added (the table's own sorting still applies on top).
+  const newestFirst = useMemo(() => [...windowLeads].sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))), [windowLeads]);
+  const leads = serverMode ? served.ids.map(id => byId.get(id)).filter(Boolean) : newestFirst;
+  // Refresh: the newest records now, and again every 15 seconds while the page is open and visible (when "Auto refresh" is on).
+  const [autoRefresh, setAutoRefresh] = useState(() => {
+    try {
+      return window.localStorage.getItem("callerwhale.leads.autoRefresh") !== "off";
+    } catch {
+      return true;
+    }
+  });
+  const [refreshedAt, setRefreshedAt] = useState(() => new Date());
+  const refresh = () => {
+    if (!state.remote) return;
+    dispatch({ type: "SYNC" });
+    leadSource.invalidate();
+    setRefreshedAt(new Date());
+  };
+  useEffect(() => {
+    if (!state.remote || !autoRefresh) return;
+    const timer = setInterval(() => {
+      if (!document.hidden) refresh();
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [Boolean(state.remote), autoRefresh]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The spinner: a search typed and not yet sent, or sent and not yet answered.
+  const searching = Boolean(state.remote) && ((search.trim().length >= 2 && search.trim() !== term) || (Boolean(term) && found.loading));
   const editable = capability(state, "edit");
   // The window's width decides how many details each row carries.
   const card = useRef(null);
@@ -102,7 +135,7 @@ export function Leads() {
   const hasColumn = {
     verdict: !hideEmpty || leads.some(lead => lead.verdict),
     assignee: !hideEmpty || leads.some(assigned),
-    next: !hideEmpty || client || leads.some(lead => lead.callback),
+    next: true,
     phone: !client && width >= 1050 && (!hideEmpty || leads.some(lead => lead.phone)),
     email: !client && width >= 1250 && (!hideEmpty || leads.some(lead => lead.email)),
     value: !client && width >= 1450 && (!hideEmpty || leads.some(lead => lead.value)),
@@ -140,7 +173,10 @@ export function Leads() {
       {/* The page's name is already in the sidebar and the tab, so it is kept for screen readers only. */}
       <h1 className="sr-only">{client ? "Shared properties" : "Leads"}</h1>
       <div className="filter-bar">
-        <Search value={search} onChange={setSearch} placeholder={client ? "Search shared properties" : "Search owner, property, or phone"} />
+        <div className="search-with-state">
+          <Search value={search} onChange={setSearch} placeholder={client ? "Search shared properties" : "Search owner, property, or phone"} />
+          {searching && <span className="spinner search-spinner" role="status" aria-label="Searching" />}
+        </div>
         {!client && (
           <>
             <Select aria-label="Filter by lead stage" value={stage} onChange={event => setStage(event.target.value)}>
@@ -152,7 +188,7 @@ export function Leads() {
             {!serverMode && (
               <Select aria-label="Filter by assigned person" value={assignee} onChange={event => setAssignee(event.target.value)}>
                 <option>All people</option>
-                {[...PEOPLE, "Unassigned"].map(item => (
+                {[...teamNames(state), "Unassigned"].map(item => (
                   <option key={item}>{item}</option>
                 ))}
               </Select>
@@ -164,11 +200,35 @@ export function Leads() {
         {!client && !serverMode && archivedCount > 0 && (
           <Checkbox label={"Archived (" + archivedCount + ")"} checked={showArchived} onChange={event => setShowArchived(event.target.checked)} />
         )}
+        {state.remote && (
+          <div className="refresh-controls">
+            <Button onClick={refresh} title={"Updated " + refreshedAt.toLocaleTimeString()}>
+              Refresh
+            </Button>
+            <Checkbox
+              label="Auto refresh"
+              checked={autoRefresh}
+              onChange={event => {
+                setAutoRefresh(event.target.checked);
+                try {
+                  window.localStorage.setItem("callerwhale.leads.autoRefresh", event.target.checked ? "on" : "off");
+                } catch {
+                  /* kept for this visit only */
+                }
+              }}
+            />
+          </div>
+        )}
         {(capability(state, "export") || editable) && (
           <div className="filter-actions">
             {capability(state, "export") && (
               <Button icon={Export} onClick={exportRows}>
                 Export view
+              </Button>
+            )}
+            {canAssign && (
+              <Button onClick={() => setAssigning(true)}>
+                Give leads
               </Button>
             )}
             {editable && (
@@ -196,10 +256,27 @@ export function Leads() {
           >
             Apply stage
           </Button>
+          {canAssign && (
+            <Button onClick={() => setAssigning(true)}>
+              Give to…
+            </Button>
+          )}
           <button className="text-button" onClick={() => setSelected([])}>
             Clear selection
           </button>
         </div>
+      )}
+      {assigning && (
+        <AssignLeadsDialog
+          state={state}
+          picked={selected}
+          stage={stage === "All stages" ? "" : stage}
+          notify={notify}
+          onClose={() => {
+            setAssigning(false);
+            setSelected([]);
+          }}
+        />
       )}
       {view === "Map" ? (
         client ? (
@@ -212,6 +289,7 @@ export function Leads() {
           <DataTable
             paged
             remote={serverMode ? { total: served.total, page, onPage: setPage, onSize: setSize } : null}
+            filler={{ loading: serverMode && waiting, empty: <span className="muted">No leads match this view. Try another stage or search term.</span> }}
             view={table}
             rowKey={lead => lead.id}
             leading={
@@ -274,20 +352,7 @@ export function Leads() {
                     {
                       id: "next",
                       label: "Next step",
-                      cell: lead =>
-                        client ? (
-                          "Review property brief"
-                        ) : lead.callback ? (
-                          <span className="inline">
-                            <Clock size={14} />
-                            {callbackLabel(lead.callbackDate, lead.callback)}
-                          </span>
-                        ) : (
-                          <span className="next-empty">
-                            <span className="dash">—</span>
-                            <span className="hint">Set a next step</span>
-                          </span>
-                        ),
+                      cell: lead => <NextStepCell step={nextStepOf(lead, state.tasks)} client={client} />,
                     },
                   ]
                 : []),
@@ -298,7 +363,7 @@ export function Leads() {
               cell: lead => <RoundButton label={"Open " + lead.name} onClick={() => navigate("work/leads/" + lead.id)} />,
             }}
           />
-          {!table.rows.length && (serverMode && waiting ? <SkeletonRows rows={8} columns={6} /> : <Empty title="No leads match this view">Try another stage or search term.</Empty>)}
+
         </div>
       )}
     </>
@@ -388,19 +453,26 @@ function PropertyRecord({ lead, hideEmpty }) {
 export function LeadDetail({ id }) {
   const { state, dispatch, navigate, notify } = useCrm();
   const lead = scopedLeads(state).find(item => item.id === id);
-  // A big workspace sends this device a window of its leads: the details of one outside it come when it is opened.
-  useLeadDetails(id, Boolean(state.remote) && state.leadsTotal > state.leads.length);
+  // A big workspace sends this device a window of its leads: the details of one outside it come when it is opened. A lead that is not on
+  // this device at all (a fresh snapshot dropped it while its page was open) is asked for again before anything says it is out of view.
+  // Connected, the details are always asked for once (they are kept): they also name the lead's co-owners.
+  const fetching = useLeadDetails(id, Boolean(state.remote), !lead);
+  const [askedOnce, setAskedOnce] = useState(false);
+  useEffect(() => {
+    if (fetching) setAskedOnce(true);
+  }, [fetching]);
   const [tab, setTab] = useState("Overview");
   const [note, setNote] = useState("");
   const [visibility, setVisibility] = useState("internal");
   const [handoff, setHandoff] = useState(false);
   const [recipient, setRecipient] = useState("Alex Rivera");
   const [handoffNote, setHandoffNote] = useState("");
-  const [document, setDocument] = useState(false);
   const [newDeal, setNewDeal] = useState(false);
   const [confirm, setConfirm] = useState("");
   const [editingNote, setEditingNote] = useState(null);
   const [hideEmpty, setHideEmpty] = useState(false);
+  if (!lead && state.remote && (fetching || !askedOnce || state.remoteLoading))
+    return <SkeletonRows rows={6} columns={2} />;
   if (!lead)
     return (
       <Empty title="This record is outside your view" action={<Button onClick={() => navigate("work/leads")}>Back to visible leads</Button>}>
@@ -414,9 +486,21 @@ export function LeadDetail({ id }) {
   const tasks = state.tasks.filter(item => item.leadId === id && (!client || item.shared));
   const pending = state.queue.some(item => item.leadId === id);
   const leadDeals = state.deals.filter(deal => deal.leadId === id);
+  const coOwners = fetching ? [] : leadSource.relatedOf(id);
   return (
     <>
       <Breadcrumb items={[{ label: client ? "Shared properties" : "Leads", path: "work/leads" }, { label: lead.name }]} />
+      {coOwners.length > 0 && (
+        <p className="co-owners">
+          <Badge tone="info">Co-owners</Badge> Also at this property:{" "}
+          {coOwners.map((other, index) => (
+            <span key={other.id}>
+              {index > 0 && ", "}
+              <button type="button" className="text-link" onClick={() => navigate("work/leads/" + other.id)}>{other.name}</button>
+            </span>
+          ))}
+        </p>
+      )}
       <PageHeader title={lead.name} shared="lead-title" description={lead.address + " · " + lead.city}>
         {pending && <Badge tone="peach">Pending sync</Badge>}
         {lead.archived && <Badge tone="danger">Archived</Badge>}
@@ -557,7 +641,8 @@ export function LeadDetail({ id }) {
                 subtitle={client ? "Visible to you and the project team." : "Keep important details attached to the lead."}
               >
                 {notes.map(item => {
-                  const mine = item.actor === ROLES[state.role].person;
+                  // Connected: my note is one I wrote (by account), whatever my role; the demo compares the persona's name.
+                  const mine = state.remote ? Boolean(item.authorId) && item.authorId === state.remote.user?.id : item.actor === ROLES[state.role].person;
                   const manage = !client && (mine || editable);
                   return (
                     <article className="note" key={item.id}>
@@ -680,58 +765,8 @@ export function LeadDetail({ id }) {
               ))}
             </Card>
           )}
-          {tab === "Documents" && (
-            <Card title="Documents" subtitle={client ? "Only approved documents are shared here." : "Briefs and files connected to this property."}>
-              <div className="document-row">
-                <FileText size={32} weight="light" />
-                <div>
-                  <strong>Property brief · {lead.address}</strong>
-                  <small>Approved summary · sample document</small>
-                </div>
-                <Badge tone="good">Approved</Badge>
-                <Button onClick={() => setDocument(true)}>Open brief</Button>
-              </div>
-              {!client && (
-                <div className="document-row">
-                  <FileText size={32} weight="light" />
-                  <div>
-                    <strong>Source lineage</strong>
-                    <small>{state.datasets.find(item => item.id === lead.datasetId)?.name || "Imported file"}</small>
-                  </div>
-                  <Badge>Internal</Badge>
-                  <Button onClick={() => navigate("lists/" + lead.datasetId)}>View source</Button>
-                </div>
-              )}
-            </Card>
-          )}
-          {tab === "Evidence" && !client && (
-            <Card title="Phone & source evidence" subtitle="Separate contact quality from permission to contact.">
-              <div className="evidence-grid">
-                <div>
-                  <small>Contact quality</small>
-                  <Status value={lead.verdict} />
-                </div>
-                <div>
-                  <small>Permission</small>
-                  <Badge tone={lead.verdict === "Do not call" ? "danger" : ""}>{lead.verdict === "Do not call" ? "Blocked" : "Review before contacting"}</Badge>
-                </div>
-                <div>
-                  <small>Source</small>
-                  <strong>{lead.source}</strong>
-                </div>
-                <div>
-                  <small>Freshness</small>
-                  <strong>Sample evidence · October 14</strong>
-                </div>
-              </div>
-              <p className="notice subtle">
-                This preview uses illustrative evidence. A real check and current contact permissions are required in the application.
-              </p>
-              <Button onClick={() => navigate("lists/" + lead.datasetId)}>
-                Open original source <ArrowUpRight size={16} />
-              </Button>
-            </Card>
-          )}
+          {tab === "Documents" && <LeadDocuments lead={lead} client={client} />}
+          {tab === "Evidence" && !client && <PhoneHistory lead={lead} />}
           {tab === "Evidence" && !client && lead.sourceValues && (
             <Card title="Original source row" subtitle="Every column exactly as imported. CRM changes never edit it.">
               <div className="detail-fields source-row">
@@ -806,7 +841,7 @@ export function LeadDetail({ id }) {
                         notify("Lead assignment updated");
                       }}
                     >
-                      {[...PEOPLE, "Unassigned"].map(name => (
+                      {[...new Set([lead.assignee, ...assignableNames(state), "Unassigned"].filter(Boolean))].map(name => (
                         <option key={name}>{name}</option>
                       ))}
                     </Select>
@@ -814,26 +849,7 @@ export function LeadDetail({ id }) {
                 )}
               </>
             )}
-            {tasks
-              .filter(task => !task.done)
-              .map(task => (
-                <div className="compact-task" key={task.id}>
-                  <Clock size={17} />
-                  <div>
-                    <strong>{task.title}</strong>
-                    <small>
-                      {task.time} · {task.date}
-                    </small>
-                  </div>
-                </div>
-              ))}
-            {!tasks.length && <p className="muted">{client ? "No shared actions waiting." : "No tasks attached to this lead."}</p>}
-            <div className="row">
-              {capability(state, "edit") && <Button onClick={() => navigate("work/tasks/new?lead=" + id)}>Add a next step</Button>}
-              <Button onClick={() => navigate("work/tasks?lead=" + id)}>
-                All tasks <ArrowUpRight size={15} />
-              </Button>
-            </div>
+            <NextStepPanel lead={lead} tasks={tasks} client={client} />
           </Card>
           {!client && capability(state, "finance") && (
             <Card title="Deals" subtitle="Each transaction is tracked on its own.">
@@ -926,7 +942,7 @@ export function LeadDetail({ id }) {
           >
             <Field label="Send to">
               <Select aria-label="Handoff recipient" value={recipient} onChange={event => setRecipient(event.target.value)}>
-                {PEOPLE.filter(name => name !== ROLES[state.role].person).map(name => (
+                {teamNames(state).filter(name => name !== ROLES[state.role].person).map(name => (
                   <option key={name}>{name}</option>
                 ))}
               </Select>
@@ -963,24 +979,6 @@ export function LeadDetail({ id }) {
             {"This removes " + lead.name + " from the CRM and its source list, together with related notes, deals, tasks, conversations and call history. It cannot be undone."}
           </p>
         </ConfirmDialog>
-      )}
-      {document && (
-        <Modal title="Approved property brief" onClose={() => setDocument(false)}>
-          <article className="property-brief">
-            <Badge tone="good">Shared property summary</Badge>
-            <h3>{lead.address}</h3>
-            <p>
-              {lead.city}, {lead.region} {lead.zip}
-            </p>
-            <p>{propertyFacts(lead).join(" · ") || "Property details not supplied"}</p>
-            <p>
-              This fictional property is included in the sample project. Your team will attach the approved inspection and closing documents as the transaction
-              progresses.
-            </p>
-            <strong>Project contact: Oak & Palm Partners</strong>
-          </article>
-          <Button onClick={() => window.print()}>Print brief</Button>
-        </Modal>
       )}
     </>
   );
@@ -1079,7 +1077,7 @@ export function NewLead() {
           </Field>
           <Field label="Responsible person">
             <Select name="assignee" defaultValue={ROLES[state.role].person}>
-              {(capability(state, "assign") ? [...PEOPLE, "Unassigned"] : [ROLES[state.role].person]).map(name => (
+              {(capability(state, "assign") ? [...new Set([ROLES[state.role].person, ...assignableNames(state), "Unassigned"])] : [ROLES[state.role].person]).map(name => (
                 <option key={name}>{name}</option>
               ))}
             </Select>
@@ -1107,5 +1105,307 @@ export function NewLead() {
         </div>
       </form>
     </>
+  );
+}
+
+const dueLabel = step => (step.date ? callbackLabel(step.date, step.time) : "No date");
+
+/** The Leads table's Next step: the lead's earliest open task or callback (red once overdue), or what its stage suggests. */
+function NextStepCell({ step, client }) {
+  if (!step || (client && step.kind === "suggested")) return <span className="muted">—</span>;
+  if (step.kind === "suggested")
+    return (
+      <span className="next-suggested" title="Suggested from the lead's stage: open the lead to schedule it">
+        Suggested: {step.title}
+      </span>
+    );
+  return (
+    <span className={"inline next-step" + (step.overdue ? " overdue" : "")} title={step.overdue ? "Overdue" : undefined}>
+      <Clock size={14} />
+      <span>
+        {step.title} · {dueLabel(step)}
+      </span>
+    </span>
+  );
+}
+
+/** A lead's next step and how to schedule another: a call, a text, an appointment or a follow-up, for a person, on a day and time.
+ * It is a task, so it is on that person's tasks and calendar too. */
+function NextStepPanel({ lead, tasks, client }) {
+  const { state, dispatch, notify, navigate } = useCrm();
+  const step = nextStepOf(lead, tasks);
+  const me = state.remote ? state.remote.user?.name : ROLES[state.role].person;
+  const canSchedule = !client && (capability(state, "edit") || capability(state, "review"));
+  const people = capability(state, "assign") ? [...new Set([lead.assignee, me, ...assignableNames(state)].filter(name => name && name !== "Unassigned"))] : [me];
+  const [form, setForm] = useState(null);
+  const open = (type = "Call", title = "") =>
+    setForm({ type, title, date: TODAY, time: "10:00", assignee: lead.assignee && people.includes(lead.assignee) ? lead.assignee : me });
+  const later = tasks.filter(task => !task.done && task.id !== (step?.kind === "task" ? step.id : ""));
+  return (
+    <div className="next-step-panel">
+      {step && step.kind !== "suggested" && (
+        <div className={"next-step-now" + (step.overdue ? " overdue" : "")}>
+          <Clock size={18} />
+          <div>
+            <strong>{step.title}</strong>
+            <small>
+              {step.overdue ? "Overdue · " : ""}
+              {dueLabel(step)}
+              {step.kind === "task" && step.assignee ? " · " + step.assignee : ""}
+            </small>
+          </div>
+          {step.kind === "task" && canSchedule && (
+            <Button
+              onClick={() => {
+                dispatch({ type: "TASK", id: step.id });
+                notify("Step done");
+              }}
+            >
+              Done
+            </Button>
+          )}
+        </div>
+      )}
+      {step?.kind === "suggested" && !client && (
+        <div className="next-step-now suggested">
+          <div>
+            <small>Suggested from the stage</small>
+            <strong>{step.title}</strong>
+          </div>
+          {canSchedule && !form && <Button onClick={() => open(step.type, step.title)}>Schedule</Button>}
+        </div>
+      )}
+      {(!step || (client && step.kind === "suggested")) && <p className="muted">{client ? "No shared actions waiting." : "Nothing scheduled."}</p>}
+      {later.length > 0 && (
+        <ul className="next-step-later">
+          {later.map(task => (
+            <li key={task.id}>
+              {task.title} · {task.date ? callbackLabel(task.date, task.time) : "No date"}
+            </li>
+          ))}
+        </ul>
+      )}
+      {form && (
+        <form
+          className="next-step-form"
+          onSubmit={event => {
+            event.preventDefault();
+            dispatch({
+              type: "TASK",
+              task: { title: form.title.trim() || form.type + " · " + lead.name, leadId: lead.id, assignee: form.assignee, date: form.date, time: form.time, priority: "Normal", type: form.type },
+            });
+            notify("Next step scheduled");
+            setForm(null);
+          }}
+        >
+          <Field label="What">
+            <Select aria-label="Step type" value={form.type} onChange={event => setForm({ ...form, type: event.target.value })}>
+              {STEP_TYPES.map(type => (
+                <option key={type}>{type}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Note (optional)">
+            <input value={form.title} placeholder={form.type + " · " + lead.name} onChange={event => setForm({ ...form, title: event.target.value })} />
+          </Field>
+          <Field label="Day">
+            <DatePicker aria-label="Step day" min={TODAY} value={form.date} onChange={event => setForm({ ...form, date: event.target.value })} />
+          </Field>
+          <Field label="Time">
+            <TimePicker aria-label="Step time" value={form.time} onChange={event => setForm({ ...form, time: event.target.value })} />
+          </Field>
+          {people.length > 1 && (
+            <Field label="Who">
+              <Select aria-label="Who does it" value={form.assignee} onChange={event => setForm({ ...form, assignee: event.target.value })}>
+                {people.map(name => (
+                  <option key={name}>{name}</option>
+                ))}
+              </Select>
+            </Field>
+          )}
+          <div className="row">
+            <Button onClick={() => setForm(null)}>Cancel</Button>
+            <Button variant="primary" type="submit" disabled={!form.date}>
+              Schedule
+            </Button>
+          </div>
+        </form>
+      )}
+      <div className="row">
+        {canSchedule && !form && <Button onClick={() => open()}>Schedule a next step</Button>}
+        <Button onClick={() => navigate("work/tasks?lead=" + lead.id)}>
+          All tasks <ArrowUpRight size={15} />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+const fileSize = bytes => (bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(bytes / 1024)) + " KB");
+
+/** A lead's documents: files people uploaded (contracts, photos, statements), each internal or shared with the lead's clients, with
+ * who added it and when; plus the list the lead came from. Files live in the CRM's server, up to 10 MB each. */
+function LeadDocuments({ lead, client }) {
+  const { state, notify, navigate } = useCrm();
+  const remote = Boolean(state.remote);
+  const [files, setFiles] = useState(null);
+  const [canUpload, setCanUpload] = useState(false);
+  const [shared, setShared] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [removing, setRemoving] = useState("");
+  const picker = useRef(null);
+  const me = state.remote?.user?.id;
+  const load = () =>
+    api.files.list(lead.id).then(
+      found => {
+        setFiles(found.files || []);
+        setCanUpload(Boolean(found.can_upload));
+      },
+      reason => setError(reason.message || "Files could not be loaded."),
+    );
+  useEffect(() => {
+    if (remote) load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- load the files when the lead changes; load is redefined each render
+  }, [lead.id, remote]);
+  const upload = async chosen => {
+    const list = [...chosen];
+    if (!list.length) return;
+    const tooBig = list.find(file => file.size > 10 * 1048576);
+    if (tooBig) return setError(tooBig.name + " is over 10 MB.");
+    setBusy(true);
+    setError("");
+    try {
+      for (const file of list) await api.files.upload(lead.id, file, shared ? "shared" : "internal");
+      notify(list.length === 1 ? "File added" : list.length + " files added");
+      await load();
+    } catch (reason) {
+      setError(reason.message || "The file could not be added.");
+    } finally {
+      setBusy(false);
+      if (picker.current) picker.current.value = "";
+    }
+  };
+  const download = async file => {
+    try {
+      const blob = await api.files.download(file.id);
+      const url = URL.createObjectURL(blob);
+      const link = Object.assign(window.document.createElement("a"), { href: url, download: file.name });
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (reason) {
+      setError(reason.message || "The file could not be downloaded.");
+    }
+  };
+  const remove = async file => {
+    if (removing !== file.id) return setRemoving(file.id);
+    setRemoving("");
+    try {
+      await api.files.remove(file.id);
+      notify("File removed");
+      await load();
+    } catch (reason) {
+      setError(reason.message || "The file could not be removed.");
+    }
+  };
+  const dataset = state.datasets.find(item => item.id === lead.datasetId);
+  return (
+    <Card title="Documents" subtitle={client ? "Files your team shared with you." : "Contracts, photos and other files for this property."}>
+      {!remote && <p className="muted">Files are kept on the server: sign in to a workspace to add them.</p>}
+      {remote && files === null && !error && <SkeletonRows rows={2} columns={3} />}
+      {remote && files?.length === 0 && <p className="muted">{client ? "Nothing shared yet." : "No files yet."}</p>}
+      {(files || []).map(file => (
+        <div className="document-row" key={file.id}>
+          <FileText size={32} weight="light" />
+          <div>
+            <strong>{file.name}</strong>
+            <small>
+              {fileSize(file.size)} · {file.uploaded_label || "Someone"} · {new Date(file.created_at).toLocaleString()}
+            </small>
+          </div>
+          {!client && <Badge tone={file.visibility === "shared" ? "good" : ""}>{file.visibility === "shared" ? "Shared" : "Internal"}</Badge>}
+          <Button onClick={() => download(file)}>Download</Button>
+          {!client && (canUpload || file.uploaded_by === me) && (
+            <Button variant={removing === file.id ? "danger-button" : ""} onClick={() => remove(file)}>
+              {removing === file.id ? "Remove?" : "Remove"}
+            </Button>
+          )}
+        </div>
+      ))}
+      {remote && canUpload && (
+        <div className="document-upload">
+          <input ref={picker} type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.txt,.csv,.doc,.docx,.xls,.xlsx" onChange={event => upload(event.target.files)} />
+          <Button variant="primary" disabled={busy} onClick={() => picker.current?.click()}>
+            {busy ? "Adding…" : "Add files"}
+          </Button>
+          <Checkbox checked={shared} onChange={event => setShared(event.target.checked)} label="Share with this lead's clients" />
+          <small className="muted">PDF, images, text, Word or Excel, up to 10 MB each.</small>
+        </div>
+      )}
+      {error && <p className="field-error">{error}</p>}
+      {!client && lead.datasetId && (
+        <div className="document-row">
+          <FileText size={32} weight="light" />
+          <div>
+            <strong>Source list</strong>
+            <small>{dataset?.name || "Imported file"}</small>
+          </div>
+          <Badge>Internal</Badge>
+          <Button onClick={() => navigate("lists/" + lead.datasetId)}>View source</Button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** The Evidence tab: each of the lead's phones, how many times it was called, the last result and where the number stands now. */
+function PhoneHistory({ lead }) {
+  const phones = phoneHistory(lead);
+  return (
+    <Card title="Phone history" subtitle="What calling each number has shown so far.">
+      {!phones.length && <p className="muted">This lead has no phone number.</p>}
+      {phones.length > 0 && (
+        <div className="table-wrap">
+          <table className="phone-history">
+            <thead>
+              <tr>
+                <th scope="col">Phone</th>
+                <th scope="col">Status</th>
+                <th scope="col" className="num">Calls</th>
+                <th scope="col">Last call</th>
+              </tr>
+            </thead>
+            <tbody>
+              {phones.map(phone => (
+                <tr key={phone.number}>
+                  <td>
+                    <strong>{formatPhone(phone.number) || phone.number}</strong>
+                    <small className="muted">
+                      {[phone.primary ? "Main" : "", phone.type].filter(Boolean).join(" · ")}
+                    </small>
+                  </td>
+                  <td>
+                    <Badge tone={phone.tone}>{phone.status}</Badge>
+                  </td>
+                  <td className="num">{phone.calls}</td>
+                  <td>
+                    {phone.last ? (
+                      <>
+                        {phone.last.outcome}
+                        <small className="muted">
+                          {[phone.last.at ? new Date(phone.last.at).toLocaleString() : "", phone.last.agent].filter(Boolean).join(" · ")}
+                        </small>
+                      </>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
   );
 }

@@ -46,7 +46,7 @@ AUTH_GOOGLE_CLIENT_SECRET=<client secret>
 AUTH_NOTIFY_URL=http://notifications:8102
 # Secret caller token matching auth's entry in notifications NOTIFY_TOKENS. Rotate both together; mismatches break authentication emails.
 AUTH_NOTIFY_TOKEN=<the auth token from NOTIFY_TOKENS>
-# Billing service private address (http://billing:8103), never a public one. Lets the dashboard show plans, revenue and usage to staff. Set with AUTH_BILLING_TOKEN.
+# Optional. Billing service private address (http://billing:8103), never a public one. Leave empty until a payment provider is used: auth then keeps the memberships staff give (plans, limits, seats) itself. Set with AUTH_BILLING_TOKEN.
 AUTH_BILLING_URL=http://billing:8103
 # Secret caller token: the auth entry in billing's BILLING_TOKENS (auth=<token>), saved as a runtime variable. Without it the dashboard shows no revenue or usage.
 AUTH_BILLING_TOKEN=<the auth token from BILLING_TOKENS>
@@ -62,3 +62,6 @@ AUTH_TELEGRAM_WEBHOOK_SECRET=<a long random string, or empty>
 # gateway. Any AUTH_TURNSTILE_* variable left in Coolify from an older setup is ignored and can be deleted.
 # Secret shared with the MCP service (its MCP_AUTH_TOKEN), 32+ characters, to ask who an assistant's token belongs to. Empty turns connectors off. To rotate, list new,old; update MCP; drop the old.
 AUTH_MCP_TOKEN=<32+ random characters>
+
+# Parts the status page checks every minute (step 34): part=private health address, comma-separated; parts sign_in, crm, calls, texts, chats, email. Empty: incidents only.
+STATUS_PROBES=

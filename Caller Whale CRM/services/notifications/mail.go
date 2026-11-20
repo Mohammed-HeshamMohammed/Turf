@@ -216,10 +216,27 @@ func Render(template, to string, data map[string]any) (Message, error) {
 		if inviter == "" || role == "" || link == "" {
 			return Message{}, errors.New("team invitation needs inviter, role and link")
 		}
+		// role_name is the role in words ("Team manager"); expires says how long the invitation works ("72 hours").
+		if name := str("role_name"); name != "" {
+			role = name
+		}
+		expires := str("expires")
+		if expires == "" {
+			expires = "one hour"
+		}
+		// agency is the name of the agency inviting ("Blue Door Homes"); without it the email says Caller Whale, as before.
+		agency := strings.TrimSpace(str("agency"))
+		if strings.ContainsAny(agency, "\r\n") || len(agency) > 200 {
+			agency = ""
+		}
+		where, subject := "Caller Whale", "Your Caller Whale invitation"
+		if agency != "" && agency != "Caller Whale" {
+			where, subject = agency+" on Caller Whale", "Join "+agency+" on Caller Whale"
+		}
 		e := html.EscapeString
-		text := inviter + " invited you to Caller Whale as " + role + ".\n\nSign in or create an account with " + to + " at " + link + ", confirm your email, then accept the invitation in your dashboard. This invitation expires one hour after it was created.\n\nOnly this email address can accept it."
-		page := `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:520px"><p><strong>` + e(inviter) + `</strong> invited you to Caller Whale as <strong>` + e(role) + `</strong>.</p><p>Sign in or create an account with ` + e(to) + `, confirm your email, then accept the invitation in your dashboard. This invitation expires one hour after it was created.</p><p><a href="` + e(link) + `">Open Caller Whale</a></p><p>Only this email address can accept it.</p></div>`
-		return Message{To: to, Subject: "Your Caller Whale invitation", Text: text, HTML: page}, nil
+		text := inviter + " invited you to join " + where + " as " + role + ".\n\nOpen the invitation: " + link + "\n\nSign in or create an account with " + to + ", confirm your email, then accept it. This invitation expires " + expires + " after it was created.\n\nOnly this email address can accept it. If you did not expect it, you can report it from the invitation page."
+		page := `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:520px"><p><strong>` + e(inviter) + `</strong> invited you to join <strong>` + e(where) + `</strong> as <strong>` + e(role) + `</strong>.</p><p>Sign in or create an account with ` + e(to) + `, confirm your email, then accept it. This invitation expires ` + e(expires) + ` after it was created.</p><p><a href="` + e(link) + `" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none">Open the invitation</a></p><p style="color:#666;font-size:13px">Only this email address can accept it. If you did not expect it, you can report it from the invitation page.</p></div>`
+		return Message{To: to, Subject: subject, Text: text, HTML: page}, nil
 	case "contact":
 		// A message from the website's contact form, sent to the team's inbox (the "to"). The writer's address is the reply address.
 		from, message := str("email"), str("message")
@@ -242,6 +259,89 @@ func Render(template, to string, data map[string]any) (Message, error) {
 			`<p style="white-space:pre-wrap">` + e(message) + "</p>" +
 			`<p style="color:#666;font-size:13px">Reply to this email to answer them.</p></div>`
 		return Message{To: to, ReplyTo: writer.Address, Subject: "Contact form: " + subjectOf(name, writer.Address), Text: text, HTML: page}, nil
+	case "report":
+		// A scheduled report from the CRM (step 32): totals only; the details open in Caller Whale (D227). No lead is named here.
+		agency, period, link := str("agency"), str("period"), str("link")
+		lines, _ := data["lines"].([]any)
+		if agency == "" || period == "" || !strings.HasPrefix(link, "https://") || len(lines) == 0 || len(lines) > 20 ||
+			strings.ContainsAny(agency+period, "\r\n") || len(agency) > 200 || len(period) > 80 {
+			return Message{}, errors.New("report needs agency, period, lines and an https link")
+		}
+		e := html.EscapeString
+		var text, rows strings.Builder
+		for _, l := range lines {
+			m, _ := l.(map[string]any)
+			label, _ := m["label"].(string)
+			value := fmt.Sprint(m["value"])
+			if v, ok := m["value"].(float64); ok {
+				value = thousands(int64(v))
+			}
+			if label == "" || len(label) > 80 {
+				return Message{}, errors.New("each report line needs a short label")
+			}
+			text.WriteString(label + ": " + value + "\n")
+			rows.WriteString(`<tr><td style="padding:4px 16px 4px 0">` + e(label) + `</td><td style="text-align:right"><strong>` + e(value) + `</strong></td></tr>`)
+		}
+		body := agency + ", " + period + "\n\n" + text.String() + "\nThe details: " + link + "\n\nYou get this because a report was scheduled for you in Caller Whale."
+		page := `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:520px"><p><strong>` +
+			e(agency) + `</strong>, ` + e(period) + `</p><table>` + rows.String() + `</table><p><a href="` + e(link) +
+			`" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none">Open the details</a></p>` +
+			`<p style="color:#666;font-size:13px">You get this because a report was scheduled for you in Caller Whale.</p></div>`
+		return Message{To: to, Subject: agency + ": " + period, Text: body, HTML: page}, nil
+	case "status":
+		// Something is down, or back (step 34, D235): to the people who chose these emails.
+		title, message, link := str("title"), str("message"), str("link")
+		if title == "" || len(title) > 160 || strings.ContainsAny(title, "\r\n") || len(message) > 2000 || !strings.HasPrefix(link, "https://") {
+			return Message{}, errors.New("status needs a title and an https link")
+		}
+		e := html.EscapeString
+		text := title + "\n\n" + message + "\n\nSee the status page: " + link + "\n\nYou get this because you chose status emails in Caller Whale."
+		page := `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:520px"><p><strong>` +
+			e(title) + `</strong></p><p style="white-space:pre-wrap">` + e(message) + `</p><p><a href="` + e(link) + `">See the status page</a></p>` +
+			`<p style="color:#666;font-size:13px">You get this because you chose status emails in Caller Whale.</p></div>`
+		return Message{To: to, Subject: title, Text: text, HTML: page}, nil
+	case "support_reply":
+		// Caller Whale's staff answered an agency's support conversation (step 40, D292).
+		title, message, link := str("title"), str("message"), str("link")
+		if title == "" || len(title) > 160 || strings.ContainsAny(title, "\r\n") || message == "" || len(message) > 2000 || !strings.HasPrefix(link, "https://") {
+			return Message{}, errors.New("support_reply needs a title, the message and an https link")
+		}
+		e := html.EscapeString
+		text := title + "\n\n" + message + "\n\nRead and reply: " + link + "\n\nYou get this because you wrote to Caller Whale support."
+		page := `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:520px"><p><strong>` +
+			e(title) + `</strong></p><p style="white-space:pre-wrap">` + e(message) + `</p><p><a href="` + e(link) + `">Read and reply</a></p>` +
+			`<p style="color:#666;font-size:13px">You get this because you wrote to Caller Whale support.</p></div>`
+		return Message{To: to, Subject: title, Text: text, HTML: page}, nil
+	case "breach_notice":
+		// A security breach affecting the agency's data, to its owner within 72 hours (step 34, D236). The words are staff's; the
+		// lawyer sets what else must be said.
+		what, toDo, discovered := str("what"), str("to_do"), str("discovered")
+		if what == "" || toDo == "" || discovered == "" || len(what) > 5000 || len(toDo) > 5000 {
+			return Message{}, errors.New("breach_notice needs what happened, what to do and when it was found")
+		}
+		e := html.EscapeString
+		text := "We are writing to tell you about a security incident that affected your agency's data in Caller Whale.\n\nWhen we learned of it: " + discovered +
+			"\n\nWhat happened:\n" + what + "\n\nWhat you should do:\n" + toDo + "\n\nReply to this email with any question. We will tell you of anything new we learn.\n\n— Caller Whale"
+		page := `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:560px">` +
+			`<p>We are writing to tell you about a security incident that affected your agency's data in Caller Whale.</p>` +
+			`<p><strong>When we learned of it:</strong> ` + e(discovered) + `</p><p><strong>What happened</strong></p><p style="white-space:pre-wrap">` + e(what) +
+			`</p><p><strong>What you should do</strong></p><p style="white-space:pre-wrap">` + e(toDo) + `</p><p>Reply to this email with any question. We will tell you of anything new we learn.</p></div>`
+		return Message{To: to, Subject: "Important: a security incident affecting your Caller Whale data", Text: text, HTML: page}, nil
+	case "new_sign_in":
+		// A sign-in from a device the person never used (step 35, D242), with a way to end it.
+		device, place, at, link := str("device"), str("place"), str("at"), str("link")
+		if device == "" || at == "" || !strings.HasPrefix(link, "http") || len(device) > 80 || len(place) > 80 || strings.ContainsAny(device+place, "\r\n") {
+			return Message{}, errors.New("new_sign_in needs the device, the time and a link")
+		}
+		e := html.EscapeString
+		text := "Someone signed in to your Caller Whale account from a new device.\n\nDevice: " + device + "\nWhere: " + place + "\nWhen: " + at +
+			"\n\nIf it was you, there is nothing to do.\n\nIf it wasn't you, sign that device out and choose a new password: " + link + "\n\n— Caller Whale"
+		page := `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;color:#1b1b1b;max-width:520px">` +
+			`<p>Someone signed in to your Caller Whale account from a new device.</p><p><strong>Device:</strong> ` + e(device) + `<br><strong>Where:</strong> ` + e(place) +
+			`<br><strong>When:</strong> ` + e(at) + `</p><p>If it was you, there is nothing to do.</p>` +
+			`<p><a href="` + e(link) + `" style="display:inline-block;background:#111;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none">This wasn't me</a></p>` +
+			`<p style="color:#666;font-size:13px">The button signs that device out and emails you a link to choose a new password.</p></div>`
+		return Message{To: to, Subject: "New sign-in to your Caller Whale account", Text: text, HTML: page}, nil
 	}
 	return Message{}, errors.New("unknown template")
 }

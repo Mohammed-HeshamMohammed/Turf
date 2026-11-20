@@ -17,3 +17,8 @@ ASSISTANT_MESSAGES_PER_MINUTE=12
 ASSISTANT_AI_PER_VISITOR_PER_DAY=30
 # AI answers for all visitors together a day; default 2000. The ceiling on the bill.
 ASSISTANT_AI_PER_DAY=2000
+
+# The in-app assistant for the agency's people (build step 26): the key crm-core and dialer-sms use for /v1/agent/complete, 32+ characters.
+# Secret, set in Coolify only. Empty: the in-app assistant is off (the website's helper chat still works).
+# Secret, 32+ characters: the key crm-core and dialer-sms use for the in-app assistant (/v1/agent/complete, step 26). Their ASSISTANT_TOKEN. Empty turns it off.
+AGENT_TOKEN=

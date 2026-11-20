@@ -35,7 +35,8 @@ func (s *server) staffActor(r *http.Request, manage bool) (claims, error) {
 	if manage && profile.PlatformRole != "owner" && profile.PlatformRole != "cofounder" {
 		return claims{}, forbidden("Only the platform owner or cofounder can manage staff.")
 	}
-	if !manage && profile.PlatformRole != "owner" && profile.PlatformRole != "cofounder" && profile.PlatformRole != "system_admin" {
+	// system_admin is switched off for now (authz disabledRoles).
+	if !manage && profile.PlatformRole != "owner" && profile.PlatformRole != "cofounder" {
 		return claims{}, forbidden("This dashboard is for Caller Whale staff.")
 	}
 	return c, nil
@@ -93,7 +94,8 @@ func (s *server) assignStaff(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	body.Email = strings.ToLower(strings.TrimSpace(body.Email))
-	if body.Email == "" || (body.Role != "" && body.Role != "system_admin" && body.Role != "tester") {
+	// The system admin role is gone (D338); testers remain.
+	if body.Email == "" || (body.Role != "" && body.Role != "tester") {
 		return bad("Choose an account email and a staff role.")
 	}
 	var target string

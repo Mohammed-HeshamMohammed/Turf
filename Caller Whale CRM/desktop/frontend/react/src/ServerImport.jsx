@@ -189,6 +189,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
   const [error, setError] = useState("");
   const [choices, setChoices] = useState({});
   const [repeats, setRepeats] = useState(null);
+  const [picking, setPicking] = useState(null);
   const [repeatLimit, setRepeatLimit] = useState(12);
   const [loadingMore, setLoadingMore] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -227,6 +228,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
       setJob(current);
       if (current.status !== "uploading") void track(resume);
     }).catch(reason => setError(reason.message || "This import could not be loaded."));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once per import; track is redefined each render
   }, [resume]);
 
   async function upload() {
@@ -530,7 +532,13 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
                       <RepeatRow key={row.row_no} row={row} group={group} columns={columns} />
                     ))}
                   </ul>
+                  {maybeCoOwners(group) &&
+                    <p className="muted"><Badge tone="info">Possible co-owners</Badge> Same property, different names. Choose Keep separate: each stays its own lead, linked to the others at this property.</p>}
+                  {picking === group[0].group_id &&
+                    <FieldPicker group={group} busy={busy} onCancel={() => setPicking(null)}
+                      onMerge={pick => act(() => api.imports.decide(job.id, { picks: [pick] }), "Repeat group merged with the fields you chose.").then(() => setPicking(null))} />}
                   <div className="import-repeat-actions">
+                    <Button disabled={busy || (repeats.rows.length < repeats.total && group[0].group_id === lastLoadedGroup)} onClick={() => setPicking(current => current === group[0].group_id ? null : group[0].group_id)}>Choose fields</Button>
                     <Button disabled={busy || (repeats.rows.length < repeats.total && group[0].group_id === lastLoadedGroup)} onClick={() => act(() => api.imports.decide(job.id, { decisions: [{ group_id: group[0].group_id, action: "skip" }] }), "Repeat group left out.")}>Leave out</Button>
                     <Button disabled={busy || (repeats.rows.length < repeats.total && group[0].group_id === lastLoadedGroup)} onClick={() => act(() => api.imports.decide(job.id, { decisions: [{ group_id: group[0].group_id, action: "import" }] }), "Repeat group kept as separate leads.")}>Keep separate</Button>
                     <Button disabled={busy || (repeats.rows.length < repeats.total && group[0].group_id === lastLoadedGroup)} onClick={() => act(() => api.imports.decide(job.id, { decisions: [{ group_id: group[0].group_id, action: "merge" }] }), "Repeat group marked to merge.")}>Merge</Button>
@@ -693,4 +701,54 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
     <Card title={title} className="source-import-review">{content}</Card>
     {job?.id && job.status !== "cancelled" && <SourceRows jobs={[job]} navigate={navigate} />}
   </>;
+}
+
+const PICK_FIELDS = [["name", "Name"], ["phone", "Phone"], ["email", "Email"], ["address", "Address"], ["city", "City"], ["zip", "ZIP"]];
+const sameName = value => String(value || "").toLowerCase().replace(/[^a-z]/g, "");
+
+/** Rows at one address under names that are not the same person: likely co-owners (siblings, spouses, heirs), not a repeat. */
+export function maybeCoOwners(group) {
+  const names = new Set(group.flatMap(row => [row.name, row.match_lead ? row.match_name : null]).filter(Boolean).map(sameName));
+  const addresses = new Set(group.flatMap(row => [row.address, row.match_lead ? row.match_address : null]).filter(Boolean).map(sameName));
+  return names.size > 1 && addresses.size === 1 && [...names].every(name => [...names].every(other => name === other || !(name.includes(other) || other.includes(name))));
+}
+
+/** Merging one repeat group field by field: for each field, which row's value the lead keeps (or what the lead in your CRM already
+ * has). Every phone and email of the group can be kept among the lead's contacts. */
+export function FieldPicker({ group, busy, onMerge, onCancel }) {
+  const lead = group.find(row => row.match_lead);
+  const sources = [...(lead ? [{ key: "lead", label: "In your CRM", value: field => lead["match_" + field] }] : []),
+    ...group.map(row => ({ key: row.row_no, label: `Row ${number(row.row_no)}`, value: field => row[field] }))];
+  const [fields, setFields] = useState(() => Object.fromEntries(PICK_FIELDS.map(([field]) => [field, sources.find(source => source.value(field))?.key ?? sources[0].key])));
+  const [keepAll, setKeepAll] = useState(true);
+  return (
+    <div className="import-field-picker">
+      <table>
+        <thead>
+          <tr><th scope="col">Field</th>{sources.map(source => <th scope="col" key={source.key}>{source.label}</th>)}</tr>
+        </thead>
+        <tbody>
+          {PICK_FIELDS.map(([field, label]) => (
+            <tr key={field}>
+              <th scope="row">{label}</th>
+              {sources.map(source => (
+                <td key={source.key}>
+                  <label className="import-pick">
+                    <input type="radio" name={`pick-${group[0].group_id}-${field}`} checked={fields[field] === source.key}
+                      onChange={() => setFields(current => ({ ...current, [field]: source.key }))} />
+                    <span>{source.value(field) || <em className="muted">empty</em>}</span>
+                  </label>
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <Checkbox checked={keepAll} onChange={event => setKeepAll(event.target.checked)} label="Keep every phone and email of these rows on the lead" />
+      <div className="import-repeat-actions">
+        <Button onClick={onCancel} disabled={busy}>Cancel</Button>
+        <Button variant="primary" disabled={busy} onClick={() => onMerge({ group_id: group[0].group_id, fields, keep_all: keepAll })}>Merge with these</Button>
+      </div>
+    </div>
+  );
 }

@@ -141,9 +141,13 @@ flowchart LR
 
 Calling is fourth because it has the most unknowns, but its two risks (the desktop window's microphone, registration lead time) are tested in step 0.
 
+**Rollout status and what is left to do (DNS, gateway, switching the CRM on): [messaging-rollout-status.md](messaging-rollout-status.md).**
+
 ## Built so far
 
-- **2026-11-14, step 1, server side:** `services/messaging` (Go): direct chats and groups, replies, mentions, reactions, polls, edits, deletes, unread counts, row security, and the outbox that feeds Centrifugo. Its tests pass against a local PostgreSQL and run in the GitHub checks. Not yet run in a container or against a real Centrifugo, and the CRM's Inbox does not use it yet. See `services/messaging/README.md`.
+- **2026-11-14, step 1, server side:** `services/messaging` (Go): direct chats and groups, replies, mentions, reactions, polls, edits, deletes, unread counts, row security, and the outbox that feeds Centrifugo. Its tests pass against a local PostgreSQL and run in the GitHub checks. Not yet run in a container or against a real Centrifugo, and the CRM's Inbox does not use it yet. See `services/messaging/README.md`. (2026-11-14: the service runs requests as its own restricted role when given a superuser database login, as Coolify's databases are, so row security applies without a hand-made login.)
+
+- **2026-11-15, step 4 (server side) and step 2's sending rules, against a simulator:** `services/features/dialer-sms` (Go, replacing the TypeScript scaffold; one container for calls and texts, not two). Telnyx Call Control, Messaging and WebRTC tokens behind one `carrier` interface; signed webhooks folded into one record per call, whatever their order or repeats; each finished call logged in crm-core as `call.record` through a private door (`services/crm-core/dialer.go`). With `TELNYX_MODE=simulate` a built-in Telnyx simulator plays every scenario (answered, machine, voicemail drop, no answer, busy, disconnected, carrier failure, rejected, early hang-up, dropped, transfer, callback, inbound, texts, STOP). Not deployed and never run against real Telnyx; the CRM's Calls page does not use it yet. See its README.
 
 ## Decisions needed
 

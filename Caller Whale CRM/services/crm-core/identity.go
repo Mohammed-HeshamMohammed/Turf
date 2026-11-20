@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
+	"crypto/rand"
 	"database/sql"
 	"errors"
+	"fmt"
+	"log"
 	"net/http"
 	"slices"
 	"strings"
@@ -21,7 +25,7 @@ func (s *server) me(q *req) error {
 	}
 	// Caller Whale's own owner, cofounder and system admins work in a workspace of their own, opened for them the first time (and
 	// only after their second step), the way the old server did. Everyone else is given a workspace by an owner or by an invitation.
-	if len(ppl.Workspaces) == 0 && q.c.secondFactor && slices.Contains([]string{"owner", "cofounder", "system_admin"}, ppl.PlatformRole) {
+	if len(ppl.Workspaces) == 0 && q.c.secondFactor && slices.Contains([]string{"owner", "cofounder"}, ppl.PlatformRole) { // system admin is switched off
 		if err = s.rules.open(ctx, staffWorkspaceID(q.c.sub), q.c.sub, "owner"); err != nil {
 			return err
 		}
@@ -50,12 +54,25 @@ func (s *server) me(q *req) error {
 		return err
 	}
 	defer rows.Close()
+	owned := map[string]string{} // the agencies this person owns, by name, for invitations to name them
 	for rows.Next() {
 		var id, name, timezone string
 		if err = rows.Scan(&id, &name, &timezone); err != nil {
 			return err
 		}
 		orgs = append(orgs, map[string]any{"id": id, "name": name, "timezone": timezone})
+		for _, w := range ppl.Workspaces {
+			if w.OrgID == id && w.BusinessOwner {
+				owned[id] = name
+			}
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
+	rows.Close()
+	for id, name := range owned {
+		s.shareOrgName(ctx, id, name)
 	}
 	if err = s.st.db.QueryRow(ctx, `SELECT last_org_id::text, last_org_at FROM people WHERE user_id = $1`, q.c.sub).Scan(&lastOrg, &lastAt); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
@@ -101,6 +118,7 @@ func (s *server) me(q *req) error {
 			return err
 		}
 		body["organization_id"], body["roles"] = current.OrgID, current.Roles
+		body["carrier"] = s.carrierFor(ctx, current.OrgID) // step 39: calling, texting and importing wait for the carriers (D314)
 		switch {
 		case g.Allowed:
 			body["capabilities"], body["scopes"], body["team_ids"] = nonNil(g.Capabilities), nonNil(g.Scopes), nonNil(g.TeamIDs)
@@ -162,22 +180,25 @@ func (s *server) directory(q *req) error {
 	if err != nil {
 		return err
 	}
-	names := map[string]string{}
+	// Everyone in the agency sees who is in it, with roles and teams (D53, D54, D334). An email shows only to the owner and admins,
+	// to the person's own team leads, and to the person (D371).
+	everyone := slices.Contains(q.sc.scopes, "organization")
+	names, avatars, emails, tags := map[string]string{}, map[string]string{}, map[string]string{}, map[string]string{}
 	ids := make([]string, 0, len(members))
 	for _, m := range members {
 		ids = append(ids, m.UserID)
 	}
-	rows, err := s.st.db.Query(ctx, `SELECT user_id::text, name FROM people WHERE user_id = ANY($1::uuid[])`, onlyIDs(ids))
+	rows, err := s.st.db.Query(ctx, `SELECT user_id::text, name, avatar, email, tag FROM people WHERE user_id = ANY($1::uuid[])`, onlyIDs(ids))
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var id, name string
-		if err = rows.Scan(&id, &name); err != nil {
+		var id, name, avatar, email, tag string
+		if err = rows.Scan(&id, &name, &avatar, &email, &tag); err != nil {
 			return err
 		}
-		names[id] = name
+		names[id], avatars[id], emails[id], tags[id] = name, avatar, email, tag
 	}
 	out := make([]map[string]any, 0, len(members))
 	for _, m := range members {
@@ -185,7 +206,12 @@ func (s *server) directory(q *req) error {
 		if name == "" {
 			name = "Member"
 		}
-		out = append(out, map[string]any{"id": m.UserID, "name": name, "roles": nonNil(m.Roles), "team_ids": nonNil(m.TeamIDs), "sign_in": nil})
+		// The tag tells two people of the same name apart; the screens show it only when two names on screen are the same (D187).
+		entry := map[string]any{"id": m.UserID, "name": name, "tag": tags[m.UserID], "avatar": avatars[m.UserID], "roles": nonNil(m.Roles), "team_ids": nonNil(m.TeamIDs), "sign_in": nil}
+		if everyone || m.UserID == q.sc.userID || inTeams(m, q.grant.ManagedTeamIDs) {
+			entry["email"] = emails[m.UserID]
+		}
+		out = append(out, entry)
 	}
 	slices.SortFunc(out, func(a, b map[string]any) int { return strings.Compare(a["name"].(string), b["name"].(string)) })
 	writeJSON(q.w, 200, out)
@@ -202,13 +228,29 @@ func onlyIDs(ids []string) []string {
 	return keep
 }
 
+// teams lists the workspace's teams. authz holds the tree (each team and its manager); the CRM keeps a copy of the names so its
+// leads can point at a team, refreshed here from authz each time the list is read.
 func (s *server) teams(q *req) error {
-	tx, err := s.st.begin(q.r.Context(), q.sc)
+	ctx := q.r.Context()
+	managers := map[string]string{}
+	if listed, err := s.rules.teams(ctx, q.sc.orgID); err == nil {
+		if err := s.copyTeams(ctx, q.sc, listed); err != nil {
+			return err
+		}
+		for _, t := range listed {
+			if leads := t.leads(); len(leads) > 0 {
+				managers[t.TeamID] = leads[0]
+			}
+		}
+	} else {
+		log.Printf("WARN reading the teams from authz: %v", err)
+	}
+	tx, err := s.st.begin(ctx, q.sc)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(q.r.Context())
-	rows, err := queryJSON(q.r.Context(), tx, `SELECT to_jsonb(t) FROM teams t ORDER BY name`)
+	defer tx.Rollback(ctx)
+	rows, err := queryJSON(ctx, tx, `SELECT to_jsonb(t) || jsonb_build_object('manager_id', coalesce(($1::jsonb)->>(t.id::text), '')) FROM teams t ORDER BY name`, managers)
 	if err != nil {
 		return err
 	}
@@ -219,6 +261,9 @@ func (s *server) teams(q *req) error {
 type named struct {
 	Name                string   `json:"name"`
 	QualificationFields []string `json:"qualification_fields"`
+	// A list's client and who supplied it (step 23, D126); none: the agency's own business, supplied by the agency.
+	ClientID   string `json:"client_id"`
+	SuppliedBy string `json:"supplied_by"`
 }
 
 func (s *server) createTeam(q *req) error {
@@ -230,16 +275,21 @@ func (s *server) createTeam(q *req) error {
 		return err
 	}
 	name := strings.TrimSpace(body.Name)
-	if name == "" || len(name) > 200 {
-		return bad("Name the team (up to 200 characters).")
+	if name == "" || len(name) > 100 {
+		return bad("Name the team (up to 100 characters).")
 	}
 	ctx := q.r.Context()
+	// The team is made in authz first (it holds the tree), then copied here under the same id.
+	id := randomID()
+	if err := s.rules.putTeam(ctx, q.sc.orgID, id, name, q.sc.userID, q.c.secondFactor); err != nil {
+		return err
+	}
 	tx, err := s.st.begin(ctx, q.sc)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	rec, err := queryJSON(ctx, tx, `INSERT INTO teams (org_id, name) VALUES (cw_org(), $1) ON CONFLICT (org_id, name) DO UPDATE SET name = EXCLUDED.name RETURNING to_jsonb(teams.*)`, name)
+	rec, err := queryJSON(ctx, tx, `INSERT INTO teams (id, org_id, name) VALUES ($2, cw_org(), $1) ON CONFLICT (org_id, name) DO UPDATE SET name = EXCLUDED.name RETURNING to_jsonb(teams.*)`, name, id)
 	if err != nil {
 		return err
 	}
@@ -292,7 +342,26 @@ func (s *server) createProject(q *req) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	rec, err := queryJSON(ctx, tx, `INSERT INTO projects (org_id, name, qualification_fields) VALUES (cw_org(), $1, $2) RETURNING to_jsonb(projects.*)`, name, body.QualificationFields)
+	if body.SuppliedBy == "" {
+		body.SuppliedBy = "agency"
+	}
+	if body.SuppliedBy != "agency" && body.SuppliedBy != "client" {
+		return bad("A list is supplied by the agency or the client.")
+	}
+	if body.ClientID != "" {
+		var own bool
+		err := tx.QueryRow(ctx, `SELECT own_business FROM clients WHERE id = $1 AND org_id = cw_org() AND ended_at IS NULL`, body.ClientID).Scan(&own)
+		if err != nil {
+			return bad("Choose one of the agency's clients.")
+		}
+		if own {
+			body.ClientID = "" // the agency's own business is kept as no client
+		}
+	}
+	if body.ClientID == "" && body.SuppliedBy == "client" {
+		return bad("A list the client supplied needs its client.")
+	}
+	rec, err := queryJSON(ctx, tx, `INSERT INTO projects (org_id, name, qualification_fields, client_id, supplied_by) VALUES (cw_org(), $1, $2, nullif($3, '')::uuid, $4) RETURNING to_jsonb(projects.*)`, name, body.QualificationFields, body.ClientID, body.SuppliedBy)
 	if err != nil {
 		return err
 	}
@@ -392,12 +461,75 @@ func (s *server) renameOrg(q *req) error {
 		return err
 	}
 	name := strings.TrimSpace(body.Name)
-	if name == "" || len(name) > 200 {
-		return bad("Name the workspace (up to 200 characters).")
+	if name == "" || len(name) > 200 || strings.ContainsAny(name, "\r\n") {
+		return bad("Name the workspace (up to 200 characters, on one line).")
 	}
 	if _, err := s.st.db.Exec(q.r.Context(), `UPDATE orgs SET name = $2 WHERE id = $1`, q.sc.orgID, name); err != nil {
 		return err
 	}
+	s.shareOrgName(q.r.Context(), q.sc.orgID, name)
 	writeJSON(q.w, 200, map[string]any{"id": q.sc.orgID, "name": name})
 	return nil
 }
+
+// copyTeams brings the CRM's copy of the team names up to date with authz. A team is never deleted here: leads may still point at
+// it. A name already used by an older team of this workspace is left as it is.
+func (s *server) copyTeams(ctx context.Context, sc scope, teams []authzTeam) error {
+	if len(teams) == 0 {
+		return nil
+	}
+	tx, err := s.st.begin(ctx, sc)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	for _, t := range teams {
+		if !validID(t.TeamID) {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `UPDATE teams SET name = $2 WHERE id = $1 AND name <> $2 AND NOT EXISTS (SELECT 1 FROM teams o WHERE o.org_id = cw_org() AND o.name = $2 AND o.id <> $1)`, t.TeamID, t.Name); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO teams (id, org_id, name) VALUES ($1, cw_org(), $2) ON CONFLICT DO NOTHING`, t.TeamID, t.Name); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+// randomID is a random (version 4) UUID.
+func randomID() string {
+	var b [16]byte
+	_, _ = rand.Read(b[:])
+	b[6], b[8] = b[6]&0x0f|0x40, b[8]&0x3f|0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+// setPicture answers PUT /api/v1/me/picture: the person's CRM sends the picture their account has, so the team sees the same face. A
+// small PNG, JPEG or WebP image (as a data address, at most 300 KB) or an https address; an empty one removes it.
+func (s *server) setPicture(q *req) error {
+	var body struct {
+		Avatar string `json:"avatar"`
+	}
+	if err := readJSON(q.w, q.r, &body); err != nil {
+		return err
+	}
+	avatar := strings.TrimSpace(body.Avatar)
+	switch {
+	case avatar == "":
+	case strings.HasPrefix(avatar, "data:image/png;base64,"), strings.HasPrefix(avatar, "data:image/jpeg;base64,"), strings.HasPrefix(avatar, "data:image/webp;base64,"):
+		if len(avatar) > 400_000 {
+			return bad("That picture is too big.")
+		}
+	case strings.HasPrefix(avatar, "https://") && len(avatar) <= 1000 && !strings.ContainsAny(avatar, " \"<>"):
+	default:
+		return bad("A picture is a PNG, JPEG or WebP image, or an https address.")
+	}
+	if _, err := s.st.db.Exec(q.r.Context(), `INSERT INTO people (user_id, name, email, avatar) VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_id) DO UPDATE SET avatar = EXCLUDED.avatar`, q.c.sub, label(q.c), q.c.email, avatar); err != nil {
+		return err
+	}
+	writeJSON(q.w, http.StatusOK, map[string]any{"ok": true})
+	return nil
+}
+

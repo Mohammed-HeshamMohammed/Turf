@@ -14,7 +14,9 @@ import (
 type mailer interface {
 	sendConfirmation(ctx context.Context, to, name, link string) error
 	sendCode(ctx context.Context, to, code string) error
-	sendInvitation(ctx context.Context, to, inviter, role, link string) error
+	sendInvitation(ctx context.Context, to, inviter, agency, role, roleName, expires, link string) error
+	// sendTemplate sends any other template the notification service keeps (status, breach_notice: step 34).
+	sendTemplate(ctx context.Context, template, to string, data map[string]any) error
 }
 
 type notify struct {
@@ -49,10 +51,14 @@ func (n *notify) sendConfirmation(ctx context.Context, to, name, link string) er
 	return n.post(ctx, map[string]any{"template": "confirm_email", "to": to, "data": map[string]any{"name": name, "link": link}})
 }
 
+func (n *notify) sendTemplate(ctx context.Context, template, to string, data map[string]any) error {
+	return n.post(ctx, map[string]any{"template": template, "to": to, "data": data})
+}
+
 func (n *notify) sendCode(ctx context.Context, to, code string) error {
 	return n.post(ctx, map[string]any{"template": "mfa_code", "to": to, "data": map[string]any{"code": code}})
 }
 
-func (n *notify) sendInvitation(ctx context.Context, to, inviter, role, link string) error {
-	return n.post(ctx, map[string]any{"template": "team_invitation", "to": to, "data": map[string]any{"inviter": inviter, "role": role, "link": link}})
+func (n *notify) sendInvitation(ctx context.Context, to, inviter, agency, role, roleName, expires, link string) error {
+	return n.post(ctx, map[string]any{"template": "team_invitation", "to": to, "data": map[string]any{"inviter": inviter, "agency": agency, "role": role, "role_name": roleName, "expires": expires, "link": link}})
 }

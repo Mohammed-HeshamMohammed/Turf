@@ -26,6 +26,15 @@ var authRoutes = []string{
 	"GET /v1/me",
 	"POST /v1/me/profile",
 	"POST /v1/me/username",
+	"POST /v1/me/tag", "POST /v1/me/tag-note", "PUT /v1/me/privacy", "GET /v1/people/search",
+	"GET /v1/me/agencies", "GET /v1/me/export", "GET /v1/invitations/{id}/preview",
+	"POST /v1/orgs/{org}/handover", "GET /v1/orgs/{org}/handover", "DELETE /v1/orgs/{org}/handover", "GET /v1/me/handovers",
+	"POST /v1/me/handovers/{id}/accept", "POST /v1/me/handovers/{id}/decline", "PUT /v1/admin/workspaces/{org}/paused",
+	"GET /v1/orgs/{org}/seats", "POST /v1/orgs/{org}/seats/keep",
+	"GET /v1/me/ai-requests", "POST /v1/me/ai-requests/{id}/approve", "POST /v1/me/ai-requests/{id}/reject",
+	"GET /v1/orgs/{org}/support", "POST /v1/orgs/{org}/support", "DELETE /v1/orgs/{org}/support", "GET /v1/admin/support",
+	"GET /v1/orgs/{org}/plan-stage", "POST /v1/orgs/{org}/close", "POST /v1/orgs/{org}/reopen",
+	"POST /v1/orgs/{org}/takeover", "GET /v1/admin/takeovers", "POST /v1/admin/takeovers/{id}/approve", "POST /v1/admin/takeovers/{id}/reject",
 	"POST /v1/me/birth-date",
 	"POST /v1/me/terms",
 	"POST /v1/me/work",
@@ -34,12 +43,20 @@ var authRoutes = []string{
 	"GET /v1/admin/staff",
 	"POST /v1/admin/staff",
 	"GET /v1/admin/invitations", "POST /v1/admin/invitations",
-	"GET /v1/announcement", "PUT /v1/admin/announcement", "GET /v1/roles", "GET /v1/admin/members", "GET /v1/admin/overview", "GET /v1/admin/costs", "POST /v1/admin/costs", "DELETE /v1/admin/costs/{id}", "GET /v1/admin/plans", "POST /v1/admin/memberships", "GET /v1/admin/rates", "POST /v1/admin/rates", "DELETE /v1/admin/rates/{id}",
-	"GET /v1/orgs/{org}/members", "PUT /v1/orgs/{org}/members/{user}",
+	"GET /v1/announcement", "GET /v1/orgs/{org}/support-chats", "POST /v1/orgs/{org}/support-chats", "GET /v1/support-chats/{id}", "POST /v1/support-chats/{id}/messages", "POST /v1/support-chats/{id}/close", "GET /v1/admin/support-chats", "GET /v1/whats-new", "POST /v1/whats-new/{id}/seen", "GET /v1/admin/whats-new", "POST /v1/admin/whats-new", "DELETE /v1/admin/whats-new/{id}", "GET /v1/orgs/{org}/early-features", "PUT /v1/orgs/{org}/early-features/{name}", "POST /v1/feedback", "GET /v1/admin/feedback", "POST /v1/admin/feedback/{id}/handled", "POST /v1/client-errors", "PUT /v1/admin/announcement", "POST /v1/sessions/not-me", "POST /v1/orgs/{org}/members/{user}/sign-out", "GET /v1/orgs/{org}/security", "PUT /v1/orgs/{org}/security", "POST /v1/password/reset/support", "GET /v1/admin/reset-requests", "POST /v1/admin/reset-requests/{id}/{decision}", "GET /v1/status", "POST /v1/admin/status/incidents", "POST /v1/admin/status/incidents/{id}", "GET /v1/me/status-emails", "PUT /v1/me/status-emails", "POST /v1/admin/breach-notices", "GET /v1/admin/breach-notices", "GET /v1/roles", "GET /v1/admin/members", "GET /v1/admin/overview", "GET /v1/admin/costs", "POST /v1/admin/costs", "DELETE /v1/admin/costs/{id}", "GET /v1/admin/plans", "POST /v1/admin/memberships", "GET /v1/admin/rates", "POST /v1/admin/rates", "DELETE /v1/admin/rates/{id}",
+	"GET /v1/orgs/{org}/members", "PUT /v1/orgs/{org}/members/{user}", "DELETE /v1/orgs/{org}/members/{user}",
+	"POST /v1/orgs/{org}/members/{user}/suspend", "POST /v1/orgs/{org}/members/{user}/restore",
+	"GET /v1/orgs/{org}/teams", "PUT /v1/orgs/{org}/teams/{team}", "DELETE /v1/orgs/{org}/teams/{team}",
 	"GET /v1/orgs/{org}/roles", "GET /v1/orgs/{org}/standing",
 	"GET /v1/orgs/{org}/invitations", "POST /v1/orgs/{org}/invitations",
 	"DELETE /v1/invitations/{id}",
 	"GET /v1/me/invitations", "POST /v1/me/invitations/{id}/accept",
+	"GET /v1/me/invitations/{id}", "POST /v1/me/invitations/{id}/report", "GET /v1/admin/invitation-reports",
+	"POST /v1/invitations/{id}/resend", "POST /v1/invitations/{id}/extend", "POST /v1/me/invitations/{id}/decline",
+	"GET /v1/me/blocked-agencies", "POST /v1/me/blocked-agencies", "DELETE /v1/me/blocked-agencies/{org}",
+	"GET /v1/orgs/{org}/invitation-settings", "PUT /v1/orgs/{org}/invitation-settings",
+	"PUT /v1/orgs/{org}/teams/{team}/deputies", "PUT /v1/admin/workspaces/{org}/features/{name}",
+	"POST /v1/orgs/{org}/leave", "GET /v1/orgs/{org}/seat-requests", "GET /v1/orgs/{org}/people-log", "DELETE /v1/orgs/{org}/seat-requests/{id}",
 	"GET /v1/security", "GET /v1/providers", "GET /v1/fx", "POST /v1/me/currency", "GET /.well-known/jwks.json",
 	"POST /v1/password", "POST /v1/password/forgot", "POST /v1/password/reset",
 	"POST /v1/email/verify", "POST /v1/email/resend",
@@ -201,4 +218,10 @@ func mcpAllowed(method, path string) bool {
 		return method == http.MethodGet || method == http.MethodOptions
 	}
 	return false
+}
+
+// liveAllowed is the live server's one public address: the WebSocket the apps listen on. Everything else it has (the API with
+// its key, the metrics, the health check) is for the private network only.
+func liveAllowed(method, path string) bool {
+	return (method == http.MethodGet || method == http.MethodOptions) && path == "/connection/websocket"
 }

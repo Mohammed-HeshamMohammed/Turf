@@ -36,6 +36,14 @@ Write down: what data, whose (which workspaces), how many people, what states th
 
 Do not guess the law of a state; the lawyer keeps a list of the 50 states' notification rules.
 
+### Telling owners from Caller Whale (built 2026-11-18)
+
+Staff send the owners' notice from the auth service: `POST /v1/admin/breach-notices` with the affected agencies (`org_ids`), when
+Caller Whale learned of it (`discovered_at`), what happened and what they should do. Each owner is emailed at once; the record shows
+whom, when, and whether it went within 72 hours of `discovered_at` (`GET /v1/admin/breach-notices`). It does not tell leads or
+authorities: that follows the lawyer's list above. While the incident affects service, open a status incident too, so the banner and the
+status page say so.
+
 ## 5. Fix and learn
 
 Close the hole; check the other services for the same weakness; restore from a clean source; ask providers for logs; run `go test`/the checks; write a short report (what, why, what changed). Review this plan after every incident and at least once a year. Practise once a year: pretend a key is leaked and run steps 1 to 3.

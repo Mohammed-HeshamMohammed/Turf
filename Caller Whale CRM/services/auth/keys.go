@@ -28,6 +28,7 @@ type claims struct {
 	Sub           string `json:"sub"`
 	Email         string `json:"email"`
 	Name          string `json:"name"`
+	Tag           string `json:"tag,omitempty"` // the #tag after the name (step 4)
 	SID           string `json:"sid"`
 	MFA           bool   `json:"mfa"`
 	EmailVerified bool   `json:"email_verified"`
@@ -53,8 +54,8 @@ func (c claims) GetAudience() (jwt.ClaimStrings, error)  { return jwt.ClaimStrin
 
 // person is what a token says about who it is for.
 type person struct {
-	id, email, name string
-	emailVerified   bool
+	id, email, name, tag string
+	emailVerified        bool
 }
 
 type keys struct {
@@ -118,7 +119,7 @@ func newKeys(priv ed25519.PrivateKey) *keys {
 func (k *keys) sign(p person, sid string, mfa bool, provider string, authTime, now int64, minutes int) (string, int64, error) {
 	lifetime := int64(minutes) * 60
 	token := jwt.NewWithClaims(jwt.SigningMethodEdDSA, claims{
-		Sub: p.id, Email: p.email, Name: p.name, SID: sid, MFA: mfa, EmailVerified: p.emailVerified, Provider: provider,
+		Sub: p.id, Email: p.email, Name: p.name, Tag: p.tag, SID: sid, MFA: mfa, EmailVerified: p.emailVerified, Provider: provider,
 		AuthTime: authTime, Iss: tokenIssuer, Aud: tokenAudience, Iat: now, Exp: now + lifetime,
 	})
 	token.Header["kid"] = k.kid

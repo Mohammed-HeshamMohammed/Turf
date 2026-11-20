@@ -27,8 +27,8 @@ import {
   PencilSimple,
   X,
 } from "@phosphor-icons/react";
-import { CALL_OUTCOMES, DEAL_STAGES, PEOPLE, ROLES, TODAY } from "./data.ts";
-import { callbackLabel, canEditLead, dayLabel, capability, uid, visibleLeads, visibleTasks, visibleThreads } from "./model.ts";
+import { CALL_OUTCOMES, DEAL_STAGES, ROLES, TODAY } from "./data.ts";
+import { callbackLabel, canEditLead, dayLabel, capability, uid, visibleLeads, visibleTasks, visibleThreads, teamNames, assignableNames } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { CallAssistant } from "./CallAssistant.jsx";
 import { CallTimer } from "./CallTimer.jsx";
@@ -141,6 +141,7 @@ export function Calls({ target }) {
   };
   useEffect(() => {
     if (bigWorkspace && pulled.key !== pullKey) pullMore();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- start a list once when it changes; pullMore is redefined each render
   }, [pullKey, bigWorkspace]);
   // Within a list, callbacks that are due come first, then people who have never been called.
   const leads = useMemo(() => {
@@ -157,6 +158,7 @@ export function Calls({ target }) {
   const position = leads.findIndex(item => item.id === lead?.id);
   useEffect(() => {
     if (bigWorkspace && pulled.key === pullKey && position >= leads.length - 10) pullMore();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- ask for the next page when the position nears the end; pullMore is redefined each render
   }, [position, leads.length, pulled.key, pulled.busy]);
   useEffect(() => {
     setCallNote("");
@@ -1062,7 +1064,7 @@ export function Tasks({ create = false }) {
             </Field>
             <Field label="Responsible person">
               <Select name="assignee" defaultValue={ROLES[state.role].person}>
-                {[...new Set([ROLES[state.role].person, ...PEOPLE])].map(name => (
+                {[...new Set([ROLES[state.role].person, ...assignableNames(state)])].map(name => (
                   <option key={name}>{name}</option>
                 ))}
               </Select>
@@ -1199,7 +1201,7 @@ export function Tasks({ create = false }) {
             <div className="form-grid">
               <Field label="Responsible person">
                 <Select name="assignee" defaultValue={editing.assignee}>
-                  {[...new Set([editing.assignee, ROLES[state.role].person, ...PEOPLE])].map(name => (
+                  {[...new Set([editing.assignee, ROLES[state.role].person, ...assignableNames(state)])].map(name => (
                     <option key={name}>{name}</option>
                   ))}
                 </Select>
@@ -1717,7 +1719,7 @@ export function Inbox() {
                 </Field>
                 <fieldset className="group-members">
                   <legend>Members</legend>
-                  {(state.chatOn ? teammates.map(person => person.name) : PEOPLE.filter(name => name !== me)).map(name => (
+                  {(state.chatOn ? teammates.map(person => person.name) : teamNames(state).filter(name => name !== me)).map(name => (
                     <Checkbox key={name} label={name} checked={groupMembers.includes(name)} onChange={event => setGroupMembers(event.target.checked ? [...groupMembers, name] : groupMembers.filter(item => item !== name))} />
                   ))}
                 </fieldset>

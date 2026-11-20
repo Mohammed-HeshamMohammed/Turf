@@ -5,7 +5,7 @@ import os
 import threading
 import unittest
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from callerwhale_billing import db
 from callerwhale_billing.store import Refused, Store
@@ -24,7 +24,8 @@ class StoreTest(unittest.TestCase):
         with cls.pool.connection() as conn:
             conn.execute(
                 "INSERT INTO billing.plans (key, name, seats, monthly_minutes, price_minor, currency, provider_price_id) "
-                "VALUES ('trial', 'Trial', 2, 100, 0, 'USD', NULL), ('starter', 'Starter', 3, 1000, 4900, 'USD', 'pri_starter') ON CONFLICT DO NOTHING"
+                "VALUES ('trial', 'Trial', 2, 100, 0, 'USD', NULL), ('starter', 'Starter', 3, 1000, 4900, 'USD', 'pri_starter') "
+                "ON CONFLICT (key) DO UPDATE SET seats = excluded.seats, monthly_minutes = excluded.monthly_minutes"
             )
             conn.commit()
         cls.store = Store(cls.pool)
@@ -48,6 +49,33 @@ class StoreTest(unittest.TestCase):
             self.store.reserve("minutes", org, 10, request, "call", NOW)
         self.assertEqual(conflict.exception.code, "conflict")
         self.assertEqual(self.store.standing(org, NOW)["minutes_used"], 60)
+
+    def test_a_discount_is_given_and_ended(self):
+        org = uuid4()
+        self.assertEqual(self.store.set_discount(org, "shared_learning", "ai", 20), {"ai": 20})
+        self.assertEqual(self.store.entitlements(org)["discounts"], {"ai": 20}, "step 45: the shared-learning discount")
+        self.assertEqual(self.store.set_discount(org, "shared_learning", "ai", 0), {})
+        with self.assertRaises(Refused):
+            self.store.set_discount(org, "a friend", "ai", 50)
+
+    def test_the_ready_made_plans_are_there_and_a_membership_keeps_only_the_limits_that_differ(self):
+        keys = {p["key"]: p for p in self.store.plans()}
+        self.assertTrue({"solo", "duo", "team", "pro", "custom"} <= set(keys))
+        self.assertEqual(keys["solo"]["limits"]["active_leads"], 1_000_000)
+        self.assertIsNone(keys["solo"]["limits"]["clients"], "clients are unlimited")
+        self.assertEqual(keys["solo"]["limits"]["file_storage_mb"], 2048, "file storage on leads (step 38)")
+        org = uuid4()
+        given = self.store.assign_membership(org, "solo", "free", 14, 12, None, NOW, {"seats": 4, "active_leads": 1_000_000, "monthly_minutes": None}, "staff")
+        self.assertEqual(given["overrides"], {"seats": 4, "monthly_minutes": None}, "a value equal to the plan's is not stored")
+        self.assertEqual(self.store.standing(org, NOW)["seats"], 4)
+        self.assertFalse(self.store.reserve("minutes", org, 50_000, uuid4(), "", NOW).limited, "unlimited minutes are not counted against")
+        again = self.store.assign_membership(org, "duo", "free", 14, 12, None, NOW, {}, "staff")
+        self.assertEqual((again["overrides"], again["limits"]["seats"]), ({}, 2), "giving a membership again replaces the overrides")
+        self.assertEqual(self.store.entitlements(uuid4())["plan"], None)
+        with self.assertRaises(Refused):
+            self.store.assign_membership(org, "solo", "free", 14, 12, None, NOW, {"seats": 0})
+        with self.assertRaises(Refused):
+            self.store.assign_membership(org, "solo", "free", 14, 12, None, NOW, {"nonsense": 1})
 
     def test_two_requests_cannot_both_take_the_last_minutes(self):
         org = uuid4()
@@ -100,7 +128,59 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(self.store.record_webhook("paddle", event), (False, None))
         standing = self.store.standing(uuid4().__class__(org), NOW)
         self.assertEqual((standing["plan"], standing["status"], standing["payment_required"]), ("starter", "active", False))
+        self.assertEqual((standing["provider_paid"], standing["payer_id"]), (True, None))
 
+    def test_the_payer_comes_from_the_checkout_and_stays_until_another_pays(self):
+        org, payer, new_owner = str(uuid4()), str(uuid4()), str(uuid4())
+        period = {"starts_at": "2026-11-01T00:00:00Z", "ends_at": "2026-12-01T00:00:00Z"}
+        def event(n, custom):
+            return {"event_id": f"evt_{n}_{org}", "event_type": "subscription.updated",
+                    "data": {"id": "sub_" + org, "status": "active", "custom_data": {"org_id": org, **custom}, "items": [{"price": {"id": "pri_starter"}}], "current_billing_period": period}}
+        self.store.record_webhook("paddle", event(1, {"payer_id": payer}))
+        self.store.record_webhook("paddle", event(2, {}))
+        self.assertEqual(self.store.standing(UUID(org), NOW)["payer_id"], payer, "an event that names no payer keeps the one there")
+        self.store.record_webhook("paddle", event(3, {"payer_id": new_owner}))
+        self.assertEqual(self.store.standing(UUID(org), NOW)["payer_id"], new_owner)
+        self.store.record_webhook("paddle", event(4, {"payer_id": "not-an-id"}))
+        self.assertEqual(self.store.standing(UUID(org), NOW)["payer_id"], new_owner)
+
+
+    def test_budgets_stop_a_team_and_a_person_and_raising_answers_the_request(self):
+        from callerwhale_billing import budgets
+        org, team, agent, other = uuid4(), uuid4(), uuid4(), uuid4()
+        budgets.set_budget(self.store, org, "team", team, "texts", 3, None)
+        budgets.set_budget(self.store, org, "person", agent, "texts", 2, None)
+        use = lambda who, rid=None, check=False: budgets.use(self.store, org, "texts", 1, rid or uuid4(), team, who, None, NOW, check)
+        rid = uuid4()
+        use(agent, rid)
+        self.assertTrue(use(agent, rid)["duplicate"], "the same text is charged once")
+        use(agent)
+        with self.assertRaises(Refused) as refused:
+            use(agent, check=True)
+        self.assertEqual((refused.exception.status, refused.exception.code), (402, "budget_reached"))
+        use(other)  # the team still has one
+        with self.assertRaises(Refused):
+            use(other)
+        listed = {(b["scope"], b["subject_id"]): b["used"] for b in budgets.budgets(self.store, org, NOW)}
+        self.assertEqual(listed[("team", str(team))], 3)
+        self.assertEqual(listed[("person", str(agent))], 2)
+        # The assistant (step 26): a person's daily cap, counted from midnight.
+        cap = budgets.AI_DAILY_CAP
+        budgets.AI_DAILY_CAP = 2
+        try:
+            for _ in range(2):
+                budgets.use(self.store, org, "ai", 1, uuid4(), team, agent, None, NOW, False)
+            with self.assertRaises(Refused) as capped:
+                budgets.use(self.store, org, "ai", 1, uuid4(), team, agent, None, NOW, False)
+            self.assertEqual(capped.exception.status, 429)
+            budgets.use(self.store, org, "ai", 1, uuid4(), team, other, None, NOW, False)  # someone else is not capped by it
+        finally:
+            budgets.AI_DAILY_CAP = cap
+        budgets.ask_raise(self.store, org, "team", team, "texts", other, "Busy week", NOW)
+        self.assertEqual(len(budgets.raise_requests(self.store, org)), 1)
+        budgets.set_budget(self.store, org, "team", team, "texts", 10, None)
+        self.assertEqual(budgets.raise_requests(self.store, org), [], "raising the budget answers the request")
+        use(other)
 
 if __name__ == "__main__":
     unittest.main()

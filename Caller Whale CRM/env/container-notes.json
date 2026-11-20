@@ -28,7 +28,7 @@
         "AUTH_APPLE_KEY_ID": "Apple Sign in with Apple key identifier for the optional direct flow. Must match AUTH_APPLE_PRIVATE_KEY.",
         "AUTH_APPLE_PRIVATE_KEY": "Secret Apple .p8 signing-key text for the optional direct flow; literal backslash-n sequences become line breaks. Never expose it to clients.",
         "AUTH_NOTIFY_URL": "Notification service private address (http://notifications:8102), never a public one. Set with AUTH_NOTIFY_TOKEN for email codes to be offered.",
-        "AUTH_BILLING_URL": "Billing service private address (http://billing:8103), never a public one. Lets the dashboard show plans, revenue and usage to staff. Set with AUTH_BILLING_TOKEN.",
+        "AUTH_BILLING_URL": "Optional. Billing service private address (http://billing:8103), never a public one. Leave empty until a payment provider is used: auth then keeps the memberships staff give (plans, limits, seats) itself. Set with AUTH_BILLING_TOKEN.",
         "AUTH_BILLING_TOKEN": "Secret caller token: the auth entry in billing's BILLING_TOKENS (auth=<token>), saved as a runtime variable. Without it the dashboard shows no revenue or usage.",
         "AUTH_NOTIFY_TOKEN": "Secret caller token matching auth's entry in notifications NOTIFY_TOKENS. Rotate both together; mismatches break authentication emails.",
         "AUTH_TELEGRAM_BOT_TOKEN": "Optional secret BotFather token enabling Telegram code delivery. Leave empty to disable this delivery method; never use a phone number as the token.",
@@ -36,7 +36,8 @@
         "AUTH_TELEGRAM_WEBHOOK_SECRET": "Secret URL path component protecting the Telegram webhook. Coordinate rotation with Telegram's registered webhook URL.",
         "AUTH_ACCESS_MINUTES": "Access-token lifetime in minutes; default 15. Changing it affects newly issued tokens and the frequency of refresh.",
         "AUTH_REFRESH_DAYS": "Refresh-session lifetime in days; default 30. Changing it affects newly created session expiry, not the signing key.",
-        "AUTH_MCP_TOKEN": "Secret shared with the MCP service (its MCP_AUTH_TOKEN), 32+ characters, to ask who an assistant's token belongs to. Empty turns connectors off. To rotate, list new,old; update MCP; drop the old."
+        "AUTH_MCP_TOKEN": "Secret shared with the MCP service (its MCP_AUTH_TOKEN), 32+ characters, to ask who an assistant's token belongs to. Empty turns connectors off. To rotate, list new,old; update MCP; drop the old.",
+        "STATUS_PROBES": "Parts the status page checks every minute (step 34): part=private health address, comma-separated; parts sign_in, crm, calls, texts, chats, email. Empty: incidents only."
       }
     },
     "gateway": {
@@ -70,7 +71,11 @@
         "SCAN_PAUSE_MINUTES": "Minutes an address stays paused after passing SCAN_LIMIT; default 15.",
         "CORS_ORIGINS": "Sites allowed to read the gateway's own refusals (not a person, too many requests) in a browser: comma-separated origins like https://callerwhale.com. Empty: the browser shows a CORS error instead.",
         "MCP_HOST": "The ROUTES host that is the MCP service (AI assistants connect to it). Only its few routes are answered; everything else is Not found. Must be one of the ROUTES hosts.",
-        "MCP_IP_PER_MINUTE": "Requests a minute from one address on the MCP host; default 6000. Higher than for people since assistants share a few addresses; each connection also has its own limit."
+        "MCP_IP_PER_MINUTE": "Requests a minute from one address on the MCP host; default 6000. Higher than for people since assistants share a few addresses; each connection also has its own limit.",
+        "IMPORT_WORKER_URL": "Internal worker origin for /api/v1/imports upload start, chunks, resume and completion. Defaults to this value.",
+        "LIVE_HOST": "The ROUTES host that is the live server (live.callerwhale.com). Only its socket address is answered; its API, metrics and health stay private. Must be one of the ROUTES hosts.",
+        "AUTHZ_URL": "The authorization service's private address, like http://authz:8104, for each agency's allowed countries and networks (step 35). Empty: no place limits.",
+        "AUTHZ_TOKEN": "Secret: the value after gateway= in authz's AUTHZ_TOKENS, 32+ characters; it may read only agencies' place limits."
       }
     },
     "landing-web": {
@@ -111,6 +116,8 @@
         "env/container-variable-inventory.json"
       ],
       "variables": {
+        "CW_GRAFANA_PROXY_IMAGE": "The cw-grafana-proxy image by digest, like ghcr.io/<owner>/cw-grafana-proxy@sha256:<digest>. Set by the Images workflow's deploy job; locally any tag.",
+        "CW_ALERT_RELAY_IMAGE": "The cw-alert-relay image by digest, like ghcr.io/<owner>/cw-alert-relay@sha256:<digest>. Set by the Images workflow's deploy job; locally any tag.",
         "PORT": "Private Grafana proxy listen port; compose fixes it at 8120. Match the gateway's private monitoring upstream if changing it.",
         "GRAFANA_BASE_PATH": "Protected browser subpath; only /staff/monitoring or empty is accepted. Match gateway routing and Grafana's root URL.",
         "GRAFANA_URL": "Private Grafana HTTP origin reached by the proxy. Keep on the private monitoring network; not a browser-facing address.",
@@ -156,7 +163,12 @@
         "SERVICE_URL_GRAFANA_3000": "Coolify-generated service URL metadata for port 3000. The repository Compose does not consume it; clients should use the protected gateway monitoring URL.",
         "SERVICE_PASSWORD_GRAFANA": "Secret generated by Coolify for the monitoring resource. The repository Compose uses GRAFANA_ADMIN_PASSWORD instead; check the live Compose mapping before changing or deleting this key.",
         "GF_SERVER_DOMAIN": "Grafana server-domain setting in the live inventory. Repository Compose uses an explicit GF_SERVER_ROOT_URL instead; keep browser links on the protected gateway origin.",
-        "GF_SECURITY_ADMIN_USER": "Grafana bootstrap administrator username in the live inventory. Not set by repository Compose; changing it does not rename an existing stored account or enable direct login."
+        "GF_SECURITY_ADMIN_USER": "Grafana bootstrap administrator username in the live inventory. Not set by repository Compose; changing it does not rename an existing stored account or enable direct login.",
+        "RELAY_TOKEN": "Secret shared by Grafana's alert contact points and the alert relay (step 42), 32+ characters (openssl rand -hex 32). Set once for the resource; both containers read it.",
+        "PUSH_TARGETS": "Secret: each on-call person's ntfy topic address, like owner=https://ntfy.sh/<long random topic>,cofounder=https://ntfy.sh/<topic>. Each person subscribes to their topic in the ntfy app.",
+        "ONCALL_ORDER": "Whose on-call week comes first, then the next, from PUSH_TARGETS' names; default owner,cofounder. Only urgent alerts wake the person on call.",
+        "ONCALL_FROM": "The Monday the first person's on-call week starts, like 2026-11-23; the order then repeats a week at a time.",
+        "ALERTS_URL": "The link each alert push opens: Grafana's alert list behind the staff login; default https://gate.callerwhale.com/staff/monitoring/alerting/list."
       }
     },
     "callerwhale-auth-postgres": {
@@ -204,7 +216,7 @@
       "variables": {
         "PORT": "HTTP port; default 8103. Match Coolify's container port.",
         "DATABASE_URL": "Secret PostgreSQL URI of billing's own database and login (callerwhale_billing). No other service uses it.",
-        "BILLING_TOKENS": "Secret caller tokens, caller=token comma-separated, 32+ characters each; today only auth (auth=<token>, for the dashboard's revenue and usage); core-api joins once rebuilt.",
+        "BILLING_TOKENS": "Secret caller tokens, caller=token comma-separated, 32+ characters each: auth, dialer-sms (step 22) and crm-core (step 26); core-api and worker join once rebuilt.",
         "PADDLE_WEBHOOK_SECRET": "Secret key of Paddle's notification destination for the billing webhook. Empty refuses every payment webhook.",
         "PADDLE_WEBHOOK_TOLERANCE_SECONDS": "How old a signed webhook may be, 5 to 3600 seconds; default 300. Redeliveries are harmless: each event applies once.",
         "AUTHZ_URL": "The authorization service's private address, like http://authz:8104, told of every standing change. Set with AUTHZ_TOKEN.",
@@ -232,7 +244,9 @@
       "variables": {
         "PORT": "HTTP port for the health check; default 8111.",
         "DATABASE_URL": "Secret PostgreSQL URI with the worker's own login (importer): the importing schema and a view of a few lead fields, nothing else.",
-        "IMPORT_DIR": "The folder shared with crm-core where upload pieces wait; default /data/imports. The same persistent volume at the same path in both applications."
+        "IMPORT_DIR": "The folder shared with crm-core where upload pieces wait; default /data/imports. The same persistent volume at the same path in both applications.",
+        "CORE_URL": "Internal CRM Core origin for validating the bearer token, workspace and import permission, and creating a source list.",
+        "MAX_IMPORT_MB": "Maximum accepted list size in MiB; default 20480."
       }
     },
     "assistant": {
@@ -248,7 +262,8 @@
         "OPENROUTER_MODEL": "The OpenRouter model name, like openai/gpt-4o-mini. A cheap, fast model is enough.",
         "ASSISTANT_MESSAGES_PER_MINUTE": "Messages one visitor may send a minute; default 12.",
         "ASSISTANT_AI_PER_VISITOR_PER_DAY": "AI answers one visitor may get a day; default 30. After that they get the script.",
-        "ASSISTANT_AI_PER_DAY": "AI answers for all visitors together a day; default 2000. The ceiling on the bill."
+        "ASSISTANT_AI_PER_DAY": "AI answers for all visitors together a day; default 2000. The ceiling on the bill.",
+        "AGENT_TOKEN": "Secret, 32+ characters: the key crm-core and dialer-sms use for the in-app assistant (/v1/agent/complete, step 26). Their ASSISTANT_TOKEN. Empty turns it off."
       }
     },
     "crm-core": {
@@ -268,7 +283,29 @@
         "IMPORT_DB_ROLE": "The import worker's database login, given the holding tables at start. Empty until the worker is deployed.",
         "MAX_IMPORT_MB": "Largest list accepted, in megabytes; default 20480.",
         "LEARNING_URL": "The learning store's private address, like http://learning:8112. Empty turns the learning copy off: no list leaves crm-core.",
-        "LEARNING_TOKEN": "The learning store's LEARNING_TOKEN (at least 32 characters). Needed when LEARNING_URL is set."
+        "LEARNING_TOKEN": "The learning store's LEARNING_TOKEN (at least 32 characters). Needed when LEARNING_URL is set.",
+        "DIALER_TOKEN": "Secret: the dialer service's CRM_TOKEN, 32+ characters. Turns on /internal/v1/dialer (private) so carrier calls are logged. Empty turns it off.",
+        "ASSISTANT_URL": "The assistant service's private address, like http://assistant:8109, for the in-app assistant (step 26). Empty turns the in-app assistant off.",
+        "ASSISTANT_TOKEN": "Secret: the same value as the assistant's AGENT_TOKEN, 32+ characters.",
+        "BILLING_URL": "Billing's private address, like http://billing:8103, to charge the in-app assistant's use (step 26). Empty: not charged or capped.",
+        "BILLING_TOKEN": "Secret: the value after crm-core= in billing's BILLING_TOKENS, 32+ characters.",
+        "GOOGLE_CLIENT_ID": "Google Cloud OAuth client id (web application) asking only calendar.freebusy and calendar.app.created (step 28). Empty turns Google Calendar off.",
+        "GOOGLE_CLIENT_SECRET": "Secret of that Google OAuth client.",
+        "GOOGLE_REDIRECT_URL": "Where Google returns people: this service's /api/v1/google/callback at the gateway's CRM host, like https://gate.callerwhale.com/api/v1/google/callback. Must match the Google client.",
+        "GOOGLE_TOKEN_KEY": "Secret: 32 random bytes in base64 (openssl rand -base64 32); encrypts the stored Google tokens. Keep stable: a new key forces everyone to reconnect.",
+        "APP_URL": "The CRM web app's public address (https, no trailing slash): links in calendar events and report emails, and where people return from Google.",
+        "EMAIL_SES_REGION": "Amazon SES region for email to leads (step 29), like us-east-1. Empty turns email to leads off.",
+        "AWS_ACCESS_KEY_ID": "Secret: the access key of an IAM user allowed ses:SendRawEmail, ses:SendEmail, ses:CreateEmailIdentity and ses:GetEmailIdentity.",
+        "AWS_SECRET_ACCESS_KEY": "Secret: that IAM user's secret access key.",
+        "EMAIL_PUBLIC_URL": "This service's public address at the gateway (https, no trailing slash), like https://gate.callerwhale.com: email links, unsubscribe, SES's SNS subscription, website forms' addresses and shared-file links use it.",
+        "EMAIL_REPLY_DOMAIN": "A domain whose mail SES receives (its MX at SES receiving), like reply.callerwhale.com; replies to leads' emails go to reply+<token>@ it.",
+        "EMAIL_SNS_TOPIC_ARN": "The SNS topic SES puts received replies on (encoding Base64); only messages from it are taken.",
+        "NOTIFY_MAIL_URL": "The notification service's private address, like http://notifications:8102, for scheduled report emails (step 32). Empty: reports are not sent.",
+        "NOTIFY_MAIL_TOKEN": "Secret: the value after crm-core= in notifications' NOTIFY_TOKENS, 24+ characters.",
+        "CLAMD_ADDR": "ClamAV's daemon on the private network, like clamav:3310, which scans files on leads (step 38). Its StreamMaxLength must be above 25 MB. Empty: files wait unopened.",
+        "CARRIER_CHECK": "Step 39: on holds imports until the carriers verify the agency's business, as the dialer reports it. Turn on (CARRIER_CHECK=on) once the dialer runs live with 10DLC registration; empty or off: imports are not held.",
+        "RESTORE_COPY_URL": "Step 41: the database a CRM backup was restored into, to restore one agency from (docs/plans/backups-and-recovery.md). Secret PostgreSQL URI with crm-core's login. Empty except while a restore is being done.",
+        "SHARED_LEARNING": "Step 45: on lets agencies' agreed patterns be used (shared learning). Leave off until the lawyer approved the agreement's text and the notice check (checks-by-hand W-9); off: nothing is used, agencies can still agree."
       }
     },
     "learning": {
@@ -283,6 +320,69 @@
         "LEARNING_HASH_KEY": "The key the phone and email hashes are made with: 64 hex characters (32 bytes). Held only by the platform owners; losing it makes the stored hashes unusable, and changing it breaks matching of old rows with new ones.",
         "LEARNING_ENABLED": "true lets lists in and flags be recorded. Leave it false (nothing is taken in) until the terms and privacy notice say what is kept.",
         "LEARNING_RETENTION_DAYS": "Days a learned row is kept before it is deleted; default 730 (two years)."
+      }
+    },
+    "dialer-sms": {
+      "description": "Calling, auto dialing and texting through Telnyx (or its simulator), and the carrier's webhooks; finished calls are logged in crm-core. Needs a public address for /webhooks/telnyx in live mode.",
+      "sources": [
+        "services/features/dialer-sms/main.go"
+      ],
+      "variables": {
+        "PORT": "HTTP port; default 8113. Match Coolify's container port and the gateway's ROUTES.",
+        "DATABASE_URL": "Secret PostgreSQL URI of the dialer database. The service creates its own tables (schema dialer_sms) at start.",
+        "AUTH_JWKS_URL": "The auth service's public keys at its private address (http://auth:8101/.well-known/jwks.json); sign-in tokens are checked with them locally.",
+        "AUTHZ_URL": "The authorization service's private address, like http://authz:8104.",
+        "AUTHZ_TOKEN": "Secret: the value after dialer-sms= in authz's AUTHZ_TOKENS, 32+ characters.",
+        "CRM_URL": "crm-core's private address, like http://crm-core:8107. Finished calls are logged there.",
+        "CRM_TOKEN": "Secret: the same value as crm-core's DIALER_TOKEN, 32+ characters.",
+        "CORS_ORIGINS": "Pages that may call this service from a browser. Keep it the same as the gateway's CORS_ORIGINS.",
+        "TELNYX_MODE": "simulate (default: the built-in Telnyx simulator, nothing reaches a phone, no cost) or live (real Telnyx, costs money).",
+        "SIM_SPEED": "Simulate mode: how many times faster than real time the simulator runs; default 1. 10 makes a 45-second call take 4.5 seconds.",
+        "TELNYX_API_KEY": "Secret. Live: the Telnyx API key (portal, Keys & Credentials). Simulate: any value; the simulator's controls need it as the Bearer token.",
+        "TELNYX_CONNECTION_ID": "Live: the Call Control application (Voice API) that outbound calls use.",
+        "TELNYX_PUBLIC_KEY": "Live: the base64 Ed25519 public key from the Telnyx portal; webhooks not signed with it are refused.",
+        "TELNYX_WEBHOOK_URL": "Live: where Telnyx sends events, like https://voice.callerwhale.com/webhooks/telnyx. Empty: the application's own setting on the portal.",
+        "TELNYX_MESSAGING_PROFILE_ID": "Live: the messaging profile texts go out on (its webhook must point at /webhooks/telnyx too).",
+        "TELNYX_SIP_CONNECTION_ID": "Live: the credential SIP connection the browser's calling kit signs in to (WebRTC). Empty turns browser calling tokens off.",
+        "TELNYX_FROM_NUMBER": "A number calls and texts go out from when the workspace has none set up (E.164, like +15125550100).",
+        "TELNYX_AMD": "Answering machine detection: detect (default), detect_beep, premium or off. Telnyx charges per answered call for it.",
+        "RECORD_CALLS": "true records every answered call (Telnyx charges per minute); otherwise only calls placed with record set.",
+        "BILLING_URL": "Billing's private address, like http://billing:8103, for budgets on calls, texts and assistant use (step 22). Empty: nothing is limited.",
+        "BILLING_TOKEN": "Secret: the value after dialer-sms= in billing's BILLING_TOKENS, 32+ characters.",
+        "ASSISTANT_URL": "The assistant service's private address, like http://assistant:8109, for call summaries (step 26). Empty: no summaries.",
+        "ASSISTANT_TOKEN": "Secret: the same value as the assistant's AGENT_TOKEN, 32+ characters.",
+        "CARRIER_CHECK": "Step 39: calls wait until the carriers verify the agency's brand and texts until its 10DLC campaign is provisioned. On unless set to off; off only for local work and tests."
+      }
+    },
+    "messaging": {
+      "description": "Team chats, groups and announcements (step 16): keeps chats in its own database and tells the live server; the gateway routes chat.callerwhale.com to it. Network alias messaging, port 8108, no domain.",
+      "sources": [
+        "services/messaging/main.go"
+      ],
+      "variables": {
+        "PORT": "HTTP port; default 8108. Match Coolify's container port and the gateway's ROUTES.",
+        "DATABASE_URL": "Secret PostgreSQL URI of the messaging database (Caller Whale Messaging PostgreSQL). The service makes its own tables (schema messaging) and runs each request as a restricted role.",
+        "AUTH_JWKS_URL": "The auth service's public keys at its private address; sign-in tokens are checked with them locally.",
+        "AUTHZ_URL": "The authorization service's private address.",
+        "AUTHZ_TOKEN": "Secret: the value after messaging= in authz's AUTHZ_TOKENS, 32+ characters.",
+        "CORS_ORIGINS": "Pages that may call this service from a browser. Keep it the same as the gateway's CORS_ORIGINS.",
+        "LIVE_API_URL": "The live server's (Centrifugo's) private API address.",
+        "LIVE_API_KEY": "Secret: the same value as Centrifugo's CENTRIFUGO_HTTP_API_KEY, 32+ characters.",
+        "LIVE_TOKEN_SECRET": "Secret: the same value as Centrifugo's CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY, 32+ characters.",
+        "LIVE_PUBLIC_URL": "Where the apps open their socket: the live server's public address through the gateway."
+      }
+    },
+    "live": {
+      "description": "The live server (Centrifugo, built from services/live): holds the apps' sockets and delivers what messaging tells it; the gateway routes live.callerwhale.com to it. Network alias centrifugo, port 8000, no domain.",
+      "sources": [
+        "services/live/config.json"
+      ],
+      "variables": {
+        "CENTRIFUGO_HTTP_API_KEY": "Secret: 64 random hex characters. Only the messaging service calls the API, with this key (its LIVE_API_KEY).",
+        "CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY": "Secret: 64 random hex characters, different from the key above. Connection tokens are signed with it (messaging's LIVE_TOKEN_SECRET).",
+        "CENTRIFUGO_CLIENT_ALLOWED_ORIGINS": "Pages that may open a socket.",
+        "CENTRIFUGO_ENGINE_TYPE": "redis: deliveries go through the live server's own Redis (Caller Whale Messaging Redis, private, no persistence). Set together with the address below.",
+        "CENTRIFUGO_ENGINE_REDIS_ADDRESS": "Secret: the Messaging Redis internal URL from its own page, redis://default:password@host:6379. Messages are never kept there."
       }
     }
   }

@@ -29,6 +29,9 @@ type op struct {
 	ClaimedAt     *time.Time     `json:"claimed_at"`
 	QueuedOffline bool           `json:"queued_offline"`
 	DeviceID      string         `json:"device_id"`
+	// internal is set only for operations sent by another Caller Whale service over the private network (dialer.go), never
+	// from a device's request body: it allows the carrier's own fields on a call (details, recording, record id).
+	internal bool
 }
 
 type opResult struct {
@@ -51,11 +54,10 @@ func (conflict) Error() string { return "conflict" }
 func reject(format string, a ...any) error { return rejection(fmt.Sprintf(format, a...)) }
 
 // Changes that alter ownership, permissions or many records are never accepted from an offline queue.
-var onlineOnly = []string{"lead.assign", "lead.delete", "lead.share", "handoff.decide", "task.delete", "deal.delete", "note.delete"}
+var onlineOnly = []string{"lead.assign", "lead.claim", "lead.merge", "lead.unmerge", "lead.delete", "lead.share", "lead.share_client", "call.share_client", "deal.share_client", "handoff.decide", "task.delete", "deal.delete", "note.delete"}
 
 var (
 	leadStages = []string{"New", "Contacted", "Interested", "Qualified", "Closed"}
-	dealStages = []string{"Qualified", "Appointment", "Offer preparation", "Offer sent", "Negotiation", "Under contract", "Closed won", "Closed lost"}
 )
 
 type outcome struct {
@@ -136,7 +138,13 @@ func (s *server) apply(ctx context.Context, sc scope, o op) (opResult, error) {
 	if _, err = tx.Exec(ctx, `UPDATE operations SET status = $2, result = $3 WHERE id = $1`, o.ID, answer.Status, stored); err != nil {
 		return opResult{}, err
 	}
-	return answer, tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return opResult{}, err
+	}
+	if deal, ok := answer.Result.(map[string]any); ok && answer.Status == "applied" && deal["stage"] == "Closed won" {
+		s.referralFeeReminders(ctx, sc.orgID, asString(deal["lead_id"]))
+	}
+	return answer, nil
 }
 
 // runInner applies the change inside a savepoint: a refusal undoes all of it and leaves the operation's own record.
@@ -180,6 +188,16 @@ func (r *run) dispatch() (any, error) {
 		return r.leadUpdate(p)
 	case "lead.assign":
 		return r.leadAssign(p)
+	case "lead.claim":
+		return r.leadClaim(p)
+	case "lead.tag":
+		return r.leadTag(p, true)
+	case "lead.untag":
+		return r.leadTag(p, false)
+	case "lead.merge":
+		return r.leadMerge(p)
+	case "lead.unmerge":
+		return r.leadUnmerge(p)
 	case "lead.delete":
 		return r.leadDelete(p)
 	case "lead.archive":
@@ -188,6 +206,12 @@ func (r *run) dispatch() (any, error) {
 		return r.leadArchive(p, false)
 	case "lead.share":
 		return r.leadShare(p)
+	case "lead.share_client":
+		return r.leadShareClient(p)
+	case "call.share_client":
+		return r.shareWithClient("call_events", "call", p)
+	case "deal.share_client":
+		return r.shareWithClient("deals", "deal", p)
 	case "note.add":
 		return r.noteAdd(p)
 	case "note.edit":
@@ -214,6 +238,11 @@ func (r *run) dispatch() (any, error) {
 		return r.dealUpdate(p)
 	case "deal.delete":
 		return r.dealDelete(p)
+	case "call.recording":
+		if !r.op.internal {
+			return nil, reject("Unknown operation kind: %s", r.op.Kind)
+		}
+		return r.callRecording(p)
 	case "message.draft":
 		return nil, reject("Messaging is not available yet")
 	}
@@ -221,6 +250,47 @@ func (r *run) dispatch() (any, error) {
 }
 
 // ------------------------------------------------------------------------------------------------------ helpers
+
+// handTo answers whether the asking person may give work (a lead or a task) to someone: themself always; anyone else only with
+// the assign capability, and then only the people they may give leads to (assignTargets: their teams, or everyone for the whole
+// workspace). A request made by hand (the console) cannot reach past it.
+func (r *run) handTo(to string) (assignTarget, error) {
+	if to == r.sc.userID {
+		return assignTarget{UserID: to}, nil
+	}
+	if !r.sc.can("assign") {
+		return assignTarget{}, reject("You can only give this to yourself")
+	}
+	mine, err := r.s.rules.grant(r.ctx, r.sc.userID, r.sc.orgID, r.sc.secondStep)
+	if err != nil {
+		return assignTarget{}, err
+	}
+	targets, err := r.s.assignTargets(r.ctx, r.sc, mine.ManagedTeamIDs)
+	if err != nil {
+		return assignTarget{}, err
+	}
+	target, ok := targets[to]
+	if !ok {
+		return assignTarget{}, reject("You can give this only to the people you manage")
+	}
+	return target, nil
+}
+
+// teamAllowed answers whether a lead may be put in a team the request names: the receiver's own team, one of the asker's teams or the
+// teams they run, or any team for someone who sees the whole workspace.
+func (r *run) teamAllowed(team, receiverTeam string) error {
+	if team == receiverTeam || slices.Contains(r.sc.scopes, "organization") || slices.Contains(r.sc.teamIDs, team) {
+		return nil
+	}
+	mine, err := r.s.rules.grant(r.ctx, r.sc.userID, r.sc.orgID, r.sc.secondStep)
+	if err != nil {
+		return err
+	}
+	if slices.Contains(mine.ManagedTeamIDs, team) {
+		return nil
+	}
+	return reject("That team is not one of yours")
+}
 
 func (r *run) need(capability string) error {
 	if r.sc.can(capability) {
@@ -347,6 +417,15 @@ func redactLead(lead map[string]any, sc scope) map[string]any {
 	if !sc.can("finance") {
 		delete(lead, "value_amount")
 		delete(lead, "value_currency")
+	}
+	// Masked numbers for agents (step 30, D163): the dialer still dials the real one, which only the CRM gives it.
+	if masksFor(sc, asString(lead["team_id"])) {
+		if p, ok := lead["phone"].(string); ok && p != "" {
+			lead["phone"] = maskPhone(p)
+		}
+		if c, ok := lead["contacts"]; ok {
+			lead["contacts"] = maskNumbers(c)
+		}
 	}
 	if sc.external() {
 		for _, f := range []string{"qualification", "verdict", "source", "priority", "do_not_call", "team_id", "project_id", "contact_id"} {
@@ -500,12 +579,21 @@ func (r *run) leadCreate(p map[string]any) (any, error) {
 	if assignee == nil {
 		assignee = &r.sc.userID
 	}
-	if *assignee != r.sc.userID && !r.sc.can("assign") {
-		return nil, reject("Only someone who assigns work can create a lead for another person")
+	receiver, err := r.handTo(*assignee)
+	if err != nil {
+		return nil, err
 	}
 	team, err := optUUID(p, "team_id")
 	if err != nil {
 		return nil, err
+	}
+	if team != nil {
+		if err = r.teamAllowed(*team, receiver.TeamID); err != nil {
+			return nil, err
+		}
+	}
+	if team == nil && receiver.TeamID != "" {
+		team = &receiver.TeamID
 	}
 	if team == nil && len(r.sc.teamIDs) > 0 && validID(r.sc.teamIDs[0]) {
 		team = &r.sc.teamIDs[0]
@@ -590,8 +678,24 @@ func (r *run) leadUpdate(p map[string]any) (any, error) {
 	if !canEditLead(r.sc, before) {
 		return nil, reject("You can only edit leads assigned to you")
 	}
+	if _, ok := changes["phone"]; ok && masksFor(r.sc, asString(before["team_id"])) {
+		return nil, reject("You see this lead's number masked, so you cannot change it")
+	}
 	if changes["do_not_call"] == false && before["do_not_call"] == true && !r.sc.can("assign") {
 		return nil, reject("Only a manager can lift a do-not-call")
+	}
+	// A blocked number keeps its leads do-not-call: the block is lifted on the block list, with a reason (step 25, D207).
+	if changes["do_not_call"] == false && before["do_not_call"] == true {
+		b, err := numberBlocked(r.ctx, r.tx, asString(before["phone"]))
+		if err != nil {
+			return nil, err
+		}
+		if b.Shared {
+			return nil, reject("This number is in Caller Whale's do-not-call database; the owner or an admin can ask Caller Whale to review it")
+		}
+		if b.Calls {
+			return nil, reject("This number is on the agency's block list; the owner or an admin lifts it there, with a reason")
+		}
 	}
 	if err = checkBase(before, changes, base); err != nil {
 		return nil, err
@@ -606,6 +710,12 @@ func (r *run) leadUpdate(p map[string]any) (any, error) {
 		version = l.version + 1, updated_at = now() WHERE l.id = $1`, id, merge(before, changes))
 	if err != nil {
 		return nil, err
+	}
+	// Marking a lead do-not-call blocks its number for the whole agency (step 25, D139).
+	if changes["do_not_call"] == true && before["do_not_call"] != true {
+		if err = block(r.ctx, r.tx, r.sc, blockAsk{Phone: asString(merge(before, changes)["phone"]), Calls: true, Texts: true, Source: "lead", LeadID: id}); err != nil {
+			return nil, err
+		}
 	}
 	after, err := r.visibleLead(id, false)
 	if err != nil {
@@ -633,18 +743,37 @@ func (r *run) leadAssign(p map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if to != nil {
-		g, err := r.s.rules.grant(r.ctx, *to, r.sc.orgID, true)
-		if err != nil {
-			return nil, err
-		}
-		if !g.Allowed {
-			return nil, reject("That person is not in this workspace")
-		}
-	}
 	team, err := optUUID(p, "team_id")
 	if err != nil {
 		return nil, err
+	}
+	if to != nil {
+		mine, err := r.s.rules.grant(r.ctx, r.sc.userID, r.sc.orgID, r.sc.secondStep)
+		if err != nil {
+			return nil, err
+		}
+		targets, err := r.s.assignTargets(r.ctx, r.sc, mine.ManagedTeamIDs)
+		if err != nil {
+			return nil, err
+		}
+		target, ok := targets[*to]
+		if !ok {
+			return nil, reject("You can give leads only to the people you manage")
+		}
+		if team == nil && target.TeamID != "" {
+			team = &target.TeamID // the lead moves into the receiver's team, so their manager sees it
+		}
+	}
+	if team != nil {
+		receiverTeam := ""
+		if to != nil {
+			if t, err := r.handTo(*to); err == nil {
+				receiverTeam = t.TeamID
+			}
+		}
+		if err = r.teamAllowed(*team, receiverTeam); err != nil {
+			return nil, err
+		}
 	}
 	reason := str(p, "reason")
 	for _, id := range ids {
@@ -653,6 +782,16 @@ func (r *run) leadAssign(p map[string]any) (any, error) {
 			return nil, err
 		}
 		from, _ := before["assignee_id"].(string)
+		// A lead moves between teams only for someone who runs both, or sees the whole workspace (D108).
+		if current := asString(before["team_id"]); team != nil && current != "" && current != *team && !slices.Contains(r.sc.scopes, "organization") {
+			mine, err := r.s.rules.grant(r.ctx, r.sc.userID, r.sc.orgID, r.sc.secondStep)
+			if err != nil {
+				return nil, err
+			}
+			if !slices.Contains(mine.ManagedTeamIDs, current) || !slices.Contains(mine.ManagedTeamIDs, *team) {
+				return nil, reject("A team lead moves leads only between teams they lead")
+			}
+		}
 		if err = r.exec(`UPDATE leads SET assignee_id = $2, team_id = coalesce($3, team_id), version = version + 1, updated_at = now() WHERE id = $1`, id, to, team); err != nil {
 			return nil, err
 		}
@@ -721,9 +860,10 @@ func (r *run) leadArchive(p map[string]any, archive bool) (any, error) {
 	return redactLead(after, r.sc), nil
 }
 
+// leadDelete removes a lead for good: the owner and admins only, after a confirmation on screen (D232). Everyone else archives.
 func (r *run) leadDelete(p map[string]any) (any, error) {
-	if err := r.need("assign"); err != nil {
-		return nil, err
+	if !r.sc.can("admin") {
+		return nil, reject("Only the agency owner or an admin deletes a lead for good. Archive it instead")
 	}
 	id, err := uuidField(p, "id")
 	if err != nil {
@@ -884,6 +1024,11 @@ func (r *run) callRecord(p map[string]any) (any, error) {
 	if before["do_not_call"] == true {
 		return nil, reject("This lead is do-not-call; calls cannot be logged")
 	}
+	if b, err := numberBlocked(r.ctx, r.tx, asString(before["phone"])); err != nil {
+		return nil, err
+	} else if b.Calls {
+		return nil, reject("%s Calls cannot be logged", b.Why)
+	}
 	occurred := time.Now()
 	if t, err := optTime(p, "occurred_at"); err != nil {
 		return nil, err
@@ -908,12 +1053,29 @@ func (r *run) callRecord(p map[string]any) (any, error) {
 		scheduled = &t
 	}
 	phone := str(p, "phone")
-	if phone == "" {
+	if len(nonDigits.ReplaceAllString(phone, "")) < 7 { // none, or the masked number an agent's device shows (step 30)
 		phone = asString(before["phone"])
 	}
-	event, err := r.one(`INSERT INTO call_events (org_id, lead_id, agent_id, agent_label, phone, outcome, code, meaning, scheduled_at, source, occurred_at, operation_id)
-		VALUES (cw_org(), $1, $2, $3, $4, $5, $6, $7, $8, coalesce(nullif($9, ''), 'manual'), $10, $11) RETURNING to_jsonb(call_events.*)`,
-		leadID, r.sc.userID, r.sc.label, phone, out.label, out.code, out.meaning, scheduled, str(p, "source"), occurred, r.op.ID)
+	// The carrier's facts about a call (record id, durations, recording) come only from the dialer service.
+	recordID, notes, details := "", "", map[string]any{}
+	var recStart, recEnd *time.Time
+	if r.op.internal {
+		recordID, notes = str(p, "source_record_id"), str(p, "notes")
+		if d, ok := p["details"].(map[string]any); ok {
+			details = d
+		}
+		if recStart, err = optTime(p, "recording_started_at"); err != nil {
+			return nil, err
+		}
+		if recEnd, err = optTime(p, "recording_ended_at"); err != nil {
+			return nil, err
+		}
+	}
+	event, err := r.one(`INSERT INTO call_events (org_id, lead_id, agent_id, agent_label, phone, outcome, code, meaning, scheduled_at, source, occurred_at, operation_id,
+			source_record_id, notes, details, recording_started_at, recording_ended_at)
+		VALUES (cw_org(), $1, $2, $3, $4, $5, $6, $7, $8, coalesce(nullif($9, ''), 'manual'), $10, $11, $12, $13, $14, $15, $16) RETURNING to_jsonb(call_events.*)`,
+		leadID, r.sc.userID, r.sc.label, phone, out.label, out.code, out.meaning, scheduled, str(p, "source"), occurred, r.op.ID,
+		recordID, notes, details, recStart, recEnd)
 	if err != nil {
 		return nil, err
 	}
@@ -947,6 +1109,17 @@ func (r *run) callRecord(p map[string]any) (any, error) {
 		leadID, stage, verdict, out.meaning == "do_not_call", scheduled, nextAction, out.label == "Transfer")
 	if err != nil {
 		return nil, err
+	}
+	// "Do not call" blocks the number for the agency; dnc_kind "anyone" is the agent confirming the person wants no calls from anyone,
+	// "complainer" reports a known complainer: both go to Caller Whale's database (step 25, D139, D351).
+	if out.meaning == "do_not_call" {
+		kind := str(p, "dnc_kind")
+		if !slices.Contains([]string{"anyone", "complainer"}, kind) {
+			kind = "agency"
+		}
+		if err = block(r.ctx, r.tx, r.sc, blockAsk{Phone: phone, Calls: true, Texts: true, Kind: kind, Source: "call", LeadID: leadID}); err != nil {
+			return nil, err
+		}
 	}
 	// One open callback task per lead: a new try replaces it, a final outcome closes it.
 	closed, err := queryJSON(r.ctx, r.tx, `UPDATE tasks SET done_at = now(), version = version + 1 WHERE lead_id = $1 AND type = 'Callback' AND done_at IS NULL RETURNING jsonb_build_object('id', id)`, leadID)
@@ -1113,6 +1286,9 @@ func (r *run) taskCreate(p map[string]any) (any, error) {
 	if assignee == nil {
 		assignee = &r.sc.userID
 	}
+	if _, err = r.handTo(*assignee); err != nil {
+		return nil, err
+	}
 	id, err := optUUID(p, "id")
 	if err != nil {
 		return nil, err
@@ -1158,6 +1334,14 @@ func (r *run) taskUpdate(p map[string]any) (any, error) {
 	}
 	if err = checkBase(before, changes, base); err != nil {
 		return nil, err
+	}
+	if to, ok := changes["assignee_id"]; ok && asString(to) != asString(before["assignee_id"]) {
+		if !validID(asString(to)) {
+			return nil, reject("Choose who the task is for")
+		}
+		if _, err = r.handTo(asString(to)); err != nil {
+			return nil, err
+		}
 	}
 	task, err := r.one(`UPDATE tasks t SET (title, type, priority, due_at, timezone, recurrence, assignee_id, shared_external) =
 			(SELECT x.title, x.type, x.priority, x.due_at, x.timezone, nullif(x.recurrence, ''), x.assignee_id, x.shared_external FROM jsonb_populate_record(NULL::tasks, $2::jsonb) x),
@@ -1249,6 +1433,10 @@ func (r *run) handoffRequest(p map[string]any) (any, error) {
 	}
 	if !g.Allowed || !slices.Contains(g.Capabilities, "accept") {
 		return nil, reject("That person cannot accept handoffs")
+	}
+	// A handoff stays inside the lead's team; another team's closer is a team move by a team lead (D109).
+	if team := asString(lead["team_id"]); team != "" && !slices.Contains(g.TeamIDs, team) && !slices.Contains(g.Scopes, "organization") {
+		return nil, reject("Hand off to someone in this lead's team. Sending it to another team is a move a team lead makes")
 	}
 	if project, ok := lead["project_id"].(string); ok {
 		var required []string
@@ -1388,18 +1576,24 @@ func (r *run) dealCreate(p map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err = r.visibleLead(leadID, false); err != nil {
+	lead, err := r.visibleLead(leadID, false)
+	if err != nil {
 		return nil, err
 	}
 	id, err := optUUID(p, "id")
 	if err != nil {
 		return nil, err
 	}
+	// The stages of the lead's client, else the agency's (step 28, D154).
+	stages, err := stagesFor(r.ctx, r.tx, asString(lead["client_id"]))
+	if err != nil {
+		return nil, err
+	}
 	stage := str(p, "stage")
 	if stage == "" {
-		stage = "Qualified"
+		stage = stages[0]
 	}
-	if !slices.Contains(dealStages, stage) {
+	if !slices.Contains(stages, stage) {
 		return nil, reject("%s is not a deal stage", stage)
 	}
 	if strings.HasPrefix(stage, "Closed") {
@@ -1462,7 +1656,15 @@ func (r *run) dealUpdate(p map[string]any) (any, error) {
 		return nil, err
 	}
 	if stage, ok := changes["stage"].(string); ok {
-		if !slices.Contains(dealStages, stage) {
+		var client *string
+		if err := r.tx.QueryRow(r.ctx, `SELECT l.client_id::text FROM leads l WHERE l.id = $1`, asString(before["lead_id"])).Scan(&client); err != nil {
+			return nil, err
+		}
+		stages, err := stagesFor(r.ctx, r.tx, deref(client))
+		if err != nil {
+			return nil, err
+		}
+		if !slices.Contains(stages, stage) && stage != before["stage"] {
 			return nil, reject("%s is not a deal stage", stage)
 		}
 		reason := asString(before["outcome_reason"])
@@ -1478,6 +1680,22 @@ func (r *run) dealUpdate(p map[string]any) (any, error) {
 			version = d.version + 1 WHERE d.id = $1 RETURNING to_jsonb(d.*)`, id, merge(before, changes))
 	if err != nil {
 		return nil, err
+	}
+	// Who won it and when, for commissions (step 27); a deal moved out of "Closed won" loses both.
+	if before["stage"] != deal["stage"] && (before["stage"] == "Closed won" || deal["stage"] == "Closed won") {
+		if deal, err = r.one(`UPDATE deals SET closed_at = CASE WHEN stage = 'Closed won' THEN now() END, closed_by = CASE WHEN stage = 'Closed won' THEN $2::uuid END
+			WHERE id = $1 RETURNING to_jsonb(deals.*)`, id, r.sc.userID); err != nil {
+			return nil, err
+		}
+		// Credit by role, and the won lead leaves the calling queues (step 28, D157, D283).
+		if err = r.creditDeal(deal, deal["stage"] == "Closed won"); err != nil {
+			return nil, err
+		}
+		if deal["stage"] == "Closed won" {
+			if err = r.exec(`UPDATE lead_referrals SET deal_closed_at = coalesce(deal_closed_at, now()) WHERE to_org = cw_org() AND to_lead_id = $1 AND status = 'accepted'`, nullID(asString(deal["lead_id"]))); err != nil {
+				return nil, err
+			}
+		}
 	}
 	kind := "deal.updated"
 	if before["stage"] != deal["stage"] {

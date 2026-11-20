@@ -70,6 +70,9 @@ func buildCatalog(stored []role) []catalogRole {
 	out := make([]catalogRole, 0, len(presets)+len(stored))
 	seen := map[string]bool{}
 	for _, p := range presets {
+		if disabledRoles[p.key] {
+			continue
+		}
 		entry := catalogRole{Key: p.key, Name: p.name, Source: "preset", Capabilities: slices.Clone(p.capabilities), Scope: p.scope, SecondStep: p.secondStep}
 		if kept, ok := byKey[p.key]; ok {
 			entry.Capabilities, entry.Scope, entry.SecondStep = slices.Clone(kept.Capabilities), kept.Scope, kept.SecondStep
@@ -80,7 +83,7 @@ func buildCatalog(stored []role) []catalogRole {
 	}
 	custom := []catalogRole{}
 	for _, r := range stored {
-		if seen[r.Key] {
+		if seen[r.Key] || disabledRoles[r.Key] {
 			continue
 		}
 		seen[r.Key] = true
@@ -94,6 +97,9 @@ func buildCatalog(stored []role) []catalogRole {
 func (s *server) catalog(w http.ResponseWriter, r *http.Request) error {
 	platform := make([]map[string]string, 0, len(platformRoleNames))
 	for _, p := range platformRoleNames {
+		if disabledRoles[p.Key] {
+			continue
+		}
 		platform = append(platform, map[string]string{"key": p.Key, "name": p.Name})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"workspace": buildCatalog(nil), "platform": platform})

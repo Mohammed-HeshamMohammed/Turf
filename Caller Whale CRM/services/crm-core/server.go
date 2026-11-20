@@ -9,6 +9,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -68,9 +69,38 @@ type server struct {
 	st    *store
 	hub   *hub
 	now   func() time.Time
+	// Google Calendar (step 28, part B); nil when not set up.
+	calendar calendarAPI
+	// Email to leads (step 29); nil when not set up. fetchCert reads SNS signing certificates (a stand-in in tests).
+	mail      emailProvider
+	fetchCert func(context.Context, string) ([]byte, error)
+	// reportMailer sends a report email (the notification service; a stand-in in tests).
+	reportMailer reportMail
+	// hookHTTP delivers outgoing events (public addresses only); a stand-in in tests.
+	hookHTTP *http.Client
 
 	seenPeople sync.Map // user -> last time their name was stored
 	seenOrgs   sync.Map // workspace ids that have a row
+	seenDays   sync.Map // org|user|day already written to member_days (step 32)
+	sharedName sync.Map // workspace id -> the agency name authz was last told
+	// Files on leads (step 38): the virus scanner (nil when CLAMD_ADDR is not set: files wait unopened), the plan's storage per
+	// agency kept a minute, and a stand-in for billing in tests.
+	scanner        fileScanner
+	storageLimits  sync.Map
+	storageLimitFn func(context.Context, string) (int64, error)
+}
+
+// shareOrgName tells authz the agency's name once per name, so invitations can name the agency. A failure is logged and tried
+// again on the next request: the CRM keeps working either way.
+func (s *server) shareOrgName(ctx context.Context, org, name string) {
+	if told, ok := s.sharedName.Load(org); ok && told == name {
+		return
+	}
+	if err := s.rules.nameOrg(ctx, org, name); err != nil {
+		log.Printf("WARN could not tell authz the name of workspace %s: %v", org, err)
+		return
+	}
+	s.sharedName.Store(org, name)
 }
 
 // req is one signed-in request. sc is filled for requests inside a workspace.
@@ -102,18 +132,68 @@ func (s *server) handler() http.Handler {
 
 	mux.Handle("GET /api/v1/me", s.user(s.me))
 	mux.Handle("GET /api/v1/account", s.user(s.account))
+	mux.Handle("PUT /api/v1/me/picture", s.user(s.setPicture))
 	mux.Handle("POST /api/v1/credits/use", s.user(func(q *req) error { writeJSON(q.w, 200, map[string]any{"limited": false}); return nil }))
 
 	mux.Handle("GET /api/v1/directory", s.member(s.directory))
 	mux.Handle("GET /api/v1/admin/teams", s.member(s.teams))
+	mux.Handle("GET /api/v1/teams/{id}/settings", s.member(s.getTeamSettings))
+	mux.Handle("PUT /api/v1/teams/{id}/settings", s.member(s.putTeamSettings))
+	mux.Handle("GET /api/v1/teams/{id}/pool", s.member(s.teamPool))
+	mux.Handle("GET /api/v1/handon", s.member(s.waitingWork))
+	mux.Handle("POST /api/v1/handon/{user}", s.member(s.handOn))
+	mux.Handle("GET /api/v1/tags", s.member(s.listTags))
+	mux.Handle("POST /api/v1/tags", s.member(s.createTag))
+	mux.Handle("DELETE /api/v1/tags/{id}", s.member(s.deleteTag))
+	mux.Handle("GET /api/v1/retention", s.member(s.retention))
+	mux.Handle("PUT /api/v1/retention", s.member(s.retention))
+	mux.Handle("POST /api/v1/retention/keep", s.member(s.keepLeads))
+	mux.Handle("POST /api/v1/retention/remove", s.member(s.removeDue))
 	mux.Handle("POST /api/v1/admin/teams", s.member(s.createTeam))
+	// Clients (step 23).
+	mux.Handle("GET /api/v1/clients", s.member(s.listClients))
+	mux.Handle("POST /api/v1/clients", s.member(s.saveClient))
+	mux.Handle("PATCH /api/v1/clients/{id}", s.member(s.saveClient))
+	mux.Handle("GET /api/v1/clients/{id}/summary", s.member(s.clientSummary))
+	mux.Handle("GET /api/v1/clients/{id}/approvals", s.member(s.clientApprovals))
+	mux.Handle("POST /api/v1/projects/{id}/approval/send", s.member(s.sendForApproval))
+	mux.Handle("POST /api/v1/projects/{id}/approval", s.member(s.approveList))
+	mux.Handle("GET /api/v1/leads/{id}/twins", s.member(s.leadTwins))
+	s.blockRoutes(mux)
+	s.scriptRoutes(mux)
+	s.assistantRoutes(mux)
+	s.commissionRoutes(mux)
+	s.bookingRoutes(mux)
+	s.googleRoutes(mux)
+	s.emailRoutes(mux)
+	s.protectRoutes(mux)
+	s.setupRoutes(mux)
+	s.overviewRoutes(mux)
+	s.keyRoutes(mux)
+	s.formRoutes(mux)
+	s.referralRoutes(mux)
+	s.carrierRoutes(mux)
+	s.restoreRoutes(mux)
+	s.dataRequestRoutes(mux)
+	s.learningRoutes(mux)
+	mux.Handle("PUT /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
+	mux.Handle("DELETE /api/v1/clients/{id}/members/{other}", s.member(s.clientLink("members")))
+	mux.Handle("PUT /api/v1/clients/{id}/teams/{other}", s.member(s.clientLink("teams")))
+	mux.Handle("DELETE /api/v1/clients/{id}/teams/{other}", s.member(s.clientLink("teams")))
+	mux.Handle("POST /api/v1/workspace/upgrade", s.member(s.upgradeToAgency))
 	mux.Handle("GET /api/v1/projects", s.member(s.projects))
 	mux.Handle("POST /api/v1/projects", s.member(s.createProject))
 	mux.Handle("DELETE /api/v1/projects/{id}", s.member(s.deleteProject))
 	mux.Handle("PATCH /api/v1/organization", s.member(s.renameOrg))
+	mux.Handle("GET /api/v1/stats/members", s.member(s.memberStats))
+	mux.Handle("GET /api/v1/assignments/targets", s.member(s.listAssignTargets))
+	mux.Handle("POST /api/v1/assignments", s.member(s.startAssignment))
+	mux.Handle("GET /api/v1/assignments/{id}", s.member(s.getAssignment))
+	mux.Handle("GET /api/v1/stats/members/{user}/activity", s.member(s.memberActivity))
 
 	mux.Handle("GET /api/v1/leads/search", s.member(s.searchLeads))
 	mux.Handle("GET /api/v1/leads/{id}/details", s.member(s.leadDetails))
+	s.fileRoutes(mux)
 	mux.HandleFunc("POST /api/v1/public/remove-my-information", s.removeMyInformation)
 	mux.Handle("GET /api/v1/learning", s.member(s.learningStatus))
 	mux.Handle("POST /api/v1/learning/opt-out", s.member(s.learningChoice(true)))
@@ -140,6 +220,11 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /api/v1/imports/{id}/retry", s.member(s.importRetryMerge))
 	mux.Handle("POST /api/v1/imports/{id}/cancel", s.member(s.importCancel))
 	mux.Handle("DELETE /api/v1/imports/{id}", s.member(s.importDelete))
+	mux.Handle("DELETE /api/v1/imports/{id}/leads", s.member(s.removeList))
+	mux.Handle("GET /api/v1/imports/{id}/other-team", s.member(s.otherTeam))
+	mux.Handle("POST /api/v1/imports/{id}/other-team", s.member(s.decideOtherTeam))
+
+	s.dialerRoutes(mux)
 
 	// The website's contact form posts here (through the gateway) and goes on to the notification service, which sends it.
 	if s.cfg.notifyURL != "" {
@@ -213,9 +298,54 @@ func (s *server) enter(ctx context.Context, q *req, org string) error {
 		return refusal(g)
 	}
 	q.grant, q.rev = g, accessRevision(g)
-	q.sc = scope{userID: q.c.sub, orgID: org, label: label(q.c), scopes: g.Scopes, teamIDs: g.TeamIDs, projectIDs: g.ProjectIDs, caps: g.Capabilities, secondStep: q.c.secondFactor}
+	q.sc = scope{userID: q.c.sub, orgID: org, label: label(q.c), scopes: g.Scopes, teamIDs: g.TeamIDs, seeTeams: g.seeTeams(), projectIDs: g.ProjectIDs, caps: g.Capabilities, secondStep: q.c.secondFactor,
+		roles: g.Roles, managed: g.ManagedTeamIDs, deputyOf: g.DeputyTeamIDs}
+	peek, err := s.peekTeams(ctx, q.sc)
+	if err != nil {
+		return err
+	}
+	if len(peek) > 0 {
+		q.sc.peekTeams, q.rev = peek, accessRevision(g, peek...)
+	}
+	// Agents see lead numbers masked unless the owner shows their team full numbers (step 30, D163).
+	if !seesFullNumbers(q.sc, g) {
+		q.sc.maskPhones = true
+		if q.sc.fullTeams, err = s.fullNumberTeams(ctx, q.sc); err != nil {
+			return err
+		}
+	}
 	s.remember(ctx, q.c, org)
 	return nil
+}
+
+// peekTeams are the person's own teams whose leads switched on "agents see the whole team" (D124), apart from teams they already see
+// in full. Someone who sees the whole workspace needs none.
+func (s *server) peekTeams(ctx context.Context, sc scope) ([]string, error) {
+	if len(sc.teamIDs) == 0 || slices.Contains(sc.scopes, "organization") || slices.Contains(sc.scopes, "shared") && len(sc.scopes) == 1 {
+		return nil, nil
+	}
+	tx, err := s.st.begin(ctx, sc)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	rows, err := tx.Query(ctx, `SELECT team_id::text FROM team_settings WHERE agents_see_team AND team_id = ANY($1::uuid[]) ORDER BY 1`, uuidArray(sc.teamIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	full := sc.visibleTeams()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		if !(slices.Contains(sc.scopes, "team") && slices.Contains(full, id)) {
+			out = append(out, id)
+		}
+	}
+	return out, rows.Err()
 }
 
 func refusal(g grantReply) error {
@@ -235,6 +365,7 @@ func label(c claims) string {
 
 // remember keeps the person's display name and the workspace row, at most once in a while.
 func (s *server) remember(ctx context.Context, c claims, org string) {
+	s.noteMemberDay(ctx, org, c.sub) // days active, for the owner (step 32, D267)
 	if _, ok := s.seenOrgs.Load(org); !ok {
 		if _, err := s.st.db.Exec(ctx, `INSERT INTO orgs (id, name) VALUES ($1, 'Workspace') ON CONFLICT DO NOTHING`, org); err == nil {
 			s.seenOrgs.Store(org, true)
@@ -243,8 +374,8 @@ func (s *server) remember(ctx context.Context, c claims, org string) {
 	if at, ok := s.seenPeople.Load(c.sub); ok && s.now().Sub(at.(time.Time)) < 10*time.Minute {
 		return
 	}
-	if _, err := s.st.db.Exec(ctx, `INSERT INTO people (user_id, name, email) VALUES ($1, $2, $3)
-		ON CONFLICT (user_id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email, seen_at = now()`, c.sub, label(c), c.email); err == nil {
+	if _, err := s.st.db.Exec(ctx, `INSERT INTO people (user_id, name, email, tag) VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email, tag = coalesce(nullif(EXCLUDED.tag, ''), people.tag), seen_at = now()`, c.sub, label(c), c.email, c.tag); err == nil {
 		s.seenPeople.Store(c.sub, s.now())
 	}
 }

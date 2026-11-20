@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -66,6 +67,8 @@ type server struct {
 	st    *store
 	live  *live
 	now   func() time.Time
+
+	synced sync.Map // workspace id → syncedAt: when its team chats were last brought in step, and with what roster
 }
 
 // req is one signed-in request. sc is filled for requests inside a workspace.
@@ -103,6 +106,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST "+base+"/conversations/{id}/read", s.member(s.markRead))
 	mux.Handle("GET "+base+"/conversations/{id}/messages", s.member(s.listMessages))
 	mux.Handle("POST "+base+"/conversations/{id}/messages", s.member(s.sendMessage))
+	mux.Handle("GET "+base+"/messages/search", s.member(s.searchMessages))
 	mux.Handle("PATCH "+base+"/messages/{id}", s.member(s.editMessage))
 	mux.Handle("DELETE "+base+"/messages/{id}", s.member(s.deleteMessage))
 	mux.Handle("PUT "+base+"/messages/{id}/reactions/{emoji}", s.member(s.react(true)))
@@ -131,6 +135,9 @@ func (s *server) member(h handler) http.Handler {
 		q, err := s.identify(w, r)
 		if err == nil {
 			err = s.enter(r.Context(), q, r.Header.Get("x-callerwhale-org"))
+		}
+		if err == nil {
+			err = s.follow(r.Context(), q.sc) // team chats and announcements follow the teams before anything is read or sent
 		}
 		if err == nil {
 			err = h(q)

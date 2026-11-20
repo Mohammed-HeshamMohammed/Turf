@@ -9,7 +9,8 @@ import { capability, conversationPath, loadState, navCounts, personalProfile, re
 import { api, apiBase, auth, setApiBase, setOrganization } from "./remote/api.ts";
 import { SyncEngine } from "./remote/engine.ts";
 import { Messaging, messagingBase } from "./remote/messaging.ts";
-import { Vault } from "./remote/vault.ts";
+import { MemoryVault, Vault } from "./remote/vault.ts";
+import { dropWork, heldCount, holdWork, screenBusy, takeWork } from "./remote/held-work.ts";
 import { LOCAL_ONLY, remoteReducer, syncAction } from "./remote/session.ts";
 import { applyIdentity, labelFor, operationFor } from "./remote/translate.ts";
 import { importPath, importStatusMessage, needsImportAction } from "./remote/source-list-imports.js";
@@ -326,6 +327,7 @@ export function App() {
         if (action.type === "MARK_READ") return void (action.unread === true ? talk.markUnread(action.id) : talk.markRead(action.id));
       }
       if (action.type === "SYNC") return void sync.sync();
+      if (action.type === "RELOAD_ALL") return void sync.reloadEverything().then(() => notify("Everything was loaded again."), error => notify(error.message));
       if (action.type === "REFRESH_LISTS") return void sync.refreshProjects().catch(error => notify("Lists could not be refreshed: " + error.message));
       if (action.type === "BROWSE_LEADS") return sync.browseLeads(action);
       if (action.type === "LEAD_DETAILS") return sync.leadDetails(action.id);
@@ -359,18 +361,24 @@ export function App() {
   useEffect(() => subscribeCallLog(call => apply({ type: "CALL_LOG", call })), []);
   const connect = useCallback(async ({ me, vault }) => {
     const role = applyIdentity(me);
-    const [directory, teams, projects] = await Promise.all([api.directory(), api.teams(), api.projects()]);
+    // My account's picture goes to the CRM first, so the team list (and everyone else's screens) carry the same face.
+    if (typeof me.user.avatar === "string") await api.setPicture(me.user.avatar).catch(() => {});
+    const [directory, teams, projects, targets] = await Promise.all([api.directory(), api.teams(), api.projects(), api.assignTargets().catch(() => ({ targets: [] }))]);
     const selectedWorkspace = me.organizations.find(item => item.id === me.organization_id);
     const organization = selectedWorkspace?.name || "";
     // `people`: the workspace's members from the server, with how each signs in.
     const preferences = loadPersonalPreferences(me.user.id);
-    apply({ type: "REMOTE_START", role, preferences, remote: { user: me.user, capabilities: me.capabilities, organization, organizationId: me.organization_id, organizations: me.organizations, roles: me.roles, people: directory, timezone: selectedWorkspace?.timezone || "UTC" } });
+    apply({ type: "REMOTE_START", role, preferences, remote: { user: me.user, capabilities: me.capabilities, organization, organizationId: me.organization_id, organizations: me.organizations, roles: me.roles, people: directory, assignTargets: targets?.targets || [], timezone: selectedWorkspace?.timezone || "UTC" } });
     setSidebarCollapsed(preferences.sidebarCollapsed);
     if (!openedWithRoute) {
       const preferred = START_PAGES.find(page => page.id === preferences.startPage && ROLES[role].pages.includes(page.id));
       if (preferred) setRoute(preferred.path);
     }
-    const sync = new SyncEngine({ vault, onChange: snapshot => apply(syncAction(snapshot, me.user.name)) });
+    // The web keeps one agency in memory: changes the person could not send there before switching away come back with it (step 5).
+    if (vault instanceof MemoryVault) for (const op of takeWork(me.organization_id)) await vault.enqueue(op);
+    // The refresh never re-reads the records while the person types, has a dialog open or is on a call.
+    const isBusy = () => screenBusy(document, Boolean(getCallSession().active || getCallSession().awaitingOutcome));
+    const sync = new SyncEngine({ vault, isBusy, onChange: snapshot => apply(syncAction(snapshot, me.user.name)) });
     engine.current = sync;
     try {
       await sync.start({ directory, teams, projects, organizationId: me.organization_id });
@@ -406,8 +414,14 @@ export function App() {
     if (sync) {
       await sync.sync();
       if (sync.status !== "synced" || sync.ops.length) {
-        notify(sync.error || "Sync or resolve the pending changes before switching workspaces.");
-        return;
+        // On the web nothing is kept on the device: the agency's records leave memory, its unsent changes wait in this tab (step 5).
+        if (!(sync.vault instanceof MemoryVault)) {
+          notify(sync.error || "Sync or resolve the pending changes before switching workspaces.");
+          return;
+        }
+        holdWork(current.organizationId, sync.ops);
+        const waiting = sync.ops.length;
+        notify(`${waiting === 1 ? "1 change waits" : `${waiting} changes wait`} in ${current.organization || "the other agency"} until you go back to it.`);
       }
     }
     sync?.stop();
@@ -429,6 +443,33 @@ export function App() {
   useEffect(() => {
     if (state.remoteStatus === "signed-out") signOut();
   }, [state.remoteStatus, signOut]);
+  // Losing access to the open agency (removed or suspended) clears it from memory at once and goes back to the person's other
+  // agencies, or the "not invited" screen when there are none (step 5).
+  useEffect(() => {
+    if (state.remoteStatus !== "removed") return;
+    const current = latest.current.remote;
+    const message = latest.current.remoteError || "You no longer have access to this agency.";
+    stopChat();
+    engine.current?.stop();
+    engine.current = null;
+    if (current?.organizationId) dropWork(current.organizationId);
+    setOrganization("");
+    apply({ type: "REMOTE_END" });
+    setConnection("gate");
+    notify(message);
+  }, [state.remoteStatus, notify]);
+  // Nothing is saved in the browser (D194): closing the tab with changes not yet sent loses them, so the browser asks first (D287).
+  useEffect(() => {
+    if (!state.remote) return;
+    const unsent = state.queue.filter(item => item.status === "Pending").length + heldCount();
+    if (!unsent) return;
+    const warn = event => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [state.remote, state.queue]);
   const navigate = useCallback(path => {
     const apply = () => {
       setRoute(path.replace(/^\//, ""));

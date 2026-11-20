@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -56,6 +59,18 @@ func TestMeListsWorkspacesAndWhatThePersonMayDo(t *testing.T) {
 	orgs := me["organizations"].([]any)
 	if len(orgs) != 1 || orgs[0].(map[string]any)["name"] != "Person 1111's workspace" {
 		t.Fatalf("a workspace is named after the person who opened it: %v", orgs)
+	}
+	if got := e.rules.nameOf(orgA); got != "Person 1111's workspace" {
+		t.Fatalf("authz is told the owner's agency name, so invitations can name it: %q", got)
+	}
+	if status, _ := e.call(alice, orgA, "PATCH", "/api/v1/organization", map[string]any{"name": "Blue Door Homes"}); status != 200 {
+		t.Fatalf("rename: %d", status)
+	}
+	if got := e.rules.nameOf(orgA); got != "Blue Door Homes" {
+		t.Fatalf("a renamed agency is told to authz: %q", got)
+	}
+	if status, _ := e.call(alice, orgA, "PATCH", "/api/v1/organization", map[string]any{"name": "Two\nlines"}); status != 400 {
+		t.Fatalf("a name on two lines is refused: %d", status)
 	}
 	if caps := me["capabilities"].([]any); len(caps) != len(everything) {
 		t.Fatalf("capabilities: %v", caps)
@@ -271,7 +286,7 @@ func TestDirectoryNamesPeopleAndProjectsAreListed(t *testing.T) {
 	res, raw := e.raw(alice, orgA, "GET", "/api/v1/directory", nil, nil)
 	var people []map[string]any
 	_ = json.Unmarshal(raw, &people)
-	if res != 200 || len(people) != 2 || people[0]["name"] == "Member" {
+	if res != 200 || len(people) != 2 || people[0]["name"] == "Member" || people[0]["tag"] != "K7P2" {
 		t.Fatalf("directory: %d %v", res, people)
 	}
 	status, project := e.call(alice, orgA, "POST", "/api/v1/projects", map[string]any{"name": "Austin owners"})
@@ -778,4 +793,294 @@ func TestPlatformStaffGetTheirOwnWorkspaceOnceAndOnlyAfterTheSecondStep(t *testi
 	if id := staffWorkspaceID(staff); !validID(id) || id != staffWorkspaceID(staff) || id == staffWorkspaceID(plain) {
 		t.Fatalf("the workspace id is a stable, valid id of its own: %s", id)
 	}
+}
+
+// authz holds the team tree; the CRM's team list is its copy, with each team's manager, and a new team is made in authz first.
+func TestTeamsComeFromTheAuthorizationService(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	const teamA, maya = "aaaaaaaa-0000-4000-8000-000000000001", "aaaaaaaa-0000-4000-8000-0000000000aa"
+	e.rules.mu.Lock()
+	e.rules.teamList = map[string][]authzTeam{orgA: {{TeamID: teamA, Name: "Closers", ManagerID: maya}}}
+	e.rules.mu.Unlock()
+	res, raw := e.raw(alice, orgA, "GET", "/api/v1/admin/teams", nil, nil)
+	var teams []map[string]any
+	_ = json.Unmarshal(raw, &teams)
+	if res != 200 || len(teams) != 1 || teams[0]["id"] != teamA || teams[0]["name"] != "Closers" || teams[0]["manager_id"] != maya {
+		t.Fatalf("teams: %d %s", res, raw)
+	}
+	status, made := e.call(alice, orgA, "POST", "/api/v1/admin/teams", map[string]any{"name": "Callers"})
+	if status != 200 || made["name"] != "Callers" {
+		t.Fatalf("new team: %d %v", status, made)
+	}
+	e.rules.mu.Lock()
+	inAuthz := len(e.rules.teamList[orgA]) == 2 && e.rules.teamList[orgA][1].TeamID == made["id"]
+	e.rules.mu.Unlock()
+	if !inAuthz {
+		t.Error("a team made in the CRM is made in authz under the same id")
+	}
+	if res, raw = e.raw(carol, orgB, "GET", "/api/v1/admin/teams", nil, nil); strings.Contains(string(raw), "Closers") {
+		t.Errorf("another workspace never sees these teams: %s", raw)
+	}
+}
+
+// Each person's numbers come from what they did, and who sees whom follows the team tree: the owner sees everyone, a team
+// manager the callers of the teams they run, a caller only themself.
+func TestTeamMonitoringCountsWorkAndFollowsTheTree(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	const teamA, dave = "aaaaaaaa-0000-4000-8000-000000000001", "44444444-4444-4444-8444-444444444444"
+	e.rules.mu.Lock()
+	e.rules.roster[orgA] = []member{{UserID: alice, Roles: []string{"owner"}}, {UserID: bob, Roles: []string{"caller"}, TeamIDs: []string{teamA}},
+		{UserID: dave, Roles: []string{"manager"}}, {UserID: missing, Roles: []string{"client"}}}
+	e.rules.teamList = map[string][]authzTeam{orgA: {{TeamID: teamA, Name: "Tampa", ManagerID: dave}}}
+	e.rules.grants[dave+"|"+orgA] = grantReply{Allowed: true, Scopes: []string{"team"}, TeamIDs: []string{teamA}, ManagedTeamIDs: []string{teamA}, Capabilities: []string{"edit", "call"}, Roles: []string{"manager"}}
+	e.rules.people_[dave] = peopleReply{UserID: dave, Workspaces: []workspaceRoles{{OrgID: orgA, Roles: []string{"manager"}}}}
+	e.rules.mu.Unlock()
+
+	lead := newID(t)
+	e.want(e.opWith(bob, orgA, "lead.create", map[string]any{"id": lead, "name": "Sam Seller", "phone": "555-0101"}, newID(t)), "applied")
+	e.want(e.op(bob, orgA, "call.record", map[string]any{"lead_id": lead, "outcome": "Voicemail"}), "applied")
+	e.want(e.op(bob, orgA, "call.record", map[string]any{"lead_id": lead, "outcome": "Callback", "callback_at": "2027-01-05T15:00:00Z"}), "applied")
+	e.want(e.op(bob, orgA, "call.record", map[string]any{"lead_id": lead, "outcome": "Wrong number"}), "applied")
+	e.want(e.op(bob, orgA, "lead.update", map[string]any{"id": lead, "changes": map[string]any{"stage": "Qualified"}, "base": map[string]any{}}), "applied")
+	e.want(e.op(bob, orgA, "note.add", map[string]any{"lead_id": lead, "body": "Wants an offer."}), "applied")
+
+	stats := func(user string) (int, map[string]any) {
+		return e.call(user, orgA, "GET", "/api/v1/stats/members", nil)
+	}
+	totalsFor := func(out map[string]any, user string) map[string]any {
+		for _, row := range out["totals"].([]any) {
+			if r := row.(map[string]any); r["user_id"] == user {
+				return r
+			}
+		}
+		return nil
+	}
+	status, out := stats(alice)
+	if status != 200 || len(out["people"].([]any)) != 3 {
+		t.Fatalf("the owner sees everyone but clients: %d %v", status, out)
+	}
+	b := totalsFor(out, bob)
+	if b == nil || b["dials"] != 3.0 || b["connects"] != 1.0 || b["callbacks"] != 1.0 || b["bad_numbers"] != 1.0 || b["qualified"] != 1.0 || b["notes"] != 1.0 || b["leads_held"] != 1.0 || b["last_active"] == nil {
+		t.Fatalf("bob's numbers: %v", b)
+	}
+	if len(out["daily"].([]any)) != 1 {
+		t.Errorf("one day of calls: %v", out["daily"])
+	}
+	_, out = stats(dave)
+	if people := out["people"].([]any); len(people) != 2 || totalsFor(out, alice) != nil || totalsFor(out, bob) == nil {
+		t.Errorf("a manager sees themself and their team's caller: %v", people)
+	}
+	_, out = stats(bob)
+	if people := out["people"].([]any); len(people) != 1 || people[0].(map[string]any)["user_id"] != bob {
+		t.Errorf("a caller sees only themself: %v", people)
+	}
+	if status, act := e.call(dave, orgA, "GET", "/api/v1/stats/members/"+bob+"/activity", nil); status != 200 || len(act["events"].([]any)) < 5 {
+		t.Errorf("the manager follows their caller's activity: %d %v", status, act)
+	}
+	if status, _ := e.call(bob, orgA, "GET", "/api/v1/stats/members/"+alice+"/activity", nil); status != 403 {
+		t.Errorf("a caller cannot follow the owner: %d", status)
+	}
+	if status, _ := e.call(alice, orgA, "GET", "/api/v1/stats/members?from=2026-01-01&to=2026-12-31", nil); status != 400 {
+		t.Errorf("at most 93 days: %d", status)
+	}
+}
+
+func TestStatsRangeDefaultsToTheLastSevenDays(t *testing.T) {
+	r := httptest.NewRequest("GET", "/api/v1/stats/members", nil)
+	from, to, err := statsRange(r, time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC))
+	if err != nil || from != "2026-11-09" || to != "2026-11-15" {
+		t.Fatalf("%s %s %v", from, to, err)
+	}
+	for _, q := range []string{"from=2026-11-10&to=2026-11-01", "from=nope", "from=2026-01-01&to=2026-06-01"} {
+		if _, _, err := statsRange(httptest.NewRequest("GET", "/x?"+q, nil), time.Now()); err == nil {
+			t.Errorf("%s was accepted", q)
+		}
+	}
+}
+
+// The owner gives leads to a manager, the manager shares them with a caller of their team, and nobody gives leads outside
+// their part of the tree.
+func TestLeadsAreGivenDownTheTeamTree(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	const teamT, teamU = "aaaaaaaa-0000-4000-8000-0000000000a1", "aaaaaaaa-0000-4000-8000-0000000000a2"
+	const dave, erin = "44444444-4444-4444-8444-444444444444", "55555555-5555-4555-8555-555555555555"
+	e.rules.mu.Lock()
+	e.rules.roster[orgA] = []member{{UserID: alice, Roles: []string{"owner"}}, {UserID: bob, Roles: []string{"caller"}, TeamIDs: []string{teamT}},
+		{UserID: dave, Roles: []string{"manager"}}, {UserID: erin, Roles: []string{"caller"}, TeamIDs: []string{teamU}}}
+	e.rules.teamList = map[string][]authzTeam{orgA: {{TeamID: teamT, Name: "T", ManagerID: dave}, {TeamID: teamU, Name: "U"}}}
+	e.rules.grants[dave+"|"+orgA] = grantReply{Allowed: true, Scopes: []string{"team", "own"}, TeamIDs: []string{teamT}, ManagedTeamIDs: []string{teamT}, Capabilities: []string{"edit", "assign", "call", "import"}, Roles: []string{"manager"}}
+	e.rules.people_[dave] = peopleReply{UserID: dave, Workspaces: []workspaceRoles{{OrgID: orgA, Roles: []string{"manager"}}}}
+	e.rules.mu.Unlock()
+	for i := 0; i < 5; i++ {
+		e.want(e.opWith(alice, orgA, "lead.create", map[string]any{"id": newID(t), "name": "Owner " + strconv.Itoa(i), "phone": "555-010" + strconv.Itoa(i)}, newID(t)), "applied")
+	}
+	if _, err := e.admin.Exec(context.Background(), `UPDATE crm.leads SET assignee_id = NULL`); err != nil {
+		t.Fatal(err)
+	}
+	finish := func(user string, body map[string]any) map[string]any {
+		t.Helper()
+		status, run := e.call(user, orgA, "POST", "/api/v1/assignments", body)
+		if status != 200 {
+			t.Fatalf("start: %d %v", status, run)
+		}
+		for i := 0; i < 100 && run["status"] == "running"; i++ {
+			time.Sleep(50 * time.Millisecond)
+			_, run = e.call(user, orgA, "GET", "/api/v1/assignments/"+run["id"].(string), nil)
+		}
+		return run
+	}
+	count := func(where string) int {
+		var n int
+		if err := e.admin.QueryRow(context.Background(), `SELECT count(*) FROM crm.leads WHERE `+where).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	// Everyone sees who is in the agency (D54); emails only to the owner, admins and the person's own team leads (D371).
+	if _, raw := e.raw(dave, orgA, "GET", "/api/v1/directory", nil, nil); !strings.Contains(string(raw), erin) || !strings.Contains(string(raw), bob) || !strings.Contains(string(raw), alice) {
+		t.Errorf("the directory lists the whole agency: %s", raw)
+	}
+	var listed []map[string]any
+	_, raw := e.raw(dave, orgA, "GET", "/api/v1/directory", nil, nil)
+	_ = json.Unmarshal(raw, &listed)
+	for _, p := range listed {
+		_, shown := p["email"]
+		if want := p["id"] == bob || p["id"] == dave; shown != want {
+			t.Errorf("email of %v shown to a team lead: %v", p["id"], shown)
+		}
+	}
+	// The owner sees who they can give leads to: everyone working, not clients.
+	_, targets := e.call(alice, orgA, "GET", "/api/v1/assignments/targets", nil)
+	if len(targets["targets"].([]any)) != 4 {
+		t.Errorf("the owner can give leads to the 4 working people: %v", targets)
+	}
+	if run := finish(alice, map[string]any{"selection": map[string]any{"assignee": "unassigned"}, "to": []string{dave}}); run["status"] != "done" || run["assigned"] != 5.0 {
+		t.Fatalf("owner to manager: %v", run)
+	}
+	if n := count(`assignee_id = '` + dave + `' AND team_id = '` + teamT + `'`); n != 5 {
+		t.Fatalf("the manager holds the 5 leads, in the team they run: %d", n)
+	}
+	// The manager gives the first 2 to their caller.
+	if run := finish(dave, map[string]any{"selection": map[string]any{"assignee": dave}, "to": []string{bob}, "limit": 2}); run["assigned"] != 2.0 {
+		t.Fatalf("manager to caller: %v", run)
+	}
+	if n := count(`assignee_id = '` + bob + `' AND team_id = '` + teamT + `'`); n != 2 {
+		t.Fatalf("the caller holds 2 leads in the team: %d", n)
+	}
+	// Not outside the tree: another team's caller, and a caller has no right to give leads at all.
+	if status, _ := e.call(dave, orgA, "POST", "/api/v1/assignments", map[string]any{"selection": map[string]any{}, "to": []string{erin}}); status != 403 {
+		t.Errorf("a manager cannot give leads to another team's caller: %d", status)
+	}
+	if status, _ := e.call(bob, orgA, "POST", "/api/v1/assignments", map[string]any{"selection": map[string]any{}, "to": []string{bob}}); status != 403 {
+		t.Errorf("a caller cannot give leads: %d", status)
+	}
+	var one string
+	_ = e.admin.QueryRow(context.Background(), `SELECT id::text FROM crm.leads WHERE assignee_id = $1 LIMIT 1`, dave).Scan(&one)
+	if out := e.op(dave, orgA, "lead.assign", map[string]any{"ids": []string{one}, "assignee_id": erin}); out["status"] != "rejected" {
+		t.Errorf("one lead to another team's caller is refused too: %v", out)
+	}
+	// Split evenly between two people.
+	if run := finish(alice, map[string]any{"selection": map[string]any{}, "to": []string{dave, bob}}); run["assigned"] != 5.0 {
+		t.Fatalf("split: %v", run)
+	}
+	if a, b := count(`assignee_id = '`+dave+`'`), count(`assignee_id = '`+bob+`'`); a+b != 5 || a < 2 || b < 2 {
+		t.Errorf("shared in turn: %d and %d", a, b)
+	}
+}
+
+// Search finds a lead by any part of its name, email or address, by its phone whatever the format, by city and ZIP from their start;
+// a lead's details bring the lead back too.
+func TestLeadSearchFindsByEveryWayPeopleType(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	id := newID(t)
+	e.want(e.opWith(alice, orgA, "lead.create", map[string]any{"id": id, "name": "Patricia Flores", "phone": "(813) 555-0142", "email": "pat.flores@example.com",
+		"address": "905 Baywood Drive", "city": "Tampa", "zip": "33610"}, newID(t)), "applied")
+	e.want(e.opWith(alice, orgA, "lead.create", map[string]any{"id": newID(t), "name": "Someone Else", "phone": "727-555-9999", "address": "1 Main St", "city": "Austin", "zip": "78701"}, newID(t)), "applied")
+	found := func(term string) []any {
+		t.Helper()
+		status, out := e.call(alice, orgA, "GET", "/api/v1/leads/search?q="+url.QueryEscape(term)+"&limit=20", nil)
+		if status != 200 {
+			t.Fatalf("%q: %d %v", term, status, out)
+		}
+		return out["leads"].([]any)
+	}
+	for _, term := range []string{"tricia", "FLORES", "8135550142", "813-555-0142", "555 0142", "baywood", "pat.flores", "Tam", "336"} {
+		leads := found(term)
+		if len(leads) != 1 || leads[0].(map[string]any)["id"] != id {
+			t.Errorf("%q found %d leads", term, len(leads))
+		}
+	}
+	if leads := found("555"); len(leads) != 2 {
+		t.Errorf("digits common to both phones find both: %d", len(leads))
+	}
+	if leads := found("100%"); len(leads) != 0 {
+		t.Errorf("a percent sign is a character, not a wildcard: %d", len(leads))
+	}
+	status, details := e.call(alice, orgA, "GET", "/api/v1/leads/"+id+"/details", nil)
+	if status != 200 || len(details["leads"].([]any)) != 1 {
+		t.Fatalf("details carry the lead: %d %v", status, details["leads"])
+	}
+}
+
+// A person's account picture, sent by their CRM, reaches everyone's team list; anything but a small image or an https address is refused.
+func TestAPersonsPictureReachesTheTeam(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	pic := "data:image/png;base64,iVBORw0KGgo="
+	if status, out := e.call(bob, orgA, "PUT", "/api/v1/me/picture", map[string]any{"avatar": pic}); status != 200 {
+		t.Fatalf("set picture: %d %v", status, out)
+	}
+	if status, _ := e.call(bob, orgA, "PUT", "/api/v1/me/picture", map[string]any{"avatar": "javascript:alert(1)"}); status != 400 {
+		t.Errorf("a script address is not a picture: %d", status)
+	}
+	_, raw := e.raw(alice, orgA, "GET", "/api/v1/directory", nil, nil)
+	var people []map[string]any
+	_ = json.Unmarshal(raw, &people)
+	for _, person := range people {
+		if person["id"] == bob && person["avatar"] != pic {
+			t.Errorf("the team sees bob's picture: %v", person)
+		}
+	}
+}
+
+// TestWorkCannotBeGivenPastTheTree: an operation sent by hand (the browser console) cannot give a task or a lead to someone the sender
+// does not manage, nor put a lead in a team that is not theirs.
+func TestWorkCannotBeGivenPastTheTree(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	const teamT, teamU = "aaaaaaaa-0000-4000-8000-0000000000b1", "aaaaaaaa-0000-4000-8000-0000000000b2"
+	const dave, erin = "44444444-4444-4444-8444-444444444444", "55555555-5555-4555-8555-555555555555"
+	e.rules.mu.Lock()
+	e.rules.roster[orgA] = []member{{UserID: alice, Roles: []string{"owner"}}, {UserID: bob, Roles: []string{"caller"}, TeamIDs: []string{teamT}},
+		{UserID: dave, Roles: []string{"manager"}}, {UserID: erin, Roles: []string{"caller"}, TeamIDs: []string{teamU}}}
+	e.rules.teamList = map[string][]authzTeam{orgA: {{TeamID: teamT, Name: "T", ManagerID: dave}, {TeamID: teamU, Name: "U"}}}
+	e.rules.grants[dave+"|"+orgA] = grantReply{Allowed: true, Scopes: []string{"team", "own"}, TeamIDs: []string{teamT}, ManagedTeamIDs: []string{teamT}, Capabilities: []string{"edit", "assign", "call", "import"}, Roles: []string{"manager"}}
+	e.rules.mu.Unlock()
+	if status, _ := e.call(alice, orgA, "GET", "/api/v1/admin/teams", nil); status != 200 {
+		t.Fatalf("teams: %d", status)
+	}
+	// A caller gives a task only to themself.
+	e.want(e.opWith(bob, orgA, "task.create", map[string]any{"title": "Mine"}, ""), "applied")
+	e.want(e.opWith(bob, orgA, "task.create", map[string]any{"title": "Yours", "assignee_id": erin}, ""), "rejected")
+	task := e.want(e.opWith(bob, orgA, "task.create", map[string]any{"title": "Moved later"}, ""), "applied")
+	e.want(e.opWith(bob, orgA, "task.update", map[string]any{"id": task["id"], "changes": map[string]any{"assignee_id": alice}, "base": map[string]any{"assignee_id": bob}}, ""), "rejected")
+	// A manager gives a task to their own caller, not to another team's.
+	e.want(e.opWith(dave, orgA, "task.create", map[string]any{"title": "For Bob", "assignee_id": bob}, ""), "applied")
+	e.want(e.opWith(dave, orgA, "task.create", map[string]any{"title": "For Erin", "assignee_id": erin}, ""), "rejected")
+	// A lead is made for someone in the tree only, and only in a team the maker may use.
+	e.want(e.opWith(dave, orgA, "lead.create", map[string]any{"id": newID(t), "name": "For Erin", "assignee_id": erin}, ""), "rejected")
+	e.want(e.opWith(bob, orgA, "lead.create", map[string]any{"id": newID(t), "name": "Into U", "team_id": teamU}, ""), "rejected")
+	lead := newID(t)
+	e.want(e.opWith(dave, orgA, "lead.create", map[string]any{"id": lead, "name": "For Bob", "assignee_id": bob}, ""), "applied")
+	var team string
+	if err := e.admin.QueryRow(context.Background(), `SELECT coalesce(team_id::text, '') FROM crm.leads WHERE id = $1`, lead).Scan(&team); err != nil || team != teamT {
+		t.Fatalf("a lead made for Bob is in his team: %q %v", team, err)
+	}
+	// Giving leads cannot move them into a team the giver does not run.
+	e.want(e.opWith(dave, orgA, "lead.assign", map[string]any{"ids": []string{lead}, "assignee_id": bob, "team_id": teamU}, ""), "rejected")
+	e.want(e.opWith(alice, orgA, "lead.assign", map[string]any{"ids": []string{lead}, "assignee_id": erin}, ""), "applied")
 }

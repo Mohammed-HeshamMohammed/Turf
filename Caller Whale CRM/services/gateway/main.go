@@ -47,11 +47,14 @@ type config struct {
 	human          *humanSettings // the human check in front of the auth service (nil: off)
 	authHost       string         // the ROUTES host of the auth service: only its real routes are answered
 	mcpHost        string         // the ROUTES host of the MCP service (AI assistants): only its few routes are answered, with limits of its own
+	liveHost       string         // the ROUTES host of the live server: only its socket address is answered (never its API, metrics or health)
 	mcpIPPerMinute int            // per address on the MCP host: assistants call from a few shared addresses, so it is higher than for people
 	scanLimit      int            // requests for things that are not there, from one address, before it is paused
 	scanWindow     time.Duration
 	scanPause      time.Duration
 	corsOrigins    map[string]bool // pages (like https://callerwhale.com) that may read the gateway's own replies from a browser
+	// Step 35: authz, for each agency's allowed countries and networks (its token reads only those). Empty: no place limits.
+	authzURL, authzToken string
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -118,8 +121,15 @@ func loadConfig(getenv func(string) string) (config, error) {
 	if c.authHost = strings.ToLower(strings.TrimSpace(getenv("AUTH_HOST"))); c.authHost != "" && c.routes[c.authHost] == nil {
 		return c, errors.New("AUTH_HOST is not one of the ROUTES hosts")
 	}
+	c.authzURL, c.authzToken = strings.TrimRight(strings.TrimSpace(getenv("AUTHZ_URL")), "/"), strings.TrimSpace(getenv("AUTHZ_TOKEN"))
+	if (c.authzURL == "") != (c.authzToken == "") {
+		return c, errors.New("set AUTHZ_URL and AUTHZ_TOKEN together (the gateway's token in authz's AUTHZ_TOKENS)")
+	}
 	if c.mcpHost = strings.ToLower(strings.TrimSpace(getenv("MCP_HOST"))); c.mcpHost != "" && c.routes[c.mcpHost] == nil {
 		return c, errors.New("MCP_HOST is not one of the ROUTES hosts")
+	}
+	if c.liveHost = strings.ToLower(strings.TrimSpace(getenv("LIVE_HOST"))); c.liveHost != "" && c.routes[c.liveHost] == nil {
+		return c, errors.New("LIVE_HOST is not one of the ROUTES hosts")
 	}
 	if c.human, err = loadHuman(getenv, c.routes); err != nil {
 		return c, err
@@ -186,6 +196,20 @@ func classify(method, path string) need {
 		return open
 	case method == http.MethodPost && path == "/api/v1/billing/webhook": // the payment provider's signature is checked by the core API
 		return open
+	// Email to leads (step 29): a lead clicking a link or unsubscribing, and SNS delivering replies (its signature is checked by the CRM).
+	// Website forms (step 36): anyone may open and send one; the CRM limits sends per address and turns robots away.
+	case (method == http.MethodGet || method == http.MethodPost) && strings.HasPrefix(path, "/api/v1/public/forms/"):
+		return open
+	case (method == http.MethodGet || method == http.MethodPost) && strings.HasPrefix(path, "/api/v1/public/email/"):
+		return open
+	// Shared-file links (step 38): the CRM checks the link, its expiry and the scan, and records each opening.
+	case method == http.MethodGet && strings.HasPrefix(path, "/api/v1/public/files/"):
+		return open
+	// Keys for outside tools (step 33): the CRM checks the key (cwk_...) itself; the per-address limit still applies.
+	case (method == http.MethodGet || method == http.MethodPost) && strings.HasPrefix(path, "/api/v1/tools/"):
+		return open
+	case method == http.MethodGet && path == "/api/v1/google/callback": // Google sends the person back here; a one-use state made for them proves who they are
+		return open
 	case path == "/api/v1/platform" || strings.HasPrefix(path, "/api/v1/platform/"):
 		return staff
 	case strings.HasPrefix(path, "/api/v1/") || path == "/sync" || strings.HasPrefix(path, "/sync/") || path == "/events":
@@ -204,11 +228,13 @@ type gateway struct {
 	scans    *scanners
 	humanIPs *limiter // guarded requests per address: every one costs a call to Google
 	now      func() time.Time
+	places   *placeCache // each agency's allowed countries and networks (step 35)
 }
 
 func newGateway(cfg config) *gateway {
 	g := &gateway{cfg: cfg, ips: newLimiter(cfg.ipPerMinute), mcpIPs: newLimiter(cfg.mcpIPPerMinute), people: newLimiter(cfg.userPerMinute), now: time.Now,
-		scans: newScanners(cfg.scanLimit, cfg.scanWindow, cfg.scanPause)}
+		scans: newScanners(cfg.scanLimit, cfg.scanWindow, cfg.scanPause),
+		places: &placeCache{byOrg: map[string]*placeRules{}, client: &http.Client{Timeout: 4 * time.Second}}}
 	if cfg.human != nil {
 		g.human = newHumanCheck(*cfg.human)
 		g.humanIPs = newLimiter(cfg.human.perMinute)
@@ -353,6 +379,12 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		notFound(w)
 		return
 	}
+	// The live server answers only the socket address; its API (the messaging service reaches it privately), metrics and health look like nothing.
+	if g.cfg.liveHost != "" && rt.host == g.cfg.liveHost && !liveAllowed(r.Method, r.URL.Path) {
+		g.scans.miss(caller, g.now())
+		notFound(w)
+		return
+	}
 	// The MCP service answers only its own few routes, and takes only small requests (a tool call is a few lines of JSON).
 	if g.cfg.mcpHost != "" && rt.host == g.cfg.mcpHost {
 		if !mcpAllowed(r.Method, r.URL.Path) {
@@ -439,6 +471,11 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+	}
+	// An agency limited to chosen countries and networks (step 35, D243).
+	if ok, why := g.placeAllowed(r, caller); !ok {
+		writeJSON(w, http.StatusForbidden, map[string]any{"error": why, "code": "place_not_allowed"})
+		return
 	}
 	if rt.core && g.cfg.importWorker != nil && uploadRoute(r.Method, r.URL.Path) {
 		g.cfg.importWorker.proxy.ServeHTTP(w, r)

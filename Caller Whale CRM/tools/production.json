@@ -1,20 +1,379 @@
 {
-  "comment": "One production branch per part (docs/plans/production-branches.md). `paths` are relative to `base` (default 'Caller Whale CRM'); a branch holds only those, at those paths, plus .gitignore. `rust: true` adds the Cargo workspace file, cut down to the members present, and Cargo.lock.",
+  "comment": "One production branch per part (docs/plans/production-branches.md). `checks`: GitHub checks that must have passed on the commit, besides CI summary, before the branch changes. `paths` are relative to `base` (default 'Caller Whale CRM'); a branch holds only those, at those paths, plus .gitignore. `rust: true` adds the Cargo workspace file, cut down to the members present, and Cargo.lock. `images`: the container images built from the branch's files (.github/workflows/images.yml, step 47): `context` and `dockerfile` are paths in the branch; `buildArgs` maps a build argument to the repository's Actions variable that holds it.",
   "components": [
-    { "name": "landing-web-production", "envExample": "Caller Whale CRM/env/landing-web.production.example", "title": "Landing site", "base": "Caller Whale CRM/landing/site", "paths": ["."], "build": "npm ci && npm run build; Coolify: base directory /, Dockerfile /Dockerfile, port 8080, health /healthz. Set VITE_CALLERWHALE_AUTH_URL as a build variable (env/landing-web.production.example)", "note": false },
-    { "name": "landing-dashboard-web-production", "title": "CRM web app (app.callerwhale.com): the desktop frontend built for the browser", "base": "Caller Whale CRM", "paths": ["landing/dashboard-web", "desktop/frontend/react"], "build": "Coolify: base directory /, Dockerfile /landing/dashboard-web/Dockerfile, port 8080, health /healthz, build args VITE_CALLERWHALE_AUTH_URL and VITE_CALLERWHALE_API_URL", "note": false, "exclude": ["landing/dashboard-web/README.md"] },
-    { "name": "auth-backend-production", "envExample": "Caller Whale CRM/env/auth.production.example", "title": "Authentication service", "base": "Caller Whale CRM/services/auth", "paths": ["."], "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8101", "note": false },
-    { "name": "notifications-backend-production", "envExample": "Caller Whale CRM/env/notifications.production.example", "title": "Notification service", "base": "Caller Whale CRM/services/notifications", "paths": ["."], "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8102", "note": false },
-    { "name": "mcp-backend-production", "envExample": "Caller Whale CRM/env/mcp.production.example", "title": "MCP connector service", "base": "Caller Whale CRM/services/mcp", "paths": ["."], "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8106, domain mcp.callerwhale.com", "note": false },
-    { "name": "crm-core-backend-production", "envExample": "Caller Whale CRM/env/crm-core.production.example", "title": "CRM core", "base": "Caller Whale CRM/services/crm-core", "paths": ["."], "build": "go test ./... (the database tests are skipped without CRM_TEST_DATABASE_URL); docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8107, no domain; no upload volume", "note": false },
-    { "name": "importing-lists-backend-production", "envExample": "Caller Whale CRM/env/importing-lists.production.example", "title": "Import worker", "base": "Caller Whale CRM/services/features/importing-lists", "paths": ["."], "build": "python -m unittest discover -s tests; docker build . Coolify: base directory /, Dockerfile /Dockerfile, no domain, no memory cap; its own persistent volume at /data/imports", "note": false },
-    { "name": "assistant-backend-production", "envExample": "Caller Whale CRM/env/assistant.production.example", "title": "Website assistant", "base": "Caller Whale CRM/services/assistant", "paths": ["."], "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8109, no domain of its own (the gateway routes assistant.callerwhale.com to it)", "note": false },
-    { "name": "learning-backend-production", "envExample": "Caller Whale CRM/env/learning.production.example", "title": "Learning store", "base": "Caller Whale CRM/services/learning", "paths": ["."], "build": "go test ./... (the database test needs LEARNING_TEST_URL); docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8112, no domain; its own PostgreSQL resource", "note": false },
-    { "name": "gateway-backend-production", "envExample": "Caller Whale CRM/env/gateway.production.example", "title": "Gateway", "base": "Caller Whale CRM/services/gateway", "paths": ["."], "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8100", "note": false },
-    { "name": "authz-backend-production", "envExample": "Caller Whale CRM/env/authz.production.example", "title": "Authorization service", "base": "Caller Whale CRM/services/authz", "paths": ["."], "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8104, no domain", "note": false },
-    { "name": "billing-backend-production", "envExample": "Caller Whale CRM/env/billing.production.example", "title": "Billing service", "base": "Caller Whale CRM/services/billing", "paths": ["."], "build": "python -m unittest discover -s tests (after pip install -r requirements-test.txt); docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8103, no domain", "note": false },
-    { "name": "desktop-app-production", "envExample": "Caller Whale CRM/env/desktop.env.example", "title": "Desktop app: the frontend, the window container (Tauri) and the feature modules", "paths": ["desktop", "services/auth/clients", "env/desktop.env.example", "env/README.md"], "rust": true, "build": "npm install && npm run build in desktop/frontend/react; cargo test --workspace at the root (the feature modules); cargo build in desktop/container/rust. Their tests start the Skip Tracing engine from skip-engine-production: set CALLERWHALE_SERVICE_ROOT to its checkout" },
-    { "name": "grafana-production", "envExample": "Caller Whale CRM/env/grafana.production.example", "title": "Grafana for Caller Whale's staff, behind the login proxy (Coolify)", "paths": ["deploy/grafana", "services/grafana-proxy", "docs/plans/grafana-access.md", "env/grafana.production.example"], "build": "go test ./... in services/grafana-proxy; in Coolify: a Docker Compose resource from this branch with deploy/grafana/compose.yml (deploy/grafana/README.md)" },
-    { "name": "skip-engine-production", "title": "Skip Tracing engine (Python)", "base": "service", "paths": ["."], "build": "pip install -r requirements.txt pytest && python -m pytest" }
+    {
+      "name": "landing-web-production",
+      "envExample": "Caller Whale CRM/env/landing-web.production.example",
+      "title": "Landing site",
+      "base": "Caller Whale CRM/landing/site",
+      "paths": [
+        "."
+      ],
+      "build": "npm ci && npm run build; Coolify: base directory /, Dockerfile /Dockerfile, port 8080, health /healthz. Set VITE_CALLERWHALE_AUTH_URL as a build variable (env/landing-web.production.example)",
+      "note": false,
+      "images": [
+        {
+          "name": "cw-website",
+          "context": ".",
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "7iglktaamqg3fsnxkzydofiz" },
+          "buildArgs": {
+            "VITE_CALLERWHALE_AUTH_URL": "CALLERWHALE_AUTH_URL"
+          }
+        }
+      ]
+    },
+    {
+      "name": "landing-dashboard-web-production",
+      "title": "CRM web app (app.callerwhale.com): the desktop frontend built for the browser",
+      "base": "Caller Whale CRM",
+      "paths": [
+        "landing/dashboard-web",
+        "desktop/frontend/react"
+      ],
+      "build": "Coolify: base directory /, Dockerfile /landing/dashboard-web/Dockerfile, port 8080, health /healthz, build args VITE_CALLERWHALE_AUTH_URL and VITE_CALLERWHALE_API_URL",
+      "note": false,
+      "exclude": [
+        "landing/dashboard-web/README.md"
+      ],
+      "images": [
+        {
+          "name": "cw-crm-web",
+          "context": ".",
+          "dockerfile": "landing/dashboard-web/Dockerfile",
+          "deploy": { "coolify": "tdqx7o94epfaiqpp38gqx3ya" },
+          "buildArgs": {
+            "VITE_CALLERWHALE_AUTH_URL": "CALLERWHALE_AUTH_URL",
+            "VITE_CALLERWHALE_API_URL": "CALLERWHALE_API_URL",
+            "VITE_CALLERWHALE_MESSAGING_URL": "CALLERWHALE_MESSAGING_URL"
+          }
+        }
+      ]
+    },
+    {
+      "name": "auth-backend-production",
+      "envExample": "Caller Whale CRM/env/auth.production.example",
+      "title": "Authentication service",
+      "base": "Caller Whale CRM/services/auth",
+      "paths": [
+        "."
+      ],
+      "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8101",
+      "note": false,
+      "images": [
+        {
+          "name": "cw-auth",
+          "context": ".",
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "pmabp02jo9zcziyp1e3ujx8f" }
+        }
+      ]
+    },
+    {
+      "name": "notifications-backend-production",
+      "envExample": "Caller Whale CRM/env/notifications.production.example",
+      "title": "Notification service",
+      "base": "Caller Whale CRM/services/notifications",
+      "paths": [
+        "."
+      ],
+      "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8102",
+      "note": false,
+      "images": [
+        {
+          "name": "cw-notifications",
+          "context": ".",
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "drehhescbm16tavi7r4j0det" }
+        }
+      ]
+    },
+    {
+      "name": "mcp-backend-production",
+      "envExample": "Caller Whale CRM/env/mcp.production.example",
+      "title": "MCP connector service",
+      "base": "Caller Whale CRM/services/mcp",
+      "paths": [
+        "."
+      ],
+      "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8106, domain mcp.callerwhale.com",
+      "note": false,
+      "images": [
+        {
+          "name": "cw-mcp",
+          "context": ".",
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "afvnfuour1x4uayxfhq9imcy" }
+        }
+      ]
+    },
+    {
+      "name": "crm-core-backend-production",
+      "envExample": "Caller Whale CRM/env/crm-core.production.example",
+      "title": "CRM core",
+      "base": "Caller Whale CRM/services/crm-core",
+      "paths": [
+        "."
+      ],
+      "build": "go test ./... (the database tests are skipped without CRM_TEST_DATABASE_URL); docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8107, no domain; no upload volume",
+      "note": false,
+      "images": [
+        {
+          "name": "cw-crm-core",
+          "context": ".",
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "pbhaa90fu9dh3tl2x9kzjdly" }
+        }
+      ]
+    },
+    {
+      "name": "messaging-backend-production",
+      "envExample": "Caller Whale CRM/env/messaging.production.example",
+      "title": "Messaging",
+      "base": "Caller Whale CRM/services/messaging",
+      "paths": [
+        "."
+      ],
+      "build": "go test ./... (the database tests are skipped without MESSAGING_TEST_DATABASE_URL); docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8108, no domain of its own",
+      "note": false,
+      "images": [
+        {
+          "name": "cw-messaging",
+          "context": ".",
+          "dockerfile": "Dockerfile"
+        }
+      ]
+    },
+    {
+      "name": "live-backend-production",
+      "envExample": "Caller Whale CRM/env/centrifugo.production.example",
+      "title": "Live server (Centrifugo with Caller Whale's settings)",
+      "base": "Caller Whale CRM/services/live",
+      "paths": [
+        "."
+      ],
+      "build": "node --test (config.test.mjs); docker build . Coolify: build pack Dockerfile, base directory /, Dockerfile /Dockerfile, port 8000, no domain of its own (the gateway routes live.callerwhale.com to it)",
+      "note": false,
+      "images": [
+        {
+          "name": "cw-live",
+          "context": ".",
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "jp4nw7z0jyy3m3vxyouvjo9d" }
+        }
+      ]
+    },
+    {
+      "name": "dialer-sms-backend-production",
+      "envExample": "Caller Whale CRM/env/dialer-sms.production.example",
+      "title": "Dialer and SMS (Telnyx, with a built-in simulator)",
+      "base": "Caller Whale CRM/services/features/dialer-sms",
+      "paths": [
+        "."
+      ],
+      "build": "go test ./... (the database tests are skipped without DIALER_TEST_DATABASE_URL); docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8113, network alias dialer-sms, no domain of its own",
+      "note": false,
+      "images": [
+        {
+          "name": "cw-dialer-sms",
+          "context": ".",
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "hnro3xava3rvdwa5g3why6as" }
+        }
+      ]
+    },
+    {
+      "name": "importing-lists-backend-production",
+      "envExample": "Caller Whale CRM/env/importing-lists.production.example",
+      "title": "Import worker",
+      "base": "Caller Whale CRM/services/features/importing-lists",
+      "paths": [
+        "."
+      ],
+      "build": "python -m unittest discover -s tests; docker build . Coolify: base directory /, Dockerfile /Dockerfile, no domain, no memory cap; its own persistent volume at /data/imports",
+      "note": false,
+      "images": [
+        {
+          "name": "cw-importing-lists",
+          "context": ".",
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "ovzio8h7fqwhhms0dmq3oitd" }
+        }
+      ]
+    },
+    {
+      "name": "assistant-backend-production",
+      "envExample": "Caller Whale CRM/env/assistant.production.example",
+      "title": "Website assistant",
+      "base": "Caller Whale CRM/services/assistant",
+      "paths": [
+        "."
+      ],
+      "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8109, no domain of its own (the gateway routes assistant.callerwhale.com to it)",
+      "note": false,
+      "images": [
+        {
+          "name": "cw-assistant",
+          "context": ".",
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "ttx1uhqkq0yqyynypljgdg1b" }
+        }
+      ]
+    },
+    {
+      "name": "learning-backend-production",
+      "envExample": "Caller Whale CRM/env/learning.production.example",
+      "title": "Learning store",
+      "base": "Caller Whale CRM/services/learning",
+      "paths": [
+        "."
+      ],
+      "build": "go test ./... (the database test needs LEARNING_TEST_URL); docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8112, no domain; its own PostgreSQL resource",
+      "note": false,
+      "images": [
+        {
+          "name": "cw-learning",
+          "context": ".",
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "aglpc4qq7he7oskohr8gwo3t" }
+        }
+      ]
+    },
+    {
+      "name": "gateway-backend-production",
+      "envExample": "Caller Whale CRM/env/gateway.production.example",
+      "title": "Gateway",
+      "base": "Caller Whale CRM/services/gateway",
+      "paths": [
+        "."
+      ],
+      "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8100",
+      "note": false,
+      "images": [
+        {
+          "name": "cw-gateway",
+          "context": ".",
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "uet17t0ao4zerab9ejksuzjt" }
+        }
+      ]
+    },
+    {
+      "name": "authz-backend-production",
+      "envExample": "Caller Whale CRM/env/authz.production.example",
+      "title": "Authorization service",
+      "base": "Caller Whale CRM/services/authz",
+      "paths": [
+        "."
+      ],
+      "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8104, no domain",
+      "note": false,
+      "images": [
+        {
+          "name": "cw-authz",
+          "context": ".",
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "pqtwac85tcbuqqtjuejj2sd2" }
+        }
+      ]
+    },
+    {
+      "name": "billing-backend-production",
+      "envExample": "Caller Whale CRM/env/billing.production.example",
+      "title": "Billing service",
+      "base": "Caller Whale CRM/services/billing",
+      "paths": [
+        "."
+      ],
+      "build": "python -m unittest discover -s tests (after pip install -r requirements-test.txt); docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8103, no domain",
+      "note": false,
+      "images": [
+        {
+          "name": "cw-billing",
+          "context": ".",
+          "dockerfile": "Dockerfile"
+        }
+      ]
+    },
+    {
+      "name": "desktop-app-production",
+      "checks": [
+        "Desktop summary"
+      ],
+      "envExample": "Caller Whale CRM/env/desktop.env.example",
+      "title": "Desktop app: the frontend, the window container (Tauri) and the feature modules",
+      "paths": [
+        "desktop",
+        "services/auth/clients",
+        "env/desktop.env.example",
+        "env/README.md"
+      ],
+      "rust": true,
+      "build": "npm install && npm run build in desktop/frontend/react; cargo test --workspace at the root (the feature modules); cargo build in desktop/container/rust. Their tests start the Skip Tracing engine from skip-engine-production: set CALLERWHALE_SERVICE_ROOT to its checkout"
+    },
+    {
+      "name": "grafana-production",
+      "envExample": "Caller Whale CRM/env/grafana.production.example",
+      "title": "Grafana for Caller Whale's staff, behind the login proxy (Coolify)",
+      "paths": [
+        "deploy/grafana",
+        "services/grafana-proxy",
+        "services/alert-relay",
+        "docs/plans/grafana-access.md",
+        "env/grafana.production.example"
+      ],
+      "build": "go test ./... in services/grafana-proxy; in Coolify: a Docker Compose resource from this branch with deploy/grafana/compose.yml (deploy/grafana/README.md)",
+      "images": [
+        {
+          "name": "cw-grafana-proxy",
+          "context": "services/grafana-proxy",
+          "dockerfile": "services/grafana-proxy/Dockerfile",
+          "deploy": { "coolify": "cs7nxvwhusacrlrsmolbqll9", "setting": "CW_GRAFANA_PROXY_IMAGE" }
+        },
+        {
+          "name": "cw-alert-relay",
+          "context": "services/alert-relay",
+          "dockerfile": "services/alert-relay/Dockerfile",
+          "deploy": { "coolify": "cs7nxvwhusacrlrsmolbqll9", "setting": "CW_ALERT_RELAY_IMAGE" }
+        },
+        {
+          "name": "cw-grafana",
+          "context": "deploy/grafana/grafana",
+          "dockerfile": "deploy/grafana/grafana/Dockerfile"
+        },
+        {
+          "name": "cw-prometheus",
+          "context": "deploy/grafana/prometheus",
+          "dockerfile": "deploy/grafana/prometheus/Dockerfile"
+        },
+        {
+          "name": "cw-blackbox",
+          "context": "deploy/grafana/blackbox",
+          "dockerfile": "deploy/grafana/blackbox/Dockerfile"
+        },
+        {
+          "name": "cw-loki",
+          "context": "deploy/grafana/loki",
+          "dockerfile": "deploy/grafana/loki/Dockerfile"
+        },
+        {
+          "name": "cw-alloy",
+          "context": "deploy/grafana/alloy",
+          "dockerfile": "deploy/grafana/alloy/Dockerfile"
+        }
+      ]
+    },
+    {
+      "name": "skip-engine-production",
+      "checks": [
+        "Desktop summary"
+      ],
+      "title": "Skip Tracing engine (Python)",
+      "base": "service",
+      "paths": [
+        "."
+      ],
+      "build": "pip install -r requirements.txt pytest && python -m pytest"
+    }
   ]
 }

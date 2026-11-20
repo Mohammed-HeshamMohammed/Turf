@@ -1,0 +1,15 @@
+{
+  "log": { "level": "info" },
+  "health": { "enabled": true },
+  "prometheus": { "enabled": true },
+  "engine": { "redis": { "tls": { "enabled": true, "insecure_skip_verify": true } } },
+  "client": {
+    "user_connection_limit": 5,
+    "connection_limit": 1000
+  },
+  "channel": {
+    "namespaces": [
+      { "name": "chat", "allow_user_limited_channels": true }
+    ]
+  }
+}

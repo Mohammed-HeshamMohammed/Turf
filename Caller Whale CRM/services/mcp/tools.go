@@ -2,12 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
 
-// The tools an assistant may use. Phase 1 has two, both read-only and both about the person's own account. Every tool names the scope
-// it needs; a tool the person did not allow is not even listed.
+// The tools an assistant may use. Every tool names the scope it needs; a tool the person did not allow is not even listed. With
+// team:manage (build step 24) an assistant reads the agency's people and teams and asks for changes, which wait for the person to
+// confirm inside Caller Whale (D130). No tool spends money, and none can (D131).
 
 type tool struct {
 	Name        string         `json:"name"`
@@ -34,6 +36,24 @@ var allTools = []tool{
 			"workspace_id": map[string]any{"type": "string", "description": "A workspace id from whoami. Leave out for all of them."},
 		}, "additionalProperties": false},
 		Annotations: readOnly,
+	},
+	{
+		Name: "list_people", Title: "People and teams", scope: "team:manage",
+		Description: "Lists the people of a workspace with their roles and teams, and its teams with their leads. For the workspace's owner, admins and team leads.",
+		InputSchema: map[string]any{"type": "object", "properties": map[string]any{
+			"workspace_id": map[string]any{"type": "string", "description": "A workspace id from whoami."},
+		}, "required": []string{"workspace_id"}, "additionalProperties": false},
+		Annotations: readOnly,
+	},
+	{
+		Name: "request_change", Title: "Ask for a change", scope: "team:manage",
+		Description: "Asks for a change to a workspace's people: invite (email, roles, team_ids), remove (user_id, reason), change_roles (user_id, roles, team_ids), delete_team (team_id) or cancel_invitation (invitation_id). Nothing changes until the person confirms it inside Caller Whale. Payments, plans, seats and budgets cannot be asked for.",
+		InputSchema: map[string]any{"type": "object", "properties": map[string]any{
+			"workspace_id": map[string]any{"type": "string"},
+			"kind":         map[string]any{"type": "string", "enum": []string{"invite", "remove", "change_roles", "delete_team", "cancel_invitation"}},
+			"args":         map[string]any{"type": "object", "description": "The details of the change, as listed for its kind."},
+		}, "required": []string{"workspace_id", "kind", "args"}, "additionalProperties": false},
+		Annotations: map[string]any{"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
 	},
 }
 
@@ -62,6 +82,10 @@ func (s *server) callTool(person *who, token, name string, args json.RawMessage)
 		switch name {
 		case "whoami":
 			return toolText(whoamiText(person), false)
+		case "list_people":
+			return s.listPeople(token, args)
+		case "request_change":
+			return s.requestChange(token, args)
 		case "plan_and_usage":
 			return s.planAndUsage(person, token, args)
 		}
@@ -155,4 +179,72 @@ func orElse(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func (s *server) listPeople(token string, args json.RawMessage) map[string]any {
+	var in struct {
+		WorkspaceID string `json:"workspace_id"`
+	}
+	_ = json.Unmarshal(args, &in)
+	var out struct {
+		People []struct {
+			UserID    string   `json:"user_id"`
+			Name      string   `json:"name"`
+			Roles     []string `json:"roles"`
+			TeamIDs   []string `json:"team_ids"`
+			Suspended bool     `json:"suspended"`
+		} `json:"people"`
+		Teams []struct {
+			TeamID  string   `json:"team_id"`
+			Name    string   `json:"name"`
+			LeadIDs []string `json:"lead_ids"`
+		} `json:"teams"`
+	}
+	if err := s.askAuth("/v1/connectors/people", map[string]any{"token": token, "org": in.WorkspaceID}, &out); err != nil {
+		return toolText("The people of that workspace cannot be read: only its owner, admins and team leads see them.", true)
+	}
+	var b strings.Builder
+	b.WriteString("People:\n")
+	for _, p := range out.People {
+		fmt.Fprintf(&b, "- %s (%s): %s", orElse(p.Name, "unnamed"), p.UserID, strings.Join(p.Roles, ", "))
+		if len(p.TeamIDs) > 0 {
+			fmt.Fprintf(&b, "; teams %s", strings.Join(p.TeamIDs, ", "))
+		}
+		if p.Suspended {
+			b.WriteString("; suspended")
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("Teams:\n")
+	for _, t := range out.Teams {
+		fmt.Fprintf(&b, "- %s (%s); leads %s\n", t.Name, t.TeamID, strings.Join(t.LeadIDs, ", "))
+	}
+	return toolText(b.String(), false)
+}
+
+func (s *server) requestChange(token string, args json.RawMessage) map[string]any {
+	var in struct {
+		WorkspaceID string          `json:"workspace_id"`
+		Kind        string          `json:"kind"`
+		Args        json.RawMessage `json:"args"`
+	}
+	_ = json.Unmarshal(args, &in)
+	var out struct {
+		Summary string `json:"summary"`
+		Message string `json:"message"`
+	}
+	if err := s.askAuth("/v1/connectors/requests", map[string]any{"token": token, "org": in.WorkspaceID, "kind": in.Kind, "args": in.Args}, &out); err != nil {
+		var ae *authError
+		if errors.As(err, &ae) && strings.Contains(ae.body, "error") {
+			var refused struct {
+				Error string `json:"error"`
+			}
+			_ = json.Unmarshal([]byte(ae.body), &refused)
+			if refused.Error != "" {
+				return toolText(refused.Error, true)
+			}
+		}
+		return toolText("The change could not be asked for right now.", true)
+	}
+	return toolText(out.Summary+": "+out.Message, false)
 }

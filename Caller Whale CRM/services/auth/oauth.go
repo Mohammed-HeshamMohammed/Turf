@@ -115,13 +115,19 @@ func (s *server) providerFor(name string) (*provider, error) {
 		return &s.cfg.google, nil
 	case "apple":
 		return &s.cfg.apple, nil
+	case "microsoft":
+		// Step 35 (D237): no client of its own here; Firebase's authorization flow runs it, once turned on in Firebase.
+		return &provider{}, nil
 	}
 	return nil, bad("That sign-in provider does not exist.")
 }
 
 func label(name string) string {
-	if name == "apple" {
+	switch name {
+	case "apple":
 		return "Apple"
+	case "microsoft":
+		return "Microsoft"
 	}
 	return "Google"
 }
@@ -152,12 +158,12 @@ func (s *server) firebaseOffers(ctx context.Context, name string) bool {
 
 func (s *server) providers(w http.ResponseWriter, r *http.Request) error {
 	var wg sync.WaitGroup
-	var google, apple bool
+	var google, apple, microsoft bool
 	for _, p := range []struct {
 		name string
 		cfg  provider
 		out  *bool
-	}{{"google", s.cfg.google, &google}, {"apple", s.cfg.apple, &apple}} {
+	}{{"google", s.cfg.google, &google}, {"apple", s.cfg.apple, &apple}, {"microsoft", provider{}, &microsoft}} {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -165,7 +171,7 @@ func (s *server) providers(w http.ResponseWriter, r *http.Request) error {
 		}()
 	}
 	wg.Wait()
-	writeJSON(w, http.StatusOK, map[string]any{"google": google, "apple": apple})
+	writeJSON(w, http.StatusOK, map[string]any{"google": google, "apple": apple, "microsoft": microsoft})
 	return nil
 }
 
@@ -612,7 +618,8 @@ func (s *server) handoff(ctx context.Context, userID, kind, provider string, mfa
 }
 
 type exchangeBody struct {
-	Code string `json:"code"`
+	Code   string `json:"code"`
+	Device string `json:"device"` // "shared": a browser on a shared device (step 15, D38)
 }
 
 // exchange trades the one-time code from a provider sign-in for tokens. One statement uses it up, so it works once.
@@ -642,6 +649,9 @@ func (s *server) exchange(w http.ResponseWriter, r *http.Request) error {
 	}
 	// A provider sign-in does not pass two-step sign-in: the token says so, and services that need it will ask. A sign-in handed over
 	// from the browser (POST /v1/handoffs) keeps what that session passed.
+	if kind == "browser" && body.Device == "shared" {
+		kind = "shared"
+	}
 	reply, err := s.openSession(ctx, u, kind, mfa == 1, provider, deref(fb))
 	if err != nil {
 		return err

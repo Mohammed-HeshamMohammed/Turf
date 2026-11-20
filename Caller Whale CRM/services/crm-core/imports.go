@@ -332,9 +332,25 @@ func (s *server) importDecide(q *req) error {
 		// repeat inside this list; empty = both), and for merge which row of a group stays ("first" in the file, or "last").
 		Only string `json:"only"`
 		Keep string `json:"keep"`
+		// Picks merge a group field by field: for each field, the row (by row_no) whose value the lead keeps, or "lead" for what the
+		// matched lead already has. keep_all keeps every phone and email of the group among the lead's contacts.
+		Picks []mergePick `json:"picks"`
 	}
 	if err = readJSON(q.w, q.r, &body); err != nil {
 		return err
+	}
+	if len(body.Picks) > 200 {
+		return bad("At most 200 groups at a time.")
+	}
+	for _, pick := range body.Picks {
+		for field, from := range pick.Fields {
+			if !slices.Contains(pickFields, field) {
+				return bad("A pick is for name, phone, email, address, city or zip.")
+			}
+			if _, isRow := from.(float64); !isRow && from != "lead" {
+				return bad("Each field takes a row number or \"lead\".")
+			}
+		}
 	}
 	if !slices.Contains([]string{"", "existing", "inside"}, body.Only) || !slices.Contains([]string{"", "first", "last"}, body.Keep) {
 		return bad("only is existing or inside; keep is first or last.")
@@ -371,6 +387,11 @@ func (s *server) importDecide(q *req) error {
 	}
 	for action, groups := range byAction {
 		if err = apply(action, groups, false); err != nil {
+			return err
+		}
+	}
+	for _, pick := range body.Picks {
+		if err = applyPick(ctx, tx, id, pick); err != nil {
 			return err
 		}
 	}
@@ -565,6 +586,9 @@ func (s *server) runMerge(ctx context.Context, id string) {
 		}
 		_, _ = s.st.db.Exec(ctx, `UPDATE importing.jobs SET merged_rows = merged_rows + $2, progress = jsonb_build_object('phase', 'merging', 'done', merged_rows + $2, 'total', $3::bigint), updated_at = now() WHERE id = $1`, id, n, total)
 	}
+	if err = s.linkCoOwners(ctx, sc, id); err != nil {
+		log.Printf("WARN linking co-owners of import %s: %v", id, err)
+	}
 	_, _ = s.st.db.Exec(ctx, `UPDATE importing.jobs SET status = 'done', progress = jsonb_build_object('phase', 'done', 'done', merged_rows, 'total', $2::bigint), updated_at = now() WHERE id = $1 AND status = 'merging'`, id, total)
 	s.hub.publish(org, []byte(`{"kind":"import.done","entity":"lead","seq":0}`))
 	go func() {
@@ -591,6 +615,32 @@ func (s *server) mergeBatch(ctx context.Context, sc scope, id string, project, t
 
 // mergeBatchIn does the work of mergeBatch inside a transaction the caller owns and commits.
 func mergeBatchIn(ctx context.Context, tx pgx.Tx, sc scope, id string, project, team *string) (int64, error) {
+	// A row of an import into a team that matches a lead another team holds is not merged into it (D112): it waits as 'other_team'
+	// for the owner or an admin to decide, and the importing team learns only how many.
+	if team != nil {
+		if _, err := tx.Exec(ctx, `UPDATE importing.rows r SET state = 'other_team' FROM leads l
+			WHERE r.job_id = $1 AND r.state = 'merge' AND l.id = r.match_lead AND l.team_id IS NOT NULL AND l.team_id <> $2::uuid`, id, *team); err != nil {
+			return 0, err
+		}
+	}
+	// Fields the person chose from the list replace what the matched lead had (a pick, importDecide). Done once per row, before the
+	// fold below, which then only fills what is still empty.
+	if _, err := tx.Exec(ctx, `
+		WITH picked AS (
+			SELECT DISTINCT ON (r.match_lead) r.row_no, r.match_lead, r.chosen FROM importing.rows r
+			WHERE r.job_id = $1 AND r.state = 'merge' AND r.chosen IS NOT NULL AND NOT r.chosen_applied ORDER BY r.match_lead, r.row_no LIMIT $2
+		), lead AS (
+			UPDATE leads l SET name = coalesce(nullif(p.chosen->>'name', ''), l.name), phone = coalesce(p.chosen->>'phone', l.phone),
+				email = coalesce(p.chosen->>'email', l.email), contacts = coalesce(p.chosen->'contacts', l.contacts), version = l.version + 1, updated_at = now()
+			FROM picked p WHERE l.id = p.match_lead AND l.org_id = cw_org() AND l.deleted_at IS NULL RETURNING l.id, l.property_id
+		), place AS (
+			UPDATE properties a SET address = coalesce(p.chosen->>'address', a.address), city = coalesce(p.chosen->>'city', a.city),
+				postal_code = coalesce(p.chosen->>'zip', a.postal_code), version = a.version + 1
+			FROM picked p JOIN lead l ON l.id = p.match_lead WHERE a.id = l.property_id AND (p.chosen ?| ARRAY['address', 'city', 'zip']) RETURNING 1
+		)
+		UPDATE importing.rows r SET chosen_applied = true FROM picked p WHERE r.job_id = $1 AND r.row_no = p.row_no`, id, mergeBatch); err != nil {
+		return 0, err
+	}
 	var created int64
 	err := tx.QueryRow(ctx, `
 		WITH batch AS (
@@ -605,7 +655,8 @@ func mergeBatchIn(ctx context.Context, tx pgx.Tx, sc scope, id string, project, 
 			FROM batch WHERE address IS NOT NULL OR zip IS NOT NULL OR city IS NOT NULL OR latitude IS NOT NULL RETURNING id
 		), ins AS (
 			INSERT INTO leads (id, org_id, project_id, team_id, property_id, assignee_id, name, phone, email, source, value_amount, stage, contacts)
-			SELECT new_lead_id, cw_org(), $3::uuid, $4::uuid, p.id, $5::uuid, coalesce(nullif(b.name, ''), nullif(b.phone, ''), nullif(b.email, ''), nullif(b.address, ''), 'Unnamed lead'),
+			-- Into a team, new leads start unassigned for the team's leads to hand out (D110); without a team they are the importer's.
+			SELECT new_lead_id, cw_org(), $3::uuid, $4::uuid, p.id, CASE WHEN $4::uuid IS NULL THEN $5::uuid END, coalesce(nullif(b.name, ''), nullif(b.phone, ''), nullif(b.email, ''), nullif(b.address, ''), 'Unnamed lead'),
 				coalesce(b.phone, ''), coalesce(b.email, ''), coalesce(nullif(b.source, ''), $6), b.value, 'New', coalesce(b.contacts, '{}')
 			FROM batch b LEFT JOIN props p ON p.id = b.prop_id RETURNING id
 		), feed AS (
@@ -701,4 +752,163 @@ func (s *server) sweepRowsPeriodically(ctx context.Context) {
 		case <-time.After(6 * time.Hour):
 		}
 	}
+}
+
+// pickFields are the fields a repeat group can be merged by, one row's value each.
+var pickFields = []string{"name", "phone", "email", "address", "city", "zip"}
+
+type pickRow struct {
+	no                                     int64
+	name, phone, email, address, city, zip *string
+	contacts                               map[string]any
+	match                                  *string
+}
+
+type mergePick struct {
+	GroupID int64          `json:"group_id"`
+	Fields  map[string]any `json:"fields"`
+	KeepAll bool           `json:"keep_all"`
+}
+
+// applyPick settles one repeat group as the person chose it field by field. The group's first row stays: it takes each chosen row's
+// value, and the others are left out. With a matched lead, the values chosen from the list are kept in chosen, so the merge writes them
+// over what the lead had; "lead" keeps the lead's own.
+func applyPick(ctx context.Context, tx pgx.Tx, job string, pick mergePick) error {
+	rows, err := tx.Query(ctx, `SELECT row_no, name, phone, email, address, city, zip, contacts, match_lead::text FROM importing.rows
+		WHERE job_id = $1 AND group_id = $2 AND state = 'near_duplicate' ORDER BY row_no`, job, pick.GroupID)
+	if err != nil {
+		return err
+	}
+	var group []pickRow
+	for rows.Next() {
+		var r pickRow
+		if err = rows.Scan(&r.no, &r.name, &r.phone, &r.email, &r.address, &r.city, &r.zip, &r.contacts, &r.match); err != nil {
+			rows.Close()
+			return err
+		}
+		group = append(group, r)
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		return err
+	}
+	if len(group) == 0 {
+		return nil // already settled
+	}
+	base := group[0]
+	values := map[string]*string{"name": base.name, "phone": base.phone, "email": base.email, "address": base.address, "city": base.city, "zip": base.zip}
+	chosen := map[string]any{}
+	for field, from := range pick.Fields {
+		n, isRow := from.(float64)
+		if !isRow {
+			continue // "lead": the matched lead keeps its own
+		}
+		var found *pickRow
+		for i := range group {
+			if group[i].no == int64(n) {
+				found = &group[i]
+			}
+		}
+		if found == nil {
+			return bad("A pick names a row that is not in its group.")
+		}
+		v := map[string]*string{"name": found.name, "phone": found.phone, "email": found.email, "address": found.address, "city": found.city, "zip": found.zip}[field]
+		values[field] = v
+		if v != nil {
+			chosen[field] = *v
+		}
+	}
+	contacts := base.contacts
+	if pick.KeepAll {
+		contacts = unionContacts(group)
+		chosen["contacts"] = contacts
+	}
+	var keep any
+	state := "import"
+	if base.match != nil {
+		state = "merge"
+		if len(chosen) > 0 {
+			keep = chosen
+		}
+	}
+	if _, err = tx.Exec(ctx, `UPDATE importing.rows SET state = $3, name = $4, phone = $5, email = $6, address = $7, city = $8, zip = $9, contacts = $10, chosen = $11
+		WHERE job_id = $1 AND row_no = $2`, job, base.no, state, values["name"], values["phone"], values["email"], values["address"], values["city"], values["zip"], contacts, keep); err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `UPDATE importing.rows SET state = 'skip' WHERE job_id = $1 AND group_id = $2 AND state = 'near_duplicate' AND row_no <> $3`, job, pick.GroupID, base.no)
+	return err
+}
+
+// unionContacts keeps every owner, phone and email of a group's rows, each once, in the order the rows have them.
+func unionContacts(group []pickRow) map[string]any {
+	owners, phones, emails := []any{}, []any{}, []any{}
+	seen := map[string]bool{}
+	add := func(list *[]any, kind, key string, item any) {
+		if key == "" || seen[kind+key] {
+			return
+		}
+		seen[kind+key] = true
+		*list = append(*list, item)
+	}
+	for _, r := range group {
+		if r.name != nil {
+			add(&owners, "o", *r.name, *r.name)
+		}
+		if r.phone != nil {
+			add(&phones, "p", *r.phone, map[string]any{"number": *r.phone})
+		}
+		if r.email != nil {
+			add(&emails, "e", *r.email, *r.email)
+		}
+		for _, o := range listOf(r.contacts["owners"]) {
+			if text, ok := o.(string); ok {
+				add(&owners, "o", text, text)
+			}
+		}
+		for _, ph := range listOf(r.contacts["phones"]) {
+			if m, ok := ph.(map[string]any); ok {
+				if number, _ := m["number"].(string); number != "" {
+					add(&phones, "p", number, m)
+				}
+			}
+		}
+		for _, e := range listOf(r.contacts["emails"]) {
+			if text, ok := e.(string); ok {
+				add(&emails, "e", text, text)
+			}
+		}
+	}
+	return map[string]any{"owners": owners, "phones": phones, "emails": emails}
+}
+
+func listOf(v any) []any {
+	list, _ := v.([]any)
+	return list
+}
+
+// linkCoOwners links each lead this import added or merged to the other leads at the same address under another name: co-owners
+// (siblings, spouses, heirs) are kept as separate leads and shown beside each other.
+func (s *server) linkCoOwners(ctx context.Context, sc scope, job string) error {
+	tx, err := s.st.begin(ctx, sc)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, `
+		WITH mine AS (
+			SELECT DISTINCT l.id, l.name, importing.addr_key(a.address, a.postal_code) AS k FROM importing.rows r
+			JOIN leads l ON l.id = r.lead_id AND l.deleted_at IS NULL JOIN properties a ON a.id = l.property_id
+			WHERE r.job_id = $1 AND r.state = 'merged'
+		), pairs AS (
+			SELECT m.id AS a, o.id AS b FROM mine m
+			JOIN properties pa ON pa.org_id = cw_org() AND importing.addr_key(pa.address, pa.postal_code) = m.k
+			JOIN leads o ON o.property_id = pa.id AND o.id <> m.id AND o.deleted_at IS NULL
+			WHERE m.k IS NOT NULL AND lower(trim(o.name)) <> lower(trim(m.name))
+		)
+		INSERT INTO lead_links (org_id, lead_id, related_id)
+		SELECT cw_org(), a, b FROM pairs UNION SELECT cw_org(), b, a FROM pairs
+		ON CONFLICT DO NOTHING`, job); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
