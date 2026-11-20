@@ -375,6 +375,7 @@ export function DataTable({ view, columns, rowKey, leading, trailing, paged = fa
       if (Math.abs(shift) > 1)
         cell.animate([{ transform: `translateX(${shift}px)` }, { transform: "none" }], { duration: 300, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- animate when the layout changes; ids follow from it
   }, [layout]);
   // Remembered after every change, so the next one knows where the columns were.
   useLayoutEffect(() => {

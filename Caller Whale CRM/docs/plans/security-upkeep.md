@@ -40,7 +40,7 @@ Python service, Rust workspace, Dockerfile and workflow), and GitHub opens secur
 
 ## Agencies stay apart: tested on every change (D305)
 
-`services/crm-core/isolation_test.go` runs with the CRM's tests on every change (`.github/workflows/check-backend.yml`):
+`services/crm-core/isolation_test.go` runs with the CRM's tests on every change (`.github/workflows/ci.yml`):
 
 - Every CRM table with an agency's rows must be under forced row security, or be on a short list of tables meant to hold several
   agencies' rows (each says why in its migration). A new table that forgets row security fails the build.

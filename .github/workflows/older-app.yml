@@ -1,0 +1,58 @@
+name: Caller Whale App
+
+# The older desktop app (Caller Whale App/) on Windows. Its own development, apart from ci.yml: a failure shows on the pull request but
+# does not block merging to main. It runs only when its files (or the engine and calendar it shares) change.
+
+on:
+  pull_request:
+    paths:
+      - "Caller Whale App/**"
+      - "Caller Whale CRM/shared/**"
+      - "service/**"
+      - ".github/workflows/older-app.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Caller Whale App/**"
+      - "Caller Whale CRM/shared/**"
+      - "service/**"
+      - ".github/workflows/older-app.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: older-app-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  older-app:
+    name: Caller Whale App (the older desktop app, Windows)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: Caller Whale App
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: Caller Whale App/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: service/requirements.txt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: Caller Whale App/src-tauri
+      - run: pip install -r ../service/requirements.txt
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run build
+      - run: npm test
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+

@@ -23,8 +23,9 @@ export function ReadyModeImport() {
   const [error, setError] = useState("");
   const stop = useRef(new AbortController());
   useEffect(() => {
+    const controller = stop.current;
     void api.imports.list("readymode_calls").then(setRecent).catch(() => {});
-    return () => stop.current.abort();
+    return () => controller.abort();
   }, []);
 
   async function track(id) {

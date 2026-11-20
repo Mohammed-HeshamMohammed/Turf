@@ -61,6 +61,9 @@ type crm interface {
 	block(ctx context.Context, org, user, phone, lead string, payload map[string]any) error
 	// carrier tells the CRM an agency's carrier registration and texting standing (step 39); the answer carries a staff review.
 	carrier(ctx context.Context, org string, standing map[string]any) (carrierReply, error)
+	// erasures are numbers whose calls and texts must go after a person's data request (step 44); erasureDone says they went.
+	erasures(ctx context.Context) ([]erasure, error)
+	erasureDone(ctx context.Context, id string) error
 }
 
 // carrierReply is the CRM's answer: when staff last cleared the agency's texting, and their note.
@@ -83,6 +86,24 @@ func (e errCRMRefused) Error() string { return e.message }
 type crmClient struct {
 	base, token string
 	http        *http.Client
+}
+
+// get reads one of crm-core's internal answers.
+func (c *crmClient) get(ctx context.Context, path string, into any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+path, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	res, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("crm-core: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("crm-core %s: status %d", path, res.StatusCode)
+	}
+	return json.NewDecoder(io.LimitReader(res.Body, 4<<20)).Decode(into)
 }
 
 func (c *crmClient) post(ctx context.Context, path string, body, into any) error {

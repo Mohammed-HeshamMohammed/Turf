@@ -39,7 +39,23 @@ type fakeCRM struct {
 	recordings map[string]map[string]any
 	blocks     map[string]map[string]any // phone -> the last block asked for (step 25)
 	carriers   map[string]map[string]any // org -> the last carrier standing told (step 39)
+	toErase    []erasure                 // numbers to erase after a data request (step 44), and the ids done
+	erased     []string
 	clearedAt  *time.Time
+}
+
+func (f *fakeCRM) erasures(context.Context) ([]erasure, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]erasure{}, f.toErase...), nil
+}
+
+func (f *fakeCRM) erasureDone(_ context.Context, id string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.erased = append(f.erased, id)
+	f.toErase = nil
+	return nil
 }
 
 func (f *fakeCRM) carrier(_ context.Context, org string, standing map[string]any) (carrierReply, error) {

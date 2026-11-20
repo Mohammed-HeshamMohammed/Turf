@@ -1,0 +1,294 @@
+name: CI
+
+# The one check `main` requires (D376, D377). It always runs, on every pull request and every push to main, and decides inside which
+# parts to test: a part runs when its files (or what it depends on) changed in the pull request, and every part runs on main, on a
+# manual run, and when anything under .github/ changed. A part skipped because nothing of it changed counts as passed; the last job,
+# "CI summary", fails when any part failed or was cancelled. Every deployed part has a job here (D378); a part with none is not deployed.
+#
+# Not here, on purpose: the daily dependency audit (audit.yml), the monthly currency check (currency-data.yml) and the desktop release
+# (release-crm.yml), because they depend on the outside world or run on a schedule; and the desktop apps (desktop.yml for the CRM
+# desktop app and the Skip Tracing engine, older-app.yml for Caller Whale App), which have their own development and release: their
+# checks show on a pull request that touches them but do not block merging to main (owner, 2026-11-19).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    outputs:
+      parts: ${{ steps.parts.outputs.parts }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: parts
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: node "Caller Whale CRM/tools/ci-parts.mjs" >> "$GITHUB_OUTPUT"
+
+  # Go and Python services, each through service-check.yml.
+  crm-core:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'crm-core')
+    uses: ./.github/workflows/service-check.yml
+    with:
+      dir: Caller Whale CRM/services/crm-core
+      language: go
+      # The tests reset the schemas with the superuser and run the service as an ordinary login, so row security applies.
+      setup: |
+        psql -h localhost -U postgres -c "CREATE ROLE crm_app LOGIN PASSWORD 'apppass' NOSUPERUSER NOBYPASSRLS"
+        psql -h localhost -U postgres -c "CREATE DATABASE crm_test"
+        psql -h localhost -U postgres -d crm_test -c "GRANT ALL ON DATABASE crm_test TO crm_app; GRANT ALL ON SCHEMA public TO crm_app"
+      env: |
+        CRM_TEST_ADMIN_URL=postgres://postgres:testpass@localhost:5432/crm_test?sslmode=disable
+        CRM_TEST_DATABASE_URL=postgres://crm_app:apppass@localhost:5432/crm_test?sslmode=disable
+      must_pass: |
+        --- PASS: TestALeadsDetailsComeWhenItIsOpened
+        --- PASS: TestABigWorkspaceSendsAWindowAndSearchFindsTheRest
+        --- PASS: TestTheDialerLogsCarrierCallsAsThePersonWhoMadeThem
+        --- PASS: TestFilesOnALeadAreKeptAndOnlyForThoseWhoSeeIt
+        --- PASS: TestLeadsAreGivenDownTheTeamTree
+        --- PASS: TestRestoreOneAgencyFromACopy
+
+  messaging:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'messaging')
+    uses: ./.github/workflows/service-check.yml
+    with:
+      dir: Caller Whale CRM/services/messaging
+      language: go
+      setup: |
+        psql -h localhost -U postgres -c "CREATE ROLE messaging_ci LOGIN PASSWORD 'apppass' NOSUPERUSER NOBYPASSRLS"
+        psql -h localhost -U postgres -c "CREATE DATABASE messaging_test"
+        psql -h localhost -U postgres -d messaging_test -c "GRANT ALL ON DATABASE messaging_test TO messaging_ci; GRANT ALL ON SCHEMA public TO messaging_ci"
+      env: |
+        MESSAGING_TEST_ADMIN_URL=postgres://postgres:testpass@localhost:5432/messaging_test?sslmode=disable
+        MESSAGING_TEST_DATABASE_URL=postgres://messaging_ci:apppass@localhost:5432/messaging_test?sslmode=disable
+      must_pass: |
+        --- PASS: TestTwoPeopleChat
+        --- PASS: TestRowSecurityHidesOtherPeoplesMessages
+
+  dialer-sms:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'dialer-sms')
+    uses: ./.github/workflows/service-check.yml
+    with:
+      dir: Caller Whale CRM/services/features/dialer-sms
+      language: go
+      race: true
+      # The tests remake the dialer_sms schema and play every call and text against the built-in Telnyx simulator.
+      env: DIALER_TEST_DATABASE_URL=postgres://postgres:testpass@localhost:5432/postgres?sslmode=disable
+      must_pass: |
+        --- PASS: TestEveryCallScenarioLogsTheRightOutcomeOnceWhateverTheWebhookOrder
+        --- PASS: TestTextsAreConversationsDeliveryMovesForwardAndStopIsObeyed
+
+  auth:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'auth')
+    uses: ./.github/workflows/service-check.yml
+    with:
+      dir: Caller Whale CRM/services/auth
+      language: go
+      env: AUTH_TEST_DATABASE_URL=postgres://postgres:testpass@localhost:5432/postgres?sslmode=disable
+      must_pass: |
+        --- PASS: TestSignInOpensASession
+        --- PASS: TestTheDatabaseIsBroughtUpToDateOnceAndSafelyTogether
+
+  authz:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'authz')
+    uses: ./.github/workflows/service-check.yml
+    with:
+      dir: Caller Whale CRM/services/authz
+      language: go
+      env: AUTHZ_TEST_DATABASE_URL=postgres://postgres:testpass@localhost:5432/postgres?sslmode=disable
+      must_pass: "--- PASS: TestPostgresTeamTree"
+
+  learning:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'learning')
+    uses: ./.github/workflows/service-check.yml
+    with:
+      dir: Caller Whale CRM/services/learning
+      language: go
+      setup: |
+        psql -h localhost -U postgres -c "CREATE ROLE learning_ci LOGIN PASSWORD 'apppass' NOSUPERUSER NOBYPASSRLS"
+        psql -h localhost -U postgres -c "CREATE DATABASE learning_test OWNER learning_ci"
+      env: LEARNING_TEST_URL=postgres://learning_ci:apppass@localhost:5432/learning_test?sslmode=disable
+      must_pass: "--- PASS: TestTheStoreHoldsHashesAndShapesAndHonoursErasure"
+
+  notifications:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'notifications')
+    uses: ./.github/workflows/service-check.yml
+    with:
+      dir: Caller Whale CRM/services/notifications
+      language: go
+
+  mcp:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'mcp')
+    uses: ./.github/workflows/service-check.yml
+    with:
+      dir: Caller Whale CRM/services/mcp
+      language: go
+
+  assistant:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'assistant')
+    uses: ./.github/workflows/service-check.yml
+    with:
+      dir: Caller Whale CRM/services/assistant
+      language: go
+
+  gateway:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'gateway')
+    uses: ./.github/workflows/service-check.yml
+    with:
+      dir: Caller Whale CRM/services/gateway
+      language: go
+
+  grafana-proxy:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'grafana')
+    uses: ./.github/workflows/service-check.yml
+    with:
+      dir: Caller Whale CRM/services/grafana-proxy
+      language: go
+
+  alert-relay:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'grafana')
+    uses: ./.github/workflows/service-check.yml
+    with:
+      dir: Caller Whale CRM/services/alert-relay
+      language: go
+
+  billing:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'billing')
+    uses: ./.github/workflows/service-check.yml
+    with:
+      dir: Caller Whale CRM/services/billing
+      language: python
+      env: TEST_DATABASE_URL=postgres://postgres:testpass@localhost:5432/postgres?sslmode=disable
+      must_pass: "^test_the_ready_made_plans_are_there_and_a_membership_keeps_only_the_limits_that_differ .* \\.\\.\\. ok$"
+
+  importing-lists:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'importing-lists')
+    uses: ./.github/workflows/service-check.yml
+    with:
+      dir: Caller Whale CRM/services/features/importing-lists
+      language: python
+      # The end-to-end test builds crm-core's tables from its numbered scripts.
+      env: CRM_TEST_ADMIN_URL=postgres://postgres:testpass@localhost:5432/postgres?sslmode=disable
+      must_pass: "^test_.* \\(test_worker\\.EndToEndTest.* \\.\\.\\. ok$"
+
+  # The live server's settings, the generator and branch scripts, the alert rules, the configuration notes, and every copy of a
+  # shared file matching its source.
+  tools:
+    name: Tools, shared copies, live server settings, alert rules, configuration notes
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'tools')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --test "Caller Whale CRM/tools/*.test.mjs" "Caller Whale CRM/deploy/grafana/*.test.mjs" "Caller Whale CRM/services/live/*.test.mjs"
+      - run: node "Caller Whale CRM/tools/env-notes.mjs" check
+      - name: Every copy matches its source (token check, request logs, calendar)
+        run: |
+          node "Caller Whale CRM/tools/auth-verify/sync.mjs" --check
+          node "Caller Whale CRM/shared/calendar/sync.mjs" --check
+          # The log runner copies are not kept on main (the generator adds them to the branches), so write them, check, and make sure
+          # nothing that is kept changed (a stale request adapter or Dockerfile).
+          node "Caller Whale CRM/tools/runtime-log/sync.mjs"
+          node "Caller Whale CRM/tools/runtime-log/sync.mjs" --check
+          git diff --exit-code
+      - name: The alert rules file is up to date
+        run: |
+          node "Caller Whale CRM/deploy/grafana/alerts.mjs"
+          git diff --exit-code -- "Caller Whale CRM/deploy/grafana/"
+
+  crm-app:
+    name: CRM app (types, lint, build, tests)
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'crm-app')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Caller Whale CRM/desktop/frontend/react
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: Caller Whale CRM/desktop/frontend/react/package-lock.json
+      # The Skip Tracing tests run the real engine (service/, Python), as the desktop app does.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: service/requirements.txt
+      - run: pip install -r ../../../../service/requirements.txt
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      # The full build (with the Sites packaging step) comes first: one test checks the files it makes.
+      - run: npm run build
+      - run: npm test
+
+  website:
+    name: Website (types, tests, build)
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'website')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Caller Whale CRM/landing/site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: Caller Whale CRM/landing/site/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  summary:
+    # The check `main` requires. Passing means every part that had to run passed.
+    name: CI summary
+    if: always()
+    needs: [changes, crm-core, messaging, dialer-sms, auth, authz, learning, notifications, mcp, assistant, gateway, grafana-proxy, alert-relay, billing, importing-lists, tools, crm-app, website]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every part that ran passed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          bad=$(echo "$RESULTS" | jq -r '[to_entries[] | select(.value.result == "failure" or .value.result == "cancelled")] | length')
+          [ "$bad" = 0 ] || { echo "::error::$bad part(s) failed or were cancelled"; exit 1; }
+          [ "$(echo "$RESULTS" | jq -r '.changes.result')" = success ] || { echo "::error::Could not tell what changed"; exit 1; }

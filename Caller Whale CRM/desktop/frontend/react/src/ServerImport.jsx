@@ -228,6 +228,7 @@ export function ServerImport({ resume = "", initialFile = null, projectId = null
       setJob(current);
       if (current.status !== "uploading") void track(resume);
     }).catch(reason => setError(reason.message || "This import could not be loaded."));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- resume once per import; track is redefined each render
   }, [resume]);
 
   async function upload() {
