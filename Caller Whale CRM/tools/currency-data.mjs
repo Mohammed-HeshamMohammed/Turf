@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ISO_URL = "https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml";
 const CLDR_URL = "https://cdn.jsdelivr.net/npm/cldr-core@latest/supplemental/currencyData.json";
-const OUT_TS = join(root, "landing", "site", "src", "currency-data.ts");
+const OUT_TS = join(root, "..", "apps", "website", "src", "currency-data.ts");
 const OUT_GO = join(root, "services", "auth", "currency_data.go");
 
 // Not currencies a person is charged in: precious metals, special drawing rights, test and "no currency" codes, and the funds codes.
