@@ -187,6 +187,7 @@ export function RemoteGate({ onReady, onLeave }) {
       }
       await check();
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- set up once when the gate opens; check is redefined each render
   }, []);
 
   /** The desktop app waits for the person's browser to hand back a code; this stops waiting. */

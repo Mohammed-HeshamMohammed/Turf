@@ -50,6 +50,11 @@ class BudgetBody(BaseModel):
     set_by: UUID | None = None
 
 
+class DiscountBody(BaseModel):
+    kind: str
+    percent: int = Field(ge=0, le=100)
+
+
 class RaiseBody(BaseModel):
     scope: str
     subject_id: UUID
@@ -202,6 +207,11 @@ def create_app(settings: Settings, store, now: Callable[[], datetime] = lambda: 
     @app.get("/v1/orgs/{org_id}/entitlements")
     def entitlements(org_id: UUID, _: str = caller("standing")):
         return store.entitlements(org_id)
+
+    # Discounts a workspace earns (step 45, D325): crm-core gives and ends the shared-learning discount on AI features.
+    @app.put("/v1/orgs/{org_id}/discounts/{reason}")
+    def put_discount(org_id: UUID, reason: str, body: DiscountBody, _: str = caller("discounts")):
+        return {"discounts": store.set_discount(org_id, reason, body.kind, body.percent)}
 
     @app.put("/v1/orgs/{org_id}/trial")
     def trial(org_id: UUID, body: TrialBody, _: str = caller("subscribe")):

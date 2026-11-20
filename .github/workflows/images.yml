@@ -1,0 +1,262 @@
+name: Images
+
+# Builds the container images once, in GitHub, and pushes them to the GitHub container registry, private (step 47, D379; owner,
+# 2026-11-19: private images, the repository goes private later). Each image is built from its production branch's files
+# (tools/publish-production.mjs --export), so it holds exactly what Coolify builds from that branch today. Step 48 moves Coolify over
+# one resource at a time: an image with a "deploy" entry in production.json is put into Coolify by its digest (the deploy job,
+# after the "production" environment's approval); the others are still built by Coolify from their branches.
+#
+# - After CI passes on main: builds the images whose branch content changed. An image is tagged content-<branch content id> and
+#   sha-<commit>; when the content-<id> tag is already in the registry, nothing is built.
+# - Mondays: rebuilds every image, so fixes in the base images (Go, Node, Python, nginx, Alpine) arrive without a code change.
+# - On a pull request that touches the images' set-up: builds every image without pushing it, to prove they build.
+# - Each push records how the image was built (provenance and a list of its packages, in the registry) and prints its digest.
+# - Old versions are deleted, keeping the newest ones, because private storage is limited.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      rebuild:
+        description: Rebuild every image even if its content did not change
+        type: boolean
+        default: false
+  pull_request:
+    paths:
+      - ".github/workflows/images.yml"
+      - "Caller Whale CRM/tools/production.json"
+      - "Caller Whale CRM/tools/publish-production.mjs"
+      - "Caller Whale CRM/tools/image-matrix.mjs"
+      - "Caller Whale CRM/tools/coolify-deploy.mjs"
+      - "**/Dockerfile"
+      - "**/.dockerignore"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: images-${{ github.event.pull_request.number || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  plan:
+    name: Which images
+    # After CI on main, only when it passed.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
+      sha: ${{ steps.sha.outputs.sha }}
+      owner: ${{ steps.sha.outputs.owner }}
+    steps:
+      - id: sha
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha || github.sha }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "owner=${OWNER,,}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.sha.outputs.sha }}
+      - id: list
+        run: node "Caller Whale CRM/tools/image-matrix.mjs" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.image }}
+    needs: plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      PUSH: ${{ github.event_name != 'pull_request' }}
+      REF: ghcr.io/${{ needs.plan.outputs.owner }}/${{ matrix.image }}
+      SHA: ${{ needs.plan.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          fetch-depth: 1
+      - name: The branch's files
+        id: files
+        run: |
+          node "Caller Whale CRM/tools/publish-production.mjs" --export "$RUNNER_TEMP/branches" "${{ matrix.branch }}" --from "$SHA"
+          echo "dir=$RUNNER_TEMP/branches/${{ matrix.branch }}" >> "$GITHUB_OUTPUT"
+          echo "content=$(cat "$RUNNER_TEMP/branches/${{ matrix.branch }}.content")" >> "$GITHUB_OUTPUT"
+      - name: Build arguments
+        id: args
+        env:
+          ARGS: ${{ matrix.args }}
+          VARS: ${{ toJSON(vars) }}
+        run: |
+          node "Caller Whale CRM/tools/image-matrix.mjs" --args >> "$GITHUB_OUTPUT"
+          if [ "$PUSH" = true ] && grep -q '^missing=.' "$GITHUB_OUTPUT"; then echo "::error::Set the repository Actions variables this image needs"; exit 1; fi
+
+      - uses: docker/setup-buildx-action@v3
+      - if: env.PUSH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Already built?
+        id: have
+        if: env.PUSH == 'true'
+        env:
+          REBUILD: ${{ github.event_name == 'schedule' || inputs.rebuild == true }}
+        run: |
+          if [ "$REBUILD" != true ] && docker buildx imagetools inspect "$REF:content-${{ steps.files.outputs.content }}" > /dev/null 2>&1; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "$REF:content-${{ steps.files.outputs.content }} is in the registry already; nothing to build." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Build${{ env.PUSH == 'true' && ' and push' || '' }}
+        id: build
+        if: steps.have.outputs.already != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ steps.files.outputs.dir }}/${{ matrix.context }}
+          file: ${{ steps.files.outputs.dir }}/${{ matrix.dockerfile }}
+          build-args: ${{ steps.args.outputs.args }}
+          push: ${{ env.PUSH == 'true' }}
+          tags: |
+            ${{ env.REF }}:sha-${{ env.SHA }}
+            ${{ env.REF }}:content-${{ steps.files.outputs.content }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.SHA }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      # GitHub's signed build record: free while the repository is public. Once it is private it needs GitHub Enterprise, so it is
+      # skipped then; the provenance above stays in the registry either way.
+      - if: env.PUSH == 'true' && steps.build.outputs.digest && github.event.repository.private == false
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.REF }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Digest
+        if: steps.build.outputs.digest
+        run: |
+          echo "| ${{ matrix.image }} | \`${{ steps.build.outputs.digest }}\` | content-${{ steps.files.outputs.content }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "$REF@${{ steps.build.outputs.digest }}"
+
+      # Step 48: an image that runs in Coolify (its "deploy" entry in production.json) leaves a record for the deploy job.
+      - name: Deploy record
+        if: env.PUSH == 'true' && steps.build.outputs.digest && matrix.coolify != ''
+        env:
+          IMAGE: ${{ matrix.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          COOLIFY: ${{ matrix.coolify }}
+          SETTING: ${{ matrix.setting }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/deploy"
+          node -e 'const e=process.env; console.log(JSON.stringify({image:e.IMAGE, ref:e.REF, digest:e.DIGEST, coolify:e.COOLIFY, setting:e.SETTING}))' > "$RUNNER_TEMP/deploy/$IMAGE.json"
+      - if: env.PUSH == 'true' && steps.build.outputs.digest && matrix.coolify != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-${{ matrix.image }}
+          path: ${{ runner.temp }}/deploy/${{ matrix.image }}.json
+          retention-days: 7
+
+      # The images are meant to be private (D379), but the owner put that off (2026-11-20): making them private first needs the
+      # server's registry login (CD5), or Coolify can no longer pull them. Until the repository variable IMAGES_MUST_BE_PRIVATE is
+      # "true", a public image is a warning; after it, a failure.
+      - name: The images stay private
+        if: env.PUSH == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ needs.plan.outputs.owner }}
+          MUST: ${{ vars.IMAGES_MUST_BE_PRIVATE == 'true' }}
+        run: |
+          visibility=$(gh api "/users/$OWNER/packages/container/${{ matrix.image }}" --jq .visibility 2>/dev/null || echo unknown)
+          echo "Visibility of ${{ matrix.image }}: $visibility"
+          if [ "$visibility" = public ]; then
+            if [ "$MUST" = true ]; then echo "::error::${{ matrix.image }} is public; make it private (package settings)"; exit 1; fi
+            echo "::warning::${{ matrix.image }} is public. Make it private after the server's registry login (CD5), then set IMAGES_MUST_BE_PRIVATE=true."
+          fi
+
+
+  # Step 48 (D379, D381): what to put into Coolify. Runs without the approval, so a run that built nothing for Coolify asks nobody.
+  deploys:
+    name: What to deploy
+    needs: [plan, build]
+    if: always() && github.event_name != 'pull_request' && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.plan.outputs.apps }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          sparse-checkout: Caller Whale CRM/tools
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: deploy-*
+          path: deploys
+        continue-on-error: true
+      - id: plan
+        run: node "Caller Whale CRM/tools/coolify-deploy.mjs" --plan deploys >> "$GITHUB_OUTPUT"
+
+  # Writes each new image's digest into its Coolify setting and redeploys the application, after the owner or the cofounder
+  # approves the "production" environment. COOLIFY_URL is an Actions variable; COOLIFY_TOKEN is the environment's secret (a Coolify
+  # API token with write and deploy on the moved resources only).
+  deploy:
+    name: Deploy to Coolify
+    needs: [plan, deploys]
+    if: always() && needs.deploys.result == 'success' && needs.deploys.outputs.apps != '[]'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: coolify-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          sparse-checkout: Caller Whale CRM/tools
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: deploy-*
+          path: deploys
+      - env:
+          COOLIFY_URL: ${{ vars.COOLIFY_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: node "Caller Whale CRM/tools/coolify-deploy.mjs" deploys | tee -a "$GITHUB_STEP_SUMMARY"
+
+  clean:
+    name: Old versions (${{ matrix.image }})
+    needs: [plan, build]
+    if: always() && github.event_name != 'pull_request' && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      # Each pushed image is several registry versions (the image, its build record, its package list), so 24 versions keep about
+      # the last five builds: enough to go back. A package that does not exist yet is not an error.
+      - uses: actions/delete-package-versions@v5
+        continue-on-error: true
+        with:
+          package-name: ${{ matrix.image }}
+          package-type: container
+          min-versions-to-keep: 24

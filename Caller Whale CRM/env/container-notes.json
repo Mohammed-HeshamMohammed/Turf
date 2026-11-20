@@ -116,6 +116,8 @@
         "env/container-variable-inventory.json"
       ],
       "variables": {
+        "CW_GRAFANA_PROXY_IMAGE": "The cw-grafana-proxy image by digest, like ghcr.io/<owner>/cw-grafana-proxy@sha256:<digest>. Set by the Images workflow's deploy job; locally any tag.",
+        "CW_ALERT_RELAY_IMAGE": "The cw-alert-relay image by digest, like ghcr.io/<owner>/cw-alert-relay@sha256:<digest>. Set by the Images workflow's deploy job; locally any tag.",
         "PORT": "Private Grafana proxy listen port; compose fixes it at 8120. Match the gateway's private monitoring upstream if changing it.",
         "GRAFANA_BASE_PATH": "Protected browser subpath; only /staff/monitoring or empty is accepted. Match gateway routing and Grafana's root URL.",
         "GRAFANA_URL": "Private Grafana HTTP origin reached by the proxy. Keep on the private monitoring network; not a browser-facing address.",
@@ -302,7 +304,8 @@
         "NOTIFY_MAIL_TOKEN": "Secret: the value after crm-core= in notifications' NOTIFY_TOKENS, 24+ characters.",
         "CLAMD_ADDR": "ClamAV's daemon on the private network, like clamav:3310, which scans files on leads (step 38). Its StreamMaxLength must be above 25 MB. Empty: files wait unopened.",
         "CARRIER_CHECK": "Step 39: on holds imports until the carriers verify the agency's business, as the dialer reports it. Turn on (CARRIER_CHECK=on) once the dialer runs live with 10DLC registration; empty or off: imports are not held.",
-        "RESTORE_COPY_URL": "Step 41: the database a CRM backup was restored into, to restore one agency from (docs/plans/backups-and-recovery.md). Secret PostgreSQL URI with crm-core's login. Empty except while a restore is being done."
+        "RESTORE_COPY_URL": "Step 41: the database a CRM backup was restored into, to restore one agency from (docs/plans/backups-and-recovery.md). Secret PostgreSQL URI with crm-core's login. Empty except while a restore is being done.",
+        "SHARED_LEARNING": "Step 45: on lets agencies' agreed patterns be used (shared learning). Leave off until the lawyer approved the agreement's text and the notice check (checks-by-hand W-9); off: nothing is used, agencies can still agree."
       }
     },
     "learning": {

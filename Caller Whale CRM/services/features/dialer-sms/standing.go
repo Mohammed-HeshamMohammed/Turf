@@ -173,6 +173,7 @@ func (s *server) carrierPeriodically(ctx context.Context) {
 		case <-t.C:
 			s.advanceAll(ctx)
 			s.judgeAll(ctx)
+			s.eraseRequested(ctx) // step 44: numbers deleted on a person's request
 		}
 	}
 }

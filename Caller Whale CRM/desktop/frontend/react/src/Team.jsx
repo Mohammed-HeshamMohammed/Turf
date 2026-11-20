@@ -57,6 +57,7 @@ export function Team() {
         pipeline: state.deals.filter(deal => ownedIds.has(deal.leadId) && !deal.stage.startsWith("Closed")).reduce((sum, deal) => sum + deal.amount, 0),
       };
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- everything counted comes from state
   }, [state]);
 
   const unassigned = counts.unassigned;
