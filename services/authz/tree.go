@@ -622,10 +622,10 @@ type standingChange struct {
 	UnpaidSinceSet bool
 	UnpaidSince    *int64
 	Closed         *bool
-	SeatsSet        bool
-	Seats           *int
-	ClientsSet      bool
-	Clients         *int
+	SeatsSet       bool
+	Seats          *int
+	ClientsSet     bool
+	Clients        *int
 }
 
 func readStanding(raw map[string]json.RawMessage) (standingChange, error) {

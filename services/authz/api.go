@@ -1,6 +1,7 @@
 package main
 
 import (
+	"callerwhale/runtimelog"
 	"context"
 	"crypto/subtle"
 	"encoding/json"
@@ -86,7 +87,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("PUT /v1/orgs/{org}/standing", s.only("standing", s.putStanding))
 	mux.Handle("PUT /v1/staff/{user}", s.only("manage_staff", s.putStaff))
 	mux.Handle("GET /v1/staff", s.only("read", s.listStaff))
-	return logHTTP(mux)
+	return runtimelog.LogHTTP(mux)
 }
 
 // only lets a request through when it carries a calling service's token and that service may make this kind of request.

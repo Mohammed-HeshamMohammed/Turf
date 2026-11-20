@@ -102,16 +102,16 @@ func TestTheNewTeamRulesPlaceAgentsInUpToFiveTeams(t *testing.T) {
 		roles, teams []string
 		ok           bool
 	}{
-		"a closer in two teams":               {[]string{"closer"}, ids[:2], true},
-		"a caller in five teams":              {[]string{"caller"}, ids[:5], true},
-		"a caller in six teams":               {[]string{"caller"}, ids, false},
-		"a caller without a team":             {[]string{"caller"}, nil, false},
-		"the same team twice":                 {[]string{"caller"}, []string{team1, team1}, false},
-		"a lead who is also a caller":         {[]string{"manager", "caller"}, []string{team1}, true},
-		"a researcher in a team":              {[]string{"researcher"}, []string{team1}, true},
-		"an admin":                            {[]string{"admin"}, nil, true},
-		"an admin put in a team":              {[]string{"admin"}, []string{team1}, false},
-		"an admin who also closes in a team":  {[]string{"admin", "closer"}, []string{team1}, true},
+		"a closer in two teams":              {[]string{"closer"}, ids[:2], true},
+		"a caller in five teams":             {[]string{"caller"}, ids[:5], true},
+		"a caller in six teams":              {[]string{"caller"}, ids, false},
+		"a caller without a team":            {[]string{"caller"}, nil, false},
+		"the same team twice":                {[]string{"caller"}, []string{team1, team1}, false},
+		"a lead who is also a caller":        {[]string{"manager", "caller"}, []string{team1}, true},
+		"a researcher in a team":             {[]string{"researcher"}, []string{team1}, true},
+		"an admin":                           {[]string{"admin"}, nil, true},
+		"an admin put in a team":             {[]string{"admin"}, []string{team1}, false},
+		"an admin who also closes in a team": {[]string{"admin", "closer"}, []string{team1}, true},
 	} {
 		if err := checkPlacement(c.roles, c.teams, teams, true); (err == nil) != c.ok {
 			t.Errorf("%s: %v", name, err)

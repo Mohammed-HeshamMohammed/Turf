@@ -20,11 +20,11 @@ const grantIssuer = "callerwhale-authz"
 
 // grantClaims is what a signed grant says: who, where, which action, and the database rights and record scope to use.
 type grantClaims struct {
-	Org          string   `json:"org,omitempty"`
-	Action       string   `json:"action"`
-	DBRole       string   `json:"db_role"`
-	Scopes       []string `json:"scopes,omitempty"`
-	TeamIDs      []string `json:"team_ids,omitempty"`
+	Org     string   `json:"org,omitempty"`
+	Action  string   `json:"action"`
+	DBRole  string   `json:"db_role"`
+	Scopes  []string `json:"scopes,omitempty"`
+	TeamIDs []string `json:"team_ids,omitempty"`
 	// TeamScopeIDs are the teams whose records the "team" scope shows: teams led or deputised, and their own teams only when a
 	// role other than team lead gives the team scope. A caller who deputises another team sees that team, not all of their own.
 	TeamScopeIDs []string `json:"team_scope_ids,omitempty"`

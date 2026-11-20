@@ -1,5 +1,6 @@
-// Generated from tools/runtime-log/access.go. Keep proxy streaming and upgrades intact.
-package main
+// Package runtimelog logs each HTTP request one line at a time, keeping proxy streaming and upgrades intact. One original
+// (packages/go/runtimelog, D383): the Go services import it as callerwhale/runtimelog.
+package runtimelog
 
 import (
 	"bufio"
@@ -42,7 +43,7 @@ func (w *accessResponse) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	}
 	return conn, buffer, err
 }
-func logHTTP(next http.Handler) http.Handler {
+func LogHTTP(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		started := time.Now()
 		out := &accessResponse{ResponseWriter: w}

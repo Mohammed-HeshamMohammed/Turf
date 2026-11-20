@@ -1,14 +1,15 @@
 # Authorization (plan: docs/plans/authorization-service.md). Build with this folder as the context:
 #   docker build -t callerwhale-authz services/authz
 FROM golang:1 AS runtime-log-build
-COPY runtime-log/main.go /src/main.go
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log /src/main.go
+COPY packages/go/runtimelog /src
+RUN cd /src && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log ./cmd/callerwhale-log
 
 FROM golang:1 AS build
-WORKDIR /src
-COPY go.mod go.sum ./
+WORKDIR /repo/services/authz
+COPY packages/go /repo/packages/go
+COPY services/authz/go.mod services/authz/go.sum ./
 RUN go mod download
-COPY *.go ./
+COPY services/authz/*.go ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/service .
 
 FROM gcr.io/distroless/static-debian12
