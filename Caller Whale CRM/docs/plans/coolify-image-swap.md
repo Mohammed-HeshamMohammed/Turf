@@ -59,25 +59,31 @@ CRM Core, Messaging, Dialer, Importing Worker, the website, the CRM web app (Das
 
 Found 2026-11-20: the first automatic deploy (the website and CRM web images of `6462647`) never reached Coolify. Cloudflare's bot
 check answered the GitHub runner with its "Just a moment..." page (403), and the job still showed green because its output went
-through `tee`. The job now fails on a refused deploy and names Cloudflare when it is the cause.
+through `tee`.
 
-The owner keeps the bot check (2026-11-20), and Cloudflare Access needs a card on file, so the deploy job sends a secret header
-instead: `x-callerwhale-deploy` with the `production` secret `COOLIFY_DEPLOY_SECRET` (`tools/coolify-deploy.mjs`). The bot-check rule
-lets through only a request to `coolify.callerwhale.com/api/` that carries that exact value; everyone else, people included, still
-meets the check, and the Coolify token is still needed behind it. Custom rules are on Cloudflare's free plan.
+The owner keeps all of Cloudflare's bot protection on (2026-11-20, never to be turned off). A secret-header exception in the
+Coolify rule was tried and works, but **Bot Fight Mode** still challenges a script from GitHub's datacenter (Microsoft, AS8075), and
+on the free plan no rule can exempt a request from Bot Fight Mode. So deploys are **pulled by the server**:
 
-**Yours** (one time):
+1. The Images workflow builds and pushes the images. "Deploy to Coolify" waits for the `production` approval, then only records the
+   plan (each new digest and its Coolify application) as a GitHub deployment in the `coolify-pull` environment
+   (`tools/coolify-deploy.mjs --record`). It talks to GitHub only.
+2. On the VPS, a systemd timer runs `tools/coolify-pull.mjs` every two minutes (in a `node:24-alpine` container). It reads the
+   repository's deployments (public, no token), takes only the ones recorded by GitHub Actions that name this repository's images,
+   checks them again, and applies them to Coolify on `http://localhost:8000`, so it never passes Cloudflare. Each is applied once,
+   in order; one that keeps failing is given up after three tries. Logs: `journalctl -u callerwhale-coolify-pull -n 50`.
 
-1. **Make a secret**: 40 or more random letters and digits, for example from a password manager. Keep it for steps 2 and 3.
-2. **Cloudflare** (callerwhale.com, Security, WAF, Custom rules): edit the rule that shows "Verify you are human" on Coolify, choose
-   "Edit expression", and add at the end:
-   `and not (http.host eq "coolify.callerwhale.com" and starts_with(http.request.uri.path, "/api/") and any(http.request.headers["x-callerwhale-deploy"][*] eq "<the secret>"))`
-   then Save. (If the check is Bot Fight Mode or Under Attack mode rather than a custom rule, tell Claude: those work differently.)
-3. **GitHub** (the repository, Settings, Environments, `production`, Add environment secret): name `COOLIFY_DEPLOY_SECRET`, value the
-   same secret. Claude never sees it.
+**Install, once** (root on the server, for example Coolify, Servers, the server, Terminal):
 
-Then re-run the last Images run's "Deploy to Coolify" job (Actions, Images, the run, Re-run failed jobs) and approve it. Until then
-every image build ends with that job failing and the apps keep running the images set by hand.
+```sh
+curl -fsSL -o /tmp/cw-install.sh "https://raw.githubusercontent.com/Mohammed-HeshamMohammed/Turf/main/Caller%20Whale%20CRM/deploy/coolify-pull/install.sh" && sh /tmp/cw-install.sh
+```
+
+It asks for a Coolify API token with write and deploy on every moved application (create one in Coolify, Keys & Tokens; it is not
+shown and is stored readable by root only in `/opt/callerwhale-deploy/env`). Running it again updates the puller and keeps the token.
+
+**No longer needed** (the owner's choice, any time): the GitHub `production` secrets `COOLIFY_TOKEN` and `COOLIFY_DEPLOY_SECRET`, and the
+`/api/` + `x-callerwhale-deploy` exception in the Coolify Cloudflare rule. Removing them leaves nothing that can reach Coolify from outside.
 
 ## Not verified
 
