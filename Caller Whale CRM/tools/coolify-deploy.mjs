@@ -42,9 +42,9 @@ export function plan(records) {
       app.settings.push({ key: r.setting, value: `${r.ref}@${r.digest}`, image: r.image });
     } else {
       if (app.image || app.settings) throw new Error(`${r.coolify}: an image application runs one image (${r.image})`);
-      // What Coolify itself stores for an image chosen by digest (read 2026-11-20 from an app made in its form): the image as
-      // "<name>@sha256" and the tag as "sha256-<hex>".
-      app.image = { name: `${r.ref}@sha256`, tag: r.digest.replace(":", "-"), ref: `${r.ref}@${r.digest}` };
+      // The image name plain and the tag "sha256-<hex>": Coolify then pulls <name>@sha256:<hex>. (Its own form stored the name as
+      // "<name>@sha256", which made it pull "<name>@sha256@sha256:..." and fail; proved on the Learning app, 2026-11-20.)
+      app.image = { name: r.ref, tag: r.digest.replace(":", "-"), ref: `${r.ref}@${r.digest}` };
     }
     apps.set(r.coolify, app);
   }

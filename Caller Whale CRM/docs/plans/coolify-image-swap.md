@@ -22,7 +22,7 @@ CRM Core, Messaging, Dialer, Importing Worker, the website, the CRM web app (Das
 1. **The digest.** GitHub: Actions, Images, the latest run on `main`, its summary lists each image's digest. (Or Packages, `cw-<name>`,
    the newest version.) A run that built nothing for that image means the last digest is still current.
 2. **New app.** Coolify, the same project and environment as the old app: New Resource, Docker Image, image
-   `ghcr.io/mohammed-heshammohammed/cw-<name>@sha256:<digest>`, the Caller Whale VPS. Name it like the old one with " (image)".
+   `ghcr.io/mohammed-heshammohammed/cw-<name>@sha256:<digest>`, the Caller Whale VPS. Name it like the old one with " (image)". **Then, in its General tab, delete `@sha256` from the end of the Image field and save:** Coolify's form stores it there and again in the tag, so the first deploy fails with "invalid reference format" (seen on Learning).
 3. **General.** Docker network `coolify`; Exposed ports as in the table; **leave Network aliases empty for now** (two containers with
    the same alias would share its traffic). No domain unless the table says so.
 4. **Settings.** Old app, Environment Variables, Developer View: copy everything. New app, Developer View: paste, save. (Billing: drop
@@ -40,7 +40,7 @@ CRM Core, Messaging, Dialer, Importing Worker, the website, the CRM web app (Das
 
 | Order | Old app (id) | Image | Port | Network alias | Domains | Settings to copy (names) | Check after |
 |---|---|---|---|---|---|---|---|
-| 1 | Caller Whale Learning (`vj0vujhfbaatothc1vwjy9w0`); **new app made 2026-11-20: "Caller Whale Learning (image)" (`aglpc4qq7he7oskohr8gwo3t`), image and port set, alias empty, not deployed: do steps 4 to 9** | cw-learning | 8112 | learning | none | PORT LEARNING_ENABLED LEARNING_RETENTION_DAYS DATABASE_URL LEARNING_TOKEN LEARNING_HASH_KEY | CRM Core's log shows no learning errors |
+| 1 | **Done 2026-11-20.** Old: Caller Whale Learning (`vj0vujhfbaatothc1vwjy9w0`), stopped (delete after 2026-11-27). New: Caller Whale Learning (image) (`aglpc4qq7he7oskohr8gwo3t`), running with alias `learning`; its `deploy` entry is in `production.json` | cw-learning | 8112 | learning | none | PORT LEARNING_ENABLED LEARNING_RETENTION_DAYS DATABASE_URL LEARNING_TOKEN LEARNING_HASH_KEY | CRM Core's log shows no learning errors |
 | 2 | Caller Whale MCP (`dijmk18qoh5txr02kky64inn`) | cw-mcp | 8106 | mcp | none (the gateway serves mcp.callerwhale.com) | PORT MCP_PUBLIC_URL MCP_AUTH_PUBLIC_URL MCP_AUTH_URL MCP_AUTH_TOKEN | `https://mcp.callerwhale.com` answers as before |
 | 3 | Caller Whale AI Assistant (`kvrd0xwxh1yycqbrpl0rjkiw`) | cw-assistant | 8109 | assistant | none (assistant.callerwhale.com via the gateway) | PORT CORS_ORIGINS SITE_URL OPENROUTER_API_KEY OPENROUTER_MODEL ASSISTANT_MESSAGES_PER_MINUTE ASSISTANT_AI_PER_VISITOR_PER_DAY ASSISTANT_AI_PER_DAY | The website's helper chat answers |
 | 4 | none today: Notifications is not deployed | cw-notifications | 8102 | notifications | none | from `env/notifications.production.example` (new values, yours) | An invitation email arrives; CRM Core's report emails stop failing |

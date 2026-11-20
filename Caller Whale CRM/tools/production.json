@@ -224,7 +224,8 @@
         {
           "name": "cw-learning",
           "context": ".",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "aglpc4qq7he7oskohr8gwo3t" }
         }
       ]
     },

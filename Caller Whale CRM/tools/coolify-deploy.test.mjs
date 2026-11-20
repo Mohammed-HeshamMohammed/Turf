@@ -27,7 +27,7 @@ test("images are grouped by Coolify application, one deploy each", () => {
 
 test("an image application gets its image by digest", () => {
   assert.deepEqual(plan([rec("cw-a", "")]), [
-    { app: APP, image: { name: "ghcr.io/owner/cw-a@sha256", tag: `sha256-${"1".repeat(64)}`, ref: `ghcr.io/owner/cw-a@${d(1)}` } },
+    { app: APP, image: { name: "ghcr.io/owner/cw-a", tag: `sha256-${"1".repeat(64)}`, ref: `ghcr.io/owner/cw-a@${d(1)}` } },
   ]);
   assert.throws(() => plan([rec("cw-a", ""), rec("cw-b", "")]), /one image/);
   assert.throws(() => plan([rec("cw-a", ""), rec("cw-b", "B_IMAGE")]), /both/);
@@ -43,7 +43,7 @@ test("an image application is pointed at the new image, then deployed", async ()
     () => deploy(plan([rec("cw-a", "")]), { base: "https://c.test", token: "t", log: () => {} }),
   );
   assert.deepEqual(calls, [
-    `PATCH /applications/${APP} {"docker_registry_image_name":"ghcr.io/owner/cw-a@sha256","docker_registry_image_tag":"sha256-${"1".repeat(64)}"}`,
+    `PATCH /applications/${APP} {"docker_registry_image_name":"ghcr.io/owner/cw-a","docker_registry_image_tag":"sha256-${"1".repeat(64)}"}`,
     `POST /deploy?uuid=${APP}&force=false `,
   ]);
 });
