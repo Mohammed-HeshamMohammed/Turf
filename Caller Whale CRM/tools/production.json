@@ -80,7 +80,8 @@
         {
           "name": "cw-notifications",
           "context": ".",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "drehhescbm16tavi7r4j0det" }
         }
       ]
     },
