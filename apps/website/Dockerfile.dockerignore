@@ -4,8 +4,8 @@
 !package-lock.json
 !.npmrc
 !packages
-!Caller Whale CRM/landing/site
-!Caller Whale CRM/desktop/frontend/react/package.json
+!apps/website
+!apps/crm/package.json
 **/node_modules
 **/dist
 **/dist-ssr

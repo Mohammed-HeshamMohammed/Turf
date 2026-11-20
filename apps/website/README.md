@@ -8,8 +8,8 @@ The public page of Caller Whale: a home page, account pages and a signed-in dash
 | `VITE_CALLERWHALE_GATEWAY_URL` | Public gateway origin for the contact form, set at build. Default `https://gate.callerwhale.com` |
 
 ```bash
-npm --prefix landing/site run dev      # http://localhost:5200
-npm --prefix landing/site run build    # landing/site/dist
+npm --prefix apps/website run dev      # http://localhost:5200
+npm --prefix apps/website run build    # apps/website/dist
 ```
 
 The auth client and the human check come from `@callerwhale/auth-client` (`packages/auth-client`), the calendar from `@callerwhale/calendar` and the error reporter from `@callerwhale/error-report`: npm workspace packages, so run `npm ci` at the repository root, not here (D383). When the auth service has bot protection on, the forms load the invisible human check on their own.

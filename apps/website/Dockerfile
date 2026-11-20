@@ -2,7 +2,7 @@
 # image needs. The auth service's address is fixed at build time (it is also in the content security policy);
 # the build stops without it, so a site that would send people to localhost is never made.
 FROM golang:1 AS runtime-log-build
-COPY ["Caller Whale CRM/landing/site/runtime-log/main.go", "/src/main.go"]
+COPY ["apps/website/runtime-log/main.go", "/src/main.go"]
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log /src/main.go
 
 FROM node:24-alpine AS build
@@ -10,11 +10,11 @@ WORKDIR /repo
 COPY package.json package-lock.json .npmrc ./
 COPY packages/ packages/
 # npm checks the lock file against every workspace, so the CRM app's package.json comes too (only the website's packages install).
-COPY ["Caller Whale CRM/desktop/frontend/react/package.json", "Caller Whale CRM/desktop/frontend/react/"]
-COPY ["Caller Whale CRM/landing/site/package.json", "Caller Whale CRM/landing/site/"]
-RUN npm ci --workspace "Caller Whale CRM/landing/site"
-COPY ["Caller Whale CRM/landing/site/", "Caller Whale CRM/landing/site/"]
-WORKDIR "/repo/Caller Whale CRM/landing/site"
+COPY ["apps/crm/package.json", "apps/crm/"]
+COPY ["apps/website/package.json", "apps/website/"]
+RUN npm ci --workspace "apps/website"
+COPY ["apps/website/", "apps/website/"]
+WORKDIR "/repo/apps/website"
 ARG VITE_CALLERWHALE_AUTH_URL
 ENV VITE_CALLERWHALE_AUTH_URL=$VITE_CALLERWHALE_AUTH_URL
 ARG VITE_CALLERWHALE_GATEWAY_URL=https://gate.callerwhale.com
@@ -26,7 +26,7 @@ RUN mkdir -p /out && npm test && npm run build && node scripts/security-headers.
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 COPY --from=runtime-log-build /runtime-log /usr/local/bin/callerwhale-log
 ENV CALLERWHALE_LOG_SERVICE="Landing"
-COPY ["Caller Whale CRM/landing/site/nginx.conf", "/etc/nginx/conf.d/default.conf"]
+COPY ["apps/website/nginx.conf", "/etc/nginx/conf.d/default.conf"]
 COPY --from=build /out/security-headers.conf /etc/nginx/security-headers.conf
 COPY --from=build /out/dist /usr/share/nginx/html
 EXPOSE 8080
