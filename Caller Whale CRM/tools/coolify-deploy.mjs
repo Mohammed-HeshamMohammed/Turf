@@ -59,7 +59,11 @@ async function call(base, token, method, path, body) {
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
-  return { status: res.status, text: await res.text() };
+  const text = await res.text();
+  // Cloudflare in front of Coolify: its bot check answers a script with a challenge page, so nothing reaches Coolify.
+  if (res.status === 403 && /Just a moment|challenge-platform/i.test(text))
+    throw new Error(`Cloudflare's bot check answered instead of Coolify (403 on ${method} ${path}): let ${base}/api/ through without the check (docs/plans/coolify-image-swap.md, "Deploys from GitHub").`);
+  return { status: res.status, text };
 }
 
 /** Sets each application's image (or settings), then queues one deploy per application. Stops at the first refusal. */

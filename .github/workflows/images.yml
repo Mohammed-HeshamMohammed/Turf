@@ -240,6 +240,8 @@ jobs:
       - env:
           COOLIFY_URL: ${{ vars.COOLIFY_URL }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        # bash with pipefail: a refused deploy fails the job instead of hiding behind tee.
+        shell: bash
         run: node "Caller Whale CRM/tools/coolify-deploy.mjs" deploys | tee -a "$GITHUB_STEP_SUMMARY"
 
   clean:

@@ -102,3 +102,8 @@ test("a refused setting stops before deploying", async () => {
   );
   assert.deepEqual(calls, ["PATCH"]);
 });
+
+test("Cloudflare's challenge page is named, not shown as a Coolify refusal", async t => {
+  t.mock.method(globalThis, "fetch", async () => ({ status: 403, text: async () => "<!DOCTYPE html><title>Just a moment...</title>" }));
+  await assert.rejects(deploy(plan([rec("cw-a", "")]), { base: "https://c.test", token: "t", log: () => {} }), /Cloudflare's bot check answered instead of Coolify .*https:\/\/c\.test\/api\//);
+});
