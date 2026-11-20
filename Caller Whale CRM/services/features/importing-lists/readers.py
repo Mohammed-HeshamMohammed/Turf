@@ -326,7 +326,7 @@ def widest_line(path: Path, sep: str) -> int:
     are dropped after loading. Too small is the loss to avoid: a wide row far down the file would lose its extra cells."""
     counts = pl.scan_csv(path, has_header=False, separator="\x1f", quote_char=None, infer_schema=False, truncate_ragged_lines=True,
                          encoding="utf8-lossy").select(
-        pl.col("column_1").str.replace_all('"[^"]*"', "").str.count_matches(sep, literal=True).max())
+        pl.nth(0).str.replace_all('"[^"]*"', "").str.count_matches(sep, literal=True).max())
     return int(counts.collect(engine="streaming").item() or 0) + 1
 
 
