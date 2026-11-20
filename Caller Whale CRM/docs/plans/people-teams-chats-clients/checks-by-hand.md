@@ -28,8 +28,30 @@ container's network alias (`http://<alias>:<port>`), as the existing settings do
 `env/container-notes.json`; `node tools/env-notes.mjs render <name>` prints a container's list (names and notes, never values), and
 `node tools/env-notes.mjs check` confirms the examples and notes agree.
 
-**Not yet compared with the live containers:** Coolify could not be opened from here (Cloudflare's check stopped the built-in browser and
-Chrome was not connected). The rows marked **verify** are what the code expects; check them against Coolify.
+**Compared with Coolify on 2026-11-19** (read through Chrome; setting names only, plus the non-secret addresses below; nothing was changed):
+
+- **Billing is down.** Status Exited; its last three deploys (2026-11-18) failed the health check because the `core-api=` entry in
+  `BILLING_TOKENS` is shorter than 32 characters. core-api is retired: remove that entry (or give it a 32+ character value) and redeploy.
+- **Notifications (corrected 2026-11-20):** it is deployed and running ("Caller Whale Notifications", alias `notifications`, port 8102,
+  settings PORT NOTIFY_TOKENS NOTIFY_SMTP_HOST NOTIFY_SMTP_PORT NOTIFY_SMTP_USER NOTIFY_SMTP_PASSWORD NOTIFY_MAIL_FROM). The first read missed its row.
+  There is no ClamAV.
+- **Gateway:** `ROUTES` already sends `gate.callerwhale.com` to `http://crm-core:8107` (verified). Missing: `AUTHZ_URL` and `AUTHZ_TOKEN` (step 35).
+- **CRM Core** has only `PORT DATABASE_URL AUTH_JWKS_URL AUTHZ_URL AUTHZ_TOKEN NOTIFY_URL CORS_ORIGINS IMPORT_DIR IMPORT_DB_ROLE
+  MAX_IMPORT_MB LEARNING_URL LEARNING_TOKEN DIALER_TOKEN`. Missing from its row: `APP_URL`, `BILLING_URL/TOKEN`, `ASSISTANT_URL/TOKEN`,
+  `NOTIFY_MAIL_URL/TOKEN`, `CLAMD_ADDR`, `GOOGLE_*`, `EMAIL_*`/`AWS_*`.
+- **Dialer** (deployed, simulate settings present) has `CRM_URL/TOKEN` and `AUTHZ_URL/TOKEN`; missing `BILLING_URL/TOKEN` and `ASSISTANT_URL/TOKEN`.
+- **Assistant** has `OPENROUTER_API_KEY` but no `AGENT_TOKEN` (T5). **Auth** has `AUTH_MCP_TOKEN` (T7), no `STATUS_PROBES`;
+  `AUTH_DEV_TOKENS` is `false` (good). **Authz** and **Billing** token lists exist; which names they hold was not read (values).
+- **Monitoring cannot redeploy.** `RELAY_TOKEN` and `PUSH_TARGETS` are listed but **empty**, so every deploy since step 42 stops at "required variable ... is missing a value" (2026-11-18 and the step 48 deploy of 2026-11-19); the containers from 2026-11-11 keep running. Do S7 to unblock it, then redeploy (CD4).
+  **2026-11-20:** redeployed after `RELAY_TOKEN` and `PUSH_TARGETS` got values. The deploy finished and grafana-proxy now runs from
+  its CI image (the gateway's /staff/monitoring answers 401 as before). alert-relay restarts in a loop: `PUSH_TARGETS` holds a token, but it
+  must be `owner=https://ntfy.sh/<topic>,cofounder=https://ntfy.sh/<topic>`. Fix it and redeploy; nothing else depends on alert-relay.
+- **Web apps (IM2):** the Dashboard builds with `auth.callerwhale.com` and `gate.callerwhale.com`, the same as the repository's
+  `CALLERWHALE_AUTH_URL` and `CALLERWHALE_API_URL`. It also has `VITE_CALLERWHALE_MESSAGING_URL` (`chat.callerwhale.com`), which has no
+  repository variable and is not in `cw-crm-web`'s `buildArgs` in `tools/production.json`: the CI image has no team chat, so fix this
+  before step 48 moves the Dashboard to it. The website's `LANDING_API_ORIGIN` is `api.callerwhale.com`, which the gateway does not route.
+- Everything else (Authorization, CRM Core, Dialer, Importing Worker, Learning, MCP, Messaging, Assistant, Gateway, Live Server,
+  Dashboard, Landing Web, Monitoring and the nine databases) is Running.
 
 | Container | Add or change | Then |
 |---|---|---|
@@ -577,7 +599,33 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 
 | # | Do | Expect |
 |---|---|---|
-| R1 | Look at `X:/callerwhale-local-backup/2026-11-19/` | Your env files, `.env.local`, `.vercel` and the dev accounts file are there. Keep this folder off the repository; copy it to your password manager or an encrypted drive if you like. |
-| R2 | GitHub: Settings → Rules → Rulesets | "Protect main" is active on the default branch: pull request required, **CI summary** required, no bypass list. |
-| R3 | Try `git push origin main` from a commit made on `main` | GitHub refuses it ("protected"); the change goes through a pull request. |
-| R4 | Open one of the waiting Dependabot pull requests | CI runs on it and ends in **CI summary**; merge it only when that is green. |
+| PR1 | Look at `X:/callerwhale-local-backup/2026-11-19/` | Your env files, `.env.local`, `.vercel` and the dev accounts file are there. Keep this folder off the repository; copy it to your password manager or an encrypted drive if you like. |
+| PR2 | GitHub: Settings → Rules → Rulesets | "Protect main" is active on the default branch: pull request required, **CI summary** required, no bypass list. |
+| PR3 | Try `git push origin main` from a commit made on `main` | GitHub refuses it ("protected"); the change goes through a pull request. |
+| PR4 | Open one of the waiting Dependabot pull requests | CI runs on it and ends in **CI summary**; merge it only when that is green. |
+
+# Step 47: images built in CI (after the first run of the Images workflow on main)
+
+| # | Do | Expect |
+|---|---|---|
+| IM1 | GitHub: your profile, Packages (2026-11-19: all 22 are public, so every image job of the first run on `main` failed at its last step; the images were pushed) | One `cw-…` package per image (22), each **Private**. If any is public, open it, Package settings, Change visibility, Private (GitHub has no command for this); the workflow warns about a public image, and fails only once the repository variable `IMAGES_MUST_BE_PRIVATE` is `true` (set it after CD5 and making them private). |
+| IM2 | Compare the repository's Actions variables `CALLERWHALE_AUTH_URL` and `CALLERWHALE_API_URL` with the website's and CRM web app's build variables in Coolify | The same addresses: they are built into the website and CRM web app images. |
+| IM3 | GitHub: Settings, Billing, Packages storage, a week after the first runs | Within the plan's private storage (500 MB on the free plan). If not, lower `min-versions-to-keep` in `images.yml` or decide on a paid plan. |
+| IM4 | Actions, Images, the latest run's summary | Each built image's digest; images that did not change say "nothing to build". |
+| IM5 | Delete the folder `X:	mp-exp` | It held only exported copies of three branches from a test of the export; nothing else uses it. |
+
+# Step 48: Coolify runs the images (part 1: grafana-proxy and alert-relay)
+
+The settings below are yours: they need the repository's owner account (the account `gh` and Chrome use here can only write) or a
+secret.
+
+| # | Do | Expect |
+|---|---|---|
+| CD1 | GitHub (as the owner): Settings, Environments, New environment `production`. Required reviewers: you (and the cofounder's account); Deployment branches: `main` only. | The environment exists; the Images workflow's "Deploy to Coolify" job waits for one of you to approve it. |
+| CD2 | Coolify: Keys & Tokens, API tokens, New token. Permissions `write` and `deploy` only (clear `read`); access: only the Caller Whale Monitoring resource for now (add each resource as it moves). | Coolify shows the token once. |
+| CD3 | GitHub: the `production` environment, Add secret `COOLIFY_TOKEN` (the token from CD2); repository Actions variables, `COOLIFY_URL` = `https://coolify.callerwhale.com`. | Both listed (the secret's value hidden). |
+| CD4 | After S7 (Monitoring's `RELAY_TOKEN` and `PUSH_TARGETS` are empty, which fails every deploy) and the production branches are published, Redeploy Monitoring: Coolify, Caller Whale Monitoring, Deployment logs | The deploy pulls `cw-grafana-proxy` and `cw-alert-relay` by digest (no build for those two) and ends healthy. If it fails on the image, run `docker login ghcr.io` on the server (CD5) or check the two `CW_…_IMAGE` settings. |
+| CD5 | When the images are made private (IM1): on the server, `docker login ghcr.io -u <your GitHub login>` with a GitHub token that has only `read:packages` (Coolify: Servers, the server, Registries, does the same). | Coolify can still pull; without it, every deploy of a moved resource fails at the pull. |
+| CD6 | Open `https://gate.callerwhale.com/staff/monitoring` from the admin dashboard, and send a test alert from Grafana's contact point | Grafana opens through the proxy; the test push reaches the phone. |
+| CD7 | The next time the Images workflow builds a new grafana-proxy or alert-relay: Actions, Images, the run | "Deploy to Coolify" waits for approval; after it, the two settings hold the new digests and Monitoring redeploys. |
+
