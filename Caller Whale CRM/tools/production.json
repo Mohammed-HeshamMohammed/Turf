@@ -98,7 +98,8 @@
         {
           "name": "cw-mcp",
           "context": ".",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "afvnfuour1x4uayxfhq9imcy" }
         }
       ]
     },
