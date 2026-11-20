@@ -175,15 +175,22 @@ jobs:
           path: ${{ runner.temp }}/deploy/${{ matrix.image }}.json
           retention-days: 7
 
+      # The images are meant to be private (D379), but the owner put that off (2026-11-20): making them private first needs the
+      # server's registry login (CD5), or Coolify can no longer pull them. Until the repository variable IMAGES_MUST_BE_PRIVATE is
+      # "true", a public image is a warning; after it, a failure.
       - name: The images stay private
         if: env.PUSH == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OWNER: ${{ needs.plan.outputs.owner }}
+          MUST: ${{ vars.IMAGES_MUST_BE_PRIVATE == 'true' }}
         run: |
           visibility=$(gh api "/users/$OWNER/packages/container/${{ matrix.image }}" --jq .visibility 2>/dev/null || echo unknown)
           echo "Visibility of ${{ matrix.image }}: $visibility"
-          if [ "$visibility" = public ]; then echo "::error::${{ matrix.image }} is public; make it private (package settings)"; exit 1; fi
+          if [ "$visibility" = public ]; then
+            if [ "$MUST" = true ]; then echo "::error::${{ matrix.image }} is public; make it private (package settings)"; exit 1; fi
+            echo "::warning::${{ matrix.image }} is public. Make it private after the server's registry login (CD5), then set IMAGES_MUST_BE_PRIVATE=true."
+          fi
 
 
   # Step 48 (D379, D381): what to put into Coolify. Runs without the approval, so a run that built nothing for Coolify asks nobody.
