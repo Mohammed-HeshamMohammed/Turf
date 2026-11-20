@@ -14,6 +14,8 @@ members = [
   "crates/desktop-features/exports",
   "crates/desktop-features/backup-restore",
 ]
+# Rust projects under this folder that have their own workspace or none: without this, cargo takes them for members.
+exclude = ["Caller Whale App/src-tauri"]
 
 # A workspace sets profiles at its root. Dependencies are compiled once and rarely change, so keep them fast while the crates'
 # own code builds quickly (was in the window's Cargo.toml).
