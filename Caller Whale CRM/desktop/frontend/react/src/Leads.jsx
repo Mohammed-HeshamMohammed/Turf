@@ -1266,6 +1266,7 @@ function LeadDocuments({ lead, client }) {
     );
   useEffect(() => {
     if (remote) load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- load the files when the lead changes; load is redefined each render
   }, [lead.id, remote]);
   const upload = async chosen => {
     const list = [...chosen];

@@ -70,6 +70,7 @@ export function Lists({ id, importId = null }) {
         if (!found || found.ids.length < 100) break;
       }
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- load a list once per list (loadedFor guards it); dispatch and remote are stable for the page
   }, [id, listTotal]);
   const datasetIds = new Set(leads.map(item => item.datasetId));
   const datasets = state.remote ? state.datasets : state.datasets.filter(item => datasetIds.has(item.id) || (capability(state, "import") && item.team === (ROLES[state.role].team || "Tampa")));
