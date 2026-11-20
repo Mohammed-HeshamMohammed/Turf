@@ -53,16 +53,26 @@ export function plan(records) {
     .map(a => (a.settings ? { ...a, settings: a.settings.sort((x, y) => x.key.localeCompare(y.key)) } : a));
 }
 
+/**
+ * Cloudflare Access service token (CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET, the production environment's secrets): the
+ * owner keeps Cloudflare's bot check on Coolify, and lets through to /api/ only requests that Cloudflare Access accepts with
+ * this token (docs/plans/coolify-image-swap.md, "Deploys from GitHub"). Without them, no Access headers are sent.
+ */
+export function accessHeaders(env = process.env) {
+  const id = env.CF_ACCESS_CLIENT_ID ?? "", secret = env.CF_ACCESS_CLIENT_SECRET ?? "";
+  return id && secret ? { "CF-Access-Client-Id": id, "CF-Access-Client-Secret": secret } : {};
+}
+
 async function call(base, token, method, path, body) {
   const res = await fetch(`${base}/api/v1${path}`, {
     method,
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json", ...accessHeaders() },
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
   // Cloudflare in front of Coolify: its bot check answers a script with a challenge page, so nothing reaches Coolify.
   if (res.status === 403 && /Just a moment|challenge-platform/i.test(text))
-    throw new Error(`Cloudflare's bot check answered instead of Coolify (403 on ${method} ${path}): let ${base}/api/ through without the check (docs/plans/coolify-image-swap.md, "Deploys from GitHub").`);
+    throw new Error(`Cloudflare's bot check answered instead of Coolify (403 on ${method} ${path})${Object.keys(accessHeaders()).length ? "" : " and no Cloudflare Access service token was sent (CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET)"}: requests to ${base}/api/ with the token must skip the check (docs/plans/coolify-image-swap.md, "Deploys from GitHub").`);
   return { status: res.status, text };
 }
 
