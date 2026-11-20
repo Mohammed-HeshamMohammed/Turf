@@ -55,6 +55,23 @@ CRM Core, Messaging, Dialer, Importing Worker, the website, the CRM web app (Das
 | 14 | **Done 2026-11-20.** Old: Caller Whale Dashboard (`tmv1plya9wrydcohecfa2scp`), stopped, for you to delete. New: Caller Whale Dashboard (`tdqx7o94epfaiqpp38gqx3ya`) holds app.callerwhale.com, which answers 200 | cw-crm-web | 8080 | none | move app.callerwhale.com (copy its Domains tab) | none at run time (built in) | `https://app.callerwhale.com`, sign in, the Inbox's team chats |
 | 15 | **Done 2026-11-20.** Old: Caller Whale Gateway (`wigouvvmfwpdzrkqyw3marwt`), deleted. New: Caller Whale Gateway (`uet17t0ao4zerab9ejksuzjt`), alias `gateway`, holds gate, auth, mcp, chat and live; they answer through it | cw-gateway | 8100 | gateway | move all of its domains (copy its Domains tab) | PORT ROUTES CORE_HOST AUTH_JWKS_URL STAFF_REQUIRE_SECOND_FACTOR IP_PER_MINUTE USER_PER_MINUTE MAX_BODY_MB PROXY_HOPS MONITORING_UPSTREAM HUMAN_CHECK AUTH_HOST RECAPTCHA_KIND RECAPTCHA_SITE_KEY RECAPTCHA_SECRET_KEY RECAPTCHA_FALLBACK_SITE_KEY RECAPTCHA_FALLBACK_SECRET_KEY RECAPTCHA_HOSTNAMES HUMAN_PER_MINUTE SCAN_LIMIT SCAN_WINDOW_MINUTES SCAN_PAUSE_MINUTES CORS_ORIGINS MCP_HOST LIVE_HOST | Every check above once more, through the public addresses |
 
+## Deploys from GitHub
+
+Found 2026-11-20: the first automatic deploy (the website and CRM web images of `6462647`) never reached Coolify. Cloudflare's bot
+check answered the GitHub runner with its "Just a moment..." page (403), and the job still showed green because its output went
+through `tee`. The job now fails on a refused deploy and names Cloudflare when it is the cause. Until Cloudflare lets the API
+through, no image deploys itself; the apps keep running the images set by hand.
+
+**Yours, in Cloudflare** (callerwhale.com, Security, WAF, Custom rules, Create rule):
+
+- Name: `Coolify API from GitHub`
+- When: Hostname equals `coolify.callerwhale.com` **and** URI Path starts with `/api/`
+- Then: **Skip**, and tick every remaining custom rule, rate limiting, managed rules, Super Bot Fight Mode and Browser Integrity Check
+  (whichever your plan shows). Leave the dashboard pages (everything outside `/api/`) behind the check.
+
+The API still needs the Coolify token, which only the deploy job holds. Then re-run the last Images run's "Deploy to Coolify" job
+(Actions, Images, the run, Re-run jobs) and approve it.
+
 ## Not verified
 
 - Coolify's API taking the digest the way its own form stores it (image `<name>@sha256`, tag `sha256-<hex>`, read from the Learning app;
