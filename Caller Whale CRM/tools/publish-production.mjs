@@ -65,6 +65,11 @@ export function pruneWorkspace(text, has) {
   return out.join("\n");
 }
 
+/** A path entry as people read it: "a", or "a (as b)" when {from: a, to: b} puts it elsewhere in the branch. */
+export function pathLabel(entry) {
+  return typeof entry === "string" ? entry : `${entry.from} (as ${entry.to})`;
+}
+
 /** The name of the one check `main` requires (ci.yml's last job). */
 export const SUMMARY_CHECK = "CI summary";
 /** How to get a missing check run on main, by its name. */
@@ -104,7 +109,7 @@ This branch is a **production snapshot of one part of Caller Whale**: only the f
 
 - Last changed from \`${ref}\` at \`${short}\` (${date})
 - Content id: \`${content}\` (the branch is only refreshed when this changes)
-- Holds: ${component.paths.map(p => `\`${p}\``).join(", ")}${component.rust ? ", and the Cargo workspace file and lock for it" : ""}
+- Holds: ${component.paths.map(p => `\`${pathLabel(p)}\``).join(", ")}${component.rust ? ", and the Cargo workspace file and lock for it" : ""}
 - ${files} files
 - Build and test: ${component.build}
 
@@ -149,7 +154,8 @@ function run() {
     const env = { GIT_INDEX_FILE: indexFile };
     const base = component.base ?? "Caller Whale CRM";
     const at = rel => (rel === "." ? base : base ? `${base}/${rel}` : rel);
-    const addPath = (rel, { optional = false } = {}) => {
+    // `to` puts the files somewhere else in the branch than on main (a path entry {"from": ..., "to": ...}).
+    const addPath = (rel, { optional = false, to = rel } = {}) => {
       const source = `${sha}:${at(rel)}`;
       let type;
       try {
@@ -158,10 +164,10 @@ function run() {
         if (optional) return;
         throw new Error(`${component.name}: ${rel} is not in ${from}`);
       }
-      if (type === "tree") git(["read-tree", ...(rel === "." ? [] : [`--prefix=${rel}/`]), source], { env });
+      if (type === "tree") git(["read-tree", ...(to === "." ? [] : [`--prefix=${to}/`]), source], { env });
       else {
         const [mode, , blob] = git(["ls-tree", sha, at(rel)]).split("\t")[0].split(" ");
-        git(["update-index", "--add", "--cacheinfo", `${mode},${blob},${rel}`], { env });
+        git(["update-index", "--add", "--cacheinfo", `${mode},${blob},${to}`], { env });
       }
     };
     const put = (rel, text) => {
@@ -171,7 +177,7 @@ function run() {
     const listing = () => git(["ls-files"], { env }).split("\n").filter(Boolean);
 
     git(["read-tree", "--empty"], { env });
-    for (const rel of component.paths) addPath(rel);
+    for (const entry of component.paths) typeof entry === "string" ? addPath(entry) : addPath(entry.from, { to: entry.to });
     addPath(".gitignore", { optional: true });
     // A branch root .env.example, copied from the example this part's environment follows (the path is from the repository root).
     if (component.envExample) {
@@ -254,7 +260,7 @@ function run() {
     if (noted) put(NOTE, note(component, { ref: from, short, date, files: files.length + 1, content }));
     const tree = git(["write-tree"], { env }).trim();
     if (flag("--list")) {
-      console.log(`${component.name}: ${files.length + (noted ? 1 : 0)} files  (${component.paths.join(", ")})`);
+      console.log(`${component.name}: ${files.length + (noted ? 1 : 0)} files  (${component.paths.map(pathLabel).join(", ")})`);
       continue;
     }
     const message = `${component.title}: production snapshot of main ${short}${noted ? "" : `
