@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { deploy, plan, readRecords } from "./coolify-deploy.mjs";
+import { deploy, plan, readRecords, accessHeaders } from "./coolify-deploy.mjs";
 
 const APP = "cs7nxvwhusacrlrsmolbqll9";
 const d = n => `sha256:${String(n).repeat(64)}`;
@@ -106,4 +106,10 @@ test("a refused setting stops before deploying", async () => {
 test("Cloudflare's challenge page is named, not shown as a Coolify refusal", async t => {
   t.mock.method(globalThis, "fetch", async () => ({ status: 403, text: async () => "<!DOCTYPE html><title>Just a moment...</title>" }));
   await assert.rejects(deploy(plan([rec("cw-a", "")]), { base: "https://c.test", token: "t", log: () => {} }), /Cloudflare's bot check answered instead of Coolify .*https:\/\/c\.test\/api\//);
+});
+
+test("the Cloudflare Access service token is sent only when both halves are set", () => {
+  assert.deepEqual(accessHeaders({ CF_ACCESS_CLIENT_ID: "id.access", CF_ACCESS_CLIENT_SECRET: "s" }), { "CF-Access-Client-Id": "id.access", "CF-Access-Client-Secret": "s" });
+  assert.deepEqual(accessHeaders({ CF_ACCESS_CLIENT_ID: "id.access" }), {});
+  assert.deepEqual(accessHeaders({}), {});
 });
