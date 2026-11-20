@@ -60,7 +60,6 @@ updates:
     directories:
       - "/Caller Whale App/src-tauri"
       - "/Caller Whale CRM"
-      - "/Caller Whale CRM/desktop/container/rust"
     schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5
     groups:
@@ -71,8 +70,6 @@ updates:
   # --- Containers: the base image of every Dockerfile (node, golang, python, rust, nginx, distroless) ------------------------
   - package-ecosystem: docker
     directories:
-      - "/Caller Whale CRM/landing/site"
-      - "/Caller Whale CRM/landing/dashboard-web"
       - "/Caller Whale CRM/services/gateway"
       - "/Caller Whale CRM/services/auth"
       - "/Caller Whale CRM/services/authz"

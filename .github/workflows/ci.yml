@@ -234,7 +234,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: Caller Whale CRM/desktop/frontend/react
+        working-directory: apps/crm
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -265,7 +265,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: Caller Whale CRM/landing/site
+        working-directory: apps/website
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

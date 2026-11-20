@@ -81,8 +81,8 @@
     "landing-web": {
       "description": "Public static React site (home and account pages); signs people in through the auth service. The auth address is fixed at build time.",
       "sources": [
-        "landing/site/Dockerfile",
-        "landing/site/nginx.conf"
+        "../apps/website/Dockerfile",
+        "../apps/website/nginx.conf"
       ],
       "variables": {
         "VITE_CALLERWHALE_AUTH_URL": "Build-time public auth service address embedded in the browser JavaScript, like https://auth.callerwhale.com. Rebuild to change; it is not a secret. Wrong value breaks every sign-in.",

@@ -1,7 +1,7 @@
 // Builds the currency tables from the official sources, so nobody types them by hand:
 //   - which currencies exist, and how many decimals each has: ISO 4217, from SIX (the standard's maintenance agency)
 //   - which currency each country uses: Unicode CLDR (unicode-org/cldr-json, published on npm as cldr-core)
-// Writes landing/site/src/currency-data.ts and services/auth/currency_data.go (generated: do not edit them).
+// Writes apps/website/src/currency-data.ts and services/auth/currency_data.go (generated: do not edit them).
 //
 //   node tools/currency-data.mjs           fetch the sources and rewrite both files
 //   node tools/currency-data.mjs --check   fetch them and fail when a file is out of date (run monthly by .github/workflows/currency-data.yml)

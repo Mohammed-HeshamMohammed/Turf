@@ -17,7 +17,7 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "--prefix",
-        "Caller Whale CRM/desktop/frontend/react",
+        "apps/crm",
         "run",
         "dev",
         "--",
@@ -77,7 +77,7 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "--prefix",
-        "Caller Whale CRM/landing/site",
+        "apps/website",
         "run",
         "dev"
       ],
@@ -91,7 +91,7 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "--prefix",
-        "Caller Whale CRM/landing/site",
+        "apps/website",
         "run",
         "dev"
       ],

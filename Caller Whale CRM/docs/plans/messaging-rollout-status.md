@@ -14,7 +14,7 @@ Background: [messaging-sms-voice.md](messaging-sms-voice.md) (decisions), [messa
 | Messaging Redis | Coolify, environment **database**, "Caller Whale Messaging Redis" (Valkey 9, private, no persistence, `maxmemory 200mb` with `volatile-lru`, 0.5 CPU, 256 MB, no swap) | **Running** (2026-11-16, SSL enabled). **Wired:** the live server's log shows `engine: redis`. The link is encrypted; `config.json` skips the certificate check because Coolify's own certificate authority is not trusted inside the container |
 | Authorization | Existing app "Caller Whale Authorization" | Redeployed with the `messaging` caller and its token |
 | Gateway routes | Existing "Caller Whale Gateway", `ROUTES` variable | `chat.callerwhale.com=http://messaging:8108,live.callerwhale.com=http://centrifugo:8000` **saved, not yet live** (needs a redeploy) |
-| CRM Inbox client | `desktop/frontend/react/src/remote/messaging.ts`, `Work.jsx`, `App.jsx` | Written, 8 tests pass, **off** until the build variable below is set |
+| CRM Inbox client | `apps/crm/src/remote/messaging.ts`, `Work.jsx`, `App.jsx` | Written, 8 tests pass, **off** until the build variable below is set |
 
 Evidence of health (2026-11-14): Messaging's runtime log shows `applied migrations/0001_messaging.sql`, "the database login is a superuser: requests run as the restricted role messaging_app so row security applies", "Listening on port 8108", and `GET /healthz 200`.
 

@@ -234,7 +234,7 @@ The owner's latest explicit decision takes precedence. For current behavior, che
 | [Feature index](../Caller%20Whale%20CRM/docs/features/README.md) | Feature scope, decisions and unresolved work; follow each feature's status. |
 | [Positioning proposal](../Caller%20Whale%20CRM/docs/plans/positioning.md) | Historical commercial thinking; prices/comparisons require fresh review. |
 | [Future scope](../Caller%20Whale%20CRM/docs/plans/web-rebuild/13-future-scope.md) | Boundaries for browser CRM, mobile and other extensions. |
-| [Dashboard foundation](../Caller%20Whale%20CRM/landing/dashboard-web/README.md) | Actual standalone web-dashboard scope and integration limits. |
+| [Dashboard foundation](../apps/crm-web/README.md) | Actual standalone web-dashboard scope and integration limits. |
 | [Runtime log standard](Runtime%20logs.md) | Shared operational presentation and service coverage. |
 
 Update this brief when the owner changes the business direction, selects permanent brand assets, approves commercial promises or verifies a major capability for release. Keep the review date and source links current. Do not use this document to override a feature contract or conceal an unresolved operational problem.

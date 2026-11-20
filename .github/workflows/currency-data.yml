@@ -11,7 +11,7 @@ on:
   pull_request:
     paths:
       - "Caller Whale CRM/tools/currency-data.mjs"
-      - "Caller Whale CRM/landing/site/src/currency-data.ts"
+      - "apps/website/src/currency-data.ts"
       - "Caller Whale CRM/services/auth/currency_data.go"
       - ".github/workflows/currency-data.yml"
 

@@ -99,7 +99,7 @@ I looked at the *rate* side only (items G, H, I). I did **not** audit credit cou
 
 # Part 3: credits and limits
 
-Added 2026-11-01 after you picked "credits and limits". Same rule: review only, everything is **to do**. Code read: `services/core-api/rust/crates/api/src/routes/desktop_access.rs`, `database_setup/0014_desktop_access.sql`, `desktop/frontend/react/src/DataPages.jsx` and `remote/api.js`, `service/` (the Skip Tracing engine), `landing/web/src/AccountPages.jsx`.
+Added 2026-11-01 after you picked "credits and limits". Same rule: review only, everything is **to do**. Code read: `services/core-api/rust/crates/api/src/routes/desktop_access.rs`, `database_setup/0014_desktop_access.sql`, `apps/crm/src/DataPages.jsx` and `remote/api.js`, `service/` (the Skip Tracing engine), `landing/web/src/AccountPages.jsx`.
 
 ## How it works today (so the findings make sense)
 

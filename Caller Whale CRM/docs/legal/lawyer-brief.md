@@ -4,7 +4,7 @@ Caller Whale is a CRM for lead and calling teams (web app, desktop app, website)
 
 ## 1. What we ask
 
-1. Review and correct the **Terms of Service, Privacy Notice, Data Processing Addendum and Acceptable Use and Calling Policy** (`landing/site/src/legal/*.md`, published at /terms, /privacy, /dpa, /acceptable-use). Fill the highlighted `[PLACEHOLDERS]`.
+1. Review and correct the **Terms of Service, Privacy Notice, Data Processing Addendum and Acceptable Use and Calling Policy** (`apps/website/src/legal/*.md`, published at /terms, /privacy, /dpa, /acceptable-use). Fill the highlighted `[PLACEHOLDERS]`.
 2. Say whether the **learning copy** (section 4) is lawful as designed, in which states, and under which role (service provider/processor, controller, or data broker), and what must change.
 3. Review the **retention schedule**, **breach plan** and **key custody** documents in this folder.
 4. Say what is needed for **calling and texting** (TCPA, state laws) and for **skip tracing** (section 5), which are not covered by the texts beyond a general policy.

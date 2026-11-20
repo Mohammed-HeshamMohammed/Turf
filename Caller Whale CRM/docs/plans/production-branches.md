@@ -4,8 +4,8 @@ One branch per part of Caller Whale, each holding **only that part's code**, so 
 
 | Branch | What it holds |
 | --- | --- |
-| `landing-web-production` | The website (`landing/site`), in the repository layout with the npm workspace (root `package.json`, its lock file and `packages/`, step 49) |
-| `landing-dashboard-web-production` | The CRM web app: the desktop frontend built for the browser, packaged by `landing/dashboard-web`, in the repository layout with the npm workspace (step 49) |
+| `landing-web-production` | The website (`apps/website`), in the repository layout with the npm workspace (root `package.json`, its lock file and `packages/`, step 49) |
+| `landing-dashboard-web-production` | The CRM web app: the desktop frontend built for the browser, packaged by `apps/crm-web`, in the repository layout with the npm workspace (step 49) |
 | `auth-backend-production` | The authentication service (`services/auth`) |
 | `notifications-backend-production` | The notification service (`services/notifications`, Go) at the branch root |
 | `gateway-backend-production` | The gateway: the one public entry point (it only answers its health check so far) |
@@ -13,7 +13,7 @@ One branch per part of Caller Whale, each holding **only that part's code**, so 
 | `dialer-sms-backend-production` | The dialer (`services/features/dialer-sms`, Go) at the branch root: Telnyx calls and texts, with a built-in Telnyx simulator (`TELNYX_MODE=simulate`). No domain of its own |
 | `authz-backend-production` | The authorization service (`services/authz`, Go) at the branch root: decides what each person may do and which database rights each request gets. No domain |
 | `billing-backend-production` | The billing service (`services/billing`, Python) at the branch root. No domain; the gateway routes its public paths |
-| `desktop-app-production` | The whole desktop app: the frontend (`desktop/frontend/react`, also the CRM in a browser), the window container (Tauri) and the feature modules (`desktop/backend`) |
+| `desktop-app-production` | The whole desktop app: the frontend (`apps/crm`, also the CRM in a browser), the window container (Tauri) and the feature modules (`desktop/backend`) |
 | `grafana-production` | Grafana for Caller Whale's staff and its login proxy (`deploy/grafana`, `services/grafana-proxy`), deployed on Coolify as one Docker Compose resource |
 | `skip-engine-production` | The Skip Tracing engine (`service/`, Python) that the desktop app runs |
 
@@ -53,8 +53,8 @@ node tools/publish-production.mjs --export <dir> [name]     # write a branch's f
 
 | Branch | Base directory | Dockerfile location | Container port | Health path |
 | --- | --- | --- | --- | --- |
-| `landing-web-production` | `/` | `/Caller Whale CRM/landing/site/Dockerfile` (image built in GitHub Actions since step 48) | `8080` | `/healthz` |
-| `landing-dashboard-web-production` | `/` | `/Caller Whale CRM/landing/dashboard-web/Dockerfile` (image built in GitHub Actions since step 48) | `8080` | `/healthz` |
+| `landing-web-production` | `/` | `/apps/website/Dockerfile` (image built in GitHub Actions since step 48) | `8080` | `/healthz` |
+| `landing-dashboard-web-production` | `/` | `/apps/crm-web/Dockerfile` (image built in GitHub Actions since step 48) | `8080` | `/healthz` |
 | `auth-backend-production` | `/` | `/Dockerfile` | `8101` | `/healthz` |
 | `notifications-backend-production` | `/` | `/Dockerfile` | `8102` | `/healthz`; no domain |
 | `gateway-backend-production` | `/` | `/Dockerfile` | `8100` | its own health check (inside the private network only) |

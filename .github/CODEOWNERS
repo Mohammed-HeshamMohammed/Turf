@@ -1,5 +1,5 @@
 # Who reviews each folder (D376). One owner for now; when someone joins, give them the folders they look after, e.g.
-#   /Caller Whale CRM/landing/site/   @their-login
+#   /apps/website/   @their-login
 # The ruleset on main requires the "CI summary" check and a pull request; it does not require an approval, because GitHub does not
 # let anyone approve their own pull request and there is one person. Turn on "Require review from Code Owners" once there are two.
 * @Mohammed-HeshamMohammed

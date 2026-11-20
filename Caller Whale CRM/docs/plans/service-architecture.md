@@ -80,7 +80,7 @@ Every `services/<x>/` has the same files: `README.md`, `Dockerfile`, `database_s
 flowchart TB
     subgraph PC["Person's computer"]
         App["desktop/container + frontend"]
-        LB["desktop/backend/features/*"]
+        LB["crates/desktop-features/*"]
         App --> LB
     end
     Web["landing/web"] --> Auth
@@ -127,7 +127,7 @@ Goal: you tell Claude "release 0.4.0" and it ships.
 | 4 | **Auth service** split out of `server/rust`, own database, JWKS | The desktop and landing sign in through it; CRM verifies tokens locally |
 | 5 | **Notification service** split out, event contract, email first, SMS next | Sign-up and invoice emails go through it |
 | 6 | **Gateway** and the **feature service template**; move CRM first, then one feature at a time in the order of `docs/features` | Each feature has its own service, database, contract and tests |
-| 7 | **Desktop feature modules** under `desktop/backend/features/` | Each feature runs offline from its own module |
+| 7 | **Desktop feature modules** under `crates/desktop-features/` | Each feature runs offline from its own module |
 
 Phases 1 and 2 come before the restructure because they are what lets you sell and ship; they only add folders. Phases 3 to 7 are the large refactor and should land one phase per pull request.
 
@@ -136,7 +136,7 @@ Phases 1 and 2 come before the restructure because they are what lets you sell a
 The folders and starting code from the target layout now exist beside the working app, without moving it:
 
 - `services/`: gateway, auth, notifications, billing and the eight feature services. Each starts, answers `/healthz` and `/version`, has tests, an `openapi.yaml`, a `Dockerfile` and, when it owns data, `database_setup/`. Registry: `services/README.md`, `contracts/services.md`, event list: `contracts/events.md`.
-- `desktop/`: the container, frontend and backend folders, with one Rust module per feature under `desktop/backend/features/`.
+- `desktop/`: the container, frontend and backend folders, with one Rust module per feature under `crates/desktop-features/`.
 - `deploy/compose.yml`: every service plus Postgres and Redis (not run yet: no Docker on the machine that wrote it).
 - `tools/`: `stack.json` (the list of services), `scaffold-stack.mjs` (creates what is missing, never overwrites) and `check-stack.mjs` (runs every test).
 - Root `Cargo.toml`: one workspace for the new Rust crates; `src-tauri` and `backend/rust` stay out of it for now.

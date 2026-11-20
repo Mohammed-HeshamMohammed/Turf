@@ -138,7 +138,7 @@ Top bar (pill, blurred, sticky) · primary and secondary button · mono label ·
 
 Status: **proposal only; no app code has changed.**
 
-Today the app (`desktop/frontend/react/src/crm.css`) is light only. It uses a grey page (`#ececec`), grey cards, a tan accent (`#ecc394`), 28 px corner radius, 14 px base type and Schibsted Grotesk throughout. The website's old light theme was copied from it, so the two matched; the new Home no longer does. Until the app moves, a visitor sees a dark site and a light app. That is acceptable for the first release of the theme but should not last.
+Today the app (`apps/crm/src/crm.css`) is light only. It uses a grey page (`#ececec`), grey cards, a tan accent (`#ecc394`), 28 px corner radius, 14 px base type and Schibsted Grotesk throughout. The website's old light theme was copied from it, so the two matched; the new Home no longer does. Until the app moves, a visitor sees a dark site and a light app. That is acceptable for the first release of the theme but should not last.
 
 Rules for bringing the app in line:
 

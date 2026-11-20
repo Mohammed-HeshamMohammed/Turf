@@ -106,7 +106,6 @@ jobs:
         lock:
           - Caller Whale App/src-tauri/Cargo.lock
           - Caller Whale CRM/Cargo.lock
-          - Caller Whale CRM/desktop/container/rust/Cargo.lock
     steps:
       - uses: actions/checkout@v7
       - uses: taiki-e/install-action@v2

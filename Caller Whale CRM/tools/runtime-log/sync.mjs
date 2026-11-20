@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 import { resolve, dirname } from "node:path";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const containers = [
- ["landing/site", "Landing"],
- ["landing/dashboard-web", "Dashboard"],
+ ["../apps/website", "Landing"],
+ ["../apps/crm-web", "Dashboard"],
  ["services/auth", "Auth"], ["services/authz", "Authorization"], ["services/billing", "Billing"],
  ["services/gateway", "Gateway"], ["services/mcp", "MCP"], ["services/crm-core", "CRM core"], ["services/assistant", "Assistant"], ["services/grafana-proxy", "Grafana proxy"], ["services/alert-relay", "Alert relay"], ["services/notifications", "Notifications"], ["services/live", "Live server"],
  ["services/features/ai-campaigns", "AI campaigns"], ["services/features/backup-restore", "Backup restore", true],
