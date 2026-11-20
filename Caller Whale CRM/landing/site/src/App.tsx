@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes } from "react";
-import { createAuth, type AuthError, type Me } from "./auth/auth-client.js";
-import { HumanCheck, HumanNotice, humanToken } from "./auth/human-check.jsx";
+import { createAuth, type AuthError, type Me } from "@callerwhale/auth-client";
+import { HumanCheck, HumanNotice, humanToken } from "@callerwhale/auth-client/human-check.jsx";
 import { redirectFor, waitingForSecondStep } from "./guard.ts";
 import { readProfile, writeProfile, type CachedProfile } from "./profile-cache.ts";
 import { applyMetadata, metadataFor } from "./metadata.ts";

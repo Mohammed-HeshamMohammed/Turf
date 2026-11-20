@@ -1,4 +1,4 @@
-import type { Me } from "./auth/auth-client.js";
+import type { Me } from "@callerwhale/auth-client";
 import { cleanPath } from "./routes.ts";
 
 // Which pages are for whom, so a page never shows the wrong state (a sign-in form to someone already signed in, or an

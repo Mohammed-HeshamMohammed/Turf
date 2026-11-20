@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { PageHead } from "./ui.tsx";
 import { Link } from "./nav.tsx";
-import { HumanCheck, humanToken } from "./auth/human-check.jsx";
-import type { Auth } from "./auth/auth-client.js";
+import { HumanCheck, humanToken } from "@callerwhale/auth-client/human-check.jsx";
+import type { Auth } from "@callerwhale/auth-client";
 import { parseLegal, versionOf, type Inline } from "./legal.ts";
 import termsText from "./legal/terms.md?raw";
 import privacyText from "./legal/privacy.md?raw";

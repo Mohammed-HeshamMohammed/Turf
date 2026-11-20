@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import type { Auth } from "./auth/auth-client.js";
+import type { Auth } from "@callerwhale/auth-client";
 import { ageProblem } from "./age.ts";
 import { BirthDateField } from "./BirthDate.tsx";
 

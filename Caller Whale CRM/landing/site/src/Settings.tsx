@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Auth, Me } from "./auth/auth-client.js";
+import type { Auth, Me } from "@callerwhale/auth-client";
 import { SettingsConnections } from "./SettingsConnections.tsx";
 import { SettingsSecurity } from "./SettingsSecurity.tsx";
 import { SettingsPrivacy } from "./SettingsPrivacy.tsx";

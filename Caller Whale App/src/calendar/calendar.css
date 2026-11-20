@@ -1,5 +1,5 @@
 /* Caller Whale's calendar and date field (calendar.jsx), shared by the CRM, the website and the desktop app.
-   Change it in shared/calendar, then run: node shared/calendar/sync.mjs
+   This app's own copy of packages/calendar, no longer synced (step 49); step 53 moves or archives the app.
    Each app's own colours come through its tokens (--raised, --ink, --muted, --line, --well, --accent, --accent-ink,
    --accent-soft); an app can also set the --cal-* ones below. */
 

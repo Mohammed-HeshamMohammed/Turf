@@ -1,6 +1,6 @@
-// Build step 42 (D303): errors in the CRM web app are sent to the auth service's log with the error's kind, the page's path, where in
-// the code and the version. The error's text is never sent: it can hold names, numbers or message text. The website has the same
-// file (landing/site/src/error-report.ts).
+// Build step 42 (D303): errors in the CRM web app and the website are sent to the auth service's log with the error's kind, the
+// page's path, where in the code and the version. The error's text is never sent: it can hold names, numbers or message text.
+// Both apps import it as @callerwhale/error-report (D383).
 
 /** The code's places in a stack: script addresses with line and column, at most three. */
 export function framesOf(stack) {

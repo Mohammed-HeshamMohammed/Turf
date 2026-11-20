@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Auth, Me } from "./auth/auth-client.js";
+import type { Auth, Me } from "@callerwhale/auth-client";
 import { Link } from "./nav.tsx";
 import { RoleBadges, type Access } from "./RoleBadges.tsx";
 import { PLATFORM_ROLES } from "./roles.ts";

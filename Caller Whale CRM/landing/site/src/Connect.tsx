@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Auth } from "./auth/auth-client.js";
+import type { Auth } from "@callerwhale/auth-client";
 import { askedFrom, returnKind } from "./connect-check.ts";
 
 

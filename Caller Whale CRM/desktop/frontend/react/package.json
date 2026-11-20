@@ -19,6 +19,9 @@
     "css:unused": "node scripts/css-unused.mjs"
   },
   "dependencies": {
+    "@callerwhale/auth-client": "1.0.0",
+    "@callerwhale/calendar": "1.0.0",
+    "@callerwhale/error-report": "1.0.0",
     "@fontsource-variable/schibsted-grotesk": "^5.3.0",
     "@phosphor-icons/react": "^2.1.10",
     "@tauri-apps/api": "^2.12.4",

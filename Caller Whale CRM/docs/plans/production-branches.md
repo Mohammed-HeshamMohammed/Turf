@@ -4,8 +4,8 @@ One branch per part of Caller Whale, each holding **only that part's code**, so 
 
 | Branch | What it holds |
 | --- | --- |
-| `landing-web-production` | The landing site's frontend, exported from `landing/web` to the branch root |
-| `landing-dashboard-web-production` | The CRM web app: the desktop frontend built for the browser, packaged by `landing/dashboard-web` |
+| `landing-web-production` | The website (`landing/site`), in the repository layout with the npm workspace (root `package.json`, its lock file and `packages/`, step 49) |
+| `landing-dashboard-web-production` | The CRM web app: the desktop frontend built for the browser, packaged by `landing/dashboard-web`, in the repository layout with the npm workspace (step 49) |
 | `auth-backend-production` | The authentication service (`services/auth`) |
 | `notifications-backend-production` | The notification service (`services/notifications`, Go) at the branch root |
 | `gateway-backend-production` | The gateway: the one public entry point (it only answers its health check so far) |
@@ -24,7 +24,7 @@ Each server branch also carries its container file and its Kubernetes files (`in
 ## What is in a branch
 
 - By default, the part's folders keep their paths relative to `Caller Whale CRM/` on `main`. A component can set `base` and `paths: ["."]` to export that source folder directly to its branch root. The frontend, auth and gateway branches do this; other components retain their existing paths.
-- Frontend branches contain only their app, including its Dockerfile and dependency lockfile. Landing Kubernetes manifests and the environment example remain on `main`; configure the landing build/runtime variables using `landing/web/COOLIFY.md`.
+- The website, CRM web app and desktop branches (`base: ""`) keep the repository layout and carry the npm workspace: the root `package.json`, `package-lock.json`, `.npmrc`, `packages/` and the other web app's `package.json` (npm checks the lock file against every workspace). Their Dockerfiles build with the branch root as the context (step 49, D383). Landing Kubernetes manifests and the environment example remain on `main`; configure the landing build/runtime variables using `landing/web/COOLIFY.md`.
 - For a Rust service: the Cargo workspace file cut down to the members present, and `Cargo.lock`. Dockerfile lines that copy a folder the branch does not have are removed.
 - A generated `readme.md`: what it is, which `main` commit it was made from, how to build and test it.
 
@@ -53,8 +53,8 @@ node tools/publish-production.mjs --export <dir> [name]     # write a branch's f
 
 | Branch | Base directory | Dockerfile location | Container port | Health path |
 | --- | --- | --- | --- | --- |
-| `landing-web-production` | `/` | `/Dockerfile` | `8080` | `/healthz` |
-| `landing-dashboard-web-production` | `/` | `/landing/dashboard-web/Dockerfile` | `8080` | `/healthz` |
+| `landing-web-production` | `/` | `/Caller Whale CRM/landing/site/Dockerfile` (image built in GitHub Actions since step 48) | `8080` | `/healthz` |
+| `landing-dashboard-web-production` | `/` | `/Caller Whale CRM/landing/dashboard-web/Dockerfile` (image built in GitHub Actions since step 48) | `8080` | `/healthz` |
 | `auth-backend-production` | `/` | `/Dockerfile` | `8101` | `/healthz` |
 | `notifications-backend-production` | `/` | `/Dockerfile` | `8102` | `/healthz`; no domain |
 | `gateway-backend-production` | `/` | `/Dockerfile` | `8100` | its own health check (inside the private network only) |

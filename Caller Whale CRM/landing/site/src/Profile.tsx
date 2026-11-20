@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import type { Auth, Me } from "./auth/auth-client.js";
+import type { Auth, Me } from "@callerwhale/auth-client";
 import { RoleBadges, type Access } from "./RoleBadges.tsx";
 import { MainCurrency } from "./MainCurrency.tsx";
 import { AvatarCropper } from "./AvatarCropper.tsx";

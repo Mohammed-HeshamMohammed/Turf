@@ -1,7 +1,7 @@
 // Build step 40: help and feedback (D292-D295). The help pages, the support conversation for owners and admins, "What's new",
 // early features, the "Send feedback" button, and staff's side of each.
 import { useCallback, useEffect, useState } from "react";
-import type { Auth } from "./auth/auth-client.js";
+import type { Auth } from "@callerwhale/auth-client";
 import { Link } from "./nav.tsx";
 import { helpArticles, searchHelp } from "./content/help.ts";
 

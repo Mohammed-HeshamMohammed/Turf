@@ -12,6 +12,9 @@
     "test": "node --test \"tests/*.test.mjs\""
   },
   "dependencies": {
+    "@callerwhale/auth-client": "1.0.0",
+    "@callerwhale/calendar": "1.0.0",
+    "@callerwhale/error-report": "1.0.0",
     "@fontsource-variable/schibsted-grotesk": "^5.3.0",
     "qrcode": "^1.5.4",
     "react": "19.3.1",

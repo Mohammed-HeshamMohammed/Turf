@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Auth } from "./auth/auth-client.js";
+import type { Auth } from "@callerwhale/auth-client";
 import { SecondStep } from "./SecondStep.tsx";
 
 const gateway = new URL(import.meta.env.VITE_CALLERWHALE_GATEWAY_URL || "https://gate.callerwhale.com").origin;

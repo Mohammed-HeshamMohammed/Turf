@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { Me } from "./auth/auth-client.js";
+import type { Me } from "@callerwhale/auth-client";
 import { Link } from "./nav.tsx";
 import { HeroSideTab } from "./Announcement.tsx";
 import { STATUS, features } from "./content/features.ts";

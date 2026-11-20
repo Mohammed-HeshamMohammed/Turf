@@ -8,7 +8,7 @@ import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// The one inline <style> the page makes (src/auth/human-check.jsx hides Google's badge), allowed by its hash and nothing else inline.
+// The one inline <style> the page makes (@callerwhale/auth-client/human-check.jsx hides Google's badge), allowed by its hash and nothing else inline.
 export const BADGE_STYLE = ".grecaptcha-badge{visibility:hidden}";
 const badgeHash = `'sha256-${createHash("sha256").update(BADGE_STYLE).digest("base64")}'`;
 

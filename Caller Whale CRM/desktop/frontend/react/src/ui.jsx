@@ -18,8 +18,8 @@ import { createPortal } from "react-dom";
 import { useCrm } from "./context.jsx";
 import { avatarSources } from "./avatars.ts";
 import { TODAY } from "./data.ts";
-import { DatePicker as SharedDatePicker } from "./calendar/calendar.jsx";
-import "./calendar/calendar.css";
+import { DatePicker as SharedDatePicker } from "@callerwhale/calendar";
+import "@callerwhale/calendar/calendar.css";
 
 /** Source lists often arrive in capitals ("AADINA SHAREEF", "7014 SANTA RITA DR"). Shown in ordinary case; text that already has lower case is left as it is. */
 export const tidyCase = text => {
@@ -1023,7 +1023,7 @@ export function Select({ children, value, defaultValue, onChange, name, id, disa
 
 const pad = number => String(number).padStart(2, "0");
 /**
- * Themed replacement for <input type="date">: Caller Whale's calendar (shared/calendar), drawn by the app, not the browser.
+ * Themed replacement for <input type="date">: Caller Whale's calendar (@callerwhale/calendar), drawn by the app, not the browser.
  * Same props as Select (value / defaultValue / onChange / name / disabled), values are "YYYY-MM-DD", plus min and max.
  * onChange receives an event-like { target: { value, name } }.
  */

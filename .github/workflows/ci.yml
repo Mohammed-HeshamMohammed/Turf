@@ -212,12 +212,11 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - run: node --test "Caller Whale CRM/tools/*.test.mjs" "Caller Whale CRM/deploy/grafana/*.test.mjs" "Caller Whale CRM/services/live/*.test.mjs"
+      - run: node --test "Caller Whale CRM/tools/*.test.mjs" "Caller Whale CRM/deploy/grafana/*.test.mjs" "Caller Whale CRM/services/live/*.test.mjs" "packages/*/test/*.test.mjs"
       - run: node "Caller Whale CRM/tools/env-notes.mjs" check
-      - name: Every copy matches its source (token check, request logs, calendar)
+      - name: Every copy matches its source (token check, request logs)
         run: |
           node "Caller Whale CRM/tools/auth-verify/sync.mjs" --check
-          node "Caller Whale CRM/shared/calendar/sync.mjs" --check
           # The log runner copies are not kept on main (the generator adds them to the branches), so write them, check, and make sure
           # nothing that is kept changed (a stale request adapter or Dockerfile).
           node "Caller Whale CRM/tools/runtime-log/sync.mjs"
@@ -242,7 +241,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: Caller Whale CRM/desktop/frontend/react/package-lock.json
+          cache-dependency-path: package-lock.json
       # The Skip Tracing tests run the real engine (service/, Python), as the desktop app does.
       - uses: actions/setup-python@v7
         with:
@@ -250,7 +249,9 @@ jobs:
           cache: pip
           cache-dependency-path: service/requirements.txt
       - run: pip install -r ../../../../service/requirements.txt
+      # npm workspaces (D383): one install at the repository root for the apps and packages/.
       - run: npm ci
+        working-directory: .
       - run: npm run typecheck
       - run: npm run lint
       # The full build (with the Sites packaging step) comes first: one test checks the files it makes.
@@ -271,8 +272,9 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: Caller Whale CRM/landing/site/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
+        working-directory: .
       - run: npm run typecheck
       - run: npm test
       - run: npm run build

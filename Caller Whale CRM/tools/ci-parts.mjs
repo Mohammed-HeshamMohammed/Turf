@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 
 const C = "Caller Whale CRM/";
 const S = C + "services/";
+// The npm workspace (D383): the shared packages and the root lock file the web apps install from.
+const NPM = ["packages/", "package.json", "package-lock.json", ".npmrc"];
 
 /** Each part and the path prefixes that make it run. */
 export const PARTS = {
@@ -25,11 +27,11 @@ export const PARTS = {
   billing: [S + "billing/"],
   // The end-to-end test builds crm-core's tables from its scripts.
   "importing-lists": [S + "features/importing-lists/", S + "crm-core/migrations/"],
-  // Also every place a shared file is copied to (the token check, the request-log adapters and runner, the calendar): the tools
-  // job checks that each copy matches its source.
-  tools: [C + "tools/", C + "deploy/", C + "env/", C + "shared/", S, C + "landing/", C + "desktop/frontend/react/src/calendar/", "Caller Whale App/src/calendar/"],
-  "crm-app": [C + "desktop/frontend/", C + "landing/dashboard-web/", C + "services/auth/clients/", C + "shared/", "service/"],
-  website: [C + "landing/site/", C + "shared/"],
+  // Also every place a shared file is copied to (the token check, the request-log adapters and runner): the tools job checks that
+  // each copy matches its source. It also runs the tests of packages/.
+  tools: [C + "tools/", C + "deploy/", C + "env/", S, C + "landing/", "packages/"],
+  "crm-app": [C + "desktop/frontend/", C + "landing/dashboard-web/", "service/", ...NPM],
+  website: [C + "landing/site/", ...NPM],
 };
 // The desktop apps and the engine they ship are not here: they have their own development and their own workflows (desktop.yml,
 // older-app.yml), which do not block merging to main.

@@ -1,5 +1,5 @@
-// Types for auth-client.js, which is a copy of services/auth/clients/auth-client.js kept in step by sync.mjs, so it stays
-// plain JavaScript. Only what this site uses is described.
+// Types for auth-client.js (@callerwhale/auth-client), which stays plain JavaScript so the same file serves the website and
+// the CRM. Only what the apps use is described.
 export class AuthError extends Error {
   status: number;
   code: string;
@@ -30,6 +30,8 @@ export interface Me {
 export interface Auth {
   signedIn(): boolean;
   accessToken(): Promise<string | null>;
+  /** New tokens from the refresh token; null when there is none. */
+  refresh(): Promise<unknown>;
   me(options?: { fresh?: boolean }): Promise<Me>;
   signIn(email: string, password: string, code?: string, kind?: string, humanToken?: string): Promise<unknown>;
   signUp(name: string, email: string, password: string, kind?: string, humanToken?: string, birthDate?: string, termsVersion?: string, invitation?: { id: string; key: string } | null): Promise<unknown>;

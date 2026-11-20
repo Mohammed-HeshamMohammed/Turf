@@ -196,11 +196,13 @@ function run() {
     // "exclude" drops files that belong on main but not on this branch (e.g. the source folder README).
     for (const rel of component.exclude ?? []) git(["update-index", "--force-remove", rel], { env });
     if (component.rust) {
-      addPath("Cargo.lock");
+      // `rust: true`: the Cargo workspace is at the branch root; `rust: "<folder>"`: it is in that folder of the branch.
+      const cargo = rel => (typeof component.rust === "string" ? `${component.rust}/${rel}` : rel);
+      addPath(cargo("Cargo.lock"));
       const files = listing();
       // A member is there only with its Cargo.toml (a branch can hold other files under the same folder).
-      const has = member => Boolean(member) && files.includes(`${member}/Cargo.toml`);
-      put("Cargo.toml", pruneWorkspace(git(["show", `${sha}:${at("Cargo.toml")}`]), has));
+      const has = member => Boolean(member) && files.includes(`${cargo(member)}/Cargo.toml`);
+      put(cargo("Cargo.toml"), pruneWorkspace(git(["show", `${sha}:${at(cargo("Cargo.toml"))}`]), has));
     }
     const dockerfiles = listing().filter(f => /(^|\/)Dockerfile$/.test(f)).map(file => [file,
       git(["cat-file", "-p", git(["ls-files", "-s", "--", file], { env }).split(/\s+/)[1]])]);

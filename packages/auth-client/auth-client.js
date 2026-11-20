@@ -1,6 +1,6 @@
 // Signing in with Caller Whale's auth service, for the website and the CRM (in a browser tab and in the desktop window).
-// Plain JavaScript with no dependencies, so the same file serves both. This is the original; the copies in
-// services/core-api/website/ and desktop/frontend/react/src/remote/ must stay identical (a test checks).
+// Plain JavaScript with no dependencies, so the same file serves both. The one copy: the apps import it as
+// @callerwhale/auth-client (npm workspaces, D383).
 //
 // The access token lives only in memory and is refreshed a minute before it expires. The refresh token is kept in
 // the browser's storage so a reload stays signed in; on a shared device (the person chose it at sign-in, and the server's

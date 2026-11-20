@@ -4,7 +4,7 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "./styles.css" layer(components);
-@import "./calendar/calendar.css" layer(components);
+@import "@callerwhale/calendar/calendar.css" layer(components);
 @import "./pricing/builder.css" layer(components);
 @import "./pricing.css" layer(components);
 @import "./public.css" layer(components);

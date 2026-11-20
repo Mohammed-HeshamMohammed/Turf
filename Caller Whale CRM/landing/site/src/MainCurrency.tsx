@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Auth } from "./auth/auth-client.js";
+import type { Auth } from "@callerwhale/auth-client";
 import { CurrencySelect } from "./CurrencySelect.tsx";
 import { applyLiveCurrencyData, currencyForCountry, currencyForLocale, currencyName, type Rates } from "./currency.ts";
 

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import type { Auth } from "./auth/auth-client.js";
+import type { Auth } from "@callerwhale/auth-client";
 
 /** An error from the staff API that keeps the service's own code (like "step_up_required"), so a screen can act on it. */
 export class ApiError extends Error {

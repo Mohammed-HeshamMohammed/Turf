@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { framesOf, reportFor } from "../src/error-report.js";
+import { framesOf, reportFor } from "../error-report.js";
 
 test("a report keeps the kind, page and code places, never the error's text (D303)", () => {
   const error = new TypeError("Cannot read Pat Seller 512-555-0101");

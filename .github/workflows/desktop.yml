@@ -11,8 +11,9 @@ on:
       - "Caller Whale CRM/Cargo.toml"
       - "Caller Whale CRM/Cargo.lock"
       - "Caller Whale CRM/services/features/**"
-      - "Caller Whale CRM/services/auth/clients/**"
-      - "Caller Whale CRM/shared/**"
+      - "packages/**"
+      - "package.json"
+      - "package-lock.json"
       - "service/**"
       - ".github/workflows/desktop.yml"
   push:
@@ -22,8 +23,9 @@ on:
       - "Caller Whale CRM/Cargo.toml"
       - "Caller Whale CRM/Cargo.lock"
       - "Caller Whale CRM/services/features/**"
-      - "Caller Whale CRM/services/auth/clients/**"
-      - "Caller Whale CRM/shared/**"
+      - "packages/**"
+      - "package.json"
+      - "package-lock.json"
       - "service/**"
       - ".github/workflows/desktop.yml"
   workflow_dispatch:
@@ -60,7 +62,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: Caller Whale CRM/desktop/frontend/react/package-lock.json
+          cache-dependency-path: package-lock.json
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
@@ -73,7 +75,9 @@ jobs:
             Caller Whale CRM/desktop/container/rust
       - run: pip install -r service/requirements.txt
       # The window embeds the built frontend, so it is built first.
-      - run: npm ci && npm run build
+      # npm workspaces (D383): install once at the root, then build the frontend.
+      - run: npm ci
+      - run: npm run build
         working-directory: Caller Whale CRM/desktop/frontend/react
       - run: cargo test --workspace --locked
         working-directory: Caller Whale CRM

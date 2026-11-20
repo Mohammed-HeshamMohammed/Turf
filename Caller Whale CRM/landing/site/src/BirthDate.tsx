@@ -1,4 +1,4 @@
-import { DatePicker } from "./calendar/calendar.jsx";
+import { DatePicker } from "@callerwhale/calendar";
 import { latestBirthDate } from "./age.ts";
 
 /** The date of birth field: Caller Whale's calendar, opening on the years (most people jump decades back). */
