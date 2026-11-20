@@ -608,7 +608,7 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 
 | # | Do | Expect |
 |---|---|---|
-| IM1 | GitHub: your profile, Packages (2026-11-19: all 22 are public, so every image job of the first run on `main` failed at its last step; the images were pushed) | One `cw-…` package per image (22), each **Private**. If any is public, open it, Package settings, Change visibility, Private (GitHub has no command for this); the workflow fails for an image that is public. |
+| IM1 | GitHub: your profile, Packages (2026-11-19: all 22 are public, so every image job of the first run on `main` failed at its last step; the images were pushed) | One `cw-…` package per image (22), each **Private**. If any is public, open it, Package settings, Change visibility, Private (GitHub has no command for this); the workflow warns about a public image, and fails only once the repository variable `IMAGES_MUST_BE_PRIVATE` is `true` (set it after CD5 and making them private). |
 | IM2 | Compare the repository's Actions variables `CALLERWHALE_AUTH_URL` and `CALLERWHALE_API_URL` with the website's and CRM web app's build variables in Coolify | The same addresses: they are built into the website and CRM web app images. |
 | IM3 | GitHub: Settings, Billing, Packages storage, a week after the first runs | Within the plan's private storage (500 MB on the free plan). If not, lower `min-versions-to-keep` in `images.yml` or decide on a paid plan. |
 | IM4 | Actions, Images, the latest run's summary | Each built image's digest; images that did not change say "nothing to build". |
