@@ -310,7 +310,7 @@ class EndToEndTest(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         with self.conn.cursor() as cur:
             cur.execute("DROP SCHEMA IF EXISTS crm CASCADE; DROP SCHEMA IF EXISTS importing CASCADE; CREATE SCHEMA crm; SET search_path = crm, public")
-            for script in sorted((HERE.parent.parent / "crm-core" / "migrations").glob("*.sql")):
+            for script in sorted((HERE.parent / "crm-core" / "migrations").glob("*.sql")):
                 cur.execute(script.read_text(encoding="utf8"))
             cur.execute("INSERT INTO crm.orgs (id, name) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Test')")
             cur.execute("INSERT INTO crm.leads (org_id, name, phone) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Lee Existing', '(512) 555-0199')")
